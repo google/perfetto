@@ -1,0 +1,169 @@
+#!/usr/bin/env python
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import argparse
+import hashlib
+import logging
+import os
+import shutil
+import sys
+import urllib
+import zipfile
+
+PREBUILTS = (
+  # GN
+  ('buildtools/mac/gn',
+   'https://storage.googleapis.com/chromium-gn/c2c934d4dda1f470a6511b1015dda9a9fb1ce50b',
+   'c2c934d4dda1f470a6511b1015dda9a9fb1ce50b',
+   'darwin'
+  ),
+  ('buildtools/linux64/gn',
+   'https://storage.googleapis.com/chromium-gn/b53fa13e950948c6f9a062189b76b34a9610281f',
+   'b53fa13e950948c6f9a062189b76b34a9610281f',
+   'linux2'
+  ),
+
+  # Ninja
+  ('buildtools/mac/ninja',
+   'https://storage.googleapis.com/fuchsia-build/fuchsia/ninja/mac/a1db595e824c50cf565fbf0af2437fd91b7babf4',
+   'a1db595e824c50cf565fbf0af2437fd91b7babf4',
+   'darwin'
+  ),
+  ('buildtools/linux64/ninja',
+   'https://storage.googleapis.com/fuchsia-build/fuchsia/ninja/linux64/d35b36c84a09f7e38b25947cafada10e8bf835bc',
+   'd35b36c84a09f7e38b25947cafada10e8bf835bc',
+   'linux2'
+  ),
+
+  # Android NDK
+  ('buildtools/ndk.zip',
+   'https://dl.google.com/android/repository/android-ndk-r15c-darwin-x86_64.zip',
+   'ea4b5d76475db84745aa8828000d009625fc1f98',
+   'darwin'
+  ),
+  ('buildtools/ndk.zip',
+   'https://dl.google.com/android/repository/android-ndk-r15c-linux-x86_64.zip',
+   '0bf02d4e8b85fd770fd7b9b2cdec57f9441f27a2',
+   'linux2'
+  ),
+
+  # Keep in sync with Android's //external/googletest/README.version .
+  ('buildtools/googletest.zip',
+   'https://github.com/google/googletest/archive/ff07a5de0e81580547f1685e101194ed1a4fcd56.zip',
+   'c7edec7d7e6db1fc37a20710de9c4d89e3a3893b',
+   'all'
+  ),
+
+  # Keep in sync with Android's //external/protobuf/README.version .
+  ('buildtools/protobuf.zip',
+   'https://github.com/google/protobuf/releases/download/v3.0.0-beta-3/protobuf-cpp-3.0.0-beta-3.zip',
+   '3caec60aa9d8eefc8c3c3201b6b8ca19935edb89',
+   'all'
+  ),
+)
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def ReadFile(path):
+  if not os.path.exists(path):
+    return None
+  with open(path) as f:
+      return f.read().strip()
+
+
+def MkdirRecursive(rel_path):
+  cwd = ROOT_DIR
+  for part in rel_path.split('/'):
+    cwd = os.path.join(cwd, part)
+    if not os.path.exists(cwd):
+      os.makedirs(cwd)
+    else:
+      assert(os.path.isdir(cwd))
+
+
+def HashLocalFile(path):
+  if not os.path.exists(path):
+    return None
+  with open(path, 'rb') as f:
+    return hashlib.sha1(f.read()).hexdigest()
+
+
+def ExtractZipfilePreservePermissions(zf, info, path):
+  zf.extract(info.filename, path=path)
+  target_path = os.path.join(path, info.filename)
+  min_acls = 0o755 if info.filename.endswith('/') else 0o644
+  os.chmod(target_path, (info.external_attr >> 16L) | min_acls)
+
+
+def Main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--skip', action='append', default=[])
+  args = parser.parse_args()
+  skip_set = set(args.skip)
+  for rel_path, url, expected_sha1, platform in PREBUILTS:
+    if platform != 'all' and platform != sys.platform:
+      continue
+    if os.path.basename(rel_path) in skip_set:
+      logging.info('Skipping %s because of --skip cmdline arg', rel_path)
+      continue
+    local_path = os.path.join(ROOT_DIR, rel_path)
+    is_zip = local_path.lower().endswith('.zip')
+    zip_target_dir = local_path[:-4] if is_zip else None
+    zip_dir_stamp = os.path.join(zip_target_dir, '.stamp') if is_zip else None
+
+    if ((not is_zip and HashLocalFile(local_path) == expected_sha1) or
+        (is_zip and ReadFile(zip_dir_stamp) == expected_sha1)):
+      continue
+    MkdirRecursive(os.path.dirname(rel_path))
+    if HashLocalFile(local_path) != expected_sha1:
+      download_path = local_path + '.tmp'
+      logging.info('Downloading %s from %s', local_path, url)
+      urllib.urlretrieve(url, download_path)
+      os.chmod(download_path, 0o755)
+      if (HashLocalFile(download_path) != expected_sha1):
+        os.remove(download_path)
+        logging.fatal('SHA1 mismatch for %s', download_path)
+        return 1
+      os.rename(download_path, local_path)
+    assert(HashLocalFile(local_path) == expected_sha1)
+
+    if is_zip:
+      logging.info('Extracting %s into %s' % (local_path, zip_target_dir))
+      assert(os.path.commonprefix((ROOT_DIR, zip_target_dir)) == ROOT_DIR)
+      if os.path.exists(zip_target_dir):
+        logging.info('Deleting stale dir %s' % zip_target_dir)
+        shutil.rmtree(zip_target_dir)
+      with zipfile.ZipFile(local_path, 'r') as zf:
+        for info in zf.infolist():
+          ExtractZipfilePreservePermissions(zf, info, zip_target_dir)
+
+        # If the zip contains one root folder, rebase one level up moving all
+        # its sub files and folders inside |target_dir|.
+        subdir = os.listdir(zip_target_dir)
+        if len(subdir) == 1:
+          subdir = os.path.join(zip_target_dir, subdir[0])
+          if os.path.isdir(subdir):
+            for subf in os.listdir(subdir):
+              shutil.move(os.path.join(subdir,subf), zip_target_dir)
+            os.rmdir(subdir)
+        with open(zip_dir_stamp, 'w') as stamp_file:
+          stamp_file.write(expected_sha1)
+        os.remove(local_path)
+
+
+if __name__ == '__main__':
+  logging.basicConfig(level=logging.INFO)
+  sys.exit(Main())
