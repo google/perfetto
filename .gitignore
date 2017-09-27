@@ -1,0 +1,16 @@
+.android_config
+.cproject
+.deps_sha1
+.DS_Store
+.gclient*
+.gm-actuals
+.gradle
+.idea
+.project
+.recipe_deps/
+.settings/
+*.iml
+*.pyc
+*.swp
+/out*
+TAGS
