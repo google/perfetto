@@ -1,0 +1,67 @@
+#!/usr/bin/env python
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import argparse
+import os
+import shutil
+import sys
+
+
+def Main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--verbose', '-v', action='store_true')
+  parser.add_argument('--pid', help='(optional) save pid into given file')
+  parser.add_argument('image', help='arm|arm64 (see //build/android_emulators)')
+  args = parser.parse_args()
+
+  root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+  ini = os.path.join(root_dir, 'build', 'android_emulators', args.image + '.ini')
+  assert os.path.exists(ini), 'File not found: ' + ini
+
+  avd_dir = os.path.join(root_dir, 'buildtools', 'emulator_images')
+  if not os.path.exists(avd_dir):
+    os.makedirs(avd_dir)
+
+  emu_img_dir = os.path.join(avd_dir, args.image + '.avd')
+  if not os.path.exists(emu_img_dir):
+    os.makedirs(emu_img_dir)
+  shutil.copyfile(ini, os.path.join(emu_img_dir, 'config.ini'))
+
+  with open(os.path.join(avd_dir, args.image + '.ini'), 'w') as f:
+    f.write('path=' + emu_img_dir)
+
+  sdk_dir = os.path.join(root_dir, 'buildtools', 'android_sdk')
+  env = {
+      # Travis CI doesn't set this and causes the emulator to fallback in
+      # 32-bit mode with a "Cannot decide host bitness because $SHELL" error.
+      'SHELL': '/bin/bash',
+      'ANDROID_EMULATOR_DEBUG': '1' if args.verbose else '0',
+      'ANDROID_SDK_ROOT': sdk_dir,
+      'ANDROID_AVD_HOME': avd_dir,
+      'DYLD_LIBRARY_PATH': os.path.join(sdk_dir, 'tools', 'lib64', 'qt', 'lib'),
+  }
+  emulator_bin = os.path.join(sdk_dir, 'tools', 'emulator')
+  emulator_args = ['-no-window', '-no-snapshot',  '-gpu', 'off', '-wipe-data',
+                   '-avd', args.image]
+  print '\n'.join('='.join(x) for x in env.items())
+  print ' '.join([emulator_bin] + emulator_args)
+  if args.pid:
+    with open(args.pid, 'w') as f:
+      f.write(str(os.getpid()))
+  os.execve(emulator_bin, [emulator_bin] + emulator_args, env)
+
+
+if __name__ == '__main__':
+  sys.exit(Main())
