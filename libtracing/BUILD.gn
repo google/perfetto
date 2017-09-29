@@ -14,12 +14,23 @@
 
 executable("libtracing_unittests") {
   testonly = true
-  deps = [
+  deps += [
     "../buildtools:gmock",
     "../buildtools:gtest",
     "../buildtools:gtest_main",
   ]
   sources = [
     "hello_world_unittest.cc",
+  ]
+}
+
+executable("sanitizers_unittests") {
+  testonly = true
+  deps += [
+    "../buildtools:gtest",
+    "../buildtools:gtest_main",
+  ]
+  sources = [
+    "sanitizers_unittest.cc",
   ]
 }

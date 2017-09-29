@@ -18,6 +18,7 @@ import hashlib
 import logging
 import os
 import shutil
+import subprocess
 import sys
 import urllib
 import zipfile
@@ -72,6 +73,21 @@ PREBUILTS = (
    '3caec60aa9d8eefc8c3c3201b6b8ca19935edb89',
    'all'
   ),
+
+  # libc++ and libc++abi, for clang msan that require rebuilding the C++ lib
+  # from sources. Keep the SHA1s in sync with Chrome's src/buildtools/DEPS .
+  ('buildtools/libcxx',
+   'https://chromium.googlesource.com/chromium/llvm-project/libcxx.git',
+   '3a07dd740be63878167a0ea19fe81869954badd7',
+   'all'
+  ),
+  ('buildtools/libcxxabi',
+   'https://chromium.googlesource.com/chromium/llvm-project/libcxxabi.git',
+   '4072e8fd76febee37f60aeda76d6d9f5e3791daa',
+   'all'
+  ),
+
+
 )
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -84,9 +100,10 @@ def ReadFile(path):
       return f.read().strip()
 
 
-def MkdirRecursive(rel_path):
-  cwd = ROOT_DIR
-  for part in rel_path.split('/'):
+def MkdirRecursive(path):
+  # Works with both relative and absolute paths
+  cwd = '/' if path.startswith('/') else ROOT_DIR
+  for part in path.split('/'):
     cwd = os.path.join(cwd, part)
     if not os.path.exists(cwd):
       os.makedirs(cwd)
@@ -108,6 +125,22 @@ def ExtractZipfilePreservePermissions(zf, info, path):
   os.chmod(target_path, (info.external_attr >> 16L) | min_acls)
 
 
+def IsGitRepoCheckoutOutAtRevision(path, revision):
+  return ReadFile(os.path.join(path, '.git', 'HEAD')) == revision
+
+
+def CheckoutGitRepo(path, git_url, revision):
+  if IsGitRepoCheckoutOutAtRevision(path, revision):
+    return
+  if os.path.exists(path):
+    shutil.rmtree(path)
+  MkdirRecursive(path)
+  logging.info('Fetching %s @ %s into %s', git_url, revision, path)
+  subprocess.check_call(['git', 'clone', git_url, path], cwd=path)
+  subprocess.check_call(['git', 'checkout', revision, '--quiet'], cwd=path)
+  assert(IsGitRepoCheckoutOutAtRevision(path, revision))
+
+
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--skip', action='append', default=[])
@@ -120,6 +153,9 @@ def Main():
       logging.info('Skipping %s because of --skip cmdline arg', rel_path)
       continue
     local_path = os.path.join(ROOT_DIR, rel_path)
+    if url.endswith('.git'):
+      CheckoutGitRepo(local_path, url, expected_sha1)
+      continue
     is_zip = local_path.lower().endswith('.zip')
     zip_target_dir = local_path[:-4] if is_zip else None
     zip_dir_stamp = os.path.join(zip_target_dir, '.stamp') if is_zip else None

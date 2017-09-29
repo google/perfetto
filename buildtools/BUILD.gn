@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//build/c++.gni")
+
 config("googletest_config") {
   visibility = [ ":*" ]
   defines = [ "GTEST_LANG_CXX11=1" ]
@@ -128,9 +130,7 @@ source_set("protobuf_lite") {
 }
 
 source_set("protobuf_full") {
-  deps = [
-    ":protobuf_lite",
-  ]
+  deps += [ ":protobuf_lite" ]
   sources = [
     "protobuf/src/google/protobuf/any.cc",
     "protobuf/src/google/protobuf/any.pb.cc",
@@ -192,9 +192,7 @@ source_set("protobuf_full") {
 
 if (current_toolchain == host_toolchain) {
   executable("protoc") {
-    deps = [
-      ":protobuf_full",
-    ]
+    deps += [ ":protobuf_full" ]
     sources = [
       "protobuf/src/google/protobuf/compiler/code_generator.cc",
       "protobuf/src/google/protobuf/compiler/command_line_interface.cc",
@@ -293,3 +291,101 @@ if (current_toolchain == host_toolchain) {
     public_configs = [ ":protobuf_config" ]
   }
 }  # host_toolchain
+
+if (use_custom_libcxx) {
+  # Config applied to both libc++ and libc++abi targets below.
+  config("libc++config") {
+    defines = [
+      "LIBCXX_BUILDING_LIBCXXABI",
+      "_LIBCXXABI_NO_EXCEPTIONS",
+      "_LIBCPP_OVERRIDABLE_FUNC_VIS=__attribute__((__visibility__(\"default\")))",
+    ]
+    cflags = [
+      "-fPIC",
+      "-fstrict-aliasing",
+    ]
+  }
+
+  source_set("libc++abi") {
+    sources = [
+      "libcxxabi/src/abort_message.cpp",
+      "libcxxabi/src/cxa_aux_runtime.cpp",
+      "libcxxabi/src/cxa_default_handlers.cpp",
+      "libcxxabi/src/cxa_demangle.cpp",
+      "libcxxabi/src/cxa_exception.cpp",
+      "libcxxabi/src/cxa_exception_storage.cpp",
+      "libcxxabi/src/cxa_guard.cpp",
+      "libcxxabi/src/cxa_handlers.cpp",
+      "libcxxabi/src/cxa_personality.cpp",
+      "libcxxabi/src/cxa_unexpected.cpp",
+      "libcxxabi/src/cxa_vector.cpp",
+      "libcxxabi/src/cxa_virtual.cpp",
+      "libcxxabi/src/fallback_malloc.cpp",
+      "libcxxabi/src/private_typeinfo.cpp",
+      "libcxxabi/src/stdlib_exception.cpp",
+      "libcxxabi/src/stdlib_stdexcept.cpp",
+      "libcxxabi/src/stdlib_typeinfo.cpp",
+    ]
+
+    # On linux this seems to introduce an unwanted glibc 2.18 dependency.
+    if (is_android) {
+      sources += [ "libcxxabi/src/cxa_thread_atexit.cpp" ]
+    }
+    configs -= [
+      "//build:extra_warnings",
+      "//build:no_exceptions",
+      "//build:no_rtti",
+    ]
+    configs += [
+      ":libc++config",
+      "//build/sanitizers:sanitizer_options_link_helper",
+    ]
+  }
+
+  source_set("libc++") {
+    sources = [
+      "libcxx/src/algorithm.cpp",
+      "libcxx/src/any.cpp",
+      "libcxx/src/bind.cpp",
+      "libcxx/src/chrono.cpp",
+      "libcxx/src/condition_variable.cpp",
+      "libcxx/src/debug.cpp",
+      "libcxx/src/exception.cpp",
+      "libcxx/src/functional.cpp",
+      "libcxx/src/future.cpp",
+      "libcxx/src/hash.cpp",
+      "libcxx/src/ios.cpp",
+      "libcxx/src/iostream.cpp",
+      "libcxx/src/locale.cpp",
+      "libcxx/src/memory.cpp",
+      "libcxx/src/mutex.cpp",
+      "libcxx/src/new.cpp",
+      "libcxx/src/optional.cpp",
+      "libcxx/src/random.cpp",
+      "libcxx/src/regex.cpp",
+      "libcxx/src/shared_mutex.cpp",
+      "libcxx/src/stdexcept.cpp",
+      "libcxx/src/string.cpp",
+      "libcxx/src/strstream.cpp",
+      "libcxx/src/system_error.cpp",
+      "libcxx/src/thread.cpp",
+      "libcxx/src/typeinfo.cpp",
+      "libcxx/src/utility.cpp",
+      "libcxx/src/valarray.cpp",
+      "libcxx/src/variant.cpp",
+    ]
+    configs -= [
+      "//build:extra_warnings",
+      "//build:no_exceptions",
+      "//build:no_rtti",
+    ]
+    configs += [
+      ":libc++config",
+      "//build/sanitizers:sanitizer_options_link_helper",
+    ]
+    defines = [ "_LIBCPP_BUILDING_LIBRARY" ]
+    deps = [
+      ":libc++abi",
+    ]
+  }
+}  # if (use_custom_libcxx)

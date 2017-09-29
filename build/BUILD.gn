@@ -13,9 +13,15 @@
 # limitations under the License.
 
 import("//build/android.gni")
+import("//build/c++.gni")
+import("//build/mac.gni")
+import("//build/sanitizers/sanitizers.gni")
 
 config("extra_warnings") {
-  cflags = [ "-Wextra" ]
+  cflags = [
+    "-Wextra",
+    "-Wno-missing-field-initializers",
+  ]
   if (is_clang) {
     cflags += [
       "-Weverything",
@@ -28,6 +34,14 @@ config("extra_warnings") {
       "-Wno-unused-parameter",
     ]
   }
+}
+
+config("no_exceptions") {
+  cflags = [ "-fno-exceptions" ]
+}
+
+config("no_rtti") {
+  cflags = [ "-fno-rtti" ]
 }
 
 config("default") {
@@ -44,8 +58,6 @@ config("default") {
   cflags_cc += [ "-std=c++11" ]
 
   cflags += [
-    "-fno-exceptions",
-    "-fno-rtti",
     "-fstrict-aliasing",
     "-fstack-protector",
     "-fPIC",
@@ -73,6 +85,10 @@ config("default") {
 
   if (is_linux) {
     libs += [ "pthread" ]
+  }
+
+  if (is_android) {
+    libs += [ "log" ]
   }
 
   if (is_android) {
@@ -125,7 +141,21 @@ config("debug_symbols") {
       "-funwind-tables",
     ]
   } else {
-    cflags = [ "-g" ]
+    cflags = [ "-g2" ]
+  }
+}
+
+config("runtime_library") {
+  if (use_custom_libcxx) {
+    defines = [
+      "_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
+      "_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
+    ]
+    cflags_cc = [
+      "-nostdinc++",
+      "-isystem" + rebase_path("$libcxx_prefix/include", root_build_dir),
+      "-isystem" + rebase_path("$libcxxabi_prefix/include", root_build_dir),
+    ]
   }
 }
 
@@ -143,8 +173,24 @@ config("release") {
   defines = [ "NDEBUG" ]
 }
 
-config("executable") {
+group("exe_and_shlib_deps") {
+  public_deps = []
+  if (using_sanitizer) {
+    public_deps += [ "//build/sanitizers:deps" ]
+  }
+  if (use_custom_libcxx) {
+    public_deps += [ "//buildtools:libc++" ]
+  }
+}
+
+config("shared_library") {
   if (is_android || is_linux) {
+    ldflags = [ "-fPIC" ]
+  }
+}
+
+config("executable") {
+  if (is_android) {
     asmflags = [ "-fPIE" ]
     cflags = [ "-fPIE" ]
     ldflags = [
