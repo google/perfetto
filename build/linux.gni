@@ -12,19 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-group("all") {
-  testonly = true  # allow to build also test targets
-  deps = [
-    ":tests",
-    "//buildtools:protobuf_lite",
-  ]
-  deps += [ "//buildtools:protoc($host_toolchain)" ]
+declare_args() {
+  linux_clangrt_dir = ""
 }
 
-group("tests") {
-  testonly = true
-  deps = [
-    "//libtracing:libtracing_unittests",
-    "//libtracing:sanitizers_unittests",
-  ]
+if (linux_clangrt_dir == "" && is_linux) {
+  linux_llvm_dir = exec_script("linux_find_llvm.py", [], "list lines")
+  linux_llvm_dir = linux_llvm_dir[0]
+  linux_clangrt_dir = "$linux_llvm_dir/lib/linux"
 }
