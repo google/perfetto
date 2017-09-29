@@ -12,19 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-group("all") {
-  testonly = true  # allow to build also test targets
-  deps = [
-    ":tests",
-    "//buildtools:protobuf_lite",
-  ]
-  deps += [ "//buildtools:protoc($host_toolchain)" ]
-}
+import os
+import subprocess
+import sys
 
-group("tests") {
-  testonly = true
-  deps = [
-    "//libtracing:libtracing_unittests",
-    "//libtracing:sanitizers_unittests",
-  ]
-}
+def main():
+  res = subprocess.check_output(['clang', '-print-search-dirs'])
+  for line in res.splitlines():
+    if not line.startswith('libraries:'):
+      continue
+    libs = line.split('=', 1)[1].split(':')
+    for lib in libs:
+      if '/clang/' not in lib or not os.path.isdir(lib + '/lib'):
+        continue
+      print os.path.abspath(lib)
+      return 0
+  print 'Could not find the LLVM lib dir'
+  return 1
+
+if __name__ == '__main__':
+  sys.exit(main())

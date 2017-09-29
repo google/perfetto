@@ -1,0 +1,142 @@
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("//build/sanitizers/sanitizers.gni")
+import("//build/android.gni")
+import("//build/linux.gni")
+import("//build/mac.gni")
+
+# Link dependencies for sanitizers for executables and shared_libraries.
+group("deps") {
+  visibility = [ "//build:exe_and_shlib_deps" ]
+  if (using_sanitizer) {
+    public_configs = [ ":sanitizers_ldflags" ]
+  }
+}
+
+config("sanitizers_cflags") {
+  if (using_sanitizer) {
+    blacklist_path_ = rebase_path("blacklist.txt", root_build_dir)
+    cflags = [
+      "-fno-omit-frame-pointer",
+      "-fsanitize-blacklist=$blacklist_path_",
+    ]
+    defines = []
+  }
+
+  if (is_asan) {
+    cflags += [ "-fsanitize=address" ]
+    defines += [ "ADDRESS_SANITIZER" ]
+  }
+  if (is_lsan) {
+    cflags += [ "-fsanitize=leak" ]
+    defines += [ "LEAK_SANITIZER" ]
+  }
+  if (is_tsan) {
+    cflags += [ "-fsanitize=thread" ]
+    defines += [
+      "THREAD_SANITIZER",
+      "DYNAMIC_ANNOTATIONS_EXTERNAL_IMPL=1",
+    ]
+  }
+  if (is_msan) {
+    cflags += [
+      "-fsanitize=memory",
+      "-fsanitize-memory-track-origins=2",
+    ]
+    defines += [ "MEMORY_SANITIZER" ]
+  }
+  if (is_ubsan) {
+    cflags += [
+      "-fsanitize=bounds",
+      "-fsanitize=float-divide-by-zero",
+      "-fsanitize=integer-divide-by-zero",
+      "-fsanitize=null",
+      "-fsanitize=object-size",
+      "-fsanitize=return",
+      "-fsanitize=returns-nonnull-attribute",
+      "-fsanitize=shift-exponent",
+      "-fsanitize=signed-integer-overflow",
+      "-fsanitize=unreachable",
+      "-fsanitize=vla-bound",
+    ]
+    defines += [ "UNDEFINED_SANITIZER" ]
+  }
+}
+
+config("sanitizer_options_link_helper") {
+  if (is_mac) {
+    ldflags = [ "-Wl,-U,_sanitizer_options_link_helper" ]
+  }
+}
+
+config("sanitizers_ldflags") {
+  visibility = [ ":deps" ]
+  cflags = [ "-fno-omit-frame-pointer" ]
+  ldflags = []
+  _sanitizer_lib = ""
+  if (is_asan) {
+    cflags += [ "-fsanitize=address" ]
+    ldflags += [ "-fsanitize=address" ]
+    _sanitizer_lib = "clang_rt.asan"
+  }
+  if (is_lsan) {
+    cflags += [ "-fsanitize=leak" ]
+    ldflags += [ "-fsanitize=leak" ]
+  }
+  if (is_tsan) {
+    cflags += [ "-fsanitize=thread" ]
+    ldflags += [ "-fsanitize=thread" ]
+    _sanitizer_lib = "clang_rt.tsan"
+  }
+  if (is_msan) {
+    cflags += [ "-fsanitize=memory" ]
+    ldflags += [ "-fsanitize=memory" ]
+  }
+  if (is_ubsan) {
+    cflags += [
+      "-fsanitize=bounds",
+      "-fsanitize=float-divide-by-zero",
+      "-fsanitize=integer-divide-by-zero",
+      "-fsanitize=null",
+      "-fsanitize=object-size",
+      "-fsanitize=return",
+      "-fsanitize=returns-nonnull-attribute",
+      "-fsanitize=shift-exponent",
+      "-fsanitize=signed-integer-overflow",
+      "-fsanitize=unreachable",
+      "-fsanitize=vla-bound",
+    ]
+    _sanitizer_lib = "clang_rt.ubsan"
+    if (is_android || is_linux) {
+      _sanitizer_lib += "_standalone"
+    }
+    ldflags += [ "-fsanitize=undefined" ]
+  }
+  if (_sanitizer_lib != "") {
+    if (is_mac) {
+      lib_dirs = [ mac_clangrt_dir ]
+      libs = [ "${_sanitizer_lib}_osx_dynamic" ]
+      configs = [ ":sanitizer_options_link_helper" ]
+    }
+    if (is_linux) {
+      lib_dirs = [ linux_clangrt_dir ]
+      ldflags += [ "-Llib${_sanitizer_lib}-x86_64.a" ]
+    }
+    if (is_android) {
+      lib_dirs = [ android_clangrt_dir ]
+      libs = [ "${_sanitizer_lib}-${android_llvm_arch}-android" ]
+    }
+  }
+}
