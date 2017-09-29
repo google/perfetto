@@ -13,15 +13,28 @@
 # limitations under the License.
 
 import("//build/sanitizers/sanitizers.gni")
-import("//build/android.gni")
-import("//build/linux.gni")
-import("//build/mac.gni")
 
 # Link dependencies for sanitizers for executables and shared_libraries.
 group("deps") {
   visibility = [ "//build:exe_and_shlib_deps" ]
   if (using_sanitizer) {
     public_configs = [ ":sanitizers_ldflags" ]
+    if (is_android && sanitizer_lib != "" && !sanitizer_lib_dir_is_static) {
+      deps = [
+        ":copy_sanitizer_lib",
+      ]
+    }
+  }
+}
+
+if (is_android && sanitizer_lib != "" && !sanitizer_lib_dir_is_static) {
+  copy("copy_sanitizer_lib") {
+    sources = [
+      "${sanitizer_lib_dir}/lib${sanitizer_lib}.so",
+    ]
+    outputs = [
+      "${root_out_dir}/sanitizer_libs/lib${sanitizer_lib}.so",
+    ]
   }
 }
 
@@ -85,11 +98,9 @@ config("sanitizers_ldflags") {
   visibility = [ ":deps" ]
   cflags = [ "-fno-omit-frame-pointer" ]
   ldflags = []
-  _sanitizer_lib = ""
   if (is_asan) {
     cflags += [ "-fsanitize=address" ]
     ldflags += [ "-fsanitize=address" ]
-    _sanitizer_lib = "clang_rt.asan"
   }
   if (is_lsan) {
     cflags += [ "-fsanitize=leak" ]
@@ -98,7 +109,6 @@ config("sanitizers_ldflags") {
   if (is_tsan) {
     cflags += [ "-fsanitize=thread" ]
     ldflags += [ "-fsanitize=thread" ]
-    _sanitizer_lib = "clang_rt.tsan"
   }
   if (is_msan) {
     cflags += [ "-fsanitize=memory" ]
@@ -118,25 +128,15 @@ config("sanitizers_ldflags") {
       "-fsanitize=unreachable",
       "-fsanitize=vla-bound",
     ]
-    _sanitizer_lib = "clang_rt.ubsan"
-    if (is_android || is_linux) {
-      _sanitizer_lib += "_standalone"
-    }
     ldflags += [ "-fsanitize=undefined" ]
   }
-  if (_sanitizer_lib != "") {
-    if (is_mac) {
-      lib_dirs = [ mac_clangrt_dir ]
-      libs = [ "${_sanitizer_lib}_osx_dynamic" ]
-      configs = [ ":sanitizer_options_link_helper" ]
-    }
-    if (is_linux) {
-      lib_dirs = [ linux_clangrt_dir ]
-      ldflags += [ "-Llib${_sanitizer_lib}-x86_64.a" ]
-    }
-    if (is_android) {
-      lib_dirs = [ android_clangrt_dir ]
-      libs = [ "${_sanitizer_lib}-${android_llvm_arch}-android" ]
+  if (sanitizer_lib != "") {
+    configs = [ ":sanitizer_options_link_helper" ]
+    lib_dirs = [ sanitizer_lib_dir ]
+    if (sanitizer_lib_dir_is_static) {
+      ldflags += [ "-L${sanitizer_lib}" ]
+    } else {
+      libs = [ sanitizer_lib ]
     }
   }
 }

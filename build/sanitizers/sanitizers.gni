@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//build/android.gni")
+import("//build/linux.gni")
+import("//build/mac.gni")
+
 declare_args() {
   # Address Sanitizer: memory bugs (e.g., UAF).
   is_asan = false
@@ -27,6 +31,45 @@ declare_args() {
 
   # Undefined Behaviour Sanitizer.
   is_ubsan = false
+}
+
+declare_args() {
+  sanitizer_lib_base_name_ = ""
+  if (is_asan || is_tsan || is_ubsan) {
+    if (is_asan) {
+      sanitizer_lib_base_name_ = "clang_rt.asan"
+    }
+    if (is_tsan) {
+      sanitizer_lib_base_name_ = "clang_rt.tsan"
+    }
+    if (is_ubsan) {
+      sanitizer_lib_base_name_ = "clang_rt.ubsan"
+      if (is_android || is_linux) {
+        sanitizer_lib_base_name_ += "_standalone"
+      }
+    }
+  }
+}
+
+declare_args() {
+  sanitizer_lib_dir = ""
+  sanitizer_lib = ""
+  sanitizer_lib_dir_is_static = false
+  if (sanitizer_lib_base_name_ != "") {
+    if (is_mac) {
+      sanitizer_lib = "${sanitizer_lib_base_name_}_osx_dynamic"
+      sanitizer_lib_dir = mac_clangrt_dir
+    }
+    if (is_linux) {
+      sanitizer_lib = "lib${sanitizer_lib_base_name_}-x86_64.a"
+      sanitizer_lib_dir_is_static = true
+      sanitizer_lib_dir = linux_clangrt_dir
+    }
+    if (is_android) {
+      sanitizer_lib = "${sanitizer_lib_base_name_}-${android_llvm_arch}-android"
+      sanitizer_lib_dir = android_clangrt_dir
+    }
+  }
 }
 
 using_sanitizer = is_asan || is_lsan || is_tsan || is_msan || is_ubsan
