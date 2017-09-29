@@ -1,7 +1,9 @@
+android_sdk/
+emulator_images/
 googletest/
+libcxx/
+libcxxabi/
 linux/
 mac/
 ndk/
 protobuf/
-libcxx/
-libcxxabi/
