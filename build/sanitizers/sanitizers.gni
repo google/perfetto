@@ -12,19 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-group("all") {
-  testonly = true  # allow to build also test targets
-  deps = [
-    ":tests",
-    "//buildtools:protobuf_lite",
-  ]
-  deps += [ "//buildtools:protoc($host_toolchain)" ]
+declare_args() {
+  # Address Sanitizer: memory bugs (e.g., UAF).
+  is_asan = false
+
+  # Leak Sanitizer: memory leaks.
+  is_lsan = false
+
+  # Memory Sanitizer: uninitialized reads.
+  is_msan = false
+
+  # Thread Sanitizer: threading bugs.
+  is_tsan = false
+
+  # Undefined Behaviour Sanitizer.
+  is_ubsan = false
 }
 
-group("tests") {
-  testonly = true
-  deps = [
-    "//libtracing:libtracing_unittests",
-    "//libtracing:sanitizers_unittests",
-  ]
-}
+using_sanitizer = is_asan || is_lsan || is_tsan || is_msan || is_ubsan
+assert(!using_sanitizer || is_clang, "is_*san requires is_clang=true'")
+assert(!is_msan || is_linux, "msan only supported on linux")
+assert(!is_tsan || (is_linux || is_mac), "tsan only supported on linux and mac")

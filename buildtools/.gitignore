@@ -3,3 +3,5 @@ linux/
 mac/
 ndk/
 protobuf/
+libcxx/
+libcxxabi/

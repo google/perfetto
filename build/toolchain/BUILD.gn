@@ -21,10 +21,8 @@ declare_args() {
 
   if (is_android) {
     target_ar = "$android_toolchain_root/bin/ar"
-    target_cc =
-        "$android_ndk_root/toolchains/llvm/prebuilt/$android_host/bin/clang"
-    target_cxx =
-        "$android_ndk_root/toolchains/llvm/prebuilt/$android_host/bin/clang++"
+    target_cc = "$android_llvm_dir/bin/clang"
+    target_cxx = "$android_llvm_dir/bin/clang++"
   } else {
     target_ar = ar
     target_cc = cc
