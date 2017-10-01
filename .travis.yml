@@ -1,0 +1,147 @@
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+language: cpp
+
+matrix:
+  include:
+    - os: osx
+      osx_image: xcode8.3
+      compiler: clang
+      env: CFG=mac-clang-x86_64-release GN_ARGS="is_debug=false"
+    - os: osx
+      osx_image: xcode8.3
+      compiler: clang
+      env: CFG=mac-clang-x86_64-debug GN_ARGS="is_debug=true"
+    - os: osx
+      osx_image: xcode8.3
+      compiler: clang
+      env: CFG=mac-clang-x86_64-asan GN_ARGS="is_debug=false is_asan=true"
+    - os: osx
+      osx_image: xcode8.3
+      compiler: clang
+      env: CFG=mac-clang-x86_64-tsan GN_ARGS="is_debug=false is_tsan=true"
+    - os: osx
+      osx_image: xcode8.3
+      compiler: clang
+      env: CFG=mac-clang-x86_64-ubsan GN_ARGS="is_debug=false is_ubsan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=linux_trusty-clang-x86_64-debug GN_ARGS="is_debug=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=linux_trusty-clang-x86_64-asan GN_ARGS="is_debug=false is_asan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=linux_trusty-clang-x86_64-tsan GN_ARGS="is_debug=false is_tsan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=linux_trusty-clang-x86_64-msan GN_ARGS="is_debug=false is_msan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=linux_trusty-clang-x86_64-lsan GN_ARGS="is_debug=false is_lsan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=linux_trusty-clang-x86_64-ubsan GN_ARGS="is_debug=false is_ubsan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: gcc
+      env: CFG=linux_trusty-gcc-x86_64-release GN_ARGS="is_debug=false is_clang=false"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: gcc
+      env: CFG=linux_trusty-gcc-x86_64-release GN_ARGS="is_debug=false is_clang=false"
+    - os: linux
+      dist: trusty
+      sudo: false
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-7
+      env: CFG=linux_trusty-gcc7-x86_64-release GN_ARGS="is_debug=false is_clang=false cc=\"gcc-7\" cxx=\"g++-7\""
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=android-clang-arm-release GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\""
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=android-clang-arm64-release GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\""
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=android-clang-arm-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\" is_asan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=android-clang-arm-lsan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\" is_lsan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=android-clang-arm64-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\" is_asan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=android-clang-arm64-lsan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\" is_lsan=true"
+
+
+before_install:
+  - set -e
+  - echo "$CFG" && echo "$GN_ARGS"
+  - ASAN_SYMBOLIZER_PATH="$(which llvm-symbolizer || echo /usr/bin/llvm-symbolizer-*)"
+
+install:
+  - |
+    if [[ "$CFG" != android-* ]]; then
+      build/install-build-deps --no-android
+    else
+      build/install-build-deps
+    fi
+
+script:
+  - build/gn gen out/dist --args="${GN_ARGS}" --check
+  - build/ninja -C out/dist -j8 all
+  - |
+    if [[ "$CFG" != android-* ]]; then
+      out/dist/libtracing_unittests
+    else
+      TARGET_ARCH=$(echo $CFG | cut -d- -f3)
+      build/run_android_emulator $TARGET_ARCH --pid /tmp/emulator.pid -v &
+      build/run_android_test out/dist libtracing_unittests
+    fi
+
+after_script:
+  - test -f /tmp/emulator.pid && kill -9 $(cat /tmp/emulator.pid); true
