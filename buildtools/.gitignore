@@ -4,6 +4,7 @@ googletest/
 libcxx/
 libcxxabi/
 linux/
+linux64/
 mac/
 ndk/
 protobuf/

@@ -62,7 +62,7 @@ import traceback
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 GIT_UPSTREAM = 'https://android.googlesource.com/platform/external/perfetto/'
-GIT_MIRROR = 'git@github.com:primiano/perfetto-ci.git'
+GIT_MIRROR = 'git@github.com:catapult-project/perfetto.git'
 WORKDIR = os.path.join(CUR_DIR, 'repo')
 
 # The actual deploy_key is stored into the internal team drive, undef /infra/.
