@@ -83,18 +83,17 @@ config("protobuf_config") {
     "-Wno-unused",
     "-Wno-ignored-qualifiers",
   ]
-  if (!is_clang) {
-    cflags += [
-      "-Wno-misleading-indentation",
-      "-Wno-return-type",
-    ]
-  } else {
+  if (is_clang) {
     cflags += [
       "-Wno-used-but-marked-unused",
       "-Wno-weak-vtables",
       "-Wno-shift-sign-overflow",
-      "-Wno-macro-redefined",
       "-Wno-global-constructors",
+    ]
+  } else {
+    cflags += [
+      "-Wno-misleading-indentation",
+      "-Wno-return-type",
     ]
   }
 }
