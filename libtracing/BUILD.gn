@@ -15,20 +15,30 @@
 executable("libtracing_unittests") {
   testonly = true
   deps += [
-    "../buildtools:gmock",
-    "../buildtools:gtest",
-    "../buildtools:gtest_main",
+    "//buildtools:gmock",
+    "//buildtools:gtest",
+    "//buildtools:gtest_main",
   ]
   sources = [
     "hello_world_unittest.cc",
   ]
 }
 
+executable("libtracing_benchmarks") {
+  testonly = true
+  deps += [
+    "//buildtools:benchmark",
+  ]
+  sources = [
+    "hello_world_benchmark.cc",
+  ]
+}
+
 executable("sanitizers_unittests") {
   testonly = true
   deps += [
-    "../buildtools:gtest",
-    "../buildtools:gtest_main",
+    "//buildtools:gtest",
+    "//buildtools:gtest_main",
   ]
   sources = [
     "sanitizers_unittest.cc",
