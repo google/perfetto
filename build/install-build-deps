@@ -95,6 +95,13 @@ BUILD_DEPS_HOST = [
    '4072e8fd76febee37f60aeda76d6d9f5e3791daa',
    'all'
   ),
+
+  # Benchmarking tool.
+  ('buildtools/benchmark.zip',
+   'https://github.com/google/benchmark/archive/v1.2.0.zip',
+   '553b6bfa59c63f15c54cfd8c5122b0f7f84469af',
+   'all'
+  ),
 ]
 
 # Dependencies required to build Android code.

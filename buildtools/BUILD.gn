@@ -388,3 +388,61 @@ if (use_custom_libcxx) {
     ]
   }
 }  # if (use_custom_libcxx)
+
+config("benchmark_config") {
+  visibility = [ ":*" ]
+  include_dirs = [
+    "benchmark/include",
+  ]
+  cflags = [
+    "-Wno-global-constructors",
+    "-Wno-covered-switch-default",
+    "-Wno-weak-vtables",
+  ]
+}
+
+source_set("benchmark") {
+  testonly = true
+  sources = [
+    "benchmark/include/benchmark/benchmark.h",
+    "benchmark/include/benchmark/benchmark_api.h",
+    "benchmark/include/benchmark/reporter.h",
+    "benchmark/src/arraysize.h",
+    "benchmark/src/benchmark.cc",
+    "benchmark/src/benchmark_api_internal.h",
+    "benchmark/src/benchmark_register.cc",
+    "benchmark/src/check.h",
+    "benchmark/src/colorprint.cc",
+    "benchmark/src/colorprint.h",
+    "benchmark/src/commandlineflags.cc",
+    "benchmark/src/commandlineflags.h",
+    "benchmark/src/complexity.cc",
+    "benchmark/src/complexity.h",
+    "benchmark/src/console_reporter.cc",
+    "benchmark/src/counter.cc",
+    "benchmark/src/counter.h",
+    "benchmark/src/csv_reporter.cc",
+    "benchmark/src/cycleclock.h",
+    "benchmark/src/internal_macros.h",
+    "benchmark/src/json_reporter.cc",
+    "benchmark/src/log.h",
+    "benchmark/src/mutex.h",
+    "benchmark/src/re.h",
+    "benchmark/src/reporter.cc",
+    "benchmark/src/sleep.cc",
+    "benchmark/src/sleep.h",
+    "benchmark/src/stat.h",
+    "benchmark/src/string_util.cc",
+    "benchmark/src/string_util.h",
+    "benchmark/src/sysinfo.cc",
+    "benchmark/src/sysinfo.h",
+    "benchmark/src/timers.cc",
+    "benchmark/src/timers.h",
+  ]
+  defines = [ "HAVE_POSIX_REGEX" ]
+  public_configs = [ ":benchmark_config" ]
+  all_dependent_configs = [ ":benchmark_config" ]
+  configs -= [
+    "//build:extra_warnings",
+  ]
+}
