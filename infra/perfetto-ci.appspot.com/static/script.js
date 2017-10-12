@@ -46,12 +46,15 @@ function GetTravisStatusForJob(jobId, div) {
     let link = document.createElement('a');
     link.href = 'https://travis-ci.org/' + REPO + '/jobs/' + jobId;
     link.title = resp.state + ' [' + jobName + ']';
-    link.classList.add(resp.state);
-    if (resp.state == 'finished')
+    let jobState = resp.state;
+    if (resp.state == 'finished' && resp.result !== 0)
+      jobState = 'errored';
+    link.classList.add(jobState);
+    if (jobState == 'finished')
       link.innerHTML = '<i class="material-icons">check_circle</i>';
-    else if (resp.state == 'created')
+    else if (jobState == 'created')
       link.innerHTML = '<i class="material-icons">autorenew</i>';
-    else if (resp.state == 'errored' || resp.state == 'cancelled')
+    else if (jobState == 'errored' || jobState == 'cancelled')
       link.innerHTML = '<i class="material-icons">bug_report</i>';
     else
       link.innerHTML = '<i class="material-icons">hourglass_full</i>';
