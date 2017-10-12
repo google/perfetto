@@ -59,7 +59,8 @@ def Main():
   if os.path.exists(sanitizer_libs):
     AdbCall('push', sanitizer_libs, target_dir)
     env = 'LD_LIBRARY_PATH="%s/sanitizer_libs" ' % (target_dir)
-  cmd = env + target_dir + '/' + args.test_name + '; echo TEST_RET_CODE=$?'
+  cmd = env + target_dir + '/' + args.test_name
+  cmd += '; echo -e "\\nTEST_RET_CODE=$?"'
   print cmd
   test_output = subprocess.check_output([ADB_PATH, 'shell', cmd])
   print test_output
