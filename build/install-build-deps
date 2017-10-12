@@ -39,6 +39,24 @@ BUILD_DEPS_HOST = [
    'linux2'
   ),
 
+  # clang-format
+  ('buildtools/mac/clang-format',
+   'https://storage.googleapis.com/chromium-clang-format/0679b295e2ce2fce7919d1e8d003e497475f24a3',
+   '0679b295e2ce2fce7919d1e8d003e497475f24a3',
+   'darwin'
+  ),
+  ('buildtools/linux64/clang-format',
+   'https://storage.googleapis.com/chromium-clang-format/5349d1954e17f6ccafb6e6663b0f13cdb2bb33c8',
+   '5349d1954e17f6ccafb6e6663b0f13cdb2bb33c8',
+   'linux2'
+  ),
+  # Keep the SHA1 in sync with |clang_format_rev| in chromium //buildtools/DEPS.
+  ('buildtools/clang_format/script',
+   'https://chromium.googlesource.com/chromium/llvm-project/cfe/tools/clang-format.git',
+   '0653eee0c81ea04715c635dd0885e8096ff6ba6d',
+   'all'
+  ),
+
   # Ninja
   ('buildtools/mac/ninja',
    'https://storage.googleapis.com/fuchsia-build/fuchsia/ninja/mac/a1db595e824c50cf565fbf0af2437fd91b7babf4',
