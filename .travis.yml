@@ -100,17 +100,7 @@ matrix:
       dist: trusty
       sudo: false
       compiler: clang
-      env: CFG=android-clang-arm-lsan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\" is_lsan=true"
-    - os: linux
-      dist: trusty
-      sudo: false
-      compiler: clang
       env: CFG=android-clang-arm64-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\" is_asan=true"
-    - os: linux
-      dist: trusty
-      sudo: false
-      compiler: clang
-      env: CFG=android-clang-arm64-lsan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\" is_lsan=true"
 
 
 before_install:
