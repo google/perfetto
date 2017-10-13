@@ -1,4 +1,6 @@
 android_sdk/
+benchmark/
+clang_format/
 emulator_images/
 googletest/
 libcxx/
