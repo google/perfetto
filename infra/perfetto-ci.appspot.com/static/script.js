@@ -43,6 +43,8 @@ function GetTravisStatusForJob(jobId, div) {
     let jobName = resp.config.env.split(' ')[0];
     if (jobName.startsWith('CFG='))
       jobName = jobName.substring(4);
+    if (!(jobName in botIndex))
+      return;
     let link = document.createElement('a');
     link.href = 'https://travis-ci.org/' + REPO + '/jobs/' + jobId;
     link.title = resp.state + ' [' + jobName + ']';
