@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 
 """ Runs a test executable on Android.
@@ -37,6 +38,29 @@ def AdbCall(*args):
   return subprocess.check_call(cmd)
 
 
+def GetProp(prop):
+  cmd = [ADB_PATH, 'shell', 'getprop', prop]
+  print '> adb ' + ' '.join(cmd)
+  output = subprocess.check_output(cmd)
+  lines = output.splitlines()
+  assert len(lines) == 1
+  print lines[0]
+  return lines[0]
+
+
+def BootCompleted():
+  return GetProp('sys.boot_completed') == '1'
+
+
+def ExponentialBackOff(f):
+  delay_seconds = 1
+  while True:
+    if f():
+      return
+    time.sleep(delay_seconds)
+    delay_seconds *= 2
+
+
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--no-cleanup', '-n', action='store_true')
@@ -49,6 +73,8 @@ def Main():
 
   print 'Waiting for device ...'
   AdbCall('wait-for-device')
+  ExponentialBackOff(BootCompleted)
+
   target_dir = '/data/local/tmp/' + args.test_name
   AdbCall('shell', 'rm -rf "%s"; mkdir -p "%s"' % (2 * (target_dir,)))
   AdbCall('push', test_bin, target_dir)
