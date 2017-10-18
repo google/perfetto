@@ -16,6 +16,8 @@
 import argparse
 import os
 import re
+import functools
+import logging
 import subprocess
 import sys
 import time
@@ -32,6 +34,52 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ADB_PATH = os.path.join(ROOT_DIR, 'buildtools/android_sdk/platform-tools/adb')
 
 
+def RetryOn(exc_type=(), returns_falsy=False, retries=5):
+  """Decorator to retry a function in case of errors or falsy values.
+
+  Implements exponential backoff between retries.
+
+  Args:
+    exc_type: Type of exceptions to catch and retry on. May also pass a tuple
+      of exceptions to catch and retry on any of them. Defaults to catching no
+      exceptions at all.
+    returns_falsy: If True then the function will be retried until it stops
+      returning a "falsy" value (e.g. None, False, 0, [], etc.). If equal to
+      'raise' and the function keeps returning falsy values after all retries,
+      then the decorator will raise a ValueError.
+    retries: Max number of retry attempts. After exhausting that number of
+      attempts the function will be called with no safeguards: any exceptions
+      will be raised and falsy values returned to the caller (except when
+      returns_falsy='raise').
+  """
+  def Decorator(f):
+    @functools.wraps(f)
+    def Wrapper(*args, **kwargs):
+      wait = 1
+      this_retries = kwargs.pop('retries', retries)
+      for _ in range(this_retries):
+        retry_reason = None
+        try:
+          value = f(*args, **kwargs)
+        except exc_type as exc:
+          retry_reason = 'raised %s' % type(exc).__name__
+        if retry_reason is None:
+          if returns_falsy and not value:
+            retry_reason = 'returned %r' % value
+          else:
+            return value  # Success!
+        print('{} {}, will retry in {} second{} ...'.format(
+            f.__name__, retry_reason, wait, '' if wait == 1 else 's'))
+        time.sleep(wait)
+        wait *= 2
+      value = f(*args, **kwargs)  # Last try to run with no safeguards.
+      if returns_falsy == 'raise' and not value:
+        raise ValueError('%s returned %r' % (f.__name__, value))
+      return value
+    return Wrapper
+  return Decorator
+
+
 def AdbCall(*args):
   cmd = [ADB_PATH] + list(args)
   print '> adb ' + ' '.join(args)
@@ -43,22 +91,14 @@ def GetProp(prop):
   print '> adb ' + ' '.join(cmd)
   output = subprocess.check_output(cmd)
   lines = output.splitlines()
-  assert len(lines) == 1
+  assert len(lines) == 1, 'Expected output to have one line: {}'.format(output)
   print lines[0]
   return lines[0]
 
 
-def BootCompleted():
+@RetryOn([subprocess.CalledProcessError], returns_falsy=True, retries=10)
+def WaitForBootCompletion():
   return GetProp('sys.boot_completed') == '1'
-
-
-def ExponentialBackOff(f):
-  delay_seconds = 1
-  while True:
-    if f():
-      return
-    time.sleep(delay_seconds)
-    delay_seconds *= 2
 
 
 def Main():
@@ -73,7 +113,7 @@ def Main():
 
   print 'Waiting for device ...'
   AdbCall('wait-for-device')
-  ExponentialBackOff(BootCompleted)
+  WaitForBootCompletion()
 
   target_dir = '/data/local/tmp/' + args.test_name
   AdbCall('shell', 'rm -rf "%s"; mkdir -p "%s"' % (2 * (target_dir,)))
