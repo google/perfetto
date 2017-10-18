@@ -68,6 +68,11 @@ config("default") {
     "-Werror",
   ]
 
+  # Color compiler output, see https://github.com/ninja-build/ninja/wiki/FAQ
+  if (is_clang) {
+    cflags += [ "-fcolor-diagnostics" ]
+  }
+
   if (current_cpu == "arm") {
     cflags += [
       "-march=armv7-a",
