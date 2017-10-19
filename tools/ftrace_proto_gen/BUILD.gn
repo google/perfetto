@@ -12,22 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-group("all") {
-  testonly = true  # allow to build also test targets
-  deps = [
-    ":tests",
-    "//buildtools:protobuf_lite",
-    "//tools/ftrace_proto_gen:ftrace_proto_gen",
+executable("ftrace_proto_gen_unittests") {
+  testonly = true
+  deps += [
+    ":lib",
+    "//buildtools:gmock",
+    "//buildtools:gtest",
+    "//buildtools:gtest_main",
   ]
-  deps += [ "//buildtools:protoc($host_toolchain)" ]
+  sources = [
+    "format_parser_unittest.cc",
+    "ftrace_to_proto_unittest.cc",
+  ]
 }
 
-group("tests") {
-  testonly = true
-  deps = [
-    "//libtracing:libtracing_benchmarks",
-    "//libtracing:libtracing_unittests",
-    "//libtracing:sanitizers_unittests",
-    "//tools/ftrace_proto_gen:ftrace_proto_gen_unittests",
+executable("ftrace_proto_gen") {
+  sources = [
+    "main.cc",
+  ]
+  deps += [ ":lib" ]
+}
+
+source_set("lib") {
+  sources = [
+    "format_parser.cc",
+    "format_parser.h",
+    "ftrace_to_proto.cc",
+    "ftrace_to_proto.h",
   ]
 }
