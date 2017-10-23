@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
+
 #include "libftrace/ftrace.h"
 
 int main(int argc, const char** argv) {
+  if (argc > 1)
+    printf("Usage: %s\n", argv[0]);
   return perfetto::SomePublicApi();
 }
