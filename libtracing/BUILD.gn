@@ -33,14 +33,3 @@ executable("libtracing_benchmarks") {
     "hello_world_benchmark.cc",
   ]
 }
-
-executable("sanitizers_unittests") {
-  testonly = true
-  deps += [
-    "//buildtools:gtest",
-    "//buildtools:gtest_main",
-  ]
-  sources = [
-    "sanitizers_unittest.cc",
-  ]
-}
