@@ -18,8 +18,11 @@ config("protozero_config") {
 
 source_set("protozero") {
   all_dependent_configs = [ ":protozero_config" ]
+  configs += [ "//buildtools:googletest_prod_config" ]
   sources = [
     "src/proto_utils.cc",
+    "src/protozero_message.cc",
+    "src/protozero_message_handle.cc",
     "src/scattered_stream_writer.cc",
   ]
 }
@@ -34,6 +37,7 @@ executable("protozero_unittests") {
   ]
   sources = [
     "src/proto_utils_unittest.cc",
+    "src/protozero_message_unittest.cc",
     "src/scattered_stream_writer_unittest.cc",
     "src/test/fake_scattered_buffer.cc",
   ]
