@@ -14,6 +14,16 @@
 
 import("//build/c++.gni")
 
+# Mimimal config to be used in production (i.e. non-test) targets. This is
+# really just to allowing include "gtest/gtest_prod.h" for the FRIEND_TEST macro
+# and avoid to pull in warning suppressions that are not really necessary for
+# production code.
+config("googletest_prod_config") {
+  visibility = [ ":*" ]
+  include_dirs = [ "googletest/googletest/include" ]
+}
+
+# Config to include gtest.h in test targets.
 config("googletest_config") {
   visibility = [ ":*" ]
   defines = [ "GTEST_LANG_CXX11=1" ]
@@ -391,9 +401,7 @@ if (use_custom_libcxx) {
 
 config("benchmark_config") {
   visibility = [ ":*" ]
-  include_dirs = [
-    "benchmark/include",
-  ]
+  include_dirs = [ "benchmark/include" ]
   cflags = [
     "-Wno-global-constructors",
     "-Wno-covered-switch-default",
@@ -442,7 +450,5 @@ source_set("benchmark") {
   defines = [ "HAVE_POSIX_REGEX" ]
   public_configs = [ ":benchmark_config" ]
   all_dependent_configs = [ ":benchmark_config" ]
-  configs -= [
-    "//build:extra_warnings",
-  ]
+  configs -= [ "//build:extra_warnings" ]
 }
