@@ -12,25 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-group("all") {
-  testonly = true  # allow to build also test targets
-  deps = [
-    ":tests",
-    "//buildtools:protobuf_lite",
-    "//libftrace:libftrace_driver",
-    "//tools/ftrace_proto_gen:ftrace_proto_gen",
-  ]
-  deps += [ "//buildtools:protoc($host_toolchain)" ]
+config("protozero_config") {
+  include_dirs = [ "include" ]
 }
 
-group("tests") {
+source_set("protozero") {
+  all_dependent_configs = [ ":protozero_config" ]
+  sources = [
+    "src/proto_utils.cc",
+    "src/scattered_stream_writer.cc",
+  ]
+}
+
+executable("protozero_unittests") {
   testonly = true
-  deps = [
-    "//libftrace:libftrace_unittests",
-    "//libtracing:libtracing_benchmarks",
-    "//libtracing:libtracing_unittests",
-    "//protozero:protozero_unittests",
-    "//tools/ftrace_proto_gen:ftrace_proto_gen_unittests",
-    "//tools/sanitizers_unittests",
+  deps += [
+    ":protozero",
+    "//buildtools:gmock",
+    "//buildtools:gtest",
+    "//buildtools:gtest_main",
+  ]
+  sources = [
+    "src/proto_utils_unittest.cc",
+    "src/scattered_stream_writer_unittest.cc",
+    "src/test/fake_scattered_buffer.cc",
   ]
 }
