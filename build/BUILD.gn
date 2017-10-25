@@ -25,14 +25,15 @@ config("extra_warnings") {
   if (is_clang) {
     cflags += [
       "-Weverything",
-      "-Wno-c++98-compat",
       "-Wno-c++98-compat-pedantic",
+      "-Wno-c++98-compat",
       "-Wno-gnu-include-next",
       "-Wno-gnu-statement-expression",
+      "-Wno-gnu-zero-variadic-macro-arguments",
       "-Wno-padded",
       "-Wno-reserved-id-macro",
-      "-Wno-unused-parameter",
       "-Wno-unknown-warning-option",
+      "-Wno-unused-parameter",
     ]
   }
 }
