@@ -17,6 +17,8 @@
 #ifndef CPP_COMMON_BUILD_CONFIG_H_
 #define CPP_COMMON_BUILD_CONFIG_H_
 
+// DO NOT include this file in public headers (include/) to avoid collisions.
+
 // Allows to define build flags that give a compiler error if the header that
 // defined the flag is not included, instead of silently ignoring the #if block.
 #define BUILDFLAG_CAT_INDIRECT(a, b) a##b
