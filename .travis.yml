@@ -123,11 +123,13 @@ script:
     if [[ "$CFG" != android-* ]]; then
       out/dist/libtracing_unittests
       out/dist/libtracing_benchmarks
+      out/dist/protozero_unittests
     else
       TARGET_ARCH=$(echo $CFG | cut -d- -f3)
       build/run_android_emulator $TARGET_ARCH --pid /tmp/emulator.pid -v &
       build/run_android_test out/dist libtracing_unittests
       build/run_android_test out/dist libtracing_benchmarks
+      build/run_android_test out/dist protozero_unittests
     fi
 
 after_script:
