@@ -1,0 +1,171 @@
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+template("proto_library") {
+  assert(defined(invoker.sources))
+  proto_sources = invoker.sources
+  proto_in_dir = invoker.proto_in_dir
+
+  # Avoid absolute path because of the assumption that |proto_in_dir| is
+  # relative to the directory of current BUILD.gn file.
+  proto_in_dir = rebase_path(proto_in_dir, ".")
+  if (defined(invoker.proto_out_dir)) {
+    proto_out_dir = invoker.proto_out_dir
+  } else {
+    # Absolute path to the directory of current BUILD.gn file excluding "//".
+    proto_out_dir = rebase_path(".", "//")
+    if (proto_in_dir != ".") {
+      proto_out_dir += "/$proto_in_dir"
+    }
+  }
+
+  if (defined(invoker.generator_plugin_label)) {
+    plugin_host_label = invoker.generator_plugin_label + "($host_toolchain)"
+    plugin_path = get_label_info(plugin_host_label, "root_out_dir") + "/" +
+                  get_label_info(plugin_host_label, "name")
+    generate_with_plugin = true
+  } else if (defined(invoker.generator_plugin_script)) {
+    plugin_path = invoker.generator_plugin_script
+    generate_with_plugin = true
+  } else {
+    generate_with_plugin = false
+  }
+
+  if (generate_with_plugin) {
+    if (defined(invoker.generator_plugin_suffix)) {
+      generator_plugin_suffixes = [
+        "${invoker.generator_plugin_suffix}.h",
+        "${invoker.generator_plugin_suffix}.cc",
+      ]
+    } else {
+      generator_plugin_suffixes = invoker.generator_plugin_suffixes
+    }
+  }
+
+  cc_out_dir = "$root_gen_dir/" + proto_out_dir
+  rel_cc_out_dir = rebase_path(cc_out_dir, root_build_dir)
+
+  protos = rebase_path(proto_sources, proto_in_dir)
+  protogens = []
+
+  foreach(proto, protos) {
+    proto_dir = get_path_info(proto, "dir")
+    proto_name = get_path_info(proto, "name")
+    proto_path = proto_dir + "/" + proto_name
+
+    protogens += [
+      "$cc_out_dir/$proto_path.pb.h",
+      "$cc_out_dir/$proto_path.pb.cc",
+    ]
+    if (generate_with_plugin) {
+      foreach(suffix, generator_plugin_suffixes) {
+        protogens += [ "$cc_out_dir/${proto_path}${suffix}" ]
+      }
+    }
+  }
+
+  config_name = "${target_name}_config"
+  action_name = "${target_name}_gen"
+  source_set_name = target_name
+
+  config(config_name) {
+    include_dirs = [ cc_out_dir ]
+  }
+
+  # The XXX_gen action that generates the .pb.{cc,h} files.
+  action(action_name) {
+    visibility = [ ":$source_set_name" ]
+    script = "//build/build_tool_wrapper.py"
+    sources = proto_sources
+    outputs = get_path_info(protogens, "abspath")
+
+    protoc_label = "//buildtools:protoc($host_toolchain)"
+    protoc_path = get_label_info(protoc_label, "root_out_dir") + "/protoc"
+    args = [
+      # Path should be rebased because |root_build_dir| for current toolchain
+      # may be different from |root_out_dir| of protoc built on host toolchain.
+      "./" + rebase_path(protoc_path, root_build_dir),
+      "--proto_path",
+      rebase_path(proto_in_dir, root_build_dir),
+      "--cpp_out",
+      rel_cc_out_dir,
+    ]
+
+    if (generate_with_plugin) {
+      plugin_path_rebased = rebase_path(plugin_path, root_build_dir)
+      plugin_out_args = ""
+      if (defined(invoker.generator_plugin_options)) {
+        plugin_out_args += invoker.generator_plugin_options
+      }
+      plugin_out_args += ":$rel_cc_out_dir"
+
+      args += [
+        "--plugin=protoc-gen-plugin=$plugin_path_rebased",
+        "--plugin_out=$plugin_out_args",
+      ]
+    }
+
+    args += rebase_path(proto_sources, root_out_dir)
+
+    inputs = [
+      protoc_path,
+    ]
+
+    deps = [
+      protoc_label,
+    ]
+    if (generate_with_plugin) {
+      inputs += [ plugin_path ]
+      if (defined(plugin_host_label)) {
+        # Action depends on native generator plugin but for host toolchain only.
+        deps += [ plugin_host_label ]
+      }
+    }
+
+    if (defined(invoker.deps)) {
+      deps += invoker.deps
+    }
+  }  # action "${target_name}_gen"
+
+  # The source_set that builds the generated .pb.cc files.
+  source_set(target_name) {
+    forward_variables_from(invoker,
+                           [
+                             "defines",
+                             "include_dirs",
+                             "testonly",
+                             "visibility",
+                           ])
+
+    sources = get_target_outputs(":$action_name")
+
+    configs -= [ "//build:extra_warnings" ]
+    if (defined(invoker.extra_configs)) {
+      configs += invoker.extra_configs
+    }
+
+    public_configs = [
+      "//buildtools:protobuf_gen_config",
+      ":$config_name",
+    ]
+
+    deps = [
+      "//buildtools:protobuf_lite",
+    ]
+    deps += [ ":$action_name" ]
+    if (defined(invoker.deps)) {
+      deps += invoker.deps
+    }
+  }  # source_set(target_name)
+}  # template

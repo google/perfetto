@@ -1,0 +1,60 @@
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("protozero_library.gni")
+
+config("protozero_config") {
+  include_dirs = [ "include" ]
+}
+
+source_set("protozero") {
+  all_dependent_configs = [ ":protozero_config" ]
+  configs += [ "//buildtools:googletest_prod_config" ]
+  sources = [
+    "src/proto_utils.cc",
+    "src/protozero_message.cc",
+    "src/protozero_message_handle.cc",
+    "src/scattered_stream_writer.cc",
+  ]
+}
+
+executable("protozero_unittests") {
+  testonly = true
+  deps += [
+    ":protozero",
+    ":testing_messages",
+    "//buildtools:gmock",
+    "//buildtools:gtest",
+    "//buildtools:gtest_main",
+  ]
+  sources = [
+    "src/proto_utils_unittest.cc",
+    "src/protozero_message_unittest.cc",
+    "src/scattered_stream_writer_unittest.cc",
+    "src/test/fake_scattered_buffer.cc",
+    "src/test/protozero_conformance_unittest.cc",
+  ]
+}
+
+# Generates both xxx.pbzero.h and xxx.pb.h (official proto).
+protozero_library("testing_messages") {
+  sources = [
+    "src/test/example_proto/library.proto",
+    "src/test/example_proto/library_internals/galaxies.proto",
+    "src/test/example_proto/test_messages.proto",
+    "src/test/example_proto/upper_import.proto",
+  ]
+  include_dirs = [ "include" ]
+  proto_in_dir = "src/test/example_proto"
+}

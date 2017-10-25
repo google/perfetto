@@ -17,10 +17,11 @@ group("all") {
   deps = [
     ":tests",
     "//buildtools:protobuf_lite",
+    "//buildtools:protoc($host_toolchain)",
     "//libftrace:libftrace_driver",
+    "//protozero/src/protoc_plugin($host_toolchain)",
     "//tools/ftrace_proto_gen:ftrace_proto_gen",
   ]
-  deps += [ "//buildtools:protoc($host_toolchain)" ]
 }
 
 group("tests") {
@@ -29,6 +30,7 @@ group("tests") {
     "//libftrace:libftrace_unittests",
     "//libtracing:libtracing_benchmarks",
     "//libtracing:libtracing_unittests",
+    "//protozero:protozero_unittests",
     "//tools/ftrace_proto_gen:ftrace_proto_gen_unittests",
     "//tools/sanitizers_unittests",
   ]
