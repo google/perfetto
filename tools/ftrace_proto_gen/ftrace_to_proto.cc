@@ -106,7 +106,7 @@ std::string Proto::ToString() {
   s << "syntax = \"proto3\";\n";
   s << "message " << name << " {\n";
   for (const Proto::Field& field : fields) {
-    s << "   " << field.type << " " << field.name << " = " << field.number
+    s << "  " << field.type << " " << field.name << " = " << field.number
       << ";\n";
   }
   s << "}\n";

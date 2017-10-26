@@ -32,6 +32,7 @@ config("googletest_config") {
     "googletest/googlemock/include",
   ]
   cflags = [
+    "-Wno-covered-switch-default",
     "-Wno-deprecated",
     "-Wno-global-constructors",
     "-Wno-missing-noreturn",
