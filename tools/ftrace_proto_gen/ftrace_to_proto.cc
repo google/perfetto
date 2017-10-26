@@ -20,6 +20,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <regex>
 
 namespace perfetto {
 namespace {
@@ -64,8 +65,15 @@ std::string GetNameFromTypeAndName(const std::string& type_and_name) {
 }
 
 std::string InferProtoType(const FtraceEvent::Field& field) {
+  // Fixed length strings: "char foo[16]"
+  if (std::regex_match(field.type_and_name, std::regex(R"(char \w+\[\d+\])")))
+    return "string";
+
+  // Variable length strings: "char* foo"
   if (field.type_and_name.find("char *") != std::string::npos)
     return "string";
+
+  // Ints of various sizes:
   if (field.size <= 4 && field.is_signed)
     return "int32";
   if (field.size <= 4 && !field.is_signed)
