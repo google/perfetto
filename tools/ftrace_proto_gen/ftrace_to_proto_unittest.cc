@@ -40,8 +40,16 @@ TEST(FtraceEventParser, GetNameFromTypeAndName) {
 }
 
 TEST(FtraceEventParser, InferProtoType) {
-  EXPECT_EQ(InferProtoType(FtraceEvent::Field{"char * foo", 2, 0, false}),
-            "string");
+  using Field = FtraceEvent::Field;
+  EXPECT_EQ(InferProtoType(Field{"char * foo", 2, 0, false}), "string");
+  EXPECT_EQ(InferProtoType(Field{"char foo[16]", 0, 16, false}), "string");
+  EXPECT_EQ(InferProtoType(Field{"char bar_42[64]", 0, 64, false}), "string");
+
+  EXPECT_EQ(InferProtoType(Field{"int foo", 0, 4, true}), "int32");
+  EXPECT_EQ(InferProtoType(Field{"s32 signal", 50, 4, true}), "int32");
+
+  EXPECT_EQ(InferProtoType(Field{"unsigned int foo", 0, 4, false}), "uint32");
+  EXPECT_EQ(InferProtoType(Field{"u32 control_freq", 44, 4, false}), "uint32");
 }
 
 }  // namespace
