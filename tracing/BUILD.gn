@@ -12,24 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-executable("libtracing_unittests") {
+config("tracing_config") {
+  include_dirs = [ "include" ]
+}
+
+source_set("tracing") {
+  all_dependent_configs = [ ":tracing_config" ]
+  sources = [
+    "src/core/service_impl.cc",
+  ]
+}
+
+executable("tracing_unittests") {
   testonly = true
   deps += [
+    ":tracing",
     "//buildtools:gmock",
     "//buildtools:gtest",
     "//buildtools:gtest_main",
   ]
   sources = [
-    "hello_world_unittest.cc",
+    "src/core/service_impl_unittest.cc",
+    "src/test/test_shared_memory.cc",
+    "src/test/test_task_runner.cc",
   ]
 }
 
-executable("libtracing_benchmarks") {
+executable("tracing_benchmarks") {
   testonly = true
-  deps += [
-    "//buildtools:benchmark",
-  ]
+  deps += [ "//buildtools:benchmark" ]
   sources = [
-    "hello_world_benchmark.cc",
+    "src/test/hello_world_benchmark.cc",
   ]
 }
