@@ -39,7 +39,14 @@ matrix:
     - os: linux
       dist: trusty
       sudo: false
-      compiler: clang
+      # When setting compiler: clang Travis pull a newer version of clang than
+      # the version that is shipped with Trusty. This is good for all the other
+      # configs, but we want to keep at least one target in the matrix to match
+      # the default version of clang that we have on our workstations.
+      addons:
+        apt:
+          packages:
+            - clang
       env: CFG=linux_trusty-clang-x86_64-debug GN_ARGS="is_debug=true"
     - os: linux
       dist: trusty
