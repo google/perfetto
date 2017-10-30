@@ -102,6 +102,16 @@ matrix:
       compiler: clang
       env: CFG=android-clang-arm64-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\" is_asan=true"
 
+# Cache the deps that get git-pulled to avoid hitting quota limits (b/68252114).
+# Do not cache NDK/SDK and things that come from .zip files rather than git.
+# Doing that is discouraged (https://docs.travis-ci.com/user/caching/).
+cache:
+  timeout: 1800  # 30 mins
+  directories:
+    - buildtools/benchmark
+    - buildtools/googletest
+    - buildtools/libcxx
+    - buildtools/libcxxabi
 
 before_install:
   - set -e
