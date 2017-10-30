@@ -65,8 +65,8 @@ Run tests
 ---------
 ### On the host (Linux / OSX)
 ```
-$ build/ninja -C out/default (libtracing_unittests | libtracing_benchmarks)
-$ out/default/libtracing_unittests --gtest_help
+$ build/ninja -C out/default (tracing_unittests | tracing_benchmarks)
+$ out/default/tracing_unittests --gtest_help
 ```
 
 ### On Android
@@ -76,7 +76,7 @@ To start the emulator:
 `$ build/run_android_emulator (arm | arm64) &`
 
 To run the tests (either on the emulator or physical device):  
-`$ build/run_android_test out/default libtracing_unittests`
+`$ build/run_android_test out/default tracing_unittests`
 
 
 Build configurations
