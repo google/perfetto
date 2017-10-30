@@ -18,12 +18,15 @@
 
 #include <limits>
 
-#include "cpp_common/base.h"
+#include "base/logging.h"
+#include "base/utils.h"
 #include "gtest/gtest.h"
 
 namespace protozero {
 namespace proto_utils {
 namespace {
+
+using ::perfetto::base::ArraySize;
 
 struct VarIntExpectation {
   const char* encoded;
@@ -103,7 +106,7 @@ TEST(ProtoUtilsTest, ZigZagEncoding) {
 }
 
 TEST(ProtoUtilsTest, VarIntEncoding) {
-  for (size_t i = 0; i < arraysize(kVarIntExpectations); ++i) {
+  for (size_t i = 0; i < ArraySize(kVarIntExpectations); ++i) {
     const VarIntExpectation& exp = kVarIntExpectations[i];
     uint8_t buf[32];
     uint8_t* res = WriteVarInt<uint64_t>(exp.int_value, buf);
@@ -140,7 +143,7 @@ TEST(ProtoUtilsTest, RedundantVarIntEncoding) {
 }
 
 TEST(ProtoUtilsTest, VarIntDecoding) {
-  for (size_t i = 0; i < arraysize(kVarIntExpectations); ++i) {
+  for (size_t i = 0; i < ArraySize(kVarIntExpectations); ++i) {
     const VarIntExpectation& exp = kVarIntExpectations[i];
     uint64_t value = std::numeric_limits<uint64_t>::max();
     const uint8_t* res = ParseVarInt(
@@ -181,7 +184,7 @@ TEST(ProtoUtilsTest, FieldDecoding) {
        135, 1234, kFieldTypeLengthDelimited, 131},
   };
 
-  for (size_t i = 0; i < arraysize(kFieldExpectations); ++i) {
+  for (size_t i = 0; i < ArraySize(kFieldExpectations); ++i) {
     const FieldExpectation& exp = kFieldExpectations[i];
     FieldType field_type = kFieldTypeVarInt;
     uint32_t field_id = std::numeric_limits<uint32_t>::max();

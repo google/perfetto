@@ -20,7 +20,7 @@
 
 #include <memory>
 
-#include "cpp_common/base.h"
+#include "base/logging.h"
 #include "gtest/gtest.h"
 #include "protozero/src/test/fake_scattered_buffer.h"
 

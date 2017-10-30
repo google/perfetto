@@ -18,6 +18,7 @@
 
 #include <string.h>
 
+#include "base/test/test_task_runner.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "tracing/core/data_source_config.h"
@@ -25,7 +26,6 @@
 #include "tracing/core/producer.h"
 #include "tracing/core/shared_memory.h"
 #include "tracing/src/test/test_shared_memory.h"
-#include "tracing/src/test/test_task_runner.h"
 
 namespace perfetto {
 namespace {
@@ -47,7 +47,7 @@ class MockProducer : public Producer {
 };
 
 TEST(ServiceImpl, RegisterAndUnregister) {
-  TestTaskRunner task_runner;
+  base::TestTaskRunner task_runner;
   auto shm_factory =
       std::unique_ptr<SharedMemory::Factory>(new TestSharedMemory::Factory());
   std::unique_ptr<ServiceImpl> svc(static_cast<ServiceImpl*>(

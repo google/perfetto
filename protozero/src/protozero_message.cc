@@ -18,7 +18,7 @@
 
 #include <type_traits>
 
-#include "cpp_common/base.h"
+#include "base/logging.h"
 
 #if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
 // The memcpy() for float and double below needs to be adjusted if we want to
@@ -73,7 +73,7 @@ void ProtoZeroMessage::AppendBytes(uint32_t field_id,
   if (nested_message_)
     EndNestedMessage();
 
-  DCHECK(size < proto_utils::kMaxMessageLength);
+  PERFETTO_DCHECK(size < proto_utils::kMaxMessageLength);
   // Write the proto preamble (field id, type and length of the field).
   uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
   uint8_t* pos = buffer;
@@ -94,10 +94,10 @@ size_t ProtoZeroMessage::Finalize() {
   // redundant varint encoding.
   if (size_field_.is_valid()) {
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
-    DCHECK(!sealed_);
+    PERFETTO_DCHECK(!sealed_);
 #endif
-    DCHECK(size_ < proto_utils::kMaxMessageLength);
-    DCHECK(proto_utils::kMessageLengthFieldSize == size_field_.size());
+    PERFETTO_DCHECK(size_ < proto_utils::kMaxMessageLength);
+    PERFETTO_DCHECK(proto_utils::kMessageLengthFieldSize == size_field_.size());
     proto_utils::WriteRedundantVarInt(
         static_cast<uint32_t>(size_ - size_already_written_),
         size_field_.begin);
@@ -125,7 +125,7 @@ void ProtoZeroMessage::BeginNestedMessageInternal(uint32_t field_id,
   WriteToStream(data, data_end);
 
   message->Reset(stream_writer_);
-  CHECK(nesting_depth_ < kMaxNestingDepth);
+  PERFETTO_CHECK(nesting_depth_ < kMaxNestingDepth);
   message->nesting_depth_ = nesting_depth_ + 1;
 
   // The length of the nested message cannot be known upfront. So right now

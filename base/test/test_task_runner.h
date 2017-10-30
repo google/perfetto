@@ -23,9 +23,10 @@
 #include <list>
 #include <map>
 
-#include "tracing/core/task_runner.h"
+#include "base/task_runner.h"
 
 namespace perfetto {
+namespace base {
 
 class TestTaskRunner : public TaskRunner {
  public:
@@ -51,9 +52,9 @@ class TestTaskRunner : public TaskRunner {
 
   std::list<std::function<void()>> task_queue_;
   std::map<int, std::function<void()>> watched_fds_;
-  fd_set fd_set_;
 };
 
+}  // namespace base
 }  // namespace perfetto
 
 #endif  // TRACING_SRC_TEST_TEST_TASK_RUNNER_H_

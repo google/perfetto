@@ -32,7 +32,6 @@ config("extra_warnings") {
       "-Wno-gnu-zero-variadic-macro-arguments",
       "-Wno-padded",
       "-Wno-reserved-id-macro",
-      "-Wno-unknown-warning-option",
       "-Wno-unused-parameter",
       "-Wno-weak-vtables",
     ]
@@ -72,7 +71,10 @@ config("default") {
 
   # Color compiler output, see https://github.com/ninja-build/ninja/wiki/FAQ
   if (is_clang) {
-    cflags += [ "-fcolor-diagnostics" ]
+    cflags += [
+      "-fcolor-diagnostics",
+      "-Wno-unknown-warning-option",
+    ]
   }
 
   if (current_cpu == "arm") {
