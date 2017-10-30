@@ -25,10 +25,13 @@
 
 namespace perfetto {
 
+namespace base {
+class TaskRunner;
+}  // namespace base
+
 class DataSourceConfig;
 class DataSourceDescriptor;
 class Producer;
-class TaskRunner;
 
 // TODO: for the moment this assumes that all the calls hapen on the same
 // thread/sequence. Not sure this will be the case long term in Chrome.
@@ -78,7 +81,7 @@ class Service {
   // Implemented in src/core/service_impl.cc .
   static std::unique_ptr<Service> CreateInstance(
       std::unique_ptr<SharedMemory::Factory>,
-      TaskRunner*);
+      base::TaskRunner*);
 
   virtual ~Service() = default;
 

@@ -26,15 +26,19 @@
 
 namespace perfetto {
 
+namespace base {
+class TaskRunner;
+}  // namespace base
+
 class DataSourceConfig;
 class Producer;
 class SharedMemory;
-class TaskRunner;
 
 // The tracing service business logic.
 class ServiceImpl : public Service {
  public:
-  explicit ServiceImpl(std::unique_ptr<SharedMemory::Factory>, TaskRunner*);
+  explicit ServiceImpl(std::unique_ptr<SharedMemory::Factory>,
+                       base::TaskRunner*);
   ~ServiceImpl() override;
 
   // Called by the ProducerEndpointImpl dtor.
@@ -54,7 +58,7 @@ class ServiceImpl : public Service {
    public:
     ProducerEndpointImpl(ProducerID,
                          ServiceImpl*,
-                         TaskRunner*,
+                         base::TaskRunner*,
                          Producer*,
                          std::unique_ptr<SharedMemory>);
     ~ProducerEndpointImpl() override;
@@ -77,7 +81,7 @@ class ServiceImpl : public Service {
 
     ProducerID const id_;
     ServiceImpl* const service_;
-    TaskRunner* const task_runner_;
+    base::TaskRunner* const task_runner_;
     Producer* producer_;
     std::unique_ptr<SharedMemory> shared_memory_;
     DataSourceID last_data_source_id_ = 0;
@@ -87,7 +91,7 @@ class ServiceImpl : public Service {
   ServiceImpl& operator=(const ServiceImpl&) = delete;
 
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
-  TaskRunner* const task_runner_;
+  base::TaskRunner* const task_runner_;
   ProducerID last_producer_id_ = 0;
   std::map<ProducerID, ProducerEndpointImpl*> producers_;
 };

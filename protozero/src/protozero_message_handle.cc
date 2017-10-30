@@ -18,7 +18,7 @@
 
 #include <utility>
 
-#include "cpp_common/base.h"
+#include "base/logging.h"
 #include "protozero/protozero_message.h"
 
 namespace protozero {
