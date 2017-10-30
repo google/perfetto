@@ -18,8 +18,16 @@ config("tracing_config") {
 
 source_set("tracing") {
   all_dependent_configs = [ ":tracing_config" ]
+  deps += [ "//base" ]
   sources = [
+    "include/tracing/core/basic_types.h",
+    "include/tracing/core/data_source_config.h",
+    "include/tracing/core/data_source_descriptor.h",
+    "include/tracing/core/producer.h",
+    "include/tracing/core/service.h",
+    "include/tracing/core/shared_memory.h",
     "src/core/service_impl.cc",
+    "src/core/service_impl.h",
   ]
 }
 
@@ -27,6 +35,8 @@ executable("tracing_unittests") {
   testonly = true
   deps += [
     ":tracing",
+    "//base",
+    "//base:test_support",
     "//buildtools:gmock",
     "//buildtools:gtest",
     "//buildtools:gtest_main",
@@ -34,7 +44,7 @@ executable("tracing_unittests") {
   sources = [
     "src/core/service_impl_unittest.cc",
     "src/test/test_shared_memory.cc",
-    "src/test/test_task_runner.cc",
+    "src/test/test_shared_memory.h",
   ]
 }
 

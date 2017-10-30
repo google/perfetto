@@ -18,7 +18,7 @@
 
 #include <algorithm>
 
-#include "cpp_common/base.h"
+#include "base/logging.h"
 
 namespace protozero {
 
@@ -34,7 +34,7 @@ ScatteredStreamWriter::~ScatteredStreamWriter() {}
 void ScatteredStreamWriter::Reset(ContiguousMemoryRange range) {
   cur_range_ = range;
   write_ptr_ = range.begin;
-  DCHECK(write_ptr_ < cur_range_.end);
+  PERFETTO_DCHECK(write_ptr_ < cur_range_.end);
 }
 
 void ScatteredStreamWriter::Extend() {
@@ -61,7 +61,7 @@ ContiguousMemoryRange ScatteredStreamWriter::ReserveBytes(size_t size) {
     // Assume the reservations are always < Delegate::GetNewBuffer().size(),
     // so that one single call to Extend() will definitely give enough headroom.
     Extend();
-    DCHECK(write_ptr_ + size <= cur_range_.end);
+    PERFETTO_DCHECK(write_ptr_ + size <= cur_range_.end);
   }
   uint8_t* begin = write_ptr_;
   write_ptr_ += size;

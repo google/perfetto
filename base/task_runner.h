@@ -14,25 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef TRACING_INCLUDE_TRACING_CORE_TASK_RUNNER_PROXY_H_
-#define TRACING_INCLUDE_TRACING_CORE_TASK_RUNNER_PROXY_H_
+#ifndef PERFETTO_BASE_TASK_RUNNER_H_
+#define PERFETTO_BASE_TASK_RUNNER_H_
 
 #include <functional>
 
 namespace perfetto {
+namespace base {
 
 // A generic interface to allow the library clients to interleave the execution
 // of the tracing internals in their runtime environment.
 // The expectation is that all tasks, which are queued either via PostTask() or
 // AddFileDescriptorWatch(), are executed on the same sequence (either on the
 // same thread, or on a thread pool that gives sequencing guarantees).
-//
-// Exposed to:
-//  Most internal classes under src/.
-//
-// Subclassed by:
-//   1. Library clients.
-//   2. Tests (See test/test_task_runner.h)
 
 // TODO(skyostil): rework this.
 // TODO: we should provide a reference implementation that just spins a
@@ -47,6 +41,7 @@ class TaskRunner {
   virtual void RemoveFileDescriptorWatch(int fd) = 0;
 };
 
+}  // namespace base
 }  // namespace perfetto
 
-#endif  // TRACING_INCLUDE_TRACING_CORE_TASK_RUNNER_PROXY_H_
+#endif  // PERFETTO_BASE_TASK_RUNNER_H_

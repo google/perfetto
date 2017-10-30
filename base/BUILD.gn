@@ -12,14 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+source_set("base") {
+  sources = [
+    "build_config.h",
+    "logging.h",
+    "scoped_file.h",
+    "task_runner.h",
+    "utils.h",
+  ]
+}
+
+source_set("test_support") {
+  testonly = true
+  deps += [ ":base" ]
+  sources = [
+    "test/test_task_runner.cc",
+    "test/test_task_runner.h",
+  ]
+}
+
 executable("base_unittests") {
   testonly = true
   deps += [
+    ":base",
+    ":test_support",
     "//buildtools:gmock",
     "//buildtools:gtest",
     "//buildtools:gtest_main",
   ]
   sources = [
-    "base_unittest.cc",
+    "scoped_file_unittest.cc",
+    "utils_unittest.cc",
   ]
 }
