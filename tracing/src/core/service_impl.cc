@@ -18,11 +18,11 @@
 
 #include <inttypes.h>
 
-#include "cpp_common/base.h"
+#include "base/logging.h"
+#include "base/task_runner.h"
 #include "tracing/core/data_source_config.h"
 #include "tracing/core/producer.h"
 #include "tracing/core/shared_memory.h"
-#include "tracing/core/task_runner.h"
 
 namespace perfetto {
 
@@ -35,15 +35,15 @@ constexpr size_t kShmSize = 4096;  // TODO: temporary.
 // static
 std::unique_ptr<Service> Service::CreateInstance(
     std::unique_ptr<SharedMemory::Factory> shm_factory,
-    TaskRunner* task_runner) {
+    base::TaskRunner* task_runner) {
   return std::unique_ptr<Service>(
       new ServiceImpl(std::move(shm_factory), task_runner));
 }
 
 ServiceImpl::ServiceImpl(std::unique_ptr<SharedMemory::Factory> shm_factory,
-                         TaskRunner* task_runner)
+                         base::TaskRunner* task_runner)
     : shm_factory_(std::move(shm_factory)), task_runner_(task_runner) {
-  DCHECK(task_runner_);
+  PERFETTO_DCHECK(task_runner_);
 }
 
 ServiceImpl::~ServiceImpl() {
@@ -57,14 +57,14 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
       id, this, task_runner_, producer, std::move(shared_memory)));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
-  DCHECK(it_and_inserted.second);
+  PERFETTO_DCHECK(it_and_inserted.second);
   task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer(),
                                    id, endpoint->shared_memory()));
   return std::move(endpoint);
 }
 
 void ServiceImpl::DisconnectProducer(ProducerID id) {
-  DCHECK(producers_.count(id));
+  PERFETTO_DCHECK(producers_.count(id));
   producers_.erase(id);
 }
 
@@ -82,7 +82,7 @@ Service::ProducerEndpoint* ServiceImpl::GetProducer(ProducerID id) const {
 ServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     ProducerID id,
     ServiceImpl* service,
-    TaskRunner* task_runner,
+    base::TaskRunner* task_runner,
     Producer* producer,
     std::unique_ptr<SharedMemory> shared_memory)
     : id_(id),
@@ -104,33 +104,36 @@ void ServiceImpl::ProducerEndpointImpl::RegisterDataSource(
     const DataSourceDescriptor&,
     RegisterDataSourceCallback callback) {
   const DataSourceID dsid = ++last_data_source_id_;
-  DLOG("[ServiceImpl] RegisterDataSource from producer %" PRIu64, id_);
+  PERFETTO_DLOG("[ServiceImpl] RegisterDataSource from producer %" PRIu64, id_);
   task_runner_->PostTask(std::bind(std::move(callback), dsid));
   // TODO implement the bookkeeping logic.
 }
 
 void ServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
     DataSourceID dsid) {
-  DLOG("[ServiceImpl] UnregisterDataSource(%" PRIu64 ") from producer %" PRIu64,
-       dsid, id_);
-  CHECK(dsid);
+  PERFETTO_DLOG("[ServiceImpl] UnregisterDataSource(%" PRIu64
+                ") from producer %" PRIu64,
+                dsid, id_);
+  PERFETTO_CHECK(dsid);
   // TODO implement the bookkeeping logic.
   return;
 }
 
 void ServiceImpl::ProducerEndpointImpl::NotifyPageAcquired(uint32_t page) {
-  DLOG("[ServiceImpl] NotifyPageAcquired(%" PRIu32 ") from producer %" PRIu64,
-       page, id_);
+  PERFETTO_DLOG("[ServiceImpl] NotifyPageAcquired(%" PRIu32
+                ") from producer %" PRIu64,
+                page, id_);
   // TODO implement the bookkeeping logic.
   return;
 }
 
 void ServiceImpl::ProducerEndpointImpl::NotifyPageReleased(uint32_t page) {
-  DLOG("[ServiceImpl] NotifyPageReleased(%" PRIu32 ") from producer %" PRIu64,
-       page, id_);
-  DCHECK(shared_memory_);
-  DLOG("[ServiceImpl] Reading Shared memory: \"%s\"",
-       reinterpret_cast<const char*>(shared_memory_->start()));
+  PERFETTO_DLOG("[ServiceImpl] NotifyPageReleased(%" PRIu32
+                ") from producer %" PRIu64,
+                page, id_);
+  PERFETTO_DCHECK(shared_memory_);
+  PERFETTO_DLOG("[ServiceImpl] Reading Shared memory: \"%s\"",
+                reinterpret_cast<const char*>(shared_memory_->start()));
   // TODO implement the bookkeeping logic.
   return;
 }
