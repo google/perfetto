@@ -18,7 +18,7 @@
 
 #include <string.h>
 
-#include "cpp_common/base.h"
+#include "base/logging.h"
 
 namespace perfetto {
 
