@@ -14,6 +14,9 @@
 
 language: cpp
 
+# The |CFG| variable name is hooked up by the perfetto-ci.appspot.com frontend.
+# Please keep infra/perfetto-ci.appspot.com/ updated when adding/removing
+# entries below.
 matrix:
   include:
     - os: osx
@@ -87,7 +90,7 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - g++-7
-      env: CFG=linux_trusty-gcc7-x86_64-release GN_ARGS="is_debug=false is_clang=false cc=\"gcc-7\" cxx=\"g++-7\""
+      env: CFG=linux_trusty-gcc7-x86_64-release GN_ARGS="is_debug=false is_clang=false use_custom_libcxx=false cc=\"gcc-7\" cxx=\"g++-7\""
     - os: linux
       dist: trusty
       sudo: false
@@ -119,6 +122,7 @@ cache:
     - buildtools/googletest
     - buildtools/libcxx
     - buildtools/libcxxabi
+    - buildtools/libunwind
 
 before_install:
   - set -e
@@ -137,18 +141,24 @@ script:
   - build/gn gen out/dist --args="${GN_ARGS}" --check
   - build/ninja -C out/dist -j8 all
   - |
+    TEST_TARGETS="
+    base_unittests
+    protozero_unittests
+    tracing_unittests
+    tracing_benchmarks
+    sanitizers_unittests
+    "
+
     if [[ "$CFG" != android-* ]]; then
-      out/dist/base_unittests
-      out/dist/protozero_unittests
-      out/dist/tracing_unittests
-      out/dist/tracing_benchmarks
+      for TEST_TARGET in $TEST_TARGETS; do
+        "out/dist/$TEST_TARGET"
+      done
     else
       TARGET_ARCH=$(echo $CFG | cut -d- -f3)
       build/run_android_emulator $TARGET_ARCH --pid /tmp/emulator.pid -v &
-      build/run_android_test out/dist base_unittests
-      build/run_android_test out/dist protozero_unittests
-      build/run_android_test out/dist tracing_unittests
-      build/run_android_test out/dist tracing_benchmarks
+      for TEST_TARGET in $TEST_TARGETS; do
+        build/run_android_test out/dist "$TEST_TARGET"
+      done
     fi
 
 after_script:
