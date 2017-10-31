@@ -12,29 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-executable("libftrace_unittests") {
+config("ftrace_reader_config") {
+  include_dirs = [ "include" ]
+}
+
+executable("ftrace_reader_unittests") {
   testonly = true
   deps += [
-    ":lib",
+    ":ftrace_reader",
     "//buildtools:gmock",
     "//buildtools:gtest",
     "//buildtools:gtest_main",
   ]
   sources = [
-    "ftrace_unittest.cc",
+    "src/ftrace_cpu_reader_unittest.cc",
   ]
 }
 
-executable("libftrace_driver") {
+executable("ftrace_reader_demo") {
   sources = [
     "main.cc",
   ]
-  deps += [ ":lib" ]
+  deps += [ ":ftrace_reader" ]
 }
 
-source_set("lib") {
+source_set("ftrace_reader") {
+  all_dependent_configs = [ ":ftrace_reader_config" ]
+  deps += [
+    "//protozero",
+  ]
   sources = [
-    "ftrace.cc",
-    "ftrace.h",
+    "include/ftrace_reader/ftrace_cpu_reader.h",
+    "src/ftrace_cpu_reader.cc",
   ]
 }
