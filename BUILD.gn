@@ -18,7 +18,7 @@ group("all") {
     ":tests",
     "//buildtools:protobuf_lite",
     "//buildtools:protoc($host_toolchain)",
-    "//libftrace:libftrace_driver",
+    "//ftrace_reader:ftrace_reader_demo",
     "//protozero/src/protoc_plugin($host_toolchain)",
     "//tools/ftrace_proto_gen:ftrace_proto_gen",
   ]
@@ -28,7 +28,7 @@ group("tests") {
   testonly = true
   deps = [
     "//base:base_unittests",
-    "//libftrace:libftrace_unittests",
+    "//ftrace_reader:ftrace_reader_unittests",
     "//protozero:protozero_unittests",
     "//tools/ftrace_proto_gen:ftrace_proto_gen_unittests",
     "//tools/sanitizers_unittests",

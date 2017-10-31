@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-#include "libftrace/ftrace.h"
+#ifndef FTRACE_READER_FTRACE_CPU_READER_H_
+#define FTRACE_READER_FTRACE_CPU_READER_H_
 
 namespace perfetto {
 
-int SomePublicApi() {
-  return 42;
-}
+int SomePublicApi();
 
-}  // namespace perfetto
+} // namespace perfetto
+
+#endif  // FTRACE_READER_FTRACE_CPU_READER_H_

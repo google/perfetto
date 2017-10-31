@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-#include "libftrace/ftrace.h"
-#include "gtest/gtest.h"
+#include "ftrace_reader/ftrace_cpu_reader.h"
 
 namespace perfetto {
-namespace {
 
-TEST(LibFtrace, SomePublicApi) {
-  EXPECT_EQ(42, SomePublicApi());
+int SomePublicApi() {
+  return 42;
 }
 
-}  // namespace
 }  // namespace perfetto
