@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import("//build/android.gni")
-import("//build/c++.gni")
-import("//build/mac.gni")
 import("//build/sanitizers/sanitizers.gni")
 
 config("extra_warnings") {
@@ -75,6 +73,8 @@ config("default") {
       "-fcolor-diagnostics",
       "-Wno-unknown-warning-option",
     ]
+  } else {
+    cflags += [ "-Wno-unknown-warning" ]
   }
 
   if (current_cpu == "arm") {
@@ -94,7 +94,10 @@ config("default") {
   }
 
   if (is_linux) {
-    libs += [ "pthread" ]
+    libs += [
+      "pthread",
+      "rt",
+    ]
   }
 
   if (is_android) {
@@ -155,20 +158,6 @@ config("debug_symbols") {
   }
 }
 
-config("runtime_library") {
-  if (use_custom_libcxx) {
-    defines = [
-      "_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
-      "_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
-    ]
-    cflags_cc = [
-      "-nostdinc++",
-      "-isystem" + rebase_path("$libcxx_prefix/include", root_build_dir),
-      "-isystem" + rebase_path("$libcxxabi_prefix/include", root_build_dir),
-    ]
-  }
-}
-
 config("release") {
   cflags = [
     "-O3",
@@ -183,16 +172,6 @@ config("release") {
   defines = [ "NDEBUG" ]
 }
 
-group("exe_and_shlib_deps") {
-  public_deps = []
-  if (using_sanitizer) {
-    public_deps += [ "//build/sanitizers:deps" ]
-  }
-  if (use_custom_libcxx) {
-    public_deps += [ "//buildtools:libc++" ]
-  }
-}
-
 config("shared_library") {
   if (is_android || is_linux) {
     ldflags = [ "-fPIC" ]
@@ -200,12 +179,25 @@ config("shared_library") {
 }
 
 config("executable") {
+  ldflags = []
+
+  # Android will refuse to run executables if they aren't position independent.
+  # Instead on Linux there isn't any need and they break ASan (goo.gl/paFR6K).
   if (is_android) {
     asmflags = [ "-fPIE" ]
     cflags = [ "-fPIE" ]
-    ldflags = [
-      "-fPIE",
-      "-pie",
+    ldflags += [ "-pie" ]
+  }
+
+  # -rpath stores the path to the linked shared libraries into the binary, so
+  # that they can be launched without passing any LD_LIBRARY_PATH. It's
+  # supported only by Linux, not Android. But concretely we need this only when
+  # use_custom_libcxx=true && custom_libcxx_is_static=false, which happens only
+  # on Linux right now.
+  if (is_linux) {
+    ldflags += [
+      "-Wl,-rpath=\$ORIGIN/.",
+      "-Wl,-rpath-link=.",
     ]
   }
 }

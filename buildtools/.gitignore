@@ -5,6 +5,7 @@ emulator_images/
 googletest/
 libcxx/
 libcxxabi/
+libunwind/
 linux/
 linux64/
 mac/
