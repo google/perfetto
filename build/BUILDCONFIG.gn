@@ -19,13 +19,6 @@ declare_args() {
 
 declare_args() {
   ar = "ar"
-  if (is_clang) {
-    cc = "clang"
-    cxx = "clang++"
-  } else {
-    cc = "gcc"
-    cxx = "g++"
-  }
 }
 
 # Platform detection
@@ -56,7 +49,7 @@ default_configs = [
   "//build:extra_warnings",
   "//build:no_exceptions",
   "//build:no_rtti",
-  "//build:runtime_library",
+  "//build/libc++:config",
   "//build/sanitizers:sanitizers_cflags",
 ]
 
@@ -74,11 +67,14 @@ set_defaults("static_library") {
   deps = []
 }
 
+# Realistically the only shared_library that we build right now is libc++.so
+# when use_custom_libcxx=true (on Linux). Hence don't add a dependency on
+# libc++ itself on these targets.
 set_defaults("shared_library") {
   configs = default_configs
   configs += [ "//build:shared_library" ]
   deps = [
-    "//build:exe_and_shlib_deps",
+    "//build/sanitizers:deps",
   ]
 }
 
@@ -86,7 +82,8 @@ set_defaults("executable") {
   configs = default_configs
   configs += [ "//build:executable" ]
   deps = [
-    "//build:exe_and_shlib_deps",
+    "//build/libc++:deps",
+    "//build/sanitizers:deps",
   ]
 }
 

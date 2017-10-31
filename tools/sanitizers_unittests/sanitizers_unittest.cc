@@ -28,76 +28,120 @@ namespace {
 
 #if defined(ADDRESS_SANITIZER)
 TEST(SanitizerTests, ASAN_UserAfterFree) {
-  void* alloc = malloc(16);
-  volatile char* mem = reinterpret_cast<volatile char*>(alloc);
-  mem[0] = 1;
-  mem[15] = 1;
-  free(alloc);
-  mem[0] = 2;
+  EXPECT_DEATH(
+      {
+        void* alloc = malloc(16);
+        volatile char* mem = reinterpret_cast<volatile char*>(alloc);
+        mem[0] = 1;
+        mem[15] = 1;
+        free(alloc);
+        mem[0] = 2;
+        abort();
+      },
+      "AddressSanitizer:.*heap-use-after-free");
 }
 #endif  // ADDRESS_SANITIZER
 
 #if defined(THREAD_SANITIZER)
 TEST(SanitizerTests, TSAN_ThreadDataRace) {
-  pthread_t thread;
-  const int kNumRuns = 1000;
-  volatile int race_var = 0;
-  auto thread_main = [](void* race_var_ptr) -> void* {
-    volatile int* my_race_var = reinterpret_cast<volatile int*>(race_var_ptr);
-    printf("in thread %p", race_var_ptr);
-    for (int i = 0; i < kNumRuns; i++)
-      (*my_race_var)++;
-    return nullptr;
-  };
-  void* arg = const_cast<void*>(reinterpret_cast<volatile void*>(&race_var));
-  ASSERT_EQ(0, pthread_create(&thread, nullptr, thread_main, arg));
-  for (int i = 0; i < kNumRuns; i++)
-    race_var--;
-  ASSERT_EQ(0, pthread_join(thread, nullptr));
+  EXPECT_DEATH(
+      {
+        pthread_t thread;
+        const int kNumRuns = 1000;
+        volatile int race_var = 0;
+        auto thread_main = [](void* race_var_ptr) -> void* {
+          volatile int* my_race_var =
+              reinterpret_cast<volatile int*>(race_var_ptr);
+          for (int i = 0; i < kNumRuns; i++)
+            (*my_race_var)++;
+          return nullptr;
+        };
+        void* arg =
+            const_cast<void*>(reinterpret_cast<volatile void*>(&race_var));
+        ASSERT_EQ(0, pthread_create(&thread, nullptr, thread_main, arg));
+        for (int i = 0; i < kNumRuns; i++)
+          race_var--;
+        ASSERT_EQ(0, pthread_join(thread, nullptr));
+        abort();
+      },
+      "ThreadSanitizer:.*data race");
 }
 #endif  // THREAD_SANITIZER
 
 #if defined(MEMORY_SANITIZER)
 TEST(SanitizerTests, MSAN_UninitializedMemory) {
-  std::unique_ptr<int> mem(new int[10]);
-  volatile int* x = reinterpret_cast<volatile int*>(mem.get());
-  if(x[rand() % 10] == 42)
-    printf("\n");
+  EXPECT_DEATH(
+      {
+        std::unique_ptr<int> mem(new int[10]);
+        volatile int* x = reinterpret_cast<volatile int*>(mem.get());
+        if (x[rand() % 10] == 42)
+          printf("\n");
+        abort();
+      },
+      "MemorySanitizer:.*use-of-uninitialized-value");
 }
 #endif
 
 #if defined(LEAK_SANITIZER)
 TEST(SanitizerTests, LSAN_LeakMalloc) {
-  void* alloc = malloc(16);
-  reinterpret_cast<volatile char*>(alloc)[0] = 1;
-  alloc = malloc(16);
-  reinterpret_cast<volatile char*>(alloc)[0] = 2;
-  free(alloc);
+  EXPECT_DEATH(
+      {
+        void* alloc = malloc(16);
+        reinterpret_cast<volatile char*>(alloc)[0] = 1;
+        alloc = malloc(16);
+        reinterpret_cast<volatile char*>(alloc)[0] = 2;
+        free(alloc);
+        exit(0);  // LSan runs on the atexit handler.
+      },
+      "LeakSanitizer:.*detected memory leaks");
 }
 
 TEST(SanitizerTests, LSAN_LeakCppNew) {
-  std::unique_ptr<int> alloc(new int(1));
-  *reinterpret_cast<volatile char*>(alloc.get()) = 1;
-  alloc.release();
-  alloc.reset(new int(2));
-  *reinterpret_cast<volatile char*>(alloc.get()) = 2;
+  EXPECT_DEATH(
+      {
+        std::unique_ptr<int> alloc(new int(1));
+        *reinterpret_cast<volatile char*>(alloc.get()) = 1;
+        alloc.release();
+        alloc.reset(new int(2));
+        *reinterpret_cast<volatile char*>(alloc.get()) = 2;
+        exit(0);  // LSan runs on the atexit handler.
+      },
+      "LeakSanitizer:.*detected memory leaks");
 }
 #endif  // LEAK_SANITIZER
 
 #if defined(UNDEFINED_SANITIZER)
 TEST(SanitizerTests, UBSAN_DivisionByZero) {
-  volatile float div = 1;
-  float res = 3 / (div - 1);
-  ASSERT_GT(res, -1.0f);  // just use |res| to make the compiler happy.
+  EXPECT_DEATH(
+      {
+        volatile float div = 1;
+        float res = 3 / (div - 1);
+        ASSERT_GT(res, -1.0f);  // just use |res| to make the compiler happy.
+        abort();
+      },
+      "error:.*division by zero");
 }
 
 TEST(SanitizerTests, UBSAN_ShiftExponent) {
-  volatile uint32_t n = 32;
-  volatile uint32_t shift = 31;
-  uint64_t res = n << (shift + 3);
-  ASSERT_NE(1u, res);  // just use |res| to make the compiler happy.
+  EXPECT_DEATH(
+      {
+        volatile uint32_t n = 32;
+        volatile uint32_t shift = 31;
+        uint64_t res = n << (shift + 3);
+        ASSERT_NE(1u, res);  // just use |res| to make the compiler happy.
+        abort();
+      },
+      "error:.*shift exponent");
 }
 #endif  // UNDEFINED_SANITIZER
+
+#if !defined(ADDRESS_SANITIZER) && !defined(THREAD_SANITIZER) && \
+    !defined(MEMORY_SANITIZER) && !defined(LEAK_SANITIZER) &&    \
+    !defined(UNDEFINED_SANITIZER)
+TEST(SanitizerTests, NoSanitizersConfigured) {
+  printf("No sanitizers configured!\n");
+}
+#endif
 
 }  // namespace
 }  // namespace perfetto
