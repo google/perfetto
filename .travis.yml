@@ -39,7 +39,14 @@ matrix:
     - os: linux
       dist: trusty
       sudo: false
-      compiler: clang
+      # When setting compiler: clang Travis pull a newer version of clang than
+      # the version that is shipped with Trusty. This is good for all the other
+      # configs, but we want to keep at least one target in the matrix to match
+      # the default version of clang that we have on our workstations.
+      addons:
+        apt:
+          packages:
+            - clang
       env: CFG=linux_trusty-clang-x86_64-debug GN_ARGS="is_debug=true"
     - os: linux
       dist: trusty
@@ -102,6 +109,16 @@ matrix:
       compiler: clang
       env: CFG=android-clang-arm64-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\" is_asan=true"
 
+# Cache the deps that get git-pulled to avoid hitting quota limits (b/68252114).
+# Do not cache NDK/SDK and things that come from .zip files rather than git.
+# Doing that is discouraged (https://docs.travis-ci.com/user/caching/).
+cache:
+  timeout: 1800  # 30 mins
+  directories:
+    - buildtools/benchmark
+    - buildtools/googletest
+    - buildtools/libcxx
+    - buildtools/libcxxabi
 
 before_install:
   - set -e
@@ -122,16 +139,16 @@ script:
   - |
     if [[ "$CFG" != android-* ]]; then
       out/dist/base_unittests
-      out/dist/libtracing_unittests
-      out/dist/libtracing_benchmarks
       out/dist/protozero_unittests
+      out/dist/tracing_unittests
+      out/dist/tracing_benchmarks
     else
       TARGET_ARCH=$(echo $CFG | cut -d- -f3)
       build/run_android_emulator $TARGET_ARCH --pid /tmp/emulator.pid -v &
       build/run_android_test out/dist base_unittests
-      build/run_android_test out/dist libtracing_unittests
-      build/run_android_test out/dist libtracing_benchmarks
       build/run_android_test out/dist protozero_unittests
+      build/run_android_test out/dist tracing_unittests
+      build/run_android_test out/dist tracing_benchmarks
     fi
 
 after_script:

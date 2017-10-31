@@ -14,14 +14,27 @@
  * limitations under the License.
  */
 
-#include "gtest/gtest.h"
+#include "tracing/src/test/test_shared_memory.h"
+
+#include <string.h>
+
+#include "base/logging.h"
 
 namespace perfetto {
-namespace {
 
-TEST(PerfettoTest, HelloWorld) {
-  ASSERT_TRUE(true);
+TestSharedMemory::TestSharedMemory(size_t size) {
+  mem_.reset(new char[size]);
+  memset(mem_.get(), 0, size);
+  size_ = size;
 }
 
-}  // namespace
+TestSharedMemory::~TestSharedMemory() {}
+
+TestSharedMemory::Factory::~Factory() {}
+
+std::unique_ptr<SharedMemory> TestSharedMemory::Factory::CreateSharedMemory(
+    size_t size) {
+  return std::unique_ptr<SharedMemory>(new TestSharedMemory(size));
+}
+
 }  // namespace perfetto

@@ -35,13 +35,14 @@ config("googletest_config") {
     "-Wno-covered-switch-default",
     "-Wno-deprecated",
     "-Wno-global-constructors",
+    "-Wno-inconsistent-missing-override",
     "-Wno-missing-noreturn",
     "-Wno-shift-sign-overflow",
+    "-Wno-sign-conversion",
     "-Wno-undef",
-    "-Wno-unknown-warning-option",
+    "-Wno-unused-member-function",
     "-Wno-used-but-marked-unused",
     "-Wno-zero-as-null-pointer-constant",
-    "-Wno-weak-vtables",
   ]
 }
 
@@ -91,18 +92,16 @@ config("protobuf_gen_config") {
   include_dirs = [ "protobuf/src" ]
   cflags = [
     "-Wno-deprecated",
-    "-Wno-unknown-warning-option",
     "-Wno-disabled-macro-expansion",
+    "-Wno-int-to-void-pointer-cast",
     "-Wno-missing-variable-declarations",
     "-Wno-old-style-cast",
-    "-Wno-sign-conversion",
-    "-Wno-int-to-void-pointer-cast",
+    "-Wno-shorten-64-to-32",
     "-Wno-sign-compare",
+    "-Wno-sign-conversion",
+    "-Wno-undef",
     "-Wno-zero-as-null-pointer-constant",
   ]
-  if (is_clang) {
-    cflags += [ "-Wno-weak-vtables" ]
-  }
 }
 
 # Configuration used to build libprotobuf_* and the protoc compiler.
@@ -437,7 +436,6 @@ config("benchmark_config") {
   cflags = [
     "-Wno-global-constructors",
     "-Wno-covered-switch-default",
-    "-Wno-weak-vtables",
   ]
 }
 

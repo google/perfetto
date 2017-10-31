@@ -25,6 +25,9 @@ import zipfile
 
 from collections import namedtuple
 
+# When adding a new git dependency here please also add a corresponding entry in
+# .travis.yml under the "cache:" section.
+
 # Dependencies required to build code on the host or when targeting desktop OS.
 BUILD_DEPS_HOST = [
   # GN

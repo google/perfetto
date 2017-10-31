@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "cpp_common/base.h"
+#include "base/logging.h"
 #include "gtest/gtest.h"
 #include "protozero/src/test/fake_scattered_buffer.h"
 
@@ -306,8 +306,8 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   ASSERT_EQ(0x90u, msg3_size[0]);  // |msg3| should be finalized at this point.
 
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
-  // In developer builds w/ DCHECK on a finalized message should invalidate the
-  // handle, in order to early catch bugs in the client code.
+  // In developer builds w/ PERFETTO_DCHECK on a finalized message should
+  // invalidate the handle, in order to early catch bugs in the client code.
   FakeRootMessage* msg4 = NewMessage();
   ProtoZeroMessageHandle<FakeRootMessage> handle4(msg4);
   ASSERT_EQ(msg4, &*handle4);
