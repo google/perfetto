@@ -16,7 +16,7 @@
 
 #include <stdio.h>
 
-#include "libftrace/ftrace.h"
+#include "ftrace_reader/ftrace_cpu_reader.h"
 
 int main(int argc, const char** argv) {
   if (argc > 1)
