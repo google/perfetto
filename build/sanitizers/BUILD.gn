@@ -14,9 +14,9 @@
 
 import("//build/sanitizers/sanitizers.gni")
 
-# Link dependencies for sanitizers for executables and shared_libraries.
+# Link dependencies for sanitizers for executables.
 group("deps") {
-  visibility = [ "//build:exe_and_shlib_deps" ]
+  visibility = [ "*" ]
   if (using_sanitizer) {
     public_configs = [ ":sanitizers_ldflags" ]
     if (is_android && sanitizer_lib != "" && !sanitizer_lib_dir_is_static) {
@@ -96,47 +96,21 @@ config("sanitizer_options_link_helper") {
 
 config("sanitizers_ldflags") {
   visibility = [ ":deps" ]
-  cflags = [ "-fno-omit-frame-pointer" ]
   ldflags = []
   if (is_asan) {
-    cflags += [ "-fsanitize=address" ]
     ldflags += [ "-fsanitize=address" ]
   }
   if (is_lsan) {
-    cflags += [ "-fsanitize=leak" ]
     ldflags += [ "-fsanitize=leak" ]
   }
   if (is_tsan) {
-    cflags += [ "-fsanitize=thread" ]
     ldflags += [ "-fsanitize=thread" ]
   }
   if (is_msan) {
-    cflags += [ "-fsanitize=memory" ]
     ldflags += [ "-fsanitize=memory" ]
   }
   if (is_ubsan) {
-    cflags += [
-      "-fsanitize=bounds",
-      "-fsanitize=float-divide-by-zero",
-      "-fsanitize=integer-divide-by-zero",
-      "-fsanitize=null",
-      "-fsanitize=object-size",
-      "-fsanitize=return",
-      "-fsanitize=returns-nonnull-attribute",
-      "-fsanitize=shift-exponent",
-      "-fsanitize=signed-integer-overflow",
-      "-fsanitize=unreachable",
-      "-fsanitize=vla-bound",
-    ]
     ldflags += [ "-fsanitize=undefined" ]
   }
-  if (sanitizer_lib != "") {
-    configs = [ ":sanitizer_options_link_helper" ]
-    lib_dirs = [ sanitizer_lib_dir ]
-    if (sanitizer_lib_dir_is_static) {
-      ldflags += [ "-L${sanitizer_lib}" ]
-    } else {
-      libs = [ sanitizer_lib ]
-    }
-  }
+  configs = [ ":sanitizer_options_link_helper" ]
 }

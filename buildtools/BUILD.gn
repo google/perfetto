@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build/c++.gni")
+import("//build/libc++/libc++.gni")
 
 # Mimimal config to be used in production (i.e. non-test) targets. This is
 # really just to allowing include "gtest/gtest_prod.h" for the FRIEND_TEST macro
@@ -346,6 +346,33 @@ if (use_custom_libcxx) {
     ]
   }
 
+  source_set("libunwind") {
+    sources = [
+      "libunwind/src/Unwind-EHABI.cpp",
+      "libunwind/src/Unwind-sjlj.c",
+      "libunwind/src/UnwindLevel1-gcc-ext.c",
+      "libunwind/src/UnwindLevel1.c",
+      "libunwind/src/UnwindRegistersRestore.S",
+      "libunwind/src/UnwindRegistersSave.S",
+      "libunwind/src/libunwind.cpp",
+    ]
+    include_dirs = [ "libunwind/include" ]
+    configs -= [
+      "//build:extra_warnings",
+      "//build:no_exceptions",
+      "//build:no_rtti",
+
+      # When building with msan, libunwind itself triggers memory violations
+      # that causes msan to get stuck into an infinite loop. Just don't
+      # instrument libunwind itself.
+      "//build/sanitizers:sanitizers_cflags",
+    ]
+    configs += [
+      ":libc++config",
+      "//build/sanitizers:sanitizer_options_link_helper",
+    ]
+  }
+
   source_set("libc++abi") {
     sources = [
       "libcxxabi/src/abort_message.cpp",
@@ -380,9 +407,16 @@ if (use_custom_libcxx) {
       ":libc++config",
       "//build/sanitizers:sanitizer_options_link_helper",
     ]
+    deps += [ ":libunwind" ]
   }
 
-  source_set("libc++") {
+  if (custom_libcxx_is_static) {
+    libcxx_target_type = "source_set"
+  } else {
+    libcxx_target_type = "shared_library"
+  }
+
+  target(libcxx_target_type, "libc++") {
     sources = [
       "libcxx/src/algorithm.cpp",
       "libcxx/src/any.cpp",
@@ -424,9 +458,7 @@ if (use_custom_libcxx) {
       "//build/sanitizers:sanitizer_options_link_helper",
     ]
     defines = [ "_LIBCPP_BUILDING_LIBRARY" ]
-    deps = [
-      ":libc++abi",
-    ]
+    deps += [ ":libc++abi" ]
   }
 }  # if (use_custom_libcxx)
 

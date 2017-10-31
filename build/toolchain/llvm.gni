@@ -12,23 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import subprocess
-import sys
-
-def main():
-  res = subprocess.check_output(['clang', '-print-search-dirs'])
-  for line in res.splitlines():
-    if not line.startswith('libraries:'):
-      continue
-    libs = line.split('=', 1)[1].split(':')
-    for lib in libs:
-      if '/clang/' not in lib or not os.path.isdir(lib + '/lib'):
-        continue
-      print os.path.abspath(lib)
-      return 0
-  print 'Could not find the LLVM lib dir'
-  return 1
-
-if __name__ == '__main__':
-  sys.exit(main())
+if (is_linux || is_android) {
+  find_llvm_out = exec_script("linux_find_llvm.py", [], "list lines")
+  linux_llvm_dir = find_llvm_out[0]
+  linux_clang_bin = find_llvm_out[1]
+  linux_clangxx_bin = find_llvm_out[2]
+  linux_clangrt_dir = "$linux_llvm_dir/lib/linux"
+} else if (is_mac) {
+  mac_toolchain_dirs_ = exec_script("mac_find_llvm.py", [], "list lines")
+  mac_toolchain_dir = mac_toolchain_dirs_[0]
+  mac_clangrt_dir = mac_toolchain_dirs_[1]
+}
