@@ -98,6 +98,11 @@ BUILD_DEPS_HOST = [
    '4072e8fd76febee37f60aeda76d6d9f5e3791daa',
    'all'
   ),
+  ('buildtools/libunwind',
+   'https://chromium.googlesource.com/external/llvm.org/libunwind.git',
+   '41f982e5887185b904a456e20dfcd58e6be6cc19',
+   'all'
+  ),
 
   # Benchmarking tool.
   ('buildtools/benchmark.zip',
