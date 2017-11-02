@@ -144,6 +144,7 @@ template("proto_library") {
                            [
                              "defines",
                              "include_dirs",
+                             "public_configs",
                              "testonly",
                              "visibility",
                            ])
@@ -155,7 +156,11 @@ template("proto_library") {
       configs += invoker.extra_configs
     }
 
-    public_configs = [
+    if (!defined(invoker.public_configs)) {
+      public_configs = []
+    }
+
+    public_configs += [
       "//buildtools:protobuf_gen_config",
       ":$config_name",
     ]
