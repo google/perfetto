@@ -23,6 +23,7 @@ template("protozero_library") {
     generator_plugin_label = "//protozero/src/protoc_plugin"
     generator_plugin_suffix = ".pbzero"
     generator_plugin_options = "wrapper_namespace=pbzero"
+    public_configs = [ "//protozero:protozero_config" ]
     forward_variables_from(invoker,
                            [
                              "defines",
