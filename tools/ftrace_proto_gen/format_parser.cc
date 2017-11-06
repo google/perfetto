@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/utils.h"
 #include "tools/ftrace_proto_gen/ftrace_to_proto.h"
 
 namespace perfetto {
@@ -37,7 +38,7 @@ const char* kCommonFieldPrefix = "common_";
 }  // namespace
 
 bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
-  std::unique_ptr<char[]> input_copy(strdup(input.c_str()));
+  std::unique_ptr<char[], base::FreeDeleter> input_copy(strdup(input.c_str()));
   char* s = input_copy.get();
 
   char buffer[MAX_FIELD_LENGTH + 1];
