@@ -40,4 +40,7 @@ source_set("lib") {
     "ftrace_to_proto.cc",
     "ftrace_to_proto.h",
   ]
+  deps += [
+    "//base"
+  ]
 }
