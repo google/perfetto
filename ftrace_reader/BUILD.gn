@@ -29,6 +29,21 @@ executable("ftrace_reader_unittests") {
   ]
 }
 
+# These tests require access to a real ftrace implementation and must
+# run with sudo.
+executable("ftrace_reader_integrationtests") {
+  testonly = true
+  deps += [
+    ":ftrace_reader",
+    "//buildtools:gmock",
+    "//buildtools:gtest",
+    "//buildtools:gtest_main",
+  ]
+  sources = [
+    "src/ftrace_controller_integrationtest.cc",
+  ]
+}
+
 executable("ftrace_reader_demo") {
   sources = [
     "main.cc",
@@ -38,11 +53,11 @@ executable("ftrace_reader_demo") {
 
 source_set("ftrace_reader") {
   all_dependent_configs = [ ":ftrace_reader_config" ]
-  deps += [
-    "//protozero",
-  ]
+  deps += [ "//protozero" ]
   sources = [
+    "include/ftrace_reader/ftrace_controller.h",
     "include/ftrace_reader/ftrace_cpu_reader.h",
+    "src/ftrace_controller.cc",
     "src/ftrace_cpu_reader.cc",
   ]
 }
