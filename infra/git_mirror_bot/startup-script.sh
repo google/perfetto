@@ -22,9 +22,6 @@ chown gitbot.gitbot /home/gitbot
 apt-get update
 apt-get install -y git python curl sudo supervisor
 
-curl -sSO https://dl.google.com/cloudagents/install-logging-agent.sh
-sudo bash install-logging-agent.sh
-
 mkdir -p /home/gitbot/logs
 cat<<EOF > /etc/supervisord.conf
 [supervisord]
@@ -41,18 +38,6 @@ stdout_logfile=/home/gitbot/logs/gitbot.log
 stdout_logfile_maxbytes=2MB
 redirect_stderr=true
 EOF
-
-cat<<EOF >/etc/google-fluentd/config.d/gitbot.conf
-<source>
-  @type tail
-  format /^(?<message>.*)$/
-  path /home/gitbot/logs/gitbot.log
-  pos_file /var/lib/google-fluentd/pos/gitbot.pos
-  read_from_head true
-  tag gitbot
-</source>
-EOF
-service google-fluentd reload
 
 curl -H Metadata-Flavor:Google "http://metadata.google.internal/computeMetadata/v1/instance/attributes/deploy_key" > /home/gitbot/deploy_key
 chown gitbot /home/gitbot/deploy_key
