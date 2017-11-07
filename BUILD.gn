@@ -28,6 +28,7 @@ group("tests") {
   testonly = true
   deps = [
     "//base:base_unittests",
+    "//ftrace_reader:ftrace_reader_integrationtests",
     "//ftrace_reader:ftrace_reader_unittests",
     "//protozero:protozero_unittests",
     "//tools/ftrace_proto_gen:ftrace_proto_gen_unittests",
