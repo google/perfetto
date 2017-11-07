@@ -33,6 +33,27 @@ bool IsCIdentifier(const std::string& s) {
   return s.size() > 0 && !std::isdigit(s[0]);
 }
 
+std::string ToCamelCase(const std::string& s) {
+  std::string result = s;
+  bool upperCaseNextChar = true;
+  size_t j = 0;
+  for (size_t i = 0; i < s.size(); i++) {
+    char c = s[i];
+    if (c == '_') {
+      upperCaseNextChar = true;
+      continue;
+    }
+    if (upperCaseNextChar) {
+      upperCaseNextChar = false;
+      c = static_cast<char>(toupper(c));
+    }
+    result[j] = c;
+    j++;
+  }
+  result.resize(j);
+  return result;
+}
+
 }  // namespace
 
 // For example:
@@ -86,7 +107,7 @@ std::string InferProtoType(const FtraceEvent::Field& field) {
 }
 
 bool GenerateProto(const FtraceEvent& format, Proto* proto_out) {
-  proto_out->name = format.name;
+  proto_out->name = ToCamelCase(format.name) + "FtraceEvent";
   proto_out->fields.reserve(format.fields.size());
   std::set<std::string> seen;
   // TODO(hjd): We should be cleverer about id assignment.
