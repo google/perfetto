@@ -53,7 +53,10 @@ executable("ftrace_reader_demo") {
 
 source_set("ftrace_reader") {
   all_dependent_configs = [ ":ftrace_reader_config" ]
-  deps += [ "//protozero" ]
+  deps += [
+    "//base",
+    "//protozero",
+  ]
   sources = [
     "include/ftrace_reader/ftrace_controller.h",
     "include/ftrace_reader/ftrace_cpu_reader.h",
