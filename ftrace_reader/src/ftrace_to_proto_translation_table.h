@@ -19,6 +19,11 @@
 
 #include <stdint.h>
 
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "base/scoped_file.h"
 #include "ftrace_event_bundle.pbzero.h"
 
@@ -26,13 +31,43 @@ namespace perfetto {
 
 class FtraceToProtoTranslationTable {
  public:
-  FtraceToProtoTranslationTable();
+  enum FtraceFieldType {
+    kFtraceNumber = 0,
+  };
+
+  enum ProtoFieldType {
+    kProtoNumber = 0,
+  };
+
+  struct Field {
+    size_t ftrace_offset;
+    size_t ftrace_size;
+    FtraceFieldType ftrace_type;
+    size_t proto_field_id;
+    ProtoFieldType proto_field_type;
+  };
+
+  struct Event {
+    std::string name;
+    std::string group;
+    std::vector<Field> fields;
+    size_t ftrace_event_id;
+    size_t proto_field_id;
+  };
+
+  static std::unique_ptr<FtraceToProtoTranslationTable> Create(
+      std::string path_to_event_dir);
   ~FtraceToProtoTranslationTable();
 
  private:
+  FtraceToProtoTranslationTable(std::map<size_t, Event> events,
+                                std::vector<Field> common_fields);
   FtraceToProtoTranslationTable(const FtraceToProtoTranslationTable&) = delete;
   FtraceToProtoTranslationTable& operator=(
       const FtraceToProtoTranslationTable&) = delete;
+
+  std::map<size_t, Event> events_;
+  std::vector<Field> common_fields_;
 };
 
 }  // namespace perfetto

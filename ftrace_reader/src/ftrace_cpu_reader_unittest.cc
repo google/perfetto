@@ -22,8 +22,8 @@ namespace perfetto {
 namespace {
 
 TEST(FtraceCpuReader, ParseEmpty) {
-  FtraceToProtoTranslationTable table;
-  FtraceCpuReader(&table, 42, base::ScopedFile());
+  auto table = FtraceToProtoTranslationTable::Create("");
+  FtraceCpuReader(table.get(), 42, base::ScopedFile());
 }
 
 }  // namespace
