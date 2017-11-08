@@ -31,6 +31,7 @@ group("tests") {
     "//base:base_unittests",
     "//ftrace_reader:ftrace_reader_integrationtests",
     "//ftrace_reader:ftrace_reader_unittests",
+    "//ipc:ipc_unittests",
     "//protozero:protozero_unittests",
     "//tools/sanitizers_unittests",
     "//tracing:tracing_benchmarks",
