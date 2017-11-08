@@ -1,0 +1,9 @@
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
+
+import "ftrace_event.proto";
+
+message FtraceEventBundle {
+  uint32 cpu = 1;
+  repeated FtraceEvent event = 2;
+}
