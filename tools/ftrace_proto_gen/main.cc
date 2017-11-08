@@ -19,8 +19,8 @@
 #include <sstream>
 #include <string>
 
-#include "tools/ftrace_proto_gen/format_parser.h"
-#include "tools/ftrace_proto_gen/ftrace_to_proto.h"
+#include "ftrace_reader/format_parser.h"
+#include "ftrace_reader/ftrace_to_proto.h"
 
 int main(int argc, const char** argv) {
   if (argc != 3) {
