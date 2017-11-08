@@ -81,8 +81,7 @@ std::string TracePipeRawPath(size_t cpu) {
 
 // static
 std::unique_ptr<FtraceController> FtraceController::Create() {
-  auto table = std::unique_ptr<FtraceToProtoTranslationTable>(
-      new FtraceToProtoTranslationTable);
+  auto table = FtraceToProtoTranslationTable::Create("");
   return std::unique_ptr<FtraceController>(
       new FtraceController(std::move(table)));
 }

@@ -18,7 +18,21 @@
 
 namespace perfetto {
 
-FtraceToProtoTranslationTable::FtraceToProtoTranslationTable() {}
+// static
+std::unique_ptr<FtraceToProtoTranslationTable>
+FtraceToProtoTranslationTable::Create(std::string path_to_event_dir) {
+  std::map<size_t, Event> events;
+  std::vector<Field> common_fields;
+  auto table = std::unique_ptr<FtraceToProtoTranslationTable>(
+      new FtraceToProtoTranslationTable(std::move(events),
+                                        std::move(common_fields)));
+  return table;
+}
+
+FtraceToProtoTranslationTable::FtraceToProtoTranslationTable(
+    std::map<size_t, Event> events,
+    std::vector<Field> common_fields)
+    : events_(std::move(events)), common_fields_(std::move(common_fields)) {}
 
 FtraceToProtoTranslationTable::~FtraceToProtoTranslationTable() = default;
 
