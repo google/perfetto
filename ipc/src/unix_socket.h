@@ -25,6 +25,7 @@
 
 #include "base/logging.h"
 #include "base/scoped_file.h"
+#include "base/weak_ptr.h"
 
 namespace perfetto {
 
@@ -159,21 +160,6 @@ class UnixSocket {
   int last_error() const { return last_error_; }
 
  private:
-  // Used to decouple the lifetime of the UnixSocket from the callbacks
-  // registered on the TaskRunner, which might happen after UnixSocket has been
-  // destroyed. This is essentially a single-instance weak_ptr<UnixSocket>.
-  // Unfortunately C++11's weak_ptr would require UnixSocket to be a shared_ptr,
-  // which is undesirable here. The |sock| pointer is invalidated by the dtor
-  // of UnixSocket.
-  struct WeakRef {
-    explicit WeakRef(UnixSocket* s) : sock(s) {}
-    ~WeakRef() = default;
-    WeakRef(const WeakRef&) = delete;
-    WeakRef& operator=(const WeakRef&) = delete;
-
-    UnixSocket* sock;
-  };
-
   UnixSocket(EventListener*, base::TaskRunner*);
   UnixSocket(EventListener*, base::TaskRunner*, base::ScopedFile);
   UnixSocket(const UnixSocket&) = delete;
@@ -191,7 +177,7 @@ class UnixSocket {
   int last_error_ = 0;
   EventListener* event_listener_;
   base::TaskRunner* task_runner_;
-  std::shared_ptr<WeakRef> weak_ref_;
+  base::WeakPtrFactory<UnixSocket> weak_ptr_factory_;
 };
 
 }  // namespace ipc
