@@ -18,7 +18,10 @@ source_set("base") {
     "logging.h",
     "scoped_file.h",
     "task_runner.h",
+    "thread_checker.cc",
+    "thread_checker.h",
     "utils.h",
+    "weak_ptr.h",
   ]
 }
 
@@ -42,6 +45,8 @@ executable("base_unittests") {
   ]
   sources = [
     "scoped_file_unittest.cc",
+    "thread_checker_unittest.cc",
     "utils_unittest.cc",
+    "weak_ptr_unittest.cc",
   ]
 }
