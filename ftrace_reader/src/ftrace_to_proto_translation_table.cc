@@ -14,17 +14,12 @@
  * limitations under the License.
  */
 
-#include "ftrace_reader/ftrace_cpu_reader.h"
 #include "ftrace_to_proto_translation_table.h"
-#include "gtest/gtest.h"
 
 namespace perfetto {
-namespace {
 
-TEST(FtraceCpuReader, ParseEmpty) {
-  FtraceToProtoTranslationTable table;
-  FtraceCpuReader(&table, 42, base::ScopedFile());
-}
+FtraceToProtoTranslationTable::FtraceToProtoTranslationTable() {}
 
-}  // namespace
+FtraceToProtoTranslationTable::~FtraceToProtoTranslationTable() = default;
+
 }  // namespace perfetto
