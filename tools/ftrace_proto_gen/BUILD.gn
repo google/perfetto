@@ -12,35 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-executable("ftrace_proto_gen_unittests") {
-  testonly = true
-  deps += [
-    ":lib",
-    "//buildtools:gmock",
-    "//buildtools:gtest",
-    "//buildtools:gtest_main",
-  ]
-  sources = [
-    "format_parser_unittest.cc",
-    "ftrace_to_proto_unittest.cc",
-  ]
-}
-
 executable("ftrace_proto_gen") {
   sources = [
     "main.cc",
   ]
-  deps += [ ":lib" ]
-}
-
-source_set("lib") {
-  sources = [
-    "format_parser.cc",
-    "format_parser.h",
-    "ftrace_to_proto.cc",
-    "ftrace_to_proto.h",
-  ]
   deps += [
-    "//base"
+    "//base",
+    "//ftrace_reader",
   ]
 }

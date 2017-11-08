@@ -16,6 +16,8 @@
 
 #include "ftrace_reader/ftrace_cpu_reader.h"
 
+#include <utility>
+
 #include "ftrace_event_bundle.pbzero.h"
 #include "ftrace_to_proto_translation_table.h"
 

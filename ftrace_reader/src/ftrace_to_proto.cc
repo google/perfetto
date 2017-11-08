@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include "tools/ftrace_proto_gen/ftrace_to_proto.h"
+#include "ftrace_reader/ftrace_to_proto.h"
 
+#include <regex>
 #include <set>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <regex>
 
 namespace perfetto {
 namespace {
