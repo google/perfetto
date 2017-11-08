@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "ftrace_reader/format_parser.h"
 
-#include "tools/ftrace_proto_gen/format_parser.h"
+#include "ftrace_reader/ftrace_to_proto.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "tools/ftrace_proto_gen/ftrace_to_proto.h"
 
 namespace perfetto {
 namespace {

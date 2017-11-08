@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_FTRACE_PROTO_GEN_FTRACE_GEN_H_
-#define TOOLS_FTRACE_PROTO_GEN_FTRACE_GEN_H_
+#ifndef FTRACE_READER_PROTO_GEN_FTRACE_GEN_H_
+#define FTRACE_READER_PROTO_GEN_FTRACE_GEN_H_
 
 #include <stdint.h>
 
@@ -68,4 +68,4 @@ void PrintTo(const FtraceEvent::Field& args, ::std::ostream* os);
 
 }  // namespace perfetto
 
-#endif  // TOOLS_FTRACE_PROTO_GEN_FTRACE_GEN_H_
+#endif  // FTRACE_READER_PROTO_GEN_FTRACE_GEN_H_
