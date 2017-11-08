@@ -42,41 +42,41 @@ std::string GetTraceOutput() {
 }
 
 TEST(FtraceController, ClearTrace) {
-  FtraceController ftrace_controller;
-  ftrace_controller.WriteTraceMarker("Hello, World!");
-  ftrace_controller.ClearTrace();
+  std::unique_ptr<FtraceController> ftrace = FtraceController::Create();
+  ftrace->WriteTraceMarker("Hello, World!");
+  ftrace->ClearTrace();
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello, World!")));
 }
 
 TEST(FtraceController, TraceMarker) {
-  FtraceController ftrace_controller;
-  ftrace_controller.WriteTraceMarker("Hello, World!");
+  std::unique_ptr<FtraceController> ftrace = FtraceController::Create();
+  ftrace->WriteTraceMarker("Hello, World!");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello, World!"));
 }
 
 TEST(FtraceController, EnableDisableEvent) {
-  FtraceController ftrace_controller;
-  ftrace_controller.EnableEvent("sched/sched_switch");
+  std::unique_ptr<FtraceController> ftrace = FtraceController::Create();
+  ftrace->EnableEvent("sched/sched_switch");
   sleep(1);
   EXPECT_THAT(GetTraceOutput(), HasSubstr("sched_switch"));
 
-  ftrace_controller.DisableEvent("sched/sched_switch");
-  ftrace_controller.ClearTrace();
+  ftrace->DisableEvent("sched/sched_switch");
+  ftrace->ClearTrace();
   sleep(1);
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("sched_switch")));
 }
 
 TEST(FtraceController, EnableDisableTracing) {
-  FtraceController ftrace_controller;
-  ftrace_controller.ClearTrace();
-  EXPECT_TRUE(ftrace_controller.IsTracingEnabled());
-  ftrace_controller.WriteTraceMarker("Before");
-  ftrace_controller.DisableTracing();
-  EXPECT_FALSE(ftrace_controller.IsTracingEnabled());
-  ftrace_controller.WriteTraceMarker("During");
-  ftrace_controller.EnableTracing();
-  EXPECT_TRUE(ftrace_controller.IsTracingEnabled());
-  ftrace_controller.WriteTraceMarker("After");
+  std::unique_ptr<FtraceController> ftrace = FtraceController::Create();
+  ftrace->ClearTrace();
+  EXPECT_TRUE(ftrace->IsTracingEnabled());
+  ftrace->WriteTraceMarker("Before");
+  ftrace->DisableTracing();
+  EXPECT_FALSE(ftrace->IsTracingEnabled());
+  ftrace->WriteTraceMarker("During");
+  ftrace->EnableTracing();
+  EXPECT_TRUE(ftrace->IsTracingEnabled());
+  ftrace->WriteTraceMarker("After");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Before"));
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("During")));
   EXPECT_THAT(GetTraceOutput(), HasSubstr("After"));
