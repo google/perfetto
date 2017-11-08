@@ -1,0 +1,13 @@
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
+
+import "print.proto";
+import "sched_switch.proto";
+
+message FtraceEvent {
+  uint32 pid = 1;
+  oneof event {
+    PrintFtraceEvent print = 2;
+    SchedSwitchFtraceEvent sched_switch = 3;
+  }
+}
