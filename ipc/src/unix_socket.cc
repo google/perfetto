@@ -103,7 +103,7 @@ UnixSocket::UnixSocket(EventListener* event_listener,
                        base::ScopedFile adopt_fd)
     : event_listener_(event_listener),
       task_runner_(task_runner),
-      weak_ref_(new WeakRef(this)) {
+      weak_ptr_factory_(this) {
   if (adopt_fd) {
     // Only in the case of OnNewIncomingConnection().
     fd_ = std::move(adopt_fd);
@@ -131,15 +131,15 @@ UnixSocket::UnixSocket(EventListener* event_listener,
   fcntl_res = fcntl(fd(), F_SETFL, flags);
   PERFETTO_CHECK(fcntl_res == 0);
 
-  std::shared_ptr<WeakRef> weak_ref = weak_ref_;
-  task_runner_->AddFileDescriptorWatch(*fd_, [weak_ref]() {
-    if (weak_ref->sock)
-      weak_ref->sock->OnEvent();
+  base::WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
+  task_runner_->AddFileDescriptorWatch(*fd_, [weak_ptr]() {
+    if (weak_ptr)
+      weak_ptr->OnEvent();
   });
 }
 
 UnixSocket::~UnixSocket() {
-  weak_ref_->sock = nullptr;  // This will no-op any future callback.
+  // The implicit dtor of |weak_ptr_factory_| will no-op pending callbacks.
   Shutdown();
 }
 
@@ -210,10 +210,10 @@ void UnixSocket::DoConnect(const std::string& socket_name) {
   // just trigger an OnEvent without waiting for the FD watch. That will poll
   // the SO_ERROR and evolve the state into either kConnected or kDisconnected.
   if (res == 0) {
-    std::shared_ptr<WeakRef> weak_ref = weak_ref_;
-    task_runner_->PostTask([weak_ref]() {
-      if (weak_ref->sock)
-        weak_ref->sock->OnEvent();
+    base::WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
+    task_runner_->PostTask([weak_ptr]() {
+      if (weak_ptr)
+        weak_ptr->OnEvent();
     });
   }
 }
@@ -315,16 +315,16 @@ bool UnixSocket::Send(const void* msg, size_t len, int send_fd) {
 }
 
 void UnixSocket::Shutdown() {
-  std::shared_ptr<WeakRef>& weak_ref = weak_ref_;
+  base::WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
   if (state_ == State::kConnected) {
-    task_runner_->PostTask([weak_ref]() {
-      if (weak_ref->sock)
-        weak_ref->sock->event_listener_->OnDisconnect(weak_ref->sock);
+    task_runner_->PostTask([weak_ptr]() {
+      if (weak_ptr)
+        weak_ptr->event_listener_->OnDisconnect(weak_ptr.get());
     });
   } else if (state_ == State::kConnecting) {
-    task_runner_->PostTask([weak_ref]() {
-      if (weak_ref->sock)
-        weak_ref->sock->event_listener_->OnConnect(weak_ref->sock, false);
+    task_runner_->PostTask([weak_ptr]() {
+      if (weak_ptr)
+        weak_ptr->event_listener_->OnConnect(weak_ptr.get(), false);
     });
   }
   if (fd_) {
@@ -409,10 +409,10 @@ std::string UnixSocket::ReceiveString(size_t max_length) {
 }
 
 void UnixSocket::NotifyConnectionState(bool success) {
-  std::shared_ptr<WeakRef> weak_ref = weak_ref_;
-  task_runner_->PostTask([weak_ref, success]() {
-    if (weak_ref->sock)
-      weak_ref->sock->event_listener_->OnConnect(weak_ref->sock, success);
+  base::WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_ptr, success]() {
+    if (weak_ptr)
+      weak_ptr->event_listener_->OnConnect(weak_ptr.get(), success);
   });
 }
 
