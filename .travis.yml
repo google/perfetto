@@ -147,7 +147,6 @@ script:
     tracing_unittests
     tracing_benchmarks
     sanitizers_unittests
-    ftrace_proto_gen_unittests
     ftrace_reader_unittests
     "
 
