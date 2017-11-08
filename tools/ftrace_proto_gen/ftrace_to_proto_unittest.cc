@@ -52,5 +52,15 @@ TEST(FtraceEventParser, InferProtoType) {
   EXPECT_EQ(InferProtoType(Field{"u32 control_freq", 44, 4, false}), "uint32");
 }
 
+TEST(FtraceEventParser, GenerateProtoName) {
+  FtraceEvent input;
+  Proto output;
+  input.name = "the_snake_case_name";
+
+  GenerateProto(input, &output);
+
+  EXPECT_EQ(output.name, "TheSnakeCaseNameFtraceEvent");
+}
+
 }  // namespace
 }  // namespace perfetto
