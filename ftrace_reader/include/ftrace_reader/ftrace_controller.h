@@ -19,15 +19,20 @@
 
 #include <unistd.h>
 
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
+
+#include "ftrace_reader/ftrace_cpu_reader.h"
 
 namespace perfetto {
 
 // Utility class for controling ftrace.
 class FtraceController {
  public:
-  FtraceController();
+  static std::unique_ptr<FtraceController> Create();
+  ~FtraceController();
 
   // Clears the trace buffers for all CPUs. Blocks until this is done.
   void ClearTrace();
@@ -52,9 +57,21 @@ class FtraceController {
   // Disable the event |name|.
   bool DisableEvent(const std::string& name);
 
+  // Returns a cached FtraceCpuReader for |cpu|.
+  // FtraceCpuReaders are constructed lazily.
+  const FtraceCpuReader* GetCpuReader(size_t cpu);
+
+  // Returns the number of CPUs.
+  // This will match the number of tracing/per_cpu/cpuXX directories.
+  size_t NumberOfCpus() const;
+
  private:
+  FtraceController(std::unique_ptr<FtraceToProtoTranslationTable>);
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
+
+  std::unique_ptr<FtraceToProtoTranslationTable> table_;
+  std::map<size_t, FtraceCpuReader> readers_;
 };
 
 }  // namespace perfetto

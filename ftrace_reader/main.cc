@@ -21,14 +21,14 @@
 #include "ftrace_reader/ftrace_cpu_reader.h"
 
 int main(int argc, const char** argv) {
-  perfetto::FtraceController ftrace_controller;
+  auto ftrace = perfetto::FtraceController::Create();
 
-  ftrace_controller.ClearTrace();
-  ftrace_controller.WriteTraceMarker("Hello, world!");
+  ftrace->ClearTrace();
+  ftrace->WriteTraceMarker("Hello, world!");
 
   for (int i = 1; i < argc; i++) {
     printf("Enabling: %s\n", argv[i]);
-    ftrace_controller.EnableEvent(argv[i]);
+    ftrace->EnableEvent(argv[i]);
   }
 
   // Sleep for one second so we get some events
@@ -36,8 +36,8 @@ int main(int argc, const char** argv) {
 
   for (int i = 1; i < argc; i++) {
     printf("Disable: %s\n", argv[i]);
-    ftrace_controller.DisableEvent(argv[i]);
+    ftrace->DisableEvent(argv[i]);
   }
 
-  return perfetto::SomePublicApi();
+  return 0;
 }
