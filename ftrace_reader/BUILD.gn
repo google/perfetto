@@ -65,5 +65,7 @@ source_set("ftrace_reader") {
     "include/ftrace_reader/ftrace_cpu_reader.h",
     "src/ftrace_controller.cc",
     "src/ftrace_cpu_reader.cc",
+    "src/ftrace_to_proto_translation_table.cc",
+    "src/ftrace_to_proto_translation_table.h",
   ]
 }

@@ -24,8 +24,10 @@
 
 #include <string>
 
+#include "base/logging.h"
 #include "base/scoped_file.h"
 #include "base/utils.h"
+#include "ftrace_to_proto_translation_table.h"
 
 namespace perfetto {
 
@@ -70,9 +72,25 @@ char ReadOneCharFromFile(const std::string& path) {
   return result;
 }
 
+std::string TracePipeRawPath(size_t cpu) {
+  return "/sys/kernel/debug/tracing/per_cpu/" + std::to_string(cpu) +
+         "/trace_pipe_raw";
+}
+
 }  // namespace
 
-FtraceController::FtraceController() {}
+// static
+std::unique_ptr<FtraceController> FtraceController::Create() {
+  auto table = std::unique_ptr<FtraceToProtoTranslationTable>(
+      new FtraceToProtoTranslationTable);
+  return std::unique_ptr<FtraceController>(
+      new FtraceController(std::move(table)));
+}
+
+FtraceController::FtraceController(
+    std::unique_ptr<FtraceToProtoTranslationTable> table)
+    : table_(std::move(table)) {}
+FtraceController::~FtraceController() = default;
 
 void FtraceController::ClearTrace() {
   base::ScopedFile fd(open(kTracePath, O_WRONLY | O_TRUNC));
@@ -103,6 +121,23 @@ bool FtraceController::EnableEvent(const std::string& name) {
 bool FtraceController::DisableEvent(const std::string& name) {
   std::string path = std::string(kTraceEventPath) + name + "/enable";
   return WriteToFile(path, "0");
+}
+
+const FtraceCpuReader* FtraceController::GetCpuReader(size_t cpu) {
+  if (cpu >= NumberOfCpus())
+    return nullptr;
+  if (!readers_.count(cpu)) {
+    auto fd = base::ScopedFile(open(TracePipeRawPath(cpu).c_str(), O_RDONLY));
+    if (!fd)
+      return nullptr;
+    readers_.emplace(cpu, FtraceCpuReader(table_.get(), cpu, std::move(fd)));
+  }
+  return &readers_.at(cpu);
+}
+
+size_t FtraceController::NumberOfCpus() const {
+  static size_t num_cpus = sysconf(_SC_NPROCESSORS_CONF);
+  return num_cpus;
 }
 
 }  // namespace perfetto
