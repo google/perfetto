@@ -57,6 +57,9 @@ source_set("ftrace_reader") {
     "//base",
     "//protozero",
   ]
+  public_deps = [
+    "//protos/ftrace",
+  ]
   sources = [
     "include/ftrace_reader/ftrace_controller.h",
     "include/ftrace_reader/ftrace_cpu_reader.h",
