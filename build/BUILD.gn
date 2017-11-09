@@ -19,6 +19,7 @@ config("extra_warnings") {
   cflags = [
     "-Wextra",
     "-Wno-missing-field-initializers",
+    "-Wno-unused-parameter",
   ]
   if (is_clang) {
     cflags += [
@@ -30,7 +31,6 @@ config("extra_warnings") {
       "-Wno-gnu-zero-variadic-macro-arguments",
       "-Wno-padded",
       "-Wno-reserved-id-macro",
-      "-Wno-unused-parameter",
       "-Wno-weak-vtables",
     ]
   }
