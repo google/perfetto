@@ -32,16 +32,16 @@
 #include "base/utils.h"
 
 #if PERFETTO_DCHECK_IS_ON()
-#define PERFETTO_DLOG(fmt, ...) fprintf(stderr, fmt "\n", ##__VA_ARGS__)
-#define PERFETTO_DPLOG(x)                                                    \
-  PERFETTO_DLOG("%s %s:%d (errno: %d %s)\n", (x), __FILE__, __LINE__, errno, \
-                errno ? strerror(errno) : "")
-#define PERFETTO_DCHECK(x)                      \
-  do {                                          \
-    if (!__builtin_expect(!!(x), true)) {       \
-      PERFETTO_DPLOG("PERFETTO_CHECK(" #x ")"); \
-      abort();                                  \
-    }                                           \
+#define PERFETTO_DLOG(fmt, ...)                                               \
+  fprintf(stderr, "\n[%s:%d, errno: %d %s]\n" fmt "\n\n", __FILE__, __LINE__, \
+          errno, errno ? strerror(errno) : "", ##__VA_ARGS__)
+#define PERFETTO_DPLOG(...) PERFETTO_DLOG(__VA_ARGS__)
+#define PERFETTO_DCHECK(x)                            \
+  do {                                                \
+    if (!__builtin_expect(!!(x), true)) {             \
+      PERFETTO_DPLOG("%s", "PERFETTO_CHECK(" #x ")"); \
+      abort();                                        \
+    }                                                 \
   } while (0)
 #else
 #define PERFETTO_DLOG(...) ::perfetto::base::ignore_result(__VA_ARGS__)
