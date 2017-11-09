@@ -82,6 +82,11 @@ class BufferedFrameDeserializer {
   explicit BufferedFrameDeserializer(size_t max_capacity = 128 * 1024);
   ~BufferedFrameDeserializer();
 
+  // This function doesn't really belong here as it does Serialization, unlike
+  // the rest of this class. However it is so small and has so many dependencies
+  // in common that doesn't justify having its own class.
+  static std::string Serialize(const Frame&);
+
   // Returns a buffer that can be passed to recv(). The buffer is deliberately
   // not initialized.
   ReceiveBuffer BeginReceive();
