@@ -53,7 +53,7 @@ class WeakPtr {
   WeakPtr() {}
   WeakPtr(const WeakPtr&) = default;
   WeakPtr& operator=(const WeakPtr&) = default;
-  WeakPtr(WeakPtr&&) noexcept = default;
+  WeakPtr(WeakPtr&&) = default;
   WeakPtr& operator=(WeakPtr&&) = default;
 
   T* get() const {
