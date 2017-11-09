@@ -38,6 +38,9 @@ constexpr size_t kPageSize = 4096;
 // Size of the PROT_NONE guard region, adjactent to the end of the buffer.
 // It's a safety net to spot any out-of-bounds writes early.
 constexpr size_t kGuardRegionSize = kPageSize;
+
+// The header is just the number of bytes of the Frame protobuf message.
+constexpr size_t kHeaderSize = sizeof(uint32_t);
 }  // namespace
 
 BufferedFrameDeserializer::BufferedFrameDeserializer(size_t max_capacity)
@@ -103,9 +106,6 @@ bool BufferedFrameDeserializer::EndReceive(size_t recv_size) {
   // The invariant of this function is that, when it returns, buf_ is either
   // empty (we drained all the complete frames) or starts with the header of the
   // next, still incomplete, frame.
-
-  // The header is just the number of bytes of the Frame protobuf message.
-  const size_t kHeaderSize = sizeof(uint32_t);
 
   size_t consumed_size = 0;
   for (;;) {
@@ -191,6 +191,20 @@ void BufferedFrameDeserializer::DecodeFrame(const char* data, size_t size) {
   ::google::protobuf::io::ArrayInputStream stream(data, sz);
   if (frame->ParseFromBoundedZeroCopyStream(&stream, sz))
     decoded_frames_.push_back(std::move(frame));
+}
+
+// static
+std::string BufferedFrameDeserializer::Serialize(const Frame& frame) {
+  std::string buf;
+  buf.reserve(1024);  // Just an educated guess to avoid trivial expansions.
+  buf.insert(0, kHeaderSize, 0);  // Reserve the space for the header.
+  frame.AppendToString(&buf);
+  const uint32_t payload_size = static_cast<uint32_t>(buf.size() - kHeaderSize);
+  PERFETTO_DCHECK(payload_size == frame.GetCachedSize());
+  char header[kHeaderSize];
+  memcpy(header, base::AssumeLittleEndian(&payload_size), kHeaderSize);
+  buf.replace(0, kHeaderSize, header, kHeaderSize);
+  return buf;
 }
 
 }  // namespace ipc
