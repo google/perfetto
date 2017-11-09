@@ -39,7 +39,7 @@ class ThreadChecker {
 };
 
 #if PERFETTO_DCHECK_IS_ON()
-#define PERFETTO_THREAD_CHECKER(name) base::ThreadChecker name
+#define PERFETTO_THREAD_CHECKER(name) base::ThreadChecker name;
 #define PERFETTO_DCHECK_THREAD(name) \
   PERFETTO_DCHECK((name).CalledOnValidThread())
 #define PERFETTO_DETACH_FROM_THREAD(name) (name).DetachFromThread()

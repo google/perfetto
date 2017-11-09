@@ -70,7 +70,7 @@ class WeakPtr {
   explicit WeakPtr(const std::shared_ptr<T*>& handle) : handle_(handle) {}
 
   std::shared_ptr<T*> handle_;
-  PERFETTO_THREAD_CHECKER(thread_checker);
+  PERFETTO_THREAD_CHECKER(thread_checker)
 };
 
 template <typename T>
@@ -94,7 +94,7 @@ class WeakPtrFactory {
   WeakPtrFactory& operator=(const WeakPtrFactory&) = delete;
 
   std::shared_ptr<T*> handle_;
-  PERFETTO_THREAD_CHECKER(thread_checker);
+  PERFETTO_THREAD_CHECKER(thread_checker)
 };
 
 }  // namespace base
