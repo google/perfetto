@@ -18,6 +18,7 @@
 
 #include <pthread.h>
 
+#include <functional>
 #include <memory>
 
 #include "gtest/gtest.h"
