@@ -22,7 +22,8 @@ namespace perfetto {
 namespace {
 
 TEST(FtraceCpuReader, ParseEmpty) {
-  auto table = FtraceToProtoTranslationTable::Create("");
+  std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
+  auto table = FtraceToProtoTranslationTable::Create(path);
   FtraceCpuReader(table.get(), 42, base::ScopedFile());
 }
 
