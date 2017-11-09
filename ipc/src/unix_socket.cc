@@ -264,7 +264,7 @@ bool UnixSocket::Send(const std::string& msg) {
 
 bool UnixSocket::Send(const void* msg, size_t len, int send_fd) {
   if (state_ != State::kConnected) {
-    last_error_ = ENOTCONN;
+    errno = last_error_ = ENOTCONN;
     return false;
   }
 
