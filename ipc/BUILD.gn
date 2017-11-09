@@ -14,13 +14,22 @@
 
 import("//build/proto_library.gni")
 
+config("config") {
+  include_dirs = [ "include" ]
+}
+
 source_set("ipc") {
+  public_configs = [ ":config" ]
   deps += [
     ":wire_protocol",
     "//base",
   ]
   sources = [
+    "include/ipc/async_result.h",
+    "include/ipc/basic_types.h",
+    "include/ipc/deferred.h",
     "src/buffered_frame_deserializer.cc",
+    "src/deferred.cc",
     "src/unix_socket.cc",
   ]
 }
@@ -29,6 +38,7 @@ executable("ipc_unittests") {
   testonly = true
   deps += [
     ":ipc",
+    ":test_messages",
     ":wire_protocol",
     "//base",
     "//base:test_support",
@@ -38,6 +48,7 @@ executable("ipc_unittests") {
   ]
   sources = [
     "src/buffered_frame_deserializer_unittest.cc",
+    "src/deferred_unittest.cc",
     "src/unix_socket_unittest.cc",
   ]
 }
@@ -48,4 +59,12 @@ proto_library("wire_protocol") {
   ]
   include_dirs = [ "include" ]
   proto_in_dir = "src/"
+}
+
+proto_library("test_messages") {
+  sources = [
+    "src/test/deferred_unittest_messages.proto",
+  ]
+  include_dirs = [ "include" ]
+  proto_in_dir = "src/test"
 }
