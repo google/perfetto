@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/ftrace_proto_gen/ftrace_to_proto.h"
+#include "ftrace_reader/ftrace_to_proto.h"
 #include "gtest/gtest.h"
 
 namespace perfetto {

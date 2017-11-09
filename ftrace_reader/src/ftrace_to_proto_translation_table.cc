@@ -14,17 +14,26 @@
  * limitations under the License.
  */
 
-#include "ftrace_reader/ftrace_cpu_reader.h"
 #include "ftrace_to_proto_translation_table.h"
-#include "gtest/gtest.h"
 
 namespace perfetto {
-namespace {
 
-TEST(FtraceCpuReader, ParseEmpty) {
-  auto table = FtraceToProtoTranslationTable::Create("");
-  FtraceCpuReader(table.get(), 42, base::ScopedFile());
+// static
+std::unique_ptr<FtraceToProtoTranslationTable>
+FtraceToProtoTranslationTable::Create(std::string path_to_event_dir) {
+  std::map<size_t, Event> events;
+  std::vector<Field> common_fields;
+  auto table = std::unique_ptr<FtraceToProtoTranslationTable>(
+      new FtraceToProtoTranslationTable(std::move(events),
+                                        std::move(common_fields)));
+  return table;
 }
 
-}  // namespace
+FtraceToProtoTranslationTable::FtraceToProtoTranslationTable(
+    std::map<size_t, Event> events,
+    std::vector<Field> common_fields)
+    : events_(std::move(events)), common_fields_(std::move(common_fields)) {}
+
+FtraceToProtoTranslationTable::~FtraceToProtoTranslationTable() = default;
+
 }  // namespace perfetto

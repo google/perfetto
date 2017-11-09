@@ -19,6 +19,7 @@ group("all") {
     "//buildtools:protobuf_lite",
     "//buildtools:protoc($host_toolchain)",
     "//ftrace_reader:ftrace_reader_demo",
+    "//protos/ftrace",
     "//protozero/src/protoc_plugin($host_toolchain)",
     "//tools/ftrace_proto_gen:ftrace_proto_gen",
   ]
@@ -30,8 +31,8 @@ group("tests") {
     "//base:base_unittests",
     "//ftrace_reader:ftrace_reader_integrationtests",
     "//ftrace_reader:ftrace_reader_unittests",
+    "//ipc:ipc_unittests",
     "//protozero:protozero_unittests",
-    "//tools/ftrace_proto_gen:ftrace_proto_gen_unittests",
     "//tools/sanitizers_unittests",
     "//tracing:tracing_benchmarks",
     "//tracing:tracing_unittests",

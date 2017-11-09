@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-executable("ftrace_proto_gen") {
+import("//protozero//protozero_library.gni")
+
+protozero_library("ftrace") {
   sources = [
-    "main.cc",
+    "ftrace_event.proto",
+    "ftrace_event_bundle.proto",
+    "print.proto",
+    "sched_switch.proto",
   ]
-  deps += [
-    "//base",
-    "//ftrace_reader",
-  ]
+  proto_in_dir = "."
 }

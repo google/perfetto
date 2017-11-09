@@ -16,10 +16,21 @@
 
 #include "ftrace_reader/ftrace_cpu_reader.h"
 
+#include <utility>
+
+#include "ftrace_event_bundle.pbzero.h"
+#include "ftrace_to_proto_translation_table.h"
+
 namespace perfetto {
 
-int SomePublicApi() {
-  return 42;
-}
+FtraceCpuReader::FtraceCpuReader(const FtraceToProtoTranslationTable* table,
+                                 size_t cpu,
+                                 base::ScopedFile fd)
+    : table_(table), cpu_(cpu), fd_(std::move(fd)) {}
+
+void FtraceCpuReader::Read(const Config&, pbzero::FtraceEventBundle*) {}
+
+FtraceCpuReader::~FtraceCpuReader() = default;
+FtraceCpuReader::FtraceCpuReader(FtraceCpuReader&&) = default;
 
 }  // namespace perfetto

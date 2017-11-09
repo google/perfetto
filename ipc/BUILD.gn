@@ -12,12 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-executable("ftrace_proto_gen") {
+source_set("ipc") {
+  deps += [ "//base" ]
   sources = [
-    "main.cc",
+    "src/unix_socket.cc",
   ]
+}
+
+executable("ipc_unittests") {
+  testonly = true
   deps += [
+    ":ipc",
     "//base",
-    "//ftrace_reader",
+    "//base:test_support",
+    "//buildtools:gmock",
+    "//buildtools:gtest",
+    "//buildtools:gtest_main",
+  ]
+  sources = [
+    "src/unix_socket_unittest.cc",
   ]
 }
