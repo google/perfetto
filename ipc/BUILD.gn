@@ -12,9 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//build/proto_library.gni")
+
 source_set("ipc") {
-  deps += [ "//base" ]
+  deps += [
+    ":wire_protocol",
+    "//base",
+  ]
   sources = [
+    "src/buffered_frame_deserializer.cc",
     "src/unix_socket.cc",
   ]
 }
@@ -23,6 +29,7 @@ executable("ipc_unittests") {
   testonly = true
   deps += [
     ":ipc",
+    ":wire_protocol",
     "//base",
     "//base:test_support",
     "//buildtools:gmock",
@@ -30,6 +37,15 @@ executable("ipc_unittests") {
     "//buildtools:gtest_main",
   ]
   sources = [
+    "src/buffered_frame_deserializer_unittest.cc",
     "src/unix_socket_unittest.cc",
   ]
+}
+
+proto_library("wire_protocol") {
+  sources = [
+    "src/wire_protocol.proto",
+  ]
+  include_dirs = [ "include" ]
+  proto_in_dir = "src/"
 }
