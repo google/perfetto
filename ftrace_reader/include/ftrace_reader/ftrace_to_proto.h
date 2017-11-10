@@ -30,8 +30,8 @@ namespace perfetto {
 struct FtraceEvent {
   struct Field {
     std::string type_and_name;
-    int offset;
-    int size;
+    size_t offset;
+    size_t size;
     bool is_signed;
 
     bool operator==(const Field& other) const {
