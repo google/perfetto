@@ -120,9 +120,11 @@ config("protobuf_config") {
   ]
   if (is_clang) {
     cflags += [
-      "-Wno-used-but-marked-unused",
-      "-Wno-shift-sign-overflow",
+      "-Wno-enum-compare-switch",
       "-Wno-global-constructors",
+      "-Wno-shift-sign-overflow",
+      "-Wno-used-but-marked-unused",
+      "-Wno-user-defined-warnings",
     ]
   } else {
     cflags += [

@@ -12,14 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if (is_linux || is_android) {
-  find_llvm_out = exec_script("linux_find_llvm.py", [], "list lines")
-  linux_llvm_dir = find_llvm_out[0]
-  linux_clang_bin = find_llvm_out[1]
-  linux_clangxx_bin = find_llvm_out[2]
-  linux_clangrt_dir = "$linux_llvm_dir/lib/linux"
-} else if (is_mac) {
-  mac_toolchain_dirs_ = exec_script("mac_find_llvm.py", [], "list lines")
-  mac_toolchain_dir = mac_toolchain_dirs_[0]
-  mac_clangrt_dir = mac_toolchain_dirs_[1]
+import("//build/sanitizers/vars.gni")
+
+declare_args() {
+  is_hermetic_clang = (is_linux || is_android) && is_clang && using_sanitizer
+}
+
+assert(!is_hermetic_clang || is_clang, "is_hermetic_clang requires is_clang")
+
+declare_args() {
+  if (is_linux || is_android) {
+    if (is_hermetic_clang) {
+      _hermetic_llvm_dir = rebase_path("//buildtools/clang", root_build_dir)
+      linux_llvm_dir = "$_hermetic_llvm_dir/lib/clang/6.0.0/"
+      linux_clang_bin = "$_hermetic_llvm_dir/bin/clang"
+      linux_clangxx_bin = "$_hermetic_llvm_dir/bin/clang++"
+      linux_clangrt_dir = "$_hermetic_llvm_dir/lib/clang/6.0.0/lib/linux"
+    } else {
+      # Guess the path for the system clang.
+      find_llvm_out = exec_script("linux_find_llvm.py", [], "list lines")
+      linux_llvm_dir = find_llvm_out[0]
+      linux_clang_bin = find_llvm_out[1]
+      linux_clangxx_bin = find_llvm_out[2]
+      linux_clangrt_dir = "$linux_llvm_dir/lib/linux"
+    }
+  } else if (is_mac) {
+    mac_toolchain_dirs_ = exec_script("mac_find_llvm.py", [], "list lines")
+    mac_toolchain_dir = mac_toolchain_dirs_[0]
+    mac_clangrt_dir = mac_toolchain_dirs_[1]
+  }
 }

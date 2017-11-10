@@ -1,5 +1,6 @@
 android_sdk/
 benchmark/
+clang/
 clang_format/
 emulator_images/
 googletest/
