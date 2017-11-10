@@ -27,6 +27,7 @@ executable("ftrace_reader_unittests") {
   sources = [
     "src/format_parser_unittest.cc",
     "src/ftrace_cpu_reader_unittest.cc",
+    "src/ftrace_to_proto_translation_table_unittest.cc",
     "src/ftrace_to_proto_unittest.cc",
   ]
 }
