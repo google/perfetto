@@ -59,7 +59,7 @@ class FtraceController {
 
   // Returns a cached FtraceCpuReader for |cpu|.
   // FtraceCpuReaders are constructed lazily.
-  const FtraceCpuReader* GetCpuReader(size_t cpu);
+  FtraceCpuReader* GetCpuReader(size_t cpu);
 
   // Returns the number of CPUs.
   // This will match the number of tracing/per_cpu/cpuXX directories.
