@@ -20,6 +20,7 @@ import functools
 import logging
 import subprocess
 import sys
+import tempfile
 import time
 
 
@@ -101,6 +102,14 @@ def WaitForBootCompletion():
   return GetProp('sys.boot_completed') == '1'
 
 
+def EnumerateDataDeps():
+  with open(os.path.join(ROOT_DIR, 'build', 'test_data.txt')) as f:
+    lines = f.readlines()
+  for line in (line.strip() for line in lines if not line.startswith('#')):
+    assert os.path.exists(line), line
+    yield line
+
+
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--no-cleanup', '-n', action='store_true')
@@ -119,14 +128,18 @@ def Main():
   AdbCall('shell', 'rm -rf "%s"; mkdir -p "%s"' % (2 * (target_dir,)))
   AdbCall('push', test_bin, target_dir)
 
+  for dep in EnumerateDataDeps():
+    AdbCall('push', os.path.join(ROOT_DIR, dep), target_dir + '/' + dep)
+
   # LLVM sanitizers require to sideload a libclangrtXX.so on the device.
   sanitizer_libs = os.path.join(args.out_dir, 'sanitizer_libs')
   env = ''
   if os.path.exists(sanitizer_libs):
     AdbCall('push', sanitizer_libs, target_dir)
-    env = 'LD_LIBRARY_PATH="%s/sanitizer_libs" ' % (target_dir)
-  cmd = env + target_dir + '/' + args.test_name
-  cmd += '; echo -e "\\nTEST_RET_CODE=$?"'
+    env = 'LD_LIBRARY_PATH="%s/sanitizer_libs; " ' % (target_dir)
+  cmd = env + 'cd %s;' % target_dir;
+  cmd += './%s;' % args.test_name
+  cmd += 'echo -e "\\nTEST_RET_CODE=$?"'
   print cmd
   test_output = subprocess.check_output([ADB_PATH, 'shell', cmd])
   print test_output
