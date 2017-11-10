@@ -101,7 +101,10 @@ config("sanitizers_ldflags") {
     ldflags += [ "-fsanitize=address" ]
   }
   if (is_lsan) {
-    ldflags += [ "-fsanitize=leak" ]
+    # This is not a copy/paste mistake. The LSan runtime library has
+    # moved into asan. So in order to make LSan work one has to build
+    # .cc files with -fsanitize=leak but link with -fsanitize=address.
+    ldflags += [ "-fsanitize=address" ]
   }
   if (is_tsan) {
     ldflags += [ "-fsanitize=thread" ]
