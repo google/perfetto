@@ -167,7 +167,7 @@ void ClientImpl::OnFrameReceived(const Frame& frame) {
     return OnInvokeMethodReply(std::move(req), frame.msg_invoke_method_reply());
   }
   if (frame.msg_case() == Frame::kMsgRequestError) {
-    PERFETTO_DLOG("Host error: %s", frame.msg_request_error().error());
+    PERFETTO_DLOG("Host error: %s", frame.msg_request_error().error().c_str());
     return;
   }
 
