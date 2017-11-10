@@ -1,5 +1,5 @@
 #!/bin/bash
-#<!--
+# Loading... <!--
 # Copyright (C) 2017 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -77,6 +77,11 @@ h2 {
 
 .red {
   color: red;
+}
+
+.files {
+  position: sticky;
+  top: 15px;
 }
 
 .file {
@@ -162,7 +167,7 @@ function listdir(url) {
 }
 
 function makeFormatFileRecord(base_url, device, group_name, event_name) {
-  let url = base_url + device + group_name + event_name + 'format';
+  let url = base_url + device + 'events/' + group_name + event_name + 'format';
   let group = group_name.replace('/', '');
   let name = event_name.replace('/', '');
   return new FormatFileRecord(device, group, name, url);
@@ -174,8 +179,8 @@ function findFormatFilesByDirectory() {
   let directoryToFormatFiles = new Map();
   for (let device of directories) {
     directoryToFormatFiles.set(device, []);
-    for (let group_name of getdirectories(url + device)) {
-      let innerUrl = url + device + group_name;
+    for (let group_name of getdirectories(url + device + 'events/')) {
+      let innerUrl = url + device + 'events/' + group_name;
       let event_names = getdirectories(innerUrl);
       let records = event_names.map(event_name => makeFormatFileRecord(url, device, group_name, event_name));
       for (let record of records) {
@@ -243,9 +248,13 @@ function focusView(records) {
       onclick: () => gBDevice = device,
       class: device == gBDevice ? 'selected' : '',
     }, device))),
-    m('.file', [m('h2', gADevice),  m('pre', f1)]),
-    m('.file', [m('h2', gBDevice),  m('pre', f2)]),
-    m('.file', [m('h2', 'Delta'), m('pre', es)]),
+    m('.files', [
+      m('.file', [m('h2', gADevice),  m('pre', f1)]),
+      gADevice == gBDevice ? undefined : [
+        m('.file', [m('h2', gBDevice),  m('pre', f2)]),
+        m('.file', [m('h2', 'Delta'), m('pre', es)]),
+      ]
+    ]),
   ]);
 }
 
