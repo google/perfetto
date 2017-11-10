@@ -1,0 +1,3 @@
+# List of test deps that should be pushed on the device. Paths are relative
+# to the root.
+ftrace_reader/test/data/
