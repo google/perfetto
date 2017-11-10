@@ -13,27 +13,10 @@
 # limitations under the License.
 
 import("//build/android.gni")
+import("//build/sanitizers/vars.gni")
 import("//build/toolchain/llvm.gni")
 
 declare_args() {
-  # Address Sanitizer: memory bugs (e.g., UAF).
-  is_asan = false
-
-  # Leak Sanitizer: memory leaks.
-  is_lsan = false
-
-  # Memory Sanitizer: uninitialized reads.
-  is_msan = false
-
-  # Thread Sanitizer: threading bugs.
-  is_tsan = false
-
-  # Undefined Behaviour Sanitizer.
-  is_ubsan = false
-}
-
-declare_args() {
-  use_sanitizers = is_asan || is_lsan || is_msan || is_tsan || is_ubsan
   sanitizer_lib_base_name_ = ""
   if (is_asan || is_tsan || is_ubsan) {
     if (is_asan) {
