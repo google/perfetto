@@ -40,7 +40,7 @@ declare_args() {
   #    use_custom_libcxx=false when we target a modern library (see the
   #    GCC7 target in .travis.yml).
   use_custom_libcxx = is_linux && is_clang
-  custom_libcxx_is_static = !use_sanitizers
+  custom_libcxx_is_static = !using_sanitizer
 }
 
 libcxx_prefix = "//buildtools/libcxx"
