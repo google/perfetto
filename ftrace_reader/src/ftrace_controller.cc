@@ -122,7 +122,7 @@ bool FtraceController::DisableEvent(const std::string& name) {
   return WriteToFile(path, "0");
 }
 
-const FtraceCpuReader* FtraceController::GetCpuReader(size_t cpu) {
+FtraceCpuReader* FtraceController::GetCpuReader(size_t cpu) {
   if (cpu >= NumberOfCpus())
     return nullptr;
   if (!readers_.count(cpu)) {

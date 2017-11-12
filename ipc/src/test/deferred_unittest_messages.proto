@@ -14,18 +14,12 @@
  * limitations under the License.
  */
 
-#include "ftrace_reader/ftrace_cpu_reader.h"
-#include "ftrace_to_proto_translation_table.h"
-#include "gtest/gtest.h"
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
 
-namespace perfetto {
-namespace {
+package perfetto.ipc;
 
-TEST(FtraceCpuReader, ParseEmpty) {
-  std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
-  auto table = FtraceToProtoTranslationTable::Create(path);
-  FtraceCpuReader(table.get(), 42, base::ScopedFile());
+message TestMessage {
+  int32 num = 1;
+  string str = 2;
 }
-
-}  // namespace
-}  // namespace perfetto

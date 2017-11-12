@@ -59,6 +59,10 @@ class FtraceToProtoTranslationTable {
       std::string path_to_event_dir);
   ~FtraceToProtoTranslationTable();
 
+  // A map from the ftrace event id to the matching event.
+  const std::map<size_t, Event>& events() const { return events_; }
+  const std::vector<Field>& common_fields() const { return common_fields_; }
+
  private:
   FtraceToProtoTranslationTable(std::map<size_t, Event> events,
                                 std::vector<Field> common_fields);

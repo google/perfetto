@@ -14,18 +14,27 @@
  * limitations under the License.
  */
 
-#include "ftrace_reader/ftrace_cpu_reader.h"
-#include "ftrace_to_proto_translation_table.h"
-#include "gtest/gtest.h"
+#ifndef IPC_INCLUDE_IPC_BASIC_TYPES_H_
+#define IPC_INCLUDE_IPC_BASIC_TYPES_H_
+
+#include <stdint.h>
+
+namespace google {
+namespace protobuf {
+class MessageLite;
+}  // namespace protobuf
+}  // namespace google
 
 namespace perfetto {
-namespace {
+namespace ipc {
 
-TEST(FtraceCpuReader, ParseEmpty) {
-  std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
-  auto table = FtraceToProtoTranslationTable::Create(path);
-  FtraceCpuReader(table.get(), 42, base::ScopedFile());
-}
+using ProtoMessage = ::google::protobuf::MessageLite;
+using ServiceID = uint64_t;
+using MethodID = uint64_t;
+using ClientID = uint64_t;
+using RequestID = uint64_t;
 
-}  // namespace
+}  // namespace ipc
 }  // namespace perfetto
+
+#endif  // IPC_INCLUDE_IPC_BASIC_TYPES_H_

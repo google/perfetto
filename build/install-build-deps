@@ -28,6 +28,18 @@ from collections import namedtuple
 # When adding a new git dependency here please also add a corresponding entry in
 # .travis.yml under the "cache:" section.
 
+# The format for the deps below is the following:
+# (target_folder, source_url, sha1, target_platform)
+# |source_url| can be either a git repo or a http url.
+# If a git repo, |sha1| is the committish that will be checked out.
+# If a http url, |sha1| is the shasum of the original file.
+# If the url is a .zip or .tgz file it will be automatically deflated under
+# |target_folder|, taking care of stripping the root folder if it's a single
+# root (to avoid ending up with buildtools/protobuf/protobuf-1.2.3/... and have
+# instead just buildtools/protobuf).
+# |target_platform| is either 'darwin', 'linux2' or 'all' and applies the dep
+# only on the given platform (ask python why linux2 and not just linux).
+
 # Dependencies required to build code on the host or when targeting desktop OS.
 BUILD_DEPS_HOST = [
   # GN
@@ -86,8 +98,8 @@ BUILD_DEPS_HOST = [
    'all'
   ),
 
-  # libc++ and libc++abi, for clang msan that require rebuilding the C++ lib
-  # from sources. Keep the SHA1s in sync with Chrome's src/buildtools/DEPS.
+  # libc++, libc++abi and libunwind for Linux where we need to rebuild the C++
+  # lib from sources. Keep the SHA1s in sync with Chrome's src/buildtools/DEPS.
   ('buildtools/libcxx',
    'https://chromium.googlesource.com/chromium/llvm-project/libcxx.git',
    '3a07dd740be63878167a0ea19fe81869954badd7',
@@ -102,6 +114,14 @@ BUILD_DEPS_HOST = [
    'https://chromium.googlesource.com/external/llvm.org/libunwind.git',
    '41f982e5887185b904a456e20dfcd58e6be6cc19',
    'all'
+  ),
+
+  # Keep the revision in sync with Chrome's CLANG_REVISION in
+  # tools/clang/scripts/update.py.
+  ('buildtools/clang.tgz',
+   'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-315613-1.tgz',
+   '09f63ace1ce25a3e5d36e760026f4ad4619e42de',
+   'linux2'
   ),
 
   # Benchmarking tool.
@@ -234,7 +254,7 @@ def Main():
     if url.endswith('.git'):
       CheckoutGitRepo(local_path, url, expected_sha1)
       continue
-    is_zip = local_path.lower().endswith('.zip')
+    is_zip = local_path.endswith('.zip') or local_path.endswith('.tgz')
     zip_target_dir = local_path[:-4] if is_zip else None
     zip_dir_stamp = os.path.join(zip_target_dir, '.stamp') if is_zip else None
 
@@ -260,22 +280,30 @@ def Main():
       if os.path.exists(zip_target_dir):
         logging.info('Deleting stale dir %s' % zip_target_dir)
         shutil.rmtree(zip_target_dir)
-      with zipfile.ZipFile(local_path, 'r') as zf:
-        for info in zf.infolist():
-          ExtractZipfilePreservePermissions(zf, info, zip_target_dir)
 
-        # If the zip contains one root folder, rebase one level up moving all
-        # its sub files and folders inside |target_dir|.
-        subdir = os.listdir(zip_target_dir)
-        if len(subdir) == 1:
-          subdir = os.path.join(zip_target_dir, subdir[0])
-          if os.path.isdir(subdir):
-            for subf in os.listdir(subdir):
-              shutil.move(os.path.join(subdir,subf), zip_target_dir)
-            os.rmdir(subdir)
-        with open(zip_dir_stamp, 'w') as stamp_file:
-          stamp_file.write(expected_sha1)
-        os.remove(local_path)
+      # Decompress the archive.
+      if local_path.endswith('.tgz'):
+        MkdirRecursive(zip_target_dir)
+        subprocess.check_call(['tar', '-zxf', local_path], cwd=zip_target_dir)
+      elif local_path.endswith('.zip'):
+        with zipfile.ZipFile(local_path, 'r') as zf:
+          for info in zf.infolist():
+            ExtractZipfilePreservePermissions(zf, info, zip_target_dir)
+
+      # If the zip contains one root folder, rebase one level up moving all
+      # its sub files and folders inside |target_dir|.
+      subdir = os.listdir(zip_target_dir)
+      if len(subdir) == 1:
+        subdir = os.path.join(zip_target_dir, subdir[0])
+        if os.path.isdir(subdir):
+          for subf in os.listdir(subdir):
+            shutil.move(os.path.join(subdir,subf), zip_target_dir)
+          os.rmdir(subdir)
+
+      # Create stamp and remove the archive.
+      with open(zip_dir_stamp, 'w') as stamp_file:
+        stamp_file.write(expected_sha1)
+      os.remove(local_path)
 
 
 if __name__ == '__main__':
