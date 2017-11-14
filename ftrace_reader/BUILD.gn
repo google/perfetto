@@ -23,6 +23,8 @@ executable("ftrace_reader_unittests") {
     "//buildtools:gmock",
     "//buildtools:gtest",
     "//buildtools:gtest_main",
+    "//buildtools:protobuf_full",
+    "//protos/ftrace:ftrace_full_protos",
   ]
   sources = [
     "src/format_parser_unittest.cc",
