@@ -22,6 +22,7 @@
 
 #include "base/scoped_file.h"
 #include "ftrace_event_bundle.pbzero.h"
+#include "gtest/gtest_prod.h"
 
 namespace perfetto {
 
@@ -41,6 +42,14 @@ class FtraceCpuReader {
 
   int GetFileDescriptor();
 
+ private:
+  FRIEND_TEST(FtraceCpuReaderTest, ReadAndAdvanceNumber);
+  FRIEND_TEST(FtraceCpuReaderTest, ReadAndAdvancePlainStruct);
+  FRIEND_TEST(FtraceCpuReaderTest, ReadAndAdvanceComplexStruct);
+  FRIEND_TEST(FtraceCpuReaderTest, ReadAndAdvanceUnderruns);
+  FRIEND_TEST(FtraceCpuReaderTest, ReadAndAdvanceAtEnd);
+  FRIEND_TEST(FtraceCpuReaderTest, ReadAndAdvanceOverruns);
+
   template <typename T>
   static bool ReadAndAdvance(const uint8_t** ptr, const uint8_t* end, T* out) {
     if (*ptr + sizeof(T) > end)
@@ -50,7 +59,6 @@ class FtraceCpuReader {
     return true;
   }
 
- private:
   static bool ParsePage(size_t cpu,
                         const uint8_t* ptr,
                         size_t ptr_size,
