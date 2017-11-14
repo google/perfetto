@@ -62,6 +62,8 @@ void ServiceProxy::BeginInvoke(const std::string& method_name,
         static_cast<ClientImpl*>(client_.get())
             ->BeginInvoke(service_id_, method_name, remote_method_it->second,
                           request, weak_ptr_factory_.GetWeakPtr());
+  } else {
+    PERFETTO_DLOG("Cannot find method \"%s\" on the host", method_name.c_str());
   }
   if (!request_id)
     return;
@@ -85,7 +87,11 @@ void ServiceProxy::EndInvoke(RequestID request_id,
 }
 
 void ServiceProxy::OnConnect(bool success) {
-  event_listener_->OnConnect(success);
+  if (success) {
+    PERFETTO_DCHECK(service_id_);
+    return event_listener_->OnConnect();
+  }
+  return event_listener_->OnDisconnect();
 }
 
 void ServiceProxy::OnDisconnect() {
