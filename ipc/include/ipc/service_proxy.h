@@ -44,14 +44,13 @@ class ServiceProxy {
    public:
     virtual ~EventListener() = default;
 
-    // Called once after Client::BindService(). |success| == true if the
-    // ServiceProxy has been succesffully bound to the host, false in case of
-    // any failure (host is unreachable, another service with the same name is
-    // regitered). If succesfful, it is possible to start sending IPC requests
-    // to the host soon after this.
-    virtual void OnConnect(bool success) {}
+    // Called once after Client::BindService() if the ServiceProxy has been
+    // successfully bound to the host. It is possible to start sending IPC
+    // requests soon after this.
+    virtual void OnConnect() {}
 
-    // Called if the connection drops after being established.
+    // Called if the connection fails to be established or drops after having
+    // been established.
     virtual void OnDisconnect() {}
   };
 
@@ -76,7 +75,7 @@ class ServiceProxy {
                  std::unique_ptr<ProtoMessage> reply_arg,
                  bool has_more);
 
-  // Called by ClientImpl if its socket disconnects.
+  // Called by ClientImpl.
   void OnConnect(bool success);
   void OnDisconnect();
   bool connected() const { return service_id_ != 0; }
