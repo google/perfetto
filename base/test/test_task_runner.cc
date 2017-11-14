@@ -29,7 +29,7 @@ namespace perfetto {
 namespace base {
 
 namespace {
-constexpr int kFileDescriptorWatchTimeoutMs = 100;
+constexpr int kFileDescriptorWatchTimeoutMs = 10;
 }  // namespace
 
 TestTaskRunner::TestTaskRunner() = default;
