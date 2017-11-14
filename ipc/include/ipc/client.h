@@ -48,6 +48,10 @@ class Client {
   virtual ~Client() = default;
 
   virtual void BindService(base::WeakPtr<ServiceProxy>) = 0;
+
+  // There is no need to call this method explicitly. Destroying the
+  // ServiceProxy instance is sufficient and will automatically unbind it. This
+  // method is exposed only for the ServiceProxy destructor.
   virtual void UnbindService(ServiceID) = 0;
 };
 

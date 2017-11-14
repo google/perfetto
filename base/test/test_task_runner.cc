@@ -34,7 +34,9 @@ constexpr int kFileDescriptorWatchTimeoutMs = 100;
 
 TestTaskRunner::TestTaskRunner() = default;
 
-TestTaskRunner::~TestTaskRunner() = default;
+TestTaskRunner::~TestTaskRunner() {
+  PERFETTO_DCHECK(task_queue_.empty());
+}
 
 void TestTaskRunner::Run() {
   for (;;)
@@ -49,7 +51,11 @@ void TestTaskRunner::RunUntilIdle() {
 
 void TestTaskRunner::RunUntilCheckpoint(const std::string& checkpoint,
                                         int timeout_ms) {
-  PERFETTO_DCHECK(checkpoints_.count(checkpoint) == 1);
+  if (checkpoints_.count(checkpoint) == 0) {
+    fprintf(stderr, "[TestTaskRunner] Checkpoint \"%s\" does not exist.\n",
+            checkpoint.c_str());
+    abort();
+  }
   auto tstart = std::chrono::system_clock::now();
   auto deadline = tstart + std::chrono::milliseconds(timeout_ms);
   while (!checkpoints_[checkpoint]) {
