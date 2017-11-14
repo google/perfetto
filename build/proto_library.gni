@@ -30,6 +30,13 @@ template("proto_library") {
     }
   }
 
+  # If false will not generate the default .pb.{cc,h} files. Used for custom
+  # codegen plugins.
+  generate_cc = true
+  if (defined(invoker.generate_cc)) {
+    generate_cc = invoker.generate_cc
+  }
+
   if (defined(invoker.generator_plugin_label)) {
     plugin_host_label = invoker.generator_plugin_label + "($host_toolchain)"
     plugin_path = get_label_info(plugin_host_label, "root_out_dir") + "/" +
@@ -64,10 +71,12 @@ template("proto_library") {
     proto_name = get_path_info(proto, "name")
     proto_path = proto_dir + "/" + proto_name
 
-    protogens += [
-      "$cc_out_dir/$proto_path.pb.h",
-      "$cc_out_dir/$proto_path.pb.cc",
-    ]
+    if (generate_cc) {
+      protogens += [
+        "$cc_out_dir/$proto_path.pb.h",
+        "$cc_out_dir/$proto_path.pb.cc",
+      ]
+    }
     if (generate_with_plugin) {
       foreach(suffix, generator_plugin_suffixes) {
         protogens += [ "$cc_out_dir/${proto_path}${suffix}" ]
@@ -98,9 +107,13 @@ template("proto_library") {
       "./" + rebase_path(protoc_path, root_build_dir),
       "--proto_path",
       rebase_path(proto_in_dir, root_build_dir),
-      "--cpp_out",
-      rel_cc_out_dir,
     ]
+    if (generate_cc) {
+      args += [
+        "--cpp_out",
+        rel_cc_out_dir,
+      ]
+    }
 
     if (generate_with_plugin) {
       plugin_path_rebased = rebase_path(plugin_path, root_build_dir)
