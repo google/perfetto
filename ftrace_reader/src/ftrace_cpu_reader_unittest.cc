@@ -19,9 +19,8 @@
 #include "gtest/gtest.h"
 
 namespace perfetto {
-namespace {
 
-TEST(FtraceCpuReader, ReadAndAdvanceNumber) {
+TEST(FtraceCpuReaderTest, ReadAndAdvanceNumber) {
   uint64_t expected = 42;
   uint64_t actual = 0;
   uint8_t buffer[8] = {};
@@ -39,7 +38,7 @@ struct PlainStruct {
   uint64_t length;
 };
 
-TEST(FtraceCpuReader, ReadAndAdvancePlainStruct) {
+TEST(FtraceCpuReaderTest, ReadAndAdvancePlainStruct) {
   uint64_t expected[2] = {42, 999};
   PlainStruct actual;
   uint8_t buffer[16] = {};
@@ -60,7 +59,7 @@ struct ComplexStruct {
   uint32_t overwrite : 8;
 };
 
-TEST(FtraceCpuReader, ReadAndAdvanceComplexStruct) {
+TEST(FtraceCpuReaderTest, ReadAndAdvanceComplexStruct) {
   uint64_t expected[2] = {42, 0xcdffffffabababab};
   ComplexStruct actual = {};
   uint8_t buffer[16] = {};
@@ -75,7 +74,7 @@ TEST(FtraceCpuReader, ReadAndAdvanceComplexStruct) {
   EXPECT_EQ(actual.overwrite, 0xcd);
 }
 
-TEST(FtraceCpuReader, ReadAndAdvanceOverruns) {
+TEST(FtraceCpuReaderTest, ReadAndAdvanceOverruns) {
   uint64_t result = 42;
   uint8_t buffer[7] = {};
   const uint8_t* start = buffer;
@@ -86,7 +85,7 @@ TEST(FtraceCpuReader, ReadAndAdvanceOverruns) {
   EXPECT_EQ(result, 42);
 }
 
-TEST(FtraceCpuReader, ReadAndAdvanceAtEnd) {
+TEST(FtraceCpuReaderTest, ReadAndAdvanceAtEnd) {
   uint8_t result = 42;
   uint8_t buffer[8] = {};
   const uint8_t* start = buffer;
@@ -96,7 +95,7 @@ TEST(FtraceCpuReader, ReadAndAdvanceAtEnd) {
   EXPECT_EQ(result, 42);
 }
 
-TEST(FtraceCpuReader, ReadAndAdvanceUnderruns) {
+TEST(FtraceCpuReaderTest, ReadAndAdvanceUnderruns) {
   uint64_t expected = 42;
   uint64_t actual = 0;
   uint8_t buffer[9] = {};
@@ -109,11 +108,10 @@ TEST(FtraceCpuReader, ReadAndAdvanceUnderruns) {
   EXPECT_EQ(actual, expected);
 }
 
-TEST(FtraceCpuReader, ParseEmpty) {
+TEST(FtraceCpuReaderTest, ParseEmpty) {
   std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
   auto table = FtraceToProtoTranslationTable::Create(path);
   FtraceCpuReader(table.get(), 42, base::ScopedFile());
 }
 
-}  // namespace
 }  // namespace perfetto
