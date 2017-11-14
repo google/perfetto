@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("//build/proto_library.gni")
+import("ipc_library.gni")
 
 config("config") {
   include_dirs = [ "include" ]
@@ -56,7 +57,7 @@ executable("ipc_unittests") {
     "src/client_impl_unittest.cc",
     "src/deferred_unittest.cc",
     "src/host_impl_unittest.cc",
-    "src/test/greeter_service-gen.cc",
+    "src/test/ipc_integrationtest.cc",
     "src/unix_socket_unittest.cc",
   ]
 }
@@ -69,7 +70,7 @@ proto_library("wire_protocol") {
   proto_in_dir = "src/"
 }
 
-proto_library("test_messages") {
+ipc_library("test_messages") {
   sources = [
     "src/test/client_unittest_messages.proto",
     "src/test/deferred_unittest_messages.proto",
