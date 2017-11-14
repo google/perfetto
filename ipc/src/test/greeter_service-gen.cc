@@ -47,6 +47,18 @@ std::unique_ptr<_ProtoMessage> Decoder(const std::string& proto_data) {
   return nullptr;
 }
 
+// Templated method dispatcher.
+template <typename TSvc,    // Type of the actual Service subclass.
+          typename TReq,    // Type of the request argument.
+          typename TReply,  // Type of the reply argument.
+          void (TSvc::*Method)(const TReq&, _Deferred<TReply>)>
+void Invoker(::perfetto::ipc::Service* s,
+             const _ProtoMessage& req,
+             _DeferredBase reply) {
+  (*static_cast<TSvc*>(s).*Method)(static_cast<const TReq&>(req),
+                                   _Deferred<TReply>(std::move(reply)));
+}
+
 ServiceDescriptor* CreateDescriptor() {
   ServiceDescriptor* desc = new ServiceDescriptor();
   desc->service_name = "Greeter";
@@ -54,12 +66,16 @@ ServiceDescriptor* CreateDescriptor() {
   // rpc SayHello(GreeterRequestMsg) returns (GreeterReplyMsg) {}
   desc->methods.emplace_back(ServiceDescriptor::Method{
       "SayHello", &Decoder<::ipc_test::GreeterRequestMsg>,
-      &Decoder<::ipc_test::GreeterReplyMsg>});
+      &Decoder<::ipc_test::GreeterReplyMsg>,
+      &Invoker<Greeter, ::ipc_test::GreeterRequestMsg,
+               ::ipc_test::GreeterReplyMsg, &Greeter::SayHello>});
 
   // rpc WaveGoodbye(GreeterRequestMsg) returns (GreeterReplyMsg) {}
   desc->methods.emplace_back(ServiceDescriptor::Method{
       "WaveGoodbye", &Decoder<::ipc_test::GreeterRequestMsg>,
-      &Decoder<::ipc_test::GreeterReplyMsg>});
+      &Decoder<::ipc_test::GreeterReplyMsg>,
+      &Invoker<Greeter, ::ipc_test::GreeterRequestMsg,
+               ::ipc_test::GreeterReplyMsg, &Greeter::WaveGoodbye>});
 
   desc->methods.shrink_to_fit();
   return desc;
@@ -71,6 +87,12 @@ const ServiceDescriptor& GetDescriptorLazy() {
 }
 
 }  // namespace
+
+Greeter::~Greeter() = default;
+
+const ServiceDescriptor& Greeter::GetDescriptor() {
+  return GetDescriptorLazy();
+}
 
 GreeterProxy::GreeterProxy(
     ::perfetto::ipc::ServiceProxy::EventListener* event_listener)

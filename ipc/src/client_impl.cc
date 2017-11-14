@@ -107,7 +107,9 @@ bool ClientImpl::SendFrame(const Frame& frame) {
   // TODO(primiano): remember that this is doing non-blocking I/O. What if the
   // socket buffer is full? Maybe we just want to drop this on the floor? Or
   // maybe throttle the send and PostTask the reply later?
-  return sock_->Send(buf.data(), buf.size());
+  bool res = sock_->Send(buf.data(), buf.size());
+  PERFETTO_CHECK(!sock_->is_connected() || res);
+  return res;
 }
 
 void ClientImpl::OnConnect(UnixSocket*, bool connected) {
