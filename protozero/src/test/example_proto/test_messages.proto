@@ -19,7 +19,7 @@ option optimize_for = LITE_RUNTIME;
 
 package foo.bar;
 
-import "library.proto";
+import "protozero/src/test/example_proto/library.proto";
 
 // This file contains comprehensive set of supported message structures and
 // data types. Unit tests depends on the plugin-processed version of this file.
