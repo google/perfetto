@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("//build/proto_library.gni")
+import("ipc_library.gni")
 
 config("config") {
   include_dirs = [ "include" ]
@@ -28,9 +29,12 @@ source_set("ipc") {
     "include/ipc/async_result.h",
     "include/ipc/basic_types.h",
     "include/ipc/deferred.h",
+    "include/ipc/host.h",
     "src/buffered_frame_deserializer.cc",
     "src/client_impl.cc",
     "src/deferred.cc",
+    "src/host_impl.cc",
+    "src/host_impl.h",
     "src/service_proxy.cc",
     "src/unix_socket.cc",
   ]
@@ -52,7 +56,8 @@ executable("ipc_unittests") {
     "src/buffered_frame_deserializer_unittest.cc",
     "src/client_impl_unittest.cc",
     "src/deferred_unittest.cc",
-    "src/test/greeter_service-gen.cc",
+    "src/host_impl_unittest.cc",
+    "src/test/ipc_integrationtest.cc",
     "src/unix_socket_unittest.cc",
   ]
 }
@@ -62,15 +67,13 @@ proto_library("wire_protocol") {
     "src/wire_protocol.proto",
   ]
   include_dirs = [ "include" ]
-  proto_in_dir = "src/"
 }
 
-proto_library("test_messages") {
+ipc_library("test_messages") {
   sources = [
     "src/test/client_unittest_messages.proto",
     "src/test/deferred_unittest_messages.proto",
     "src/test/greeter_service.proto",
   ]
   include_dirs = [ "include" ]
-  proto_in_dir = "src/test"
 }

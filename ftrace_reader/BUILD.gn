@@ -23,6 +23,8 @@ executable("ftrace_reader_unittests") {
     "//buildtools:gmock",
     "//buildtools:gtest",
     "//buildtools:gtest_main",
+    "//buildtools:protobuf_full",
+    "//protos/ftrace:ftrace_full_protos",
   ]
   sources = [
     "src/format_parser_unittest.cc",
@@ -55,7 +57,10 @@ executable("ftrace_reader_demo") {
 }
 
 source_set("ftrace_reader") {
-  all_dependent_configs = [ ":ftrace_reader_config" ]
+  all_dependent_configs = [
+    ":ftrace_reader_config",
+    "//buildtools:googletest_prod_config",
+  ]
   deps += [
     "//base",
     "//protozero",

@@ -107,15 +107,20 @@ bool ClientImpl::SendFrame(const Frame& frame) {
   // TODO(primiano): remember that this is doing non-blocking I/O. What if the
   // socket buffer is full? Maybe we just want to drop this on the floor? Or
   // maybe throttle the send and PostTask the reply later?
-  return sock_->Send(buf.data(), buf.size());
+  bool res = sock_->Send(buf.data(), buf.size());
+  PERFETTO_CHECK(!sock_->is_connected() || res);
+  return res;
 }
 
 void ClientImpl::OnConnect(UnixSocket*, bool connected) {
   // Drain the BindService() calls that were queued before establishig the
   // connection with the host.
-  if (connected) {
-    for (base::WeakPtr<ServiceProxy>& service_proxy : queued_bindings_)
+  for (base::WeakPtr<ServiceProxy>& service_proxy : queued_bindings_) {
+    if (connected) {
       BindService(service_proxy);
+    } else if (service_proxy) {
+      service_proxy->OnConnect(false /* success */);
+    }
   }
   queued_bindings_.clear();
 }
@@ -182,9 +187,18 @@ void ClientImpl::OnBindServiceReply(QueuedRequest req,
   base::WeakPtr<ServiceProxy>& service_proxy = req.service_proxy;
   if (!service_proxy)
     return;
+  const char* svc_name = service_proxy->GetDescriptor().service_name;
   if (!reply.success()) {
-    PERFETTO_DLOG("BindService(): unknown service_name=\"%s\"",
-                  service_proxy->GetDescriptor().service_name);
+    PERFETTO_DLOG("BindService(): unknown service_name=\"%s\"", svc_name);
+    return service_proxy->OnConnect(false /* success */);
+  }
+
+  auto prev_service = service_bindings_.find(reply.service_id());
+  if (prev_service != service_bindings_.end() && prev_service->second.get()) {
+    PERFETTO_DLOG(
+        "BindService(): Trying to bind service \"%s\" but another service "
+        "named \"%s\" is already bound with the same ID.",
+        svc_name, prev_service->second->GetDescriptor().service_name);
     return service_proxy->OnConnect(false /* success */);
   }
 

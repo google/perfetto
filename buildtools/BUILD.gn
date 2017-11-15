@@ -37,6 +37,7 @@ config("googletest_config") {
     "-Wno-global-constructors",
     "-Wno-inconsistent-missing-override",
     "-Wno-missing-noreturn",
+    "-Wno-overloaded-virtual",
     "-Wno-shift-sign-overflow",
     "-Wno-sign-conversion",
     "-Wno-undef",

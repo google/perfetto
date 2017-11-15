@@ -12,14 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//protozero//protozero_library.gni")
+import("//protozero/protozero_library.gni")
+import("all_protos.gni")
+
+# Create a copy of all the protos listed in all_protos.gni with the
+# "option optimize_for = LITE_RUNTIME" bit removed so we can generate
+# full proto .h/.cc files.
+full_protos_base_dir = "${root_gen_dir}/full_protos"
+full_protos_target_dir =
+    "$full_protos_base_dir/" + rebase_path(target_gen_dir, root_gen_dir)
+
+action_foreach("generate_full_protos") {
+  visibility = [ ":*" ]
+  script = "//build/generate_full_protos.py"
+  sources = ftrace_proto_names
+
+  # TODO(hjd): Add support for subdirectories.
+  output_directory = full_protos_target_dir
+  outputs = [
+    "$output_directory/{{source_name_part}}.proto",
+  ]
+
+  args = [
+    "{{source}}",
+    rebase_path(output_directory, root_build_dir) +
+        "/{{source_name_part}}.proto",
+  ]
+}
+
+proto_library("ftrace_full_protos") {
+  deps = [
+    ":generate_full_protos",
+  ]
+  sources = []
+
+  proto_in_dir = full_protos_base_dir  #rebase_path(full_protos_base_dir, ".")
+  foreach(proto, ftrace_proto_names) {
+    sources += [ "$full_protos_target_dir/$proto" ]
+  }
+}
 
 protozero_library("ftrace") {
-  sources = [
-    "ftrace_event.proto",
-    "ftrace_event_bundle.proto",
-    "print.proto",
-    "sched_switch.proto",
-  ]
-  proto_in_dir = "."
+  generate_cc = false
+  sources = ftrace_proto_names
 }

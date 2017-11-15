@@ -19,7 +19,7 @@ option optimize_for = LITE_RUNTIME;
 
 package foo.bar;
 
-import public "library_internals/galaxies.proto";
+import public "protozero/src/test/example_proto/library_internals/galaxies.proto";
 
 message TransgalacticMessage {
   optional Galaxy origin_galaxy = 1;

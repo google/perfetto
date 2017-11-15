@@ -14,15 +14,10 @@
  * limitations under the License.
  */
 
-syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
+#include "google/protobuf/compiler/plugin.h"
+#include "ipc/src/protoc_plugin/ipc_generator.h"
 
-package foo.bar;
-
-import public "protozero/src/test/example_proto/upper_import.proto";
-
-enum Galaxy {
-  MILKY_WAY = 1;
-  ANDROMEDA = 2;
-  SUNFLOWER = 3;
+int main(int argc, char* argv[]) {
+  ::perfetto::ipc::IPCGenerator generator;
+  return google::protobuf::compiler::PluginMain(argc, argv, &generator);
 }
