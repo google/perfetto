@@ -27,7 +27,7 @@
 #include "base/utils.h"
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 
-#include "wire_protocol.pb.h"  // protobuf generated header.
+#include "ipc/src/wire_protocol.pb.h"
 
 namespace perfetto {
 namespace ipc {

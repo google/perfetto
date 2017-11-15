@@ -19,8 +19,9 @@
 #include <utility>
 
 #include "base/logging.h"
-#include "ftrace_event.pbzero.h"
 #include "ftrace_to_proto_translation_table.h"
+
+#include "protos/ftrace/ftrace_event.pbzero.h"
 
 namespace perfetto {
 

@@ -20,8 +20,8 @@
 #include "ipc/client.h"
 #include "ipc/host.h"
 
-#include "greeter_service.ipc.h"
-#include "greeter_service.pb.h"
+#include "ipc/src/test/greeter_service.ipc.h"
+#include "ipc/src/test/greeter_service.pb.h"
 
 namespace ipc_test {
 namespace {

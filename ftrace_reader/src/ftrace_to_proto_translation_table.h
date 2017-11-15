@@ -25,7 +25,8 @@
 #include <vector>
 
 #include "base/scoped_file.h"
-#include "ftrace_event_bundle.pbzero.h"
+
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 

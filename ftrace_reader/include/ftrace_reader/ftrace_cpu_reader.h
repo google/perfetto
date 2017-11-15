@@ -21,8 +21,9 @@
 #include <memory>
 
 #include "base/scoped_file.h"
-#include "ftrace_event_bundle.pbzero.h"
 #include "gtest/gtest_prod.h"
+
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 

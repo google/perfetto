@@ -22,7 +22,7 @@
 #include "ipc/src/buffered_frame_deserializer.h"
 #include "ipc/src/unix_socket.h"
 
-#include "wire_protocol.pb.h"
+#include "ipc/src/wire_protocol.pb.h"
 
 #include <list>
 #include <map>
