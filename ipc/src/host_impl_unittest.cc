@@ -26,8 +26,8 @@
 #include "ipc/src/buffered_frame_deserializer.h"
 #include "ipc/src/unix_socket.h"
 
-#include "client_unittest_messages.pb.h"
-#include "wire_protocol.pb.h"
+#include "ipc/src/test/client_unittest_messages.pb.h"
+#include "ipc/src/wire_protocol.pb.h"
 
 namespace perfetto {
 namespace ipc {

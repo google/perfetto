@@ -26,7 +26,7 @@
 #include "ipc/service.h"
 #include "ipc/service_descriptor.h"
 
-#include "wire_protocol.pb.h"
+#include "ipc/src/wire_protocol.pb.h"
 
 // TODO(primiano): put limits on #connections/uid and req. queue (b/69093705).
 

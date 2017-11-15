@@ -19,7 +19,7 @@ option optimize_for = LITE_RUNTIME;
 
 package foo.bar;
 
-import public "upper_import.proto";
+import public "protozero/src/test/example_proto/upper_import.proto";
 
 enum Galaxy {
   MILKY_WAY = 1;
