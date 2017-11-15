@@ -18,13 +18,17 @@ import("all_protos.gni")
 # Create a copy of all the protos listed in all_protos.gni with the
 # "option optimize_for = LITE_RUNTIME" bit removed so we can generate
 # full proto .h/.cc files.
+full_protos_base_dir = "${root_gen_dir}/full_protos"
+full_protos_target_dir =
+    "$full_protos_base_dir/" + rebase_path(target_gen_dir, root_gen_dir)
+
 action_foreach("generate_full_protos") {
   visibility = [ ":*" ]
   script = "//build/generate_full_protos.py"
   sources = ftrace_proto_names
 
   # TODO(hjd): Add support for subdirectories.
-  output_directory = "$target_gen_dir" + "_full_protos"
+  output_directory = full_protos_target_dir
   outputs = [
     "$output_directory/{{source_name_part}}.proto",
   ]
@@ -42,16 +46,13 @@ proto_library("ftrace_full_protos") {
   ]
   sources = []
 
-  # proto_in_dir must be relative to BUILD.gn directory.
-  proto_in_dir = rebase_path(target_gen_dir, ".") + "_full_protos"
+  proto_in_dir = full_protos_base_dir  #rebase_path(full_protos_base_dir, ".")
   foreach(proto, ftrace_proto_names) {
-    sources += [ "$proto_in_dir/$proto" ]
+    sources += [ "$full_protos_target_dir/$proto" ]
   }
-  proto_out_dir = "protos/ftrace_full"
 }
 
 protozero_library("ftrace") {
   generate_cc = false
   sources = ftrace_proto_names
-  proto_in_dir = "."
 }

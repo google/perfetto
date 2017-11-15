@@ -23,7 +23,7 @@
 #include "base/utils.h"
 #include "gtest/gtest.h"
 
-#include "wire_protocol.pb.h"  // protobuf generated header.
+#include "ipc/src/wire_protocol.pb.h"
 
 namespace perfetto {
 namespace ipc {

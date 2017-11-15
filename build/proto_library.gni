@@ -15,20 +15,13 @@
 template("proto_library") {
   assert(defined(invoker.sources))
   proto_sources = invoker.sources
-  proto_in_dir = invoker.proto_in_dir
 
-  # Avoid absolute path because of the assumption that |proto_in_dir| is
-  # relative to the directory of current BUILD.gn file.
-  proto_in_dir = rebase_path(proto_in_dir, ".")
-  if (defined(invoker.proto_out_dir)) {
-    proto_out_dir = invoker.proto_out_dir
-  } else {
-    # Absolute path to the directory of current BUILD.gn file excluding "//".
-    proto_out_dir = rebase_path(".", "//")
-    if (proto_in_dir != ".") {
-      proto_out_dir += "/$proto_in_dir"
-    }
+  # All the proto imports should be relative to the project root.
+  proto_in_dir = "//"
+  if (defined(invoker.proto_in_dir)) {
+    proto_in_dir = invoker.proto_in_dir
   }
+  proto_out_dir = "//"
 
   # If false will not generate the default .pb.{cc,h} files. Used for custom
   # codegen plugins.

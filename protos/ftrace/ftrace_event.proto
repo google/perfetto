@@ -1,8 +1,8 @@
 syntax = "proto3";
 option optimize_for = LITE_RUNTIME;
 
-import "print.proto";
-import "sched_switch.proto";
+import "protos/ftrace/print.proto";
+import "protos/ftrace/sched_switch.proto";
 
 message FtraceEvent {
   uint32 pid = 1;
