@@ -45,6 +45,22 @@ std::string ReadFileIntoString(std::string path) {
   return str;
 }
 
+using Event = FtraceToProtoTranslationTable::Event;
+const std::vector<Event> BuildEventsVector(const std::vector<Event>& events) {
+  size_t largest_id = 0;
+  for (const Event& event : events) {
+    if (event.ftrace_event_id > largest_id)
+      largest_id = event.ftrace_event_id;
+  }
+  std::vector<FtraceToProtoTranslationTable::Event> events_by_id;
+  events_by_id.resize(largest_id + 1);
+  for (const Event& event : events) {
+    events_by_id[event.ftrace_event_id] = event;
+  }
+  events_by_id.shrink_to_fit();
+  return events_by_id;
+}
+
 }  // namespace
 
 // static
@@ -54,10 +70,9 @@ FtraceToProtoTranslationTable::Create(std::string path_to_root) {
     PERFETTO_DLOG("Path '%s' must end with /.", path_to_root.c_str());
     return nullptr;
   }
-  std::map<size_t, Event> id_to_events;
+  std::vector<Event> events;
   std::vector<Field> common_fields;
 
-  std::vector<Event> events;
   std::string available_path = path_to_root + "/available_events";
   std::string available_contents = ReadFileIntoString(available_path);
   if (available_contents == "") {
@@ -82,7 +97,7 @@ FtraceToProtoTranslationTable::Create(std::string path_to_root) {
     }
   }
 
-  for (Event event : events) {
+  for (Event& event : events) {
     std::string path =
         path_to_root + "/events/" + event.group + "/" + event.name + "/format";
     std::string contents = ReadFileIntoString(path);
@@ -96,20 +111,27 @@ FtraceToProtoTranslationTable::Create(std::string path_to_root) {
     for (FtraceEvent::Field ftrace_field : ftrace_event.fields) {
       event.fields.push_back(Field{ftrace_field.offset, ftrace_field.size});
     }
+  }
 
-    id_to_events[event.ftrace_event_id] = event;
+  if (events.size() == 0) {
+    return nullptr;
   }
 
   auto table = std::unique_ptr<FtraceToProtoTranslationTable>(
-      new FtraceToProtoTranslationTable(std::move(id_to_events),
-                                        std::move(common_fields)));
+      new FtraceToProtoTranslationTable(events, std::move(common_fields)));
   return table;
 }
 
 FtraceToProtoTranslationTable::FtraceToProtoTranslationTable(
-    std::map<size_t, Event> events,
+    const std::vector<Event>& events,
     std::vector<Field> common_fields)
-    : events_(std::move(events)), common_fields_(std::move(common_fields)) {}
+    : events_(BuildEventsVector(events)),
+      largest_id_(events_.size() - 1),
+      common_fields_(std::move(common_fields)) {
+  for (const Event& event : events) {
+    name_to_event_[event.name] = &events_.at(event.ftrace_event_id);
+  }
+}
 
 FtraceToProtoTranslationTable::~FtraceToProtoTranslationTable() = default;
 
