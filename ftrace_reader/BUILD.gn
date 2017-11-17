@@ -40,6 +40,7 @@ executable("ftrace_reader_integrationtests") {
   testonly = true
   deps += [
     ":ftrace_reader",
+    "//base",
     "//buildtools:gmock",
     "//buildtools:gtest",
     "//buildtools:gtest_main",

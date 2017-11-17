@@ -60,18 +60,41 @@ class FtraceToProtoTranslationTable {
       std::string path_to_event_dir);
   ~FtraceToProtoTranslationTable();
 
-  // A map from the ftrace event id to the matching event.
-  const std::map<size_t, Event>& events() const { return events_; }
+  FtraceToProtoTranslationTable(const std::vector<Event>& events,
+                                std::vector<Field> common_fields);
+
+  size_t largest_id() const { return largest_id_; }
+
   const std::vector<Field>& common_fields() const { return common_fields_; }
 
+  const Event* GetEventByName(const std::string& name) const {
+    if (!name_to_event_.count(name))
+      return nullptr;
+    return name_to_event_.at(name);
+  }
+
+  const Event* GetEventById(size_t id) const {
+    if (id == 0 || id > largest_id_)
+      return nullptr;
+    if (!events_.at(id).ftrace_event_id)
+      return nullptr;
+    return &events_.at(id);
+  }
+
+  size_t EventNameToFtraceId(const std::string& name) const {
+    if (!name_to_event_.count(name))
+      return 0;
+    return name_to_event_.at(name)->ftrace_event_id;
+  }
+
  private:
-  FtraceToProtoTranslationTable(std::map<size_t, Event> events,
-                                std::vector<Field> common_fields);
   FtraceToProtoTranslationTable(const FtraceToProtoTranslationTable&) = delete;
   FtraceToProtoTranslationTable& operator=(
       const FtraceToProtoTranslationTable&) = delete;
 
-  std::map<size_t, Event> events_;
+  const std::vector<Event> events_;
+  size_t largest_id_;
+  std::map<std::string, const Event*> name_to_event_;
   std::vector<Field> common_fields_;
 };
 
