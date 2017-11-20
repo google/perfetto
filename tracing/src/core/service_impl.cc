@@ -58,17 +58,21 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
       id, this, task_runner_, producer, std::move(shared_memory)));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
-  task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer(),
-                                   id, endpoint->shared_memory()));
+  task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer()));
+  if (observer_)
+    observer_->OnProducerConnected(id);
   return std::move(endpoint);
 }
 
 void ServiceImpl::DisconnectProducer(ProducerID id) {
   PERFETTO_DCHECK(producers_.count(id));
   producers_.erase(id);
+  if (observer_)
+    observer_->OnProducerDisconnected(id);
 }
 
-Service::ProducerEndpoint* ServiceImpl::GetProducer(ProducerID id) const {
+ServiceImpl::ProducerEndpointImpl* ServiceImpl::GetProducer(
+    ProducerID id) const {
   auto it = producers_.find(id);
   if (it == producers_.end())
     return nullptr;
@@ -92,50 +96,36 @@ ServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
       shared_memory_(std::move(shared_memory)) {}
 
 ServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
-  task_runner_->PostTask(std::bind(&Producer::OnDisconnect, producer_));
+  producer_->OnDisconnect();
   service_->DisconnectProducer(id_);
-}
-
-ProducerID ServiceImpl::ProducerEndpointImpl::GetID() const {
-  return id_;
 }
 
 void ServiceImpl::ProducerEndpointImpl::RegisterDataSource(
     const DataSourceDescriptor&,
     RegisterDataSourceCallback callback) {
   const DataSourceID dsid = ++last_data_source_id_;
-  PERFETTO_DLOG("[ServiceImpl] RegisterDataSource from producer %" PRIu64, id_);
   task_runner_->PostTask(std::bind(std::move(callback), dsid));
   // TODO implement the bookkeeping logic.
+  if (service_->observer_)
+    service_->observer_->OnDataSourceRegistered(id_, dsid);
 }
 
 void ServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
     DataSourceID dsid) {
-  PERFETTO_DLOG("[ServiceImpl] UnregisterDataSource(%" PRIu64
-                ") from producer %" PRIu64,
-                dsid, id_);
   PERFETTO_CHECK(dsid);
   // TODO implement the bookkeeping logic.
-  return;
+  if (service_->observer_)
+    service_->observer_->OnDataSourceUnregistered(id_, dsid);
 }
 
-void ServiceImpl::ProducerEndpointImpl::NotifyPageAcquired(uint32_t page) {
-  PERFETTO_DLOG("[ServiceImpl] NotifyPageAcquired(%" PRIu32
-                ") from producer %" PRIu64,
-                page, id_);
+void ServiceImpl::ProducerEndpointImpl::NotifySharedMemoryUpdate(
+    const std::vector<uint32_t>& changed_pages) {
   // TODO implement the bookkeeping logic.
   return;
 }
 
-void ServiceImpl::ProducerEndpointImpl::NotifyPageReleased(uint32_t page) {
-  PERFETTO_DLOG("[ServiceImpl] NotifyPageReleased(%" PRIu32
-                ") from producer %" PRIu64,
-                page, id_);
-  PERFETTO_DCHECK(shared_memory_);
-  PERFETTO_DLOG("[ServiceImpl] Reading Shared memory: \"%s\"",
-                reinterpret_cast<const char*>(shared_memory_->start()));
-  // TODO implement the bookkeeping logic.
-  return;
+void ServiceImpl::set_observer_for_testing(ObserverForTesting* observer) {
+  observer_ = observer;
 }
 
 }  // namespace perfetto
