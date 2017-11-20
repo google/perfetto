@@ -37,22 +37,6 @@ class SharedMemory;
 // The tracing service business logic.
 class ServiceImpl : public Service {
  public:
-  explicit ServiceImpl(std::unique_ptr<SharedMemory::Factory>,
-                       base::TaskRunner*);
-  ~ServiceImpl() override;
-
-  // Called by the ProducerEndpointImpl dtor.
-  void DisconnectProducer(ProducerID);
-
-  // Service implementation.
-  std::unique_ptr<Service::ProducerEndpoint> ConnectProducer(
-      Producer*) override;
-
-  // Exposed mainly for testing.
-  size_t num_producers() const { return producers_.size(); }
-  Service::ProducerEndpoint* GetProducer(ProducerID) const;
-
- private:
   // The implementation behind the service endpoint exposed to each producer.
   class ProducerEndpointImpl : public Service::ProducerEndpoint {
    public:
@@ -67,13 +51,12 @@ class ServiceImpl : public Service {
     SharedMemory* shared_memory() const { return shared_memory_.get(); }
 
     // Service::ProducerEndpoint implementation.
-    ProducerID GetID() const override;
     void RegisterDataSource(const DataSourceDescriptor&,
                             RegisterDataSourceCallback) override;
     void UnregisterDataSource(DataSourceID) override;
 
-    void NotifyPageAcquired(uint32_t page) override;
-    void NotifyPageReleased(uint32_t page) override;
+    void NotifySharedMemoryUpdate(
+        const std::vector<uint32_t>& changed_pages) override;
 
    private:
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
@@ -87,6 +70,23 @@ class ServiceImpl : public Service {
     DataSourceID last_data_source_id_ = 0;
   };
 
+  explicit ServiceImpl(std::unique_ptr<SharedMemory::Factory>,
+                       base::TaskRunner*);
+  ~ServiceImpl() override;
+
+  // Called by the ProducerEndpointImpl dtor.
+  void DisconnectProducer(ProducerID);
+
+  // Service implementation.
+  std::unique_ptr<Service::ProducerEndpoint> ConnectProducer(
+      Producer*) override;
+  void set_observer_for_testing(ObserverForTesting*) override;
+
+  // Exposed mainly for testing.
+  size_t num_producers() const { return producers_.size(); }
+  ProducerEndpointImpl* GetProducer(ProducerID) const;
+
+ private:
   ServiceImpl(const ServiceImpl&) = delete;
   ServiceImpl& operator=(const ServiceImpl&) = delete;
 
@@ -94,6 +94,7 @@ class ServiceImpl : public Service {
   base::TaskRunner* const task_runner_;
   ProducerID last_producer_id_ = 0;
   std::map<ProducerID, ProducerEndpointImpl*> producers_;
+  ObserverForTesting* observer_ = nullptr;
 };
 
 }  // namespace perfetto

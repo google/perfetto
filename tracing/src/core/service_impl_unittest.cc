@@ -39,7 +39,7 @@ class MockProducer : public Producer {
   ~MockProducer() override {}
 
   // Producer implementation.
-  MOCK_METHOD2(OnConnect, void(ProducerID, SharedMemory*));
+  MOCK_METHOD0(OnConnect, void());
   MOCK_METHOD0(OnDisconnect, void());
   MOCK_METHOD2(CreateDataSourceInstance,
                void(DataSourceInstanceID, const DataSourceConfig&));
@@ -63,8 +63,8 @@ TEST(ServiceImpl, RegisterAndUnregister) {
   ASSERT_TRUE(producer_endpoint_2);
 
   InSequence seq;
-  EXPECT_CALL(mock_producer_1, OnConnect(1, _));
-  EXPECT_CALL(mock_producer_2, OnConnect(2, _));
+  EXPECT_CALL(mock_producer_1, OnConnect());
+  EXPECT_CALL(mock_producer_2, OnConnect());
   task_runner.RunUntilIdle();
 
   ASSERT_EQ(2u, svc->num_producers());
