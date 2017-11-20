@@ -27,7 +27,6 @@
 namespace perfetto {
 
 // Implements the SharedMemory and its factory for the posix-based transport.
-// TODO(primiano): implement in next CLs.
 class PosixSharedMemory : public SharedMemory {
  public:
   class Factory : public SharedMemory::Factory {
@@ -36,9 +35,30 @@ class PosixSharedMemory : public SharedMemory {
     std::unique_ptr<SharedMemory> CreateSharedMemory(size_t) override;
   };
 
+  // Create a brand new SHM region (the service uses this).
+  static std::unique_ptr<PosixSharedMemory> Create(size_t size);
+
+  // Mmaps a file descriptor to an existing SHM region (the producer uses this).
+  static std::unique_ptr<PosixSharedMemory> AttachToFd(base::ScopedFile);
+
+  ~PosixSharedMemory() override;
+
+  int fd() const { return fd_.get(); }
+
   // SharedMemory implementation.
-  void* start() const override { return nullptr; }
-  size_t size() const override { return 0; }
+  void* start() const override { return start_; }
+  size_t size() const override { return size_; }
+
+ private:
+  static std::unique_ptr<PosixSharedMemory> MapFD(base::ScopedFile, size_t);
+
+  PosixSharedMemory(void* start, size_t size, base::ScopedFile);
+  PosixSharedMemory(const PosixSharedMemory&) = delete;
+  PosixSharedMemory& operator=(const PosixSharedMemory&) = delete;
+
+  void* const start_;
+  const size_t size_;
+  base::ScopedFile fd_;
 };
 
 }  // namespace perfetto
