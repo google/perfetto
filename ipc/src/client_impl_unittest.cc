@@ -146,22 +146,25 @@ class FakeHost : public UnixSocket::EventListener {
       return Reply(reply);
     } else if (req.msg_case() == Frame::kMsgInvokeMethod) {
       // Lookup the service and method.
-      Frame reply;
-      reply.set_request_id(req.request_id());
-      for (const auto& svc : services) {
-        if (svc.second->id != req.msg_invoke_method().service_id())
-          continue;
-        for (const auto& method : svc.second->methods) {
-          if (method.second->id != req.msg_invoke_method().method_id())
+      bool has_more = false;
+      do {
+        Frame reply;
+        reply.set_request_id(req.request_id());
+        for (const auto& svc : services) {
+          if (svc.second->id != req.msg_invoke_method().service_id())
             continue;
-          method.second->OnInvoke(req.msg_invoke_method(),
-                                  reply.mutable_msg_invoke_method_reply());
+          for (const auto& method : svc.second->methods) {
+            if (method.second->id != req.msg_invoke_method().method_id())
+              continue;
+            method.second->OnInvoke(req.msg_invoke_method(),
+                                    reply.mutable_msg_invoke_method_reply());
+            has_more = reply.mutable_msg_invoke_method_reply()->has_more();
+          }
         }
-      }
-      // If either the method or the service are not found, |success| will be
-      // false by default.
-      return Reply(reply);
-
+        // If either the method or the service are not found, |success| will be
+        // false by default.
+        Reply(reply);
+      } while (has_more);
     } else {
       FAIL() << "Unknown request";
     }
@@ -246,6 +249,49 @@ TEST_F(ClientImplTest, BindAndInvokeMethod) {
   RequestProto empty_req;
   proxy->BeginInvoke("InvalidMethod", empty_req, std::move(deferred_reply2));
   task_runner_->RunUntilCheckpoint("on_invalid_invoke");
+}
+
+// Like BindAndInvokeMethod, but this time invoke a streaming method that
+// provides > 1 reply per invocation.
+TEST_F(ClientImplTest, BindAndInvokeStreamingMethod) {
+  auto* host_svc = host_->AddFakeService("FakeSvc");
+  auto* host_method = host_svc->AddFakeMethod("FakeMethod1");
+  const int kNumReplies = 3;
+
+  // Create and bind |proxy| to the fake host.
+  std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
+  cli_->BindService(proxy->GetWeakPtr());
+  auto on_connect = task_runner_->CreateCheckpoint("on_connect");
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  task_runner_->RunUntilCheckpoint("on_connect");
+
+  // Invoke a valid method, reply kNumReplies times.
+  int replies_left = kNumReplies;
+  EXPECT_CALL(*host_method, OnInvoke(_, _))
+      .Times(kNumReplies)
+      .WillRepeatedly(Invoke([&replies_left](const Frame::InvokeMethod& req,
+                                             Frame::InvokeMethodReply* reply) {
+        RequestProto req_args;
+        EXPECT_TRUE(req_args.ParseFromString(req.args_proto()));
+        reply->set_reply_proto(ReplyProto().SerializeAsString());
+        reply->set_success(true);
+        reply->set_has_more(--replies_left > 0);
+      }));
+
+  RequestProto req;
+  req.set_data("req_data");
+  auto on_last_reply = task_runner_->CreateCheckpoint("on_last_reply");
+  int replies_seen = 0;
+  DeferredBase deferred_reply(
+      [on_last_reply, &replies_seen](AsyncResult<ProtoMessage> reply) {
+        EXPECT_TRUE(reply.success());
+        replies_seen++;
+        if (!reply.has_more())
+          on_last_reply();
+      });
+  proxy->BeginInvoke("FakeMethod1", req, std::move(deferred_reply));
+  task_runner_->RunUntilCheckpoint("on_last_reply");
+  ASSERT_EQ(kNumReplies, replies_seen);
 }
 
 TEST_F(ClientImplTest, BindSameServiceMultipleTimesShouldFail) {
@@ -392,7 +438,6 @@ TEST_F(ClientImplTest, HostDisconnection) {
 }
 
 // TODO(primiano): add the tests below.
-// TEST(ClientImplTest, BindAndInvokeStreamingMethod) {}
 // TEST(ClientImplTest, UnparsableReply) {}
 
 }  // namespace
