@@ -125,6 +125,11 @@ void TestTaskRunner::PostTask(std::function<void()> closure) {
   task_queue_.emplace_back(std::move(closure));
 }
 
+void TestTaskRunner::PostDelayedTask(std::function<void()> closure,
+                                     int delay_ms) {
+  PERFETTO_DCHECK(false);
+}
+
 void TestTaskRunner::AddFileDescriptorWatch(int fd,
                                             std::function<void()> callback) {
   PERFETTO_DCHECK(fd >= 0);
