@@ -38,12 +38,14 @@ TEST(DeferredTest, BindAndResolve) {
     ASSERT_TRUE(msg.success());
     ASSERT_TRUE(msg);
     ASSERT_EQ(42, msg->num());
+    ASSERT_EQ(13, msg.fd());
     ASSERT_EQ("foo", msg->str());
     (*num_callbacks)++;
   });
 
   AsyncResult<TestMessage> res = AsyncResult<TestMessage>::Create();
   res->set_num(42);
+  res.set_fd(13);
   (*res).set_str("foo");
   deferred.Resolve(std::move(res));
 
@@ -60,6 +62,7 @@ TEST(DeferredTest, BindAndFail) {
   Deferred<TestMessage> deferred;
   std::shared_ptr<int> num_callbacks(new int{0});
   deferred.Bind([num_callbacks](AsyncResult<TestMessage> msg) {
+    ASSERT_EQ(-1, msg.fd());
     ASSERT_FALSE(msg.success());
     ASSERT_FALSE(msg);
     ASSERT_EQ(nullptr, &*msg);
@@ -67,6 +70,7 @@ TEST(DeferredTest, BindAndFail) {
   });
 
   AsyncResult<TestMessage> res = AsyncResult<TestMessage>::Create();
+  res.set_fd(42);
   deferred.Reject();
   EXPECT_DCHECK(deferred.Resolve(std::move(res)));
   EXPECT_DCHECK(deferred.Reject());
@@ -126,6 +130,7 @@ TEST(DeferredTest, MoveOperators) {
         ASSERT_TRUE(msg.success());
         ASSERT_GE(msg->num(), 42);
         ASSERT_LE(msg->num(), 43);
+        ASSERT_EQ(msg->num() * 10, msg.fd());
         ASSERT_EQ(std::to_string(msg->num()), msg->str());
         (*num_callbacks)++;
       };
@@ -133,6 +138,7 @@ TEST(DeferredTest, MoveOperators) {
 
   // Do a bit of std::move() dance with both the Deferred and the AsyncResult.
   AsyncResult<TestMessage> res = AsyncResult<TestMessage>::Create();
+  res.set_fd(420);
   res->set_num(42);
   AsyncResult<TestMessage> res_moved(std::move(res));
   res = std::move(res_moved);
@@ -149,9 +155,10 @@ TEST(DeferredTest, MoveOperators) {
   deferred_moved.Resolve(std::move(res_moved));  // This, instead, should fire.
   ASSERT_EQ(1, *num_callbacks);
 
-  // |deferred| and |res| have lost their state but shoould remain reusable.
+  // |deferred| and |res| have lost their state but should remain reusable.
   deferred.Bind(callback);
   res = AsyncResult<TestMessage>::Create();
+  res.set_fd(430);
   res->set_num(43);
   res->set_str("43");
   deferred.Resolve(std::move(res));
@@ -177,6 +184,7 @@ TEST(DeferredTest, StreamingReply) {
   std::function<void(AsyncResult<TestMessage>)> callback =
       [num_callbacks](AsyncResult<TestMessage> msg) {
         ASSERT_TRUE(msg.success());
+        ASSERT_EQ(*num_callbacks == 0 ? 13 : -1, msg.fd());
         ASSERT_EQ(*num_callbacks, msg->num());
         ASSERT_EQ(std::to_string(*num_callbacks), msg->str());
         ASSERT_EQ(msg->num() < 3, msg.has_more());
@@ -186,6 +194,7 @@ TEST(DeferredTest, StreamingReply) {
 
   for (int i = 0; i < 3; i++) {
     AsyncResult<TestMessage> res = AsyncResult<TestMessage>::Create();
+    res.set_fd(i == 0 ? 13 : -1);
     res->set_num(i);
     res->set_str(std::to_string(i));
     res.set_has_more(true);
@@ -243,6 +252,7 @@ TEST(DeferredTest, MoveAsBase) {
   std::shared_ptr<int> num_callbacks(new int{0});
   deferred.Bind([num_callbacks](AsyncResult<TestMessage> msg) {
     ASSERT_TRUE(msg.success());
+    ASSERT_EQ(13, msg.fd());
     ASSERT_EQ(42, msg->num());
     ASSERT_EQ("foo", msg->str());
     (*num_callbacks)++;
@@ -257,6 +267,7 @@ TEST(DeferredTest, MoveAsBase) {
   msg->set_str("foo");
 
   AsyncResult<ProtoMessage> async_result_base(std::move(msg));
+  async_result_base.set_fd(13);
   deferred_base.Resolve(std::move(async_result_base));
 
   EXPECT_DCHECK(deferred_base.Resolve(std::move(async_result_base)));
