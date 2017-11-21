@@ -24,6 +24,7 @@
 #include "tracing/core/data_source_config.h"
 #include "tracing/core/data_source_descriptor.h"
 #include "tracing/core/service.h"
+#include "tracing/src/ipc/posix_shared_memory.h"
 
 // The remote Producer(s) are not trusted. All the methods from the ProducerPort
 // IPC layer (e.g. RegisterDataSource()) must assume that the remote Producer is
@@ -48,7 +49,7 @@ ProducerIPCService::GetProducerForCurrentRequest() {
 
 // Called by the remote Producer through the IPC channel soon after connecting.
 void ProducerIPCService::InitializeConnection(
-    const InitializeConnectionRequest&,
+    const InitializeConnectionRequest& req,
     DeferredInitializeConnectionResponse response) {
   const ipc::ClientID ipc_client_id = ipc::Service::client_info().client_id();
   PERFETTO_CHECK(ipc_client_id);
@@ -63,9 +64,17 @@ void ProducerIPCService::InitializeConnection(
   std::unique_ptr<RemoteProducer> producer(new RemoteProducer());
 
   // ConnectProducer will call OnConnect() on the next task.
-  producer->service_endpoint = core_service_->ConnectProducer(producer.get());
+  producer->service_endpoint = core_service_->ConnectProducer(
+      producer.get(), req.shared_buffer_size_hint_bytes());
+  const int shm_fd = static_cast<PosixSharedMemory*>(
+                         producer->service_endpoint->shared_memory())
+                         ->fd();
   producers_.emplace(ipc_client_id, std::move(producer));
-  response.Resolve(ipc::AsyncResult<InitializeConnectionResponse>::Create());
+  // Because of the std::move() |producer| is invalid after this point.
+
+  auto async_res = ipc::AsyncResult<InitializeConnectionResponse>::Create();
+  async_res.set_fd(shm_fd);
+  response.Resolve(std::move(async_res));
 }
 
 // Called by the remote Producer through the IPC channel.
