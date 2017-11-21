@@ -55,7 +55,7 @@ message InitializeConnectionRequest {
   // Optional. Provides a hint to the tracing service about the suggested size
   // of the shared memory buffer. The service is not required to respect this
   // and might return a smaller buffer.
-  // TODO: uint32 shared_buffer_size_hint = 1;
+  uint32 shared_buffer_size_hint_bytes = 1;
 }
 
 message InitializeConnectionResponse {
