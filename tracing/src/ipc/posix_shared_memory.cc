@@ -18,6 +18,7 @@
 
 #include <fcntl.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -35,12 +36,11 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
   // TODO: use memfd_create on Linux/Android if the kernel supports it (needs
   // syscall.h, there is no glibc wrapper). If not, on Android fallback on
   // ashmem and on Linux fallback on /dev/shm/perfetto-whatever.
-  char path[] = "/tmp/perfetto-shm.XXXXXX";
-  base::ScopedFile fd(mkstemp(path));
+  FILE* tmp_file = tmpfile();
+  PERFETTO_CHECK(tmp_file);
+  base::ScopedFile fd(fileno(tmp_file));
   PERFETTO_CHECK(fd);
-  int res = unlink(path);
-  PERFETTO_CHECK(res == 0);
-  res = ftruncate(fd.get(), static_cast<off_t>(size));
+  int res = ftruncate(fd.get(), static_cast<off_t>(size));
   PERFETTO_CHECK(res == 0);
   return MapFD(std::move(fd), size);
 }
