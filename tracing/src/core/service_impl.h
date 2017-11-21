@@ -48,7 +48,6 @@ class ServiceImpl : public Service {
     ~ProducerEndpointImpl() override;
 
     Producer* producer() const { return producer_; }
-    SharedMemory* shared_memory() const { return shared_memory_.get(); }
 
     // Service::ProducerEndpoint implementation.
     void RegisterDataSource(const DataSourceDescriptor&,
@@ -57,6 +56,8 @@ class ServiceImpl : public Service {
 
     void NotifySharedMemoryUpdate(
         const std::vector<uint32_t>& changed_pages) override;
+
+    SharedMemory* shared_memory() const override;
 
    private:
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
@@ -79,7 +80,8 @@ class ServiceImpl : public Service {
 
   // Service implementation.
   std::unique_ptr<Service::ProducerEndpoint> ConnectProducer(
-      Producer*) override;
+      Producer*,
+      size_t shared_buffer_size_hint_bytes = 0) override;
   void set_observer_for_testing(ObserverForTesting*) override;
 
   // Exposed mainly for testing.

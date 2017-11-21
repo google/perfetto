@@ -29,9 +29,10 @@
 #include "tracing/src/ipc/producer_port.ipc.h"  // From producer_port.proto.
 
 namespace perfetto {
+
 namespace ipc {
 class Host;
-}
+}  // namespace ipc
 
 // Implements the Producer port of the IPC service. This class proxies requests
 // and responses between the core service logic (|svc_|) and remote Producer(s)

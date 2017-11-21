@@ -88,9 +88,11 @@ executable("tracing_test") {
   testonly = true
   deps += [
     ":ipc",
+    ":ipc_protos",
     ":tracing",
     "//base",
     "//base:test_support",
+    "//ipc",
   ]
   sources = [
     "src/test/ipc_test.cc",

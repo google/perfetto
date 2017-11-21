@@ -141,7 +141,12 @@ void ClientImpl::OnDataAvailable(UnixSocket*) {
   size_t rsize;
   do {
     auto buf = frame_deserializer_.BeginReceive();
-    rsize = sock_->Receive(buf.data, buf.size);
+    base::ScopedFile fd;
+    rsize = sock_->Receive(buf.data, buf.size, &fd);
+    if (fd) {
+      PERFETTO_DCHECK(!received_fd_);
+      received_fd_ = std::move(fd);
+    }
     if (!frame_deserializer_.EndReceive(rsize)) {
       // The endpoint tried to send a frame that is way too large.
       return sock_->Shutdown();  // In turn will trigger an OnDisconnect().
@@ -244,6 +249,10 @@ void ClientImpl::OnInvokeMethodReply(QueuedRequest req,
 }
 
 ClientImpl::QueuedRequest::QueuedRequest() = default;
+
+base::ScopedFile ClientImpl::TakeReceivedFD() {
+  return std::move(received_fd_);
+}
 
 }  // namespace ipc
 }  // namespace perfetto

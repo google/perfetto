@@ -117,7 +117,7 @@ class Deferred : public DeferredBase {
       static_assert(std::is_base_of<ProtoMessage, T>::value, "T:ProtoMessage");
       AsyncResult<T> async_result(
           std::unique_ptr<T>(static_cast<T*>(async_result_base.release_msg())),
-          async_result_base.has_more());
+          async_result_base.has_more(), async_result_base.fd());
       callback(std::move(async_result));
     };
     DeferredBase::Bind(callback_adapter);
@@ -128,7 +128,7 @@ class Deferred : public DeferredBase {
     // Convert the |async_result| to the generic base one (T -> ProtoMessage).
     AsyncResult<ProtoMessage> async_result_base(
         std::unique_ptr<ProtoMessage>(async_result.release_msg()),
-        async_result.has_more());
+        async_result.has_more(), async_result.fd());
     DeferredBase::Resolve(std::move(async_result_base));
   }
 };
