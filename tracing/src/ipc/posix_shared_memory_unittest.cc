@@ -18,6 +18,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -87,16 +88,13 @@ TEST(PosixSharedMemoryTest, DestructorClosesFD) {
 }
 
 TEST(PosixSharedMemoryTest, AttachToFd) {
-  static const char kTmpPath[] = "/tmp/perfetto-shm-test";
-  base::ScopedFile fd(open(kTmpPath, O_CREAT | O_RDWR | O_TRUNC));
-  unlink(kTmpPath);
-  const int fd_num = *fd;
-  ASSERT_TRUE(fd);
-  ASSERT_EQ(0, ftruncate(*fd, kPageSize));
-  ASSERT_EQ(7, PERFETTO_EINTR(write(*fd, "foobar", 7)));
+  FILE* tmp_file = tmpfile();  // Creates an unlinked auto-deleting temp file.
+  const int fd_num = fileno(tmp_file);
+  ASSERT_EQ(0, ftruncate(fd_num, kPageSize));
+  ASSERT_EQ(7, PERFETTO_EINTR(write(fd_num, "foobar", 7)));
 
   std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::AttachToFd(std::move(fd));
+      PosixSharedMemory::AttachToFd(base::ScopedFile(fd_num));
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(nullptr, shm_start);
