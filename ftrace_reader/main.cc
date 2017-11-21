@@ -44,9 +44,10 @@ std::string ToHex(const void* data, size_t length) {
 }  // namespace
 
 class FakeTaskRunner : public perfetto::base::TaskRunner {
-  virtual void PostTask(std::function<void()>) {}
-  virtual void AddFileDescriptorWatch(int fd, std::function<void()>) {}
-  virtual void RemoveFileDescriptorWatch(int fd) {}
+  void PostTask(std::function<void()>) override {}
+  void PostDelayedTask(std::function<void()>, int delay_ms) override {}
+  void AddFileDescriptorWatch(int fd, std::function<void()>) override {}
+  void RemoveFileDescriptorWatch(int fd) override {}
 };
 
 class ScatteredBuffer : public protozero::ScatteredStreamWriter::Delegate {
