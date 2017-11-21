@@ -272,7 +272,7 @@ TEST_F(HostImplTest, OnClientDisconnect) {
   req_args.set_data("foo");
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_)).Times(0);
-  cli_.reset();
+  cli_.reset();  // Disconnect the client.
   auto on_host_method = task_runner_->CreateCheckpoint("on_host_method");
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
       .WillOnce(Invoke(

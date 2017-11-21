@@ -159,6 +159,14 @@ class UnixSocket {
   int fd() const { return fd_.get(); }
   int last_error() const { return last_error_; }
 
+  // User ID of the peer, as returned by the kernel. If the client disconnects
+  // and the socket goes into the kDisconnected state, it retains the uid of
+  // the last peer.
+  int peer_uid() const {
+    PERFETTO_DCHECK(!is_listening() && peer_uid_ >= 0);
+    return peer_uid_;
+  }
+
  private:
   UnixSocket(EventListener*, base::TaskRunner*);
   UnixSocket(EventListener*, base::TaskRunner*, base::ScopedFile);
@@ -168,6 +176,7 @@ class UnixSocket {
   // Called once by the corresponding public static factory methods.
   void DoConnect(const std::string& socket_name);
   void DoListen(const std::string& socket_name);
+  void ReadPeerCredentials();
 
   void OnEvent();
   void NotifyConnectionState(bool success);
@@ -175,6 +184,7 @@ class UnixSocket {
   base::ScopedFile fd_;
   State state_ = State::kDisconnected;
   int last_error_ = 0;
+  int peer_uid_ = -1;
   EventListener* event_listener_;
   base::TaskRunner* task_runner_;
   base::WeakPtrFactory<UnixSocket> weak_ptr_factory_;

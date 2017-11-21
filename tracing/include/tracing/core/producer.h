@@ -48,11 +48,7 @@ class Producer {
   // Called by Service (or more typically by the transport layer, on behalf of
   // the remote Service), once the Producer <> Service connection has been
   // established.
-  // Args:
-  // - ProducerID is the unique id (within the Service scope) of the Producer.
-  // - SharedMemory* is the shared memory region where this Producer's data
-  //   source will inject their data.
-  virtual void OnConnect(ProducerID, SharedMemory*) = 0;
+  virtual void OnConnect() = 0;
 
   // Called by the Service or by the transport layer if the connection with the
   // service drops, either voluntarily (e.g., by destroying the ProducerEndpoint
@@ -62,6 +58,9 @@ class Producer {
   // Once this call returns it is possible to safely destroy the Producer
   // instance.
   virtual void OnDisconnect() = 0;
+
+  // TODO(primiano): rename the methods below to Start/StopDataSourceInstance
+  // in the next CLs.
 
   // Called by the Service to turn on one of the data source previously
   // registered through Service::ProducerEndpoint::RegisterDataSource().

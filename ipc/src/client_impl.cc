@@ -220,7 +220,7 @@ void ClientImpl::OnBindServiceReply(QueuedRequest req,
 
 void ClientImpl::OnInvokeMethodReply(QueuedRequest req,
                                      const Frame::InvokeMethodReply& reply) {
-  base::WeakPtr<ServiceProxy>& service_proxy = req.service_proxy;
+  base::WeakPtr<ServiceProxy> service_proxy = req.service_proxy;
   if (!service_proxy)
     return;
   std::unique_ptr<ProtoMessage> decoded_reply;
@@ -233,8 +233,14 @@ void ClientImpl::OnInvokeMethodReply(QueuedRequest req,
       }
     }
   }
-  service_proxy->EndInvoke(req.request_id, std::move(decoded_reply),
+  const RequestID request_id = req.request_id;
+  service_proxy->EndInvoke(request_id, std::move(decoded_reply),
                            reply.has_more());
+
+  // If this is a streaming method and future replies will be resolved, put back
+  // the |req| with the callback into the set of active requests.
+  if (reply.has_more())
+    queued_requests_.emplace(request_id, std::move(req));
 }
 
 ClientImpl::QueuedRequest::QueuedRequest() = default;

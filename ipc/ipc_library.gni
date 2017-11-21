@@ -20,6 +20,9 @@ template("ipc_library") {
     generator_plugin_label = "//ipc/src/protoc_plugin:ipc_plugin"
     generator_plugin_suffix = ".ipc"
     public_configs = [ "//ipc:config" ]
+    deps = [
+      "//ipc",
+    ]
     forward_variables_from(invoker,
                            [
                              "defines",

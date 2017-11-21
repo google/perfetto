@@ -169,7 +169,9 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
                                                std::move(reply));
       });
 
+  service->client_info_ = ClientInfo(client->id, client->sock->peer_uid());
   method.invoker(service, *decoded_req_args, std::move(deferred_reply));
+  service->client_info_ = ClientInfo();
 }
 
 void HostImpl::ReplyToMethodInvocation(ClientID client_id,
@@ -212,9 +214,17 @@ void HostImpl::OnDisconnect(UnixSocket* sock) {
   if (it == clients_by_socket_.end())
     return;
   ClientID client_id = it->second->id;
+  ClientInfo client_info(client_id, sock->peer_uid());
   clients_by_socket_.erase(it);
   PERFETTO_DCHECK(clients_.count(client_id));
   clients_.erase(client_id);
+
+  for (const auto& service_it : services_) {
+    Service& service = *service_it.second.instance;
+    service.client_info_ = client_info;
+    service.OnClientDisconnected();
+    service.client_info_ = ClientInfo();
+  }
 }
 
 const HostImpl::ExposedService* HostImpl::GetServiceByName(
