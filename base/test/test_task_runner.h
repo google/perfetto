@@ -42,6 +42,7 @@ class TestTaskRunner : public TaskRunner {
 
   // TaskRunner implementation.
   void PostTask(std::function<void()> closure) override;
+  void PostDelayedTask(std::function<void()>, int delay_ms) override;
   void AddFileDescriptorWatch(int fd, std::function<void()> callback) override;
   void RemoveFileDescriptorWatch(int fd) override;
 

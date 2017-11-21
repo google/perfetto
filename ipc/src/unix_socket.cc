@@ -127,8 +127,8 @@ UnixSocket::UnixSocket(EventListener* event_listener,
 #endif
   // There is no reason why a socket should outlive the process in case of
   // exec() by default, this is just working around a broken unix design.
-  int fcntl_res = fcntl(*fd_, FD_CLOEXEC);
-  PERFETTO_DCHECK(fcntl_res == 0);
+  int fcntl_res = fcntl(*fd_, F_SETFD, FD_CLOEXEC);
+  PERFETTO_CHECK(fcntl_res == 0);
 
   // Set non-blocking mode.
   int flags = fcntl(*fd_, F_GETFL, 0);
