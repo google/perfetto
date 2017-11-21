@@ -84,13 +84,15 @@ void ProducerIPCClientImpl::OnDisconnect() {
 }
 
 void ProducerIPCClientImpl::OnConnectionInitialized(bool connection_succeeded) {
-  // TODO: this message will also transfer the shared memory file descriptor.
-  // Wire it up in next cls.
-
-  if (connection_succeeded)
-    producer_->OnConnect();
   // If connection_succeeded == false, the OnDisconnect() call will follow next
   // and there we'll notify the |producer_|. TODO: add a test for this.
+  if (!connection_succeeded)
+    return;
+
+  base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
+  PERFETTO_CHECK(shmem_fd);
+  shared_memory_ = PosixSharedMemory::AttachToFd(std::move(shmem_fd));
+  producer_->OnConnect();
 }
 
 void ProducerIPCClientImpl::OnServiceRequest(
@@ -172,6 +174,10 @@ void ProducerIPCClientImpl::NotifySharedMemoryUpdate(
     req.add_changed_pages(changed_page);
   producer_port_.NotifySharedMemoryUpdate(
       req, ipc::Deferred<NotifySharedMemoryUpdateResponse>());
+}
+
+SharedMemory* ProducerIPCClientImpl::shared_memory() const {
+  return shared_memory_.get();
 }
 
 }  // namespace perfetto

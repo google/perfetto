@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "base/scoped_file.h"
 #include "base/test/test_task_runner.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -77,6 +78,7 @@ class FakeClient : public UnixSocket::EventListener {
   MOCK_METHOD0(OnDisconnect, void());
   MOCK_METHOD1(OnServiceBound, void(const Frame::BindServiceReply&));
   MOCK_METHOD1(OnInvokeMethodReply, void(const Frame::InvokeMethodReply&));
+  MOCK_METHOD1(OnFileDescriptorReceived, void(int));
   MOCK_METHOD0(OnRequestError, void());
 
   explicit FakeClient(base::TaskRunner* task_runner) {
@@ -118,8 +120,11 @@ class FakeClient : public UnixSocket::EventListener {
   void OnDataAvailable(UnixSocket* sock) override {
     ASSERT_EQ(sock_.get(), sock);
     auto buf = frame_deserializer_.BeginReceive();
-    size_t rsize = sock->Receive(buf.data, buf.size);
+    base::ScopedFile fd;
+    size_t rsize = sock->Receive(buf.data, buf.size, &fd);
     ASSERT_TRUE(frame_deserializer_.EndReceive(rsize));
+    if (fd)
+      OnFileDescriptorReceived(*fd);
     while (std::unique_ptr<Frame> frame = frame_deserializer_.PopNextFrame()) {
       ASSERT_EQ(1u, requests_.count(frame->request_id()));
       EXPECT_EQ(0, requests_[frame->request_id()]++);
@@ -257,6 +262,47 @@ TEST_F(HostImplTest, InvokeMethod) {
             on_reply_received();
           }));
   task_runner_->RunUntilCheckpoint("on_reply_received");
+}
+
+TEST_F(HostImplTest, SendFileDescriptor) {
+  FakeService* fake_service = new FakeService("FakeService");
+  ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
+  auto on_bind = task_runner_->CreateCheckpoint("on_bind");
+  cli_->BindService("FakeService");
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  task_runner_->RunUntilCheckpoint("on_bind");
+
+  static constexpr char kFileContent[] = "shared file";
+  RequestProto req_args;
+  cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
+  auto on_reply_sent = task_runner_->CreateCheckpoint("on_reply_sent");
+  FILE* tx_file = tmpfile();
+  fwrite(kFileContent, sizeof(kFileContent), 1, tx_file);
+  fflush(tx_file);
+  EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
+      .WillOnce(Invoke([on_reply_sent, tx_file](const RequestProto& req,
+                                                DeferredBase* reply) {
+        std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+        auto async_res = AsyncResult<ProtoMessage>(
+            std::unique_ptr<ProtoMessage>(reply_args.release()));
+        async_res.set_fd(fileno(tx_file));
+        reply->Resolve(std::move(async_res));
+        on_reply_sent();
+      }));
+  task_runner_->RunUntilCheckpoint("on_reply_sent");
+  fclose(tx_file);
+
+  auto on_fd_received = task_runner_->CreateCheckpoint("on_fd_received");
+  EXPECT_CALL(*cli_, OnFileDescriptorReceived(_))
+      .WillOnce(Invoke([on_fd_received](int fd) {
+        char buf[sizeof(kFileContent)] = {};
+        ASSERT_EQ(0, lseek(fd, 0, SEEK_SET));
+        ASSERT_EQ(sizeof(buf), PERFETTO_EINTR(read(fd, buf, sizeof(buf))));
+        ASSERT_STREQ(kFileContent, buf);
+        on_fd_received();
+      }));
+  EXPECT_CALL(*cli_, OnInvokeMethodReply(_));
+  task_runner_->RunUntilCheckpoint("on_fd_received");
 }
 
 // Invoke a method and immediately after disconnect the client.

@@ -28,6 +28,8 @@
 #include "tracing/ipc/producer_ipc_client.h"
 #include "tracing/ipc/service_ipc_host.h"
 #include "tracing/src/core/service_impl.h"
+#include "tracing/src/ipc/posix_shared_memory.h"
+#include "tracing/src/ipc/producer/producer_ipc_client_impl.h"
 #include "tracing/src/ipc/service/service_ipc_host_impl.h"
 
 namespace perfetto {
@@ -79,13 +81,19 @@ void __attribute__((noreturn)) ProducerMain() {
     auto reg_checkpoint =
         task_runner.CreateCheckpoint("register" + std::to_string(i));
     auto on_register = [reg_checkpoint](DataSourceID id) {
-      PERFETTO_DLOG("Service acked RegisterDataSource() with ID %" PRIu64, id);
+      printf("Service acked RegisterDataSource() with ID %" PRIu64 "\n", id);
       reg_checkpoint();
     };
     endpoint->RegisterDataSource(descriptor, on_register);
     task_runner.RunUntilCheckpoint("register" + std::to_string(i));
-  }
 
+    auto* ipc_client = static_cast<ProducerIPCClientImpl*>(endpoint.get());
+    void* shm = ipc_client->shared_memory()->start();
+    char buf[32];
+    memcpy(buf, shm, sizeof(buf));
+    buf[sizeof(buf) - 1] = '\0';
+    printf("Shared Memory contents: \"%s\"\n", buf);
+  }
   task_runner.Run();
 }
 
@@ -112,6 +120,10 @@ void __attribute__((noreturn)) ServiceMain() {
              prid, dsid);
       DataSourceConfig cfg;
       cfg.trace_category_filters = "foo,bar";
+      SharedMemory* shm = svc_->GetProducer(prid)->shared_memory();
+      char shm_contents[32];
+      sprintf(shm_contents, "shmem @ iteration %" PRIu64, dsid);
+      memcpy(shm->start(), shm_contents, sizeof(shm_contents));
       svc_->GetProducer(prid)->producer()->CreateDataSourceInstance(42, cfg);
     }
 

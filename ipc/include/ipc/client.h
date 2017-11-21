@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 
+#include "base/scoped_file.h"
 #include "base/weak_ptr.h"
 #include "ipc/basic_types.h"
 
@@ -53,6 +54,13 @@ class Client {
   // ServiceProxy instance is sufficient and will automatically unbind it. This
   // method is exposed only for the ServiceProxy destructor.
   virtual void UnbindService(ServiceID) = 0;
+
+  // Returns (with move semantics) the last file descriptor received on the IPC
+  // channel. No buffering is performed: if a service sends two file descriptors
+  // and the caller doesn't read them immediately, the first one will be
+  // automatically closed when the second is received (and will hit a DCHECK in
+  // debug builds).
+  virtual base::ScopedFile TakeReceivedFD() = 0;
 };
 
 }  // namespace ipc
