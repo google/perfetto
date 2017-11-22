@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef FTRACE_TO_PROTO_TRANSLATION_TABLE_H_
-#define FTRACE_TO_PROTO_TRANSLATION_TABLE_H_
+#ifndef FTRACE_PROTO_TRANSLATION_TABLE_H_
+#define FTRACE_PROTO_TRANSLATION_TABLE_H_
 
 #include <stdint.h>
 
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -30,7 +31,9 @@
 
 namespace perfetto {
 
-class FtraceToProtoTranslationTable {
+class FtraceProcfs;
+
+class ProtoTranslationTable {
  public:
   enum FtraceFieldType {
     kFtraceNumber = 0,
@@ -56,12 +59,13 @@ class FtraceToProtoTranslationTable {
     size_t proto_field_id;
   };
 
-  static std::unique_ptr<FtraceToProtoTranslationTable> Create(
-      std::string path_to_event_dir);
-  ~FtraceToProtoTranslationTable();
+  static std::unique_ptr<ProtoTranslationTable> Create(
+      std::string path_to_event_dir,
+      const FtraceProcfs* ftrace_procfs);
+  ~ProtoTranslationTable();
 
-  FtraceToProtoTranslationTable(const std::vector<Event>& events,
-                                std::vector<Field> common_fields);
+  ProtoTranslationTable(const std::vector<Event>& events,
+                        std::vector<Field> common_fields);
 
   size_t largest_id() const { return largest_id_; }
 
@@ -88,9 +92,8 @@ class FtraceToProtoTranslationTable {
   }
 
  private:
-  FtraceToProtoTranslationTable(const FtraceToProtoTranslationTable&) = delete;
-  FtraceToProtoTranslationTable& operator=(
-      const FtraceToProtoTranslationTable&) = delete;
+  ProtoTranslationTable(const ProtoTranslationTable&) = delete;
+  ProtoTranslationTable& operator=(const ProtoTranslationTable&) = delete;
 
   const std::vector<Event> events_;
   size_t largest_id_;
@@ -100,4 +103,4 @@ class FtraceToProtoTranslationTable {
 
 }  // namespace perfetto
 
-#endif  // FTRACE_TO_PROTO_TRANSLATION_TABLE_H_
+#endif  // FTRACE_PROTO_TRANSLATION_TABLE_H_
