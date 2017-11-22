@@ -88,14 +88,15 @@ def ensure_single_device(serial):
 def pull_format_files(serial, output_directory):
   # Pulling each file individually is 100x slower so we pipe all together then
   # split them on the host.
-  cmd = "find /sys/kernel/debug/tracing/events/ " \
+  cmd = "find /sys/kernel/debug/tracing/ " \
+      "-name available_events -o " \
       "-name format -o " \
       "-name header_event -o " \
       "-name header_page | " \
       "while read f; do echo 'path:' $f; cat $f; done"
 
   output = adb('shell', cmd, serial=serial)
-  sections = output.split('path: /sys/kernel/debug/tracing/events/')
+  sections = output.split('path: /sys/kernel/debug/tracing/')
   for section in sections:
     if not section:
       continue
