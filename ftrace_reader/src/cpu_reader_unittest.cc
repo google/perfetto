@@ -14,52 +14,81 @@
  * limitations under the License.
  */
 
-#include "ftrace_reader/ftrace_cpu_reader.h"
-#include "ftrace_to_proto_translation_table.h"
+#include "cpu_reader.h"
+
+#include "ftrace_procfs.h"
 #include "gtest/gtest.h"
+#include "proto_translation_table.h"
 
 namespace perfetto {
 
-TEST(FtraceCpuReaderTest, ReadAndAdvanceNumber) {
+TEST(EventFilterTest, EventFilter) {
+  using Event = ProtoTranslationTable::Event;
+  using Field = ProtoTranslationTable::Field;
+
+  std::vector<Field> common_fields;
+  std::vector<Event> events;
+
+  {
+    Event event;
+    event.name = "foo";
+    event.ftrace_event_id = 1;
+    events.push_back(event);
+  }
+
+  {
+    Event event;
+    event.name = "bar";
+    event.ftrace_event_id = 10;
+    events.push_back(event);
+  }
+
+  ProtoTranslationTable table(events, std::move(common_fields));
+  EventFilter filter(table, std::set<std::string>({"foo"}));
+
+  EXPECT_TRUE(filter.IsEventEnabled(1));
+  EXPECT_FALSE(filter.IsEventEnabled(2));
+  EXPECT_FALSE(filter.IsEventEnabled(10));
+}
+
+TEST(CpuReaderTest, ReadAndAdvanceNumber) {
   uint64_t expected = 42;
   uint64_t actual = 0;
   uint8_t buffer[8] = {};
   const uint8_t* start = buffer;
   const uint8_t* ptr = buffer;
   memcpy(&buffer, &expected, 8);
-  EXPECT_TRUE(
-      FtraceCpuReader::ReadAndAdvance<uint64_t>(&ptr, ptr + 8, &actual));
+  EXPECT_TRUE(CpuReader::ReadAndAdvance<uint64_t>(&ptr, ptr + 8, &actual));
   EXPECT_EQ(ptr, start + 8);
   EXPECT_EQ(actual, expected);
 }
 
-struct PlainStruct {
-  uint64_t timestamp;
-  uint64_t length;
-};
+TEST(CpuReaderTest, ReadAndAdvancePlainStruct) {
+  struct PlainStruct {
+    uint64_t timestamp;
+    uint64_t length;
+  };
 
-TEST(FtraceCpuReaderTest, ReadAndAdvancePlainStruct) {
   uint64_t expected[2] = {42, 999};
   PlainStruct actual;
   uint8_t buffer[16] = {};
   const uint8_t* start = buffer;
   const uint8_t* ptr = buffer;
   memcpy(&buffer, &expected, 16);
-  EXPECT_TRUE(
-      FtraceCpuReader::ReadAndAdvance<PlainStruct>(&ptr, ptr + 16, &actual));
+  EXPECT_TRUE(CpuReader::ReadAndAdvance<PlainStruct>(&ptr, ptr + 16, &actual));
   EXPECT_EQ(ptr, start + 16);
   EXPECT_EQ(actual.timestamp, 42);
   EXPECT_EQ(actual.length, 999);
 }
 
-struct ComplexStruct {
-  uint64_t timestamp;
-  uint32_t length;
-  uint32_t : 24;
-  uint32_t overwrite : 8;
-};
+TEST(CpuReaderTest, ReadAndAdvanceComplexStruct) {
+  struct ComplexStruct {
+    uint64_t timestamp;
+    uint32_t length;
+    uint32_t : 24;
+    uint32_t overwrite : 8;
+  };
 
-TEST(FtraceCpuReaderTest, ReadAndAdvanceComplexStruct) {
   uint64_t expected[2] = {42, 0xcdffffffabababab};
   ComplexStruct actual = {};
   uint8_t buffer[16] = {};
@@ -67,51 +96,50 @@ TEST(FtraceCpuReaderTest, ReadAndAdvanceComplexStruct) {
   const uint8_t* ptr = buffer;
   memcpy(&buffer, &expected, 16);
   EXPECT_TRUE(
-      FtraceCpuReader::ReadAndAdvance<ComplexStruct>(&ptr, ptr + 16, &actual));
+      CpuReader::ReadAndAdvance<ComplexStruct>(&ptr, ptr + 16, &actual));
   EXPECT_EQ(ptr, start + 16);
   EXPECT_EQ(actual.timestamp, 42);
   EXPECT_EQ(actual.length, 0xabababab);
   EXPECT_EQ(actual.overwrite, 0xcd);
 }
 
-TEST(FtraceCpuReaderTest, ReadAndAdvanceOverruns) {
+TEST(CpuReaderTest, ReadAndAdvanceOverruns) {
   uint64_t result = 42;
   uint8_t buffer[7] = {};
   const uint8_t* start = buffer;
   const uint8_t* ptr = buffer;
-  EXPECT_FALSE(
-      FtraceCpuReader::ReadAndAdvance<uint64_t>(&ptr, ptr + 7, &result));
+  EXPECT_FALSE(CpuReader::ReadAndAdvance<uint64_t>(&ptr, ptr + 7, &result));
   EXPECT_EQ(ptr, start);
   EXPECT_EQ(result, 42);
 }
 
-TEST(FtraceCpuReaderTest, ReadAndAdvanceAtEnd) {
+TEST(CpuReaderTest, ReadAndAdvanceAtEnd) {
   uint8_t result = 42;
   uint8_t buffer[8] = {};
   const uint8_t* start = buffer;
   const uint8_t* ptr = buffer;
-  EXPECT_FALSE(FtraceCpuReader::ReadAndAdvance<uint8_t>(&ptr, ptr, &result));
+  EXPECT_FALSE(CpuReader::ReadAndAdvance<uint8_t>(&ptr, ptr, &result));
   EXPECT_EQ(ptr, start);
   EXPECT_EQ(result, 42);
 }
 
-TEST(FtraceCpuReaderTest, ReadAndAdvanceUnderruns) {
+TEST(CpuReaderTest, ReadAndAdvanceUnderruns) {
   uint64_t expected = 42;
   uint64_t actual = 0;
   uint8_t buffer[9] = {};
   const uint8_t* start = buffer;
   const uint8_t* ptr = buffer;
   memcpy(&buffer, &expected, 8);
-  EXPECT_TRUE(
-      FtraceCpuReader::ReadAndAdvance<uint64_t>(&ptr, ptr + 8, &actual));
+  EXPECT_TRUE(CpuReader::ReadAndAdvance<uint64_t>(&ptr, ptr + 8, &actual));
   EXPECT_EQ(ptr, start + 8);
   EXPECT_EQ(actual, expected);
 }
 
-TEST(FtraceCpuReaderTest, ParseEmpty) {
+TEST(CpuReaderTest, ParseEmpty) {
   std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
-  auto table = FtraceToProtoTranslationTable::Create(path);
-  FtraceCpuReader(table.get(), 42, base::ScopedFile());
+  FtraceProcfs ftrace_procfs(path);
+  auto table = ProtoTranslationTable::Create(path, &ftrace_procfs);
+  CpuReader(table.get(), 42, base::ScopedFile());
 }
 
 }  // namespace perfetto

@@ -25,20 +25,28 @@
 #include <string>
 #include <vector>
 
+#include "base/scoped_file.h"
 #include "base/task_runner.h"
 #include "base/weak_ptr.h"
-#include "ftrace_reader/ftrace_cpu_reader.h"
+#include "gtest/gtest_prod.h"
 #include "protozero/protozero_message_handle.h"
 
 #include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 
+const size_t kMaxSinks = 32;
+
 class FtraceController;
+class ProtoTranslationTable;
+class CpuReader;
+class FtraceProcfs;
+class EventFilter;
 
 class FtraceConfig {
  public:
   FtraceConfig();
+  explicit FtraceConfig(std::set<std::string> events);
   ~FtraceConfig();
 
   void AddEvent(const std::string&);
@@ -60,60 +68,57 @@ class FtraceSink {
     virtual protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>
         GetBundleForCpu(size_t) = 0;
     virtual void OnBundleComplete(
-        int,
+        size_t,
         protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>) = 0;
-    virtual ~Delegate();
+    virtual ~Delegate() = default;
   };
 
-  // TODO(hjd): Make private.
-  const std::set<std::string>& enabled_events() { return config_.events(); }
-  FtraceSink(base::WeakPtr<FtraceController>, FtraceConfig);
+  FtraceSink(base::WeakPtr<FtraceController>,
+             std::unique_ptr<EventFilter>,
+             Delegate*);
   ~FtraceSink();
 
  private:
+  friend FtraceController;
+
+  EventFilter* get_event_filter() { return filter_.get(); }
+  protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle> GetBundleForCpu(
+      size_t cpu) {
+    return delegate_->GetBundleForCpu(cpu);
+  }
+  void OnBundleComplete(
+      size_t cpu,
+      protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle> bundle) {
+    delegate_->OnBundleComplete(cpu, std::move(bundle));
+  }
+
+  const std::set<std::string>& enabled_events();
   base::WeakPtr<FtraceController> controller_weak_;
-  FtraceConfig config_;
+  std::unique_ptr<EventFilter> filter_;
+  FtraceSink::Delegate* delegate_;
 };
 
 // Utility class for controlling ftrace.
 class FtraceController {
  public:
   static std::unique_ptr<FtraceController> Create(base::TaskRunner*);
-  ~FtraceController();
+  virtual ~FtraceController();
 
   std::unique_ptr<FtraceSink> CreateSink(FtraceConfig, FtraceSink::Delegate*);
 
-  // Clears the trace buffers for all CPUs. Blocks until this is done.
-  void ClearTrace();
+  void Start();
+  void Stop();
 
-  // Writes the string |str| as an event into the trace buffer.
-  bool WriteTraceMarker(const std::string& str);
-
-  // Enable tracing.
-  bool EnableTracing();
-
-  // Disables tracing, does not clear the buffer.
-  bool DisableTracing();
-
-  // Returns true iff tracing is enabled.
-  // Necessarily racy: another program could enable/disable tracing at any
-  // point.
-  bool IsTracingEnabled();
-
-  // Returns a cached FtraceCpuReader for |cpu|.
-  // FtraceCpuReaders are constructed lazily.
-  FtraceCpuReader* GetCpuReader(size_t cpu);
-
-  // Returns the number of CPUs.
-  // This will match the number of tracing/per_cpu/cpuXX directories.
-  size_t NumberOfCpus() const;
+ protected:
+  // Protected for testing.
+  FtraceController(std::unique_ptr<FtraceProcfs>,
+                   base::TaskRunner*,
+                   std::unique_ptr<ProtoTranslationTable>);
 
  private:
   friend FtraceSink;
   FRIEND_TEST(FtraceControllerIntegrationTest, EnableDisableEvent);
 
-  FtraceController(base::TaskRunner* runner,
-                   std::unique_ptr<FtraceToProtoTranslationTable>);
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
 
@@ -122,16 +127,22 @@ class FtraceController {
   void RegisterForEvent(const std::string& event_name);
   void UnregisterForEvent(const std::string& event_name);
 
-  // Enable the event under with the given |group| and |name|.
-  bool EnableEvent(const std::string& group, const std::string& name);
-  // Disable the event under with the given |group| and |name|.
-  bool DisableEvent(const std::string& group, const std::string& name);
+  // Called when we know there is data for the raw pipe
+  // for the given |cpu|. Kicks off the reading/parsing
+  // of the pipe.
+  void OnRawFtraceDataAvailable(size_t cpu);
 
-  base::TaskRunner* task_runner_;
+  // Returns a cached CpuReader for |cpu|.
+  // CpuReaders are constructed lazily and owned by the controller.
+  CpuReader* GetCpuReader(size_t cpu);
+
+  std::unique_ptr<FtraceProcfs> ftrace_procfs_;
+  bool listening_for_raw_trace_data_ = false;
+  base::TaskRunner* task_runner_ = nullptr;
   base::WeakPtrFactory<FtraceController> weak_factory_;
   std::vector<size_t> enabled_count_;
-  std::unique_ptr<FtraceToProtoTranslationTable> table_;
-  std::map<size_t, FtraceCpuReader> readers_;
+  std::unique_ptr<ProtoTranslationTable> table_;
+  std::map<size_t, std::unique_ptr<CpuReader>> readers_;
   std::set<FtraceSink*> sinks_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
