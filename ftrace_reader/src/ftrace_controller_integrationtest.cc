@@ -29,9 +29,10 @@ namespace perfetto {
 namespace {
 
 class FakeTaskRunner : public base::TaskRunner {
-  virtual void PostTask(std::function<void()>) {}
-  virtual void AddFileDescriptorWatch(int fd, std::function<void()>) {}
-  virtual void RemoveFileDescriptorWatch(int fd) {}
+  void PostTask(std::function<void()>) override {}
+  void PostDelayedTask(std::function<void()>, int delay_ms) override {}
+  void AddFileDescriptorWatch(int fd, std::function<void()>) override {}
+  void RemoveFileDescriptorWatch(int fd) override {}
 };
 
 const char kTracePath[] = "/sys/kernel/debug/tracing/trace";

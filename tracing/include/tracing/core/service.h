@@ -74,6 +74,9 @@ class Service {
     // buffer (shared between Service and Producer) have changed.
     virtual void NotifySharedMemoryUpdate(
         const std::vector<uint32_t>& changed_pages) = 0;
+
+    // Returns the SharedMemory buffer for this Producer.
+    virtual SharedMemory* shared_memory() const = 0;
   };  // class ProducerEndpoint.
 
   // Implemented in src/core/service_impl.cc .
@@ -89,7 +92,12 @@ class Service {
   // the returned ProducerEndpoint is alive.
   // To disconnect just destroy the returned ProducerEndpoint object. It is safe
   // to destroy the Producer once the Producer::OnDisconnect() has been invoked.
-  virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(Producer*) = 0;
+  // |shared_buffer_size_hint_bytes| is an optional hint on the size of the
+  // shared memory buffer. The service can ignore the hint (e.g., if the hint
+  // is unreasonably large).
+  virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
+      Producer*,
+      size_t shared_buffer_size_hint_bytes = 0) = 0;
 
  public:  // Testing-only
   class ObserverForTesting {

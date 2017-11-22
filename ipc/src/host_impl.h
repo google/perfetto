@@ -79,7 +79,7 @@ class HostImpl : public Host, public UnixSocket::EventListener {
   void ReplyToMethodInvocation(ClientID, RequestID, AsyncResult<ProtoMessage>);
   const ExposedService* GetServiceByName(const std::string&);
 
-  static void SendFrame(ClientConnection*, const Frame&);
+  static void SendFrame(ClientConnection*, const Frame&, int fd = -1);
 
   base::TaskRunner* const task_runner_;
   base::WeakPtrFactory<HostImpl> weak_ptr_factory_;

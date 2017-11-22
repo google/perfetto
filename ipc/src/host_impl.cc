@@ -194,17 +194,17 @@ void HostImpl::ReplyToMethodInvocation(ClientID client_id,
       reply_frame_data->set_success(true);
     }
   }
-  SendFrame(client, reply_frame);
+  SendFrame(client, reply_frame, reply.fd());
 }
 
 // static
-void HostImpl::SendFrame(ClientConnection* client, const Frame& frame) {
+void HostImpl::SendFrame(ClientConnection* client, const Frame& frame, int fd) {
   std::string buf = BufferedFrameDeserializer::Serialize(frame);
 
   // TODO(primiano): remember that this is doing non-blocking I/O. What if the
   // socket buffer is full? Maybe we just want to drop this on the floor? Or
   // maybe throttle the send and PostTask the reply later?
-  bool res = client->sock->Send(buf.data(), buf.size());
+  bool res = client->sock->Send(buf.data(), buf.size(), fd);
   PERFETTO_CHECK(!client->sock->is_connected() || res);
 }
 

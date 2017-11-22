@@ -36,8 +36,10 @@ class AsyncResult {
     return AsyncResult(std::unique_ptr<T>(new T()));
   }
 
-  AsyncResult(std::unique_ptr<T> msg = nullptr, bool has_more = false)
-      : msg_(std::move(msg)), has_more_(has_more) {
+  AsyncResult(std::unique_ptr<T> msg = nullptr,
+              bool has_more = false,
+              int fd = -1)
+      : msg_(std::move(msg)), has_more_(has_more), fd_(fd) {
     static_assert(std::is_base_of<ProtoMessage, T>::value, "T->ProtoMessage");
   }
   AsyncResult(AsyncResult&&) noexcept = default;
@@ -54,9 +56,16 @@ class AsyncResult {
   T* operator->() { return msg_.get(); }
   T& operator*() { return *msg_; }
 
+  void set_fd(int fd) { fd_ = fd; }
+  int fd() const { return fd_; }
+
  private:
   std::unique_ptr<T> msg_;
   bool has_more_ = false;
+
+  // Optional. Only for messages that convey a file descriptor, for sharing
+  // memory across processes.
+  int fd_ = -1;
 };
 
 }  // namespace ipc

@@ -18,6 +18,8 @@
 
 #include <inttypes.h>
 
+#include <algorithm>
+
 #include "base/logging.h"
 #include "base/task_runner.h"
 #include "tracing/core/data_source_config.h"
@@ -29,7 +31,9 @@ namespace perfetto {
 // TODO add ThreadChecker everywhere.
 
 namespace {
-constexpr size_t kShmSize = 4096;  // TODO: temporary.
+constexpr size_t kPageSize = 4096;
+constexpr size_t kDefaultShmSize = kPageSize * 16;  // 64 KB.
+constexpr size_t kMaxShmSize = kPageSize * 1024;    // 4 MB.
 }  // namespace
 
 // static
@@ -51,9 +55,18 @@ ServiceImpl::~ServiceImpl() {
 }
 
 std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
-    Producer* producer) {
+    Producer* producer,
+    size_t shared_buffer_size_hint_bytes) {
   const ProducerID id = ++last_producer_id_;
-  auto shared_memory = shm_factory_->CreateSharedMemory(kShmSize);
+
+  size_t shm_size = std::min(shared_buffer_size_hint_bytes, kMaxShmSize);
+  if (shm_size % kPageSize || shm_size < kPageSize)
+    shm_size = kDefaultShmSize;
+
+  // TODO(primiano): right now Create() will suicide in case of OOM if the mmap
+  // fails. We should instead gracefully fail the request and tell the client
+  // to go away.
+  auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
       id, this, task_runner_, producer, std::move(shared_memory)));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
@@ -126,6 +139,10 @@ void ServiceImpl::ProducerEndpointImpl::NotifySharedMemoryUpdate(
 
 void ServiceImpl::set_observer_for_testing(ObserverForTesting* observer) {
   observer_ = observer;
+}
+
+SharedMemory* ServiceImpl::ProducerEndpointImpl::shared_memory() const {
+  return shared_memory_.get();
 }
 
 }  // namespace perfetto

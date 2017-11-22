@@ -27,17 +27,32 @@ namespace base {
 // The expectation is that all tasks, which are queued either via PostTask() or
 // AddFileDescriptorWatch(), are executed on the same sequence (either on the
 // same thread, or on a thread pool that gives sequencing guarantees).
-
-// TODO(skyostil): rework this.
-// TODO: we should provide a reference implementation that just spins a
-// dedicated thread. For the moment the only implementation is in
-// test/test_task_runner.h.
+//
+// Tasks are never executed synchronously inside PostTask and there is a full
+// memory barrier between tasks.
+//
+// All methods of this interface can be called from any thread.
 class TaskRunner {
  public:
   virtual ~TaskRunner() = default;
 
+  // Schedule a task for immediate execution. Immediate tasks are always
+  // executed in the order they are posted.
   virtual void PostTask(std::function<void()>) = 0;
+
+  // Schedule a task for execution after |delay_ms|. Note that there is no
+  // strict ordering guarantee between immediate and delayed tasks.
+  virtual void PostDelayedTask(std::function<void()>, int delay_ms) = 0;
+
+  // Schedule a task to run when |fd| becomes readable. The same |fd| can only
+  // be monitored by one function. Note that this function only needs to be
+  // implemented on platforms where the built-in ipc framework is used.
+  // TODO(skyostil): Refactor this out of the shared interface.
   virtual void AddFileDescriptorWatch(int fd, std::function<void()>) = 0;
+
+  // Remove a previously scheduled watch for |fd|. If this is run on the target
+  // thread of this TaskRunner, guarantees that the task registered to this fd
+  // will not be executed after this function call.
   virtual void RemoveFileDescriptorWatch(int fd) = 0;
 };
 
