@@ -276,6 +276,19 @@ TEST(UnixTaskRunner, RunAgain) {
   EXPECT_EQ(2, counter);
 }
 
+void RepeatingTask(UnixTaskRunner* task_runner) {
+  task_runner->PostTask(std::bind(&RepeatingTask, task_runner));
+}
+
+TEST(UnixTaskRunner, FileDescriptorWatchesNotStarved) {
+  UnixTaskRunner task_runner;
+  Pipe pipe;
+  task_runner.PostTask(std::bind(&RepeatingTask, &task_runner));
+  task_runner.AddFileDescriptorWatch(pipe.read_fd.get(),
+                                     [&task_runner] { task_runner.Quit(); });
+  task_runner.Run();
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
