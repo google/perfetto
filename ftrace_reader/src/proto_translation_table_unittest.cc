@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "ftrace_to_proto_translation_table.h"
+#include "proto_translation_table.h"
 
+#include "ftrace_procfs.h"
 #include "gtest/gtest.h"
 
 using testing::ValuesIn;
@@ -29,10 +30,11 @@ class AllTranslationTableTest : public TestWithParam<const char*> {
   void SetUp() override {
     std::string path =
         "ftrace_reader/test/data/" + std::string(GetParam()) + "/";
-    table_ = FtraceToProtoTranslationTable::Create(path);
+    FtraceProcfs ftrace_procfs(path);
+    table_ = ProtoTranslationTable::Create(path, &ftrace_procfs);
   }
 
-  std::unique_ptr<FtraceToProtoTranslationTable> table_;
+  std::unique_ptr<ProtoTranslationTable> table_;
 };
 
 const char* kDevices[] = {"android_seed_N2F62_3.10.49",
@@ -46,7 +48,8 @@ INSTANTIATE_TEST_CASE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
 
 TEST(TranslationTable, Seed) {
   std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
-  auto table = FtraceToProtoTranslationTable::Create(path);
+  FtraceProcfs ftrace_procfs(path);
+  auto table = ProtoTranslationTable::Create(path, &ftrace_procfs);
   EXPECT_EQ(table->largest_id(), 744);
   auto sched_switch_event = table->GetEventByName("sched_switch");
   EXPECT_EQ(sched_switch_event->name, "sched_switch");
@@ -57,8 +60,8 @@ TEST(TranslationTable, Seed) {
 }
 
 TEST(TranslationTable, Getters) {
-  using Event = FtraceToProtoTranslationTable::Event;
-  using Field = FtraceToProtoTranslationTable::Field;
+  using Event = ProtoTranslationTable::Event;
+  using Field = ProtoTranslationTable::Field;
 
   std::vector<Field> common_fields;
   std::vector<Event> events;
@@ -84,7 +87,7 @@ TEST(TranslationTable, Getters) {
     events.push_back(event);
   }
 
-  FtraceToProtoTranslationTable table(events, std::move(common_fields));
+  ProtoTranslationTable table(events, std::move(common_fields));
   EXPECT_EQ(table.largest_id(), 100);
   EXPECT_EQ(table.EventNameToFtraceId("foo"), 1);
   EXPECT_EQ(table.EventNameToFtraceId("baz"), 100);
