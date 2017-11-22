@@ -214,8 +214,10 @@ function contextView(filterText, namesToRecords) {
       value: filterText,
     }),
     m('ul',
-      Array.from(namesToRecords.entries()).filter(e => e[1].length > 1).filter(e => matcher(e[0])).map(e => m('li', {
-      onclick: () => { gDisplayedRecords = e[1]; gDisplayedName = e[0]; },
+      Array.from(namesToRecords.entries()).filter(e => e[1].length > 1)
+          .filter(e => matcher(e[0])).map(e => m('li[tabindex=0]', {
+        onfocus: () => { gDisplayedRecords = e[1]; gDisplayedName = e[0];
+      },
       class: gDisplayedName == e[0] ? 'selected' : '',
     }, e[0] + ' (' + e[1].length + ')' ))),
   ]);
