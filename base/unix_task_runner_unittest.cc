@@ -289,6 +289,48 @@ TEST(UnixTaskRunner, FileDescriptorWatchesNotStarved) {
   task_runner.Run();
 }
 
+void CountdownTask(UnixTaskRunner* task_runner, int* counter) {
+  if (!--(*counter)) {
+    task_runner->Quit();
+    return;
+  }
+  task_runner->PostTask(std::bind(&CountdownTask, task_runner, counter));
+}
+
+TEST(UnixTaskRunner, NoDuplicateFileDescriptorWatchCallbacks) {
+  UnixTaskRunner task_runner;
+  Pipe pipe;
+  bool watch_called = 0;
+  int counter = 10;
+  task_runner.AddFileDescriptorWatch(pipe.read_fd.get(),
+                                     [&pipe, &watch_called] {
+                                       ASSERT_FALSE(watch_called);
+                                       pipe.Read();
+                                       watch_called = true;
+                                     });
+  task_runner.PostTask(std::bind(&CountdownTask, &task_runner, &counter));
+  task_runner.Run();
+}
+
+TEST(UnixTaskRunner, ReplaceFileDescriptorWatchFromOtherThread) {
+  UnixTaskRunner task_runner;
+  Pipe pipe;
+
+  // The two watch tasks here race each other. We don't particularly care which
+  // wins as long as one of them runs.
+  task_runner.AddFileDescriptorWatch(pipe.read_fd.get(),
+                                     [&task_runner] { task_runner.Quit(); });
+
+  std::thread thread([&task_runner, &pipe] {
+    task_runner.RemoveFileDescriptorWatch(pipe.read_fd.get());
+    task_runner.AddFileDescriptorWatch(pipe.read_fd.get(),
+                                       [&task_runner] { task_runner.Quit(); });
+  });
+
+  task_runner.Run();
+  thread.join();
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
