@@ -70,40 +70,23 @@ void UnixTaskRunner::Run() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   quit_ = false;
   while (true) {
-    switch (WaitForEvent()) {
-      case Event::kQuit:
+    int poll_timeout_ms;
+    {
+      std::lock_guard<std::mutex> lock(lock_);
+      if (quit_)
         return;
-      case Event::kTaskRunnable:
-        // To avoid starvation we interleave immediate and delayed task
-        // execution.
-        RunImmediateAndDelayedTask();
-        break;
-      case Event::kFileDescriptorReadable:
-        PostFileDescriptorWatches();
-        break;
+      poll_timeout_ms = static_cast<int>(GetDelayToNextTaskLocked().count());
+      UpdateWatchTasksLocked();
     }
-  }
-}
+    int ret = PERFETTO_EINTR(poll(
+        &poll_fds_[0], static_cast<nfds_t>(poll_fds_.size()), poll_timeout_ms));
+    PERFETTO_CHECK(ret >= 0);
 
-UnixTaskRunner::Event UnixTaskRunner::WaitForEvent() {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-  int poll_timeout_ms;
-  {
-    std::lock_guard<std::mutex> lock(lock_);
-    if (quit_)
-      return Event::kQuit;
-    poll_timeout_ms = static_cast<int>(GetDelayToNextTaskLocked().count());
-    // Don't start polling until we run out of runnable tasks (immediate or ones
-    // with expired delays).
-    if (!poll_timeout_ms)
-      return Event::kTaskRunnable;
-    UpdateWatchTasksLocked();
+    // To avoid starvation we always interleave all types of tasks -- immediate,
+    // delayed and file descriptor watches.
+    PostFileDescriptorWatches();
+    RunImmediateAndDelayedTask();
   }
-  int ret = PERFETTO_EINTR(poll(
-      &poll_fds_[0], static_cast<nfds_t>(poll_fds_.size()), poll_timeout_ms));
-  PERFETTO_CHECK(ret >= 0);
-  bool did_timeout = (ret == 0);
-  return did_timeout ? Event::kTaskRunnable : Event::kFileDescriptorReadable;
 }
 
 void UnixTaskRunner::Quit() {
