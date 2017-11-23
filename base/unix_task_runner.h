@@ -55,9 +55,6 @@ class UnixTaskRunner : public TaskRunner {
 
   void WakeUp();
 
-  enum class Event { kQuit, kTaskRunnable, kFileDescriptorReadable };
-  Event WaitForEvent();
-
   void UpdateWatchTasksLocked();
 
   TimeDurationMs GetDelayToNextTaskLocked() const;
