@@ -59,18 +59,12 @@ class ProtoZeroMessage {
 
   // Optional. If is_valid() == true, the corresponding memory region (its
   // length == proto_utils::kMessageLengthFieldSize) is backfilled with the size
-  // of this message (minus |size_already_written| below) when the message is
-  // finalized. This is the mechanism used by messages to backfill their
+  // of this message. This is the mechanism used by messages to backfill their
   // corresponding size field in the parent message.
   ContiguousMemoryRange size_field() const { return size_field_; }
   void set_size_field(const ContiguousMemoryRange& reserved_range) {
     size_field_ = reserved_range;
   }
-
-  // This is to deal with case of backfilling the size of a root (non-nested)
-  // message which is split into multiple chunks. Upon finalization only the
-  // partial size that lies in the last chunk has to be backfilled.
-  void inc_size_already_written(size_t size) { size_already_written_ += size; }
 
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
   void set_handle(ProtoZeroMessageHandleBase* handle) { handle_ = handle; }
@@ -179,7 +173,6 @@ class ProtoZeroMessage {
   size_t size_;
 
   ContiguousMemoryRange size_field_;
-  size_t size_already_written_;
 
   // Used to detect attemps to create messages with a nesting level >
   // kMaxNestingDepth. |nesting_depth_| == 0 for root (non-nested) messages.
