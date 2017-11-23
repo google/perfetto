@@ -23,126 +23,90 @@
 
 #include "base/logging.h"
 
-// TODO: the current implementation quite hacky as it keeps waking up every 1ms.
-
 namespace perfetto {
 namespace base {
-
-namespace {
-constexpr int kFileDescriptorWatchTimeoutMs = 10;
-}  // namespace
 
 TestTaskRunner::TestTaskRunner() = default;
 
 TestTaskRunner::~TestTaskRunner() = default;
 
 void TestTaskRunner::Run() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   for (;;)
-    RunUntilIdle();
+    task_runner_.Run();
 }
 
 void TestTaskRunner::RunUntilIdle() {
-  do {
-    QueueFileDescriptorWatches(/* blocking = */ task_queue_.empty());
-  } while (RunOneTask());
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  task_runner_.PostTask(std::bind(&TestTaskRunner::QuitIfIdle, this));
+  task_runner_.Run();
+}
+
+void TestTaskRunner::QuitIfIdle() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (task_runner_.IsIdleForTesting()) {
+    task_runner_.Quit();
+    return;
+  }
+  task_runner_.PostTask(std::bind(&TestTaskRunner::QuitIfIdle, this));
 }
 
 void TestTaskRunner::RunUntilCheckpoint(const std::string& checkpoint,
                                         int timeout_ms) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   if (checkpoints_.count(checkpoint) == 0) {
     fprintf(stderr, "[TestTaskRunner] Checkpoint \"%s\" does not exist.\n",
             checkpoint.c_str());
     abort();
   }
-  auto tstart = std::chrono::system_clock::now();
-  auto deadline = tstart + std::chrono::milliseconds(timeout_ms);
-  while (!checkpoints_[checkpoint]) {
-    QueueFileDescriptorWatches(/* blocking = */ task_queue_.empty());
-    RunOneTask();
-    if (std::chrono::system_clock::now() > deadline) {
-      fprintf(stderr, "[TestTaskRunner] Failed to reach checkpoint \"%s\"\n",
-              checkpoint.c_str());
-      abort();
-    }
-  }
-}
+  if (checkpoints_[checkpoint])
+    return;
 
-bool TestTaskRunner::RunOneTask() {
-  if (task_queue_.empty())
-    return false;
-  std::function<void()> closure = std::move(task_queue_.front());
-  task_queue_.pop_front();
-  closure();
-  return true;
+  task_runner_.PostDelayedTask(
+      [this, checkpoint] {
+        if (checkpoints_[checkpoint])
+          return;
+        fprintf(stderr, "[TestTaskRunner] Failed to reach checkpoint \"%s\"\n",
+                checkpoint.c_str());
+        abort();
+      },
+      timeout_ms);
+
+  pending_checkpoint_ = checkpoint;
+  task_runner_.Run();
 }
 
 std::function<void()> TestTaskRunner::CreateCheckpoint(
     const std::string& checkpoint) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(checkpoints_.count(checkpoint) == 0);
   auto checkpoint_iter = checkpoints_.emplace(checkpoint, false);
-  return [checkpoint_iter] { checkpoint_iter.first->second = true; };
-}
-
-void TestTaskRunner::QueueFileDescriptorWatches(bool blocking) {
-  uint32_t timeout_ms = blocking ? kFileDescriptorWatchTimeoutMs : 0;
-  struct timeval timeout;
-  timeout.tv_usec = (timeout_ms % 1000) * 1000L;
-  timeout.tv_sec = static_cast<time_t>(timeout_ms / 1000);
-  int max_fd = 0;
-  fd_set fds_in = {};
-  fd_set fds_err = {};
-  for (const auto& it : watched_fds_) {
-    FD_SET(it.first, &fds_in);
-    FD_SET(it.first, &fds_err);
-    max_fd = std::max(max_fd, it.first);
-  }
-  int res = select(max_fd + 1, &fds_in, nullptr, &fds_err, &timeout);
-  if (res < 0) {
-    perror("select() failed");
-    abort();
-  }
-  if (res == 0)
-    return;  // timeout
-  for (int fd = 0; fd <= max_fd; ++fd) {
-    if (!FD_ISSET(fd, &fds_in) && !FD_ISSET(fd, &fds_err)) {
-      continue;
+  return [this, checkpoint_iter] {
+    checkpoint_iter.first->second = true;
+    if (pending_checkpoint_ == checkpoint_iter.first->first) {
+      pending_checkpoint_.clear();
+      task_runner_.Quit();
     }
-    auto fd_and_callback = watched_fds_.find(fd);
-    PERFETTO_DCHECK(fd_and_callback != watched_fds_.end());
-    if (fd_watch_task_queued_[fd])
-      continue;
-    auto callback = fd_and_callback->second;
-    task_queue_.emplace_back([this, callback, fd]() {
-      fd_watch_task_queued_[fd] = false;
-      callback();
-    });
-    fd_watch_task_queued_[fd] = true;
-  }
+  };
 }
 
 // TaskRunner implementation.
 void TestTaskRunner::PostTask(std::function<void()> closure) {
-  task_queue_.emplace_back(std::move(closure));
+  task_runner_.PostTask(std::move(closure));
 }
 
 void TestTaskRunner::PostDelayedTask(std::function<void()> closure,
                                      int delay_ms) {
-  PERFETTO_DCHECK(false);
+  task_runner_.PostDelayedTask(std::move(closure), delay_ms);
 }
 
 void TestTaskRunner::AddFileDescriptorWatch(int fd,
                                             std::function<void()> callback) {
-  PERFETTO_DCHECK(fd >= 0);
-  PERFETTO_DCHECK(watched_fds_.count(fd) == 0);
-  watched_fds_.emplace(fd, std::move(callback));
-  fd_watch_task_queued_[fd] = false;
+  task_runner_.AddFileDescriptorWatch(fd, std::move(callback));
 }
 
 void TestTaskRunner::RemoveFileDescriptorWatch(int fd) {
-  PERFETTO_DCHECK(fd >= 0);
-  PERFETTO_DCHECK(watched_fds_.count(fd) == 1);
-  watched_fds_.erase(fd);
-  fd_watch_task_queued_.erase(fd);
+  task_runner_.RemoveFileDescriptorWatch(fd);
 }
 
 }  // namespace base
