@@ -77,7 +77,12 @@ class UnixTaskRunner : public TaskRunner {
   std::multimap<TimePoint, std::function<void()>> delayed_tasks_;
   bool quit_ = false;
 
-  std::map<int, std::function<void()>> watch_tasks_;
+  struct WatchTask {
+    std::function<void()> callback;
+    size_t poll_fd_index;  // Index into |poll_fds_|.
+  };
+
+  std::map<int, WatchTask> watch_tasks_;
   bool watch_tasks_changed_ = false;
 
   // --- End lock-protected members ---
