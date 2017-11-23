@@ -54,7 +54,6 @@ void ProtoZeroMessage::Reset(ScatteredStreamWriter* stream_writer) {
   stream_writer_ = stream_writer;
   size_ = 0;
   size_field_.reset();
-  size_already_written_ = 0;
   nested_message_ = nullptr;
   nesting_depth_ = 0;
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
@@ -98,9 +97,8 @@ size_t ProtoZeroMessage::Finalize() {
 #endif
     PERFETTO_DCHECK(size_ < proto_utils::kMaxMessageLength);
     PERFETTO_DCHECK(proto_utils::kMessageLengthFieldSize == size_field_.size());
-    proto_utils::WriteRedundantVarInt(
-        static_cast<uint32_t>(size_ - size_already_written_),
-        size_field_.begin);
+    proto_utils::WriteRedundantVarInt(static_cast<uint32_t>(size_),
+                                      size_field_.begin);
     size_field_.reset();
   }
 

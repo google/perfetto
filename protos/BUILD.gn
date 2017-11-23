@@ -1,0 +1,36 @@
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("//protozero//protozero_library.gni")
+import("//build/proto_library.gni")
+
+proto_sources = [ "trace_packet.proto" ]
+
+protozero_library("zero") {
+  generate_cc = false
+  deps = [
+    "ftrace",
+  ]
+  sources = proto_sources
+}
+
+# TODO: we don't really want the _full version but just the _lite. However
+# this requires to have 3 targets (zero, full and lite) for ftrace. Need to
+# solve that problem first.
+proto_library("full") {
+  deps = [
+    "ftrace:ftrace_full_protos",
+  ]
+  sources = proto_sources
+}

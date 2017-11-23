@@ -23,17 +23,6 @@
 
 namespace protozero {
 
-namespace {
-inline void FinalizeMessageIfSet(ProtoZeroMessage* message) {
-  if (message) {
-    message->Finalize();
-#if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
-    message->set_handle(nullptr);
-#endif
-  }
-}
-}  // namespace
-
 ProtoZeroMessageHandleBase::ProtoZeroMessageHandleBase(
     ProtoZeroMessage* message)
     : message_(message) {
@@ -43,7 +32,7 @@ ProtoZeroMessageHandleBase::ProtoZeroMessageHandleBase(
 }
 
 ProtoZeroMessageHandleBase::~ProtoZeroMessageHandleBase() {
-  FinalizeMessageIfSet(message_);
+  Finalize();
 }
 
 ProtoZeroMessageHandleBase::ProtoZeroMessageHandleBase(
@@ -55,10 +44,19 @@ ProtoZeroMessageHandleBase& ProtoZeroMessageHandleBase::operator=(
     ProtoZeroMessageHandleBase&& other) {
   // If the current handle was pointing to a message and is being reset to a new
   // one, finalize the old message.
-  FinalizeMessageIfSet(message_);
-
+  Finalize();
   Move(std::move(other));
   return *this;
+}
+
+void ProtoZeroMessageHandleBase::Finalize() {
+  if (!message_)
+    return;
+  const size_t size = message_->Finalize();
+  if (on_finalize_) {
+    on_finalize_(size);
+    on_finalize_ = nullptr;
+  }
 }
 
 void ProtoZeroMessageHandleBase::Move(ProtoZeroMessageHandleBase&& other) {
@@ -69,6 +67,8 @@ void ProtoZeroMessageHandleBase::Move(ProtoZeroMessageHandleBase&& other) {
   // useless null-check.
   message_ = other.message_;
   other.message_ = nullptr;
+  on_finalize_ = std::move(other.on_finalize_);
+  other.on_finalize_ = nullptr;
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
   message_->set_handle(this);
 #endif

@@ -17,6 +17,8 @@
 #ifndef PROTOZERO_INCLUDE_PROTOZERO_PROTOZERO_MESSAGE_HANDLE_H_
 #define PROTOZERO_INCLUDE_PROTOZERO_PROTOZERO_MESSAGE_HANDLE_H_
 
+#include <functional>
+
 #if defined(NDEBUG) && !defined(DCHECK_ALWAYS_ON)
 #define PROTOZERO_ENABLE_HANDLE_DEBUGGING() 0
 #else
@@ -46,6 +48,9 @@ class ProtoZeroMessageHandleBase {
   ProtoZeroMessageHandleBase(ProtoZeroMessageHandleBase&&) noexcept;
   ProtoZeroMessageHandleBase& operator=(ProtoZeroMessageHandleBase&&);
 
+  void Finalize();
+  void set_on_finalize(std::function<void(size_t)> f) { on_finalize_ = f; }
+
  protected:
   explicit ProtoZeroMessageHandleBase(ProtoZeroMessage*);
   ProtoZeroMessage& operator*() const { return *message_; }
@@ -61,10 +66,11 @@ class ProtoZeroMessageHandleBase {
   void Move(ProtoZeroMessageHandleBase&&);
 
   ProtoZeroMessage* message_;
+  std::function<void(size_t)> on_finalize_;
 };
 
 template <typename T>
-class ProtoZeroMessageHandle : ProtoZeroMessageHandleBase {
+class ProtoZeroMessageHandle : public ProtoZeroMessageHandleBase {
  public:
   ProtoZeroMessageHandle() : ProtoZeroMessageHandle(nullptr) {}
   explicit ProtoZeroMessageHandle(T* message)
