@@ -331,6 +331,17 @@ TEST(UnixTaskRunner, ReplaceFileDescriptorWatchFromOtherThread) {
   thread.join();
 }
 
+TEST(UnixTaskRunner, IsIdleForTesting) {
+  UnixTaskRunner task_runner;
+  task_runner.PostTask(
+      [&task_runner] { EXPECT_FALSE(task_runner.IsIdleForTesting()); });
+  task_runner.PostTask([&task_runner] {
+    EXPECT_TRUE(task_runner.IsIdleForTesting());
+    task_runner.Quit();
+  });
+  task_runner.Run();
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
