@@ -42,6 +42,10 @@ class UnixTaskRunner : public TaskRunner {
   void Run();
   void Quit();
 
+  // Checks whether there are any pending immediate tasks to run. Note that
+  // delayed tasks don't count even if they are due to run.
+  bool IsIdleForTesting();
+
   // TaskRunner implementation:
   void PostTask(std::function<void()>) override;
   void PostDelayedTask(std::function<void()>, int delay_ms) override;
