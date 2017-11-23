@@ -17,8 +17,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "base/task_runner.h"
-#include "ftrace_reader/ftrace_controller.h"
+#include "ftrace_procfs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -28,13 +27,7 @@ using testing::Not;
 namespace perfetto {
 namespace {
 
-class FakeTaskRunner : public base::TaskRunner {
-  void PostTask(std::function<void()>) override {}
-  void PostDelayedTask(std::function<void()>, int delay_ms) override {}
-  void AddFileDescriptorWatch(int fd, std::function<void()>) override {}
-  void RemoveFileDescriptorWatch(int fd) override {}
-};
-
+const char kTracingPath[] = "/sys/kernel/debug/tracing/";
 const char kTracePath[] = "/sys/kernel/debug/tracing/trace";
 
 std::string GetTraceOutput() {
@@ -51,46 +44,42 @@ std::string GetTraceOutput() {
 
 }  // namespace
 
-TEST(FtraceControllerIntegrationTest, ClearTrace) {
-  FakeTaskRunner runner;
-  std::unique_ptr<FtraceController> ftrace = FtraceController::Create(&runner);
-  ftrace->WriteTraceMarker("Hello, World!");
-  ftrace->ClearTrace();
+TEST(FtraceProcfsIntegrationTest, ClearTrace) {
+  FtraceProcfs ftrace(kTracingPath);
+  ftrace.WriteTraceMarker("Hello, World!");
+  ftrace.ClearTrace();
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello, World!")));
 }
 
 TEST(FtraceControllerIntegrationTest, TraceMarker) {
-  FakeTaskRunner runner;
-  std::unique_ptr<FtraceController> ftrace = FtraceController::Create(&runner);
-  ftrace->WriteTraceMarker("Hello, World!");
+  FtraceProcfs ftrace(kTracingPath);
+  ftrace.WriteTraceMarker("Hello, World!");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello, World!"));
 }
 
 TEST(FtraceControllerIntegrationTest, EnableDisableEvent) {
-  FakeTaskRunner runner;
-  std::unique_ptr<FtraceController> ftrace = FtraceController::Create(&runner);
-  ftrace->EnableEvent("sched", "sched_switch");
+  FtraceProcfs ftrace(kTracingPath);
+  ftrace.EnableEvent("sched", "sched_switch");
   sleep(1);
   EXPECT_THAT(GetTraceOutput(), HasSubstr("sched_switch"));
 
-  ftrace->DisableEvent("sched", "sched_switch");
-  ftrace->ClearTrace();
+  ftrace.DisableEvent("sched", "sched_switch");
+  ftrace.ClearTrace();
   sleep(1);
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("sched_switch")));
 }
 
 TEST(FtraceControllerIntegrationTest, EnableDisableTracing) {
-  FakeTaskRunner runner;
-  std::unique_ptr<FtraceController> ftrace = FtraceController::Create(&runner);
-  ftrace->ClearTrace();
-  EXPECT_TRUE(ftrace->IsTracingEnabled());
-  ftrace->WriteTraceMarker("Before");
-  ftrace->DisableTracing();
-  EXPECT_FALSE(ftrace->IsTracingEnabled());
-  ftrace->WriteTraceMarker("During");
-  ftrace->EnableTracing();
-  EXPECT_TRUE(ftrace->IsTracingEnabled());
-  ftrace->WriteTraceMarker("After");
+  FtraceProcfs ftrace(kTracingPath);
+  ftrace.ClearTrace();
+  EXPECT_TRUE(ftrace.IsTracingEnabled());
+  ftrace.WriteTraceMarker("Before");
+  ftrace.DisableTracing();
+  EXPECT_FALSE(ftrace.IsTracingEnabled());
+  ftrace.WriteTraceMarker("During");
+  ftrace.EnableTracing();
+  EXPECT_TRUE(ftrace.IsTracingEnabled());
+  ftrace.WriteTraceMarker("After");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Before"));
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("During")));
   EXPECT_THAT(GetTraceOutput(), HasSubstr("After"));

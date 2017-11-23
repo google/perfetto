@@ -66,6 +66,7 @@ class ProtoZeroMessageHandleBase {
 template <typename T>
 class ProtoZeroMessageHandle : ProtoZeroMessageHandleBase {
  public:
+  ProtoZeroMessageHandle() : ProtoZeroMessageHandle(nullptr) {}
   explicit ProtoZeroMessageHandle(T* message)
       : ProtoZeroMessageHandleBase(message) {}
 
