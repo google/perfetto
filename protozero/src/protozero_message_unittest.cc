@@ -209,8 +209,6 @@ TEST_F(ProtoZeroMessageTest, BackfillSizeOnFinalization) {
   memset(buf200, 0x42, sizeof(buf200));
   nested_msg_2->AppendBytes(5, buf200, sizeof(buf200));
 
-  root_msg->inc_size_already_written(6);
-
   // The value returned by Finalize() should be == the full size of |root_msg|.
   EXPECT_EQ(217u, root_msg->Finalize());
   EXPECT_EQ(217u, GetNumSerializedBytes());
@@ -218,7 +216,7 @@ TEST_F(ProtoZeroMessageTest, BackfillSizeOnFinalization) {
   // However the size written in the size field should take into account the
   // inc_size_already_written() call and be equal to 118 - 6 = 112, encoded
   // in a rendundant varint encoding of kMessageLengthFieldSize bytes.
-  EXPECT_STREQ("\xD3\x81\x80\x00", reinterpret_cast<char*>(root_msg_size));
+  EXPECT_STREQ("\xD9\x81\x80\x00", reinterpret_cast<char*>(root_msg_size));
 
   // Skip 2 bytes for the 0x42 varint + 1 byte for the |nested_msg_1| preamble.
   GetNextSerializedBytes(3);
@@ -268,13 +266,16 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
       {&msg3_size[0], &msg3_size[proto_utils::kMessageLengthFieldSize]});
 
   // Test that the handle going out of scope causes the finalization of the
-  // target message.
+  // target message and triggers the optional callback.
+  size_t callback_arg = 0;
   {
     ProtoZeroMessageHandle<FakeRootMessage> handle1(msg1);
+    handle1.set_on_finalize([&callback_arg](size_t sz) { callback_arg = sz; });
     handle1->AppendBytes(1 /* field_id */, kTestBytes, 1 /* size */);
     ASSERT_EQ(0u, msg1_size[0]);
   }
   ASSERT_EQ(0x83u, msg1_size[0]);
+  ASSERT_EQ(3u, callback_arg);
 
   // Test that the handle can be late initialized.
   ProtoZeroMessageHandle<FakeRootMessage> handle2(ignored_msg);
@@ -292,6 +293,8 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   ProtoZeroMessageHandle<FakeRootMessage> handle3(msg3);
   handle3->AppendBytes(1 /* field_id */, kTestBytes, 4 /* size */);
   ASSERT_EQ(0u, msg3_size[0]);  // msg2 should be NOT finalized yet.
+  callback_arg = 0;
+  handle3.set_on_finalize([&callback_arg](size_t sz) { callback_arg = sz; });
 
   // Both |handle3| and |handle_swp| point to a valid message (respectively,
   // |msg3| and |msg2|). Now move |handle3| into |handle_swp|.
@@ -302,8 +305,10 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   ASSERT_EQ(msg3, &*handle_swp);
   handle_swp->AppendBytes(2 /* field_id */, kTestBytes, 8 /* size */);
   ProtoZeroMessageHandle<FakeRootMessage> another_handle(ignored_msg);
+  ASSERT_EQ(0u, callback_arg);
   handle_swp = std::move(another_handle);
   ASSERT_EQ(0x90u, msg3_size[0]);  // |msg3| should be finalized at this point.
+  ASSERT_EQ(0x10u, callback_arg);
 
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
   // In developer builds w/ PERFETTO_DCHECK on a finalized message should
