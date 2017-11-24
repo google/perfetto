@@ -25,6 +25,14 @@ source_set("base") {
     "utils.h",
     "weak_ptr.h",
   ]
+
+  if (target_os == "android") {
+    sources += [
+      "android_task_runner.cc",
+      "android_task_runner.h",
+    ]
+    libs = [ "android" ]
+  }
 }
 
 source_set("test_support") {
@@ -47,8 +55,8 @@ executable("base_unittests") {
   ]
   sources = [
     "scoped_file_unittest.cc",
+    "task_runner_unittest.cc",
     "thread_checker_unittest.cc",
-    "unix_task_runner_unittest.cc",
     "utils_unittest.cc",
     "weak_ptr_unittest.cc",
   ]
