@@ -24,11 +24,22 @@
 #include <map>
 #include <string>
 
+#include "base/build_config.h"
 #include "base/thread_checker.h"
 #include "base/unix_task_runner.h"
 
+#if BUILDFLAG(OS_ANDROID)
+#include "base/android_task_runner.h"
+#endif
+
 namespace perfetto {
 namespace base {
+
+#if BUILDFLAG(OS_ANDROID)
+using PlatformTaskRunner = AndroidTaskRunner;
+#else
+using PlatformTaskRunner = UnixTaskRunner;
+#endif
 
 class TestTaskRunner : public TaskRunner {
  public:
@@ -56,7 +67,7 @@ class TestTaskRunner : public TaskRunner {
   std::string pending_checkpoint_;
   std::map<std::string, bool> checkpoints_;
 
-  UnixTaskRunner task_runner_;
+  PlatformTaskRunner task_runner_;
   ThreadChecker thread_checker_;
 };
 
