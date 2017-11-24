@@ -32,6 +32,7 @@ executable("ftrace_reader_unittests") {
     "src/ftrace_controller_unittest.cc",
     "src/ftrace_to_proto_unittest.cc",
     "src/proto_translation_table_unittest.cc",
+    "src/scattered_stream_delegate_for_testing.h",
   ]
 }
 
@@ -52,10 +53,14 @@ executable("ftrace_reader_integrationtests") {
 }
 
 executable("ftrace_reader_demo") {
+  testonly = true
   sources = [
-    "main.cc",
+    "src/main.cc",
   ]
-  deps += [ ":ftrace_reader" ]
+  deps += [
+    ":ftrace_reader",
+    "//base",
+  ]
 }
 
 source_set("ftrace_reader") {
