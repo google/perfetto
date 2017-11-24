@@ -115,6 +115,7 @@ def Main():
   parser.add_argument('--no-cleanup', '-n', action='store_true')
   parser.add_argument('out_dir', help='out/android/')
   parser.add_argument('test_name', help='tracing_unittests')
+  parser.add_argument('cmd_args', nargs=argparse.REMAINDER)
   args = parser.parse_args()
 
   test_bin = os.path.join(args.out_dir, args.test_name)
@@ -138,8 +139,10 @@ def Main():
     AdbCall('push', sanitizer_libs, target_dir)
     env = 'LD_LIBRARY_PATH="%s/sanitizer_libs" ' % (target_dir)
   cmd = 'cd %s;' % target_dir;
-  cmd += env + './%s;' % args.test_name
-  cmd += 'echo -e "\\nTEST_RET_CODE=$?"'
+  cmd += env + './%s' % args.test_name
+  if args.cmd_args:
+    cmd += ' ' + ' '.join(args.cmd_args)
+  cmd += ';echo -e "\\nTEST_RET_CODE=$?"'
   print cmd
   test_output = subprocess.check_output([ADB_PATH, 'shell', cmd])
   print test_output
