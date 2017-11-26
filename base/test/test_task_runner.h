@@ -24,10 +24,22 @@
 #include <map>
 #include <string>
 
-#include "base/task_runner.h"
+#include "base/build_config.h"
+#include "base/thread_checker.h"
+#include "base/unix_task_runner.h"
+
+#if BUILDFLAG(OS_ANDROID)
+#include "base/android_task_runner.h"
+#endif
 
 namespace perfetto {
 namespace base {
+
+#if BUILDFLAG(OS_ANDROID)
+using PlatformTaskRunner = AndroidTaskRunner;
+#else
+using PlatformTaskRunner = UnixTaskRunner;
+#endif
 
 class TestTaskRunner : public TaskRunner {
  public:
@@ -50,13 +62,13 @@ class TestTaskRunner : public TaskRunner {
   TestTaskRunner(const TestTaskRunner&) = delete;
   TestTaskRunner& operator=(const TestTaskRunner&) = delete;
 
-  bool RunOneTask();
-  void QueueFileDescriptorWatches(bool blocking);
+  void QuitIfIdle();
 
-  std::list<std::function<void()>> task_queue_;
-  std::map<int, std::function<void()>> watched_fds_;
-  std::map<int, bool> fd_watch_task_queued_;
+  std::string pending_checkpoint_;
   std::map<std::string, bool> checkpoints_;
+
+  PlatformTaskRunner task_runner_;
+  ThreadChecker thread_checker_;
 };
 
 }  // namespace base

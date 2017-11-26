@@ -19,6 +19,7 @@
 #include "base/build_config.h"
 
 #include <fcntl.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 namespace perfetto {
@@ -70,40 +71,23 @@ void UnixTaskRunner::Run() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   quit_ = false;
   while (true) {
-    switch (WaitForEvent()) {
-      case Event::kQuit:
+    int poll_timeout_ms;
+    {
+      std::lock_guard<std::mutex> lock(lock_);
+      if (quit_)
         return;
-      case Event::kTaskRunnable:
-        // To avoid starvation we interleave immediate and delayed task
-        // execution.
-        RunImmediateAndDelayedTask();
-        break;
-      case Event::kFileDescriptorReadable:
-        PostFileDescriptorWatches();
-        break;
+      poll_timeout_ms = static_cast<int>(GetDelayToNextTaskLocked().count());
+      UpdateWatchTasksLocked();
     }
-  }
-}
+    int ret = PERFETTO_EINTR(poll(
+        &poll_fds_[0], static_cast<nfds_t>(poll_fds_.size()), poll_timeout_ms));
+    PERFETTO_CHECK(ret >= 0);
 
-UnixTaskRunner::Event UnixTaskRunner::WaitForEvent() {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-  int poll_timeout_ms;
-  {
-    std::lock_guard<std::mutex> lock(lock_);
-    if (quit_)
-      return Event::kQuit;
-    poll_timeout_ms = static_cast<int>(GetDelayToNextTaskLocked().count());
-    // Don't start polling until we run out of runnable tasks (immediate or ones
-    // with expired delays).
-    if (!poll_timeout_ms)
-      return Event::kTaskRunnable;
-    UpdateWatchTasksLocked();
+    // To avoid starvation we always interleave all types of tasks -- immediate,
+    // delayed and file descriptor watches.
+    PostFileDescriptorWatches();
+    RunImmediateAndDelayedTask();
   }
-  int ret = PERFETTO_EINTR(poll(
-      &poll_fds_[0], static_cast<nfds_t>(poll_fds_.size()), poll_timeout_ms));
-  PERFETTO_CHECK(ret >= 0);
-  bool did_timeout = (ret == 0);
-  return did_timeout ? Event::kTaskRunnable : Event::kFileDescriptorReadable;
 }
 
 void UnixTaskRunner::Quit() {
@@ -114,14 +98,21 @@ void UnixTaskRunner::Quit() {
   WakeUp();
 }
 
+bool UnixTaskRunner::IsIdleForTesting() {
+  std::lock_guard<std::mutex> lock(lock_);
+  return immediate_tasks_.empty();
+}
+
 void UnixTaskRunner::UpdateWatchTasksLocked() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!watch_tasks_changed_)
     return;
   watch_tasks_changed_ = false;
   poll_fds_.clear();
-  for (const auto& it : watch_tasks_)
+  for (auto& it : watch_tasks_) {
+    it.second.poll_fd_index = poll_fds_.size();
     poll_fds_.push_back({it.first, POLLIN | POLLHUP, 0});
+  }
 }
 
 void UnixTaskRunner::RunImmediateAndDelayedTask() {
@@ -174,6 +165,11 @@ void UnixTaskRunner::PostFileDescriptorWatches() {
     // task.
     PostTask(std::bind(&UnixTaskRunner::RunFileDescriptorWatch, this,
                        poll_fds_[i].fd));
+
+    // Make the fd negative while a posted task is pending. This makes poll(2)
+    // ignore the fd.
+    PERFETTO_DCHECK(poll_fds_[i].fd >= 0);
+    poll_fds_[i].fd = -poll_fds_[i].fd;
   }
 }
 
@@ -184,7 +180,14 @@ void UnixTaskRunner::RunFileDescriptorWatch(int fd) {
     auto it = watch_tasks_.find(fd);
     if (it == watch_tasks_.end())
       return;
-    task = it->second;
+    // Make poll(2) pay attention to the fd again. Since another thread may have
+    // updated this watch we need to refresh the set first.
+    UpdateWatchTasksLocked();
+    size_t fd_index = it->second.poll_fd_index;
+    PERFETTO_DCHECK(fd_index < poll_fds_.size());
+    PERFETTO_DCHECK(::abs(poll_fds_[fd_index].fd) == fd);
+    poll_fds_[fd_index].fd = fd;
+    task = it->second.callback;
   }
   task();
 }
@@ -225,16 +228,18 @@ void UnixTaskRunner::PostDelayedTask(std::function<void()> task, int delay_ms) {
 
 void UnixTaskRunner::AddFileDescriptorWatch(int fd,
                                             std::function<void()> task) {
+  PERFETTO_DCHECK(fd >= 0);
   {
     std::lock_guard<std::mutex> lock(lock_);
     PERFETTO_DCHECK(!watch_tasks_.count(fd));
-    watch_tasks_[fd] = std::move(task);
+    watch_tasks_[fd] = {std::move(task), SIZE_MAX};
     watch_tasks_changed_ = true;
   }
   WakeUp();
 }
 
 void UnixTaskRunner::RemoveFileDescriptorWatch(int fd) {
+  PERFETTO_DCHECK(fd >= 0);
   {
     std::lock_guard<std::mutex> lock(lock_);
     PERFETTO_DCHECK(watch_tasks_.count(fd));
