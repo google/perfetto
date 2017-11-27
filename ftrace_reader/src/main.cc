@@ -29,6 +29,8 @@
 #include "protozero/scattered_stream_writer.h"
 #include "scattered_stream_delegate_for_testing.h"
 
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
+
 int main(int argc, const char** argv) {
   perfetto::base::UnixTaskRunner runner;
   auto ftrace = perfetto::FtraceController::Create(&runner);
@@ -45,7 +47,7 @@ int main(int argc, const char** argv) {
 
   perfetto::ScatteredStreamDelegateForTesting buffer(4096);
   protozero::ScatteredStreamWriter stream_writer(&buffer);
-  pbzero::FtraceEventBundle message;
+  perfetto::protos::pbzero::FtraceEventBundle message;
   message.Reset(&stream_writer);
 
   return 0;

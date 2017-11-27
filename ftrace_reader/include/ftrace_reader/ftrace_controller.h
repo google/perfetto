@@ -31,9 +31,13 @@
 #include "gtest/gtest_prod.h"
 #include "protozero/protozero_message_handle.h"
 
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
-
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class FtraceEventBundle;
+}  // namespace pbzero
+}  // namespace protos
 
 const size_t kMaxSinks = 32;
 
@@ -63,13 +67,14 @@ class FtraceConfig {
 // |OnBundleComplete| allowing the client to perform finalization.
 class FtraceSink {
  public:
+  using FtraceEventBundle = protos::pbzero::FtraceEventBundle;
   class Delegate {
    public:
-    virtual protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>
+    virtual protozero::ProtoZeroMessageHandle<FtraceEventBundle>
         GetBundleForCpu(size_t) = 0;
     virtual void OnBundleComplete(
         size_t,
-        protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>) = 0;
+        protozero::ProtoZeroMessageHandle<FtraceEventBundle>) = 0;
     virtual ~Delegate() = default;
   };
 
@@ -82,13 +87,13 @@ class FtraceSink {
   friend FtraceController;
 
   EventFilter* get_event_filter() { return filter_.get(); }
-  protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle> GetBundleForCpu(
+  protozero::ProtoZeroMessageHandle<FtraceEventBundle> GetBundleForCpu(
       size_t cpu) {
     return delegate_->GetBundleForCpu(cpu);
   }
   void OnBundleComplete(
       size_t cpu,
-      protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle> bundle) {
+      protozero::ProtoZeroMessageHandle<FtraceEventBundle> bundle) {
     delegate_->OnBundleComplete(cpu, std::move(bundle));
   }
 

@@ -25,12 +25,14 @@
 #include "protos/ftrace/print.pbzero.h"
 #include "protos/ftrace/sched_switch.pbzero.h"
 
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
+
 namespace perfetto {
 
 namespace {
 
 using BundleHandle =
-    protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>;
+    protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>;
 
 const std::vector<bool> BuildEnabledVector(const ProtoTranslationTable& table,
                                            const std::set<std::string>& names) {
@@ -132,7 +134,7 @@ bool CpuReader::ParsePage(size_t cpu,
                           const uint8_t* ptr,
                           size_t size,
                           const EventFilter* filter,
-                          pbzero::FtraceEventBundle* bundle,
+                          protos::pbzero::FtraceEventBundle* bundle,
                           const ProtoTranslationTable* table) {
   // TODO(hjd): Remove when the generic parser comes in.
   const size_t print_id = table->GetEventByName("print")->ftrace_event_id;
@@ -221,12 +223,12 @@ bool CpuReader::ParsePage(size_t cpu,
 
         // PERFETTO_DLOG("Event type=%d pid=%d", ftrace_event_id, pid);
 
-        pbzero::FtraceEvent* event = bundle->add_event();
+        protos::pbzero::FtraceEvent* event = bundle->add_event();
         event->set_pid(pid);
 
         // TODO(hjd): Replace this handrolled code with generic parsing code.
         if (ftrace_event_id == print_id) {
-          pbzero::PrintFtraceEvent* print_event = event->set_print();
+          protos::pbzero::PrintFtraceEvent* print_event = event->set_print();
           // Trace Marker Parser
           uint64_t ip;
           if (!ReadAndAdvance<uint64_t>(&ptr, end, &ip))
@@ -243,7 +245,7 @@ bool CpuReader::ParsePage(size_t cpu,
 
         // TODO(hjd): Replace this handrolled code with generic parsing code.
         if (ftrace_event_id == sched_switch_id) {
-          pbzero::SchedSwitchFtraceEvent* switch_event =
+          protos::pbzero::SchedSwitchFtraceEvent* switch_event =
               event->set_sched_switch();
 
           char prev_comm[16];

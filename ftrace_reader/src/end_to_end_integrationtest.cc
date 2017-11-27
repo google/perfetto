@@ -23,12 +23,13 @@
 #include "gmock/gmock.h"
 #include "google/protobuf/text_format.h"
 #include "gtest/gtest.h"
+#include "protozero/scattered_stream_writer.h"
+#include "scattered_stream_delegate_for_testing.h"
+
 #include "protos/ftrace/ftrace_event_bundle.pb.h"
 #include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/ftrace/test_bundle_wrapper.pb.h"
 #include "protos/ftrace/test_bundle_wrapper.pbzero.h"
-#include "protozero/scattered_stream_writer.h"
-#include "scattered_stream_delegate_for_testing.h"
 
 using testing::HasSubstr;
 using testing::Not;
@@ -41,12 +42,12 @@ const size_t kPageSize = 4096;
 const char kTracingPath[] = "/sys/kernel/debug/tracing/";
 
 using BundleHandle =
-    protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>;
+    protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>;
 
 class EndToEndIntegrationTest : public ::testing::Test,
                                 public FtraceSink::Delegate {
  public:
-  void Finalize(TestBundleWrapper* wrapper) {
+  void Finalize(protos::TestBundleWrapper* wrapper) {
     message->set_after("--- Bundle wrapper after ---");
     PERFETTO_CHECK(message);
     size_t msg_size = message->Finalize();
@@ -62,8 +63,8 @@ class EndToEndIntegrationTest : public ::testing::Test,
     writer = std::unique_ptr<protozero::ScatteredStreamWriter>(
         new protozero::ScatteredStreamWriter(writer_delegate.get()));
     writer_delegate->set_writer(writer.get());
-    message = std::unique_ptr<pbzero::TestBundleWrapper>(
-        new pbzero::TestBundleWrapper);
+    message = std::unique_ptr<protos::pbzero::TestBundleWrapper>(
+        new protos::pbzero::TestBundleWrapper);
     message->Reset(writer.get());
     message->set_before("--- Bundle wrapper before ---");
   }
@@ -92,7 +93,7 @@ class EndToEndIntegrationTest : public ::testing::Test,
   size_t cpu_being_written_ = 9999;
   std::unique_ptr<ScatteredStreamDelegateForTesting> writer_delegate = nullptr;
   std::unique_ptr<protozero::ScatteredStreamWriter> writer = nullptr;
-  std::unique_ptr<pbzero::TestBundleWrapper> message = nullptr;
+  std::unique_ptr<protos::pbzero::TestBundleWrapper> message = nullptr;
 };
 
 }  // namespace
@@ -123,7 +124,7 @@ TEST_F(EndToEndIntegrationTest, SchedSwitchAndPrint) {
   sink.reset();
 
   // Read the output into a full proto so we can use reflection.
-  TestBundleWrapper output;
+  protos::TestBundleWrapper output;
   Finalize(&output);
 
   // Check we can see the guards:

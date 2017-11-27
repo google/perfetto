@@ -20,6 +20,8 @@
 #include "ftrace_reader/format_parser.h"
 #include "ftrace_reader/ftrace_to_proto.h"
 
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
+
 namespace perfetto {
 
 namespace {

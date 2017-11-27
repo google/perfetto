@@ -23,7 +23,6 @@ template("protozero_library") {
     generate_cc = false
     generator_plugin_label = "//protozero/src/protoc_plugin"
     generator_plugin_suffix = ".pbzero"
-    generator_plugin_options = "wrapper_namespace=pbzero"
     public_configs = [ "//protozero:protozero_config" ]
     deps = []
     if (defined(invoker.deps)) {
