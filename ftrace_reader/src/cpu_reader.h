@@ -42,7 +42,6 @@ class EventFilter {
 
   bool IsEventEnabled(size_t ftrace_event_id) const {
     if (ftrace_event_id == 0 || ftrace_event_id > enabled_ids_.size()) {
-      PERFETTO_DCHECK(false);
       return false;
     }
     return enabled_ids_[ftrace_event_id];
@@ -91,7 +90,8 @@ class CpuReader {
                         const uint8_t* ptr,
                         size_t ptr_size,
                         const EventFilter*,
-                        pbzero::FtraceEventBundle*);
+                        pbzero::FtraceEventBundle*,
+                        const ProtoTranslationTable* table);
   uint8_t* GetBuffer();
   CpuReader(const CpuReader&) = delete;
   CpuReader& operator=(const CpuReader&) = delete;

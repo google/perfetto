@@ -27,7 +27,8 @@ ProtoZeroMessageHandleBase::ProtoZeroMessageHandleBase(
     ProtoZeroMessage* message)
     : message_(message) {
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
-  message_->set_handle(this);
+  if (message_)
+    message_->set_handle(this);
 #endif
 }
 
