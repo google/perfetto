@@ -84,11 +84,6 @@ matrix:
     - os: linux
       dist: trusty
       sudo: false
-      compiler: gcc
-      env: CFG=linux_trusty-gcc-x86_64-release GN_ARGS="is_debug=false is_clang=false"
-    - os: linux
-      dist: trusty
-      sudo: false
       addons:
         apt:
           sources:
