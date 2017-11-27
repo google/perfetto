@@ -23,6 +23,7 @@ template("ipc_library") {
     deps = [
       "//ipc",
     ]
+    proto_out_dir = "protos_lite"
     forward_variables_from(invoker,
                            [
                              "defines",

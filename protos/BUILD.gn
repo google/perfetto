@@ -17,20 +17,20 @@ import("//build/proto_library.gni")
 
 proto_sources = [ "trace_packet.proto" ]
 
+# Protozero generated stubs, for writers.
 protozero_library("zero") {
-  generate_cc = false
   deps = [
-    "ftrace",
+    "ftrace:zero",
   ]
   sources = proto_sources
+  proto_out_dir = "protos_zero"
 }
 
-# TODO: we don't really want the _full version but just the _lite. However
-# this requires to have 3 targets (zero, full and lite) for ftrace. Need to
-# solve that problem first.
-proto_library("full") {
+# Protobuf Lite stubs, for readers.
+proto_library("lite") {
   deps = [
-    "ftrace:ftrace_full_protos",
+    "ftrace:lite",
   ]
   sources = proto_sources
+  proto_out_dir = "protos_lite"
 }

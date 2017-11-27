@@ -21,7 +21,12 @@ template("proto_library") {
   if (defined(invoker.proto_in_dir)) {
     proto_in_dir = invoker.proto_in_dir
   }
-  proto_out_dir = "//"
+  assert(defined(invoker.proto_out_dir),
+         "proto_out_dir must be explicitly defined")
+  proto_out_dir = invoker.proto_out_dir
+  assert(proto_out_dir == "protos_zero" || proto_out_dir == "protos_lite" ||
+             proto_out_dir == "protos_full",
+         "proto_out must be either 'proto_zero', 'proto_lite' or 'proto_full'")
 
   # If false will not generate the default .pb.{cc,h} files. Used for custom
   # codegen plugins.
@@ -171,9 +176,18 @@ template("proto_library") {
       ":$config_name",
     ]
 
-    deps = [
-      "//buildtools:protobuf_lite",
-    ]
+    # Use protobuf_full only for tests.
+    if (defined(invoker.use_protobuf_full) &&
+        invoker.use_protobuf_full == true) {
+      deps = [
+        "//buildtools:protobuf_full",
+      ]
+    } else {
+      deps = [
+        "//buildtools:protobuf_lite",
+      ]
+    }
+
     deps += [ ":$action_name" ]
     if (defined(invoker.deps)) {
       deps += invoker.deps
