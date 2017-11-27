@@ -113,10 +113,13 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     for (FtraceEvent::Field ftrace_field : ftrace_event.fields) {
       event.fields.push_back(Field{ftrace_field.offset, ftrace_field.size});
     }
-  }
 
-  if (events.size() == 0) {
-    return nullptr;
+    if (common_fields.empty()) {
+      for (const FtraceEvent::Field& ftrace_field :
+           ftrace_event.common_fields) {
+        common_fields.push_back(Field{ftrace_field.offset, ftrace_field.size});
+      }
+    }
   }
 
   auto table = std::unique_ptr<ProtoTranslationTable>(
