@@ -26,7 +26,6 @@ source_set("protozero") {
   sources = [
     "include/protozero/contiguous_memory_range.h",
     "include/protozero/proto_field_descriptor.h",
-    "include/protozero/proto_utils",
     "include/protozero/protozero_message.h",
     "include/protozero/protozero_message_handle.h",
     "include/protozero/scattered_stream_writer.h",
