@@ -24,6 +24,7 @@ protozero_library("zero") {
   ]
   sources = proto_sources
   proto_out_dir = "protos_zero"
+  generator_plugin_options = "wrapper_namespace=pbzero"
 }
 
 # Protobuf Lite stubs, for readers.
