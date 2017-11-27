@@ -44,7 +44,7 @@ std::unique_ptr<FtraceController> FtraceController::Create(
     base::TaskRunner* runner) {
   auto ftrace_procfs =
       std::unique_ptr<FtraceProcfs>(new FtraceProcfs(kTracingPath));
-  auto table = ProtoTranslationTable::Create(kTracingPath, ftrace_procfs.get());
+  auto table = ProtoTranslationTable::Create(ftrace_procfs.get());
   return std::unique_ptr<FtraceController>(
       new FtraceController(std::move(ftrace_procfs), runner, std::move(table)));
 }
@@ -73,6 +73,7 @@ void FtraceController::Start() {
     return;
   }
   listening_for_raw_trace_data_ = true;
+  ftrace_procfs_->EnableTracing();
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
     CpuReader* reader = GetCpuReader(cpu);
     int fd = reader->GetFileDescriptor();

@@ -49,8 +49,7 @@ class BinaryWriter {
   void WriteEventHeader(uint32_t time_delta, uint32_t entry_type) {
     // Entry header is a packed time delta (d) and type (t):
     // dddddddd dddddddd dddddddd dddttttt
-    //    Write<uint32_t>((time_delta << 5) | (entry_type & 0x1f));
-    Write<uint32_t>(entry_type);
+    Write<uint32_t>((time_delta << 5) | (entry_type & 0x1f));
   }
 
   void WriteString(const char* s) {
@@ -183,14 +182,14 @@ TEST(CpuReaderTest, ReadAndAdvanceUnderruns) {
 TEST(CpuReaderTest, ParseEmpty) {
   std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
   FtraceProcfs ftrace_procfs(path);
-  auto table = ProtoTranslationTable::Create(path, &ftrace_procfs);
+  auto table = ProtoTranslationTable::Create(&ftrace_procfs);
   CpuReader(table.get(), 42, base::ScopedFile());
 }
 
 TEST(CpuReaderTest, ParseSimpleEvent) {
   std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
   FtraceProcfs ftrace(path);
-  auto table = ProtoTranslationTable::Create(path, &ftrace);
+  auto table = ProtoTranslationTable::Create(&ftrace);
 
   std::unique_ptr<uint8_t[]> in_page = MakeBuffer(kPageSize);
   std::unique_ptr<uint8_t[]> out_page = MakeBuffer(kPageSize);
@@ -219,16 +218,16 @@ TEST(CpuReaderTest, ParseSimpleEvent) {
 
   perfetto::ScatteredStreamDelegateForTesting delegate(kPageSize);
   protozero::ScatteredStreamWriter stream_writer(&delegate);
+  delegate.set_writer(&stream_writer);
   pbzero::FtraceEventBundle message;
   message.Reset(&stream_writer);
 
   CpuReader::ParsePage(42 /* cpu number */, in_page.get(), kPageSize, &filter,
-                       &message);
+                       &message, table.get());
 
   size_t msg_size =
       delegate.chunks().size() * kPageSize - stream_writer.bytes_available();
-  std::unique_ptr<uint8_t[]> proto = MakeBuffer(msg_size);
-  delegate.GetBytes(0, msg_size, proto.get());
+  std::unique_ptr<uint8_t[]> proto = delegate.StitchChunks(msg_size);
 
   FtraceEventBundle proto_bundle;
   proto_bundle.ParseFromArray(proto.get(), static_cast<int>(msg_size));
@@ -238,8 +237,8 @@ TEST(CpuReaderTest, ParseSimpleEvent) {
   const FtraceEvent& proto_event = proto_bundle.event().Get(0);
   EXPECT_EQ(proto_event.pid(), 72);
   EXPECT_TRUE(proto_event.has_print());
-  // TODO(hjd): Renable.
-  // EXPECT_EQ(proto_event.print().buf(), "Hello, world!\n");
+  // TODO(hjd): Check if this is the correct format.
+  EXPECT_EQ(proto_event.print().buf(), "Hello, world!\n");
 }
 
 }  // namespace perfetto

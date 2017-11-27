@@ -36,7 +36,7 @@ namespace protozero {
 // chunks of memory. Similarly, when the buffer is backed by the heap, we want
 // to avoid realloc() calls, as they might cause a full copy of the contents
 // of the buffer.
-// The purpose of this class is to abtract away the non-contiguous write logic.
+// The purpose of this class is to abstract away the non-contiguous write logic.
 // This class knows how to deal with writes as long as they fall in the same
 // ContiguousMemoryRange and defers the chunk-chaining logic to the Delegate.
 class ScatteredStreamWriter {

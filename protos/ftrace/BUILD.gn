@@ -46,7 +46,7 @@ proto_library("ftrace_full_protos") {
   ]
   sources = []
 
-  proto_in_dir = full_protos_base_dir  #rebase_path(full_protos_base_dir, ".")
+  proto_in_dir = full_protos_base_dir
   foreach(proto, ftrace_proto_names) {
     sources += [ "$full_protos_target_dir/$proto" ]
   }
