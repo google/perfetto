@@ -74,6 +74,7 @@ proto_library("wire_protocol") {
     "src/wire_protocol.proto",
   ]
   include_dirs = [ "include" ]
+  proto_out_dir = "protos_lite"
 }
 
 ipc_library("test_messages") {

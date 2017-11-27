@@ -222,7 +222,7 @@ class GeneratorJob {
     package_ = source_->package();
     namespaces_ = Split(package_, ".");
     if (!wrapper_namespace_.empty())
-      namespaces_.insert(namespaces_.begin(), wrapper_namespace_);
+      namespaces_.push_back(wrapper_namespace_);
 
     full_namespace_prefix_ = "::";
     for (const std::string& ns : namespaces_)
