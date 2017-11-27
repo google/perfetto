@@ -13,7 +13,7 @@
 # limitations under the License.
 
 deploy:
-	gcloud app deploy app.yaml
+	gcloud app deploy app.yaml --project perfetto-ci
 
 test:
 	dev_appserver.py .
