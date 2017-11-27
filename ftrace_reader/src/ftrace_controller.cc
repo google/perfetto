@@ -31,6 +31,8 @@
 #include "ftrace_procfs.h"
 #include "proto_translation_table.h"
 
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
+
 namespace perfetto {
 namespace {
 
@@ -104,7 +106,7 @@ void FtraceController::Stop() {
 void FtraceController::OnRawFtraceDataAvailable(size_t cpu) {
   CpuReader* reader = GetCpuReader(cpu);
   using BundleHandle =
-      protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>;
+      protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>;
   std::array<const EventFilter*, kMaxSinks> filters{};
   std::array<BundleHandle, kMaxSinks> bundles{};
   size_t sink_count = sinks_.size();

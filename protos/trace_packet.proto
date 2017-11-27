@@ -19,7 +19,7 @@ option optimize_for = LITE_RUNTIME;
 
 import "protos/ftrace/ftrace_event_bundle.proto";
 
-// TODO: put all these protos under some namespace.
+package perfetto.protos;
 
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
