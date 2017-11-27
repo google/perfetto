@@ -23,8 +23,7 @@ executable("ftrace_reader_unittests") {
     "//buildtools:gmock",
     "//buildtools:gtest",
     "//buildtools:gtest_main",
-    "//buildtools:protobuf_full",
-    "//protos/ftrace:ftrace_full_protos",
+    "//protos/ftrace:full",
   ]
   sources = [
     "src/cpu_reader_unittest.cc",
@@ -47,7 +46,7 @@ executable("ftrace_reader_integrationtests") {
     "//buildtools:gtest",
     "//buildtools:gtest_main",
     "//buildtools:protobuf_full",
-    "//protos/ftrace:ftrace_full_protos",
+    "//protos/ftrace:full",
   ]
   sources = [
     "src/end_to_end_integrationtest.cc",
@@ -71,12 +70,9 @@ source_set("ftrace_reader") {
     ":ftrace_reader_config",
     "//buildtools:googletest_prod_config",
   ]
-  deps += [
-    "//base",
-    "//protozero",
-  ]
+  deps += [ "//base" ]
   public_deps = [
-    "//protos/ftrace",
+    "//protos/ftrace:zero",
   ]
   sources = [
     "include/ftrace_reader/format_parser.h",

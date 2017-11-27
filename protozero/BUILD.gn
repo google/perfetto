@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//build/proto_library.gni")
 import("protozero_library.gni")
 
 config("protozero_config") {
@@ -40,7 +41,8 @@ executable("protozero_unittests") {
   testonly = true
   deps += [
     ":protozero",
-    ":testing_messages",
+    ":testing_messages_lite",
+    ":testing_messages_zero",
     "//base",
     "//buildtools:gmock",
     "//buildtools:gtest",
@@ -57,12 +59,22 @@ executable("protozero_unittests") {
 }
 
 # Generates both xxx.pbzero.h and xxx.pb.h (official proto).
-protozero_library("testing_messages") {
-  sources = [
-    "src/test/example_proto/library.proto",
-    "src/test/example_proto/library_internals/galaxies.proto",
-    "src/test/example_proto/test_messages.proto",
-    "src/test/example_proto/upper_import.proto",
-  ]
+
+testing_proto_sources = [
+  "src/test/example_proto/library.proto",
+  "src/test/example_proto/library_internals/galaxies.proto",
+  "src/test/example_proto/test_messages.proto",
+  "src/test/example_proto/upper_import.proto",
+]
+
+protozero_library("testing_messages_zero") {
   include_dirs = [ "include" ]
+  sources = testing_proto_sources
+  proto_out_dir = "protos_zero"
+}
+
+proto_library("testing_messages_lite") {
+  include_dirs = [ "include" ]
+  sources = testing_proto_sources
+  proto_out_dir = "protos_lite"
 }
