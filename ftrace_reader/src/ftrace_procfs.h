@@ -34,6 +34,13 @@ class FtraceProcfs {
   // Disable the event under with the given |group| and |name|.
   bool DisableEvent(const std::string& group, const std::string& name);
 
+  // Read the format for event with the given |group| and |name|.
+  std::string ReadEventFormat(const std::string& group,
+                              const std::string& name) const;
+
+  // Read the available_events file.
+  std::string ReadAvailableEvents() const;
+
   // Returns the number of CPUs.
   // This will match the number of tracing/per_cpu/cpuXX directories.
   size_t virtual NumberOfCpus() const;

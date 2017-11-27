@@ -17,25 +17,9 @@
 #ifndef FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
 #define FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
 
-#include <sstream>
-
 #include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
-namespace {
-
-std::string ToHex(const void* data, size_t length) {
-  std::ostringstream ss;
-  ss << std::hex << std::setfill('0');
-  ss << std::uppercase;
-  for (size_t i = 0; i < length; i++) {
-    char c = reinterpret_cast<const char*>(data)[i];
-    ss << std::setw(2) << (static_cast<unsigned>(c) & 0xFF);
-  }
-  return ss.str();
-}
-
-}  // namespace
 
 class ScatteredStreamDelegateForTesting
     : public protozero::ScatteredStreamWriter::Delegate {
@@ -46,17 +30,21 @@ class ScatteredStreamDelegateForTesting
   // protozero::ScatteredStreamWriter::Delegate implementation.
   protozero::ContiguousMemoryRange GetNewBuffer() override;
 
-  std::string GetChunkAsString(size_t chunk_index);
-
-  void GetBytes(size_t start, size_t length, uint8_t* buf);
-  std::string GetBytesAsString(size_t start, size_t length);
+  // Stitch all the chunks into a single contiguous buffer.
+  std::unique_ptr<uint8_t[]> StitchChunks(size_t size);
 
   const std::vector<std::unique_ptr<uint8_t[]>>& chunks() const {
     return chunks_;
   }
 
+  void set_writer(protozero::ScatteredStreamWriter* writer) {
+    writer_ = writer;
+  }
+
  private:
   const size_t chunk_size_;
+  protozero::ScatteredStreamWriter* writer_ = nullptr;
+  std::vector<size_t> chunks_used_size_;
   std::vector<std::unique_ptr<uint8_t[]>> chunks_;
 };
 
@@ -68,6 +56,11 @@ ScatteredStreamDelegateForTesting::~ScatteredStreamDelegateForTesting() {}
 
 protozero::ContiguousMemoryRange
 ScatteredStreamDelegateForTesting::GetNewBuffer() {
+  PERFETTO_CHECK(writer_);
+  if (chunks_.size()) {
+    size_t used = chunk_size_ - writer_->bytes_available();
+    chunks_used_size_.push_back(used);
+  }
   std::unique_ptr<uint8_t[]> chunk(new uint8_t[chunk_size_]);
   uint8_t* begin = chunk.get();
   memset(begin, 0xff, chunk_size_);
@@ -75,27 +68,24 @@ ScatteredStreamDelegateForTesting::GetNewBuffer() {
   return {begin, begin + chunk_size_};
 }
 
-std::string ScatteredStreamDelegateForTesting::GetChunkAsString(
-    size_t chunk_index) {
-  return ToHex(chunks_[chunk_index].get(), chunk_size_);
-}
-
-void ScatteredStreamDelegateForTesting::GetBytes(size_t start,
-                                                 size_t length,
-                                                 uint8_t* buf) {
-  PERFETTO_CHECK(start + length < chunks_.size() * chunk_size_);
-  for (size_t pos = 0; pos < length; ++pos) {
-    size_t chunk_index = (start + pos) / chunk_size_;
-    size_t chunk_offset = (start + pos) % chunk_size_;
-    buf[pos] = chunks_[chunk_index].get()[chunk_offset];
+std::unique_ptr<uint8_t[]> ScatteredStreamDelegateForTesting::StitchChunks(
+    size_t size) {
+  std::unique_ptr<uint8_t[]> buffer =
+      std::unique_ptr<uint8_t[]>(new uint8_t[size]);
+  size_t remaining = size;
+  size_t i = 0;
+  for (const auto& chunk : chunks_) {
+    size_t chunk_size = remaining;
+    if (i < chunks_used_size_.size()) {
+      chunk_size = chunks_used_size_[i];
+    }
+    PERFETTO_CHECK(chunk_size <= chunk_size_);
+    memcpy(buffer.get() + size - remaining, chunk.get(), chunk_size);
+    remaining -= chunk_size;
+    i++;
   }
-}
 
-std::string ScatteredStreamDelegateForTesting::GetBytesAsString(size_t start,
-                                                                size_t length) {
-  std::unique_ptr<uint8_t[]> buffer(new uint8_t[length]);
-  GetBytes(start, length, buffer.get());
-  return ToHex(buffer.get(), length);
+  return buffer;
 }
 
 }  // namespace perfetto
