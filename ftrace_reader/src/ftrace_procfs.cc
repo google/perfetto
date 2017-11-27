@@ -20,6 +20,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <fstream>
+#include <sstream>
+#include <string>
+
 #include "base/logging.h"
 #include "base/utils.h"
 
@@ -45,6 +49,23 @@ char ReadOneCharFromFile(const std::string& path) {
   return result;
 }
 
+std::string ReadFileIntoString(std::string path) {
+  std::ifstream fin(path, std::ios::in);
+  if (!fin) {
+    PERFETTO_DLOG("Could not read '%s'", path.c_str());
+    return "";
+  }
+
+  std::string str;
+  // You can't seek or stat the procfs files on Android.
+  // The vast majority (884/886) of format files are under 4k.
+  str.reserve(4096);
+  str.assign(std::istreambuf_iterator<char>(fin),
+             std::istreambuf_iterator<char>());
+
+  return str;
+}
+
 }  // namespace
 
 FtraceProcfs::FtraceProcfs(const std::string& root) : root_(root) {}
@@ -60,6 +81,17 @@ bool FtraceProcfs::DisableEvent(const std::string& group,
                                 const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
   return WriteToFile(path, "0");
+}
+
+std::string FtraceProcfs::ReadEventFormat(const std::string& group,
+                                          const std::string& name) const {
+  std::string path = root_ + "events/" + group + "/" + name + "/format";
+  return ReadFileIntoString(path);
+}
+
+std::string FtraceProcfs::ReadAvailableEvents() const {
+  std::string path = root_ + "available_events";
+  return ReadFileIntoString(path);
 }
 
 size_t FtraceProcfs::NumberOfCpus() const {
@@ -107,7 +139,7 @@ bool FtraceProcfs::WriteToFile(const std::string& path,
 
 base::ScopedFile FtraceProcfs::OpenPipeForCpu(size_t cpu) {
   std::string path =
-      root_ + "per_cpu/" + std::to_string(cpu) + "/trace_pipe_raw";
+      root_ + "per_cpu/cpu" + std::to_string(cpu) + "/trace_pipe_raw";
   return base::ScopedFile(open(path.c_str(), O_RDONLY));
 }
 
