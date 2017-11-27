@@ -14,19 +14,14 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
-#include <unistd.h>
+#ifndef FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
+#define FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
 
-#include <iomanip>
-#include <memory>
 #include <sstream>
-#include <string>
-#include <utility>
-#include <vector>
 
-#include "ftrace_reader/ftrace_controller.h"
-#include "protozero/scattered_stream_writer.h"
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
+namespace perfetto {
 namespace {
 
 std::string ToHex(const void* data, size_t length) {
@@ -42,17 +37,11 @@ std::string ToHex(const void* data, size_t length) {
 
 }  // namespace
 
-class FakeTaskRunner : public perfetto::base::TaskRunner {
-  void PostTask(std::function<void()>) override {}
-  void PostDelayedTask(std::function<void()>, int delay_ms) override {}
-  void AddFileDescriptorWatch(int fd, std::function<void()>) override {}
-  void RemoveFileDescriptorWatch(int fd) override {}
-};
-
-class ScatteredBuffer : public protozero::ScatteredStreamWriter::Delegate {
+class ScatteredStreamDelegateForTesting
+    : public protozero::ScatteredStreamWriter::Delegate {
  public:
-  explicit ScatteredBuffer(size_t chunk_size);
-  ~ScatteredBuffer() override;
+  explicit ScatteredStreamDelegateForTesting(size_t chunk_size);
+  ~ScatteredStreamDelegateForTesting() override;
 
   // protozero::ScatteredStreamWriter::Delegate implementation.
   protozero::ContiguousMemoryRange GetNewBuffer() override;
@@ -71,11 +60,14 @@ class ScatteredBuffer : public protozero::ScatteredStreamWriter::Delegate {
   std::vector<std::unique_ptr<uint8_t[]>> chunks_;
 };
 
-ScatteredBuffer::ScatteredBuffer(size_t chunk_size) : chunk_size_(chunk_size) {}
+ScatteredStreamDelegateForTesting::ScatteredStreamDelegateForTesting(
+    size_t chunk_size)
+    : chunk_size_(chunk_size) {}
 
-ScatteredBuffer::~ScatteredBuffer() {}
+ScatteredStreamDelegateForTesting::~ScatteredStreamDelegateForTesting() {}
 
-protozero::ContiguousMemoryRange ScatteredBuffer::GetNewBuffer() {
+protozero::ContiguousMemoryRange
+ScatteredStreamDelegateForTesting::GetNewBuffer() {
   std::unique_ptr<uint8_t[]> chunk(new uint8_t[chunk_size_]);
   uint8_t* begin = chunk.get();
   memset(begin, 0xff, chunk_size_);
@@ -83,11 +75,14 @@ protozero::ContiguousMemoryRange ScatteredBuffer::GetNewBuffer() {
   return {begin, begin + chunk_size_};
 }
 
-std::string ScatteredBuffer::GetChunkAsString(size_t chunk_index) {
+std::string ScatteredStreamDelegateForTesting::GetChunkAsString(
+    size_t chunk_index) {
   return ToHex(chunks_[chunk_index].get(), chunk_size_);
 }
 
-void ScatteredBuffer::GetBytes(size_t start, size_t length, uint8_t* buf) {
+void ScatteredStreamDelegateForTesting::GetBytes(size_t start,
+                                                 size_t length,
+                                                 uint8_t* buf) {
   PERFETTO_CHECK(start + length < chunks_.size() * chunk_size_);
   for (size_t pos = 0; pos < length; ++pos) {
     size_t chunk_index = (start + pos) / chunk_size_;
@@ -96,30 +91,13 @@ void ScatteredBuffer::GetBytes(size_t start, size_t length, uint8_t* buf) {
   }
 }
 
-std::string ScatteredBuffer::GetBytesAsString(size_t start, size_t length) {
+std::string ScatteredStreamDelegateForTesting::GetBytesAsString(size_t start,
+                                                                size_t length) {
   std::unique_ptr<uint8_t[]> buffer(new uint8_t[length]);
   GetBytes(start, length, buffer.get());
   return ToHex(buffer.get(), length);
 }
 
-int main(int argc, const char** argv) {
-  FakeTaskRunner runner;
-  auto ftrace = perfetto::FtraceController::Create(&runner);
+}  // namespace perfetto
 
-  perfetto::FtraceConfig config;
-  for (int i = 1; i < argc; i++) {
-    config.AddEvent(argv[i]);
-  }
-  std::unique_ptr<perfetto::FtraceSink> sink =
-      ftrace->CreateSink(std::move(config), nullptr);
-
-  // Sleep for one second so we get some events
-  sleep(10);
-
-  ScatteredBuffer buffer(4096);
-  protozero::ScatteredStreamWriter stream_writer(&buffer);
-  pbzero::FtraceEventBundle message;
-  message.Reset(&stream_writer);
-
-  return 0;
-}
+#endif  // FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
