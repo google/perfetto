@@ -52,6 +52,10 @@ std::string ToCamelCase(const std::string& s) {
   return result;
 }
 
+bool StartsWith(const std::string& str, const std::string& prefix) {
+  return str.compare(0, prefix.length(), prefix) == 0;
+}
+
 }  // namespace
 
 // For example:
@@ -89,7 +93,11 @@ std::string InferProtoType(const FtraceEvent::Field& field) {
     return "string";
 
   // Variable length strings: "char* foo"
-  if (field.type_and_name.find("char *") != std::string::npos)
+  if (StartsWith(field.type_and_name, "char *"))
+    return "string";
+
+  // Variable length strings: "char foo" + size: 0 (as in 'print').
+  if (StartsWith(field.type_and_name, "char ") && field.size == 0)
     return "string";
 
   // Ints of various sizes:
