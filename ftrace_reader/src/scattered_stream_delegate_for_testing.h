@@ -17,8 +17,6 @@
 #ifndef FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
 #define FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
 
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
-
 namespace perfetto {
 
 class ScatteredStreamDelegateForTesting

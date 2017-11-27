@@ -20,10 +20,12 @@
 #include "gtest/gtest.h"
 #include "proto_translation_table.h"
 
-#include "protos/ftrace/ftrace_event.pb.h"
-#include "protos/ftrace/ftrace_event_bundle.pb.h"
 #include "protozero/scattered_stream_writer.h"
 #include "scattered_stream_delegate_for_testing.h"
+
+#include "protos/ftrace/ftrace_event.pb.h"
+#include "protos/ftrace/ftrace_event_bundle.pb.h"
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 
@@ -219,7 +221,7 @@ TEST(CpuReaderTest, ParseSimpleEvent) {
   perfetto::ScatteredStreamDelegateForTesting delegate(kPageSize);
   protozero::ScatteredStreamWriter stream_writer(&delegate);
   delegate.set_writer(&stream_writer);
-  pbzero::FtraceEventBundle message;
+  protos::pbzero::FtraceEventBundle message;
   message.Reset(&stream_writer);
 
   CpuReader::ParsePage(42 /* cpu number */, in_page.get(), kPageSize, &filter,
@@ -229,12 +231,12 @@ TEST(CpuReaderTest, ParseSimpleEvent) {
       delegate.chunks().size() * kPageSize - stream_writer.bytes_available();
   std::unique_ptr<uint8_t[]> proto = delegate.StitchChunks(msg_size);
 
-  FtraceEventBundle proto_bundle;
+  protos::FtraceEventBundle proto_bundle;
   proto_bundle.ParseFromArray(proto.get(), static_cast<int>(msg_size));
 
   EXPECT_EQ(proto_bundle.cpu(), 42);
   ASSERT_EQ(proto_bundle.event().size(), 1);
-  const FtraceEvent& proto_event = proto_bundle.event().Get(0);
+  const protos::FtraceEvent& proto_event = proto_bundle.event().Get(0);
   EXPECT_EQ(proto_event.pid(), 72);
   EXPECT_TRUE(proto_event.has_print());
   // TODO(hjd): Check if this is the correct format.

@@ -71,6 +71,7 @@ protozero_library("testing_messages_zero") {
   include_dirs = [ "include" ]
   sources = testing_proto_sources
   proto_out_dir = "protos_zero"
+  generator_plugin_options = "wrapper_namespace=pbzero"
 }
 
 proto_library("testing_messages_lite") {

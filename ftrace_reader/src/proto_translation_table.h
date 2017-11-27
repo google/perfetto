@@ -27,11 +27,15 @@
 
 #include "base/scoped_file.h"
 
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
-
 namespace perfetto {
 
 class FtraceProcfs;
+
+namespace protos {
+namespace pbzero {
+class FtraceEventBundle;
+}  // namespace pbzero
+}  // namespace protos
 
 class ProtoTranslationTable {
  public:

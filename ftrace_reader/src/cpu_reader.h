@@ -26,11 +26,16 @@
 #include "ftrace_reader/ftrace_controller.h"
 #include "gtest/gtest_prod.h"
 #include "proto_translation_table.h"
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 
 class ProtoTranslationTable;
+
+namespace protos {
+namespace pbzero {
+class FtraceEventBundle;
+}  // namespace pbzero
+}  // namespace protos
 
 // Class for efficient 'is event with id x enabled?' tests.
 // Mirrors the data in a FtraceConfig but in a format better suited
@@ -62,10 +67,11 @@ class CpuReader {
   CpuReader(const ProtoTranslationTable*, size_t cpu, base::ScopedFile fd);
   ~CpuReader();
 
-  bool Drain(const std::array<const EventFilter*, kMaxSinks>&,
-             const std::array<
-                 protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>,
-                 kMaxSinks>&);
+  bool Drain(
+      const std::array<const EventFilter*, kMaxSinks>&,
+      const std::array<
+          protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>,
+          kMaxSinks>&);
   int GetFileDescriptor();
 
  private:
@@ -90,7 +96,7 @@ class CpuReader {
                         const uint8_t* ptr,
                         size_t ptr_size,
                         const EventFilter*,
-                        pbzero::FtraceEventBundle*,
+                        protos::pbzero::FtraceEventBundle*,
                         const ProtoTranslationTable* table);
   uint8_t* GetBuffer();
   CpuReader(const CpuReader&) = delete;
