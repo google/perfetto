@@ -22,6 +22,7 @@
 #include "proto_translation_table.h"
 
 #include "protos/ftrace/ftrace_event.pbzero.h"
+#include "protos/ftrace/print.pbzero.h"
 
 namespace perfetto {
 
@@ -129,19 +130,18 @@ bool CpuReader::ParsePage(size_t cpu,
                           size_t size,
                           const EventFilter* filter,
                           pbzero::FtraceEventBundle* bundle) {
-  const uint8_t* const start = ptr;
-  const uint8_t* const end = ptr + size;
+  const uint8_t* const start_of_page = ptr;
+  const uint8_t* const end_of_page = ptr + size;
   bundle->set_cpu(cpu);
 
   // TODO(hjd): Read this format dynamically?
   PageHeader page_header;
-  if (!ReadAndAdvance(&ptr, end, &page_header))
-    return false;
-  if (ptr + page_header.size > end)
+  if (!ReadAndAdvance(&ptr, end_of_page, &page_header))
     return false;
 
-  // TODO(hjd): Remove.
-  (void)start;
+  const uint8_t* const end = ptr + page_header.size;
+  if (end > end_of_page)
+    return false;
 
   while (ptr < end) {
     EventHeader event_header;
@@ -186,9 +186,13 @@ bool CpuReader::ParsePage(size_t cpu,
         }
         const uint8_t* next = ptr + 4 * event_header.type_or_length;
 
-        uint16_t event_type;
-        if (!ReadAndAdvance<uint16_t>(&ptr, end, &event_type))
+        uint16_t ftrace_event_id;
+        if (!ReadAndAdvance<uint16_t>(&ptr, end, &ftrace_event_id))
           return false;
+        if (!filter->IsEventEnabled(ftrace_event_id)) {
+          ptr = next;
+          break;
+        }
 
         // Common headers:
         // TODO(hjd): Read this format dynamically?
@@ -202,26 +206,27 @@ bool CpuReader::ParsePage(size_t cpu,
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &pid))
           return false;
 
-        PERFETTO_DLOG("Event type=%d pid=%d", event_type, pid);
+        PERFETTO_DLOG("Event type=%d pid=%d", ftrace_event_id, pid);
 
         pbzero::FtraceEvent* event = bundle->add_event();
         event->set_pid(pid);
 
-        if (event_type == 5) {
+        // TODO(hjd): Replace this handrolled code with generic parsing code.
+        if (ftrace_event_id == 5) {
+          pbzero::PrintFtraceEvent* print_event = event->set_print();
           // Trace Marker Parser
           uint64_t ip;
           if (!ReadAndAdvance<uint64_t>(&ptr, end, &ip))
             return false;
-
-          const uint8_t* word_start = ptr;
-          PERFETTO_DLOG("  marker=%s", word_start);
-          while (*ptr != '\0')
-            ptr++;
+          print_event->set_ip(ip);
+          print_event->Finalize();
         }
+
+        event->Finalize();
 
         // Jump to next event.
         ptr = next;
-        PERFETTO_DLOG("%zu", ptr - start);
+        PERFETTO_DLOG("%zu", ptr - start_of_page);
       }
     }
   }
