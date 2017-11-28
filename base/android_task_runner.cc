@@ -28,8 +28,8 @@ AndroidTaskRunner::AndroidTaskRunner()
       delayed_timer_(
           timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)) {
   ALooper_acquire(looper_);
-  PERFETTO_CHECK(immediate_event_.get() != -1);
-  PERFETTO_CHECK(delayed_timer_.get() != -1);
+  PERFETTO_CHECK(immediate_event_);
+  PERFETTO_CHECK(delayed_timer_);
   AddFileDescriptorWatch(immediate_event_.get(),
                          std::bind(&AndroidTaskRunner::RunImmediateTask, this));
   AddFileDescriptorWatch(delayed_timer_.get(),
@@ -37,13 +37,21 @@ AndroidTaskRunner::AndroidTaskRunner()
 }
 
 AndroidTaskRunner::~AndroidTaskRunner() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   std::lock_guard<std::mutex> lock(lock_);
-  for (const auto& watch : watch_tasks_)
+  for (const auto& watch : watch_tasks_) {
+    // ALooper doesn't guarantee that each watch doesn't run one last time if
+    // the file descriptor was already signalled. To guard against this point
+    // the watch to a no-op callback.
+    ALooper_addFd(
+        looper_, watch.first, ALOOPER_POLL_CALLBACK,
+        ALOOPER_EVENT_INPUT | ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP,
+        [](int, int, void*) -> int { return 0; }, nullptr);
     ALooper_removeFd(looper_, watch.first);
+  }
   ALooper_release(looper_);
 
   struct itimerspec time = {};
-  timerfd_settime(immediate_event_.get(), TFD_TIMER_ABSTIME, &time, nullptr);
   timerfd_settime(delayed_timer_.get(), TFD_TIMER_ABSTIME, &time, nullptr);
 }
 
@@ -66,6 +74,7 @@ void AndroidTaskRunner::Quit() {
 }
 
 bool AndroidTaskRunner::IsIdleForTesting() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   std::lock_guard<std::mutex> lock(lock_);
   return immediate_tasks_.empty();
 }
@@ -80,8 +89,8 @@ AndroidTaskRunner::TimePoint AndroidTaskRunner::GetTime() const {
 }
 
 void AndroidTaskRunner::RunImmediateTask() {
-  uint64_t count;
-  if (read(immediate_event_.get(), &count, sizeof(count)) != sizeof(count) &&
+  uint64_t unused = 0;
+  if (read(immediate_event_.get(), &unused, sizeof(unused)) != sizeof(unused) &&
       errno != EAGAIN) {
     PERFETTO_DPLOG("read");
   }
@@ -106,20 +115,20 @@ void AndroidTaskRunner::RunImmediateTask() {
 }
 
 void AndroidTaskRunner::RunDelayedTask() {
-  uint64_t count;
-  if (read(delayed_timer_.get(), &count, sizeof(count)) != sizeof(count) &&
+  uint64_t unused = 0;
+  if (read(delayed_timer_.get(), &unused, sizeof(unused)) != sizeof(unused) &&
       errno != EAGAIN) {
     PERFETTO_DPLOG("read");
   }
 
   std::function<void()> delayed_task;
   TimePoint next_wake_up;
-  auto now = GetTime();
   {
+    std::lock_guard<std::mutex> lock(lock_);
     if (delayed_tasks_.empty())
       return;
     auto it = delayed_tasks_.begin();
-    PERFETTO_DCHECK(!(now < it->first));
+    PERFETTO_DCHECK(!(GetTime() < it->first));
     delayed_task = std::move(it->second);
     delayed_tasks_.erase(it);
     if (!delayed_tasks_.empty())
@@ -182,23 +191,24 @@ void AndroidTaskRunner::AddFileDescriptorWatch(int fd,
     PERFETTO_DCHECK(!watch_tasks_.count(fd));
     watch_tasks_[fd] = std::move(task);
   }
+  // It's safe for the callback to hang on to |this| as everything is
+  // unregistered in the destructor.
   auto callback = [](int signalled_fd, int events, void* data) -> int {
     AndroidTaskRunner* task_runner = reinterpret_cast<AndroidTaskRunner*>(data);
     return task_runner->OnFileDescriptorEvent(signalled_fd, events) ? 1 : 0;
   };
-  if (ALooper_addFd(
-          looper_, fd, ALOOPER_POLL_CALLBACK,
-          ALOOPER_EVENT_INPUT | ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP,
-          std::move(callback), this) == -1) {
-    PERFETTO_DPLOG("Alooper_addFd");
-  }
+  PERFETTO_CHECK(ALooper_addFd(looper_, fd, ALOOPER_POLL_CALLBACK,
+                               ALOOPER_EVENT_INPUT | ALOOPER_EVENT_ERROR |
+                                   ALOOPER_EVENT_HANGUP,
+                               std::move(callback), this) != -1);
 }
 
 bool AndroidTaskRunner::OnFileDescriptorEvent(int signalled_fd, int events) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!(events & (ALOOPER_EVENT_INPUT | ALOOPER_EVENT_ERROR |
-                  ALOOPER_EVENT_HANGUP | ALOOPER_EVENT_INVALID)))
+                  ALOOPER_EVENT_HANGUP | ALOOPER_EVENT_INVALID))) {
     return true;
+  }
   std::function<void()> task;
   {
     std::lock_guard<std::mutex> lock(lock_);

@@ -35,17 +35,20 @@ namespace base {
 // Runs a task runner on a thread owned by an Android Looper (ALooper).
 class AndroidTaskRunner : public TaskRunner {
  public:
-  explicit AndroidTaskRunner();
+  AndroidTaskRunner();
   ~AndroidTaskRunner() override;
 
   // The following methods are only used in cases where the caller wants to take
   // ownership of the current thread (e.g., tests and standalone tools).
-  // Normally the Android Framework runs the event loop on the thread.
+  // Normally the Android Framework runs the event loop on the thread. Run() can
+  // only be called from the main thread but Quit() can be called from any
+  // thread.
   void Run();
   void Quit();
 
   // Checks whether there are any pending immediate tasks to run. Note that
-  // delayed tasks don't count even if they are due to run.
+  // delayed tasks don't count even if they are due to run. Can only be called
+  // from the main thread.
   bool IsIdleForTesting();
 
   // TaskRunner implementation:
@@ -65,18 +68,19 @@ class AndroidTaskRunner : public TaskRunner {
       return tv_sec < other.tv_sec;
     }
 
-    operator bool() const { return tv_sec || tv_nsec; }
+    explicit operator bool() const { return tv_sec || tv_nsec; }
 
-    TimePoint AdvanceByMs(int ms) {
+    TimePoint AdvanceByMs(time_t ms) {
+      const time_t kSecondsPerNs = 1000000000;
+      PERFETTO_DCHECK(tv_nsec < kSecondsPerNs);
       TimePoint result(*this);
-      int seconds = ms / 1000;
+      time_t seconds = ms / 1000;
       result.tv_sec += seconds;
       ms -= seconds * 1000;
       result.tv_nsec += ms * 1000 * 1000;
-      if (result.tv_nsec >= 1000000000) {
+      if (result.tv_nsec >= kSecondsPerNs) {
         result.tv_sec++;
-        result.tv_nsec -= 1000000000;
-        PERFETTO_DCHECK(result.tv_nsec >= 0);
+        result.tv_nsec -= kSecondsPerNs;
       }
       return result;
     }
@@ -92,7 +96,7 @@ class AndroidTaskRunner : public TaskRunner {
   void ScheduleImmediateWakeUp();
   void ScheduleDelayedWakeUp(const TimePoint& time);
 
-  ALooper* looper_;
+  ALooper* const looper_;
   ScopedFile immediate_event_;
   ScopedFile delayed_timer_;
 
@@ -100,6 +104,8 @@ class AndroidTaskRunner : public TaskRunner {
 
   // --- Begin lock-protected members.
   std::mutex lock_;
+  // Note: std::deque allocates blocks of 4k in some implementations. Consider
+  // another data structure if we end up having many task runner instances.
   std::deque<std::function<void()>> immediate_tasks_;
   std::multimap<TimePoint, std::function<void()>> delayed_tasks_;
   std::map<int, std::function<void()>> watch_tasks_;
