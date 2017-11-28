@@ -348,5 +348,23 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   ASSERT_EQ(0x83u, size_msg_2.begin[0]);
 }
 
+TEST_F(ProtoZeroMessageTest, MoveMessageHandle) {
+  FakeRootMessage* msg = NewMessage();
+  uint8_t msg_size[proto_utils::kMessageLengthFieldSize] = {};
+  msg->set_size_field(
+      {&msg_size[0], &msg_size[proto_utils::kMessageLengthFieldSize]});
+
+  // Test that the handle going out of scope causes the finalization of the
+  // target message.
+  {
+    ProtoZeroMessageHandle<FakeRootMessage> handle1(msg);
+    ProtoZeroMessageHandle<FakeRootMessage> handle2{};
+    handle1->AppendBytes(1 /* field_id */, kTestBytes, 1 /* size */);
+    handle2 = std::move(handle1);
+    ASSERT_EQ(0u, msg_size[0]);
+  }
+  ASSERT_EQ(0x83u, msg_size[0]);
+}
+
 }  // namespace
 }  // namespace protozero

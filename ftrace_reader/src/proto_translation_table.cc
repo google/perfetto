@@ -16,13 +16,11 @@
 
 #include "proto_translation_table.h"
 
-#include <fstream>
-#include <sstream>
-#include <string>
-
 #include "ftrace_procfs.h"
 #include "ftrace_reader/format_parser.h"
 #include "ftrace_reader/ftrace_to_proto.h"
+
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 
@@ -31,20 +29,6 @@ namespace {
 #define MAX_FIELD_LENGTH 127
 #define STRINGIFY(x) STRINGIFY2(x)
 #define STRINGIFY2(x) #x
-
-std::string ReadFileIntoString(std::string path) {
-  std::ifstream fin(path, std::ios::in);
-  if (!fin) {
-    return "";
-  }
-  std::string str;
-  fin.seekg(0, std::ios::end);
-  str.reserve(fin.tellg());
-  fin.seekg(0, std::ios::beg);
-  str.assign(std::istreambuf_iterator<char>(fin),
-             std::istreambuf_iterator<char>());
-  return str;
-}
 
 using Event = ProtoTranslationTable::Event;
 const std::vector<Event> BuildEventsVector(const std::vector<Event>& events) {
@@ -66,24 +50,17 @@ const std::vector<Event> BuildEventsVector(const std::vector<Event>& events) {
 
 // static
 std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
-    std::string path_to_root,
     const FtraceProcfs* ftrace_procfs) {
-  if (path_to_root.length() == 0 || path_to_root.back() != '/') {
-    PERFETTO_DLOG("Path '%s' must end with /.", path_to_root.c_str());
-    return nullptr;
-  }
   std::vector<Event> events;
   std::vector<Field> common_fields;
 
-  std::string available_path = path_to_root + "/available_events";
-  std::string available_contents = ReadFileIntoString(available_path);
-  if (available_contents == "") {
-    PERFETTO_DLOG("Could not read '%s'", available_path.c_str());
+  std::string available = ftrace_procfs->ReadAvailableEvents();
+  if (available == "") {
+    PERFETTO_DLOG("Could not read available_events");
     return nullptr;
   }
   {
-    std::unique_ptr<char[], base::FreeDeleter> copy(
-        strdup(available_contents.c_str()));
+    std::unique_ptr<char[], base::FreeDeleter> copy(strdup(available.c_str()));
     char group_buffer[MAX_FIELD_LENGTH + 1];
     char name_buffer[MAX_FIELD_LENGTH + 1];
     char* s = copy.get();
@@ -99,13 +76,15 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     }
   }
 
+  // TODO(b/69662589): Hack to get around events missing from available_events.
+  events.emplace_back(Event{"print", "ftrace"});
+
   for (Event& event : events) {
-    std::string path =
-        path_to_root + "/events/" + event.group + "/" + event.name + "/format";
-    std::string contents = ReadFileIntoString(path);
+    std::string contents =
+        ftrace_procfs->ReadEventFormat(event.group, event.name);
     FtraceEvent ftrace_event;
     if (contents == "" || !ParseFtraceEvent(contents, &ftrace_event)) {
-      PERFETTO_DLOG("Could not read '%s'", path.c_str());
+      PERFETTO_DLOG("Could not read '%s'", event.name.c_str());
       continue;
     }
     event.ftrace_event_id = ftrace_event.id;
@@ -113,10 +92,13 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     for (FtraceEvent::Field ftrace_field : ftrace_event.fields) {
       event.fields.push_back(Field{ftrace_field.offset, ftrace_field.size});
     }
-  }
 
-  if (events.size() == 0) {
-    return nullptr;
+    if (common_fields.empty()) {
+      for (const FtraceEvent::Field& ftrace_field :
+           ftrace_event.common_fields) {
+        common_fields.push_back(Field{ftrace_field.offset, ftrace_field.size});
+      }
+    }
   }
 
   auto table = std::unique_ptr<ProtoTranslationTable>(

@@ -52,7 +52,7 @@ class ProtoZeroMessageHandleBase {
   void set_on_finalize(std::function<void(size_t)> f) { on_finalize_ = f; }
 
  protected:
-  explicit ProtoZeroMessageHandleBase(ProtoZeroMessage*);
+  explicit ProtoZeroMessageHandleBase(ProtoZeroMessage* = nullptr);
   ProtoZeroMessage& operator*() const { return *message_; }
   ProtoZeroMessage* operator->() const { return message_; }
 

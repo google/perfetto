@@ -18,7 +18,7 @@ import("all_protos.gni")
 # Create a copy of all the protos listed in all_protos.gni with the
 # "option optimize_for = LITE_RUNTIME" bit removed so we can generate
 # full proto .h/.cc files.
-full_protos_base_dir = "${root_gen_dir}/full_protos"
+full_protos_base_dir = "${root_gen_dir}/protos_full"
 full_protos_target_dir =
     "$full_protos_base_dir/" + rebase_path(target_gen_dir, root_gen_dir)
 
@@ -40,19 +40,27 @@ action_foreach("generate_full_protos") {
   ]
 }
 
-proto_library("ftrace_full_protos") {
+proto_library("full") {
+  testonly = true
   deps = [
     ":generate_full_protos",
   ]
   sources = []
-
-  proto_in_dir = full_protos_base_dir  #rebase_path(full_protos_base_dir, ".")
+  use_protobuf_full = true
+  proto_out_dir = "protos_full"
+  proto_in_dir = full_protos_base_dir
   foreach(proto, ftrace_proto_names) {
     sources += [ "$full_protos_target_dir/$proto" ]
   }
 }
 
-protozero_library("ftrace") {
-  generate_cc = false
+proto_library("lite") {
   sources = ftrace_proto_names
+  proto_out_dir = "protos_lite"
+}
+
+protozero_library("zero") {
+  sources = ftrace_proto_names
+  proto_out_dir = "protos_zero"
+  generator_plugin_options = "wrapper_namespace=pbzero"
 }

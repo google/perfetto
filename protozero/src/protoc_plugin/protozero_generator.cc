@@ -222,7 +222,7 @@ class GeneratorJob {
     package_ = source_->package();
     namespaces_ = Split(package_, ".");
     if (!wrapper_namespace_.empty())
-      namespaces_.insert(namespaces_.begin(), wrapper_namespace_);
+      namespaces_.push_back(wrapper_namespace_);
 
     full_namespace_prefix_ = "::";
     for (const std::string& ns : namespaces_)
@@ -431,6 +431,16 @@ class GeneratorJob {
                    "void $action$_$name$($cpp_type$ value) {\n"
                    "  $appender$($id$, value);\n"
                    "}\n");
+
+    // For strings also generate a variant for non-null terminated strings.
+    if (field->type() == FieldDescriptor::TYPE_STRING) {
+      stub_h_->Print(setter,
+                     "// Doesn't check for null terminator.\n"
+                     "// Expects |value| to be at least |size| long.\n"
+                     "void $action$_$name$($cpp_type$ value, size_t size) {\n"
+                     "  AppendBytes($id$, value, size);\n"
+                     "}\n");
+    }
   }
 
   void GenerateNestedMessageFieldDescriptor(const FieldDescriptor* field) {

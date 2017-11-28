@@ -35,6 +35,10 @@ namespace {
 
 const char* kCommonFieldPrefix = "common_";
 
+bool IsCommonFieldName(std::string name) {
+  return name.compare(0, strlen(kCommonFieldPrefix), kCommonFieldPrefix) == 0;
+}
+
 }  // namespace
 
 bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
@@ -48,6 +52,7 @@ bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
 
   int id = 0;
   std::string name;
+  std::vector<FtraceEvent::Field> common_fields;
   std::vector<FtraceEvent::Field> fields;
 
   for (char* line = strtok(s, "\n"); line; line = strtok(nullptr, "\n")) {
@@ -77,13 +82,14 @@ bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
                buffer, &offset, &size, &is_signed) == 4) {
       std::string type_and_name(buffer);
 
-      // Don't add common fields.
-      if (GetNameFromTypeAndName(type_and_name)
-              .compare(0, strlen(kCommonFieldPrefix), kCommonFieldPrefix) == 0)
-        continue;
-
       FtraceEvent::Field field{type_and_name, offset, size, is_signed == 1};
-      fields.push_back(field);
+
+      if (IsCommonFieldName(GetNameFromTypeAndName(type_and_name))) {
+        common_fields.push_back(field);
+      } else {
+        fields.push_back(field);
+      }
+
       continue;
     }
 
@@ -110,6 +116,7 @@ bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
   output->id = id;
   output->name = name;
   output->fields = std::move(fields);
+  output->common_fields = std::move(common_fields);
 
   return true;
 }

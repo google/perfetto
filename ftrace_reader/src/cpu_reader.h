@@ -26,11 +26,16 @@
 #include "ftrace_reader/ftrace_controller.h"
 #include "gtest/gtest_prod.h"
 #include "proto_translation_table.h"
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 
 class ProtoTranslationTable;
+
+namespace protos {
+namespace pbzero {
+class FtraceEventBundle;
+}  // namespace pbzero
+}  // namespace protos
 
 // Class for efficient 'is event with id x enabled?' tests.
 // Mirrors the data in a FtraceConfig but in a format better suited
@@ -42,7 +47,6 @@ class EventFilter {
 
   bool IsEventEnabled(size_t ftrace_event_id) const {
     if (ftrace_event_id == 0 || ftrace_event_id > enabled_ids_.size()) {
-      PERFETTO_DCHECK(false);
       return false;
     }
     return enabled_ids_[ftrace_event_id];
@@ -63,10 +67,11 @@ class CpuReader {
   CpuReader(const ProtoTranslationTable*, size_t cpu, base::ScopedFile fd);
   ~CpuReader();
 
-  bool Drain(const std::array<const EventFilter*, kMaxSinks>&,
-             const std::array<
-                 protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>,
-                 kMaxSinks>&);
+  bool Drain(
+      const std::array<const EventFilter*, kMaxSinks>&,
+      const std::array<
+          protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>,
+          kMaxSinks>&);
   int GetFileDescriptor();
 
  private:
@@ -76,6 +81,7 @@ class CpuReader {
   FRIEND_TEST(CpuReaderTest, ReadAndAdvanceUnderruns);
   FRIEND_TEST(CpuReaderTest, ReadAndAdvanceAtEnd);
   FRIEND_TEST(CpuReaderTest, ReadAndAdvanceOverruns);
+  FRIEND_TEST(CpuReaderTest, ParseSimpleEvent);
 
   template <typename T>
   static bool ReadAndAdvance(const uint8_t** ptr, const uint8_t* end, T* out) {
@@ -90,7 +96,8 @@ class CpuReader {
                         const uint8_t* ptr,
                         size_t ptr_size,
                         const EventFilter*,
-                        pbzero::FtraceEventBundle*);
+                        protos::pbzero::FtraceEventBundle*,
+                        const ProtoTranslationTable* table);
   uint8_t* GetBuffer();
   CpuReader(const CpuReader&) = delete;
   CpuReader& operator=(const CpuReader&) = delete;

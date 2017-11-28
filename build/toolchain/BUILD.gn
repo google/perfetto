@@ -32,7 +32,7 @@ declare_args() {
 
 declare_args() {
   host_ar = ar
-  if (is_android && is_clang) {
+  if (is_linux_host && is_clang) {
     host_cc = linux_clang_bin
     host_cxx = linux_clangxx_bin
   } else {

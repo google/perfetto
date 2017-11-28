@@ -31,7 +31,7 @@ class AllTranslationTableTest : public TestWithParam<const char*> {
     std::string path =
         "ftrace_reader/test/data/" + std::string(GetParam()) + "/";
     FtraceProcfs ftrace_procfs(path);
-    table_ = ProtoTranslationTable::Create(path, &ftrace_procfs);
+    table_ = ProtoTranslationTable::Create(&ftrace_procfs);
   }
 
   std::unique_ptr<ProtoTranslationTable> table_;
@@ -49,8 +49,11 @@ INSTANTIATE_TEST_CASE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
 TEST(TranslationTable, Seed) {
   std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
   FtraceProcfs ftrace_procfs(path);
-  auto table = ProtoTranslationTable::Create(path, &ftrace_procfs);
+  auto table = ProtoTranslationTable::Create(&ftrace_procfs);
   EXPECT_EQ(table->largest_id(), 744);
+  EXPECT_EQ(table->common_fields().at(0).ftrace_offset, 0u);
+  EXPECT_EQ(table->common_fields().at(0).ftrace_size, 2u);
+
   auto sched_switch_event = table->GetEventByName("sched_switch");
   EXPECT_EQ(sched_switch_event->name, "sched_switch");
   EXPECT_EQ(sched_switch_event->group, "sched");

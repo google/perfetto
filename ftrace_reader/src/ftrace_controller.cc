@@ -31,6 +31,8 @@
 #include "ftrace_procfs.h"
 #include "proto_translation_table.h"
 
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
+
 namespace perfetto {
 namespace {
 
@@ -44,7 +46,7 @@ std::unique_ptr<FtraceController> FtraceController::Create(
     base::TaskRunner* runner) {
   auto ftrace_procfs =
       std::unique_ptr<FtraceProcfs>(new FtraceProcfs(kTracingPath));
-  auto table = ProtoTranslationTable::Create(kTracingPath, ftrace_procfs.get());
+  auto table = ProtoTranslationTable::Create(ftrace_procfs.get());
   return std::unique_ptr<FtraceController>(
       new FtraceController(std::move(ftrace_procfs), runner, std::move(table)));
 }
@@ -73,6 +75,7 @@ void FtraceController::Start() {
     return;
   }
   listening_for_raw_trace_data_ = true;
+  ftrace_procfs_->EnableTracing();
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
     CpuReader* reader = GetCpuReader(cpu);
     int fd = reader->GetFileDescriptor();
@@ -103,7 +106,7 @@ void FtraceController::Stop() {
 void FtraceController::OnRawFtraceDataAvailable(size_t cpu) {
   CpuReader* reader = GetCpuReader(cpu);
   using BundleHandle =
-      protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>;
+      protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>;
   std::array<const EventFilter*, kMaxSinks> filters{};
   std::array<BundleHandle, kMaxSinks> bundles{};
   size_t sink_count = sinks_.size();

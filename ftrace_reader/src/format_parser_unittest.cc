@@ -50,6 +50,14 @@ print fmt: "client_name=%s heap_name=%s len=%zu mask=0x%x flags=0x%x", REC->clie
       ElementsAre(
           Eq(FtraceEvent::Field{"char client_name[64]", 8, 64, false}),
           Eq(FtraceEvent::Field{"const char * heap_name", 72, 4, true})));
+  EXPECT_THAT(
+      output.common_fields,
+      ElementsAre(
+          Eq(FtraceEvent::Field{"unsigned short common_type", 0, 2, false}),
+          Eq(FtraceEvent::Field{"unsigned char common_flags", 2, 1, false}),
+          Eq(FtraceEvent::Field{"unsigned char common_preempt_count", 3, 1,
+                                false}),
+          Eq(FtraceEvent::Field{"int common_pid", 4, 4, true})));
 }
 
 TEST(FtraceEventParser, MissingName) {
@@ -80,7 +88,7 @@ print fmt: "client_name=%s heap_name=%s len=%zu mask=0x%x flags=0x%x", REC->clie
   EXPECT_FALSE(ParseFtraceEvent(input));
 }
 
-TEST(FtraceEventParser, NoFeilds) {
+TEST(FtraceEventParser, NoFields) {
   const std::string input = R"(name: the_name
 ID: 10
 print fmt: "client_name=%s heap_name=%s len=%zu mask=0x%x flags=0x%x", REC->client_name, REC->heap_name, REC->len, REC->mask, REC->flags

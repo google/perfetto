@@ -22,13 +22,17 @@
 #include "proto_translation_table.h"
 
 #include "protos/ftrace/ftrace_event.pbzero.h"
+#include "protos/ftrace/print.pbzero.h"
+#include "protos/ftrace/sched_switch.pbzero.h"
+
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 
 namespace {
 
 using BundleHandle =
-    protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>;
+    protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>;
 
 const std::vector<bool> BuildEnabledVector(const ProtoTranslationTable& table,
                                            const std::set<std::string>& names) {
@@ -102,7 +106,9 @@ bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
   for (size_t i = 0; i < kMaxSinks; i++) {
     if (!filters[i])
       break;
-    ParsePage(cpu_, buffer, bytes, filters[i], &*bundles[i]);
+    bool result =
+        ParsePage(cpu_, buffer, bytes, filters[i], &*bundles[i], table_);
+    PERFETTO_DCHECK(result);
   }
   return true;
 }
@@ -128,20 +134,28 @@ bool CpuReader::ParsePage(size_t cpu,
                           const uint8_t* ptr,
                           size_t size,
                           const EventFilter* filter,
-                          pbzero::FtraceEventBundle* bundle) {
-  const uint8_t* const start = ptr;
-  const uint8_t* const end = ptr + size;
+                          protos::pbzero::FtraceEventBundle* bundle,
+                          const ProtoTranslationTable* table) {
+  // TODO(hjd): Remove when the generic parser comes in.
+  const size_t print_id = table->GetEventByName("print")->ftrace_event_id;
+  const size_t sched_switch_id =
+      table->GetEventByName("sched_switch")->ftrace_event_id;
+
+  const uint8_t* const start_of_page = ptr;
+  const uint8_t* const end_of_page = ptr + size;
+
   bundle->set_cpu(cpu);
+
+  (void)start_of_page;
 
   // TODO(hjd): Read this format dynamically?
   PageHeader page_header;
-  if (!ReadAndAdvance(&ptr, end, &page_header))
-    return false;
-  if (ptr + page_header.size > end)
+  if (!ReadAndAdvance(&ptr, end_of_page, &page_header))
     return false;
 
-  // TODO(hjd): Remove.
-  (void)start;
+  const uint8_t* const end = ptr + page_header.size;
+  if (end > end_of_page)
+    return false;
 
   while (ptr < end) {
     EventHeader event_header;
@@ -150,16 +164,18 @@ bool CpuReader::ParsePage(size_t cpu,
     switch (event_header.type_or_length) {
       case kTypePadding: {
         // Left over page padding or discarded event.
-        PERFETTO_DLOG("Padding");
         if (event_header.time_delta == 0) {
           // TODO(hjd): Look at the next few bytes for read size;
+          PERFETTO_CHECK(false);  // TODO(hjd): Handle
         }
-        PERFETTO_CHECK(false);  // TODO(hjd): Handle
+        uint32_t length;
+        if (!ReadAndAdvance<uint32_t>(&ptr, end, &length))
+          return false;
+        ptr += length;
         break;
       }
       case kTypeTimeExtend: {
         // Extend the time delta.
-        PERFETTO_DLOG("Extended Time Delta");
         uint32_t time_delta_ext;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
           return false;
@@ -169,7 +185,6 @@ bool CpuReader::ParsePage(size_t cpu,
       }
       case kTypeTimeStamp: {
         // Sync time stamp with external clock.
-        PERFETTO_DLOG("Time Stamp");
         TimeStamp time_stamp;
         if (!ReadAndAdvance<TimeStamp>(&ptr, end, &time_stamp))
           return false;
@@ -186,9 +201,13 @@ bool CpuReader::ParsePage(size_t cpu,
         }
         const uint8_t* next = ptr + 4 * event_header.type_or_length;
 
-        uint16_t event_type;
-        if (!ReadAndAdvance<uint16_t>(&ptr, end, &event_type))
+        uint16_t ftrace_event_id;
+        if (!ReadAndAdvance<uint16_t>(&ptr, end, &ftrace_event_id))
           return false;
+        if (!filter->IsEventEnabled(ftrace_event_id)) {
+          ptr = next;
+          break;
+        }
 
         // Common headers:
         // TODO(hjd): Read this format dynamically?
@@ -202,26 +221,74 @@ bool CpuReader::ParsePage(size_t cpu,
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &pid))
           return false;
 
-        PERFETTO_DLOG("Event type=%d pid=%d", event_type, pid);
+        // PERFETTO_DLOG("Event type=%d pid=%d", ftrace_event_id, pid);
 
-        pbzero::FtraceEvent* event = bundle->add_event();
+        protos::pbzero::FtraceEvent* event = bundle->add_event();
         event->set_pid(pid);
 
-        if (event_type == 5) {
+        // TODO(hjd): Replace this handrolled code with generic parsing code.
+        if (ftrace_event_id == print_id) {
+          protos::pbzero::PrintFtraceEvent* print_event = event->set_print();
           // Trace Marker Parser
           uint64_t ip;
           if (!ReadAndAdvance<uint64_t>(&ptr, end, &ip))
             return false;
+          print_event->set_ip(ip);
 
-          const uint8_t* word_start = ptr;
-          PERFETTO_DLOG("  marker=%s", word_start);
-          while (*ptr != '\0')
-            ptr++;
+          // TODO(hjd): Not sure if this is null-terminated.
+          const uint8_t* buf_start = ptr;
+          const uint8_t* buf_end = next - 2;
+          print_event->set_buf(reinterpret_cast<const char*>(buf_start),
+                               buf_end - buf_start);
+          print_event->Finalize();
         }
+
+        // TODO(hjd): Replace this handrolled code with generic parsing code.
+        if (ftrace_event_id == sched_switch_id) {
+          protos::pbzero::SchedSwitchFtraceEvent* switch_event =
+              event->set_sched_switch();
+
+          char prev_comm[16];
+          uint32_t prev_pid;
+          uint32_t prev_prio;
+          uint64_t prev_state;
+          char next_comm[16];
+          uint32_t next_pid;
+          uint32_t next_prio;
+
+          // TODO(hjd): Avoid this copy.
+          if (!ReadAndAdvance<char[16]>(&ptr, end, &prev_comm))
+            return false;
+          if (!ReadAndAdvance<uint32_t>(&ptr, end, &prev_pid))
+            return false;
+          if (!ReadAndAdvance<uint32_t>(&ptr, end, &prev_prio))
+            return false;
+          if (!ReadAndAdvance<uint64_t>(&ptr, end, &prev_state))
+            return false;
+          if (!ReadAndAdvance<char[16]>(&ptr, end, &next_comm))
+            return false;
+          if (!ReadAndAdvance<uint32_t>(&ptr, end, &next_pid))
+            return false;
+          if (!ReadAndAdvance<uint32_t>(&ptr, end, &next_prio))
+            return false;
+          // TODO(hjd): Not sure if this is null-terminated.
+          prev_comm[15] = '\0';
+          switch_event->set_prev_comm(prev_comm);
+          switch_event->set_prev_pid(prev_pid);
+          switch_event->set_prev_prio(prev_prio);
+          switch_event->set_prev_state(prev_state);
+          // TODO(hjd): Not sure if this is null-terminated.
+          next_comm[15] = '\0';
+          switch_event->set_next_comm(next_comm);
+          switch_event->set_next_pid(next_pid);
+          switch_event->set_next_prio(next_prio);
+          switch_event->Finalize();
+        }
+
+        event->Finalize();
 
         // Jump to next event.
         ptr = next;
-        PERFETTO_DLOG("%zu", ptr - start);
       }
     }
   }

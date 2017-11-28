@@ -26,16 +26,19 @@
 #include "gtest/gtest.h"
 #include "proto_translation_table.h"
 
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
+
 using testing::_;
 using testing::Return;
 using testing::ByMove;
 using testing::AnyNumber;
 
+using Table = perfetto::ProtoTranslationTable;
+using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
+
 namespace perfetto {
 
 namespace {
-
-using Table = ProtoTranslationTable;
 
 class MockTaskRunner : public base::TaskRunner {
  public:
@@ -47,17 +50,15 @@ class MockTaskRunner : public base::TaskRunner {
 
 class MockDelegate : public perfetto::FtraceSink::Delegate {
  public:
-  MOCK_METHOD1(
-      GetBundleForCpu,
-      protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>(size_t));
-  MOCK_METHOD2(
-      OnBundleComplete_,
-      void(size_t,
-           protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle>&));
+  MOCK_METHOD1(GetBundleForCpu,
+               protozero::ProtoZeroMessageHandle<FtraceEventBundle>(size_t));
+  MOCK_METHOD2(OnBundleComplete_,
+               void(size_t,
+                    protozero::ProtoZeroMessageHandle<FtraceEventBundle>&));
 
   void OnBundleComplete(
       size_t cpu,
-      protozero::ProtoZeroMessageHandle<pbzero::FtraceEventBundle> bundle) {
+      protozero::ProtoZeroMessageHandle<FtraceEventBundle> bundle) {
     OnBundleComplete_(cpu, bundle);
   }
 };
@@ -117,9 +118,6 @@ class TestFtraceController : public FtraceController {
                        base::TaskRunner* runner,
                        std::unique_ptr<Table> table)
       : FtraceController(std::move(ftrace_procfs), runner, std::move(table)) {}
-
-  //  MOCK_METHOD3(CreateCpuReader, CpuReader(const ProtoTranslationTable*,
-  //  size_t cpu, const std::string& path));
 
  private:
   TestFtraceController(const TestFtraceController&) = delete;
@@ -225,6 +223,7 @@ TEST(FtraceControllerTest, StartStop) {
   // Stopping before we start does nothing.
   controller.Stop();
 
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(task_runner, AddFileDescriptorWatch(_, _));
   controller.Start();
   // Double start does nothing.

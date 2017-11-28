@@ -27,11 +27,15 @@
 
 #include "base/scoped_file.h"
 
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
-
 namespace perfetto {
 
 class FtraceProcfs;
+
+namespace protos {
+namespace pbzero {
+class FtraceEventBundle;
+}  // namespace pbzero
+}  // namespace protos
 
 class ProtoTranslationTable {
  public:
@@ -60,7 +64,6 @@ class ProtoTranslationTable {
   };
 
   static std::unique_ptr<ProtoTranslationTable> Create(
-      std::string path_to_event_dir,
       const FtraceProcfs* ftrace_procfs);
   ~ProtoTranslationTable();
 
