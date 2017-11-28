@@ -37,22 +37,25 @@ class TaskRunner {
   virtual ~TaskRunner() = default;
 
   // Schedule a task for immediate execution. Immediate tasks are always
-  // executed in the order they are posted.
+  // executed in the order they are posted. Can be called from any thread.
   virtual void PostTask(std::function<void()>) = 0;
 
   // Schedule a task for execution after |delay_ms|. Note that there is no
-  // strict ordering guarantee between immediate and delayed tasks.
+  // strict ordering guarantee between immediate and delayed tasks. Can be
+  // called from any thread.
   virtual void PostDelayedTask(std::function<void()>, int delay_ms) = 0;
 
   // Schedule a task to run when |fd| becomes readable. The same |fd| can only
   // be monitored by one function. Note that this function only needs to be
-  // implemented on platforms where the built-in ipc framework is used.
+  // implemented on platforms where the built-in ipc framework is used. Can be
+  // called from any thread.
   // TODO(skyostil): Refactor this out of the shared interface.
   virtual void AddFileDescriptorWatch(int fd, std::function<void()>) = 0;
 
   // Remove a previously scheduled watch for |fd|. If this is run on the target
   // thread of this TaskRunner, guarantees that the task registered to this fd
-  // will not be executed after this function call.
+  // will not be executed after this function call. Can be called from any
+  // thread.
   virtual void RemoveFileDescriptorWatch(int fd) = 0;
 };
 
