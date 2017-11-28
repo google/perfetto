@@ -40,7 +40,7 @@
   do {                                                \
     if (!__builtin_expect(!!(x), true)) {             \
       PERFETTO_DPLOG("%s", "PERFETTO_CHECK(" #x ")"); \
-      abort();                                        \
+      __builtin_trap();                               \
     }                                                 \
   } while (0)
 #else
