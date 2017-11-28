@@ -126,8 +126,9 @@ void SignalHandler(int sig_num, siginfo_t* info, void* ucontext) {
     Print("\n#");
     PrintHex(i);
     Print("  ");
-    if (res) {
-      const char* sym_name = sym_info.dli_sname;
+    const char* sym_name = res ? sym_info.dli_sname : nullptr;
+
+    if (sym_name) {
       int ignored;
       size_t len = kDemangledNameLen;
       char* demangled = abi::__cxa_demangle(sym_info.dli_sname,
