@@ -29,29 +29,37 @@ declare_args() {
 declare_args() {
   android_llvm_dir = "$android_ndk_root/toolchains/llvm/prebuilt/$android_host"
   android_clangrt_dir = "$android_llvm_dir/lib64/clang/5.0/lib/linux"
+  android_compile_sysroot = "$android_ndk_root/sysroot/usr/include"
 
   if (current_cpu == "x86") {
     android_abi_target = "i686-linux-androideabi"
-    android_sysroot_subdir = "platforms/android-${android_api_level}/arch-x86"
+    android_compile_sysroot_subdir = "i686-linux-android"
+    android_link_sysroot_subdir =
+        "platforms/android-${android_api_level}/arch-x86"
     android_prebuilt_arch = "android-x86"
     android_toolchain_root = "$android_ndk_root/toolchains/x86-${_android_toolchain_version}/prebuilt/$android_host"
     android_llvm_arch = "i686"
   } else if (current_cpu == "arm") {
     android_abi_target = "arm-linux-androideabi"
-    android_sysroot_subdir = "platforms/android-${android_api_level}/arch-arm"
+    android_compile_sysroot_subdir = "arm-linux-androideabi"
+    android_link_sysroot_subdir =
+        "platforms/android-${android_api_level}/arch-arm"
     android_prebuilt_arch = "android-arm"
     android_toolchain_root = "$android_ndk_root/toolchains/arm-linux-androideabi-${_android_toolchain_version}/prebuilt/$android_host"
     android_llvm_arch = "arm"
   } else if (current_cpu == "x64") {
     android_abi_target = "x86_64-linux-androideabi"
-    android_sysroot_subdir =
+    android_compile_sysroot_subdir = "x86_64-linux-android"
+    android_link_sysroot_subdir =
         "platforms/android-${android_api_level}/arch-x86_64"
     android_prebuilt_arch = "android-x86_64"
     android_toolchain_root = "$android_ndk_root/toolchains/x86_64-${_android_toolchain_version}/prebuilt/$android_host"
     android_llvm_arch = "x86_64"
   } else if (current_cpu == "arm64") {
     android_abi_target = "aarch64-linux-android"
-    android_sysroot_subdir = "platforms/android-${android_api_level}/arch-arm64"
+    android_compile_sysroot_subdir = "aarch64-linux-android"
+    android_link_sysroot_subdir =
+        "platforms/android-${android_api_level}/arch-arm64"
     android_prebuilt_arch = "android-arm64"
     android_toolchain_root = "$android_ndk_root/toolchains/aarch64-linux-android-${_android_toolchain_version}/prebuilt/$android_host"
     android_llvm_arch = "aarch64"
