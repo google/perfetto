@@ -18,6 +18,7 @@
 #define FTRACE_READER_CPU_READER_H_
 
 #include <stdint.h>
+#include <string.h>
 
 #include <array>
 #include <memory>
@@ -87,7 +88,8 @@ class CpuReader {
   static bool ReadAndAdvance(const uint8_t** ptr, const uint8_t* end, T* out) {
     if (*ptr > end - sizeof(T))
       return false;
-    memcpy(out, *ptr, sizeof(T));
+    memcpy(reinterpret_cast<void*>(out), reinterpret_cast<const void*>(*ptr),
+           sizeof(T));
     *ptr += sizeof(T);
     return true;
   }
