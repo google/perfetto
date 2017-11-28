@@ -26,12 +26,30 @@ source_set("base") {
     "weak_ptr.h",
   ]
 
+  if (is_debug) {
+    deps = [
+      ":debug_crash_stack_trace",
+    ]
+  }
+
   if (target_os == "android") {
     sources += [
       "android_task_runner.cc",
       "android_task_runner.h",
     ]
     libs = [ "android" ]
+  }
+}
+
+if (is_debug) {
+  source_set("debug_crash_stack_trace") {
+    sources = [
+      "debug_crash_stack_trace.cc",
+    ]
+    cflags = [
+      "-Wno-deprecated-dynamic-exception-spec",
+      "-Wno-disabled-macro-expansion",
+    ]
   }
 }
 
