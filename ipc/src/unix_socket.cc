@@ -379,7 +379,7 @@ size_t UnixSocket::Receive(void* msg, size_t len, base::ScopedFile* recv_fd) {
     last_error_ = EAGAIN;
     return 0;
   }
-  if (sz == 0) {
+  if (sz <= 0) {
     last_error_ = errno;
     Shutdown();
     return 0;

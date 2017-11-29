@@ -32,7 +32,7 @@ source_set("base") {
     ]
   }
 
-  if (target_os == "android") {
+  if (is_android) {
     sources += [
       "android_task_runner.cc",
       "android_task_runner.h",

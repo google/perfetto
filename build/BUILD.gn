@@ -107,9 +107,11 @@ config("default") {
   if (is_android) {
     asmflags += [ "--target=$android_abi_target" ]
     cflags += [
-      "-isystem$android_ndk_root/$android_sysroot_subdir/usr/include",
-      "--sysroot=$android_ndk_root/$android_sysroot_subdir",
+      "--sysroot=$android_compile_sysroot",
+      "-isystem$android_compile_sysroot/$android_compile_sysroot_subdir",
+      "-isystem$android_compile_sysroot",
       "-DANDROID",
+      "-D__ANDROID_API__=21",
       "--target=$android_abi_target",
     ]
     cflags_cc += [
@@ -121,7 +123,7 @@ config("default") {
       "-Wl,-z,nocopyreloc",
       "-gcc-toolchain",
       "$android_toolchain_root",
-      "--sysroot=$android_ndk_root/$android_sysroot_subdir",
+      "--sysroot=$android_ndk_root/$android_link_sysroot_subdir",
       "--target=$android_abi_target",
       "-Wl,--exclude-libs,libunwind.a",
       "-Wl,--exclude-libs,libgcc.a",
@@ -134,10 +136,7 @@ config("default") {
       "-Wl,--warn-shared-textrel",
       "-Wl,--fatal-warnings",
     ]
-    lib_dirs = [
-      "$android_ndk_root/sources/cxx-stl/llvm-libc++/libs/$android_app_abi",
-      "$android_ndk_root/$android_sysroot_subdir/usr/lib",
-    ]
+    lib_dirs = [ "$android_ndk_root/sources/cxx-stl/llvm-libc++/libs/$android_app_abi" ]
     libs += [
       "gcc",
       "c++_static",
