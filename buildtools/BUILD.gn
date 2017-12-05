@@ -166,7 +166,9 @@ source_set("protobuf_lite") {
 }
 
 source_set("protobuf_full") {
-  deps += [ ":protobuf_lite" ]
+  deps = [
+    ":protobuf_lite",
+  ]
   sources = [
     "protobuf/src/google/protobuf/any.cc",
     "protobuf/src/google/protobuf/any.pb.cc",
@@ -228,7 +230,9 @@ source_set("protobuf_full") {
 
 if (current_toolchain == host_toolchain) {
   source_set("protoc_lib") {
-    deps += [ ":protobuf_full" ]
+    deps = [
+      ":protobuf_full",
+    ]
     sources = [
       "protobuf/src/google/protobuf/compiler/code_generator.cc",
       "protobuf/src/google/protobuf/compiler/command_line_interface.cc",
@@ -327,7 +331,10 @@ if (current_toolchain == host_toolchain) {
   }
 
   executable("protoc") {
-    deps += [ ":protoc_lib" ]
+    deps = [
+      ":protoc_lib",
+      "../gn:default_deps",
+    ]
     sources = [
       "protobuf/src/google/protobuf/compiler/main.cc",
     ]
@@ -410,7 +417,9 @@ if (use_custom_libcxx) {
       ":libc++config",
       "//build/sanitizers:sanitizer_options_link_helper",
     ]
-    deps += [ ":libunwind" ]
+    deps = [
+      ":libunwind",
+    ]
   }
 
   if (custom_libcxx_is_static) {
@@ -461,7 +470,9 @@ if (use_custom_libcxx) {
       "//build/sanitizers:sanitizer_options_link_helper",
     ]
     defines = [ "_LIBCPP_BUILDING_LIBRARY" ]
-    deps += [ ":libc++abi" ]
+    deps = [
+      ":libc++abi",
+    ]
   }
 }  # if (use_custom_libcxx)
 

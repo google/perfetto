@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef PERFETTO_BASE_LOGGING_H_
-#define PERFETTO_BASE_LOGGING_H_
+#ifndef PERFETTO_PERFETTO_BASE_LOGGING_H_
+#define PERFETTO_PERFETTO_BASE_LOGGING_H_
 
 #include <errno.h>
 #include <stdlib.h>
@@ -29,7 +29,7 @@
 #include <string.h>  // For strerror.
 #endif
 
-#include "base/utils.h"
+#include "perfetto_base/utils.h"
 
 #if PERFETTO_DCHECK_IS_ON()
 #define PERFETTO_DLOG(fmt, ...)                                               \
@@ -60,4 +60,4 @@
   } while (0)
 #endif  // PERFETTO_DCHECK_IS_ON()
 
-#endif  // PERFETTO_BASE_LOGGING_H_
+#endif  // PERFETTO_PERFETTO_BASE_LOGGING_H_

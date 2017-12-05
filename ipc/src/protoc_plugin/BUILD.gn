@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//build_overrides/build.gni")
+
 if (current_toolchain == host_toolchain) {
   executable("ipc_plugin") {
     sources = [
@@ -19,7 +21,13 @@ if (current_toolchain == host_toolchain) {
       "ipc_generator.h",
       "ipc_plugin.cc",
     ]
-    deps += [ "//buildtools:protoc_lib" ]
+
+    deps = [
+      "../../../gn:default_deps",
+      "../../../gn:protoc_lib_deps",
+    ]
+    public_configs = [ "../../../perfetto_base:base_config" ]
+
     if (is_clang) {
       # Internal protobuf headers hit this.
       cflags = [ "-Wno-unreachable-code" ]

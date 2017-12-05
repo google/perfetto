@@ -24,11 +24,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "base/build_config.h"
-#include "base/scoped_file.h"
-#include "base/test/test_task_runner.h"
-#include "base/utils.h"
 #include "gtest/gtest.h"
+#include "perfetto_base/build_config.h"
+#include "perfetto_base/scoped_file.h"
+#include "perfetto_base/test/test_task_runner.h"
+#include "perfetto_base/utils.h"
 
 namespace perfetto {
 namespace {

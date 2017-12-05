@@ -12,18 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build/proto_library.gni")
+import("../gn/perfetto.gni")
+import("//build_overrides/build.gni")
 import("ipc_library.gni")
 
+if (!build_with_chromium) {
+  import("//build/proto_library.gni")
+} else {
+  import("//third_party/protobuf/proto_library.gni")
+}
+
 config("config") {
-  include_dirs = [ "include" ]
+  include_dirs = [
+    perfetto_root_path + "ipc/include",
+    perfetto_root_path,
+  ]
 }
 
 source_set("ipc") {
   public_configs = [ ":config" ]
-  deps += [
+  deps = [
     ":wire_protocol",
-    "//base",
+    "../perfetto_base",
   ]
   sources = [
     "include/ipc/async_result.h",
@@ -49,16 +59,16 @@ source_set("ipc") {
 
 executable("ipc_unittests") {
   testonly = true
-  deps += [
+  deps = [
     ":ipc",
     ":test_messages",
     ":wire_protocol",
-    "//base",
-    "//base:test_support",
-    "//buildtools:gmock",
-    "//buildtools:gtest",
-    "//buildtools:gtest_main",
+    "../gn:default_deps",
+    "../gn:gtest_deps",
+    "../perfetto_base",
+    "../perfetto_base:test_support",
   ]
+
   sources = [
     "src/buffered_frame_deserializer_unittest.cc",
     "src/client_impl_unittest.cc",
@@ -73,7 +83,9 @@ proto_library("wire_protocol") {
   sources = [
     "src/wire_protocol.proto",
   ]
-  include_dirs = [ "include" ]
+
+  extra_configs = [ ":config" ]
+  proto_in_dir = perfetto_root_path
   proto_out_dir = "protos_lite"
 }
 
@@ -83,5 +95,6 @@ ipc_library("test_messages") {
     "src/test/deferred_unittest_messages.proto",
     "src/test/greeter_service.proto",
   ]
-  include_dirs = [ "include" ]
+  proto_in_dir = perfetto_root_path
+  extra_configs = [ ":config" ]
 }

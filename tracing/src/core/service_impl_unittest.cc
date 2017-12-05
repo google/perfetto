@@ -18,9 +18,9 @@
 
 #include <string.h>
 
-#include "base/test/test_task_runner.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto_base/test/test_task_runner.h"
 #include "tracing/core/data_source_config.h"
 #include "tracing/core/data_source_descriptor.h"
 #include "tracing/core/producer.h"

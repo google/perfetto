@@ -12,19 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//build_overrides/build.gni")
+
 config("ftrace_reader_config") {
-  include_dirs = [ "include" ]
+  include_dirs = [
+    "include",
+    "..",
+  ]
+
+  if (build_with_chromium) {
+    include_dirs += [ "//testing/gtest/include" ]
+  }
 }
 
 executable("ftrace_reader_unittests") {
   testonly = true
-  deps += [
+  deps = [
     ":ftrace_reader",
-    "//buildtools:gmock",
-    "//buildtools:gtest",
-    "//buildtools:gtest_main",
-    "//protos/ftrace:full",
+    "../gn:default_deps",
+    "../gn:gtest_deps",
+    "../gn:protobuf_full_deps",
+    "../protos/ftrace:full",
   ]
+
   sources = [
     "src/cpu_reader_unittest.cc",
     "src/format_parser_unittest.cc",
@@ -39,15 +49,14 @@ executable("ftrace_reader_unittests") {
 # run with sudo.
 executable("ftrace_reader_integrationtests") {
   testonly = true
-  deps += [
+  deps = [
     ":ftrace_reader",
-    "//base",
-    "//buildtools:gmock",
-    "//buildtools:gtest",
-    "//buildtools:gtest_main",
-    "//buildtools:protobuf_full",
-    "//protos/ftrace:full",
+    "../gn:default_deps",
+    "../gn:gtest_deps",
+    "../perfetto_base",
+    "../protos/ftrace:full",
   ]
+
   sources = [
     "src/end_to_end_integrationtest.cc",
     "src/ftrace_procfs_integrationtest.cc",
@@ -59,20 +68,27 @@ executable("ftrace_reader_demo") {
   sources = [
     "src/main.cc",
   ]
-  deps += [
+  deps = [
     ":ftrace_reader",
-    "//base",
+    "../gn:default_deps",
+    "../perfetto_base",
   ]
 }
 
 source_set("ftrace_reader") {
-  all_dependent_configs = [
-    ":ftrace_reader_config",
-    "//buildtools:googletest_prod_config",
+  all_dependent_configs = [ ":ftrace_reader_config" ]
+
+  deps = [
+    "../perfetto_base",
+    "../protozero",
   ]
-  deps += [ "//base" ]
+
+  if (!build_with_chromium) {
+    all_dependent_configs += [ "//buildtools:googletest_prod_config" ]
+  }
+
   public_deps = [
-    "//protos/ftrace:zero",
+    "../protos/ftrace:zero",
   ]
   sources = [
     "include/ftrace_reader/format_parser.h",

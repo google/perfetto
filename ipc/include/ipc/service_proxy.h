@@ -26,8 +26,8 @@
 #include <memory>
 #include <string>
 
-#include "base/weak_ptr.h"
 #include "ipc/deferred.h"
+#include "perfetto_base/weak_ptr.h"
 
 namespace perfetto {
 namespace ipc {

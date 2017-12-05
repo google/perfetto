@@ -20,7 +20,7 @@
 
 #include <limits>
 
-#include "base/logging.h"
+#include "perfetto_base/logging.h"
 
 #define PERFETTO_CHECK_PTR_LE(a, b)                \
   PERFETTO_CHECK(reinterpret_cast<uintptr_t>(a) <= \

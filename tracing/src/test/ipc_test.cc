@@ -19,8 +19,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "base/logging.h"
-#include "base/test/test_task_runner.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/test/test_task_runner.h"
 #include "tracing/core/data_source_config.h"
 #include "tracing/core/data_source_descriptor.h"
 #include "tracing/core/producer.h"

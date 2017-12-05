@@ -123,8 +123,8 @@ TEST(CpuReaderTest, ReadAndAdvancePlainStruct) {
   memcpy(&buffer, &expected, 16);
   EXPECT_TRUE(CpuReader::ReadAndAdvance<PlainStruct>(&ptr, ptr + 16, &actual));
   EXPECT_EQ(ptr, start + 16);
-  EXPECT_EQ(actual.timestamp, 42);
-  EXPECT_EQ(actual.length, 999);
+  EXPECT_EQ(actual.timestamp, 42ul);
+  EXPECT_EQ(actual.length, 999ul);
 }
 
 TEST(CpuReaderTest, ReadAndAdvanceComplexStruct) {
@@ -144,9 +144,9 @@ TEST(CpuReaderTest, ReadAndAdvanceComplexStruct) {
   EXPECT_TRUE(
       CpuReader::ReadAndAdvance<ComplexStruct>(&ptr, ptr + 16, &actual));
   EXPECT_EQ(ptr, start + 16);
-  EXPECT_EQ(actual.timestamp, 42);
+  EXPECT_EQ(actual.timestamp, 42ul);
   EXPECT_EQ(actual.length, 0xabababab);
-  EXPECT_EQ(actual.overwrite, 0xcd);
+  EXPECT_EQ(actual.overwrite, 0xCDu);
 }
 
 TEST(CpuReaderTest, ReadAndAdvanceOverruns) {
@@ -156,7 +156,7 @@ TEST(CpuReaderTest, ReadAndAdvanceOverruns) {
   const uint8_t* ptr = buffer;
   EXPECT_FALSE(CpuReader::ReadAndAdvance<uint64_t>(&ptr, ptr + 7, &result));
   EXPECT_EQ(ptr, start);
-  EXPECT_EQ(result, 42);
+  EXPECT_EQ(result, 42ul);
 }
 
 TEST(CpuReaderTest, ReadAndAdvanceAtEnd) {
@@ -234,10 +234,10 @@ TEST(CpuReaderTest, ParseSimpleEvent) {
   protos::FtraceEventBundle proto_bundle;
   proto_bundle.ParseFromArray(proto.get(), static_cast<int>(msg_size));
 
-  EXPECT_EQ(proto_bundle.cpu(), 42);
+  EXPECT_EQ(proto_bundle.cpu(), 42u);
   ASSERT_EQ(proto_bundle.event().size(), 1);
   const protos::FtraceEvent& proto_event = proto_bundle.event().Get(0);
-  EXPECT_EQ(proto_event.pid(), 72);
+  EXPECT_EQ(proto_event.pid(), 72u);
   EXPECT_TRUE(proto_event.has_print());
   // TODO(hjd): Check if this is the correct format.
   EXPECT_EQ(proto_event.print().buf(), "Hello, world!\n");

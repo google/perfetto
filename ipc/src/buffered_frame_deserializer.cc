@@ -23,9 +23,9 @@
 #include <type_traits>
 #include <utility>
 
-#include "base/logging.h"
-#include "base/utils.h"
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/utils.h"
 
 #include "ipc/src/wire_protocol.pb.h"
 
@@ -200,7 +200,7 @@ std::string BufferedFrameDeserializer::Serialize(const Frame& frame) {
   buf.insert(0, kHeaderSize, 0);  // Reserve the space for the header.
   frame.AppendToString(&buf);
   const uint32_t payload_size = static_cast<uint32_t>(buf.size() - kHeaderSize);
-  PERFETTO_DCHECK(payload_size == frame.GetCachedSize());
+  PERFETTO_DCHECK(payload_size == static_cast<uint32_t>(frame.GetCachedSize()));
   char header[kHeaderSize];
   memcpy(header, base::AssumeLittleEndian(&payload_size), kHeaderSize);
   buf.replace(0, kHeaderSize, header, kHeaderSize);

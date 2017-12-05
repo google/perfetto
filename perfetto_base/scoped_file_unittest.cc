@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "base/scoped_file.h"
+#include "perfetto_base/scoped_file.h"
 
 #include <fcntl.h>
 #include <unistd.h>
