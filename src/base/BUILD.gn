@@ -1,0 +1,76 @@
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("//build_overrides/build.gni")
+
+source_set("base") {
+  deps = [
+    "../../gn:default_deps",
+  ]
+  public_deps = [
+    "../../include/perfetto/base",
+  ]
+  sources = [
+    "thread_checker.cc",
+    "unix_task_runner.cc",
+  ]
+  if (is_android) {
+    sources += [ "android_task_runner.cc" ]
+    libs = [ "android" ]
+  }
+  if (is_debug) {
+    deps += [ ":debug_crash_stack_trace" ]
+  }
+}
+
+if (is_debug) {
+  source_set("debug_crash_stack_trace") {
+    sources = [
+      "debug_crash_stack_trace.cc",
+    ]
+    cflags = [
+      "-Wno-deprecated-dynamic-exception-spec",
+      "-Wno-disabled-macro-expansion",
+    ]
+  }
+}
+
+source_set("test_support") {
+  testonly = true
+  deps = [
+    ":base",
+    "../../gn:default_deps",
+  ]
+  sources = [
+    "test/test_task_runner.cc",
+    "test/test_task_runner.h",
+  ]
+}
+
+executable("perfetto_base_unittests") {
+  testonly = true
+  deps = [
+    ":base",
+    ":test_support",
+    "../../gn:default_deps",
+    "../../gn:gtest_deps",
+  ]
+  sources = [
+    "scoped_file_unittest.cc",
+    "task_runner_unittest.cc",
+    "thread_checker_unittest.cc",
+    "utils_unittest.cc",
+    "weak_ptr_unittest.cc",
+  ]
+}
