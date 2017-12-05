@@ -14,8 +14,26 @@
 
 import("perfetto.gni")
 
+# Used in production targets (i.e. testonly == false) for the FRIEND_TEST_*
+# macros.
+group("gtest_prod_config") {
+  if (!build_with_chromium) {
+    public_configs = [ "//buildtools:googletest_prod_config" ]
+  } else {
+    public_configs = [ ":gtest_config" ]
+  }
+}
+
+config("gtest_config") {
+  if (build_with_chromium) {
+    include_dirs = [ "//testing/gtest/include" ]
+  }
+}
+
 group("gtest_deps") {
   testonly = true
+
+  public_configs = [ ":gtest_config" ]
 
   if (!build_with_chromium) {
     public_deps = [
@@ -32,17 +50,18 @@ group("gtest_deps") {
   }
 }
 
-group("protoc_lib_deps") {
-  if (!build_with_chromium) {
-    if (current_toolchain == host_toolchain) {
+# protoc compiler library, for building protoc plugins on the host.
+if (current_toolchain == host_toolchain) {
+  group("protoc_lib_deps") {
+    if (!build_with_chromium) {
       public_deps = [
         "//buildtools:protoc_lib",
       ]
+    } else {
+      public_deps = [
+        "//third_party/protobuf:protoc_lib",
+      ]
     }
-  } else {
-    public_deps = [
-      "//third_party/protobuf:protoc_lib",
-    ]
   }
 }
 
@@ -58,11 +77,21 @@ group("protobuf_full_deps") {
   }
 }
 
+# All targets should depend on this target to inherit the right flags and
+# include directories.
 group("default_deps") {
+  public_configs = [ ":default_config" ]
   if (!build_with_chromium) {
     public_deps = [
       "//build/libc++:deps",
       "//build/sanitizers:deps",
     ]
   }
+}
+
+config("default_config") {
+  include_dirs = [
+    "..",
+    "../include",
+  ]
 }
