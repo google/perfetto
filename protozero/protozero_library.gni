@@ -12,23 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build/proto_library.gni")
+import("//build_overrides/build.gni")
 
-# Equivalent to proto_library (generation of .h/.cc form .proto files) but
+if (!build_with_chromium) {
+  import("//build/proto_library.gni")
+} else {
+  import("//third_party/protobuf/proto_library.gni")
+}
+
+# Equivalent to proto_library (generation of .h/.cc from .proto files) but
 # enables also generation using the protozero plugin.
-# The generated files will have the .pbzero.{cc,h} suffix, as opposite to the
+# The generated files will have the .pbzero.{cc,h} suffix, as opposed to the
 # .pb.{cc,h} of the official proto library.
 template("protozero_library") {
   proto_library(target_name) {
+    perfetto_root_path = invoker.perfetto_root_path
+
     generate_cc = false
-    generator_plugin_label = "//protozero/src/protoc_plugin"
+    generator_plugin_label = perfetto_root_path + "protozero/src/protoc_plugin"
     generator_plugin_suffix = ".pbzero"
-    public_configs = [ "//protozero:protozero_config" ]
-    deps = []
+
+    if (!defined(invoker.public_configs)) {
+      public_configs = []
+    }
+
     if (defined(invoker.deps)) {
       deps = invoker.deps
+    } else {
+      deps = []
     }
-    deps += [ "//protozero" ]
+
+    deps += [ perfetto_root_path + "protozero" ]
+
+    public_configs += [ "//protozero:protozero_config" ]
+
     forward_variables_from(invoker,
                            [
                              "defines",

@@ -16,8 +16,8 @@
 
 #include "ipc/deferred.h"
 
-#include "base/logging.h"
 #include "google/protobuf/message_lite.h"
+#include "perfetto_base/logging.h"
 
 namespace perfetto {
 namespace ipc {

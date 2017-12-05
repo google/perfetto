@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "base/test/test_task_runner.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "ipc/client.h"
 #include "ipc/host.h"
+#include "perfetto_base/test/test_task_runner.h"
 
 #include "ipc/src/test/greeter_service.ipc.h"
 #include "ipc/src/test/greeter_service.pb.h"

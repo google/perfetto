@@ -25,10 +25,10 @@
 #include <array>
 #include <string>
 
-#include "base/logging.h"
-#include "base/utils.h"
 #include "cpu_reader.h"
 #include "ftrace_procfs.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/utils.h"
 #include "proto_translation_table.h"
 
 #include "protos/ftrace/ftrace_event_bundle.pbzero.h"

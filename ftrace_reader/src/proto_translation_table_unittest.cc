@@ -50,14 +50,14 @@ TEST(TranslationTable, Seed) {
   std::string path = "ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
   FtraceProcfs ftrace_procfs(path);
   auto table = ProtoTranslationTable::Create(&ftrace_procfs);
-  EXPECT_EQ(table->largest_id(), 744);
+  EXPECT_EQ(table->largest_id(), 744ul);
   EXPECT_EQ(table->common_fields().at(0).ftrace_offset, 0u);
   EXPECT_EQ(table->common_fields().at(0).ftrace_size, 2u);
 
   auto sched_switch_event = table->GetEventByName("sched_switch");
   EXPECT_EQ(sched_switch_event->name, "sched_switch");
   EXPECT_EQ(sched_switch_event->group, "sched");
-  EXPECT_EQ(sched_switch_event->ftrace_event_id, 68);
+  EXPECT_EQ(sched_switch_event->ftrace_event_id, 68ul);
   EXPECT_EQ(sched_switch_event->fields.at(0).ftrace_offset, 8u);
   EXPECT_EQ(sched_switch_event->fields.at(0).ftrace_size, 16u);
 }
@@ -91,10 +91,10 @@ TEST(TranslationTable, Getters) {
   }
 
   ProtoTranslationTable table(events, std::move(common_fields));
-  EXPECT_EQ(table.largest_id(), 100);
-  EXPECT_EQ(table.EventNameToFtraceId("foo"), 1);
-  EXPECT_EQ(table.EventNameToFtraceId("baz"), 100);
-  EXPECT_EQ(table.EventNameToFtraceId("no_such_event"), 0);
+  EXPECT_EQ(table.largest_id(), 100ul);
+  EXPECT_EQ(table.EventNameToFtraceId("foo"), 1ul);
+  EXPECT_EQ(table.EventNameToFtraceId("baz"), 100ul);
+  EXPECT_EQ(table.EventNameToFtraceId("no_such_event"), 0ul);
   EXPECT_EQ(table.GetEventById(1)->name, "foo");
   EXPECT_EQ(table.GetEventById(3), nullptr);
   EXPECT_EQ(table.GetEventById(200), nullptr);

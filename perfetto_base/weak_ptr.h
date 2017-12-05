@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef PERFETTO_BASE_WEAK_PTR_H_
-#define PERFETTO_BASE_WEAK_PTR_H_
+#ifndef PERFETTO_PERFETTO_BASE_WEAK_PTR_H_
+#define PERFETTO_PERFETTO_BASE_WEAK_PTR_H_
 
-#include "base/thread_checker.h"
+#include "perfetto_base/thread_checker.h"
 
 #include <memory>
 
@@ -100,4 +100,4 @@ class WeakPtrFactory {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // PERFETTO_BASE_WEAK_PTR_H_
+#endif  // PERFETTO_PERFETTO_BASE_WEAK_PTR_H_

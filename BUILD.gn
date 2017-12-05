@@ -12,27 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("gn/perfetto.gni")
+
 group("all") {
   testonly = true  # allow to build also test targets
   deps = [
     ":tests",
-    "//ftrace_reader:ftrace_reader_demo",
-    "//ipc/src/protoc_plugin:ipc_plugin($host_toolchain)",
-    "//protozero/src/protoc_plugin($host_toolchain)",
-    "//tools/ftrace_proto_gen:ftrace_proto_gen",
+    "ftrace_reader:ftrace_reader_demo",
+    "ipc/src/protoc_plugin:ipc_plugin($host_toolchain)",
+    "protozero/src/protoc_plugin($host_toolchain)",
+    "tools/ftrace_proto_gen:ftrace_proto_gen",
   ]
 }
 
 group("tests") {
   testonly = true
   deps = [
-    "//base:base_unittests",
-    "//ftrace_reader:ftrace_reader_integrationtests",
-    "//ftrace_reader:ftrace_reader_unittests",
-    "//ipc:ipc_unittests",
-    "//protozero:protozero_unittests",
-    "//tools/sanitizers_unittests",
-    "//tracing:tracing_benchmarks",
-    "//tracing:tracing_unittests",
+    "ftrace_reader:ftrace_reader_integrationtests",
+    "ftrace_reader:ftrace_reader_unittests",
+    "ipc:ipc_unittests",
+    "perfetto_base:perfetto_base_unittests",
+    "protozero:protozero_unittests",
+    "tools/sanitizers_unittests",
+    "tracing:tracing_unittests",
   ]
+
+  if (!build_with_chromium) {
+    deps += [ "tracing:tracing_benchmarks" ]
+  }
 }

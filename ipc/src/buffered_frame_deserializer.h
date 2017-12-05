@@ -22,7 +22,7 @@
 #include <list>
 #include <memory>
 
-#include "base/utils.h"
+#include "perfetto_base/utils.h"
 
 namespace perfetto {
 namespace ipc {

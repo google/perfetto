@@ -20,8 +20,8 @@
 
 #include <memory>
 
-#include "base/logging.h"
 #include "gtest/gtest.h"
+#include "perfetto_base/logging.h"
 #include "protozero/src/test/fake_scattered_buffer.h"
 
 namespace protozero {

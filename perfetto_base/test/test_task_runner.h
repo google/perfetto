@@ -24,12 +24,12 @@
 #include <map>
 #include <string>
 
-#include "base/build_config.h"
-#include "base/thread_checker.h"
-#include "base/unix_task_runner.h"
+#include "perfetto_base/build_config.h"
+#include "perfetto_base/thread_checker.h"
+#include "perfetto_base/unix_task_runner.h"
 
 #if BUILDFLAG(OS_ANDROID)
-#include "base/android_task_runner.h"
+#include "perfetto_base/android_task_runner.h"
 #endif
 
 namespace perfetto {

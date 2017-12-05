@@ -19,7 +19,7 @@
 
 #include <string>
 
-#include "base/scoped_file.h"
+#include "perfetto_base/scoped_file.h"
 
 namespace perfetto {
 

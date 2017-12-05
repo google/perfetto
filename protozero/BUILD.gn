@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build/proto_library.gni")
+import("../gn/perfetto.gni")
+import("//build_overrides/build.gni")
+
+if (!build_with_chromium) {
+  import("//build/proto_library.gni")
+} else {
+  import("//third_party/protobuf/proto_library.gni")
+}
+
+import("../gn/perfetto.gni")
 import("protozero_library.gni")
 
 config("protozero_config") {
@@ -21,8 +30,15 @@ config("protozero_config") {
 
 source_set("protozero") {
   all_dependent_configs = [ ":protozero_config" ]
-  configs += [ "//buildtools:googletest_prod_config" ]
-  deps += [ "//base" ]
+
+  deps = [
+    "../perfetto_base",
+  ]
+
+  if (!build_with_chromium) {
+    configs += [ "//buildtools:googletest_prod_config" ]
+  }
+
   sources = [
     "include/protozero/contiguous_memory_range.h",
     "include/protozero/proto_field_descriptor.h",
@@ -38,15 +54,15 @@ source_set("protozero") {
 
 executable("protozero_unittests") {
   testonly = true
-  deps += [
+  deps = [
     ":protozero",
     ":testing_messages_lite",
     ":testing_messages_zero",
-    "//base",
-    "//buildtools:gmock",
-    "//buildtools:gtest",
-    "//buildtools:gtest_main",
+    "../gn:default_deps",
+    "../gn:gtest_deps",
+    "../perfetto_base",
   ]
+
   sources = [
     "src/proto_utils_unittest.cc",
     "src/protozero_message_unittest.cc",
@@ -67,14 +83,16 @@ testing_proto_sources = [
 ]
 
 protozero_library("testing_messages_zero") {
-  include_dirs = [ "include" ]
+  #include_dirs = [ "include" ]
   sources = testing_proto_sources
+  proto_in_dir = perfetto_root_path
   proto_out_dir = "protos_zero"
   generator_plugin_options = "wrapper_namespace=pbzero"
 }
 
 proto_library("testing_messages_lite") {
-  include_dirs = [ "include" ]
+  #include_dirs = [ "include" ]
   sources = testing_proto_sources
+  proto_in_dir = perfetto_root_path
   proto_out_dir = "protos_lite"
 }

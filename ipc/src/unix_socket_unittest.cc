@@ -20,12 +20,12 @@
 
 #include <list>
 
-#include "base/build_config.h"
-#include "base/logging.h"
-#include "base/test/test_task_runner.h"
-#include "base/utils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto_base/build_config.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/test/test_task_runner.h"
+#include "perfetto_base/utils.h"
 
 namespace perfetto {
 namespace ipc {
@@ -252,7 +252,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
     EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
         .WillOnce(Invoke(
             [this, tmp_fd, checkpoint, mem](UnixSocket*, UnixSocket* new_conn) {
-              ASSERT_EQ(geteuid(), new_conn->peer_uid());
+              ASSERT_EQ(geteuid(), static_cast<uint32_t>(new_conn->peer_uid()));
               ASSERT_TRUE(new_conn->Send("txfd", 5, tmp_fd));
               // Wait for the client to change this again.
               EXPECT_CALL(event_listener_, OnDataAvailable(new_conn))
@@ -357,7 +357,7 @@ TEST_F(UnixSocketTest, SendIsAtomic) {
           Invoke([cli_connected](UnixSocket*, bool) { cli_connected(); }));
   task_runner_.RunUntilCheckpoint("cli_connected");
   ASSERT_TRUE(cli->is_connected());
-  ASSERT_EQ(geteuid(), cli->peer_uid());
+  ASSERT_EQ(geteuid(), static_cast<uint32_t>(cli->peer_uid()));
 
   bool did_requeue = false;
   for (int i = 0; i < kNumFrames; i++)
@@ -382,7 +382,7 @@ TEST_F(UnixSocketTest, PeerUidRetainedAfterDisconnect) {
       .WillOnce(Invoke(
           [&srv_client_conn, srv_connected](UnixSocket*, UnixSocket* srv_conn) {
             srv_client_conn = srv_conn;
-            EXPECT_EQ(geteuid(), srv_conn->peer_uid());
+            EXPECT_EQ(geteuid(), static_cast<uint32_t>(srv_conn->peer_uid()));
             srv_connected();
           }));
   auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
@@ -410,7 +410,7 @@ TEST_F(UnixSocketTest, PeerUidRetainedAfterDisconnect) {
   cli.reset();
   task_runner_.RunUntilCheckpoint("cli_disconnected");
   ASSERT_FALSE(srv_client_conn->is_connected());
-  EXPECT_EQ(geteuid(), srv_client_conn->peer_uid());
+  EXPECT_EQ(geteuid(), static_cast<uint32_t>(srv_client_conn->peer_uid()));
 }
 
 // TODO(primiano): add a test to check that in the case of a peer sending a fd

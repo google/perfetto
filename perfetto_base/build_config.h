@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef PERFETTO_BASE_BUILD_CONFIG_H_
-#define PERFETTO_BASE_BUILD_CONFIG_H_
+#ifndef PERFETTO_PERFETTO_BASE_BUILD_CONFIG_H_
+#define PERFETTO_PERFETTO_BASE_BUILD_CONFIG_H_
 
 // DO NOT include this file in public headers (include/) to avoid collisions.
 
@@ -41,4 +41,4 @@
 #error OS not supported (see build_config.h)
 #endif
 
-#endif  // PERFETTO_BASE_BUILD_CONFIG_H_
+#endif  // PERFETTO_PERFETTO_BASE_BUILD_CONFIG_H_
