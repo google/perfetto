@@ -16,9 +16,9 @@
 
 #include "tracing/src/ipc/service/service_ipc_host_impl.h"
 
-#include "base/logging.h"
-#include "base/task_runner.h"
 #include "ipc/host.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/task_runner.h"
 #include "tracing/core/service.h"
 #include "tracing/src/ipc/posix_shared_memory.h"
 #include "tracing/src/ipc/service/producer_ipc_service.h"

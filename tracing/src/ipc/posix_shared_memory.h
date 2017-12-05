@@ -21,7 +21,7 @@
 
 #include <memory>
 
-#include "base/scoped_file.h"
+#include "perfetto_base/scoped_file.h"
 #include "tracing/core/shared_memory.h"
 
 namespace perfetto {

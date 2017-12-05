@@ -19,8 +19,8 @@
 #include <inttypes.h>
 #include <string.h>
 
-#include "base/task_runner.h"
 #include "ipc/client.h"
+#include "perfetto_base/task_runner.h"
 #include "tracing/core/data_source_config.h"
 #include "tracing/core/data_source_descriptor.h"
 #include "tracing/core/producer.h"

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef PERFETTO_BASE_UTILS_H_
-#define PERFETTO_BASE_UTILS_H_
+#ifndef PERFETTO_PERFETTO_BASE_UTILS_H_
+#define PERFETTO_PERFETTO_BASE_UTILS_H_
 
 #include <errno.h>
 #include <stddef.h>
@@ -47,9 +47,7 @@ inline void ignore_result(const T&...) {}
 // std::unique_ptr<int, base::FreeDeleter> foo_ptr(
 //     static_cast<int*>(malloc(sizeof(int))));
 struct FreeDeleter {
-  inline void operator()(void* ptr) const {
-    free(ptr);
-  }
+  inline void operator()(void* ptr) const { free(ptr); }
 };
 
 template <typename T>
@@ -62,4 +60,4 @@ constexpr T AssumeLittleEndian(T value) {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // PERFETTO_BASE_UTILS_H_
+#endif  // PERFETTO_PERFETTO_BASE_UTILS_H_

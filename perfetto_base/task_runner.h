@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef PERFETTO_BASE_TASK_RUNNER_H_
-#define PERFETTO_BASE_TASK_RUNNER_H_
+#ifndef PERFETTO_PERFETTO_BASE_TASK_RUNNER_H_
+#define PERFETTO_PERFETTO_BASE_TASK_RUNNER_H_
 
 #include <functional>
 
@@ -62,4 +62,4 @@ class TaskRunner {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // PERFETTO_BASE_TASK_RUNNER_H_
+#endif  // PERFETTO_PERFETTO_BASE_TASK_RUNNER_H_

@@ -24,8 +24,8 @@
 #include <sstream>
 #include <string>
 
-#include "base/logging.h"
-#include "base/utils.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/utils.h"
 
 namespace perfetto {
 namespace {

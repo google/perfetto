@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("base") {
+import("//build_overrides/build.gni")
+
+config("base_config") {
+  include_dirs = [ ".." ]
+}
+
+source_set("perfetto_base") {
+  public_configs = [ ":base_config" ]
+
   sources = [
     "build_config.h",
     "logging.h",
@@ -55,22 +63,24 @@ if (is_debug) {
 
 source_set("test_support") {
   testonly = true
-  deps += [ ":base" ]
+  deps = [
+    ":perfetto_base",
+  ]
   sources = [
     "test/test_task_runner.cc",
     "test/test_task_runner.h",
   ]
 }
 
-executable("base_unittests") {
+executable("perfetto_base_unittests") {
   testonly = true
-  deps += [
-    ":base",
+  deps = [
+    ":perfetto_base",
     ":test_support",
-    "//buildtools:gmock",
-    "//buildtools:gtest",
-    "//buildtools:gtest_main",
+    "../gn:default_deps",
+    "../gn:gtest_deps",
   ]
+
   sources = [
     "scoped_file_unittest.cc",
     "task_runner_unittest.cc",

@@ -23,9 +23,9 @@
 #include <array>
 #include <memory>
 
-#include "base/scoped_file.h"
 #include "ftrace_reader/ftrace_controller.h"
 #include "gtest/gtest_prod.h"
+#include "perfetto_base/scoped_file.h"
 #include "proto_translation_table.h"
 
 namespace perfetto {

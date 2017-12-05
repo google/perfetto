@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "base/weak_ptr.h"
+#include "perfetto_base/weak_ptr.h"
 
 #include "gtest/gtest.h"
 

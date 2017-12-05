@@ -17,8 +17,8 @@
 #ifndef IPC_INCLUDE_IPC_CLIENT_INFO_H_
 #define IPC_INCLUDE_IPC_CLIENT_INFO_H_
 
-#include "base/logging.h"
 #include "ipc/basic_types.h"
+#include "perfetto_base/logging.h"
 
 namespace perfetto {
 namespace ipc {

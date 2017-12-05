@@ -142,7 +142,7 @@ script:
   - build/ninja -C out/dist -j8 all
   - |
     TEST_TARGETS="
-    base_unittests
+    perfetto_base_unittests
     protozero_unittests
     tracing_unittests
     tracing_benchmarks

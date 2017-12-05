@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "base/test/test_task_runner.h"
+#include "perfetto_base/test/test_task_runner.h"
 
 #include <stdio.h>
 #include <unistd.h>
 
 #include <chrono>
 
-#include "base/logging.h"
+#include "perfetto_base/logging.h"
 
 namespace perfetto {
 namespace base {

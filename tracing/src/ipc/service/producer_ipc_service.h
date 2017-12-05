@@ -21,8 +21,8 @@
 #include <memory>
 #include <string>
 
-#include "base/weak_ptr.h"
 #include "ipc/basic_types.h"
+#include "perfetto_base/weak_ptr.h"
 #include "tracing/core/producer.h"
 #include "tracing/core/service.h"
 

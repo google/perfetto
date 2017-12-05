@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef PERFETTO_BASE_THREAD_CHECKER_H_
-#define PERFETTO_BASE_THREAD_CHECKER_H_
+#ifndef PERFETTO_PERFETTO_BASE_THREAD_CHECKER_H_
+#define PERFETTO_PERFETTO_BASE_THREAD_CHECKER_H_
 
 #include <pthread.h>
 #include <atomic>
 
-#include "base/logging.h"
+#include "perfetto_base/logging.h"
 
 namespace perfetto {
 namespace base {
@@ -52,4 +52,4 @@ class ThreadChecker {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // PERFETTO_BASE_THREAD_CHECKER_H_
+#endif  // PERFETTO_PERFETTO_BASE_THREAD_CHECKER_H_
