@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
-import("../../protozero/protozero_library.gni")
+import("../../src/protozero/protozero_library.gni")
 import("all_protos.gni")
 
 # Create a copy of all the protos listed in all_protos.gni with the

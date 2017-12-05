@@ -18,9 +18,9 @@ group("all") {
   testonly = true  # allow to build also test targets
   deps = [
     ":tests",
-    "ftrace_reader:ftrace_reader_demo",
-    "ipc/src/protoc_plugin:ipc_plugin($host_toolchain)",
-    "protozero/src/protoc_plugin($host_toolchain)",
+    "src/ftrace_reader:ftrace_reader_demo",
+    "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
+    "src/protozero/protoc_plugin($host_toolchain)",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
   ]
 }
@@ -28,16 +28,16 @@ group("all") {
 group("tests") {
   testonly = true
   deps = [
-    "ftrace_reader:ftrace_reader_integrationtests",
-    "ftrace_reader:ftrace_reader_unittests",
-    "ipc:ipc_unittests",
-    "perfetto_base:perfetto_base_unittests",
-    "protozero:protozero_unittests",
+    "src/base:perfetto_base_unittests",
+    "src/ftrace_reader:ftrace_reader_integrationtests",
+    "src/ftrace_reader:ftrace_reader_unittests",
+    "src/ipc:perfetto_ipc_unittests",
+    "src/protozero:protozero_unittests",
+    "src/tracing:tracing_unittests",
     "tools/sanitizers_unittests",
-    "tracing:tracing_unittests",
   ]
 
   if (!build_with_chromium) {
-    deps += [ "tracing:tracing_benchmarks" ]
+    deps += [ "src/tracing:tracing_benchmarks" ]
   }
 }
