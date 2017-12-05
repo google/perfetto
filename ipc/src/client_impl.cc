@@ -18,10 +18,10 @@
 
 #include <inttypes.h>
 
-#include "base/task_runner.h"
-#include "base/utils.h"
 #include "ipc/service_descriptor.h"
 #include "ipc/service_proxy.h"
+#include "perfetto_base/task_runner.h"
+#include "perfetto_base/utils.h"
 
 // TODO(primiano): Add ThreadChecker everywhere.
 

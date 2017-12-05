@@ -18,9 +18,9 @@
 
 #include <inttypes.h>
 
-#include "base/logging.h"
-#include "base/task_runner.h"
 #include "ipc/host.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/task_runner.h"
 #include "tracing/core/data_source_config.h"
 #include "tracing/core/data_source_descriptor.h"
 #include "tracing/core/service.h"

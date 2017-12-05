@@ -18,14 +18,14 @@
 
 #include <memory>
 
-#include "base/scoped_file.h"
-#include "base/test/test_task_runner.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "ipc/service.h"
 #include "ipc/service_descriptor.h"
 #include "ipc/src/buffered_frame_deserializer.h"
 #include "ipc/src/unix_socket.h"
+#include "perfetto_base/scoped_file.h"
+#include "perfetto_base/test/test_task_runner.h"
 
 #include "ipc/src/test/client_unittest_messages.pb.h"
 #include "ipc/src/wire_protocol.pb.h"
@@ -297,7 +297,8 @@ TEST_F(HostImplTest, SendFileDescriptor) {
       .WillOnce(Invoke([on_fd_received](int fd) {
         char buf[sizeof(kFileContent)] = {};
         ASSERT_EQ(0, lseek(fd, 0, SEEK_SET));
-        ASSERT_EQ(sizeof(buf), PERFETTO_EINTR(read(fd, buf, sizeof(buf))));
+        ASSERT_EQ(static_cast<int32_t>(sizeof(buf)),
+                  PERFETTO_EINTR(read(fd, buf, sizeof(buf))));
         ASSERT_STREQ(kFileContent, buf);
         on_fd_received();
       }));

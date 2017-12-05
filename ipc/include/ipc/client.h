@@ -20,9 +20,9 @@
 #include <functional>
 #include <memory>
 
-#include "base/scoped_file.h"
-#include "base/weak_ptr.h"
 #include "ipc/basic_types.h"
+#include "perfetto_base/scoped_file.h"
+#include "perfetto_base/weak_ptr.h"
 
 namespace perfetto {
 

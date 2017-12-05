@@ -18,7 +18,7 @@
 
 #include <type_traits>
 
-#include "base/logging.h"
+#include "perfetto_base/logging.h"
 
 #if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
 // The memcpy() for float and double below needs to be adjusted if we want to

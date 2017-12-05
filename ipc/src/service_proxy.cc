@@ -18,11 +18,11 @@
 
 #include <utility>
 
-#include "base/logging.h"
-#include "base/weak_ptr.h"
 #include "google/protobuf/message_lite.h"
 #include "ipc/service_descriptor.h"
 #include "ipc/src/client_impl.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/weak_ptr.h"
 
 namespace perfetto {
 namespace ipc {

@@ -25,10 +25,10 @@
 #include <string>
 #include <vector>
 
-#include "base/scoped_file.h"
-#include "base/task_runner.h"
-#include "base/weak_ptr.h"
 #include "gtest/gtest_prod.h"
+#include "perfetto_base/scoped_file.h"
+#include "perfetto_base/task_runner.h"
+#include "perfetto_base/weak_ptr.h"
 #include "protozero/protozero_message_handle.h"
 
 namespace perfetto {

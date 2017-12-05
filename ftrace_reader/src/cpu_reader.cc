@@ -18,7 +18,7 @@
 
 #include <utility>
 
-#include "base/logging.h"
+#include "perfetto_base/logging.h"
 #include "proto_translation_table.h"
 
 #include "protos/ftrace/ftrace_event.pbzero.h"
@@ -101,7 +101,7 @@ bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
   long bytes = PERFETTO_EINTR(read(fd_.get(), buffer, kPageSize));
   if (bytes == -1 || bytes == 0)
     return false;
-  PERFETTO_CHECK(bytes <= kPageSize);
+  PERFETTO_CHECK(bytes <= (long)kPageSize);
 
   for (size_t i = 0; i < kMaxSinks; i++) {
     if (!filters[i])

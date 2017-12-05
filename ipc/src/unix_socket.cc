@@ -29,10 +29,10 @@
 #include <algorithm>
 #include <memory>
 
-#include "base/build_config.h"
-#include "base/logging.h"
-#include "base/task_runner.h"
-#include "base/utils.h"
+#include "perfetto_base/build_config.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/task_runner.h"
+#include "perfetto_base/utils.h"
 
 #if BUILDFLAG(OS_MACOSX)
 #include <sys/ucred.h>

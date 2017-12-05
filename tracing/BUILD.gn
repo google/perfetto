@@ -12,16 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//ipc//ipc_library.gni")
+import("../gn/perfetto.gni")
+import("//build_overrides/build.gni")
+import("../ipc//ipc_library.gni")
 
 config("tracing_config") {
-  include_dirs = [ "include" ]
+  include_dirs = [
+    "include",
+    perfetto_root_path,
+  ]
 }
 
 # Core tracing library, platform independent, no transport layer.
 source_set("tracing") {
   all_dependent_configs = [ ":tracing_config" ]
-  deps += [ "//base" ]
+  deps = [
+    "../perfetto_base",
+  ]
   sources = [
     "include/tracing/core/basic_types.h",
     "include/tracing/core/data_source_config.h",
@@ -36,6 +43,8 @@ source_set("tracing") {
 
 # IPC service definitions.
 ipc_library("ipc_protos") {
+  proto_in_dir = perfetto_root_path
+  extra_configs = [ "../ipc:config" ]
   sources = [
     "src/ipc/data_source_config.proto",
     "src/ipc/data_source_descriptor.proto",
@@ -61,21 +70,22 @@ source_set("ipc") {
   deps = [
     ":ipc_protos",
     ":tracing",
-    "//base",
+    "../ipc",
+    "../perfetto_base",
   ]
 }
 
 executable("tracing_unittests") {
   testonly = true
-  deps += [
+  deps = [
     ":ipc",
     ":tracing",
-    "//base",
-    "//base:test_support",
-    "//buildtools:gmock",
-    "//buildtools:gtest",
-    "//buildtools:gtest_main",
+    "../gn:default_deps",
+    "../gn:gtest_deps",
+    "../perfetto_base",
+    "../perfetto_base:test_support",
   ]
+
   sources = [
     "src/core/service_impl_unittest.cc",
     "src/ipc/posix_shared_memory_unittest.cc",
@@ -86,23 +96,31 @@ executable("tracing_unittests") {
 
 executable("tracing_test") {
   testonly = true
-  deps += [
+  deps = [
     ":ipc",
     ":ipc_protos",
     ":tracing",
-    "//base",
-    "//base:test_support",
-    "//ipc",
+    "../gn:default_deps",
+    "../ipc",
+    "../perfetto_base",
+    "../perfetto_base:test_support",
   ]
   sources = [
     "src/test/ipc_test.cc",
   ]
 }
 
-executable("tracing_benchmarks") {
-  testonly = true
-  deps += [ "//buildtools:benchmark" ]
-  sources = [
-    "src/test/hello_world_benchmark.cc",
-  ]
+if (!build_with_chromium) {
+  executable("tracing_benchmarks") {
+    testonly = true
+
+    deps = [
+      "../gn:default_deps",
+      "//buildtools:benchmark",
+    ]
+
+    sources = [
+      "src/test/hello_world_benchmark.cc",
+    ]
+  }
 }

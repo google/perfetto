@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "base/thread_checker.h"
+#include "perfetto_base/thread_checker.h"
 
 #include <pthread.h>
 

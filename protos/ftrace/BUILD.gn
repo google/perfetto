@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//protozero/protozero_library.gni")
+import("../../gn/perfetto.gni")
+import("../../protozero/protozero_library.gni")
 import("all_protos.gni")
 
 # Create a copy of all the protos listed in all_protos.gni with the
@@ -24,7 +25,7 @@ full_protos_target_dir =
 
 action_foreach("generate_full_protos") {
   visibility = [ ":*" ]
-  script = "//build/generate_full_protos.py"
+  script = "../../build/generate_full_protos.py"
   sources = ftrace_proto_names
 
   # TODO(hjd): Add support for subdirectories.
@@ -47,8 +48,8 @@ proto_library("full") {
   ]
   sources = []
   use_protobuf_full = true
+  proto_in_dir = "$full_protos_base_dir/" + perfetto_root_path
   proto_out_dir = "protos_full"
-  proto_in_dir = full_protos_base_dir
   foreach(proto, ftrace_proto_names) {
     sources += [ "$full_protos_target_dir/$proto" ]
   }
@@ -56,11 +57,13 @@ proto_library("full") {
 
 proto_library("lite") {
   sources = ftrace_proto_names
+  proto_in_dir = perfetto_root_path
   proto_out_dir = "protos_lite"
 }
 
 protozero_library("zero") {
   sources = ftrace_proto_names
+  proto_in_dir = perfetto_root_path
   proto_out_dir = "protos_zero"
   generator_plugin_options = "wrapper_namespace=pbzero"
 }

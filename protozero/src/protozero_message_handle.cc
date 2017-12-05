@@ -18,7 +18,7 @@
 
 #include <utility>
 
-#include "base/logging.h"
+#include "perfetto_base/logging.h"
 #include "protozero/protozero_message.h"
 
 namespace protozero {

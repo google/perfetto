@@ -19,9 +19,9 @@
 #include <algorithm>
 #include <string>
 
-#include "base/logging.h"
-#include "base/utils.h"
 #include "gtest/gtest.h"
+#include "perfetto_base/logging.h"
+#include "perfetto_base/utils.h"
 
 #include "ipc/src/wire_protocol.pb.h"
 
@@ -62,7 +62,7 @@ std::vector<char> GetSimpleFrame(size_t size) {
     }
     frame.add_data_for_testing(padding.data(), padding_size);
   }
-  PERFETTO_CHECK(frame.ByteSize() == payload_size);
+  PERFETTO_CHECK(frame.ByteSize() == static_cast<int>(payload_size));
   std::vector<char> encoded_frame;
   encoded_frame.resize(size);
   char* enc_buf = encoded_frame.data();
@@ -107,7 +107,8 @@ TEST(BufferedFrameDeserializerTest, WholeMessages) {
     // Excactly one frame should be decoded, with no leftover buffer.
     auto decoded_frame = bfd.PopNextFrame();
     ASSERT_TRUE(decoded_frame);
-    ASSERT_EQ(size - kHeaderSize, decoded_frame->ByteSize());
+    ASSERT_EQ(static_cast<int32_t>(size - kHeaderSize),
+              decoded_frame->ByteSize());
     ASSERT_FALSE(bfd.PopNextFrame());
     ASSERT_EQ(0u, bfd.size());
   }
@@ -161,7 +162,7 @@ TEST(BufferedFrameDeserializerTest, FragmentedFrameIsCorrectlyDeserialized) {
   // Validate the received frame2.
   std::unique_ptr<Frame> decoded_simple_frame = bfd.PopNextFrame();
   ASSERT_TRUE(decoded_simple_frame);
-  ASSERT_EQ(simple_frame.size() - kHeaderSize,
+  ASSERT_EQ(static_cast<int32_t>(simple_frame.size() - kHeaderSize),
             decoded_simple_frame->ByteSize());
 
   std::unique_ptr<Frame> decoded_frame = bfd.PopNextFrame();
@@ -236,7 +237,8 @@ TEST(BufferedFrameDeserializerTest, MultipleFramesInOneReceive) {
     for (size_t expected_size : batch) {
       auto frame = bfd.PopNextFrame();
       ASSERT_TRUE(frame);
-      ASSERT_EQ(expected_size - kHeaderSize, frame->ByteSize());
+      ASSERT_EQ(static_cast<int32_t>(expected_size - kHeaderSize),
+                frame->ByteSize());
     }
     ASSERT_FALSE(bfd.PopNextFrame());
     ASSERT_EQ(0u, bfd.size());
@@ -298,7 +300,8 @@ TEST(BufferedFrameDeserializerTest, CanRecoverAfterUnparsableFrames) {
       ASSERT_FALSE(decoded_frame);
     } else {
       ASSERT_TRUE(decoded_frame);
-      ASSERT_EQ(size - kHeaderSize, decoded_frame->ByteSize());
+      ASSERT_EQ(static_cast<int32_t>(size - kHeaderSize),
+                decoded_frame->ByteSize());
     }
     ASSERT_EQ(0u, bfd.size());
   }

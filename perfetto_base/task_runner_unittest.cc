@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "base/unix_task_runner.h"
+#include "perfetto_base/unix_task_runner.h"
 
-#include "base/build_config.h"
-#include "base/scoped_file.h"
 #include "gtest/gtest.h"
+#include "perfetto_base/build_config.h"
+#include "perfetto_base/scoped_file.h"
 
 #if BUILDFLAG(OS_ANDROID)
-#include "base/android_task_runner.h"
+#include "perfetto_base/android_task_runner.h"
 #endif
 
 #include <thread>

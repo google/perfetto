@@ -22,12 +22,12 @@
 #include <string>
 #include <vector>
 
-#include "base/task_runner.h"
-#include "base/thread_checker.h"
 #include "ipc/deferred.h"
 #include "ipc/host.h"
 #include "ipc/src/buffered_frame_deserializer.h"
 #include "ipc/src/unix_socket.h"
+#include "perfetto_base/task_runner.h"
+#include "perfetto_base/thread_checker.h"
 
 namespace perfetto {
 namespace ipc {

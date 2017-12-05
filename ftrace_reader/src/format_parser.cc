@@ -23,8 +23,8 @@
 #include <memory>
 #include <vector>
 
-#include "base/utils.h"
 #include "ftrace_reader/ftrace_to_proto.h"
+#include "perfetto_base/utils.h"
 
 namespace perfetto {
 namespace {

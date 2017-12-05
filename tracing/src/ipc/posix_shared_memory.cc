@@ -27,7 +27,7 @@
 #include <memory>
 #include <utility>
 
-#include "base/logging.h"
+#include "perfetto_base/logging.h"
 
 namespace perfetto {
 
