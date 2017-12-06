@@ -153,6 +153,9 @@ bool CpuReader::ParsePage(size_t cpu,
   if (!ReadAndAdvance(&ptr, end_of_page, &page_header))
     return false;
 
+  // TODO(hjd): There is something wrong with the page header struct.
+  page_header.size = page_header.size & 0xfffful;
+
   const uint8_t* const end = ptr + page_header.size;
   if (end > end_of_page)
     return false;
