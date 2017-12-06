@@ -99,15 +99,13 @@ bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
   uint8_t* buffer = GetBuffer();
   // TOOD(hjd): One read() per page may be too many.
   long bytes = PERFETTO_EINTR(read(fd_.get(), buffer, kPageSize));
-  if (bytes == -1 || bytes == 0)
+  if (bytes != kPageSize)
     return false;
-  PERFETTO_CHECK(bytes <= (long)kPageSize);
 
   for (size_t i = 0; i < kMaxSinks; i++) {
     if (!filters[i])
       break;
-    bool result =
-        ParsePage(cpu_, buffer, bytes, filters[i], &*bundles[i], table_);
+    bool result = ParsePage(cpu_, buffer, filters[i], &*bundles[i], table_);
     PERFETTO_DCHECK(result);
   }
   return true;
@@ -132,7 +130,6 @@ uint8_t* CpuReader::GetBuffer() {
 // This method is deliberately static so it can be tested independently.
 bool CpuReader::ParsePage(size_t cpu,
                           const uint8_t* ptr,
-                          size_t size,
                           const EventFilter* filter,
                           protos::pbzero::FtraceEventBundle* bundle,
                           const ProtoTranslationTable* table) {
@@ -142,7 +139,7 @@ bool CpuReader::ParsePage(size_t cpu,
       table->GetEventByName("sched_switch")->ftrace_event_id;
 
   const uint8_t* const start_of_page = ptr;
-  const uint8_t* const end_of_page = ptr + size;
+  const uint8_t* const end_of_page = ptr + kPageSize;
 
   bundle->set_cpu(cpu);
 

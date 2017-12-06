@@ -87,7 +87,6 @@ class CpuReader {
 
   static bool ParsePage(size_t cpu,
                         const uint8_t* ptr,
-                        size_t ptr_size,
                         const EventFilter*,
                         protos::pbzero::FtraceEventBundle*,
                         const ProtoTranslationTable* table);

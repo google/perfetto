@@ -290,7 +290,7 @@ TEST(CpuReaderTest, ParseSinglePrint) {
 
   EventFilter filter(*table, std::set<std::string>({"print"}));
 
-  CpuReader::ParsePage(42 /* cpu number */, page.get(), kPageSize, &filter,
+  CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
                        bundle_provider.writer(), table);
 
   auto bundle = bundle_provider.GetBundle();
