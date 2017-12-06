@@ -14,9 +14,9 @@
 
 executable("sanitizers_unittests") {
   testonly = true
-  deps += [
-    "//buildtools:gtest",
-    "//buildtools:gtest_main",
+  deps = [
+    "../../gn:default_deps",
+    "../../gn:gtest_deps",
   ]
   sources = [
     "sanitizers_unittest.cc",

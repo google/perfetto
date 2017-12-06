@@ -1,0 +1,116 @@
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../gn/perfetto.gni")
+import("//build_overrides/build.gni")
+import("../ipc/ipc_library.gni")
+
+# Core tracing library, platform independent, no transport layer.
+source_set("tracing") {
+  public_deps = [
+    "../../include/perfetto/tracing/core",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../base",
+  ]
+  sources = [
+    "core/service_impl.cc",
+    "core/service_impl.h",
+  ]
+}
+
+# IPC service definitions.
+ipc_library("ipc_protos") {
+  proto_in_dir = perfetto_root_path
+  sources = [
+    "ipc/data_source_config.proto",
+    "ipc/data_source_descriptor.proto",
+    "ipc/producer_port.proto",
+  ]
+}
+
+# Posix specialization of the tracing library for Linux/Android/Mac. Provides
+# an IPC transport over a UNIX domain socket.
+source_set("ipc") {
+  public_deps = [
+    "../../include/perfetto/tracing/core",
+    "../../include/perfetto/tracing/ipc",
+  ]
+  sources = [
+    "ipc/posix_shared_memory.cc",
+    "ipc/posix_shared_memory.h",
+    "ipc/producer/producer_ipc_client_impl.cc",
+    "ipc/producer/producer_ipc_client_impl.h",
+    "ipc/service/producer_ipc_service.cc",
+    "ipc/service/producer_ipc_service.h",
+    "ipc/service/service_ipc_host_impl.cc",
+    "ipc/service/service_ipc_host_impl.h",
+  ]
+  deps = [
+    ":ipc_protos",
+    ":tracing",
+    "../../gn:default_deps",
+    "../base",
+    "../ipc",
+  ]
+}
+
+executable("tracing_unittests") {
+  testonly = true
+  deps = [
+    ":ipc",
+    ":tracing",
+    "../../gn:default_deps",
+    "../../gn:gtest_deps",
+    "../base",
+    "../base:test_support",
+  ]
+
+  sources = [
+    "core/service_impl_unittest.cc",
+    "ipc/posix_shared_memory_unittest.cc",
+    "test/test_shared_memory.cc",
+    "test/test_shared_memory.h",
+  ]
+}
+
+executable("tracing_test") {
+  testonly = true
+  deps = [
+    ":ipc",
+    ":ipc_protos",
+    ":tracing",
+    "../../gn:default_deps",
+    "../base",
+    "../base:test_support",
+    "../ipc",
+  ]
+  sources = [
+    "test/ipc_test.cc",
+  ]
+}
+
+if (!build_with_chromium) {
+  executable("tracing_benchmarks") {
+    testonly = true
+    deps = [
+      "../../gn:default_deps",
+      "//buildtools:benchmark",
+    ]
+    sources = [
+      "test/hello_world_benchmark.cc",
+    ]
+  }
+}
