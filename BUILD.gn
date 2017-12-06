@@ -17,27 +17,39 @@ import("gn/perfetto.gni")
 group("all") {
   testonly = true  # allow to build also test targets
   deps = [
-    ":tests",
+    ":perfetto_tests",
     "src/ftrace_reader:ftrace_reader_demo",
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
   ]
+  if (!build_with_chromium) {
+    deps += [
+      ":perfetto_benchmarks",
+      "src/ftrace_reader:ftrace_reader_integrationtests",
+    ]
+  }
 }
 
-group("tests") {
+executable("perfetto_tests") {
   testonly = true
   deps = [
-    "src/base:perfetto_base_unittests",
-    "src/ftrace_reader:ftrace_reader_integrationtests",
+    "gn:default_deps",
+    "src/base:base_unittests",
     "src/ftrace_reader:ftrace_reader_unittests",
     "src/ipc:perfetto_ipc_unittests",
     "src/protozero:protozero_unittests",
     "src/tracing:tracing_unittests",
     "tools/sanitizers_unittests",
   ]
+}
 
-  if (!build_with_chromium) {
-    deps += [ "src/tracing:tracing_benchmarks" ]
+if (!build_with_chromium) {
+  executable("perfetto_benchmarks") {
+    testonly = true
+    deps = [
+      "gn:default_deps",
+      "src/tracing:tracing_benchmarks",
+    ]
   }
 }

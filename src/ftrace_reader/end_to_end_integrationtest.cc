@@ -24,7 +24,7 @@
 #include "perfetto/base/unix_task_runner.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "scattered_stream_delegate_for_testing.h"
+#include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
 
 #include "protos/ftrace/ftrace_event_bundle.pb.h"
 #include "protos/ftrace/ftrace_event_bundle.pbzero.h"

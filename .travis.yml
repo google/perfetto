@@ -142,16 +142,9 @@ script:
   - build/ninja -C out/dist -j8 all
   - |
     TEST_TARGETS="
-    perfetto_base_unittests
-    protozero_unittests
-    tracing_unittests
-    tracing_benchmarks
-    sanitizers_unittests
-    ftrace_reader_unittests
+    perfetto_tests
+    perfetto_benchmarks
     "
-
-    # TODO add ipc_unittests
-
     if [[ "$CFG" != android-* ]]; then
       for TEST_TARGET in $TEST_TARGETS; do
         "out/dist/$TEST_TARGET"

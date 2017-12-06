@@ -25,6 +25,7 @@
 #include "perfetto/ipc/service_descriptor.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/buffered_frame_deserializer.h"
+#include "src/ipc/test/test_socket.h"
 #include "src/ipc/unix_socket.h"
 
 #include "src/ipc/test/client_unittest_messages.pb.h"
@@ -38,7 +39,7 @@ using ::testing::_;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 
-constexpr char kSockName[] = "/tmp/perfetto_host_impl_unittest.sock";
+constexpr char kSockName[] = TEST_SOCK_NAME("host_impl_unittest.sock");
 
 // RequestProto and ReplyProto are defined in client_unittest_messages.proto.
 
@@ -155,7 +156,7 @@ class FakeClient : public UnixSocket::EventListener {
 class HostImplTest : public ::testing::Test {
  public:
   void SetUp() override {
-    unlink(kSockName);
+    DESTROY_TEST_SOCK(kSockName);
     task_runner_.reset(new base::TestTaskRunner());
     Host* host = Host::CreateInstance(kSockName, task_runner_.get()).release();
     ASSERT_NE(nullptr, host);
@@ -172,7 +173,7 @@ class HostImplTest : public ::testing::Test {
     host_.reset();
     task_runner_->RunUntilIdle();
     task_runner_.reset();
-    unlink(kSockName);
+    DESTROY_TEST_SOCK(kSockName);
   }
 
   // ::testing::StrictMock<MockEventListener> proxy_events_;
