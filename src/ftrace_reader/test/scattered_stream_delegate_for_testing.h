@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
-#define SRC_FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
+#ifndef SRC_FTRACE_READER_TEST_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
+#define SRC_FTRACE_READER_TEST_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
+
+#include <memory>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace perfetto {
 
@@ -46,46 +52,6 @@ class ScatteredStreamDelegateForTesting
   std::vector<std::unique_ptr<uint8_t[]>> chunks_;
 };
 
-ScatteredStreamDelegateForTesting::ScatteredStreamDelegateForTesting(
-    size_t chunk_size)
-    : chunk_size_(chunk_size) {}
-
-ScatteredStreamDelegateForTesting::~ScatteredStreamDelegateForTesting() {}
-
-protozero::ContiguousMemoryRange
-ScatteredStreamDelegateForTesting::GetNewBuffer() {
-  PERFETTO_CHECK(writer_);
-  if (chunks_.size()) {
-    size_t used = chunk_size_ - writer_->bytes_available();
-    chunks_used_size_.push_back(used);
-  }
-  std::unique_ptr<uint8_t[]> chunk(new uint8_t[chunk_size_]);
-  uint8_t* begin = chunk.get();
-  memset(begin, 0xff, chunk_size_);
-  chunks_.push_back(std::move(chunk));
-  return {begin, begin + chunk_size_};
-}
-
-std::unique_ptr<uint8_t[]> ScatteredStreamDelegateForTesting::StitchChunks(
-    size_t size) {
-  std::unique_ptr<uint8_t[]> buffer =
-      std::unique_ptr<uint8_t[]>(new uint8_t[size]);
-  size_t remaining = size;
-  size_t i = 0;
-  for (const auto& chunk : chunks_) {
-    size_t chunk_size = remaining;
-    if (i < chunks_used_size_.size()) {
-      chunk_size = chunks_used_size_[i];
-    }
-    PERFETTO_CHECK(chunk_size <= chunk_size_);
-    memcpy(buffer.get() + size - remaining, chunk.get(), chunk_size);
-    remaining -= chunk_size;
-    i++;
-  }
-
-  return buffer;
-}
-
 }  // namespace perfetto
 
-#endif  // SRC_FTRACE_READER_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
+#endif  // SRC_FTRACE_READER_TEST_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_

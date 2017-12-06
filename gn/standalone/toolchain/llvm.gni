@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build/sanitizers/vars.gni")
+import("//gn/standalone/sanitizers/vars.gni")
 
 declare_args() {
   is_hermetic_clang = is_clang && is_linux_host && using_sanitizer

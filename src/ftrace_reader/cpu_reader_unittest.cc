@@ -21,7 +21,7 @@
 #include "proto_translation_table.h"
 
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "scattered_stream_delegate_for_testing.h"
+#include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
 
 #include "protos/ftrace/ftrace_event.pb.h"
 #include "protos/ftrace/ftrace_event_bundle.pb.h"

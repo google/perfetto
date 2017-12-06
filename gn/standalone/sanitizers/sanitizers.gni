@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build/android.gni")
-import("//build/sanitizers/vars.gni")
-import("//build/toolchain/llvm.gni")
+import("//gn/standalone/android.gni")
+import("//gn/standalone/sanitizers/vars.gni")
+import("//gn/standalone/toolchain/llvm.gni")
 
 declare_args() {
   sanitizer_lib_base_name_ = ""

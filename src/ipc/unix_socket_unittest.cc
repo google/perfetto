@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/ipc/test/test_socket.h"
 
 namespace perfetto {
 namespace ipc {
@@ -35,16 +36,7 @@ using ::testing::_;
 using ::testing::Invoke;
 using ::testing::Mock;
 
-// Mac OS X doesn't support abstract (i.e. unnamed) sockets.
-#if BUILDFLAG(OS_MACOSX)
-static const char kSocketName[] = "/tmp/test_socket";
-void UnlinkSocket() {
-  unlink(kSocketName);
-}
-#else
-static const char kSocketName[] = "@test_socket";
-void UnlinkSocket() {}
-#endif
+static const char kSocketName[] = TEST_SOCK_NAME("unix_socket_unittest");
 
 class MockEventListener : public UnixSocket::EventListener {
  public:
@@ -75,8 +67,8 @@ class MockEventListener : public UnixSocket::EventListener {
 
 class UnixSocketTest : public ::testing::Test {
  protected:
-  void SetUp() override { UnlinkSocket(); }
-  void TearDown() override { UnlinkSocket(); }
+  void SetUp() override { DESTROY_TEST_SOCK(kSocketName); }
+  void TearDown() override { DESTROY_TEST_SOCK(kSocketName); }
 
   base::TestTaskRunner task_runner_;
   MockEventListener event_listener_;

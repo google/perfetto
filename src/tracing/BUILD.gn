@@ -67,7 +67,7 @@ source_set("ipc") {
   ]
 }
 
-executable("tracing_unittests") {
+source_set("tracing_unittests") {
   testonly = true
   deps = [
     ":ipc",
@@ -86,24 +86,8 @@ executable("tracing_unittests") {
   ]
 }
 
-executable("tracing_test") {
-  testonly = true
-  deps = [
-    ":ipc",
-    ":ipc_protos",
-    ":tracing",
-    "../../gn:default_deps",
-    "../base",
-    "../base:test_support",
-    "../ipc",
-  ]
-  sources = [
-    "test/ipc_test.cc",
-  ]
-}
-
 if (!build_with_chromium) {
-  executable("tracing_benchmarks") {
+  source_set("tracing_benchmarks") {
     testonly = true
     deps = [
       "../../gn:default_deps",

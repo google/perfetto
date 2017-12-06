@@ -45,17 +45,17 @@ if (current_cpu == "") {
 }
 
 default_configs = [
-  "//build:debug_symbols",
-  "//build:default",
-  "//build:extra_warnings",
-  "//build:no_exceptions",
-  "//build:no_rtti",
-  "//build/libc++:config",
-  "//build/sanitizers:sanitizers_cflags",
+  "//gn/standalone:debug_symbols",
+  "//gn/standalone:default",
+  "//gn/standalone:extra_warnings",
+  "//gn/standalone:no_exceptions",
+  "//gn/standalone:no_rtti",
+  "//gn/standalone/libc++:config",
+  "//gn/standalone/sanitizers:sanitizers_cflags",
 ]
 
 if (!is_debug) {
-  default_configs += [ "//build:release" ]
+  default_configs += [ "//gn/standalone:release" ]
 }
 
 set_defaults("source_set") {
@@ -71,13 +71,13 @@ set_defaults("static_library") {
 # libc++ itself on these targets.
 set_defaults("shared_library") {
   configs = default_configs
-  configs += [ "//build:shared_library" ]
+  configs += [ "//gn/standalone:shared_library" ]
 }
 
 set_defaults("executable") {
   configs = default_configs
-  configs += [ "//build:executable" ]
+  configs += [ "//gn/standalone:executable" ]
 }
 
-set_default_toolchain("//build/toolchain:gcc_like")
-host_toolchain = "//build/toolchain:gcc_like_host"
+set_default_toolchain("//gn/standalone/toolchain:gcc_like")
+host_toolchain = "//gn/standalone/toolchain:gcc_like_host"

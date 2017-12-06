@@ -83,8 +83,8 @@ group("default_deps") {
   public_configs = [ ":default_config" ]
   if (!build_with_chromium) {
     public_deps = [
-      "//build/libc++:deps",
-      "//build/sanitizers:deps",
+      "//gn/standalone/libc++:deps",
+      "//gn/standalone/sanitizers:deps",
     ]
   }
 }
