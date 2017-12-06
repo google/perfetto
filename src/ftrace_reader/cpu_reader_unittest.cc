@@ -32,6 +32,24 @@ namespace perfetto {
 namespace {
 
 const size_t kPageSize = 4096;
+const uint64_t kNanoInSecond = 1000 * 1000 * 1000;
+const uint64_t kNanoInMicro = 1000;
+
+::testing::AssertionResult WithinOneMicrosecond(uint64_t actual_ns,
+                                                uint64_t expected_s,
+                                                uint64_t expected_us) {
+  // Round to closest us.
+  uint64_t actual_us = (actual_ns + kNanoInMicro / 2) / kNanoInMicro;
+  uint64_t total_expected_us = expected_s * 1000 * 1000 + expected_us;
+  if (actual_us == total_expected_us) {
+    return ::testing::AssertionSuccess();
+  } else {
+    return ::testing::AssertionFailure()
+           << actual_ns / kNanoInSecond << "."
+           << (actual_ns % kNanoInSecond) / kNanoInMicro << " vs. "
+           << expected_s << "." << expected_us;
+  }
+}
 
 struct ExamplePage {
   // The name of the format file set used in the collection of this example
@@ -299,9 +317,78 @@ TEST(CpuReaderTest, ParseSinglePrint) {
   ASSERT_EQ(bundle->event().size(), 1);
   const protos::FtraceEvent& event = bundle->event().Get(0);
   EXPECT_EQ(event.pid(), 28712);
-  EXPECT_TRUE(event.has_print());
-  // TODO(hjd): Check if this is the correct format.
+  EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 608934, 535199));
   EXPECT_EQ(event.print().buf(), "Hello, world!\n");
+}
+
+// # tracer: nop
+// #
+// # entries-in-buffer/entries-written: 3/3   #P:8
+// #
+// #                              _-----=> irqs-off
+// #                             / _----=> need-resched
+// #                            | / _---=> hardirq/softirq
+// #                            || / _--=> preempt-depth
+// #                            ||| /     delay
+// #           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
+// #              | |       |   ||||       |         |
+//               sh-30693 [000] ...1 615436.216806: tracing_mark_write: Hello, world!
+//               sh-30693 [000] ...1 615486.377232: tracing_mark_write: Good afternoon, world!
+//               sh-30693 [000] ...1 615495.632679: tracing_mark_write: Goodbye, world!
+ExamplePage g_three_prints{
+    "synthetic",
+    R"(
+    00000000: a3ab 1569 bc2f 0200 9400 0000 0000 0000  ...i./..........
+    00000010: 1e00 0000 0000 0000 0800 0000 0500 0001  ................
+    00000020: e577 0000 ac5d 1661 86ff ffff 4865 6c6c  .w...].a....Hell
+    00000030: 6f2c 2077 6f72 6c64 210a 0000 5e32 6bb9  o, world!...^2k.
+    00000040: 7501 0000 0b00 0000 0500 0001 e577 0000  u............w..
+    00000050: ac5d 1661 86ff ffff 476f 6f64 2061 6674  .].a....Good aft
+    00000060: 6572 6e6f 6f6e 2c20 776f 726c 6421 0a00  ernoon, world!..
+    00000070: 0000 0000 9e6a 5df5 4400 0000 0900 0000  .....j].D.......
+    00000080: 0500 0001 e577 0000 ac5d 1661 86ff ffff  .....w...].a....
+    00000090: 476f 6f64 6279 652c 2077 6f72 6c64 210a  Goodbye, world!.
+    000000a0: 0051 0000 0000 0000 0000 0000 0000 0000  .Q..............
+  )",
+};
+
+TEST(CpuReaderTest, ParseThreePrint) {
+  const ExamplePage* test_case = &g_three_prints;
+
+  BundleProvider bundle_provider(kPageSize);
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  EventFilter filter(*table, std::set<std::string>({"print"}));
+
+  CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
+                       bundle_provider.writer(), table);
+
+  auto bundle = bundle_provider.GetBundle();
+  ASSERT_TRUE(bundle);
+  EXPECT_EQ(bundle->cpu(), 42);
+  ASSERT_EQ(bundle->event().size(), 3);
+
+  {
+    const protos::FtraceEvent& event = bundle->event().Get(0);
+    EXPECT_EQ(event.pid(), 30693);
+    EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 615436, 216806));
+    EXPECT_EQ(event.print().buf(), "Hello, world!\n");
+  }
+
+  {
+    const protos::FtraceEvent& event = bundle->event().Get(1);
+    EXPECT_EQ(event.pid(), 30693);
+    EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 615486, 377232));
+    EXPECT_EQ(event.print().buf(), "Good afternoon, world!\n");
+  }
+
+  {
+    const protos::FtraceEvent& event = bundle->event().Get(2);
+    EXPECT_EQ(event.pid(), 30693);
+    EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 615495, 632679));
+    EXPECT_EQ(event.print().buf(), "Goodbye, world!\n");
+  }
 }
 
 }  // namespace perfetto

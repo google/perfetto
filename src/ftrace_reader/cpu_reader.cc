@@ -157,10 +157,15 @@ bool CpuReader::ParsePage(size_t cpu,
   if (end > end_of_page)
     return false;
 
+  uint64_t timestamp = page_header.timestamp;
+
   while (ptr < end) {
     EventHeader event_header;
     if (!ReadAndAdvance(&ptr, end, &event_header))
       return false;
+
+    timestamp += event_header.time_delta;
+
     switch (event_header.type_or_length) {
       case kTypePadding: {
         // Left over page padding or discarded event.
@@ -179,8 +184,8 @@ bool CpuReader::ParsePage(size_t cpu,
         uint32_t time_delta_ext;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
           return false;
-        (void)time_delta_ext;
-        // TODO(hjd): Handle.
+        // See https://goo.gl/CFBu5x
+        timestamp += ((uint64_t)time_delta_ext) << 27;
         break;
       }
       case kTypeTimeStamp: {
@@ -225,6 +230,7 @@ bool CpuReader::ParsePage(size_t cpu,
 
         protos::pbzero::FtraceEvent* event = bundle->add_event();
         event->set_pid(pid);
+        event->set_timestamp(timestamp);
 
         // TODO(hjd): Replace this handrolled code with generic parsing code.
         if (ftrace_event_id == print_id) {
@@ -237,9 +243,14 @@ bool CpuReader::ParsePage(size_t cpu,
 
           // TODO(hjd): Not sure if this is null-terminated.
           const uint8_t* buf_start = ptr;
-          const uint8_t* buf_end = next - 2;
-          print_event->set_buf(reinterpret_cast<const char*>(buf_start),
-                               buf_end - buf_start);
+          const uint8_t* buf_end = next;
+          for (const uint8_t* c = buf_start; c < buf_end; c++) {
+            if (*c != '\0')
+              continue;
+            print_event->set_buf(reinterpret_cast<const char*>(buf_start),
+                                 c - buf_start);
+            break;
+          }
           print_event->Finalize();
         }
 
