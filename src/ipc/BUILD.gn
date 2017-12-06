@@ -38,7 +38,7 @@ source_set("ipc") {
   ]
 }
 
-executable("perfetto_ipc_unittests") {
+source_set("perfetto_ipc_unittests") {
   testonly = true
   deps = [
     ":ipc",

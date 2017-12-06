@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build/sanitizers/sanitizers.gni")
+import("//gn/standalone/sanitizers/sanitizers.gni")
 
 # Link dependencies for sanitizers for executables.
 group("deps") {

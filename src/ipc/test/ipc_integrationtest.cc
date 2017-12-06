@@ -19,6 +19,7 @@
 #include "perfetto/ipc/client.h"
 #include "perfetto/ipc/host.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/ipc/test/test_socket.h"
 
 #include "src/ipc/test/greeter_service.ipc.h"
 #include "src/ipc/test/greeter_service.pb.h"
@@ -35,7 +36,7 @@ using ::perfetto::ipc::Host;
 using ::perfetto::ipc::Service;
 using ::perfetto::ipc::ServiceProxy;
 
-constexpr char kSockName[] = "/tmp/perfetto_ipc_test.sock";
+constexpr char kSockName[] = TEST_SOCK_NAME("ipc_integrationtest");
 
 class MockEventListener : public ServiceProxy::EventListener {
  public:
@@ -62,8 +63,8 @@ class MockGreeterService : public ipc_test::Greeter {
 
 class IPCIntegrationTest : public ::testing::Test {
  protected:
-  void SetUp() override { unlink(kSockName); }
-  void TearDown() override { unlink(kSockName); }
+  void SetUp() override { DESTROY_TEST_SOCK(kSockName); }
+  void TearDown() override { DESTROY_TEST_SOCK(kSockName); }
 
   perfetto::base::TestTaskRunner task_runner_;
   MockEventListener svc_proxy_events_;
