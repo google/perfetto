@@ -73,7 +73,7 @@ def main():
   if not os.path.isdir(out_base_dir):
     os.mkdir(out_base_dir)
 
-  gn = os.path.join(ROOT_DIR, 'build', 'gn')
+  gn = os.path.join(ROOT_DIR, 'tools', 'gn')
 
   for config_name, gn_args in configs.iteritems():
     print '\n\033[32mBuilding %-20s[%s]\033[0m' % (config_name, ','.join(gn_args))
@@ -84,7 +84,7 @@ def main():
     print ' '.join(gn_cmd)
     subprocess.check_call(gn_cmd, cwd=ROOT_DIR, env={'EDITOR':'true'})
     if args.build:
-      ninja = os.path.join(ROOT_DIR, 'build', 'ninja')
+      ninja = os.path.join(ROOT_DIR, 'tools', 'ninja')
       ninja_cmd = [ninja, '-C', '.', args.build]
       subprocess.check_call(ninja_cmd, cwd=out_dir)
 

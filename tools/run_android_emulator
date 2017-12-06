@@ -23,11 +23,11 @@ def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--verbose', '-v', action='store_true')
   parser.add_argument('--pid', help='(optional) save pid into given file')
-  parser.add_argument('image', help='arm|arm64 (see //build/android_emulators)')
+  parser.add_argument('image', help='arm|arm64 (see //tools/android_emulators)')
   args = parser.parse_args()
 
   root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-  ini = os.path.join(root_dir, 'build', 'android_emulators', args.image + '.ini')
+  ini = os.path.join(root_dir, 'tools', 'android_emulators', args.image + '.ini')
   assert os.path.exists(ini), 'File not found: ' + ini
 
   avd_dir = os.path.join(root_dir, 'buildtools', 'emulator_images')
