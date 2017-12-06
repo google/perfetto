@@ -34,7 +34,7 @@ source_set("protozero") {
   ]
 }
 
-executable("protozero_unittests") {
+source_set("protozero_unittests") {
   testonly = true
   deps = [
     ":protozero",
