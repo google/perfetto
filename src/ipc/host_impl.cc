@@ -186,6 +186,9 @@ void HostImpl::ReplyToMethodInvocation(ClientID client_id,
   Frame reply_frame;
   reply_frame.set_request_id(request_id);
 
+  // TODO: add a test to guarantee that the reply is consumed within the same
+  // call stack and not kept around. ConsumerIPCService::OnTraceData() relies
+  // on this behavior.
   auto* reply_frame_data = reply_frame.mutable_msg_invoke_method_reply();
   reply_frame_data->set_has_more(reply.has_more());
   if (reply.success()) {
@@ -202,11 +205,13 @@ void HostImpl::ReplyToMethodInvocation(ClientID client_id,
 void HostImpl::SendFrame(ClientConnection* client, const Frame& frame, int fd) {
   std::string buf = BufferedFrameDeserializer::Serialize(frame);
 
-  // TODO(primiano): remember that this is doing non-blocking I/O. What if the
-  // socket buffer is full? Maybe we just want to drop this on the floor? Or
-  // maybe throttle the send and PostTask the reply later?
-  bool res = client->sock->Send(buf.data(), buf.size(), fd);
-  PERFETTO_CHECK(!client->sock->is_connected() || res);
+  // TODO(primiano): this should do non-blocking I/O. But then what if the
+  // socket buffer is full? We might want to either drop the request or throttle
+  // the send and PostTask the reply later? Right now we are making Send()
+  // blocking as a workaround. Propagate bakpressure to the caller instead.
+  bool res = client->sock->Send(buf.data(), buf.size(), fd,
+                                UnixSocket::BlockingMode::kBlocking);
+  PERFETTO_CHECK(res || !client->sock->is_connected());
 }
 
 void HostImpl::OnDisconnect(UnixSocket* sock) {
