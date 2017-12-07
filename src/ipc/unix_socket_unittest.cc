@@ -19,6 +19,7 @@
 #include <sys/mman.h>
 
 #include <list>
+#include <thread>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -403,6 +404,57 @@ TEST_F(UnixSocketTest, PeerUidRetainedAfterDisconnect) {
   task_runner_.RunUntilCheckpoint("cli_disconnected");
   ASSERT_FALSE(srv_client_conn->is_connected());
   EXPECT_EQ(geteuid(), static_cast<uint32_t>(srv_client_conn->peer_uid()));
+}
+
+TEST_F(UnixSocketTest, BlockingSend) {
+  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_);
+  ASSERT_TRUE(srv->is_listening());
+
+  auto all_frames_done = task_runner_.CreateCheckpoint("all_frames_done");
+  size_t total_bytes_received = 0;
+  constexpr size_t kTotalBytes = 1024 * 1024 * 5;
+  EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
+      .WillOnce(Invoke([this, &total_bytes_received, all_frames_done](
+                           UnixSocket*, UnixSocket* srv_conn) {
+        EXPECT_CALL(event_listener_, OnDataAvailable(srv_conn))
+            .WillRepeatedly(
+                Invoke([&total_bytes_received, all_frames_done](UnixSocket* s) {
+                  char buf[1024];
+                  size_t res = s->Receive(buf, sizeof(buf));
+                  total_bytes_received += res;
+                  if (total_bytes_received == kTotalBytes)
+                    all_frames_done();
+                }));
+      }));
+
+  // Override default timeout as this test can take time on the emulator.
+  const int kTimeoutMs = 30000;
+
+  // Perform the blocking send form another thread.
+  std::thread tx_thread([] {
+    base::TestTaskRunner tx_task_runner;
+    MockEventListener tx_events;
+    auto cli = UnixSocket::Connect(kSocketName, &tx_events, &tx_task_runner);
+
+    auto cli_connected = tx_task_runner.CreateCheckpoint("cli_connected");
+    EXPECT_CALL(tx_events, OnConnect(cli.get(), true))
+        .WillOnce(
+            Invoke([cli_connected](UnixSocket*, bool) { cli_connected(); }));
+    tx_task_runner.RunUntilCheckpoint("cli_connected");
+
+    auto all_sent = tx_task_runner.CreateCheckpoint("all_sent");
+    tx_task_runner.PostTask([&cli, all_sent] {
+      char buf[4096 * 4] = {};
+      for (size_t i = 0; i < kTotalBytes / sizeof(buf); i++)
+        cli->Send(buf, sizeof(buf), -1 /*fd*/,
+                  UnixSocket::BlockingMode::kBlocking);
+      all_sent();
+    });
+    tx_task_runner.RunUntilCheckpoint("all_sent", kTimeoutMs);
+  });
+
+  task_runner_.RunUntilCheckpoint("all_frames_done", kTimeoutMs);
+  tx_thread.join();
 }
 
 // TODO(primiano): add a test to check that in the case of a peer sending a fd

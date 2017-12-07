@@ -130,11 +130,7 @@ UnixSocket::UnixSocket(EventListener* event_listener,
   int fcntl_res = fcntl(*fd_, F_SETFD, FD_CLOEXEC);
   PERFETTO_CHECK(fcntl_res == 0);
 
-  // Set non-blocking mode.
-  int flags = fcntl(*fd_, F_GETFL, 0);
-  flags |= O_NONBLOCK;
-  fcntl_res = fcntl(fd(), F_SETFL, flags);
-  PERFETTO_CHECK(fcntl_res == 0);
+  SetBlockingIO(false);
 
   base::WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
   task_runner_->AddFileDescriptorWatch(*fd_, [weak_ptr]() {
@@ -284,7 +280,10 @@ bool UnixSocket::Send(const std::string& msg) {
   return Send(msg.c_str(), msg.size() + 1);
 }
 
-bool UnixSocket::Send(const void* msg, size_t len, int send_fd) {
+bool UnixSocket::Send(const void* msg,
+                      size_t len,
+                      int send_fd,
+                      BlockingMode blocking_mode) {
   if (state_ != State::kConnected) {
     errno = last_error_ = ENOTCONN;
     return false;
@@ -311,7 +310,12 @@ bool UnixSocket::Send(const void* msg, size_t len, int send_fd) {
     msg_hdr.msg_controllen = cmsg->cmsg_len;
   }
 
+  if (blocking_mode == BlockingMode::kBlocking)
+    SetBlockingIO(true);
   const ssize_t sz = PERFETTO_EINTR(sendmsg(*fd_, &msg_hdr, kNoSigPipe));
+  if (blocking_mode == BlockingMode::kBlocking)
+    SetBlockingIO(false);
+
   if (sz >= 0) {
     // There should be no way a non-blocking socket returns < |len|.
     // If the queueing fails, sendmsg() must return -1 + errno = EWOULDBLOCK.
@@ -436,6 +440,17 @@ void UnixSocket::NotifyConnectionState(bool success) {
     if (weak_ptr)
       weak_ptr->event_listener_->OnConnect(weak_ptr.get(), success);
   });
+}
+
+void UnixSocket::SetBlockingIO(bool is_blocking) {
+  int flags = fcntl(*fd_, F_GETFL, 0);
+  if (!is_blocking) {
+    flags |= O_NONBLOCK;
+  } else {
+    flags &= ~static_cast<int>(O_NONBLOCK);
+  }
+  bool fcntl_res = fcntl(fd(), F_SETFL, flags);
+  PERFETTO_CHECK(fcntl_res == 0);
 }
 
 UnixSocket::EventListener::~EventListener() {}
