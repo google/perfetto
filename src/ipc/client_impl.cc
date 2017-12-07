@@ -104,11 +104,13 @@ bool ClientImpl::SendFrame(const Frame& frame) {
   // Serialize the frame into protobuf, add the size header, and send it.
   std::string buf = BufferedFrameDeserializer::Serialize(frame);
 
-  // TODO(primiano): remember that this is doing non-blocking I/O. What if the
-  // socket buffer is full? Maybe we just want to drop this on the floor? Or
-  // maybe throttle the send and PostTask the reply later?
-  bool res = sock_->Send(buf.data(), buf.size());
-  PERFETTO_CHECK(!sock_->is_connected() || res);
+  // TODO(primiano): this should do non-blocking I/O. But then what if the
+  // socket buffer is full? We might want to either drop the request or throttle
+  // the send and PostTask the reply later? Right now we are making Send()
+  // blocking as a workaround. Propagate bakpressure to the caller instead.
+  bool res = sock_->Send(buf.data(), buf.size(), -1 /*fd*/,
+                         UnixSocket::BlockingMode::kBlocking);
+  PERFETTO_CHECK(res || !sock_->is_connected());
   return res;
 }
 
