@@ -127,7 +127,6 @@ void SignalHandler(int sig_num, siginfo_t* info, void* ucontext) {
     PrintHex(i);
     Print("  ");
     const char* sym_name = res ? sym_info.dli_sname : nullptr;
-
     if (sym_name) {
       int ignored;
       size_t len = kDemangledNameLen;
@@ -142,7 +141,11 @@ void SignalHandler(int sig_num, siginfo_t* info, void* ucontext) {
       }
       write(STDERR_FILENO, sym_name, strlen(sym_name));
     } else {
-      Print("???");
+      if (res && sym_info.dli_fname) {
+        write(STDERR_FILENO, sym_info.dli_fname, strlen(sym_info.dli_fname));
+        Print(" ");
+      }
+      PrintHex(frames[i] - reinterpret_cast<uintptr_t>(sym_info.dli_fbase));
     }
     Print("\n");
   }
