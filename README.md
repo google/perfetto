@@ -15,7 +15,8 @@ Right now Linux desktop and OSX are maintained best-effort.
 Get the code
 ------------
 ### Prerequisites
-All dependent libraries are self-hosted and pulled by the `build/install-build-deps` script.  
+All dependent libraries are self-hosted and pulled by the
+`tools/install-build-deps` script.  
 The only requirements on the host are
 python, git and a compiler (preferably clang, gcc is maintained best-effort):  
 `$ sudo apt-get update && sudo apt-get install git clang python`
@@ -43,18 +44,18 @@ Build instructions
 ------------------
 ### Build from a standalone checkout
 If you are a chromium developer and have depot_tools installed you can avoid
-the `build/` prefix below and just use gn/ninja from depot_tools.
+the `tools/` prefix below and just use gn/ninja from depot_tools.
 
-`$ build/install-build-deps` to install third-party build deps (NDK etc)
+`$ tools/install-build-deps` to install third-party build deps (NDK etc)
 
-`$ build/gn args out/android` to generate build files and enter in the editor:
+`$ tools/gn args out/android` to generate build files and enter in the editor:
 ```
 target_os = "android"          # Leave empty for local testing
 target_cpu = "arm" or "arm64"  # Only when building for Android
 ```
 (See the [Build Configurations](#build-configurations) section below for more)
 
-`$ build/ninja -C out/android all`
+`$ tools/ninja -C out/android all`
 
 
 ### Build from the Android tree
@@ -65,7 +66,7 @@ Run tests
 ---------
 ### On the host (Linux / OSX)
 ```
-$ build/ninja -C out/default (tracing_unittests | tracing_benchmarks)
+$ tools/ninja -C out/default (tracing_unittests | tracing_benchmarks)
 $ out/default/tracing_unittests --gtest_help
 ```
 
@@ -73,10 +74,10 @@ $ out/default/tracing_unittests --gtest_help
 Either connect a device in [ADB mode][adb-docs] or use the bundled emulator.
 
 To start the emulator:  
-`$ build/run_android_emulator (arm | arm64) &`
+`$ tools/run_android_emulator (arm | arm64) &`
 
 To run the tests (either on the emulator or physical device):  
-`$ build/run_android_test out/default tracing_unittests`
+`$ tools/run_android_test out/default tracing_unittests`
 
 
 Build configurations

@@ -34,7 +34,7 @@ esac
 
 BIN_PATH="$PROJECT_ROOT/buildtools/$OS/$CMD"
 if [ ! -x "$BIN_PATH" ]; then
-  echo "Cannot find $BIN_PATH. Run build/install-build-deps first."
+  echo "Cannot find $BIN_PATH. Run tools/install-build-deps first."
   exit 1
 fi
 

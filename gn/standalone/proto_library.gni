@@ -93,7 +93,7 @@ template("proto_library") {
   # The XXX_gen action that generates the .pb.{cc,h} files.
   action(action_name) {
     visibility = [ ":$source_set_name" ]
-    script = "//build/build_tool_wrapper.py"
+    script = "//gn/standalone/build_tool_wrapper.py"
     sources = proto_sources
     outputs = get_path_info(protogens, "abspath")
 
@@ -162,7 +162,7 @@ template("proto_library") {
 
     sources = get_target_outputs(":$action_name")
 
-    configs -= [ "//build:extra_warnings" ]
+    configs -= [ "//gn/standalone:extra_warnings" ]
     if (defined(invoker.extra_configs)) {
       configs += invoker.extra_configs
     }

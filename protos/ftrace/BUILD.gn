@@ -25,7 +25,7 @@ full_protos_target_dir =
 
 action_foreach("generate_full_protos") {
   visibility = [ ":*" ]
-  script = "../../build/generate_full_protos.py"
+  script = "generate_full_protos.py"
   sources = ftrace_proto_names
 
   # TODO(hjd): Add support for subdirectories.

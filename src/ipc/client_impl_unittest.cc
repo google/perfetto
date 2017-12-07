@@ -28,6 +28,7 @@
 #include "perfetto/ipc/service_proxy.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/buffered_frame_deserializer.h"
+#include "src/ipc/test/test_socket.h"
 #include "src/ipc/unix_socket.h"
 
 #include "src/ipc/test/client_unittest_messages.pb.h"
@@ -41,7 +42,7 @@ using ::testing::InSequence;
 using ::testing::Invoke;
 using ::testing::Mock;
 
-constexpr char kSockName[] = "/tmp/perfetto_client_impl_unittest.sock";
+constexpr char kSockName[] = TEST_SOCK_NAME("client_impl_unittest");
 
 // A fake ServiceProxy. This fakes the client-side class that would be
 // auto-generated from .proto-files.
@@ -99,11 +100,11 @@ class FakeHost : public UnixSocket::EventListener {
   };  // FakeService.
 
   explicit FakeHost(base::TaskRunner* task_runner) {
-    unlink(kSockName);
+    DESTROY_TEST_SOCK(kSockName);
     listening_sock = UnixSocket::Listen(kSockName, this, task_runner);
     EXPECT_TRUE(listening_sock->is_listening());
   }
-  ~FakeHost() override { unlink(kSockName); }
+  ~FakeHost() override { DESTROY_TEST_SOCK(kSockName); }
 
   FakeService* AddFakeService(const std::string& name) {
     auto it_and_inserted =
@@ -458,6 +459,7 @@ TEST_F(ClientImplTest, ClientDestroyedBeforeProxy) {
   proxy->BeginInvoke("FakeMethod1", req, std::move(deferred_reply));
   EXPECT_CALL(proxy_events_, OnDisconnect());
   cli_.reset();
+  host_.reset();  // Prevent spurious OnInvoke callbacks on the fake host.
   task_runner_->RunUntilCheckpoint("on_reject");
 }
 
