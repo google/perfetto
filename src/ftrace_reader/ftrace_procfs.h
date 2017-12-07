@@ -34,6 +34,9 @@ class FtraceProcfs {
   // Disable the event under with the given |group| and |name|.
   bool DisableEvent(const std::string& group, const std::string& name);
 
+  // Disable all events by writing to the global enable file.
+  bool DisableAllEvents();
+
   // Read the format for event with the given |group| and |name|.
   std::string ReadEventFormat(const std::string& group,
                               const std::string& name) const;

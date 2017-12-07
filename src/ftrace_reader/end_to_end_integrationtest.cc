@@ -111,14 +111,8 @@ TEST_F(EndToEndIntegrationTest, SchedSwitchAndPrint) {
   // Let some events build up.
   sleep(1);
 
-  // Start watching pipe fds.
-  ftrace->Start();
-
   // Start processing the tasks (OnBundleComplete will quit the task runner).
   runner()->Run();
-
-  // Stop listening to fds.
-  ftrace->Stop();
 
   // Disable events.
   sink.reset();
