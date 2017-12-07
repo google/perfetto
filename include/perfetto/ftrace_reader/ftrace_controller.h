@@ -111,9 +111,6 @@ class FtraceController {
 
   std::unique_ptr<FtraceSink> CreateSink(FtraceConfig, FtraceSink::Delegate*);
 
-  void Start();
-  void Stop();
-
  protected:
   // Protected for testing.
   FtraceController(std::unique_ptr<FtraceProcfs>,
@@ -131,6 +128,9 @@ class FtraceController {
   void Unregister(FtraceSink*);
   void RegisterForEvent(const std::string& event_name);
   void UnregisterForEvent(const std::string& event_name);
+
+  void StartIfNeeded();
+  void StopIfNeeded();
 
   // Called when we know there is data for the raw pipe
   // for the given |cpu|. Kicks off the reading/parsing
