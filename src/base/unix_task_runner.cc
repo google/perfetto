@@ -18,6 +18,7 @@
 
 #include "perfetto/base/build_config.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -135,8 +136,12 @@ void UnixTaskRunner::RunImmediateAndDelayedTask() {
       }
     }
   }
+
+  errno = 0;
   if (immediate_task)
     immediate_task();
+
+  errno = 0;
   if (delayed_task)
     delayed_task();
 }
@@ -189,6 +194,7 @@ void UnixTaskRunner::RunFileDescriptorWatch(int fd) {
     poll_fds_[fd_index].fd = fd;
     task = it->second.callback;
   }
+  errno = 0;
   task();
 }
 
