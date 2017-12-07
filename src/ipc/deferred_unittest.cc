@@ -65,7 +65,7 @@ TEST(DeferredTest, BindAndFail) {
     ASSERT_EQ(-1, msg.fd());
     ASSERT_FALSE(msg.success());
     ASSERT_FALSE(msg);
-    ASSERT_EQ(nullptr, &*msg);
+    ASSERT_EQ(nullptr, msg.operator->());
     (*num_callbacks)++;
   });
 
