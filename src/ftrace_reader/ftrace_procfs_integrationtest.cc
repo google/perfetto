@@ -30,6 +30,12 @@ namespace {
 const char kTracingPath[] = "/sys/kernel/debug/tracing/";
 const char kTracePath[] = "/sys/kernel/debug/tracing/trace";
 
+void ResetFtrace(FtraceProcfs* ftrace) {
+  ftrace->DisableAllEvents();
+  ftrace->ClearTrace();
+  ftrace->EnableTracing();
+}
+
 std::string GetTraceOutput() {
   std::ifstream fin(kTracePath, std::ios::in);
   if (!fin) {
@@ -46,6 +52,7 @@ std::string GetTraceOutput() {
 
 TEST(FtraceProcfsIntegrationTest, ClearTrace) {
   FtraceProcfs ftrace(kTracingPath);
+  ResetFtrace(&ftrace);
   ftrace.WriteTraceMarker("Hello, World!");
   ftrace.ClearTrace();
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello, World!")));
@@ -53,12 +60,14 @@ TEST(FtraceProcfsIntegrationTest, ClearTrace) {
 
 TEST(FtraceProcfsIntegrationTest, TraceMarker) {
   FtraceProcfs ftrace(kTracingPath);
+  ResetFtrace(&ftrace);
   ftrace.WriteTraceMarker("Hello, World!");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello, World!"));
 }
 
 TEST(FtraceProcfsIntegrationTest, EnableDisableEvent) {
   FtraceProcfs ftrace(kTracingPath);
+  ResetFtrace(&ftrace);
   ftrace.EnableEvent("sched", "sched_switch");
   sleep(1);
   EXPECT_THAT(GetTraceOutput(), HasSubstr("sched_switch"));
@@ -71,7 +80,7 @@ TEST(FtraceProcfsIntegrationTest, EnableDisableEvent) {
 
 TEST(FtraceProcfsIntegrationTest, EnableDisableTracing) {
   FtraceProcfs ftrace(kTracingPath);
-  ftrace.ClearTrace();
+  ResetFtrace(&ftrace);
   EXPECT_TRUE(ftrace.IsTracingEnabled());
   ftrace.WriteTraceMarker("Before");
   ftrace.DisableTracing();
@@ -90,6 +99,12 @@ TEST(FtraceProcfsIntegrationTest, ReadFormatFile) {
   std::string format = ftrace.ReadEventFormat("ftrace", "print");
   EXPECT_THAT(format, HasSubstr("name: print"));
   EXPECT_THAT(format, HasSubstr("field:char buf"));
+}
+
+TEST(FtraceProcfsIntegrationTest, ReadAvailableEvents) {
+  FtraceProcfs ftrace(kTracingPath);
+  std::string format = ftrace.ReadAvailableEvents();
+  EXPECT_THAT(format, HasSubstr("sched:sched_switch"));
 }
 
 TEST(FtraceProcfsIntegrationTest, CanOpenTracePipeRaw) {

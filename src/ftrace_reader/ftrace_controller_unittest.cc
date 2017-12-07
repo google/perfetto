@@ -32,6 +32,7 @@ using testing::_;
 using testing::Return;
 using testing::ByMove;
 using testing::AnyNumber;
+using testing::NiceMock;
 
 using Table = perfetto::ProtoTranslationTable;
 using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
@@ -39,6 +40,9 @@ using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
 namespace perfetto {
 
 namespace {
+
+const char kFooEnablePath[] = "/root/events/group/foo/enable";
+const char kBarEnablePath[] = "/root/events/group/bar/enable";
 
 class MockTaskRunner : public base::TaskRunner {
  public:
@@ -127,9 +131,9 @@ class TestFtraceController : public FtraceController {
 }  // namespace
 
 TEST(FtraceControllerTest, NoExistentEventsDontCrash) {
-  MockTaskRunner task_runner;
+  NiceMock<MockTaskRunner> task_runner;
   auto ftrace_procfs =
-      std::unique_ptr<MockFtraceProcfs>(new MockFtraceProcfs());
+      std::unique_ptr<MockFtraceProcfs>(new NiceMock<MockFtraceProcfs>());
   TestFtraceController controller(std::move(ftrace_procfs), &task_runner,
                                   FakeTable());
 
@@ -151,12 +155,14 @@ TEST(FtraceControllerTest, OneSink) {
   MockDelegate delegate;
   FtraceConfig config({"foo"});
 
-  EXPECT_CALL(*raw_ftrace_procfs,
-              WriteToFile("/root/events/group/foo/enable", "1"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
+  EXPECT_CALL(task_runner, AddFileDescriptorWatch(_, _));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "1"));
   std::unique_ptr<FtraceSink> sink = controller.CreateSink(config, &delegate);
 
-  EXPECT_CALL(*raw_ftrace_procfs,
-              WriteToFile("/root/events/group/foo/enable", "0"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "0"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "0"));
+  EXPECT_CALL(task_runner, RemoveFileDescriptorWatch(_));
   sink.reset();
 }
 
@@ -173,20 +179,20 @@ TEST(FtraceControllerTest, MultipleSinks) {
   FtraceConfig configA({"foo"});
   FtraceConfig configB({"foo", "bar"});
 
-  EXPECT_CALL(*raw_ftrace_procfs,
-              WriteToFile("/root/events/group/foo/enable", "1"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "1"));
+  EXPECT_CALL(task_runner, AddFileDescriptorWatch(_, _));
   std::unique_ptr<FtraceSink> sinkA = controller.CreateSink(configA, &delegate);
 
-  EXPECT_CALL(*raw_ftrace_procfs,
-              WriteToFile("/root/events/group/bar/enable", "1"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kBarEnablePath, "1"));
   std::unique_ptr<FtraceSink> sinkB = controller.CreateSink(configB, &delegate);
 
   sinkA.reset();
 
-  EXPECT_CALL(*raw_ftrace_procfs,
-              WriteToFile("/root/events/group/foo/enable", "0"));
-  EXPECT_CALL(*raw_ftrace_procfs,
-              WriteToFile("/root/events/group/bar/enable", "0"));
+  EXPECT_CALL(task_runner, RemoveFileDescriptorWatch(_));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "0"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kBarEnablePath, "0"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "0"));
   sinkB.reset();
 }
 
@@ -201,38 +207,17 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   MockDelegate delegate;
   FtraceConfig config({"foo"});
 
-  EXPECT_CALL(*raw_ftrace_procfs,
-              WriteToFile("/root/events/group/foo/enable", "1"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "1"));
+  EXPECT_CALL(task_runner, AddFileDescriptorWatch(_, _));
   std::unique_ptr<FtraceSink> sink = controller->CreateSink(config, &delegate);
 
-  EXPECT_CALL(*raw_ftrace_procfs,
-              WriteToFile("/root/events/group/foo/enable", "0"));
+  EXPECT_CALL(task_runner, RemoveFileDescriptorWatch(_));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "0"));
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "0"));
   controller.reset();
 
   sink.reset();
-}
-
-TEST(FtraceControllerTest, StartStop) {
-  MockTaskRunner task_runner;
-  auto ftrace_procfs =
-      std::unique_ptr<MockFtraceProcfs>(new MockFtraceProcfs());
-  auto raw_ftrace_procfs = ftrace_procfs.get();
-  TestFtraceController controller(std::move(ftrace_procfs), &task_runner,
-                                  FakeTable());
-
-  // Stopping before we start does nothing.
-  controller.Stop();
-
-  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
-  EXPECT_CALL(task_runner, AddFileDescriptorWatch(_, _));
-  controller.Start();
-  // Double start does nothing.
-  controller.Start();
-
-  EXPECT_CALL(task_runner, RemoveFileDescriptorWatch(_));
-  controller.Stop();
-  // Double stop does nothing.
-  controller.Stop();
 }
 
 }  // namespace perfetto
