@@ -412,6 +412,7 @@ if (use_custom_libcxx) {
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:no_rtti",
+      "//gn/standalone:visibility_hidden",
     ]
     configs += [
       ":libc++config",
@@ -464,6 +465,7 @@ if (use_custom_libcxx) {
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:no_rtti",
+      "//gn/standalone:visibility_hidden",
     ]
     configs += [
       ":libc++config",
