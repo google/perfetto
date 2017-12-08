@@ -44,6 +44,10 @@ config("no_rtti") {
   cflags = [ "-fno-rtti" ]
 }
 
+config("visibility_hidden") {
+  cflags = [ "-fvisibility=hidden" ]
+}
+
 config("default") {
   asmflags = []
   cflags = []
@@ -89,6 +93,8 @@ config("default") {
       "-mfpmath=sse",
     ]
     ldflags += [ "-m32" ]
+  } else if (current_cpu == "arm64") {
+    cflags += [ "-fno-omit-frame-pointer" ]
   }
 
   if (is_linux) {
@@ -145,26 +151,35 @@ config("default") {
 }
 
 config("debug_symbols") {
-  if (is_android) {
-    cflags = [
-      "-gline-tables-only",
-      "-funwind-tables",
-    ]
-  } else {
-    cflags = [ "-g2" ]
+  cflags = [
+    "-g",
+    "-O0",
+  ]
+  if (is_android || is_linux) {
+    cflags += [ "-funwind-tables" ]
+    ldflags = [ "-rdynamic" ]
   }
 }
 
 config("release") {
   cflags = [
-    "-O3",
     "-fdata-sections",
     "-ffunction-sections",
   ]
+  if (is_android) {
+    cflags += [ "-Oz" ]
+  } else {
+    cflags += [ "-O3" ]
+  }
   if (is_mac) {
     ldflags = [ "-dead_strip" ]
   } else {
-    ldflags = [ "-Wl,--gc-sections" ]
+    ldflags = [
+      "-fuse-ld=gold",
+      "-Wl,--gc-sections",
+      "-Wl,--icf=all",
+      "-Wl,-O1",
+    ]
   }
   defines = [ "NDEBUG" ]
 }
