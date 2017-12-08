@@ -22,6 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/shared_memory.h"
@@ -90,6 +91,73 @@ ServiceImpl::ProducerEndpointImpl* ServiceImpl::GetProducer(
   if (it == producers_.end())
     return nullptr;
   return it->second;
+}
+
+std::unique_ptr<Service::ConsumerEndpoint> ServiceImpl::ConnectConsumer(
+    Consumer* consumer) {
+  std::unique_ptr<ConsumerEndpointImpl> endpoint(
+      new ConsumerEndpointImpl(this, task_runner_, consumer));
+  auto it_and_inserted = consumers_.emplace(endpoint.get());
+  PERFETTO_DCHECK(it_and_inserted.second);
+  task_runner_->PostTask(std::bind(&Consumer::OnConnect, endpoint->consumer()));
+  return std::move(endpoint);
+}
+
+void ServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
+  PERFETTO_DCHECK(consumers_.count(consumer));
+  // TODO: In next CL, tear down the trace sessions for the consumer.
+  consumers_.erase(consumer);
+}
+
+void ServiceImpl::EnableTracing(ConsumerEndpointImpl*, const TraceConfig&) {
+  PERFETTO_DLOG("not implemented yet");
+}
+
+void ServiceImpl::DisableTracing(ConsumerEndpointImpl*) {
+  PERFETTO_DLOG("not implemented yet");
+}
+
+void ServiceImpl::ReadBuffers(ConsumerEndpointImpl*) {
+  PERFETTO_DLOG("not implemented yet");
+}
+
+void ServiceImpl::FreeBuffers(ConsumerEndpointImpl*) {
+  PERFETTO_DLOG("not implemented yet");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ServiceImpl::ConsumerEndpointImpl implementation
+////////////////////////////////////////////////////////////////////////////////
+
+ServiceImpl::ConsumerEndpointImpl::ConsumerEndpointImpl(ServiceImpl* service,
+                                                        base::TaskRunner*,
+                                                        Consumer* consumer)
+    : service_(service), consumer_(consumer), weak_ptr_factory_(this) {}
+
+ServiceImpl::ConsumerEndpointImpl::~ConsumerEndpointImpl() {
+  consumer_->OnDisconnect();
+  service_->DisconnectConsumer(this);
+}
+
+void ServiceImpl::ConsumerEndpointImpl::EnableTracing(const TraceConfig& cfg) {
+  service_->EnableTracing(this, cfg);
+}
+
+void ServiceImpl::ConsumerEndpointImpl::DisableTracing() {
+  service_->DisableTracing(this);
+}
+
+void ServiceImpl::ConsumerEndpointImpl::ReadBuffers() {
+  service_->ReadBuffers(this);
+}
+
+void ServiceImpl::ConsumerEndpointImpl::FreeBuffers() {
+  service_->FreeBuffers(this);
+}
+
+base::WeakPtr<ServiceImpl::ConsumerEndpointImpl>
+ServiceImpl::ConsumerEndpointImpl::GetWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import("../src/protozero/protozero_library.gni")
-import("../build/proto_library.gni")
+import("../gn/perfetto.gni")
+import("../gn/proto_library.gni")
 
 proto_sources = [ "trace_packet.proto" ]
 
