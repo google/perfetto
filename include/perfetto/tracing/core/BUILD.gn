@@ -18,6 +18,8 @@ source_set("core") {
   ]
   sources = [
     "basic_types.h",
+    "chunk.h",
+    "consumer.h",
     "data_source_config.h",
     "data_source_descriptor.h",
     "producer.h",
