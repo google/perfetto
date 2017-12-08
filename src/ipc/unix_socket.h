@@ -105,6 +105,8 @@ class UnixSocket {
     kListening    // After Listen(), until Shutdown().
   };
 
+  enum class BlockingMode { kNonBlocking, kBlocking };
+
   // Creates a Unix domain socket and starts listening. If |socket_name|
   // starts with a '@', an abstract socket will be created (Linux/Android only).
   // Returns always an instance. In case of failure (e.g., another socket
@@ -137,7 +139,10 @@ class UnixSocket {
   // EventListener::OnDisconnect() will be called.
   // If the socket is not connected, Send() will just return false.
   // Does not append a null string terminator to msg in any case.
-  bool Send(const void* msg, size_t len, int send_fd = -1);
+  bool Send(const void* msg,
+            size_t len,
+            int send_fd = -1,
+            BlockingMode blocking = BlockingMode::kNonBlocking);
   bool Send(const std::string& msg);
 
   // Returns the number of bytes (<= |len|) written in |msg| or 0 if there
@@ -177,6 +182,7 @@ class UnixSocket {
   void DoConnect(const std::string& socket_name);
   void DoListen(const std::string& socket_name);
   void ReadPeerCredentials();
+  void SetBlockingIO(bool is_blocking);
 
   void OnEvent();
   void NotifyConnectionState(bool success);
