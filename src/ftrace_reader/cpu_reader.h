@@ -75,15 +75,6 @@ class CpuReader {
           kMaxSinks>&);
   int GetFileDescriptor();
 
- private:
-  FRIEND_TEST(CpuReaderTest, ReadAndAdvanceNumber);
-  FRIEND_TEST(CpuReaderTest, ReadAndAdvancePlainStruct);
-  FRIEND_TEST(CpuReaderTest, ReadAndAdvanceComplexStruct);
-  FRIEND_TEST(CpuReaderTest, ReadAndAdvanceUnderruns);
-  FRIEND_TEST(CpuReaderTest, ReadAndAdvanceAtEnd);
-  FRIEND_TEST(CpuReaderTest, ReadAndAdvanceOverruns);
-  FRIEND_TEST(CpuReaderTest, ParseSimpleEvent);
-
   template <typename T>
   static bool ReadAndAdvance(const uint8_t** ptr, const uint8_t* end, T* out) {
     if (*ptr > end - sizeof(T))
@@ -96,10 +87,11 @@ class CpuReader {
 
   static bool ParsePage(size_t cpu,
                         const uint8_t* ptr,
-                        size_t ptr_size,
                         const EventFilter*,
                         protos::pbzero::FtraceEventBundle*,
                         const ProtoTranslationTable* table);
+
+ private:
   uint8_t* GetBuffer();
   CpuReader(const CpuReader&) = delete;
   CpuReader& operator=(const CpuReader&) = delete;

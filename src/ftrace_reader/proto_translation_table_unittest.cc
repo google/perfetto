@@ -37,8 +37,10 @@ class AllTranslationTableTest : public TestWithParam<const char*> {
   std::unique_ptr<ProtoTranslationTable> table_;
 };
 
-const char* kDevices[] = {"android_seed_N2F62_3.10.49",
-                          "android_hammerhead_MRA59G_3.4.0"};
+const char* kDevices[] = {
+    "android_seed_N2F62_3.10.49", "android_hammerhead_MRA59G_3.4.0",
+    "synthetic",
+};
 
 TEST_P(AllTranslationTableTest, Create) {
   EXPECT_TRUE(table_);
