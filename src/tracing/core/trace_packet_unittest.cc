@@ -89,9 +89,7 @@ TEST(TracePacketTest, Corrupted) {
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
   tp.AddChunk({ser_buf.data(), ser_buf.size() - 2});  // corrupted.
-
   ASSERT_FALSE(tp.Decode());
-  ASSERT_EQ(nullptr, tp.operator->());
 }
 
 }  // namespace
