@@ -32,9 +32,10 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
-class DataSourceConfig;
+class Consumer;
 class DataSourceDescriptor;
 class Producer;
+class TraceConfig;
 
 // TODO: for the moment this assumes that all the calls hapen on the same
 // thread/sequence. Not sure this will be the case long term in Chrome.
@@ -79,6 +80,25 @@ class Service {
     virtual SharedMemory* shared_memory() const = 0;
   };  // class ProducerEndpoint.
 
+  // The API for the Consumer port of the Service.
+  // Subclassed by:
+  // 1. The service_impl.cc business logic when returning it in response to
+  //    the ConnectConsumer() method.
+  // 2. The transport layer (e.g., src/ipc) when the consumer and
+  //    the service don't talk locally but via some IPC mechanism.
+  class ConsumerEndpoint {
+   public:
+    virtual ~ConsumerEndpoint() = default;
+
+    virtual void EnableTracing(const TraceConfig&) = 0;
+    virtual void DisableTracing() = 0;
+
+    // Tracing data will be delivered invoking Consumer::OnTraceData().
+    virtual void ReadBuffers() = 0;
+
+    virtual void FreeBuffers() = 0;
+  };  // class ConsumerEndpoint.
+
   // Implemented in src/core/service_impl.cc .
   static std::unique_ptr<Service> CreateInstance(
       std::unique_ptr<SharedMemory::Factory>,
@@ -87,9 +107,9 @@ class Service {
   virtual ~Service() = default;
 
   // Connects a Producer instance and obtains a ProducerEndpoint, which is
-  // essentially a 1:1 channel between one Producer an the Service.
-  // The caller has to guarantee that the Producer will be alive as long as
-  // the returned ProducerEndpoint is alive.
+  // essentially a 1:1 channel between one Producer and the Service.
+  // The caller has to guarantee that the passed Producer will be alive as long
+  // as the returned ProducerEndpoint is alive.
   // To disconnect just destroy the returned ProducerEndpoint object. It is safe
   // to destroy the Producer once the Producer::OnDisconnect() has been invoked.
   // |shared_buffer_size_hint_bytes| is an optional hint on the size of the
@@ -98,6 +118,14 @@ class Service {
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
       Producer*,
       size_t shared_buffer_size_hint_bytes = 0) = 0;
+
+  // Coonects a Consumer instance and obtains a ConsumerEndpoint, which is
+  // essentially a 1:1 channel between one Consumer and the Service.
+  // The caller has to guarantee that the passed Consumer will be alive as long
+  // as the returned ConsumerEndpoint is alive.
+  // To disconnect just destroy the returned ConsumerEndpoint object. It is safe
+  // to destroy the Consumer once the Consumer::OnDisconnect() has been invoked.
+  virtual std::unique_ptr<ConsumerEndpoint> ConnectConsumer(Consumer*) = 0;
 
  public:  // Testing-only
   class ObserverForTesting {
