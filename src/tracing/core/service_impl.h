@@ -20,7 +20,9 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <set>
 
+#include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/service.h"
 
@@ -30,9 +32,11 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
+class Consumer;
 class DataSourceConfig;
 class Producer;
 class SharedMemory;
+class TraceConfig;
 
 // The tracing service business logic.
 class ServiceImpl : public Service {
@@ -71,17 +75,52 @@ class ServiceImpl : public Service {
     DataSourceID last_data_source_id_ = 0;
   };
 
+  // The implementation behind the service endpoint exposed to each consumer.
+  class ConsumerEndpointImpl : public Service::ConsumerEndpoint {
+   public:
+    ConsumerEndpointImpl(ServiceImpl*, base::TaskRunner*, Consumer*);
+    ~ConsumerEndpointImpl() override;
+
+    Consumer* consumer() const { return consumer_; }
+    base::WeakPtr<ConsumerEndpointImpl> GetWeakPtr();
+
+    // Service::ConsumerEndpoint implementation.
+    void EnableTracing(const TraceConfig&) override;
+    void DisableTracing() override;
+    void ReadBuffers() override;
+    void FreeBuffers() override;
+
+   private:
+    ConsumerEndpointImpl(const ConsumerEndpointImpl&) = delete;
+    ConsumerEndpointImpl& operator=(const ConsumerEndpointImpl&) = delete;
+
+    ServiceImpl* const service_;
+    Consumer* const consumer_;
+    base::WeakPtrFactory<ConsumerEndpointImpl> weak_ptr_factory_;
+  };
+
   explicit ServiceImpl(std::unique_ptr<SharedMemory::Factory>,
                        base::TaskRunner*);
   ~ServiceImpl() override;
 
-  // Called by the ProducerEndpointImpl dtor.
+  // Called by ProducerEndpointImpl.
   void DisconnectProducer(ProducerID);
+
+  // Called by ConsumerEndpointImpl.
+  void DisconnectConsumer(ConsumerEndpointImpl*);
+  void EnableTracing(ConsumerEndpointImpl*, const TraceConfig&);
+  void DisableTracing(ConsumerEndpointImpl*);
+  void ReadBuffers(ConsumerEndpointImpl*);
+  void FreeBuffers(ConsumerEndpointImpl*);
 
   // Service implementation.
   std::unique_ptr<Service::ProducerEndpoint> ConnectProducer(
       Producer*,
       size_t shared_buffer_size_hint_bytes = 0) override;
+
+  std::unique_ptr<Service::ConsumerEndpoint> ConnectConsumer(
+      Consumer*) override;
+
   void set_observer_for_testing(ObserverForTesting*) override;
 
   // Exposed mainly for testing.
@@ -96,6 +135,7 @@ class ServiceImpl : public Service {
   base::TaskRunner* const task_runner_;
   ProducerID last_producer_id_ = 0;
   std::map<ProducerID, ProducerEndpointImpl*> producers_;
+  std::set<ConsumerEndpointImpl*> consumers_;
   ObserverForTesting* observer_ = nullptr;
 };
 
