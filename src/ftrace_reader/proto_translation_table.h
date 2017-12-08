@@ -48,19 +48,27 @@ class ProtoTranslationTable {
   };
 
   struct Field {
-    size_t ftrace_offset;
-    size_t ftrace_size;
-    FtraceFieldType ftrace_type;
-    size_t proto_field_id;
-    ProtoFieldType proto_field_type;
+    Field() = default;
+    Field(size_t offset, size_t size)
+        : ftrace_offset(offset), ftrace_size(size) {}
+
+    size_t ftrace_offset = 0;
+    size_t ftrace_size = 0;
+    FtraceFieldType ftrace_type = kFtraceNumber;
+    size_t proto_field_id = 0;
+    ProtoFieldType proto_field_type = kProtoNumber;
   };
 
   struct Event {
+    Event() = default;
+    Event(const std::string& event_name, const std::string& event_group)
+        : name(event_name), group(event_group) {}
+
     std::string name;
     std::string group;
     std::vector<Field> fields;
-    size_t ftrace_event_id;
-    size_t proto_field_id;
+    size_t ftrace_event_id = 0;
+    size_t proto_field_id = 0;
   };
 
   static std::unique_ptr<ProtoTranslationTable> Create(

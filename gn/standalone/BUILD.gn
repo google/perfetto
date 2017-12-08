@@ -18,7 +18,6 @@ import("//gn/standalone/sanitizers/sanitizers.gni")
 config("extra_warnings") {
   cflags = [
     "-Wextra",
-    "-Wno-missing-field-initializers",
     "-Wno-unused-parameter",
   ]
   if (is_clang) {
