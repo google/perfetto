@@ -83,6 +83,11 @@ bool FtraceProcfs::DisableEvent(const std::string& group,
   return WriteToFile(path, "0");
 }
 
+bool FtraceProcfs::DisableAllEvents() {
+  std::string path = root_ + "events/enable";
+  return WriteToFile(path, "0");
+}
+
 std::string FtraceProcfs::ReadEventFormat(const std::string& group,
                                           const std::string& name) const {
   std::string path = root_ + "events/" + group + "/" + name + "/format";

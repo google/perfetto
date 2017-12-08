@@ -67,13 +67,17 @@ FtraceController::~FtraceController() {
       ftrace_procfs_->DisableEvent(event->group, event->name);
     }
   }
+  if (listening_for_raw_trace_data_) {
+    sinks_.clear();
+    StopIfNeeded();
+  }
 }
 
-void FtraceController::Start() {
-  if (listening_for_raw_trace_data_) {
-    PERFETTO_DLOG("FtraceController is already started.");
+void FtraceController::StartIfNeeded() {
+  if (sinks_.size() > 1)
     return;
-  }
+  PERFETTO_CHECK(sinks_.size() != 0);
+  PERFETTO_CHECK(!listening_for_raw_trace_data_);
   listening_for_raw_trace_data_ = true;
   ftrace_procfs_->EnableTracing();
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
@@ -90,17 +94,18 @@ void FtraceController::Start() {
   }
 }
 
-void FtraceController::Stop() {
-  if (!listening_for_raw_trace_data_) {
-    PERFETTO_DLOG("FtraceController is already stopped.");
+void FtraceController::StopIfNeeded() {
+  if (sinks_.size() != 0)
     return;
-  }
+  PERFETTO_CHECK(listening_for_raw_trace_data_);
   listening_for_raw_trace_data_ = false;
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
     CpuReader* reader = GetCpuReader(cpu);
     int fd = reader->GetFileDescriptor();
     task_runner_->RemoveFileDescriptorWatch(fd);
   }
+  readers_.clear();
+  ftrace_procfs_->DisableTracing();
 }
 
 void FtraceController::OnRawFtraceDataAvailable(size_t cpu) {
@@ -151,6 +156,8 @@ void FtraceController::Register(FtraceSink* sink) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto it_and_inserted = sinks_.insert(sink);
   PERFETTO_DCHECK(it_and_inserted.second);
+
+  StartIfNeeded();
   for (const std::string& name : sink->enabled_events())
     RegisterForEvent(name);
 }
@@ -183,8 +190,10 @@ void FtraceController::Unregister(FtraceSink* sink) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   size_t removed = sinks_.erase(sink);
   PERFETTO_DCHECK(removed == 1);
+
   for (const std::string& name : sink->enabled_events())
     UnregisterForEvent(name);
+  StopIfNeeded();
 }
 
 FtraceSink::FtraceSink(base::WeakPtr<FtraceController> controller_weak,
