@@ -237,20 +237,10 @@ cc_genrule {
 // ftrace
 ///////////////////////////////////////////////////////////////////////////////
 
-cc_defaults {
-  name: "perfetto_ftrace_defaults",
-  defaults: [ "perfetto_defaults" ],
-  cflags: [
-    // TODO(skyostil): Fix the code instead.
-    "-Wno-missing-field-initializers",
-  ]
-}
-
 // TODO(skyostil): Add full protobufs (as opposed to lite) for this test.
 //cc_test {
 //  name: "perfetto_ftrace_reader_integrationtests",
 //  defaults: [
-//    "perfetto_ftrace_defaults",
 //    "protozero_defaults"
 //  ],
 //  generated_headers: [
@@ -276,7 +266,6 @@ cc_defaults {
 cc_test {
   name: "perfetto_ftrace_reader_demo",
   defaults: [
-    "perfetto_ftrace_defaults",
     "protozero_defaults",
   ],
   generated_headers: [
@@ -325,8 +314,6 @@ cc_defaults {
   name: "perfetto_ipc_defaults",
   defaults: [ "perfetto_defaults" ],
   cflags: [
-    // TODO(skyostil): Fix.
-    "-Wno-missing-field-initializers",
     "-Wno-sign-compare",
     "-Wno-unused-parameter",
   ]
@@ -494,7 +481,6 @@ cc_test {
   name: "perfetto_tests",
   defaults: [
     "perfetto_defaults",
-    "perfetto_ftrace_defaults",
     "perfetto_ipc_defaults",
     "protozero_defaults",
   ],

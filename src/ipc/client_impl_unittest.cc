@@ -59,7 +59,8 @@ class FakeProxy : public ServiceProxy {
     };
     if (!descriptor_.service_name) {
       descriptor_.service_name = service_name_;
-      descriptor_.methods.push_back({"FakeMethod1", nullptr, reply_decoder});
+      descriptor_.methods.push_back(
+          {"FakeMethod1", nullptr, reply_decoder, nullptr});
     }
     return descriptor_;
   }
