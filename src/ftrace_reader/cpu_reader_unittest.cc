@@ -124,7 +124,8 @@ std::unique_ptr<uint8_t[]> PageFromXxd(const std::string& text) {
     if (*(ptr++) != ':')
       continue;
     for (int i = 0; i < 8; i++) {
-      PERFETTO_CHECK(text.size() >= (ptr - text.data()) + 5);
+      PERFETTO_CHECK(text.size() >=
+                     static_cast<size_t>((ptr - text.data()) + 5));
       PERFETTO_CHECK(*(ptr++) == ' ');
       int n = sscanf(ptr, "%02hhx%02hhx", out, out + 1);
       PERFETTO_CHECK(n == 2);
@@ -313,10 +314,10 @@ TEST(CpuReaderTest, ParseSinglePrint) {
 
   auto bundle = bundle_provider.GetBundle();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(bundle->cpu(), 42);
+  EXPECT_EQ(bundle->cpu(), 42ul);
   ASSERT_EQ(bundle->event().size(), 1);
   const protos::FtraceEvent& event = bundle->event().Get(0);
-  EXPECT_EQ(event.pid(), 28712);
+  EXPECT_EQ(event.pid(), 28712ul);
   EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 608934, 535199));
   EXPECT_EQ(event.print().buf(), "Hello, world!\n");
 }
@@ -366,26 +367,26 @@ TEST(CpuReaderTest, ParseThreePrint) {
 
   auto bundle = bundle_provider.GetBundle();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(bundle->cpu(), 42);
+  EXPECT_EQ(bundle->cpu(), 42ul);
   ASSERT_EQ(bundle->event().size(), 3);
 
   {
     const protos::FtraceEvent& event = bundle->event().Get(0);
-    EXPECT_EQ(event.pid(), 30693);
+    EXPECT_EQ(event.pid(), 30693ul);
     EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 615436, 216806));
     EXPECT_EQ(event.print().buf(), "Hello, world!\n");
   }
 
   {
     const protos::FtraceEvent& event = bundle->event().Get(1);
-    EXPECT_EQ(event.pid(), 30693);
+    EXPECT_EQ(event.pid(), 30693ul);
     EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 615486, 377232));
     EXPECT_EQ(event.print().buf(), "Good afternoon, world!\n");
   }
 
   {
     const protos::FtraceEvent& event = bundle->event().Get(2);
-    EXPECT_EQ(event.pid(), 30693);
+    EXPECT_EQ(event.pid(), 30693ul);
     EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 615495, 632679));
     EXPECT_EQ(event.print().buf(), "Goodbye, world!\n");
   }
