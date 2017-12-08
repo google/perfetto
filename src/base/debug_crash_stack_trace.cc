@@ -39,8 +39,8 @@ struct SigHandler {
   struct sigaction old_handler;
 };
 
-SigHandler g_signals[] = {{SIGSEGV}, {SIGILL}, {SIGTRAP},
-                          {SIGABRT}, {SIGBUS}, {SIGFPE}};
+SigHandler g_signals[] = {{SIGSEGV, {}}, {SIGILL, {}}, {SIGTRAP, {}},
+                          {SIGABRT, {}}, {SIGBUS, {}}, {SIGFPE, {}}};
 
 template <typename T>
 void Print(const T& str) {
