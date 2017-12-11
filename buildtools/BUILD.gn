@@ -98,7 +98,6 @@ config("protobuf_gen_config") {
     "-Wno-missing-variable-declarations",
     "-Wno-old-style-cast",
     "-Wno-shorten-64-to-32",
-    "-Wno-sign-compare",
     "-Wno-sign-conversion",
     "-Wno-undef",
     "-Wno-zero-as-null-pointer-constant",
@@ -412,6 +411,7 @@ if (use_custom_libcxx) {
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:no_rtti",
+      "//gn/standalone:visibility_hidden",
     ]
     configs += [
       ":libc++config",
@@ -464,6 +464,7 @@ if (use_custom_libcxx) {
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:no_rtti",
+      "//gn/standalone:visibility_hidden",
     ]
     configs += [
       ":libc++config",

@@ -46,7 +46,6 @@ class ProtoZeroConformanceTest : public ::testing::Test {
     root_messages_.clear();
     stream_writer_.reset();
     buffer_.reset();
-    google::protobuf::ShutdownProtobufLibrary();
   }
 
  protected:

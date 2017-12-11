@@ -24,8 +24,14 @@ package perfetto.protos;
 
 message FtraceEvent {
   uint32 pid = 1;
+
+  // Nanoseconds since an epoch.
+  // Epoch is configurable by writing into trace_clock.
+  // By default this timestamp is CPU local.
+  // TODO:  Figure out a story for reconciling the various clocks.
+  uint64 timestamp = 2;
   oneof event {
-    PrintFtraceEvent print = 2;
-    SchedSwitchFtraceEvent sched_switch = 3;
+    PrintFtraceEvent print = 3;
+    SchedSwitchFtraceEvent sched_switch = 4;
   }
 }
