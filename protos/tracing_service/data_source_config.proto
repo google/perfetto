@@ -1,0 +1,41 @@
+/*
+ * Copyright (C) 2017 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package perfetto.protos;
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+// The configuration that is passed to each data source when starting tracing.
+message DataSourceConfig {
+  // Data source unique name, e.g., "org.chromium.trace_events". This must match
+  // the name passed by the data source when it registers (see
+  // RegisterDataSource()).
+  optional string name = 1;
+
+  // The index of the logging buffer where TracePacket(s) will be stored.
+  // This field doesn't make a major difference for the Producer(s). The final
+  // logging buffers, in fact, are completely owned by the Service. We just ask
+  // the Producer to copy this number into the chunk headers it emits, so that
+  // the Service can quickly identify the buffer where to move the chunks into
+  // without expensive lookups on its fastpath.
+  optional uint32 target_buffer = 2;
+
+  optional string trace_category_filters = 3;  // TODO: temporary for tests.
+}
