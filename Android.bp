@@ -290,6 +290,7 @@ cc_test {
 filegroup {
   name: "perfetto_ftrace_reader",
   srcs: [
+    "src/ftrace_reader/event_info.cc",
     "src/ftrace_reader/cpu_reader.cc",
     "src/ftrace_reader/format_parser.cc",
     "src/ftrace_reader/ftrace_controller.cc",
@@ -505,6 +506,7 @@ cc_test {
     "src/base/utils_unittest.cc",
     "src/base/weak_ptr_unittest.cc",
     "src/ftrace_reader/cpu_reader_unittest.cc",
+    "src/ftrace_reader/event_info_unittest.cc",
     "src/ftrace_reader/format_parser_unittest.cc",
     "src/ftrace_reader/ftrace_controller_unittest.cc",
     "src/ftrace_reader/ftrace_to_proto_unittest.cc",
