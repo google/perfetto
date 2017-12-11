@@ -506,6 +506,7 @@ filegroup {
   name: "perfetto_tracing_ipc",
   srcs: [
     "src/tracing/ipc/posix_shared_memory.cc",
+    "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
     "src/tracing/ipc/producer/producer_ipc_client_impl.cc",
     "src/tracing/ipc/service/producer_ipc_service.cc",
     "src/tracing/ipc/service/service_ipc_host_impl.cc",
