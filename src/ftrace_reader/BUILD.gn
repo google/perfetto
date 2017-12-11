@@ -35,6 +35,7 @@ source_set("ftrace_reader_unittests") {
   ]
   sources = [
     "cpu_reader_unittest.cc",
+    "event_info_unittest.cc",
     "format_parser_unittest.cc",
     "ftrace_controller_unittest.cc",
     "ftrace_to_proto_unittest.cc",
@@ -88,6 +89,8 @@ source_set("ftrace_reader") {
   sources = [
     "cpu_reader.cc",
     "cpu_reader.h",
+    "event_info.cc",
+    "event_info.h",
     "format_parser.cc",
     "ftrace_controller.cc",
     "ftrace_procfs.cc",

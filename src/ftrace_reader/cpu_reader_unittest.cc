@@ -16,6 +16,7 @@
 
 #include "cpu_reader.h"
 
+#include "event_info.h"
 #include "ftrace_procfs.h"
 #include "gtest/gtest.h"
 #include "proto_translation_table.h"
@@ -108,7 +109,7 @@ ProtoTranslationTable* GetTable(const std::string& name) {
   if (!g_tables->count(name)) {
     std::string path = "src/ftrace_reader/test/data/" + name + "/";
     FtraceProcfs ftrace(path);
-    auto table = ProtoTranslationTable::Create(&ftrace);
+    auto table = ProtoTranslationTable::Create(&ftrace, GetStaticEventInfo());
     g_tables->emplace(name, std::move(table));
   }
   return g_tables->at(name).get();
@@ -166,9 +167,6 @@ TEST(PageFromXxdTest, ManyLines) {
 }
 
 TEST(EventFilterTest, EventFilter) {
-  using Event = ProtoTranslationTable::Event;
-  using Field = ProtoTranslationTable::Field;
-
   std::vector<Field> common_fields;
   std::vector<Event> events;
 

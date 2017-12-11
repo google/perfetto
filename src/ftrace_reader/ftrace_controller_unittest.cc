@@ -79,9 +79,6 @@ class MockCpuReader : public CpuReader {
 };
 
 std::unique_ptr<Table> FakeTable() {
-  using Event = Table::Event;
-  using Field = Table::Field;
-
   std::vector<Field> common_fields;
   std::vector<Event> events;
 

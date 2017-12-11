@@ -26,6 +26,7 @@
 #include <string>
 
 #include "cpu_reader.h"
+#include "event_info.h"
 #include "ftrace_procfs.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
@@ -46,7 +47,8 @@ std::unique_ptr<FtraceController> FtraceController::Create(
     base::TaskRunner* runner) {
   auto ftrace_procfs =
       std::unique_ptr<FtraceProcfs>(new FtraceProcfs(kTracingPath));
-  auto table = ProtoTranslationTable::Create(ftrace_procfs.get());
+  auto table =
+      ProtoTranslationTable::Create(ftrace_procfs.get(), GetStaticEventInfo());
   return std::unique_ptr<FtraceController>(
       new FtraceController(std::move(ftrace_procfs), runner, std::move(table)));
 }
@@ -63,7 +65,7 @@ FtraceController::FtraceController(std::unique_ptr<FtraceProcfs> ftrace_procfs,
 FtraceController::~FtraceController() {
   for (size_t id = 1; id <= table_->largest_id(); id++) {
     if (enabled_count_[id]) {
-      const ProtoTranslationTable::Event* event = table_->GetEventById(id);
+      const Event* event = table_->GetEventById(id);
       ftrace_procfs_->DisableEvent(event->group, event->name);
     }
   }
@@ -164,7 +166,7 @@ void FtraceController::Register(FtraceSink* sink) {
 
 void FtraceController::RegisterForEvent(const std::string& name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  const ProtoTranslationTable::Event* event = table_->GetEventByName(name);
+  const Event* event = table_->GetEventByName(name);
   if (!event) {
     PERFETTO_DLOG("Can't enable %s, event not known", name.c_str());
     return;
@@ -177,7 +179,7 @@ void FtraceController::RegisterForEvent(const std::string& name) {
 
 void FtraceController::UnregisterForEvent(const std::string& name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  const ProtoTranslationTable::Event* event = table_->GetEventByName(name);
+  const Event* event = table_->GetEventByName(name);
   if (!event)
     return;
   size_t& count = enabled_count_.at(event->ftrace_event_id);
