@@ -13,9 +13,7 @@
 # limitations under the License.
 
 notifications:
-  email:
-    on_success: never
-    on_failure: always
+  email: false
 
 language: cpp
 
