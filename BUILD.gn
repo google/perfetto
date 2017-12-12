@@ -22,6 +22,7 @@ group("all") {
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
+    "tools/proto_to_cpp",
   ]
   if (!build_with_chromium) {
     deps += [
