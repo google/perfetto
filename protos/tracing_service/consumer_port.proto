@@ -1,0 +1,109 @@
+/*
+ * Copyright (C) 2017 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+import "protos/tracing_service/data_source_config.proto";
+import "protos/tracing_service/trace_config.proto";
+
+package perfetto;
+
+// IPC interface definition for the consumer port of the tracing service.
+service ConsumerPort {
+  // Creates the ring buffers that will be used for the tracing session.
+  // TODO(primiano): not implemented yet. EnableTracing will implicitly create
+  // the required buffer. This is to allow Enabling/Disabling tracing with
+  // different configs without losing the contents of the buffers for the
+  // previous tracing session.
+  // rpc CreateBuffers(CreateBuffersRequest) returns (CreateBuffersResponse) {}
+
+  // Enables tracing for one or more data sources. At least one buffer must have
+  // been previously created.
+  rpc EnableTracing(EnableTracingRequest) returns (EnableTracingResponse) {}
+
+  // Disables tracing for one or more data sources.
+  rpc DisableTracing(DisableTracingRequest) returns (DisableTracingResponse) {}
+
+  // Streams back the contents of one or more buffers. At the moment this can
+  // be called once only after calling DisableTracing(). In future it will be
+  // possible to call this while the trace is enabled to stream continuously the
+  // contents of the buffer(s). One call is enough to drain all the buffers. The
+  // response consists in a sequence of ReadBufferResponse messages (hence the
+  // "stream" in the return type), each carrying one or more TracePacket(s).
+  // An EOF flag is attached to the last ReadBufferResponse through the
+  // |has_more| == false field.
+  // TODO: add the ability to pass a file descriptor and just let the service
+  // write into that.
+  rpc ReadBuffers(ReadBuffersRequest) returns (stream ReadBuffersResponse) {}
+
+  // Destroys the buffers previously created. Note: all buffers are destroyed
+  // implicitly if the Consumer disconnects.
+  rpc FreeBuffers(FreeBuffersRequest) returns (FreeBuffersResponse) {}
+
+  // TODO rpc ListDataSources(), for the UI.
+  // TODO rpc KillSwitch().
+}
+
+// Arguments for rpc EnableTracing().
+message EnableTracingRequest {
+  optional protos.TraceConfig trace_config = 1;
+}
+
+message EnableTracingResponse {}
+
+// Arguments for rpc DisableTracing().
+message DisableTracingRequest {
+  // TODO: not supported yet, selectively disable only some data sources.
+  // repeated string data_source_name;
+}
+
+message DisableTracingResponse {}
+
+// Arguments for rpc ReadBuffers().
+message ReadBuffersRequest {
+  // The |id|s of the buffer, as passed to CreateBuffers().
+  // TODO: repeated uint32 buffer_ids = 1;
+}
+
+message ReadBuffersResponse {
+  // TODO: uint32 buffer_id = 1;
+
+  // Each streaming reply returns one or more trace packets (see
+  // trace_packet.proto).
+  // Why "bytes" here? If we just return the full TracePacket object, that will
+  // force the Consumer to deserialize it. In many occasions, the Consumer will
+  // not consume the TracePacket(s) locally but will just forward them over
+  // the network or save them to a file. Deserializing them on-device would be
+  // a waste of time, memory and energy.
+
+  // TODO: in the past we agreed that a TracePacket can be very large (MBs).
+  // However here it will hit the limit of the IPC layer in order to keep
+  // the socket buffer bounded. On one side we could upgrade this protocol to
+  // support chunks, so we could directly propagate the chunked TracePacket
+  // stored in the log buffer. On the other side, this will likely just move
+  // the problem on the consumer, that will need larger buffers for reassembly.
+  // Perhaps we should just cap the size of a TracePacket to a lower size?
+  repeated bytes trace_packets = 2;
+}
+
+// Arguments for rpc FreeBuffers().
+message FreeBuffersRequest {
+  // The |id|s of the buffer, as passed to CreateBuffers().
+  repeated uint32 buffer_ids = 1;
+}
+
+message FreeBuffersResponse {}

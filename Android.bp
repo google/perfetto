@@ -420,47 +420,85 @@ cc_genrule {
 filegroup {
   name: "perfetto_tracing",
   srcs: [
+    "src/tracing/core/data_source_config.cc",
+    "src/tracing/core/data_source_descriptor.cc",
     "src/tracing/core/service_impl.cc",
+    "src/tracing/core/trace_config.cc",
+    "src/tracing/core/trace_packet.cc",
   ]
 }
 
+// These protos contains only messages that require the standard protoc.
 filegroup {
   name: "perfetto_tracing_messages",
   srcs:  [
-    "src/tracing/ipc/data_source_config.proto",
-    "src/tracing/ipc/data_source_descriptor.proto",
-    "src/tracing/ipc/producer_port.proto",
+    "protos/tracing_service/data_source_config.proto",
+    "protos/tracing_service/data_source_descriptor.proto",
+    "protos/tracing_service/trace_config.proto",
   ]
 }
 
 cc_genrule {
   name: "perfetto_tracing_messages_lite",
-  tools: [ "aprotoc", "perfetto_ipc_protoc_plugin" ],
+  tools: [ "aprotoc" ],
   srcs: [ ":perfetto_tracing_messages" ],
-  cmd: ipcc_cmd,
+  cmd: protoc_cmd,
   out: [
-    "external/perfetto/src/tracing/ipc/data_source_config.ipc.cc",
-    "external/perfetto/src/tracing/ipc/data_source_config.pb.cc",
-    "external/perfetto/src/tracing/ipc/data_source_descriptor.ipc.cc",
-    "external/perfetto/src/tracing/ipc/data_source_descriptor.pb.cc",
-    "external/perfetto/src/tracing/ipc/producer_port.ipc.cc",
-    "external/perfetto/src/tracing/ipc/producer_port.pb.cc",
+    "external/perfetto/protos/tracing_service/data_source_config.pb.cc",
+    "external/perfetto/protos/tracing_service/data_source_descriptor.pb.cc",
+    "external/perfetto/protos/tracing_service/trace_config.pb.cc",
   ]
 }
 
 cc_genrule {
   name: "perfetto_tracing_messages_lite_headers",
-  tools: [ "aprotoc", "perfetto_ipc_protoc_plugin" ],
+  tools: [ "aprotoc" ],
   srcs: [ ":perfetto_tracing_messages" ],
+  cmd: protoc_cmd,
+  export_include_dirs: [ "." ],
+  out: [
+    "external/perfetto/protos/tracing_service/data_source_config.pb.h",
+    "external/perfetto/protos/tracing_service/data_source_descriptor.pb.h",
+    "external/perfetto/protos/tracing_service/trace_config.pb.h",
+  ]
+}
+
+
+// These protos, instead, contains IPC definitions that require the use of the
+// IPC plugin, together with protoc.
+
+filegroup {
+  name: "perfetto_tracing_ipcs",
+  srcs:  [
+    "protos/tracing_service/consumer_port.proto",
+    "protos/tracing_service/producer_port.proto",
+  ]
+}
+
+cc_genrule {
+  name: "perfetto_tracing_ipcs_lite",
+  tools: [ "aprotoc", "perfetto_ipc_protoc_plugin" ],
+  srcs: [ ":perfetto_tracing_ipcs" ],
+  cmd: ipcc_cmd,
+  out: [
+    "external/perfetto/protos/tracing_service/consumer_port.ipc.cc",
+    "external/perfetto/protos/tracing_service/consumer_port.pb.cc",
+    "external/perfetto/protos/tracing_service/producer_port.ipc.cc",
+    "external/perfetto/protos/tracing_service/producer_port.pb.cc",
+  ]
+}
+
+cc_genrule {
+  name: "perfetto_tracing_ipcs_lite_headers",
+  tools: [ "aprotoc", "perfetto_ipc_protoc_plugin" ],
+  srcs: [ ":perfetto_tracing_ipcs" ],
   cmd: ipcc_cmd,
   export_include_dirs: [ "." ],
   out: [
-    "external/perfetto/src/tracing/ipc/data_source_config.ipc.h",
-    "external/perfetto/src/tracing/ipc/data_source_config.pb.h",
-    "external/perfetto/src/tracing/ipc/data_source_descriptor.ipc.h",
-    "external/perfetto/src/tracing/ipc/data_source_descriptor.pb.h",
-    "external/perfetto/src/tracing/ipc/producer_port.ipc.h",
-    "external/perfetto/src/tracing/ipc/producer_port.pb.h",
+    "external/perfetto/protos/tracing_service/consumer_port.ipc.h",
+    "external/perfetto/protos/tracing_service/consumer_port.pb.h",
+    "external/perfetto/protos/tracing_service/producer_port.ipc.h",
+    "external/perfetto/protos/tracing_service/producer_port.pb.h",
   ]
 }
 
@@ -497,6 +535,7 @@ cc_test {
     ":perfetto_tracing",
     ":perfetto_tracing_ipc",
     ":perfetto_tracing_messages_lite",
+    ":perfetto_tracing_ipcs_lite",
     ":protozero",
     ":protozero_testing_messages_lite",
     ":protozero_testing_messages_zero",
@@ -533,6 +572,7 @@ cc_test {
     "perfetto_messages_lite_headers",
     "perfetto_messages_zero_headers",
     "perfetto_tracing_messages_lite_headers",
+    "perfetto_tracing_ipcs_lite_headers",
     "protozero_testing_messages_lite_headers",
     "protozero_testing_messages_zero_headers",
   ],

@@ -71,16 +71,20 @@ TEST(ServiceImpl, RegisterAndUnregister) {
   ASSERT_EQ(producer_endpoint_1.get(), svc->GetProducer(1));
   ASSERT_EQ(producer_endpoint_2.get(), svc->GetProducer(2));
 
+  DataSourceDescriptor ds_desc1;
+  ds_desc1.set_name("foo");
   producer_endpoint_1->RegisterDataSource(
-      {"foo"}, [&task_runner, &producer_endpoint_1](DataSourceID id) {
+      ds_desc1, [&task_runner, &producer_endpoint_1](DataSourceID id) {
         EXPECT_EQ(1u, id);
         task_runner.PostTask(
             std::bind(&Service::ProducerEndpoint::UnregisterDataSource,
                       producer_endpoint_1.get(), id));
       });
 
+  DataSourceDescriptor ds_desc2;
+  ds_desc2.set_name("bar");
   producer_endpoint_2->RegisterDataSource(
-      {"bar"}, [&task_runner, &producer_endpoint_2](DataSourceID id) {
+      ds_desc2, [&task_runner, &producer_endpoint_2](DataSourceID id) {
         EXPECT_EQ(1u, id);
         task_runner.PostTask(
             std::bind(&Service::ProducerEndpoint::UnregisterDataSource,

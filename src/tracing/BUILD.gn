@@ -14,7 +14,6 @@
 
 import("../../gn/perfetto.gni")
 import("//build_overrides/build.gni")
-import("../ipc/ipc_library.gni")
 
 # Core tracing library, platform independent, no transport layer.
 source_set("tracing") {
@@ -29,19 +28,12 @@ source_set("tracing") {
   sources = [
     "core/chunked_protobuf_input_stream.cc",
     "core/chunked_protobuf_input_stream.h",
+    "core/data_source_config.cc",
+    "core/data_source_descriptor.cc",
     "core/service_impl.cc",
     "core/service_impl.h",
+    "core/trace_config.cc",
     "core/trace_packet.cc",
-  ]
-}
-
-# IPC service definitions.
-ipc_library("ipc_protos") {
-  proto_in_dir = perfetto_root_path
-  sources = [
-    "ipc/data_source_config.proto",
-    "ipc/data_source_descriptor.proto",
-    "ipc/producer_port.proto",
   ]
 }
 
@@ -63,9 +55,9 @@ source_set("ipc") {
     "ipc/service/service_ipc_host_impl.h",
   ]
   deps = [
-    ":ipc_protos",
     ":tracing",
     "../../gn:default_deps",
+    "../../protos/tracing_service",
     "../base",
     "../ipc",
   ]
