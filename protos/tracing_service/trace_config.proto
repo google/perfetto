@@ -1,0 +1,86 @@
+/*
+ * Copyright (C) 2017 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+import "protos/tracing_service/data_source_config.proto";
+
+package perfetto.protos;
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+// The overall config that is used when starting a new tracing session through
+// ProducerPort::StartTracing().
+// It contains the general config for the logging buffer(s) and the configs for
+// all the data source being enabled.
+message TraceConfig {
+  message BufferConfig {
+    optional uint32 size_kb = 1;
+    // TODO: uint32 page_size = 2;
+
+    enum OptimizeFor {
+      // The log buffer is drained sporadically (typically only once after
+      // DisableTracing()). This mode minimizes the Service overhead when moving
+      // the pages from the Producer(s) shared staging buffers into the central
+      // log buffer, at the cost of doing some extra memory moves to reorder and
+      // reassemble the logged TracePacket(s).
+      ONE_SHOT_READ = 0;
+
+      // The log buffer is streamed continuously to the Consumer.
+      // Advantages:
+      // - It allows to use a smaller log buffer size, as the buffer is only
+      //   needed to cover the pipe latency between Service and Consumer.
+      // - It reduces the total cpu cost of tracing, as TracePackets are
+      //   reshuffled only once when collected from the Producers shmem buffers.
+      // Disadvantage:
+      // - More scheduling intrusive, as will periodically wake up the Consumer
+      //   to stream data.
+      // TODO: Not implemented yet.
+      // CONTINUOUS_STREAMING = 1;
+    }
+    optional OptimizeFor optimize_for = 3;
+
+    enum FillPolicy {
+      RING_BUFFER = 0;
+      // TODO: not implemented yet.
+      // STOP_WHEN_FULL = 1;
+    }
+    optional FillPolicy fill_policy = 4;
+  }
+  repeated BufferConfig buffers = 1;
+
+  message DataSource {
+    // Filters and data-source specific config. It contains also the unique name
+    // of the data source, the one passed in the  DataSourceDescriptor when they
+    // register on the service.
+    optional protos.DataSourceConfig config = 1;
+
+    // Optional. If multiple producers (~processes) expose the same data source
+    // and |producer_name_filter| != "", the data source is enabled only for
+    // producers whose names match any of the producer_name_filter below.
+    // The |producer_name_filter| has to be an exact match. (TODO(primiano):
+    // support wildcards or regex).
+    // This allows to enable a data source only for specific processes.
+    // The "repeated" field has OR sematics: specifying a filter ["foo", "bar"]
+    // will enable data source on both "foo" and "bar" (if existent).
+    repeated string producer_name_filter = 2;
+  }
+  repeated DataSource data_sources = 2;
+
+  optional uint32 duration_ms = 3;
+}
