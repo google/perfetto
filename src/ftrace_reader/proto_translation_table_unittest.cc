@@ -31,7 +31,8 @@ class AllTranslationTableTest : public TestWithParam<const char*> {
     std::string path =
         "src/ftrace_reader/test/data/" + std::string(GetParam()) + "/";
     FtraceProcfs ftrace_procfs(path);
-    table_ = ProtoTranslationTable::Create(&ftrace_procfs);
+    table_ =
+        ProtoTranslationTable::Create(&ftrace_procfs, GetStaticEventInfo());
   }
 
   std::unique_ptr<ProtoTranslationTable> table_;
@@ -44,6 +45,20 @@ const char* kDevices[] = {
 
 TEST_P(AllTranslationTableTest, Create) {
   EXPECT_TRUE(table_);
+  EXPECT_TRUE(table_->GetEventByName("print"));
+  EXPECT_TRUE(table_->GetEventByName("sched_switch"));
+  for (const Event& event : table_->events()) {
+    if (!event.ftrace_event_id)
+      continue;
+    EXPECT_TRUE(event.name);
+    EXPECT_TRUE(event.group);
+    EXPECT_TRUE(event.proto_field_id);
+    for (const Field& field : event.fields) {
+      EXPECT_TRUE(field.proto_field_id);
+      EXPECT_TRUE(field.ftrace_type);
+      EXPECT_TRUE(field.proto_field_type);
+    }
+  }
 }
 
 INSTANTIATE_TEST_CASE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
@@ -51,23 +66,20 @@ INSTANTIATE_TEST_CASE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
 TEST(TranslationTable, Seed) {
   std::string path = "src/ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
   FtraceProcfs ftrace_procfs(path);
-  auto table = ProtoTranslationTable::Create(&ftrace_procfs);
-  EXPECT_EQ(table->largest_id(), 744ul);
+  auto table =
+      ProtoTranslationTable::Create(&ftrace_procfs, GetStaticEventInfo());
   EXPECT_EQ(table->common_fields().at(0).ftrace_offset, 0u);
   EXPECT_EQ(table->common_fields().at(0).ftrace_size, 2u);
 
   auto sched_switch_event = table->GetEventByName("sched_switch");
-  EXPECT_EQ(sched_switch_event->name, "sched_switch");
-  EXPECT_EQ(sched_switch_event->group, "sched");
+  EXPECT_EQ(std::string(sched_switch_event->name), "sched_switch");
+  EXPECT_EQ(std::string(sched_switch_event->group), "sched");
   EXPECT_EQ(sched_switch_event->ftrace_event_id, 68ul);
   EXPECT_EQ(sched_switch_event->fields.at(0).ftrace_offset, 8u);
   EXPECT_EQ(sched_switch_event->fields.at(0).ftrace_size, 16u);
 }
 
 TEST(TranslationTable, Getters) {
-  using Event = ProtoTranslationTable::Event;
-  using Field = ProtoTranslationTable::Field;
-
   std::vector<Field> common_fields;
   std::vector<Event> events;
 

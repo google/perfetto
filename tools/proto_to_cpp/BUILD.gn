@@ -12,30 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../src/protozero/protozero_library.gni")
-import("../gn/perfetto.gni")
-import("../gn/proto_library.gni")
-
-proto_sources = [ "trace_packet.proto" ]
-
-# Protozero generated stubs, for writers.
-protozero_library("zero") {
-  deps = [
-    "ftrace:zero",
-  ]
-  sources = proto_sources
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = "protos_zero"
-  generator_plugin_options = "wrapper_namespace=pbzero"
+if (current_toolchain == host_toolchain) {
+  executable("proto_to_cpp_host") {
+    testonly = true
+    deps = [
+      "../../gn:default_deps",
+      "../../gn:protobuf_full_deps",
+    ]
+    sources = [
+      "proto_to_cpp.cc",
+    ]
+  }
 }
 
-# Protobuf Lite stubs, for readers.
-proto_library("lite") {
+copy("proto_to_cpp") {
+  testonly = true
+  host_out_dir_ =
+      get_label_info(":proto_to_cpp_host($host_toolchain)", "root_out_dir")
   deps = [
-    "ftrace:lite",
-    "tracing_service:lite",
+    ":proto_to_cpp_host($host_toolchain)",
   ]
-  sources = proto_sources
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = "protos_lite"
+  sources = [
+    "${host_out_dir_}/proto_to_cpp_host",
+  ]
+  outputs = [
+    "${root_out_dir}/proto_to_cpp",
+  ]
 }

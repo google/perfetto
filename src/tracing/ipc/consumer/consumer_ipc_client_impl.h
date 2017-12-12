@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_IPC_PRODUCER_PRODUCER_IPC_CLIENT_IMPL_H_
-#define SRC_TRACING_IPC_PRODUCER_PRODUCER_IPC_CLIENT_IMPL_H_
+#ifndef SRC_TRACING_IPC_CONSUMER_CONSUMER_IPC_CLIENT_IMPL_H_
+#define SRC_TRACING_IPC_CONSUMER_CONSUMER_IPC_CLIENT_IMPL_H_
 
 #include <stdint.h>
 
 #include <vector>
 
+#include "perfetto/base/weak_ptr.h"
 #include "perfetto/ipc/service_proxy.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/service.h"
-#include "perfetto/tracing/ipc/producer_ipc_client.h"
+#include "perfetto/tracing/ipc/consumer_ipc_client.h"
 
-#include "protos/tracing_service/producer_port.ipc.h"
+#include "protos/tracing_service/consumer_port.ipc.h"
 
 namespace perfetto {
 
@@ -38,60 +39,53 @@ namespace ipc {
 class Client;
 }  // namespace ipc
 
-class Producer;
-class PosixSharedMemory;
+class Consumer;
+class TraceConfig;
 
-// Exposes a Service endpoint to Producer(s), proxying all requests through a
+// Exposes a Service endpoint to Consumer(s), proxying all requests through a
 // IPC channel to the remote Service. This class is the glue layer between the
 // generic Service interface exposed to the clients of the library and the
 // actual IPC transport.
-class ProducerIPCClientImpl : public Service::ProducerEndpoint,
+class ConsumerIPCClientImpl : public Service::ConsumerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
-  ProducerIPCClientImpl(const char* service_sock_name,
-                        Producer*,
+  ConsumerIPCClientImpl(const char* service_sock_name,
+                        Consumer*,
                         base::TaskRunner*);
-  ~ProducerIPCClientImpl() override;
+  ~ConsumerIPCClientImpl() override;
 
-  // Service::ProducerEndpoint implementation.
-  // These methods are invoked by the actual Producer(s) code by clients of the
+  // Service::ConsumerEndpoint implementation.
+  // These methods are invoked by the actual Consumer(s) code by clients of the
   // tracing library, which know nothing about the IPC transport.
-  void RegisterDataSource(const DataSourceDescriptor&,
-                          RegisterDataSourceCallback) override;
-  void UnregisterDataSource(DataSourceID) override;
-  void NotifySharedMemoryUpdate(
-      const std::vector<uint32_t>& changed_pages) override;
-  SharedMemory* shared_memory() const override;
+  void EnableTracing(const TraceConfig&) override;
+  void DisableTracing() override;
+  void ReadBuffers() override;
+  void FreeBuffers() override;
 
   // ipc::ServiceProxy::EventListener implementation.
   // These methods are invoked by the IPC layer, which knows nothing about
-  // tracing, producers and consumers.
+  // tracing, consumers and consumers.
   void OnConnect() override;
   void OnDisconnect() override;
 
  private:
-  // Invoked soon after having established the connection with the service.
-  void OnConnectionInitialized(bool connection_succeeded);
+  void OnReadBuffersResponse(ipc::AsyncResult<ReadBuffersResponse>);
 
-  // Invoked when the remote Service sends an IPC to tell us to do something
-  // (e.g. start/stop a data source).
-  void OnServiceRequest(const GetAsyncCommandResponse&);
-
-  // TODO think to destruction order, do we rely on any specific dtor sequence?
-  Producer* const producer_;
-  base::TaskRunner* const task_runner_;
+  // TODO(primiano): think to dtor order, do we rely on any specific sequence?
+  Consumer* const consumer_;
 
   // The object that owns the client socket and takes care of IPC traffic.
   std::unique_ptr<ipc::Client> ipc_channel_;
 
-  // The proxy interface for the producer port of the service. It is bound
+  // The proxy interface for the consumer port of the service. It is bound
   // to |ipc_channel_| and (de)serializes method invocations over the wire.
-  ProducerPortProxy producer_port_;
+  ConsumerPortProxy consumer_port_;
 
-  std::unique_ptr<PosixSharedMemory> shared_memory_;
+  base::WeakPtrFactory<ConsumerIPCClientImpl> weak_ptr_factory_;
+
   bool connected_ = false;
 };
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_IPC_PRODUCER_PRODUCER_IPC_CLIENT_IMPL_H_
+#endif  // SRC_TRACING_IPC_CONSUMER_CONSUMER_IPC_CLIENT_IMPL_H_

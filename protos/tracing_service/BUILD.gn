@@ -12,30 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../src/protozero/protozero_library.gni")
-import("../gn/perfetto.gni")
-import("../gn/proto_library.gni")
+import("../../gn/perfetto.gni")
+import("../../gn/ipc_library.gni")
 
-proto_sources = [ "trace_packet.proto" ]
-
-# Protozero generated stubs, for writers.
-protozero_library("zero") {
+# IPC service definitions.
+ipc_library("tracing_service") {
   deps = [
-    "ftrace:zero",
+    ":lite",
   ]
-  sources = proto_sources
   proto_in_dir = perfetto_root_path
-  proto_out_dir = "protos_zero"
-  generator_plugin_options = "wrapper_namespace=pbzero"
+  sources = [
+    "consumer_port.proto",
+    "producer_port.proto",
+  ]
 }
 
-# Protobuf Lite stubs, for readers.
 proto_library("lite") {
-  deps = [
-    "ftrace:lite",
-    "tracing_service:lite",
-  ]
-  sources = proto_sources
   proto_in_dir = perfetto_root_path
   proto_out_dir = "protos_lite"
+  sources = [
+    "data_source_config.proto",
+    "data_source_descriptor.proto",
+    "trace_config.proto",
+  ]
 }

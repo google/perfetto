@@ -72,13 +72,13 @@ bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
       continue;
     }
 
-    size_t offset = 0;
-    size_t size = 0;
+    uint16_t offset = 0;
+    uint16_t size = 0;
     int is_signed = 0;
     if (sscanf(line,
                "\tfield:%" STRINGIFY(MAX_FIELD_LENGTH) "[^;];\toffset: "
-                                                       "%zu;\tsize: "
-                                                       "%zu;\tsigned: %d;",
+                                                       "%hu;\tsize: "
+                                                       "%hu;\tsigned: %d;",
                buffer, &offset, &size, &is_signed) == 4) {
       std::string type_and_name(buffer);
 
