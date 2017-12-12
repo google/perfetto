@@ -45,6 +45,8 @@ source_set("ipc") {
     "../../include/perfetto/tracing/ipc",
   ]
   sources = [
+    "ipc/consumer/consumer_ipc_client_impl.cc",
+    "ipc/consumer/consumer_ipc_client_impl.h",
     "ipc/posix_shared_memory.cc",
     "ipc/posix_shared_memory.h",
     "ipc/producer/producer_ipc_client_impl.cc",

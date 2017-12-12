@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_TRACING_IPC_PRODUCER_IPC_CLIENT_H_
-#define INCLUDE_PERFETTO_TRACING_IPC_PRODUCER_IPC_CLIENT_H_
+#ifndef INCLUDE_PERFETTO_TRACING_IPC_CONSUMER_IPC_CLIENT_H_
+#define INCLUDE_PERFETTO_TRACING_IPC_CONSUMER_IPC_CLIENT_H_
 
 #include <memory>
 #include <string>
@@ -24,30 +24,30 @@
 
 namespace perfetto {
 
-class Producer;
+class Consumer;
 
 // Allows to connect to a remote Service through a UNIX domain socket.
 // Exposed to:
-//   Producer(s) of the tracing library.
+//   Consumer(s) of the tracing library.
 // Implemented in:
 //   src/ipc/producer/producer_ipc_client_impl.cc
-class ProducerIPCClient {
+class ConsumerIPCClient {
  public:
   // Connects to the producer port of the Service listening on the given
   // |service_sock_name|. If the connection is successful, the OnConnect()
-  // method will be invoked asynchronously on the passed Producer interface.
+  // method will be invoked asynchronously on the passed Consumer interface.
   // If the connection fails, OnDisconnect() will be invoked instead.
-  // The returned ProducerEndpoint serves also to delimit the scope of the
-  // callbacks invoked on the Producer interface: no more Producer callbacks are
+  // The returned ConsumerEndpoint serves also to delimit the scope of the
+  // callbacks invoked on the Consumer interface: no more Consumer callbacks are
   // invoked immediately after its destruction and any pending callback will be
   // dropped.
-  static std::unique_ptr<Service::ProducerEndpoint>
-  Connect(const char* service_sock_name, Producer*, base::TaskRunner*);
+  static std::unique_ptr<Service::ConsumerEndpoint>
+  Connect(const char* service_sock_name, Consumer*, base::TaskRunner*);
 
  protected:
-  ProducerIPCClient() = delete;
+  ConsumerIPCClient() = delete;
 };
 
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_TRACING_IPC_PRODUCER_IPC_CLIENT_H_
+#endif  // INCLUDE_PERFETTO_TRACING_IPC_CONSUMER_IPC_CLIENT_H_
