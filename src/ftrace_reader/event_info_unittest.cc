@@ -45,7 +45,8 @@ TEST(GetStaticEventInfo, SanityCheck) {
       // Other fields should be zeroed.
       ASSERT_FALSE(field.ftrace_offset);
       ASSERT_FALSE(field.ftrace_size);
-      ASSERT_FALSE(field.ftrace_type);
+      // TODO(hjd): Re-instate this after we decide this at runtime.
+      // ASSERT_FALSE(field.ftrace_type);
     }
   }
 }

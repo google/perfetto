@@ -26,6 +26,7 @@
 #include "gtest/gtest_prod.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
+#include "perfetto/protozero/protozero_message.h"
 #include "proto_translation_table.h"
 
 namespace perfetto {
@@ -85,11 +86,30 @@ class CpuReader {
     return true;
   }
 
+  // Parse a raw ftrace page beginning at ptr and write the events a protos
+  // into the provided bundle respecting the given event filter.
+  // |table| contains the mix of compile time (e.g. proto field ids) and
+  // run time (e.g. field offset and size) information necessary to do this.
+  // The table is initialized once at start time by the ftrace controller
+  // which passes it to the CpuReader which passes it here.
   static bool ParsePage(size_t cpu,
                         const uint8_t* ptr,
                         const EventFilter*,
                         protos::pbzero::FtraceEventBundle*,
                         const ProtoTranslationTable* table);
+
+  // Parse a single raw ftrace event beginning at |start| and ending at |end|
+  // and write it into the provided bundle as a proto.
+  // |table| contains the mix of compile time (e.g. proto field ids) and
+  // run time (e.g. field offset and size) information necessary to do this.
+  // The table is initialized once at start time by the ftrace controller
+  // which passes it to the CpuReader which passes it to ParsePage which
+  // passes it here.
+  static bool ParseEvent(uint16_t ftrace_event_id,
+                         const uint8_t* start,
+                         const uint8_t* end,
+                         const ProtoTranslationTable* table,
+                         protozero::ProtoZeroMessage* message);
 
  private:
   uint8_t* GetBuffer();

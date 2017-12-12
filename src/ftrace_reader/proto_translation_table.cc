@@ -68,7 +68,7 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
           continue;
         field.ftrace_offset = ftrace_field.offset;
         field.ftrace_size = ftrace_field.size;
-        field.ftrace_type = kFtraceNumber;
+        // TODO(hjd): Set field.ftrace_type here.
       }
     }
     if (common_fields.empty()) {

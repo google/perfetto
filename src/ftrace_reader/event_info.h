@@ -22,17 +22,88 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 
 enum ProtoFieldType {
-  kProtoNumber = 1,
-  kProtoString,
+  kProtoDouble = 1,
+  kProtoFloat,
   kProtoInt32,
+  kProtoInt64,
+  kProtoUint32,
+  kProtoUint64,
+  kProtoSint32,
+  kProtoSint64,
+  kProtoFixed32,
+  kProtoFixed64,
+  kProtoSfixed32,
+  kProtoSfixed64,
+  kProtoBool,
+  kProtoString,
+  kProtoBytes,
 };
 
 enum FtraceFieldType {
-  kFtraceNumber = 1,
+  kFtraceUint32 = 1,
+  kFtraceUint64,
+  kFtraceChar16,
+  kFtraceCString,
 };
+
+inline const char* ToString(ProtoFieldType v) {
+  switch (v) {
+    case kProtoDouble:
+      return "double";
+    case kProtoFloat:
+      return "float";
+    case kProtoInt32:
+      return "int32";
+    case kProtoInt64:
+      return "int64";
+    case kProtoUint32:
+      return "uint32";
+    case kProtoUint64:
+      return "uint64";
+    case kProtoSint32:
+      return "sint32";
+    case kProtoSint64:
+      return "sint64";
+    case kProtoFixed32:
+      return "fixed32";
+    case kProtoFixed64:
+      return "fixed64";
+    case kProtoSfixed32:
+      return "sfixed32";
+    case kProtoSfixed64:
+      return "sfixed64";
+    case kProtoBool:
+      return "bool";
+    case kProtoString:
+      return "string";
+    case kProtoBytes:
+      return "bytes";
+  }
+  // For gcc:
+  PERFETTO_CHECK(false);
+  return "";
+}
+
+inline const char* ToString(FtraceFieldType v) {
+  switch (v) {
+    case kFtraceUint32:
+      return "uint32";
+    case kFtraceUint64:
+      return "uint64";
+    case kFtraceChar16:
+      return "char[16]";
+    case kFtraceCString:
+      return "null terminated string";
+  }
+  // For gcc:
+  PERFETTO_CHECK(false);
+  return "";
+}
 
 struct Field {
   Field() = default;
