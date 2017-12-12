@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
+
+import("../../gn/ipc_library.gni")
 import("../../gn/proto_library.gni")
-import("ipc_library.gni")
 
 source_set("ipc") {
   public_configs = [ "../../gn:default_config" ]
