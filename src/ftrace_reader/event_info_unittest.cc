@@ -21,7 +21,7 @@
 namespace perfetto {
 namespace {
 
-TEST(GetStaticEventInfo, SanityCheck) {
+TEST(EventInfoTest, GetStaticEventInfoSanityCheck) {
   std::vector<Event> events = GetStaticEventInfo();
   for (const Event& event : events) {
     // For each event the following fields should be filled
@@ -32,8 +32,10 @@ TEST(GetStaticEventInfo, SanityCheck) {
     ASSERT_TRUE(event.group);
     // Non-zero proto field id.
     ASSERT_TRUE(event.proto_field_id);
-    // Zero the ftrace id.
+
+    // Ftrace id and size should be zeroed.
     ASSERT_FALSE(event.ftrace_event_id);
+    ASSERT_FALSE(event.size);
 
     for (const Field& field : event.fields) {
       // Non-empty name.
@@ -45,9 +47,19 @@ TEST(GetStaticEventInfo, SanityCheck) {
       // Other fields should be zeroed.
       ASSERT_FALSE(field.ftrace_offset);
       ASSERT_FALSE(field.ftrace_size);
-      ASSERT_FALSE(field.ftrace_type);
+      ASSERT_FALSE(field.strategy);
+      // TODO(hjd): Re-instate this after we decide this at runtime.
+      // ASSERT_FALSE(field.ftrace_type);
     }
   }
+}
+
+TEST(EventInfoTest, SetTranslationStrategySanityCheck) {
+  TranslationStrategy strategy = kUint32ToUint32;
+  ASSERT_FALSE(SetTranslationStrategy(kFtraceCString, kProtoUint64, &strategy));
+  ASSERT_EQ(strategy, kUint32ToUint32);
+  ASSERT_TRUE(SetTranslationStrategy(kFtraceCString, kProtoString, &strategy));
+  ASSERT_EQ(strategy, kCStringToString);
 }
 
 }  // namespace

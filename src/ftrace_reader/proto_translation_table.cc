@@ -52,31 +52,66 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     std::vector<Event> events) {
   std::vector<Field> common_fields;
 
+  uint16_t common_fields_end = 0;
   for (Event& event : events) {
+    PERFETTO_DCHECK(event.name);
+    PERFETTO_DCHECK(event.group);
+    PERFETTO_DCHECK(event.proto_field_id);
+    PERFETTO_DCHECK(!event.ftrace_event_id);
+
     std::string contents =
         ftrace_procfs->ReadEventFormat(event.group, event.name);
     FtraceEvent ftrace_event;
     if (contents == "" || !ParseFtraceEvent(contents, &ftrace_event)) {
-      PERFETTO_DLOG("Could not read '%s'", event.name);
       continue;
     }
+    uint16_t fields_end = 0;
     event.ftrace_event_id = ftrace_event.id;
-    for (Field& field : event.fields) {
+    auto field = event.fields.begin();
+    while (field != event.fields.end()) {
+      bool success = false;
       for (FtraceEvent::Field ftrace_field : ftrace_event.fields) {
         if (GetNameFromTypeAndName(ftrace_field.type_and_name) !=
-            field.ftrace_name)
+            field->ftrace_name)
           continue;
-        field.ftrace_offset = ftrace_field.offset;
-        field.ftrace_size = ftrace_field.size;
-        field.ftrace_type = kFtraceNumber;
+
+        PERFETTO_DCHECK(field->ftrace_name);
+        PERFETTO_DCHECK(field->proto_field_id);
+        PERFETTO_DCHECK(field->proto_field_type);
+        PERFETTO_DCHECK(!field->ftrace_offset);
+        PERFETTO_DCHECK(!field->ftrace_size);
+        // TODO(hjd): Re-instate this after we decide this at runtime.
+        // PERFETTO_DCHECK(!field.ftrace_type);
+
+        // TODO(hjd): Set field.ftrace_type here.
+        field->ftrace_offset = ftrace_field.offset;
+        field->ftrace_size = ftrace_field.size;
+        fields_end = std::max<uint16_t>(
+            fields_end, field->ftrace_offset + field->ftrace_size);
+
+        bool can_consume = SetTranslationStrategy(
+            field->ftrace_type, field->proto_field_type, &field->strategy);
+        success = can_consume;
+        break;
+      }
+      if (success) {
+        ++field;
+      } else {
+        event.fields.erase(field);
       }
     }
+    // Only hit this first time though this loop.
     if (common_fields.empty()) {
       for (const FtraceEvent::Field& ftrace_field :
            ftrace_event.common_fields) {
-        common_fields.push_back(Field{ftrace_field.offset, ftrace_field.size});
+        uint16_t offset = ftrace_field.offset;
+        uint16_t size = ftrace_field.size;
+        common_fields.push_back(Field{offset, size});
+        common_fields_end =
+            std::max<uint16_t>(common_fields_end, offset + size);
       }
     }
+    event.size = std::max<uint16_t>(fields_end, common_fields_end);
   }
 
   events.erase(std::remove_if(events.begin(), events.end(),
