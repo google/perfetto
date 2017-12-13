@@ -31,6 +31,19 @@ namespace perfetto {
 
 namespace {
 
+static bool ReadIntoString(const uint8_t* start,
+                           const uint8_t* end,
+                           size_t field_id,
+                           protozero::ProtoZeroMessage* out) {
+  for (const uint8_t* c = start; c < end; c++) {
+    if (*c != '\0')
+      continue;
+    out->AppendBytes(field_id, reinterpret_cast<const char*>(start), c - start);
+    return true;
+  }
+  return false;
+}
+
 using BundleHandle =
     protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>;
 
@@ -225,9 +238,12 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
                            const uint8_t* end,
                            const ProtoTranslationTable* table,
                            protozero::ProtoZeroMessage* message) {
+  PERFETTO_DCHECK(start < end);
   const uint8_t* ptr = start;
+  const size_t length = end - start;
 
   // Common headers:
+  // TODO(hjd): Rework to work even if the event is unknown.
   // TODO(hjd): Convert this to use common fields.
   uint16_t ftrace_event_id_again;
   uint8_t flags;
@@ -250,48 +266,34 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
       message->BeginNestedMessage<protozero::ProtoZeroMessage>(
           info.proto_field_id);
 
+  // TODO(hjd): Test truncated events.
+  // If the end of the buffer is before the end of the event give up.
+  if (length < info.size)
+    return false;
+
   // TODO(hjd): Replace ReadAndAdvance with single max(offset + size) check.
-  // TODO(hjd): Decide read strategy at start time.
   for (const Field& field : info.fields) {
-    const uint8_t* p = start + field.ftrace_offset;
-    if (field.ftrace_type == kFtraceUint32 &&
-        field.proto_field_type == kProtoUint32) {
-      uint32_t number;
-      if (!ReadAndAdvance<uint32_t>(&p, end, &number))
-        return false;
-      nested->AppendVarInt<uint32_t>(field.proto_field_id, number);
-    } else if (field.ftrace_type == kFtraceUint64 &&
-               field.proto_field_type == kProtoUint64) {
-      uint64_t number;
-      if (!ReadAndAdvance<uint64_t>(&p, end, &number))
-        return false;
-      nested->AppendVarInt<uint64_t>(field.proto_field_id, number);
-    } else if (field.ftrace_type == kFtraceChar16 &&
-               field.proto_field_type == kProtoString) {
-      // TODO(hjd): Add AppendMaxLength string to protozero.
-      char str[16];
-      if (!ReadAndAdvance<char[16]>(&p, end, &str))
-        return false;
-      str[15] = '\0';
-      nested->AppendString(field.proto_field_id, str);
-    } else if (field.ftrace_type == kFtraceCString &&
-               field.proto_field_type == kProtoString) {
-      // TODO(hjd): Kernel-dive to check this how size:0 char fields work.
-      const uint8_t* str_start = p;
-      const uint8_t* str_end = end;
-      for (const uint8_t* c = str_start; c < str_end; c++) {
-        if (*c != '\0')
-          continue;
-        nested->AppendBytes(field.proto_field_id,
-                            reinterpret_cast<const char*>(str_start),
-                            c - str_start);
+    const uint8_t* field_start = start + field.ftrace_offset;
+    switch (field.strategy) {
+      case kUint32ToUint32:
+        ReadIntoVarInt<uint32_t>(start, field.ftrace_offset,
+                                 field.proto_field_id, nested);
         break;
-      }
-    } else {
-      PERFETTO_DLOG("Can't read ftrace type '%s' into proto type '%s'",
-                    ToString(field.ftrace_type),
-                    ToString(field.proto_field_type));
-      PERFETTO_CHECK(false);
+      case kUint64ToUint64:
+        ReadIntoVarInt<uint64_t>(start, field.ftrace_offset,
+                                 field.proto_field_id, nested);
+        break;
+      case kChar16ToString:
+        if (!ReadIntoString(field_start, field_start + 16, field.proto_field_id,
+                            nested))
+          return false;
+        break;
+      case kCStringToString:
+        // TODO(hjd): Add AppendMaxLength string to protozero.
+        // TODO(hjd): Kernel-dive to check this how size:0 char fields work.
+        if (!ReadIntoString(field_start, end, field.proto_field_id, nested))
+          return false;
+        break;
     }
   }
   // This finalizes |nested| automatically.

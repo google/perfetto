@@ -86,6 +86,19 @@ class CpuReader {
     return true;
   }
 
+  // Caller must do the bounds check:
+  // [start + offset, start + offset + sizeof(T))
+  template <typename T>
+  static void ReadIntoVarInt(const uint8_t* start,
+                             size_t offset,
+                             size_t field_id,
+                             protozero::ProtoZeroMessage* out) {
+    T t;
+    memcpy(reinterpret_cast<void*>(&t),
+           reinterpret_cast<const void*>(start + offset), sizeof(T));
+    out->AppendVarInt<T>(field_id, t);
+  }
+
   // Parse a raw ftrace page beginning at ptr and write the events a protos
   // into the provided bundle respecting the given event filter.
   // |table| contains the mix of compile time (e.g. proto field ids) and

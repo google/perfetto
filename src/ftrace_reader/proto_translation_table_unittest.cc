@@ -17,13 +17,26 @@
 #include "proto_translation_table.h"
 
 #include "ftrace_procfs.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+using testing::_;
 using testing::ValuesIn;
 using testing::TestWithParam;
+using testing::Return;
+using testing::AnyNumber;
 
 namespace perfetto {
 namespace {
+
+class MockFtraceProcfs : public FtraceProcfs {
+ public:
+  MockFtraceProcfs() : FtraceProcfs("/root/") {}
+
+  MOCK_CONST_METHOD2(ReadEventFormat,
+                     std::string(const std::string& group,
+                                 const std::string& name));
+};
 
 class AllTranslationTableTest : public TestWithParam<const char*> {
  public:
@@ -77,6 +90,94 @@ TEST(TranslationTable, Seed) {
   EXPECT_EQ(sched_switch_event->ftrace_event_id, 68ul);
   EXPECT_EQ(sched_switch_event->fields.at(0).ftrace_offset, 8u);
   EXPECT_EQ(sched_switch_event->fields.at(0).ftrace_size, 16u);
+}
+
+TEST(TranslationTable, Create) {
+  MockFtraceProcfs ftrace;
+  std::vector<Field> common_fields;
+  std::vector<Event> events;
+
+  ON_CALL(ftrace, ReadEventFormat(_, _)).WillByDefault(Return(""));
+  ON_CALL(ftrace, ReadEventFormat("group", "foo"))
+      .WillByDefault(Return(R"(name: foo
+ID: 42
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:char field_a[16];	offset:8;	size:16;	signed:0;
+	field:int field_b;	offset:24;	size:4;	signed:1;
+	field:int field_d;	offset:28;	size:4;	signed:1;
+
+print fmt: "some format")"));
+  ;
+
+  EXPECT_CALL(ftrace, ReadEventFormat(_, _)).Times(AnyNumber());
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "foo";
+    event->group = "group";
+    event->proto_field_id = 21;
+
+    {
+      // We should get this field.
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->proto_field_id = 501;
+      // TODO(hjd): Remove.
+      field->proto_field_type = kProtoString;
+      field->ftrace_type = kFtraceChar16;
+      field->ftrace_name = "field_a";
+    }
+
+    {
+      // We shouldn't get this field: don't know how to read int -> string.
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->proto_field_id = 502;
+      field->proto_field_type = kProtoString;
+      // TODO(hjd): Remove.
+      field->ftrace_type = kFtraceUint32;
+      field->ftrace_name = "field_b";
+    }
+
+    {
+      // We shouldn't get this field: no matching field in the format file.
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->proto_field_id = 503;
+      field->proto_field_type = kProtoString;
+      // TODO(hjd): Remove.
+      field->ftrace_type = kFtraceCString;
+      field->ftrace_name = "field_c";
+    }
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "bar";
+    event->group = "group";
+    event->proto_field_id = 22;
+  }
+
+  auto table = ProtoTranslationTable::Create(&ftrace, std::move(events));
+  EXPECT_EQ(table->largest_id(), 42ul);
+  EXPECT_EQ(table->EventNameToFtraceId("foo"), 42ul);
+  EXPECT_EQ(table->EventNameToFtraceId("bar"), 0ul);
+  EXPECT_EQ(table->EventNameToFtraceId("bar"), 0ul);
+  EXPECT_FALSE(table->GetEventById(43ul));
+  ASSERT_TRUE(table->GetEventById(42ul));
+  auto event = table->GetEventById(42);
+  EXPECT_EQ(event->ftrace_event_id, 42ul);
+  EXPECT_EQ(event->proto_field_id, 21ul);
+  // We only collect size for events we parse so this doesn't count field d.
+  EXPECT_EQ(event->size, 28u);
+  EXPECT_EQ(std::string(event->name), "foo");
+  EXPECT_EQ(std::string(event->group), "group");
+  EXPECT_EQ(event->fields.size(), 1ul);
 }
 
 TEST(TranslationTable, Getters) {

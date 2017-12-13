@@ -598,6 +598,8 @@ TEST(CpuReaderTest, ParseAllFields) {
       field->ftrace_type = kFtraceUint32;
       field->proto_field_id = 1;
       field->proto_field_type = kProtoUint32;
+      SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                             &field->strategy);
     }
     {
       // char[16] -> string
@@ -608,6 +610,8 @@ TEST(CpuReaderTest, ParseAllFields) {
       field->ftrace_type = kFtraceChar16;
       field->proto_field_id = 500;
       field->proto_field_type = kProtoString;
+      SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                             &field->strategy);
     }
     {
       // char -> string
@@ -618,6 +622,8 @@ TEST(CpuReaderTest, ParseAllFields) {
       field->ftrace_type = kFtraceCString;
       field->proto_field_id = 501;
       field->proto_field_type = kProtoString;
+      SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                             &field->strategy);
     }
   }
   ProtoTranslationTable table(events, std::move(common_fields));

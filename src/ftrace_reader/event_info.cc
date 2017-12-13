@@ -73,4 +73,21 @@ std::vector<Event> GetStaticEventInfo() {
   return events;
 }
 
+bool SetTranslationStrategy(FtraceFieldType ftrace,
+                            ProtoFieldType proto,
+                            TranslationStrategy* out) {
+  if (ftrace == kFtraceUint32 && proto == kProtoUint32) {
+    *out = kUint32ToUint32;
+  } else if (ftrace == kFtraceUint64 && proto == kProtoUint64) {
+    *out = kUint64ToUint64;
+  } else if (ftrace == kFtraceChar16 && proto == kProtoString) {
+    *out = kChar16ToString;
+  } else if (ftrace == kFtraceCString && proto == kProtoString) {
+    *out = kCStringToString;
+  } else {
+    return false;
+  }
+  return true;
+}
+
 }  // namespace perfetto
