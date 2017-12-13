@@ -38,8 +38,9 @@ class FtraceProcfs {
   bool DisableAllEvents();
 
   // Read the format for event with the given |group| and |name|.
-  std::string ReadEventFormat(const std::string& group,
-                              const std::string& name) const;
+  // virtual for testing.
+  virtual std::string ReadEventFormat(const std::string& group,
+                                      const std::string& name) const;
 
   // Read the available_events file.
   std::string ReadAvailableEvents() const;
@@ -65,7 +66,10 @@ class FtraceProcfs {
   // point.
   bool IsTracingEnabled();
 
+  // Open the raw pipe for |cpu|.
   virtual base::ScopedFile OpenPipeForCpu(size_t cpu);
+
+  // virtual and public for testing.
   virtual bool WriteToFile(const std::string& path, const std::string& str);
 
  private:
