@@ -132,7 +132,8 @@ install:
     if [[ "$CFG" != android-* ]]; then
       tools/install-build-deps --no-android
     else
-      tools/install-build-deps
+      ARCH=$(echo "$CFG" | cut -d- -f3)
+      tools/install-build-deps --emulator="$ARCH"
     fi
 
 script:
