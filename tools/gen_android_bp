@@ -29,7 +29,15 @@ import argparse
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+
+# Default targets to translate to the blueprint file.
+default_targets = ['//:perfetto_tests']
+
+# Arguments for the GN output directory.
+gn_args = 'target_os="android" target_cpu="arm" is_debug=false'
 
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'perfetto_'
@@ -448,13 +456,45 @@ def create_blueprint_for_targets(desc, targets):
     return blueprint
 
 
+def repo_root():
+    """Returns an absolute path to the repository root."""
+
+    return os.path.join(
+        os.path.realpath(os.path.dirname(__file__)), os.path.pardir)
+
+
+def create_build_description():
+    """Creates the JSON build description by running GN."""
+
+    out = os.path.join(repo_root(), 'out', 'tmp.gen_android_bp')
+    try:
+        try:
+            os.makedirs(out)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+        subprocess.check_output(
+            ['gn', 'gen', out, '--args=%s' % gn_args], cwd=repo_root())
+        desc = subprocess.check_output(
+            ['gn', 'desc', out, '--format=json', '--all-toolchains', '//*'],
+            cwd=repo_root())
+        return json.loads(desc)
+    finally:
+        shutil.rmtree(out)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Generate Android.bp from a GN description.')
     parser.add_argument(
-        'desc',
+        '--desc',
         help=
         'GN description (e.g., gn desc out --format=json --all-toolchains "//*"'
+    )
+    parser.add_argument(
+        '--output',
+        help='Blueprint file to create',
+        default=os.path.join(repo_root(), 'Android.bp'),
     )
     parser.add_argument(
         'targets',
@@ -462,10 +502,14 @@ def main():
         help='Targets to include in the blueprint (e.g., "//:perfetto_tests")')
     args = parser.parse_args()
 
-    with open(args.desc) as f:
-        desc = json.load(f)
+    if args.desc:
+        with open(args.desc) as f:
+            desc = json.load(f)
+    else:
+        desc = create_build_description()
 
-    blueprint = create_blueprint_for_targets(desc, args.targets)
+    blueprint = create_blueprint_for_targets(desc, args.targets
+                                             or default_targets)
     output = [
         """// Copyright (C) 2017 The Android Open Source Project
 //
@@ -485,7 +529,8 @@ def main():
 """ % (__file__)
     ]
     blueprint.to_string(output)
-    print '\n'.join(output)
+    with open(args.output, 'w') as f:
+        f.write('\n'.join(output))
 
 
 if __name__ == '__main__':
