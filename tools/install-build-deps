@@ -180,12 +180,12 @@ TEST_DEPS_ANDROID = [
   ('buildtools/android_sdk/system-images/android-24/default/armeabi-v7a.zip',
    'https://dl.google.com/android/repository/sys-img/android/armeabi-v7a-24_r07.zip',
    '3454546b4eed2d6c3dd06d47757d6da9f4176033',
-   'all'
+   'android-arm'
   ),
   ('buildtools/android_sdk/system-images/android-24/default/arm64-v8a.zip',
    'https://dl.google.com/android/repository/sys-img/android/arm64-v8a-24_r07.zip',
    'e8ab2e49e4efe4b064232b33b5eeaded61437d7f',
-   'all'
+   'android-arm64'
   ),
 ]
 
@@ -243,12 +243,15 @@ def CheckoutGitRepo(path, git_url, revision):
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--no-android', action='store_true')
+  parser.add_argument('--emulator', action='append', help='arm|arm64')
   args = parser.parse_args()
+  andriod_emulator_images = ['android-' + arch for arch in args.emulator or []]
   deps = BUILD_DEPS_HOST
   if not args.no_android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   for rel_path, url, expected_sha1, platform in deps:
-    if platform != 'all' and platform != sys.platform:
+    if (platform != 'all' and platform != sys.platform and
+        platform not in andriod_emulator_images):
       continue
     local_path = os.path.join(ROOT_DIR, rel_path)
     if url.endswith('.git'):
