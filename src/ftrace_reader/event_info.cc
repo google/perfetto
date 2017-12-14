@@ -19,9 +19,13 @@
 namespace perfetto {
 namespace {
 
-Field FieldFromNameIdType(const char* name, size_t id, ProtoFieldType type) {
+Field FieldFromNameIdType(const char* name,
+                          size_t id,
+                          ProtoFieldType type,
+                          FtraceFieldType ftrace_type) {
   Field field{};
   field.ftrace_name = name;
+  field.ftrace_type = ftrace_type;
   field.proto_field_id = id;
   field.proto_field_type = type;
   return field;
@@ -40,7 +44,8 @@ std::vector<Event> GetStaticEventInfo() {
     event->name = "print";
     event->group = "ftrace";
     event->proto_field_id = 3;
-    event->fields.push_back(FieldFromNameIdType("buf", 2, kProtoString));
+    event->fields.push_back(
+        FieldFromNameIdType("buf", 2, kProtoString, kFtraceCString));
   }
 
   {
@@ -49,16 +54,40 @@ std::vector<Event> GetStaticEventInfo() {
     event->name = "sched_switch";
     event->group = "sched";
     event->proto_field_id = 4;
-    event->fields.push_back(FieldFromNameIdType("prev_comm", 1, kProtoString));
-    event->fields.push_back(FieldFromNameIdType("prev_pid", 2, kProtoInt32));
-    event->fields.push_back(FieldFromNameIdType("prev_prio", 3, kProtoInt32));
-    event->fields.push_back(FieldFromNameIdType("prev_state", 4, kProtoInt32));
-    event->fields.push_back(FieldFromNameIdType("next_comm", 5, kProtoString));
-    event->fields.push_back(FieldFromNameIdType("next_pid", 6, kProtoInt32));
-    event->fields.push_back(FieldFromNameIdType("next_prio", 7, kProtoInt32));
+    event->fields.push_back(
+        FieldFromNameIdType("prev_comm", 1, kProtoString, kFtraceChar16));
+    event->fields.push_back(
+        FieldFromNameIdType("prev_pid", 2, kProtoUint32, kFtraceUint32));
+    event->fields.push_back(
+        FieldFromNameIdType("prev_prio", 3, kProtoUint32, kFtraceUint32));
+    event->fields.push_back(
+        FieldFromNameIdType("prev_state", 4, kProtoUint64, kFtraceUint64));
+    event->fields.push_back(
+        FieldFromNameIdType("next_comm", 5, kProtoString, kFtraceChar16));
+    event->fields.push_back(
+        FieldFromNameIdType("next_pid", 6, kProtoUint32, kFtraceUint32));
+    event->fields.push_back(
+        FieldFromNameIdType("next_prio", 7, kProtoUint32, kFtraceUint32));
   }
 
   return events;
+}
+
+bool SetTranslationStrategy(FtraceFieldType ftrace,
+                            ProtoFieldType proto,
+                            TranslationStrategy* out) {
+  if (ftrace == kFtraceUint32 && proto == kProtoUint32) {
+    *out = kUint32ToUint32;
+  } else if (ftrace == kFtraceUint64 && proto == kProtoUint64) {
+    *out = kUint64ToUint64;
+  } else if (ftrace == kFtraceChar16 && proto == kProtoString) {
+    *out = kChar16ToString;
+  } else if (ftrace == kFtraceCString && proto == kProtoString) {
+    *out = kCStringToString;
+  } else {
+    return false;
+  }
+  return true;
 }
 
 }  // namespace perfetto
