@@ -90,12 +90,10 @@ class CpuReader {
   // [start + offset, start + offset + sizeof(T))
   template <typename T>
   static void ReadIntoVarInt(const uint8_t* start,
-                             size_t offset,
                              size_t field_id,
                              protozero::ProtoZeroMessage* out) {
     T t;
-    memcpy(reinterpret_cast<void*>(&t),
-           reinterpret_cast<const void*>(start + offset), sizeof(T));
+    memcpy(&t, reinterpret_cast<const void*>(start), sizeof(T));
     out->AppendVarInt<T>(field_id, t);
   }
 
@@ -122,6 +120,11 @@ class CpuReader {
                          const uint8_t* start,
                          const uint8_t* end,
                          const ProtoTranslationTable* table,
+                         protozero::ProtoZeroMessage* message);
+
+  static bool ParseField(const Field& field,
+                         const uint8_t* start,
+                         const uint8_t* end,
                          protozero::ProtoZeroMessage* message);
 
  private:
