@@ -44,8 +44,8 @@ class AllTranslationTableTest : public TestWithParam<const char*> {
     std::string path =
         "src/ftrace_reader/test/data/" + std::string(GetParam()) + "/";
     FtraceProcfs ftrace_procfs(path);
-    table_ =
-        ProtoTranslationTable::Create(&ftrace_procfs, GetStaticEventInfo());
+    table_ = ProtoTranslationTable::Create(&ftrace_procfs, GetStaticEventInfo(),
+                                           GetStaticCommonFieldsInfo());
   }
 
   std::unique_ptr<ProtoTranslationTable> table_;
@@ -72,6 +72,10 @@ TEST_P(AllTranslationTableTest, Create) {
       EXPECT_TRUE(field.proto_field_type);
     }
   }
+  ASSERT_EQ(table_->common_fields().size(), 1u);
+  const Field& pid_field = table_->common_fields().at(0);
+  EXPECT_EQ(std::string(pid_field.ftrace_name), "common_pid");
+  EXPECT_EQ(pid_field.proto_field_id, 2u);
 }
 
 INSTANTIATE_TEST_CASE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
@@ -79,10 +83,13 @@ INSTANTIATE_TEST_CASE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
 TEST(TranslationTable, Seed) {
   std::string path = "src/ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
   FtraceProcfs ftrace_procfs(path);
-  auto table =
-      ProtoTranslationTable::Create(&ftrace_procfs, GetStaticEventInfo());
-  EXPECT_EQ(table->common_fields().at(0).ftrace_offset, 0u);
-  EXPECT_EQ(table->common_fields().at(0).ftrace_size, 2u);
+  auto table = ProtoTranslationTable::Create(
+      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  const Field& pid_field = table->common_fields().at(0);
+  EXPECT_EQ(std::string(pid_field.ftrace_name), "common_pid");
+  EXPECT_EQ(pid_field.proto_field_id, 2u);
+  EXPECT_EQ(pid_field.ftrace_offset, 4u);
+  EXPECT_EQ(pid_field.ftrace_size, 4u);
 
   auto sched_switch_event = table->GetEventByName("sched_switch");
   EXPECT_EQ(std::string(sched_switch_event->name), "sched_switch");
@@ -108,6 +115,7 @@ format:
 	field:char field_a[16];	offset:8;	size:16;	signed:0;
 	field:int field_b;	offset:24;	size:4;	signed:1;
 	field:int field_d;	offset:28;	size:4;	signed:1;
+	field:u32 field_e;	offset:32;	size:4;	signed:0;
 
 print fmt: "some format")"));
   ;
@@ -126,9 +134,7 @@ print fmt: "some format")"));
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
       field->proto_field_id = 501;
-      // TODO(hjd): Remove.
       field->proto_field_type = kProtoString;
-      field->ftrace_type = kFtraceChar16;
       field->ftrace_name = "field_a";
     }
 
@@ -138,8 +144,6 @@ print fmt: "some format")"));
       Field* field = &event->fields.back();
       field->proto_field_id = 502;
       field->proto_field_type = kProtoString;
-      // TODO(hjd): Remove.
-      field->ftrace_type = kFtraceUint32;
       field->ftrace_name = "field_b";
     }
 
@@ -149,9 +153,16 @@ print fmt: "some format")"));
       Field* field = &event->fields.back();
       field->proto_field_id = 503;
       field->proto_field_type = kProtoString;
-      // TODO(hjd): Remove.
-      field->ftrace_type = kFtraceCString;
       field->ftrace_name = "field_c";
+    }
+
+    {
+      // We should get this field.
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->proto_field_id = 504;
+      field->proto_field_type = kProtoUint64;
+      field->ftrace_name = "field_e";
     }
   }
 
@@ -163,7 +174,8 @@ print fmt: "some format")"));
     event->proto_field_id = 22;
   }
 
-  auto table = ProtoTranslationTable::Create(&ftrace, std::move(events));
+  auto table = ProtoTranslationTable::Create(&ftrace, std::move(events),
+                                             std::move(common_fields));
   EXPECT_EQ(table->largest_id(), 42ul);
   EXPECT_EQ(table->EventNameToFtraceId("foo"), 42ul);
   EXPECT_EQ(table->EventNameToFtraceId("bar"), 0ul);
@@ -173,11 +185,36 @@ print fmt: "some format")"));
   auto event = table->GetEventById(42);
   EXPECT_EQ(event->ftrace_event_id, 42ul);
   EXPECT_EQ(event->proto_field_id, 21ul);
-  // We only collect size for events we parse so this doesn't count field d.
-  EXPECT_EQ(event->size, 28u);
+  EXPECT_EQ(event->size, 36u);
   EXPECT_EQ(std::string(event->name), "foo");
   EXPECT_EQ(std::string(event->group), "group");
-  EXPECT_EQ(event->fields.size(), 1ul);
+
+  ASSERT_EQ(event->fields.size(), 2ul);
+  auto field_a = event->fields.at(0);
+  EXPECT_EQ(field_a.proto_field_id, 501ul);
+  EXPECT_EQ(field_a.strategy, kFixedCStringToString);
+
+  auto field_e = event->fields.at(1);
+  EXPECT_EQ(field_e.proto_field_id, 504ul);
+  EXPECT_EQ(field_e.strategy, kUint32ToUint64);
+}
+
+TEST(TranslationTable, InferFtraceType) {
+  FtraceFieldType type;
+
+  ASSERT_TRUE(InferFtraceType("char * foo", 0, false, &type));
+  EXPECT_EQ(type, kFtraceCString);
+
+  ASSERT_TRUE(InferFtraceType("char foo[16]", 16, false, &type));
+  EXPECT_EQ(type, kFtraceFixedCString);
+
+  ASSERT_TRUE(InferFtraceType("char foo[64]", 64, false, &type));
+  EXPECT_EQ(type, kFtraceFixedCString);
+
+  ASSERT_TRUE(InferFtraceType("u32 foo", 4, false, &type));
+  EXPECT_EQ(type, kFtraceUint32);
+
+  EXPECT_FALSE(InferFtraceType("foo", 64, false, &type));
 }
 
 TEST(TranslationTable, Getters) {

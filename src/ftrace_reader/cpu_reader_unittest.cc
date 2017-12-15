@@ -118,7 +118,8 @@ ProtoTranslationTable* GetTable(const std::string& name) {
   if (!g_tables->count(name)) {
     std::string path = "src/ftrace_reader/test/data/" + name + "/";
     FtraceProcfs ftrace(path);
-    auto table = ProtoTranslationTable::Create(&ftrace, GetStaticEventInfo());
+    auto table = ProtoTranslationTable::Create(&ftrace, GetStaticEventInfo(),
+                                               GetStaticCommonFieldsInfo());
     g_tables->emplace(name, std::move(table));
   }
   return g_tables->at(name).get();
@@ -581,6 +582,18 @@ TEST(CpuReaderTest, ParseAllFields) {
   uint16_t ftrace_event_id = 102;
 
   std::vector<Field> common_fields;
+  {
+    common_fields.emplace_back(Field{});
+    Field* field = &common_fields.back();
+    field->ftrace_offset = 0;
+    field->ftrace_size = 4;
+    field->ftrace_type = kFtraceUint32;
+    field->proto_field_id = 1;
+    field->proto_field_type = kProtoUint32;
+    SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                           &field->strategy);
+  }
+
   std::vector<Event> events;
   {
     events.emplace_back(Event{});
@@ -607,7 +620,7 @@ TEST(CpuReaderTest, ParseAllFields) {
       Field* field = &event->fields.back();
       field->ftrace_offset = 12;
       field->ftrace_size = 16;
-      field->ftrace_type = kFtraceChar16;
+      field->ftrace_type = kFtraceFixedCString;
       field->proto_field_id = 500;
       field->proto_field_type = kProtoString;
       SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
@@ -631,10 +644,8 @@ TEST(CpuReaderTest, ParseAllFields) {
   FakeEventProvider provider(kPageSize);
 
   BinaryWriter writer;
-  writer.Write<int16_t>(ftrace_event_id);  // Ftrace Id
-  writer.Write<int8_t>(1);                 // Flags
-  writer.Write<int8_t>(1);                 // Preempt count.
-  writer.Write<int32_t>(1001);             // Pid
+  writer.Write<int32_t>(1001);  // Common field.
+  writer.Write<int32_t>(9999);  // A gap we shouldn't read.
   writer.Write<int32_t>(1002);
   writer.WriteFixedString(16, "Hello");
   writer.WriteFixedString(300, "Goodbye");
@@ -648,7 +659,7 @@ TEST(CpuReaderTest, ParseAllFields) {
 
   auto event = provider.ParseProto();
   ASSERT_TRUE(event);
-  EXPECT_EQ(event->pid(), 1001ul);
+  EXPECT_EQ(event->common_field(), 1001ul);
   EXPECT_EQ(event->event_case(), FakeFtraceEvent::kAllFields);
   EXPECT_EQ(event->all_fields().field_uint32(), 1002ul);
   EXPECT_EQ(event->all_fields().field_char_16(), "Hello");
