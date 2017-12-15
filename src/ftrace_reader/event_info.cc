@@ -55,7 +55,7 @@ std::vector<Event> GetStaticEventInfo() {
     event->group = "sched";
     event->proto_field_id = 4;
     event->fields.push_back(
-        FieldFromNameIdType("prev_comm", 1, kProtoString, kFtraceChar16));
+        FieldFromNameIdType("prev_comm", 1, kProtoString, kFtraceFixedCString));
     event->fields.push_back(
         FieldFromNameIdType("prev_pid", 2, kProtoUint32, kFtraceUint32));
     event->fields.push_back(
@@ -63,7 +63,7 @@ std::vector<Event> GetStaticEventInfo() {
     event->fields.push_back(
         FieldFromNameIdType("prev_state", 4, kProtoUint64, kFtraceUint64));
     event->fields.push_back(
-        FieldFromNameIdType("next_comm", 5, kProtoString, kFtraceChar16));
+        FieldFromNameIdType("next_comm", 5, kProtoString, kFtraceFixedCString));
     event->fields.push_back(
         FieldFromNameIdType("next_pid", 6, kProtoUint32, kFtraceUint32));
     event->fields.push_back(
@@ -73,15 +73,26 @@ std::vector<Event> GetStaticEventInfo() {
   return events;
 }
 
+std::vector<Field> GetStaticCommonFieldsInfo() {
+  std::vector<Field> fields;
+
+  fields.push_back(
+      FieldFromNameIdType("common_pid", 2, kProtoUint32, kFtraceUint32));
+
+  return fields;
+}
+
 bool SetTranslationStrategy(FtraceFieldType ftrace,
                             ProtoFieldType proto,
                             TranslationStrategy* out) {
   if (ftrace == kFtraceUint32 && proto == kProtoUint32) {
     *out = kUint32ToUint32;
+  } else if (ftrace == kFtraceUint32 && proto == kProtoUint64) {
+    *out = kUint32ToUint64;
   } else if (ftrace == kFtraceUint64 && proto == kProtoUint64) {
     *out = kUint64ToUint64;
-  } else if (ftrace == kFtraceChar16 && proto == kProtoString) {
-    *out = kChar16ToString;
+  } else if (ftrace == kFtraceFixedCString && proto == kProtoString) {
+    *out = kFixedCStringToString;
   } else if (ftrace == kFtraceCString && proto == kProtoString) {
     *out = kCStringToString;
   } else {

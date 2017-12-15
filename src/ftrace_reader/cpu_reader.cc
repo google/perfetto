@@ -233,72 +233,70 @@ bool CpuReader::ParsePage(size_t cpu,
   return true;
 }
 
+// |start| is the start of the current event.
+// |end| is the end of the buffer.
 bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
                            const uint8_t* start,
                            const uint8_t* end,
                            const ProtoTranslationTable* table,
                            protozero::ProtoZeroMessage* message) {
   PERFETTO_DCHECK(start < end);
-  const uint8_t* ptr = start;
   const size_t length = end - start;
 
-  // Common headers:
   // TODO(hjd): Rework to work even if the event is unknown.
-  // TODO(hjd): Convert this to use common fields.
-  uint16_t ftrace_event_id_again;
-  uint8_t flags;
-  uint8_t preempt_count;
-  uint32_t pid;
-  if (!ReadAndAdvance<uint16_t>(&ptr, end, &ftrace_event_id_again))
-    return false;
-  if (!ReadAndAdvance<uint8_t>(&ptr, end, &flags))
-    return false;
-  if (!ReadAndAdvance<uint8_t>(&ptr, end, &preempt_count))
-    return false;
-  if (!ReadAndAdvance<uint32_t>(&ptr, end, &pid))
-    return false;
-  message->AppendVarInt<uint32_t>(1, pid);
-
-  PERFETTO_DCHECK(ftrace_event_id == ftrace_event_id_again);
-
   const Event& info = *table->GetEventById(ftrace_event_id);
+
+  // TODO(hjd): Test truncated events.
+  // If the end of the buffer is before the end of the event give up.
+  if (info.size > length) {
+    PERFETTO_DCHECK(false);
+    return false;
+  }
+
+  for (const Field& field : table->common_fields())
+    ParseField(field, start, end, message);
+
   protozero::ProtoZeroMessage* nested =
       message->BeginNestedMessage<protozero::ProtoZeroMessage>(
           info.proto_field_id);
 
-  // TODO(hjd): Test truncated events.
-  // If the end of the buffer is before the end of the event give up.
-  if (length < info.size)
-    return false;
+  for (const Field& field : info.fields)
+    ParseField(field, start, end, nested);
 
-  // TODO(hjd): Replace ReadAndAdvance with single max(offset + size) check.
-  for (const Field& field : info.fields) {
-    const uint8_t* field_start = start + field.ftrace_offset;
-    switch (field.strategy) {
-      case kUint32ToUint32:
-        ReadIntoVarInt<uint32_t>(start, field.ftrace_offset,
-                                 field.proto_field_id, nested);
-        break;
-      case kUint64ToUint64:
-        ReadIntoVarInt<uint64_t>(start, field.ftrace_offset,
-                                 field.proto_field_id, nested);
-        break;
-      case kChar16ToString:
-        if (!ReadIntoString(field_start, field_start + 16, field.proto_field_id,
-                            nested))
-          return false;
-        break;
-      case kCStringToString:
-        // TODO(hjd): Add AppendMaxLength string to protozero.
-        // TODO(hjd): Kernel-dive to check this how size:0 char fields work.
-        if (!ReadIntoString(field_start, end, field.proto_field_id, nested))
-          return false;
-        break;
-    }
-  }
   // This finalizes |nested| automatically.
   message->Finalize();
   return true;
+}
+
+// Caller must guarantee that the field fits in the range,
+// explicitly: start + field.ftrace_offset + field.ftrace_size <= end
+// The only exception is fields with strategy = kCStringToString
+// where the total size isn't known up front. In this case ParseField
+// will check the string terminates in the bounds and won't read past |end|.
+bool CpuReader::ParseField(const Field& field,
+                           const uint8_t* start,
+                           const uint8_t* end,
+                           protozero::ProtoZeroMessage* message) {
+  PERFETTO_DCHECK(start + field.ftrace_offset + field.ftrace_size <= end);
+  const uint8_t* field_start = start + field.ftrace_offset;
+  uint32_t field_id = field.proto_field_id;
+
+  switch (field.strategy) {
+    case kUint32ToUint32:
+    case kUint32ToUint64:
+      ReadIntoVarInt<uint32_t>(field_start, field_id, message);
+      return true;
+    case kUint64ToUint64:
+      ReadIntoVarInt<uint64_t>(field_start, field_id, message);
+      return true;
+    case kFixedCStringToString:
+      // TODO(hjd): Add AppendMaxLength string to protozero.
+      return ReadIntoString(field_start, field_start + field.ftrace_size,
+                            field_id, message);
+    case kCStringToString:
+      // TODO(hjd): Kernel-dive to check this how size:0 char fields work.
+      return ReadIntoString(field_start, end, field.proto_field_id, message);
+  }
 }
 
 }  // namespace perfetto

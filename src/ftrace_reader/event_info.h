@@ -47,7 +47,7 @@ enum ProtoFieldType {
 enum FtraceFieldType {
   kFtraceUint32 = 1,
   kFtraceUint64,
-  kFtraceChar16,
+  kFtraceFixedCString,
   kFtraceCString,
 };
 
@@ -56,8 +56,9 @@ enum FtraceFieldType {
 // into the ProtoFieldType.
 enum TranslationStrategy {
   kUint32ToUint32 = 1,
+  kUint32ToUint64,
   kUint64ToUint64,
-  kChar16ToString,
+  kFixedCStringToString,
   kCStringToString,
 };
 
@@ -105,7 +106,7 @@ inline const char* ToString(FtraceFieldType v) {
       return "uint32";
     case kFtraceUint64:
       return "uint64";
-    case kFtraceChar16:
+    case kFtraceFixedCString:
       return "char[16]";
     case kFtraceCString:
       return "null terminated string";
@@ -163,6 +164,10 @@ struct Event {
 // The other fields: ftrace_event_id, ftrace_size, ftrace_offset, ftrace_type
 // are zeroed.
 std::vector<Event> GetStaticEventInfo();
+
+// The compile time information needed to read the common fields from
+// the raw ftrace buffer.
+std::vector<Field> GetStaticCommonFieldsInfo();
 
 bool SetTranslationStrategy(FtraceFieldType ftrace,
                             ProtoFieldType proto,
