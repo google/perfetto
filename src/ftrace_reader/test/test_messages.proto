@@ -18,7 +18,7 @@ syntax = "proto3";
 option optimize_for = LITE_RUNTIME;
 
 message FakeFtraceEvent {
-  uint32 pid = 1;
+  uint32 common_field = 1;
   oneof event { FakeAllFieldsFtraceEvent all_fields = 42; }
 }
 
