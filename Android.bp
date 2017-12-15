@@ -219,7 +219,6 @@ cc_binary_host {
   ],
   shared_libs: [
     "libprotoc",
-    "libunwind",
   ],
   defaults: [
     "perfetto_defaults",
@@ -592,7 +591,6 @@ cc_binary_host {
   ],
   shared_libs: [
     "libprotoc",
-    "libunwind",
   ],
   defaults: [
     "perfetto_defaults",
