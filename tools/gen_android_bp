@@ -77,7 +77,8 @@ def enable_protoc_lib(module):
 
 
 def enable_libunwind(module):
-    module.shared_libs.append('libunwind')
+    # libunwind is disabled on Darwin so we cannot depend on it.
+    pass
 
 
 # Android equivalents for third-party libraries that the upstream project
