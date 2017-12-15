@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-syntax = "proto3";
+syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 package perfetto.ipc;
 
 message RequestProto {
-  string data = 1;
+  optional string data = 1;
 }
 
 message ReplyProto {
-  string data = 2;  // 2 here is deliberately != RequestProto.data ID (1).
+  optional string data =
+      2;  // 2 here is deliberately != RequestProto.data ID (1).
 }
