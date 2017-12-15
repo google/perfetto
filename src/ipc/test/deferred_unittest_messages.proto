@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-syntax = "proto3";
+syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 package perfetto.ipc;
 
 message TestMessage {
-  int32 num = 1;
-  string str = 2;
+  optional int32 num = 1;
+  optional string str = 2;
 }
