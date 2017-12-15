@@ -38,6 +38,11 @@ class FtraceEventBundle;
 }  // namespace pbzero
 }  // namespace protos
 
+bool InferFtraceType(const std::string& type_and_name,
+                     size_t size,
+                     bool is_signed,
+                     FtraceFieldType* out);
+
 class ProtoTranslationTable {
  public:
   // This method mutates the |events| and |common_fields| vectors to

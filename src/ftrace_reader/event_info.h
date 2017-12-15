@@ -47,6 +47,8 @@ enum ProtoFieldType {
 enum FtraceFieldType {
   kFtraceUint32 = 1,
   kFtraceUint64,
+  kFtraceInt32,
+  kFtraceInt64,
   kFtraceFixedCString,
   kFtraceCString,
 };
@@ -58,6 +60,9 @@ enum TranslationStrategy {
   kUint32ToUint32 = 1,
   kUint32ToUint64,
   kUint64ToUint64,
+  kInt32ToInt32,
+  kInt32ToInt64,
+  kInt64ToInt64,
   kFixedCStringToString,
   kCStringToString,
 };
@@ -106,8 +111,12 @@ inline const char* ToString(FtraceFieldType v) {
       return "uint32";
     case kFtraceUint64:
       return "uint64";
+    case kFtraceInt32:
+      return "int32";
+    case kFtraceInt64:
+      return "int64";
     case kFtraceFixedCString:
-      return "char[16]";
+      return "fixed length null terminated string";
     case kFtraceCString:
       return "null terminated string";
   }

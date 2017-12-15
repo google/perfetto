@@ -134,9 +134,7 @@ print fmt: "some format")"));
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
       field->proto_field_id = 501;
-      // TODO(hjd): Remove.
       field->proto_field_type = kProtoString;
-      field->ftrace_type = kFtraceFixedCString;
       field->ftrace_name = "field_a";
     }
 
@@ -146,8 +144,6 @@ print fmt: "some format")"));
       Field* field = &event->fields.back();
       field->proto_field_id = 502;
       field->proto_field_type = kProtoString;
-      // TODO(hjd): Remove.
-      field->ftrace_type = kFtraceUint32;
       field->ftrace_name = "field_b";
     }
 
@@ -157,8 +153,6 @@ print fmt: "some format")"));
       Field* field = &event->fields.back();
       field->proto_field_id = 503;
       field->proto_field_type = kProtoString;
-      // TODO(hjd): Remove.
-      field->ftrace_type = kFtraceCString;
       field->ftrace_name = "field_c";
     }
 
@@ -167,9 +161,7 @@ print fmt: "some format")"));
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
       field->proto_field_id = 504;
-      // TODO(hjd): Remove.
       field->proto_field_type = kProtoUint64;
-      field->ftrace_type = kFtraceUint32;
       field->ftrace_name = "field_e";
     }
   }
@@ -205,6 +197,24 @@ print fmt: "some format")"));
   auto field_e = event->fields.at(1);
   EXPECT_EQ(field_e.proto_field_id, 504ul);
   EXPECT_EQ(field_e.strategy, kUint32ToUint64);
+}
+
+TEST(TranslationTable, InferFtraceType) {
+  FtraceFieldType type;
+
+  ASSERT_TRUE(InferFtraceType("char * foo", 0, false, &type));
+  EXPECT_EQ(type, kFtraceCString);
+
+  ASSERT_TRUE(InferFtraceType("char foo[16]", 16, false, &type));
+  EXPECT_EQ(type, kFtraceFixedCString);
+
+  ASSERT_TRUE(InferFtraceType("char foo[64]", 64, false, &type));
+  EXPECT_EQ(type, kFtraceFixedCString);
+
+  ASSERT_TRUE(InferFtraceType("u32 foo", 4, false, &type));
+  EXPECT_EQ(type, kFtraceUint32);
+
+  EXPECT_FALSE(InferFtraceType("foo", 64, false, &type));
 }
 
 TEST(TranslationTable, Getters) {

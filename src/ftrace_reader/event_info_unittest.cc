@@ -46,8 +46,7 @@ TEST(EventInfoTest, GetStaticEventInfoSanityCheck) {
       ASSERT_FALSE(field.ftrace_offset);
       ASSERT_FALSE(field.ftrace_size);
       ASSERT_FALSE(field.strategy);
-      // TODO(hjd): Re-instate this after we decide this at runtime.
-      // ASSERT_FALSE(field.ftrace_type);
+      ASSERT_FALSE(field.ftrace_type);
     }
   }
 }
@@ -64,8 +63,7 @@ TEST(EventInfoTest, GetStaticCommonFieldsInfoSanityCheck) {
     ASSERT_FALSE(field.ftrace_offset);
     ASSERT_FALSE(field.ftrace_size);
     ASSERT_FALSE(field.strategy);
-    // TODO(hjd): Re-instate this after we decide this at runtime.
-    // ASSERT_FALSE(field.ftrace_type);
+    ASSERT_FALSE(field.ftrace_type);
   }
 }
 
