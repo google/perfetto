@@ -14,48 +14,48 @@
  * limitations under the License.
  */
 
-syntax = "proto3";
+syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 package perfetto.ipc;
 
 message Frame {
   // Client -> Host.
-  message BindService { string service_name = 1; }
+  message BindService { optional string service_name = 1; }
 
   // Host -> Client.
   message BindServiceReply {
     message MethodInfo {
-      int32 id = 1;
-      string name = 2;
+      optional int32 id = 1;
+      optional string name = 2;
     }
-    bool success = 1;
-    int32 service_id = 2;
+    optional bool success = 1;
+    optional int32 service_id = 2;
     repeated MethodInfo methods = 3;
   }
 
   // Client -> Host.
   message InvokeMethod {
-    int32 service_id = 1;  // As returned by BindServiceReply.id.
-    int32 method_id = 2;   // As returned by BindServiceReply.method.id.
-    bytes args_proto = 3;  // Proto-encoded request argument.
+    optional int32 service_id = 1;  // As returned by BindServiceReply.id.
+    optional int32 method_id = 2;  // As returned by BindServiceReply.method.id.
+    optional bytes args_proto = 3;  // Proto-encoded request argument.
   }
 
   // Host -> Client.
   message InvokeMethodReply {
-    bool success = 1;
-    bool has_more = 2;      // only for streaming RPCs.
-    bytes reply_proto = 3;  // proto-encoded response value.
+    optional bool success = 1;
+    optional bool has_more = 2;      // only for streaming RPCs.
+    optional bytes reply_proto = 3;  // proto-encoded response value.
   }
 
   // Host -> Client.
-  message RequestError { string error = 1; }
+  message RequestError { optional string error = 1; }
 
   // The client is expected to send requests with monotonically increasing
   // request_id. The host will match the request_id sent from the client.
   // In the case of a Streaming response (has_more = true) the host will send
   // several InvokeMethodReply with the same request_id.
-  uint64 request_id = 2;
+  optional uint64 request_id = 2;
 
   oneof msg {
     BindService msg_bind_service = 3;
