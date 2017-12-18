@@ -18,7 +18,6 @@
 
 #include <utility>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/protozero/protozero_message.h"
 
 namespace protozero {
@@ -33,7 +32,8 @@ ProtoZeroMessageHandleBase::ProtoZeroMessageHandleBase(
 }
 
 ProtoZeroMessageHandleBase::~ProtoZeroMessageHandleBase() {
-  Finalize();
+  if (message_)
+    message_->Finalize();
 }
 
 ProtoZeroMessageHandleBase::ProtoZeroMessageHandleBase(
@@ -45,19 +45,10 @@ ProtoZeroMessageHandleBase& ProtoZeroMessageHandleBase::operator=(
     ProtoZeroMessageHandleBase&& other) {
   // If the current handle was pointing to a message and is being reset to a new
   // one, finalize the old message.
-  Finalize();
+  if (message_)
+    message_->Finalize();
   Move(std::move(other));
   return *this;
-}
-
-void ProtoZeroMessageHandleBase::Finalize() {
-  if (!message_)
-    return;
-  const size_t size = message_->Finalize();
-  if (on_finalize_) {
-    on_finalize_(size);
-    on_finalize_ = nullptr;
-  }
 }
 
 void ProtoZeroMessageHandleBase::Move(ProtoZeroMessageHandleBase&& other) {
@@ -68,8 +59,6 @@ void ProtoZeroMessageHandleBase::Move(ProtoZeroMessageHandleBase&& other) {
   // useless null-check.
   message_ = other.message_;
   other.message_ = nullptr;
-  on_finalize_ = std::move(other.on_finalize_);
-  other.on_finalize_ = nullptr;
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
   message_->set_handle(this);
 #endif
