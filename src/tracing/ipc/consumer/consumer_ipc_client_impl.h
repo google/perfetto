@@ -81,9 +81,9 @@ class ConsumerIPCClientImpl : public Service::ConsumerEndpoint,
   // to |ipc_channel_| and (de)serializes method invocations over the wire.
   ConsumerPortProxy consumer_port_;
 
-  base::WeakPtrFactory<ConsumerIPCClientImpl> weak_ptr_factory_;
-
   bool connected_ = false;
+
+  base::WeakPtrFactory<ConsumerIPCClientImpl> weak_ptr_factory_;
 };
 
 }  // namespace perfetto

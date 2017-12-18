@@ -90,8 +90,8 @@ class ServiceProxy {
   ServiceID service_id_ = 0;
   std::map<std::string, MethodID> remote_method_ids_;
   std::map<RequestID, DeferredBase> pending_callbacks_;
-  base::WeakPtrFactory<ServiceProxy> weak_ptr_factory_;
   EventListener* const event_listener_;
+  base::WeakPtrFactory<ServiceProxy> weak_ptr_factory_;
 };
 
 }  // namespace ipc

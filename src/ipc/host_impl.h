@@ -82,13 +82,13 @@ class HostImpl : public Host, public UnixSocket::EventListener {
   static void SendFrame(ClientConnection*, const Frame&, int fd = -1);
 
   base::TaskRunner* const task_runner_;
-  base::WeakPtrFactory<HostImpl> weak_ptr_factory_;
   std::map<ServiceID, ExposedService> services_;
   std::unique_ptr<UnixSocket> sock_;  // The listening socket.
   std::map<ClientID, std::unique_ptr<ClientConnection>> clients_;
   std::map<UnixSocket*, ClientConnection*> clients_by_socket_;
   ServiceID last_service_id_ = 0;
   ClientID last_client_id_ = 0;
+  base::WeakPtrFactory<HostImpl> weak_ptr_factory_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 

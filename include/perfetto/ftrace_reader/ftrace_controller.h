@@ -144,11 +144,11 @@ class FtraceController {
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
   bool listening_for_raw_trace_data_ = false;
   base::TaskRunner* task_runner_ = nullptr;
-  base::WeakPtrFactory<FtraceController> weak_factory_;
   std::vector<size_t> enabled_count_;
   std::unique_ptr<ProtoTranslationTable> table_;
   std::map<size_t, std::unique_ptr<CpuReader>> readers_;
   std::set<FtraceSink*> sinks_;
+  base::WeakPtrFactory<FtraceController> weak_factory_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 
