@@ -80,7 +80,7 @@ class ScatteredStreamWriter {
   // Reserves a fixed amount of bytes to be backfilled later. The reserved range
   // is guaranteed to be contiguous and not span across chunks. |size| has to be
   // <= than the size of a new buffer returned by the Delegate::GetNewBuffer().
-  ContiguousMemoryRange ReserveBytes(size_t size);
+  uint8_t* ReserveBytes(size_t size);
 
   // Fast (but unsafe) version of the above. The caller must have previously
   // checked that there are at least |size| contiguous bytes available.

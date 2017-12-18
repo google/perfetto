@@ -23,6 +23,7 @@
 
 #include <type_traits>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/protozero_message_handle.h"
@@ -55,16 +56,24 @@ class ProtoZeroMessage {
   // all nested messages) and seals the message. Returns the size of the message
   // (and all nested sub-messages), without taking into account any chunking.
   // Finalize is idempotent and can be called several times w/o side effects.
-  size_t Finalize();
+  uint32_t Finalize();
 
   // Optional. If is_valid() == true, the corresponding memory region (its
   // length == proto_utils::kMessageLengthFieldSize) is backfilled with the size
-  // of this message. This is the mechanism used by messages to backfill their
-  // corresponding size field in the parent message.
-  ContiguousMemoryRange size_field() const { return size_field_; }
-  void set_size_field(const ContiguousMemoryRange& reserved_range) {
-    size_field_ = reserved_range;
-  }
+  // of this message (minus |size_already_written| below). This is the mechanism
+  // used by messages to backfill their corresponding size field in the parent
+  // message.
+  uint8_t* size_field() const { return size_field_; }
+  void set_size_field(uint8_t* size_field) { size_field_ = size_field; }
+
+  // This is to deal with case of backfilling the size of a root (non-nested)
+  // message which is split into multiple chunks. Upon finalization only the
+  // partial size that lies in the last chunk has to be backfilled.
+  void inc_size_already_written(uint32_t sz) { size_already_written_ += sz; }
+
+  ProtoZeroMessage* nested_message() { return nested_message_; }
+
+  bool is_finalized() const { return finalized_; }
 
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
   void set_handle(ProtoZeroMessageHandleBase* handle) { handle_ = handle; }
@@ -94,7 +103,7 @@ class ProtoZeroMessage {
   // Proto types: bool, enum (small).
   // Faster version of AppendVarInt for tiny numbers.
   void AppendTinyVarInt(uint32_t field_id, int32_t value) {
-    assert(0 <= value && value < 0x80);
+    PERFETTO_DCHECK(0 <= value && value < 0x80);
     if (nested_message_)
       EndNestedMessage();
 
@@ -154,11 +163,9 @@ class ProtoZeroMessage {
   void EndNestedMessage();
 
   void WriteToStream(const uint8_t* src_begin, const uint8_t* src_end) {
-#if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
-    assert(!sealed_);
-#endif
-    assert(src_begin < src_end);
-    const size_t size = static_cast<size_t>(src_end - src_begin);
+    PERFETTO_DCHECK(!finalized_);
+    PERFETTO_DCHECK(src_begin < src_end);
+    const uint32_t size = static_cast<uint32_t>(src_end - src_begin);
     stream_writer_->WriteBytes(src_begin, size);
     size_ += size;
   }
@@ -169,20 +176,23 @@ class ProtoZeroMessage {
   // The stream writer interface used for the serialization.
   ScatteredStreamWriter* stream_writer_;
 
-  // Keeps track of the size of the current message.
-  size_t size_;
+  uint8_t* size_field_;
 
-  ContiguousMemoryRange size_field_;
+  // Keeps track of the size of the current message.
+  uint32_t size_;
+
+  // See comment for inc_size_already_written().
+  uint32_t size_already_written_;
+
+  // When true, no more changes to the message are allowed. This is to DCHECK
+  // attempts of writing to a message which has been Finalize()-d.
+  bool finalized_;
 
   // Used to detect attemps to create messages with a nesting level >
   // kMaxNestingDepth. |nesting_depth_| == 0 for root (non-nested) messages.
   uint8_t nesting_depth_;
 
 #if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
-  // When true, no more changes to the message are allowed. This is to DCHECK
-  // attempts of writing to a message which has been Finalize()-d.
-  bool sealed_;
-
   ProtoZeroMessageHandleBase* handle_;
 #endif
 
@@ -193,6 +203,8 @@ class ProtoZeroMessage {
   // nested messages are finalized and sealed when any other field is set in the
   // parent message (or the parent message itself is finalized) and cannot be
   // accessed anymore afterwards.
+  // TODO(primiano): optimization: I think that nested_message_, when non-null.
+  // will always be @ (this) + offsetof(nested_messages_arena_).
   ProtoZeroMessage* nested_message_;
 
   // The root message owns the storage for all its nested messages, up to a max

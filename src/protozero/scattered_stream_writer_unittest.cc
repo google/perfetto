@@ -55,7 +55,7 @@ TEST(ScatteredStreamWriterTest, ScatteredWrites) {
 
   // This starts at offset 1, to make sure we don't hardcode any assumption
   // about alignment.
-  ContiguousMemoryRange reserved_range_1 = ssw.ReserveBytes(4);
+  uint8_t* reserved_range_1 = ssw.ReserveBytes(4);
   EXPECT_EQ(2u, delegate.chunks().size());
   EXPECT_EQ(3u, ssw.bytes_available());
 
@@ -64,14 +64,14 @@ TEST(ScatteredStreamWriterTest, ScatteredWrites) {
   EXPECT_EQ(3u, delegate.chunks().size());
   EXPECT_EQ(7u, ssw.bytes_available());
 
-  ContiguousMemoryRange reserved_range_2 = ssw.ReserveBytes(4);
+  uint8_t* reserved_range_2 = ssw.ReserveBytes(4);
   ssw.WriteBytes(kTwentyByteBuf, sizeof(kTwentyByteBuf));
   EXPECT_EQ(6u, delegate.chunks().size());
   EXPECT_EQ(7u, ssw.bytes_available());
 
   // Writing reserved bytes should not change the bytes_available().
-  memcpy(reserved_range_1.begin, kFourByteBuf, sizeof(kFourByteBuf));
-  memcpy(reserved_range_2.begin, kFourByteBuf, sizeof(kFourByteBuf));
+  memcpy(reserved_range_1, kFourByteBuf, sizeof(kFourByteBuf));
+  memcpy(reserved_range_2, kFourByteBuf, sizeof(kFourByteBuf));
   EXPECT_EQ(6u, delegate.chunks().size());
   EXPECT_EQ(7u, ssw.bytes_available());
 
@@ -79,11 +79,11 @@ TEST(ScatteredStreamWriterTest, ScatteredWrites) {
   // even if the previous one is not exhausted
   for (uint8_t i = 0; i < 5; ++i)
     ssw.WriteByte(0xFF);
-  memcpy(ssw.ReserveBytes(4).begin, kFourByteBuf, sizeof(kFourByteBuf));
+  memcpy(ssw.ReserveBytes(4), kFourByteBuf, sizeof(kFourByteBuf));
   memcpy(ssw.ReserveBytesUnsafe(3), kThreeByteBuf, sizeof(kThreeByteBuf));
-  memcpy(ssw.ReserveBytes(3).begin, kThreeByteBuf, sizeof(kThreeByteBuf));
+  memcpy(ssw.ReserveBytes(3), kThreeByteBuf, sizeof(kThreeByteBuf));
   memcpy(ssw.ReserveBytesUnsafe(1), kOneByteBuf, sizeof(kOneByteBuf));
-  memcpy(ssw.ReserveBytes(1).begin, kOneByteBuf, sizeof(kOneByteBuf));
+  memcpy(ssw.ReserveBytes(1), kOneByteBuf, sizeof(kOneByteBuf));
 
   EXPECT_EQ(8u, delegate.chunks().size());
   EXPECT_EQ(3u, ssw.bytes_available());
