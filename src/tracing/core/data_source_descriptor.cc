@@ -33,6 +33,10 @@ namespace perfetto {
 
 DataSourceDescriptor::DataSourceDescriptor() = default;
 DataSourceDescriptor::~DataSourceDescriptor() = default;
+DataSourceDescriptor::DataSourceDescriptor(const DataSourceDescriptor&) =
+    default;
+DataSourceDescriptor& DataSourceDescriptor::operator=(
+    const DataSourceDescriptor&) = default;
 DataSourceDescriptor::DataSourceDescriptor(DataSourceDescriptor&&) noexcept =
     default;
 DataSourceDescriptor& DataSourceDescriptor::operator=(DataSourceDescriptor&&) =

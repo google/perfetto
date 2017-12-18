@@ -33,6 +33,9 @@ namespace perfetto {
 
 DataSourceConfig::DataSourceConfig() = default;
 DataSourceConfig::~DataSourceConfig() = default;
+DataSourceConfig::DataSourceConfig(const DataSourceConfig&) = default;
+DataSourceConfig& DataSourceConfig::operator=(const DataSourceConfig&) =
+    default;
 DataSourceConfig::DataSourceConfig(DataSourceConfig&&) noexcept = default;
 DataSourceConfig& DataSourceConfig::operator=(DataSourceConfig&&) = default;
 
