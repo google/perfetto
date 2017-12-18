@@ -49,8 +49,8 @@ class DataSourceConfig {
   ~DataSourceConfig();
   DataSourceConfig(DataSourceConfig&&) noexcept;
   DataSourceConfig& operator=(DataSourceConfig&&);
-  DataSourceConfig(const DataSourceConfig&) = delete;
-  DataSourceConfig& operator=(const DataSourceConfig&) = delete;
+  DataSourceConfig(const DataSourceConfig&);
+  DataSourceConfig& operator=(const DataSourceConfig&);
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::DataSourceConfig&);
