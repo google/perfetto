@@ -21,6 +21,7 @@
 
 #include <memory>
 
+#include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/shared_memory.h"
 
 namespace perfetto {
@@ -41,7 +42,7 @@ class TestSharedMemory : public SharedMemory {
   void* start() const override { return mem_.get(); }
   size_t size() const override { return size_; }
 
-  std::unique_ptr<char[]> mem_;
+  std::unique_ptr<void, base::FreeDeleter> mem_;
   size_t size_;
 };
 

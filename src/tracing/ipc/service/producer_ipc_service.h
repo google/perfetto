@@ -101,11 +101,12 @@ class ProducerIPCService : public ProducerPort /* from producer_port.proto */ {
   void OnDataSourceRegistered(ipc::ClientID, std::string, DataSourceID);
 
   Service* const core_service_;
-  base::WeakPtrFactory<ProducerIPCService> weak_ptr_factory_;
 
   // Maps IPC clients to ProducerEndpoint instances registered on the
   // |core_service_| business logic.
   std::map<ipc::ClientID, std::unique_ptr<RemoteProducer>> producers_;
+
+  base::WeakPtrFactory<ProducerIPCService> weak_ptr_factory_;
 };
 
 }  // namespace perfetto
