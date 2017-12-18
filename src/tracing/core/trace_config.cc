@@ -34,6 +34,8 @@ namespace perfetto {
 
 TraceConfig::TraceConfig() = default;
 TraceConfig::~TraceConfig() = default;
+TraceConfig::TraceConfig(const TraceConfig&) = default;
+TraceConfig& TraceConfig::operator=(const TraceConfig&) = default;
 TraceConfig::TraceConfig(TraceConfig&&) noexcept = default;
 TraceConfig& TraceConfig::operator=(TraceConfig&&) = default;
 
@@ -78,6 +80,10 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
 
 TraceConfig::BufferConfig::BufferConfig() = default;
 TraceConfig::BufferConfig::~BufferConfig() = default;
+TraceConfig::BufferConfig::BufferConfig(const TraceConfig::BufferConfig&) =
+    default;
+TraceConfig::BufferConfig& TraceConfig::BufferConfig::operator=(
+    const TraceConfig::BufferConfig&) = default;
 TraceConfig::BufferConfig::BufferConfig(TraceConfig::BufferConfig&&) noexcept =
     default;
 TraceConfig::BufferConfig& TraceConfig::BufferConfig::operator=(
@@ -119,6 +125,9 @@ void TraceConfig::BufferConfig::ToProto(
 
 TraceConfig::DataSource::DataSource() = default;
 TraceConfig::DataSource::~DataSource() = default;
+TraceConfig::DataSource::DataSource(const TraceConfig::DataSource&) = default;
+TraceConfig::DataSource& TraceConfig::DataSource::operator=(
+    const TraceConfig::DataSource&) = default;
 TraceConfig::DataSource::DataSource(TraceConfig::DataSource&&) noexcept =
     default;
 TraceConfig::DataSource& TraceConfig::DataSource::operator=(
