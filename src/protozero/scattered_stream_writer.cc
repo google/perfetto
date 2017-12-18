@@ -56,7 +56,7 @@ void ScatteredStreamWriter::WriteBytesSlowPath(const uint8_t* src,
 
 // TODO(primiano): perf optimization: I suspect that at the end this will always
 // be called with |size| == 4, in which case we might just hardcode it.
-ContiguousMemoryRange ScatteredStreamWriter::ReserveBytes(size_t size) {
+uint8_t* ScatteredStreamWriter::ReserveBytes(size_t size) {
   if (write_ptr_ + size > cur_range_.end) {
     // Assume the reservations are always < Delegate::GetNewBuffer().size(),
     // so that one single call to Extend() will definitely give enough headroom.
@@ -68,7 +68,7 @@ ContiguousMemoryRange ScatteredStreamWriter::ReserveBytes(size_t size) {
 #ifndef NDEBUG
   memset(begin, '\xFF', size);
 #endif
-  return {begin, begin + size};
+  return begin;
 }
 
 }  // namespace protozero
