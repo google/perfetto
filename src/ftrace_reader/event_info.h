@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_FTRACE_READER_EVENT_PROTO_INFO_H_
-#define SRC_FTRACE_READER_EVENT_PROTO_INFO_H_
+#ifndef SRC_FTRACE_READER_EVENT_INFO_H_
+#define SRC_FTRACE_READER_EVENT_INFO_H_
 
 #include <stdint.h>
 
@@ -184,4 +184,4 @@ bool SetTranslationStrategy(FtraceFieldType ftrace,
 
 }  // namespace perfetto
 
-#endif  // SRC_FTRACE_READER_EVENT_PROTO_INFO_H_
+#endif  // SRC_FTRACE_READER_EVENT_INFO_H_

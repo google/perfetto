@@ -294,8 +294,8 @@ void ProtoToCpp::GenHeader(const Descriptor* msg, Printer* p) {
   p->Print("~$n$();\n", "n", msg->name());
   p->Print("$n$($n$&&) noexcept;\n", "n", msg->name());
   p->Print("$n$& operator=($n$&&);\n", "n", msg->name());
-  p->Print("$n$(const $n$&) = delete;\n", "n", msg->name());
-  p->Print("$n$& operator=(const $n$&) = delete;\n", "n", msg->name());
+  p->Print("$n$(const $n$&);\n", "n", msg->name());
+  p->Print("$n$& operator=(const $n$&);\n", "n", msg->name());
   p->Print("\n");
 
   std::string proto_type = GetFwdDeclType(msg, true);
@@ -355,6 +355,10 @@ void ProtoToCpp::GenCpp(const Descriptor* msg, Printer* p, std::string prefix) {
   std::string full_name = prefix + msg->name();
   p->Print("$f$::$n$() = default;\n", "f", full_name, "n", msg->name());
   p->Print("$f$::~$n$() = default;\n", "f", full_name, "n", msg->name());
+  p->Print("$f$::$n$(const $f$&) = default;\n", "f", full_name, "n",
+           msg->name());
+  p->Print("$f$& $f$::operator=(const $f$&) = default;\n", "f", full_name, "n",
+           msg->name());
   p->Print("$f$::$n$($f$&&) noexcept = default;\n", "f", full_name, "n",
            msg->name());
   p->Print("$f$& $f$::operator=($f$&&) = default;\n", "f", full_name, "n",
