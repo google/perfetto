@@ -16,7 +16,10 @@ import("../src/protozero/protozero_library.gni")
 import("../gn/perfetto.gni")
 import("../gn/proto_library.gni")
 
-proto_sources = [ "trace_packet.proto" ]
+proto_sources = [
+  "test_event.proto",
+  "trace_packet.proto",
+]
 
 # Protozero generated stubs, for writers.
 protozero_library("zero") {

@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
-syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
+#include "src/tracing/test/aligned_buffer_test.h"
 
-import "protos/ftrace/ftrace_event_bundle.proto";
-import "protos/test_event.proto";
+#include "perfetto/base/logging.h"
 
-package perfetto.protos;
+namespace perfetto {
 
-// The root object emitted by Perfetto. A perfetto trace is just a stream of
-// TracePacket(s).
-message TracePacket {
-  oneof data {
-    FtraceEventBundle ftrace_events = 1;
-    TestEvent test_event = 536870911;  // 2^29 - 1, max field id for protos.
-  }
-  optional string test = 2;
+// static
+constexpr size_t AlignedBufferTest::kNumPages;
+
+void AlignedBufferTest::SetUp() {
+  page_size_ = GetParam();
+  buf_.reset(new TestSharedMemory(page_size_ * kNumPages));
 }
+
+void AlignedBufferTest::TearDown() {
+  buf_.reset();
+}
+
+}  // namespace perfetto

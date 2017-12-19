@@ -28,5 +28,6 @@ source_set("core") {
     "shared_memory_abi.h",
     "trace_config.h",
     "trace_packet.h",
+    "trace_writer.h",
   ]
 }
