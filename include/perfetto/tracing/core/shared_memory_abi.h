@@ -429,6 +429,12 @@ class SharedMemoryABI {
            (kAllChunksComplete & ((1 << (num_chunks * kChunkShift)) - 1));
   }
 
+  // It is safe to call this only from the Service after having observed, with
+  // acquire semantics, that the page has been properly partitioned.
+  uint16_t get_target_buffer(size_t page_idx) {
+    return page_header(page_idx)->target_buffer.load(std::memory_order_relaxed);
+  }
+
   // For testing / debugging only.
   std::string page_header_dbg(size_t page_idx) {
     uint32_t x = page_header(page_idx)->layout.load(std::memory_order_relaxed);
