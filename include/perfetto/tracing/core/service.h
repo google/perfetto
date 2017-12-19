@@ -36,6 +36,7 @@ class Consumer;
 class DataSourceDescriptor;
 class Producer;
 class TraceConfig;
+class TraceWriter;
 
 // TODO: for the moment this assumes that all the calls hapen on the same
 // thread/sequence. Not sure this will be the case long term in Chrome.
@@ -76,8 +77,22 @@ class Service {
     virtual void NotifySharedMemoryUpdate(
         const std::vector<uint32_t>& changed_pages) = 0;
 
-    // Returns the SharedMemory buffer for this Producer.
+    // TODO(primiano): remove this, we shouldn't be exposing the raw
+    // SHM object but only the TraceWriter (below).
     virtual SharedMemory* shared_memory() const = 0;
+
+    // Creates a trace writer, which allows to create events, handling the
+    // underying shared memory buffer and signalling to the Service. This method
+    // is thread-safe but the returned object is not. A TraceWriter should be
+    // used only from a single thread, or the caller has to handle sequencing
+    // via a mutex or equivalent.
+    // Args:
+    // |target_buffer| is the target buffer ID where the data produced by the
+    // writer should be stored by the tracing service. This value is passed
+    // upon creation of the data source (CreateDataSourceInstance()) in the
+    // DataSourceConfig.target_buffer().
+    virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
+        BufferID target_buffer) = 0;
   };  // class ProducerEndpoint.
 
   // The API for the Consumer port of the Service.
@@ -126,24 +141,6 @@ class Service {
   // To disconnect just destroy the returned ConsumerEndpoint object. It is safe
   // to destroy the Consumer once the Consumer::OnDisconnect() has been invoked.
   virtual std::unique_ptr<ConsumerEndpoint> ConnectConsumer(Consumer*) = 0;
-
- public:  // Testing-only
-  class ObserverForTesting {
-   public:
-    virtual ~ObserverForTesting() {}
-    virtual void OnProducerConnected(ProducerID) {}
-    virtual void OnProducerDisconnected(ProducerID) {}
-    virtual void OnDataSourceRegistered(ProducerID, DataSourceID) {}
-    virtual void OnDataSourceUnregistered(ProducerID, DataSourceID) {}
-    virtual void OnDataSourceInstanceCreated(ProducerID,
-                                             DataSourceID,
-                                             DataSourceInstanceID) {}
-    virtual void OnDataSourceInstanceDestroyed(ProducerID,
-                                               DataSourceID,
-                                               DataSourceInstanceID) {}
-  };
-
-  virtual void set_observer_for_testing(ObserverForTesting*) = 0;
 };
 
 }  // namespace perfetto
