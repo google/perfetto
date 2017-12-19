@@ -115,7 +115,7 @@ void SignalHandler(int sig_num, siginfo_t* info, void* ucontext) {
   PrintHex(reinterpret_cast<uintptr_t>(info->si_addr));
   Print("\n\nBacktrace:\n");
 
-  const size_t kMaxFrames = 32;
+  const size_t kMaxFrames = 64;
   uintptr_t frames[kMaxFrames];
   StackCrawlState unwind_state(frames, kMaxFrames);
   _Unwind_Backtrace(&TraceStackFrame, &unwind_state);
