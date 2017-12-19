@@ -84,12 +84,12 @@ executable("ftrace_reader_integrationtests") {
 
 source_set("ftrace_reader") {
   public_deps = [
+    "../../gn:gtest_prod_config",
     "../../include/perfetto/ftrace_reader",
     "../../protos/ftrace:zero",
   ]
   deps = [
     "../../gn:default_deps",
-    "../../gn:gtest_prod_config",
     "../base",
     "../protozero",
   ]
