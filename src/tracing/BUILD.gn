@@ -34,6 +34,7 @@ source_set("tracing") {
     "core/id_allocator.h",
     "core/service_impl.cc",
     "core/service_impl.h",
+    "core/shared_memory_abi.cc",
     "core/trace_config.cc",
     "core/trace_packet.cc",
   ]
@@ -82,6 +83,7 @@ source_set("tracing_unittests") {
     "core/chunked_protobuf_input_stream_unittest.cc",
     "core/id_allocator_unittest.cc",
     "core/service_impl_unittest.cc",
+    "core/shared_memory_abi_unittest.cc",
     "core/trace_packet_unittest.cc",
     "ipc/posix_shared_memory_unittest.cc",
     "test/test_shared_memory.cc",
