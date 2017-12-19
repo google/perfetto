@@ -443,6 +443,7 @@ cc_test {
     "src/tracing/ipc/posix_shared_memory.cc",
     "src/tracing/ipc/posix_shared_memory_unittest.cc",
     "src/tracing/ipc/producer/producer_ipc_client_impl.cc",
+    "src/tracing/ipc/service/consumer_ipc_service.cc",
     "src/tracing/ipc/service/producer_ipc_service.cc",
     "src/tracing/ipc/service/service_ipc_host_impl.cc",
     "src/tracing/test/aligned_buffer_test.cc",

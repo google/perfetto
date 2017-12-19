@@ -67,6 +67,9 @@ class TracePacket {
   // Mutator, used only by the service and tests.
   void AddChunk(Chunk);
 
+  // Total size of all chunks.
+  size_t size() const { return size_; }
+
  private:
   TracePacket(const TracePacket&) = delete;
   TracePacket& operator=(const TracePacket&) = delete;
@@ -74,6 +77,7 @@ class TracePacket {
   // TODO(primiano): who owns the memory of the chunks? Figure out later.
 
   ChunkSequence chunks_;  // Not owned.
+  size_t size_ = 0;       // SUM(chunk.size for chunk in chunks_).
   std::unique_ptr<DecodedTracePacket> decoded_packet_;
 };
 

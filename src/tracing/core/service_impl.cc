@@ -73,16 +73,12 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer()));
-  if (observer_)
-    observer_->OnProducerConnected(id);
   return std::move(endpoint);
 }
 
 void ServiceImpl::DisconnectProducer(ProducerID id) {
   PERFETTO_DCHECK(producers_.count(id));
   producers_.erase(id);
-  if (observer_)
-    observer_->OnProducerDisconnected(id);
 }
 
 ServiceImpl::ProducerEndpointImpl* ServiceImpl::GetProducer(
@@ -187,16 +183,12 @@ void ServiceImpl::ProducerEndpointImpl::RegisterDataSource(
   const DataSourceID dsid = ++last_data_source_id_;
   task_runner_->PostTask(std::bind(std::move(callback), dsid));
   // TODO implement the bookkeeping logic.
-  if (service_->observer_)
-    service_->observer_->OnDataSourceRegistered(id_, dsid);
 }
 
 void ServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
     DataSourceID dsid) {
   PERFETTO_CHECK(dsid);
   // TODO implement the bookkeeping logic.
-  if (service_->observer_)
-    service_->observer_->OnDataSourceUnregistered(id_, dsid);
 }
 
 void ServiceImpl::ProducerEndpointImpl::NotifySharedMemoryUpdate(
@@ -205,8 +197,13 @@ void ServiceImpl::ProducerEndpointImpl::NotifySharedMemoryUpdate(
   return;
 }
 
-void ServiceImpl::set_observer_for_testing(ObserverForTesting* observer) {
-  observer_ = observer;
+std::unique_ptr<TraceWriter>
+ServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID) {
+  // TODO(primiano): not implemented yet.
+  // This code path is hit only in in-process configuration, where tracing
+  // Service and Producer are hosted in the same process. It's a use case we
+  // want to support, but not too interesting right now.
+  PERFETTO_CHECK(false);
 }
 
 SharedMemory* ServiceImpl::ProducerEndpointImpl::shared_memory() const {

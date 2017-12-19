@@ -42,6 +42,7 @@ bool TracePacket::Decode() {
 
 void TracePacket::AddChunk(Chunk chunk) {
   chunks_.push_back(chunk);
+  size_ += chunk.size;
 }
 
 }  // namespace perfetto

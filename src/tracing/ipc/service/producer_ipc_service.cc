@@ -231,11 +231,7 @@ void ProducerIPCService::RemoteProducer::CreateDataSourceInstance(
   auto cmd = ipc::AsyncResult<GetAsyncCommandResponse>::Create();
   cmd.set_has_more(true);
   cmd->mutable_start_data_source()->set_new_instance_id(dsid);
-
-  // Keep this in sync with data_source_config.proto.
-  cmd->mutable_start_data_source()
-      ->mutable_config()
-      ->set_trace_category_filters(cfg.trace_category_filters());
+  cfg.ToProto(cmd->mutable_start_data_source()->mutable_config());
   async_producer_commands.Resolve(std::move(cmd));
 }
 

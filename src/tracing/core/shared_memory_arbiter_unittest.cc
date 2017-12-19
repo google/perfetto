@@ -34,8 +34,8 @@ class SharedMemoryArbiterTest : public AlignedBufferTest {
   void SetUp() override {
     AlignedBufferTest::SetUp();
     auto callback = [this](const std::vector<uint32_t>& arg) {
-      if (on_page_complete_)
-        on_page_complete_(arg);
+      if (on_pages_complete_)
+        on_pages_complete_(arg);
     };
     task_runner_.reset(new base::TestTaskRunner());
     arbiter_.reset(new SharedMemoryArbiter(buf(), buf_size(), page_size(),
@@ -49,7 +49,7 @@ class SharedMemoryArbiterTest : public AlignedBufferTest {
 
   std::unique_ptr<base::TestTaskRunner> task_runner_;
   std::unique_ptr<SharedMemoryArbiter> arbiter_;
-  std::function<void(const std::vector<uint32_t>&)> on_page_complete_;
+  std::function<void(const std::vector<uint32_t>&)> on_pages_complete_;
 };
 
 size_t const kPageSizes[] = {4096, 65536};
@@ -140,7 +140,7 @@ TEST_P(SharedMemoryArbiterTest, GetAndReturnChunks) {
   // check that the notification callback is posted.
 
   auto on_callback = task_runner_->CreateCheckpoint("on_callback");
-  on_page_complete_ =
+  on_pages_complete_ =
       [on_callback](const std::vector<uint32_t>& completed_pages) {
         ASSERT_EQ(2u, completed_pages.size());
         ASSERT_EQ(0u, completed_pages[0]);
