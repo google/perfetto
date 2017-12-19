@@ -47,20 +47,15 @@ TEST(SanitizerTests, TSAN_ThreadDataRace) {
   EXPECT_DEATH(
       {
         pthread_t thread;
-        const int kNumRuns = 1000;
         volatile int race_var = 0;
         auto thread_main = [](void* race_var_ptr) -> void* {
-          volatile int* my_race_var =
-              reinterpret_cast<volatile int*>(race_var_ptr);
-          for (int i = 0; i < kNumRuns; i++)
-            (*my_race_var)++;
+          (*reinterpret_cast<volatile int*>(race_var_ptr))++;
           return nullptr;
         };
         void* arg =
             const_cast<void*>(reinterpret_cast<volatile void*>(&race_var));
         ASSERT_EQ(0, pthread_create(&thread, nullptr, thread_main, arg));
-        for (int i = 0; i < kNumRuns; i++)
-          race_var--;
+        race_var--;
         ASSERT_EQ(0, pthread_join(thread, nullptr));
         abort();
       },
