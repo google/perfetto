@@ -24,6 +24,11 @@ namespace perfetto {
 using ProducerID = uint64_t;
 using DataSourceID = uint64_t;
 using DataSourceInstanceID = uint64_t;
+using WriterID = uint16_t;
+using BufferID = uint16_t;
+
+// Keep this in sync with SharedMemoryABI::PageHeader::target_buffer.
+static constexpr size_t kMaxTraceBuffers = 1ul << 16;
 
 }  // namespace perfetto
 
