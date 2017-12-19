@@ -382,6 +382,8 @@ cc_test {
     "src/tracing/core/chunked_protobuf_input_stream_unittest.cc",
     "src/tracing/core/data_source_config.cc",
     "src/tracing/core/data_source_descriptor.cc",
+    "src/tracing/core/id_allocator.cc",
+    "src/tracing/core/id_allocator_unittest.cc",
     "src/tracing/core/service_impl.cc",
     "src/tracing/core/service_impl_unittest.cc",
     "src/tracing/core/trace_config.cc",
