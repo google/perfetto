@@ -41,7 +41,7 @@ declare_args() {
   }
 
   if (is_android) {
-    target_ar = "$android_toolchain_root/bin/ar"
+    target_ar = "$android_toolchain_root/bin/$android_abi_target-ar"
     target_cc = "$android_llvm_dir/bin/clang"
     target_cxx = "$android_llvm_dir/bin/clang++"
   } else {
@@ -96,7 +96,7 @@ template("gcc_like_toolchain") {
     tool("alink") {
       rspfile = "{{output}}.rsp"
       rspfile_content = "{{inputs}}"
-      command = "$ar {{output}} $rspfile"
+      command = "$ar rcsD {{output}} @$rspfile"
       outputs = [
         "{{root_out_dir}}/{{target_output_name}}{{output_extension}}",
       ]
