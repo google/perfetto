@@ -62,6 +62,7 @@ config("default") {
     "-fstrict-aliasing",
     "-fstack-protector",
     "-fPIC",
+    "-g",
     "-Wa,--noexecstack",
     "-Wformat",
     "-Wall",
@@ -150,10 +151,7 @@ config("default") {
 }
 
 config("debug_symbols") {
-  cflags = [
-    "-g",
-    "-O0",
-  ]
+  cflags = [ "-O0" ]
   if (is_android || is_linux) {
     cflags += [ "-funwind-tables" ]
     ldflags = [ "-rdynamic" ]
