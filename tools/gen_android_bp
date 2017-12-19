@@ -34,7 +34,7 @@ import subprocess
 import sys
 
 # Default targets to translate to the blueprint file.
-default_targets = ['//:perfetto_tests']
+default_targets = ['//:perfetto_tests', '//src/traced:traced']
 
 # Arguments for the GN output directory.
 gn_args = 'target_os="android" target_cpu="arm" is_debug=false'
@@ -58,6 +58,10 @@ tree_path = 'external/perfetto'
 
 def enable_gmock(module):
     module.static_libs.append('libgmock')
+
+
+def enable_gtest_prod(module):
+    module.static_libs.append('libgtest_prod')
 
 
 def enable_gtest(module):
@@ -86,6 +90,7 @@ def enable_libunwind(module):
 builtin_deps = {
     '//buildtools:gmock': enable_gmock,
     '//buildtools:gtest': enable_gtest,
+    '//gn:gtest_prod_config': enable_gtest_prod,
     '//buildtools:gtest_main': enable_gtest,
     '//buildtools:libunwind': enable_libunwind,
     '//buildtools:protobuf_full': enable_protobuf_full,
