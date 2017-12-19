@@ -18,7 +18,6 @@ group("all") {
   testonly = true  # allow to build also test targets
   deps = [
     ":perfetto_tests",
-    "src/ftrace_reader:ftrace_reader_demo",
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
