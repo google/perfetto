@@ -49,8 +49,8 @@ class DataSourceDescriptor {
   ~DataSourceDescriptor();
   DataSourceDescriptor(DataSourceDescriptor&&) noexcept;
   DataSourceDescriptor& operator=(DataSourceDescriptor&&);
-  DataSourceDescriptor(const DataSourceDescriptor&) = delete;
-  DataSourceDescriptor& operator=(const DataSourceDescriptor&) = delete;
+  DataSourceDescriptor(const DataSourceDescriptor&);
+  DataSourceDescriptor& operator=(const DataSourceDescriptor&);
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::DataSourceDescriptor&);

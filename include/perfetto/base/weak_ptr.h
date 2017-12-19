@@ -25,6 +25,8 @@ namespace perfetto {
 namespace base {
 
 // A simple WeakPtr for single-threaded cases.
+// Generally keep the WeakPtrFactory as last fields in classes: it makes the
+// WeakPtr(s) invalidate as first thing in the class dtor.
 // Usage:
 // class MyClass {
 //  MyClass() : weak_factory_(this) {}

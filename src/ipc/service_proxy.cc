@@ -28,7 +28,7 @@ namespace perfetto {
 namespace ipc {
 
 ServiceProxy::ServiceProxy(EventListener* event_listener)
-    : weak_ptr_factory_(this), event_listener_(event_listener) {}
+    : event_listener_(event_listener), weak_ptr_factory_(this) {}
 
 ServiceProxy::~ServiceProxy() {
   if (client_ && connected())

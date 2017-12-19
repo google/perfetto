@@ -62,8 +62,8 @@ class TraceConfig {
     ~BufferConfig();
     BufferConfig(BufferConfig&&) noexcept;
     BufferConfig& operator=(BufferConfig&&);
-    BufferConfig(const BufferConfig&) = delete;
-    BufferConfig& operator=(const BufferConfig&) = delete;
+    BufferConfig(const BufferConfig&);
+    BufferConfig& operator=(const BufferConfig&);
 
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_BufferConfig&);
@@ -94,8 +94,8 @@ class TraceConfig {
     ~DataSource();
     DataSource(DataSource&&) noexcept;
     DataSource& operator=(DataSource&&);
-    DataSource(const DataSource&) = delete;
-    DataSource& operator=(const DataSource&) = delete;
+    DataSource(const DataSource&);
+    DataSource& operator=(const DataSource&);
 
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_DataSource&);
@@ -128,8 +128,8 @@ class TraceConfig {
   ~TraceConfig();
   TraceConfig(TraceConfig&&) noexcept;
   TraceConfig& operator=(TraceConfig&&);
-  TraceConfig(const TraceConfig&) = delete;
-  TraceConfig& operator=(const TraceConfig&) = delete;
+  TraceConfig(const TraceConfig&);
+  TraceConfig& operator=(const TraceConfig&);
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::TraceConfig&);

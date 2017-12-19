@@ -30,6 +30,8 @@ source_set("tracing") {
     "core/chunked_protobuf_input_stream.h",
     "core/data_source_config.cc",
     "core/data_source_descriptor.cc",
+    "core/id_allocator.cc",
+    "core/id_allocator.h",
     "core/service_impl.cc",
     "core/service_impl.h",
     "core/trace_config.cc",
@@ -76,9 +78,9 @@ source_set("tracing_unittests") {
     "../base",
     "../base:test_support",
   ]
-
   sources = [
     "core/chunked_protobuf_input_stream_unittest.cc",
+    "core/id_allocator_unittest.cc",
     "core/service_impl_unittest.cc",
     "core/trace_packet_unittest.cc",
     "ipc/posix_shared_memory_unittest.cc",
