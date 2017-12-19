@@ -33,10 +33,10 @@ SharedMemoryABI::PageLayout SharedMemoryArbiter::default_page_layout =
 SharedMemoryArbiter::SharedMemoryArbiter(void* start,
                                          size_t size,
                                          size_t page_size,
-                                         OnPageCompleteCallback callback,
+                                         OnPagesCompleteCallback callback,
                                          base::TaskRunner* task_runner)
     : task_runner_(task_runner),
-      on_page_complete_callback_(std::move(callback)),
+      on_pages_complete_callback_(std::move(callback)),
       shmem_abi_(reinterpret_cast<uint8_t*>(start), size, page_size),
       active_writer_ids_(SharedMemoryABI::kMaxWriterID + 1) {}
 
@@ -130,19 +130,19 @@ void SharedMemoryArbiter::ReturnCompletedChunk(Chunk chunk) {
   if (should_post_callback) {
     // TODO what happens if the arbiter gets destroyed?
     task_runner_->PostTask(
-        std::bind(&SharedMemoryArbiter::InvokeOnPageCompleteCallback, this));
+        std::bind(&SharedMemoryArbiter::InvokeOnPagesCompleteCallback, this));
   }
 }
 
 // This is always invoked on the |task_runner_| thread.
-void SharedMemoryArbiter::InvokeOnPageCompleteCallback() {
+void SharedMemoryArbiter::InvokeOnPagesCompleteCallback() {
   std::vector<uint32_t> pages_to_notify;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
     pages_to_notify = std::move(pages_to_notify_);
     pages_to_notify_.clear();
   }
-  on_page_complete_callback_(pages_to_notify);
+  on_pages_complete_callback_(pages_to_notify);
 }
 
 std::unique_ptr<TraceWriter> SharedMemoryArbiter::CreateTraceWriter(

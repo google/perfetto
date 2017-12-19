@@ -59,6 +59,8 @@ source_set("ipc") {
     "ipc/posix_shared_memory.h",
     "ipc/producer/producer_ipc_client_impl.cc",
     "ipc/producer/producer_ipc_client_impl.h",
+    "ipc/service/consumer_ipc_service.cc",
+    "ipc/service/consumer_ipc_service.h",
     "ipc/service/producer_ipc_service.cc",
     "ipc/service/producer_ipc_service.h",
     "ipc/service/service_ipc_host_impl.cc",

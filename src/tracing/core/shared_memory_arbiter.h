@@ -43,20 +43,20 @@ class TaskRunner;
 // current thread-local chunk.
 class SharedMemoryArbiter {
  public:
-  using OnPageCompleteCallback =
+  using OnPagesCompleteCallback =
       std::function<void(const std::vector<uint32_t>& /*page_indexes*/)>;
 
   // Args:
   // |start|,|size|: boundaries of the shared memory buffer.
   // |page_size|: a multiple of 4KB that defines the granularity of tracing
   // pages. See tradeoff considerations in shared_memory_abi.h.
-  // |OnPageCompleteCallback|: a callback that will be posted on the passed
+  // |OnPagesCompleteCallback|: a callback that will be posted on the passed
   // |TaskRunner| when one or more pages are complete (and hence the Producer
   // should send a NotifySharedMemoryUpdate() to the Service).
   SharedMemoryArbiter(void* start,
                       size_t size,
                       size_t page_size,
-                      OnPageCompleteCallback,
+                      OnPagesCompleteCallback,
                       base::TaskRunner*);
 
   // Creates a new TraceWriter and assigns it a new WriterID. The WriterID is
@@ -93,10 +93,10 @@ class SharedMemoryArbiter {
   // Called by the TraceWriter destructor.
   void ReleaseWriterID(WriterID);
 
-  void InvokeOnPageCompleteCallback();
+  void InvokeOnPagesCompleteCallback();
 
   base::TaskRunner* const task_runner_;
-  OnPageCompleteCallback on_page_complete_callback_;
+  OnPagesCompleteCallback on_pages_complete_callback_;
 
   // --- Begin lock-protected members ---
   std::mutex lock_;
