@@ -14,17 +14,16 @@
  * limitations under the License.
  */
 
-syntax = "proto3";
+syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 message FakeFtraceEvent {
-  uint32 common_field = 1;
+  optional uint32 common_field = 1;
   oneof event { FakeAllFieldsFtraceEvent all_fields = 42; }
 }
 
 message FakeAllFieldsFtraceEvent {
-  uint32 field_uint32 = 1;
-
-  string field_char_16 = 500;
-  string field_char = 501;
+  optional uint32 field_uint32 = 1;
+  optional string field_char_16 = 500;
+  optional string field_char = 501;
 }

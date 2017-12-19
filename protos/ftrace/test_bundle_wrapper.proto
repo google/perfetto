@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-syntax = "proto3";
+syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 import "protos/ftrace/ftrace_event_bundle.proto";
 
 // TODO(hjd): Move this to ftrace_reader/test/protos.
 message TestBundleWrapper {
-  string before = 1;
+  optional string before = 1;
   repeated FtraceEventBundle bundle = 2;
-  string after = 3;
+  optional string after = 3;
 }
