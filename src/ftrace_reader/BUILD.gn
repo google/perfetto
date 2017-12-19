@@ -82,20 +82,6 @@ executable("ftrace_reader_integrationtests") {
   ]
 }
 
-executable("ftrace_reader_demo") {
-  testonly = true
-  sources = [
-    "main.cc",
-  ]
-  deps = [
-    ":ftrace_reader",
-    ":test_support",
-    "../../gn:default_deps",
-    "../../gn:gtest_prod_config",
-    "../base",
-  ]
-}
-
 source_set("ftrace_reader") {
   public_deps = [
     "../../include/perfetto/ftrace_reader",
