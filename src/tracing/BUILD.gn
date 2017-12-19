@@ -47,7 +47,7 @@ source_set("tracing") {
 
 # Posix specialization of the tracing library for Linux/Android/Mac. Provides
 # an IPC transport over a UNIX domain socket.
-source_set("ipc") {
+static_library("ipc") {
   public_deps = [
     "../../include/perfetto/tracing/core",
     "../../include/perfetto/tracing/ipc",
