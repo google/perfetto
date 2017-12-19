@@ -56,6 +56,7 @@ default_configs = [
 ]
 
 if (!is_debug) {
+  default_configs -= [ "//gn/standalone:debug_symbols" ]
   default_configs += [ "//gn/standalone:release" ]
 }
 
