@@ -17,7 +17,7 @@
 #include "perfetto/tracing/core/shared_memory_abi.h"
 
 #include "gtest/gtest.h"
-#include "perfetto/base/utils.h"
+#include "src/tracing/test/aligned_buffer_test.h"
 
 namespace perfetto {
 namespace {
@@ -26,35 +26,18 @@ using testing::ValuesIn;
 using Chunk = SharedMemoryABI::Chunk;
 using ChunkHeader = SharedMemoryABI::ChunkHeader;
 
-class SharedMemoryABITest : public ::testing::TestWithParam<size_t> {
- public:
-  void SetUp() override {
-    page_size_ = GetParam();
-    buf_size_ = page_size_ * kNumPages;
-    void* mem = nullptr;
-    PERFETTO_CHECK(posix_memalign(&mem, page_size_, buf_size_) == 0);
-    buf_.reset(reinterpret_cast<uint8_t*>(mem));
-    memset(buf_.get(), 0, buf_size_);
-  }
-
-  void TearDown() override { buf_.reset(); }
-
-  const size_t kNumPages = 10;
-  std::unique_ptr<uint8_t, base::FreeDeleter> buf_;
-  size_t buf_size_;
-  size_t page_size_;
-};
+using SharedMemoryABITest = AlignedBufferTest;
 
 size_t const kPageSizes[] = {4096, 8192, 16384, 32768, 65536};
 INSTANTIATE_TEST_CASE_P(PageSize, SharedMemoryABITest, ValuesIn(kPageSizes));
 
 TEST_P(SharedMemoryABITest, NominalCases) {
-  SharedMemoryABI abi(buf_.get(), buf_size_, page_size_);
+  SharedMemoryABI abi(buf(), buf_size(), page_size());
 
-  ASSERT_EQ(buf_.get(), abi.start());
-  ASSERT_EQ(buf_.get() + buf_size_, abi.end());
-  ASSERT_EQ(buf_size_, abi.size());
-  ASSERT_EQ(page_size_, abi.page_size());
+  ASSERT_EQ(buf(), abi.start());
+  ASSERT_EQ(buf() + buf_size(), abi.end());
+  ASSERT_EQ(buf_size(), abi.size());
+  ASSERT_EQ(page_size(), abi.page_size());
   ASSERT_EQ(kNumPages, abi.num_pages());
 
   for (size_t i = 0; i < kNumPages; i++) {
@@ -94,8 +77,8 @@ TEST_P(SharedMemoryABITest, NominalCases) {
   uint8_t* last_chunk_end = nullptr;
 
   for (size_t page_idx = 0; page_idx <= 4; page_idx++) {
-    uint8_t* const page_start = buf_.get() + page_idx * page_size_;
-    uint8_t* const page_end = page_start + page_size_;
+    uint8_t* const page_start = buf() + page_idx * page_size();
+    uint8_t* const page_end = page_start + page_size();
     const size_t num_chunks =
         SharedMemoryABI::GetNumChunksForLayout(abi.page_layout_dbg(page_idx));
     const size_t target_buffer = 10 + page_idx;
@@ -132,7 +115,7 @@ TEST_P(SharedMemoryABITest, NominalCases) {
 
       // Sanity check chunk bounds.
       size_t expected_chunk_size =
-          (page_size_ - sizeof(SharedMemoryABI::PageHeader)) / num_chunks;
+          (page_size() - sizeof(SharedMemoryABI::PageHeader)) / num_chunks;
       expected_chunk_size = expected_chunk_size - (expected_chunk_size % 4);
       ASSERT_EQ(expected_chunk_size, chunk.size());
       ASSERT_GT(chunk.begin(), page_start);
@@ -224,7 +207,7 @@ TEST_P(SharedMemoryABITest, NominalCases) {
 }
 
 TEST_P(SharedMemoryABITest, BatchAcquireAndRelease) {
-  SharedMemoryABI abi(buf_.get(), buf_size_, page_size_);
+  SharedMemoryABI abi(buf(), buf_size(), page_size());
   ChunkHeader header{};
 
   // TryAcquire on a non-partitioned page should fail.
