@@ -62,6 +62,7 @@ TEST(TracePacketTest, Chunked) {
   tp.AddChunk({ser_buf.data(), 3});
   tp.AddChunk({ser_buf.data() + 3, 5});
   tp.AddChunk({ser_buf.data() + 3 + 5, ser_buf.size() - 3 - 5});
+  ASSERT_EQ(ser_buf.size(), tp.size());
 
   auto chunk = tp.begin();
   ASSERT_NE(tp.end(), chunk);

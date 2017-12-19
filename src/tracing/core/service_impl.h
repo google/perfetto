@@ -57,10 +57,9 @@ class ServiceImpl : public Service {
     void RegisterDataSource(const DataSourceDescriptor&,
                             RegisterDataSourceCallback) override;
     void UnregisterDataSource(DataSourceID) override;
-
     void NotifySharedMemoryUpdate(
         const std::vector<uint32_t>& changed_pages) override;
-
+    std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override;
     SharedMemory* shared_memory() const override;
 
    private:
@@ -121,8 +120,6 @@ class ServiceImpl : public Service {
   std::unique_ptr<Service::ConsumerEndpoint> ConnectConsumer(
       Consumer*) override;
 
-  void set_observer_for_testing(ObserverForTesting*) override;
-
   // Exposed mainly for testing.
   size_t num_producers() const { return producers_.size(); }
   ProducerEndpointImpl* GetProducer(ProducerID) const;
@@ -136,7 +133,6 @@ class ServiceImpl : public Service {
   ProducerID last_producer_id_ = 0;
   std::map<ProducerID, ProducerEndpointImpl*> producers_;
   std::set<ConsumerEndpointImpl*> consumers_;
-  ObserverForTesting* observer_ = nullptr;
 };
 
 }  // namespace perfetto
