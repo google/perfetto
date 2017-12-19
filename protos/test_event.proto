@@ -19,4 +19,6 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-message TestEvent {}
+message TestEvent {
+  optional string str = 1;
+}
