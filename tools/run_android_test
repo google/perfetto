@@ -113,6 +113,7 @@ def EnumerateDataDeps():
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--no-cleanup', '-n', action='store_true')
+  parser.add_argument('--no-data-deps', '-x', action='store_true')
   parser.add_argument('out_dir', help='out/android/')
   parser.add_argument('test_name', help='perfetto_tests')
   parser.add_argument('cmd_args', nargs=argparse.REMAINDER)
@@ -129,8 +130,9 @@ def Main():
   AdbCall('shell', 'rm -rf "%s"; mkdir -p "%s"' % (2 * (target_dir,)))
   AdbCall('push', test_bin, target_dir)
 
-  for dep in EnumerateDataDeps():
-    AdbCall('push', os.path.join(ROOT_DIR, dep), target_dir + '/' + dep)
+  if not args.no_data_deps:
+    for dep in EnumerateDataDeps():
+      AdbCall('push', os.path.join(ROOT_DIR, dep), target_dir + '/' + dep)
 
   # LLVM sanitizers require to sideload a libclangrtXX.so on the device.
   sanitizer_libs = os.path.join(args.out_dir, 'sanitizer_libs')
