@@ -14,14 +14,19 @@
  * limitations under the License.
  */
 
-syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
-package perfetto.protos;
-import "protos/ftrace/ftrace_event_bundle.proto";
+#ifndef SRC_BASE_TEST_VM_TEST_UTILS_H_
+#define SRC_BASE_TEST_VM_TEST_UTILS_H_
 
-// TODO(hjd): Move this to ftrace_reader/test/protos.
-message TestBundleWrapper {
-  optional string before = 1;
-  repeated FtraceEventBundle bundle = 2;
-  optional string after = 3;
-}
+#include <stddef.h>
+
+namespace perfetto {
+namespace base {
+namespace vm_test_utils {
+
+bool IsMapped(void* start, size_t size);
+
+}  // namespace vm_test_utils
+}  // namespace base
+}  // namespace perfetto
+
+#endif  // SRC_BASE_TEST_VM_TEST_UTILS_H_

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-syntax = "proto3";
+syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "protos/ftrace/ftrace_event.proto";
@@ -22,6 +22,6 @@ import "protos/ftrace/ftrace_event.proto";
 package perfetto.protos;
 
 message FtraceEventBundle {
-  uint32 cpu = 1;
+  optional uint32 cpu = 1;
   repeated FtraceEvent event = 2;
 }

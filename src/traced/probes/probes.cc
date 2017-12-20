@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
-package perfetto.protos;
-import "protos/ftrace/ftrace_event_bundle.proto";
+#include "perfetto/traced/probes/probes.h"
+#include "perfetto/base/logging.h"
 
-// TODO(hjd): Move this to ftrace_reader/test/protos.
-message TestBundleWrapper {
-  optional string before = 1;
-  repeated FtraceEventBundle bundle = 2;
-  optional string after = 3;
+namespace perfetto {
+
+int ProbesMain(int argc, char** argv) {
+  PERFETTO_LOG("Probes");
+  return 0;
 }
+
+}  // namespace perfetto

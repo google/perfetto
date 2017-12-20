@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-syntax = "proto3";
+syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "protos/ftrace/print.proto";
@@ -26,10 +26,10 @@ message FtraceEvent {
   // Nanoseconds since an epoch.
   // Epoch is configurable by writing into trace_clock.
   // By default this timestamp is CPU local.
-  // TODO:  Figure out a story for reconciling the various clocks.
-  uint64 timestamp = 1;
+  // TODO: Figure out a story for reconciling the various clocks.
+  optional uint64 timestamp = 1;
 
-  uint32 pid = 2;
+  optional uint32 pid = 2;
 
   oneof event {
     PrintFtraceEvent print = 3;

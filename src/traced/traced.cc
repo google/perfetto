@@ -14,14 +14,19 @@
  * limitations under the License.
  */
 
-syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
-package perfetto.protos;
-import "protos/ftrace/ftrace_event_bundle.proto";
+#include <string.h>
 
-// TODO(hjd): Move this to ftrace_reader/test/protos.
-message TestBundleWrapper {
-  optional string before = 1;
-  repeated FtraceEventBundle bundle = 2;
-  optional string after = 3;
+#include "perfetto/base/logging.h"
+#include "perfetto/traced/probes/probes.h"
+#include "perfetto/traced/service/service.h"
+
+int main(int argc, char** argv) {
+  if (argc > 1 && !strcmp(argv[1], "probes"))
+    return perfetto::ProbesMain(argc, argv);
+
+  if (argc > 1 && !strcmp(argv[1], "service"))
+    return perfetto::ServiceMain(argc, argv);
+
+  printf("Usage: %s probes | service\n", argv[0]);
+  return 1;
 }

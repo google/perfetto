@@ -14,14 +14,8 @@
  * limitations under the License.
  */
 
-syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
-package perfetto.protos;
-import "protos/ftrace/ftrace_event_bundle.proto";
+namespace perfetto {
 
-// TODO(hjd): Move this to ftrace_reader/test/protos.
-message TestBundleWrapper {
-  optional string before = 1;
-  repeated FtraceEventBundle bundle = 2;
-  optional string after = 3;
-}
+int ProbesMain(int argc, char** argv);
+
+}  // namespace perfetto

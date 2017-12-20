@@ -24,11 +24,7 @@
 namespace perfetto {
 
 TestSharedMemory::TestSharedMemory(size_t size) {
-  void* ptr = nullptr;
-  int res = posix_memalign(&ptr, 4096, size);
-  PERFETTO_CHECK(res == 0 && ptr);
-  mem_.reset(ptr);
-  memset(ptr, 0, size);
+  mem_ = base::PageAllocator::Allocate(size);
   size_ = size;
 }
 

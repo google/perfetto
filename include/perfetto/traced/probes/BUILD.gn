@@ -12,19 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("base") {
+source_set("probes") {
   sources = [
-    "build_config.h",
-    "logging.h",
-    "page_allocator.h",
-    "scoped_file.h",
-    "task_runner.h",
-    "thread_checker.h",
-    "unix_task_runner.h",
-    "utils.h",
-    "weak_ptr.h",
+    "probes.h",
   ]
-  if (is_android) {
-    sources += [ "android_task_runner.h" ]
-  }
 }

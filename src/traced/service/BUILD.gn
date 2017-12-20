@@ -12,19 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("base") {
-  sources = [
-    "build_config.h",
-    "logging.h",
-    "page_allocator.h",
-    "scoped_file.h",
-    "task_runner.h",
-    "thread_checker.h",
-    "unix_task_runner.h",
-    "utils.h",
-    "weak_ptr.h",
+source_set("service") {
+  public_deps = [
+    "../../../include/perfetto/traced/service",
   ]
-  if (is_android) {
-    sources += [ "android_task_runner.h" ]
-  }
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+    "../../tracing",
+    "../../tracing:ipc",
+  ]
+  sources = [
+    "service.cc",
+  ]
 }
