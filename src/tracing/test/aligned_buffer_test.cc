@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
-#define INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
+#include "src/tracing/test/aligned_buffer_test.h"
 
-#include <stdint.h>
+#include "perfetto/base/logging.h"
 
 namespace perfetto {
 
-using ProducerID = uint64_t;
-using DataSourceID = uint64_t;
-using DataSourceInstanceID = uint64_t;
-using WriterID = uint16_t;
-using BufferID = uint16_t;
+// static
+constexpr size_t AlignedBufferTest::kNumPages;
 
-// Keep this in sync with SharedMemoryABI::PageHeader::target_buffer.
-static constexpr size_t kMaxTraceBuffers = 1ul << 16;
+void AlignedBufferTest::SetUp() {
+  page_size_ = GetParam();
+  buf_.reset(new TestSharedMemory(page_size_ * kNumPages));
+}
+
+void AlignedBufferTest::TearDown() {
+  buf_.reset();
+}
 
 }  // namespace perfetto
-
-#endif  // INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_

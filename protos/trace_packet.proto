@@ -18,12 +18,16 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "protos/ftrace/ftrace_event_bundle.proto";
+import "protos/test_event.proto";
 
 package perfetto.protos;
 
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
 message TracePacket {
-  oneof data { FtraceEventBundle ftrace_events = 1; }
+  oneof data {
+    FtraceEventBundle ftrace_events = 1;
+    TestEvent test_event = 536870911;  // 2^29 - 1, max field id for protos.
+  }
   optional string test = 2;
 }

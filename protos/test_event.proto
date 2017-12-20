@@ -14,22 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
-#define INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
-#include <stdint.h>
+package perfetto.protos;
 
-namespace perfetto {
-
-using ProducerID = uint64_t;
-using DataSourceID = uint64_t;
-using DataSourceInstanceID = uint64_t;
-using WriterID = uint16_t;
-using BufferID = uint16_t;
-
-// Keep this in sync with SharedMemoryABI::PageHeader::target_buffer.
-static constexpr size_t kMaxTraceBuffers = 1ul << 16;
-
-}  // namespace perfetto
-
-#endif  // INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
+message TestEvent {
+  optional string str = 1;
+}
