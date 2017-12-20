@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "perfetto/traced/probes/probes.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/traced/traced.h"
 
 namespace perfetto {
 
