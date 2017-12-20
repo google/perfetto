@@ -94,9 +94,13 @@ template("gcc_like_toolchain") {
     }
 
     tool("alink") {
-      rspfile = "{{output}}.rsp"
-      rspfile_content = "{{inputs}}"
-      command = "$ar rcsD {{output}} @$rspfile"
+      if (is_mac && ar != "suppress_unused_ar_variable_warning") {
+        command = "rm -f {{output}} && libtool -static {{arflags}} -o {{output}} {{inputs}}"
+      } else {
+        rspfile = "{{output}}.rsp"
+        rspfile_content = "{{inputs}}"
+        command = "$ar rcsD {{output}} @$rspfile"
+      }
       outputs = [
         "{{root_out_dir}}/{{target_output_name}}{{output_extension}}",
       ]
