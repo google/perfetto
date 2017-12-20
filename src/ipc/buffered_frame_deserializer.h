@@ -22,7 +22,9 @@
 #include <list>
 #include <memory>
 
-#include "perfetto/base/utils.h"
+#include <sys/mman.h>
+
+#include "perfetto/base/page_allocator.h"
 
 namespace perfetto {
 namespace ipc {
@@ -113,8 +115,10 @@ class BufferedFrameDeserializer {
   // If a valid frame is decoded it is added to |decoded_frames_|.
   void DecodeFrame(const char*, size_t);
 
-  char* buf_ = nullptr;
-  const size_t capacity_ = 0;  // sizeof(|buf_|), excluding the guard region.
+  char* buf() { return reinterpret_cast<char*>(buf_.get()); }
+
+  base::PageAllocator::UniquePtr buf_;
+  const size_t capacity_ = 0;  // sizeof(|buf_|).
 
   // THe number of bytes in |buf_| that contain valid data (as a result of
   // EndReceive()). This is always <= |capacity_|.
