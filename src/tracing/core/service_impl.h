@@ -22,7 +22,7 @@
 #include <memory>
 #include <set>
 
-#include "perfetto/base/utils.h"
+#include "perfetto/base/page_allocator.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
@@ -151,6 +151,7 @@ class ServiceImpl : public Service {
     TraceBuffer(TraceBuffer&&) noexcept;
     TraceBuffer& operator=(TraceBuffer&&);
 
+    bool is_valid() const { return !!data; }
     size_t num_pages() const { return size / kBufferPageSize; }
 
     uint8_t* get_page(size_t page) {
@@ -166,7 +167,7 @@ class ServiceImpl : public Service {
 
     size_t size;
     size_t cur_page = 0;  // Write pointer in the ring buffer.
-    std::unique_ptr<void, base::FreeDeleter> data;
+    base::PageAllocator::UniquePtr data;
 
     // TODO(primiano): The TraceBuffer is not shared and there is no reason to
     // use the SharedMemoryABI. This is just a a temporary workaround to reuse

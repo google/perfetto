@@ -135,7 +135,12 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
     PERFETTO_DCHECK(ts.trace_buffers.count(id) == 0);
     // TODO(primiano): make TraceBuffer::kBufferPageSize dynamic.
-    ts.trace_buffers.emplace(id, TraceBuffer(buffer_cfg.size_kb() * 1024u));
+    const size_t buf_size = buffer_cfg.size_kb() * 1024u;
+    auto it_and_inserted = ts.trace_buffers.emplace(id, TraceBuffer(buf_size));
+    if (!it_and_inserted.second || !it_and_inserted.first->second.is_valid()) {
+      did_allocate_all_buffers = false;
+      break;
+    }
   }
 
   // This can happen if all the kMaxTraceBuffers slots are taken (i.e. we are
@@ -439,17 +444,13 @@ ServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID) {
 ////////////////////////////////////////////////////////////////////////////////
 
 ServiceImpl::TraceBuffer::TraceBuffer(size_t sz) : size(sz) {
-  void* ptr = nullptr;
-  PERFETTO_CHECK(size % kBufferPageSize == 0);
-  // TODO(primiano): introduce base::PageAllocator and use mmap() instead.
-  if (posix_memalign(&ptr, kPageSize, size)) {
+  data = base::PageAllocator::AllocateMayFail(size);
+  if (!data) {
     PERFETTO_ELOG("Trace buffer allocation failed (size: %zu, page_size: %zu)",
                   size, kBufferPageSize);
+    size = 0;
     return;
   }
-  PERFETTO_CHECK(ptr);
-  memset(ptr, 0, size);
-  data.reset(ptr);
   abi.reset(new SharedMemoryABI(get_page(0), size, kBufferPageSize));
 }
 

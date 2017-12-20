@@ -14,27 +14,19 @@
  * limitations under the License.
  */
 
-#include "src/tracing/test/test_shared_memory.h"
+#ifndef SRC_BASE_TEST_VM_TEST_UTILS_H_
+#define SRC_BASE_TEST_VM_TEST_UTILS_H_
 
-#include <stdlib.h>
-#include <string.h>
-
-#include "perfetto/base/logging.h"
+#include <stddef.h>
 
 namespace perfetto {
+namespace base {
+namespace vm_test_utils {
 
-TestSharedMemory::TestSharedMemory(size_t size) {
-  mem_ = base::PageAllocator::Allocate(size);
-  size_ = size;
-}
+bool IsMapped(void* start, size_t size);
 
-TestSharedMemory::~TestSharedMemory() {}
-
-TestSharedMemory::Factory::~Factory() {}
-
-std::unique_ptr<SharedMemory> TestSharedMemory::Factory::CreateSharedMemory(
-    size_t size) {
-  return std::unique_ptr<SharedMemory>(new TestSharedMemory(size));
-}
-
+}  // namespace vm_test_utils
+}  // namespace base
 }  // namespace perfetto
+
+#endif  // SRC_BASE_TEST_VM_TEST_UTILS_H_
