@@ -16,6 +16,7 @@ source_set("base") {
   sources = [
     "build_config.h",
     "logging.h",
+    "page_allocator.h",
     "scoped_file.h",
     "task_runner.h",
     "thread_checker.h",

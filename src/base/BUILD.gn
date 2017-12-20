@@ -22,6 +22,7 @@ source_set("base") {
     "../../include/perfetto/base",
   ]
   sources = [
+    "page_allocator.cc",
     "thread_checker.cc",
     "unix_task_runner.cc",
   ]
@@ -51,10 +52,13 @@ source_set("test_support") {
   deps = [
     ":base",
     "../../gn:default_deps",
+    "../../gn:gtest_deps",
   ]
   sources = [
     "test/test_task_runner.cc",
     "test/test_task_runner.h",
+    "test/vm_test_utils.cc",
+    "test/vm_test_utils.h",
   ]
 }
 
@@ -67,6 +71,7 @@ source_set("base_unittests") {
     "../../gn:gtest_deps",
   ]
   sources = [
+    "page_allocator_unittest.cc",
     "scoped_file_unittest.cc",
     "task_runner_unittest.cc",
     "thread_checker_unittest.cc",
