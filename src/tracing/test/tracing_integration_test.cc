@@ -82,8 +82,12 @@ class MockConsumer : public Consumer {
   // Producer implementation.
   MOCK_METHOD0(OnConnect, void());
   MOCK_METHOD0(OnDisconnect, void());
-  MOCK_METHOD2(OnTraceData,
-               void(const std::vector<TracePacket>&, bool /*has_more*/));
+  MOCK_METHOD2(OnTracePackets, void(std::vector<TracePacket>*, bool));
+
+  // Workaround, gmock doesn't support yet move-only types, passing a pointer.
+  void OnTraceData(std::vector<TracePacket> packets, bool has_more) {
+    OnTracePackets(&packets, has_more);
+  }
 };
 
 TEST_F(TracingIntegrationTest, WithIPCTransport) {
@@ -180,13 +184,13 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   consumer_endpoint->ReadBuffers();
   size_t num_pack_rx = 0;
   auto all_packets_rx = task_runner_->CreateCheckpoint("all_packets_rx");
-  EXPECT_CALL(consumer, OnTraceData(_, _))
+  EXPECT_CALL(consumer, OnTracePackets(_, _))
       .Times(kNumPackets)
       .WillRepeatedly(
           Invoke([&num_pack_rx, all_packets_rx](
-                     const std::vector<TracePacket>& packets, bool has_more) {
+                     std::vector<TracePacket>* packets, bool has_more) {
             // TODO(primiano): check contents, requires both pblite and pzero.
-            num_pack_rx += packets.size();
+            num_pack_rx += packets->size();
             if (!has_more)
               all_packets_rx();
           }));

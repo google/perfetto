@@ -44,7 +44,7 @@ class Consumer {
   // Service::ConsumerEndpoint::ReadBuffers(). This function can be called more
   // than once. Each invocation can carry one or more TracePacket(s).
   // Upon the last call, |has_more| is set to true (i.e. |has_more| is a !EOF).
-  virtual void OnTraceData(const std::vector<TracePacket>&, bool has_more) = 0;
+  virtual void OnTraceData(std::vector<TracePacket>, bool has_more) = 0;
 };
 
 }  // namespace perfetto

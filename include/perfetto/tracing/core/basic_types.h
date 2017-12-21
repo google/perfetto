@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
 #define INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace perfetto {
