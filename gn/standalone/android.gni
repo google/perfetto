@@ -48,7 +48,7 @@ declare_args() {
     android_toolchain_root = "$android_ndk_root/toolchains/arm-linux-androideabi-${_android_toolchain_version}/prebuilt/$android_host"
     android_llvm_arch = "arm"
   } else if (current_cpu == "x64") {
-    android_abi_target = "x86_64-linux-androideabi"
+    android_abi_target = "x86_64-linux-android"
     android_compile_sysroot_subdir = "x86_64-linux-android"
     android_link_sysroot_subdir =
         "platforms/android-${android_api_level}/arch-x86_64"
