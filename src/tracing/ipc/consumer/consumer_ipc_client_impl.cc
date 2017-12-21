@@ -130,7 +130,7 @@ void ConsumerIPCClientImpl::OnReadBuffersResponse(
     trace_packets.back().AddChunk(
         Chunk(reinterpret_cast<const void*>(bytes.data()), bytes.size()));
   }
-  consumer_->OnTraceData(trace_packets, response.has_more());
+  consumer_->OnTraceData(std::move(trace_packets), response.has_more());
 }
 
 void ConsumerIPCClientImpl::FreeBuffers() {

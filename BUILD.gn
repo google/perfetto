@@ -21,6 +21,7 @@ group("all") {
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
     "src/traced",
+    "src/tracing:consumer_cmd",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
     "tools/proto_to_cpp",
   ]
