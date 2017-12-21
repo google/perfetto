@@ -29,7 +29,12 @@
 #include <string.h>  // For strerror.
 #endif
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/utils.h"
+
+#if BUILDFLAG(OS_ANDROID)
+#include <android/log.h>
+#endif
 
 namespace perfetto {
 namespace base {
@@ -59,11 +64,26 @@ constexpr const char* kLogFmt[] = {"\x1b[2m", "\x1b[39m", "\x1b[32m\x1b[1m",
 #define PERFETTO_LOG_LINE_(x) PERFETTO_LOG_LINE__(x)
 #define PERFETTO_LOG_LINE PERFETTO_LOG_LINE_(__LINE__)
 
-#define PERFETTO_XLOG(level, fmt, ...)                                \
+#define PERFETTO_XLOG_STDERR(level, fmt, ...)                         \
   fprintf(stderr, "\x1b[90m%-24.24s\x1b[0m %s" fmt "\x1b[0m\n",       \
           ::perfetto::base::Basename(__FILE__ ":" PERFETTO_LOG_LINE), \
           ::perfetto::base::kLogFmt[::perfetto::base::LogLev::level], \
           ##__VA_ARGS__)
+
+// Let android log to both stderr and logcat. When part of the Android tree
+// stderr points to /dev/null so logcat is the only way to get some logging.
+#if BUILDFLAG(OS_ANDROID)
+#define PERFETTO_XLOG(level, fmt, ...)                                         \
+  do {                                                                         \
+    __android_log_print(                                                       \
+        (ANDROID_LOG_DEBUG + ::perfetto::base::LogLev::level), "perfetto",     \
+        "%s " fmt, ::perfetto::base::Basename(__FILE__ ":" PERFETTO_LOG_LINE), \
+        ##__VA_ARGS__);                                                        \
+    PERFETTO_XLOG_STDERR(level, fmt, ##__VA_ARGS__);                           \
+  } while (0)
+#else
+#define PERFETTO_XLOG PERFETTO_XLOG_STDERR
+#endif
 
 #define PERFETTO_LOG(fmt, ...) PERFETTO_XLOG(kLogInfo, fmt, ##__VA_ARGS__)
 #define PERFETTO_ILOG(fmt, ...) PERFETTO_XLOG(kLogImportant, fmt, ##__VA_ARGS__)
