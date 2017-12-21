@@ -116,12 +116,24 @@ class UnixSocket {
                                             EventListener*,
                                             base::TaskRunner*);
 
+  // Attaches to a pre-existing socket. The socket must have been created in
+  // SOCK_STREAM mode and the caller must have called bind() on it.
+  static std::unique_ptr<UnixSocket> Listen(base::ScopedFile socket_fd,
+                                            EventListener*,
+                                            base::TaskRunner*);
+
   // Creates a Unix domain socket and connects to the listening endpoint.
   // Returns always an instance. EventListener::OnConnect(bool success) will
   // be called always, whether the connection succeeded or not.
   static std::unique_ptr<UnixSocket> Connect(const std::string& socket_name,
                                              EventListener*,
                                              base::TaskRunner*);
+
+  // Creates a Unix domain socket and binds it to |socket_name| (see comment
+  // of Listen() above for the format). This file descriptor is suitable to be
+  // passed to Listen(ScopedFile, ...). Returns the file descriptor, or -1 in
+  // case of failure.
+  static base::ScopedFile CreateAndBind(const std::string& socket_name);
 
   // This class gives the hard guarantee that no callback is called on the
   // passed EventListener immediately after the object has been destroyed.
@@ -174,13 +186,12 @@ class UnixSocket {
 
  private:
   UnixSocket(EventListener*, base::TaskRunner*);
-  UnixSocket(EventListener*, base::TaskRunner*, base::ScopedFile);
+  UnixSocket(EventListener*, base::TaskRunner*, base::ScopedFile, State);
   UnixSocket(const UnixSocket&) = delete;
   UnixSocket& operator=(const UnixSocket&) = delete;
 
   // Called once by the corresponding public static factory methods.
   void DoConnect(const std::string& socket_name);
-  void DoListen(const std::string& socket_name);
   void ReadPeerCredentials();
   void SetBlockingIO(bool is_blocking);
 
