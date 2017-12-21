@@ -67,7 +67,7 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
     Producer* producer,
     size_t shared_buffer_size_hint_bytes) {
   const ProducerID id = ++last_producer_id_;
-
+  PERFETTO_DLOG("Producer %" PRIu64 " connected", id);
   size_t shm_size = std::min(shared_buffer_size_hint_bytes, kMaxShmSize);
   if (shm_size % kPageSize || shm_size < kPageSize)
     shm_size = kDefaultShmSize;
@@ -85,6 +85,7 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
 }
 
 void ServiceImpl::DisconnectProducer(ProducerID id) {
+  PERFETTO_DLOG("Producer %" PRIu64 " disconnected", id);
   PERFETTO_DCHECK(producers_.count(id));
   producers_.erase(id);
 }
@@ -99,6 +100,7 @@ ServiceImpl::ProducerEndpointImpl* ServiceImpl::GetProducer(
 
 std::unique_ptr<Service::ConsumerEndpoint> ServiceImpl::ConnectConsumer(
     Consumer* consumer) {
+  PERFETTO_DLOG("Consumer %p connected", reinterpret_cast<void*>(consumer));
   std::unique_ptr<ConsumerEndpointImpl> endpoint(
       new ConsumerEndpointImpl(this, task_runner_, consumer));
   auto it_and_inserted = consumers_.emplace(endpoint.get());
@@ -108,6 +110,7 @@ std::unique_ptr<Service::ConsumerEndpoint> ServiceImpl::ConnectConsumer(
 }
 
 void ServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
+  PERFETTO_DLOG("Consumer %p disconnected", reinterpret_cast<void*>(consumer));
   PERFETTO_DCHECK(consumers_.count(consumer));
   // TODO: In next CL, tear down the trace sessions for the consumer.
   consumers_.erase(consumer);
@@ -115,6 +118,9 @@ void ServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
 
 void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
                                 const TraceConfig& cfg) {
+  PERFETTO_DLOG("Enabling tracing for consumer %p",
+                reinterpret_cast<void*>(consumer));
+
   if (tracing_sessions_.count(consumer)) {
     PERFETTO_DLOG(
         "A Consumer is trying to EnableTracing() but another tracing session "
@@ -178,6 +184,8 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 }  // namespace perfetto
 
 void ServiceImpl::DisableTracing(ConsumerEndpointImpl* consumer) {
+  PERFETTO_DLOG("Disabling tracing for consumer %p",
+                reinterpret_cast<void*>(consumer));
   auto it = tracing_sessions_.find(consumer);
   if (it == tracing_sessions_.end()) {
     PERFETTO_DLOG("No active tracing session found for the Consumer");
@@ -195,6 +203,8 @@ void ServiceImpl::DisableTracing(ConsumerEndpointImpl* consumer) {
 }
 
 void ServiceImpl::ReadBuffers(ConsumerEndpointImpl* consumer) {
+  PERFETTO_DLOG("Reading buffers for consumer %p",
+                reinterpret_cast<void*>(consumer));
   auto it = tracing_sessions_.find(consumer);
   if (it == tracing_sessions_.end()) {
     PERFETTO_DLOG(
@@ -257,7 +267,8 @@ void ServiceImpl::ReadBuffers(ConsumerEndpointImpl* consumer) {
         }  // for(packet)
         task_runner_->PostTask([weak_consumer, packets]() {
           if (weak_consumer)
-            weak_consumer->consumer()->OnTraceData(*packets, true /*has_more*/);
+            weak_consumer->consumer()->OnTraceData(std::move(*packets),
+                                                   true /*has_more*/);
         });
       }  // for(chunk)
     }    // for(page_idx)
@@ -271,12 +282,16 @@ void ServiceImpl::ReadBuffers(ConsumerEndpointImpl* consumer) {
 
 void ServiceImpl::FreeBuffers(ConsumerEndpointImpl*) {
   // TODO(primiano): implement here.
-  PERFETTO_DLOG("not implemented yet");
+  PERFETTO_DLOG("FreeBuffers() not implemented yet");
 }
 
 void ServiceImpl::RegisterDataSource(ProducerID producer_id,
                                      DataSourceID ds_id,
                                      const DataSourceDescriptor& desc) {
+  PERFETTO_DLOG("Producer %" PRIu64
+                " registered data source \"%s\", ID: %" PRIu64,
+                producer_id, desc.name().c_str(), ds_id);
+
   PERFETTO_DCHECK(!desc.name().empty());
   data_sources_.emplace(desc.name(),
                         RegisteredDataSource{producer_id, ds_id, desc});

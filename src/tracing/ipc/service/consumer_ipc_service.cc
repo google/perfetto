@@ -51,7 +51,6 @@ ConsumerIPCService::GetConsumerForCurrentRequest() {
 // Called by the IPC layer.
 void ConsumerIPCService::OnClientDisconnected() {
   ipc::ClientID client_id = ipc::Service::client_info().client_id();
-  PERFETTO_DLOG("Consumer %" PRIu64 " disconnected", client_id);
   consumers_.erase(client_id);
 }
 
@@ -103,7 +102,7 @@ void ConsumerIPCService::RemoteConsumer::OnConnect() {}
 void ConsumerIPCService::RemoteConsumer::OnDisconnect() {}
 
 void ConsumerIPCService::RemoteConsumer::OnTraceData(
-    const std::vector<TracePacket>& trace_packets,
+    std::vector<TracePacket> trace_packets,
     bool has_more) {
   if (!read_buffers_response.IsBound())
     return;
