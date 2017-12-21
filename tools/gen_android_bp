@@ -34,7 +34,11 @@ import subprocess
 import sys
 
 # Default targets to translate to the blueprint file.
-default_targets = ['//:perfetto_tests', '//src/traced:traced']
+default_targets = [
+    '//:perfetto_tests',
+    '//:traced',
+    '//src/tracing:consumer_cmd',
+]
 
 # Arguments for the GN output directory.
 gn_args = 'target_os="android" target_cpu="arm" is_debug=false'
@@ -195,9 +199,9 @@ def label_to_path(label):
 
 def label_to_module_name(label):
     """Turn a GN label (e.g., //:perfetto_tests) into a module name."""
-    label = re.sub(r'^//:?', '', label)
-    module = re.sub(r'[^a-zA-Z0-9_]', '_', label)
-    if not module.startswith(module_prefix):
+    module = re.sub(r'^//:?', '', label)
+    module = re.sub(r'[^a-zA-Z0-9_]', '_', module)
+    if not module.startswith(module_prefix) and label not in default_targets:
         return module_prefix + module
     return module
 
