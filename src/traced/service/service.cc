@@ -24,9 +24,23 @@ int ServiceMain(int argc, char** argv) {
   base::UnixTaskRunner task_runner;
   std::unique_ptr<ServiceIPCHost> svc;
   svc = ServiceIPCHost::CreateInstance(&task_runner);
-  unlink(PERFETTO_PRODUCER_SOCK_NAME);
-  unlink(PERFETTO_CONSUMER_SOCK_NAME);
-  svc->Start(PERFETTO_PRODUCER_SOCK_NAME, PERFETTO_CONSUMER_SOCK_NAME);
+
+  // When built as part of the Android tree, the two socket are created and
+  // bonund by init and their fd number is passed in two env variables.
+  // See libcutils' android_get_control_socket().
+  const char* env_prod = getenv("ANDROID_SOCKET_traced_producer");
+  const char* env_cons = getenv("ANDROID_SOCKET_traced_consumer");
+  PERFETTO_CHECK((!env_prod && !env_prod) || (env_prod && env_cons));
+  if (env_prod) {
+    base::ScopedFile producer_fd(atoi(env_prod));
+    base::ScopedFile consumer_fd(atoi(env_cons));
+    svc->Start(std::move(producer_fd), std::move(consumer_fd));
+  } else {
+    unlink(PERFETTO_PRODUCER_SOCK_NAME);
+    unlink(PERFETTO_CONSUMER_SOCK_NAME);
+    svc->Start(PERFETTO_PRODUCER_SOCK_NAME, PERFETTO_CONSUMER_SOCK_NAME);
+  }
+
   PERFETTO_ILOG("Started traced, listening on %s %s",
                 PERFETTO_PRODUCER_SOCK_NAME, PERFETTO_CONSUMER_SOCK_NAME);
   task_runner.Run();
