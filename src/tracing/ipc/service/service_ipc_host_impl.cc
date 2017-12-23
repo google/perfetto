@@ -44,21 +44,37 @@ bool ServiceIPCHostImpl::Start(const char* producer_socket_name,
                                const char* consumer_socket_name) {
   PERFETTO_CHECK(!svc_);  // Check if already started.
 
+  // Initialize the IPC transport.
+  producer_ipc_port_ =
+      ipc::Host::CreateInstance(producer_socket_name, task_runner_);
+  consumer_ipc_port_ =
+      ipc::Host::CreateInstance(consumer_socket_name, task_runner_);
+  return DoStart();
+}
+
+bool ServiceIPCHostImpl::Start(base::ScopedFile producer_socket_fd,
+                               base::ScopedFile consumer_socket_fd) {
+  PERFETTO_CHECK(!svc_);  // Check if already started.
+
+  // Initialize the IPC transport.
+  producer_ipc_port_ =
+      ipc::Host::CreateInstance(std::move(producer_socket_fd), task_runner_);
+  consumer_ipc_port_ =
+      ipc::Host::CreateInstance(std::move(consumer_socket_fd), task_runner_);
+  return DoStart();
+}
+
+bool ServiceIPCHostImpl::DoStart() {
   // Create and initialize the platform-independent tracing business logic.
   std::unique_ptr<SharedMemory::Factory> shm_factory(
       new PosixSharedMemory::Factory());
   svc_ = Service::CreateInstance(std::move(shm_factory), task_runner_);
 
-  // Initialize the IPC transport.
-  producer_ipc_port_ =
-      ipc::Host::CreateInstance(producer_socket_name, task_runner_);
   if (!producer_ipc_port_) {
     Shutdown();
     return false;
   }
 
-  consumer_ipc_port_ =
-      ipc::Host::CreateInstance(consumer_socket_name, task_runner_);
   if (!producer_ipc_port_) {
     Shutdown();
     return false;

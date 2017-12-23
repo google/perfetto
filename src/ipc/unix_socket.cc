@@ -78,14 +78,53 @@ bool MakeSockAddr(const std::string& socket_name,
   return true;
 }
 
+base::ScopedFile CreateSocket() {
+  return base::ScopedFile(socket(AF_UNIX, SOCK_STREAM, 0));
+}
+
 }  // namespace
+
+// static
+base::ScopedFile UnixSocket::CreateAndBind(const std::string& socket_name) {
+  base::ScopedFile fd = CreateSocket();
+  if (!fd)
+    return fd;
+
+  sockaddr_un addr;
+  socklen_t addr_size;
+  if (!MakeSockAddr(socket_name, &addr, &addr_size)) {
+    return base::ScopedFile();
+  }
+
+// Android takes an int as 3rd argument of bind() instead of socklen_t.
+#if BUILDFLAG(OS_ANDROID)
+  const int bind_size = static_cast<int>(addr_size);
+#else
+  const socklen_t bind_size = addr_size;
+#endif
+
+  if (bind(*fd, reinterpret_cast<sockaddr*>(&addr), bind_size)) {
+    PERFETTO_DPLOG("bind()");
+    return base::ScopedFile();
+  }
+
+  return fd;
+}
 
 // static
 std::unique_ptr<UnixSocket> UnixSocket::Listen(const std::string& socket_name,
                                                EventListener* event_listener,
                                                base::TaskRunner* task_runner) {
-  std::unique_ptr<UnixSocket> sock(new UnixSocket(event_listener, task_runner));
-  sock->DoListen(socket_name);
+  // Forward the call to the Listen() overload below.
+  return Listen(CreateAndBind(socket_name), event_listener, task_runner);
+}
+
+// static
+std::unique_ptr<UnixSocket> UnixSocket::Listen(base::ScopedFile socket_fd,
+                                               EventListener* event_listener,
+                                               base::TaskRunner* task_runner) {
+  std::unique_ptr<UnixSocket> sock(new UnixSocket(
+      event_listener, task_runner, std::move(socket_fd), State::kListening));
   return sock;
 }
 
@@ -100,26 +139,55 @@ std::unique_ptr<UnixSocket> UnixSocket::Connect(const std::string& socket_name,
 
 UnixSocket::UnixSocket(EventListener* event_listener,
                        base::TaskRunner* task_runner)
-    : UnixSocket(event_listener, task_runner, base::ScopedFile()) {}
+    : UnixSocket(event_listener,
+                 task_runner,
+                 base::ScopedFile(),
+                 State::kDisconnected) {}
 
 UnixSocket::UnixSocket(EventListener* event_listener,
                        base::TaskRunner* task_runner,
-                       base::ScopedFile adopt_fd)
+                       base::ScopedFile adopt_fd,
+                       State adopt_state)
     : event_listener_(event_listener),
       task_runner_(task_runner),
       weak_ptr_factory_(this) {
-  if (adopt_fd) {
-    // Only in the case of OnNewIncomingConnection().
+  state_ = State::kDisconnected;
+  if (adopt_state == State::kDisconnected) {
+    // We get here from the default ctor().
+    PERFETTO_DCHECK(!adopt_fd);
+    fd_ = CreateSocket();
+    if (!fd_) {
+      last_error_ = errno;
+      return;
+    }
+  } else if (adopt_state == State::kConnected) {
+    // We get here from OnNewIncomingConnection().
+    PERFETTO_DCHECK(adopt_fd);
     fd_ = std::move(adopt_fd);
     state_ = State::kConnected;
     ReadPeerCredentials();
+  } else if (adopt_state == State::kListening) {
+    // We get here from Listen().
+
+    // |adopt_fd| might genuinely be invalid if the bind() failed.
+    if (!adopt_fd) {
+      last_error_ = errno;
+      return;
+    }
+
+    fd_ = std::move(adopt_fd);
+    if (listen(*fd_, SOMAXCONN)) {
+      last_error_ = errno;
+      PERFETTO_DPLOG("listen()");
+      return;
+    }
+    state_ = State::kListening;
   } else {
-    fd_.reset(socket(AF_UNIX, SOCK_STREAM, 0));
+    PERFETTO_CHECK(false);  // Unfeasible.
   }
-  if (!fd_) {
-    last_error_ = errno;
-    return;
-  }
+
+  PERFETTO_DCHECK(fd_);
+  last_error_ = 0;
 
 #if BUILDFLAG(OS_MACOSX)
   const int no_sigpipe = 1;
@@ -142,41 +210,6 @@ UnixSocket::UnixSocket(EventListener* event_listener,
 UnixSocket::~UnixSocket() {
   // The implicit dtor of |weak_ptr_factory_| will no-op pending callbacks.
   Shutdown();
-}
-
-// Called only by the Listen() static constructor.
-void UnixSocket::DoListen(const std::string& socket_name) {
-  PERFETTO_DCHECK(state_ == State::kDisconnected);
-  if (!fd_)
-    return;  // This is the only thing that can gracefully fail in the ctor.
-
-  sockaddr_un addr;
-  socklen_t addr_size;
-  if (!MakeSockAddr(socket_name, &addr, &addr_size)) {
-    last_error_ = errno;
-    return;
-  }
-
-// Android takes an int as 3rd argument of bind() instead of socklen_t.
-#if BUILDFLAG(OS_ANDROID)
-  const int bind_size = static_cast<int>(addr_size);
-#else
-  const socklen_t bind_size = addr_size;
-#endif
-
-  if (bind(*fd_, reinterpret_cast<sockaddr*>(&addr), bind_size)) {
-    last_error_ = errno;
-    PERFETTO_DPLOG("bind()");
-    return;
-  }
-  if (listen(*fd_, SOMAXCONN)) {
-    last_error_ = errno;
-    PERFETTO_DPLOG("listen()");
-    return;
-  }
-
-  last_error_ = 0;
-  state_ = State::kListening;
 }
 
 // Called only by the Connect() static constructor.
@@ -269,8 +302,8 @@ void UnixSocket::OnEvent() {
           accept(*fd_, reinterpret_cast<sockaddr*>(&cli_addr), &size)));
       if (!new_fd)
         return;
-      std::unique_ptr<UnixSocket> new_sock(
-          new UnixSocket(event_listener_, task_runner_, std::move(new_fd)));
+      std::unique_ptr<UnixSocket> new_sock(new UnixSocket(
+          event_listener_, task_runner_, std::move(new_fd), State::kConnected));
       event_listener_->OnNewIncomingConnection(this, std::move(new_sock));
     }
   }

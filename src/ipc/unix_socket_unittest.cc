@@ -34,7 +34,9 @@ namespace ipc {
 namespace {
 
 using ::testing::_;
+using ::testing::AtLeast;
 using ::testing::Invoke;
+using ::testing::InvokeWithoutArgs;
 using ::testing::Mock;
 
 static const char kSocketName[] = TEST_SOCK_NAME("unix_socket_unittest");
@@ -80,7 +82,7 @@ TEST_F(UnixSocketTest, ConnectionFailureIfUnreachable) {
   ASSERT_FALSE(cli->is_connected());
   auto checkpoint = task_runner_.CreateCheckpoint("failure");
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), false))
-      .WillOnce(Invoke([checkpoint](UnixSocket*, bool) { checkpoint(); }));
+      .WillOnce(InvokeWithoutArgs(checkpoint));
   task_runner_.RunUntilCheckpoint("failure");
 }
 
@@ -104,15 +106,14 @@ TEST_F(UnixSocketTest, ConnectionImmediatelyDroppedByServer) {
   auto checkpoint = task_runner_.CreateCheckpoint("cli_connected");
   auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_);
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), true))
-      .WillOnce(Invoke([checkpoint](UnixSocket*, bool) { checkpoint(); }));
+      .WillOnce(InvokeWithoutArgs(checkpoint));
   task_runner_.RunUntilCheckpoint("cli_connected");
   task_runner_.RunUntilCheckpoint("srv_did_shutdown");
 
   // Trying to send something will trigger the disconnection notification.
   auto cli_disconnected = task_runner_.CreateCheckpoint("cli_disconnected");
   EXPECT_CALL(event_listener_, OnDisconnect(cli.get()))
-      .WillOnce(
-          Invoke([cli_disconnected](UnixSocket*) { cli_disconnected(); }));
+      .WillOnce(InvokeWithoutArgs(cli_disconnected));
   EXPECT_FALSE(cli->Send("whatever"));
   task_runner_.RunUntilCheckpoint("cli_disconnected");
 }
@@ -129,8 +130,7 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
       .WillOnce(Invoke([this, cli_connected, srv_disconnected](
                            UnixSocket*, UnixSocket* srv_conn) {
         EXPECT_CALL(event_listener_, OnDisconnect(srv_conn))
-            .WillOnce(Invoke(
-                [srv_disconnected](UnixSocket*) { srv_disconnected(); }));
+            .WillOnce(InvokeWithoutArgs(srv_disconnected));
         cli_connected();
       }));
   task_runner_.RunUntilCheckpoint("cli_connected");
@@ -160,8 +160,7 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
   // Check that Send/Receive() fails gracefully once the socket is closed.
   auto cli_disconnected = task_runner_.CreateCheckpoint("cli_disconnected");
   EXPECT_CALL(event_listener_, OnDisconnect(cli.get()))
-      .WillOnce(
-          Invoke([cli_disconnected](UnixSocket*) { cli_disconnected(); }));
+      .WillOnce(InvokeWithoutArgs(cli_disconnected));
   cli->Shutdown();
   char msg[4];
   ASSERT_EQ(0u, cli->Receive(&msg, sizeof(msg)));
@@ -172,6 +171,32 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
   ASSERT_FALSE(srv_conn->Send("bar"));
   srv->Shutdown();
   task_runner_.RunUntilCheckpoint("cli_disconnected");
+  task_runner_.RunUntilCheckpoint("srv_disconnected");
+}
+
+TEST_F(UnixSocketTest, ListenWithPassedFileDescriptor) {
+  auto fd = UnixSocket::CreateAndBind(kSocketName);
+  auto srv = UnixSocket::Listen(std::move(fd), &event_listener_, &task_runner_);
+  ASSERT_TRUE(srv->is_listening());
+
+  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_);
+  EXPECT_CALL(event_listener_, OnConnect(cli.get(), true));
+  auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
+  auto srv_disconnected = task_runner_.CreateCheckpoint("srv_disconnected");
+  EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
+      .WillOnce(Invoke([this, cli_connected, srv_disconnected](
+                           UnixSocket*, UnixSocket* srv_conn) {
+        // Read the EOF state.
+        EXPECT_CALL(event_listener_, OnDataAvailable(srv_conn))
+            .WillOnce(
+                InvokeWithoutArgs([srv_conn] { srv_conn->ReceiveString(); }));
+        EXPECT_CALL(event_listener_, OnDisconnect(srv_conn))
+            .WillOnce(InvokeWithoutArgs(srv_disconnected));
+        cli_connected();
+      }));
+  task_runner_.RunUntilCheckpoint("cli_connected");
+  ASSERT_TRUE(cli->is_connected());
+  cli.reset();
   task_runner_.RunUntilCheckpoint("srv_disconnected");
 }
 
@@ -346,8 +371,7 @@ TEST_F(UnixSocketTest, SendIsAtomic) {
 
   auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), true))
-      .WillOnce(
-          Invoke([cli_connected](UnixSocket*, bool) { cli_connected(); }));
+      .WillOnce(InvokeWithoutArgs(cli_connected));
   task_runner_.RunUntilCheckpoint("cli_connected");
   ASSERT_TRUE(cli->is_connected());
   ASSERT_EQ(geteuid(), static_cast<uint32_t>(cli->peer_uid()));
@@ -381,8 +405,7 @@ TEST_F(UnixSocketTest, PeerUidRetainedAfterDisconnect) {
   auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
   auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_);
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), true))
-      .WillOnce(
-          Invoke([cli_connected](UnixSocket*, bool) { cli_connected(); }));
+      .WillOnce(InvokeWithoutArgs(cli_connected));
 
   task_runner_.RunUntilCheckpoint("cli_connected");
   task_runner_.RunUntilCheckpoint("srv_connected");
@@ -391,8 +414,7 @@ TEST_F(UnixSocketTest, PeerUidRetainedAfterDisconnect) {
 
   auto cli_disconnected = task_runner_.CreateCheckpoint("cli_disconnected");
   EXPECT_CALL(event_listener_, OnDisconnect(srv_client_conn))
-      .WillOnce(
-          Invoke([cli_disconnected](UnixSocket*) { cli_disconnected(); }));
+      .WillOnce(InvokeWithoutArgs(cli_disconnected));
 
   // TODO(primiano): when the a peer disconnects, the other end receives a
   // spurious OnDataAvailable() that needs to be acked with a Receive() to read
@@ -438,8 +460,7 @@ TEST_F(UnixSocketTest, BlockingSend) {
 
     auto cli_connected = tx_task_runner.CreateCheckpoint("cli_connected");
     EXPECT_CALL(tx_events, OnConnect(cli.get(), true))
-        .WillOnce(
-            Invoke([cli_connected](UnixSocket*, bool) { cli_connected(); }));
+        .WillOnce(InvokeWithoutArgs(cli_connected));
     tx_task_runner.RunUntilCheckpoint("cli_connected");
 
     auto all_sent = tx_task_runner.CreateCheckpoint("all_sent");
