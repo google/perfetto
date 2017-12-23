@@ -39,10 +39,13 @@ class ServiceIPCHostImpl : public ServiceIPCHost {
   // ServiceIPCHost implementation.
   bool Start(const char* producer_socket_name,
              const char* consumer_socket_name) override;
+  bool Start(base::ScopedFile producer_socket_fd,
+             base::ScopedFile consumer_socket_fd) override;
 
   Service* service_for_testing() const;
 
  private:
+  bool DoStart();
   void Shutdown();
 
   base::TaskRunner* const task_runner_;

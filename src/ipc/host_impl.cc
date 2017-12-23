@@ -42,6 +42,23 @@ std::unique_ptr<Host> Host::CreateInstance(const char* socket_name,
   return std::move(host);
 }
 
+// static
+std::unique_ptr<Host> Host::CreateInstance(base::ScopedFile socket_fd,
+                                           base::TaskRunner* task_runner) {
+  std::unique_ptr<HostImpl> host(
+      new HostImpl(std::move(socket_fd), task_runner));
+  if (!host->sock()->is_listening())
+    return nullptr;
+  return std::move(host);
+}
+
+HostImpl::HostImpl(base::ScopedFile socket_fd, base::TaskRunner* task_runner)
+    : task_runner_(task_runner), weak_ptr_factory_(this) {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  sock_ = UnixSocket::Listen(std::move(socket_fd), this, task_runner_);
+}
+
 HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;

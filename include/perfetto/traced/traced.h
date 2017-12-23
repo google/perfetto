@@ -25,9 +25,9 @@ namespace perfetto {
 // moment using an abstract socket on Linux/Andriod and a linked socket on /tmp
 // for Mac.
 
-#if BUILDFLAG(OS_ANDROID) || BUILDFLAG(OS_LINUX)
-#define PERFETTO_PRODUCER_SOCK_NAME "@perfetto-producer"
-#define PERFETTO_CONSUMER_SOCK_NAME "@perfetto-consumer"
+#if BUILDFLAG(OS_ANDROID)
+#define PERFETTO_PRODUCER_SOCK_NAME "/dev/socket/traced_producer"
+#define PERFETTO_CONSUMER_SOCK_NAME "/dev/socket/traced_consumer"
 #else
 #define PERFETTO_PRODUCER_SOCK_NAME "/tmp/perfetto-producer"
 #define PERFETTO_CONSUMER_SOCK_NAME "/tmp/perfetto-consumer"
