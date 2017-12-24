@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-executable("traced") {
+# The executable() target is defined in the root ../../BUILD.gn file. This is
+# to make it so that the Android blueprint generator generates a target named
+# just "traced" rather than "perfetto_src_traced_traced"
+source_set("traced") {
   sources = [
     "traced.cc",
   ]

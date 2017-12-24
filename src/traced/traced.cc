@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
 #include <string.h>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/traced/probes/probes.h"
-#include "perfetto/traced/service/service.h"
+#include "perfetto/traced/traced.h"
 
 int main(int argc, char** argv) {
   if (argc > 1 && !strcmp(argv[1], "probes"))

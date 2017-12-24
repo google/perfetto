@@ -19,6 +19,7 @@
 
 #include <memory>
 
+#include "perfetto/base/scoped_file.h"
 #include "perfetto/tracing/core/basic_types.h"
 
 namespace perfetto {
@@ -42,6 +43,12 @@ class ServiceIPCHost {
   // failure (e.g., something else is listening on |socket_name|).
   virtual bool Start(const char* producer_socket_name,
                      const char* consumer_socket_name) = 0;
+
+  // Like the above, but takes two file descriptors to already bound sockets.
+  // This is used when building as part of the Android tree, where init opens
+  // and binds the socket beore exec()-ing us.
+  virtual bool Start(base::ScopedFile producer_socket_fd,
+                     base::ScopedFile consumer_socket_fd) = 0;
 
  protected:
   ServiceIPCHost();

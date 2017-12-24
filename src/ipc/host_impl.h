@@ -37,6 +37,7 @@ class Frame;
 class HostImpl : public Host, public UnixSocket::EventListener {
  public:
   HostImpl(const char* socket_name, base::TaskRunner*);
+  HostImpl(base::ScopedFile socket_fd, base::TaskRunner*);
   ~HostImpl() override;
 
   // Host implementation.

@@ -19,6 +19,7 @@
 
 #include <memory>
 
+#include "perfetto/base/scoped_file.h"
 #include "perfetto/ipc/basic_types.h"
 
 namespace perfetto {
@@ -41,6 +42,12 @@ class Host {
   // Returns nullptr if listening on the socket fails.
   static std::unique_ptr<Host> CreateInstance(const char* socket_name,
                                               base::TaskRunner*);
+
+  // Like the above but takes a file descriptor to a pre-bound unix socket.
+  // Returns nullptr if listening on the socket fails.
+  static std::unique_ptr<Host> CreateInstance(base::ScopedFile socket_fd,
+                                              base::TaskRunner*);
+
   virtual ~Host() = default;
 
   // Registers a new service and makes it available to remote IPC peers.
