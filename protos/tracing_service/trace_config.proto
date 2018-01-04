@@ -33,13 +33,15 @@ message TraceConfig {
     optional uint32 size_kb = 1;
     // TODO: uint32 page_size = 2;
 
+    // Keep include/perfetto/tracing/core/trace_config.h in sync.
     enum OptimizeFor {
+      DEFAULT = 0;
       // The log buffer is drained sporadically (typically only once after
       // DisableTracing()). This mode minimizes the Service overhead when moving
       // the pages from the Producer(s) shared staging buffers into the central
       // log buffer, at the cost of doing some extra memory moves to reorder and
       // reassemble the logged TracePacket(s).
-      ONE_SHOT_READ = 0;
+      ONE_SHOT_READ = 1;
 
       // The log buffer is streamed continuously to the Consumer.
       // Advantages:
@@ -51,14 +53,16 @@ message TraceConfig {
       // - More scheduling intrusive, as will periodically wake up the Consumer
       //   to stream data.
       // TODO: Not implemented yet.
-      // CONTINUOUS_STREAMING = 1;
+      // CONTINUOUS_STREAMING = 2;
     }
     optional OptimizeFor optimize_for = 3;
 
+    // Keep include/perfetto/tracing/core/trace_config.h in sync.
     enum FillPolicy {
-      RING_BUFFER = 0;
+      UNSPECIFIED = 0;
+      RING_BUFFER = 1;
       // TODO: not implemented yet.
-      // STOP_WHEN_FULL = 1;
+      // STOP_WHEN_FULL = 2;
     }
     optional FillPolicy fill_policy = 4;
   }
