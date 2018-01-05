@@ -25,6 +25,7 @@ PROTOS = (
 
 HEADER_PATH = 'include/perfetto/tracing/core'
 CPP_PATH = 'src/tracing/core'
+INCLUDE_PATH = 'perfetto/tracing/core'
 
 
 def run(cmd):
@@ -45,7 +46,7 @@ def main():
   if not os.path.exists(tool):
     print('Could not find %s, run ninja -C %s proto_to_cpp' % (tool, out_dir))
   for proto in PROTOS:
-    run([tool, proto] + [HEADER_PATH, CPP_PATH])
+    run([tool, proto] + [HEADER_PATH, CPP_PATH, INCLUDE_PATH])
     fname = os.path.basename(proto).replace('.proto', '')
     run(clang_format + [os.path.join(HEADER_PATH, fname + '.h')])
     run(clang_format + [os.path.join(CPP_PATH, fname + '.cc')])
