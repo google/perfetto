@@ -114,28 +114,34 @@ void GenFwdDecl(const Descriptor* msg, Printer* p) {
 
 class ProtoToCpp {
  public:
-  ProtoToCpp(const std::string& header_dir, const std::string& cpp_dir);
+  ProtoToCpp(const std::string& header_dir,
+             const std::string& cpp_dir,
+             const std::string& include_path);
 
   static std::string GetCppType(const FieldDescriptor* field, bool constref);
 
   void Convert(const std::string& src_proto);
   std::string GetHeaderPath(const FileDescriptor*);
   std::string GetCppPath(const FileDescriptor*);
+  std::string GetIncludePath(const FileDescriptor*);
   void GenHeader(const Descriptor*, Printer*);
   void GenCpp(const Descriptor*, Printer*, std::string prefix);
 
  private:
   std::string header_dir_;
   std::string cpp_dir_;
+  std::string include_path_;
   DiskSourceTree dst_;
   ErrorPrinter error_printer_;
   Importer importer_;
 };
 
 ProtoToCpp::ProtoToCpp(const std::string& header_dir,
-                       const std::string& cpp_dir)
+                       const std::string& cpp_dir,
+                       const std::string& include_path)
     : header_dir_(header_dir),
       cpp_dir_(cpp_dir),
+      include_path_(include_path),
       importer_(&dst_, &error_printer_) {
   dst_.MapPath("protos", "protos");
 }
@@ -148,6 +154,11 @@ std::string ProtoToCpp::GetHeaderPath(const FileDescriptor* proto_file) {
 std::string ProtoToCpp::GetCppPath(const FileDescriptor* proto_file) {
   std::string basename = Split(proto_file->name(), "/").back();
   return cpp_dir_ + "/" + StringReplace(basename, ".proto", ".cc", false);
+}
+
+std::string ProtoToCpp::GetIncludePath(const FileDescriptor* proto_file) {
+  std::string basename = Split(proto_file->name(), "/").back();
+  return include_path_ + "/" + StringReplace(basename, ".proto", ".h", false);
 }
 
 std::string ProtoToCpp::GetCppType(const FieldDescriptor* field,
@@ -225,7 +236,7 @@ void ProtoToCpp::Convert(const std::string& src_proto) {
   // Generate includes for translated types of dependencies.
   for (int i = 0; i < proto_file->dependency_count(); i++) {
     const FileDescriptor* dep = proto_file->dependency(i);
-    header_printer.Print("#include \"$f$\"\n", "f", GetHeaderPath(dep));
+    header_printer.Print("#include \"$f$\"\n", "f", GetIncludePath(dep));
   }
   header_printer.Print("\n");
 
@@ -459,11 +470,13 @@ void ProtoToCpp::GenCpp(const Descriptor* msg, Printer* p, std::string prefix) {
 }
 
 int main(int argc, char** argv) {
-  if (argc <= 3) {
-    PERFETTO_ELOG("Usage: %s source.proto dir/for/header dir/for/cc", argv[0]);
+  if (argc <= 4) {
+    PERFETTO_ELOG(
+        "Usage: %s source.proto dir/for/header dir/for/cc include/path",
+        argv[0]);
     return 1;
   }
-  ProtoToCpp proto_to_cpp(argv[2], argv[3]);
+  ProtoToCpp proto_to_cpp(argv[2], argv[3], argv[4]);
   proto_to_cpp.Convert(argv[1]);
   return 0;
 }
