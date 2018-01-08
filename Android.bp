@@ -64,6 +64,7 @@ cc_library_shared {
     "libandroid",
     "liblog",
     "libprotobuf-cpp-lite",
+    "libutils",
   ],
   static_libs: [
     "libgtest_prod",
@@ -81,6 +82,9 @@ cc_library_shared {
   defaults: [
     "perfetto_defaults",
   ],
+  cflags: [
+    "-DPERFETTO_BUILD_WITH_ANDROID",
+  ],
 }
 
 // GN target: //:perfetto
@@ -93,6 +97,7 @@ cc_binary {
     "libandroid",
     "liblog",
     "libtraced_shared",
+    "libutils",
   ],
   defaults: [
     "perfetto_defaults",
@@ -893,6 +898,7 @@ cc_binary {
     "libandroid",
     "liblog",
     "libtraced_shared",
+    "libutils",
   ],
   defaults: [
     "perfetto_defaults",
@@ -909,6 +915,7 @@ cc_binary {
     "libandroid",
     "liblog",
     "libtraced_shared",
+    "libutils",
   ],
   defaults: [
     "perfetto_defaults",
