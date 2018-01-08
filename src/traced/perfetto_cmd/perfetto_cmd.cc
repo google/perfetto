@@ -35,16 +35,27 @@
 
 #include "protos/tracing_service/trace_config.pb.h"
 
+#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#include "perfetto/base/android_task_runner.h"
+
+#include <utils/Looper.h>
+#include <utils/StrongPointer.h>
+#endif  // defined(PERFETTO_BUILD_WITH_ANDROID)
+
 // TODO(primiano): add the ability to pass the file descriptor directly to the
 // traced service instead of receiving a copy of the chunks and writing them
 // from this process.
-
 namespace perfetto {
+
+#if defined(PERFETTO_BUILD_WITH_ANDROID)
+using PlatformTaskRunner = base::AndroidTaskRunner;
+#else
+using PlatformTaskRunner = base::UnixTaskRunner;
+#endif
 
 class PerfettoCmd : public Consumer {
  public:
   int Main(int argc, char** argv);
-
   int PrintUsage(const char* argv0);
   void OnStopTraceTimer();
 
@@ -54,7 +65,7 @@ class PerfettoCmd : public Consumer {
   void OnTraceData(std::vector<TracePacket>, bool has_more) override;
 
  private:
-  perfetto::base::UnixTaskRunner task_runner_;
+  PlatformTaskRunner task_runner_;
   std::unique_ptr<perfetto::Service::ConsumerEndpoint> consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
   std::ofstream trace_out_stream_;
@@ -144,7 +155,14 @@ int PerfettoCmd::Main(int argc, char** argv) {
   consumer_endpoint_ = ConsumerIPCClient::Connect(PERFETTO_CONSUMER_SOCK_NAME,
                                                   this, &task_runner_);
 
+#if defined(PERFETTO_BUILD_WITH_ANDROID)
+  android::sp<android::Looper> looper(android::Looper::prepare(0 /* opts */));
+  while (true) {
+    looper->pollAll(-1 /* timeoutMillis */);
+  }
+#else  // defined(PERFETTO_BUILD_WITH_ANDROID)
   task_runner_.Run();
+#endif // defined(PERFETTO_BUILD_WITH_ANDROID)
   return did_receive_full_trace_ ? 0 : 1;
 }  // namespace perfetto
 
