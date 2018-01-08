@@ -15,17 +15,8 @@
  */
 
 #include <stdio.h>
-#include <string.h>
-
 #include "perfetto/traced/traced.h"
 
 int main(int argc, char** argv) {
-  if (argc > 1 && !strcmp(argv[1], "probes"))
-    return perfetto::ProbesMain(argc, argv);
-
-  if (argc > 1 && !strcmp(argv[1], "service"))
-    return perfetto::ServiceMain(argc, argv);
-
-  printf("Usage: %s probes | service\n", argv[0]);
-  return 1;
+  return perfetto::ServiceMain(argc, argv);
 }
