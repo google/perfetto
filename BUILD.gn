@@ -20,6 +20,7 @@ group("all") {
     ":perfetto_tests",
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
+    "src/tracing:consumer_cmd",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
     "tools/proto_to_cpp",
   ]
@@ -55,10 +56,31 @@ if (!build_with_chromium) {
     ]
   }
 
-  executable("traced") {
+  shared_library("libtraced_shared") {
     deps = [
       "gn:default_deps",
-      "src/traced",
+      "src/traced/probes",
+      "src/traced/service",
+    ]
+  }
+
+  executable("traced") {
+    deps = [
+      ":libtraced_shared",
+      "gn:default_deps",
+    ]
+    sources = [
+      "src/traced/service/main.cc",
+    ]
+  }
+
+  executable("traced_probes") {
+    deps = [
+      ":libtraced_shared",
+      "gn:default_deps",
+    ]
+    sources = [
+      "src/traced/probes/main.cc",
     ]
   }
 }
