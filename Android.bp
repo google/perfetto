@@ -46,6 +46,7 @@ cc_library_shared {
     "src/protozero/protozero_message.cc",
     "src/protozero/protozero_message_handle.cc",
     "src/protozero/scattered_stream_writer.cc",
+    "src/traced/perfetto_cmd/perfetto_cmd.cc",
     "src/traced/probes/probes.cc",
     "src/traced/service/service.cc",
     "src/tracing/core/chunked_protobuf_input_stream.cc",
@@ -76,6 +77,22 @@ cc_library_shared {
     "perfetto_protos_tracing_service_tracing_service_gen_headers",
     "perfetto_protos_zero_gen_headers",
     "perfetto_src_ipc_wire_protocol_gen_headers",
+  ],
+  defaults: [
+    "perfetto_defaults",
+  ],
+}
+
+// GN target: //:perfetto
+cc_binary {
+  name: "perfetto",
+  srcs: [
+    "src/traced/perfetto_cmd/main.cc",
+  ],
+  shared_libs: [
+    "libandroid",
+    "liblog",
+    "libtraced_shared",
   ],
   defaults: [
     "perfetto_defaults",
