@@ -36,6 +36,7 @@ import sys
 # Default targets to translate to the blueprint file.
 default_targets = [
     '//:perfetto_tests',
+    '//:perfetto',
     '//:traced',
     '//:traced_probes',
     '//:libtraced_shared',
