@@ -66,6 +66,10 @@ if (!build_with_chromium) {
       "src/traced/probes",
       "src/traced/service",
     ]
+    if (build_with_android) {
+      cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
+      libs = [ "utils" ]
+    }
   }
 
   # The unprivileged trace daemon that listens for Producer and Consumer

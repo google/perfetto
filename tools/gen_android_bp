@@ -26,6 +26,7 @@
 # libraries are also mapped to their Android equivalents -- see |builtin_deps|.
 
 import argparse
+import errno
 import json
 import os
 import re
@@ -35,11 +36,12 @@ import sys
 
 # Default targets to translate to the blueprint file.
 default_targets = [
+    '//:libtraced_shared',
+    '//:perfetto',
     '//:perfetto_tests',
     '//:perfetto',
     '//:traced',
     '//:traced_probes',
-    '//:libtraced_shared',
     '//src/tracing:consumer_cmd',
 ]
 
@@ -48,7 +50,7 @@ default_targets = [
 target_initrc = {}  # TODO(primiano): populate in upcoming CLs.
 
 # Arguments for the GN output directory.
-gn_args = 'target_os="android" target_cpu="arm" is_debug=false'
+gn_args = 'target_os="android" target_cpu="arm" is_debug=false build_with_android=true'
 
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'perfetto_'
@@ -57,6 +59,7 @@ module_prefix = 'perfetto_'
 library_whitelist = [
     'android',
     'log',
+    'utils',
 ]
 
 # Name of the module which settings such as compiler flags for all other
@@ -65,6 +68,9 @@ defaults_module = module_prefix + 'defaults'
 
 # Location of the project in the Android source tree.
 tree_path = 'external/perfetto'
+
+# Compiler flags which are passed through to the blueprint.
+cflag_whitelist = r'^-DPERFETTO.*$'
 
 
 def enable_gmock(module):
@@ -437,6 +443,9 @@ def create_modules_from_target(blueprint, desc, target_name):
         # Don't try to inject library/source dependencies into genrules because
         # they are not compiled in the traditional sense.
         if module.type != 'genrule':
+            for flag in target.get('cflags', []):
+                if re.match(cflag_whitelist, flag):
+                  module.cflags.append(flag)
             module.defaults = [defaults_module]
             apply_module_dependency(blueprint, desc, module, target_name)
             for dep in resolve_dependencies(desc, target_name):
