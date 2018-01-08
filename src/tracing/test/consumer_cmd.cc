@@ -99,7 +99,7 @@ int main() {
   // libprotobuf_full.
   perfetto::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(4096 * 10);
-  trace_config.set_duration_ms(10000);
+  trace_config.set_duration_ms(3000);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("perfetto.test");
   ds_config->set_target_buffer(0);
