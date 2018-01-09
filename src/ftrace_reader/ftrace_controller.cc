@@ -96,6 +96,18 @@ void FtraceController::StartIfNeeded() {
   }
 }
 
+void FtraceController::ClearTrace() {
+  ftrace_procfs_->ClearTrace();
+}
+
+void FtraceController::DisableAllEvents() {
+  ftrace_procfs_->DisableAllEvents();
+}
+
+void FtraceController::WriteTraceMarker(const std::string& s) {
+  ftrace_procfs_->WriteTraceMarker(s);
+}
+
 void FtraceController::StopIfNeeded() {
   if (sinks_.size() != 0)
     return;
