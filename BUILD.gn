@@ -108,4 +108,11 @@ if (!build_with_chromium) {
       "src/traced/perfetto_cmd/main.cc",
     ]
   }
-}
+} else {
+  group("lib") {
+    public_configs = [ "gn:public_config" ]
+    deps = [
+      "src/tracing",
+    ]
+  }
+}  # !build_with_chromium
