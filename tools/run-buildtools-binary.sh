@@ -21,7 +21,7 @@ fi
 
 readonly PROJECT_ROOT="$(cd -P ${BASH_SOURCE[0]%/*}/..; pwd)"
 
-case "$(uname -s | tr [:upper:] [:lower:])" in
+case "$(uname -s | tr '[A-Z]' '[a-z]')" in
   darwin)
     readonly OS="mac";;
   linux)
