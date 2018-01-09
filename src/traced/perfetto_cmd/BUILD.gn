@@ -1,4 +1,4 @@
-# Copyright (C) 2017 The Android Open Source Project
+# Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# The executable() target is defined in the root ../../BUILD.gn file. This is
-# to make it so that the Android blueprint generator generates a target named
-# just "traced" rather than "perfetto_src_traced_traced"
-source_set("traced") {
-  sources = [
-    "traced.cc",
+source_set("perfetto_cmd") {
+  public_deps = [
+    "../../../include/perfetto/traced",
   ]
   deps = [
-    "../../gn:default_deps",
-    "../base",
-    "probes",
-    "service",
+    "../../../gn:default_deps",
+    "../../../protos:lite",
+    "../../base",
+    "../../tracing:ipc",
+  ]
+  sources = [
+    "perfetto_cmd.cc",
   ]
 }

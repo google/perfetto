@@ -17,9 +17,13 @@ import("gn/perfetto.gni")
 group("all") {
   testonly = true  # allow to build also test targets
   deps = [
+    ":perfetto",
     ":perfetto_tests",
+    ":traced",
+    ":traced_probes",
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
+    "src/tracing:consumer_cmd",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
     "tools/proto_to_cpp",
   ]
@@ -55,10 +59,53 @@ if (!build_with_chromium) {
     ]
   }
 
-  executable("traced") {
+  shared_library("libtraced_shared") {
     deps = [
       "gn:default_deps",
-      "src/traced",
+      "src/traced/perfetto_cmd",
+      "src/traced/probes",
+      "src/traced/service",
+    ]
+    if (build_with_android) {
+      cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
+      libs = [ "utils" ]
+    }
+  }
+
+  # The unprivileged trace daemon that listens for Producer and Consumer
+  # connections, handles the coordination of the tracing sessions and owns the
+  # log buffers.
+  executable("traced") {
+    deps = [
+      ":libtraced_shared",
+      "gn:default_deps",
+    ]
+    sources = [
+      "src/traced/service/main.cc",
+    ]
+  }
+
+  # The unprivileged daemon that is allowed to access tracefs (for ftrace).
+  # Registers as a Producer on the traced daemon.
+  executable("traced_probes") {
+    deps = [
+      ":libtraced_shared",
+      "gn:default_deps",
+    ]
+    sources = [
+      "src/traced/probes/main.cc",
+    ]
+  }
+
+  # The command line client for Perfetto. Allows to configure / start / stop
+  # tracing, acting as a Consumer.
+  executable("perfetto") {
+    deps = [
+      ":libtraced_shared",
+      "gn:default_deps",
+    ]
+    sources = [
+      "src/traced/perfetto_cmd/main.cc",
     ]
   }
 }
