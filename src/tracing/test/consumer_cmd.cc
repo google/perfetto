@@ -101,9 +101,10 @@ int main() {
   trace_config.add_buffers()->set_size_kb(4096 * 10);
   trace_config.set_duration_ms(3000);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("perfetto.test");
+  ds_config->set_name("com.google.perfetto.ftrace");
   ds_config->set_target_buffer(0);
-  ds_config->set_trace_category_filters("foo,bar");
+  auto* ftrace_config = ds_config->mutable_ftrace_config();
+  *ftrace_config->add_event_names() = "sched_switch";
 
   perfetto::base::UnixTaskRunner task_runner;
   perfetto::ConsumerCmd consumer(&task_runner, std::move(trace_config));
