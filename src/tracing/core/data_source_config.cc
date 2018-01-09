@@ -53,6 +53,8 @@ void DataSourceConfig::FromProto(
       "size mismatch");
   trace_category_filters_ = static_cast<decltype(trace_category_filters_)>(
       proto.trace_category_filters());
+
+  ftrace_config_.FromProto(proto.ftrace_config());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -74,6 +76,44 @@ void DataSourceConfig::ToProto(
   proto->set_trace_category_filters(
       static_cast<decltype(proto->trace_category_filters())>(
           trace_category_filters_));
+
+  ftrace_config_.ToProto(proto->mutable_ftrace_config());
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+DataSourceConfig::FtraceConfig::FtraceConfig() = default;
+DataSourceConfig::FtraceConfig::~FtraceConfig() = default;
+DataSourceConfig::FtraceConfig::FtraceConfig(
+    const DataSourceConfig::FtraceConfig&) = default;
+DataSourceConfig::FtraceConfig& DataSourceConfig::FtraceConfig::operator=(
+    const DataSourceConfig::FtraceConfig&) = default;
+DataSourceConfig::FtraceConfig::FtraceConfig(
+    DataSourceConfig::FtraceConfig&&) noexcept = default;
+DataSourceConfig::FtraceConfig& DataSourceConfig::FtraceConfig::operator=(
+    DataSourceConfig::FtraceConfig&&) = default;
+
+void DataSourceConfig::FtraceConfig::FromProto(
+    const perfetto::protos::DataSourceConfig_FtraceConfig& proto) {
+  event_names_.clear();
+  for (const auto& field : proto.event_names()) {
+    event_names_.emplace_back();
+    static_assert(sizeof(event_names_.back()) == sizeof(proto.event_names(0)),
+                  "size mismatch");
+    event_names_.back() =
+        static_cast<decltype(event_names_)::value_type>(field);
+  }
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void DataSourceConfig::FtraceConfig::ToProto(
+    perfetto::protos::DataSourceConfig_FtraceConfig* proto) const {
+  proto->Clear();
+
+  for (const auto& it : event_names_) {
+    auto* entry = proto->add_event_names();
+    static_assert(sizeof(it) == sizeof(proto->event_names(0)), "size mismatch");
+    *entry = static_cast<decltype(proto->event_names(0))>(it);
+  }
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

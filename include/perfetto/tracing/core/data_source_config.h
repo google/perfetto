@@ -38,13 +38,44 @@
 namespace perfetto {
 namespace protos {
 class DataSourceConfig;
-}
+class DataSourceConfig_FtraceConfig;
+}  // namespace protos
 }  // namespace perfetto
 
 namespace perfetto {
 
 class DataSourceConfig {
  public:
+  class FtraceConfig {
+   public:
+    FtraceConfig();
+    ~FtraceConfig();
+    FtraceConfig(FtraceConfig&&) noexcept;
+    FtraceConfig& operator=(FtraceConfig&&);
+    FtraceConfig(const FtraceConfig&);
+    FtraceConfig& operator=(const FtraceConfig&);
+
+    // Conversion methods from/to the corresponding protobuf types.
+    void FromProto(const perfetto::protos::DataSourceConfig_FtraceConfig&);
+    void ToProto(perfetto::protos::DataSourceConfig_FtraceConfig*) const;
+
+    int event_names_size() const {
+      return static_cast<int>(event_names_.size());
+    }
+    const std::vector<std::string>& event_names() const { return event_names_; }
+    std::string* add_event_names() {
+      event_names_.emplace_back();
+      return &event_names_.back();
+    }
+
+   private:
+    std::vector<std::string> event_names_;
+
+    // Allows to preserve unknown protobuf fields for compatibility
+    // with future versions of .proto files.
+    std::string unknown_fields_;
+  };
+
   DataSourceConfig();
   ~DataSourceConfig();
   DataSourceConfig(DataSourceConfig&&) noexcept;
@@ -69,10 +100,14 @@ class DataSourceConfig {
     trace_category_filters_ = value;
   }
 
+  const FtraceConfig& ftrace_config() const { return ftrace_config_; }
+  FtraceConfig* mutable_ftrace_config() { return &ftrace_config_; }
+
  private:
   std::string name_ = {};
   uint32_t target_buffer_ = {};
   std::string trace_category_filters_ = {};
+  FtraceConfig ftrace_config_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
