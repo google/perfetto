@@ -37,7 +37,6 @@ import sys
 # Default targets to translate to the blueprint file.
 default_targets = [
     '//:libtraced_shared',
-    '//:perfetto',
     '//:perfetto_tests',
     '//:perfetto',
     '//:traced',
@@ -47,7 +46,9 @@ default_targets = [
 
 # Defines a custom init_rc argument to be applied to the corresponding output
 # blueprint target.
-target_initrc = {}  # TODO(primiano): populate in upcoming CLs.
+target_initrc = {
+    '//:traced': 'perfetto.rc',
+}
 
 # Arguments for the GN output directory.
 gn_args = 'target_os="android" target_cpu="arm" is_debug=false build_with_android=true'
