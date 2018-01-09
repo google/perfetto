@@ -17,10 +17,7 @@ import("gn/perfetto.gni")
 group("all") {
   testonly = true  # allow to build also test targets
   deps = [
-    ":perfetto",
     ":perfetto_tests",
-    ":traced",
-    ":traced_probes",
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
     "src/tracing:consumer_cmd",
@@ -29,7 +26,10 @@ group("all") {
   ]
   if (!build_with_chromium) {
     deps += [
+      ":perfetto",
       ":perfetto_benchmarks",
+      ":traced",
+      ":traced_probes",
       "src/ftrace_reader:ftrace_reader_integrationtests",
     ]
   }
