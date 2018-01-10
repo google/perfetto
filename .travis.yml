@@ -56,7 +56,7 @@ matrix:
       env: CFG=linux_trusty-clang-x86_64-debug GN_ARGS="is_debug=true"
     - os: linux
       dist: trusty
-      sudo: false
+      sudo: true
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-asan GN_ARGS="is_debug=false is_asan=true"
     - os: linux
@@ -71,7 +71,7 @@ matrix:
       env: CFG=linux_trusty-clang-x86_64-msan GN_ARGS="is_debug=false is_msan=true"
     - os: linux
       dist: trusty
-      sudo: false
+      sudo: true
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-lsan GN_ARGS="is_debug=false is_lsan=true"
     - os: linux
@@ -101,12 +101,12 @@ matrix:
       env: CFG=android-clang-arm64-release GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\""
     - os: linux
       dist: trusty
-      sudo: false
+      sudo: true
       compiler: clang
       env: CFG=android-clang-arm-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\" is_asan=true"
     - os: linux
       dist: trusty
-      sudo: false
+      sudo: true
       compiler: clang
       env: CFG=android-clang-arm64-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\" is_asan=true"
 
