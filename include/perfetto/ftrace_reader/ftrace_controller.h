@@ -111,6 +111,10 @@ class FtraceController {
 
   std::unique_ptr<FtraceSink> CreateSink(FtraceConfig, FtraceSink::Delegate*);
 
+  void DisableAllEvents();
+  void WriteTraceMarker(const std::string& s);
+  void ClearTrace();
+
  protected:
   // Protected for testing.
   FtraceController(std::unique_ptr<FtraceProcfs>,

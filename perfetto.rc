@@ -12,30 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e
+service traced /system/bin/traced
+    class late_start
+    disabled
+    socket traced_consumer stream 0666 root root
+    socket traced_producer stream 0666 root root
+    user nobody
+    group nobody
+    writepid /dev/cpuset/system-background/tasks
 
-if [[ -n "$BASH_VERSION" && "${BASH_SOURCE:-$0}" == "$0" ]]; then
-  echo "ERROR: ${BASH_SOURCE:-$0} must be sourced"
-  exit 1
-fi
+service traced_probes /system/bin/traced_probes
+    class late_start
+    disabled
+    user nobody
+    group shell
+    writepid /dev/cpuset/system-background/tasks
 
-readonly PROJECT_ROOT="$(cd -P ${BASH_SOURCE[0]%/*}/..; pwd)"
-
-case "$(uname -s | tr '[A-Z]' '[a-z]')" in
-  darwin)
-    readonly OS="mac";;
-  linux)
-    readonly OS="linux64";;
-  *)
-    echo "Unsupported platform"
-    exit 1
-    ;;
-esac
-
-BIN_PATH="$PROJECT_ROOT/buildtools/$OS/$CMD"
-if [ ! -x "$BIN_PATH" ]; then
-  echo "Cannot find $BIN_PATH. Run tools/install-build-deps first."
-  exit 1
-fi
-
-exec "$BIN_PATH" "$@"
+on property:perfetto.service.enable=true
+    start traced
+    start traced_probes

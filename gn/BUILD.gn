@@ -66,6 +66,8 @@ if (current_toolchain == host_toolchain) {
 }
 
 group("protobuf_full_deps") {
+  testonly = true
+
   if (!build_with_chromium) {
     public_deps = [
       "//buildtools:protobuf_full",
@@ -98,4 +100,8 @@ config("default_config") {
     "..",
     "../include",
   ]
+}
+
+config("public_config") {
+  include_dirs = [ "../include" ]
 }

@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-#include <fcntl.h>
-#include <inttypes.h>
+#include <stdio.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
 #include "perfetto/base/unix_task_runner.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
@@ -30,98 +28,149 @@
 #include "perfetto/tracing/core/trace_writer.h"
 #include "perfetto/tracing/ipc/producer_ipc_client.h"
 
+#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/trace_packet.pbzero.h"
 
 namespace perfetto {
 
 namespace {
 
-class ProbesProducer : Producer {
- public:
-  explicit ProbesProducer(base::TaskRunner*);
-  ~ProbesProducer() override;
+bool IsAlnum(const std::string& str) {
+  for (size_t i = 0; i < str.size(); i++) {
+    if (!isalnum(str[i]) && str[i] != '_')
+      return false;
+  }
+  return true;
+}
 
-  // Consumer implementation.
+using BundleHandle =
+    protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>;
+
+class SinkDelegate : public FtraceSink::Delegate {
+ public:
+  SinkDelegate(std::unique_ptr<TraceWriter> writer);
+  ~SinkDelegate() override;
+
+  // FtraceDelegateImpl
+  BundleHandle GetBundleForCpu(size_t cpu) override;
+  void OnBundleComplete(size_t cpu, BundleHandle bundle) override;
+
+  void sink(std::unique_ptr<FtraceSink> sink) { sink_ = std::move(sink); }
+
+ private:
+  std::unique_ptr<FtraceSink> sink_ = nullptr;
+  TraceWriter::TracePacketHandle trace_packet_;
+  std::unique_ptr<TraceWriter> writer_;
+};
+
+SinkDelegate::SinkDelegate(std::unique_ptr<TraceWriter> writer)
+    : writer_(std::move(writer)) {}
+
+SinkDelegate::~SinkDelegate() = default;
+
+BundleHandle SinkDelegate::GetBundleForCpu(size_t cpu) {
+  trace_packet_ = writer_->NewTracePacket();
+  return BundleHandle(trace_packet_->set_ftrace_events());
+}
+
+void SinkDelegate::OnBundleComplete(size_t cpu, BundleHandle bundle) {
+  trace_packet_->Finalize();
+}
+
+class FtraceProducer : public Producer {
+ public:
+  ~FtraceProducer() override;
+
+  // Producer Impl:
   void OnConnect() override;
   void OnDisconnect() override;
   void CreateDataSourceInstance(DataSourceInstanceID,
                                 const DataSourceConfig&) override;
   void TearDownDataSourceInstance(DataSourceInstanceID) override;
 
+  // Our Impl
+  void Run();
+
  private:
-  base::TaskRunner* task_runner_;
-  std::unique_ptr<Service::ProducerEndpoint> producer_endpoint_;
+  std::unique_ptr<Service::ProducerEndpoint> endpoint_ = nullptr;
+  std::unique_ptr<FtraceController> ftrace_ = nullptr;
+  DataSourceID data_source_id_ = 0;
+  std::map<DataSourceInstanceID, std::unique_ptr<SinkDelegate>> delegates_;
 };
 
-ProbesProducer::ProbesProducer(base::TaskRunner* task_runner)
-    : task_runner_(task_runner),
-      producer_endpoint_(ProducerIPCClient::Connect(PERFETTO_PRODUCER_SOCK_NAME,
-                                                    this,
-                                                    task_runner)) {
-  base::ignore_result(task_runner_);
+FtraceProducer::~FtraceProducer() = default;
+
+void FtraceProducer::OnConnect() {
+  PERFETTO_LOG("Connected to the service\n");
+
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("com.google.perfetto.ftrace");
+  endpoint_->RegisterDataSource(
+      descriptor, [this](DataSourceID id) { data_source_id_ = id; });
 }
 
-ProbesProducer::~ProbesProducer() = default;
-
-void ProbesProducer::OnConnect() {
-  PERFETTO_ILOG("Connected to tracing service. Registering data source");
-  DataSourceDescriptor desc;
-  desc.set_name("perfetto.test");
-  producer_endpoint_->RegisterDataSource(desc, [](DataSourceID dsid) {
-    PERFETTO_ILOG("Registered data source with ID: %" PRIu64, dsid);
-  });
+void FtraceProducer::OnDisconnect() {
+  PERFETTO_LOG("Disconnected from tracing service");
+  exit(1);
 }
 
-void ProbesProducer::OnDisconnect() {
-  PERFETTO_ILOG("Disconnected from tracing service");
-}
+void FtraceProducer::CreateDataSourceInstance(
+    DataSourceInstanceID id,
+    const DataSourceConfig& source_config) {
+  PERFETTO_LOG("Source start (id=%" PRIu64 ", target_buf=%" PRIu32 ")", id,
+               source_config.target_buffer());
 
-void ProbesProducer::CreateDataSourceInstance(DataSourceInstanceID dsid,
-                                              const DataSourceConfig& cfg) {
-  PERFETTO_ILOG("CreateDataSourceInstance(). Firstly sending some packets.");
-  auto twriter = producer_endpoint_->CreateTraceWriter(1 /* target buffer */);
-  for (int i = 0; i < 3; i++) {
-    auto pack = twriter->NewTracePacket();
-    char str[100];
-    sprintf(str, "foooooooooooooooooooooo %d", i);
-    pack->set_test(str, strlen(str));
+  // TODO(hjd): Would be nice if ftrace_reader could use generate the config.
+  const DataSourceConfig::FtraceConfig proto_config =
+      source_config.ftrace_config();
+
+  FtraceConfig config;
+  for (const std::string& event_name : proto_config.event_names()) {
+    if (IsAlnum(event_name)) {
+      config.AddEvent(event_name.c_str());
+    } else {
+      PERFETTO_LOG("Bad event name '%s'", event_name.c_str());
+    }
   }
 
-  PERFETTO_ILOG("Now trying to access ftrace.");
-
-  base::ScopedFile tracing_on(open("/d/tracing/tracing_on", O_RDWR));
-  base::ScopedFile enable(
-      open("/d/tracing/events/sched/sched_switch/enable", O_RDWR));
-  base::ScopedFile pipe(
-      open("/d/tracing/per_cpu/cpu0/trace_pipe_raw", O_RDONLY));
-
-  PERFETTO_ILOG("tracing_on: %d, wr: %zd", *tracing_on,
-                write(*tracing_on, "1", 1));
-  tracing_on.reset();
-
-  PERFETTO_ILOG("oom/enable: %d, wr: %zd", *enable, write(*enable, "1", 1));
-  enable.reset();
-
-  char buf[4096] = {};
-  fcntl(*pipe, F_SETFL, O_NONBLOCK);
-  sleep(1);
-  PERFETTO_ILOG("trace_pipe_raw: %d, rd: %zd", *pipe,
-                read(*pipe, buf, sizeof(buf)));
-  pipe.reset();
+  // TODO(hjd): Static cast is bad, target_buffer() should return a BufferID.
+  // auto trace_writer = endpoint_->CreateTraceWriter(
+  //    static_cast<BufferID>(source_config.target_buffer()));
+  // TODO(primano): At the moment the buffer ID is always 1.
+  auto trace_writer = endpoint_->CreateTraceWriter(1);
+  auto delegate =
+      std::unique_ptr<SinkDelegate>(new SinkDelegate(std::move(trace_writer)));
+  auto sink = ftrace_->CreateSink(config, delegate.get());
+  PERFETTO_CHECK(sink);
+  delegate->sink(std::move(sink));
+  delegates_.emplace(id, std::move(delegate));
 }
 
-void ProbesProducer::TearDownDataSourceInstance(DataSourceInstanceID dsid) {
-  PERFETTO_ILOG("TearDownDataSourceInstance()");
-  base::ScopedFile tracing_on(open("/d/tracing/tracing_on", O_RDWR));
-  write(*tracing_on, "0", 1);
+void FtraceProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
+  PERFETTO_LOG("Source stop (id=%" PRIu64 ")", id);
+  delegates_.erase(id);
 }
 
-}  // namespace
+void FtraceProducer::Run() {
+  base::UnixTaskRunner task_runner;
+  ftrace_ = FtraceController::Create(&task_runner);
+  endpoint_ = ProducerIPCClient::Connect(PERFETTO_PRODUCER_SOCK_NAME, this,
+                                         &task_runner);
+  ftrace_->DisableAllEvents();
+  ftrace_->ClearTrace();
+  task_runner.Run();
+}
+
+}  // namespace.
+
+}  // namespace perfetto
+
+namespace perfetto {
 
 int __attribute__((visibility("default"))) ProbesMain(int argc, char** argv) {
-  perfetto::base::UnixTaskRunner task_runner;
-  perfetto::ProbesProducer producer(&task_runner);
-  task_runner.Run();
+  PERFETTO_LOG("Starting %s service", argv[0]);
+  perfetto::FtraceProducer producer;
+  producer.Run();
   return 0;
 }
 
