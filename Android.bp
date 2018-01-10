@@ -660,7 +660,6 @@ cc_library_static {
     ":perfetto_protos_tracing_service_tracing_service_gen",
     ":perfetto_protos_zero_gen",
     ":perfetto_src_ipc_wire_protocol_gen",
-    "src/base/android_task_runner.cc",
     "src/base/page_allocator.cc",
     "src/base/thread_checker.cc",
     "src/base/unix_task_runner.cc",
@@ -692,7 +691,6 @@ cc_library_static {
     "src/tracing/ipc/service/service_ipc_host_impl.cc",
   ],
   shared_libs: [
-    "libandroid",
     "liblog",
     "libprotobuf-cpp-lite",
   ],
@@ -839,7 +837,6 @@ cc_binary {
     ":perfetto_protos_tracing_service_tracing_service_gen",
     ":perfetto_protos_zero_gen",
     ":perfetto_src_ipc_wire_protocol_gen",
-    "src/base/android_task_runner.cc",
     "src/base/page_allocator.cc",
     "src/base/thread_checker.cc",
     "src/base/unix_task_runner.cc",
@@ -866,7 +863,6 @@ cc_binary {
     "src/tracing/test/consumer_cmd.cc",
   ],
   shared_libs: [
-    "libandroid",
     "liblog",
     "libprotobuf-cpp-lite",
   ],
