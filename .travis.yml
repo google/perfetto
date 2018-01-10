@@ -125,7 +125,8 @@ cache:
 before_install:
   - set -e
   - echo "$CFG" && echo "$GN_ARGS"
-  - ASAN_SYMBOLIZER_PATH="$(which llvm-symbolizer || echo /usr/bin/llvm-symbolizer-*)"
+  - export ASAN_SYMBOLIZER_PATH="$(which llvm-symbolizer
+      || echo /usr/bin/llvm-symbolizer-*)"
 
 install:
   - |
@@ -134,6 +135,10 @@ install:
     else
       ARCH=$(echo "$CFG" | cut -d- -f3)
       tools/install-build-deps --emulator="$ARCH"
+    fi
+  - |
+    if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
+      export ASAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
     fi
 
 script:
