@@ -68,6 +68,7 @@ if (!build_with_chromium) {
     ]
     if (build_with_android) {
       cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
+      deps += [ "src/base:android_task_runner" ]
       libs = [ "utils" ]
     }
   }
