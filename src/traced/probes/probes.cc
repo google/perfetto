@@ -134,10 +134,8 @@ void FtraceProducer::CreateDataSourceInstance(
   }
 
   // TODO(hjd): Static cast is bad, target_buffer() should return a BufferID.
-  // auto trace_writer = endpoint_->CreateTraceWriter(
-  //    static_cast<BufferID>(source_config.target_buffer()));
-  // TODO(primano): At the moment the buffer ID is always 1.
-  auto trace_writer = endpoint_->CreateTraceWriter(1);
+  auto trace_writer = endpoint_->CreateTraceWriter(
+      static_cast<BufferID>(source_config.target_buffer()));
   auto delegate =
       std::unique_ptr<SinkDelegate>(new SinkDelegate(std::move(trace_writer)));
   auto sink = ftrace_->CreateSink(config, delegate.get());
