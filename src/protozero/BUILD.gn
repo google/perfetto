@@ -46,6 +46,7 @@ source_set("protozero_unittests") {
   ]
   sources = [
     "proto_utils_unittest.cc",
+    "protozero_message_handle_unittest.cc",
     "protozero_message_unittest.cc",
     "scattered_stream_writer_unittest.cc",
     "test/fake_scattered_buffer.cc",
