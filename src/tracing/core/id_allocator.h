@@ -37,6 +37,9 @@ class IdAllocator {
   IdType Allocate();
   void Free(IdType);
 
+  // TODO(primiano): Remove after we can run twice.
+  void Reset();
+
  private:
   IdAllocator(const IdAllocator&) = delete;
   IdAllocator& operator=(const IdAllocator&) = delete;
