@@ -381,8 +381,9 @@ TEST(CpuReaderTest, ParseSinglePrint) {
 
   EventFilter filter(*table, std::set<std::string>({"print"}));
 
-  CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
-                       bundle_provider.writer(), table);
+  size_t bytes = CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
+                                      bundle_provider.writer(), table);
+  EXPECT_EQ(bytes, 60ul);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);

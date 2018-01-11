@@ -79,6 +79,7 @@ class EndToEndIntegrationTest : public ::testing::Test,
   virtual void OnBundleComplete(size_t cpu, BundleHandle bundle) {
     PERFETTO_CHECK(currently_writing_);
     currently_writing_ = false;
+    EXPECT_NE(cpu_being_written_, 9999ul);
     EXPECT_EQ(cpu_being_written_, cpu);
     if (!count--)
       runner_.Quit();
