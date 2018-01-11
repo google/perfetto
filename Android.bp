@@ -769,6 +769,7 @@ cc_test {
     "src/protozero/proto_utils_unittest.cc",
     "src/protozero/protozero_message.cc",
     "src/protozero/protozero_message_handle.cc",
+    "src/protozero/protozero_message_handle_unittest.cc",
     "src/protozero/protozero_message_unittest.cc",
     "src/protozero/scattered_stream_writer.cc",
     "src/protozero/scattered_stream_writer_unittest.cc",
