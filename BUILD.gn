@@ -14,13 +14,20 @@
 
 import("gn/perfetto.gni")
 
+declare_args() {
+  # Only for local development. When true the binaries (perfetto, traced, ...)
+  # are monolithic and don't use a common shared library. This is mainly to
+  # avoid LD_LIBRARY_PATH dances when testing locally.
+  monolithic_binaries = false
+}
+assert(!monolithic_binaries || !build_with_android)
+
 group("all") {
   testonly = true  # allow to build also test targets
   deps = [
     ":perfetto_tests",
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
-    "src/tracing:consumer_cmd",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
     "tools/proto_to_cpp",
   ]
@@ -59,7 +66,13 @@ if (!build_with_chromium) {
     ]
   }
 
-  shared_library("libtraced_shared") {
+  if (monolithic_binaries) {
+    libtraced_shared_target_type = "source_set"
+  } else {
+    libtraced_shared_target_type = "shared_library"
+  }
+
+  target(libtraced_shared_target_type, "libtraced_shared") {
     deps = [
       "gn:default_deps",
       "src/traced/perfetto_cmd",

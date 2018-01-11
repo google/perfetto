@@ -41,7 +41,6 @@ default_targets = [
     '//:perfetto',
     '//:traced',
     '//:traced_probes',
-    '//src/tracing:consumer_cmd',
 ]
 
 # Defines a custom init_rc argument to be applied to the corresponding output

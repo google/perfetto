@@ -116,15 +116,3 @@ if (!build_with_chromium) {
     ]
   }
 }
-
-executable("consumer_cmd") {
-  sources = [
-    "test/consumer_cmd.cc",
-  ]
-  deps = [
-    ":ipc",
-    "../../gn:default_deps",
-    "../../protos:lite",
-    "../base",
-  ]
-}
