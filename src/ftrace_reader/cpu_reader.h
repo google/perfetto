@@ -103,11 +103,11 @@ class CpuReader {
   // run time (e.g. field offset and size) information necessary to do this.
   // The table is initialized once at start time by the ftrace controller
   // which passes it to the CpuReader which passes it here.
-  static bool ParsePage(size_t cpu,
-                        const uint8_t* ptr,
-                        const EventFilter*,
-                        protos::pbzero::FtraceEventBundle*,
-                        const ProtoTranslationTable* table);
+  static size_t ParsePage(size_t cpu,
+                          const uint8_t* ptr,
+                          const EventFilter*,
+                          protos::pbzero::FtraceEventBundle*,
+                          const ProtoTranslationTable* table);
 
   // Parse a single raw ftrace event beginning at |start| and ending at |end|
   // and write it into the provided bundle as a proto.
