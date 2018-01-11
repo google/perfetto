@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/protozero/protozero_message.h"
+#include "perfetto/protozero/protozero_message_handle.h"
 
 #include <limits>
 #include <memory>
@@ -66,6 +67,8 @@ class ProtoZeroMessageTest : public ::testing::Test {
     stream_writer_.reset();
     buffer_.reset();
   }
+
+  void ResetMessage(FakeRootMessage* msg) { msg->Reset(stream_writer_.get()); }
 
   FakeRootMessage* NewMessage() {
     std::unique_ptr<uint8_t[]> mem(
@@ -250,6 +253,16 @@ TEST_F(ProtoZeroMessageTest, StressTest) {
   EXPECT_EQ(0xfd19cc0a, buf_hash);
 }
 
+TEST_F(ProtoZeroMessageTest, DestructInvalidMessageHandle) {
+  FakeRootMessage* msg = NewMessage();
+  EXPECT_DEBUG_DEATH(
+      {
+        ProtoZeroMessageHandle<FakeRootMessage> handle(msg);
+        ResetMessage(msg);
+      },
+      "");
+}
+
 TEST_F(ProtoZeroMessageTest, MessageHandle) {
   FakeRootMessage* msg1 = NewMessage();
   FakeRootMessage* msg2 = NewMessage();
@@ -300,7 +313,7 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   handle_swp = std::move(another_handle);
   ASSERT_EQ(0x90u, msg3_size[0]);  // |msg3| should be finalized at this point.
 
-#if PROTOZERO_ENABLE_HANDLE_DEBUGGING()
+#if PERFETTO_DCHECK_IS_ON()
   // In developer builds w/ PERFETTO_DCHECK on a finalized message should
   // invalidate the handle, in order to early catch bugs in the client code.
   FakeRootMessage* msg4 = NewMessage();
