@@ -112,16 +112,22 @@ bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
   uint8_t* buffer = GetBuffer();
   // TOOD(hjd): One read() per page may be too many.
   long bytes = PERFETTO_EINTR(read(fd_.get(), buffer, kPageSize));
+  if (bytes == -1 && errno == EAGAIN)
+    return false;
   if (bytes != kPageSize)
     return false;
+  PERFETTO_CHECK(static_cast<size_t>(bytes) <= kPageSize);
 
+  size_t evt_size = 0;
   for (size_t i = 0; i < kMaxSinks; i++) {
     if (!filters[i])
       break;
-    bool result = ParsePage(cpu_, buffer, filters[i], &*bundles[i], table_);
-    PERFETTO_DCHECK(result);
+    evt_size = ParsePage(cpu_, buffer, filters[i], &*bundles[i], table_);
+    PERFETTO_DCHECK(evt_size);
   }
-  return true;
+
+  // TODO(hjd): Introduce enum to distinguish real failures.
+  return evt_size > (kPageSize / 2);
 }
 
 CpuReader::~CpuReader() = default;
@@ -141,36 +147,34 @@ uint8_t* CpuReader::GetBuffer() {
 // Some information about the layout of the page header is available in user
 // space at: /sys/kernel/debug/tracing/events/header_event
 // This method is deliberately static so it can be tested independently.
-bool CpuReader::ParsePage(size_t cpu,
-                          const uint8_t* ptr,
-                          const EventFilter* filter,
-                          protos::pbzero::FtraceEventBundle* bundle,
-                          const ProtoTranslationTable* table) {
+size_t CpuReader::ParsePage(size_t cpu,
+                            const uint8_t* ptr,
+                            const EventFilter* filter,
+                            protos::pbzero::FtraceEventBundle* bundle,
+                            const ProtoTranslationTable* table) {
   const uint8_t* const start_of_page = ptr;
   const uint8_t* const end_of_page = ptr + kPageSize;
 
   bundle->set_cpu(cpu);
 
-  (void)start_of_page;
-
   // TODO(hjd): Read this format dynamically?
   PageHeader page_header;
   if (!ReadAndAdvance(&ptr, end_of_page, &page_header))
-    return false;
+    return 0;
 
   // TODO(hjd): There is something wrong with the page header struct.
   page_header.size = page_header.size & 0xfffful;
 
   const uint8_t* const end = ptr + page_header.size;
   if (end > end_of_page)
-    return false;
+    return 0;
 
   uint64_t timestamp = page_header.timestamp;
 
   while (ptr < end) {
     EventHeader event_header;
     if (!ReadAndAdvance(&ptr, end, &event_header))
-      return false;
+      return 0;
 
     timestamp += event_header.time_delta;
 
@@ -183,7 +187,7 @@ bool CpuReader::ParsePage(size_t cpu,
         }
         uint32_t length;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &length))
-          return false;
+          return 0;
         ptr += length;
         break;
       }
@@ -191,7 +195,7 @@ bool CpuReader::ParsePage(size_t cpu,
         // Extend the time delta.
         uint32_t time_delta_ext;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
-          return false;
+          return 0;
         // See https://goo.gl/CFBu5x
         timestamp += ((uint64_t)time_delta_ext) << 27;
         break;
@@ -200,7 +204,7 @@ bool CpuReader::ParsePage(size_t cpu,
         // Sync time stamp with external clock.
         TimeStamp time_stamp;
         if (!ReadAndAdvance<TimeStamp>(&ptr, end, &time_stamp))
-          return false;
+          return 0;
         // TODO(hjd): Handle.
         break;
       }
@@ -217,12 +221,12 @@ bool CpuReader::ParsePage(size_t cpu,
 
         uint16_t ftrace_event_id;
         if (!ReadAndAdvance<uint16_t>(&ptr, end, &ftrace_event_id))
-          return false;
+          return 0;
         if (filter->IsEventEnabled(ftrace_event_id)) {
           protos::pbzero::FtraceEvent* event = bundle->add_event();
           event->set_timestamp(timestamp);
           if (!ParseEvent(ftrace_event_id, start, next, table, event))
-            return false;
+            return 0;
         }
 
         // Jump to next event.
@@ -230,7 +234,7 @@ bool CpuReader::ParsePage(size_t cpu,
       }
     }
   }
-  return true;
+  return static_cast<size_t>(ptr - start_of_page);
 }
 
 // |start| is the start of the current event.

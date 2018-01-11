@@ -29,10 +29,11 @@
 #include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
 using testing::_;
-using testing::Return;
-using testing::ByMove;
 using testing::AnyNumber;
+using testing::ByMove;
+using testing::Invoke;
 using testing::NiceMock;
+using testing::Return;
 
 using Table = perfetto::ProtoTranslationTable;
 using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
@@ -46,10 +47,26 @@ const char kBarEnablePath[] = "/root/events/group/bar/enable";
 
 class MockTaskRunner : public base::TaskRunner {
  public:
+  MockTaskRunner() {
+    ON_CALL(*this, PostDelayedTask(_, _))
+        .WillByDefault(Invoke(this, &MockTaskRunner::OnPostDelayedTask));
+  }
+
+  void OnPostDelayedTask(std::function<void()> task, int _delay) {
+    task_ = std::move(task);
+  }
+
+  void RunLastTask() { task_(); }
+
+  std::function<void()> TakeTask() { return std::move(task_); }
+
   MOCK_METHOD1(PostTask, void(std::function<void()>));
   MOCK_METHOD2(PostDelayedTask, void(std::function<void()>, int delay_ms));
   MOCK_METHOD2(AddFileDescriptorWatch, void(int fd, std::function<void()>));
   MOCK_METHOD1(RemoveFileDescriptorWatch, void(int fd));
+
+ private:
+  std::function<void()> task_;
 };
 
 class MockDelegate : public perfetto::FtraceSink::Delegate {
@@ -65,17 +82,6 @@ class MockDelegate : public perfetto::FtraceSink::Delegate {
       protozero::ProtoZeroMessageHandle<FtraceEventBundle> bundle) {
     OnBundleComplete_(cpu, bundle);
   }
-};
-
-class MockCpuReader : public CpuReader {
- public:
-  MockCpuReader(size_t cpu, int fd)
-      : CpuReader(nullptr, cpu, base::ScopedFile(fd)) {}
-  MockCpuReader(MockCpuReader&&) = default;
-
- private:
-  MockCpuReader(const MockCpuReader&) = delete;
-  MockCpuReader& operator=(const MockCpuReader&) = delete;
 };
 
 std::unique_ptr<Table> FakeTable() {
@@ -120,6 +126,8 @@ class TestFtraceController : public FtraceController {
                        std::unique_ptr<Table> table)
       : FtraceController(std::move(ftrace_procfs), runner, std::move(table)) {}
 
+  MOCK_METHOD1(OnRawFtraceDataAvailable, bool(size_t cpu));
+
  private:
   TestFtraceController(const TestFtraceController&) = delete;
   TestFtraceController& operator=(const TestFtraceController&) = delete;
@@ -153,13 +161,12 @@ TEST(FtraceControllerTest, OneSink) {
   FtraceConfig config({"foo"});
 
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
-  EXPECT_CALL(task_runner, AddFileDescriptorWatch(_, _));
+  EXPECT_CALL(task_runner, PostDelayedTask(_, _));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "1"));
   std::unique_ptr<FtraceSink> sink = controller.CreateSink(config, &delegate);
 
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "0"));
-  EXPECT_CALL(task_runner, RemoveFileDescriptorWatch(_));
   sink.reset();
 }
 
@@ -178,7 +185,7 @@ TEST(FtraceControllerTest, MultipleSinks) {
 
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "1"));
-  EXPECT_CALL(task_runner, AddFileDescriptorWatch(_, _));
+  EXPECT_CALL(task_runner, PostDelayedTask(_, _));
   std::unique_ptr<FtraceSink> sinkA = controller.CreateSink(configA, &delegate);
 
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kBarEnablePath, "1"));
@@ -186,7 +193,6 @@ TEST(FtraceControllerTest, MultipleSinks) {
 
   sinkA.reset();
 
-  EXPECT_CALL(task_runner, RemoveFileDescriptorWatch(_));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kBarEnablePath, "0"));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "0"));
@@ -206,15 +212,83 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
 
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "1"));
-  EXPECT_CALL(task_runner, AddFileDescriptorWatch(_, _));
+  EXPECT_CALL(task_runner, PostDelayedTask(_, _));
   std::unique_ptr<FtraceSink> sink = controller->CreateSink(config, &delegate);
 
-  EXPECT_CALL(task_runner, RemoveFileDescriptorWatch(_));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "0"));
   controller.reset();
 
   sink.reset();
+}
+
+TEST(FtraceControllerTest, TaskScheduling) {
+  MockTaskRunner task_runner;
+  auto ftrace_procfs =
+      std::unique_ptr<MockFtraceProcfs>(new MockFtraceProcfs());
+  auto raw_ftrace_procfs = ftrace_procfs.get();
+  TestFtraceController controller(std::move(ftrace_procfs), &task_runner,
+                                  FakeTable());
+
+  // For this test we don't care about calls to WriteToFile.
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(_, _)).Times(AnyNumber());
+
+  MockDelegate delegate;
+  FtraceConfig config({"foo"});
+
+  EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
+  std::unique_ptr<FtraceSink> sink = controller.CreateSink(config, &delegate);
+
+  // Running task will call OnRawFtraceDataAvailable:
+  EXPECT_CALL(controller, OnRawFtraceDataAvailable(_)).WillOnce(Return(true));
+  // And since we return true (= there is more data) we re-schedule immediately:
+  EXPECT_CALL(task_runner, PostDelayedTask(_, 0));
+  task_runner.RunLastTask();
+
+  // Running task will call OnRawFtraceDataAvailable:
+  EXPECT_CALL(controller, OnRawFtraceDataAvailable(_)).WillOnce(Return(false));
+  // And since we return false (= no more data) we re-schedule in 100ms:
+  EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
+  task_runner.RunLastTask();
+
+  sink.reset();
+
+  // The task may be run after the sink is gone, in this case we shouldn't call
+  // OnRawFtraceDataAvailable and shouldn't reschedule.
+  task_runner.RunLastTask();
+}
+
+TEST(FtraceControllerTest, BackToBackEnableDisable) {
+  MockTaskRunner task_runner;
+  auto ftrace_procfs =
+      std::unique_ptr<MockFtraceProcfs>(new MockFtraceProcfs());
+  auto raw_ftrace_procfs = ftrace_procfs.get();
+  TestFtraceController controller(std::move(ftrace_procfs), &task_runner,
+                                  FakeTable());
+
+  // For this test we don't care about calls to WriteToFile.
+  EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(_, _)).Times(AnyNumber());
+
+  MockDelegate delegate;
+  FtraceConfig config({"foo"});
+
+  EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
+  std::unique_ptr<FtraceSink> sink_a = controller.CreateSink(config, &delegate);
+  sink_a.reset();
+  std::function<void()> task_a = task_runner.TakeTask();
+
+  EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
+  std::unique_ptr<FtraceSink> sink_b = controller.CreateSink(config, &delegate);
+  std::function<void()> task_b = task_runner.TakeTask();
+
+  // Task A shouldn't reschedule:
+  task_a();
+  // But task B should:
+  EXPECT_CALL(controller, OnRawFtraceDataAvailable(_)).WillOnce(Return(false));
+  EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
+  task_b();
+
+  sink_b.reset();
 }
 
 }  // namespace perfetto
