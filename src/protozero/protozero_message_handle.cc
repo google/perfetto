@@ -48,7 +48,6 @@ ProtoZeroMessageHandleBase& ProtoZeroMessageHandleBase::operator=(
   // the one we point to, don't finalize.
   if (message_ && message_ != other.message_)
     message_->Finalize();
-  PERFETTO_DCHECK(!other->is_finalized());
   Move(std::move(other));
   return *this;
 }
