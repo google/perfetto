@@ -56,4 +56,9 @@ void IdAllocator::Free(IdType id) {
   ids_[id] = false;
 }
 
+// TODO(primiano): Remove after we can run twice.
+void IdAllocator::Reset() {
+  last_id_ = 0;
+}
+
 }  // namespace perfetto
