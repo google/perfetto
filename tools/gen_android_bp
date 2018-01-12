@@ -58,7 +58,9 @@ module_prefix = 'perfetto_'
 # Shared libraries which are directly translated to Android system equivalents.
 library_whitelist = [
     'android',
+    'binder',
     'log',
+    'services',
     'utils',
 ]
 
