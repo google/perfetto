@@ -47,6 +47,7 @@ cc_library_shared {
     "src/protozero/protozero_message_handle.cc",
     "src/protozero/scattered_stream_writer.cc",
     "src/traced/perfetto_cmd/perfetto_cmd.cc",
+    "src/traced/probes/ftrace_producer.cc",
     "src/traced/probes/probes.cc",
     "src/traced/service/service.cc",
     "src/tracing/core/chunked_protobuf_input_stream.cc",
