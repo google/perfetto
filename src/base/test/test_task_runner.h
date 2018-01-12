@@ -28,14 +28,14 @@
 #include "perfetto/base/thread_checker.h"
 #include "perfetto/base/unix_task_runner.h"
 
-#if BUILDFLAG(OS_ANDROID)
+#if BUILDFLAG(OS_ANDROID) && !BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 #include "perfetto/base/android_task_runner.h"
 #endif
 
 namespace perfetto {
 namespace base {
 
-#if BUILDFLAG(OS_ANDROID)
+#if BUILDFLAG(OS_ANDROID) && !BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 using PlatformTaskRunner = AndroidTaskRunner;
 #else
 using PlatformTaskRunner = UnixTaskRunner;

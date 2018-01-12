@@ -34,7 +34,7 @@ source_set("base") {
 # The "android_task_runner" should be depended on only by targets that
 # explicitly need it, as it pulls in a dependency on libandroid.so that in turn
 # pulls dozen of other .so(s).
-if (is_android) {
+if (is_android && !build_with_chromium) {
   source_set("android_task_runner") {
     deps = [
       ":base",
@@ -89,7 +89,7 @@ source_set("base_unittests") {
     "../../gn:default_deps",
     "../../gn:gtest_deps",
   ]
-  if (is_android) {
+  if (is_android && !build_with_chromium) {
     deps += [ ":android_task_runner" ]
   }
   sources = [
