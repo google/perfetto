@@ -702,7 +702,19 @@ cc_library_static {
   static_libs: [
     "libgtest_prod",
   ],
+  export_include_dirs: [
+    "include",
+  ],
   generated_headers: [
+    "perfetto_protos_ftrace_lite_gen_headers",
+    "perfetto_protos_ftrace_zero_gen_headers",
+    "perfetto_protos_lite_gen_headers",
+    "perfetto_protos_tracing_service_lite_gen_headers",
+    "perfetto_protos_tracing_service_tracing_service_gen_headers",
+    "perfetto_protos_zero_gen_headers",
+    "perfetto_src_ipc_wire_protocol_gen_headers",
+  ],
+  export_generated_headers: [
     "perfetto_protos_ftrace_lite_gen_headers",
     "perfetto_protos_ftrace_zero_gen_headers",
     "perfetto_protos_lite_gen_headers",
