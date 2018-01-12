@@ -62,8 +62,10 @@ cc_library_shared {
   ],
   shared_libs: [
     "libandroid",
+    "libbinder",
     "liblog",
     "libprotobuf-cpp-lite",
+    "libservices",
     "libutils",
   ],
   static_libs: [
@@ -95,7 +97,9 @@ cc_binary {
   ],
   shared_libs: [
     "libandroid",
+    "libbinder",
     "liblog",
+    "libservices",
     "libtraced_shared",
     "libutils",
   ],
@@ -835,7 +839,9 @@ cc_binary {
   ],
   shared_libs: [
     "libandroid",
+    "libbinder",
     "liblog",
+    "libservices",
     "libtraced_shared",
     "libutils",
   ],
@@ -855,7 +861,9 @@ cc_binary {
   ],
   shared_libs: [
     "libandroid",
+    "libbinder",
     "liblog",
+    "libservices",
     "libtraced_shared",
     "libutils",
   ],
