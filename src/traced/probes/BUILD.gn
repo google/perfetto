@@ -17,11 +17,25 @@ source_set("probes") {
     "../../../include/perfetto/traced",
   ]
   deps = [
+    ":ftrace_producer",
     "../../../gn:default_deps",
-    "../../base",
-    "../../ftrace_reader",
   ]
   sources = [
     "probes.cc",
+  ]
+}
+
+source_set("ftrace_producer") {
+  public_deps = [
+    "../../ftrace_reader",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+    "../../tracing:tracing",
+  ]
+  sources = [
+    "ftrace_producer.cc",
+    "ftrace_producer.h",
   ]
 }
