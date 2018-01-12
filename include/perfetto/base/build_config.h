@@ -41,4 +41,10 @@
 #error OS not supported (see build_config.h)
 #endif
 
+#if defined(PERFETTO_BUILD_WITH_CHROMIUM)
+#define BUILDFLAG_DEFINE_PERFETTO_CHROMIUM_BUILD() 1
+#else
+#define BUILDFLAG_DEFINE_PERFETTO_CHROMIUM_BUILD() 0
+#endif
+
 #endif  // INCLUDE_PERFETTO_BASE_BUILD_CONFIG_H_
