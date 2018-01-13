@@ -23,7 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/tracing/core/shared_memory_arbiter.h"
+#include "src/tracing/core/shared_memory_arbiter_impl.h"
 
 #include "protos/trace_packet.pbzero.h"
 
@@ -40,7 +40,7 @@ namespace {
 constexpr size_t kPacketHeaderSize = SharedMemoryABI::kPacketHeaderSize;
 }  // namespace
 
-TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiter* shmem_arbiter,
+TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
                                  WriterID id,
                                  BufferID target_buffer)
     : shmem_arbiter_(shmem_arbiter),
