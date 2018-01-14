@@ -41,7 +41,6 @@ default_targets = [
     '//:perfetto',
     '//:traced',
     '//:traced_probes',
-    '//src/tracing:consumer_cmd',
 ]
 
 # Defines a custom init_rc argument to be applied to the corresponding output
@@ -59,7 +58,9 @@ module_prefix = 'perfetto_'
 # Shared libraries which are directly translated to Android system equivalents.
 library_whitelist = [
     'android',
+    'binder',
     'log',
+    'services',
     'utils',
 ]
 
@@ -150,6 +151,7 @@ class Module(object):
         self.out = []
         self.export_include_dirs = []
         self.generated_headers = []
+        self.export_generated_headers = []
         self.defaults = []
         self.cflags = []
         self.local_include_dirs = []
@@ -168,6 +170,7 @@ class Module(object):
         self._output_field(output, 'out')
         self._output_field(output, 'export_include_dirs')
         self._output_field(output, 'generated_headers')
+        self._output_field(output, 'export_generated_headers')
         self._output_field(output, 'defaults')
         self._output_field(output, 'cflags')
         self._output_field(output, 'local_include_dirs')
@@ -426,9 +429,9 @@ def create_modules_from_target(blueprint, desc, target_name):
     elif target['type'] == 'action':
         modules = make_genrules_for_action(blueprint, desc, target_name)
     elif target['type'] == 'static_library':
-        modules = [
-            Module('cc_library_static', label_to_module_name(target_name))
-        ]
+        module = Module('cc_library_static', label_to_module_name(target_name))
+        module.export_include_dirs = ['include']
+        modules = [module]
     elif target['type'] == 'shared_library':
         modules = [
             Module('cc_library_shared', label_to_module_name(target_name))
@@ -451,6 +454,10 @@ def create_modules_from_target(blueprint, desc, target_name):
             apply_module_dependency(blueprint, desc, module, target_name)
             for dep in resolve_dependencies(desc, target_name):
                 apply_module_dependency(blueprint, desc, module, dep)
+
+        # If the module is a static library, export all the generated headers.
+        if module.type == 'cc_library_static':
+            module.export_generated_headers = module.generated_headers
 
         blueprint.add_module(module)
 
@@ -540,6 +547,11 @@ def main():
         'GN description (e.g., gn desc out --format=json --all-toolchains "//*"'
     )
     parser.add_argument(
+        '--extras',
+        help='Extra targets to include at the end of the Blueprint file',
+        default=os.path.join(repo_root(), 'Android.bp.extras'),
+    )
+    parser.add_argument(
         '--output',
         help='Blueprint file to create',
         default=os.path.join(repo_root(), 'Android.bp'),
@@ -577,6 +589,9 @@ def main():
 """ % (__file__)
     ]
     blueprint.to_string(output)
+    with open(args.extras, 'r') as r:
+        for line in r:
+            output.append(line.rstrip("\n\r"))
     with open(args.output, 'w') as f:
         f.write('\n'.join(output))
 
