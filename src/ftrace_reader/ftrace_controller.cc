@@ -108,10 +108,11 @@ void FtraceController::StartIfNeeded() {
   PERFETTO_CHECK(!listening_for_raw_trace_data_);
   listening_for_raw_trace_data_ = true;
   ftrace_procfs_->EnableTracing();
+  generation_++;
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
     base::WeakPtr<FtraceController> weak_this = weak_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(std::bind(&FtraceController::PeriodicDrainCPU,
-                                            weak_this, ++generation_, cpu),
+                                            weak_this, generation_, cpu),
                                   kDrainPeriodMs);
   }
 }
