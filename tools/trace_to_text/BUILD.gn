@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2017 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,18 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("perfetto_cmd") {
-  public_deps = [
-    "../../../include/perfetto/traced",
-  ]
+# TODO: Make this a host toolchain exe (seems to be some weird bug with the
+# proto headers).
+executable("trace_to_text") {
+  testonly = true
   deps = [
-    "../../../gn:default_deps",
-    "../../../protos:lite",
-    "../../base",
-    "../../protozero",
-    "../../tracing:ipc",
+    "../../gn:default_deps",
+    "../../protos:lite",
+    "//buildtools:protobuf_full",
   ]
   sources = [
-    "perfetto_cmd.cc",
+    "main.cc",
   ]
 }
