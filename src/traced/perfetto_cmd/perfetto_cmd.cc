@@ -27,6 +27,7 @@
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/unix_task_runner.h"
 #include "perfetto/base/utils.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -53,6 +54,9 @@ namespace {
 const char kTempTraceDir[] = "/data/misc/perfetto-traces";
 const char kDefaultDropBoxTag[] = "perfetto";
 }  // namespace
+
+using protozero::proto_utils::WriteVarInt;
+using protozero::proto_utils::MakeTagLengthDelimited;
 
 #if defined(PERFETTO_BUILD_WITH_ANDROID)
 using PlatformTaskRunner = base::AndroidTaskRunner;
@@ -248,6 +252,12 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   PERFETTO_LOG("Received packet %d", has_more);
   for (TracePacket& packet : packets) {
     for (const Chunk& chunk : packet) {
+      uint8_t preamble[16];
+      uint8_t* pos = preamble;
+      pos = WriteVarInt(MakeTagLengthDelimited(1 /* field_id */), pos);
+      pos = WriteVarInt(static_cast<uint32_t>(chunk.size), pos);
+      trace_out_stream_.write(reinterpret_cast<const char*>(preamble),
+                              pos - preamble);
       trace_out_stream_.write(reinterpret_cast<const char*>(chunk.start),
                               chunk.size);
     }
