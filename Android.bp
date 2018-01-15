@@ -116,6 +116,7 @@ cc_defaults {
     "-Wno-sign-compare",
     "-Wno-sign-promo",
     "-Wno-unused-parameter",
+    "-fvisibility=hidden",
   ],
   local_include_dirs: [
     "include",
