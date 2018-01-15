@@ -257,19 +257,20 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
     return false;
   }
 
+  bool success = true;
   for (const Field& field : table->common_fields())
-    ParseField(field, start, end, message);
+    success &= ParseField(field, start, end, message);
 
   protozero::ProtoZeroMessage* nested =
       message->BeginNestedMessage<protozero::ProtoZeroMessage>(
           info.proto_field_id);
 
   for (const Field& field : info.fields)
-    ParseField(field, start, end, nested);
+    success &= ParseField(field, start, end, nested);
 
   // This finalizes |nested| automatically.
   message->Finalize();
-  return true;
+  return success;
 }
 
 // Caller must guarantee that the field fits in the range,
