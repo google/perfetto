@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_SHARED_MEMORY_ARBITER_H_
-#define SRC_TRACING_CORE_SHARED_MEMORY_ARBITER_H_
+#ifndef SRC_TRACING_CORE_SHARED_MEMORY_ARBITER_IMPL_H_
+#define SRC_TRACING_CORE_SHARED_MEMORY_ARBITER_IMPL_H_
 
 #include <stdint.h>
 
@@ -25,6 +25,7 @@
 
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
+#include "perfetto/tracing/core/shared_memory_arbiter.h"
 #include "src/tracing/core/id_allocator.h"
 
 namespace perfetto {
@@ -41,11 +42,8 @@ class TaskRunner;
 // This class is thread-safe and uses locks to do so. Data sources are supposed
 // to interact with this sporadically, only when they run out of space on their
 // current thread-local chunk.
-class SharedMemoryArbiter {
+class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
  public:
-  using OnPagesCompleteCallback =
-      std::function<void(const std::vector<uint32_t>& /*page_indexes*/)>;
-
   // Args:
   // |start|,|size|: boundaries of the shared memory buffer.
   // |page_size|: a multiple of 4KB that defines the granularity of tracing
@@ -53,18 +51,11 @@ class SharedMemoryArbiter {
   // |OnPagesCompleteCallback|: a callback that will be posted on the passed
   // |TaskRunner| when one or more pages are complete (and hence the Producer
   // should send a NotifySharedMemoryUpdate() to the Service).
-  SharedMemoryArbiter(void* start,
-                      size_t size,
-                      size_t page_size,
-                      OnPagesCompleteCallback,
-                      base::TaskRunner*);
-
-  // Creates a new TraceWriter and assigns it a new WriterID. The WriterID is
-  // written in each chunk header owned by a given TraceWriter and is used by
-  // the Service to reconstruct TracePackets written by the same TraceWriter.
-  // Returns nullptr if all WriterID slots are exhausted.
-  // TODO(primiano): instead of nullptr this should return a NoopWriter.
-  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID target_buffer = 0);
+  SharedMemoryArbiterImpl(void* start,
+                          size_t size,
+                          size_t page_size,
+                          OnPagesCompleteCallback,
+                          base::TaskRunner*);
 
   // Returns a new Chunk to write tracing data. The call always returns a valid
   // Chunk. TODO(primiano): right now this blocks if there are no free chunks
@@ -82,13 +73,18 @@ class SharedMemoryArbiter {
     default_page_layout = l;
   }
 
+  // SharedMemoryArbiter implementation.
+  // See include/perfetto/tracing/core/shared_memory_arbiter.h for comments.
+  std::unique_ptr<TraceWriter> CreateTraceWriter(
+      BufferID target_buffer = 0) override;
+
  private:
   friend class TraceWriterImpl;
 
   static SharedMemoryABI::PageLayout default_page_layout;
 
-  SharedMemoryArbiter(const SharedMemoryArbiter&) = delete;
-  SharedMemoryArbiter& operator=(const SharedMemoryArbiter&) = delete;
+  SharedMemoryArbiterImpl(const SharedMemoryArbiterImpl&) = delete;
+  SharedMemoryArbiterImpl& operator=(const SharedMemoryArbiterImpl&) = delete;
 
   // Called by the TraceWriter destructor.
   void ReleaseWriterID(WriterID);
@@ -109,4 +105,4 @@ class SharedMemoryArbiter {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_SHARED_MEMORY_ARBITER_H_
+#endif  // SRC_TRACING_CORE_SHARED_MEMORY_ARBITER_IMPL_H_

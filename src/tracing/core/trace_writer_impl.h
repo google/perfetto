@@ -27,7 +27,7 @@
 
 namespace perfetto {
 
-class SharedMemoryArbiter;
+class SharedMemoryArbiterImpl;
 
 // See //include/perfetto/tracing/core/trace_writer.h for docs.
 class TraceWriterImpl : public TraceWriter,
@@ -35,7 +35,7 @@ class TraceWriterImpl : public TraceWriter,
  public:
   // TracePacketHandle is defined in trace_writer.h
 
-  TraceWriterImpl(SharedMemoryArbiter*, WriterID, BufferID);
+  TraceWriterImpl(SharedMemoryArbiterImpl*, WriterID, BufferID);
   ~TraceWriterImpl() override;
 
   // TraceWriter implementation. See documentation in trace_writer.h .
@@ -66,7 +66,7 @@ class TraceWriterImpl : public TraceWriter,
 
   // The per-producer arbiter that coordinates access to the shared memory
   // buffer from several threads.
-  SharedMemoryArbiter* const shmem_arbiter_;
+  SharedMemoryArbiterImpl* const shmem_arbiter_;
 
   // ID of the current writer.
   const WriterID id_;
