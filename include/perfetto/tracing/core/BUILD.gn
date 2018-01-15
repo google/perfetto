@@ -26,6 +26,7 @@ source_set("core") {
     "service.h",
     "shared_memory.h",
     "shared_memory_abi.h",
+    "shared_memory_arbiter.h",
     "trace_config.h",
     "trace_packet.h",
     "trace_writer.h",

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/shared_memory_arbiter.h"
+#include "src/tracing/core/shared_memory_arbiter_impl.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/tracing/core/shared_memory.h"
 #include "src/tracing/core/trace_writer_impl.h"
 
 #include <limits>
@@ -27,20 +28,31 @@ namespace perfetto {
 using Chunk = SharedMemoryABI::Chunk;
 
 // static
-SharedMemoryABI::PageLayout SharedMemoryArbiter::default_page_layout =
+SharedMemoryABI::PageLayout SharedMemoryArbiterImpl::default_page_layout =
     SharedMemoryABI::PageLayout::kPageDiv1;
 
-SharedMemoryArbiter::SharedMemoryArbiter(void* start,
-                                         size_t size,
-                                         size_t page_size,
-                                         OnPagesCompleteCallback callback,
-                                         base::TaskRunner* task_runner)
+// static
+std::unique_ptr<SharedMemoryArbiter> SharedMemoryArbiter::CreateInstance(
+    SharedMemory* shared_memory,
+    size_t page_size,
+    OnPagesCompleteCallback callback,
+    base::TaskRunner* task_runner) {
+  return std::unique_ptr<SharedMemoryArbiterImpl>(
+      new SharedMemoryArbiterImpl(shared_memory->start(), shared_memory->size(),
+                                  page_size, callback, task_runner));
+}
+SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
+    void* start,
+    size_t size,
+    size_t page_size,
+    OnPagesCompleteCallback callback,
+    base::TaskRunner* task_runner)
     : task_runner_(task_runner),
       on_pages_complete_callback_(std::move(callback)),
       shmem_abi_(reinterpret_cast<uint8_t*>(start), size, page_size),
       active_writer_ids_(SharedMemoryABI::kMaxWriterID + 1) {}
 
-Chunk SharedMemoryArbiter::GetNewChunk(
+Chunk SharedMemoryArbiterImpl::GetNewChunk(
     const SharedMemoryABI::ChunkHeader& header,
     BufferID target_buffer,
     size_t size_hint) {
@@ -60,7 +72,7 @@ Chunk SharedMemoryArbiter::GetNewChunk(
         bool is_new_page = false;
 
         // TODO(primiano): make the page layout dynamic.
-        auto layout = SharedMemoryArbiter::default_page_layout;
+        auto layout = SharedMemoryArbiterImpl::default_page_layout;
 
         if (shmem_abi_.is_page_free(page_idx_)) {
           // TODO(primiano): Use the |size_hint| here to decide the layout.
@@ -117,7 +129,7 @@ Chunk SharedMemoryArbiter::GetNewChunk(
   }
 }
 
-void SharedMemoryArbiter::ReturnCompletedChunk(Chunk chunk) {
+void SharedMemoryArbiterImpl::ReturnCompletedChunk(Chunk chunk) {
   bool should_post_callback = false;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
@@ -129,13 +141,13 @@ void SharedMemoryArbiter::ReturnCompletedChunk(Chunk chunk) {
   }
   if (should_post_callback) {
     // TODO what happens if the arbiter gets destroyed?
-    task_runner_->PostTask(
-        std::bind(&SharedMemoryArbiter::InvokeOnPagesCompleteCallback, this));
+    task_runner_->PostTask(std::bind(
+        &SharedMemoryArbiterImpl::InvokeOnPagesCompleteCallback, this));
   }
 }
 
 // This is always invoked on the |task_runner_| thread.
-void SharedMemoryArbiter::InvokeOnPagesCompleteCallback() {
+void SharedMemoryArbiterImpl::InvokeOnPagesCompleteCallback() {
   std::vector<uint32_t> pages_to_notify;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
@@ -145,7 +157,7 @@ void SharedMemoryArbiter::InvokeOnPagesCompleteCallback() {
   on_pages_complete_callback_(pages_to_notify);
 }
 
-std::unique_ptr<TraceWriter> SharedMemoryArbiter::CreateTraceWriter(
+std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
     BufferID target_buffer) {
   WriterID id;
   {
@@ -156,7 +168,7 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiter::CreateTraceWriter(
       id ? new TraceWriterImpl(this, id, target_buffer) : nullptr);
 }
 
-void SharedMemoryArbiter::ReleaseWriterID(WriterID id) {
+void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
   std::lock_guard<std::mutex> scoped_lock(lock_);
   active_writer_ids_.Free(id);
 }

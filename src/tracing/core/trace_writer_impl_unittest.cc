@@ -20,7 +20,7 @@
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/base/test/test_task_runner.h"
-#include "src/tracing/core/shared_memory_arbiter.h"
+#include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/test/aligned_buffer_test.h"
 
 #include "protos/trace_packet.pbzero.h"
@@ -31,13 +31,13 @@ namespace {
 class TraceWriterImplTest : public AlignedBufferTest {
  public:
   void SetUp() override {
-    SharedMemoryArbiter::set_default_layout_for_testing(
+    SharedMemoryArbiterImpl::set_default_layout_for_testing(
         SharedMemoryABI::PageLayout::kPageDiv4);
     AlignedBufferTest::SetUp();
     auto callback = [](const std::vector<uint32_t>& arg) {};
     task_runner_.reset(new base::TestTaskRunner());
-    arbiter_.reset(new SharedMemoryArbiter(buf(), buf_size(), page_size(),
-                                           callback, task_runner_.get()));
+    arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
+                                               callback, task_runner_.get()));
   }
 
   void TearDown() override {
@@ -46,7 +46,7 @@ class TraceWriterImplTest : public AlignedBufferTest {
   }
 
   std::unique_ptr<base::TestTaskRunner> task_runner_;
-  std::unique_ptr<SharedMemoryArbiter> arbiter_;
+  std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
   std::function<void(const std::vector<uint32_t>&)> on_pages_complete_;
 };
 
