@@ -90,7 +90,7 @@ SharedMemoryABI::SharedMemoryABI(uint8_t* start, size_t size, size_t page_size)
 
   PageHeader phdr;
   phdr.target_buffer.store(-1);
-  PERFETTO_CHECK(phdr.target_buffer.load() >= kMaxTraceBuffers - 1);
+  PERFETTO_CHECK(phdr.target_buffer.load() >= kMaxTraceBufferID);
 
   PERFETTO_CHECK(page_size >= 4096);
   PERFETTO_CHECK(page_size % 4096 == 0);
@@ -184,7 +184,7 @@ SharedMemoryABI::Chunk SharedMemoryABI::TryAcquireChunk(
 bool SharedMemoryABI::TryPartitionPage(size_t page_idx,
                                        PageLayout layout,
                                        size_t target_buffer) {
-  PERFETTO_DCHECK(target_buffer < kMaxTraceBuffers);
+  PERFETTO_DCHECK(target_buffer <= kMaxTraceBufferID);
   PERFETTO_DCHECK(layout >= kPageDiv1 && layout <= kPageDiv14);
   uint32_t expected_layout = 0;  // Free page.
   uint32_t next_layout = (kPageBeingPartitioned << kLayoutShift) & kLayoutMask;
