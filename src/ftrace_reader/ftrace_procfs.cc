@@ -41,7 +41,7 @@ namespace {
 // does not clear the buffer.
 
 char ReadOneCharFromFile(const std::string& path) {
-  base::ScopedFile fd(open(path.c_str(), O_RDONLY | O_CLOEXEC));
+  base::ScopedFile fd = base::OpenFile(path.c_str(), O_RDONLY);
   PERFETTO_CHECK(fd);
   char result = '\0';
   ssize_t bytes = PERFETTO_EINTR(read(fd.get(), &result, 1));
@@ -106,7 +106,7 @@ size_t FtraceProcfs::NumberOfCpus() const {
 
 void FtraceProcfs::ClearTrace() {
   std::string path = root_ + "trace";
-  base::ScopedFile fd(open(path.c_str(), O_WRONLY | O_TRUNC | O_CLOEXEC));
+  base::ScopedFile fd = base::OpenFile(path.c_str(), O_WRONLY | O_TRUNC);
   PERFETTO_CHECK(fd);  // Could not clear.
 }
 
@@ -132,7 +132,7 @@ bool FtraceProcfs::IsTracingEnabled() {
 
 bool FtraceProcfs::WriteToFile(const std::string& path,
                                const std::string& str) {
-  base::ScopedFile fd(open(path.c_str(), O_WRONLY | O_CLOEXEC));
+  base::ScopedFile fd = base::OpenFile(path.c_str(), O_WRONLY);
   if (!fd)
     return false;
   ssize_t written = PERFETTO_EINTR(write(fd.get(), str.c_str(), str.length()));
@@ -145,8 +145,7 @@ bool FtraceProcfs::WriteToFile(const std::string& path,
 base::ScopedFile FtraceProcfs::OpenPipeForCpu(size_t cpu) {
   std::string path =
       root_ + "per_cpu/cpu" + std::to_string(cpu) + "/trace_pipe_raw";
-  return base::ScopedFile(
-      open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
+  return base::OpenFile(path.c_str(), O_RDONLY | O_NONBLOCK);
 }
 
 }  // namespace perfetto
