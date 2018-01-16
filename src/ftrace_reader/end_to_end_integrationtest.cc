@@ -99,7 +99,7 @@ class EndToEndIntegrationTest : public ::testing::Test,
 
 }  // namespace
 
-TEST_F(EndToEndIntegrationTest, SchedSwitchAndPrint) {
+TEST_F(EndToEndIntegrationTest, DISABLED_SchedSwitchAndPrint) {
   FtraceProcfs procfs(kTracingPath);
   procfs.ClearTrace();
   procfs.WriteTraceMarker("Hello, World!");
@@ -127,7 +127,7 @@ TEST_F(EndToEndIntegrationTest, SchedSwitchAndPrint) {
   EXPECT_THAT(output.after(), HasSubstr("after"));
 
   std::string output_as_text;
-  google::protobuf::TextFormat::PrintToString(output, &output_as_text);
+  // TODO(hjd): Use reflection print code.
   printf("%s\n", output_as_text.c_str());
 }
 
