@@ -98,7 +98,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   std::mutex lock_;
   SharedMemoryABI shmem_abi_;
   size_t page_idx_ = 0;
-  IdAllocator active_writer_ids_;
+  IdAllocator<WriterID> active_writer_ids_;
   std::vector<uint32_t> pages_to_notify_;
   // --- End lock-protected members ---
 };

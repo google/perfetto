@@ -105,8 +105,7 @@ void ProducerIPCClientImpl::OnConnectionInitialized(bool connection_succeeded) {
     OnPagesComplete(changed_pages);
   };
   shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
-      shared_memory_.get(), 4096 /* TODO where does this come from? */,
-      on_pages_complete, task_runner_);
+      shared_memory_.get(), kBufferPageSize, on_pages_complete, task_runner_);
 
   producer_->OnConnect();
 }
