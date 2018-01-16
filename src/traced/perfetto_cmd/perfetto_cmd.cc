@@ -95,13 +95,15 @@ class PerfettoCmd : public Consumer {
 };
 
 int PerfettoCmd::PrintUsage(const char* argv0) {
-  fprintf(stderr, R"(Usage: %s
+  PERFETTO_ELOG(R"(
+Usage: %s
   --background  -b     : Exits immediately and continues tracing in background
   --config      -c     : /path/to/trace/config/file or - for stdin
   --out         -o     : /path/to/out/trace/file
   --dropbox     -d TAG : Upload trace into DropBox using tag TAG (default: %s)
   --help        -h
-)", argv0, kDefaultDropBoxTag);
+)",
+                argv0, kDefaultDropBoxTag);
   return 1;
 }
 
