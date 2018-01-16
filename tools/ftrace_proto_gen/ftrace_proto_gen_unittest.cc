@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,30 +14,11 @@
  * limitations under the License.
  */
 
-#include "perfetto/ftrace_reader/ftrace_to_proto.h"
+#include "ftrace_proto_gen.h"
 #include "gtest/gtest.h"
 
 namespace perfetto {
 namespace {
-
-TEST(FtraceEventParser, GetNameFromTypeAndName) {
-  EXPECT_EQ(GetNameFromTypeAndName("int foo"), "foo");
-  EXPECT_EQ(GetNameFromTypeAndName("int foo_bar"), "foo_bar");
-  EXPECT_EQ(GetNameFromTypeAndName("const char * foo"), "foo");
-  EXPECT_EQ(GetNameFromTypeAndName("const char foo[64]"), "foo");
-  EXPECT_EQ(GetNameFromTypeAndName("char[] foo[16]"), "foo");
-  EXPECT_EQ(GetNameFromTypeAndName("u8 foo[(int)sizeof(struct blah)]"), "foo");
-
-  EXPECT_EQ(GetNameFromTypeAndName(""), "");
-  EXPECT_EQ(GetNameFromTypeAndName("]"), "");
-  EXPECT_EQ(GetNameFromTypeAndName("["), "");
-  EXPECT_EQ(GetNameFromTypeAndName(" "), "");
-  EXPECT_EQ(GetNameFromTypeAndName(" []"), "");
-  EXPECT_EQ(GetNameFromTypeAndName(" ]["), "");
-  EXPECT_EQ(GetNameFromTypeAndName("char"), "");
-  EXPECT_EQ(GetNameFromTypeAndName("char *"), "");
-  EXPECT_EQ(GetNameFromTypeAndName("char 42"), "");
-}
 
 TEST(FtraceEventParser, InferProtoType) {
   using Field = FtraceEvent::Field;

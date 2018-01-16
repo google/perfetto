@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,15 @@
  * limitations under the License.
  */
 
-#include "perfetto/ftrace_reader/ftrace_to_proto.h"
+#include "ftrace_proto_gen.h"
 
 #include <regex>
 #include <set>
-#include <sstream>
 #include <string>
-#include <vector>
 
 namespace perfetto {
-namespace {
 
-bool IsCIdentifier(const std::string& s) {
-  for (const char c : s) {
-    if (!(std::isalnum(c) || c == '_'))
-      return false;
-  }
-  return s.size() > 0 && !std::isdigit(s[0]);
-}
+namespace {
 
 std::string ToCamelCase(const std::string& s) {
   std::string result;
@@ -57,35 +48,6 @@ bool StartsWith(const std::string& str, const std::string& prefix) {
 }
 
 }  // namespace
-
-// For example:
-// "int foo" -> "foo"
-// "u8 foo[(int)sizeof(struct blah)]" -> "foo"
-// "char[] foo[16]" -> "foo"
-// "something_went_wrong" -> ""
-// "" -> ""
-std::string GetNameFromTypeAndName(const std::string& type_and_name) {
-  size_t right = type_and_name.size();
-  if (right == 0)
-    return "";
-
-  if (type_and_name[type_and_name.size() - 1] == ']') {
-    right = type_and_name.rfind('[');
-    if (right == std::string::npos)
-      return "";
-  }
-
-  size_t left = type_and_name.rfind(' ', right);
-  if (left == std::string::npos)
-    return "";
-  left++;
-
-  std::string result = type_and_name.substr(left, right - left);
-  if (!IsCIdentifier(result))
-    return "";
-
-  return result;
-}
 
 std::string InferProtoType(const FtraceEvent::Field& field) {
   // Fixed length strings: "char foo[16]"
