@@ -50,7 +50,7 @@ SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
     : task_runner_(task_runner),
       on_pages_complete_callback_(std::move(callback)),
       shmem_abi_(reinterpret_cast<uint8_t*>(start), size, page_size),
-      active_writer_ids_(SharedMemoryABI::kMaxWriterID + 1) {}
+      active_writer_ids_(SharedMemoryABI::kMaxWriterID) {}
 
 Chunk SharedMemoryArbiterImpl::GetNewChunk(
     const SharedMemoryABI::ChunkHeader& header,
@@ -162,7 +162,7 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
   WriterID id;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
-    id = static_cast<WriterID>(active_writer_ids_.Allocate());
+    id = active_writer_ids_.Allocate();
   }
   return std::unique_ptr<TraceWriter>(
       id ? new TraceWriterImpl(this, id, target_buffer) : nullptr);

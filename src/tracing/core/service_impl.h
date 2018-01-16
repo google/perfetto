@@ -46,6 +46,8 @@ class TraceConfig;
 // The tracing service business logic.
 class ServiceImpl : public Service {
  public:
+  using TracingSessionID = uint64_t;
+
   // The implementation behind the service endpoint exposed to each producer.
   class ProducerEndpointImpl : public Service::ProducerEndpoint {
    public:
@@ -55,9 +57,6 @@ class ServiceImpl : public Service {
                          Producer*,
                          std::unique_ptr<SharedMemory>);
     ~ProducerEndpointImpl() override;
-
-    Producer* producer() const { return producer_; }
-    ProducerID id() const { return id_; }
 
     // Service::ProducerEndpoint implementation.
     void RegisterDataSource(const DataSourceDescriptor&,
@@ -69,6 +68,7 @@ class ServiceImpl : public Service {
     SharedMemory* shared_memory() const override;
 
    private:
+    friend class ServiceImpl;
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
 
@@ -87,7 +87,6 @@ class ServiceImpl : public Service {
     ConsumerEndpointImpl(ServiceImpl*, base::TaskRunner*, Consumer*);
     ~ConsumerEndpointImpl() override;
 
-    Consumer* consumer() const { return consumer_; }
     base::WeakPtr<ConsumerEndpointImpl> GetWeakPtr();
 
     // Service::ConsumerEndpoint implementation.
@@ -97,11 +96,13 @@ class ServiceImpl : public Service {
     void FreeBuffers() override;
 
    private:
+    friend class ServiceImpl;
     ConsumerEndpointImpl(const ConsumerEndpointImpl&) = delete;
     ConsumerEndpointImpl& operator=(const ConsumerEndpointImpl&) = delete;
 
     ServiceImpl* const service_;
     Consumer* const consumer_;
+    TracingSessionID tracing_session_id_ = 0;
     base::WeakPtrFactory<ConsumerEndpointImpl> weak_ptr_factory_;
   };
 
@@ -122,9 +123,9 @@ class ServiceImpl : public Service {
   // Called by ConsumerEndpointImpl.
   void DisconnectConsumer(ConsumerEndpointImpl*);
   void EnableTracing(ConsumerEndpointImpl*, const TraceConfig&);
-  void DisableTracing(ConsumerEndpointImpl*);
-  void ReadBuffers(ConsumerEndpointImpl*);
-  void FreeBuffers(ConsumerEndpointImpl*);
+  void DisableTracing(TracingSessionID);
+  void ReadBuffers(TracingSessionID, ConsumerEndpointImpl*);
+  void FreeBuffers(TracingSessionID);
 
   // Service implementation.
   std::unique_ptr<Service::ProducerEndpoint> ConnectProducer(
@@ -146,14 +147,12 @@ class ServiceImpl : public Service {
   };
 
   struct TraceBuffer {
-    // TODO(primiano): make this configurable.
-    static constexpr size_t kBufferPageSize = 4096;
-    explicit TraceBuffer(size_t size);
+    TraceBuffer();
     ~TraceBuffer();
     TraceBuffer(TraceBuffer&&) noexcept;
     TraceBuffer& operator=(TraceBuffer&&);
 
-    bool is_valid() const { return !!data; }
+    bool Create(size_t size);
     size_t num_pages() const { return size / kBufferPageSize; }
 
     uint8_t* get_page(size_t page) {
@@ -167,7 +166,7 @@ class ServiceImpl : public Service {
       return get_page(cur);
     }
 
-    size_t size;
+    size_t size = 0;
     size_t cur_page = 0;  // Write pointer in the ring buffer.
     base::PageAllocator::UniquePtr data;
 
@@ -181,35 +180,45 @@ class ServiceImpl : public Service {
   // Holds the state of a tracing session. A tracing session is uniquely bound
   // a specific Consumer. Each Consumer can own one or more sessions.
   struct TracingSession {
-    TracingSession(const TraceConfig& new_config) : config(new_config) {}
+    explicit TracingSession(const TraceConfig&);
+
+    size_t num_buffers() const { return buffers_index.size(); }
+
+    // The original trace config provided by the Consumer when calling
+    // EnableTracing().
+    const TraceConfig config;
 
     // List of data source instances that have been enabled on the various
     // producers for this tracing session.
     std::multimap<ProducerID, DataSourceInstanceID> data_source_instances;
 
-    // The key of this map matches the |target_buffer| in the
-    // SharedMemoryABI::ChunkHeader.
-    std::map<BufferID, TraceBuffer> trace_buffers;
-
-    TraceConfig config;
+    // Maps a per-trace-session buffer index into the corresponding global
+    // BufferID (shared namespace amongst all consumers). This vector has as
+    // many entries as |config.buffers_size()|.
+    std::vector<BufferID> buffers_index;
   };
+
+  ServiceImpl(const ServiceImpl&) = delete;
+  ServiceImpl& operator=(const ServiceImpl&) = delete;
 
   void CreateDataSourceInstanceForProducer(
       const TraceConfig::DataSource& cfg_data_source,
       ProducerEndpointImpl* producer,
       TracingSession* tracing_session);
 
-  ServiceImpl(const ServiceImpl&) = delete;
-  ServiceImpl& operator=(const ServiceImpl&) = delete;
+  // Returns a pointer to the |tracing_sessions_| entry or nullptr if the
+  // session doesn't exists.
+  TracingSession* GetTracingSession(TracingSessionID);
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
   ProducerID last_producer_id_ = 0;
   DataSourceInstanceID last_data_source_instance_id_ = 0;
+  TracingSessionID last_tracing_session_id_ = 0;
 
   // Buffer IDs are global across all consumers (because a Producer can produce
   // data for more than one trace session, hence more than one consumer).
-  IdAllocator buffer_ids_;
+  IdAllocator<BufferID> buffer_ids_;
 
   std::multimap<std::string /*name*/, RegisteredDataSource> data_sources_;
 
@@ -218,7 +227,10 @@ class ServiceImpl : public Service {
   std::map<ProducerID, ProducerEndpointImpl*> producers_;
 
   std::set<ConsumerEndpointImpl*> consumers_;
-  std::map<ConsumerEndpointImpl*, TracingSession> tracing_sessions_;
+  std::map<TracingSessionID, TracingSession> tracing_sessions_;
+  std::map<BufferID, TraceBuffer> buffers_;
+
+  base::WeakPtrFactory<ServiceImpl> weak_ptr_factory_;  // Keep at the end.
 };
 
 }  // namespace perfetto
