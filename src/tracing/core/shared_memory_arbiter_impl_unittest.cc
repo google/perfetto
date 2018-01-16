@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/shared_memory_arbiter.h"
+#include "src/tracing/core/shared_memory_arbiter_impl.h"
 
 #include "gtest/gtest.h"
 #include "perfetto/base/utils.h"
@@ -29,7 +29,7 @@ namespace {
 
 constexpr size_t kMaxWriterID = SharedMemoryABI::kMaxWriterID;
 
-class SharedMemoryArbiterTest : public AlignedBufferTest {
+class SharedMemoryArbiterImplTest : public AlignedBufferTest {
  public:
   void SetUp() override {
     AlignedBufferTest::SetUp();
@@ -38,8 +38,8 @@ class SharedMemoryArbiterTest : public AlignedBufferTest {
         on_pages_complete_(arg);
     };
     task_runner_.reset(new base::TestTaskRunner());
-    arbiter_.reset(new SharedMemoryArbiter(buf(), buf_size(), page_size(),
-                                           callback, task_runner_.get()));
+    arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
+                                               callback, task_runner_.get()));
   }
 
   void TearDown() override {
@@ -48,19 +48,19 @@ class SharedMemoryArbiterTest : public AlignedBufferTest {
   }
 
   std::unique_ptr<base::TestTaskRunner> task_runner_;
-  std::unique_ptr<SharedMemoryArbiter> arbiter_;
+  std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
   std::function<void(const std::vector<uint32_t>&)> on_pages_complete_;
 };
 
 size_t const kPageSizes[] = {4096, 65536};
 INSTANTIATE_TEST_CASE_P(PageSize,
-                        SharedMemoryArbiterTest,
+                        SharedMemoryArbiterImplTest,
                         ::testing::ValuesIn(kPageSizes));
 
 // Checks that chunks that target different buffer IDs are placed in different
 // pages.
-TEST_P(SharedMemoryArbiterTest, ChunksAllocationByTargetBufferID) {
-  SharedMemoryArbiter::set_default_layout_for_testing(
+TEST_P(SharedMemoryArbiterImplTest, ChunksAllocationByTargetBufferID) {
+  SharedMemoryArbiterImpl::set_default_layout_for_testing(
       SharedMemoryABI::PageLayout::kPageDiv4);
   SharedMemoryABI::Chunk chunks[8];
   chunks[0] = arbiter_->GetNewChunk({}, 1 /* target buffer id */, 0);
@@ -112,8 +112,8 @@ TEST_P(SharedMemoryArbiterTest, ChunksAllocationByTargetBufferID) {
 // Because a chunk can share a page only if all other chunks in the page have
 // the same target buffer ID, there is only one possible final distribution:
 // each page is filled with chunks that all belong to the same buffer ID.
-TEST_P(SharedMemoryArbiterTest, GetAndReturnChunks) {
-  SharedMemoryArbiter::set_default_layout_for_testing(
+TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
+  SharedMemoryArbiterImpl::set_default_layout_for_testing(
       SharedMemoryABI::PageLayout::kPageDiv14);
   static constexpr size_t kTotChunks = kNumPages * 14;
   SharedMemoryABI::Chunk chunks[kTotChunks];
@@ -155,7 +155,7 @@ TEST_P(SharedMemoryArbiterTest, GetAndReturnChunks) {
 }
 
 // Check that we can actually create up to kMaxWriterID TraceWriter(s).
-TEST_P(SharedMemoryArbiterTest, WriterIDsAllocation) {
+TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
   std::map<WriterID, std::unique_ptr<TraceWriter>> writers;
   for (size_t i = 0; i < kMaxWriterID; i++) {
     std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(0);

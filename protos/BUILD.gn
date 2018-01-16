@@ -19,6 +19,7 @@ import("../gn/proto_library.gni")
 proto_sources = [
   "test_event.proto",
   "trace_packet.proto",
+  "trace.proto",
 ]
 
 # Protozero generated stubs, for writers.

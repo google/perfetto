@@ -12,23 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("core") {
-  public_deps = [
-    "../../base",
+# TODO: Make this a host toolchain exe (seems to be some weird bug with the
+# proto headers).
+executable("trace_to_text") {
+  testonly = true
+  deps = [
+    "../../gn:default_deps",
+    "../../protos:lite",
+    "//buildtools:protobuf_full",
   ]
   sources = [
-    "basic_types.h",
-    "chunk.h",
-    "consumer.h",
-    "data_source_config.h",
-    "data_source_descriptor.h",
-    "producer.h",
-    "service.h",
-    "shared_memory.h",
-    "shared_memory_abi.h",
-    "shared_memory_arbiter.h",
-    "trace_config.h",
-    "trace_packet.h",
-    "trace_writer.h",
+    "main.cc",
   ]
 }

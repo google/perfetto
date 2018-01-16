@@ -20,6 +20,7 @@ source_set("perfetto_cmd") {
     "../../../gn:default_deps",
     "../../../protos:lite",
     "../../base",
+    "../../protozero",
     "../../tracing:ipc",
   ]
   sources = [

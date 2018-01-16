@@ -56,7 +56,7 @@ cc_library_shared {
     "src/tracing/core/id_allocator.cc",
     "src/tracing/core/service_impl.cc",
     "src/tracing/core/shared_memory_abi.cc",
-    "src/tracing/core/shared_memory_arbiter.cc",
+    "src/tracing/core/shared_memory_arbiter_impl.cc",
     "src/tracing/core/trace_config.cc",
     "src/tracing/core/trace_packet.cc",
     "src/tracing/core/trace_writer_impl.cc",
@@ -116,6 +116,7 @@ cc_defaults {
     "-Wno-sign-compare",
     "-Wno-sign-promo",
     "-Wno-unused-parameter",
+    "-fvisibility=hidden",
   ],
   local_include_dirs: [
     "include",
@@ -227,6 +228,7 @@ genrule {
   name: "perfetto_protos_lite_gen",
   srcs: [
     "protos/test_event.proto",
+    "protos/trace.proto",
     "protos/trace_packet.proto",
   ],
   tools: [
@@ -235,6 +237,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto $(in)",
   out: [
     "external/perfetto/protos/test_event.pb.cc",
+    "external/perfetto/protos/trace.pb.cc",
     "external/perfetto/protos/trace_packet.pb.cc",
   ],
 }
@@ -244,6 +247,7 @@ genrule {
   name: "perfetto_protos_lite_gen_headers",
   srcs: [
     "protos/test_event.proto",
+    "protos/trace.proto",
     "protos/trace_packet.proto",
   ],
   tools: [
@@ -252,6 +256,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto $(in)",
   out: [
     "external/perfetto/protos/test_event.pb.h",
+    "external/perfetto/protos/trace.pb.h",
     "external/perfetto/protos/trace_packet.pb.h",
   ],
   export_include_dirs: [
@@ -348,6 +353,7 @@ genrule {
   name: "perfetto_protos_zero_gen",
   srcs: [
     "protos/test_event.proto",
+    "protos/trace.proto",
     "protos/trace_packet.proto",
   ],
   tools: [
@@ -357,6 +363,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto $(in)",
   out: [
     "external/perfetto/protos/test_event.pbzero.cc",
+    "external/perfetto/protos/trace.pbzero.cc",
     "external/perfetto/protos/trace_packet.pbzero.cc",
   ],
 }
@@ -366,6 +373,7 @@ genrule {
   name: "perfetto_protos_zero_gen_headers",
   srcs: [
     "protos/test_event.proto",
+    "protos/trace.proto",
     "protos/trace_packet.proto",
   ],
   tools: [
@@ -375,6 +383,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto $(in)",
   out: [
     "external/perfetto/protos/test_event.pbzero.h",
+    "external/perfetto/protos/trace.pbzero.h",
     "external/perfetto/protos/trace_packet.pbzero.h",
   ],
   export_include_dirs: [
@@ -684,7 +693,7 @@ cc_library_static {
     "src/tracing/core/id_allocator.cc",
     "src/tracing/core/service_impl.cc",
     "src/tracing/core/shared_memory_abi.cc",
-    "src/tracing/core/shared_memory_arbiter.cc",
+    "src/tracing/core/shared_memory_arbiter_impl.cc",
     "src/tracing/core/trace_config.cc",
     "src/tracing/core/trace_packet.cc",
     "src/tracing/core/trace_writer_impl.cc",
@@ -802,8 +811,8 @@ cc_test {
     "src/tracing/core/service_impl_unittest.cc",
     "src/tracing/core/shared_memory_abi.cc",
     "src/tracing/core/shared_memory_abi_unittest.cc",
-    "src/tracing/core/shared_memory_arbiter.cc",
-    "src/tracing/core/shared_memory_arbiter_unittest.cc",
+    "src/tracing/core/shared_memory_arbiter_impl.cc",
+    "src/tracing/core/shared_memory_arbiter_impl_unittest.cc",
     "src/tracing/core/trace_config.cc",
     "src/tracing/core/trace_packet.cc",
     "src/tracing/core/trace_packet_unittest.cc",

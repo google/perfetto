@@ -50,6 +50,18 @@ TEST(ScopedFile, CloseOutOfScope) {
   ASSERT_NE(0, close(raw_fd));  // Should fail when closing twice.
 }
 
+TEST(ScopedFstream, CloseOutOfScope) {
+  FILE* raw_stream = fopen("/dev/null", "r");
+  ASSERT_NE(nullptr, raw_stream);
+  {
+    ScopedFstream scoped_stream(raw_stream);
+    ASSERT_EQ(raw_stream, scoped_stream.get());
+    ASSERT_EQ(raw_stream, *scoped_stream);
+    ASSERT_TRUE(scoped_stream);
+  }
+  // We don't have a direct way to see that the file was closed.
+}
+
 TEST(ScopedFile, Reset) {
   int raw_fd1 = open("/dev/null", O_RDONLY);
   int raw_fd2 = open("/dev/zero", O_RDONLY);
@@ -66,6 +78,17 @@ TEST(ScopedFile, Reset) {
     scoped_file.reset(open("/dev/null", O_RDONLY));
     ASSERT_GE(scoped_file.get(), 0);
   }
+}
+
+TEST(ScopedFile, Release) {
+  int raw_fd = open("/dev/null", O_RDONLY);
+  ASSERT_GE(raw_fd, 0);
+  {
+    ScopedFile scoped_file(raw_fd);
+    ASSERT_EQ(raw_fd, scoped_file.release());
+    ASSERT_FALSE(scoped_file);
+  }
+  ASSERT_EQ(0, close(raw_fd));
 }
 
 TEST(ScopedFile, MoveCtor) {
