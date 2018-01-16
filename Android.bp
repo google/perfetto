@@ -222,6 +222,36 @@ genrule {
   ],
 }
 
+// GN target: //:perfetto_protos_lite
+cc_library_static {
+  name: "perfetto_protos_lite",
+  srcs: [
+    ":perfetto_protos_ftrace_lite_gen",
+    ":perfetto_protos_lite_gen",
+    ":perfetto_protos_tracing_service_lite_gen",
+  ],
+  shared_libs: [
+    "liblog",
+    "libprotobuf-cpp-lite",
+  ],
+  export_include_dirs: [
+    "include",
+  ],
+  generated_headers: [
+    "perfetto_protos_ftrace_lite_gen_headers",
+    "perfetto_protos_lite_gen_headers",
+    "perfetto_protos_tracing_service_lite_gen_headers",
+  ],
+  export_generated_headers: [
+    "perfetto_protos_ftrace_lite_gen_headers",
+    "perfetto_protos_lite_gen_headers",
+    "perfetto_protos_tracing_service_lite_gen_headers",
+  ],
+  defaults: [
+    "perfetto_defaults",
+  ],
+}
+
 // GN target: //protos:lite_gen
 genrule {
   name: "perfetto_protos_lite_gen",
