@@ -22,7 +22,6 @@
 #include "event_info.h"
 #include "ftrace_procfs.h"
 #include "perfetto/ftrace_reader/format_parser.h"
-#include "perfetto/ftrace_reader/ftrace_to_proto.h"
 
 #include "protos/ftrace/ftrace_event_bundle.pbzero.h"
 
@@ -108,7 +107,7 @@ bool StartsWith(const std::string& str, const std::string& prefix) {
 
 }  // namespace
 
-// This is similar but different from InferProtoType (see ftrace_to_proto.cc).
+// This is similar but different from InferProtoType (see format_parser.cc).
 // TODO(hjd): Fold FtraceEvent(::Field) into Event.
 bool InferFtraceType(const std::string& type_and_name,
                      size_t size,

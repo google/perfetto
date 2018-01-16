@@ -17,7 +17,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "perfetto/ftrace_reader/ftrace_to_proto.h"
 
 namespace perfetto {
 namespace {
@@ -122,6 +121,25 @@ print fmt: "client_name=%s heap_name=%s len=%zu mask=0x%x flags=0x%x", REC->clie
       ParseFtraceEvent(copy);
     }
   }
+}
+
+TEST(FtraceEventParser, GetNameFromTypeAndName) {
+  EXPECT_EQ(GetNameFromTypeAndName("int foo"), "foo");
+  EXPECT_EQ(GetNameFromTypeAndName("int foo_bar"), "foo_bar");
+  EXPECT_EQ(GetNameFromTypeAndName("const char * foo"), "foo");
+  EXPECT_EQ(GetNameFromTypeAndName("const char foo[64]"), "foo");
+  EXPECT_EQ(GetNameFromTypeAndName("char[] foo[16]"), "foo");
+  EXPECT_EQ(GetNameFromTypeAndName("u8 foo[(int)sizeof(struct blah)]"), "foo");
+
+  EXPECT_EQ(GetNameFromTypeAndName(""), "");
+  EXPECT_EQ(GetNameFromTypeAndName("]"), "");
+  EXPECT_EQ(GetNameFromTypeAndName("["), "");
+  EXPECT_EQ(GetNameFromTypeAndName(" "), "");
+  EXPECT_EQ(GetNameFromTypeAndName(" []"), "");
+  EXPECT_EQ(GetNameFromTypeAndName(" ]["), "");
+  EXPECT_EQ(GetNameFromTypeAndName("char"), "");
+  EXPECT_EQ(GetNameFromTypeAndName("char *"), "");
+  EXPECT_EQ(GetNameFromTypeAndName("char 42"), "");
 }
 
 }  // namespace
