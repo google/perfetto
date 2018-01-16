@@ -52,6 +52,7 @@ executable("perfetto_tests") {
     "src/ipc:perfetto_ipc_unittests",
     "src/protozero:protozero_unittests",
     "src/tracing:tracing_unittests",
+    "tools/ftrace_proto_gen:ftrace_proto_gen_unittests",
   ]
   if (!build_with_chromium) {
     deps += [ "tools/sanitizers_unittests" ]
