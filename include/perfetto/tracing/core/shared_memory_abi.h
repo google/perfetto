@@ -279,7 +279,7 @@ class SharedMemoryABI {
     // Tells the Service on which logging buffer partition the chunks contained
     // in the page should be moved into. This is reflecting the
     // DataSourceConfig.target_buffer received at registration time.
-    // kMaxTraceBuffers in basic_types.h relies on the size of this.
+    // kMaxTraceBufferID in basic_types.h relies on the size of this.
     std::atomic<uint16_t> target_buffer;
     uint16_t reserved;
   };

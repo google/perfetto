@@ -20,14 +20,14 @@
 
 namespace perfetto {
 
-IdAllocator::IdAllocator(IdType end) : max_id_(end - 1) {
-  PERFETTO_DCHECK(end > 1);
+IdAllocatorGeneric::IdAllocatorGeneric(uint32_t max_id) : max_id_(max_id) {
+  PERFETTO_DCHECK(max_id > 1);
 }
 
-IdAllocator::~IdAllocator() = default;
+IdAllocatorGeneric::~IdAllocatorGeneric() = default;
 
-IdAllocator::IdType IdAllocator::Allocate() {
-  for (IdType ignored = 1; ignored <= max_id_; ignored++) {
+uint32_t IdAllocatorGeneric::AllocateGeneric() {
+  for (uint32_t ignored = 1; ignored <= max_id_; ignored++) {
     last_id_ = last_id_ < max_id_ ? last_id_ + 1 : 1;
     const auto id = last_id_;
 
@@ -48,17 +48,12 @@ IdAllocator::IdType IdAllocator::Allocate() {
   return 0;
 }
 
-void IdAllocator::Free(IdType id) {
+void IdAllocatorGeneric::FreeGeneric(uint32_t id) {
   if (id == 0 || id >= ids_.size() || !ids_[id]) {
     PERFETTO_DCHECK(false);
     return;
   }
   ids_[id] = false;
-}
-
-// TODO(primiano): Remove after we can run twice.
-void IdAllocator::Reset() {
-  last_id_ = 0;
 }
 
 }  // namespace perfetto
