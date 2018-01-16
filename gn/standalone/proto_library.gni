@@ -127,7 +127,7 @@ template("proto_library") {
       ]
     }
 
-    args += rebase_path(proto_sources, root_out_dir)
+    args += rebase_path(proto_sources, root_build_dir)
 
     inputs = [
       protoc_path,

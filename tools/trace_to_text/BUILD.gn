@@ -12,16 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: Make this a host toolchain exe (seems to be some weird bug with the
-# proto headers).
-executable("trace_to_text") {
+if (current_toolchain == host_toolchain) {
+  executable("trace_to_text_host") {
+    testonly = true
+    deps = [
+      "../../gn:default_deps",
+      "../../gn:protobuf_full_deps",
+      "../../protos:lite",
+    ]
+    sources = [
+      "main.cc",
+    ]
+  }
+}
+
+copy("trace_to_text") {
   testonly = true
+  host_out_dir_ =
+      get_label_info(":trace_to_text_host($host_toolchain)", "root_out_dir")
   deps = [
-    "../../gn:default_deps",
-    "../../protos:lite",
-    "//buildtools:protobuf_full",
+    ":trace_to_text_host($host_toolchain)",
   ]
   sources = [
-    "main.cc",
+    "${host_out_dir_}/trace_to_text_host",
+  ]
+  outputs = [
+    "${root_out_dir}/trace_to_text",
   ]
 }
