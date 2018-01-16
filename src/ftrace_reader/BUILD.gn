@@ -44,7 +44,6 @@ source_set("ftrace_reader_unittests") {
     "event_info_unittest.cc",
     "format_parser_unittest.cc",
     "ftrace_controller_unittest.cc",
-    "ftrace_to_proto_unittest.cc",
     "proto_translation_table_unittest.cc",
   ]
 }
@@ -102,7 +101,6 @@ source_set("ftrace_reader") {
     "ftrace_controller.cc",
     "ftrace_procfs.cc",
     "ftrace_procfs.h",
-    "ftrace_to_proto.cc",
     "proto_translation_table.cc",
     "proto_translation_table.h",
   ]
