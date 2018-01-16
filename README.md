@@ -30,9 +30,16 @@ Build instructions
 ------------------
 See [docs/build_instructions.md](docs/build_instructions.md)
 
-Run Perfetto
-------------
+Running Perfetto
+----------------
 See [docs/running_perfetto.md](docs/running_perfetto.md)
+
+Continuous integration
+----------------------
+Continuous build and test coverage is available at [perfetto-ci.appspot.com](https://perfetto-ci.appspot.com).
+Trybots: CLs uploaded to gerrit are automatically submitted to TravisCI
+within one minute and made available on the CI page above.
+The relevant code lives in the [infra/](infra/) directory.
 
 Run tests
 ---------
