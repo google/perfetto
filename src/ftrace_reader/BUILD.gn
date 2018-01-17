@@ -72,7 +72,7 @@ executable("ftrace_reader_integrationtests") {
     ":test_support",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
-    "../../protos/ftrace:full",
+    "../../protos/ftrace:lite",
     "../base",
   ]
   sources = [
