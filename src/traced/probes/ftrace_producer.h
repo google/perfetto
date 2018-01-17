@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#include <map>
+#include <memory>
+#include <utility>
+
 #include "perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/trace_writer.h"
@@ -43,7 +47,7 @@ class FtraceProducer : public Producer {
 
   class SinkDelegate : public FtraceSink::Delegate {
    public:
-    SinkDelegate(std::unique_ptr<TraceWriter> writer);
+    explicit SinkDelegate(std::unique_ptr<TraceWriter> writer);
     ~SinkDelegate() override;
 
     // FtraceDelegateImpl
@@ -65,4 +69,4 @@ class FtraceProducer : public Producer {
 };
 }  // namespace perfetto
 
-#endif
+#endif  // SRC_TRACED_PROBES_FTRACE_PRODUCER_H_
