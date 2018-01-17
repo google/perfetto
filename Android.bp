@@ -25,7 +25,6 @@ cc_library_shared {
     ":perfetto_protos_tracing_service_tracing_service_gen",
     ":perfetto_protos_zero_gen",
     ":perfetto_src_ipc_wire_protocol_gen",
-    "src/base/android_task_runner.cc",
     "src/base/page_allocator.cc",
     "src/base/thread_checker.cc",
     "src/base/unix_task_runner.cc",
@@ -45,10 +44,69 @@ cc_library_shared {
     "src/protozero/protozero_message.cc",
     "src/protozero/protozero_message_handle.cc",
     "src/protozero/scattered_stream_writer.cc",
-    "src/traced/perfetto_cmd/perfetto_cmd.cc",
     "src/traced/probes/ftrace_producer.cc",
     "src/traced/probes/probes.cc",
     "src/traced/service/service.cc",
+    "src/tracing/core/chunked_protobuf_input_stream.cc",
+    "src/tracing/core/data_source_config.cc",
+    "src/tracing/core/data_source_descriptor.cc",
+    "src/tracing/core/id_allocator.cc",
+    "src/tracing/core/service_impl.cc",
+    "src/tracing/core/shared_memory_abi.cc",
+    "src/tracing/core/shared_memory_arbiter_impl.cc",
+    "src/tracing/core/trace_config.cc",
+    "src/tracing/core/trace_packet.cc",
+    "src/tracing/core/trace_writer_impl.cc",
+  ],
+  shared_libs: [
+    "liblog",
+    "libprotobuf-cpp-lite",
+  ],
+  static_libs: [
+    "libgtest_prod",
+    "perfetto_src_tracing_ipc",
+  ],
+  generated_headers: [
+    "perfetto_protos_ftrace_lite_gen_headers",
+    "perfetto_protos_ftrace_zero_gen_headers",
+    "perfetto_protos_lite_gen_headers",
+    "perfetto_protos_tracing_service_lite_gen_headers",
+    "perfetto_protos_tracing_service_tracing_service_gen_headers",
+    "perfetto_protos_zero_gen_headers",
+    "perfetto_src_ipc_wire_protocol_gen_headers",
+  ],
+  defaults: [
+    "perfetto_defaults",
+  ],
+}
+
+// GN target: //:perfetto
+cc_binary {
+  name: "perfetto",
+  srcs: [
+    ":perfetto_protos_ftrace_lite_gen",
+    ":perfetto_protos_ftrace_zero_gen",
+    ":perfetto_protos_lite_gen",
+    ":perfetto_protos_tracing_service_lite_gen",
+    ":perfetto_protos_tracing_service_tracing_service_gen",
+    ":perfetto_protos_zero_gen",
+    ":perfetto_src_ipc_wire_protocol_gen",
+    "src/base/android_task_runner.cc",
+    "src/base/page_allocator.cc",
+    "src/base/thread_checker.cc",
+    "src/base/unix_task_runner.cc",
+    "src/ipc/buffered_frame_deserializer.cc",
+    "src/ipc/client_impl.cc",
+    "src/ipc/deferred.cc",
+    "src/ipc/host_impl.cc",
+    "src/ipc/service_proxy.cc",
+    "src/ipc/unix_socket.cc",
+    "src/protozero/proto_utils.cc",
+    "src/protozero/protozero_message.cc",
+    "src/protozero/protozero_message_handle.cc",
+    "src/protozero/scattered_stream_writer.cc",
+    "src/traced/perfetto_cmd/main.cc",
+    "src/traced/perfetto_cmd/perfetto_cmd.cc",
     "src/tracing/core/chunked_protobuf_input_stream.cc",
     "src/tracing/core/data_source_config.cc",
     "src/tracing/core/data_source_descriptor.cc",
@@ -86,25 +144,6 @@ cc_library_shared {
   ],
   cflags: [
     "-DPERFETTO_BUILD_WITH_ANDROID",
-  ],
-}
-
-// GN target: //:perfetto
-cc_binary {
-  name: "perfetto",
-  srcs: [
-    "src/traced/perfetto_cmd/main.cc",
-  ],
-  shared_libs: [
-    "libandroid",
-    "libbinder",
-    "liblog",
-    "libservices",
-    "libtraced_shared",
-    "libutils",
-  ],
-  defaults: [
-    "perfetto_defaults",
   ],
 }
 
@@ -889,12 +928,8 @@ cc_binary {
     "src/traced/service/main.cc",
   ],
   shared_libs: [
-    "libandroid",
-    "libbinder",
     "liblog",
-    "libservices",
     "libtraced_shared",
-    "libutils",
   ],
   init_rc: [
     "perfetto.rc",
@@ -911,12 +946,8 @@ cc_binary {
     "src/traced/probes/main.cc",
   ],
   shared_libs: [
-    "libandroid",
-    "libbinder",
     "liblog",
-    "libservices",
     "libtraced_shared",
-    "libutils",
   ],
   defaults: [
     "perfetto_defaults",
