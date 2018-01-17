@@ -89,6 +89,7 @@ function GetTravisStatusForBranch(branch, div) {
 function CreateRowForBranch(branch, href, subject, status, author, updated) {
     let table = document.getElementById('cls');
     let tr = document.createElement('tr');
+    tr.classList.add(status);
 
     let link = document.createElement('a');
     link.href = href;

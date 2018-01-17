@@ -95,13 +95,15 @@ class PerfettoCmd : public Consumer {
 };
 
 int PerfettoCmd::PrintUsage(const char* argv0) {
-  fprintf(stderr, R"(Usage: %s
+  PERFETTO_ELOG(R"(
+Usage: %s
   --background  -b     : Exits immediately and continues tracing in background
   --config      -c     : /path/to/trace/config/file or - for stdin
   --out         -o     : /path/to/out/trace/file
   --dropbox     -d TAG : Upload trace into DropBox using tag TAG (default: %s)
   --help        -h
-)", argv0, kDefaultDropBoxTag);
+)",
+                argv0, kDefaultDropBoxTag);
   return 1;
 }
 
@@ -137,9 +139,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         auto* ds_config = test_config.add_data_sources()->mutable_config();
         ds_config->set_name("com.google.perfetto.ftrace");
         ds_config->mutable_ftrace_config()->add_event_names("sched_switch");
-        // TODO(primiano): At the moment this must always be 1.
-        // Once the target_buffer situation is fixed this can be any number.
-        ds_config->set_target_buffer(1);
+        ds_config->set_target_buffer(0);
         test_config.SerializeToString(&trace_config_raw);
       } else {
         std::ifstream file_stream;

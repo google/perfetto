@@ -22,13 +22,13 @@ namespace perfetto {
 namespace {
 
 TEST(IdAllocatorTest, IdAllocation) {
-  using IdType = IdAllocator::IdType;
-  const IdType kMaxId = 1024;
-  IdAllocator id_allocator(kMaxId);
+  using IdType = uint32_t;
+  const IdType kMaxId = 1023;
+  IdAllocator<IdType> id_allocator(kMaxId);
 
   for (int repetition = 0; repetition < 3; repetition++) {
     std::set<IdType> ids;
-    for (IdType i = 0; i < kMaxId - 1; i++) {
+    for (IdType i = 1; i <= kMaxId; i++) {
       auto id = id_allocator.Allocate();
       EXPECT_NE(0u, id);
       ASSERT_EQ(0u, ids.count(id));
@@ -47,17 +47,29 @@ TEST(IdAllocatorTest, IdAllocation) {
 
     // Remove the IDs at the boundaries and saturate again.
     id_allocator.Free(1);
-    id_allocator.Free(kMaxId - 1);
-    ASSERT_EQ(kMaxId - 1, id_allocator.Allocate());
+    id_allocator.Free(kMaxId);
+    ASSERT_EQ(kMaxId, id_allocator.Allocate());
     ASSERT_EQ(1u, id_allocator.Allocate());
 
     // Should be saturated again.
     ASSERT_EQ(0u, id_allocator.Allocate());
 
     // Release IDs in reverse order.
-    for (IdType i = 0; i < kMaxId - 1; i++)
-      id_allocator.Free(kMaxId - 1 - i);
+    for (IdType i = 0; i < kMaxId; i++)
+      id_allocator.Free(kMaxId - i);
   }
+}
+
+// Tests corner cases that might be caused by using all 2 ** sizeof(T) - 1 IDs.
+TEST(IdAllocatorTest, IdAllocation_U8) {
+  IdAllocator<uint8_t> id_allocator(0xff);
+  for (size_t i = 0; i < 0xff; i++) {
+    uint8_t id = id_allocator.Allocate();
+    ASSERT_EQ(i + 1, id);
+  }
+  ASSERT_EQ(0u, id_allocator.Allocate());
+  id_allocator.Free(0xff);
+  ASSERT_EQ(0xff, id_allocator.Allocate());
 }
 
 }  // namespace
