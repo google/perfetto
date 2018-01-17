@@ -30,7 +30,7 @@ int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
   // See libcutils' android_get_control_socket().
   const char* env_prod = getenv("ANDROID_SOCKET_traced_producer");
   const char* env_cons = getenv("ANDROID_SOCKET_traced_consumer");
-  PERFETTO_CHECK((!env_prod && !env_prod) || (env_prod && env_cons));
+  PERFETTO_CHECK((!env_prod && !env_cons) || (env_prod && env_cons));
   if (env_prod) {
     base::ScopedFile producer_fd(atoi(env_prod));
     base::ScopedFile consumer_fd(atoi(env_cons));
