@@ -94,6 +94,9 @@ Use Clang (default) / GCC. It requires clang 3.5+ to be installed on the host.
 Clang is the default compiler on Mac (% having installed Xcode).
 On Linux: `sudo apt-get update && sudo apt-get install clang`
 
+`is_hermetic_clang = true | false`:  
+Use bundled toolchain from `buildtools/` rather than system-wide one.
+
 `cc = "gcc" / cxx = "g++"`:  
 Uses a different compiler binary (default: autodetected depending on is_clang).
 
