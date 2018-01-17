@@ -68,12 +68,14 @@ if (!build_with_chromium) {
     ]
   }
 
-  # Used by Android's statsd in /frameworks/base/cmds.
-  static_library("perfetto_protos_lite") {
-    deps = [
-      "gn:default_deps",
-      "protos:lite",
-    ]
+  if (build_with_android) {
+    # Used by Android's statsd in /frameworks/base/cmds.
+    static_library("perfetto_protos_lite") {
+      deps = [
+        "gn:default_deps",
+        "protos:lite",
+      ]
+    }
   }
 
   if (monolithic_binaries) {
