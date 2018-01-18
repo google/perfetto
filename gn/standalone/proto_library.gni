@@ -24,9 +24,12 @@ template("proto_library") {
   assert(defined(invoker.proto_out_dir),
          "proto_out_dir must be explicitly defined")
   proto_out_dir = invoker.proto_out_dir
-  assert(proto_out_dir == "protos_zero" || proto_out_dir == "protos_lite" ||
-             proto_out_dir == "protos_full",
-         "proto_out must be either 'proto_zero', 'proto_lite' or 'proto_full'")
+
+  # We don't support generate_python in the standalone build, but still must
+  # check that the caller sets this to false. This is because when building in
+  # the chromium tree, chromium's proto_library.gni in chrome (!= this) defaults
+  # generate_python = true.
+  assert(defined(invoker.generate_python) && !invoker.generate_python)
 
   # If false will not generate the default .pb.{cc,h} files. Used for custom
   # codegen plugins.
