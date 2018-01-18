@@ -16,6 +16,14 @@ import("../src/protozero/protozero_library.gni")
 import("../gn/perfetto.gni")
 import("../gn/proto_library.gni")
 
+config("public_config") {
+  include_dirs = [
+    # The below are needed due to generated protobuf headers including other
+    # headers with a path relative to the perfetto root.
+    "${root_gen_dir}/${perfetto_root_path}",
+  ]
+}
+
 proto_sources = [
   "test_event.proto",
   "trace_packet.proto",
@@ -29,7 +37,7 @@ protozero_library("zero") {
   ]
   sources = proto_sources
   proto_in_dir = perfetto_root_path
-  proto_out_dir = "protos_zero"
+  proto_out_dir = perfetto_root_path
   generator_plugin_options = "wrapper_namespace=pbzero"
 }
 
@@ -41,5 +49,6 @@ proto_library("lite") {
   ]
   sources = proto_sources
   proto_in_dir = perfetto_root_path
-  proto_out_dir = "protos_lite"
+  proto_out_dir = perfetto_root_path
+  generate_python = false
 }

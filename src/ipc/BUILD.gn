@@ -64,8 +64,9 @@ proto_library("wire_protocol") {
   sources = [
     "wire_protocol.proto",
   ]
+  generate_python = false
   proto_in_dir = perfetto_root_path
-  proto_out_dir = "protos_lite"
+  proto_out_dir = perfetto_root_path
 }
 
 ipc_library("test_messages") {
