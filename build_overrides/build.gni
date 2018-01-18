@@ -17,8 +17,5 @@
 # When false, instead, the build files can assume this is a Perfetto standalone
 # build.
 build_with_chromium = false
-
-declare_args() {
-  # The Android blueprint file generator overrides this to true.
-  build_with_android = false
-}
+# Do not declare other variables here, use perfetto.gni instead.
+# This file will *not* be picked up in the Chrome tree.

@@ -16,45 +16,6 @@ import("../../gn/perfetto.gni")
 import("../../src/protozero/protozero_library.gni")
 import("all_protos.gni")
 
-# Create a copy of all the protos listed in all_protos.gni with the
-# "option optimize_for = LITE_RUNTIME" bit removed so we can generate
-# full proto .h/.cc files.
-full_protos_base_dir = "${root_gen_dir}/protos_full"
-full_protos_target_dir =
-    "$full_protos_base_dir/" + rebase_path(target_gen_dir, root_gen_dir)
-
-action_foreach("generate_full_protos") {
-  visibility = [ ":*" ]
-  script = "generate_full_protos.py"
-  sources = ftrace_proto_names
-
-  # TODO(hjd): Add support for subdirectories.
-  output_directory = full_protos_target_dir
-  outputs = [
-    "$output_directory/{{source_name_part}}.proto",
-  ]
-
-  args = [
-    "{{source}}",
-    rebase_path(output_directory, root_build_dir) +
-        "/{{source_name_part}}.proto",
-  ]
-}
-
-proto_library("full") {
-  testonly = true
-  deps = [
-    ":generate_full_protos",
-  ]
-  sources = []
-  use_protobuf_full = true
-  proto_in_dir = "$full_protos_base_dir/" + perfetto_root_path
-  proto_out_dir = "protos_full"
-  foreach(proto, ftrace_proto_names) {
-    sources += [ "$full_protos_target_dir/$proto" ]
-  }
-}
-
 proto_library("lite") {
   sources = ftrace_proto_names
   proto_in_dir = perfetto_root_path

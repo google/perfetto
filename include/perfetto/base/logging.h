@@ -85,9 +85,20 @@ constexpr const char* kLogFmt[] = {"\x1b[2m", "\x1b[39m", "\x1b[32m\x1b[1m",
 #define PERFETTO_XLOG PERFETTO_XLOG_STDERR
 #endif
 
+#define PERFETTO_IMMEDIATE_CRASH() \
+  do {                             \
+    __builtin_trap();              \
+    __builtin_unreachable();       \
+  } while (0)
+
 #define PERFETTO_LOG(fmt, ...) PERFETTO_XLOG(kLogInfo, fmt, ##__VA_ARGS__)
 #define PERFETTO_ILOG(fmt, ...) PERFETTO_XLOG(kLogImportant, fmt, ##__VA_ARGS__)
 #define PERFETTO_ELOG(fmt, ...) PERFETTO_XLOG(kLogError, fmt, ##__VA_ARGS__)
+#define PERFETTO_FATAL(fmt, ...)       \
+  do {                                 \
+    PERFETTO_ELOG(fmt, ##__VA_ARGS__); \
+    PERFETTO_IMMEDIATE_CRASH();        \
+  } while (0)
 
 #if PERFETTO_DCHECK_IS_ON()
 
@@ -96,13 +107,12 @@ constexpr const char* kLogFmt[] = {"\x1b[2m", "\x1b[39m", "\x1b[32m\x1b[1m",
 #define PERFETTO_DPLOG(x) \
   PERFETTO_DLOG("%s (errno: %d, %s)", (x), errno, strerror(errno))
 
-#define PERFETTO_DCHECK(x)                             \
-  do {                                                 \
-    if (!__builtin_expect(!!(x), true)) {              \
-      PERFETTO_DPLOG("PERFETTO_CHECK(" #x ")");        \
-      *(reinterpret_cast<volatile int*>(0x10)) = 0x42; \
-      __builtin_unreachable();                         \
-    }                                                  \
+#define PERFETTO_DCHECK(x)                      \
+  do {                                          \
+    if (!__builtin_expect(!!(x), true)) {       \
+      PERFETTO_DPLOG("PERFETTO_CHECK(" #x ")"); \
+      PERFETTO_IMMEDIATE_CRASH();               \
+    }                                           \
   } while (0)
 
 #else
@@ -120,7 +130,7 @@ constexpr const char* kLogFmt[] = {"\x1b[2m", "\x1b[39m", "\x1b[32m\x1b[1m",
   do {                                               \
     if (!__builtin_expect(!!(x), true)) {            \
       PERFETTO_ELOG("%s", "PERFETTO_CHECK(" #x ")"); \
-      abort();                                       \
+      PERFETTO_IMMEDIATE_CRASH();                    \
     }                                                \
   } while (0)
 
