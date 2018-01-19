@@ -505,6 +505,7 @@ def create_blueprint_for_targets(desc, targets):
         '-Wno-sign-promo',
         '-Wno-unused-parameter',
         '-fvisibility=hidden',
+        '-Oz',
     ]
 
     blueprint.add_module(defaults)
