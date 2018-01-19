@@ -36,7 +36,6 @@ template("ipc_library") {
       deps += invoker.deps
     }
 
-    proto_out_dir = perfetto_root_path
     forward_variables_from(invoker,
                            [
                              "defines",

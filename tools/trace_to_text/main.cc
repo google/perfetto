@@ -36,8 +36,8 @@
 #include <google/protobuf/util/message_differencer.h>
 
 #include "perfetto/base/logging.h"
-#include "protos/trace.pb.h"
-#include "protos/trace_packet.pb.h"
+#include "perfetto/trace/trace.pb.h"
+#include "perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
 namespace {

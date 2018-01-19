@@ -17,22 +17,17 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "protos/ftrace/print.proto";
-import "protos/ftrace/sched_switch.proto";
+import "perfetto/trace/ftrace/ftrace_event_bundle.proto";
+import "perfetto/trace/test_event.proto";
 
 package perfetto.protos;
 
-message FtraceEvent {
-  // Nanoseconds since an epoch.
-  // Epoch is configurable by writing into trace_clock.
-  // By default this timestamp is CPU local.
-  // TODO: Figure out a story for reconciling the various clocks.
-  optional uint64 timestamp = 1;
-
-  optional uint32 pid = 2;
-
-  oneof event {
-    PrintFtraceEvent print = 3;
-    SchedSwitchFtraceEvent sched_switch = 4;
+// The root object emitted by Perfetto. A perfetto trace is just a stream of
+// TracePacket(s).
+message TracePacket {
+  oneof data {
+    FtraceEventBundle ftrace_events = 1;
+    TestEvent test_event = 536870911;  // 2^29 - 1, max field id for protos.
   }
+  optional string test = 2;
 }

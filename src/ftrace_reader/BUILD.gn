@@ -37,7 +37,7 @@ source_set("ftrace_reader_unittests") {
     ":test_support",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
-    "../../protos/ftrace:lite",
+    "../../protos/perfetto/trace/ftrace:lite",
   ]
   sources = [
     "cpu_reader_unittest.cc",
@@ -58,10 +58,10 @@ protozero_library("ftrace_reader_test_messages_zero") {
 }
 
 proto_library("ftrace_reader_test_messages_lite") {
+  generate_python = false
   sources = ftrace_reader_test_proto_sources
   proto_in_dir = perfetto_root_path
   proto_out_dir = perfetto_root_path
-  generate_python = false
 }
 
 # These tests require access to a real ftrace implementation and must
@@ -73,7 +73,7 @@ executable("ftrace_reader_integrationtests") {
     ":test_support",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
-    "../../protos/ftrace:lite",
+    "../../protos/perfetto/trace/ftrace:lite",
     "../base",
   ]
   sources = [
@@ -86,7 +86,7 @@ source_set("ftrace_reader") {
   public_deps = [
     "../../gn:gtest_prod_config",
     "../../include/perfetto/ftrace_reader",
-    "../../protos/ftrace:zero",
+    "../../protos/perfetto/trace/ftrace:zero",
   ]
   deps = [
     "../../gn:default_deps",
