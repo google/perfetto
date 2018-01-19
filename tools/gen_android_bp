@@ -74,6 +74,9 @@ tree_path = 'external/perfetto'
 # Compiler flags which are passed through to the blueprint.
 cflag_whitelist = r'^-DPERFETTO.*$'
 
+# Compiler defines which are passed through to the blueprint.
+define_whitelist = r'^GOOGLE_PROTO.*$'
+
 
 def enable_gmock(module):
     module.static_libs.append('libgmock')
@@ -153,7 +156,7 @@ class Module(object):
         self.generated_headers = []
         self.export_generated_headers = []
         self.defaults = []
-        self.cflags = []
+        self.cflags = set()
         self.local_include_dirs = []
 
     def to_string(self, output):
@@ -181,6 +184,8 @@ class Module(object):
         value = getattr(self, name)
         if not value:
             return
+        if isinstance(value, set):
+          value = sorted(value)
         if isinstance(value, list):
             output.append('  %s: [' % name)
             for item in sorted(value) if sort else value:
@@ -302,6 +307,7 @@ def apply_module_dependency(blueprint, desc, module, dep_name):
             label_to_path(src) for src in target['sources']
             if is_supported_source_file(src)
             and not is_generated_by_action(desc, src))
+    module.cflags |= _get_cflags(target)
 
 
 def make_genrules_for_action(blueprint, desc, target_name):
@@ -420,6 +426,14 @@ def make_genrules_for_action(blueprint, desc, target_name):
     return source_module, header_module
 
 
+def _get_cflags(target):
+    cflags = set(flag for flag in target.get('cflags', [])
+        if re.match(cflag_whitelist, flag))
+    cflags |= set("-D%s" % define for define in target.get('defines', [])
+                  if re.match(define_whitelist, define))
+    return cflags
+
+
 def create_modules_from_target(blueprint, desc, target_name):
     """Generate module(s) for a given GN target.
 
@@ -461,9 +475,6 @@ def create_modules_from_target(blueprint, desc, target_name):
         # Don't try to inject library/source dependencies into genrules because
         # they are not compiled in the traditional sense.
         if module.type != 'genrule':
-            for flag in target.get('cflags', []):
-                if re.match(cflag_whitelist, flag):
-                  module.cflags.append(flag)
             module.defaults = [defaults_module]
             apply_module_dependency(blueprint, desc, module, target_name)
             for dep in resolve_dependencies(desc, target_name):
