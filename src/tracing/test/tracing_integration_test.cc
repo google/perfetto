@@ -134,7 +134,6 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("perfetto.test");
   ds_config->set_target_buffer(0);
-  ds_config->set_trace_category_filters("foo,bar");
   consumer_endpoint->EnableTracing(trace_config);
 
   // At this point, the Producer should be asked to turn its data source on.
@@ -153,7 +152,6 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
             global_buf_id = static_cast<BufferID>(cfg.target_buffer());
             ASSERT_NE(0u, global_buf_id);
             ASSERT_LE(global_buf_id, std::numeric_limits<BufferID>::max());
-            ASSERT_EQ("foo,bar", cfg.trace_category_filters());
             on_create_ds_instance();
           }));
   task_runner_->RunUntilCheckpoint("on_create_ds_instance");
