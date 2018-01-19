@@ -26,7 +26,7 @@
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/service.h"
 
-#include "protos/tracing_service/producer_port.ipc.h"
+#include "perfetto/ipc/producer_port.ipc.h"
 
 namespace perfetto {
 

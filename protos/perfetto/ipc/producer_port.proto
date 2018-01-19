@@ -17,8 +17,8 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "protos/tracing_service/data_source_config.proto";
-import "protos/tracing_service/data_source_descriptor.proto";
+import "perfetto/config/data_source_config.proto";
+import "perfetto/config/data_source_descriptor.proto";
 
 package perfetto;
 

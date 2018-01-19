@@ -39,7 +39,6 @@ default_targets = [
     '//:libtraced_shared',
     '//:perfetto_tests',
     '//:perfetto',
-    '//:perfetto_protos_lite',
     '//:traced',
     '//:traced_probes',
 ]
@@ -329,6 +328,32 @@ def make_genrules_for_action(blueprint, desc, target_name):
     if not args[0].endswith('/protoc'):
         raise Error('Unsupported action in target %s: %s' % (target_name,
                                                              target['args']))
+    parser = ThrowingArgumentParser('Action in target %s (%s)' %
+                                    (target_name, ' '.join(target['args'])))
+    parser.add_argument('--proto_path')
+    parser.add_argument('--cpp_out')
+    parser.add_argument('--plugin')
+    parser.add_argument('--plugin_out')
+    parser.add_argument('protos', nargs=argparse.REMAINDER)
+    args = parser.parse_args(args[1:])
+
+    # Depending on whether we are using the default protoc C++ generator or the
+    # protozero plugin, the output dir is passed as:
+    # --cpp_out=gen/xxx or
+    # --plugin_out=:gen/xxx or
+    # --plugin_out=wrapper_namespace=pbzero:gen/xxx
+    gen_dir = args.cpp_out if args.cpp_out else args.plugin_out.split(':')[1]
+    assert gen_dir.startswith('gen/')
+    gen_dir = gen_dir[4:]
+    cpp_out_dir = ('$(genDir)/%s/%s' % (tree_path, gen_dir)).rstrip('/')
+
+    # TODO(skyostil): Is there a way to avoid hardcoding the tree path here?
+    # TODO(skyostil): Find a way to avoid creating the directory.
+    cmd = [
+        'mkdir -p %s &&' % cpp_out_dir,
+        '$(location aprotoc)',
+        '--cpp_out=%s' % cpp_out_dir
+    ]
 
     # We create two genrules for each action: one for the protobuf headers and
     # another for the sources. This is because the module that depends on the
@@ -343,26 +368,14 @@ def make_genrules_for_action(blueprint, desc, target_name):
                            label_to_module_name(target_name) + '_headers')
     header_module.srcs = source_module.srcs[:]
     header_module.tools = source_module.tools[:]
-    header_module.export_include_dirs = ['.']
+    header_module.export_include_dirs = [gen_dir or '.']
 
-    # TODO(skyostil): Is there a way to avoid hardcoding the tree path here?
-    # TODO(skyostil): Find a way to avoid creating the directory.
-    cmd = [
-        'mkdir -p $(genDir)/%s &&' % tree_path, '$(location aprotoc)',
-        '--cpp_out=$(genDir)/%s' % tree_path,
-        '--proto_path=%s' % tree_path
-    ]
+    # In GN builds the proto path is always relative to the output directory
+    # (out/tmp.xxx).
+    assert args.proto_path.startswith('../../')
+    cmd += [ '--proto_path=%s/%s' % (tree_path, args.proto_path[6:])]
+
     namespaces = ['pb']
-
-    parser = ThrowingArgumentParser('Action in target %s (%s)' %
-                                    (target_name, ' '.join(target['args'])))
-    parser.add_argument('--proto_path')
-    parser.add_argument('--cpp_out')
-    parser.add_argument('--plugin')
-    parser.add_argument('--plugin_out')
-    parser.add_argument('protos', nargs=argparse.REMAINDER)
-
-    args = parser.parse_args(args[1:])
     if args.plugin:
         _, plugin = os.path.split(args.plugin)
         # TODO(skyostil): Can we detect this some other way?
@@ -388,7 +401,7 @@ def make_genrules_for_action(blueprint, desc, target_name):
                         (target_name, args[i]))
     if args.plugin_out:
         plugin_args = args.plugin_out.split(':')[0]
-        cmd += ['--plugin_out=%s:$(genDir)/%s' % (plugin_args, tree_path)]
+        cmd += ['--plugin_out=%s:%s' % (plugin_args, cpp_out_dir)]
 
     cmd += ['$(in)']
     source_module.cmd = ' '.join(cmd)

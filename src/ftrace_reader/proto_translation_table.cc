@@ -24,7 +24,7 @@
 #include "ftrace_procfs.h"
 #include "perfetto/ftrace_reader/format_parser.h"
 
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
+#include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 
