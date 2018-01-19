@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,17 +17,16 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "protos/ftrace/ftrace_event_bundle.proto";
-import "protos/test_event.proto";
+import "perfetto/trace/trace_packet.proto";
 
 package perfetto.protos;
 
-// The root object emitted by Perfetto. A perfetto trace is just a stream of
-// TracePacket(s).
-message TracePacket {
-  oneof data {
-    FtraceEventBundle ftrace_events = 1;
-    TestEvent test_event = 536870911;  // 2^29 - 1, max field id for protos.
-  }
-  optional string test = 2;
+message Trace {
+  repeated TracePacket packet = 1;
+
+  // Do NOT add any other field here. This is just a convenience wrapper for
+  // the use case of a trace being saved to a file. There are other cases
+  // (streaming) where TracePacket are directly streamed without being wrapped
+  // in a Trace proto. Nothing should ever rely on the full trace, all the
+  // logic should be based on TracePacket(s).
 }

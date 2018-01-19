@@ -26,7 +26,7 @@
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/service.h"
 
-#include "protos/tracing_service/consumer_port.ipc.h"
+#include "perfetto/ipc/consumer_port.ipc.h"
 
 namespace perfetto {
 

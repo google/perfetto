@@ -19,12 +19,12 @@ import("//build_overrides/build.gni")
 source_set("tracing") {
   public_deps = [
     "../../include/perfetto/tracing/core",
-    "../../protos:lite",
-    "../../protos:zero",
+    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace:zero",
   ]
   deps = [
     "../../gn:default_deps",
-    "../../protos/tracing_service:lite",
+    "../../protos/perfetto/config",
     "../base",
   ]
   sources = [
@@ -70,7 +70,7 @@ static_library("ipc") {
   deps = [
     ":tracing",
     "../../gn:default_deps",
-    "../../protos/tracing_service",
+    "../../protos/perfetto/ipc",
     "../base",
     "../ipc",
   ]
@@ -83,8 +83,8 @@ source_set("tracing_unittests") {
     ":tracing",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
-    "../../protos:lite",
-    "../../protos:zero",
+    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace:zero",
     "../base",
     "../base:test_support",
   ]

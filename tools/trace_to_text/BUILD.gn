@@ -18,7 +18,7 @@ if (current_toolchain == host_toolchain) {
     deps = [
       "../../gn:default_deps",
       "../../gn:protobuf_full_deps",
-      "../../protos:lite",
+      "../../protos/perfetto/trace:lite",
     ]
     sources = [
       "main.cc",

@@ -28,7 +28,7 @@
 #include "perfetto/tracing/core/shared_memory.h"
 #include "perfetto/tracing/ipc/producer_ipc_client.h"
 
-#include "protos/tracing_service/producer_port.ipc.h"
+#include "perfetto/ipc/producer_port.ipc.h"
 
 namespace perfetto {
 

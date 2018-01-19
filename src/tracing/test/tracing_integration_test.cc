@@ -33,8 +33,8 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/test/test_socket.h"
 
-#include "protos/test_event.pbzero.h"
-#include "protos/trace_packet.pbzero.h"
+#include "perfetto/trace/test_event.pbzero.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace {
