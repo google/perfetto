@@ -53,7 +53,7 @@ matrix:
         apt:
           packages:
             - clang
-      env: CFG=linux_trusty-clang-x86_64-debug GN_ARGS="is_debug=true"
+      env: CFG=linux_trusty-clang-x86_64-debug GN_ARGS="is_debug=true is_hermetic_clang=false"
     - os: linux
       dist: trusty
       sudo: true
