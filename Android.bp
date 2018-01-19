@@ -78,6 +78,10 @@ cc_library_shared {
   defaults: [
     "perfetto_defaults",
   ],
+  cflags: [
+    "-DGOOGLE_PROTOBUF_NO_RTTI",
+    "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+  ],
 }
 
 // GN target: //:perfetto
@@ -143,6 +147,8 @@ cc_binary {
     "perfetto_defaults",
   ],
   cflags: [
+    "-DGOOGLE_PROTOBUF_NO_RTTI",
+    "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
 }
@@ -511,6 +517,10 @@ cc_binary_host {
   defaults: [
     "perfetto_defaults",
   ],
+  cflags: [
+    "-DGOOGLE_PROTOBUF_NO_RTTI",
+    "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+  ],
 }
 
 // GN target: //src/ipc:test_messages_gen
@@ -607,6 +617,10 @@ cc_binary_host {
   ],
   defaults: [
     "perfetto_defaults",
+  ],
+  cflags: [
+    "-DGOOGLE_PROTOBUF_NO_RTTI",
+    "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
   ],
 }
 
@@ -774,6 +788,10 @@ cc_library_static {
   defaults: [
     "perfetto_defaults",
   ],
+  cflags: [
+    "-DGOOGLE_PROTOBUF_NO_RTTI",
+    "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+  ],
 }
 
 // GN target: //:perfetto_tests
@@ -889,6 +907,10 @@ cc_test {
   ],
   defaults: [
     "perfetto_defaults",
+  ],
+  cflags: [
+    "-DGOOGLE_PROTOBUF_NO_RTTI",
+    "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
   ],
 }
 
