@@ -38,6 +38,7 @@ group("all") {
       ":perfetto_benchmarks",
       ":traced",
       ":traced_probes",
+      "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
       "src/ftrace_reader:ftrace_reader_integrationtests",
       "test/configs",
       "tools:protoc_helper",

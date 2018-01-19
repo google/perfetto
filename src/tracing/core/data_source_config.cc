@@ -48,12 +48,6 @@ void DataSourceConfig::FromProto(
                 "size mismatch");
   target_buffer_ = static_cast<decltype(target_buffer_)>(proto.target_buffer());
 
-  static_assert(
-      sizeof(trace_category_filters_) == sizeof(proto.trace_category_filters()),
-      "size mismatch");
-  trace_category_filters_ = static_cast<decltype(trace_category_filters_)>(
-      proto.trace_category_filters());
-
   ftrace_config_.FromProto(proto.ftrace_config());
   unknown_fields_ = proto.unknown_fields();
 }
@@ -69,13 +63,6 @@ void DataSourceConfig::ToProto(
                 "size mismatch");
   proto->set_target_buffer(
       static_cast<decltype(proto->target_buffer())>(target_buffer_));
-
-  static_assert(sizeof(trace_category_filters_) ==
-                    sizeof(proto->trace_category_filters()),
-                "size mismatch");
-  proto->set_trace_category_filters(
-      static_cast<decltype(proto->trace_category_filters())>(
-          trace_category_filters_));
 
   ftrace_config_.ToProto(proto->mutable_ftrace_config());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
