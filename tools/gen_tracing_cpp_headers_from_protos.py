@@ -35,7 +35,7 @@ def run(cmd):
 
 def main():
   if not os.path.exists('.gn'):
-    print('This script mast be executed from the perfetto root directory')
+    print('This script must be executed from the perfetto root directory')
     return 1
   if len(sys.argv) < 2:
     print('Usage: %s out/xxx' % sys.argv[0])

@@ -40,7 +40,11 @@ message DataSourceConfig {
   // without expensive lookups on its fastpath.
   optional uint32 target_buffer = 2;
 
-  optional string trace_category_filters = 3;  // TODO: temporary for tests.
+  // ----- BEGIN DATA SOURCE SPECIFIC FIELDS -----
+  // The BEGIN/END markers are replaced by a reserved extensions range when
+  // generating the trace_config_merged.proto. These fields are propagated as-is
+  // by the configuration pipeline and the traced daemon doesn't access them.
 
-  optional FtraceConfig ftrace_config = 4;
+  optional FtraceConfig ftrace_config = 100;
+  // ----- END DATA SOURCE SPECIFIC FIELDS -----
 }
