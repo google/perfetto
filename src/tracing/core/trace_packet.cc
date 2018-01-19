@@ -18,7 +18,7 @@
 
 #include "src/tracing/core/chunked_protobuf_input_stream.h"
 
-#include "protos/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
 

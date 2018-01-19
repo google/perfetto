@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,22 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "protos/trace_packet.proto";
+import "perfetto/trace/ftrace/print.proto";
+import "perfetto/trace/ftrace/sched_switch.proto";
 
 package perfetto.protos;
 
-message Trace {
-  repeated TracePacket packet = 1;
+message FtraceEvent {
+  // Nanoseconds since an epoch.
+  // Epoch is configurable by writing into trace_clock.
+  // By default this timestamp is CPU local.
+  // TODO: Figure out a story for reconciling the various clocks.
+  optional uint64 timestamp = 1;
+
+  optional uint32 pid = 2;
+
+  oneof event {
+    PrintFtraceEvent print = 3;
+    SchedSwitchFtraceEvent sched_switch = 4;
+  }
 }

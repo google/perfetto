@@ -143,7 +143,7 @@ ProtoToCpp::ProtoToCpp(const std::string& header_dir,
       cpp_dir_(cpp_dir),
       include_path_(include_path),
       importer_(&dst_, &error_printer_) {
-  dst_.MapPath("protos", "protos");
+  dst_.MapPath("", "protos");
 }
 
 std::string ProtoToCpp::GetHeaderPath(const FileDescriptor* proto_file) {
@@ -227,8 +227,7 @@ void ProtoToCpp::Convert(const std::string& src_proto) {
   header_printer.Print("#include <stdint.h>\n");
   header_printer.Print("#include <vector>\n");
   header_printer.Print("#include <string>\n");
-  header_printer.Print("#include <type_traits>\n");
-  header_printer.Print("#include \"perfetto/base/build_config.h\"\n\n");
+  header_printer.Print("#include <type_traits>\n\n");
 
   cpp_printer.Print(kHeader, "f", __FILE__, "p", src_proto);
   cpp_printer.Print("#include \"$f$\"\n", "f", dst_header);

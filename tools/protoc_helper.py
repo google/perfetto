@@ -23,9 +23,9 @@ def run(encode_or_decode, protoc_path, proto, root, input, output):
   cmd = [
       protoc_path,
       '--{}=perfetto.protos.{}'.format(encode_or_decode, proto),
-      os.path.join(root, 'protos/tracing_service/trace_config.proto'),
-      os.path.join(root, 'protos/trace.proto'),
-      '--proto_path={}'.format(root),
+      os.path.join(root, 'protos/perfetto/config/trace_config.proto'),
+      os.path.join(root, 'protos/perfetto/trace/trace.proto'),
+      '--proto_path={}/protos'.format(root),
   ]
   subprocess.check_call(cmd, stdin=input, stdout=output, stderr=sys.stderr)
 
@@ -42,7 +42,7 @@ def main():
   parser.add_argument('--protoc_path', default=None,
       help='path to protoc')
   parser.add_argument('--root', default='.',
-      help='root directory (default: ".")')
+      help='root directory (default: "protos")')
   parser.add_argument('--input', default='-',
       help='input file, or "-" for stdin (default: "-")')
   parser.add_argument('--output', default='-',
@@ -64,4 +64,3 @@ def main():
 
 if __name__ == '__main__':
   sys.exit(main())
-

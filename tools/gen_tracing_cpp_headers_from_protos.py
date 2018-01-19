@@ -18,9 +18,9 @@ import subprocess
 import sys
 
 PROTOS = (
-  'protos/tracing_service/trace_config.proto',
-  'protos/tracing_service/data_source_config.proto',
-  'protos/tracing_service/data_source_descriptor.proto',
+  'perfetto/config/trace_config.proto',
+  'perfetto/config/data_source_config.proto',
+  'perfetto/config/data_source_descriptor.proto',
 )
 
 HEADER_PATH = 'include/perfetto/tracing/core'
