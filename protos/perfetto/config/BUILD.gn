@@ -33,6 +33,6 @@ proto_library("merged_config") {
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   sources = [
-    "trace_config_merged.proto",
+    "perfetto_config.proto",
   ]
 }
