@@ -946,24 +946,3 @@ cc_binary {
     "perfetto_defaults",
   ],
 }
-
-// These targets are required to include the merged trace config proto from
-// other projects in the Android tree.
-
-cc_library_static {
-    name: "perfetto_trace_config_proto",
-    host_supported: false,
-    srcs: [ "protos/perfetto/config/trace_config_merged.proto" ],
-    proto: {
-        export_proto_headers: true,
-        type: "lite"
-    },
-}
-
-java_library_static {
-    name: "perfetto_trace_config_proto_java",
-    host_supported: false,
-    srcs: [ "protos/perfetto/config/trace_config_merged.proto" ],
-    proto: { type: "lite" },
-    no_framework_libs: true,
-}
