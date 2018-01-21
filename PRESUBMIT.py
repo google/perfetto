@@ -29,6 +29,7 @@ def CheckChange(input, output):
     results += input.canned_checks.CheckPatchFormatted(input, output)
     results += input.canned_checks.CheckGNFormatted(input, output)
     results += CheckAndroidBlueprint(input, output)
+    results += CheckMergedTraceConfigProto(input, output)
     return results
 
 
@@ -58,5 +59,21 @@ def CheckAndroidBlueprint(input_api, output_api):
             output_api.PresubmitError(
                 'Android.bp is out of date. Please run tools/gen_android_bp '
                 'to update it.')
+        ]
+    return []
+
+
+def CheckMergedTraceConfigProto(input_api, output_api):
+    tool = 'tools/gen_merged_trace_config'
+    build_file_filter = lambda x: input_api.FilterSourceFile(
+          x,
+          white_list=('protos/perfetto/config/.*[.]proto$', tool))
+    if not input_api.AffectedSourceFiles(build_file_filter):
+        return []
+    if subprocess.call([tool, '--check-only']):
+        return [
+            output_api.PresubmitError(
+                'perfetto_config.proto is out of date. Please run ' +
+                tool + ' to update it.')
         ]
     return []

@@ -25,7 +25,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
-#include "protos/trace_packet.pbzero.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 // TODO(primiano): right now this class is accumulating a patchlist but not
 // sending it to the service.

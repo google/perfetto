@@ -20,7 +20,7 @@
 
 #include "gtest/gtest.h"
 
-#include "protos/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
 namespace {

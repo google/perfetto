@@ -21,11 +21,11 @@
 #include "perfetto/base/logging.h"
 #include "proto_translation_table.h"
 
-#include "protos/ftrace/ftrace_event.pbzero.h"
-#include "protos/ftrace/print.pbzero.h"
-#include "protos/ftrace/sched_switch.pbzero.h"
+#include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "perfetto/trace/ftrace/print.pbzero.h"
+#include "perfetto/trace/ftrace/sched_switch.pbzero.h"
 
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
+#include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 
@@ -257,19 +257,20 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
     return false;
   }
 
+  bool success = true;
   for (const Field& field : table->common_fields())
-    ParseField(field, start, end, message);
+    success &= ParseField(field, start, end, message);
 
   protozero::ProtoZeroMessage* nested =
       message->BeginNestedMessage<protozero::ProtoZeroMessage>(
           info.proto_field_id);
 
   for (const Field& field : info.fields)
-    ParseField(field, start, end, nested);
+    success &= ParseField(field, start, end, nested);
 
   // This finalizes |nested| automatically.
   message->Finalize();
-  return true;
+  return success;
 }
 
 // Caller must guarantee that the field fits in the range,

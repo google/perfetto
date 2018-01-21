@@ -1,4 +1,4 @@
-# Copyright (C) 2017 The Android Open Source Project
+# Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,26 +13,30 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
-import("../../gn/ipc_library.gni")
 
-# IPC service definitions.
-ipc_library("tracing_service") {
-  deps = [
-    ":lite",
-  ]
-  proto_in_dir = perfetto_root_path
-  sources = [
-    "consumer_port.proto",
-    "producer_port.proto",
-  ]
-}
+if (!build_with_chromium) {
+  action_foreach("configs") {
+    testonly = true
+    script = "$root_out_dir/protoc_helper"
 
-proto_library("lite") {
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = "protos_lite"
-  sources = [
-    "data_source_config.proto",
-    "data_source_descriptor.proto",
-    "trace_config.proto",
-  ]
+    deps = [
+      "../../tools:protoc_helper",
+    ]
+
+    sources = [
+      "atrace.cfg",
+      "ftrace.cfg",
+    ]
+
+    outputs = [
+      "$root_out_dir/{{source_file_part}}.protobuf",
+    ]
+
+    args = [
+      "encode",
+      "--root=" + rebase_path(perfetto_root_path, ""),
+      "--input={{source}}",
+      "--output={{source_file_part}}.protobuf",
+    ]
+  }
 }

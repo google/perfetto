@@ -18,9 +18,9 @@ import subprocess
 import sys
 
 PROTOS = (
-  'protos/tracing_service/trace_config.proto',
-  'protos/tracing_service/data_source_config.proto',
-  'protos/tracing_service/data_source_descriptor.proto',
+  'perfetto/config/trace_config.proto',
+  'perfetto/config/data_source_config.proto',
+  'perfetto/config/data_source_descriptor.proto',
 )
 
 HEADER_PATH = 'include/perfetto/tracing/core'
@@ -35,7 +35,7 @@ def run(cmd):
 
 def main():
   if not os.path.exists('.gn'):
-    print('This script mast be executed from the perfetto root directory')
+    print('This script must be executed from the perfetto root directory')
     return 1
   if len(sys.argv) < 2:
     print('Usage: %s out/xxx' % sys.argv[0])

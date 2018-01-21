@@ -39,7 +39,6 @@ default_targets = [
     '//:libtraced_shared',
     '//:perfetto_tests',
     '//:perfetto',
-    '//:perfetto_protos_lite',
     '//:traced',
     '//:traced_probes',
 ]
@@ -74,6 +73,9 @@ tree_path = 'external/perfetto'
 
 # Compiler flags which are passed through to the blueprint.
 cflag_whitelist = r'^-DPERFETTO.*$'
+
+# Compiler defines which are passed through to the blueprint.
+define_whitelist = r'^GOOGLE_PROTO.*$'
 
 
 def enable_gmock(module):
@@ -154,7 +156,7 @@ class Module(object):
         self.generated_headers = []
         self.export_generated_headers = []
         self.defaults = []
-        self.cflags = []
+        self.cflags = set()
         self.local_include_dirs = []
 
     def to_string(self, output):
@@ -182,6 +184,8 @@ class Module(object):
         value = getattr(self, name)
         if not value:
             return
+        if isinstance(value, set):
+          value = sorted(value)
         if isinstance(value, list):
             output.append('  %s: [' % name)
             for item in sorted(value) if sort else value:
@@ -303,6 +307,7 @@ def apply_module_dependency(blueprint, desc, module, dep_name):
             label_to_path(src) for src in target['sources']
             if is_supported_source_file(src)
             and not is_generated_by_action(desc, src))
+    module.cflags |= _get_cflags(target)
 
 
 def make_genrules_for_action(blueprint, desc, target_name):
@@ -329,6 +334,32 @@ def make_genrules_for_action(blueprint, desc, target_name):
     if not args[0].endswith('/protoc'):
         raise Error('Unsupported action in target %s: %s' % (target_name,
                                                              target['args']))
+    parser = ThrowingArgumentParser('Action in target %s (%s)' %
+                                    (target_name, ' '.join(target['args'])))
+    parser.add_argument('--proto_path')
+    parser.add_argument('--cpp_out')
+    parser.add_argument('--plugin')
+    parser.add_argument('--plugin_out')
+    parser.add_argument('protos', nargs=argparse.REMAINDER)
+    args = parser.parse_args(args[1:])
+
+    # Depending on whether we are using the default protoc C++ generator or the
+    # protozero plugin, the output dir is passed as:
+    # --cpp_out=gen/xxx or
+    # --plugin_out=:gen/xxx or
+    # --plugin_out=wrapper_namespace=pbzero:gen/xxx
+    gen_dir = args.cpp_out if args.cpp_out else args.plugin_out.split(':')[1]
+    assert gen_dir.startswith('gen/')
+    gen_dir = gen_dir[4:]
+    cpp_out_dir = ('$(genDir)/%s/%s' % (tree_path, gen_dir)).rstrip('/')
+
+    # TODO(skyostil): Is there a way to avoid hardcoding the tree path here?
+    # TODO(skyostil): Find a way to avoid creating the directory.
+    cmd = [
+        'mkdir -p %s &&' % cpp_out_dir,
+        '$(location aprotoc)',
+        '--cpp_out=%s' % cpp_out_dir
+    ]
 
     # We create two genrules for each action: one for the protobuf headers and
     # another for the sources. This is because the module that depends on the
@@ -343,26 +374,14 @@ def make_genrules_for_action(blueprint, desc, target_name):
                            label_to_module_name(target_name) + '_headers')
     header_module.srcs = source_module.srcs[:]
     header_module.tools = source_module.tools[:]
-    header_module.export_include_dirs = ['.']
+    header_module.export_include_dirs = [gen_dir or '.']
 
-    # TODO(skyostil): Is there a way to avoid hardcoding the tree path here?
-    # TODO(skyostil): Find a way to avoid creating the directory.
-    cmd = [
-        'mkdir -p $(genDir)/%s &&' % tree_path, '$(location aprotoc)',
-        '--cpp_out=$(genDir)/%s' % tree_path,
-        '--proto_path=%s' % tree_path
-    ]
+    # In GN builds the proto path is always relative to the output directory
+    # (out/tmp.xxx).
+    assert args.proto_path.startswith('../../')
+    cmd += [ '--proto_path=%s/%s' % (tree_path, args.proto_path[6:])]
+
     namespaces = ['pb']
-
-    parser = ThrowingArgumentParser('Action in target %s (%s)' %
-                                    (target_name, ' '.join(target['args'])))
-    parser.add_argument('--proto_path')
-    parser.add_argument('--cpp_out')
-    parser.add_argument('--plugin')
-    parser.add_argument('--plugin_out')
-    parser.add_argument('protos', nargs=argparse.REMAINDER)
-
-    args = parser.parse_args(args[1:])
     if args.plugin:
         _, plugin = os.path.split(args.plugin)
         # TODO(skyostil): Can we detect this some other way?
@@ -388,7 +407,7 @@ def make_genrules_for_action(blueprint, desc, target_name):
                         (target_name, args[i]))
     if args.plugin_out:
         plugin_args = args.plugin_out.split(':')[0]
-        cmd += ['--plugin_out=%s:$(genDir)/%s' % (plugin_args, tree_path)]
+        cmd += ['--plugin_out=%s:%s' % (plugin_args, cpp_out_dir)]
 
     cmd += ['$(in)']
     source_module.cmd = ' '.join(cmd)
@@ -405,6 +424,14 @@ def make_genrules_for_action(blueprint, desc, target_name):
             for src in header_module.srcs
         ]
     return source_module, header_module
+
+
+def _get_cflags(target):
+    cflags = set(flag for flag in target.get('cflags', [])
+        if re.match(cflag_whitelist, flag))
+    cflags |= set("-D%s" % define for define in target.get('defines', [])
+                  if re.match(define_whitelist, define))
+    return cflags
 
 
 def create_modules_from_target(blueprint, desc, target_name):
@@ -448,9 +475,6 @@ def create_modules_from_target(blueprint, desc, target_name):
         # Don't try to inject library/source dependencies into genrules because
         # they are not compiled in the traditional sense.
         if module.type != 'genrule':
-            for flag in target.get('cflags', []):
-                if re.match(cflag_whitelist, flag):
-                  module.cflags.append(flag)
             module.defaults = [defaults_module]
             apply_module_dependency(blueprint, desc, module, target_name)
             for dep in resolve_dependencies(desc, target_name):
@@ -505,6 +529,7 @@ def create_blueprint_for_targets(desc, targets):
         '-Wno-sign-promo',
         '-Wno-unused-parameter',
         '-fvisibility=hidden',
+        '-Oz',
     ]
 
     blueprint.add_module(defaults)

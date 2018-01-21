@@ -25,10 +25,10 @@
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
 
-#include "protos/ftrace/ftrace_event.pb.h"
-#include "protos/ftrace/ftrace_event.pbzero.h"
-#include "protos/ftrace/ftrace_event_bundle.pb.h"
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
+#include "perfetto/trace/ftrace/ftrace_event.pb.h"
+#include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "perfetto/trace/ftrace/ftrace_event_bundle.pb.h"
+#include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/ftrace_reader/test/test_messages.pb.h"
 #include "src/ftrace_reader/test/test_messages.pbzero.h"
 
@@ -393,6 +393,43 @@ TEST(CpuReaderTest, ParseSinglePrint) {
   EXPECT_EQ(event.pid(), 28712ul);
   EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 608934, 535199));
   EXPECT_EQ(event.print().buf(), "Hello, world!\n");
+}
+
+// This event is as the event for ParseSinglePrint above except the string
+// is extended to overflow the page size written in the header.
+ExamplePage g_single_print_malformed{
+    "synthetic",
+    R"(
+    00000000: ba12 6a33 c628 0200 2c00 0000 0000 0000  ................
+    00000010: def0 ec67 8d21 0000 0800 0000 0500 0001  ................
+    00000020: 2870 0000 ac5d 1661 86ff ffff 4865 6c6c  ................
+    00000030: 6f2c 2077 6f72 6c64 2120 776f 726c 6421  ................
+    00000040: 0a00 ff00 0000 0000 0000 0000 0000 0000  ................
+  )",
+};
+
+TEST(CpuReaderTest, ParseSinglePrintMalformed) {
+  const ExamplePage* test_case = &g_single_print_malformed;
+
+  BundleProvider bundle_provider(kPageSize);
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  EventFilter filter(*table, std::set<std::string>({"print"}));
+
+  ASSERT_FALSE(CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
+                                    bundle_provider.writer(), table));
+
+  auto bundle = bundle_provider.ParseProto();
+  ASSERT_TRUE(bundle);
+  EXPECT_EQ(bundle->cpu(), 42ul);
+  ASSERT_EQ(bundle->event().size(), 1);
+  // Although one field is malformed we still see data for the rest
+  // since we write the fields as we parse them for speed.
+  const protos::FtraceEvent& event = bundle->event().Get(0);
+  EXPECT_EQ(event.pid(), 28712ul);
+  EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 608934, 535199));
+  EXPECT_EQ(event.print().buf(), "");
 }
 
 TEST(CpuReaderTest, FilterByEvent) {

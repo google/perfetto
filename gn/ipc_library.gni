@@ -25,6 +25,7 @@ template("ipc_library") {
   proto_library(target_name) {
     perfetto_root_path = invoker.perfetto_root_path
 
+    generate_python = false
     generator_plugin_label =
         perfetto_root_path + "src/ipc/protoc_plugin:ipc_plugin"
     generator_plugin_suffix = ".ipc"
@@ -35,7 +36,6 @@ template("ipc_library") {
       deps += invoker.deps
     }
 
-    proto_out_dir = "protos_lite"
     forward_variables_from(invoker,
                            [
                              "defines",

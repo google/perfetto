@@ -26,10 +26,10 @@
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
 
-#include "protos/ftrace/ftrace_event_bundle.pb.h"
-#include "protos/ftrace/ftrace_event_bundle.pbzero.h"
-#include "protos/ftrace/test_bundle_wrapper.pb.h"
-#include "protos/ftrace/test_bundle_wrapper.pbzero.h"
+#include "perfetto/trace/ftrace/ftrace_event_bundle.pb.h"
+#include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "perfetto/trace/ftrace/test_bundle_wrapper.pb.h"
+#include "perfetto/trace/ftrace/test_bundle_wrapper.pbzero.h"
 
 using testing::HasSubstr;
 using testing::Not;

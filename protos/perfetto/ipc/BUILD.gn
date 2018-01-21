@@ -12,19 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto.gni")
-import("../../src/protozero/protozero_library.gni")
-import("all_protos.gni")
+import("../../../gn/perfetto.gni")
+import("../../../gn/ipc_library.gni")
 
-proto_library("lite") {
-  sources = ftrace_proto_names
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = "protos_lite"
-}
-
-protozero_library("zero") {
-  sources = ftrace_proto_names
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = "protos_zero"
-  generator_plugin_options = "wrapper_namespace=pbzero"
+# IPC service definitions.
+ipc_library("ipc") {
+  deps = [
+    "../config",
+  ]
+  proto_in_dir = "$perfetto_root_path/protos"
+  proto_out_dir = "$perfetto_root_path/protos"
+  sources = [
+    "consumer_port.proto",
+    "producer_port.proto",
+  ]
 }

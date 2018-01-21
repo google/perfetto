@@ -12,18 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("perfetto_cmd") {
+copy("copy_protoc_helper") {
+  testonly = true
+  sources = [
+    "protoc_helper.py",
+  ]
+  outputs = [
+    "${root_out_dir}/protoc_helper",
+  ]
+}
+
+group("protoc_helper") {
+  testonly = true
   public_deps = [
-    "../../../include/perfetto/traced",
+    ":copy_protoc_helper",
   ]
   deps = [
-    "../../../gn:default_deps",
-    "../../../protos/perfetto/config",
-    "../../base",
-    "../../protozero",
-    "../../tracing:ipc",
-  ]
-  sources = [
-    "perfetto_cmd.cc",
+    "../buildtools:protoc($host_toolchain)",
   ]
 }

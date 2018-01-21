@@ -112,5 +112,11 @@ config("default_config") {
 }
 
 config("public_config") {
-  include_dirs = [ "../include" ]
+  include_dirs = [
+    "../include",
+
+    # The below are needed due to generated protobuf headers including other
+    # headers with a path relative to the perfetto root.
+    "${root_gen_dir}/${perfetto_root_path}/protos",
+  ]
 }
