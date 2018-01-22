@@ -46,7 +46,7 @@ bool IsAlnum(const std::string& str) {
 FtraceProducer::~FtraceProducer() = default;
 
 void FtraceProducer::OnConnect() {
-  PERFETTO_LOG("Connected to the service\n");
+  PERFETTO_LOG("Connected to the service");
 
   DataSourceDescriptor descriptor;
   descriptor.set_name("com.google.perfetto.ftrace");
