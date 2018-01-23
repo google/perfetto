@@ -50,6 +50,14 @@ std::string GetTraceOutput() {
 
 }  // namespace
 
+TEST(FtraceProcfsIntegrationTest, CreateWithGoodPath) {
+  EXPECT_TRUE(FtraceProcfs::Create(kTracingPath));
+}
+
+TEST(FtraceProcfsIntegrationTest, CreateWithBadPath) {
+  EXPECT_FALSE(FtraceProcfs::Create(kTracingPath + std::string("bad_path")));
+}
+
 TEST(FtraceProcfsIntegrationTest, ClearTrace) {
   FtraceProcfs ftrace(kTracingPath);
   ResetFtrace(&ftrace);
