@@ -25,7 +25,7 @@ assert(!monolithic_binaries || !build_with_android)
 group("all") {
   testonly = true  # allow to build also test targets
   deps = [
-    ":perfetto_tests",
+    ":perfetto_unittests",
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
@@ -36,17 +36,17 @@ group("all") {
     deps += [
       ":perfetto",
       ":perfetto_benchmarks",
+      ":perfetto_integrationtests",
       ":traced",
       ":traced_probes",
       "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
-      "src/ftrace_reader:ftrace_reader_integrationtests",
       "test/configs",
       "tools:protoc_helper",
     ]
   }
 }
 
-executable("perfetto_tests") {
+executable("perfetto_unittests") {
   testonly = true
   deps = [
     "gn:default_deps",
@@ -69,6 +69,18 @@ if (!build_with_chromium) {
       "gn:default_deps",
       "src/tracing:tracing_benchmarks",
     ]
+  }
+
+  executable("perfetto_integrationtests") {
+    testonly = true
+    deps = [
+      "gn:default_deps",
+      "src/ftrace_reader:ftrace_reader_integrationtests",
+      "test:end_to_end_integrationtests",
+    ]
+    if (build_with_android) {
+      cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
+    }
   }
 
   if (monolithic_binaries) {

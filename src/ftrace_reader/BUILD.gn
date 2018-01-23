@@ -66,7 +66,7 @@ proto_library("ftrace_reader_test_messages_lite") {
 
 # These tests require access to a real ftrace implementation and must
 # run with sudo.
-executable("ftrace_reader_integrationtests") {
+source_set("ftrace_reader_integrationtests") {
   testonly = true
   deps = [
     ":ftrace_reader",
