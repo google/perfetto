@@ -303,10 +303,10 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
                        flags & SharedMemoryABI::ChunkHeader::
                                    kLastPacketContinuesOnNextChunk);
 
-          PERFETTO_DLOG("  #%-3zu len:%" PRIu64 " skip: %d\n", pack_idx,
+          PERFETTO_DLOG("  #%-3zu len:%" PRIu64 " skip: %d", pack_idx,
                         pack_size, skip);
           if (ptr > chunk.end() - pack_size) {
-            PERFETTO_DLOG("out of bounds!\n");
+            PERFETTO_DLOG("out of bounds!");
             break;
           }
           if (!skip) {

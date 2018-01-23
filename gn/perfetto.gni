@@ -17,6 +17,7 @@ import("//build_overrides/build.gni")
 declare_args() {
   # The Android blueprint file generator overrides this to true.
   build_with_android = false
+  use_libfuzzer = false
 }
 
 if (!build_with_chromium) {
