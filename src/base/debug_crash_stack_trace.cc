@@ -165,7 +165,7 @@ void EnableStacktraceOnCrashForDebug() {
   // Pre-allocate the string for __cxa_demangle() to reduce the risk of that
   // invoking realloc() within the signal handler.
   g_demangled_name = reinterpret_cast<char*>(malloc(kDemangledNameLen));
-  struct sigaction sigact;
+  struct sigaction sigact = {};
   sigact.sa_sigaction = &SignalHandler;
   sigact.sa_flags = static_cast<decltype(sigact.sa_flags)>(
       SA_RESTART | SA_SIGINFO | SA_RESETHAND);

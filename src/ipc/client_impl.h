@@ -79,6 +79,7 @@ class ClientImpl : public Client, public UnixSocket::EventListener {
   void OnBindServiceReply(QueuedRequest, const Frame::BindServiceReply&);
   void OnInvokeMethodReply(QueuedRequest, const Frame::InvokeMethodReply&);
 
+  bool invoking_method_reply_ = false;
   std::unique_ptr<UnixSocket> sock_;
   base::TaskRunner* const task_runner_;
   RequestID last_request_id_ = 0;
