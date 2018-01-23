@@ -76,6 +76,27 @@ static_library("ipc") {
   ]
 }
 
+# IPC transport: only consumer side
+# TODO(fmayer): Remove duplication between this and ipc.
+source_set("ipc_consumer") {
+  public_deps = [
+    "../../include/perfetto/tracing/core",
+    "../../include/perfetto/tracing/ipc",
+  ]
+  sources = [
+    "ipc/consumer/consumer_ipc_client_impl.cc",
+    "ipc/consumer/consumer_ipc_client_impl.h",
+    "ipc/posix_shared_memory.cc",
+    "ipc/posix_shared_memory.h",
+  ]
+  deps = [
+    ":tracing",
+    "../../gn:default_deps",
+    "../../protos/perfetto/ipc",
+    "../base",
+  ]
+}
+
 source_set("tracing_unittests") {
   testonly = true
   deps = [
