@@ -21,7 +21,7 @@ source_set("perfetto_cmd") {
     "../../../protos/perfetto/config",
     "../../base",
     "../../protozero",
-    "../../tracing:ipc",
+    "../../tracing:ipc_consumer",
   ]
   sources = [
     "perfetto_cmd.cc",
