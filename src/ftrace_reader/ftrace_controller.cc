@@ -37,8 +37,15 @@
 namespace perfetto {
 namespace {
 
-// TODO(b/68242551): Do not hardcode these paths.
-const char kTracingPath[] = "/sys/kernel/debug/tracing/";
+#if BUILDFLAG(OS_ANDROID)
+const char* kTracingPaths[] = {
+    "/sys/kernel/tracing/", "/sys/kernel/debug/tracing/", nullptr,
+};
+#else
+const char* kTracingPaths[] = {
+    "/sys/kernel/debug/tracing/", nullptr,
+};
+#endif
 
 // TODO(hjd): Expose this as a configurable variable.
 const int kDrainPeriodMs = 100;
@@ -46,10 +53,19 @@ const int kDrainPeriodMs = 100;
 }  // namespace
 
 // static
+// TODO(taylori): Add a test for tracing paths in integration tests.
 std::unique_ptr<FtraceController> FtraceController::Create(
     base::TaskRunner* runner) {
-  auto ftrace_procfs =
-      std::unique_ptr<FtraceProcfs>(new FtraceProcfs(kTracingPath));
+  size_t index = 0;
+  std::unique_ptr<FtraceProcfs> ftrace_procfs = nullptr;
+  while (!ftrace_procfs && kTracingPaths[index]) {
+    ftrace_procfs = FtraceProcfs::Create(kTracingPaths[index++]);
+  }
+
+  if (!ftrace_procfs) {
+    return nullptr;
+  }
+
   auto table = ProtoTranslationTable::Create(
       ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
   return std::unique_ptr<FtraceController>(
