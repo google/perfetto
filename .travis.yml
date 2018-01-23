@@ -146,7 +146,8 @@ script:
   - tools/ninja -C out/dist -j8 all
   - |
     TEST_TARGETS="
-    perfetto_tests
+    perfetto_integrationtests
+    perfetto_unittests
     perfetto_benchmarks
     "
     if [[ "$CFG" != android-* ]]; then
