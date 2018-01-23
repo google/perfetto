@@ -121,6 +121,8 @@ cc_binary {
     "src/tracing/core/trace_config.cc",
     "src/tracing/core/trace_packet.cc",
     "src/tracing/core/trace_writer_impl.cc",
+    "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
+    "src/tracing/ipc/posix_shared_memory.cc",
   ],
   shared_libs: [
     "libandroid",
@@ -132,7 +134,6 @@ cc_binary {
   ],
   static_libs: [
     "libgtest_prod",
-    "perfetto_src_tracing_ipc",
   ],
   generated_headers: [
     "perfetto_protos_perfetto_config_config_gen_headers",
