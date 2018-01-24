@@ -120,3 +120,11 @@ config("public_config") {
     "${root_gen_dir}/${perfetto_root_path}/protos",
   ]
 }
+
+config("fuzzer_config") {
+  cflags = [ "-fsanitize=fuzzer" ]
+  ldflags = [
+    "-fsanitize=fuzzer",
+    "-fsanitize-coverage=trace-pc-guard",
+  ]
+}
