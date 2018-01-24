@@ -208,7 +208,7 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
                events.end());
 
   auto table = std::unique_ptr<ProtoTranslationTable>(
-      new ProtoTranslationTable(std::move(events), std::move(common_fields)));
+      new ProtoTranslationTable(events, std::move(common_fields)));
   return table;
 }
 

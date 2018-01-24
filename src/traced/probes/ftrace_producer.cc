@@ -65,7 +65,7 @@ void FtraceProducer::CreateDataSourceInstance(
                source_config.target_buffer());
 
   // TODO(hjd): Would be nice if ftrace_reader could use generate the config.
-  const DataSourceConfig::FtraceConfig proto_config =
+  const DataSourceConfig::FtraceConfig& proto_config =
       source_config.ftrace_config();
 
   FtraceConfig config;
