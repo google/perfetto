@@ -31,10 +31,10 @@ namespace perfetto {
 
 namespace {
 
-static bool ReadIntoString(const uint8_t* start,
-                           const uint8_t* end,
-                           size_t field_id,
-                           protozero::ProtoZeroMessage* out) {
+bool ReadIntoString(const uint8_t* start,
+                    const uint8_t* end,
+                    size_t field_id,
+                    protozero::ProtoZeroMessage* out) {
   for (const uint8_t* c = start; c < end; c++) {
     if (*c != '\0')
       continue;
@@ -197,7 +197,7 @@ size_t CpuReader::ParsePage(size_t cpu,
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
           return 0;
         // See https://goo.gl/CFBu5x
-        timestamp += ((uint64_t)time_delta_ext) << 27;
+        timestamp += (static_cast<uint64_t>(time_delta_ext)) << 27;
         break;
       }
       case kTypeTimeStamp: {

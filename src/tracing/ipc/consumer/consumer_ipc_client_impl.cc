@@ -25,8 +25,8 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
 
-// TODO Add a test to check to what happens when ConsumerIPCClientImpl gets
-// destroyed w.r.t. the Consumer pointer. Also think to lifetime of the
+// TODO(fmayer): Add a test to check to what happens when ConsumerIPCClientImpl
+// gets destroyed w.r.t. the Consumer pointer. Also think to lifetime of the
 // Consumer* during the callbacks.
 
 namespace perfetto {

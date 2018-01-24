@@ -37,7 +37,7 @@
 
 namespace perfetto {
 
-// TODO add ThreadChecker everywhere.
+// TODO(fmayer): add ThreadChecker everywhere.
 
 using protozero::proto_utils::ParseVarInt;
 
@@ -66,7 +66,7 @@ ServiceImpl::ServiceImpl(std::unique_ptr<SharedMemory::Factory> shm_factory,
 }
 
 ServiceImpl::~ServiceImpl() {
-  // TODO handle teardown of all Producer.
+  // TODO(fmayer): handle teardown of all Producer.
 }
 
 std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
@@ -180,7 +180,7 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // - All the kMaxTraceBufferID slots are taken.
   // - OOM, or, more relistically, we exhausted virtual memory.
   // In any case, free all the previously allocated buffers and abort.
-  // TODO: add a test to cover this case, this is quite subtle.
+  // TODO(fmayer): add a test to cover this case, this is quite subtle.
   if (!did_allocate_all_buffers) {
     for (BufferID global_id : ts.buffers_index) {
       buffer_ids_.Free(global_id);
@@ -295,7 +295,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
         for (size_t pack_idx = 0; pack_idx < num_packets; pack_idx++) {
           uint64_t pack_size = 0;
           ptr = ParseVarInt(ptr, chunk.end(), &pack_size);
-          // TODO stitching, look at the flags.
+          // TODO(fmayer): stitching, look at the flags.
           bool skip = (pack_idx == 0 &&
                        flags & SharedMemoryABI::ChunkHeader::
                                    kFirstPacketContinuesFromPrevChunk) ||
@@ -418,7 +418,7 @@ void ServiceImpl::CopyProducerPageIntoLogBuffer(ProducerID producer_id,
                                                 BufferID target_buffer_id,
                                                 const uint8_t* src,
                                                 size_t size) {
-  // TODO right now the page_size in the SMB and the trace_buffers_ can
+  // TODO(fmayer): right now the page_size in the SMB and the trace_buffers_ can
   // mismatch. Remove the ability to decide the page size on the Producer.
 
   auto buf_iter = buffers_.find(target_buffer_id);
@@ -514,7 +514,7 @@ ServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     : id_(id),
       service_(service),
       task_runner_(task_runner),
-      producer_(std::move(producer)),
+      producer_(producer),
       shared_memory_(std::move(shared_memory)),
       shmem_abi_(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                  shared_memory_->size(),
@@ -559,7 +559,7 @@ void ServiceImpl::ProducerEndpointImpl::NotifySharedMemoryUpdate(
     if (!shmem_abi_.TryAcquireAllChunksForReading(page_idx))
       continue;
 
-    // TODO: we should start collecting individual chunks from non fully
+    // TODO(fmayer): we should start collecting individual chunks from non fully
     // complete pages after a while.
 
     service_->CopyProducerPageIntoLogBuffer(

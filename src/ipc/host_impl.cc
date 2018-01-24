@@ -203,9 +203,9 @@ void HostImpl::ReplyToMethodInvocation(ClientID client_id,
   Frame reply_frame;
   reply_frame.set_request_id(request_id);
 
-  // TODO: add a test to guarantee that the reply is consumed within the same
-  // call stack and not kept around. ConsumerIPCService::OnTraceData() relies
-  // on this behavior.
+  // TODO(fmayer): add a test to guarantee that the reply is consumed within the
+  // same call stack and not kept around. ConsumerIPCService::OnTraceData()
+  // relies on this behavior.
   auto* reply_frame_data = reply_frame.mutable_msg_invoke_method_reply();
   reply_frame_data->set_has_more(reply.has_more());
   if (reply.success()) {

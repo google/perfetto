@@ -26,7 +26,7 @@
 
 namespace perfetto {
 
-// TODO: implement per-uid connection limit (b/69093705).
+// TODO(fmayer): implement per-uid connection limit (b/69093705).
 
 // Implements the publicly exposed factory method declared in
 // include/tracing/posix_ipc/posix_service_host.h.
@@ -80,8 +80,8 @@ bool ServiceIPCHostImpl::DoStart() {
     return false;
   }
 
-  // TODO: add a test that destroyes the ServiceIPCHostImpl soon after Start()
-  // and checks that no spurious callbacks are issued.
+  // TODO(fmayer): add a test that destroyes the ServiceIPCHostImpl soon after
+  // Start() and checks that no spurious callbacks are issued.
   bool producer_service_exposed = producer_ipc_port_->ExposeService(
       std::unique_ptr<ipc::Service>(new ProducerIPCService(svc_.get())));
   PERFETTO_CHECK(producer_service_exposed);
