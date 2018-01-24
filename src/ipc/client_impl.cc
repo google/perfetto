@@ -44,6 +44,8 @@ ClientImpl::ClientImpl(const char* socket_name, base::TaskRunner* task_runner)
 }
 
 ClientImpl::~ClientImpl() {
+  // Ensure we are not destroyed in the middle of invoking a reply.
+  PERFETTO_DCHECK(!invoking_method_reply_);
   OnDisconnect(nullptr);  // The UnixSocket* ptr is not used in OnDisconnect().
 }
 
@@ -241,8 +243,10 @@ void ClientImpl::OnInvokeMethodReply(QueuedRequest req,
     }
   }
   const RequestID request_id = req.request_id;
+  invoking_method_reply_ = true;
   service_proxy->EndInvoke(request_id, std::move(decoded_reply),
                            reply.has_more());
+  invoking_method_reply_ = false;
 
   // If this is a streaming method and future replies will be resolved, put back
   // the |req| with the callback into the set of active requests.

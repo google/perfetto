@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/unix_task_runner.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
@@ -94,14 +93,12 @@ void FtraceProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
   delegates_.erase(id);
 }
 
-void FtraceProducer::Run() {
-  base::UnixTaskRunner task_runner;
-  ftrace_ = FtraceController::Create(&task_runner);
-  endpoint_ = ProducerIPCClient::Connect(PERFETTO_PRODUCER_SOCK_NAME, this,
-                                         &task_runner);
+void FtraceProducer::Connect(const char* socket_name,
+                             base::TaskRunner* task_runner) {
+  ftrace_ = FtraceController::Create(task_runner);
+  endpoint_ = ProducerIPCClient::Connect(socket_name, this, task_runner);
   ftrace_->DisableAllEvents();
   ftrace_->ClearTrace();
-  task_runner.Run();
 }
 
 FtraceProducer::SinkDelegate::SinkDelegate(std::unique_ptr<TraceWriter> writer)

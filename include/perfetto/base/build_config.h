@@ -41,6 +41,12 @@
 #error OS not supported (see build_config.h)
 #endif
 
+#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#define BUILDFLAG_DEFINE_PERFETTO_ANDROID_BUILD() 1
+#else
+#define BUILDFLAG_DEFINE_PERFETTO_ANDROID_BUILD() 0
+#endif
+
 #if defined(PERFETTO_BUILD_WITH_CHROMIUM)
 #define BUILDFLAG_DEFINE_PERFETTO_CHROMIUM_BUILD() 1
 #else

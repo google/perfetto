@@ -18,6 +18,7 @@
 #include <memory>
 #include <utility>
 
+#include "perfetto/base/task_runner.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/trace_writer.h"
@@ -39,7 +40,7 @@ class FtraceProducer : public Producer {
   void TearDownDataSourceInstance(DataSourceInstanceID) override;
 
   // Our Impl
-  void Run();
+  void Connect(const char* socket_name, base::TaskRunner* task_runner);
 
  private:
   using BundleHandle =

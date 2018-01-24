@@ -12,18 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("perfetto_cmd") {
-  public_deps = [
-    "../../../include/perfetto/traced",
-  ]
+import("//build_overrides/build.gni")
+
+source_set("end_to_end_integrationtests") {
+  testonly = true
   deps = [
-    "../../../gn:default_deps",
-    "../../../protos/perfetto/config",
-    "../../base",
-    "../../protozero",
-    "../../tracing:ipc_consumer",
+    "../gn:default_deps",
+    "../gn:gtest_deps",
+    "../protos/perfetto/trace:lite",
+    "../src/base:base",
+    "../src/base:test_support",
+    "../src/traced/probes:ftrace_producer",
+    "../src/tracing:ipc",
   ]
   sources = [
-    "perfetto_cmd.cc",
+    "end_to_end_integrationtest.cc",
+    "fake_consumer.cc",
+    "fake_consumer.h",
+    "fake_producer.cc",
+    "fake_producer.h",
   ]
+  if (is_android && !build_with_chromium) {
+    deps += [ "../src/base:android_task_runner" ]
+  }
 }
