@@ -109,7 +109,8 @@ class FtraceController {
   static std::unique_ptr<FtraceController> Create(base::TaskRunner*);
   virtual ~FtraceController();
 
-  std::unique_ptr<FtraceSink> CreateSink(FtraceConfig, FtraceSink::Delegate*);
+  std::unique_ptr<FtraceSink> CreateSink(const FtraceConfig&,
+                                         FtraceSink::Delegate*);
 
   void DisableAllEvents();
   void WriteTraceMarker(const std::string& s);

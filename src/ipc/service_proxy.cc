@@ -39,7 +39,7 @@ void ServiceProxy::InitializeBinding(
     base::WeakPtr<Client> client,
     ServiceID service_id,
     std::map<std::string, MethodID> remote_method_ids) {
-  client_ = client;
+  client_ = std::move(client);
   service_id_ = service_id;
   remote_method_ids_ = std::move(remote_method_ids);
 }

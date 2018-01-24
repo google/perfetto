@@ -39,7 +39,7 @@ using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::Mock;
 
-static const char kSocketName[] = TEST_SOCK_NAME("unix_socket_unittest");
+const char kSocketName[] = TEST_SOCK_NAME("unix_socket_unittest");
 
 class MockEventListener : public UnixSocket::EventListener {
  public:

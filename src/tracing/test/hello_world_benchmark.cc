@@ -11,7 +11,7 @@ BENCHMARK(BM_StringCreation);
 static void BM_StringCopy(benchmark::State& state) {
   std::string x = "hello";
   while (state.KeepRunning())
-    std::string copy(x);
+    std::string copy(x);  // NOLINT
 }
 BENCHMARK(BM_StringCopy);
 
