@@ -33,19 +33,18 @@
 namespace perfetto {
 namespace {
 
-const size_t kPageSize = 4096;
-
 bool IsFileDescriptorClosed(int fd) {
   return lseek(fd, 0, SEEK_CUR) == -1 && errno == EBADF;
 }
 
 TEST(PosixSharedMemoryTest, DestructorUnmapsMemory) {
   PosixSharedMemory::Factory factory;
-  std::unique_ptr<SharedMemory> shm = factory.CreateSharedMemory(kPageSize);
+  std::unique_ptr<SharedMemory> shm =
+      factory.CreateSharedMemory(base::kPageSize);
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(nullptr, shm_start);
-  ASSERT_EQ(kPageSize, shm_size);
+  ASSERT_EQ(base::kPageSize, shm_size);
 
   memcpy(shm_start, "test", 5);
   ASSERT_TRUE(base::vm_test_utils::IsMapped(shm_start, shm_size));
@@ -55,10 +54,11 @@ TEST(PosixSharedMemoryTest, DestructorUnmapsMemory) {
 }
 
 TEST(PosixSharedMemoryTest, DestructorClosesFD) {
-  std::unique_ptr<PosixSharedMemory> shm = PosixSharedMemory::Create(kPageSize);
+  std::unique_ptr<PosixSharedMemory> shm =
+      PosixSharedMemory::Create(base::kPageSize);
   int fd = shm->fd();
   ASSERT_GE(fd, 0);
-  ASSERT_EQ(static_cast<off_t>(kPageSize), lseek(fd, 0, SEEK_END));
+  ASSERT_EQ(static_cast<off_t>(base::kPageSize), lseek(fd, 0, SEEK_END));
 
   shm.reset();
   ASSERT_TRUE(IsFileDescriptorClosed(fd));
@@ -67,7 +67,7 @@ TEST(PosixSharedMemoryTest, DestructorClosesFD) {
 TEST(PosixSharedMemoryTest, AttachToFd) {
   FILE* tmp_file = tmpfile();  // Creates an unlinked auto-deleting temp file.
   const int fd_num = fileno(tmp_file);
-  ASSERT_EQ(0, ftruncate(fd_num, kPageSize));
+  ASSERT_EQ(0, ftruncate(fd_num, base::kPageSize));
   ASSERT_EQ(7, PERFETTO_EINTR(write(fd_num, "foobar", 7)));
 
   std::unique_ptr<PosixSharedMemory> shm =
@@ -75,7 +75,7 @@ TEST(PosixSharedMemoryTest, AttachToFd) {
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(nullptr, shm_start);
-  ASSERT_EQ(kPageSize, shm_size);
+  ASSERT_EQ(base::kPageSize, shm_size);
   ASSERT_EQ(0, memcmp("foobar", shm_start, 7));
 
   ASSERT_FALSE(IsFileDescriptorClosed(fd_num));
