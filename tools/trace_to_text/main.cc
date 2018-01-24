@@ -166,9 +166,11 @@ std::string FormatPrint(uint64_t timestamp,
 int TraceToText(std::istream* input, std::ostream* output) {
   DiskSourceTree dst;
   dst.MapPath("protos", "protos");
+  dst.MapPath("perfetto", "protos/perfetto");
   MFE mfe;
   Importer importer(&dst, &mfe);
-  const FileDescriptor* parsed_file = importer.Import("protos/trace.proto");
+  const FileDescriptor* parsed_file =
+      importer.Import("protos/perfetto/trace/trace.proto");
 
   DynamicMessageFactory dmf;
   const Descriptor* trace_descriptor = parsed_file->message_type(0);
