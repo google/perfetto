@@ -67,8 +67,8 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
 
   fragmenting_packet_ = false;
 
-  // TODO: hack to get a new page every time and reduce fragmentation (that
-  // requires stitching support in the service).
+  // TODO(fmayer): hack to get a new page every time and reduce fragmentation
+  // (that requires stitching support in the service).
   protobuf_stream_writer_.Reset(GetNewBuffer());
 
   // Reserve space for the size of the message. Note: this call might re-enter

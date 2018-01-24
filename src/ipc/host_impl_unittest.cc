@@ -62,7 +62,7 @@ class FakeService : public Service {
     return reply;
   }
 
-  FakeService(const char* service_name) {
+  explicit FakeService(const char* service_name) {
     descriptor_.service_name = service_name;
     descriptor_.methods.push_back(
         {"FakeMethod1", &RequestDecoder, nullptr, &Invoker});

@@ -185,14 +185,14 @@ CpuReader* FtraceController::GetCpuReader(size_t cpu) {
 }
 
 std::unique_ptr<FtraceSink> FtraceController::CreateSink(
-    FtraceConfig config,
+    const FtraceConfig& config,
     FtraceSink::Delegate* delegate) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (sinks_.size() >= kMaxSinks)
     return nullptr;
   auto controller_weak = weak_factory_.GetWeakPtr();
-  auto filter = std::unique_ptr<EventFilter>(
-      new EventFilter(*table_.get(), config.events()));
+  auto filter =
+      std::unique_ptr<EventFilter>(new EventFilter(*table_, config.events()));
   auto sink = std::unique_ptr<FtraceSink>(
       new FtraceSink(std::move(controller_weak), std::move(filter), delegate));
   Register(sink.get());
