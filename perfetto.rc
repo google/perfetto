@@ -28,10 +28,10 @@ service traced_probes /system/bin/traced_probes
     group shell
     writepid /dev/cpuset/system-background/tasks
 
-on property:perfetto.service.enable=true
+on property:persist.traced.enable=1
     # Trace files need to be:
     # - Written by either uid:shell or uid:statsd.
-    # - Read by shell and dropbox (dropbox is invoked under statsd uid).
+    # - Read by shell and dropbox (dropbox is part of system_server).
     # When written to dropbox, they are persistet in the perfetto-traces folder
     # only for the time it takes to make a dropbox call, and unlinked
     # immediately in any case.
