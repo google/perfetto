@@ -39,12 +39,24 @@ group("gtest_deps") {
     public_deps = [
       "//buildtools:gmock",
       "//buildtools:gtest",
-      "//buildtools:gtest_main",
     ]
   } else {
     public_deps = [
       "//testing/gmock",
       "//testing/gtest",
+    ]
+  }
+}
+
+group("gtest_main") {
+  testonly = true
+
+  if (!build_with_chromium) {
+    public_deps = [
+      "//buildtools:gtest_main",
+    ]
+  } else {
+    public_deps = [
       "//testing/gtest:gtest_main",
     ]
   }
