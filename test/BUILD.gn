@@ -42,7 +42,7 @@ source_set("task_runner_thread") {
   testonly = true
   deps = [
     "../gn:default_deps",
-    "../src/base:test_task_runner",
+    "../src/base:test_support",
   ]
   sources = [
     "task_runner_thread.cc",
