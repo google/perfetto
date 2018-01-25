@@ -219,6 +219,7 @@ cc_test {
     "test/end_to_end_integrationtest.cc",
     "test/fake_consumer.cc",
     "test/fake_producer.cc",
+    "test/task_runner_thread.cc",
   ],
   shared_libs: [
     "libandroid",
