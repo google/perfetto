@@ -36,6 +36,9 @@ bool IsGoodPunctuation(char c) {
   return c == '_' || c == '.';
 }
 
+uint64_t kInitialConnectionBackoffMs = 100;
+uint64_t kMaxConnectionBackoffMs = 30 * 1000;
+
 bool IsValid(const std::string& str) {
   for (size_t i = 0; i < str.size(); i++) {
     if (!isalnum(str[i]) && !IsGoodPunctuation(str[i]))
@@ -46,9 +49,20 @@ bool IsValid(const std::string& str) {
 
 }  // namespace.
 
+// State transition diagram:
+//                    +----------------------------+
+//                    v                            +
+// NotStarted -> NotConnected -> Connecting -> Connected
+//                    ^              +
+//                    +--------------+
+//
+
 FtraceProducer::~FtraceProducer() = default;
 
 void FtraceProducer::OnConnect() {
+  PERFETTO_DCHECK(state_ == kConnecting);
+  state_ = kConnected;
+  ResetConnectionBackoff();
   PERFETTO_LOG("Connected to the service");
 
   DataSourceDescriptor descriptor;
@@ -58,8 +72,13 @@ void FtraceProducer::OnConnect() {
 }
 
 void FtraceProducer::OnDisconnect() {
+  PERFETTO_DCHECK(state_ == kConnected || state_ == kConnecting);
+  state_ = kNotConnected;
   PERFETTO_LOG("Disconnected from tracing service");
-  exit(1);
+  IncreaseConnectionBackoff();
+
+  task_runner_->PostDelayedTask([this] { this->Connect(); },
+                                connection_backoff_ms_);
 }
 
 void FtraceProducer::CreateDataSourceInstance(
@@ -112,12 +131,34 @@ void FtraceProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
   delegates_.erase(id);
 }
 
-void FtraceProducer::Connect(const char* socket_name,
-                             base::TaskRunner* task_runner) {
+void FtraceProducer::ConnectWithRetries(const char* socket_name,
+                                        base::TaskRunner* task_runner) {
+  PERFETTO_DCHECK(state_ == kNotStarted);
+  state_ = kNotConnected;
+
+  ResetConnectionBackoff();
+  socket_name_ = socket_name;
+  task_runner_ = task_runner;
   ftrace_ = FtraceController::Create(task_runner);
-  endpoint_ = ProducerIPCClient::Connect(socket_name, this, task_runner);
   ftrace_->DisableAllEvents();
   ftrace_->ClearTrace();
+  Connect();
+}
+
+void FtraceProducer::Connect() {
+  PERFETTO_DCHECK(state_ == kNotConnected);
+  state_ = kConnecting;
+  endpoint_ = ProducerIPCClient::Connect(socket_name_, this, task_runner_);
+}
+
+void FtraceProducer::IncreaseConnectionBackoff() {
+  connection_backoff_ms_ *= 2;
+  if (connection_backoff_ms_ > kMaxConnectionBackoffMs)
+    connection_backoff_ms_ = kMaxConnectionBackoffMs;
+}
+
+void FtraceProducer::ResetConnectionBackoff() {
+  connection_backoff_ms_ = kInitialConnectionBackoffMs;
 }
 
 FtraceProducer::SinkDelegate::SinkDelegate(std::unique_ptr<TraceWriter> writer)

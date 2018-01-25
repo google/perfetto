@@ -95,7 +95,7 @@ class PerfettoTest : public ::testing::Test {
 
     void Initialize(base::TaskRunner* task_runner) override {
       producer_.reset(new FtraceProducer);
-      producer_->Connect(TEST_PRODUCER_SOCK_NAME, task_runner);
+      producer_->ConnectWithRetries(TEST_PRODUCER_SOCK_NAME, task_runner);
     }
 
    private:
