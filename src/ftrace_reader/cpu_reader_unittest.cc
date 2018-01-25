@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "proto_translation_table.h"
 
+#include "perfetto/base/utils.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
 
@@ -38,7 +39,6 @@ namespace perfetto {
 
 namespace {
 
-const size_t kPageSize = 4096;
 const uint64_t kNanoInSecond = 1000 * 1000 * 1000;
 const uint64_t kNanoInMicro = 1000;
 
@@ -127,9 +127,9 @@ ProtoTranslationTable* GetTable(const std::string& name) {
 
 // Convert xxd output into binary data.
 std::unique_ptr<uint8_t[]> PageFromXxd(const std::string& text) {
-  auto buffer = std::unique_ptr<uint8_t[]>(new uint8_t[kPageSize]);
+  auto buffer = std::unique_ptr<uint8_t[]>(new uint8_t[base::kPageSize]);
   const char* ptr = text.data();
-  memset(buffer.get(), 0xfa, kPageSize);
+  memset(buffer.get(), 0xfa, base::kPageSize);
   uint8_t* out = buffer.get();
   while (*ptr != '\0') {
     if (*(ptr++) != ':')
@@ -152,7 +152,7 @@ std::unique_ptr<uint8_t[]> PageFromXxd(const std::string& text) {
 class BinaryWriter {
  public:
   BinaryWriter()
-      : size_(kPageSize), page_(new uint8_t[size_]), ptr_(page_.get()) {}
+      : size_(base::kPageSize), page_(new uint8_t[size_]), ptr_(page_.get()) {}
 
   template <typename T>
   void Write(T t) {
@@ -375,7 +375,7 @@ ExamplePage g_single_print{
 TEST(CpuReaderTest, ParseSinglePrint) {
   const ExamplePage* test_case = &g_single_print;
 
-  BundleProvider bundle_provider(kPageSize);
+  BundleProvider bundle_provider(base::kPageSize);
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
@@ -411,7 +411,7 @@ ExamplePage g_single_print_malformed{
 TEST(CpuReaderTest, ParseSinglePrintMalformed) {
   const ExamplePage* test_case = &g_single_print_malformed;
 
-  BundleProvider bundle_provider(kPageSize);
+  BundleProvider bundle_provider(base::kPageSize);
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
@@ -435,7 +435,7 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
 TEST(CpuReaderTest, FilterByEvent) {
   const ExamplePage* test_case = &g_single_print;
 
-  BundleProvider bundle_provider(kPageSize);
+  BundleProvider bundle_provider(base::kPageSize);
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
@@ -484,7 +484,7 @@ ExamplePage g_three_prints{
 TEST(CpuReaderTest, ParseThreePrint) {
   const ExamplePage* test_case = &g_three_prints;
 
-  BundleProvider bundle_provider(kPageSize);
+  BundleProvider bundle_provider(base::kPageSize);
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
@@ -586,7 +586,7 @@ ExamplePage g_six_sched_switch{
 TEST(CpuReaderTest, ParseSixSchedSwitch) {
   const ExamplePage* test_case = &g_six_sched_switch;
 
-  BundleProvider bundle_provider(kPageSize);
+  BundleProvider bundle_provider(base::kPageSize);
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
@@ -679,7 +679,7 @@ TEST(CpuReaderTest, ParseAllFields) {
   }
   ProtoTranslationTable table(events, std::move(common_fields));
 
-  FakeEventProvider provider(kPageSize);
+  FakeEventProvider provider(base::kPageSize);
 
   BinaryWriter writer;
   writer.Write<int32_t>(1001);  // Common field.

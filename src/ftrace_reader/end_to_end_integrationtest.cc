@@ -22,6 +22,7 @@
 #include "google/protobuf/text_format.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/unix_task_runner.h"
+#include "perfetto/base/utils.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
@@ -36,8 +37,6 @@ using testing::Not;
 
 namespace perfetto {
 namespace {
-
-const size_t kPageSize = 4096;
 
 const char kTracingPath[] = "/sys/kernel/debug/tracing/";
 
@@ -59,7 +58,7 @@ class EndToEndIntegrationTest : public ::testing::Test,
  protected:
   virtual void SetUp() {
     writer_delegate = std::unique_ptr<ScatteredStreamDelegateForTesting>(
-        new ScatteredStreamDelegateForTesting(kPageSize * 100));
+        new ScatteredStreamDelegateForTesting(base::kPageSize * 100));
     writer = std::unique_ptr<protozero::ScatteredStreamWriter>(
         new protozero::ScatteredStreamWriter(writer_delegate.get()));
     writer_delegate->set_writer(writer.get());

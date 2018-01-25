@@ -19,14 +19,14 @@
 #include <sys/mman.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/utils.h"
 
 namespace perfetto {
 namespace base {
 
 namespace {
 
-constexpr size_t kPageSize = 4096;
-constexpr size_t kGuardSize = kPageSize;
+static constexpr size_t kGuardSize = kPageSize;
 
 // static
 PageAllocator::UniquePtr AllocateInternal(size_t size, bool unchecked) {
