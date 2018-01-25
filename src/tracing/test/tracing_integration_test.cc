@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "src/tracing/ipc/posix_shared_memory.h"
-
 #include <inttypes.h>
 
 #include "gmock/gmock.h"
