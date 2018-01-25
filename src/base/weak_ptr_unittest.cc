@@ -34,7 +34,7 @@ TEST(WeakPtrTest, AllCases) {
   WeakPtr<WeakClass> weak_ptr2;
   weak_ptr2 = owned_instance->weak_factory.GetWeakPtr();
   WeakPtr<WeakClass> weak_ptr_copied(weak_ptr2);
-  WeakPtr<WeakClass> weak_ptr_copied2 = weak_ptr_copied;
+  WeakPtr<WeakClass> weak_ptr_copied2 = weak_ptr_copied;  // NOLINT
 
   ASSERT_TRUE(weak_ptr1);
   ASSERT_TRUE(weak_ptr2);

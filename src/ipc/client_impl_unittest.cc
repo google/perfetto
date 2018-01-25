@@ -138,7 +138,7 @@ class FakeHost : public UnixSocket::EventListener {
     if (req.msg_case() == Frame::kMsgBindService) {
       auto svc_it = services.find(req.msg_bind_service().service_name());
       ASSERT_NE(services.end(), svc_it);
-      const FakeService& svc = *svc_it->second.get();
+      const FakeService& svc = *svc_it->second;
       Frame reply;
       reply.set_request_id(req.request_id());
       reply.mutable_msg_bind_service_reply()->set_success(true);

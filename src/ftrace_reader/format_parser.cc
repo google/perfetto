@@ -36,7 +36,7 @@ namespace {
 
 const char* kCommonFieldPrefix = "common_";
 
-bool IsCommonFieldName(std::string name) {
+bool IsCommonFieldName(const std::string& name) {
   return name.compare(0, strlen(kCommonFieldPrefix), kCommonFieldPrefix) == 0;
 }
 

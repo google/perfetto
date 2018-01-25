@@ -18,6 +18,8 @@
 
 #include <inttypes.h>
 
+#include <utility>
+
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/ipc/service_descriptor.h"
@@ -97,7 +99,7 @@ RequestID ClientImpl::BeginInvoke(ServiceID service_id,
   qr.type = Frame::kMsgInvokeMethod;
   qr.request_id = request_id;
   qr.method_name = method_name;
-  qr.service_proxy = service_proxy;
+  qr.service_proxy = std::move(service_proxy);
   queued_requests_.emplace(request_id, std::move(qr));
   return request_id;
 }
@@ -154,7 +156,7 @@ void ClientImpl::OnDataAvailable(UnixSocket*) {
     if (!frame_deserializer_.EndReceive(rsize)) {
       // The endpoint tried to send a frame that is way too large.
       return sock_->Shutdown();  // In turn will trigger an OnDisconnect().
-      // TODO check this.
+      // TODO(fmayer): check this.
     }
   } while (rsize > 0);
 
@@ -234,7 +236,8 @@ void ClientImpl::OnInvokeMethodReply(QueuedRequest req,
     return;
   std::unique_ptr<ProtoMessage> decoded_reply;
   if (reply.success()) {
-    // TODO this could be optimized, stop doing method name string lookups.
+    // TODO(fmayer): this could be optimized, stop doing method name string
+    // lookups.
     for (const auto& method : service_proxy->GetDescriptor().methods) {
       if (req.method_name == method.name) {
         decoded_reply = method.reply_proto_decoder(reply.reply_proto());

@@ -28,7 +28,7 @@
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
 
-// TODO think to what happens when ProducerIPCClientImpl gets destroyed
+// TODO(fmayer): think to what happens when ProducerIPCClientImpl gets destroyed
 // w.r.t. the Producer pointer. Also think to lifetime of the Producer* during
 // the callbacks.
 
@@ -162,10 +162,10 @@ void ProducerIPCClientImpl::RegisterDataSource(
   RegisterDataSourceRequest req;
   descriptor.ToProto(req.mutable_data_source_descriptor());
   ipc::Deferred<RegisterDataSourceResponse> async_response;
-  // TODO: add a test that destroys the IPC channel soon after this call and
-  // checks that the callback(0) is invoked.
-  // TODO: add a test that destroyes ProducerIPCClientImpl soon after this call
-  // and checks that the callback is dropped.
+  // TODO(fmayer): add a test that destroys the IPC channel soon after this call
+  // and checks that the callback(0) is invoked.
+  // TODO(fmayer): add a test that destroyes ProducerIPCClientImpl soon after
+  // this call and checks that the callback is dropped.
   async_response.Bind(
       [callback](ipc::AsyncResult<RegisterDataSourceResponse> response) {
         if (!response) {
