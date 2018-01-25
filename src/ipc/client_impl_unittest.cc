@@ -260,6 +260,35 @@ TEST_F(ClientImplTest, BindAndInvokeMethod) {
   task_runner_->RunUntilCheckpoint("on_invalid_invoke");
 }
 
+// Tests that when invoking a method without binding a callback, the resulting
+// request has the |drop_reply| flag set.
+TEST_F(ClientImplTest, InvokeMethodDropReply) {
+  auto* host_svc = host_->AddFakeService("FakeSvc");
+  auto* host_method = host_svc->AddFakeMethod("FakeMethod1");
+
+  std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
+
+  // Bind |proxy| to the fake host.
+  cli_->BindService(proxy->GetWeakPtr());
+  auto on_connect = task_runner_->CreateCheckpoint("on_connect");
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  task_runner_->RunUntilCheckpoint("on_connect");
+
+  auto on_req_received = task_runner_->CreateCheckpoint("on_req_received");
+  EXPECT_CALL(*host_method, OnInvoke(_, _))
+      .WillOnce(Invoke([on_req_received](const Frame::InvokeMethod& req,
+                                         Frame::InvokeMethodReply*) {
+        RequestProto req_args;
+        EXPECT_TRUE(req.drop_reply());
+        on_req_received();
+      }));
+
+  // Invoke a method without binding any callback to the Deferred object.
+  DeferredBase no_callback;
+  proxy->BeginInvoke("FakeMethod1", RequestProto(), std::move(no_callback));
+  task_runner_->RunUntilCheckpoint("on_req_received");
+}
+
 // Like BindAndInvokeMethod, but this time invoke a streaming method that
 // provides > 1 reply per invocation.
 TEST_F(ClientImplTest, BindAndInvokeStreamingMethod) {
