@@ -81,6 +81,7 @@ RequestID ClientImpl::BeginInvoke(ServiceID service_id,
                                   const std::string& method_name,
                                   MethodID remote_method_id,
                                   const ProtoMessage& method_args,
+                                  bool drop_reply,
                                   base::WeakPtr<ServiceProxy> service_proxy) {
   std::string args_proto;
   RequestID request_id = ++last_request_id_;
@@ -89,12 +90,15 @@ RequestID ClientImpl::BeginInvoke(ServiceID service_id,
   Frame::InvokeMethod* req = frame.mutable_msg_invoke_method();
   req->set_service_id(service_id);
   req->set_method_id(remote_method_id);
+  req->set_drop_reply(drop_reply);
   bool did_serialize = method_args.SerializeToString(&args_proto);
   req->set_args_proto(args_proto);
   if (!did_serialize || !SendFrame(frame)) {
     PERFETTO_DLOG("BeginInvoke() failed while sending the frame");
     return 0;
   }
+  if (drop_reply)
+    return 0;
   QueuedRequest qr;
   qr.type = Frame::kMsgInvokeMethod;
   qr.request_id = request_id;

@@ -57,14 +57,19 @@ void ServiceProxy::BeginInvoke(const std::string& method_name,
 
   auto remote_method_it = remote_method_ids_.find(method_name);
   RequestID request_id = 0;
+  const bool drop_reply = !reply.IsBound();
   if (remote_method_it != remote_method_ids_.end()) {
     request_id =
         static_cast<ClientImpl*>(client_.get())
             ->BeginInvoke(service_id_, method_name, remote_method_it->second,
-                          request, weak_ptr_factory_.GetWeakPtr());
+                          request, drop_reply, weak_ptr_factory_.GetWeakPtr());
   } else {
     PERFETTO_DLOG("Cannot find method \"%s\" on the host", method_name.c_str());
   }
+
+  // When passing |drop_reply| == true, the returned |request_id| should be 0.
+  PERFETTO_DCHECK(!drop_reply || !request_id);
+
   if (!request_id)
     return;
   PERFETTO_DCHECK(pending_callbacks_.count(request_id) == 0);
@@ -76,6 +81,9 @@ void ServiceProxy::EndInvoke(RequestID request_id,
                              bool has_more) {
   auto callback_it = pending_callbacks_.find(request_id);
   if (callback_it == pending_callbacks_.end()) {
+    // Either we are getting a reply for a method we never invoked, or we are
+    // getting a reply to a method marked drop_reply (that has been invoked
+    // without binding any callback in the Defererd response object).
     PERFETTO_DCHECK(false);
     return;
   }
