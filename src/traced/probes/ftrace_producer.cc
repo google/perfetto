@@ -32,9 +32,13 @@
 namespace perfetto {
 namespace {
 
-bool IsAlnum(const std::string& str) {
+bool IsGoodPunctuation(char c) {
+  return c == '_' || c == '.';
+}
+
+bool IsValid(const std::string& str) {
   for (size_t i = 0; i < str.size(); i++) {
-    if (!isalnum(str[i]) && str[i] != '_')
+    if (!isalnum(str[i]) && !IsGoodPunctuation(str[i]))
       return false;
   }
   return true;
@@ -69,11 +73,26 @@ void FtraceProducer::CreateDataSourceInstance(
       source_config.ftrace_config();
 
   FtraceConfig config;
+  // TODO(b/72082266): We shouldn't have to do this.
   for (const std::string& event_name : proto_config.event_names()) {
-    if (IsAlnum(event_name)) {
+    if (IsValid(event_name)) {
       config.AddEvent(event_name.c_str());
     } else {
-      PERFETTO_LOG("Bad event name '%s'", event_name.c_str());
+      PERFETTO_ELOG("Bad event name '%s'", event_name.c_str());
+    }
+  }
+  for (const std::string& category : proto_config.atrace_categories()) {
+    if (IsValid(category)) {
+      config.AddAtraceCategory(category.c_str());
+    } else {
+      PERFETTO_ELOG("Bad category name '%s'", category.c_str());
+    }
+  }
+  for (const std::string& app : proto_config.atrace_apps()) {
+    if (IsValid(app)) {
+      config.AddAtraceApp(app.c_str());
+    } else {
+      PERFETTO_ELOG("Bad app '%s'", app.c_str());
     }
   }
 
