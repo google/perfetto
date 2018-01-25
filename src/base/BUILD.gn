@@ -68,16 +68,29 @@ if (is_debug) {
 
 source_set("test_support") {
   testonly = true
+  public_deps = [
+    ":test_task_runner",
+  ]
   deps = [
     ":base",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
   ]
   sources = [
-    "test/test_task_runner.cc",
-    "test/test_task_runner.h",
     "test/vm_test_utils.cc",
     "test/vm_test_utils.h",
+  ]
+}
+
+source_set("test_task_runner") {
+  testonly = true
+  deps = [
+    ":base",
+    "../../gn:default_deps",
+  ]
+  sources = [
+    "test/test_task_runner.cc",
+    "test/test_task_runner.h",
   ]
 }
 
