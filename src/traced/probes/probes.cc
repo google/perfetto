@@ -26,7 +26,7 @@ int __attribute__((visibility("default"))) ProbesMain(int argc, char** argv) {
   PERFETTO_LOG("Starting %s service", argv[0]);
   base::UnixTaskRunner task_runner;
   FtraceProducer producer;
-  producer.Connect(PERFETTO_PRODUCER_SOCK_NAME, &task_runner);
+  producer.ConnectWithRetries(PERFETTO_PRODUCER_SOCK_NAME, &task_runner);
   task_runner.Run();
   return 0;
 }
