@@ -106,6 +106,10 @@ bool StartsWith(const std::string& str, const std::string& prefix) {
   return str.compare(0, prefix.length(), prefix) == 0;
 }
 
+bool Contains(const std::string& haystack, const std::string& needle) {
+  return haystack.find(needle) != std::string::npos;
+}
+
 std::string RegexError(int errcode, const regex_t* preg) {
   char buf[64];
   regerror(errcode, preg, buf, sizeof(buf));
@@ -135,9 +139,20 @@ bool InferFtraceType(const std::string& type_and_name,
   // since we get the size as it's own field. Somewhat awkwardly these fields
   // are both fixed size and null terminated meaning that we can't just drop
   // them directly into the protobuf (since if the string is shorter than 15
-  // charatcors we).
+  // characters we want only the bit up to the null terminator).
   if (Match(type_and_name.c_str(), R"(char [a-zA-Z_]+\[[0-9]+\])")) {
     *out = kFtraceFixedCString;
+    return true;
+  }
+
+  // String pointers: "__data_loc char[] foo" (as in
+  // 'cpufreq_interactive_boost').
+  if (Contains(type_and_name, "char[] ")) {
+    *out = kFtraceStringPtr;
+    return true;
+  }
+  if (Contains(type_and_name, "char * ")) {
+    *out = kFtraceStringPtr;
     return true;
   }
 
