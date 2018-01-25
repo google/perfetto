@@ -39,6 +39,12 @@ message Frame {
     optional int32 service_id = 1;  // As returned by BindServiceReply.id.
     optional int32 method_id = 2;  // As returned by BindServiceReply.method.id.
     optional bytes args_proto = 3;  // Proto-encoded request argument.
+
+    // When true the client specifies that a reply is not needed. The use case
+    // is a method with an empty, where the client doesn't care about the
+    // success/failure of the method invocation and rather prefers avoiding the
+    // IPC roundtrip + context switch associated with the reply.
+    optional bool drop_reply = 4;
   }
 
   // Host -> Client.

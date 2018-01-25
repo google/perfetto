@@ -38,6 +38,7 @@ namespace {
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
+using ::testing::Return;
 
 constexpr char kSockName[] = TEST_SOCK_NAME("host_impl_unittest.sock");
 
@@ -99,13 +100,15 @@ class FakeClient : public UnixSocket::EventListener {
 
   void InvokeMethod(ServiceID service_id,
                     MethodID method_id,
-                    const ProtoMessage& args) {
+                    const ProtoMessage& args,
+                    bool drop_reply = false) {
     Frame frame;
     uint64_t request_id = requests_.empty() ? 1 : requests_.rbegin()->first + 1;
     requests_.emplace(request_id, 0);
     frame.set_request_id(request_id);
     frame.mutable_msg_invoke_method()->set_service_id(service_id);
     frame.mutable_msg_invoke_method()->set_method_id(method_id);
+    frame.mutable_msg_invoke_method()->set_drop_reply(drop_reply);
     frame.mutable_msg_invoke_method()->set_args_proto(args.SerializeAsString());
     SendFrame(frame);
   }
@@ -265,6 +268,49 @@ TEST_F(HostImplTest, InvokeMethod) {
   task_runner_->RunUntilCheckpoint("on_reply_received");
 }
 
+TEST_F(HostImplTest, InvokeMethodDropReply) {
+  FakeService* fake_service = new FakeService("FakeService");
+  ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
+  auto on_bind = task_runner_->CreateCheckpoint("on_bind");
+  cli_->BindService("FakeService");
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  task_runner_->RunUntilCheckpoint("on_bind");
+
+  // OnFakeMethod1 will:
+  // - Do nothing on the 1st call, when |drop_reply| == true.
+  // - Reply on the the 2nd call, when |drop_reply| == false.
+  EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
+      .Times(2)
+      .WillRepeatedly(Invoke([](const RequestProto& req, DeferredBase* reply) {
+        if (req.data() == "drop_reply")
+          return;
+        std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+        reply_args->set_data("the_reply");
+        reply->Resolve(AsyncResult<ProtoMessage>(
+            std::unique_ptr<ProtoMessage>(reply_args.release())));
+      }));
+
+  auto on_reply_received = task_runner_->CreateCheckpoint("on_reply_received");
+  EXPECT_CALL(*cli_, OnInvokeMethodReply(_))
+      .WillOnce(
+          Invoke([on_reply_received](const Frame::InvokeMethodReply& reply) {
+            ASSERT_TRUE(reply.success());
+            ReplyProto reply_args;
+            reply_args.ParseFromString(reply.reply_proto());
+            ASSERT_EQ("the_reply", reply_args.data());
+            on_reply_received();
+          }));
+
+  // Invoke the method first with |drop_reply|=true, then |drop_reply|=false.
+  RequestProto rp;
+  rp.set_data("drop_reply");
+  cli_->InvokeMethod(cli_->last_bound_service_id_, 1, rp, true /*drop_reply*/);
+  rp.set_data("do_reply");
+  cli_->InvokeMethod(cli_->last_bound_service_id_, 1, rp, false /*drop_reply*/);
+
+  task_runner_->RunUntilCheckpoint("on_reply_received");
+}
+
 TEST_F(HostImplTest, SendFileDescriptor) {
   FakeService* fake_service = new FakeService("FakeService");
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
@@ -386,6 +432,7 @@ TEST_F(HostImplTest, MoveReplyObjectAndReplyAsynchronously) {
 // TEST(HostImplTest, ManyClients) {}
 // TEST(HostImplTest, OverlappingRequstsOutOfOrder) {}
 // TEST(HostImplTest, StreamingRequest) {}
+// TEST(HostImplTest, ManyDropReplyRequestsDontLeakMemory) {}
 
 }  // namespace
 }  // namespace ipc

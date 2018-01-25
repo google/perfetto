@@ -58,6 +58,7 @@ class ClientImpl : public Client, public UnixSocket::EventListener {
                         const std::string& method_name,
                         MethodID remote_method_id,
                         const ProtoMessage& method_args,
+                        bool drop_reply,
                         base::WeakPtr<ServiceProxy>);
 
  private:
