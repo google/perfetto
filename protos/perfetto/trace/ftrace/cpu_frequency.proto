@@ -4,7 +4,7 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
-message PrintFtraceEvent {
-  optional uint64 ip = 1;
-  optional string buf = 2;
+message CpuFrequencyFtraceEvent {
+  optional uint32 state = 1;
+  optional uint32 cpu_id = 2;
 }

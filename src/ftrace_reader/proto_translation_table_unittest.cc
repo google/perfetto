@@ -16,6 +16,7 @@
 
 #include "proto_translation_table.h"
 
+#include "event_info.h"
 #include "ftrace_procfs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -53,7 +54,6 @@ class AllTranslationTableTest : public TestWithParam<const char*> {
 
 const char* kDevices[] = {
     "android_seed_N2F62_3.10.49", "android_hammerhead_MRA59G_3.4.0",
-    "synthetic",
 };
 
 TEST_P(AllTranslationTableTest, Create) {
@@ -76,11 +76,27 @@ TEST_P(AllTranslationTableTest, Create) {
   const Field& pid_field = table_->common_fields().at(0);
   EXPECT_EQ(std::string(pid_field.ftrace_name), "common_pid");
   EXPECT_EQ(pid_field.proto_field_id, 2u);
+
+  for (const Event& event : GetStaticEventInfo()) {
+    // Event is new.
+    if (std::string(event.name) == "cpu_frequency_limits")
+      continue;
+    EXPECT_TRUE(table_->GetEventByName(event.name));
+  }
+
+  {
+    auto event = table_->GetEventByName("cpufreq_interactive_boost");
+    EXPECT_EQ(std::string(event->name), "cpufreq_interactive_boost");
+    EXPECT_EQ(std::string(event->group), "cpufreq_interactive");
+    EXPECT_EQ(event->fields.at(0).proto_field_type, kProtoString);
+    EXPECT_EQ(event->fields.at(0).ftrace_type, kFtraceStringPtr);
+    EXPECT_EQ(event->fields.at(0).strategy, kStringPtrToString);
+  }
 }
 
 INSTANTIATE_TEST_CASE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
 
-TEST(TranslationTable, Seed) {
+TEST(TranslationTableTest, Seed) {
   std::string path = "src/ftrace_reader/test/data/android_seed_N2F62_3.10.49/";
   FtraceProcfs ftrace_procfs(path);
   auto table = ProtoTranslationTable::Create(
@@ -91,15 +107,26 @@ TEST(TranslationTable, Seed) {
   EXPECT_EQ(pid_field.ftrace_offset, 4u);
   EXPECT_EQ(pid_field.ftrace_size, 4u);
 
-  auto sched_switch_event = table->GetEventByName("sched_switch");
-  EXPECT_EQ(std::string(sched_switch_event->name), "sched_switch");
-  EXPECT_EQ(std::string(sched_switch_event->group), "sched");
-  EXPECT_EQ(sched_switch_event->ftrace_event_id, 68ul);
-  EXPECT_EQ(sched_switch_event->fields.at(0).ftrace_offset, 8u);
-  EXPECT_EQ(sched_switch_event->fields.at(0).ftrace_size, 16u);
+  {
+    auto event = table->GetEventByName("sched_switch");
+    EXPECT_EQ(std::string(event->name), "sched_switch");
+    EXPECT_EQ(std::string(event->group), "sched");
+    EXPECT_EQ(event->ftrace_event_id, 68ul);
+    EXPECT_EQ(event->fields.at(0).ftrace_offset, 8u);
+    EXPECT_EQ(event->fields.at(0).ftrace_size, 16u);
+  }
+
+  {
+    auto event = table->GetEventByName("cpufreq_interactive_target");
+    EXPECT_EQ(std::string(event->name), "cpufreq_interactive_target");
+    EXPECT_EQ(std::string(event->group), "cpufreq_interactive");
+    EXPECT_EQ(event->ftrace_event_id, 509ul);
+    EXPECT_EQ(event->fields.at(0).ftrace_offset, 8u);
+    EXPECT_EQ(event->fields.at(0).ftrace_size, 4u);
+  }
 }
 
-TEST(TranslationTable, Create) {
+TEST(TranslationTableTest, Create) {
   MockFtraceProcfs ftrace;
   std::vector<Field> common_fields;
   std::vector<Event> events;
@@ -199,14 +226,20 @@ print fmt: "some format")"));
   EXPECT_EQ(field_e.strategy, kUint32ToUint64);
 }
 
-TEST(TranslationTable, InferFtraceType) {
+TEST(TranslationTableTest, InferFtraceType) {
   FtraceFieldType type;
-
-  ASSERT_TRUE(InferFtraceType("char * foo", 0, false, &type));
-  EXPECT_EQ(type, kFtraceCString);
 
   ASSERT_TRUE(InferFtraceType("char foo[16]", 16, false, &type));
   EXPECT_EQ(type, kFtraceFixedCString);
+
+  ASSERT_TRUE(InferFtraceType("__data_loc char[] foo", 4, false, &type));
+  EXPECT_EQ(type, kFtraceStringPtr);
+
+  ASSERT_TRUE(InferFtraceType("char[] foo", 8, false, &type));
+  EXPECT_EQ(type, kFtraceStringPtr);
+
+  ASSERT_TRUE(InferFtraceType("char * foo", 8, false, &type));
+  EXPECT_EQ(type, kFtraceStringPtr);
 
   ASSERT_TRUE(InferFtraceType("char foo[64]", 64, false, &type));
   EXPECT_EQ(type, kFtraceFixedCString);
@@ -217,7 +250,7 @@ TEST(TranslationTable, InferFtraceType) {
   EXPECT_FALSE(InferFtraceType("foo", 64, false, &type));
 }
 
-TEST(TranslationTable, Getters) {
+TEST(TranslationTableTest, Getters) {
   std::vector<Field> common_fields;
   std::vector<Event> events;
 

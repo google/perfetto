@@ -33,7 +33,6 @@ struct Proto {
   std::string ToString();
 };
 
-std::string ToString(const Proto& proto);
 bool GenerateProto(const FtraceEvent& format, Proto* proto_out);
 std::string InferProtoType(const FtraceEvent::Field& field);
 

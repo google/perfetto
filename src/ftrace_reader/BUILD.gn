@@ -98,6 +98,8 @@ source_set("ftrace_reader") {
     "cpu_reader.h",
     "event_info.cc",
     "event_info.h",
+    "event_info_constants.cc",
+    "event_info_constants.h",
     "format_parser.cc",
     "ftrace_controller.cc",
     "ftrace_procfs.cc",
