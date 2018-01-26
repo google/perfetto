@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../gn/perfetto.gni")
 import("//build_overrides/build.gni")
 
 source_set("end_to_end_integrationtests") {
   testonly = true
   deps = [
+    ":fake_consumer",
     ":task_runner_thread",
     "../gn:default_deps",
     "../gn:gtest_deps",
@@ -28,14 +30,46 @@ source_set("end_to_end_integrationtests") {
   ]
   sources = [
     "end_to_end_integrationtest.cc",
-    "fake_consumer.cc",
-    "fake_consumer.h",
     "fake_producer.cc",
     "fake_producer.h",
   ]
   if (is_android && !build_with_chromium) {
     deps += [ "../src/base:android_task_runner" ]
   }
+}
+
+if (use_libfuzzer) {
+  executable("end_to_end_shared_memory_fuzzer") {
+    sources = [
+      "end_to_end_shared_memory_fuzzer.cc",
+    ]
+    testonly = true
+    deps = [
+      ":fake_consumer",
+      ":task_runner_thread",
+      "../gn:default_deps",
+      "../src/base:test_support",
+      "../src/protozero",
+      "../src/tracing",
+      "../src/tracing:ipc",
+    ]
+    configs += [ "../gn:fuzzer_config" ]
+  }
+}
+
+source_set("fake_consumer") {
+  testonly = true
+  deps = [
+    "../gn:default_deps",
+    "../gn:gtest_deps",
+    "../protos/perfetto/trace:lite",
+    "../src/base:base",
+    "../src/base:test_support",
+  ]
+  sources = [
+    "fake_consumer.cc",
+    "fake_consumer.h",
+  ]
 }
 
 source_set("task_runner_thread") {
