@@ -307,6 +307,9 @@ bool CpuReader::ParseField(const Field& field,
     case kCStringToString:
       // TODO(hjd): Kernel-dive to check this how size:0 char fields work.
       return ReadIntoString(field_start, end, field.proto_field_id, message);
+    case kStringPtrToString:
+      // TODO(hjd): Figure out how to read these.
+      return true;
   }
   // Not reached, for gcc.
   PERFETTO_CHECK(false);

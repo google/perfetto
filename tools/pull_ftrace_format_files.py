@@ -93,6 +93,7 @@ def pull_format_files(serial, output_directory):
       "-name format -o " \
       "-name header_event -o " \
       "-name header_page | " \
+      "grep -v '/instances/' | " \
       "while read f; do echo 'path:' $f; cat $f; done"
 
   output = adb('shell', cmd, serial=serial)

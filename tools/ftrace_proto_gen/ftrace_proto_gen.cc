@@ -47,11 +47,22 @@ bool StartsWith(const std::string& str, const std::string& prefix) {
   return str.compare(0, prefix.length(), prefix) == 0;
 }
 
+bool Contains(const std::string& haystack, const std::string& needle) {
+  return haystack.find(needle) != std::string::npos;
+}
+
 }  // namespace
 
 std::string InferProtoType(const FtraceEvent::Field& field) {
   // Fixed length strings: "char foo[16]"
   if (std::regex_match(field.type_and_name, std::regex(R"(char \w+\[\d+\])")))
+    return "string";
+
+  // String pointers: "__data_loc char[] foo" (as in
+  // 'cpufreq_interactive_boost').
+  if (Contains(field.type_and_name, "char[] "))
+    return "string";
+  if (Contains(field.type_and_name, "char * "))
     return "string";
 
   // Variable length strings: "char* foo"

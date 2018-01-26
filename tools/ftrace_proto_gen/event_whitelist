@@ -1,3 +1,14 @@
+cpufreq_interactive/cpufreq_interactive_already
+cpufreq_interactive/cpufreq_interactive_boost
+cpufreq_interactive/cpufreq_interactive_notyet
+cpufreq_interactive/cpufreq_interactive_setspeed
+cpufreq_interactive/cpufreq_interactive_target
+cpufreq_interactive/cpufreq_interactive_unboost
 ftrace/print
+power/clock_disable
+power/clock_enable
+power/clock_set_rate
+power/cpu_frequency
+power/cpu_frequency_limits
+power/cpu_idle
 sched/sched_switch
-

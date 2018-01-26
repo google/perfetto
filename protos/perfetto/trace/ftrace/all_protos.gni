@@ -1,4 +1,4 @@
-# Copyright (C) 2017 The Android Open Source Project
+# Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO(hjd): Auto-generate.
 ftrace_proto_names = [
+  "clock_disable.proto",
+  "clock_enable.proto",
+  "clock_set_rate.proto",
+  "cpu_frequency.proto",
+  "cpu_frequency_limits.proto",
+  "cpu_idle.proto",
+  "cpufreq_interactive_already.proto",
+  "cpufreq_interactive_boost.proto",
+  "cpufreq_interactive_notyet.proto",
+  "cpufreq_interactive_setspeed.proto",
+  "cpufreq_interactive_target.proto",
+  "cpufreq_interactive_unboost.proto",
   "ftrace_event.proto",
   "ftrace_event_bundle.proto",
   "print.proto",
