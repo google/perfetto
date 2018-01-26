@@ -33,7 +33,7 @@ class Service;
 // Exposed to:
 //   The code in the tracing client that will host the service e.g., traced.
 // Implemented in:
-//   src/ipc/service/service_ipc_host_impl.cc
+//   src/tracing/ipc/service/service_ipc_host_impl.cc
 class ServiceIPCHost {
  public:
   static std::unique_ptr<ServiceIPCHost> CreateInstance(base::TaskRunner*);
