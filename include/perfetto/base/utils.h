@@ -33,7 +33,7 @@
 namespace perfetto {
 namespace base {
 
-static constexpr size_t kPageSize = 4096;
+constexpr size_t kPageSize = 4096;
 
 template <typename T>
 constexpr size_t ArraySize(const T& array) {
