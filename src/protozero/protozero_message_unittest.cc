@@ -122,6 +122,19 @@ class ProtoZeroMessageTest : public ::testing::Test {
   size_t readback_pos_;
 };
 
+TEST_F(ProtoZeroMessageTest, ZeroLengthArraysAndStrings) {
+  ProtoZeroMessage* msg = NewMessage();
+  msg->AppendBytes(1 /* field_id */, nullptr, 0);
+  msg->AppendString(2 /* field_id */, "");
+
+  EXPECT_EQ(4u, msg->Finalize());
+  EXPECT_EQ(4u, GetNumSerializedBytes());
+
+  // These lines match the serialization of the Append* calls above.
+  ASSERT_EQ("0A00", GetNextSerializedBytes(2));
+  ASSERT_EQ("1200", GetNextSerializedBytes(2));
+}
+
 TEST_F(ProtoZeroMessageTest, BasicTypesNoNesting) {
   ProtoZeroMessage* msg = NewMessage();
   msg->AppendVarInt(1 /* field_id */, 0);
