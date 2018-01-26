@@ -17,6 +17,18 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
+import "perfetto/trace/ftrace/clock_disable.proto";
+import "perfetto/trace/ftrace/clock_enable.proto";
+import "perfetto/trace/ftrace/clock_set_rate.proto";
+import "perfetto/trace/ftrace/cpu_frequency.proto";
+import "perfetto/trace/ftrace/cpu_idle.proto";
+import "perfetto/trace/ftrace/cpu_frequency_limits.proto";
+import "perfetto/trace/ftrace/cpufreq_interactive_already.proto";
+import "perfetto/trace/ftrace/cpufreq_interactive_boost.proto";
+import "perfetto/trace/ftrace/cpufreq_interactive_notyet.proto";
+import "perfetto/trace/ftrace/cpufreq_interactive_setspeed.proto";
+import "perfetto/trace/ftrace/cpufreq_interactive_target.proto";
+import "perfetto/trace/ftrace/cpufreq_interactive_unboost.proto";
 import "perfetto/trace/ftrace/print.proto";
 import "perfetto/trace/ftrace/sched_switch.proto";
 
@@ -34,5 +46,17 @@ message FtraceEvent {
   oneof event {
     PrintFtraceEvent print = 3;
     SchedSwitchFtraceEvent sched_switch = 4;
+    CpufreqInteractiveAlreadyFtraceEvent cpu_freq_interactive_already = 5;
+    CpufreqInteractiveBoostFtraceEvent cpu_freq_interactive_boost = 6;
+    CpufreqInteractiveNotyetFtraceEvent cpu_freq_interactive_notyet = 7;
+    CpufreqInteractiveSetspeedFtraceEvent cpu_freq_interactive_setspeed = 8;
+    CpufreqInteractiveTargetFtraceEvent cpu_freq_interactive_target = 9;
+    CpufreqInteractiveUnboostFtraceEvent cpu_freq_interactive_unboost = 10;
+    CpuFrequencyFtraceEvent cpu_frequency = 11;
+    CpuFrequencyLimitsFtraceEvent cpu_frequency_limits = 12;
+    CpuIdleFtraceEvent cpu_idle = 13;
+    ClockEnableFtraceEvent clock_enable = 14;
+    ClockDisableFtraceEvent clock_disable = 15;
+    ClockSetRateFtraceEvent clock_set_rate = 16;
   }
 }
