@@ -78,6 +78,12 @@ using protos::FtraceEvent;
 using protos::FtraceEventBundle;
 using protos::PrintFtraceEvent;
 using protos::SchedSwitchFtraceEvent;
+using protos::CpuFrequencyFtraceEvent;
+using protos::CpuFrequencyLimitsFtraceEvent;
+using protos::CpuIdleFtraceEvent;
+using protos::ClockEnableFtraceEvent;
+using protos::ClockDisableFtraceEvent;
+using protos::ClockSetRateFtraceEvent;
 using protos::Trace;
 using protos::TracePacket;
 
@@ -128,49 +134,95 @@ uint64_t TimestampToMicroseconds(uint64_t timestamp) {
   return (timestamp / 1000) % 1000000ul;
 }
 
-std::string FormatSchedSwitch(uint64_t timestamp,
-                              uint64_t cpu,
-                              const SchedSwitchFtraceEvent& sched_switch) {
+std::string FormatPrefix(uint64_t timestamp, uint64_t cpu) {
   char line[2048];
   uint64_t seconds = TimestampToSeconds(timestamp);
   uint64_t useconds = TimestampToMicroseconds(timestamp);
   sprintf(line,
           "<idle>-0     (-----) [%03" PRIu64 "] d..3 %" PRIu64 ".%.6" PRIu64
-          ": sched_switch: prev_comm=%s "
-          "prev_pid=%d prev_prio=%d prev_state=%s ==> next_comm=%s next_pid=%d "
-          "next_prio=%d\\n",
-          cpu, seconds, useconds, sched_switch.prev_comm().c_str(),
-          sched_switch.prev_pid(), sched_switch.prev_prio(),
-          GetFlag(sched_switch.prev_state()), sched_switch.next_comm().c_str(),
-          sched_switch.next_pid(), sched_switch.next_prio());
+          ": ",
+          cpu, seconds, useconds);
   return std::string(line);
 }
 
-std::string FormatPrint(uint64_t timestamp,
-                        uint64_t cpu,
-                        const PrintFtraceEvent& print) {
+std::string FormatSchedSwitch(const SchedSwitchFtraceEvent& sched_switch) {
   char line[2048];
-  uint64_t seconds = TimestampToSeconds(timestamp);
-  uint64_t useconds = TimestampToMicroseconds(timestamp);
+  sprintf(line,
+          "sched_switch: prev_comm=%s "
+          "prev_pid=%d prev_prio=%d prev_state=%s ==> next_comm=%s next_pid=%d "
+          "next_prio=%d\\n",
+          sched_switch.prev_comm().c_str(), sched_switch.prev_pid(),
+          sched_switch.prev_prio(), GetFlag(sched_switch.prev_state()),
+          sched_switch.next_comm().c_str(), sched_switch.next_pid(),
+          sched_switch.next_prio());
+  return std::string(line);
+}
+
+std::string FormatPrint(const PrintFtraceEvent& print) {
+  char line[2048];
   std::string msg = print.buf();
   // Remove any newlines in the message. It's not entirely clear what the right
   // behaviour is here. Maybe we should escape them instead?
   msg.erase(std::remove(msg.begin(), msg.end(), '\n'), msg.end());
+  sprintf(line, "tracing_mark_write: %s\\n", msg.c_str());
+  return std::string(line);
+}
+
+std::string FormatCpuFrequency(const CpuFrequencyFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "cpu_frequency: state=%" PRIu32 " cpu_id=%" PRIu32 "\\n",
+          event.state(), event.cpu_id());
+  return std::string(line);
+}
+
+std::string FormatCpuFrequencyLimits(
+    const CpuFrequencyLimitsFtraceEvent& event) {
+  char line[2048];
   sprintf(line,
-          "<idle>-0     (-----) [%03" PRIu64 "] d..3 %" PRIu64 ".%.6" PRIu64
-          ": tracing_mark_write: %s\\n",
-          cpu, seconds, useconds, msg.c_str());
+          "cpu_frequency_limits: min_freq=%" PRIu32 "max_freq=%" PRIu32
+          " cpu_id=%" PRIu32 "\\n",
+          event.min_freq(), event.max_freq(), event.cpu_id());
+  return std::string(line);
+}
+
+std::string FormatCpuIdle(const CpuIdleFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "cpu_idle: state=%" PRIu32 " cpu_id=%" PRIu32 "\\n",
+          event.state(), event.cpu_id());
+  return std::string(line);
+}
+
+std::string FormatClockSetRate(const ClockSetRateFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "clock_set_rate: %s state=%llu cpu_id=%llu\\n",
+          event.name().empty() ? "todo" : event.name().c_str(), event.state(),
+          event.cpu_id());
+  return std::string(line);
+}
+
+std::string FormatClockEnable(const ClockEnableFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "clock_enable: %s state=%llu cpu_id=%llu\\n",
+          event.name().empty() ? "todo" : event.name().c_str(), event.state(),
+          event.cpu_id());
+  return std::string(line);
+}
+
+std::string FormatClockDisable(const ClockDisableFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "clock_disable: %s state=%llu cpu_id=%llu\\n",
+          event.name().empty() ? "todo" : event.name().c_str(), event.state(),
+          event.cpu_id());
   return std::string(line);
 }
 
 int TraceToText(std::istream* input, std::ostream* output) {
   DiskSourceTree dst;
-  dst.MapPath("protos", "protos");
   dst.MapPath("perfetto", "protos/perfetto");
   MFE mfe;
   Importer importer(&dst, &mfe);
   const FileDescriptor* parsed_file =
-      importer.Import("protos/perfetto/trace/trace.proto");
+      importer.Import("perfetto/trace/trace.proto");
 
   DynamicMessageFactory dmf;
   const Descriptor* trace_descriptor = parsed_file->message_type(0);
@@ -204,16 +256,36 @@ int TraceToSystrace(std::istream* input, std::ostream* output) {
 
     const FtraceEventBundle& bundle = packet.ftrace_events();
     for (const FtraceEvent& event : bundle.event()) {
+      std::string line;
       if (event.has_sched_switch()) {
-        const SchedSwitchFtraceEvent& sched_switch = event.sched_switch();
-        sorted.emplace(
-            event.timestamp(),
-            FormatSchedSwitch(event.timestamp(), bundle.cpu(), sched_switch));
+        const auto& inner = event.sched_switch();
+        line = FormatSchedSwitch(inner);
       } else if (event.has_print()) {
-        const PrintFtraceEvent& print = event.print();
-        sorted.emplace(event.timestamp(),
-                       FormatPrint(event.timestamp(), bundle.cpu(), print));
+        const auto& inner = event.print();
+        line = FormatPrint(inner);
+      } else if (event.has_cpu_frequency()) {
+        const auto& inner = event.cpu_frequency();
+        line = FormatCpuFrequency(inner);
+      } else if (event.has_cpu_frequency_limits()) {
+        const auto& inner = event.cpu_frequency_limits();
+        line = FormatCpuFrequencyLimits(inner);
+      } else if (event.has_cpu_idle()) {
+        const auto& inner = event.cpu_idle();
+        line = FormatCpuIdle(inner);
+      } else if (event.has_clock_set_rate()) {
+        const auto& inner = event.clock_set_rate();
+        line = FormatClockSetRate(inner);
+      } else if (event.has_clock_enable()) {
+        const auto& inner = event.clock_enable();
+        line = FormatClockEnable(inner);
+      } else if (event.has_clock_disable()) {
+        const auto& inner = event.clock_disable();
+        line = FormatClockDisable(inner);
+      } else {
+        continue;
       }
+      sorted.emplace(event.timestamp(),
+                     FormatPrefix(event.timestamp(), bundle.cpu()) + line);
     }
   }
 

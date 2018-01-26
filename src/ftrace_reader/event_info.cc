@@ -17,20 +17,9 @@
 #include "src/ftrace_reader/event_info.h"
 
 namespace perfetto {
-namespace {
-
-Field FieldFromNameIdType(const char* name, size_t id, ProtoFieldType type) {
-  Field field{};
-  field.ftrace_name = name;
-  field.proto_field_id = id;
-  field.proto_field_type = type;
-  return field;
-}
-
-}  // namespace
 
 // TODO(hjd): Auto-generate this file.
-// TODO(b/70373826): Reduce runetime overhead with constexpr magic etc.
+// TODO(b/70373826): Reduce runtime overhead with constexpr magic etc.
 std::vector<Event> GetStaticEventInfo() {
   std::vector<Event> events;
 
@@ -58,42 +47,139 @@ std::vector<Event> GetStaticEventInfo() {
     event->fields.push_back(FieldFromNameIdType("next_prio", 7, kProtoInt32));
   }
 
-  return events;
-}
-
-std::vector<Field> GetStaticCommonFieldsInfo() {
-  std::vector<Field> fields;
-
-  fields.push_back(FieldFromNameIdType("common_pid", 2, kProtoInt32));
-
-  return fields;
-}
-
-bool SetTranslationStrategy(FtraceFieldType ftrace,
-                            ProtoFieldType proto,
-                            TranslationStrategy* out) {
-  if (ftrace == kFtraceUint32 && proto == kProtoUint32) {
-    *out = kUint32ToUint32;
-  } else if (ftrace == kFtraceUint32 && proto == kProtoUint64) {
-    *out = kUint32ToUint64;
-  } else if (ftrace == kFtraceUint64 && proto == kProtoUint64) {
-    *out = kUint64ToUint64;
-  } else if (ftrace == kFtraceInt32 && proto == kProtoInt32) {
-    *out = kInt32ToInt32;
-  } else if (ftrace == kFtraceInt32 && proto == kProtoInt64) {
-    *out = kInt32ToInt64;
-  } else if (ftrace == kFtraceInt64 && proto == kProtoInt64) {
-    *out = kInt64ToInt64;
-  } else if (ftrace == kFtraceFixedCString && proto == kProtoString) {
-    *out = kFixedCStringToString;
-  } else if (ftrace == kFtraceCString && proto == kProtoString) {
-    *out = kCStringToString;
-  } else {
-    PERFETTO_DLOG("No translation strategy for '%s' -> '%s'", ToString(ftrace),
-                  ToString(proto));
-    return false;
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "cpufreq_interactive_already";
+    event->group = "cpufreq_interactive";
+    event->proto_field_id = 5;
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 1, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("load", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("curtarg", 3, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("curactual", 4, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("newtarg", 5, kProtoUint64));
   }
-  return true;
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->proto_field_id = 6;
+    event->name = "cpufreq_interactive_boost";
+    event->group = "cpufreq_interactive";
+    event->fields.push_back(FieldFromNameIdType("s", 1, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "cpufreq_interactive_notyet";
+    event->group = "cpufreq_interactive";
+    event->proto_field_id = 7;
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 1, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("load", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("curtarg", 3, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("curactual", 4, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("newtarg", 5, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "cpufreq_interactive_setspeed";
+    event->group = "cpufreq_interactive";
+    event->proto_field_id = 8;
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 1, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("targfreq", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("actualfreq", 3, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "cpufreq_interactive_target";
+    event->group = "cpufreq_interactive";
+    event->proto_field_id = 9;
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 1, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("load", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("curtarg", 3, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("curactual", 4, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("newtarg", 5, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->proto_field_id = 10;
+    event->name = "cpufreq_interactive_unboost";
+    event->group = "cpufreq_interactive";
+    event->fields.push_back(FieldFromNameIdType("s", 1, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "cpu_frequency";
+    event->group = "power";
+    event->proto_field_id = 11;
+    event->fields.push_back(FieldFromNameIdType("state", 1, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 2, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "cpu_frequency_limits";
+    event->group = "power";
+    event->proto_field_id = 12;
+    event->fields.push_back(FieldFromNameIdType("min_freq", 1, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("max_freq", 2, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 3, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "cpu_idle";
+    event->group = "power";
+    event->proto_field_id = 13;
+    event->fields.push_back(FieldFromNameIdType("state", 1, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 2, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "clock_enable";
+    event->group = "power";
+    event->proto_field_id = 14;
+    event->fields.push_back(FieldFromNameIdType("name", 1, kProtoString));
+    event->fields.push_back(FieldFromNameIdType("state", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 3, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "clock_disable";
+    event->group = "power";
+    event->proto_field_id = 15;
+    event->fields.push_back(FieldFromNameIdType("name", 1, kProtoString));
+    event->fields.push_back(FieldFromNameIdType("state", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 3, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "clock_set_rate";
+    event->group = "power";
+    event->proto_field_id = 16;
+    event->fields.push_back(FieldFromNameIdType("name", 1, kProtoString));
+    event->fields.push_back(FieldFromNameIdType("state", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("cpu_id", 3, kProtoUint64));
+  }
+
+  return events;
 }
 
 }  // namespace perfetto
