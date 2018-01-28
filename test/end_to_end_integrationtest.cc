@@ -35,6 +35,7 @@
 #include "src/traced/probes/ftrace_producer.h"
 #include "test/fake_consumer.h"
 #include "test/fake_producer.h"
+#include "test/task_runner_thread.h"
 
 #if BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include "perfetto/base/android_task_runner.h"
@@ -65,80 +66,6 @@ class PerfettoTest : public ::testing::Test {
   ~PerfettoTest() override = default;
 
  protected:
-  class ThreadDelegate {
-   public:
-    virtual ~ThreadDelegate() = default;
-
-    // Invoke on the target thread before the message loop is started.
-    virtual void Initialize(base::TaskRunner* task_runner) = 0;
-  };
-
-  class TaskRunnerThread {
-   public:
-    TaskRunnerThread() = default;
-    ~TaskRunnerThread() {
-      {
-        std::unique_lock<std::mutex> lock(mutex_);
-        if (runner_)
-          runner_->Quit();
-      }
-
-      if (thread_.joinable())
-        thread_.join();
-    }
-
-    // Blocks until the thread has been created and Initialize() has been
-    // called.
-    void Start(std::unique_ptr<ThreadDelegate> delegate) {
-      // Begin holding the lock for the condition variable.
-      std::unique_lock<std::mutex> lock(mutex_);
-
-      // Start the thread.
-      PERFETTO_DCHECK(!runner_);
-      thread_ = std::thread(&TaskRunnerThread::Run, this, std::move(delegate));
-
-      // Wait for runner to be ready.
-      ready_.wait_for(lock, std::chrono::seconds(10),
-                      [this]() { return runner_ != nullptr; });
-    }
-
-   private:
-    void Run(std::unique_ptr<ThreadDelegate> delegate) {
-      // Create the task runner and execute the specicalised code.
-      base::PlatformTaskRunner task_runner;
-      delegate->Initialize(&task_runner);
-
-      // Pass the runner back to the main thread.
-      {
-        std::unique_lock<std::mutex> lock(mutex_);
-        runner_ = &task_runner;
-      }
-
-      // Notify the main thread that the runner is ready.
-      ready_.notify_one();
-
-      // Spin the loop.
-      task_runner.Run();
-
-      // Ensure we clear out the delegate before runner goes out
-      // of scope.
-      delegate.reset();
-
-      // Cleanup the runner.
-      {
-        std::unique_lock<std::mutex> lock(mutex_);
-        runner_ = nullptr;
-      }
-    }
-
-    std::thread thread_;
-    std::condition_variable ready_;
-
-    // All variables below this point are protected by |mutex_|.
-    std::mutex mutex_;
-    base::PlatformTaskRunner* runner_ = nullptr;
-  };
-
   // This is used only in standalone integrations tests. In CTS mode (i.e. when
   // PERFETTO_ANDROID_BUILD) this code is not used and instead the system
   // daemons are used
@@ -168,7 +95,7 @@ class PerfettoTest : public ::testing::Test {
 
     void Initialize(base::TaskRunner* task_runner) override {
       producer_.reset(new FtraceProducer);
-      producer_->Connect(TEST_PRODUCER_SOCK_NAME, task_runner);
+      producer_->ConnectWithRetries(TEST_PRODUCER_SOCK_NAME, task_runner);
     }
 
    private:

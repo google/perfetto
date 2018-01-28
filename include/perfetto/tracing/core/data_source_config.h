@@ -67,8 +67,30 @@ class DataSourceConfig {
       return &event_names_.back();
     }
 
+    int atrace_categories_size() const {
+      return static_cast<int>(atrace_categories_.size());
+    }
+    const std::vector<std::string>& atrace_categories() const {
+      return atrace_categories_;
+    }
+    std::string* add_atrace_categories() {
+      atrace_categories_.emplace_back();
+      return &atrace_categories_.back();
+    }
+
+    int atrace_apps_size() const {
+      return static_cast<int>(atrace_apps_.size());
+    }
+    const std::vector<std::string>& atrace_apps() const { return atrace_apps_; }
+    std::string* add_atrace_apps() {
+      atrace_apps_.emplace_back();
+      return &atrace_apps_.back();
+    }
+
    private:
     std::vector<std::string> event_names_;
+    std::vector<std::string> atrace_categories_;
+    std::vector<std::string> atrace_apps_;
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.

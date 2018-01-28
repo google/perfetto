@@ -22,9 +22,12 @@ namespace {
 
 TEST(FtraceEventParser, InferProtoType) {
   using Field = FtraceEvent::Field;
-  EXPECT_EQ(InferProtoType(Field{"char * foo", 2, 0, false}), "string");
   EXPECT_EQ(InferProtoType(Field{"char foo[16]", 0, 16, false}), "string");
   EXPECT_EQ(InferProtoType(Field{"char bar_42[64]", 0, 64, false}), "string");
+  EXPECT_EQ(InferProtoType(Field{"__data_loc char[] foo", 0, 4, false}),
+            "string");
+  EXPECT_EQ(InferProtoType(Field{"char[] foo", 0, 8, false}), "string");
+  EXPECT_EQ(InferProtoType(Field{"char * foo", 0, 8, false}), "string");
 
   EXPECT_EQ(InferProtoType(Field{"int foo", 0, 4, true}), "int32");
   EXPECT_EQ(InferProtoType(Field{"s32 signal", 50, 4, true}), "int32");
