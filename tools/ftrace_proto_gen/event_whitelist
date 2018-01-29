@@ -12,3 +12,4 @@ power/cpu_frequency
 power/cpu_frequency_limits
 power/cpu_idle
 sched/sched_switch
+sched/sched_wakeup

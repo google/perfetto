@@ -78,6 +78,7 @@ using protos::FtraceEvent;
 using protos::FtraceEventBundle;
 using protos::PrintFtraceEvent;
 using protos::SchedSwitchFtraceEvent;
+using protos::SchedWakeupFtraceEvent;
 using protos::CpuFrequencyFtraceEvent;
 using protos::CpuFrequencyLimitsFtraceEvent;
 using protos::CpuIdleFtraceEvent;
@@ -155,6 +156,16 @@ std::string FormatSchedSwitch(const SchedSwitchFtraceEvent& sched_switch) {
           sched_switch.prev_prio(), GetFlag(sched_switch.prev_state()),
           sched_switch.next_comm().c_str(), sched_switch.next_pid(),
           sched_switch.next_prio());
+  return std::string(line);
+}
+
+std::string FormatSchedWakeup(const SchedWakeupFtraceEvent& sched_wakeup) {
+  char line[2048];
+  sprintf(line,
+          "sched_wakeup: comm=%s "
+          "pid=%d prio=%d success=%d target_cpu=%03d\\n",
+          sched_wakeup.comm().c_str(), sched_wakeup.pid(), sched_wakeup.prio(),
+          sched_wakeup.success(), sched_wakeup.target_cpu());
   return std::string(line);
 }
 
