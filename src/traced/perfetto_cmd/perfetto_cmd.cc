@@ -135,10 +135,12 @@ int PerfettoCmd::Main(int argc, char** argv) {
         // TODO(primiano): temporary for testing only.
         perfetto::protos::TraceConfig test_config;
         test_config.add_buffers()->set_size_kb(4096 * 10);
-        test_config.set_duration_ms(3000);
+        test_config.set_duration_ms(10000);
         auto* ds_config = test_config.add_data_sources()->mutable_config();
         ds_config->set_name("com.google.perfetto.ftrace");
         ds_config->mutable_ftrace_config()->add_event_names("sched_switch");
+        ds_config->mutable_ftrace_config()->add_event_names("cpu_idle");
+        ds_config->mutable_ftrace_config()->add_event_names("cpu_frequency");
         ds_config->set_target_buffer(0);
         test_config.SerializeToString(&trace_config_raw);
       } else {
@@ -254,7 +256,7 @@ void PerfettoCmd::OnStopTraceTimer() {
 }
 
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
-  PERFETTO_LOG("Received packet %d", has_more);
+  PERFETTO_DLOG("Received trace packet, has_more=%d", has_more);
   for (TracePacket& packet : packets) {
     for (const Chunk& chunk : packet) {
       uint8_t preamble[16];

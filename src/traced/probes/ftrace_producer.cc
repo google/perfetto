@@ -84,7 +84,7 @@ void FtraceProducer::OnDisconnect() {
 void FtraceProducer::CreateDataSourceInstance(
     DataSourceInstanceID id,
     const DataSourceConfig& source_config) {
-  PERFETTO_LOG("Source start (id=%" PRIu64 ", target_buf=%" PRIu32 ")", id,
+  PERFETTO_LOG("Ftrace start (id=%" PRIu64 ", target_buf=%" PRIu32 ")", id,
                source_config.target_buffer());
 
   // TODO(hjd): Would be nice if ftrace_reader could use generate the config.
@@ -127,7 +127,7 @@ void FtraceProducer::CreateDataSourceInstance(
 }
 
 void FtraceProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
-  PERFETTO_LOG("Source stop (id=%" PRIu64 ")", id);
+  PERFETTO_LOG("Ftrace stop (id=%" PRIu64 ")", id);
   delegates_.erase(id);
 }
 
