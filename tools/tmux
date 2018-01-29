@@ -1,0 +1,85 @@
+#!/bin/bash
+# Copyright (C) 2018 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+set -e
+
+# If not set guess the OUT dir using the latest directory.
+if [ ! -f "$OUT/args.gn" ]; then
+  echo "OUT=$OUT doesn't look like an output directory."
+  echo "Please specify a directory by doing: export OUT=out/xxx"
+  exit 1
+fi
+
+ninja -C $OUT traced traced_probes perfetto trace_to_text
+
+set -x
+adb push $OUT/traced /data/local/tmp/
+adb push $OUT/traced_probes /data/local/tmp/
+adb push $OUT/perfetto /data/local/tmp/
+set +x
+
+if tmux has-session -t demo; then
+  tmux kill-session -t demo
+fi
+tmux -2 new-session -d -s demo
+
+if tmux -V | awk '{split($2, ver, "."); if (ver[1] < 2) exit 1 ; else if (ver[1] == 2 && ver[2] < 1) exit 1 }'; then
+  tmux set-option -g mouse on
+else
+  tmux set-option -g mode-mouse on
+  tmux set-option -g mouse-resize-pane on
+  tmux set-option -g mouse-select-pane on
+  tmux set-option -g mouse-select-window on
+fi
+
+tmux split-window -v
+tmux split-window -v
+
+tmux select-layout even-vertical
+
+tmux select-pane -t 0
+tmux send-keys "clear" C-m
+tmux send-keys "adb shell" C-m
+
+tmux select-pane -t 1
+tmux send-keys "clear" C-m
+tmux send-keys "adb shell" C-m
+
+tmux select-pane -t 2
+tmux send-keys "clear" C-m
+tmux send-keys "adb shell" C-m
+
+sleep 1
+
+tmux select-pane -t 1
+tmux send-keys "/data/local/tmp/traced" Enter
+
+sleep 0.25
+
+tmux select-pane -t 0
+tmux send-keys "/data/local/tmp/traced_probes" Enter
+
+tmux select-pane -t 2
+tmux send-keys "/data/local/tmp/perfetto -c :test -o /data/local/tmp/trace"
+
+# Select consumer pane.
+tmux select-pane -t 2
+
+tmux -2 attach-session -t demo
+
+TRACE=$HOME/Downloads/trace.json
+echo -e "\n\x1b[32mPulling trace into $TRACE\x1b[0m"
+set -x
+adb pull /data/local/tmp/trace /tmp/trace.protobuf
+$OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE

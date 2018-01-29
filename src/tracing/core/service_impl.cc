@@ -147,8 +147,6 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   TracingSession& ts =
       tracing_sessions_.emplace(tsid, TracingSession(cfg)).first->second;
 
-  PERFETTO_DLOG("Starting tracing session %" PRIu64, tsid);
-
   // Initialize the log buffers.
   bool did_allocate_all_buffers = true;
 
@@ -156,6 +154,7 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // relative index (TraceConfig.DataSourceConfig.target_buffer) into the
   // corresponding BufferID, which is a global ID namespace for the service and
   // all producers.
+  size_t total_buf_size_kb = 0;
   ts.buffers_index.reserve(cfg.buffers_size());
   for (int i = 0; i < cfg.buffers_size(); i++) {
     const TraceConfig::BufferConfig& buffer_cfg = cfg.buffers()[i];
@@ -170,6 +169,7 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     TraceBuffer& trace_buffer = it_and_inserted.first->second;
     // TODO(primiano): make TraceBuffer::kBufferPageSize dynamic.
     const size_t buf_size = buffer_cfg.size_kb() * 1024u;
+    total_buf_size_kb += buffer_cfg.size_kb();
     if (!trace_buffer.Create(buf_size)) {
       did_allocate_all_buffers = false;
       break;
@@ -217,6 +217,11 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         },
         cfg.duration_ms());
   }
+
+  PERFETTO_LOG("Enabled tracing, #sources:%zu, duration:%" PRIu32
+               " ms, #buffers:%d, total buffer size:%zu KB, total sessions:%zu",
+               cfg.data_sources().size(), cfg.duration_ms(), cfg.buffers_size(),
+               total_buf_size_kb, tracing_sessions_.size());
 }
 
 // DisableTracing just stops the data sources but doesn't free up any buffer.
@@ -224,7 +229,6 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 // and then drain the buffers. The actual teardown of the TracingSession happens
 // in FreeBuffers().
 void ServiceImpl::DisableTracing(TracingSessionID tsid) {
-  PERFETTO_DLOG("Disabling tracing session %" PRIu64, tsid);
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
     // Can happen if the consumer calls this before EnableTracing() or after
@@ -232,6 +236,7 @@ void ServiceImpl::DisableTracing(TracingSessionID tsid) {
     PERFETTO_DLOG("Couldn't find tracing session %" PRIu64, tsid);
     return;
   }
+
   for (const auto& data_source_inst : tracing_session->data_source_instances) {
     const ProducerID producer_id = data_source_inst.first;
     const DataSourceInstanceID ds_inst_id = data_source_inst.second;
@@ -345,6 +350,8 @@ void ServiceImpl::FreeBuffers(TracingSessionID tsid) {
     buffers_.erase(buffer_id);
   }
   tracing_sessions_.erase(tsid);
+  PERFETTO_LOG("Tracing session %" PRIu64 " ended, total sessions:%zu", tsid,
+               tracing_sessions_.size());
 }
 
 void ServiceImpl::RegisterDataSource(ProducerID producer_id,
