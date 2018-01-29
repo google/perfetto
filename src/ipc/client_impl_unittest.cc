@@ -240,7 +240,7 @@ TEST_F(ClientImplTest, BindAndInvokeMethod) {
   RequestProto req;
   req.set_data("req_data");
   auto on_invoke_reply = task_runner_->CreateCheckpoint("on_invoke_reply");
-  DeferredBase deferred_reply(
+  Deferred<ProtoMessage> deferred_reply(
       [on_invoke_reply](AsyncResult<ProtoMessage> reply) {
         EXPECT_TRUE(reply.success());
         on_invoke_reply();
@@ -250,7 +250,7 @@ TEST_F(ClientImplTest, BindAndInvokeMethod) {
 
   // Invoke an invalid method.
   auto on_invalid_invoke = task_runner_->CreateCheckpoint("on_invalid_invoke");
-  DeferredBase deferred_reply2(
+  Deferred<ProtoMessage> deferred_reply2(
       [on_invalid_invoke](AsyncResult<ProtoMessage> reply) {
         EXPECT_FALSE(reply.success());
         on_invalid_invoke();
@@ -284,7 +284,7 @@ TEST_F(ClientImplTest, InvokeMethodDropReply) {
       }));
 
   // Invoke a method without binding any callback to the Deferred object.
-  DeferredBase no_callback;
+  Deferred<ProtoMessage> no_callback;
   proxy->BeginInvoke("FakeMethod1", RequestProto(), std::move(no_callback));
   task_runner_->RunUntilCheckpoint("on_req_received");
 }
@@ -320,7 +320,7 @@ TEST_F(ClientImplTest, BindAndInvokeStreamingMethod) {
   req.set_data("req_data");
   auto on_last_reply = task_runner_->CreateCheckpoint("on_last_reply");
   int replies_seen = 0;
-  DeferredBase deferred_reply(
+  Deferred<ProtoMessage> deferred_reply(
       [on_last_reply, &replies_seen](AsyncResult<ProtoMessage> reply) {
         EXPECT_TRUE(reply.success());
         replies_seen++;
@@ -362,10 +362,11 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
 
   RequestProto req;
   auto on_reply = task_runner_->CreateCheckpoint("on_reply");
-  DeferredBase deferred_reply([on_reply](AsyncResult<ProtoMessage> reply) {
-    EXPECT_TRUE(reply.success());
-    on_reply();
-  });
+  Deferred<ProtoMessage> deferred_reply(
+      [on_reply](AsyncResult<ProtoMessage> reply) {
+        EXPECT_TRUE(reply.success());
+        on_reply();
+      });
   proxy->BeginInvoke("FakeMethod1", req, std::move(deferred_reply));
   task_runner_->RunUntilCheckpoint("on_reply");
 
@@ -458,10 +459,11 @@ TEST_F(ClientImplTest, DropCallbacksIfServiceProxyIsDestroyed) {
       }));
 
   auto on_reject = task_runner_->CreateCheckpoint("on_reject");
-  DeferredBase deferred_reply([on_reject](AsyncResult<ProtoMessage> res) {
-    ASSERT_FALSE(res.success());
-    on_reject();
-  });
+  Deferred<ProtoMessage> deferred_reply(
+      [on_reject](AsyncResult<ProtoMessage> res) {
+        ASSERT_FALSE(res.success());
+        on_reject();
+      });
   proxy->BeginInvoke("FakeMethod1", req, std::move(deferred_reply));
   proxy.reset();
   task_runner_->RunUntilCheckpoint("on_reject");
