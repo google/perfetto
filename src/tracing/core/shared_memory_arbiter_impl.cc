@@ -58,6 +58,8 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     BufferID target_buffer,
     size_t size_hint) {
   PERFETTO_DCHECK(size_hint == 0);  // Not implemented yet.
+  int stall_count = 0;
+  const useconds_t kStallIntervalUs = 10000;
 
   for (;;) {
     // TODO(primiano): Probably this lock is not really required and this code
@@ -113,6 +115,11 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
           if (!chunk.is_valid())
             continue;
           PERFETTO_DLOG("Acquired chunk %zu:%u", page_idx_, chunk_idx);
+          if (stall_count) {
+            PERFETTO_LOG(
+                "Recovered from stall after %" PRIu64 " ms",
+                static_cast<uint64_t>(kStallIntervalUs * stall_count / 1000));
+          }
           return chunk;
         }
         // TODO(fmayer): we should have some policy to guarantee fairness of the
@@ -125,8 +132,9 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // All chunks are taken (either kBeingWritten by us or kBeingRead by the
     // Service). TODO: at this point we should return a bankrupcy chunk, not
     // crash the process.
-    PERFETTO_ELOG("Shared memory buffer overrun! Stalling");
-    usleep(250000);
+    if (stall_count++ == 0)
+      PERFETTO_ELOG("Shared memory buffer overrun! Stalling");
+    usleep(kStallIntervalUs);
   }
 }
 
