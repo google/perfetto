@@ -63,6 +63,7 @@ source_set("fake_consumer") {
     "../gn:default_deps",
     "../gn:gtest_deps",
     "../protos/perfetto/trace:lite",
+    "../protos/perfetto/trace:zero",
     "../src/base:base",
     "../src/base:test_support",
   ]
