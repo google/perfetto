@@ -83,3 +83,16 @@ source_set("task_runner_thread") {
     "task_runner_thread.h",
   ]
 }
+
+if (!build_with_chromium) {
+  source_set("benchmark_main") {
+    testonly = true
+    deps = [
+      "../../gn:default_deps",
+      "//buildtools:benchmark",
+    ]
+    sources = [
+      "benchmark_main.cc",
+    ]
+  }
+}
