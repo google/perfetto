@@ -134,9 +134,5 @@ config("public_config") {
 }
 
 config("fuzzer_config") {
-  cflags = [ "-fsanitize=fuzzer" ]
-  ldflags = [
-    "-fsanitize=fuzzer",
-    "-fsanitize-coverage=trace-pc-guard",
-  ]
+  ldflags = [ "-fsanitize=fuzzer" ]
 }
