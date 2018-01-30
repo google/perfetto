@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -42,9 +43,8 @@ namespace perfetto {
 using protozero::proto_utils::ParseVarInt;
 
 namespace {
-constexpr size_t kSystemPageSize = 4096;
-constexpr size_t kDefaultShmSize = kSystemPageSize * 16;  // 64 KB.
-constexpr size_t kMaxShmSize = kSystemPageSize * 1024;    // 4 MB.
+constexpr size_t kDefaultShmSize = base::kPageSize * 64;  // 256 KB.
+constexpr size_t kMaxShmSize = base::kPageSize * 1024;    // 4 MB.
 constexpr int kMaxBuffersPerConsumer = 128;
 }  // namespace
 
@@ -75,7 +75,7 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
   const ProducerID id = ++last_producer_id_;
   PERFETTO_DLOG("Producer %" PRIu64 " connected", id);
   size_t shm_size = std::min(shared_buffer_size_hint_bytes, kMaxShmSize);
-  if (shm_size % kSystemPageSize || shm_size < kSystemPageSize)
+  if (shm_size % base::kPageSize || shm_size < base::kPageSize)
     shm_size = kDefaultShmSize;
 
   // TODO(primiano): right now Create() will suicide in case of OOM if the mmap
@@ -141,6 +141,19 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (cfg.buffers_size() > kMaxBuffersPerConsumer) {
     PERFETTO_DLOG("Too many buffers configured (%d)", cfg.buffers_size());
     return;  // TODO(primiano): signal failure to the caller.
+  }
+
+  // TODO(primiano): This is a workaround to prevent that a producer gets stuck
+  // in a state where it stalls by design by having more TraceWriterImpl
+  // instances than free pages in the buffer. This is a very fragile heuristic
+  // though, because this assumes that each tracing session creates at most one
+  // data source instance in each Producer, and each data source has only one
+  // TraceWriter.
+  if (tracing_sessions_.size() >= kDefaultShmSize / kBufferPageSize / 2) {
+    PERFETTO_ELOG("Too many concurrent tracing sesions (%zu)",
+                  tracing_sessions_.size());
+    // TODO(primiano): make this a bool and return failure to the IPC layer.
+    return;
   }
 
   const TracingSessionID tsid = ++last_tracing_session_id_;
@@ -525,7 +538,7 @@ ServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
       shared_memory_(std::move(shared_memory)),
       shmem_abi_(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                  shared_memory_->size(),
-                 kSystemPageSize) {
+                 kBufferPageSize) {
   // TODO(primiano): make the page-size for the SHM dynamic and find a way to
   // communicate that to the Producer (add a field to the
   // InitializeConnectionResponse IPC).
