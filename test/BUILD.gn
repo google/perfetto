@@ -63,6 +63,7 @@ source_set("fake_consumer") {
     "../gn:default_deps",
     "../gn:gtest_deps",
     "../protos/perfetto/trace:lite",
+    "../protos/perfetto/trace:zero",
     "../src/base:base",
     "../src/base:test_support",
   ]
@@ -82,4 +83,17 @@ source_set("task_runner_thread") {
     "task_runner_thread.cc",
     "task_runner_thread.h",
   ]
+}
+
+if (!build_with_chromium) {
+  source_set("benchmark_main") {
+    testonly = true
+    deps = [
+      "../../gn:default_deps",
+      "//buildtools:benchmark",
+    ]
+    sources = [
+      "benchmark_main.cc",
+    ]
+  }
 }
