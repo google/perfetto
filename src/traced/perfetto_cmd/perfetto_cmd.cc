@@ -197,18 +197,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   }
 
   base::ScopedFile fd;
-#if !BUILDFLAG(OS_MACOSX)
-  // Open a temporary file under which doesn't have a visible name. It will
-  // later get relinked as the final output file.
-  fd.reset(open(kTempTraceDir, O_TMPFILE | O_WRONLY, 0600));
-  if (!fd) {
-    PERFETTO_ELOG("Could not create a temporary trace file in %s",
-                  kTempTraceDir);
-    return 1;
-  }
-#else
   fd = CreateTemporaryFile(&tmp_trace_out_path_);
-#endif  // !BUILDFLAG(OS_MACOSX)
   trace_out_stream_.reset(fdopen(fd.release(), "wb"));
   PERFETTO_CHECK(trace_out_stream_);
 
@@ -313,16 +302,7 @@ base::ScopedFile PerfettoCmd::CreateTemporaryFile(std::string* out_path) {
 
 void PerfettoCmd::SaveTraceFileAs(const std::string& name) {
   PERFETTO_DCHECK(trace_out_stream_);
-#if !BUILDFLAG(OS_MACOSX)
-  char fd_path[32];
-  snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d",
-           fileno(trace_out_stream_.get()));
-  unlink(name.c_str());
-  PERFETTO_CHECK(linkat(AT_FDCWD, fd_path, AT_FDCWD, name.c_str(),
-                        AT_SYMLINK_FOLLOW) == 0);
-#else
   PERFETTO_CHECK(rename(tmp_trace_out_path_.c_str(), name.c_str()) == 0);
-#endif  // BUILDFLAG(OS_MACOSX)
   trace_out_stream_.reset();
 }
 
