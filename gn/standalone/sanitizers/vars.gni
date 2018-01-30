@@ -27,10 +27,14 @@ declare_args() {
 
   # Undefined Behaviour Sanitizer.
   is_ubsan = false
+
+  # # Compile for fuzzing with LLVM LibFuzzer.
+  use_libfuzzer = false
 }
 
 declare_args() {
-  using_sanitizer = is_asan || is_lsan || is_tsan || is_msan || is_ubsan
+  using_sanitizer =
+      is_asan || is_lsan || is_tsan || is_msan || is_ubsan || use_libfuzzer
 }
 
 assert(!using_sanitizer || is_clang, "is_*san requires is_clang=true'")
