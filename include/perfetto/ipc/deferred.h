@@ -106,13 +106,14 @@ class Deferred : public DeferredBase {
   }
 
   void Bind(std::function<void(AsyncResult<T>)> callback) {
+    if (!callback)
+      return;
+
     // Here we need a callback adapter to downcast the callback to a generic
     // callback that takes an AsyncResult<ProtoMessage>, so that it can be
     // stored in the base class |callback_|.
     auto callback_adapter = [callback](
                                 AsyncResult<ProtoMessage> async_result_base) {
-      if (!callback)
-        return;
       // Upcast the async_result from <ProtoMessage> -> <T : ProtoMessage>.
       static_assert(std::is_base_of<ProtoMessage, T>::value, "T:ProtoMessage");
       AsyncResult<T> async_result(
