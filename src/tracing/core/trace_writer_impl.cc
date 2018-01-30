@@ -56,7 +56,10 @@ TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
 }
 
 TraceWriterImpl::~TraceWriterImpl() {
-  // TODO(primiano): this should also return the current chunk. Add tests.
+  if (cur_chunk_.is_valid()) {
+    cur_packet_->Finalize();
+    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_));
+  }
   shmem_arbiter_->ReleaseWriterID(id_);
 }
 

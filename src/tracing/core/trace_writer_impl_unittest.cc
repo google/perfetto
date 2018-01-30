@@ -56,15 +56,18 @@ INSTANTIATE_TEST_CASE_P(PageSize,
                         ::testing::ValuesIn(kPageSizes));
 
 TEST_P(TraceWriterImplTest, SingleWriter) {
-  const BufferID tgt_buf_id = 42;
-  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(tgt_buf_id);
-  for (int i = 0; i < 32; i++) {
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+  const size_t kNumPackets = 32;
+  for (size_t i = 0; i < kNumPackets; i++) {
     auto packet = writer->NewTracePacket();
     char str[16];
-    sprintf(str, "foobar %d", i);
+    sprintf(str, "foobar %zu", i);
     packet->set_test(str);
   }
-  writer->NewTracePacket()->set_test("workaround for returing the last chunk");
+
+  // Destroying the TraceWriteImpl should cause the last packet to be finalized
+  // and the chunk to be put back in the kChunkComplete state.
   writer.reset();
 
   SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
@@ -73,14 +76,16 @@ TEST_P(TraceWriterImplTest, SingleWriter) {
     uint32_t page_layout = abi->page_layout_dbg(page_idx);
     size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(page_layout);
     for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
-      auto chunk =
-          abi->TryAcquireChunkForReading(page_idx, chunk_idx, tgt_buf_id);
+      auto chunk_state = abi->GetChunkState(page_idx, chunk_idx);
+      ASSERT_TRUE(chunk_state == SharedMemoryABI::kChunkFree ||
+                  chunk_state == SharedMemoryABI::kChunkComplete);
+      auto chunk = abi->TryAcquireChunkForReading(page_idx, chunk_idx, kBufId);
       if (!chunk.is_valid())
         continue;
       packets_count += chunk.header()->packets_state.load().count;
     }
   }
-  EXPECT_EQ(32u, packets_count);
+  EXPECT_EQ(kNumPackets, packets_count);
   // TODO(primiano): check also the content of the packets decoding the protos.
 }
 
