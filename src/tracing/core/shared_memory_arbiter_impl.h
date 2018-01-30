@@ -89,7 +89,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // Called by the TraceWriter destructor.
   void ReleaseWriterID(WriterID);
 
-  void InvokeOnPagesCompleteCallback();
+  void NotifySharedMemoryUpdate();
 
   base::TaskRunner* const task_runner_;
   OnPagesCompleteCallback on_pages_complete_callback_;
