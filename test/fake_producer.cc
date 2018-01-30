@@ -54,11 +54,6 @@ void FakeProducer::CreateDataSourceInstance(
     handle->Finalize();
   }
 
-  // Temporarily create a new packet to flush the final packet to the
-  // consumer.
-  // TODO(primiano): remove this hack once flushing the final packet is fixed.
-  trace_writer->NewTracePacket();
-
   // TODO(primiano): reenable this once UnregisterDataSource is specified in
   // ServiceImpl.
   // endpoint_->UnregisterDataSource(id_);
