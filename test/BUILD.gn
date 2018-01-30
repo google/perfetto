@@ -15,6 +15,13 @@
 import("../gn/perfetto.gni")
 import("//build_overrides/build.gni")
 
+# For use_libfuzzer.
+if (!build_with_chromium) {
+  import("//gn/standalone/sanitizers/vars.gni")
+} else {
+  import("//build/config/sanitizers/sanitizers.gni")
+}
+
 source_set("end_to_end_integrationtests") {
   testonly = true
   deps = [
