@@ -138,8 +138,8 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
 
   // Setup the TraceConfig for the consumer.
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(4096 * 10);
-  trace_config.set_duration_ms(200);
+  trace_config.add_buffers()->set_size_kb(4);
+  trace_config.set_duration_ms(10);
 
   // Create the buffer for ftrace.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
