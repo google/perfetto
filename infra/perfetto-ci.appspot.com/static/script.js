@@ -119,7 +119,7 @@ function LoadGerritCLs() {
     .then(response => {
       if (response.status != 200)
         throw 'Unable to make request to Travis';
-      return response.json();
+      return response.text();
     })
     .then(text => {
       let json;
