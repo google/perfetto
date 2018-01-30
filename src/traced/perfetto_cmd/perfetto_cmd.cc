@@ -71,6 +71,7 @@ class PerfettoCmd : public Consumer {
   int Main(int argc, char** argv);
   int PrintUsage(const char* argv0);
   void OnStopTraceTimer();
+  void OnTimeout();
 
   // perfetto::Consumer implementation.
   void OnConnect() override;
@@ -134,7 +135,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       } else if (strcmp(optarg, ":test") == 0) {
         // TODO(primiano): temporary for testing only.
         perfetto::protos::TraceConfig test_config;
-        test_config.add_buffers()->set_size_kb(4096 * 10);
+        test_config.add_buffers()->set_size_kb(4096);
         test_config.set_duration_ms(10000);
         auto* ds_config = test_config.add_data_sources()->mutable_config();
         ds_config->set_name("com.google.perfetto.ftrace");
@@ -231,6 +232,10 @@ void PerfettoCmd::OnConnect() {
   consumer_endpoint_->EnableTracing(*trace_config_);
   task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnStopTraceTimer, this),
                                trace_config_->duration_ms());
+
+  // Failsafe mechanism to avoid waiting indefinitely if the service hangs.
+  task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
+                               trace_config_->duration_ms() * 2);
 }
 
 void PerfettoCmd::OnDisconnect() {
@@ -242,6 +247,11 @@ void PerfettoCmd::OnStopTraceTimer() {
   PERFETTO_LOG("Timer expired, disabling tracing and collecting results");
   consumer_endpoint_->DisableTracing();
   consumer_endpoint_->ReadBuffers();
+}
+
+void PerfettoCmd::OnTimeout() {
+  PERFETTO_ELOG("Timed out while waiting for trace from the service, aborting");
+  task_runner_.Quit();
 }
 
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
