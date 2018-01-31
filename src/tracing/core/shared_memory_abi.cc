@@ -228,6 +228,10 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
     PageHeader* phdr = page_header(page_idx);
     uint32_t layout = phdr->layout.load(std::memory_order_relaxed);
     const size_t page_chunk_size = GetChunkSizeForLayout(layout);
+
+    // TODO(primiano): this should not be a CHECK, because a malicious producer
+    // could crash us by putting the chunk in an invalid state. This should
+    // gracefully fail. Keep a CHECK until then.
     PERFETTO_CHECK(chunk.size() == page_chunk_size);
     const uint32_t chunk_state =
         ((layout >> (chunk_idx * kChunkShift)) & kChunkMask);
@@ -247,6 +251,8 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
     }
     const size_t num_chunks = GetNumChunksForLayout(layout);
     all_chunks_state &= (1 << (num_chunks * kChunkShift)) - 1;
+
+    // TODO(primiano): should not be a CHECK (same rationale of comment above).
     PERFETTO_CHECK(chunk_state == expected_chunk_state);
     uint32_t next_layout = layout;
     next_layout &= ~(kChunkMask << (chunk_idx * kChunkShift));

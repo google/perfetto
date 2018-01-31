@@ -53,8 +53,19 @@
 // from this process.
 namespace perfetto {
 namespace {
-const char kTempTraceDir[] = "/data/misc/perfetto-traces";
+
+// Temporary directory for DropBox traces. Note that this is automatically
+// created by the system by setting setprop persist.traced.enable=1.
+const char kTempDropBoxTraceDir[] = "/data/misc/perfetto-traces";
 const char kDefaultDropBoxTag[] = "perfetto";
+
+std::string GetDirName(const std::string& path) {
+  size_t sep = path.find_last_of('/');
+  if (sep == std::string::npos)
+    return ".";
+  return path.substr(0, sep);
+}
+
 }  // namespace
 
 using protozero::proto_utils::WriteVarInt;
@@ -71,6 +82,7 @@ class PerfettoCmd : public Consumer {
   int Main(int argc, char** argv);
   int PrintUsage(const char* argv0);
   void OnStopTraceTimer();
+  void OnTimeout();
 
   // perfetto::Consumer implementation.
   void OnConnect() override;
@@ -78,8 +90,7 @@ class PerfettoCmd : public Consumer {
   void OnTraceData(std::vector<TracePacket>, bool has_more) override;
 
  private:
-  base::ScopedFile CreateTemporaryFile(std::string* out_path);
-  void SaveTraceFileAs(const std::string& name);
+  bool OpenOutputFile();
 
   PlatformTaskRunner task_runner_;
   std::unique_ptr<perfetto::Service::ConsumerEndpoint> consumer_endpoint_;
@@ -134,7 +145,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       } else if (strcmp(optarg, ":test") == 0) {
         // TODO(primiano): temporary for testing only.
         perfetto::protos::TraceConfig test_config;
-        test_config.add_buffers()->set_size_kb(4096 * 10);
+        test_config.add_buffers()->set_size_kb(4096);
         test_config.set_duration_ms(10000);
         auto* ds_config = test_config.add_data_sources()->mutable_config();
         ds_config->set_name("com.google.perfetto.ftrace");
@@ -190,28 +201,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return PrintUsage(argv[0]);
   }
 
-  if (access(kTempTraceDir, F_OK) == -1 && mkdir(kTempTraceDir, 0770) == -1) {
-    PERFETTO_ELOG("Could not create temporary trace directory: %s",
-                  kTempTraceDir);
-    return 1;
-  }
-
-  base::ScopedFile fd;
-#if !BUILDFLAG(OS_MACOSX)
-  // Open a temporary file under which doesn't have a visible name. It will
-  // later get relinked as the final output file.
-  fd.reset(open(kTempTraceDir, O_TMPFILE | O_WRONLY, 0600));
-  if (!fd) {
-    PERFETTO_ELOG("Could not create a temporary trace file in %s",
-                  kTempTraceDir);
-    return 1;
-  }
-#else
-  fd = CreateTemporaryFile(&tmp_trace_out_path_);
-#endif  // !BUILDFLAG(OS_MACOSX)
-  trace_out_stream_.reset(fdopen(fd.release(), "wb"));
-  PERFETTO_CHECK(trace_out_stream_);
-
   perfetto::protos::TraceConfig trace_config_proto;
   PERFETTO_DLOG("Parsing TraceConfig, %zu bytes", trace_config_raw.size());
   bool parsed = trace_config_proto.ParseFromString(trace_config_raw);
@@ -222,6 +211,9 @@ int PerfettoCmd::Main(int argc, char** argv) {
   trace_config_.reset(new TraceConfig());
   trace_config_->FromProto(trace_config_proto);
   trace_config_raw.clear();
+
+  if (!OpenOutputFile())
+    return 1;
 
   if (background) {
     PERFETTO_CHECK(daemon(0 /*nochdir*/, 0 /*noclose*/) == 0);
@@ -242,6 +234,10 @@ void PerfettoCmd::OnConnect() {
   consumer_endpoint_->EnableTracing(*trace_config_);
   task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnStopTraceTimer, this),
                                trace_config_->duration_ms());
+
+  // Failsafe mechanism to avoid waiting indefinitely if the service hangs.
+  task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
+                               trace_config_->duration_ms() * 2);
 }
 
 void PerfettoCmd::OnDisconnect() {
@@ -253,6 +249,11 @@ void PerfettoCmd::OnStopTraceTimer() {
   PERFETTO_LOG("Timer expired, disabling tracing and collecting results");
   consumer_endpoint_->DisableTracing();
   consumer_endpoint_->ReadBuffers();
+}
+
+void PerfettoCmd::OnTimeout() {
+  PERFETTO_ELOG("Timed out while waiting for trace from the service, aborting");
+  task_runner_.Quit();
 }
 
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
@@ -276,21 +277,17 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   consumer_endpoint_->FreeBuffers();
   task_runner_.Quit();
 
-  long bytes_written = ftell(trace_out_stream_.get());
+  fflush(*trace_out_stream_);
+  long bytes_written = ftell(*trace_out_stream_);
   if (!dropbox_tag_.empty()) {
 #if defined(PERFETTO_BUILD_WITH_ANDROID)
-    // DropBox needs a path to the uploaded file, so make a temporarily visible
-    // file.
-    // TODO(skyostil): Modify DropBox to take an fd directly.
-    std::string tmp_path;
-    CreateTemporaryFile(&tmp_path);
-    SaveTraceFileAs(tmp_path);
-
     android::sp<android::os::DropBoxManager> dropbox =
         new android::os::DropBoxManager();
+    fseek(*trace_out_stream_, 0, SEEK_SET);
+    // DropBox takes ownership of the file descriptor, so give it a duplicate.
+    base::ScopedFile fd(dup(fileno(*trace_out_stream_)));
     android::binder::Status status = dropbox->addFile(
-        android::String16(dropbox_tag_.c_str()), tmp_path, 0 /* flags */);
-    unlink(tmp_path.c_str());
+        android::String16(dropbox_tag_.c_str()), fd.release(), 0 /* flags */);
     if (!status.isOk()) {
       PERFETTO_ELOG("DropBox upload failed: %s", status.toString8().c_str());
       return;
@@ -299,31 +296,37 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
                   dropbox_tag_.c_str());
 #endif  // defined(PERFETTO_BUILD_WITH_ANDROID)
   } else {
-    SaveTraceFileAs(trace_out_path_);
+    PERFETTO_CHECK(
+        rename(tmp_trace_out_path_.c_str(), trace_out_path_.c_str()) == 0);
     PERFETTO_ILOG("Wrote %ld bytes into %s", bytes_written,
                   trace_out_path_.c_str());
   }
+  trace_out_stream_.reset();
   did_process_full_trace_ = true;
 }
 
-base::ScopedFile PerfettoCmd::CreateTemporaryFile(std::string* out_path) {
-  *out_path = std::string(kTempTraceDir) + "/perfetto-traceXXXXXX";
-  return base::ScopedFile(mkstemp(&(*out_path)[0]));
-}
-
-void PerfettoCmd::SaveTraceFileAs(const std::string& name) {
-  PERFETTO_DCHECK(trace_out_stream_);
-#if !BUILDFLAG(OS_MACOSX)
-  char fd_path[32];
-  snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d",
-           fileno(trace_out_stream_.get()));
-  unlink(name.c_str());
-  PERFETTO_CHECK(linkat(AT_FDCWD, fd_path, AT_FDCWD, name.c_str(),
-                        AT_SYMLINK_FOLLOW) == 0);
-#else
-  PERFETTO_CHECK(rename(tmp_trace_out_path_.c_str(), name.c_str()) == 0);
-#endif  // BUILDFLAG(OS_MACOSX)
-  trace_out_stream_.reset();
+bool PerfettoCmd::OpenOutputFile() {
+  base::ScopedFile fd;
+  if (!dropbox_tag_.empty()) {
+    // If we are tracing to DropBox, there's no need to make a
+    // filesystem-visible temporary file.
+    // TODO(skyostil): Fall back to mkstemp() + open() + unlink() for older
+    // devices.
+    fd.reset(open(kTempDropBoxTraceDir, O_TMPFILE | O_RDWR, 0600));
+    if (!fd) {
+      PERFETTO_ELOG("Could not create a temporary trace file in %s",
+                    kTempDropBoxTraceDir);
+      return false;
+    }
+  } else {
+    // Otherwise create a temporary file in the directory where the final trace
+    // is going to be.
+    tmp_trace_out_path_ = GetDirName(trace_out_path_) + "/perfetto-traceXXXXXX";
+    fd.reset(mkstemp(&tmp_trace_out_path_[0]));
+  }
+  trace_out_stream_.reset(fdopen(fd.release(), "wb"));
+  PERFETTO_CHECK(trace_out_stream_);
+  return true;
 }
 
 int __attribute__((visibility("default")))

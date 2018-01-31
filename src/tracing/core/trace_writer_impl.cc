@@ -56,7 +56,10 @@ TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
 }
 
 TraceWriterImpl::~TraceWriterImpl() {
-  // TODO(primiano): this should also return the current chunk. Add tests.
+  if (cur_chunk_.is_valid()) {
+    cur_packet_->Finalize();
+    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_));
+  }
   shmem_arbiter_->ReleaseWriterID(id_);
 }
 
@@ -108,6 +111,8 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     cur_chunk_.SetFlag(ChunkHeader::kLastPacketContinuesOnNextChunk);
     WriteRedundantVarInt(partial_size, cur_packet_->size_field());
 
+// TODO(primiano): temporarily disabled due to b/72685438.
+#if 0
     // Descend in the stack of non-finalized nested submessages (if any) and
     // detour their |size_field| into the |patch_list_|. At this point we have
     // to release the chunk and they cannot write anymore into that.
@@ -123,6 +128,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
       nested_msg->set_size_field(patch.size_field);
       PERFETTO_DLOG("Created new patchlist entry for protobuf nested message");
     }
+#endif
   }
 
   if (cur_chunk_.is_valid())
