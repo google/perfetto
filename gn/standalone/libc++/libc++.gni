@@ -45,3 +45,8 @@ declare_args() {
 
 libcxx_prefix = "//buildtools/libcxx"
 libcxxabi_prefix = "//buildtools/libcxxabi"
+
+# TODO(b/72681031): Remove once alignment problems with custom libcxx are
+# resolved.
+assert(!(is_asan && use_libfuzzer) || !use_custom_libcxx,
+       "cannot use libfuzzer and ASAN with custom libcxx")
