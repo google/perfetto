@@ -279,15 +279,23 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
 
   fflush(*trace_out_stream_);
   long bytes_written = ftell(*trace_out_stream_);
+
   if (!dropbox_tag_.empty()) {
 #if defined(PERFETTO_BUILD_WITH_ANDROID)
     android::sp<android::os::DropBoxManager> dropbox =
         new android::os::DropBoxManager();
     fseek(*trace_out_stream_, 0, SEEK_SET);
     // DropBox takes ownership of the file descriptor, so give it a duplicate.
-    base::ScopedFile fd(dup(fileno(*trace_out_stream_)));
-    android::binder::Status status = dropbox->addFile(
-        android::String16(dropbox_tag_.c_str()), fd.release(), 0 /* flags */);
+    // Also we need to give it a read-only copy of the fd or will hit a SELinux
+    // violation (about system_server ending up with a writable FD to our dir).
+    char fdpath[64];
+    sprintf(fdpath, "/proc/self/fd/%d", fileno(*trace_out_stream_));
+    base::ScopedFile read_only_fd(open(fdpath, O_RDONLY));
+    PERFETTO_CHECK(read_only_fd);
+    trace_out_stream_.reset();
+    android::binder::Status status =
+        dropbox->addFile(android::String16(dropbox_tag_.c_str()),
+                         read_only_fd.release(), 0 /* flags */);
     if (!status.isOk()) {
       PERFETTO_ELOG("DropBox upload failed: %s", status.toString8().c_str());
       return;
@@ -296,12 +304,12 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
                   dropbox_tag_.c_str());
 #endif  // defined(PERFETTO_BUILD_WITH_ANDROID)
   } else {
+    trace_out_stream_.reset();
     PERFETTO_CHECK(
         rename(tmp_trace_out_path_.c_str(), trace_out_path_.c_str()) == 0);
     PERFETTO_ILOG("Wrote %ld bytes into %s", bytes_written,
                   trace_out_path_.c_str());
   }
-  trace_out_stream_.reset();
   did_process_full_trace_ = true;
 }
 
