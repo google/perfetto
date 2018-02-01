@@ -21,13 +21,30 @@ if [ ! -f "$OUT/args.gn" ]; then
   exit 1
 fi
 
-ninja -C $OUT traced traced_probes perfetto trace_to_text
+# You can set the config to one of the files under test/configs e.g.
+# CONFIG=ftrace.cfg or to :test. Defaults to :test.
+CONFIG="${CONFIG:-:test}"
+
+ninja -C $OUT traced traced_probes perfetto trace_to_text test/configs
 
 set -x
 adb push $OUT/traced /data/local/tmp/
 adb push $OUT/traced_probes /data/local/tmp/
 adb push $OUT/perfetto /data/local/tmp/
 set +x
+
+CONFIG_DEVICE_PATH=$CONFIG
+if [[ "$CONFIG" != ":test" ]]; then
+  CONFIG_DEVICE_PATH=/data/local/tmp/$CONFIG.protobuf
+  CONFIG_PATH=$OUT/$CONFIG.protobuf;
+  if [[ ! -f $CONFIG_PATH ]]; then
+    echo 'Config "'$CONFIG_PATH'" not known.'
+    exit 1
+  fi
+  set -x
+  adb push $CONFIG_PATH /data/local/tmp/
+  set +x
+fi
 
 if tmux has-session -t demo; then
   tmux kill-session -t demo
@@ -60,18 +77,16 @@ tmux select-pane -t 2
 tmux send-keys "clear" C-m
 tmux send-keys "adb shell" C-m
 
-sleep 1
+sleep 2
 
 tmux select-pane -t 1
 tmux send-keys "/data/local/tmp/traced" Enter
-
-sleep 0.25
 
 tmux select-pane -t 0
 tmux send-keys "/data/local/tmp/traced_probes" Enter
 
 tmux select-pane -t 2
-tmux send-keys "/data/local/tmp/perfetto -c :test -o /data/local/tmp/trace"
+tmux send-keys "/data/local/tmp/perfetto -c $CONFIG_DEVICE_PATH -o /data/local/tmp/trace"
 
 # Select consumer pane.
 tmux select-pane -t 2
