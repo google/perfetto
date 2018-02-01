@@ -113,7 +113,7 @@ void AndroidTaskRunner::RunImmediateTask() {
   if (has_next)
     ScheduleImmediateWakeUp();
   errno = 0;
-  immediate_task();
+  RunTask(immediate_task);
 }
 
 void AndroidTaskRunner::RunDelayedTask() {
@@ -139,7 +139,7 @@ void AndroidTaskRunner::RunDelayedTask() {
   if (next_wake_up)
     ScheduleDelayedWakeUp(next_wake_up);
   errno = 0;
-  delayed_task();
+  RunTask(delayed_task);
 }
 
 void AndroidTaskRunner::ScheduleImmediateWakeUp() {
@@ -221,7 +221,7 @@ bool AndroidTaskRunner::OnFileDescriptorEvent(int signalled_fd, int events) {
     task = it->second;
   }
   errno = 0;
-  task();
+  RunTask(task);
   return true;
 }
 
