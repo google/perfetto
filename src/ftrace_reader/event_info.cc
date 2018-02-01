@@ -50,6 +50,19 @@ std::vector<Event> GetStaticEventInfo() {
   {
     events.emplace_back(Event{});
     Event* event = &events.back();
+    event->name = "sched_wakeup";
+    event->group = "sched";
+    event->proto_field_id = 17;
+    event->fields.push_back(FieldFromNameIdType("comm", 1, kProtoString));
+    event->fields.push_back(FieldFromNameIdType("pid", 2, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("prio", 3, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("success", 4, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("target_cpu", 5, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
     event->name = "cpufreq_interactive_already";
     event->group = "cpufreq_interactive";
     event->proto_field_id = 5;
