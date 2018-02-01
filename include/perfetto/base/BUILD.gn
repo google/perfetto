@@ -22,6 +22,7 @@ source_set("base") {
     "thread_checker.h",
     "unix_task_runner.h",
     "utils.h",
+    "watchdog.h",
     "weak_ptr.h",
   ]
   if (is_android) {
