@@ -140,6 +140,7 @@ void FtraceProducer::ConnectWithRetries(const char* socket_name,
   socket_name_ = socket_name;
   task_runner_ = task_runner;
   ftrace_ = FtraceController::Create(task_runner);
+  PERFETTO_CHECK(ftrace_);
   ftrace_->DisableAllEvents();
   ftrace_->ClearTrace();
   Connect();
