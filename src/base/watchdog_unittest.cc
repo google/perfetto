@@ -16,6 +16,8 @@
 
 #include "perfetto/base/watchdog.h"
 
+#include "perfetto/base/logging.h"
+
 #include "gtest/gtest.h"
 
 #include <time.h>
@@ -28,14 +30,17 @@ TEST(WatchDogTest, Crash) {
   EXPECT_DEATH(
       {
         WatchDog watchdog(1);
-        usleep(2000000);
+        int sleep_s = 20;
+        while (sleep_s != 0) {
+          sleep_s = sleep(sleep_s);
+        }
       },
       "");
 }
 
 TEST(WatchDogTest, NoCrash) {
   WatchDog watchdog(100000);
-  usleep(5000);
+  PERFETTO_CHECK(usleep(5000) != -1);
 }
 
 }  // namespace
