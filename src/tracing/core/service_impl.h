@@ -79,6 +79,7 @@ class ServiceImpl : public Service {
     std::unique_ptr<SharedMemory> shared_memory_;
     SharedMemoryABI shmem_abi_;
     DataSourceID last_data_source_id_ = 0;
+    PERFETTO_THREAD_CHECKER(thread_checker_)
   };
 
   // The implementation behind the service endpoint exposed to each consumer.
@@ -103,6 +104,9 @@ class ServiceImpl : public Service {
     ServiceImpl* const service_;
     Consumer* const consumer_;
     TracingSessionID tracing_session_id_ = 0;
+
+    PERFETTO_THREAD_CHECKER(thread_checker_)
+
     base::WeakPtrFactory<ConsumerEndpointImpl> weak_ptr_factory_;
   };
 
@@ -229,6 +233,8 @@ class ServiceImpl : public Service {
   std::set<ConsumerEndpointImpl*> consumers_;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
   std::map<BufferID, TraceBuffer> buffers_;
+
+  PERFETTO_THREAD_CHECKER(thread_checker_)
 
   base::WeakPtrFactory<ServiceImpl> weak_ptr_factory_;  // Keep at the end.
 };
