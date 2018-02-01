@@ -60,6 +60,7 @@ TEST_P(AllTranslationTableTest, Create) {
   EXPECT_TRUE(table_);
   EXPECT_TRUE(table_->GetEventByName("print"));
   EXPECT_TRUE(table_->GetEventByName("sched_switch"));
+  EXPECT_TRUE(table_->GetEventByName("sched_wakeup"));
   for (const Event& event : table_->events()) {
     if (!event.ftrace_event_id)
       continue;
@@ -112,6 +113,15 @@ TEST(TranslationTableTest, Seed) {
     EXPECT_EQ(std::string(event->name), "sched_switch");
     EXPECT_EQ(std::string(event->group), "sched");
     EXPECT_EQ(event->ftrace_event_id, 68ul);
+    EXPECT_EQ(event->fields.at(0).ftrace_offset, 8u);
+    EXPECT_EQ(event->fields.at(0).ftrace_size, 16u);
+  }
+
+  {
+    auto event = table->GetEventByName("sched_wakeup");
+    EXPECT_EQ(std::string(event->name), "sched_wakeup");
+    EXPECT_EQ(std::string(event->group), "sched");
+    EXPECT_EQ(event->ftrace_event_id, 70ul);
     EXPECT_EQ(event->fields.at(0).ftrace_offset, 8u);
     EXPECT_EQ(event->fields.at(0).ftrace_size, 16u);
   }
