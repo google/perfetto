@@ -38,8 +38,6 @@
 
 namespace perfetto {
 
-// TODO(fmayer): add ThreadChecker everywhere.
-
 using protozero::proto_utils::ParseVarInt;
 
 namespace {
@@ -72,6 +70,7 @@ ServiceImpl::~ServiceImpl() {
 std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
     Producer* producer,
     size_t shared_buffer_size_hint_bytes) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   const ProducerID id = ++last_producer_id_;
   PERFETTO_DLOG("Producer %" PRIu64 " connected", id);
   size_t shm_size = std::min(shared_buffer_size_hint_bytes, kMaxShmSize);
@@ -91,6 +90,7 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
 }
 
 void ServiceImpl::DisconnectProducer(ProducerID id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Producer %" PRIu64 " disconnected", id);
   PERFETTO_DCHECK(producers_.count(id));
   producers_.erase(id);
@@ -98,6 +98,7 @@ void ServiceImpl::DisconnectProducer(ProducerID id) {
 
 ServiceImpl::ProducerEndpointImpl* ServiceImpl::GetProducer(
     ProducerID id) const {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   auto it = producers_.find(id);
   if (it == producers_.end())
     return nullptr;
@@ -106,6 +107,7 @@ ServiceImpl::ProducerEndpointImpl* ServiceImpl::GetProducer(
 
 std::unique_ptr<Service::ConsumerEndpoint> ServiceImpl::ConnectConsumer(
     Consumer* consumer) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p connected", reinterpret_cast<void*>(consumer));
   std::unique_ptr<ConsumerEndpointImpl> endpoint(
       new ConsumerEndpointImpl(this, task_runner_, consumer));
@@ -116,6 +118,7 @@ std::unique_ptr<Service::ConsumerEndpoint> ServiceImpl::ConnectConsumer(
 }
 
 void ServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p disconnected", reinterpret_cast<void*>(consumer));
   PERFETTO_DCHECK(consumers_.count(consumer));
 
@@ -128,6 +131,7 @@ void ServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
 
 void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
                                 const TraceConfig& cfg) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Enabling tracing for consumer %p",
                 reinterpret_cast<void*>(consumer));
   if (consumer->tracing_session_id_) {
@@ -242,6 +246,7 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 // and then drain the buffers. The actual teardown of the TracingSession happens
 // in FreeBuffers().
 void ServiceImpl::DisableTracing(TracingSessionID tsid) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
     // Can happen if the consumer calls this before EnableTracing() or after
@@ -266,6 +271,7 @@ void ServiceImpl::DisableTracing(TracingSessionID tsid) {
 
 void ServiceImpl::ReadBuffers(TracingSessionID tsid,
                               ConsumerEndpointImpl* consumer) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Reading buffers for session %" PRIu64, tsid);
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
@@ -349,6 +355,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
 }
 
 void ServiceImpl::FreeBuffers(TracingSessionID tsid) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Freeing buffers for session %" PRIu64, tsid);
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
@@ -370,6 +377,7 @@ void ServiceImpl::FreeBuffers(TracingSessionID tsid) {
 void ServiceImpl::RegisterDataSource(ProducerID producer_id,
                                      DataSourceID ds_id,
                                      const DataSourceDescriptor& desc) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Producer %" PRIu64
                 " registered data source \"%s\", ID: %" PRIu64,
                 producer_id, desc.name().c_str(), ds_id);
@@ -404,6 +412,7 @@ void ServiceImpl::CreateDataSourceInstanceForProducer(
     const TraceConfig::DataSource& cfg_data_source,
     ProducerEndpointImpl* producer,
     TracingSession* tracing_session) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   // TODO(primiano): match against |producer_name_filter| and add tests
   // for registration ordering (data sources vs consumers).
 
@@ -441,6 +450,7 @@ void ServiceImpl::CopyProducerPageIntoLogBuffer(ProducerID producer_id,
   // TODO(fmayer): right now the page_size in the SMB and the trace_buffers_ can
   // mismatch. Remove the ability to decide the page size on the Producer.
 
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   auto buf_iter = buffers_.find(target_buffer_id);
   if (buf_iter == buffers_.end()) {
     PERFETTO_DLOG("Could not find target buffer %u for producer %" PRIu64,
@@ -468,6 +478,7 @@ void ServiceImpl::CopyProducerPageIntoLogBuffer(ProducerID producer_id,
 
 ServiceImpl::TracingSession* ServiceImpl::GetTracingSession(
     TracingSessionID tsid) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   auto it = tsid ? tracing_sessions_.find(tsid) : tracing_sessions_.end();
   if (it == tracing_sessions_.end())
     return nullptr;
@@ -489,10 +500,12 @@ ServiceImpl::ConsumerEndpointImpl::~ConsumerEndpointImpl() {
 }
 
 void ServiceImpl::ConsumerEndpointImpl::EnableTracing(const TraceConfig& cfg) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   service_->EnableTracing(this, cfg);
 }
 
 void ServiceImpl::ConsumerEndpointImpl::DisableTracing() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   if (tracing_session_id_) {
     service_->DisableTracing(tracing_session_id_);
   } else {
@@ -501,6 +514,7 @@ void ServiceImpl::ConsumerEndpointImpl::DisableTracing() {
 }
 
 void ServiceImpl::ConsumerEndpointImpl::ReadBuffers() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   if (tracing_session_id_) {
     service_->ReadBuffers(tracing_session_id_, this);
   } else {
@@ -509,6 +523,7 @@ void ServiceImpl::ConsumerEndpointImpl::ReadBuffers() {
 }
 
 void ServiceImpl::ConsumerEndpointImpl::FreeBuffers() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   if (tracing_session_id_) {
     service_->FreeBuffers(tracing_session_id_);
   } else {
@@ -518,6 +533,7 @@ void ServiceImpl::ConsumerEndpointImpl::FreeBuffers() {
 
 base::WeakPtr<ServiceImpl::ConsumerEndpointImpl>
 ServiceImpl::ConsumerEndpointImpl::GetWeakPtr() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   return weak_ptr_factory_.GetWeakPtr();
 }
 
@@ -552,6 +568,7 @@ ServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
 void ServiceImpl::ProducerEndpointImpl::RegisterDataSource(
     const DataSourceDescriptor& desc,
     RegisterDataSourceCallback callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   DataSourceID ds_id = ++last_data_source_id_;
   if (!desc.name().empty()) {
     service_->RegisterDataSource(id_, ds_id, desc);
@@ -564,12 +581,14 @@ void ServiceImpl::ProducerEndpointImpl::RegisterDataSource(
 
 void ServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
     DataSourceID dsid) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_CHECK(dsid);
   // TODO(primiano): implement the bookkeeping logic.
 }
 
 void ServiceImpl::ProducerEndpointImpl::NotifySharedMemoryUpdate(
     const std::vector<uint32_t>& changed_pages) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   for (uint32_t page_idx : changed_pages) {
     if (page_idx >= shmem_abi_.num_pages())
       continue;  // Very likely a malicious producer playing dirty.
@@ -591,11 +610,13 @@ void ServiceImpl::ProducerEndpointImpl::NotifySharedMemoryUpdate(
 }
 
 SharedMemory* ServiceImpl::ProducerEndpointImpl::shared_memory() const {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   return shared_memory_.get();
 }
 
 std::unique_ptr<TraceWriter>
 ServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   // TODO(primiano): not implemented yet.
   // This code path is hit only in in-process configuration, where tracing
   // Service and Producer are hosted in the same process. It's a use case we
