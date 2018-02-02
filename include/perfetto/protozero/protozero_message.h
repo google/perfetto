@@ -176,7 +176,6 @@ class ProtoZeroMessage {
   void WriteToStream(const uint8_t* src_begin, const uint8_t* src_end) {
     PERFETTO_DCHECK(!finalized_);
     PERFETTO_DCHECK(src_begin <= src_end);
-
     const uint32_t size = static_cast<uint32_t>(src_end - src_begin);
     stream_writer_->WriteBytes(src_begin, size);
     size_ += size;
