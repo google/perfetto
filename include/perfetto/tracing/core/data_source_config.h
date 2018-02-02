@@ -87,10 +87,20 @@ class DataSourceConfig {
       return &atrace_apps_.back();
     }
 
+    uint32_t total_buffer_size_kb() const { return total_buffer_size_kb_; }
+    void set_total_buffer_size_kb(uint32_t value) {
+      total_buffer_size_kb_ = value;
+    }
+
+    uint32_t drain_period_ms() const { return drain_period_ms_; }
+    void set_drain_period_ms(uint32_t value) { drain_period_ms_ = value; }
+
    private:
     std::vector<std::string> event_names_;
     std::vector<std::string> atrace_categories_;
     std::vector<std::string> atrace_apps_;
+    uint32_t total_buffer_size_kb_ = {};
+    uint32_t drain_period_ms_ = {};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
