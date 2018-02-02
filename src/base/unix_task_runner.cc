@@ -139,11 +139,10 @@ void UnixTaskRunner::RunImmediateAndDelayedTask() {
 
   errno = 0;
   if (immediate_task)
-    immediate_task();
-
+    RunTask(immediate_task);
   errno = 0;
   if (delayed_task)
-    delayed_task();
+    RunTask(delayed_task);
 }
 
 void UnixTaskRunner::PostFileDescriptorWatches() {
@@ -195,7 +194,7 @@ void UnixTaskRunner::RunFileDescriptorWatch(int fd) {
     task = it->second.callback;
   }
   errno = 0;
-  task();
+  RunTask(task);
 }
 
 UnixTaskRunner::TimeDurationMs UnixTaskRunner::GetDelayToNextTaskLocked()
