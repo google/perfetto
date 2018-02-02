@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_BASE_TASK_RUNNER_H_
 
 #include <functional>
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/watchdog.h"
 
 namespace perfetto {
@@ -65,7 +66,9 @@ class TaskRunner {
 
  protected:
   static void RunTask(const std::function<void()>& task) {
+#if !BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
     base::WatchDog w(kWatchdogMillis);
+#endif
     task();
   }
 };
