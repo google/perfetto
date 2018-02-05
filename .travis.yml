@@ -98,19 +98,9 @@ matrix:
       env: CFG=android-clang-arm-release GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\""
     - os: linux
       dist: trusty
-      sudo: false
-      compiler: clang
-      env: CFG=android-clang-arm64-release GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\""
-    - os: linux
-      dist: trusty
       sudo: true
       compiler: clang
       env: CFG=android-clang-arm-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\" is_asan=true"
-    - os: linux
-      dist: trusty
-      sudo: true
-      compiler: clang
-      env: CFG=android-clang-arm64-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm64\" is_asan=true"
 
 # Cache the deps that get git-pulled to avoid hitting quota limits (b/68252114).
 # Do not cache NDK/SDK and things that come from .zip files rather than git.
@@ -119,6 +109,7 @@ cache:
   timeout: 1800  # 30 mins
   directories:
     - buildtools/benchmark
+    - buildtools/emulator
     - buildtools/googletest
     - buildtools/libcxx
     - buildtools/libcxxabi
@@ -135,8 +126,7 @@ install:
     if [[ "$CFG" != android-* ]]; then
       tools/install-build-deps --no-android
     else
-      ARCH=$(echo "$CFG" | cut -d- -f3)
-      tools/install-build-deps --emulator="$ARCH"
+      tools/install-build-deps
     fi
   - |
     if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
@@ -148,6 +138,7 @@ script:
   - tools/ninja -C out/dist -j8 all
   - |
     TEST_TARGETS="
+    perfetto_integrationtests
     perfetto_unittests
     perfetto_benchmarks
     "
@@ -157,7 +148,7 @@ script:
       done
     else
       TARGET_ARCH=$(echo $CFG | cut -d- -f3)
-      tools/run_android_emulator $TARGET_ARCH --pid /tmp/emulator.pid -v &
+      tools/run_android_emulator --pid /tmp/emulator.pid -v &
       for TEST_TARGET in $TEST_TARGETS; do
         tools/run_android_test out/dist "$TEST_TARGET"
       done
