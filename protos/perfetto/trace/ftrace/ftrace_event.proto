@@ -30,6 +30,7 @@ import "perfetto/trace/ftrace/cpufreq_interactive_setspeed.proto";
 import "perfetto/trace/ftrace/cpufreq_interactive_target.proto";
 import "perfetto/trace/ftrace/cpufreq_interactive_unboost.proto";
 import "perfetto/trace/ftrace/print.proto";
+import "perfetto/trace/ftrace/sched_wakeup.proto";
 import "perfetto/trace/ftrace/sched_switch.proto";
 
 package perfetto.protos;
@@ -46,6 +47,7 @@ message FtraceEvent {
   oneof event {
     PrintFtraceEvent print = 3;
     SchedSwitchFtraceEvent sched_switch = 4;
+    SchedWakeupFtraceEvent sched_wakeup = 17;
     CpufreqInteractiveAlreadyFtraceEvent cpu_freq_interactive_already = 5;
     CpufreqInteractiveBoostFtraceEvent cpu_freq_interactive_boost = 6;
     CpufreqInteractiveNotyetFtraceEvent cpu_freq_interactive_notyet = 7;

@@ -28,6 +28,7 @@ cc_library_shared {
     "src/base/page_allocator.cc",
     "src/base/thread_checker.cc",
     "src/base/unix_task_runner.cc",
+    "src/base/watchdog.cc",
     "src/ftrace_reader/cpu_reader.cc",
     "src/ftrace_reader/event_info.cc",
     "src/ftrace_reader/event_info_constants.cc",
@@ -100,6 +101,7 @@ cc_binary {
     "src/base/page_allocator.cc",
     "src/base/thread_checker.cc",
     "src/base/unix_task_runner.cc",
+    "src/base/watchdog.cc",
     "src/ipc/buffered_frame_deserializer.cc",
     "src/ipc/client_impl.cc",
     "src/ipc/deferred.cc",
@@ -187,6 +189,7 @@ cc_test {
     "src/base/test/vm_test_utils.cc",
     "src/base/thread_checker.cc",
     "src/base/unix_task_runner.cc",
+    "src/base/watchdog.cc",
     "src/ftrace_reader/cpu_reader.cc",
     "src/ftrace_reader/end_to_end_integrationtest.cc",
     "src/ftrace_reader/event_info.cc",
@@ -358,6 +361,7 @@ genrule {
     "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto",
     "protos/perfetto/trace/ftrace/print.proto",
     "protos/perfetto/trace/ftrace/sched_switch.proto",
+    "protos/perfetto/trace/ftrace/sched_wakeup.proto",
     "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
   ],
   tools: [
@@ -381,6 +385,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/ftrace/ftrace_event_bundle.pb.cc",
     "external/perfetto/protos/perfetto/trace/ftrace/print.pb.cc",
     "external/perfetto/protos/perfetto/trace/ftrace/sched_switch.pb.cc",
+    "external/perfetto/protos/perfetto/trace/ftrace/sched_wakeup.pb.cc",
     "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.pb.cc",
   ],
 }
@@ -405,6 +410,7 @@ genrule {
     "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto",
     "protos/perfetto/trace/ftrace/print.proto",
     "protos/perfetto/trace/ftrace/sched_switch.proto",
+    "protos/perfetto/trace/ftrace/sched_wakeup.proto",
     "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
   ],
   tools: [
@@ -428,6 +434,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/ftrace/ftrace_event_bundle.pb.h",
     "external/perfetto/protos/perfetto/trace/ftrace/print.pb.h",
     "external/perfetto/protos/perfetto/trace/ftrace/sched_switch.pb.h",
+    "external/perfetto/protos/perfetto/trace/ftrace/sched_wakeup.pb.h",
     "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.pb.h",
   ],
   export_include_dirs: [
@@ -455,6 +462,7 @@ genrule {
     "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto",
     "protos/perfetto/trace/ftrace/print.proto",
     "protos/perfetto/trace/ftrace/sched_switch.proto",
+    "protos/perfetto/trace/ftrace/sched_wakeup.proto",
     "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
   ],
   tools: [
@@ -479,6 +487,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/ftrace/print.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/ftrace/sched_switch.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/ftrace/sched_wakeup.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.pbzero.cc",
   ],
 }
@@ -503,6 +512,7 @@ genrule {
     "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto",
     "protos/perfetto/trace/ftrace/print.proto",
     "protos/perfetto/trace/ftrace/sched_switch.proto",
+    "protos/perfetto/trace/ftrace/sched_wakeup.proto",
     "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
   ],
   tools: [
@@ -527,6 +537,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h",
     "external/perfetto/protos/perfetto/trace/ftrace/print.pbzero.h",
     "external/perfetto/protos/perfetto/trace/ftrace/sched_switch.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/ftrace/sched_wakeup.pbzero.h",
     "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.pbzero.h",
   ],
   export_include_dirs: [
@@ -912,6 +923,7 @@ cc_library_static {
     "src/base/page_allocator.cc",
     "src/base/thread_checker.cc",
     "src/base/unix_task_runner.cc",
+    "src/base/watchdog.cc",
     "src/ipc/buffered_frame_deserializer.cc",
     "src/ipc/client_impl.cc",
     "src/ipc/deferred.cc",
@@ -1003,6 +1015,8 @@ cc_test {
     "src/base/thread_checker_unittest.cc",
     "src/base/unix_task_runner.cc",
     "src/base/utils_unittest.cc",
+    "src/base/watchdog.cc",
+    "src/base/watchdog_unittest.cc",
     "src/base/weak_ptr_unittest.cc",
     "src/ftrace_reader/cpu_reader.cc",
     "src/ftrace_reader/cpu_reader_unittest.cc",

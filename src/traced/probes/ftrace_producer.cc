@@ -87,8 +87,8 @@ void FtraceProducer::CreateDataSourceInstance(
   PERFETTO_LOG("Ftrace start (id=%" PRIu64 ", target_buf=%" PRIu32 ")", id,
                source_config.target_buffer());
 
-  // TODO(hjd): Would be nice if ftrace_reader could use generate the config.
-  const DataSourceConfig::FtraceConfig& proto_config =
+  // TODO(hjd): Would be nice if ftrace_reader could use the generated config.
+  const DataSourceConfig::FtraceConfig proto_config =
       source_config.ftrace_config();
 
   FtraceConfig config;
@@ -115,12 +115,15 @@ void FtraceProducer::CreateDataSourceInstance(
     }
   }
 
+  config.set_total_buffer_size_kb(proto_config.total_buffer_size_kb());
+  config.set_drain_period_ms(proto_config.drain_period_ms());
+
   // TODO(hjd): Static cast is bad, target_buffer() should return a BufferID.
   auto trace_writer = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
   auto delegate =
       std::unique_ptr<SinkDelegate>(new SinkDelegate(std::move(trace_writer)));
-  auto sink = ftrace_->CreateSink(config, delegate.get());
+  auto sink = ftrace_->CreateSink(std::move(config), delegate.get());
   PERFETTO_CHECK(sink);
   delegate->sink(std::move(sink));
   delegates_.emplace(id, std::move(delegate));
@@ -140,6 +143,7 @@ void FtraceProducer::ConnectWithRetries(const char* socket_name,
   socket_name_ = socket_name;
   task_runner_ = task_runner;
   ftrace_ = FtraceController::Create(task_runner);
+  PERFETTO_CHECK(ftrace_);
   ftrace_->DisableAllEvents();
   ftrace_->ClearTrace();
   Connect();

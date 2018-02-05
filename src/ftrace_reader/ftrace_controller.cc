@@ -49,8 +49,44 @@ const char* kTracingPaths[] = {
 };
 #endif
 
-// TODO(hjd): Expose this as a configurable variable.
-const int kDrainPeriodMs = 100;
+const int kDefaultDrainPeriodMs = 100;
+const int kMinDrainPeriodMs = 1;
+const int kMaxDrainPeriodMs = 1000 * 60;
+
+const int kDefaultTotalBufferSizeKb = 1024 * 8;     // 8mb
+const int kMaxTotalBufferSizeKb = 1024 * 1024 * 1;  // 1gb
+
+uint32_t ClampDrainPeriodMs(uint32_t drain_period_ms) {
+  if (drain_period_ms == 0) {
+    return kDefaultDrainPeriodMs;
+  }
+  if (drain_period_ms < kMinDrainPeriodMs ||
+      kMaxDrainPeriodMs < drain_period_ms) {
+    PERFETTO_LOG("drain_period_ms was %u should be between %u and %u",
+                 drain_period_ms, kMinDrainPeriodMs, kMaxDrainPeriodMs);
+    return kDefaultDrainPeriodMs;
+  }
+  return drain_period_ms;
+}
+
+// Post-conditions:
+// 1. result >= 1 (should have at least one page per CPU)
+// 2. result * num_cpus * 4 < kMaxTotalBufferSizeKb
+// 3. If input is 0 output is a good default number.
+size_t ComputeCpuBufferSizeInPages(uint32_t requested_buffer_size_kb,
+                                   size_t cpu_count) {
+  if (requested_buffer_size_kb == 0)
+    requested_buffer_size_kb = kDefaultTotalBufferSizeKb;
+  if (requested_buffer_size_kb > kMaxTotalBufferSizeKb)
+    requested_buffer_size_kb = kDefaultTotalBufferSizeKb;
+
+  size_t pages =
+      (requested_buffer_size_kb / cpu_count) / (base::kPageSize / 1024);
+  if (pages == 0)
+    return 1;
+
+  return pages;
+}
 
 bool RunAtrace(std::vector<std::string> args) {
   int status = 1;
@@ -137,7 +173,7 @@ void FtraceController::PeriodicDrainCPU(
   weak_this->task_runner_->PostDelayedTask(
       std::bind(&FtraceController::PeriodicDrainCPU, weak_this, generation,
                 cpu),
-      has_more ? 0 : kDrainPeriodMs);
+      has_more ? 0 : weak_this->GetDrainPeriodMs());
 }
 
 void FtraceController::StartIfNeeded() {
@@ -146,14 +182,36 @@ void FtraceController::StartIfNeeded() {
   PERFETTO_CHECK(sinks_.size() != 0);
   PERFETTO_CHECK(!listening_for_raw_trace_data_);
   listening_for_raw_trace_data_ = true;
+  ftrace_procfs_->SetCpuBufferSizeInPages(GetCpuBufferSizeInPages());
   ftrace_procfs_->EnableTracing();
   generation_++;
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
     base::WeakPtr<FtraceController> weak_this = weak_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(std::bind(&FtraceController::PeriodicDrainCPU,
                                             weak_this, generation_, cpu),
-                                  kDrainPeriodMs);
+                                  GetDrainPeriodMs());
   }
+}
+
+uint32_t FtraceController::GetDrainPeriodMs() {
+  if (sinks_.size() == 0)
+    return kDefaultDrainPeriodMs;
+  uint32_t min_drain_period_ms = kMaxDrainPeriodMs + 1;
+  for (const FtraceSink* sink : sinks_) {
+    if (sink->config().drain_period_ms() < min_drain_period_ms)
+      min_drain_period_ms = sink->config().drain_period_ms();
+  }
+  return ClampDrainPeriodMs(min_drain_period_ms);
+}
+
+uint32_t FtraceController::GetCpuBufferSizeInPages() {
+  uint32_t max_total_buffer_size_kb = 0;
+  for (const FtraceSink* sink : sinks_) {
+    if (sink->config().total_buffer_size_kb() > max_total_buffer_size_kb)
+      max_total_buffer_size_kb = sink->config().total_buffer_size_kb();
+  }
+  return ComputeCpuBufferSizeInPages(max_total_buffer_size_kb,
+                                     ftrace_procfs_->NumberOfCpus());
 }
 
 void FtraceController::ClearTrace() {
@@ -214,11 +272,10 @@ std::unique_ptr<FtraceSink> FtraceController::CreateSink(
   if (sinks_.size() >= kMaxSinks)
     return nullptr;
   auto controller_weak = weak_factory_.GetWeakPtr();
-  auto filter =
-      std::unique_ptr<EventFilter>(new EventFilter(*table_, config.events()));
-  auto sink = std::unique_ptr<FtraceSink>(
-      new FtraceSink(std::move(controller_weak), std::move(config),
-                     std::move(filter), delegate));
+  auto filter = std::unique_ptr<EventFilter>(
+      new EventFilter(*table_.get(), config.events()));
+  auto sink = std::unique_ptr<FtraceSink>(new FtraceSink(
+      std::move(controller_weak), config, std::move(filter), delegate));
   Register(sink.get());
   return sink;
 }
@@ -304,7 +361,7 @@ FtraceSink::FtraceSink(base::WeakPtr<FtraceController> controller_weak,
                        std::unique_ptr<EventFilter> filter,
                        Delegate* delegate)
     : controller_weak_(std::move(controller_weak)),
-      config_(std::move(config)),
+      config_(config),
       filter_(std::move(filter)),
       delegate_(delegate){};
 
@@ -320,6 +377,7 @@ const std::set<std::string>& FtraceSink::enabled_events() {
 FtraceConfig::FtraceConfig() = default;
 FtraceConfig::FtraceConfig(std::set<std::string> events)
     : ftrace_events_(std::move(events)) {}
+
 FtraceConfig::~FtraceConfig() = default;
 
 void FtraceConfig::AddEvent(const std::string& event) {

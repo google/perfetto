@@ -108,6 +108,10 @@ config("default") {
     libs += [ "log" ]
   }
 
+  if (is_debug) {
+    libs += [ "dl" ]
+  }
+
   if (is_android) {
     asmflags += [ "--target=$android_abi_target" ]
     cflags += [
