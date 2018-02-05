@@ -128,7 +128,7 @@ TEST(FtraceProcfsIntegrationTest, DISABLED_CanOpenTracePipeRaw) {
   EXPECT_TRUE(ftrace.OpenPipeForCpu(0));
 }
 
-TEST(FtraceProcfsIntegrationTest, CanSetBufferSize) {
+TEST(FtraceProcfsIntegrationTest, DISABLED_CanSetBufferSize) {
   FtraceProcfs ftrace(kTracingPath);
   EXPECT_TRUE(ftrace.SetCpuBufferSizeInPages(4ul));
   EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");  // (4096 * 4) / 1024

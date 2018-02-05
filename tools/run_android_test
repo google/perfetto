@@ -124,7 +124,7 @@ def Main():
 
   print 'Waiting for device ...'
   AdbCall('wait-for-device')
-  WaitForBootCompletion()
+  # WaitForBootCompletion()
   AdbCall('root')
   AdbCall('wait-for-device')
 

@@ -152,15 +152,10 @@ BUILD_DEPS_ANDROID = [
 
 # Dependencies required to run Android tests.
 TEST_DEPS_ANDROID = [
-  # tools.zip contains the emulator binaries.
-  ('buildtools/android_sdk/tools.zip',
-   'https://dl.google.com/android/repository/tools_r25.2.5-macosx.zip',
-   'd2168d963ac5b616e3d3ddaf21511d084baf3659',
-   'darwin'
-  ),
-  ('buildtools/android_sdk/tools.zip',
-   'https://dl.google.com/android/repository/tools_r25.2.5-linux.zip',
-   '72df3aa1988c0a9003ccdfd7a13a7b8bd0f47fc1',
+  # Android emulator images.
+  ('buildtools/aosp-arm.zip',
+   'https://storage.googleapis.com/perfetto/aosp-02022018-arm.zip',
+   'a480d5e7d3ca888b0a58fe15ce76b1791537429a',
    'linux2'
   ),
 
@@ -176,16 +171,11 @@ TEST_DEPS_ANDROID = [
    'linux2'
   ),
 
-  # Android emulator images.
-  ('buildtools/android_sdk/system-images/android-24/default/armeabi-v7a.zip',
-   'https://dl.google.com/android/repository/sys-img/android/armeabi-v7a-24_r07.zip',
-   '3454546b4eed2d6c3dd06d47757d6da9f4176033',
-   'android-arm'
-  ),
-  ('buildtools/android_sdk/system-images/android-24/default/arm64-v8a.zip',
-   'https://dl.google.com/android/repository/sys-img/android/arm64-v8a-24_r07.zip',
-   'e8ab2e49e4efe4b064232b33b5eeaded61437d7f',
-   'android-arm64'
+  # Android emulator binaries.
+  ('buildtools/emulator',
+   'https://android.googlesource.com/platform/prebuilts/android-emulator.git',
+   '4b260028dc27bc92c39bee9129cb2ba839970956',
+   'all'
   ),
 ]
 
@@ -235,7 +225,9 @@ def CheckoutGitRepo(path, git_url, revision):
     shutil.rmtree(path)
   MkdirRecursive(path)
   logging.info('Fetching %s @ %s into %s', git_url, revision, path)
-  subprocess.check_call(['git', 'clone', git_url, path], cwd=path)
+  subprocess.check_call(['git', 'init', path], cwd=path)
+  subprocess.check_call(
+    ['git', 'fetch', '--depth', '1', git_url, revision], cwd=path)
   subprocess.check_call(['git', 'checkout', revision, '--quiet'], cwd=path)
   assert(IsGitRepoCheckoutOutAtRevision(path, revision))
 
@@ -243,15 +235,12 @@ def CheckoutGitRepo(path, git_url, revision):
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--no-android', action='store_true')
-  parser.add_argument('--emulator', action='append', help='arm|arm64')
   args = parser.parse_args()
-  andriod_emulator_images = ['android-' + arch for arch in args.emulator or []]
   deps = BUILD_DEPS_HOST
   if not args.no_android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   for rel_path, url, expected_sha1, platform in deps:
-    if (platform != 'all' and platform != sys.platform and
-        platform not in andriod_emulator_images):
+    if (platform != 'all' and platform != sys.platform):
       continue
     local_path = os.path.join(ROOT_DIR, rel_path)
     if url.endswith('.git'):
