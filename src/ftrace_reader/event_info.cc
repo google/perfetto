@@ -20,6 +20,7 @@ namespace perfetto {
 
 // TODO(hjd): Auto-generate this file.
 // TODO(b/70373826): Reduce runtime overhead with constexpr magic etc.
+// TODO(azappone): Autogenerate event_info for these new events
 std::vector<Event> GetStaticEventInfo() {
   std::vector<Event> events;
 
