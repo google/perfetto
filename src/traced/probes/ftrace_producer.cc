@@ -171,13 +171,12 @@ FtraceProducer::SinkDelegate::SinkDelegate(std::unique_ptr<TraceWriter> writer)
 FtraceProducer::SinkDelegate::~SinkDelegate() = default;
 
 FtraceProducer::BundleHandle FtraceProducer::SinkDelegate::GetBundleForCpu(
-    size_t cpu) {
+    size_t) {
   trace_packet_ = writer_->NewTracePacket();
   return BundleHandle(trace_packet_->set_ftrace_events());
 }
 
-void FtraceProducer::SinkDelegate::OnBundleComplete(size_t cpu,
-                                                    BundleHandle bundle) {
+void FtraceProducer::SinkDelegate::OnBundleComplete(size_t, BundleHandle) {
   trace_packet_->Finalize();
 }
 
