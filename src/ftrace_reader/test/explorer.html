@@ -113,8 +113,8 @@ input {
 }
 
 </style>
-<script src="https://unpkg.com/mithril"></script>
-<script src="http://unpkg.com/diff"></script>
+<script src="//unpkg.com/mithril"></script>
+<script src="//unpkg.com/diff"></script>
 
 <div id="content"></div>
 
@@ -124,13 +124,14 @@ document.body.firstChild.remove();
 
 let THIS_URL = window.location.href;
 let gDirectoryToFormatFiles;
-let gNamesToRecords;
+let gNamesToRecords = new Map();
 let gFilterText = '';
 let gDisplayedRecords = null;
 let gDisplayedName = null;
 let gADevice = null;
 let gBDevice = null;
 let gDevices = []
+let gCache = new Map();
 
 function isdir(url) {
   return url[url.length - 1] == '/';
@@ -144,26 +145,48 @@ function getdir(url) {
   return url.slice(0, url.lastIndexOf('/')+1);
 }
 
-let getdirectories = url => listdir(url).filter(isdir);
-let getfiles = url => listdir(url).filter(isfile);
+let getdirectories = url => listdir(url).then(xs => xs.filter(isdir));
+let getfiles = url => listdir(url).then(xs => xs.filter(isfile));
+
+function fetch(url) {
+  return new Promise(function(resolve, reject) {
+    let xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = e => resolve({
+      text: () => Promise.resolve(xhr.responseText),
+    });
+    xhr.onerror = e => reject(xhr.statusText);
+    xhr.send(null);
+  });
+}
 
 function geturl(url) {
-  let request = new XMLHttpRequest();
-  request.open("GET", url, false);
-  request.send(null);
-  let text = request.responseText;
-  return text;
+  console.log('Fetch:', url);
+  if (gCache.has(url)) return Promise.resolve(gCache.get(url));
+  return fetch(url).then(r => r.text()).then(text => {
+    gCache.set(url, text);
+    return text;
+  });
 }
 
 function listdir(url) {
-  let text = geturl(url);
-  let re = new RegExp('<li><a href="(.+)">(.+)</a>', 'g');
-  let match;
-  let matches = [];
-  while (match = re.exec(text)) {
-    matches.push(match[1]);
-  }
-  return matches;
+  return geturl(url).then(text => {
+    let re = new RegExp('<li><a href="(.+)">(.+)</a>', 'g');
+    if (window.location.href.indexOf('x20') != -1)
+      re = new RegExp('[^>]</td>\n<td>\n<a href="(.+)">(.+)</a>', 'g');
+    let match;
+    let matches = [];
+    while (match = re.exec(text)) {
+      matches.push(match[1]);
+    }
+    return matches;
+  });
+}
+
+function getfiletext(url) {
+  if (gCache.has(url)) return gCache.get(url);
+  geturl(url).then(() => m.redraw());
+  return "";
 }
 
 function makeFormatFileRecord(base_url, device, group_name, event_name) {
@@ -175,20 +198,29 @@ function makeFormatFileRecord(base_url, device, group_name, event_name) {
 
 function findFormatFilesByDirectory() {
   let url = getdir(THIS_URL) + 'data/';
-  let directories = getdirectories(url);
   let directoryToFormatFiles = new Map();
-  for (let device of directories) {
-    directoryToFormatFiles.set(device, []);
-    for (let group_name of getdirectories(url + device + 'events/')) {
-      let innerUrl = url + device + 'events/' + group_name;
-      let event_names = getdirectories(innerUrl);
-      let records = event_names.map(event_name => makeFormatFileRecord(url, device, group_name, event_name));
-      for (let record of records) {
-        directoryToFormatFiles.get(device).push(record);
-      }
-    }
-  }
-  return directoryToFormatFiles;
+  return getdirectories(url).then(directories => {
+    return Promise.all(directories.map(device => {
+      directoryToFormatFiles.set(device, []);
+      return getdirectories(url + device + 'events/').then(groups => {
+        return Promise.all(groups.map(group_name => {
+          let innerUrl = url + device + 'events/' + group_name;
+          return getdirectories(innerUrl).then(event_names => {
+            event_names.map(event_name => {
+              let record = makeFormatFileRecord(
+                  url,
+                  device,
+                  group_name,
+                  event_name);
+              directoryToFormatFiles.get(device).push(record);
+            });
+          });
+        }));
+      });
+    }));
+  }).then(_ => {
+    return directoryToFormatFiles
+  });
 }
 
 class FormatFileRecord {
@@ -232,8 +264,8 @@ function focusView(records) {
   let r2 = records.filter(r => r.device == gBDevice)[0];
   if (!r1) r1 = records[0];
   if (!r2) r2 = records[0];
-  let f1 = geturl(r1.url);
-  let f2 = geturl(r2.url);
+  let f1 = getfiletext(r1.url);
+  let f2 = getfiletext(r2.url);
   let diff = JsDiff.diffChars(f1, f2);
 
   let es = diff.map(part => {
@@ -260,22 +292,11 @@ function focusView(records) {
   ]);
 }
 
-gDirectoryToFormatFiles = findFormatFilesByDirectory();
-gNamesToRecords = new Map();
-gDevices = Array.from(gDirectoryToFormatFiles.keys());
-for (let records of gDirectoryToFormatFiles.values()) {
-  for (let record of records) {
-    if (gNamesToRecords.get(record.name) == null) {
-      gNamesToRecords.set(record.name, []);
-    }
-    gNamesToRecords.get(record.name).push(record);
-  }
-}
-[gADevice, gBDevice] = gDevices;
-
 let root = document.getElementById('content');
 let App = {
   view: function() {
+    if (!gDirectoryToFormatFiles)
+      return m('.main', 'Loading...');
     return m('.main', [
       contextView(gFilterText, gNamesToRecords),
       focusView(gDisplayedRecords),
@@ -283,6 +304,24 @@ let App = {
   }
 }
 m.mount(root, App);
+
+findFormatFilesByDirectory().then(data => {
+  gDirectoryToFormatFiles = data;
+  gNamesToRecords = new Map();
+  gDevices = Array.from(gDirectoryToFormatFiles.keys());
+  for (let records of gDirectoryToFormatFiles.values()) {
+    for (let record of records) {
+      geturl(record.url);
+      if (gNamesToRecords.get(record.name) == null) {
+        gNamesToRecords.set(record.name, []);
+      }
+      gNamesToRecords.get(record.name).push(record);
+    }
+  }
+  [gADevice, gBDevice] = gDevices;
+  m.redraw();
+});
+
 </script>
 
 <!--
