@@ -16,6 +16,13 @@ import("../../gn/perfetto.gni")
 import("../../gn/proto_library.gni")
 import("../protozero/protozero_library.gni")
 
+# For use_libfuzzer.
+if (!build_with_chromium) {
+  import("//gn/standalone/sanitizers/vars.gni")
+} else {
+  import("//build/config/sanitizers/sanitizers.gni")
+}
+
 source_set("test_support") {
   testonly = true
   deps = [
@@ -126,5 +133,20 @@ if (!build_with_chromium) {
     sources = [
       "cpu_reader_benchmark.cc",
     ]
+  }
+}
+
+if (use_libfuzzer) {
+  executable("cpu_reader_fuzzer") {
+    testonly = true
+    sources = [
+      "cpu_reader_fuzzer.cc",
+    ]
+    deps = [
+      ":ftrace_reader",
+      ":test_support",
+      "../../gn:default_deps",
+    ]
+    configs += [ "../../gn:fuzzer_config" ]
   }
 }
