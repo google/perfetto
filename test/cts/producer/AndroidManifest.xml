@@ -17,14 +17,20 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="android.perfetto.producer">
-
     <application>
-        <activity android:name=".PerfettoProducerActivity" >
+        <activity android:name=".ProducerActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".ProducerService" />
+
+        <service
+            android:name=".ProducerIsolatedService"
+            android:isolatedProcess="true" />
     </application>
 </manifest>
 

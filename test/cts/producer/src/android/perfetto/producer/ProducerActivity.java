@@ -17,15 +17,29 @@
 package android.perfetto.producer;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 
-import java.lang.Override;
-
-public class PerfettoProducerActivity extends Activity {
-
+public class ProducerActivity extends Activity {
     @Override
-    public void onCreate(Bundle icicle) {
-        super.onCreate(icicle);
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        startService(new Intent(this, ProducerService.class));
+        startService(new Intent(this, ProducerIsolatedService.class));
+
+        System.loadLibrary("perfettocts_jni");
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    setupProducer();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        })
+                .start();
     }
+
+    private static native void setupProducer();
 }
