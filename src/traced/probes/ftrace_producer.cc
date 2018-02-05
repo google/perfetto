@@ -115,7 +115,7 @@ void FtraceProducer::CreateDataSourceInstance(
     }
   }
 
-  config.set_total_buffer_size_kb(proto_config.total_buffer_size_kb());
+  config.set_buffer_size_kb(proto_config.buffer_size_kb());
   config.set_drain_period_ms(proto_config.drain_period_ms());
 
   // TODO(hjd): Static cast is bad, target_buffer() should return a BufferID.
