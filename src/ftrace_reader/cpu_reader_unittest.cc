@@ -210,7 +210,7 @@ TEST(EventFilterTest, EventFilter) {
   }
 
   ProtoTranslationTable table(events, std::move(common_fields));
-  EventFilter filter(table, std::set<std::string>({"foo"}));
+  EventFilter filter(table, {"foo"});
 
   EXPECT_TRUE(filter.IsEventEnabled(1));
   EXPECT_FALSE(filter.IsEventEnabled(2));
@@ -330,7 +330,7 @@ TEST(CpuReaderTest, ParseSinglePrint) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter(*table, std::set<std::string>({"print"}));
+  EventFilter filter(*table, {"print"});
 
   size_t bytes = CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
                                       bundle_provider.writer(), table);
@@ -366,7 +366,7 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter(*table, std::set<std::string>({"print"}));
+  EventFilter filter(*table, {"print"});
 
   ASSERT_FALSE(CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
                                     bundle_provider.writer(), table));
@@ -390,7 +390,7 @@ TEST(CpuReaderTest, FilterByEvent) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter(*table, std::set<std::string>());
+  EventFilter filter(*table, {});
 
   ASSERT_TRUE(CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
                                    bundle_provider.writer(), table));
@@ -439,7 +439,7 @@ TEST(CpuReaderTest, ParseThreePrint) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter(*table, std::set<std::string>({"print"}));
+  EventFilter filter(*table, {"print"});
 
   ASSERT_TRUE(CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
                                    bundle_provider.writer(), table));
@@ -541,7 +541,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter(*table, std::set<std::string>({"sched_switch"}));
+  EventFilter filter(*table, {"sched_switch"});
 
   ASSERT_TRUE(CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
                                    bundle_provider.writer(), table));
@@ -1113,7 +1113,7 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter(*table, std::set<std::string>({"sched_switch"}));
+  EventFilter filter(*table, {"sched_switch"});
 
   ASSERT_TRUE(CpuReader::ParsePage(42 /* cpu number */, page.get(), &filter,
                                    bundle_provider.writer(), table));
