@@ -109,11 +109,10 @@ void DataSourceConfig::FtraceConfig::FromProto(
         static_cast<decltype(atrace_apps_)::value_type>(field);
   }
 
-  static_assert(
-      sizeof(total_buffer_size_kb_) == sizeof(proto.total_buffer_size_kb()),
-      "size mismatch");
-  total_buffer_size_kb_ = static_cast<decltype(total_buffer_size_kb_)>(
-      proto.total_buffer_size_kb());
+  static_assert(sizeof(buffer_size_kb_) == sizeof(proto.buffer_size_kb()),
+                "size mismatch");
+  buffer_size_kb_ =
+      static_cast<decltype(buffer_size_kb_)>(proto.buffer_size_kb());
 
   static_assert(sizeof(drain_period_ms_) == sizeof(proto.drain_period_ms()),
                 "size mismatch");
@@ -145,12 +144,10 @@ void DataSourceConfig::FtraceConfig::ToProto(
     *entry = static_cast<decltype(proto->atrace_apps(0))>(it);
   }
 
-  static_assert(
-      sizeof(total_buffer_size_kb_) == sizeof(proto->total_buffer_size_kb()),
-      "size mismatch");
-  proto->set_total_buffer_size_kb(
-      static_cast<decltype(proto->total_buffer_size_kb())>(
-          total_buffer_size_kb_));
+  static_assert(sizeof(buffer_size_kb_) == sizeof(proto->buffer_size_kb()),
+                "size mismatch");
+  proto->set_buffer_size_kb(
+      static_cast<decltype(proto->buffer_size_kb())>(buffer_size_kb_));
 
   static_assert(sizeof(drain_period_ms_) == sizeof(proto->drain_period_ms()),
                 "size mismatch");
