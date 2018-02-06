@@ -61,8 +61,9 @@ bool MergeFieldInfo(const FtraceEvent::Field& ftrace_field, Field* field) {
   field->ftrace_offset = ftrace_field.offset;
   field->ftrace_size = ftrace_field.size;
 
-  success &= SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
-                                    &field->strategy);
+  success = success &&
+            SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                                   &field->strategy);
 
   return success;
 }
