@@ -30,9 +30,6 @@
 namespace perfetto {
 namespace {
 
-// TODO(b/72148971): Unify with other constants.
-static constexpr size_t kPageSize = 4096;
-
 // Reading /trace produces human readable trace output.
 // Writing to this file clears all trace buffers for all CPUS.
 
@@ -127,12 +124,12 @@ bool FtraceProcfs::WriteTraceMarker(const std::string& str) {
 }
 
 bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
-  if (pages * kPageSize > 1 * 1024 * 1024 * 1024) {
+  if (pages * base::kPageSize > 1 * 1024 * 1024 * 1024) {
     PERFETTO_ELOG("Tried to set the per CPU buffer size to more than 1gb.");
     return false;
   }
   std::string path = root_ + "buffer_size_kb";
-  return WriteNumberToFile(path, pages * (kPageSize / 1024ul));
+  return WriteNumberToFile(path, pages * (base::kPageSize / 1024ul));
 }
 
 bool FtraceProcfs::EnableTracing() {

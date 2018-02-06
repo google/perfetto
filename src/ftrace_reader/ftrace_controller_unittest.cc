@@ -320,7 +320,7 @@ TEST(FtraceControllerTest, BufferSize) {
     EXPECT_CALL(*raw_ftrace_procfs,
                 WriteToFile("/root/buffer_size_kb", "8192"));
     FtraceConfig config({"foo"});
-    config.set_total_buffer_size_kb(10 * 1024 * 1024);
+    config.set_buffer_size_kb(10 * 1024 * 1024);
     auto sink = controller.CreateSink(config, &delegate);
   }
 
@@ -328,24 +328,24 @@ TEST(FtraceControllerTest, BufferSize) {
     // Your size ends up with less than 1 page per cpu -> 1 page.
     EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/buffer_size_kb", "4"));
     FtraceConfig config({"foo"});
-    config.set_total_buffer_size_kb(1);
+    config.set_buffer_size_kb(1);
     auto sink = controller.CreateSink(config, &delegate);
   }
 
   {
-    // You picked a good size -> your size / # CPUs rounded to nearest page.
+    // You picked a good size -> your size rounded to nearest page.
     EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/buffer_size_kb", "40"));
     FtraceConfig config({"foo"});
-    config.set_total_buffer_size_kb(42);
+    config.set_buffer_size_kb(42);
     auto sink = controller.CreateSink(config, &delegate);
   }
 
   {
-    // You picked a good size -> your size / # CPUs rounded to nearest page.
-    EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/buffer_size_kb", "20"));
+    // You picked a good size -> your size rounded to nearest page.
+    EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/buffer_size_kb", "40"));
     FtraceConfig config({"foo"});
     ON_CALL(*raw_ftrace_procfs, NumberOfCpus()).WillByDefault(Return(2));
-    config.set_total_buffer_size_kb(42);
+    config.set_buffer_size_kb(42);
     auto sink = controller.CreateSink(config, &delegate);
   }
 }

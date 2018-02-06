@@ -111,8 +111,6 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     cur_chunk_.SetFlag(ChunkHeader::kLastPacketContinuesOnNextChunk);
     WriteRedundantVarInt(partial_size, cur_packet_->size_field());
 
-// TODO(primiano): temporarily disabled due to b/72685438.
-#if 0
     // Descend in the stack of non-finalized nested submessages (if any) and
     // detour their |size_field| into the |patch_list_|. At this point we have
     // to release the chunk and they cannot write anymore into that.
@@ -120,15 +118,26 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     for (auto* nested_msg = cur_packet_->nested_message(); nested_msg;
          nested_msg = nested_msg->nested_message()) {
       uint8_t* const cur_hdr = nested_msg->size_field();
-      PERFETTO_DCHECK(cur_hdr >= cur_chunk_.payload_begin() &&
-                      cur_hdr + kMessageLengthFieldSize <= cur_chunk_.end());
+#if PERFETTO_DCHECK_IS_ON()
+      // Ensure that the size field of the nested message either points to
+      // somewhere in the current chunk or a size field of a patch in the
+      // patch list.
+      bool size_in_current_chunk =
+          cur_hdr >= cur_chunk_.payload_begin() &&
+          cur_hdr + kMessageLengthFieldSize <= cur_chunk_.end();
+      if (!size_in_current_chunk) {
+        auto patch_it = std::find_if(
+            patch_list_.begin(), patch_list_.end(),
+            [cur_hdr](const Patch& p) { return p.size_field == cur_hdr; });
+        PERFETTO_DCHECK(patch_it != patch_list_.end());
+      }
+#endif
       auto cur_hdr_offset = static_cast<uint16_t>(cur_hdr - cur_chunk_.begin());
       patch_list_.emplace_front(cur_chunk_id_, cur_hdr_offset);
       Patch& patch = patch_list_.front();
       nested_msg->set_size_field(patch.size_field);
       PERFETTO_DLOG("Created new patchlist entry for protobuf nested message");
     }
-#endif
   }
 
   if (cur_chunk_.is_valid())

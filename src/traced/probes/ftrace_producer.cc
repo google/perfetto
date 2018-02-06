@@ -115,7 +115,7 @@ void FtraceProducer::CreateDataSourceInstance(
     }
   }
 
-  config.set_total_buffer_size_kb(proto_config.total_buffer_size_kb());
+  config.set_buffer_size_kb(proto_config.buffer_size_kb());
   config.set_drain_period_ms(proto_config.drain_period_ms());
 
   // TODO(hjd): Static cast is bad, target_buffer() should return a BufferID.
@@ -171,13 +171,12 @@ FtraceProducer::SinkDelegate::SinkDelegate(std::unique_ptr<TraceWriter> writer)
 FtraceProducer::SinkDelegate::~SinkDelegate() = default;
 
 FtraceProducer::BundleHandle FtraceProducer::SinkDelegate::GetBundleForCpu(
-    size_t cpu) {
+    size_t) {
   trace_packet_ = writer_->NewTracePacket();
   return BundleHandle(trace_packet_->set_ftrace_events());
 }
 
-void FtraceProducer::SinkDelegate::OnBundleComplete(size_t cpu,
-                                                    BundleHandle bundle) {
+void FtraceProducer::SinkDelegate::OnBundleComplete(size_t, BundleHandle) {
   trace_packet_->Finalize();
 }
 

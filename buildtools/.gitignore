@@ -1,8 +1,9 @@
 android_sdk/
+aosp-*/
 benchmark/
 clang/
 clang_format/
-emulator_images/
+emulator/
 googletest/
 libcxx/
 libcxxabi/

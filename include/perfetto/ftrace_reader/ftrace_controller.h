@@ -64,16 +64,16 @@ class FtraceConfig {
   }
   const std::set<std::string>& atrace_apps() const { return atrace_apps_; }
 
-  uint32_t total_buffer_size_kb() const { return total_buffer_size_kb_; }
+  uint32_t buffer_size_kb() const { return buffer_size_kb_; }
   uint32_t drain_period_ms() const { return drain_period_ms_; }
-  void set_total_buffer_size_kb(uint32_t v) { total_buffer_size_kb_ = v; }
+  void set_buffer_size_kb(uint32_t v) { buffer_size_kb_ = v; }
   void set_drain_period_ms(uint32_t v) { drain_period_ms_ = v; }
 
  private:
   std::set<std::string> ftrace_events_;
   std::set<std::string> atrace_categories_;
   std::set<std::string> atrace_apps_;
-  uint32_t total_buffer_size_kb_ = 0;
+  uint32_t buffer_size_kb_ = 0;
   uint32_t drain_period_ms_ = 0;
 };
 
