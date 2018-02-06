@@ -84,6 +84,26 @@ void FtraceProducer::OnDisconnect() {
 void FtraceProducer::CreateDataSourceInstance(
     DataSourceInstanceID id,
     const DataSourceConfig& source_config) {
+  // Don't retry if FtraceController::Create() failed once.
+  // This can legitimately happen on user builds where we cannot access the
+  // debug paths, e.g., because of SELinux rules.
+  if (ftrace_creation_failed_)
+    return;
+
+  // Lazily create on the first instance.
+  if (!ftrace_) {
+    ftrace_ = FtraceController::Create(task_runner_);
+
+    if (!ftrace_) {
+      PERFETTO_ELOG("Failed to create FtraceController");
+      ftrace_creation_failed_ = true;
+      return;
+    }
+
+    ftrace_->DisableAllEvents();
+    ftrace_->ClearTrace();
+  }
+
   PERFETTO_LOG("Ftrace start (id=%" PRIu64 ", target_buf=%" PRIu32 ")", id,
                source_config.target_buffer());
 
@@ -142,10 +162,6 @@ void FtraceProducer::ConnectWithRetries(const char* socket_name,
   ResetConnectionBackoff();
   socket_name_ = socket_name;
   task_runner_ = task_runner;
-  ftrace_ = FtraceController::Create(task_runner);
-  PERFETTO_CHECK(ftrace_);
-  ftrace_->DisableAllEvents();
-  ftrace_->ClearTrace();
   Connect();
 }
 
