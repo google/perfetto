@@ -162,8 +162,19 @@ bool InferFtraceType(const std::string& type_and_name,
     return true;
   }
 
+  if (StartsWith(type_and_name, "bool ")) {
+    *out = kFtraceBool;
+    return true;
+  }
+
   // Ints of various sizes:
-  if (size == 4 && is_signed) {
+  if (size == 2 && is_signed) {
+    *out = kFtraceInt16;
+    return true;
+  } else if (size == 2 && !is_signed) {
+    *out = kFtraceUint16;
+    return true;
+  } else if (size == 4 && is_signed) {
     *out = kFtraceInt32;
     return true;
   } else if (size == 4 && !is_signed) {

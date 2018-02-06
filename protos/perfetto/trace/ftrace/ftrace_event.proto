@@ -128,19 +128,19 @@ message FtraceEvent {
   oneof event {
     PrintFtraceEvent print = 3;
     SchedSwitchFtraceEvent sched_switch = 4;
-    SchedWakeupFtraceEvent sched_wakeup = 17;
-    CpufreqInteractiveAlreadyFtraceEvent cpu_freq_interactive_already = 5;
-    CpufreqInteractiveBoostFtraceEvent cpu_freq_interactive_boost = 6;
-    CpufreqInteractiveNotyetFtraceEvent cpu_freq_interactive_notyet = 7;
-    CpufreqInteractiveSetspeedFtraceEvent cpu_freq_interactive_setspeed = 8;
-    CpufreqInteractiveTargetFtraceEvent cpu_freq_interactive_target = 9;
-    CpufreqInteractiveUnboostFtraceEvent cpu_freq_interactive_unboost = 10;
+    CpufreqInteractiveAlreadyFtraceEvent cpufreq_interactive_already = 5;
+    CpufreqInteractiveBoostFtraceEvent cpufreq_interactive_boost = 6;
+    CpufreqInteractiveNotyetFtraceEvent cpufreq_interactive_notyet = 7;
+    CpufreqInteractiveSetspeedFtraceEvent cpufreq_interactive_setspeed = 8;
+    CpufreqInteractiveTargetFtraceEvent cpufreq_interactive_target = 9;
+    CpufreqInteractiveUnboostFtraceEvent cpufreq_interactive_unboost = 10;
     CpuFrequencyFtraceEvent cpu_frequency = 11;
     CpuFrequencyLimitsFtraceEvent cpu_frequency_limits = 12;
     CpuIdleFtraceEvent cpu_idle = 13;
     ClockEnableFtraceEvent clock_enable = 14;
     ClockDisableFtraceEvent clock_disable = 15;
     ClockSetRateFtraceEvent clock_set_rate = 16;
+    SchedWakeupFtraceEvent sched_wakeup = 17;
     SchedBlockedReasonFtraceEvent sched_blocked_reason = 18;
     SchedCpuHotplugFtraceEvent sched_cpu_hotplug = 19;
     SchedWakingFtraceEvent sched_waking = 20;
