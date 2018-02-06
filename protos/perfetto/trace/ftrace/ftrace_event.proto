@@ -113,6 +113,22 @@ import "perfetto/trace/ftrace/mdp_perf_update_bus.proto";
 import "perfetto/trace/ftrace/rotator_bw_ao_as_context.proto";
 import "perfetto/trace/ftrace/mm_filemap_add_to_page_cache.proto";
 import "perfetto/trace/ftrace/mm_filemap_delete_from_page_cache.proto";
+import "perfetto/trace/ftrace/mm_compaction_begin.proto";
+import "perfetto/trace/ftrace/mm_compaction_defer_compaction.proto";
+import "perfetto/trace/ftrace/mm_compaction_defer_reset.proto";
+import "perfetto/trace/ftrace/mm_compaction_deferred.proto";
+import "perfetto/trace/ftrace/mm_compaction_end.proto";
+import "perfetto/trace/ftrace/mm_compaction_finished.proto";
+import "perfetto/trace/ftrace/mm_compaction_isolate_freepages.proto";
+import "perfetto/trace/ftrace/mm_compaction_isolate_migratepages.proto";
+import "perfetto/trace/ftrace/mm_compaction_kcompactd_sleep.proto";
+import "perfetto/trace/ftrace/mm_compaction_kcompactd_wake.proto";
+import "perfetto/trace/ftrace/mm_compaction_migratepages.proto";
+import "perfetto/trace/ftrace/mm_compaction_suitable.proto";
+import "perfetto/trace/ftrace/mm_compaction_try_to_compact_pages.proto";
+import "perfetto/trace/ftrace/mm_compaction_wakeup_kcompactd.proto";
+import "perfetto/trace/ftrace/suspend_resume.proto";
+import "perfetto/trace/ftrace/sched_wakeup_new.proto";
 
 package perfetto.protos;
 
@@ -223,5 +239,24 @@ message FtraceEvent {
     MmFilemapAddToPageCacheFtraceEvent mm_filemap_add_to_page_cache = 97;
     MmFilemapDeleteFromPageCacheFtraceEvent mm_filemap_delete_from_page_cache =
         98;
+    MmCompactionBeginFtraceEvent mm_compaction_begin = 99;
+    MmCompactionDeferCompactionFtraceEvent mm_compaction_defer_compaction = 100;
+    MmCompactionDeferredFtraceEvent mm_compaction_deferred = 101;
+    MmCompactionDeferResetFtraceEvent mm_compaction_defer_reset = 102;
+    MmCompactionEndFtraceEvent mm_compaction_end = 103;
+    MmCompactionFinishedFtraceEvent mm_compaction_finished = 104;
+    MmCompactionIsolateFreepagesFtraceEvent mm_compaction_isolate_freepages =
+        105;
+    MmCompactionIsolateMigratepagesFtraceEvent
+        mm_compaction_isolate_migratepages = 106;
+    MmCompactionKcompactdSleepFtraceEvent mm_compaction_kcompactd_sleep = 107;
+    MmCompactionKcompactdWakeFtraceEvent mm_compaction_kcompactd_wake = 108;
+    MmCompactionMigratepagesFtraceEvent mm_compaction_migratepages = 109;
+    MmCompactionSuitableFtraceEvent mm_compaction_suitable = 110;
+    MmCompactionTryToCompactPagesFtraceEvent
+        mm_compaction_try_to_compact_pages = 111;
+    MmCompactionWakeupKcompactdFtraceEvent mm_compaction_wakeup_kcompactd = 112;
+    SuspendResumeFtraceEvent suspend_resume = 113;
+    SchedWakeupNewFtraceEvent sched_wakeup_new = 114;
   }
 }
