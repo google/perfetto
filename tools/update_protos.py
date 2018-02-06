@@ -58,21 +58,6 @@ HEADER = """# Copyright (C) 2018 The Android Open Source Project
 def command(*args):
   subprocess.check_call(args, stdout=sys.stdout, stderr=sys.stderr)
 
-
-def get_whitelisted_events(single_event, whitelist_path):
-  if single_event:
-    return [single_event]
-
-  if whitelist_path:
-    with open(whitelist_path) as f:
-      s = f.read()
-    lines = s.split('\n')
-    lines = [line for line in lines if line and not line.startswith('#')]
-    return lines
-
-  return []
-
-
 def main():
   parser = argparse.ArgumentParser(description='Generate protos.')
   parser.add_argument('ftrace_proto_gen',
@@ -96,27 +81,17 @@ def main():
   input_dir = args.input_dir
   output_dir = args.output_dir
   whitelist_path = args.whitelist_path
-  single_event = args.event
   update_build_files = args.update_build_files
 
   if whitelist_path is not None and not os.path.isfile(whitelist_path):
     parser.error('Whitelist file {} does not exist.'.format(whitelist_path))
-
-  if bool(whitelist_path) == bool(single_event):
-    parser.error('Exactly one of --whitelist and --event required.')
-
   if not os.path.isdir(input_dir):
     parser.error('Input directory {} does not exist.'.format(input_dir))
   if not os.path.isdir(output_dir):
     parser.error('Output directory {} does not exist.'.format(output_dir))
 
-  events = get_whitelisted_events(single_event, whitelist_path)
-
-  for event in events:
-    proto_file_name = event.split('/')[1] + '.proto'
-    input_path = os.path.join(input_dir, event, 'format')
-    output_path = os.path.join(output_dir, proto_file_name)
-    command(gen_path, input_path, output_path)
+  # Run ftrace_proto_gen
+  command(gen_path, whitelist_path, input_dir, output_dir)
 
   if update_build_files:
     names = sorted(os.listdir(output_dir))
