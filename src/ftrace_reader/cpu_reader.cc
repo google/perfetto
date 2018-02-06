@@ -286,6 +286,7 @@ bool CpuReader::ParseField(const Field& field,
   uint32_t field_id = field.proto_field_id;
 
   switch (field.strategy) {
+    case kUint8ToUint32:
     case kUint16ToUint32:
     case kUint32ToUint32:
     case kUint32ToUint64:
