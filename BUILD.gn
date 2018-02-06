@@ -34,15 +34,19 @@ group("all") {
   ]
   if (!build_with_chromium) {
     deps += [
-      ":perfetto",
-      ":perfetto_benchmarks",
-      ":perfetto_integrationtests",
-      ":traced",
-      ":traced_probes",
       "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
       "test/configs",
       "tools:protoc_helper",
     ]
+    if (is_linux || is_android) {
+      deps += [
+        ":perfetto",
+        ":perfetto_benchmarks",
+        ":perfetto_integrationtests",
+        ":traced",
+        ":traced_probes",
+      ]
+    }
   }
 }
 
@@ -63,7 +67,7 @@ executable("perfetto_unittests") {
   }
 }
 
-if (!build_with_chromium) {
+if (!build_with_chromium && (is_linux || is_android)) {
   executable("perfetto_benchmarks") {
     testonly = true
     deps = [
