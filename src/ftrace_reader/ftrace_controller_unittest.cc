@@ -310,7 +310,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // No buffer size -> good default.
     // 8192kb = 8mb
     EXPECT_CALL(*raw_ftrace_procfs,
-                WriteToFile("/root/buffer_size_kb", "8192"));
+                WriteToFile("/root/buffer_size_kb", "4096"));
     FtraceConfig config({"foo"});
     auto sink = controller.CreateSink(config, &delegate);
   }
@@ -318,9 +318,19 @@ TEST(FtraceControllerTest, BufferSize) {
   {
     // Way too big buffer size -> good default.
     EXPECT_CALL(*raw_ftrace_procfs,
-                WriteToFile("/root/buffer_size_kb", "8192"));
+                WriteToFile("/root/buffer_size_kb", "4096"));
     FtraceConfig config({"foo"});
     config.set_buffer_size_kb(10 * 1024 * 1024);
+    auto sink = controller.CreateSink(config, &delegate);
+  }
+
+  {
+    // The limit is 8mb, 9mb is too much.
+    EXPECT_CALL(*raw_ftrace_procfs,
+                WriteToFile("/root/buffer_size_kb", "4096"));
+    FtraceConfig config({"foo"});
+    ON_CALL(*raw_ftrace_procfs, NumberOfCpus()).WillByDefault(Return(2));
+    config.set_buffer_size_kb(9 * 1024);
     auto sink = controller.CreateSink(config, &delegate);
   }
 
