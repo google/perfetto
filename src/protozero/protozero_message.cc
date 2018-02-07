@@ -89,6 +89,9 @@ void ProtoZeroMessage::AppendBytes(uint32_t field_id,
 }
 
 uint32_t ProtoZeroMessage::Finalize() {
+  if (finalized_)
+    return size_;
+
   if (nested_message_)
     EndNestedMessage();
 
