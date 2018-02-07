@@ -78,13 +78,6 @@ TEST_P(AllTranslationTableTest, Create) {
   EXPECT_EQ(std::string(pid_field.ftrace_name), "common_pid");
   EXPECT_EQ(pid_field.proto_field_id, 2u);
 
-  for (const Event& event : GetStaticEventInfo()) {
-    // Event is new.
-    if (std::string(event.name) == "cpu_frequency_limits")
-      continue;
-    EXPECT_TRUE(table_->GetEventByName(event.name));
-  }
-
   {
     auto event = table_->GetEventByName("cpufreq_interactive_boost");
     EXPECT_EQ(std::string(event->name), "cpufreq_interactive_boost");

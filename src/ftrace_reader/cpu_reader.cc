@@ -286,6 +286,7 @@ bool CpuReader::ParseField(const Field& field,
   uint32_t field_id = field.proto_field_id;
 
   switch (field.strategy) {
+    case kUint16ToUint32:
     case kUint32ToUint32:
     case kUint32ToUint64:
       ReadIntoVarInt<uint32_t>(field_start, field_id, message);
@@ -293,6 +294,7 @@ bool CpuReader::ParseField(const Field& field,
     case kUint64ToUint64:
       ReadIntoVarInt<uint64_t>(field_start, field_id, message);
       return true;
+    case kInt16ToInt32:
     case kInt32ToInt32:
     case kInt32ToInt64:
       ReadIntoVarInt<int32_t>(field_start, field_id, message);
@@ -309,6 +311,9 @@ bool CpuReader::ParseField(const Field& field,
       return ReadIntoString(field_start, end, field.proto_field_id, message);
     case kStringPtrToString:
       // TODO(hjd): Figure out how to read these.
+      return true;
+    case kBoolToUint32:
+      ReadIntoVarInt<uint32_t>(field_start, field_id, message);
       return true;
   }
   // Not reached, for gcc.

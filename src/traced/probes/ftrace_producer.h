@@ -79,6 +79,7 @@ class FtraceProducer : public Producer {
   base::TaskRunner* task_runner_;
   std::unique_ptr<Service::ProducerEndpoint> endpoint_ = nullptr;
   std::unique_ptr<FtraceController> ftrace_ = nullptr;
+  bool ftrace_creation_failed_ = false;
   DataSourceID data_source_id_ = 0;
   uint64_t connection_backoff_ms_ = 0;
   const char* socket_name_ = nullptr;

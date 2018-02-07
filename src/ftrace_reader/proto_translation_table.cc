@@ -61,8 +61,9 @@ bool MergeFieldInfo(const FtraceEvent::Field& ftrace_field, Field* field) {
   field->ftrace_offset = ftrace_field.offset;
   field->ftrace_size = ftrace_field.size;
 
-  success &= SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
-                                    &field->strategy);
+  success = success &&
+            SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                                   &field->strategy);
 
   return success;
 }
@@ -162,8 +163,19 @@ bool InferFtraceType(const std::string& type_and_name,
     return true;
   }
 
+  if (StartsWith(type_and_name, "bool ")) {
+    *out = kFtraceBool;
+    return true;
+  }
+
   // Ints of various sizes:
-  if (size == 4 && is_signed) {
+  if (size == 2 && is_signed) {
+    *out = kFtraceInt16;
+    return true;
+  } else if (size == 2 && !is_signed) {
+    *out = kFtraceUint16;
+    return true;
+  } else if (size == 4 && is_signed) {
     *out = kFtraceInt32;
     return true;
   } else if (size == 4 && !is_signed) {

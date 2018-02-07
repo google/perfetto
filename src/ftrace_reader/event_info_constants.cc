@@ -37,12 +37,16 @@ std::vector<Field> GetStaticCommonFieldsInfo() {
 bool SetTranslationStrategy(FtraceFieldType ftrace,
                             ProtoFieldType proto,
                             TranslationStrategy* out) {
-  if (ftrace == kFtraceUint32 && proto == kProtoUint32) {
+  if (ftrace == kFtraceUint16 && proto == kProtoUint32) {
+    *out = kUint16ToUint32;
+  } else if (ftrace == kFtraceUint32 && proto == kProtoUint32) {
     *out = kUint32ToUint32;
   } else if (ftrace == kFtraceUint32 && proto == kProtoUint64) {
     *out = kUint32ToUint64;
   } else if (ftrace == kFtraceUint64 && proto == kProtoUint64) {
     *out = kUint64ToUint64;
+  } else if (ftrace == kFtraceInt16 && proto == kProtoInt32) {
+    *out = kInt16ToInt32;
   } else if (ftrace == kFtraceInt32 && proto == kProtoInt32) {
     *out = kInt32ToInt32;
   } else if (ftrace == kFtraceInt32 && proto == kProtoInt64) {
@@ -55,6 +59,8 @@ bool SetTranslationStrategy(FtraceFieldType ftrace,
     *out = kCStringToString;
   } else if (ftrace == kFtraceStringPtr && proto == kProtoString) {
     *out = kStringPtrToString;
+  } else if (ftrace == kFtraceBool && proto == kProtoUint32) {
+    *out = kBoolToUint32;
   } else {
     PERFETTO_DLOG("No translation strategy for '%s' -> '%s'", ToString(ftrace),
                   ToString(proto));
