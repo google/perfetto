@@ -25,8 +25,10 @@ source_set("base") {
     "page_allocator.cc",
     "thread_checker.cc",
     "unix_task_runner.cc",
-    "watchdog.cc",
   ]
+  if (is_linux || is_android) {
+    sources += [ "watchdog.cc" ]
+  }
   if (is_debug) {
     deps += [ ":debug_crash_stack_trace" ]
   }
@@ -99,7 +101,9 @@ source_set("base_unittests") {
     "task_runner_unittest.cc",
     "thread_checker_unittest.cc",
     "utils_unittest.cc",
-    "watchdog_unittest.cc",
     "weak_ptr_unittest.cc",
   ]
+  if (is_linux || is_android) {
+    sources += [ "watchdog_unittest.cc" ]
+  }
 }

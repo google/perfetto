@@ -26,6 +26,8 @@
 #include <unistd.h>
 #include <unwind.h>
 
+#include "perfetto/base/build_config.h"
+
 #if defined(NDEBUG)
 #error This translation unit should not be used in release builds
 #endif
@@ -154,13 +156,18 @@ void SignalHandler(int sig_num, siginfo_t* info, void* ucontext) {
   }
 
   Print("------------------ END OF CRASH ------------------\n");
+
   // info->si_code <= 0 iff SI_FROMUSER (SI_FROMKERNEL otherwise).
   if (info->si_code <= 0 || sig_num == SIGABRT) {
     // This signal was triggered by somebody sending us the signal with kill().
     // In order to retrigger it, we have to queue a new signal by calling
     // kill() ourselves.  The special case (si_pid == 0 && sig == SIGABRT) is
     // due to the kernel sending a SIGABRT from a user request via SysRQ.
+#if BUILDFLAG(OS_MACOSX)
+    if (kill(getpid(), sig_num) < 0) {
+#else
     if (syscall(__NR_tgkill, getpid(), syscall(__NR_gettid), sig_num) < 0) {
+#endif
       // If we failed to kill ourselves (e.g. because a sandbox disallows us
       // to do so), we instead resort to terminating our process. This will
       // result in an incorrect exit code.
