@@ -18,6 +18,7 @@
 #define SRC_FTRACE_READER_FTRACE_PROCFS_H_
 
 #include <memory>
+#include <set>
 #include <string>
 
 #include "perfetto/base/scoped_file.h"
@@ -73,6 +74,16 @@ class FtraceProcfs {
   // Necessarily racy: another program could enable/disable tracing at any
   // point.
   bool IsTracingEnabled();
+
+  // Set the clock. |clock_name| should be one of the names returned by
+  // AvailableClocks. Setting the clock clears the buffer.
+  bool SetClock(const std::string& clock_name);
+
+  // Get the currently set clock.
+  std::string GetClock();
+
+  // Get all the avaiable clocks.
+  std::set<std::string> AvailableClocks();
 
   // Open the raw pipe for |cpu|.
   virtual base::ScopedFile OpenPipeForCpu(size_t cpu);
