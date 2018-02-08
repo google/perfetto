@@ -194,6 +194,186 @@ std::vector<Event> GetStaticEventInfo() {
   {
     events.emplace_back(Event{});
     Event* event = &events.back();
+    event->name = "mm_compaction_begin";
+    event->group = "compaction";
+    event->proto_field_id = 99;
+    event->fields.push_back(FieldFromNameIdType("zone_start", 1, kProtoUint64));
+    event->fields.push_back(
+        FieldFromNameIdType("migrate_pfn", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("free_pfn", 3, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("zone_end", 4, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("sync", 5, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_defer_compaction";
+    event->group = "compaction";
+    event->proto_field_id = 100;
+    event->fields.push_back(FieldFromNameIdType("nid", 1, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("idx", 2, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("order", 3, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("considered", 4, kProtoUint32));
+    event->fields.push_back(
+        FieldFromNameIdType("defer_shift", 5, kProtoUint32));
+    event->fields.push_back(
+        FieldFromNameIdType("order_failed", 6, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_defer_reset";
+    event->group = "compaction";
+    event->proto_field_id = 102;
+    event->fields.push_back(FieldFromNameIdType("nid", 1, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("idx", 2, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("order", 3, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("considered", 4, kProtoUint32));
+    event->fields.push_back(
+        FieldFromNameIdType("defer_shift", 5, kProtoUint32));
+    event->fields.push_back(
+        FieldFromNameIdType("order_failed", 6, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_deferred";
+    event->group = "compaction";
+    event->proto_field_id = 101;
+    event->fields.push_back(FieldFromNameIdType("nid", 1, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("idx", 2, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("order", 3, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("considered", 4, kProtoUint32));
+    event->fields.push_back(
+        FieldFromNameIdType("defer_shift", 5, kProtoUint32));
+    event->fields.push_back(
+        FieldFromNameIdType("order_failed", 6, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_end";
+    event->group = "compaction";
+    event->proto_field_id = 103;
+    event->fields.push_back(FieldFromNameIdType("zone_start", 1, kProtoUint64));
+    event->fields.push_back(
+        FieldFromNameIdType("migrate_pfn", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("free_pfn", 3, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("zone_end", 4, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("sync", 5, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("status", 6, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_finished";
+    event->group = "compaction";
+    event->proto_field_id = 104;
+    event->fields.push_back(FieldFromNameIdType("nid", 1, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("idx", 2, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("order", 3, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("ret", 4, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_isolate_freepages";
+    event->group = "compaction";
+    event->proto_field_id = 105;
+    event->fields.push_back(FieldFromNameIdType("start_pfn", 1, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("end_pfn", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("nr_scanned", 3, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("nr_taken", 4, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_isolate_migratepages";
+    event->group = "compaction";
+    event->proto_field_id = 106;
+    event->fields.push_back(FieldFromNameIdType("start_pfn", 1, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("end_pfn", 2, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("nr_scanned", 3, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("nr_taken", 4, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_kcompactd_sleep";
+    event->group = "compaction";
+    event->proto_field_id = 107;
+    event->fields.push_back(FieldFromNameIdType("nid", 1, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_kcompactd_wake";
+    event->group = "compaction";
+    event->proto_field_id = 108;
+    event->fields.push_back(FieldFromNameIdType("nid", 1, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("order", 2, kProtoInt32));
+    event->fields.push_back(
+        FieldFromNameIdType("classzone_idx", 3, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_migratepages";
+    event->group = "compaction";
+    event->proto_field_id = 109;
+    event->fields.push_back(
+        FieldFromNameIdType("nr_migrated", 1, kProtoUint64));
+    event->fields.push_back(FieldFromNameIdType("nr_failed", 2, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_suitable";
+    event->group = "compaction";
+    event->proto_field_id = 110;
+    event->fields.push_back(FieldFromNameIdType("nid", 1, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("idx", 2, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("order", 3, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("ret", 4, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_try_to_compact_pages";
+    event->group = "compaction";
+    event->proto_field_id = 111;
+    event->fields.push_back(FieldFromNameIdType("order", 1, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("gfp_mask", 2, kProtoUint32));
+    event->fields.push_back(FieldFromNameIdType("mode", 3, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_compaction_wakeup_kcompactd";
+    event->group = "compaction";
+    event->proto_field_id = 112;
+    event->fields.push_back(FieldFromNameIdType("nid", 1, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("order", 2, kProtoInt32));
+    event->fields.push_back(
+        FieldFromNameIdType("classzone_idx", 3, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
     event->name = "cpufreq_interactive_already";
     event->group = "cpufreq_interactive";
     event->proto_field_id = 5;
@@ -888,6 +1068,17 @@ std::vector<Event> GetStaticEventInfo() {
   {
     events.emplace_back(Event{});
     Event* event = &events.back();
+    event->name = "suspend_resume";
+    event->group = "power";
+    event->proto_field_id = 113;
+    event->fields.push_back(FieldFromNameIdType("action", 1, kProtoString));
+    event->fields.push_back(FieldFromNameIdType("val", 2, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("start", 3, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
     event->name = "regulator_disable";
     event->group = "regulator";
     event->proto_field_id = 60;
@@ -995,6 +1186,19 @@ std::vector<Event> GetStaticEventInfo() {
     event->name = "sched_wakeup";
     event->group = "sched";
     event->proto_field_id = 17;
+    event->fields.push_back(FieldFromNameIdType("comm", 1, kProtoString));
+    event->fields.push_back(FieldFromNameIdType("pid", 2, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("prio", 3, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("success", 4, kProtoInt32));
+    event->fields.push_back(FieldFromNameIdType("target_cpu", 5, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "sched_wakeup_new";
+    event->group = "sched";
+    event->proto_field_id = 114;
     event->fields.push_back(FieldFromNameIdType("comm", 1, kProtoString));
     event->fields.push_back(FieldFromNameIdType("pid", 2, kProtoInt32));
     event->fields.push_back(FieldFromNameIdType("prio", 3, kProtoInt32));
