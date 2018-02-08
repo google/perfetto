@@ -169,7 +169,10 @@ bool InferFtraceType(const std::string& type_and_name,
   }
 
   // Ints of various sizes:
-  if (size == 2 && is_signed) {
+  if (size == 1 && !is_signed) {
+    *out = kFtraceUint8;
+    return true;
+  } else if (size == 2 && is_signed) {
     *out = kFtraceInt16;
     return true;
   } else if (size == 2 && !is_signed) {
