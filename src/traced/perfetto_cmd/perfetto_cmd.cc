@@ -274,7 +274,6 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     return;
 
   // Reached end of trace.
-  consumer_endpoint_->FreeBuffers();
   task_runner_.Quit();
 
   fflush(*trace_out_stream_);
