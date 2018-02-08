@@ -14,6 +14,12 @@
 # limitations under the License.
 set -e
 
+function is_monolithic() {
+  local out=$1
+  gn args $out --list --short | grep 'monolithic_binaries = true' > /dev/null
+  return $?
+}
+
 # If not set guess the OUT dir using the latest directory.
 if [ ! -f "$OUT/args.gn" ]; then
   echo "OUT=$OUT doesn't look like an output directory."
@@ -32,6 +38,14 @@ adb push $OUT/traced /data/local/tmp/
 adb push $OUT/traced_probes /data/local/tmp/
 adb push $OUT/perfetto /data/local/tmp/
 set +x
+
+PREFIX=""
+if ! is_monolithic $OUT;  then
+  PREFIX="LD_LIBRARY_PATH=/data/local/tmp"
+  set -x
+  adb push $OUT/libtraced_shared.so /data/local/tmp/
+  set +x
+fi
 
 CONFIG_DEVICE_PATH=$CONFIG
 if [[ "$CONFIG" != ":test" ]]; then
@@ -80,13 +94,13 @@ tmux send-keys "adb shell" C-m
 sleep 2
 
 tmux select-pane -t 1
-tmux send-keys "/data/local/tmp/traced" Enter
+tmux send-keys "$PREFIX /data/local/tmp/traced" Enter
 
 tmux select-pane -t 0
-tmux send-keys "/data/local/tmp/traced_probes" Enter
+tmux send-keys "$PREFIX /data/local/tmp/traced_probes" Enter
 
 tmux select-pane -t 2
-tmux send-keys "/data/local/tmp/perfetto -c $CONFIG_DEVICE_PATH -o /data/local/tmp/trace"
+tmux send-keys "$PREFIX /data/local/tmp/perfetto -c $CONFIG_DEVICE_PATH -o /data/local/tmp/trace"
 
 # Select consumer pane.
 tmux select-pane -t 2
