@@ -18,6 +18,7 @@ source_set("ftrace_reader") {
   ]
   sources = [
     "format_parser.h",
+    "ftrace_config.h",
     "ftrace_controller.h",
   ]
 }
