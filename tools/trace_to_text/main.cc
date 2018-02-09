@@ -605,17 +605,19 @@ std::string FormatSoftirqExit(const SoftirqExitFtraceEvent& event) {
 
 std::string FormatI2cWrite(const I2cWriteFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "i2c_write: i2c-%d #%u a=%03x f=%04x l=%u [%*xhD]\\n",
+  // TODO(hjd): Check event.buf().
+  sprintf(line, "i2c_write: i2c-%d #%u a=%03x f=%04x l=%u\\n",
           event.adapter_nr(), event.msg_nr(), event.addr(), event.flags(),
-          event.len(), event.len(), event.buf());
+          event.len());
   return std::string(line);
 }
 
 std::string FormatI2cReply(const I2cReplyFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "i2c_reply: i2c-%d #%u a=%03x f=%04x l=%u [%*xhD]\\n",
+  // TODO(hjd): Check event.buf().
+  sprintf(line, "i2c_reply: i2c-%d #%u a=%03x f=%04x l=%u\\n",
           event.adapter_nr(), event.msg_nr(), event.addr(), event.flags(),
-          event.len(), event.len(), event.buf());
+          event.len());
   return std::string(line);
 }
 
