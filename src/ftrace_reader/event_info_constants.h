@@ -202,7 +202,7 @@ bool SetTranslationStrategy(FtraceFieldType ftrace,
                             ProtoFieldType proto,
                             TranslationStrategy* out);
 
-Field FieldFromNameIdType(const char* name, size_t id, ProtoFieldType type);
+Field MakeField(const char* name, size_t id, ProtoFieldType type);
 
 }  // namespace perfetto
 
