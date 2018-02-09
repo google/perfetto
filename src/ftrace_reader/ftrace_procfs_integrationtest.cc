@@ -15,7 +15,9 @@
  */
 
 #include <fstream>
+#include <set>
 #include <sstream>
+#include <string>
 
 #include "ftrace_procfs.h"
 #include "gmock/gmock.h"
@@ -23,6 +25,7 @@
 
 using testing::HasSubstr;
 using testing::Not;
+using testing::Contains;
 
 namespace perfetto {
 namespace {
@@ -126,6 +129,18 @@ TEST(FtraceProcfsIntegrationTest, DISABLED_ReadAvailableEvents) {
 TEST(FtraceProcfsIntegrationTest, DISABLED_CanOpenTracePipeRaw) {
   FtraceProcfs ftrace(kTracingPath);
   EXPECT_TRUE(ftrace.OpenPipeForCpu(0));
+}
+
+TEST(FtraceProcfsIntegrationTest, DISABLED_Clock) {
+  FtraceProcfs ftrace(kTracingPath);
+  std::set<std::string> clocks = ftrace.AvailableClocks();
+  EXPECT_THAT(clocks, Contains("local"));
+  EXPECT_THAT(clocks, Contains("global"));
+
+  EXPECT_TRUE(ftrace.SetClock("global"));
+  EXPECT_EQ(ftrace.GetClock(), "global");
+  EXPECT_TRUE(ftrace.SetClock("local"));
+  EXPECT_EQ(ftrace.GetClock(), "local");
 }
 
 TEST(FtraceProcfsIntegrationTest, DISABLED_CanSetBufferSize) {
