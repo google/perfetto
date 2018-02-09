@@ -18,7 +18,7 @@
 
 namespace perfetto {
 
-Field FieldFromNameIdType(const char* name, size_t id, ProtoFieldType type) {
+Field MakeField(const char* name, size_t id, ProtoFieldType type) {
   Field field{};
   field.ftrace_name = name;
   field.proto_field_id = id;
@@ -29,7 +29,7 @@ Field FieldFromNameIdType(const char* name, size_t id, ProtoFieldType type) {
 std::vector<Field> GetStaticCommonFieldsInfo() {
   std::vector<Field> fields;
 
-  fields.push_back(FieldFromNameIdType("common_pid", 2, kProtoInt32));
+  fields.push_back(MakeField("common_pid", 2, kProtoInt32));
 
   return fields;
 }
