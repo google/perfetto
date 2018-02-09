@@ -147,6 +147,48 @@ bool FtraceProcfs::IsTracingEnabled() {
   return ReadOneCharFromFile(path) == '1';
 }
 
+bool FtraceProcfs::SetClock(const std::string& clock_name) {
+  std::string path = root_ + "trace_clock";
+  return WriteToFile(path, clock_name);
+}
+
+std::string FtraceProcfs::GetClock() {
+  std::string path = root_ + "trace_clock";
+  std::string s = ReadFileIntoString(path);
+
+  size_t start = s.find("[");
+  if (start == std::string::npos)
+    return "";
+
+  size_t end = s.find("]", start);
+  if (end == std::string::npos)
+    return "";
+
+  return s.substr(start + 1, end - start - 1);
+}
+
+std::set<std::string> FtraceProcfs::AvailableClocks() {
+  std::string path = root_ + "trace_clock";
+  std::string s = ReadFileIntoString(path);
+  std::set<std::string> names;
+
+  size_t start = 0;
+  size_t end = 0;
+
+  while ((end = s.find(" ", start)) != std::string::npos) {
+    std::string name = s.substr(start, end - start);
+
+    if (name[0] == '[')
+      name = name.substr(1, name.size() - 2);
+
+    names.insert(name);
+
+    start = end + 1;
+  }
+
+  return names;
+}
+
 bool FtraceProcfs::WriteNumberToFile(const std::string& path, size_t value) {
   // 2^65 requires 20 digits to write.
   char buf[21];

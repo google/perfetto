@@ -246,7 +246,7 @@ function contextView(filterText, namesToRecords) {
       value: filterText,
     }),
     m('ul',
-      Array.from(namesToRecords.entries()).filter(e => e[1].length > 1)
+      Array.from(namesToRecords.entries())
           .filter(e => matcher(e[0])).map(e => m('li[tabindex=0]', {
         onfocus: () => { gDisplayedRecords = e[1]; gDisplayedName = e[0];
       },
