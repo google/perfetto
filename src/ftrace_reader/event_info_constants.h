@@ -45,7 +45,8 @@ enum ProtoFieldType {
 };
 
 enum FtraceFieldType {
-  kFtraceUint16 = 1,
+  kFtraceUint8 = 1,
+  kFtraceUint16,
   kFtraceUint32,
   kFtraceUint64,
   kFtraceInt16,
@@ -61,7 +62,8 @@ enum FtraceFieldType {
 // where there exists a way to convert from the FtraceFieldType
 // into the ProtoFieldType.
 enum TranslationStrategy {
-  kUint16ToUint32 = 1,
+  kUint8ToUint32 = 1,
+  kUint16ToUint32,
   kUint32ToUint32,
   kUint32ToUint64,
   kUint64ToUint64,
@@ -115,6 +117,8 @@ inline const char* ToString(ProtoFieldType v) {
 
 inline const char* ToString(FtraceFieldType v) {
   switch (v) {
+    case kFtraceUint8:
+      return "uint8";
     case kFtraceUint16:
       return "uint16";
     case kFtraceUint32:
@@ -198,7 +202,7 @@ bool SetTranslationStrategy(FtraceFieldType ftrace,
                             ProtoFieldType proto,
                             TranslationStrategy* out);
 
-Field FieldFromNameIdType(const char* name, size_t id, ProtoFieldType type);
+Field MakeField(const char* name, size_t id, ProtoFieldType type);
 
 }  // namespace perfetto
 

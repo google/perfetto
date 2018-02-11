@@ -221,11 +221,11 @@ TEST_F(PerfettoTest, TestFakeProducer) {
 #if !BUILDFLAG(PERFETTO_ANDROID_BUILD)
   TaskRunnerThread service_thread;
   service_thread.Start(std::unique_ptr<ServiceDelegate>(new ServiceDelegate));
+#endif
 
   TaskRunnerThread producer_thread;
   producer_thread.Start(
       std::unique_ptr<FakeProducerDelegate>(new FakeProducerDelegate));
-#endif
 
   // Finally, make the consumer connect to the service.
   FakeConsumer consumer(trace_config, std::move(function), &task_runner);
