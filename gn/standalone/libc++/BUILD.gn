@@ -37,6 +37,8 @@ config("config") {
       "dl",  # libdl: dynamic linking.
       "gcc_eh",  # gcc exception handling, required by libunwind.
     ]
+  } else {
+    libs = [ "atomic" ]
   }
 }
 
