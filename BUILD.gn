@@ -86,9 +86,6 @@ if (!build_with_chromium && (is_linux || is_android)) {
       "src/ftrace_reader:ftrace_reader_integrationtests",
       "test:end_to_end_integrationtests",
     ]
-    if (build_with_android) {
-      cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
-    }
   }
 
   if (monolithic_binaries) {
