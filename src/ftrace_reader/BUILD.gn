@@ -55,6 +55,7 @@ source_set("ftrace_reader_unittests") {
     "cpu_reader_unittest.cc",
     "event_info_unittest.cc",
     "format_parser_unittest.cc",
+    "ftrace_config_unittest.cc",
     "ftrace_controller_unittest.cc",
     "proto_translation_table_unittest.cc",
   ]
@@ -87,6 +88,7 @@ source_set("ftrace_reader_integrationtests") {
     "../../gn:gtest_deps",
     "../../protos/perfetto/trace/ftrace:lite",
     "../base",
+    "../tracing",
   ]
   sources = [
     "end_to_end_integrationtest.cc",
@@ -99,6 +101,7 @@ source_set("ftrace_reader") {
     "../../gn:gtest_prod_config",
     "../../include/perfetto/ftrace_reader",
     "../../protos/perfetto/trace/ftrace:zero",
+    "../tracing",
   ]
   deps = [
     "../../gn:default_deps",
@@ -113,6 +116,7 @@ source_set("ftrace_reader") {
     "event_info_constants.cc",
     "event_info_constants.h",
     "format_parser.cc",
+    "ftrace_config.cc",
     "ftrace_controller.cc",
     "ftrace_procfs.cc",
     "ftrace_procfs.h",

@@ -24,6 +24,7 @@
 #include "ftrace_procfs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto/ftrace_reader/ftrace_config.h"
 #include "proto_translation_table.h"
 
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -135,7 +136,7 @@ class TestFtraceController : public FtraceController {
 
 }  // namespace
 
-TEST(FtraceControllerTest, NoExistentEventsDontCrash) {
+TEST(FtraceControllerTest, NonExistentEventsDontCrash) {
   NiceMock<MockTaskRunner> task_runner;
   auto ftrace_procfs =
       std::unique_ptr<MockFtraceProcfs>(new NiceMock<MockFtraceProcfs>());
@@ -143,10 +144,21 @@ TEST(FtraceControllerTest, NoExistentEventsDontCrash) {
                                   FakeTable());
 
   MockDelegate delegate;
-  FtraceConfig config;
-  config.AddEvent("not_an_event");
+  FtraceConfig config = CreateFtraceConfig({"not_an_event"});
 
   std::unique_ptr<FtraceSink> sink = controller.CreateSink(config, &delegate);
+}
+
+TEST(FtraceControllerTest, RejectsBadEventNames) {
+  NiceMock<MockTaskRunner> task_runner;
+  auto ftrace_procfs =
+      std::unique_ptr<MockFtraceProcfs>(new NiceMock<MockFtraceProcfs>());
+  TestFtraceController controller(std::move(ftrace_procfs), &task_runner,
+                                  FakeTable());
+
+  MockDelegate delegate;
+  FtraceConfig config = CreateFtraceConfig({"../try/to/escape"});
+  EXPECT_FALSE(controller.CreateSink(config, &delegate));
 }
 
 TEST(FtraceControllerTest, OneSink) {
@@ -158,7 +170,7 @@ TEST(FtraceControllerTest, OneSink) {
                                   FakeTable());
 
   MockDelegate delegate;
-  FtraceConfig config({"foo"});
+  FtraceConfig config = CreateFtraceConfig({"foo"});
 
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(task_runner, PostDelayedTask(_, _));
@@ -181,8 +193,8 @@ TEST(FtraceControllerTest, MultipleSinks) {
 
   MockDelegate delegate;
 
-  FtraceConfig configA({"foo"});
-  FtraceConfig configB({"foo", "bar"});
+  FtraceConfig configA = CreateFtraceConfig({"foo"});
+  FtraceConfig configB = CreateFtraceConfig({"foo", "bar"});
 
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/buffer_size_kb", _));
@@ -210,7 +222,7 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
       std::move(ftrace_procfs), &task_runner, FakeTable()));
 
   MockDelegate delegate;
-  FtraceConfig config({"foo"});
+  FtraceConfig config = CreateFtraceConfig({"foo"});
 
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/tracing_on", "1"));
@@ -237,7 +249,7 @@ TEST(FtraceControllerTest, TaskScheduling) {
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(_, _)).Times(AnyNumber());
 
   MockDelegate delegate;
-  FtraceConfig config({"foo"});
+  FtraceConfig config = CreateFtraceConfig({"foo"});
 
   EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
   std::unique_ptr<FtraceSink> sink = controller.CreateSink(config, &delegate);
@@ -273,7 +285,7 @@ TEST(FtraceControllerTest, BackToBackEnableDisable) {
   EXPECT_CALL(*raw_ftrace_procfs, WriteToFile(_, _)).Times(AnyNumber());
 
   MockDelegate delegate;
-  FtraceConfig config({"foo"});
+  FtraceConfig config = CreateFtraceConfig({"foo"});
 
   EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
   std::unique_ptr<FtraceSink> sink_a = controller.CreateSink(config, &delegate);
@@ -311,7 +323,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // 8192kb = 8mb
     EXPECT_CALL(*raw_ftrace_procfs,
                 WriteToFile("/root/buffer_size_kb", "4096"));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     auto sink = controller.CreateSink(config, &delegate);
   }
 
@@ -319,7 +331,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // Way too big buffer size -> good default.
     EXPECT_CALL(*raw_ftrace_procfs,
                 WriteToFile("/root/buffer_size_kb", "4096"));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_buffer_size_kb(10 * 1024 * 1024);
     auto sink = controller.CreateSink(config, &delegate);
   }
@@ -328,7 +340,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // The limit is 8mb, 9mb is too much.
     EXPECT_CALL(*raw_ftrace_procfs,
                 WriteToFile("/root/buffer_size_kb", "4096"));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     ON_CALL(*raw_ftrace_procfs, NumberOfCpus()).WillByDefault(Return(2));
     config.set_buffer_size_kb(9 * 1024);
     auto sink = controller.CreateSink(config, &delegate);
@@ -337,7 +349,7 @@ TEST(FtraceControllerTest, BufferSize) {
   {
     // Your size ends up with less than 1 page per cpu -> 1 page.
     EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/buffer_size_kb", "4"));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_buffer_size_kb(1);
     auto sink = controller.CreateSink(config, &delegate);
   }
@@ -345,7 +357,7 @@ TEST(FtraceControllerTest, BufferSize) {
   {
     // You picked a good size -> your size rounded to nearest page.
     EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/buffer_size_kb", "40"));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_buffer_size_kb(42);
     auto sink = controller.CreateSink(config, &delegate);
   }
@@ -353,7 +365,7 @@ TEST(FtraceControllerTest, BufferSize) {
   {
     // You picked a good size -> your size rounded to nearest page.
     EXPECT_CALL(*raw_ftrace_procfs, WriteToFile("/root/buffer_size_kb", "40"));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     ON_CALL(*raw_ftrace_procfs, NumberOfCpus()).WillByDefault(Return(2));
     config.set_buffer_size_kb(42);
     auto sink = controller.CreateSink(config, &delegate);
@@ -375,14 +387,14 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
   {
     // No period -> good default.
     EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     auto sink = controller.CreateSink(config, &delegate);
   }
 
   {
     // Pick a tiny value -> good default.
     EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_drain_period_ms(0);
     auto sink = controller.CreateSink(config, &delegate);
   }
@@ -390,7 +402,7 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
   {
     // Pick a huge value -> good default.
     EXPECT_CALL(task_runner, PostDelayedTask(_, 100));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_drain_period_ms(1000 * 60 * 60);
     auto sink = controller.CreateSink(config, &delegate);
   }
@@ -398,7 +410,7 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
   {
     // Pick a resonable value -> get that value.
     EXPECT_CALL(task_runner, PostDelayedTask(_, 200));
-    FtraceConfig config({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_drain_period_ms(200);
     auto sink = controller.CreateSink(config, &delegate);
   }
