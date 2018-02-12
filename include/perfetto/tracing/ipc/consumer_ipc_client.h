@@ -30,7 +30,7 @@ class Consumer;
 // Exposed to:
 //   Consumer(s) of the tracing library.
 // Implemented in:
-//   src/ipc/producer/producer_ipc_client_impl.cc
+//   src/tracing/ipc/consumer/consumer_ipc_client_impl.cc
 class ConsumerIPCClient {
  public:
   // Connects to the producer port of the Service listening on the given
