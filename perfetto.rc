@@ -39,3 +39,7 @@ on property:persist.traced.enable=1
 
     start traced
     start traced_probes
+
+on property:persist.traced.enable=0
+    stop traced
+    stop traced_probes
