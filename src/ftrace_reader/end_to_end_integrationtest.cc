@@ -17,10 +17,11 @@
 #include <fstream>
 #include <sstream>
 
-#include "ftrace_procfs.h"
 #include "gmock/gmock.h"
 #include "google/protobuf/text_format.h"
 #include "gtest/gtest.h"
+
+#include "ftrace_procfs.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/unix_task_runner.h"
 #include "perfetto/base/utils.h"
@@ -106,7 +107,9 @@ TEST_F(EndToEndIntegrationTest, DISABLED_SchedSwitchAndPrint) {
 
   // Create a sink listening for our favorite events:
   std::unique_ptr<FtraceController> ftrace = FtraceController::Create(runner());
-  FtraceConfig config(std::set<std::string>({"print", "sched_switch"}));
+  FtraceConfig config;
+  *config.add_event_names() = "print";
+  *config.add_event_names() = "sched_switch";
   std::unique_ptr<FtraceSink> sink = ftrace->CreateSink(config, this);
 
   // Let some events build up.
@@ -138,8 +141,9 @@ TEST_F(EndToEndIntegrationTest, DISABLED_Atrace) {
 
   // Create a sink listening for our favorite events:
   std::unique_ptr<FtraceController> ftrace = FtraceController::Create(runner());
-  FtraceConfig config(std::set<std::string>({"sched_switch"}));
-  config.AddAtraceCategory("sched");
+  FtraceConfig config;
+  *config.add_event_names() = "print";
+  *config.add_event_names() = "sched_switch";
   std::unique_ptr<FtraceSink> sink = ftrace->CreateSink(config, this);
 
   // Let some events build up.
