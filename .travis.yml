@@ -58,11 +58,6 @@ matrix:
       env: CFG=linux_trusty-clang-x86_64-debug GN_ARGS="is_debug=true is_hermetic_clang=false"
     - os: linux
       dist: trusty
-      sudo: true
-      compiler: clang
-      env: CFG=linux_trusty-clang-x86_64-asan GN_ARGS="is_debug=false is_asan=true"
-    - os: linux
-      dist: trusty
       sudo: false
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-tsan GN_ARGS="is_debug=false is_tsan=true"
@@ -75,12 +70,7 @@ matrix:
       dist: trusty
       sudo: true
       compiler: clang
-      env: CFG=linux_trusty-clang-x86_64-lsan GN_ARGS="is_debug=false is_lsan=true"
-    - os: linux
-      dist: trusty
-      sudo: false
-      compiler: clang
-      env: CFG=linux_trusty-clang-x86_64-ubsan GN_ARGS="is_debug=false is_ubsan=true"
+      env: CFG=linux_trusty-clang-x86_64-ubsan_asan_lsan GN_ARGS="is_debug=false is_ubsan=true is_asan=true is_lsan=true"
     - os: linux
       dist: trusty
       sudo: false
