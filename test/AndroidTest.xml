@@ -21,10 +21,7 @@
         <option name="push" value="perfetto_unittests->/data/local/tmp/perfetto_unittests" />
         <option name="push" value="perfetto_integrationtests->/data/local/tmp/perfetto_integrationtests" />
     </target_preparer>
-    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
-        <option name="run-command" value="setprop persist.traced.enable 1" />
-        <option name="teardown-command" value="setprop persist.traced.enable 0" />
-    </target_preparer>
+    <option name="post-boot-command" value="setprop persist.traced.enable 1" />
     <test class="com.android.tradefed.testtype.GTest" >
       <option name="native-test-device-path" value="/data/local/tmp/perfetto_unittests" />
       <option name="module-name" value="perfetto_unittests" />
