@@ -30,7 +30,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <linux/memfd.h>
 #include <sys/syscall.h>
 #endif
@@ -40,7 +40,7 @@ namespace perfetto {
 // static
 std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
   base::ScopedFile fd;
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   bool is_memfd = false;
   fd.reset(syscall(__NR_memfd_create, "perfetto_shmem",
                    MFD_CLOEXEC | MFD_ALLOW_SEALING));
@@ -61,7 +61,7 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
   PERFETTO_CHECK(fd);
   int res = ftruncate(fd.get(), static_cast<off_t>(size));
   PERFETTO_CHECK(res == 0);
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (is_memfd) {
     res = fcntl(*fd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL);
     PERFETTO_DCHECK(res == 0);

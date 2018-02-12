@@ -34,7 +34,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 
-#if BUILDFLAG(OS_MACOSX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 #include <sys/ucred.h>
 #endif
 
@@ -47,14 +47,14 @@ namespace {
 
 // MSG_NOSIGNAL is not supported on Mac OS X, but in that case the socket is
 // created with SO_NOSIGPIPE (See InitializeSocket()).
-#if BUILDFLAG(OS_MACOSX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 constexpr int kNoSigPipe = 0;
 #else
 constexpr int kNoSigPipe = MSG_NOSIGNAL;
 #endif
 
 // Android takes an int instead of socklen_t for the control buffer size.
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 using CBufLenType = size_t;
 #else
 using CBufLenType = socklen_t;
@@ -97,7 +97,7 @@ base::ScopedFile UnixSocket::CreateAndBind(const std::string& socket_name) {
   }
 
 // Android takes an int as 3rd argument of bind() instead of socklen_t.
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   const int bind_size = static_cast<int>(addr_size);
 #else
   const socklen_t bind_size = addr_size;
@@ -189,7 +189,7 @@ UnixSocket::UnixSocket(EventListener* event_listener,
   PERFETTO_DCHECK(fd_);
   last_error_ = 0;
 
-#if BUILDFLAG(OS_MACOSX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   const int no_sigpipe = 1;
   setsockopt(*fd_, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
 #endif
@@ -253,7 +253,8 @@ void UnixSocket::DoConnect(const std::string& socket_name) {
 }
 
 void UnixSocket::ReadPeerCredentials() {
-#if BUILDFLAG(OS_LINUX) || BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   struct ucred user_cred;
   socklen_t len = sizeof(user_cred);
   int res = getsockopt(*fd_, SOL_SOCKET, SO_PEERCRED, &user_cred, &len);

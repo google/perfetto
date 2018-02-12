@@ -24,7 +24,7 @@
 #include "perfetto/base/build_config.h"
 #include "src/base/test/vm_test_utils.h"
 
-#if !BUILDFLAG(OS_MACOSX)
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 #include <sys/resource.h>
 #endif
 
@@ -62,8 +62,8 @@ TEST(PageAllocatorTest, GuardRegions) {
 // Disable this on:
 // MacOS: because it doesn't seem to have an equivalent rlimit to bound mmap().
 // Sanitizers: they seem to try to shadow mmaped memory and fail due to OOMs.
-#if !BUILDFLAG(OS_MACOSX) && !defined(ADDRESS_SANITIZER) &&   \
-    !defined(LEAK_SANITIZER) && !defined(THREAD_SANITIZER) && \
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && !defined(ADDRESS_SANITIZER) && \
+    !defined(LEAK_SANITIZER) && !defined(THREAD_SANITIZER) &&                 \
     !defined(MEMORY_SANITIZER)
 // Glibc headers hit this on RLIMIT_ macros.
 #pragma GCC diagnostic push
