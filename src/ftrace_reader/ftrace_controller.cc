@@ -263,14 +263,18 @@ CpuReader* FtraceController::GetCpuReader(size_t cpu) {
 }
 
 std::unique_ptr<FtraceSink> FtraceController::CreateSink(
-    const FtraceConfig& config,
+    FtraceConfig config,
     FtraceSink::Delegate* delegate) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (sinks_.size() >= kMaxSinks)
     return nullptr;
+  if (!ValidConfig(config))
+    return nullptr;
   auto controller_weak = weak_factory_.GetWeakPtr();
   auto filter = std::unique_ptr<EventFilter>(
-      new EventFilter(*table_.get(), config.events()));
+      new EventFilter(*table_.get(), FtraceEventsAsSet(config)));
+  for (const std::string& event : config.event_names())
+    PERFETTO_LOG("%s", event.c_str());
   auto sink = std::unique_ptr<FtraceSink>(new FtraceSink(
       std::move(controller_weak), config, std::move(filter), delegate));
   Register(sink.get());
@@ -281,7 +285,7 @@ void FtraceController::Register(FtraceSink* sink) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto it_and_inserted = sinks_.insert(sink);
   PERFETTO_DCHECK(it_and_inserted.second);
-  if (sink->config().RequiresAtrace())
+  if (RequiresAtrace(sink->config()))
     StartAtrace(sink->config());
 
   StartIfNeeded();
@@ -320,7 +324,7 @@ void FtraceController::Unregister(FtraceSink* sink) {
 
   for (const std::string& name : sink->enabled_events())
     UnregisterForEvent(name);
-  if (sink->config().RequiresAtrace())
+  if (RequiresAtrace(sink->config()))
     StopAtrace();
   StopIfNeeded();
 }
@@ -369,37 +373,6 @@ FtraceSink::~FtraceSink() {
 
 const std::set<std::string>& FtraceSink::enabled_events() {
   return filter_->enabled_names();
-}
-
-FtraceConfig::FtraceConfig() = default;
-FtraceConfig::FtraceConfig(std::set<std::string> events)
-    : ftrace_events_(std::move(events)) {}
-
-FtraceConfig::~FtraceConfig() = default;
-
-void FtraceConfig::AddEvent(const std::string& event) {
-  ftrace_events_.insert(event);
-}
-
-void FtraceConfig::AddAtraceApp(const std::string& app) {
-  // You implicitly need the print ftrace event if you
-  // are using atrace.
-  AddEvent("print");
-  atrace_apps_.insert(app);
-}
-
-void FtraceConfig::AddAtraceCategory(const std::string& category) {
-  // You implicitly need the print ftrace event if you
-  // are using atrace.
-  AddEvent("print");
-  if (category == "sched") {
-    AddEvent("sched_switch");
-  }
-  atrace_categories_.insert(category);
-}
-
-bool FtraceConfig::RequiresAtrace() const {
-  return !atrace_categories_.empty() || !atrace_apps_.empty();
 }
 
 }  // namespace perfetto

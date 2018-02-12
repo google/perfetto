@@ -29,6 +29,7 @@
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/weak_ptr.h"
+#include "perfetto/ftrace_reader/ftrace_config.h"
 #include "perfetto/protozero/protozero_message_handle.h"
 
 namespace perfetto {
@@ -46,36 +47,6 @@ class ProtoTranslationTable;
 class CpuReader;
 class FtraceProcfs;
 class EventFilter;
-
-class FtraceConfig {
- public:
-  explicit FtraceConfig(std::set<std::string> events);
-  FtraceConfig();
-  ~FtraceConfig();
-
-  void AddEvent(const std::string&);
-  void AddAtraceApp(const std::string& app);
-  void AddAtraceCategory(const std::string&);
-  bool RequiresAtrace() const;
-
-  const std::set<std::string>& events() const { return ftrace_events_; }
-  const std::set<std::string>& atrace_categories() const {
-    return atrace_categories_;
-  }
-  const std::set<std::string>& atrace_apps() const { return atrace_apps_; }
-
-  uint32_t buffer_size_kb() const { return buffer_size_kb_; }
-  uint32_t drain_period_ms() const { return drain_period_ms_; }
-  void set_buffer_size_kb(uint32_t v) { buffer_size_kb_ = v; }
-  void set_drain_period_ms(uint32_t v) { drain_period_ms_ = v; }
-
- private:
-  std::set<std::string> ftrace_events_;
-  std::set<std::string> atrace_categories_;
-  std::set<std::string> atrace_apps_;
-  uint32_t buffer_size_kb_ = 0;
-  uint32_t drain_period_ms_ = 0;
-};
 
 // To consume ftrace data clients implement a |FtraceSink::Delegate| and use it
 // to create a |FtraceSink|. While the FtraceSink lives FtraceController will
@@ -129,8 +100,7 @@ class FtraceController {
   static std::unique_ptr<FtraceController> Create(base::TaskRunner*);
   virtual ~FtraceController();
 
-  std::unique_ptr<FtraceSink> CreateSink(const FtraceConfig&,
-                                         FtraceSink::Delegate*);
+  std::unique_ptr<FtraceSink> CreateSink(FtraceConfig, FtraceSink::Delegate*);
 
   void DisableAllEvents();
   void WriteTraceMarker(const std::string& s);
