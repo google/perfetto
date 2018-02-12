@@ -16,6 +16,8 @@
 
 #include "src/base/test/vm_test_utils.h"
 
+#include <memory>
+
 #include <errno.h>
 #include <string.h>
 #include <sys/mman.h>
