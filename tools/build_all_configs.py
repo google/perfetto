@@ -46,7 +46,7 @@ LINUX_BUILD_CONFIGS = {
   'linux_tsan': ['is_clang=true', 'is_debug=false', 'is_tsan=true'],
   'linux_ubsan': ['is_clang=true', 'is_debug=false', 'is_ubsan=true'],
   'linux_fuzzer': ['is_clang=true', 'is_debug=false', 'use_libfuzzer=true',
-                   'is_asan=true', 'use_custom_libcxx=false'],
+                   'is_asan=true'],
 }
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
