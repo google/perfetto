@@ -207,7 +207,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_CanSetBufferSize) {
   EXPECT_EQ(ReadFile("buffer_size_kb"), "20\n");  // (4096 * 5) / 1024
 }
 
-TEST(FtraceProcfsIntegrationTest, FtraceControllerHardReset) {
+TEST(FtraceProcfsIntegrationTest, DISABLED_FtraceControllerHardReset) {
   FtraceProcfs ftrace(kTracingPath);
   ResetFtrace(&ftrace);
 
