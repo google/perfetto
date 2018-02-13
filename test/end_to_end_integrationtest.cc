@@ -37,13 +37,13 @@
 #include "test/fake_producer.h"
 #include "test/task_runner_thread.h"
 
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include "perfetto/base/android_task_runner.h"
 #endif
 
 namespace perfetto {
 
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 using PlatformTaskRunner = base::AndroidTaskRunner;
 #else
 using PlatformTaskRunner = base::UnixTaskRunner;
@@ -51,7 +51,8 @@ using PlatformTaskRunner = base::UnixTaskRunner;
 
 // If we're building on Android and starting the daemons ourselves,
 // create the sockets in a world-writable location.
-#if BUILDFLAG(OS_ANDROID) && BUILDFLAG(PERFETTO_START_DAEMONS)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
 #define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
 #define TEST_CONSUMER_SOCK_NAME "/data/local/tmp/traced_consumer"
 #else
@@ -156,7 +157,7 @@ TEST_F(PerfettoTest, DISABLED_TestFtraceProducer) {
     }
   };
 
-#if BUILDFLAG(PERFETTO_START_DAEMONS)
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
   TaskRunnerThread service_thread;
   service_thread.Start(std::unique_ptr<ServiceDelegate>(new ServiceDelegate));
 
@@ -207,7 +208,7 @@ TEST_F(PerfettoTest, TestFakeProducer) {
     }
   };
 
-#if BUILDFLAG(PERFETTO_START_DAEMONS)
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
   TaskRunnerThread service_thread;
   service_thread.Start(std::unique_ptr<ServiceDelegate>(new ServiceDelegate));
 #endif
