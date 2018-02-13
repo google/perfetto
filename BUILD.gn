@@ -28,6 +28,7 @@ group("all") {
     ":perfetto_unittests",
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
+    "tools/dump_process_data",
     "tools/ftrace_proto_gen:ftrace_proto_gen",
     "tools/proto_to_cpp",
     "tools/trace_to_text",
@@ -86,9 +87,6 @@ if (!build_with_chromium && (is_linux || is_android)) {
       "src/ftrace_reader:ftrace_reader_integrationtests",
       "test:end_to_end_integrationtests",
     ]
-    if (build_with_android) {
-      cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
-    }
   }
 
   if (monolithic_binaries) {

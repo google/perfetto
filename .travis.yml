@@ -58,11 +58,6 @@ matrix:
       env: CFG=linux_trusty-clang-x86_64-debug GN_ARGS="is_debug=true is_hermetic_clang=false"
     - os: linux
       dist: trusty
-      sudo: true
-      compiler: clang
-      env: CFG=linux_trusty-clang-x86_64-asan GN_ARGS="is_debug=false is_asan=true"
-    - os: linux
-      dist: trusty
       sudo: false
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-tsan GN_ARGS="is_debug=false is_tsan=true"
@@ -75,12 +70,7 @@ matrix:
       dist: trusty
       sudo: true
       compiler: clang
-      env: CFG=linux_trusty-clang-x86_64-lsan GN_ARGS="is_debug=false is_lsan=true"
-    - os: linux
-      dist: trusty
-      sudo: false
-      compiler: clang
-      env: CFG=linux_trusty-clang-x86_64-ubsan GN_ARGS="is_debug=false is_ubsan=true"
+      env: CFG=linux_trusty-clang-x86_64-ubsan_asan_lsan GN_ARGS="is_debug=false is_ubsan=true is_asan=true is_lsan=true"
     - os: linux
       dist: trusty
       sudo: false
@@ -101,6 +91,11 @@ matrix:
       sudo: true
       compiler: clang
       env: CFG=android-clang-arm-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\" is_asan=true"
+    - os: linux
+      dist: trusty
+      sudo: true
+      compiler: clang
+      env: CFG=linux_trusty-clang-x86_64-libfuzzer GN_ARGS="is_clang=true is_debug=false use_libfuzzer=true is_asan=true"
 
 # Cache the deps that get git-pulled to avoid hitting quota limits (b/68252114).
 # Do not cache NDK/SDK and things that come from .zip files rather than git.
@@ -146,6 +141,13 @@ script:
       for TEST_TARGET in $TEST_TARGETS; do
         "out/dist/$TEST_TARGET"
       done
+      if [[ "$CFG" == *-libfuzzer ]]; then
+        # Run a single iteration each to make sure they are not crashing.
+        # FIXME(fmayer): Fix the race condition regarding set_duration_ms
+        # and uncomment this fuzzer.
+        # out/dist/end_to_end_shared_memory_fuzzer -runs=1
+        out/dist/buffered_frame_deserializer_fuzzer -runs=1
+      fi
     else
       TARGET_ARCH=$(echo $CFG | cut -d- -f3)
       tools/run_android_emulator --pid /tmp/emulator.pid -v &

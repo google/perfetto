@@ -17,10 +17,20 @@ import("//build_overrides/build.gni")
 declare_args() {
   # The Android blueprint file generator overrides this to true.
   build_with_android = false
+
+  # Whether the ftrace producer and the service should be started
+  # by the integration test or assumed to be running.
+  start_daemons_for_testing = true
 }
 
 if (!build_with_chromium) {
   perfetto_root_path = "//"
 } else {
   perfetto_root_path = "//third_party/perfetto/"
+}
+
+# If we're building in the Android tree, we expect that the testing infra
+# will start the binaries in the system image before the tests are run.
+if (build_with_android) {
+  start_daemons_for_testing = false
 }

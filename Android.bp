@@ -33,6 +33,7 @@ cc_library_shared {
     "src/ftrace_reader/event_info.cc",
     "src/ftrace_reader/event_info_constants.cc",
     "src/ftrace_reader/format_parser.cc",
+    "src/ftrace_reader/ftrace_config.cc",
     "src/ftrace_reader/ftrace_controller.cc",
     "src/ftrace_reader/ftrace_procfs.cc",
     "src/ftrace_reader/proto_translation_table.cc",
@@ -195,6 +196,7 @@ cc_test {
     "src/ftrace_reader/event_info.cc",
     "src/ftrace_reader/event_info_constants.cc",
     "src/ftrace_reader/format_parser.cc",
+    "src/ftrace_reader/ftrace_config.cc",
     "src/ftrace_reader/ftrace_controller.cc",
     "src/ftrace_reader/ftrace_procfs.cc",
     "src/ftrace_reader/ftrace_procfs_integrationtest.cc",
@@ -253,7 +255,6 @@ cc_test {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
 }
 
@@ -1801,6 +1802,8 @@ cc_test {
     "src/ftrace_reader/event_info_unittest.cc",
     "src/ftrace_reader/format_parser.cc",
     "src/ftrace_reader/format_parser_unittest.cc",
+    "src/ftrace_reader/ftrace_config.cc",
+    "src/ftrace_reader/ftrace_config_unittest.cc",
     "src/ftrace_reader/ftrace_controller.cc",
     "src/ftrace_reader/ftrace_controller_unittest.cc",
     "src/ftrace_reader/ftrace_procfs.cc",

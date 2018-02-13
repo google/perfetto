@@ -32,20 +32,8 @@
 namespace perfetto {
 namespace {
 
-bool IsGoodPunctuation(char c) {
-  return c == '_' || c == '.';
-}
-
 uint64_t kInitialConnectionBackoffMs = 100;
 uint64_t kMaxConnectionBackoffMs = 30 * 1000;
-
-bool IsValid(const std::string& str) {
-  for (size_t i = 0; i < str.size(); i++) {
-    if (!isalnum(str[i]) && !IsGoodPunctuation(str[i]))
-      return false;
-  }
-  return true;
-}
 
 }  // namespace.
 
@@ -108,35 +96,7 @@ void FtraceProducer::CreateDataSourceInstance(
                source_config.target_buffer());
 
   // TODO(hjd): Would be nice if ftrace_reader could use the generated config.
-  const DataSourceConfig::FtraceConfig proto_config =
-      source_config.ftrace_config();
-
-  FtraceConfig config;
-  // TODO(b/72082266): We shouldn't have to do this.
-  for (const std::string& event_name : proto_config.event_names()) {
-    if (IsValid(event_name)) {
-      config.AddEvent(event_name.c_str());
-    } else {
-      PERFETTO_ELOG("Bad event name '%s'", event_name.c_str());
-    }
-  }
-  for (const std::string& category : proto_config.atrace_categories()) {
-    if (IsValid(category)) {
-      config.AddAtraceCategory(category.c_str());
-    } else {
-      PERFETTO_ELOG("Bad category name '%s'", category.c_str());
-    }
-  }
-  for (const std::string& app : proto_config.atrace_apps()) {
-    if (IsValid(app)) {
-      config.AddAtraceApp(app.c_str());
-    } else {
-      PERFETTO_ELOG("Bad app '%s'", app.c_str());
-    }
-  }
-
-  config.set_buffer_size_kb(proto_config.buffer_size_kb());
-  config.set_drain_period_ms(proto_config.drain_period_ms());
+  DataSourceConfig::FtraceConfig config = source_config.ftrace_config();
 
   // TODO(hjd): Static cast is bad, target_buffer() should return a BufferID.
   auto trace_writer = endpoint_->CreateTraceWriter(

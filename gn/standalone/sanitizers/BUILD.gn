@@ -88,6 +88,12 @@ config("sanitizers_cflags") {
   }
   if (use_libfuzzer) {
     cflags += [ "-fsanitize=fuzzer" ]
+    if (is_asan) {
+      cflags += [
+        "-mllvm",
+        "-asan-use-private-alias",
+      ]
+    }
   }
 }
 
