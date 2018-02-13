@@ -20,7 +20,8 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/scoped_file.h"
 
-#if BUILDFLAG(OS_ANDROID) && !BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 #include "perfetto/base/android_task_runner.h"
 #endif
 
@@ -36,7 +37,8 @@ class TaskRunnerTest : public ::testing::Test {
   T task_runner;
 };
 
-#if BUILDFLAG(OS_ANDROID) && !BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 using TaskRunnerTypes = ::testing::Types<AndroidTaskRunner, UnixTaskRunner>;
 #else
 using TaskRunnerTypes = ::testing::Types<UnixTaskRunner>;

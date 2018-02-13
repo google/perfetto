@@ -134,7 +134,7 @@ TEST_F(EndToEndIntegrationTest, DISABLED_SchedSwitchAndPrint) {
   printf("%s\n", output_as_text.c_str());
 }
 
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 TEST_F(EndToEndIntegrationTest, DISABLED_Atrace) {
   FtraceProcfs procfs(kTracingPath);
   procfs.ClearTrace();
@@ -166,6 +166,6 @@ TEST_F(EndToEndIntegrationTest, DISABLED_Atrace) {
   std::string output_as_text;
   printf("%s\n", output_as_text.c_str());
 }
-#endif  // BUILDFLAG(OS_ANDROID)
+#endif  // BUILDFLAG(PERFETTO_OS_ANDROID)
 
 }  // namespace perfetto
