@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include <array>
 #include <string>
@@ -107,7 +108,38 @@ bool RunAtrace(std::vector<std::string> args) {
   return status == 0;
 }
 
+void WriteToFile(const char* path, const char* str) {
+  int fd = open(path, O_WRONLY);
+  if (fd == -1)
+    return;
+  write(fd, str, strlen(str));
+  close(fd);
+}
+
+void ClearFile(const char* path) {
+  int fd = open(path, O_WRONLY | O_TRUNC);
+  if (fd == -1)
+    return;
+  close(fd);
+}
+
 }  // namespace
+
+// TODO(fmayer): Actually call this on shutdown.
+// Method of last resort to reset ftrace state.
+// We don't know what state the rest of the system and process is so as far
+// as possible avoid allocations.
+void HardResetFtraceState() {
+  WriteToFile("/sys/kernel/debug/tracing/tracing_on", "0");
+  WriteToFile("/sys/kernel/debug/tracing/buffer_size_kb", "4");
+  WriteToFile("/sys/kernel/debug/tracing/events/enable", "0");
+  ClearFile("/sys/kernel/debug/tracing/trace");
+
+  WriteToFile("/sys/kernel/tracing/tracing_on", "0");
+  WriteToFile("/sys/kernel/tracing/buffer_size_kb", "4");
+  WriteToFile("/sys/kernel/tracing/events/enable", "0");
+  ClearFile("/sys/kernel/tracing/trace");
+}
 
 // static
 // TODO(taylori): Add a test for tracing paths in integration tests.

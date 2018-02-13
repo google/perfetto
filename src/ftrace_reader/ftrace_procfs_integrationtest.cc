@@ -22,6 +22,7 @@
 #include "ftrace_procfs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto/ftrace_reader/ftrace_controller.h"
 
 using testing::HasSubstr;
 using testing::Not;
@@ -149,6 +150,28 @@ TEST(FtraceProcfsIntegrationTest, DISABLED_CanSetBufferSize) {
   EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");  // (4096 * 4) / 1024
   EXPECT_TRUE(ftrace.SetCpuBufferSizeInPages(5ul));
   EXPECT_EQ(ReadFile("buffer_size_kb"), "20\n");  // (4096 * 5) / 1024
+}
+
+TEST(FtraceProcfsIntegrationTest, FtraceControllerHardReset) {
+  FtraceProcfs ftrace(kTracingPath);
+  ResetFtrace(&ftrace);
+
+  ftrace.SetCpuBufferSizeInPages(4ul);
+  ftrace.EnableTracing();
+  ftrace.EnableEvent("sched", "sched_switch");
+  ftrace.WriteTraceMarker("Hello, World!");
+
+  EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");
+  EXPECT_EQ(ReadFile("tracing_on"), "1\n");
+  EXPECT_EQ(ReadFile("events/enable"), "X\n");
+  EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello"));
+
+  HardResetFtraceState();
+
+  EXPECT_EQ(ReadFile("buffer_size_kb"), "4\n");
+  EXPECT_EQ(ReadFile("tracing_on"), "0\n");
+  EXPECT_EQ(ReadFile("events/enable"), "0\n");
+  EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello")));
 }
 
 }  // namespace perfetto
