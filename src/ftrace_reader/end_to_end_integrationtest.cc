@@ -166,6 +166,6 @@ TEST_F(EndToEndIntegrationTest, DISABLED_Atrace) {
   std::string output_as_text;
   printf("%s\n", output_as_text.c_str());
 }
-#endif  // BUILDFLAG(PERFETTO_OS_ANDROID)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 }  // namespace perfetto
