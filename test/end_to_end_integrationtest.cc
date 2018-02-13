@@ -113,16 +113,19 @@ class PerfettoTest : public ::testing::Test {
   };
 };
 
-// TODO(lalitm): reenable this when we have a solution for running ftrace
-// on travis.
-TEST_F(PerfettoTest, DISABLED_TestFtraceProducer) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_TestFtraceProducer TestFtraceProducer
+#else
+#define MAYBE_TestFtraceProducer DISABLED_TestFtraceProducer
+#endif
+TEST_F(PerfettoTest, MAYBE_TestFtraceProducer) {
   base::TestTaskRunner task_runner;
   auto finish = task_runner.CreateCheckpoint("no.more.packets");
 
   // Setip the TraceConfig for the consumer.
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(4096 * 10);
-  trace_config.set_duration_ms(200);
+  trace_config.set_duration_ms(3000);
 
   // Create the buffer for ftrace.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
