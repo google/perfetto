@@ -19,7 +19,7 @@
 
 #include "perfetto/base/build_config.h"
 
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #define TEST_SOCK_NAME(x) "@" x
 #define DESTROY_TEST_SOCK(x) \
   do {                       \
