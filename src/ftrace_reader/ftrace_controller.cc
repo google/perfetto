@@ -112,15 +112,15 @@ void WriteToFile(const char* path, const char* str) {
   int fd = open(path, O_WRONLY);
   if (fd == -1)
     return;
-  write(fd, str, strlen(str));
-  close(fd);
+  perfetto::base::ignore_result(write(fd, str, strlen(str)));
+  perfetto::base::ignore_result(close(fd));
 }
 
 void ClearFile(const char* path) {
   int fd = open(path, O_WRONLY | O_TRUNC);
   if (fd == -1)
     return;
-  close(fd);
+  perfetto::base::ignore_result(close(fd));
 }
 
 }  // namespace
