@@ -22,6 +22,7 @@
 #include "ftrace_procfs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto/ftrace_reader/ftrace_controller.h"
 
 using testing::HasSubstr;
 using testing::Not;
@@ -60,16 +61,31 @@ std::string GetTraceOutput() {
 
 }  // namespace
 
-// TODO(lalitm): reenable these thests (see b/72306171).
-TEST(FtraceProcfsIntegrationTest, DISABLED_CreateWithGoodPath) {
+// TODO(lalitm): reenable these tests (see b/72306171).
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_CreateWithGoodPath CreateWithGoodPath
+#else
+#define MAYBE_CreateWithGoodPath DISABLED_CreateWithGoodPath
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_CreateWithGoodPath) {
   EXPECT_TRUE(FtraceProcfs::Create(kTracingPath));
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_CreateWithBadPath) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_CreateWithBadPath CreateWithBadPath
+#else
+#define MAYBE_CreateWithBadPath DISABLED_CreateWithBadath
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_CreateWithBadPath) {
   EXPECT_FALSE(FtraceProcfs::Create(kTracingPath + std::string("bad_path")));
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_ClearTrace) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_ClearTrace ClearTrace
+#else
+#define MAYBE_ClearTrace DISABLED_ClearTrace
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_ClearTrace) {
   FtraceProcfs ftrace(kTracingPath);
   ResetFtrace(&ftrace);
   ftrace.WriteTraceMarker("Hello, World!");
@@ -77,14 +93,24 @@ TEST(FtraceProcfsIntegrationTest, DISABLED_ClearTrace) {
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello, World!")));
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_TraceMarker) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_TraceMarker TraceMarker
+#else
+#define MAYBE_TraceMarker DISABLED_TraceMarker
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_TraceMarker) {
   FtraceProcfs ftrace(kTracingPath);
   ResetFtrace(&ftrace);
   ftrace.WriteTraceMarker("Hello, World!");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello, World!"));
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_EnableDisableEvent) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_EnableDisableEvent EnableDisableEvent
+#else
+#define MAYBE_EnableDisableEvent DISABLED_EnableDisableEvent
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_EnableDisableEvent) {
   FtraceProcfs ftrace(kTracingPath);
   ResetFtrace(&ftrace);
   ftrace.EnableEvent("sched", "sched_switch");
@@ -97,7 +123,12 @@ TEST(FtraceProcfsIntegrationTest, DISABLED_EnableDisableEvent) {
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("sched_switch")));
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_EnableDisableTracing) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_EnableDisableTracing EnableDisableTracing
+#else
+#define MAYBE_EnableDisableTracing DISABLED_EnableDisableTracing
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_EnableDisableTracing) {
   FtraceProcfs ftrace(kTracingPath);
   ResetFtrace(&ftrace);
   EXPECT_TRUE(ftrace.IsTracingEnabled());
@@ -113,25 +144,45 @@ TEST(FtraceProcfsIntegrationTest, DISABLED_EnableDisableTracing) {
   EXPECT_THAT(GetTraceOutput(), HasSubstr("After"));
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_ReadFormatFile) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_ReadFormatFile ReadFormatFile
+#else
+#define MAYBE_ReadFormatFile DISABLED_ReadFormatFile
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_ReadFormatFile) {
   FtraceProcfs ftrace(kTracingPath);
   std::string format = ftrace.ReadEventFormat("ftrace", "print");
   EXPECT_THAT(format, HasSubstr("name: print"));
   EXPECT_THAT(format, HasSubstr("field:char buf"));
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_ReadAvailableEvents) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_ReadAvailableEvents ReadAvailableEvents
+#else
+#define MAYBE_ReadAvailableEvents DISABLED_ReadAvailableEvents
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_ReadAvailableEvents) {
   FtraceProcfs ftrace(kTracingPath);
   std::string format = ftrace.ReadAvailableEvents();
   EXPECT_THAT(format, HasSubstr("sched:sched_switch"));
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_CanOpenTracePipeRaw) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_CanOpenTracePipeRaw CanOpenTracePipeRaw
+#else
+#define MAYBE_CanOpenTracePipeRaw DISABLED_CanOpenTracePipeRaw
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_CanOpenTracePipeRaw) {
   FtraceProcfs ftrace(kTracingPath);
   EXPECT_TRUE(ftrace.OpenPipeForCpu(0));
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_Clock) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_Clock Clock
+#else
+#define MAYBE_Clock DISABLED_Clock
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_Clock) {
   FtraceProcfs ftrace(kTracingPath);
   std::set<std::string> clocks = ftrace.AvailableClocks();
   EXPECT_THAT(clocks, Contains("local"));
@@ -143,12 +194,39 @@ TEST(FtraceProcfsIntegrationTest, DISABLED_Clock) {
   EXPECT_EQ(ftrace.GetClock(), "local");
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_CanSetBufferSize) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_CanSetBufferSize CanSetBufferSize
+#else
+#define MAYBE_CanSetBufferSize DISABLED_CanSetBufferSize
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_CanSetBufferSize) {
   FtraceProcfs ftrace(kTracingPath);
   EXPECT_TRUE(ftrace.SetCpuBufferSizeInPages(4ul));
   EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");  // (4096 * 4) / 1024
   EXPECT_TRUE(ftrace.SetCpuBufferSizeInPages(5ul));
   EXPECT_EQ(ReadFile("buffer_size_kb"), "20\n");  // (4096 * 5) / 1024
+}
+
+TEST(FtraceProcfsIntegrationTest, DISABLED_FtraceControllerHardReset) {
+  FtraceProcfs ftrace(kTracingPath);
+  ResetFtrace(&ftrace);
+
+  ftrace.SetCpuBufferSizeInPages(4ul);
+  ftrace.EnableTracing();
+  ftrace.EnableEvent("sched", "sched_switch");
+  ftrace.WriteTraceMarker("Hello, World!");
+
+  EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");
+  EXPECT_EQ(ReadFile("tracing_on"), "1\n");
+  EXPECT_EQ(ReadFile("events/enable"), "X\n");
+  EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello"));
+
+  HardResetFtraceState();
+
+  EXPECT_EQ(ReadFile("buffer_size_kb"), "4\n");
+  EXPECT_EQ(ReadFile("tracing_on"), "0\n");
+  EXPECT_EQ(ReadFile("events/enable"), "0\n");
+  EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello")));
 }
 
 }  // namespace perfetto

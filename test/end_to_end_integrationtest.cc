@@ -37,13 +37,13 @@
 #include "test/fake_producer.h"
 #include "test/task_runner_thread.h"
 
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include "perfetto/base/android_task_runner.h"
 #endif
 
 namespace perfetto {
 
-#if BUILDFLAG(OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 using PlatformTaskRunner = base::AndroidTaskRunner;
 #else
 using PlatformTaskRunner = base::UnixTaskRunner;
@@ -51,7 +51,8 @@ using PlatformTaskRunner = base::UnixTaskRunner;
 
 // If we're building on Android and starting the daemons ourselves,
 // create the sockets in a world-writable location.
-#if BUILDFLAG(OS_ANDROID) && BUILDFLAG(PERFETTO_START_DAEMONS)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
 #define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
 #define TEST_CONSUMER_SOCK_NAME "/data/local/tmp/traced_consumer"
 #else
@@ -112,16 +113,19 @@ class PerfettoTest : public ::testing::Test {
   };
 };
 
-// TODO(lalitm): reenable this when we have a solution for running ftrace
-// on travis.
-TEST_F(PerfettoTest, DISABLED_TestFtraceProducer) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_TestFtraceProducer TestFtraceProducer
+#else
+#define MAYBE_TestFtraceProducer DISABLED_TestFtraceProducer
+#endif
+TEST_F(PerfettoTest, MAYBE_TestFtraceProducer) {
   base::TestTaskRunner task_runner;
   auto finish = task_runner.CreateCheckpoint("no.more.packets");
 
   // Setip the TraceConfig for the consumer.
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(4096 * 10);
-  trace_config.set_duration_ms(200);
+  trace_config.set_duration_ms(3000);
 
   // Create the buffer for ftrace.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -156,7 +160,7 @@ TEST_F(PerfettoTest, DISABLED_TestFtraceProducer) {
     }
   };
 
-#if BUILDFLAG(PERFETTO_START_DAEMONS)
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
   TaskRunnerThread service_thread;
   service_thread.Start(std::unique_ptr<ServiceDelegate>(new ServiceDelegate));
 
@@ -207,7 +211,7 @@ TEST_F(PerfettoTest, TestFakeProducer) {
     }
   };
 
-#if BUILDFLAG(PERFETTO_START_DAEMONS)
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
   TaskRunnerThread service_thread;
   service_thread.Start(std::unique_ptr<ServiceDelegate>(new ServiceDelegate));
 #endif
