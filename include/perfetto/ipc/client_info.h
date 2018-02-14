@@ -17,6 +17,8 @@
 #ifndef INCLUDE_PERFETTO_IPC_CLIENT_INFO_H_
 #define INCLUDE_PERFETTO_IPC_CLIENT_INFO_H_
 
+#include <unistd.h>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ipc/basic_types.h"
 
@@ -27,7 +29,8 @@ namespace ipc {
 class ClientInfo {
  public:
   ClientInfo() = default;
-  ClientInfo(ClientID client_id, int uid) : client_id_(client_id), uid_(uid) {}
+  ClientInfo(ClientID client_id, uid_t uid)
+      : client_id_(client_id), uid_(uid) {}
 
   bool operator==(const ClientInfo& other) const {
     return (client_id_ == other.client_id_ && uid_ == other.uid_);
@@ -46,11 +49,11 @@ class ClientInfo {
   ClientID client_id() const { return client_id_; }
 
   // Posix User ID. Comes from the kernel, can be trusted.
-  int uid() const { return uid_; }
+  uid_t uid() const { return uid_; }
 
  private:
   ClientID client_id_ = 0;
-  int uid_ = -1;
+  uid_t uid_ = -1;
 };
 
 }  // namespace ipc

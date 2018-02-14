@@ -20,6 +20,7 @@ proto_sources = [
   "test_event.proto",
   "trace_packet.proto",
   "trace.proto",
+  "trusted_packet.proto",
 ]
 
 # Protozero generated stubs, for writers.

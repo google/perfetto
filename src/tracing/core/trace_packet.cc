@@ -41,8 +41,8 @@ bool TracePacket::Decode() {
 }
 
 void TracePacket::AddChunk(Chunk chunk) {
-  chunks_.push_back(chunk);
   size_ += chunk.size;
+  chunks_.push_back(std::move(chunk));
 }
 
 }  // namespace perfetto
