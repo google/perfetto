@@ -44,11 +44,11 @@ void FakeConsumer::Connect(const char* socket_name) {
 
 void FakeConsumer::OnConnect() {
   endpoint_->EnableTracing(trace_config_);
-  task_runner_->PostDelayedTask(std::bind([this]() {
-                                  endpoint_->DisableTracing();
-                                  endpoint_->ReadBuffers();
-                                }),
-                                trace_config_.duration_ms());
+}
+
+void FakeConsumer::ReadTraceData() {
+  endpoint_->DisableTracing();
+  endpoint_->ReadBuffers();
 }
 
 void FakeConsumer::OnDisconnect() {
