@@ -207,7 +207,12 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_CanSetBufferSize) {
   EXPECT_EQ(ReadFile("buffer_size_kb"), "20\n");  // (4096 * 5) / 1024
 }
 
-TEST(FtraceProcfsIntegrationTest, DISABLED_FtraceControllerHardReset) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_FtraceControllerHardReset FtraceControllerHardReset
+#else
+#define MAYBE_FtraceControllerHardReset DISABLED_FtraceControllerHardReset
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_FtraceControllerHardReset) {
   FtraceProcfs ftrace(kTracingPath);
   ResetFtrace(&ftrace);
 
