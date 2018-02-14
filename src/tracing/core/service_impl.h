@@ -22,6 +22,7 @@
 #include <memory>
 #include <set>
 
+#include "gtest/gtest_prod.h"
 #include "perfetto/base/page_allocator.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
@@ -52,6 +53,7 @@ class ServiceImpl : public Service {
   class ProducerEndpointImpl : public Service::ProducerEndpoint {
    public:
     ProducerEndpointImpl(ProducerID,
+                         uid_t uid,
                          ServiceImpl*,
                          base::TaskRunner*,
                          Producer*,
@@ -69,10 +71,12 @@ class ServiceImpl : public Service {
 
    private:
     friend class ServiceImpl;
+    FRIEND_TEST(ServiceImplTest, RegisterAndUnregister);
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
 
     ProducerID const id_;
+    const uid_t uid_;
     ServiceImpl* const service_;
     base::TaskRunner* const task_runner_;
     Producer* producer_;
@@ -134,6 +138,7 @@ class ServiceImpl : public Service {
   // Service implementation.
   std::unique_ptr<Service::ProducerEndpoint> ConnectProducer(
       Producer*,
+      uid_t uid,
       size_t shared_buffer_size_hint_bytes = 0) override;
 
   std::unique_ptr<Service::ConsumerEndpoint> ConnectConsumer(
@@ -164,9 +169,15 @@ class ServiceImpl : public Service {
       return reinterpret_cast<uint8_t*>(data.get()) + page * kBufferPageSize;
     }
 
-    uint8_t* get_next_page() {
+    uid_t get_page_owner(size_t page) const {
+      PERFETTO_DCHECK(page < num_pages());
+      return page_owners[page];
+    }
+
+    uint8_t* acquire_next_page(uid_t uid) {
       size_t cur = cur_page;
       cur_page = cur_page == num_pages() - 1 ? 0 : cur_page + 1;
+      page_owners[cur] = uid;
       return get_page(cur);
     }
 
@@ -179,6 +190,9 @@ class ServiceImpl : public Service {
     // the convenience of SharedMemoryABI for bookkeeping of the buffer when
     // implementing ReadBuffers().
     std::unique_ptr<SharedMemoryABI> abi;
+
+    // Trusted uid for each acquired page.
+    std::vector<uid_t> page_owners;
   };
 
   // Holds the state of a tracing session. A tracing session is uniquely bound

@@ -27,7 +27,7 @@ namespace {
 
 TEST(TracePacketTest, Simple) {
   protos::TracePacket proto;
-  proto.set_test("string field");
+  proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
   tp.AddChunk({ser_buf.data(), ser_buf.size()});
@@ -40,23 +40,24 @@ TEST(TracePacketTest, Simple) {
   ASSERT_TRUE(tp.Decode());
   ASSERT_TRUE(tp.Decode());  // Decode() should be idempotent.
   ASSERT_NE(nullptr, tp.operator->());
-  ASSERT_EQ(proto.test(), tp->test());
-  ASSERT_EQ(proto.test(), (*tp).test());
+  ASSERT_EQ(proto.for_testing().str(), tp->for_testing().str());
+  ASSERT_EQ(proto.for_testing().str(), (*tp).for_testing().str());
 
   // Check move operators.
   TracePacket moved_tp(std::move(tp));
   ASSERT_NE(nullptr, moved_tp.operator->());
-  ASSERT_EQ(proto.test(), moved_tp->test());
+  ASSERT_EQ(proto.for_testing().str(), moved_tp->for_testing().str());
 
   TracePacket moved_tp_2;
   moved_tp_2 = std::move(moved_tp);
   ASSERT_NE(nullptr, moved_tp_2.operator->());
-  ASSERT_EQ(proto.test(), moved_tp_2->test());
+  ASSERT_EQ(proto.for_testing().str(), moved_tp_2->for_testing().str());
 }
 
 TEST(TracePacketTest, Chunked) {
   protos::TracePacket proto;
-  proto.set_test("this is an arbitrarily long string ........................");
+  proto.mutable_for_testing()->set_str(
+      "this is an arbitrarily long string ........................");
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
   tp.AddChunk({ser_buf.data(), 3});
@@ -81,12 +82,12 @@ TEST(TracePacketTest, Chunked) {
 
   ASSERT_TRUE(tp.Decode());
   ASSERT_NE(nullptr, tp.operator->());
-  ASSERT_EQ(proto.test(), tp->test());
+  ASSERT_EQ(proto.for_testing().str(), tp->for_testing().str());
 }
 
 TEST(TracePacketTest, Corrupted) {
   protos::TracePacket proto;
-  proto.set_test("string field");
+  proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
   tp.AddChunk({ser_buf.data(), ser_buf.size() - 2});  // corrupted.

@@ -30,6 +30,10 @@
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/shared_memory.h"
 #include "perfetto/tracing/core/trace_packet.h"
+#include "src/tracing/core/packet_stream_validator.h"
+
+#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trusted_packet.pb.h"
 
 // General note: this class must assume that Producers are malicious and will
 // try to crash / exploit this class. We can trust pointers because they come
@@ -38,7 +42,9 @@
 
 namespace perfetto {
 
+using protozero::proto_utils::MakeTagVarInt;
 using protozero::proto_utils::ParseVarInt;
+using protozero::proto_utils::WriteVarInt;
 
 namespace {
 constexpr size_t kDefaultShmSize = base::kPageSize * 64;  // 256 KB.
@@ -69,6 +75,7 @@ ServiceImpl::~ServiceImpl() {
 
 std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
     Producer* producer,
+    uid_t uid,
     size_t shared_buffer_size_hint_bytes) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   const ProducerID id = ++last_producer_id_;
@@ -82,7 +89,7 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
   // to go away.
   auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
-      id, this, task_runner_, producer, std::move(shared_memory)));
+      id, uid, this, task_runner_, producer, std::move(shared_memory)));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer_));
@@ -297,6 +304,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
       const size_t page_idx = (i + tbuf.cur_page) % tbuf.num_pages();
       if (abi.is_page_free(page_idx))
         continue;
+      const uid_t page_owner = tbuf.get_page_owner(page_idx);
       uint32_t layout = abi.page_layout_dbg(page_idx);
       size_t num_chunks = abi.GetNumChunksForLayout(layout);
       for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
@@ -333,9 +341,33 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
             PERFETTO_DLOG("out of bounds!");
             break;
           }
+          ChunkSequence chunk_seq;
+          chunk_seq.emplace_back(ptr, pack_size);
+          if (!skip && !PacketStreamValidator::Validate(chunk_seq)) {
+            PERFETTO_DLOG("Dropping invalid packet");
+            skip = true;
+          }
+
           if (!skip) {
             packets->emplace_back();
-            packets->back().AddChunk(Chunk(ptr, pack_size));
+            for (Chunk& validated_chunk : chunk_seq)
+              packets->back().AddChunk(std::move(validated_chunk));
+
+            // Append a chunk with the trusted UID of the producer. This can't
+            // be spoofed because above we validated that the existing chunks
+            // don't contain any trusted UID fields. For added safety we append
+            // instead of prepending because according to protobuf semantics, if
+            // the same field is encountered multiple times the last instance
+            // takes priority. Note that truncated packets are also rejected, so
+            // the producer can't give us a partial packet (e.g., a truncated
+            // string) which only becomes valid when the UID is appended here.
+            protos::TrustedPacket trusted_packet;
+            trusted_packet.set_trusted_uid(page_owner);
+            uint8_t trusted_buf[16];
+            PERFETTO_CHECK(trusted_packet.SerializeToArray(
+                &trusted_buf, sizeof(trusted_buf)));
+            packets->back().AddChunk(
+                Chunk::Copy(trusted_buf, trusted_packet.ByteSize()));
           }
           ptr += pack_size;
         }  // for(packet)
@@ -466,7 +498,8 @@ void ServiceImpl::CopyProducerPageIntoLogBuffer(ProducerID producer_id,
   // log buffer that has nothing to do with it.
 
   PERFETTO_DCHECK(size == kBufferPageSize);
-  uint8_t* dst = buf.get_next_page();
+  uid_t uid = GetProducer(producer_id)->uid_;
+  uint8_t* dst = buf.acquire_next_page(uid);
 
   // TODO(primiano): use sendfile(). Requires to make the tbuf itself
   // a file descriptor (just use SharedMemory without sharing it).
@@ -543,11 +576,13 @@ ServiceImpl::ConsumerEndpointImpl::GetWeakPtr() {
 
 ServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     ProducerID id,
+    uid_t uid,
     ServiceImpl* service,
     base::TaskRunner* task_runner,
     Producer* producer,
     std::unique_ptr<SharedMemory> shared_memory)
     : id_(id),
+      uid_(uid),
       service_(service),
       task_runner_(task_runner),
       producer_(producer),
@@ -639,6 +674,8 @@ bool ServiceImpl::TraceBuffer::Create(size_t sz) {
   }
   size = sz;
   abi.reset(new SharedMemoryABI(get_page(0), size, kBufferPageSize));
+  PERFETTO_DCHECK(page_owners.empty());
+  page_owners.resize(size, -1);
   return true;
 }
 

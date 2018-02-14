@@ -51,7 +51,8 @@ ProducerIPCService::GetProducerForCurrentRequest() {
 void ProducerIPCService::InitializeConnection(
     const InitializeConnectionRequest& req,
     DeferredInitializeConnectionResponse response) {
-  const ipc::ClientID ipc_client_id = ipc::Service::client_info().client_id();
+  const auto& client_info = ipc::Service::client_info();
+  const ipc::ClientID ipc_client_id = client_info.client_id();
   PERFETTO_CHECK(ipc_client_id);
 
   if (producers_.count(ipc_client_id) > 0) {
@@ -65,7 +66,7 @@ void ProducerIPCService::InitializeConnection(
 
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
-      producer.get(), req.shared_buffer_size_hint_bytes());
+      producer.get(), client_info.uid(), req.shared_buffer_size_hint_bytes());
   const int shm_fd = static_cast<PosixSharedMemory*>(
                          producer->service_endpoint->shared_memory())
                          ->fd();
