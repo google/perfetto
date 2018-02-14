@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_TRACING_CORE_CHUNK_H_
 
 #include <stddef.h>
+#include <string.h>
 
 #include <memory>
 #include <vector>
