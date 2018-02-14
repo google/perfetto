@@ -33,7 +33,9 @@ class FakeProducer : public Producer {
   explicit FakeProducer(const std::string& name);
   ~FakeProducer() override;
 
-  void Connect(const char* socket_name, base::TaskRunner* task_runner);
+  void Connect(const char* socket_name,
+               base::TaskRunner* task_runner,
+               std::function<void()> data_produced_callback);
 
   // Producer implementation.
   void OnConnect() override;
@@ -48,6 +50,8 @@ class FakeProducer : public Producer {
   std::string name_;
   DataSourceID id_ = 0;
   std::unique_ptr<Service::ProducerEndpoint> endpoint_;
+  base::TaskRunner* task_runner_ = nullptr;
+  std::function<void()> data_produced_callback_;
 };
 
 }  // namespace perfetto

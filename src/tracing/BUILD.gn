@@ -24,6 +24,7 @@ source_set("tracing") {
   ]
   deps = [
     "../../gn:default_deps",
+    "../../gn:gtest_prod_config",
     "../../protos/perfetto/config",
     "../base",
   ]
@@ -34,6 +35,8 @@ source_set("tracing") {
     "core/data_source_descriptor.cc",
     "core/id_allocator.cc",
     "core/id_allocator.h",
+    "core/packet_stream_validator.cc",
+    "core/packet_stream_validator.h",
     "core/service_impl.cc",
     "core/service_impl.h",
     "core/shared_memory_abi.cc",
@@ -112,6 +115,7 @@ source_set("tracing_unittests") {
   sources = [
     "core/chunked_protobuf_input_stream_unittest.cc",
     "core/id_allocator_unittest.cc",
+    "core/packet_stream_validator_unittest.cc",
     "core/service_impl_unittest.cc",
     "core/shared_memory_abi_unittest.cc",
     "core/shared_memory_arbiter_impl_unittest.cc",
