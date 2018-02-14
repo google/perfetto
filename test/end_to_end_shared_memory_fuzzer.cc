@@ -22,6 +22,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/ipc/host.h"
+#include "perfetto/trace/test_event.pbzero.h"
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -72,7 +73,7 @@ class FakeProducer : public Producer {
     packet->Finalize();
 
     auto end_packet = trace_writer->NewTracePacket();
-    end_packet->set_test("end");
+    end_packet->set_for_testing()->set_str("end");
     end_packet->Finalize();
   }
 
@@ -147,7 +148,7 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
   auto function = [&finish](std::vector<TracePacket> packets, bool has_more) {
     for (auto& p : packets) {
       p.Decode();
-      if (p->test() == "end")
+      if (p->for_testing().str() == "end")
         finish();
     }
   };
