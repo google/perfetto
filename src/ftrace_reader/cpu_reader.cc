@@ -16,6 +16,8 @@
 
 #include "cpu_reader.h"
 
+#include <signal.h>
+
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -60,6 +62,12 @@ const std::vector<bool> BuildEnabledVector(const ProtoTranslationTable& table,
   return enabled;
 }
 
+void SetBlocking(int fd, bool is_blocking) {
+  int flags = fcntl(fd, F_GETFL, 0);
+  flags = (is_blocking) ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
+  PERFETTO_CHECK(fcntl(fd, F_SETFL, flags) == 0);
+}
+
 // For further documentation of these constants see the kernel source:
 // linux/include/linux/ring_buffer.h
 // Some information about the values of these constants are exposed to user
@@ -96,42 +104,131 @@ EventFilter::~EventFilter() = default;
 
 CpuReader::CpuReader(const ProtoTranslationTable* table,
                      size_t cpu,
-                     base::ScopedFile fd)
-    : table_(table), cpu_(cpu), fd_(std::move(fd)) {}
+                     base::ScopedFile fd,
+                     std::function<void()> on_data_available)
+    : table_(table), cpu_(cpu), trace_fd_(std::move(fd)) {
+  int pipe_fds[2];
+  PERFETTO_CHECK(pipe(&pipe_fds[0]) == 0);
+  staging_read_fd_.reset(pipe_fds[0]);
+  staging_write_fd_.reset(pipe_fds[1]);
 
-int CpuReader::GetFileDescriptor() {
-  return fd_.get();
+  // Make reads from the raw pipe blocking so that splice() can sleep.
+  PERFETTO_CHECK(trace_fd_);
+  SetBlocking(*trace_fd_, true);
+
+  // Reads from the staging pipe are always non-blocking.
+  SetBlocking(*staging_read_fd_, false);
+
+  // Note: O_NONBLOCK seems to be ignored by splice() on the target pipe. The
+  // blocking vs non-blocking behavior is controlled solely by the
+  // SPLICE_F_NONBLOCK flag passed to splice().
+  SetBlocking(*staging_write_fd_, false);
+
+  // We need a non-default SIGPIPE handler to make it so that the blocking
+  // splice() is woken up when the ~CpuReader() dtor destroys the pipes.
+  // Just masking out the signal would cause an implicit syscall restart and
+  // hence make the join() in the dtor unreliable.
+  struct sigaction current_act = {};
+  PERFETTO_CHECK(sigaction(SIGPIPE, nullptr, &current_act) == 0);
+  if (current_act.sa_handler == SIG_DFL || current_act.sa_handler == SIG_IGN) {
+    struct sigaction act = {};
+    act.sa_sigaction = [](int, siginfo_t*, void*) {};
+    PERFETTO_CHECK(sigaction(SIGPIPE, &act, nullptr) == 0);
+  }
+
+  worker_thread_ =
+      std::thread(std::bind(&RunWorkerThread, cpu_, *trace_fd_,
+                            *staging_write_fd_, on_data_available));
+}
+
+CpuReader::~CpuReader() {
+  // Close the staging pipe to cause any pending splice on the worker thread to
+  // exit.
+  staging_read_fd_.reset();
+  staging_write_fd_.reset();
+  trace_fd_.reset();
+
+  // Not strictly required, but let's also raise the pipe signal explicitly just
+  // to be safe.
+  pthread_kill(worker_thread_.native_handle(), SIGPIPE);
+  worker_thread_.join();
+}
+
+// static
+void CpuReader::RunWorkerThread(size_t cpu,
+                                int trace_fd,
+                                int staging_write_fd,
+                                std::function<void()> on_data_available) {
+  // This thread is responsible for moving data from the trace pipe into the
+  // staging pipe at least one page at a time. This is done using the splice(2)
+  // system call, which unlike poll/select makes it possible to block until at
+  // least a full page of data is ready to be read. The downside is that as the
+  // call is blocking we need a dedicated thread for each trace pipe (i.e.,
+  // CPU).
+  char thread_name[16];
+  snprintf(thread_name, sizeof(thread_name), "traced_probes%zu", cpu);
+  pthread_setname_np(pthread_self(), thread_name);
+
+  while (true) {
+    // First do a blocking splice which sleeps until there is at least one
+    // page of data available and enough space to write it into the staging
+    // pipe.
+    int splice_res = splice(trace_fd, nullptr, staging_write_fd, nullptr,
+                            base::kPageSize, SPLICE_F_MOVE);
+    if (splice_res < 0) {
+      // The kernel ftrace code has its own splice() implementation that can
+      // occasionally fail with transient errors not reported in man 2 splice.
+      // Just try again if we see these.
+      if (errno == ENOMEM || errno == EBUSY) {
+        PERFETTO_DPLOG("Transient splice failure -- retrying");
+        usleep(100 * 1000);
+        continue;
+      }
+      PERFETTO_DCHECK(errno == EPIPE || errno == EINTR || errno == EBADF);
+      break;  // ~CpuReader is waiting to join this thread.
+    }
+
+    // Then do as many non-blocking splices as we can. This moves any full
+    // pages from the trace pipe into the staging pipe as long as there is
+    // data in the former and space in the latter.
+    while (true) {
+      splice_res = splice(trace_fd, nullptr, staging_write_fd, nullptr,
+                          base::kPageSize, SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
+      if (splice_res < 0) {
+        if (errno != EAGAIN && errno != ENOMEM && errno != EBUSY)
+          PERFETTO_PLOG("splice");
+        break;
+      }
+    }
+
+    // This callback will block until we are allowed to read more data.
+    on_data_available();
+  }
 }
 
 bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
                       const std::array<BundleHandle, kMaxSinks>& bundles) {
-  if (!fd_)
-    return false;
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  while (true) {
+    uint8_t* buffer = GetBuffer();
+    long bytes =
+        PERFETTO_EINTR(read(*staging_read_fd_, buffer, base::kPageSize));
+    if (bytes == -1 && errno == EAGAIN)
+      return true;
+    PERFETTO_CHECK(static_cast<size_t>(bytes) == base::kPageSize);
 
-  uint8_t* buffer = GetBuffer();
-  // TOOD(hjd): One read() per page may be too many.
-  long bytes = PERFETTO_EINTR(read(fd_.get(), buffer, base::kPageSize));
-  if (bytes == -1 && errno == EAGAIN)
-    return false;
-  if (bytes != base::kPageSize)
-    return false;
-  PERFETTO_CHECK(static_cast<size_t>(bytes) <= base::kPageSize);
-
-  size_t evt_size = 0;
-  for (size_t i = 0; i < kMaxSinks; i++) {
-    if (!filters[i])
-      break;
-    evt_size = ParsePage(cpu_, buffer, filters[i], &*bundles[i], table_);
-    PERFETTO_DCHECK(evt_size);
+    size_t evt_size = 0;
+    for (size_t i = 0; i < kMaxSinks; i++) {
+      if (!filters[i])
+        break;
+      evt_size = ParsePage(cpu_, buffer, filters[i], &*bundles[i], table_);
+      PERFETTO_DCHECK(evt_size);
+    }
   }
-
-  // TODO(hjd): Introduce enum to distinguish real failures.
-  return evt_size > (base::kPageSize / 2);
 }
 
-CpuReader::~CpuReader() = default;
-
 uint8_t* CpuReader::GetBuffer() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   // TODO(primiano): Guard against overflows, like BufferedFrameDeserializer.
   if (!buffer_)
     buffer_ = std::unique_ptr<uint8_t[]>(new uint8_t[base::kPageSize]);
