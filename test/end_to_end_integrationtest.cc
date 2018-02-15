@@ -116,7 +116,13 @@ class PerfettoTest : public ::testing::Test {
   };
 };
 
-// TODO(b/73453011): reenable this when fixed.
+// TODO(b/73453011): reenable this on more platforms (including standalone
+// Android).
+#if PERFETTO_BUILDFLAG(PERFETTO_BUILD_WITH_ANDROID)
+#define MAYBE_TestFtraceProducer TestFtraceProducer
+#else
+#define MAYBE_TestFtraceProducer DISABLED_TestFtraceProducer
+#endif
 TEST_F(PerfettoTest, DISABLED_TestFtraceProducer) {
   base::TestTaskRunner task_runner;
   auto finish = task_runner.CreateCheckpoint("no.more.packets");
