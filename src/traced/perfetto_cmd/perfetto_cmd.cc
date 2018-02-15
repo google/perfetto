@@ -41,9 +41,11 @@
 #include "perfetto/config/trace_config.pb.h"
 #include "perfetto/trace/trace.pb.h"
 
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#if defined(PERFETTO_OS_ANDROID)
 #include "perfetto/base/android_task_runner.h"
+#endif  // defined(PERFETTO_OS_ANDROID)
 
+#if defined(PERFETTO_BUILD_WITH_ANDROID)
 #include <android/os/DropBoxManager.h>
 #include <utils/Looper.h>
 #include <utils/StrongPointer.h>
@@ -72,7 +74,7 @@ std::string GetDirName(const std::string& path) {
 using protozero::proto_utils::WriteVarInt;
 using protozero::proto_utils::MakeTagLengthDelimited;
 
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#if defined(PERFETTO_OS_ANDROID)
 using PlatformTaskRunner = base::AndroidTaskRunner;
 #else
 using PlatformTaskRunner = base::UnixTaskRunner;
