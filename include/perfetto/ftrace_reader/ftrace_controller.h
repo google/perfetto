@@ -19,8 +19,11 @@
 
 #include <unistd.h>
 
+#include <bitset>
+#include <condition_variable>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 #include <vector>
@@ -41,6 +44,7 @@ class FtraceEventBundle;
 }  // namespace protos
 
 const size_t kMaxSinks = 32;
+const size_t kMaxCpus = 64;
 
 // Method of last resort to reset ftrace state.
 void HardResetFtraceState();
@@ -115,22 +119,30 @@ class FtraceController {
                    base::TaskRunner*,
                    std::unique_ptr<ProtoTranslationTable>);
 
-  // Called to read  data from the raw pipe
-  // for the given |cpu|. Kicks off the reading/parsing
-  // of the pipe. Returns true if there is probably more to read.
+  // Called to read data from the staging pipe for the given |cpu| and parse it
+  // into the sinks. Protected and virtual for testing.
+  virtual void OnRawFtraceDataAvailable(size_t cpu);
+
   // Protected and virtual for testing.
-  virtual bool OnRawFtraceDataAvailable(size_t cpu);
+  virtual uint64_t NowMs() const;
 
  private:
   friend FtraceSink;
+  friend class TestFtraceController;
   FRIEND_TEST(FtraceControllerIntegrationTest, EnableDisableEvent);
 
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
 
-  static void PeriodicDrainCPU(base::WeakPtr<FtraceController>,
-                               size_t generation,
-                               int cpu);
+  // Called on a worker thread when |cpu| has at least one page of data
+  // available for reading.
+  void OnDataAvailable(base::WeakPtr<FtraceController>,
+                       size_t generation,
+                       size_t cpu,
+                       uint32_t drain_period_ms);
+
+  static void DrainCPUs(base::WeakPtr<FtraceController>, size_t generation);
+  static void UnblockReaders(base::WeakPtr<FtraceController>);
 
   uint32_t GetDrainPeriodMs();
   uint32_t GetCpuBufferSizeInPages();
@@ -146,13 +158,15 @@ class FtraceController {
   void StartIfNeeded();
   void StopIfNeeded();
 
-  // Returns a cached CpuReader for |cpu|.
-  // CpuReaders are constructed lazily and owned by the controller.
-  CpuReader* GetCpuReader(size_t cpu);
+  // Begin lock-protected members.
+  std::mutex lock_;
+  std::condition_variable data_drained_;
+  std::bitset<kMaxCpus> cpus_to_drain_;
+  bool listening_for_raw_trace_data_ = false;
+  // End lock-protected members.
 
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
   size_t generation_ = 0;
-  bool listening_for_raw_trace_data_ = false;
   bool atrace_running_ = false;
   base::TaskRunner* task_runner_ = nullptr;
   std::vector<size_t> enabled_count_;

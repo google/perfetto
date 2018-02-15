@@ -28,11 +28,11 @@
 #include "src/tracing/test/test_shared_memory.h"
 
 namespace perfetto {
-namespace {
-
 using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Mock;
+
+namespace {
 
 class MockProducer : public Producer {
  public:
@@ -46,7 +46,9 @@ class MockProducer : public Producer {
   MOCK_METHOD1(TearDownDataSourceInstance, void(DataSourceInstanceID));
 };
 
-TEST(ServiceImpl, RegisterAndUnregister) {
+}  // namespace
+
+TEST(ServiceImplTest, RegisterAndUnregister) {
   base::TestTaskRunner task_runner;
   auto shm_factory =
       std::unique_ptr<SharedMemory::Factory>(new TestSharedMemory::Factory());
@@ -55,9 +57,9 @@ TEST(ServiceImpl, RegisterAndUnregister) {
   MockProducer mock_producer_1;
   MockProducer mock_producer_2;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint_1 =
-      svc->ConnectProducer(&mock_producer_1);
+      svc->ConnectProducer(&mock_producer_1, 123u /* uid */);
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint_2 =
-      svc->ConnectProducer(&mock_producer_2);
+      svc->ConnectProducer(&mock_producer_2, 456u /* uid */);
 
   ASSERT_TRUE(producer_endpoint_1);
   ASSERT_TRUE(producer_endpoint_2);
@@ -70,6 +72,8 @@ TEST(ServiceImpl, RegisterAndUnregister) {
   ASSERT_EQ(2u, svc->num_producers());
   ASSERT_EQ(producer_endpoint_1.get(), svc->GetProducer(1));
   ASSERT_EQ(producer_endpoint_2.get(), svc->GetProducer(2));
+  ASSERT_EQ(123u, svc->GetProducer(1)->uid_);
+  ASSERT_EQ(456u, svc->GetProducer(2)->uid_);
 
   DataSourceDescriptor ds_desc1;
   ds_desc1.set_name("foo");
@@ -109,5 +113,4 @@ TEST(ServiceImpl, RegisterAndUnregister) {
   ASSERT_EQ(0u, svc->num_producers());
 }
 
-}  // namespace
 }  // namespace perfetto
