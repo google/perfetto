@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#ifndef INCLUDE_PERFETTO_FTRACE_READER_FTRACE_CONFIG_H_
+#define INCLUDE_PERFETTO_FTRACE_READER_FTRACE_CONFIG_H_
+
 #include <set>
 #include <string>
 
@@ -39,3 +42,5 @@ bool RequiresAtrace(const FtraceConfig&);
 bool ValidConfig(const FtraceConfig& config);
 
 }  // namespace perfetto
+
+#endif  // INCLUDE_PERFETTO_FTRACE_READER_FTRACE_CONFIG_H_

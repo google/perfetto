@@ -20,7 +20,6 @@ def CheckChange(input, output):
     # lines in them.
     long_line_sources = lambda x: input.FilterSourceFile(
             x, white_list=".*", black_list=['Android[.]bp'])
-
     results = []
     results += input.canned_checks.CheckDoNotSubmit(input, output)
     results += input.canned_checks.CheckChangeHasNoTabs(input, output)
@@ -28,6 +27,7 @@ def CheckChange(input, output):
             input, output, 80, source_file_filter=long_line_sources)
     results += input.canned_checks.CheckPatchFormatted(input, output)
     results += input.canned_checks.CheckGNFormatted(input, output)
+    results += CheckIncludeGuards(input, output)
     results += CheckAndroidBlueprint(input, output)
     results += CheckMergedTraceConfigProto(input, output)
     return results
@@ -51,6 +51,7 @@ def CheckAndroidBlueprint(input_api, output_api):
 
     with open('Android.bp') as f:
         current_blueprint = f.read()
+
     new_blueprint = subprocess.check_output(
         ['tools/gen_android_bp', '--output', '/dev/stdout'])
 
@@ -59,6 +60,21 @@ def CheckAndroidBlueprint(input_api, output_api):
             output_api.PresubmitError(
                 'Android.bp is out of date. Please run tools/gen_android_bp '
                 'to update it.')
+        ]
+    return []
+
+
+def CheckIncludeGuards(input_api, output_api):
+    tool = 'tools/fix_include_guards'
+    file_filter = lambda x: input_api.FilterSourceFile(
+          x,
+          white_list=('.*[.]cc$', '.*[.]h$', tool))
+    if not input_api.AffectedSourceFiles(file_filter):
+        return []
+    if subprocess.call([tool, '--check-only']):
+        return [
+            output_api.PresubmitError(
+                'Please run ' + tool + ' to fix include guards.')
         ]
     return []
 
