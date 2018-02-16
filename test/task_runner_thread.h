@@ -60,4 +60,4 @@ class TaskRunnerThread {
 
 }  // namespace perfetto
 
-#endif  // TEST_TASK_RUNNER_THREAD_H
+#endif  // TEST_TASK_RUNNER_THREAD_H_
