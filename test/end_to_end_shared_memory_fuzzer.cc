@@ -35,11 +35,11 @@
 #include "test/fake_consumer.h"
 #include "test/task_runner_thread.h"
 
-#define PRODUCER_SOCKET "/tmp/perfetto-producer"
-#define CONSUMER_SOCKET "/tmp/perfetto-consumer"
-
 namespace perfetto {
 namespace shm_fuzz {
+
+static const char* kProducerSocket = tempnam("/tmp", "perfetto-producer");
+static const char* kConsumerSocket = tempnam("/tmp", "perfetto-consumer");
 
 // Fake producer writing a protozero message of data into shared memory
 // buffer, followed by a sentinel message to signal completion to the
@@ -101,7 +101,7 @@ class FakeProducerDelegate : public ThreadDelegate {
   void Initialize(base::TaskRunner* task_runner) override {
     producer_.reset(new FakeProducer("android.perfetto.FakeProducer", data_,
                                      size_, consumer_));
-    producer_->Connect(PRODUCER_SOCKET, task_runner);
+    producer_->Connect(kProducerSocket, task_runner);
   }
 
  private:
@@ -117,9 +117,9 @@ class ServiceDelegate : public ThreadDelegate {
   ~ServiceDelegate() override = default;
   void Initialize(base::TaskRunner* task_runner) override {
     svc_ = ServiceIPCHost::CreateInstance(task_runner);
-    unlink(PRODUCER_SOCKET);
-    unlink(CONSUMER_SOCKET);
-    svc_->Start(PRODUCER_SOCKET, CONSUMER_SOCKET);
+    unlink(kProducerSocket);
+    unlink(kConsumerSocket);
+    svc_->Start(kProducerSocket, kConsumerSocket);
   }
 
  private:
@@ -155,7 +155,7 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
     }
   };
   FakeConsumer consumer(trace_config, std::move(function), &task_runner);
-  consumer.Connect(CONSUMER_SOCKET);
+  consumer.Connect(kConsumerSocket);
 
   TaskRunnerThread producer_thread;
   producer_thread.Start(std::unique_ptr<FakeProducerDelegate>(
