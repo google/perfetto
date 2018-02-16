@@ -230,7 +230,9 @@ void ProtoToCpp::Convert(const std::string& src_proto) {
   header_printer.Print("#include <type_traits>\n\n");
 
   cpp_printer.Print(kHeader, "f", __FILE__, "p", src_proto);
-  cpp_printer.Print("#include \"$f$\"\n", "f", dst_header);
+  PERFETTO_CHECK(dst_header.find("include/") == 0);
+  cpp_printer.Print("#include \"$f$\"\n", "f",
+                    dst_header.substr(strlen("include/")));
 
   // Generate includes for translated types of dependencies.
   for (int i = 0; i < proto_file->dependency_count(); i++) {
