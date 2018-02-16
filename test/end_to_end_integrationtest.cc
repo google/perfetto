@@ -187,7 +187,14 @@ TEST_F(PerfettoTest, MAYBE_TestFtraceProducer) {
   task_runner.RunUntilCheckpoint("no.more.packets", 20000);
 }
 
-TEST_F(PerfettoTest, TestFakeProducer) {
+// TODO(b/73453011): reenable this on more platforms (including standalone
+// Android).
+#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#define MAYBE_TestFakeProducer TestFakeProducer
+#else
+#define MAYBE_TestFakeProducer DISABLED_TestFakeProducer
+#endif
+TEST_F(PerfettoTest, MAYBE_TestFakeProducer) {
   base::TestTaskRunner task_runner;
   auto finish = task_runner.CreateCheckpoint("no.more.packets");
 
