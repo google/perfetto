@@ -17,8 +17,8 @@ import os
 import re
 import sys
 
-def fix_guards(fpath):
-  with open(fpath) as f:
+def fix_guards(fpath, checkonly):
+  with open(fpath, 'rb') as f:
     lines = [l.strip('\n') for l in f.readlines()]
   res = []
   guard = re.sub(r'[^a-zA-Z0-9_-]', '_', fpath.upper()) + '_'
@@ -29,7 +29,7 @@ def fix_guards(fpath):
     if lines[line_idx].startswith('#endif'):
       endif_line_idx = line_idx
       break
-  assert(endif_line_idx > 0)
+  assert endif_line_idx > 0, fpath
 
   line_idx = 0
   for line in lines:
@@ -41,29 +41,32 @@ def fix_guards(fpath):
       replacements = 2
     elif line_idx == endif_line_idx and replacements == 2:
       assert(line.startswith('#endif'))
-      line = '#endif  // ' + guard + '\n'
+      line = '#endif  // ' + guard
     res.append(line)
     line_idx += 1
   if res == lines:
     return 0
+  if checkonly:
+    print >>sys.stderr, 'Wrong #include guards in %s' % fpath
+    return 1
   with open(fpath, 'w') as f:
-    f.write('\n'.join(res))
+    f.write('\n'.join(res) + '\n')
   return 1
 
 def main():
-  if len(sys.argv) < 2:
-    print('Usage: %s src include' % sys.argv[0])
-    return 1
-
+  checkonly = '--check-only' in sys.argv
   num_files_changed = 0
-  for topdir in sys.argv[1:]:
+  for topdir in ('src', 'include'):
     for root, dirs, files in os.walk(topdir):
       for name in files:
         if not name.endswith('.h'):
           continue
         fpath = os.path.join(root, name)
-        num_files_changed += fix_guards(fpath)
-  print '%d files changed' % num_files_changed
+        num_files_changed += fix_guards(fpath, checkonly)
+  if checkonly:
+    return 0 if num_files_changed == 0 else 1
+  else:
+    print '%d files changed' % num_files_changed
 
 if __name__ == '__main__':
   sys.exit(main())
