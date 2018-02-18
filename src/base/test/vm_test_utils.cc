@@ -33,8 +33,10 @@ namespace vm_test_utils {
 bool IsMapped(void* start, size_t size) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   using PageState = char;
+  static constexpr PageState kIncoreMask = MINCORE_INCORE;
 #else
   using PageState = unsigned char;
+  static constexpr PageState kIncoreMask = 1;
 #endif
   EXPECT_EQ(0u, size % 4096);
   const size_t num_pages = size / 4096;
@@ -47,7 +49,7 @@ bool IsMapped(void* start, size_t size) {
     return false;
   EXPECT_EQ(0, res);
   for (size_t i = 0; i < num_pages; i++) {
-    if (!page_states[i])
+    if (!(page_states[i] & kIncoreMask))
       return false;
   }
   return true;
