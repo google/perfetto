@@ -40,4 +40,4 @@ class WatchDog {
 
 }  // namespace base
 }  // namespace perfetto
-#endif
+#endif  // INCLUDE_PERFETTO_BASE_WATCHDOG_H_

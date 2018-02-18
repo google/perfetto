@@ -327,7 +327,8 @@ TEST(FtraceControllerTest, TaskScheduling) {
   sink.reset();
 }
 
-TEST(FtraceControllerTest, DrainPeriodRespected) {
+// TODO(b/73452932): Fix and reenable this test.
+TEST(FtraceControllerTest, DISABLED_DrainPeriodRespected) {
   MockTaskRunner task_runner;
   auto ftrace_procfs =
       std::unique_ptr<MockFtraceProcfs>(new MockFtraceProcfs());
