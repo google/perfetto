@@ -12,27 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("file_utils") {
+source_set("process_stats") {
+  public_deps = []
+  deps = [
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/config",
+  ]
   sources = [
     "file_utils.cc",
     "file_utils.h",
     "process_info.h",
     "procfs_utils.cc",
     "procfs_utils.h",
-  ]
-  deps = [
-    "../../gn:default_deps",
-    "../../src/base",
-  ]
-}
-
-executable("dump_process_data") {
-  sources = [
-    "main.cc",
-  ]
-  deps = [
-    ":file_utils",
-    "../../gn:default_deps",
-    "../../src/base",
   ]
 }

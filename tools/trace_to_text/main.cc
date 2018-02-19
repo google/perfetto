@@ -74,98 +74,63 @@ using google::protobuf::compiler::DiskSourceTree;
 using google::protobuf::compiler::Importer;
 using google::protobuf::compiler::MultiFileErrorCollector;
 using google::protobuf::io::OstreamOutputStream;
-using protos::FtraceEvent;
-using protos::FtraceEventBundle;
-using protos::PrintFtraceEvent;
-using protos::SchedSwitchFtraceEvent;
-using protos::SchedWakeupFtraceEvent;
+using protos::BinderLockedFtraceEvent;
+using protos::BinderLockFtraceEvent;
+using protos::BinderSetPriorityFtraceEvent;
+using protos::BinderTransactionFtraceEvent;
+using protos::BinderTransactionReceivedFtraceEvent;
+using protos::BinderUnlockFtraceEvent;
+using protos::BlockRqIssueFtraceEvent;
+using protos::CgroupAttachTaskFtraceEvent;
+using protos::CgroupDestroyRootFtraceEvent;
+using protos::CgroupMkdirFtraceEvent;
+using protos::CgroupReleaseFtraceEvent;
+using protos::CgroupRemountFtraceEvent;
+using protos::CgroupRenameFtraceEvent;
+using protos::CgroupRmdirFtraceEvent;
+using protos::CgroupSetupRootFtraceEvent;
+using protos::CgroupTransferTasksFtraceEvent;
+using protos::ClockDisableFtraceEvent;
+using protos::ClockEnableFtraceEvent;
+using protos::ClockSetRateFtraceEvent;
 using protos::CpuFrequencyFtraceEvent;
 using protos::CpuFrequencyLimitsFtraceEvent;
 using protos::CpuIdleFtraceEvent;
-using protos::ClockEnableFtraceEvent;
-using protos::ClockDisableFtraceEvent;
-using protos::ClockSetRateFtraceEvent;
-using protos::SchedCpuHotplugFtraceEvent;
-using protos::SchedWakingFtraceEvent;
-using protos::IpiEntryFtraceEvent;
-using protos::IpiExitFtraceEvent;
-using protos::IpiRaiseFtraceEvent;
-using protos::I2cReadFtraceEvent;
-using protos::I2cWriteFtraceEvent;
-using protos::I2cResultFtraceEvent;
-using protos::I2cReplyFtraceEvent;
-using protos::SmbusReadFtraceEvent;
-using protos::SmbusWriteFtraceEvent;
-using protos::SmbusResultFtraceEvent;
-using protos::SmbusReplyFtraceEvent;
-using protos::IrqHandlerEntryFtraceEvent;
-using protos::IrqHandlerExitFtraceEvent;
-using protos::SyncPtFtraceEvent;
-using protos::SyncTimelineFtraceEvent;
-using protos::SyncWaitFtraceEvent;
 using protos::Ext4DaWriteBeginFtraceEvent;
 using protos::Ext4DaWriteEndFtraceEvent;
 using protos::Ext4SyncFileEnterFtraceEvent;
 using protos::Ext4SyncFileExitFtraceEvent;
-using protos::BlockRqIssueFtraceEvent;
-using protos::MmVmscanKswapdWakeFtraceEvent;
-using protos::MmVmscanKswapdSleepFtraceEvent;
-using protos::BinderTransactionFtraceEvent;
-using protos::BinderTransactionReceivedFtraceEvent;
-using protos::BinderSetPriorityFtraceEvent;
-using protos::BinderLockFtraceEvent;
-using protos::BinderLockedFtraceEvent;
-using protos::BinderUnlockFtraceEvent;
-using protos::RegulatorDisableFtraceEvent;
-using protos::RegulatorDisableCompleteFtraceEvent;
-using protos::RegulatorEnableFtraceEvent;
-using protos::RegulatorEnableCompleteFtraceEvent;
-using protos::RegulatorEnableDelayFtraceEvent;
-using protos::RegulatorSetVoltageFtraceEvent;
-using protos::RegulatorSetVoltageCompleteFtraceEvent;
-using protos::CgroupAttachTaskFtraceEvent;
-using protos::CgroupMkdirFtraceEvent;
-using protos::CgroupRemountFtraceEvent;
-using protos::CgroupRmdirFtraceEvent;
-using protos::CgroupTransferTasksFtraceEvent;
-using protos::CgroupDestroyRootFtraceEvent;
-using protos::CgroupReleaseFtraceEvent;
-using protos::CgroupRenameFtraceEvent;
-using protos::CgroupSetupRootFtraceEvent;
-using protos::MdpCmdKickoffFtraceEvent;
-using protos::MdpCommitFtraceEvent;
-using protos::MdpPerfSetOtFtraceEvent;
-using protos::MdpSsppChangeFtraceEvent;
-using protos::TracingMarkWriteFtraceEvent;
-using protos::MdpCmdPingpongDoneFtraceEvent;
-using protos::MdpCompareBwFtraceEvent;
-using protos::MdpPerfSetPanicLutsFtraceEvent;
-using protos::MdpSsppSetFtraceEvent;
-using protos::MdpCmdReadptrDoneFtraceEvent;
-using protos::MdpMisrCrcFtraceEvent;
-using protos::MdpPerfSetQosLutsFtraceEvent;
-using protos::MdpTraceCounterFtraceEvent;
-using protos::MdpCmdReleaseBwFtraceEvent;
-using protos::MdpMixerUpdateFtraceEvent;
-using protos::MdpPerfSetWmLevelsFtraceEvent;
-using protos::MdpVideoUnderrunDoneFtraceEvent;
-using protos::MdpCmdWaitPingpongFtraceEvent;
-using protos::MdpPerfPrefillCalcFtraceEvent;
-using protos::MdpPerfUpdateBusFtraceEvent;
-using protos::RotatorBwAoAsContextFtraceEvent;
-using protos::MmFilemapAddToPageCacheFtraceEvent;
-using protos::MmFilemapDeleteFromPageCacheFtraceEvent;
-using protos::SchedBlockedReasonFtraceEvent;
+using protos::FtraceEvent;
+using protos::FtraceEventBundle;
+using protos::I2cReadFtraceEvent;
+using protos::I2cReplyFtraceEvent;
+using protos::I2cResultFtraceEvent;
+using protos::I2cWriteFtraceEvent;
+using protos::IpiEntryFtraceEvent;
+using protos::IpiExitFtraceEvent;
+using protos::IpiRaiseFtraceEvent;
+using protos::IrqHandlerEntryFtraceEvent;
+using protos::IrqHandlerExitFtraceEvent;
 using protos::LowmemoryKillFtraceEvent;
-using protos::SoftirqEntryFtraceEvent;
-using protos::SoftirqExitFtraceEvent;
-using protos::SoftirqRaiseFtraceEvent;
-using protos::MmVmscanDirectReclaimBeginFtraceEvent;
-using protos::MmVmscanDirectReclaimEndFtraceEvent;
-using protos::WorkqueueExecuteEndFtraceEvent;
-using protos::WorkqueueExecuteStartFtraceEvent;
-using protos::WorkqueueActivateWorkFtraceEvent;
-using protos::WorkqueueQueueWorkFtraceEvent;
+using protos::MdpCmdKickoffFtraceEvent;
+using protos::MdpCmdPingpongDoneFtraceEvent;
+using protos::MdpCmdReadptrDoneFtraceEvent;
+using protos::MdpCmdReleaseBwFtraceEvent;
+using protos::MdpCmdWaitPingpongFtraceEvent;
+using protos::MdpCommitFtraceEvent;
+using protos::MdpCompareBwFtraceEvent;
+using protos::MdpMisrCrcFtraceEvent;
+using protos::MdpMixerUpdateFtraceEvent;
+using protos::MdpPerfPrefillCalcFtraceEvent;
+using protos::MdpPerfSetOtFtraceEvent;
+using protos::MdpPerfSetPanicLutsFtraceEvent;
+using protos::MdpPerfSetQosLutsFtraceEvent;
+using protos::MdpPerfSetWmLevelsFtraceEvent;
+using protos::MdpPerfUpdateBusFtraceEvent;
+using protos::MdpSsppChangeFtraceEvent;
+using protos::MdpSsppSetFtraceEvent;
+using protos::MdpTraceCounterFtraceEvent;
+using protos::MdpVideoUnderrunDoneFtraceEvent;
 using protos::MmCompactionBeginFtraceEvent;
 using protos::MmCompactionDeferCompactionFtraceEvent;
 using protos::MmCompactionDeferredFtraceEvent;
@@ -180,10 +145,49 @@ using protos::MmCompactionMigratepagesFtraceEvent;
 using protos::MmCompactionSuitableFtraceEvent;
 using protos::MmCompactionTryToCompactPagesFtraceEvent;
 using protos::MmCompactionWakeupKcompactdFtraceEvent;
-using protos::SuspendResumeFtraceEvent;
+using protos::MmFilemapAddToPageCacheFtraceEvent;
+using protos::MmFilemapDeleteFromPageCacheFtraceEvent;
+using protos::MmVmscanDirectReclaimBeginFtraceEvent;
+using protos::MmVmscanDirectReclaimEndFtraceEvent;
+using protos::MmVmscanKswapdSleepFtraceEvent;
+using protos::MmVmscanKswapdWakeFtraceEvent;
+using protos::PrintFtraceEvent;
+using protos::ProcessTree;
+using protos::RegulatorDisableCompleteFtraceEvent;
+using protos::RegulatorDisableFtraceEvent;
+using protos::RegulatorEnableCompleteFtraceEvent;
+using protos::RegulatorEnableDelayFtraceEvent;
+using protos::RegulatorEnableFtraceEvent;
+using protos::RegulatorSetVoltageCompleteFtraceEvent;
+using protos::RegulatorSetVoltageFtraceEvent;
+using protos::RotatorBwAoAsContextFtraceEvent;
+using protos::SchedBlockedReasonFtraceEvent;
+using protos::SchedCpuHotplugFtraceEvent;
+using protos::SchedSwitchFtraceEvent;
+using protos::SchedWakeupFtraceEvent;
 using protos::SchedWakeupNewFtraceEvent;
+using protos::SchedWakingFtraceEvent;
+using protos::SmbusReadFtraceEvent;
+using protos::SmbusReplyFtraceEvent;
+using protos::SmbusResultFtraceEvent;
+using protos::SmbusWriteFtraceEvent;
+using protos::SoftirqEntryFtraceEvent;
+using protos::SoftirqExitFtraceEvent;
+using protos::SoftirqRaiseFtraceEvent;
+using protos::SuspendResumeFtraceEvent;
+using protos::SyncPtFtraceEvent;
+using protos::SyncTimelineFtraceEvent;
+using protos::SyncWaitFtraceEvent;
 using protos::Trace;
 using protos::TracePacket;
+using protos::TracingMarkWriteFtraceEvent;
+using protos::WorkqueueActivateWorkFtraceEvent;
+using protos::WorkqueueExecuteEndFtraceEvent;
+using protos::WorkqueueExecuteStartFtraceEvent;
+using protos::WorkqueueQueueWorkFtraceEvent;
+using Process = protos::ProcessTree::Process;
+
+// TODO(hjd): Add tests.
 
 class MFE : public MultiFileErrorCollector {
   virtual void AddError(const std::string& filename,
@@ -838,6 +842,21 @@ std::string FormatSchedWakeupNew(const SchedWakeupNewFtraceEvent& event) {
   return std::string(line);
 }
 
+// TODO(taylori): Confirm correct format for this.
+std::string FormatProcess(const Process& process) {
+  char line[2048];
+  sprintf(line, "process: pid=%d ppid=%d cmdline=%s\\n", process.pid(),
+          process.ppid(), process.cmdline(0).c_str());
+  std::string output = std::string(line);
+  for (auto thread : process.threads()) {
+    char thread_line[2048];
+    sprintf(thread_line, "thread: tid=%d name=%s\\n", thread.tid(),
+            thread.name().c_str());
+    output += thread_line;
+  }
+  return output;
+}
+
 int TraceToSystrace(std::istream* input, std::ostream* output) {
   std::multimap<uint64_t, std::string> sorted;
 
@@ -851,6 +870,14 @@ int TraceToSystrace(std::istream* input, std::ostream* output) {
   }
 
   for (const TracePacket& packet : trace.packet()) {
+    if (packet.has_process_tree()) {
+      const ProcessTree& process_tree = packet.process_tree();
+      for (const auto& process : process_tree.processes()) {
+        std::string line = FormatProcess(process);
+        sorted.emplace(0, line);
+      }
+    }
+
     if (!packet.has_ftrace_events())
       continue;
 

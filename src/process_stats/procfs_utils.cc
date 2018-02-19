@@ -41,29 +41,38 @@ inline bool IsApp(const char* name, const char* exe) {
          strncmp(name, kZygotePrefix, sizeof(kZygotePrefix) - 1) != 0;
 }
 
-}  // namespace
-
-int ReadTgid(int pid) {
-  static const char kTgid[] = "\nTgid:";
+inline int ReadStatusLine(int pid, const char* status_string) {
   char buf[512];
   ssize_t rsize = ReadProcFile(pid, "status", buf, sizeof(buf));
   if (rsize <= 0)
     return -1;
-  const char* tgid_line = strstr(buf, kTgid);
-  return atoi(tgid_line + sizeof(kTgid) - 1);
+  const char* line = strstr(buf, status_string);
+  return atoi(line + sizeof(status_string) - 1);
+}
+
+}  // namespace
+
+int ReadTgid(int pid) {
+  return ReadStatusLine(pid, "\nTgid:");
+}
+
+int ReadPpid(int pid) {
+  return ReadStatusLine(pid, "\nPpid:");
 }
 
 std::unique_ptr<ProcessInfo> ReadProcessInfo(int pid) {
   ProcessInfo* process = new ProcessInfo();
   process->pid = pid;
-  ReadProcString(pid, "cmdline", process->name, sizeof(process->name));
-  if (process->name[0] != 0) {
-    ReadExePath(pid, process->exe, sizeof(process->exe));
-    process->is_app = IsApp(process->name, process->exe);
-  } else {
-    ReadProcString(pid, "comm", process->name, sizeof(process->name));
+  // TODO(taylori) Parse full cmdline into a vector.
+  ReadProcString(pid, "cmdline", process->cmdline, sizeof(process->cmdline));
+  if (process->cmdline[0] == 0) {
+    ReadProcString(pid, "comm", process->cmdline, sizeof(process->cmdline));
     process->in_kernel = true;
+  } else {
+    ReadExePath(pid, process->exe, sizeof(process->exe));
+    process->is_app = IsApp(process->cmdline, process->exe);
   }
+  process->ppid = ReadPpid(pid);
   return std::unique_ptr<ProcessInfo>(process);
 }
 
@@ -84,38 +93,6 @@ void ReadProcessThreads(ProcessInfo* process) {
       strcpy(thread.name, "UI Thread");
     process->threads[tid] = thread;
   });
-}
-
-void SerializeProcesses(ProcessMap* processes, FILE* out) {
-  fprintf(out, "\"processes\":{");
-  for (auto it = processes->begin(); it != processes->end();) {
-    const ProcessInfo* process = it->second.get();
-    fprintf(out, "\"%d\":{", process->pid);
-    fprintf(out, "\"name\":\"%s\"", process->name);
-
-    if (!process->in_kernel) {
-      fprintf(out, ",\"exe\":\"%s\",", process->exe);
-      fprintf(out, "\"threads\":{\n");
-      const auto threads = &process->threads;
-      for (auto thread_it = threads->begin(); thread_it != threads->end();) {
-        const ThreadInfo* thread = &(thread_it->second);
-        fprintf(out, "\"%d\":{", thread->tid);
-        fprintf(out, "\"name\":\"%s\"", thread->name);
-
-        if (++thread_it != threads->end())
-          fprintf(out, "},\n");
-        else
-          fprintf(out, "}\n");
-      }
-      fprintf(out, "}");
-    }
-
-    if (++it != processes->end())
-      fprintf(out, "},\n");
-    else
-      fprintf(out, "}\n");
-  }
-  fprintf(out, "}");
 }
 
 }  // namespace procfs_utils
