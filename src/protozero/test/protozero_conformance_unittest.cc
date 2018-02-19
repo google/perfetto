@@ -69,7 +69,7 @@ class ProtoZeroConformanceTest : public ::testing::Test {
  private:
   std::unique_ptr<FakeScatteredBuffer> buffer_;
   std::unique_ptr<ScatteredStreamWriter> stream_writer_;
-  std::vector<std::unique_ptr<ProtoZeroMessage>> root_messages_;
+  std::vector<std::unique_ptr<Message>> root_messages_;
 };
 
 TEST_F(ProtoZeroConformanceTest, SimpleFieldsNoNesting) {

@@ -45,7 +45,7 @@ class FtraceProducer : public Producer {
 
  private:
   using BundleHandle =
-      protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>;
+      protozero::MessageHandle<protos::pbzero::FtraceEventBundle>;
 
   class SinkDelegate : public FtraceSink::Delegate {
    public:
