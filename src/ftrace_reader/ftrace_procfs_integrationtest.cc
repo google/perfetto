@@ -157,17 +157,6 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_ReadFormatFile) {
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_ReadAvailableEvents ReadAvailableEvents
-#else
-#define MAYBE_ReadAvailableEvents DISABLED_ReadAvailableEvents
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_ReadAvailableEvents) {
-  FtraceProcfs ftrace(kTracingPath);
-  std::string format = ftrace.ReadAvailableEvents();
-  EXPECT_THAT(format, HasSubstr("sched:sched_switch"));
-}
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #define MAYBE_CanOpenTracePipeRaw CanOpenTracePipeRaw
 #else
 #define MAYBE_CanOpenTracePipeRaw DISABLED_CanOpenTracePipeRaw
