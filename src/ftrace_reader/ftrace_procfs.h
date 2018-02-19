@@ -29,7 +29,7 @@ class FtraceProcfs {
  public:
   static std::unique_ptr<FtraceProcfs> Create(const std::string& root);
 
-  FtraceProcfs(const std::string& root);
+  explicit FtraceProcfs(const std::string& root);
   virtual ~FtraceProcfs();
 
   // Enable the event under with the given |group| and |name|.
