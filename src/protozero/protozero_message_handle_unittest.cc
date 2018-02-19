@@ -23,12 +23,12 @@ namespace protozero {
 
 namespace {
 
-TEST(ProtoZeroMessageHandleTest, MoveHandleSharedMessageDoesntFinalize) {
-  ProtoZeroMessage message;
+TEST(MessageHandleTest, MoveHandleSharedMessageDoesntFinalize) {
+  Message message;
   message.Reset(nullptr);
 
-  ProtoZeroMessageHandle<ProtoZeroMessage> handle_1(&message);
-  handle_1 = ProtoZeroMessageHandle<ProtoZeroMessage>(&message);
+  MessageHandle<Message> handle_1(&message);
+  handle_1 = MessageHandle<Message>(&message);
   ASSERT_FALSE(handle_1->is_finalized());
 }
 
