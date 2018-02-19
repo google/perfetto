@@ -30,27 +30,27 @@
 namespace protozero {
 
 // static
-constexpr uint32_t ProtoZeroMessage::kMaxNestingDepth;
+constexpr uint32_t Message::kMaxNestingDepth;
 
 // Do NOT put any code in the constructor or use default initialization.
 // Use the Reset() method below instead. See the header for the reason why.
 
 // This method is called to initialize both root and nested messages.
-void ProtoZeroMessage::Reset(ScatteredStreamWriter* stream_writer) {
+void Message::Reset(ScatteredStreamWriter* stream_writer) {
 // Older versions of libstdcxx don't have is_trivially_constructible.
 #if !defined(__GLIBCXX__) || __GLIBCXX__ >= 20170516
-  static_assert(std::is_trivially_constructible<ProtoZeroMessage>::value,
-                "ProtoZeroMessage must be trivially constructible");
+  static_assert(std::is_trivially_constructible<Message>::value,
+                "Message must be trivially constructible");
 #endif
 
-  static_assert(std::is_trivially_destructible<ProtoZeroMessage>::value,
-                "ProtoZeroMessage must be trivially destructible");
+  static_assert(std::is_trivially_destructible<Message>::value,
+                "Message must be trivially destructible");
 
   static_assert(
-      sizeof(ProtoZeroMessage::nested_messages_arena_) >=
-          kMaxNestingDepth * (sizeof(ProtoZeroMessage) -
-                              sizeof(ProtoZeroMessage::nested_messages_arena_)),
-      "ProtoZeroMessage::nested_messages_arena_ is too small");
+      sizeof(Message::nested_messages_arena_) >=
+          kMaxNestingDepth *
+              (sizeof(Message) - sizeof(Message::nested_messages_arena_)),
+      "Message::nested_messages_arena_ is too small");
 
   stream_writer_ = stream_writer;
   size_ = 0;
@@ -65,13 +65,11 @@ void ProtoZeroMessage::Reset(ScatteredStreamWriter* stream_writer) {
 #endif
 }
 
-void ProtoZeroMessage::AppendString(uint32_t field_id, const char* str) {
+void Message::AppendString(uint32_t field_id, const char* str) {
   AppendBytes(field_id, str, strlen(str));
 }
 
-void ProtoZeroMessage::AppendBytes(uint32_t field_id,
-                                   const void* src,
-                                   size_t size) {
+void Message::AppendBytes(uint32_t field_id, const void* src, size_t size) {
   if (nested_message_)
     EndNestedMessage();
 
@@ -88,7 +86,7 @@ void ProtoZeroMessage::AppendBytes(uint32_t field_id,
   WriteToStream(src_u8, src_u8 + size);
 }
 
-uint32_t ProtoZeroMessage::Finalize() {
+uint32_t Message::Finalize() {
   if (finalized_)
     return size_;
 
@@ -115,8 +113,7 @@ uint32_t ProtoZeroMessage::Finalize() {
   return size_;
 }
 
-void ProtoZeroMessage::BeginNestedMessageInternal(uint32_t field_id,
-                                                  ProtoZeroMessage* message) {
+void Message::BeginNestedMessageInternal(uint32_t field_id, Message* message) {
   if (nested_message_)
     EndNestedMessage();
 
@@ -138,7 +135,7 @@ void ProtoZeroMessage::BeginNestedMessageInternal(uint32_t field_id,
   nested_message_ = message;
 }
 
-void ProtoZeroMessage::EndNestedMessage() {
+void Message::EndNestedMessage() {
   size_ += nested_message_->Finalize();
   nested_message_ = nullptr;
 }

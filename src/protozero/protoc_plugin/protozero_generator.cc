@@ -535,7 +535,7 @@ class GeneratorJob {
 
   void GenerateMessageDescriptor(const Descriptor* message) {
     stub_h_->Print(
-        "class $name$ : public ::protozero::ProtoZeroMessage {\n"
+        "class $name$ : public ::protozero::Message {\n"
         " public:\n",
         "name", GetCppClassName(message));
     stub_h_->Indent();
