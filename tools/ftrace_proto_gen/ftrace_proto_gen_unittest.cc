@@ -35,6 +35,9 @@ TEST(FtraceEventParser, InferProtoType) {
   EXPECT_EQ(InferProtoType(Field{"unsigned int foo", 0, 4, false}), "uint32");
   EXPECT_EQ(InferProtoType(Field{"u32 control_freq", 44, 4, false}), "uint32");
 
+  EXPECT_EQ(InferProtoType(Field{"ino_t foo", 0, 4, false}), "uint32");
+  EXPECT_EQ(InferProtoType(Field{"ino_t foo", 0, 8, false}), "uint64");
+
   EXPECT_EQ(InferProtoType(Field{"char foo", 0, 0, false}), "string");
 }
 
