@@ -78,9 +78,8 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
   // Reserve space for the size of the message. Note: this call might re-enter
   // into this class invoking GetNewBuffer() if there isn't enough space or if
   // this is the very first call to NewTracePacket().
-  static_assert(
-      kPacketHeaderSize == kMessageLengthFieldSize,
-      "The packet header must match the ProtoZeroMessage header size");
+  static_assert(kPacketHeaderSize == kMessageLengthFieldSize,
+                "The packet header must match the Message header size");
   cur_packet_->Reset(&protobuf_stream_writer_);
   uint8_t* header = protobuf_stream_writer_.ReserveBytes(kPacketHeaderSize);
   memset(header, 0, kPacketHeaderSize);
@@ -92,8 +91,8 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
   return handle;
 }
 
-// Called by the ProtoZeroMessage. We can get here in two cases:
-// 1. In the middle of writing a ProtoZeroMessage,
+// Called by the Message. We can get here in two cases:
+// 1. In the middle of writing a Message,
 // when |fragmenting_packet_| == true. In this case we want to update the
 // chunk header with a partial packet and start a new partial packet in the
 // new chunk.

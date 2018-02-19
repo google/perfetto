@@ -23,9 +23,9 @@
 
 namespace protozero {
 
-class ProtoZeroMessage;
+class Message;
 
-// ProtoZeroMessageHandle allows to decouple the lifetime of a proto message
+// MessageHandle allows to decouple the lifetime of a proto message
 // from the underlying storage. It gives the following guarantees:
 // - The underlying message is finalized (if still alive) if the handle goes
 //   out of scope.
@@ -33,26 +33,26 @@ class ProtoZeroMessage;
 //   message is finalized. This is to enforce the append-only API. For instance
 //   when adding two repeated messages, the addition of the 2nd one forces
 //   the finalization of the first.
-// Think about this as a WeakPtr<ProtoZeroMessage> which calls
-// ProtoZeroMessage::Finalize() when going out of scope.
+// Think about this as a WeakPtr<Message> which calls
+// Message::Finalize() when going out of scope.
 
-class ProtoZeroMessageHandleBase {
+class MessageHandleBase {
  public:
-  ~ProtoZeroMessageHandleBase();
+  ~MessageHandleBase();
 
   // Move-only type.
-  ProtoZeroMessageHandleBase(ProtoZeroMessageHandleBase&&) noexcept;
-  ProtoZeroMessageHandleBase& operator=(ProtoZeroMessageHandleBase&&);
+  MessageHandleBase(MessageHandleBase&&) noexcept;
+  MessageHandleBase& operator=(MessageHandleBase&&);
 
  protected:
-  explicit ProtoZeroMessageHandleBase(ProtoZeroMessage* = nullptr);
-  ProtoZeroMessage& operator*() const {
+  explicit MessageHandleBase(Message* = nullptr);
+  Message& operator*() const {
 #if PERFETTO_DCHECK_IS_ON()
     PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
 #endif
     return *message_;
   }
-  ProtoZeroMessage* operator->() const {
+  Message* operator->() const {
 #if PERFETTO_DCHECK_IS_ON()
     PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
 #endif
@@ -60,33 +60,31 @@ class ProtoZeroMessageHandleBase {
   }
 
  private:
-  friend class ProtoZeroMessage;
-  ProtoZeroMessageHandleBase(const ProtoZeroMessageHandleBase&) = delete;
-  ProtoZeroMessageHandleBase& operator=(const ProtoZeroMessageHandleBase&) =
-      delete;
+  friend class Message;
+  MessageHandleBase(const MessageHandleBase&) = delete;
+  MessageHandleBase& operator=(const MessageHandleBase&) = delete;
 
   void reset_message() { message_ = nullptr; }
-  void Move(ProtoZeroMessageHandleBase&&);
+  void Move(MessageHandleBase&&);
 
-  ProtoZeroMessage* message_;
+  Message* message_;
 #if PERFETTO_DCHECK_IS_ON()
   uint32_t generation_;
 #endif
 };
 
 template <typename T>
-class ProtoZeroMessageHandle : public ProtoZeroMessageHandleBase {
+class MessageHandle : public MessageHandleBase {
  public:
-  ProtoZeroMessageHandle() : ProtoZeroMessageHandle(nullptr) {}
-  explicit ProtoZeroMessageHandle(T* message)
-      : ProtoZeroMessageHandleBase(message) {}
+  MessageHandle() : MessageHandle(nullptr) {}
+  explicit MessageHandle(T* message) : MessageHandleBase(message) {}
 
   T& operator*() const {
-    return static_cast<T&>(ProtoZeroMessageHandleBase::operator*());
+    return static_cast<T&>(MessageHandleBase::operator*());
   }
 
   T* operator->() const {
-    return static_cast<T*>(ProtoZeroMessageHandleBase::operator->());
+    return static_cast<T*>(MessageHandleBase::operator->());
   }
 };
 

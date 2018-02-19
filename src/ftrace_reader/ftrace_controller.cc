@@ -306,7 +306,7 @@ void FtraceController::OnRawFtraceDataAvailable(size_t cpu) {
   PERFETTO_CHECK(cpu < ftrace_procfs_->NumberOfCpus());
   CpuReader* reader = readers_[cpu].get();
   using BundleHandle =
-      protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>;
+      protozero::MessageHandle<protos::pbzero::FtraceEventBundle>;
   std::array<const EventFilter*, kMaxSinks> filters{};
   std::array<BundleHandle, kMaxSinks> bundles{};
   size_t sink_count = sinks_.size();
