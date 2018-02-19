@@ -22,9 +22,7 @@
 
 namespace protozero {
 
-ProtoZeroMessageHandleBase::ProtoZeroMessageHandleBase(
-    ProtoZeroMessage* message)
-    : message_(message) {
+MessageHandleBase::MessageHandleBase(Message* message) : message_(message) {
 #if PERFETTO_DCHECK_IS_ON()
   generation_ = message_ ? message->generation_ : 0;
   if (message_)
@@ -32,7 +30,7 @@ ProtoZeroMessageHandleBase::ProtoZeroMessageHandleBase(
 #endif
 }
 
-ProtoZeroMessageHandleBase::~ProtoZeroMessageHandleBase() {
+MessageHandleBase::~MessageHandleBase() {
   if (message_) {
 #if PERFETTO_DCHECK_IS_ON()
     PERFETTO_DCHECK(generation_ == message_->generation_);
@@ -41,13 +39,11 @@ ProtoZeroMessageHandleBase::~ProtoZeroMessageHandleBase() {
   }
 }
 
-ProtoZeroMessageHandleBase::ProtoZeroMessageHandleBase(
-    ProtoZeroMessageHandleBase&& other) noexcept {
+MessageHandleBase::MessageHandleBase(MessageHandleBase&& other) noexcept {
   Move(std::move(other));
 }
 
-ProtoZeroMessageHandleBase& ProtoZeroMessageHandleBase::operator=(
-    ProtoZeroMessageHandleBase&& other) {
+MessageHandleBase& MessageHandleBase::operator=(MessageHandleBase&& other) {
   // If the current handle was pointing to a message and is being reset to a new
   // one, finalize the old message. However, if the other message is the same as
   // the one we point to, don't finalize.
@@ -57,7 +53,7 @@ ProtoZeroMessageHandleBase& ProtoZeroMessageHandleBase::operator=(
   return *this;
 }
 
-void ProtoZeroMessageHandleBase::Move(ProtoZeroMessageHandleBase&& other) {
+void MessageHandleBase::Move(MessageHandleBase&& other) {
   // In theory other->message_ could be nullptr, if |other| is a handle that has
   // been std::move-d (and hence empty). There isn't a legitimate use case for
   // doing so, though. Therefore this case is deliberately ignored (if hit, it

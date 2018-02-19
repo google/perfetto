@@ -44,7 +44,7 @@ class TracePacket;
 class TraceWriter {
  public:
   using TracePacketHandle =
-      protozero::ProtoZeroMessageHandle<protos::pbzero::TracePacket>;
+      protozero::MessageHandle<protos::pbzero::TracePacket>;
 
   TraceWriter();
   virtual ~TraceWriter();
