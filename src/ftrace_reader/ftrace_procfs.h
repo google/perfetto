@@ -46,9 +46,6 @@ class FtraceProcfs {
   virtual std::string ReadEventFormat(const std::string& group,
                                       const std::string& name) const;
 
-  // Read the available_events file.
-  std::string ReadAvailableEvents() const;
-
   // Set ftrace buffer size in pages.
   // This size is *per cpu* so for the total size you have to multiply
   // by the number of CPUs.
