@@ -119,11 +119,6 @@ std::string FtraceProcfs::ReadEventFormat(const std::string& group,
   return ReadFileIntoString(path);
 }
 
-std::string FtraceProcfs::ReadAvailableEvents() const {
-  std::string path = root_ + "available_events";
-  return ReadFileIntoString(path);
-}
-
 size_t FtraceProcfs::NumberOfCpus() const {
   static size_t num_cpus = sysconf(_SC_NPROCESSORS_CONF);
   return num_cpus;
