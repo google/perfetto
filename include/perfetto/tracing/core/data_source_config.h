@@ -122,12 +122,16 @@ class DataSourceConfig {
   uint32_t target_buffer() const { return target_buffer_; }
   void set_target_buffer(uint32_t value) { target_buffer_ = value; }
 
+  uint32_t trace_duration_ms() const { return trace_duration_ms_; }
+  void set_trace_duration_ms(uint32_t value) { trace_duration_ms_ = value; }
+
   const FtraceConfig& ftrace_config() const { return ftrace_config_; }
   FtraceConfig* mutable_ftrace_config() { return &ftrace_config_; }
 
  private:
   std::string name_ = {};
   uint32_t target_buffer_ = {};
+  uint32_t trace_duration_ms_ = {};
   FtraceConfig ftrace_config_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
