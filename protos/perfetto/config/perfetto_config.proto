@@ -41,6 +41,10 @@ message DataSourceConfig {
   // without expensive lookups on its fastpath.
   optional uint32 target_buffer = 2;
 
+  // Gets set by the service to indicate the duration of the trace.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional uint32 trace_duration_ms = 3;
+
   // Keeep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
