@@ -32,7 +32,7 @@ source_set("end_to_end_integrationtests") {
     "../protos/perfetto/trace:lite",
     "../src/base:base",
     "../src/base:test_support",
-    "../src/traced/probes:ftrace_producer",
+    "../src/traced/probes:probes_src",
     "../src/tracing:ipc",
   ]
   sources = [

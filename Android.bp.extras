@@ -14,7 +14,7 @@ cc_test {
     "src/ftrace_reader/ftrace_controller.cc",
     "src/ftrace_reader/ftrace_procfs.cc",
     "src/ftrace_reader/proto_translation_table.cc",
-    "src/traced/probes/ftrace_producer.cc",
+    "src/traced/probes/probes_producer.cc",
     "test/fake_consumer.cc",
     "test/end_to_end_integrationtest.cc",
     "test/end_to_end_integrationtest_cts.cc",

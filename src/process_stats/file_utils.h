@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef FILE_UTILS_H_
-#define FILE_UTILS_H_
+#ifndef SRC_PROCESS_STATS_FILE_UTILS_H_
+#define SRC_PROCESS_STATS_FILE_UTILS_H_
 
 #include <ctype.h>
 #include <dirent.h>
@@ -67,4 +67,4 @@ class LineReader {
 
 }  // namespace file_utils
 
-#endif  // FILE_UTILS_H_
+#endif  // SRC_PROCESS_STATS_FILE_UTILS_H_

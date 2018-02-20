@@ -28,7 +28,6 @@ group("all") {
     ":perfetto_unittests",
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
-    "tools/dump_process_data",
     "tools/proto_to_cpp",
     "tools/trace_to_text",
   ]
