@@ -12,8 +12,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-namespace {}  // namespace
-
 namespace file_utils {
 bool IsNumeric(const char* str) {
   if (!str[0])

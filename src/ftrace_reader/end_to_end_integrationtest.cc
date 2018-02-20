@@ -42,7 +42,7 @@ namespace {
 
 const char kTracingPath[] = "/sys/kernel/debug/tracing/";
 
-using BundleHandle =
+using FtraceBundleHandle =
     protozero::MessageHandle<protos::pbzero::FtraceEventBundle>;
 
 class EndToEndIntegrationTest : public ::testing::Test,
@@ -70,14 +70,14 @@ class EndToEndIntegrationTest : public ::testing::Test,
     message->set_before("--- Bundle wrapper before ---");
   }
 
-  virtual BundleHandle GetBundleForCpu(size_t cpu) {
+  virtual FtraceBundleHandle GetBundleForCpu(size_t cpu) {
     PERFETTO_CHECK(!currently_writing_);
     currently_writing_ = true;
     cpu_being_written_ = cpu;
-    return BundleHandle(message->add_bundle());
+    return FtraceBundleHandle(message->add_bundle());
   }
 
-  virtual void OnBundleComplete(size_t cpu, BundleHandle bundle) {
+  virtual void OnBundleComplete(size_t cpu, FtraceBundleHandle bundle) {
     PERFETTO_CHECK(currently_writing_);
     currently_writing_ = false;
     EXPECT_NE(cpu_being_written_, 9999ul);

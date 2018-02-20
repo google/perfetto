@@ -30,7 +30,7 @@ If this works you will see something like:
 $ adb logcat -s perfetto
 perfetto: service.cc:45 Started traced, listening on /dev/socket/traced_producer /dev/socket/traced_consumer
 perfetto: probes.cc:25 Starting /system/bin/traced_probes service
-perfetto: ftrace_producer.cc:32 Connected to the service
+perfetto: probes_producer.cc:32 Connected to the service
 ```
 
 At which point you can grab a trace by doing:
