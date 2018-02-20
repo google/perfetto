@@ -29,7 +29,7 @@ class FtraceProcfs {
  public:
   static std::unique_ptr<FtraceProcfs> Create(const std::string& root);
 
-  FtraceProcfs(const std::string& root);
+  explicit FtraceProcfs(const std::string& root);
   virtual ~FtraceProcfs();
 
   // Enable the event under with the given |group| and |name|.
@@ -45,9 +45,6 @@ class FtraceProcfs {
   // virtual for testing.
   virtual std::string ReadEventFormat(const std::string& group,
                                       const std::string& name) const;
-
-  // Read the available_events file.
-  std::string ReadAvailableEvents() const;
 
   // Set ftrace buffer size in pages.
   // This size is *per cpu* so for the total size you have to multiply

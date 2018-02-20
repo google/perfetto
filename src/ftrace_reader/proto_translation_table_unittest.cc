@@ -61,6 +61,7 @@ TEST_P(AllTranslationTableTest, Create) {
   EXPECT_TRUE(table_->GetEventByName("print"));
   EXPECT_TRUE(table_->GetEventByName("sched_switch"));
   EXPECT_TRUE(table_->GetEventByName("sched_wakeup"));
+  EXPECT_TRUE(table_->GetEventByName("ext4_da_write_begin"));
   for (const Event& event : table_->events()) {
     if (!event.ftrace_event_id)
       continue;
@@ -124,6 +125,15 @@ TEST(TranslationTableTest, Seed) {
     EXPECT_EQ(std::string(event->name), "cpufreq_interactive_target");
     EXPECT_EQ(std::string(event->group), "cpufreq_interactive");
     EXPECT_EQ(event->ftrace_event_id, 509ul);
+    EXPECT_EQ(event->fields.at(0).ftrace_offset, 8u);
+    EXPECT_EQ(event->fields.at(0).ftrace_size, 4u);
+  }
+
+  {
+    auto event = table->GetEventByName("ext4_da_write_begin");
+    EXPECT_EQ(std::string(event->name), "ext4_da_write_begin");
+    EXPECT_EQ(std::string(event->group), "ext4");
+    EXPECT_EQ(event->ftrace_event_id, 303ul);
     EXPECT_EQ(event->fields.at(0).ftrace_offset, 8u);
     EXPECT_EQ(event->fields.at(0).ftrace_size, 4u);
   }
@@ -249,6 +259,12 @@ TEST(TranslationTableTest, InferFtraceType) {
 
   ASSERT_TRUE(InferFtraceType("u32 foo", 4, false, &type));
   EXPECT_EQ(type, kFtraceUint32);
+
+  ASSERT_TRUE(InferFtraceType("ino_t foo", 4, false, &type));
+  ASSERT_EQ(type, kFtraceInode32);
+
+  ASSERT_TRUE(InferFtraceType("ino_t foo", 8, false, &type));
+  ASSERT_EQ(type, kFtraceInode64);
 
   EXPECT_FALSE(InferFtraceType("foo", 64, false, &type));
 }

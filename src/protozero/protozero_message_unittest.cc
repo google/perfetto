@@ -35,8 +35,8 @@ const uint8_t kTestBytes[] = {0, 0, 0, 0, 0x42, 1, 0x42, 0xff, 0x42, 0};
 const char kStartWatermark[] = {'a', 'b', 'c', 'd', '1', '2', '3', '\0'};
 const char kEndWatermark[] = {'9', '8', '7', '6', 'z', 'w', 'y', '\0'};
 
-class FakeRootMessage : public ProtoZeroMessage {};
-class FakeChildMessage : public ProtoZeroMessage {};
+class FakeRootMessage : public Message {};
+class FakeChildMessage : public Message {};
 
 uint32_t SimpleHash(const std::string& str) {
   uint32_t hash = 5381;
@@ -45,7 +45,7 @@ uint32_t SimpleHash(const std::string& str) {
   return hash;
 }
 
-class ProtoZeroMessageTest : public ::testing::Test {
+class MessageTest : public ::testing::Test {
  public:
   void SetUp() override {
     buffer_.reset(new FakeScatteredBuffer(kChunkSize));
@@ -60,7 +60,7 @@ class ProtoZeroMessageTest : public ::testing::Test {
       EXPECT_STREQ(kStartWatermark, reinterpret_cast<char*>(mem.get()));
       EXPECT_STREQ(kEndWatermark,
                    reinterpret_cast<char*>(mem.get() + sizeof(kStartWatermark) +
-                                           sizeof(ProtoZeroMessage)));
+                                           sizeof(Message)));
       mem.reset();
     }
     messages_.clear();
@@ -98,11 +98,11 @@ class ProtoZeroMessageTest : public ::testing::Test {
     return buffer_->GetBytesAsString(old_readback_pos, num_bytes);
   }
 
-  static void BuildNestedMessages(ProtoZeroMessage* msg, uint32_t depth = 0) {
+  static void BuildNestedMessages(Message* msg, uint32_t depth = 0) {
     for (uint32_t i = 1; i <= 128; ++i)
       msg->AppendBytes(i, kTestBytes, sizeof(kTestBytes));
 
-    if (depth < ProtoZeroMessage::kMaxNestingDepth) {
+    if (depth < Message::kMaxNestingDepth) {
       auto* nested_msg =
           msg->BeginNestedMessage<FakeChildMessage>(1 + depth * 10);
       BuildNestedMessages(nested_msg, depth + 1);
@@ -122,8 +122,8 @@ class ProtoZeroMessageTest : public ::testing::Test {
   size_t readback_pos_;
 };
 
-TEST_F(ProtoZeroMessageTest, ZeroLengthArraysAndStrings) {
-  ProtoZeroMessage* msg = NewMessage();
+TEST_F(MessageTest, ZeroLengthArraysAndStrings) {
+  Message* msg = NewMessage();
   msg->AppendBytes(1 /* field_id */, nullptr, 0);
   msg->AppendString(2 /* field_id */, "");
 
@@ -135,8 +135,8 @@ TEST_F(ProtoZeroMessageTest, ZeroLengthArraysAndStrings) {
   ASSERT_EQ("1200", GetNextSerializedBytes(2));
 }
 
-TEST_F(ProtoZeroMessageTest, BasicTypesNoNesting) {
-  ProtoZeroMessage* msg = NewMessage();
+TEST_F(MessageTest, BasicTypesNoNesting) {
+  Message* msg = NewMessage();
   msg->AppendVarInt(1 /* field_id */, 0);
   msg->AppendVarInt(2 /* field_id */, std::numeric_limits<uint32_t>::max());
   msg->AppendVarInt(3 /* field_id */, 42);
@@ -165,8 +165,8 @@ TEST_F(ProtoZeroMessageTest, BasicTypesNoNesting) {
   ASSERT_EQ("1829", GetNextSerializedBytes(2));
 }
 
-TEST_F(ProtoZeroMessageTest, NestedMessagesSimple) {
-  ProtoZeroMessage* root_msg = NewMessage();
+TEST_F(MessageTest, NestedMessagesSimple) {
+  Message* root_msg = NewMessage();
   root_msg->AppendVarInt(1 /* field_id */, 1);
 
   FakeChildMessage* nested_msg =
@@ -207,8 +207,8 @@ TEST_F(ProtoZeroMessageTest, NestedMessagesSimple) {
 
 // Checks that the size field of root and nested messages is properly written
 // on finalization.
-TEST_F(ProtoZeroMessageTest, BackfillSizeOnFinalization) {
-  ProtoZeroMessage* root_msg = NewMessage();
+TEST_F(MessageTest, BackfillSizeOnFinalization) {
+  Message* root_msg = NewMessage();
   uint8_t root_msg_size[proto_utils::kMessageLengthFieldSize] = {};
   root_msg->set_size_field(&root_msg_size[0]);
   root_msg->AppendVarInt(1, 0x42);
@@ -250,10 +250,10 @@ TEST_F(ProtoZeroMessageTest, BackfillSizeOnFinalization) {
   EXPECT_EQ("CB818000", GetNextSerializedBytes(4));
 }
 
-TEST_F(ProtoZeroMessageTest, StressTest) {
-  std::vector<ProtoZeroMessage*> nested_msgs;
+TEST_F(MessageTest, StressTest) {
+  std::vector<Message*> nested_msgs;
 
-  ProtoZeroMessage* root_msg = NewMessage();
+  Message* root_msg = NewMessage();
   BuildNestedMessages(root_msg);
   root_msg->Finalize();
 
@@ -266,17 +266,17 @@ TEST_F(ProtoZeroMessageTest, StressTest) {
   EXPECT_EQ(0xfd19cc0a, buf_hash);
 }
 
-TEST_F(ProtoZeroMessageTest, DestructInvalidMessageHandle) {
+TEST_F(MessageTest, DestructInvalidMessageHandle) {
   FakeRootMessage* msg = NewMessage();
   EXPECT_DEBUG_DEATH(
       {
-        ProtoZeroMessageHandle<FakeRootMessage> handle(msg);
+        MessageHandle<FakeRootMessage> handle(msg);
         ResetMessage(msg);
       },
       "");
 }
 
-TEST_F(ProtoZeroMessageTest, MessageHandle) {
+TEST_F(MessageTest, MessageHandle) {
   FakeRootMessage* msg1 = NewMessage();
   FakeRootMessage* msg2 = NewMessage();
   FakeRootMessage* msg3 = NewMessage();
@@ -291,26 +291,26 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   // Test that the handle going out of scope causes the finalization of the
   // target message and triggers the optional callback.
   {
-    ProtoZeroMessageHandle<FakeRootMessage> handle1(msg1);
+    MessageHandle<FakeRootMessage> handle1(msg1);
     handle1->AppendBytes(1 /* field_id */, kTestBytes, 1 /* size */);
     ASSERT_EQ(0u, msg1_size[0]);
   }
   ASSERT_EQ(0x83u, msg1_size[0]);
 
   // Test that the handle can be late initialized.
-  ProtoZeroMessageHandle<FakeRootMessage> handle2(ignored_msg);
-  handle2 = ProtoZeroMessageHandle<FakeRootMessage>(msg2);
+  MessageHandle<FakeRootMessage> handle2(ignored_msg);
+  handle2 = MessageHandle<FakeRootMessage>(msg2);
   handle2->AppendBytes(1 /* field_id */, kTestBytes, 2 /* size */);
   ASSERT_EQ(0u, msg2_size[0]);  // |msg2| should not be finalized yet.
 
   // Test that std::move works and does NOT cause finalization of the moved
   // message.
-  ProtoZeroMessageHandle<FakeRootMessage> handle_swp(ignored_msg);
+  MessageHandle<FakeRootMessage> handle_swp(ignored_msg);
   handle_swp = std::move(handle2);
   ASSERT_EQ(0u, msg2_size[0]);  // msg2 should be NOT finalized yet.
   handle_swp->AppendBytes(2 /* field_id */, kTestBytes, 3 /* size */);
 
-  ProtoZeroMessageHandle<FakeRootMessage> handle3(msg3);
+  MessageHandle<FakeRootMessage> handle3(msg3);
   handle3->AppendBytes(1 /* field_id */, kTestBytes, 4 /* size */);
   ASSERT_EQ(0u, msg3_size[0]);  // msg2 should be NOT finalized yet.
 
@@ -322,7 +322,7 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   // At this point writing into handle_swp should actually write into |msg3|.
   ASSERT_EQ(msg3, &*handle_swp);
   handle_swp->AppendBytes(2 /* field_id */, kTestBytes, 8 /* size */);
-  ProtoZeroMessageHandle<FakeRootMessage> another_handle(ignored_msg);
+  MessageHandle<FakeRootMessage> another_handle(ignored_msg);
   handle_swp = std::move(another_handle);
   ASSERT_EQ(0x90u, msg3_size[0]);  // |msg3| should be finalized at this point.
 
@@ -330,7 +330,7 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   // In developer builds w/ PERFETTO_DCHECK on a finalized message should
   // invalidate the handle, in order to early catch bugs in the client code.
   FakeRootMessage* msg4 = NewMessage();
-  ProtoZeroMessageHandle<FakeRootMessage> handle4(msg4);
+  MessageHandle<FakeRootMessage> handle4(msg4);
   ASSERT_EQ(msg4, &*handle4);
   msg4->Finalize();
   ASSERT_EQ(nullptr, &*handle4);
@@ -341,7 +341,7 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   uint8_t* size_msg_2;
   {
     auto* nested_msg_1 = NewMessage()->BeginNestedMessage<FakeChildMessage>(3);
-    ProtoZeroMessageHandle<FakeChildMessage> child_handle_1(nested_msg_1);
+    MessageHandle<FakeChildMessage> child_handle_1(nested_msg_1);
     uint8_t* size_msg_1 = nested_msg_1->size_field();
     memset(size_msg_1, 0, proto_utils::kMessageLengthFieldSize);
     child_handle_1->AppendVarInt(1, 0x11);
@@ -349,7 +349,7 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
     auto* nested_msg_2 = NewMessage()->BeginNestedMessage<FakeChildMessage>(2);
     size_msg_2 = nested_msg_2->size_field();
     memset(size_msg_2, 0, proto_utils::kMessageLengthFieldSize);
-    ProtoZeroMessageHandle<FakeChildMessage> child_handle_2(nested_msg_2);
+    MessageHandle<FakeChildMessage> child_handle_2(nested_msg_2);
     child_handle_2->AppendVarInt(2, 0xFF);
 
     // |nested_msg_1| should not be finalized yet.
@@ -364,7 +364,7 @@ TEST_F(ProtoZeroMessageTest, MessageHandle) {
   ASSERT_EQ(0x83u, size_msg_2[0]);
 }
 
-TEST_F(ProtoZeroMessageTest, MoveMessageHandle) {
+TEST_F(MessageTest, MoveMessageHandle) {
   FakeRootMessage* msg = NewMessage();
   uint8_t msg_size[proto_utils::kMessageLengthFieldSize] = {};
   msg->set_size_field(&msg_size[0]);
@@ -372,8 +372,8 @@ TEST_F(ProtoZeroMessageTest, MoveMessageHandle) {
   // Test that the handle going out of scope causes the finalization of the
   // target message.
   {
-    ProtoZeroMessageHandle<FakeRootMessage> handle1(msg);
-    ProtoZeroMessageHandle<FakeRootMessage> handle2{};
+    MessageHandle<FakeRootMessage> handle1(msg);
+    MessageHandle<FakeRootMessage> handle2{};
     handle1->AppendBytes(1 /* field_id */, kTestBytes, 1 /* size */);
     handle2 = std::move(handle1);
     ASSERT_EQ(0u, msg_size[0]);

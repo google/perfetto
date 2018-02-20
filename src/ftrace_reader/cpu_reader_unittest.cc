@@ -627,6 +627,18 @@ TEST(CpuReaderTest, ParseAllFields) {
       SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
                              &field->strategy);
     }
+    {
+      // ino_t -> uint64
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->ftrace_offset = 12;
+      field->ftrace_size = 4;
+      field->ftrace_type = kFtraceInode32;
+      field->proto_field_id = 503;
+      field->proto_field_type = kProtoUint64;
+      SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                             &field->strategy);
+    }
   }
   ProtoTranslationTable table(events, std::move(common_fields));
 
@@ -641,10 +653,11 @@ TEST(CpuReaderTest, ParseAllFields) {
 
   auto input = writer.GetCopy();
   auto length = writer.written();
+  std::set<uint64_t> inode_numbers;
 
   ASSERT_TRUE(CpuReader::ParseEvent(ftrace_event_id, input.get(),
                                     input.get() + length, &table,
-                                    provider.writer()));
+                                    provider.writer(), &inode_numbers));
 
   auto event = provider.ParseProto();
   ASSERT_TRUE(event);
@@ -857,7 +870,7 @@ ExamplePage g_full_page_sched_switch{
 00000070: 6561 6400 6572 0000 7002 0000 6100 0000  ead.er..p...a...
 00000080: 0100 0000 0000 0000 4a69 7420 7468 7265  ........Jit thre
 00000090: 6164 2070 6f6f 6c00 140d 0000 8100 0000  ad pool.........
-000000a0: 50c2 0910 2f00 0103 140d 0000 4a69 7420  P.../.......Jit 
+000000a0: 50c2 0910 2f00 0103 140d 0000 4a69 7420  P.../.......Jit
 000000b0: 7468 7265 6164 2070 6f6f 6c00 140d 0000  thread pool.....
 000000c0: 8100 0000 0100 0000 0000 0000 7377 6170  ............swap
 000000d0: 7065 722f 3000 0000 0000 0000 0000 0000  per/0...........

@@ -22,6 +22,7 @@
 
 #include <array>
 #include <memory>
+#include <set>
 #include <thread>
 
 #include "gtest/gtest_prod.h"
@@ -79,11 +80,10 @@ class CpuReader {
 
   // Drains all available data from the staging pipe into the given sinks.
   // Should be called in response to the |on_data_available| callback.
-  bool Drain(
-      const std::array<const EventFilter*, kMaxSinks>&,
-      const std::array<
-          protozero::ProtoZeroMessageHandle<protos::pbzero::FtraceEventBundle>,
-          kMaxSinks>&);
+  bool Drain(const std::array<const EventFilter*, kMaxSinks>&,
+             const std::array<
+                 protozero::MessageHandle<protos::pbzero::FtraceEventBundle>,
+                 kMaxSinks>&);
 
   template <typename T>
   static bool ReadAndAdvance(const uint8_t** ptr, const uint8_t* end, T* out) {
@@ -100,7 +100,7 @@ class CpuReader {
   template <typename T>
   static void ReadIntoVarInt(const uint8_t* start,
                              size_t field_id,
-                             protozero::ProtoZeroMessage* out) {
+                             protozero::Message* out) {
     T t;
     memcpy(&t, reinterpret_cast<const void*>(start), sizeof(T));
     out->AppendVarInt<T>(field_id, t);
@@ -129,12 +129,14 @@ class CpuReader {
                          const uint8_t* start,
                          const uint8_t* end,
                          const ProtoTranslationTable* table,
-                         protozero::ProtoZeroMessage* message);
+                         protozero::Message* message,
+                         std::set<uint64_t>* inode_numbers);
 
   static bool ParseField(const Field& field,
                          const uint8_t* start,
                          const uint8_t* end,
-                         protozero::ProtoZeroMessage* message);
+                         protozero::Message* message,
+                         std::set<uint64_t>* inode_numbers);
 
  private:
   static void RunWorkerThread(size_t cpu,
