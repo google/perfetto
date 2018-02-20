@@ -48,6 +48,11 @@ void DataSourceConfig::FromProto(
                 "size mismatch");
   target_buffer_ = static_cast<decltype(target_buffer_)>(proto.target_buffer());
 
+  static_assert(sizeof(trace_duration_ms_) == sizeof(proto.trace_duration_ms()),
+                "size mismatch");
+  trace_duration_ms_ =
+      static_cast<decltype(trace_duration_ms_)>(proto.trace_duration_ms());
+
   ftrace_config_.FromProto(proto.ftrace_config());
   unknown_fields_ = proto.unknown_fields();
 }
@@ -63,6 +68,12 @@ void DataSourceConfig::ToProto(
                 "size mismatch");
   proto->set_target_buffer(
       static_cast<decltype(proto->target_buffer())>(target_buffer_));
+
+  static_assert(
+      sizeof(trace_duration_ms_) == sizeof(proto->trace_duration_ms()),
+      "size mismatch");
+  proto->set_trace_duration_ms(
+      static_cast<decltype(proto->trace_duration_ms())>(trace_duration_ms_));
 
   ftrace_config_.ToProto(proto->mutable_ftrace_config());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
