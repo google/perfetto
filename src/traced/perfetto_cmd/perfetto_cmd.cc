@@ -199,9 +199,13 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
   }
 
-  if (trace_config_raw.empty() ||
-      (trace_out_path_.empty() && dropbox_tag_.empty())) {
+  if (trace_out_path_.empty() && dropbox_tag_.empty()) {
     return PrintUsage(argv[0]);
+  }
+
+  if (trace_config_raw.empty()) {
+    PERFETTO_ELOG("The TraceConfig is empty");
+    return 1;
   }
 
   perfetto::protos::TraceConfig trace_config_proto;
