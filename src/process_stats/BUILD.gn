@@ -17,6 +17,7 @@ source_set("process_stats") {
   deps = [
     "../../../gn:default_deps",
     "../../../protos/perfetto/config",
+    "../base",
   ]
   sources = [
     "file_utils.cc",
