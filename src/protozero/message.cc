@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "perfetto/protozero/protozero_message.h"
+#include "perfetto/protozero/message.h"
 
 #include <type_traits>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/protozero/protozero_message_handle.h"
+#include "perfetto/protozero/message_handle.h"
 
 #if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
 // The memcpy() for float and double below needs to be adjusted if we want to

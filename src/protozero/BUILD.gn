@@ -27,9 +27,9 @@ source_set("protozero") {
     "../base",
   ]
   sources = [
+    "message.cc",
+    "message_handle.cc",
     "proto_utils.cc",
-    "protozero_message.cc",
-    "protozero_message_handle.cc",
     "scattered_stream_writer.cc",
   ]
 }
@@ -45,9 +45,9 @@ source_set("protozero_unittests") {
     "../base",
   ]
   sources = [
+    "message_handle_unittest.cc",
+    "message_unittest.cc",
     "proto_utils_unittest.cc",
-    "protozero_message_handle_unittest.cc",
-    "protozero_message_unittest.cc",
     "scattered_stream_writer_unittest.cc",
     "test/fake_scattered_buffer.cc",
     "test/fake_scattered_buffer.h",
