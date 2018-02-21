@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_PROTOZERO_PROTOZERO_MESSAGE_HANDLE_H_
-#define INCLUDE_PERFETTO_PROTOZERO_PROTOZERO_MESSAGE_HANDLE_H_
+#ifndef INCLUDE_PERFETTO_PROTOZERO_MESSAGE_HANDLE_H_
+#define INCLUDE_PERFETTO_PROTOZERO_MESSAGE_HANDLE_H_
 
 #include <functional>
 
-#include "perfetto/protozero/protozero_message.h"
+#include "perfetto/protozero/message.h"
 
 namespace protozero {
 
@@ -90,4 +90,4 @@ class MessageHandle : public MessageHandleBase {
 
 }  // namespace protozero
 
-#endif  // INCLUDE_PERFETTO_PROTOZERO_PROTOZERO_MESSAGE_HANDLE_H_
+#endif  // INCLUDE_PERFETTO_PROTOZERO_MESSAGE_HANDLE_H_

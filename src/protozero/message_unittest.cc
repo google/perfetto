@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "perfetto/protozero/protozero_message.h"
-#include "perfetto/protozero/protozero_message_handle.h"
+#include "perfetto/protozero/message.h"
+#include "perfetto/protozero/message_handle.h"
 
 #include <limits>
 #include <memory>
