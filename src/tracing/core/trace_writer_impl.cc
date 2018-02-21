@@ -144,22 +144,20 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_));
 
   // Start a new chunk.
-  ChunkHeader::Identifier identifier = {};
-  identifier.writer_id = id_;
-  identifier.chunk_id = cur_chunk_id_++;
 
-  ChunkHeader::PacketsState packets_state = {};
+  ChunkHeader::Packets packets = {};
   if (fragmenting_packet_) {
-    packets_state.count = 1;
-    packets_state.flags = ChunkHeader::kFirstPacketContinuesFromPrevChunk;
+    packets.count = 1;
+    packets.flags = ChunkHeader::kFirstPacketContinuesFromPrevChunk;
   }
 
   // The memory order of the stores below doesn't really matter. This |header|
   // is just a local temporary object. The GetNewChunk() call below will copy it
   // into the shared buffer with the proper barriers.
   ChunkHeader header = {};
-  header.identifier.store(identifier, std::memory_order_relaxed);
-  header.packets_state.store(packets_state, std::memory_order_relaxed);
+  header.writer_id.store(id_, std::memory_order_relaxed);
+  header.chunk_id.store(cur_chunk_id_++, std::memory_order_relaxed);
+  header.packets.store(packets, std::memory_order_relaxed);
 
   cur_chunk_ = shmem_arbiter_->GetNewChunk(header, target_buffer_);
   uint8_t* payload_begin = cur_chunk_.payload_begin();
