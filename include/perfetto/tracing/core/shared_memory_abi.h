@@ -185,6 +185,11 @@ class SharedMemoryABI {
   static constexpr const char* kChunkStateStr[] = {"Free", "BeingWritten",
                                                    "BeingRead", "Complete"};
 
+  // TODO(primiano): In next CLs get rid of kChunkBeingRead (useless if we
+  // assume only the service can transition into kChunkFree) and introduce
+  // instead a state to capture the notion of "chunk is complete but the last
+  // packet still needs patching and cannot be consumed".
+
   enum PageLayout : uint32_t {
     // The page is fully free and has not been partitioned yet.
     kPageNotPartitioned = 0,
@@ -280,6 +285,7 @@ class SharedMemoryABI {
     // in the page should be moved into. This is reflecting the
     // DataSourceConfig.target_buffer received at registration time.
     // kMaxTraceBufferID in basic_types.h relies on the size of this.
+    // TODO(primiano): remove this and move to the NotifySharedMemoryUpdate IPC.
     std::atomic<uint16_t> target_buffer;
     uint16_t reserved;
   };
@@ -297,38 +303,36 @@ class SharedMemoryABI {
       kLastPacketContinuesOnNextChunk = 1 << 1,
     };
 
-    struct PacketsState {
+    struct Packets {
       // Number of valid TracePacket protobuf messages contained in the chunk.
       // Each TracePacket is prefixed by its own size. This field is
       // monotonically updated by the Producer with release store semantic after
       // the packet has been written into the chunk.
-      uint16_t count;
+      uint16_t count : 10;
 
-      uint8_t flags;
-      uint8_t reserved;
+      // See Flags above.
+      uint16_t flags : 6;
     };
 
-    // This never changes throughout the life of the Chunk.
-    struct Identifier {
-      // chunk_id is a monotonic counter of the chunk within its own
-      // sequence. The tuple (writer_id, chunk_id) allows to figure
-      // out if two chunks for a data source are contiguous (and hence a trace
-      // packet spanning across them can be glued) or we had some holes due to
-      // the ring buffer wrapping.
-      uint16_t chunk_id;
+    // A monotonic counter of the chunk within the scoped of a |writer_id|.
+    // The tuple (ProducerID, WriterID, ChunkID) allows to figure out if two
+    // chunks are contiguous (and hence a trace packets spanning across them can
+    // be glued) or we had some holes due to the ring buffer wrapping.
+    // This is set only when transitioning from kChunkFree to kChunkBeingWritten
+    // and remains unchanged throughout the remaining lifetime of the chunk.
+    std::atomic<uint32_t> chunk_id;
 
-      // A sequence identifies a linear stream of TracePacket produced by the
-      // same data source.
-      unsigned writer_id : 10;  // kMaxWriterID relies on the size of this.
+    // ID of the writer, unique within the producer.
+    // Like |chunk_id|, this is set only when transitioning from kChunkFree to
+    // kChunkBeingWritten.
+    std::atomic<uint16_t> writer_id;
 
-      unsigned reserved : 6;
-    };
+    // There is no ProducerID here. The service figures that out from the IPC
+    // channel, which is unspoofable.
 
-    // Updated with release-store semantics
-    std::atomic<Identifier> identifier;
-    std::atomic<PacketsState> packets_state;
+    // Updated with release-store semantics.
+    std::atomic<Packets> packets;
   };
-  static constexpr size_t kMaxWriterID = (1 << 10) - 1;
 
   class Chunk {
    public:
@@ -355,31 +359,33 @@ class SharedMemoryABI {
 
     // Returns the count of packets and the flags with acquire-load semantics.
     std::pair<uint16_t, uint8_t> GetPacketCountAndFlags() {
-      auto pstate = header()->packets_state.load(std::memory_order_acquire);
-      return std::make_pair(pstate.count, pstate.flags);
+      auto packets = header()->packets.load(std::memory_order_acquire);
+      const uint16_t packets_count = packets.count;
+      const uint8_t packets_flags = packets.flags;
+      return std::make_pair(packets_count, packets_flags);
     }
 
-    // Increases |packets_state.count| with release semantics (however the
-    // packet count is incremented before starting writing a packet).
+    // Increases |packets.count| with release semantics (note, however, that the
+    // packet count is incremented *before* starting writing a packet).
     // The increment is atomic but NOT race-free (i.e. no CAS). Only the
-    // Producer is supposed to perform this increment thread-safely. A Chunk
-    // cannot be shared by multiple threads without locking.
-    // The packet count is cleared by TryAcquireChunk(), when passing the new
-    // header for the chunk.
+    // Producer is supposed to perform this increment, and it's supposed to do
+    // that in a thread-safe way (holding a lock). A Chunk cannot be shared by
+    // multiple Producer threads without locking. The packet count is cleared by
+    // TryAcquireChunk(), when passing the new header for the chunk.
     void IncrementPacketCount() {
       ChunkHeader* chunk_header = header();
-      auto pstate = chunk_header->packets_state.load(std::memory_order_relaxed);
-      pstate.count++;
-      chunk_header->packets_state.store(pstate, std::memory_order_release);
+      auto packets = chunk_header->packets.load(std::memory_order_relaxed);
+      packets.count++;
+      chunk_header->packets.store(packets, std::memory_order_release);
     }
 
     // Flags are cleared by TryAcquireChunk(), by passing the new header for
     // the chunk.
     void SetFlag(ChunkHeader::Flags flag) {
       ChunkHeader* chunk_header = header();
-      auto pstate = chunk_header->packets_state.load(std::memory_order_relaxed);
-      pstate.flags |= static_cast<uint8_t>(flag);
-      chunk_header->packets_state.store(pstate, std::memory_order_release);
+      auto packets = chunk_header->packets.load(std::memory_order_relaxed);
+      packets.flags |= flag;
+      chunk_header->packets.store(packets, std::memory_order_release);
     }
 
    private:

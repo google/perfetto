@@ -27,8 +27,6 @@
 namespace perfetto {
 namespace {
 
-constexpr size_t kMaxWriterID = SharedMemoryABI::kMaxWriterID;
-
 class SharedMemoryArbiterImplTest : public AlignedBufferTest {
  public:
   void SetUp() override {

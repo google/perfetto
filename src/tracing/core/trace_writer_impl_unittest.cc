@@ -83,7 +83,7 @@ TEST_P(TraceWriterImplTest, SingleWriter) {
       auto chunk = abi->TryAcquireChunkForReading(page_idx, chunk_idx, kBufId);
       if (!chunk.is_valid())
         continue;
-      packets_count += chunk.header()->packets_state.load().count;
+      packets_count += chunk.header()->packets.load().count;
     }
   }
   EXPECT_EQ(kNumPackets, packets_count);
