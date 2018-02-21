@@ -51,7 +51,7 @@ SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
     : task_runner_(task_runner),
       on_pages_complete_callback_(std::move(callback)),
       shmem_abi_(reinterpret_cast<uint8_t*>(start), size, page_size),
-      active_writer_ids_(SharedMemoryABI::kMaxWriterID) {}
+      active_writer_ids_(kMaxWriterID) {}
 
 Chunk SharedMemoryArbiterImpl::GetNewChunk(
     const SharedMemoryABI::ChunkHeader& header,

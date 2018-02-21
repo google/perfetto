@@ -58,7 +58,10 @@ SharedMemoryABI::SharedMemoryABI(uint8_t* start, size_t size, size_t page_size)
       chunk_sizes_(InitChunkSizes(page_size)) {
   static_assert(sizeof(PageHeader) == 8, "PageHeader size");
   static_assert(sizeof(ChunkHeader) == 8, "ChunkHeader size");
-  static_assert(sizeof(ChunkHeader::PacketsState) == 4, "PacketsState size");
+  static_assert(sizeof(ChunkHeader::chunk_id) == sizeof(ChunkID),
+                "ChunkID size");
+
+  static_assert(sizeof(ChunkHeader::Packets) == 2, "ChunkHeader::Packets size");
   static_assert(alignof(ChunkHeader) == kChunkAlignment,
                 "ChunkHeader alignment");
 
@@ -85,8 +88,14 @@ SharedMemoryABI::SharedMemoryABI(uint8_t* start, size_t size, size_t page_size)
                 "kAllChunksComplete out of sync with kChunkComplete");
 
   // Sanity check the consistency of the kMax... constants.
-  ChunkHeader::Identifier chunk_id = {};
-  PERFETTO_CHECK((chunk_id.writer_id -= 1) == kMaxWriterID);
+  static_assert(sizeof(ChunkHeader::writer_id) == sizeof(WriterID),
+                "WriterID size");
+  ChunkHeader chunk_header{};
+  chunk_header.chunk_id = -1;
+  PERFETTO_CHECK(chunk_header.chunk_id == kMaxChunkID);
+
+  chunk_header.writer_id = -1;
+  PERFETTO_CHECK(kMaxWriterID <= chunk_header.writer_id);
 
   PageHeader phdr;
   phdr.target_buffer.store(-1);
@@ -174,9 +183,9 @@ SharedMemoryABI::Chunk SharedMemoryABI::TryAcquireChunk(
   if (desired_chunk_state == kChunkBeingWritten) {
     PERFETTO_DCHECK(header);
     ChunkHeader* new_header = chunk.header();
-    new_header->packets_state.store(header->packets_state,
-                                    std::memory_order_relaxed);
-    new_header->identifier.store(header->identifier, std::memory_order_release);
+    new_header->packets.store(header->packets, std::memory_order_relaxed);
+    new_header->writer_id.store(header->writer_id, std::memory_order_relaxed);
+    new_header->chunk_id.store(header->chunk_id, std::memory_order_release);
   }
   return chunk;
 }
