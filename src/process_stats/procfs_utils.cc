@@ -10,6 +10,8 @@
 
 #include "file_utils.h"
 
+#include "perfetto/base/logging.h"
+
 using file_utils::ForEachPidInProcPath;
 using file_utils::ReadProcFile;
 using file_utils::ReadProcFileTrimmed;
@@ -47,6 +49,7 @@ inline int ReadStatusLine(int pid, const char* status_string) {
   if (rsize <= 0)
     return -1;
   const char* line = strstr(buf, status_string);
+  PERFETTO_DCHECK(line);
   return atoi(line + sizeof(status_string) - 1);
 }
 
@@ -57,7 +60,7 @@ int ReadTgid(int pid) {
 }
 
 int ReadPpid(int pid) {
-  return ReadStatusLine(pid, "\nPpid:");
+  return ReadStatusLine(pid, "\nPPid:");
 }
 
 std::unique_ptr<ProcessInfo> ReadProcessInfo(int pid) {
