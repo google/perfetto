@@ -125,6 +125,11 @@ class DataSourceConfig {
   uint32_t trace_duration_ms() const { return trace_duration_ms_; }
   void set_trace_duration_ms(uint32_t value) { trace_duration_ms_ = value; }
 
+  bool enable_extra_guardrails() const { return enable_extra_guardrails_; }
+  void set_enable_extra_guardrails(bool value) {
+    enable_extra_guardrails_ = value;
+  }
+
   const FtraceConfig& ftrace_config() const { return ftrace_config_; }
   FtraceConfig* mutable_ftrace_config() { return &ftrace_config_; }
 
@@ -132,6 +137,7 @@ class DataSourceConfig {
   std::string name_ = {};
   uint32_t target_buffer_ = {};
   uint32_t trace_duration_ms_ = {};
+  bool enable_extra_guardrails_ = {};
   FtraceConfig ftrace_config_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
