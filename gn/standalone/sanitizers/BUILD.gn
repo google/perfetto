@@ -39,13 +39,14 @@ if (is_android && sanitizer_lib != "" && !sanitizer_lib_dir_is_static) {
 }
 
 config("sanitizers_cflags") {
+  cflags = []
+  defines = []
   if (using_sanitizer) {
     blacklist_path_ = rebase_path("blacklist.txt", root_build_dir)
-    cflags = [
+    cflags += [
       "-fno-omit-frame-pointer",
       "-fsanitize-blacklist=$blacklist_path_",
     ]
-    defines = []
   }
 
   if (is_asan) {
