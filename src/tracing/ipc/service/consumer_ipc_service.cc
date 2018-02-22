@@ -21,8 +21,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ipc/host.h"
-#include "perfetto/tracing/core/chunk.h"
 #include "perfetto/tracing/core/service.h"
+#include "perfetto/tracing/core/slice.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
 
@@ -109,13 +109,13 @@ void ConsumerIPCService::RemoteConsumer::OnTraceData(
 
   auto result = ipc::AsyncResult<ReadBuffersResponse>::Create();
   result.set_has_more(has_more);
-  // TODO(primiano): Expose the chunks to the Consumer rather than stitching
+  // TODO(primiano): Expose the slices to the Consumer rather than stitching
   // them and wasting cpu time to hide this detail.
   for (const TracePacket& trace_packet : trace_packets) {
     std::string* dst = result->add_trace_packets();
     dst->reserve(trace_packet.size());
-    for (const Chunk& chunk : trace_packet)
-      dst->append(reinterpret_cast<const char*>(chunk.start), chunk.size);
+    for (const Slice& slice : trace_packet)
+      dst->append(reinterpret_cast<const char*>(slice.start), slice.size);
   }
   read_buffers_response.Resolve(std::move(result));
 }

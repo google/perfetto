@@ -16,7 +16,7 @@
 
 #include "perfetto/tracing/core/trace_packet.h"
 
-#include "src/tracing/core/chunked_protobuf_input_stream.h"
+#include "src/tracing/core/sliced_protobuf_input_stream.h"
 
 #include "perfetto/trace/trace_packet.pb.h"
 
@@ -32,7 +32,7 @@ bool TracePacket::Decode() {
   if (decoded_packet_)
     return true;
   decoded_packet_.reset(new DecodedTracePacket());
-  ChunkedProtobufInputStream istr(&chunks_);
+  SlicedProtobufInputStream istr(&slices_);
   if (!decoded_packet_->ParseFromZeroCopyStream(&istr)) {
     decoded_packet_.reset();
     return false;
@@ -40,9 +40,9 @@ bool TracePacket::Decode() {
   return true;
 }
 
-void TracePacket::AddChunk(Chunk chunk) {
-  size_ += chunk.size;
-  chunks_.push_back(std::move(chunk));
+void TracePacket::AddSlice(Slice slice) {
+  size_ += slice.size;
+  slices_.push_back(std::move(slice));
 }
 
 }  // namespace perfetto

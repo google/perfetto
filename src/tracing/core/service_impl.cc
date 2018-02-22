@@ -341,17 +341,17 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
             PERFETTO_DLOG("out of bounds!");
             break;
           }
-          ChunkSequence chunk_seq;
-          chunk_seq.emplace_back(ptr, pack_size);
-          if (!skip && !PacketStreamValidator::Validate(chunk_seq)) {
+          Slices slices;
+          slices.emplace_back(ptr, pack_size);
+          if (!skip && !PacketStreamValidator::Validate(slices)) {
             PERFETTO_DLOG("Dropping invalid packet");
             skip = true;
           }
 
           if (!skip) {
             packets->emplace_back();
-            for (Chunk& validated_chunk : chunk_seq)
-              packets->back().AddChunk(std::move(validated_chunk));
+            for (Slice& validated_slice : slices)
+              packets->back().AddSlice(std::move(validated_slice));
 
             // Append a chunk with the trusted UID of the producer. This can't
             // be spoofed because above we validated that the existing chunks
@@ -366,8 +366,8 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
             uint8_t trusted_buf[16];
             PERFETTO_CHECK(trusted_packet.SerializeToArray(
                 &trusted_buf, sizeof(trusted_buf)));
-            packets->back().AddChunk(
-                Chunk::Copy(trusted_buf, trusted_packet.ByteSize()));
+            packets->back().AddSlice(
+                Slice::Copy(trusted_buf, trusted_packet.ByteSize()));
           }
           ptr += pack_size;
         }  // for(packet)

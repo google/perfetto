@@ -27,14 +27,14 @@
 namespace perfetto {
 
 // static
-bool PacketStreamValidator::Validate(const ChunkSequence& sequence) {
+bool PacketStreamValidator::Validate(const Slices& slices) {
   static_assert(protos::TracePacket::kTrustedUidFieldNumber ==
                     protos::TrustedPacket::kTrustedUidFieldNumber,
                 "trusted uid field id mismatch");
-  ChunkedProtobufInputStream stream(&sequence);
+  SlicedProtobufInputStream stream(&slices);
   size_t size = 0;
-  for (const Chunk& chunk : sequence)
-    size += chunk.size;
+  for (const Slice& slice : slices)
+    size += slice.size;
 
   protos::TrustedPacket packet;
   if (!packet.ParseFromBoundedZeroCopyStream(&stream, size))
