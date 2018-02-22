@@ -22,14 +22,31 @@
 
 namespace perfetto {
 
+// Unique within the scope of the tracing service.
 using ProducerID = uint64_t;
+
+// Unique within the scope of the tracing service.
 using DataSourceID = uint64_t;
+
+// Unique within the scope of the tracing service.
 using DataSourceInstanceID = uint64_t;
+
+// Unique within the scope of a Producer.
 using WriterID = uint16_t;
+
+// 1024 Writers per producer seems a resonable bound. This reduces the ability
+// to memory-DoS the service by having to keep track of too many writer IDs.
+static constexpr WriterID kMaxWriterID = static_cast<WriterID>((1 << 10) - 1);
+
+// Unique within the scope of a {ProducerID, WriterID} tuple.
+using ChunkID = uint32_t;
+static constexpr ChunkID kMaxChunkID = static_cast<ChunkID>(-1);
+
+// Unique within the scope of the tracing service.
 using BufferID = uint16_t;
 
 // Keep this in sync with SharedMemoryABI::PageHeader::target_buffer.
-static constexpr BufferID kMaxTraceBufferID = (1ul << 16) - 1;
+static constexpr BufferID kMaxTraceBufferID = static_cast<BufferID>(-1);
 
 // TODO(primiano): temporary. The buffer page size should be configurable by
 // consumers.
