@@ -55,6 +55,12 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
   static_assert(sizeof(duration_ms_) == sizeof(proto.duration_ms()),
                 "size mismatch");
   duration_ms_ = static_cast<decltype(duration_ms_)>(proto.duration_ms());
+
+  static_assert(sizeof(enable_extra_guardrails_) ==
+                    sizeof(proto.enable_extra_guardrails()),
+                "size mismatch");
+  enable_extra_guardrails_ = static_cast<decltype(enable_extra_guardrails_)>(
+      proto.enable_extra_guardrails());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -75,6 +81,13 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
                 "size mismatch");
   proto->set_duration_ms(
       static_cast<decltype(proto->duration_ms())>(duration_ms_));
+
+  static_assert(sizeof(enable_extra_guardrails_) ==
+                    sizeof(proto->enable_extra_guardrails()),
+                "size mismatch");
+  proto->set_enable_extra_guardrails(
+      static_cast<decltype(proto->enable_extra_guardrails())>(
+          enable_extra_guardrails_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
