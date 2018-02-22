@@ -51,9 +51,6 @@ message DataSourceConfig {
   // DO NOT SET in consumer as this will be overridden by the service.
   optional uint32 trace_duration_ms = 3;
 
-  // DO NOT SET in consumer as this will be overridden by the service.
-  optional bool enable_extra_guardrails = 4;
-
   // Keeep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
