@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_CHUNKED_PROTOBUF_INPUT_STREAM_H_
-#define SRC_TRACING_CORE_CHUNKED_PROTOBUF_INPUT_STREAM_H_
+#ifndef SRC_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
+#define SRC_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
 
-#include "perfetto/tracing/core/chunk.h"
+#include "perfetto/tracing/core/slice.h"
 
 #include <stdint.h>
 
@@ -25,13 +25,13 @@
 
 namespace perfetto {
 
-// Wraps a ChunkSequence in a protobuf ZeroCopyInputStream that can be passed
-// to protobuf::Message::ParseFromZeroCopyStream().
-class ChunkedProtobufInputStream
+// Wraps a sequence of Slice(s) in a protobuf ZeroCopyInputStream that can be
+// passed to protobuf::Message::ParseFromZeroCopyStream().
+class SlicedProtobufInputStream
     : public google::protobuf::io::ZeroCopyInputStream {
  public:
-  explicit ChunkedProtobufInputStream(const ChunkSequence*);
-  ~ChunkedProtobufInputStream() override;
+  explicit SlicedProtobufInputStream(const Slices*);
+  ~SlicedProtobufInputStream() override;
 
   // ZeroCopyInputStream implementation. See zero_copy_stream.h for the API
   // contract of the methods below.
@@ -43,11 +43,11 @@ class ChunkedProtobufInputStream
  private:
   bool Validate() const;
 
-  const ChunkSequence* const chunks_;
-  ChunkSequence::const_iterator cur_chunk_;
-  size_t pos_in_cur_chunk_ = 0;
+  const Slices* const slices_;
+  Slices::const_iterator cur_slice_;
+  size_t pos_in_cur_slice_ = 0;
 };
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_CHUNKED_PROTOBUF_INPUT_STREAM_H_
+#endif  // SRC_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_

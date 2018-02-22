@@ -27,7 +27,7 @@ namespace {
 
 TEST(PacketStreamValidatorTest, NullPacket) {
   std::string ser_buf;
-  ChunkSequence seq;
+  Slices seq;
   EXPECT_TRUE(PacketStreamValidator::Validate(seq));
 }
 
@@ -36,7 +36,7 @@ TEST(PacketStreamValidatorTest, SimplePacket) {
   proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
 
-  ChunkSequence seq;
+  Slices seq;
   seq.emplace_back(&ser_buf[0], ser_buf.size());
   EXPECT_TRUE(PacketStreamValidator::Validate(seq));
 }
@@ -53,7 +53,7 @@ TEST(PacketStreamValidatorTest, ComplexPacket) {
   ft->mutable_sched_switch()->set_next_pid(456);
   std::string ser_buf = proto.SerializeAsString();
 
-  ChunkSequence seq;
+  Slices seq;
   seq.emplace_back(&ser_buf[0], ser_buf.size());
   EXPECT_TRUE(PacketStreamValidator::Validate(seq));
 }
@@ -63,7 +63,7 @@ TEST(PacketStreamValidatorTest, SimplePacketWithUid) {
   proto.set_trusted_uid(123);
   std::string ser_buf = proto.SerializeAsString();
 
-  ChunkSequence seq;
+  Slices seq;
   seq.emplace_back(&ser_buf[0], ser_buf.size());
   EXPECT_FALSE(PacketStreamValidator::Validate(seq));
 }
@@ -73,7 +73,7 @@ TEST(PacketStreamValidatorTest, SimplePacketWithZeroUid) {
   proto.set_trusted_uid(0);
   std::string ser_buf = proto.SerializeAsString();
 
-  ChunkSequence seq;
+  Slices seq;
   seq.emplace_back(&ser_buf[0], ser_buf.size());
   EXPECT_FALSE(PacketStreamValidator::Validate(seq));
 }
@@ -83,7 +83,7 @@ TEST(PacketStreamValidatorTest, SimplePacketWithNegativeOneUid) {
   proto.set_trusted_uid(-1);
   std::string ser_buf = proto.SerializeAsString();
 
-  ChunkSequence seq;
+  Slices seq;
   seq.emplace_back(&ser_buf[0], ser_buf.size());
   EXPECT_FALSE(PacketStreamValidator::Validate(seq));
 }
@@ -101,7 +101,7 @@ TEST(PacketStreamValidatorTest, ComplexPacketWithUid) {
   proto.set_trusted_uid(123);
   std::string ser_buf = proto.SerializeAsString();
 
-  ChunkSequence seq;
+  Slices seq;
   seq.emplace_back(&ser_buf[0], ser_buf.size());
   EXPECT_FALSE(PacketStreamValidator::Validate(seq));
 }
@@ -119,7 +119,7 @@ TEST(PacketStreamValidatorTest, FragmentedPacket) {
   std::string ser_buf = proto.SerializeAsString();
 
   for (size_t i = 0; i < ser_buf.size(); i++) {
-    ChunkSequence seq;
+    Slices seq;
     seq.emplace_back(&ser_buf[0], i);
     seq.emplace_back(&ser_buf[i], ser_buf.size() - i);
     EXPECT_TRUE(PacketStreamValidator::Validate(seq));
@@ -141,7 +141,7 @@ TEST(PacketStreamValidatorTest, FragmentedPacketWithUid) {
   std::string ser_buf = proto.SerializeAsString();
 
   for (size_t i = 0; i < ser_buf.size(); i++) {
-    ChunkSequence seq;
+    Slices seq;
     seq.emplace_back(&ser_buf[0], i);
     seq.emplace_back(&ser_buf[i], ser_buf.size() - i);
     EXPECT_FALSE(PacketStreamValidator::Validate(seq));
@@ -154,7 +154,7 @@ TEST(PacketStreamValidatorTest, TruncatedPacket) {
   std::string ser_buf = proto.SerializeAsString();
 
   for (size_t i = 1; i < ser_buf.size(); i++) {
-    ChunkSequence seq;
+    Slices seq;
     seq.emplace_back(&ser_buf[0], i);
     EXPECT_FALSE(PacketStreamValidator::Validate(seq));
   }
@@ -166,7 +166,7 @@ TEST(PacketStreamValidatorTest, TrailingGarbage) {
   std::string ser_buf = proto.SerializeAsString();
   ser_buf += "bike is short for bichael";
 
-  ChunkSequence seq;
+  Slices seq;
   seq.emplace_back(&ser_buf[0], ser_buf.size());
   EXPECT_FALSE(PacketStreamValidator::Validate(seq));
 }
