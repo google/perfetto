@@ -141,6 +141,7 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Enabling tracing for consumer %p",
                 reinterpret_cast<void*>(consumer));
+
   if (consumer->tracing_session_id_) {
     PERFETTO_DLOG(
         "A Consumer is trying to EnableTracing() but another tracing session "
@@ -457,6 +458,8 @@ void ServiceImpl::CreateDataSourceInstanceForProducer(
 
   DataSourceConfig ds_config = cfg_data_source.config();  // Deliberate copy.
   ds_config.set_trace_duration_ms(tracing_session->config.duration_ms());
+  ds_config.set_enable_extra_guardrails(
+      tracing_session->config.enable_extra_guardrails());
   auto relative_buffer_id = ds_config.target_buffer();
   if (relative_buffer_id >= tracing_session->num_buffers()) {
     PERFETTO_LOG(
