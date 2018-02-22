@@ -87,4 +87,9 @@ message TraceConfig {
   repeated DataSource data_sources = 2;
 
   optional uint32 duration_ms = 3;
+
+  // This is set when --dropbox is passed to the Perfetto command line client
+  // and enables guardrails that limit resource usage for traces requested
+  // by statsd.
+  optional bool enable_extra_guardrails = 4;
 }
