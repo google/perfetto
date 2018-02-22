@@ -22,7 +22,7 @@
 #include <memory>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/tracing/core/chunk.h"
+#include "perfetto/tracing/core/slice.h"
 
 class TracePacket;
 
@@ -42,7 +42,7 @@ class TracePacket;  // From protos/trace_packet.pb.h.
 // fact, might have an older version .proto which is newer on the producer.
 class TracePacket {
  public:
-  using const_iterator = ChunkSequence::const_iterator;
+  using const_iterator = Slices::const_iterator;
 
   using DecodedTracePacket = protos::TracePacket;
   TracePacket();
@@ -50,9 +50,9 @@ class TracePacket {
   TracePacket(TracePacket&&) noexcept;
   TracePacket& operator=(TracePacket&&);
 
-  // Accesses all the raw chunks in the packet, for saving them to file/network.
-  const_iterator begin() const { return chunks_.begin(); }
-  const_iterator end() const { return chunks_.end(); }
+  // Accesses all the raw slices in the packet, for saving them to file/network.
+  const_iterator begin() const { return slices_.begin(); }
+  const_iterator end() const { return slices_.end(); }
 
   // Decodes the packet for inline use.
   bool Decode();
@@ -65,19 +65,19 @@ class TracePacket {
   const DecodedTracePacket& operator*() { return *(operator->()); }
 
   // Mutator, used only by the service and tests.
-  void AddChunk(Chunk);
+  void AddSlice(Slice);
 
-  // Total size of all chunks.
+  // Total size of all slices.
   size_t size() const { return size_; }
 
  private:
   TracePacket(const TracePacket&) = delete;
   TracePacket& operator=(const TracePacket&) = delete;
 
-  // TODO(primiano): who owns the memory of the chunks? Figure out later.
+  // TODO(primiano): who owns the memory of the slices? Figure out later.
 
-  ChunkSequence chunks_;  // Not owned.
-  size_t size_ = 0;       // SUM(chunk.size for chunk in chunks_).
+  Slices slices_;    // Not owned.
+  size_t size_ = 0;  // SUM(slice.size for slice in slices_).
   std::unique_ptr<DecodedTracePacket> decoded_packet_;
 };
 

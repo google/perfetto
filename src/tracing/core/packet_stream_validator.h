@@ -17,7 +17,7 @@
 #ifndef SRC_TRACING_CORE_PACKET_STREAM_VALIDATOR_H_
 #define SRC_TRACING_CORE_PACKET_STREAM_VALIDATOR_H_
 
-#include "src/tracing/core/chunked_protobuf_input_stream.h"
+#include "src/tracing/core/sliced_protobuf_input_stream.h"
 
 namespace perfetto {
 
@@ -34,7 +34,7 @@ class PacketStreamValidator {
  public:
   PacketStreamValidator() = delete;
 
-  static bool Validate(const ChunkSequence&);
+  static bool Validate(const Slices&);
 };
 
 }  // namespace perfetto
