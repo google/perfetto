@@ -29,8 +29,6 @@ source_set("tracing") {
     "../base",
   ]
   sources = [
-    "core/chunked_protobuf_input_stream.cc",
-    "core/chunked_protobuf_input_stream.h",
     "core/data_source_config.cc",
     "core/data_source_descriptor.cc",
     "core/id_allocator.cc",
@@ -42,6 +40,8 @@ source_set("tracing") {
     "core/shared_memory_abi.cc",
     "core/shared_memory_arbiter_impl.cc",
     "core/shared_memory_arbiter_impl.h",
+    "core/sliced_protobuf_input_stream.cc",
+    "core/sliced_protobuf_input_stream.h",
     "core/trace_config.cc",
     "core/trace_packet.cc",
     "core/trace_writer_impl.cc",
@@ -113,12 +113,12 @@ source_set("tracing_unittests") {
     "../base:test_support",
   ]
   sources = [
-    "core/chunked_protobuf_input_stream_unittest.cc",
     "core/id_allocator_unittest.cc",
     "core/packet_stream_validator_unittest.cc",
     "core/service_impl_unittest.cc",
     "core/shared_memory_abi_unittest.cc",
     "core/shared_memory_arbiter_impl_unittest.cc",
+    "core/sliced_protobuf_input_stream_unittest.cc",
     "core/trace_packet_unittest.cc",
     "core/trace_writer_impl_unittest.cc",
     "ipc/posix_shared_memory_unittest.cc",
