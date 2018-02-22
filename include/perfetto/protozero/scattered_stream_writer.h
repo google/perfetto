@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "perfetto/base/utils.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
 
 namespace protozero {
@@ -70,7 +71,7 @@ class ScatteredStreamWriter {
 
   inline void WriteBytes(const uint8_t* src, size_t size) {
     uint8_t* const end = write_ptr_ + size;
-    if (__builtin_expect(end <= cur_range_.end, 1))
+    if (PERFETTO_LIKELY(end <= cur_range_.end))
       return WriteBytesUnsafe(src, size);
     WriteBytesSlowPath(src, size);
   }
