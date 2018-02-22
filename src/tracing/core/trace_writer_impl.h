@@ -19,7 +19,7 @@
 
 #include <forward_list>
 
-#include "perfetto/protozero/protozero_message_handle.h"
+#include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"

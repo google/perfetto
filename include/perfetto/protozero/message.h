@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_PROTOZERO_PROTOZERO_MESSAGE_H_
-#define INCLUDE_PERFETTO_PROTOZERO_PROTOZERO_MESSAGE_H_
+#ifndef INCLUDE_PERFETTO_PROTOZERO_MESSAGE_H_
+#define INCLUDE_PERFETTO_PROTOZERO_MESSAGE_H_
 
 #include <assert.h>
 #include <stdint.h>
@@ -236,4 +236,4 @@ class Message {
 
 }  // namespace protozero
 
-#endif  // INCLUDE_PERFETTO_PROTOZERO_PROTOZERO_MESSAGE_H_
+#endif  // INCLUDE_PERFETTO_PROTOZERO_MESSAGE_H_
