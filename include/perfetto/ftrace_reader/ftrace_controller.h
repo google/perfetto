@@ -33,7 +33,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/ftrace_reader/ftrace_config.h"
-#include "perfetto/protozero/protozero_message_handle.h"
+#include "perfetto/protozero/message_handle.h"
 
 namespace perfetto {
 

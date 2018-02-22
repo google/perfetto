@@ -29,7 +29,7 @@
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/thread_checker.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
-#include "perfetto/protozero/protozero_message.h"
+#include "perfetto/protozero/message.h"
 #include "proto_translation_table.h"
 
 namespace perfetto {
