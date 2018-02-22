@@ -30,6 +30,9 @@
     eintr_wrapper_result;                                   \
   })
 
+#define PERFETTO_LIKELY(_x) __builtin_expect(!!(_x), 1)
+#define PERFETTO_UNLIKELY(_x) __builtin_expect(!!(_x), 0)
+
 namespace perfetto {
 namespace base {
 
