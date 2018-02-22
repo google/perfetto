@@ -134,9 +134,8 @@ SharedMemoryABI::Chunk SharedMemoryABI::TryAcquireChunk(
   uint32_t attempts = 1000;
   do {
     layout = phdr->layout.load(std::memory_order_acquire);
-    if (__builtin_expect(
-            (layout & kLayoutMask) >> kLayoutShift != kPageBeingPartitioned,
-            true)) {
+    if (PERFETTO_LIKELY((layout & kLayoutMask) >> kLayoutShift !=
+                        kPageBeingPartitioned)) {
       break;
     }
     std::this_thread::yield();
