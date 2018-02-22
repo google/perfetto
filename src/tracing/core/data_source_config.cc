@@ -53,6 +53,12 @@ void DataSourceConfig::FromProto(
   trace_duration_ms_ =
       static_cast<decltype(trace_duration_ms_)>(proto.trace_duration_ms());
 
+  static_assert(sizeof(enable_extra_guardrails_) ==
+                    sizeof(proto.enable_extra_guardrails()),
+                "size mismatch");
+  enable_extra_guardrails_ = static_cast<decltype(enable_extra_guardrails_)>(
+      proto.enable_extra_guardrails());
+
   ftrace_config_.FromProto(proto.ftrace_config());
   unknown_fields_ = proto.unknown_fields();
 }
@@ -74,6 +80,13 @@ void DataSourceConfig::ToProto(
       "size mismatch");
   proto->set_trace_duration_ms(
       static_cast<decltype(proto->trace_duration_ms())>(trace_duration_ms_));
+
+  static_assert(sizeof(enable_extra_guardrails_) ==
+                    sizeof(proto->enable_extra_guardrails()),
+                "size mismatch");
+  proto->set_enable_extra_guardrails(
+      static_cast<decltype(proto->enable_extra_guardrails())>(
+          enable_extra_guardrails_));
 
   ftrace_config_.ToProto(proto->mutable_ftrace_config());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
