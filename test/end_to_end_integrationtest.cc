@@ -139,8 +139,8 @@ TEST_F(PerfettoTest, MAYBE_TestFtraceProducer) {
 
   // Setup the config for ftrace.
   auto* ftrace_config = ds_config->mutable_ftrace_config();
-  *ftrace_config->add_event_names() = "sched_switch";
-  *ftrace_config->add_event_names() = "bar";
+  *ftrace_config->add_ftrace_events() = "sched_switch";
+  *ftrace_config->add_ftrace_events() = "bar";
 
   // Create the function to handle packets as they come in.
   uint64_t total = 0;
