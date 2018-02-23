@@ -28,6 +28,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 
 #include "perfetto/config/data_source_config.pb.h"
+#include "perfetto/config/ftrace/ftrace_config.pb.h"
 
 namespace perfetto {
 
@@ -76,94 +77,6 @@ void DataSourceConfig::ToProto(
       static_cast<decltype(proto->trace_duration_ms())>(trace_duration_ms_));
 
   ftrace_config_.ToProto(proto->mutable_ftrace_config());
-  *(proto->mutable_unknown_fields()) = unknown_fields_;
-}
-
-DataSourceConfig::FtraceConfig::FtraceConfig() = default;
-DataSourceConfig::FtraceConfig::~FtraceConfig() = default;
-DataSourceConfig::FtraceConfig::FtraceConfig(
-    const DataSourceConfig::FtraceConfig&) = default;
-DataSourceConfig::FtraceConfig& DataSourceConfig::FtraceConfig::operator=(
-    const DataSourceConfig::FtraceConfig&) = default;
-DataSourceConfig::FtraceConfig::FtraceConfig(
-    DataSourceConfig::FtraceConfig&&) noexcept = default;
-DataSourceConfig::FtraceConfig& DataSourceConfig::FtraceConfig::operator=(
-    DataSourceConfig::FtraceConfig&&) = default;
-
-void DataSourceConfig::FtraceConfig::FromProto(
-    const perfetto::protos::DataSourceConfig_FtraceConfig& proto) {
-  event_names_.clear();
-  for (const auto& field : proto.event_names()) {
-    event_names_.emplace_back();
-    static_assert(sizeof(event_names_.back()) == sizeof(proto.event_names(0)),
-                  "size mismatch");
-    event_names_.back() =
-        static_cast<decltype(event_names_)::value_type>(field);
-  }
-
-  atrace_categories_.clear();
-  for (const auto& field : proto.atrace_categories()) {
-    atrace_categories_.emplace_back();
-    static_assert(
-        sizeof(atrace_categories_.back()) == sizeof(proto.atrace_categories(0)),
-        "size mismatch");
-    atrace_categories_.back() =
-        static_cast<decltype(atrace_categories_)::value_type>(field);
-  }
-
-  atrace_apps_.clear();
-  for (const auto& field : proto.atrace_apps()) {
-    atrace_apps_.emplace_back();
-    static_assert(sizeof(atrace_apps_.back()) == sizeof(proto.atrace_apps(0)),
-                  "size mismatch");
-    atrace_apps_.back() =
-        static_cast<decltype(atrace_apps_)::value_type>(field);
-  }
-
-  static_assert(sizeof(buffer_size_kb_) == sizeof(proto.buffer_size_kb()),
-                "size mismatch");
-  buffer_size_kb_ =
-      static_cast<decltype(buffer_size_kb_)>(proto.buffer_size_kb());
-
-  static_assert(sizeof(drain_period_ms_) == sizeof(proto.drain_period_ms()),
-                "size mismatch");
-  drain_period_ms_ =
-      static_cast<decltype(drain_period_ms_)>(proto.drain_period_ms());
-  unknown_fields_ = proto.unknown_fields();
-}
-
-void DataSourceConfig::FtraceConfig::ToProto(
-    perfetto::protos::DataSourceConfig_FtraceConfig* proto) const {
-  proto->Clear();
-
-  for (const auto& it : event_names_) {
-    auto* entry = proto->add_event_names();
-    static_assert(sizeof(it) == sizeof(proto->event_names(0)), "size mismatch");
-    *entry = static_cast<decltype(proto->event_names(0))>(it);
-  }
-
-  for (const auto& it : atrace_categories_) {
-    auto* entry = proto->add_atrace_categories();
-    static_assert(sizeof(it) == sizeof(proto->atrace_categories(0)),
-                  "size mismatch");
-    *entry = static_cast<decltype(proto->atrace_categories(0))>(it);
-  }
-
-  for (const auto& it : atrace_apps_) {
-    auto* entry = proto->add_atrace_apps();
-    static_assert(sizeof(it) == sizeof(proto->atrace_apps(0)), "size mismatch");
-    *entry = static_cast<decltype(proto->atrace_apps(0))>(it);
-  }
-
-  static_assert(sizeof(buffer_size_kb_) == sizeof(proto->buffer_size_kb()),
-                "size mismatch");
-  proto->set_buffer_size_kb(
-      static_cast<decltype(proto->buffer_size_kb())>(buffer_size_kb_));
-
-  static_assert(sizeof(drain_period_ms_) == sizeof(proto->drain_period_ms()),
-                "size mismatch");
-  proto->set_drain_period_ms(
-      static_cast<decltype(proto->drain_period_ms())>(drain_period_ms_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

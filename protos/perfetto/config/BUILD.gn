@@ -22,6 +22,7 @@ proto_library("config") {
   sources = [
     "data_source_config.proto",
     "data_source_descriptor.proto",
+    "ftrace/ftrace_config.proto",
     "trace_config.proto",
   ]
 }
