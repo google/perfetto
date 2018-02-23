@@ -25,7 +25,7 @@ service traced_probes /system/bin/traced_probes
     class late_start
     disabled
     user nobody
-    group shell readproc
+    group nobody readproc
     writepid /dev/cpuset/system-background/tasks
     # Clean up procfs configuration even if traced_probes crashes
     # unexpectedly.
