@@ -20,6 +20,7 @@ import sys
 
 PROTOS = (
   'protos/perfetto/config/data_source_config.proto',
+  'protos/perfetto/config/ftrace/ftrace_config.proto',
   'protos/perfetto/config/trace_config.proto',
 )
 

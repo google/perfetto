@@ -20,12 +20,9 @@
 #include <set>
 #include <string>
 
-#include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/ftrace_config.h"
 
 namespace perfetto {
-
-// Alias FtraceConfig to avoid unnecessary typing.
-using FtraceConfig = DataSourceConfig::FtraceConfig;
 
 // Utility method for the common case where we don't care about atrace events.
 FtraceConfig CreateFtraceConfig(std::set<std::string> names);

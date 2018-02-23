@@ -23,6 +23,7 @@
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/ftrace_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
 
@@ -122,8 +123,7 @@ void ProbesProducer::CreateFtraceDataSourceInstance(
   PERFETTO_LOG("Ftrace start (id=%" PRIu64 ", target_buf=%" PRIu32 ")", id,
                source_config.target_buffer());
 
-  // TODO(hjd): Would be nice if ftrace_reader could use the generated config.
-  DataSourceConfig::FtraceConfig proto_config = source_config.ftrace_config();
+  FtraceConfig proto_config = source_config.ftrace_config();
 
   // TODO(hjd): Static cast is bad, target_buffer() should return a BufferID.
   auto trace_writer = endpoint_->CreateTraceWriter(
