@@ -30,12 +30,12 @@ TEST(TracePacketTest, Simple) {
   proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
-  tp.AddChunk({ser_buf.data(), ser_buf.size()});
-  auto chunk = tp.begin();
-  ASSERT_NE(tp.end(), chunk);
-  ASSERT_EQ(ser_buf.data(), chunk->start);
-  ASSERT_EQ(ser_buf.size(), chunk->size);
-  ASSERT_EQ(tp.end(), ++chunk);
+  tp.AddSlice({ser_buf.data(), ser_buf.size()});
+  auto slice = tp.begin();
+  ASSERT_NE(tp.end(), slice);
+  ASSERT_EQ(ser_buf.data(), slice->start);
+  ASSERT_EQ(ser_buf.size(), slice->size);
+  ASSERT_EQ(tp.end(), ++slice);
 
   ASSERT_TRUE(tp.Decode());
   ASSERT_TRUE(tp.Decode());  // Decode() should be idempotent.
@@ -54,31 +54,31 @@ TEST(TracePacketTest, Simple) {
   ASSERT_EQ(proto.for_testing().str(), moved_tp_2->for_testing().str());
 }
 
-TEST(TracePacketTest, Chunked) {
+TEST(TracePacketTest, Sliced) {
   protos::TracePacket proto;
   proto.mutable_for_testing()->set_str(
       "this is an arbitrarily long string ........................");
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
-  tp.AddChunk({ser_buf.data(), 3});
-  tp.AddChunk({ser_buf.data() + 3, 5});
-  tp.AddChunk({ser_buf.data() + 3 + 5, ser_buf.size() - 3 - 5});
+  tp.AddSlice({ser_buf.data(), 3});
+  tp.AddSlice({ser_buf.data() + 3, 5});
+  tp.AddSlice({ser_buf.data() + 3 + 5, ser_buf.size() - 3 - 5});
   ASSERT_EQ(ser_buf.size(), tp.size());
 
-  auto chunk = tp.begin();
-  ASSERT_NE(tp.end(), chunk);
-  ASSERT_EQ(ser_buf.data(), chunk->start);
-  ASSERT_EQ(3u, chunk->size);
+  auto slice = tp.begin();
+  ASSERT_NE(tp.end(), slice);
+  ASSERT_EQ(ser_buf.data(), slice->start);
+  ASSERT_EQ(3u, slice->size);
 
-  ASSERT_NE(tp.end(), ++chunk);
-  ASSERT_EQ(ser_buf.data() + 3, chunk->start);
-  ASSERT_EQ(5u, chunk->size);
+  ASSERT_NE(tp.end(), ++slice);
+  ASSERT_EQ(ser_buf.data() + 3, slice->start);
+  ASSERT_EQ(5u, slice->size);
 
-  ASSERT_NE(tp.end(), ++chunk);
-  ASSERT_EQ(ser_buf.data() + 3 + 5, chunk->start);
-  ASSERT_EQ(ser_buf.size() - 3 - 5, chunk->size);
+  ASSERT_NE(tp.end(), ++slice);
+  ASSERT_EQ(ser_buf.data() + 3 + 5, slice->start);
+  ASSERT_EQ(ser_buf.size() - 3 - 5, slice->size);
 
-  ASSERT_EQ(tp.end(), ++chunk);
+  ASSERT_EQ(tp.end(), ++slice);
 
   ASSERT_TRUE(tp.Decode());
   ASSERT_NE(nullptr, tp.operator->());
@@ -90,7 +90,7 @@ TEST(TracePacketTest, Corrupted) {
   proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
-  tp.AddChunk({ser_buf.data(), ser_buf.size() - 2});  // corrupted.
+  tp.AddSlice({ser_buf.data(), ser_buf.size() - 2});  // corrupted.
   ASSERT_FALSE(tp.Decode());
 }
 

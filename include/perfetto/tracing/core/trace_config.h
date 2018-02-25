@@ -42,7 +42,7 @@ class TraceConfig;
 class TraceConfig_BufferConfig;
 class TraceConfig_DataSource;
 class DataSourceConfig;
-class DataSourceConfig_FtraceConfig;
+class FtraceConfig;
 }  // namespace protos
 }  // namespace perfetto
 
@@ -156,10 +156,16 @@ class TraceConfig {
   uint32_t duration_ms() const { return duration_ms_; }
   void set_duration_ms(uint32_t value) { duration_ms_ = value; }
 
+  bool enable_extra_guardrails() const { return enable_extra_guardrails_; }
+  void set_enable_extra_guardrails(bool value) {
+    enable_extra_guardrails_ = value;
+  }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
   uint32_t duration_ms_ = {};
+  bool enable_extra_guardrails_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

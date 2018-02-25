@@ -127,8 +127,8 @@ void ConsumerIPCClientImpl::OnReadBuffersResponse(
   trace_packets.reserve(response->trace_packets().size());
   for (const std::string& bytes : response->trace_packets()) {
     trace_packets.emplace_back();
-    trace_packets.back().AddChunk(
-        Chunk(reinterpret_cast<const void*>(bytes.data()), bytes.size()));
+    trace_packets.back().AddSlice(
+        Slice(reinterpret_cast<const void*>(bytes.data()), bytes.size()));
   }
   consumer_->OnTraceData(std::move(trace_packets), response.has_more());
 }

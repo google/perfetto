@@ -50,6 +50,12 @@ namespace {
 constexpr size_t kDefaultShmSize = base::kPageSize * 64;  // 256 KB.
 constexpr size_t kMaxShmSize = base::kPageSize * 1024;    // 4 MB.
 constexpr int kMaxBuffersPerConsumer = 128;
+
+constexpr uint64_t kMillisPerHour = 3600000;
+
+// These apply only if enable_extra_guardrails is true.
+constexpr uint64_t kMaxTracingDurationMillis = 24 * kMillisPerHour;
+constexpr uint64_t kMaxTracingBufferSizeKb = 32 * 1024;
 }  // namespace
 
 // static
@@ -147,6 +153,24 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         "is already active (forgot a call to FreeBuffers() ?)");
     // TODO(primiano): make this a bool and return failure to the IPC layer.
     return;
+  }
+
+  if (cfg.enable_extra_guardrails()) {
+    if (cfg.duration_ms() > kMaxTracingDurationMillis) {
+      PERFETTO_ELOG("Requested too long trace (%" PRIu32 "ms  > %" PRIu64
+                    " ms)",
+                    cfg.duration_ms(), kMaxTracingDurationMillis);
+      return;
+    }
+    uint64_t buf_size_sum = 0;
+    for (const auto& buf : cfg.buffers())
+      buf_size_sum += buf.size_kb();
+    if (buf_size_sum > kMaxTracingBufferSizeKb) {
+      PERFETTO_ELOG("Requested too large trace buffer (%" PRIu64
+                    "kB  > %" PRIu64 " kB)",
+                    buf_size_sum, kMaxTracingBufferSizeKb);
+      return;
+    }
   }
 
   if (cfg.buffers_size() > kMaxBuffersPerConsumer) {
@@ -341,17 +365,17 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
             PERFETTO_DLOG("out of bounds!");
             break;
           }
-          ChunkSequence chunk_seq;
-          chunk_seq.emplace_back(ptr, pack_size);
-          if (!skip && !PacketStreamValidator::Validate(chunk_seq)) {
+          Slices slices;
+          slices.emplace_back(ptr, pack_size);
+          if (!skip && !PacketStreamValidator::Validate(slices)) {
             PERFETTO_DLOG("Dropping invalid packet");
             skip = true;
           }
 
           if (!skip) {
             packets->emplace_back();
-            for (Chunk& validated_chunk : chunk_seq)
-              packets->back().AddChunk(std::move(validated_chunk));
+            for (Slice& validated_slice : slices)
+              packets->back().AddSlice(std::move(validated_slice));
 
             // Append a chunk with the trusted UID of the producer. This can't
             // be spoofed because above we validated that the existing chunks
@@ -366,8 +390,8 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
             uint8_t trusted_buf[16];
             PERFETTO_CHECK(trusted_packet.SerializeToArray(
                 &trusted_buf, sizeof(trusted_buf)));
-            packets->back().AddChunk(
-                Chunk::Copy(trusted_buf, trusted_packet.ByteSize()));
+            packets->back().AddSlice(
+                Slice::Copy(trusted_buf, trusted_packet.ByteSize()));
           }
           ptr += pack_size;
         }  // for(packet)

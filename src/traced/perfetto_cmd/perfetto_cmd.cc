@@ -52,7 +52,7 @@
 #endif  // defined(PERFETTO_BUILD_WITH_ANDROID)
 
 // TODO(primiano): add the ability to pass the file descriptor directly to the
-// traced service instead of receiving a copy of the chunks and writing them
+// traced service instead of receiving a copy of the slices and writing them
 // from this process.
 namespace perfetto {
 namespace {
@@ -238,6 +238,7 @@ void PerfettoCmd::OnConnect() {
       "Connected to the Perfetto traced service, starting tracing for %d ms",
       trace_config_->duration_ms());
   PERFETTO_DCHECK(trace_config_);
+  trace_config_->set_enable_extra_guardrails(!dropbox_tag_.empty());
   consumer_endpoint_->EnableTracing(*trace_config_);
   task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnStopTraceTimer, this),
                                trace_config_->duration_ms());
@@ -266,15 +267,15 @@ void PerfettoCmd::OnTimeout() {
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   PERFETTO_DLOG("Received trace packet, has_more=%d", has_more);
   for (TracePacket& packet : packets) {
-    for (const Chunk& chunk : packet) {
+    for (const Slice& slice : packet) {
       uint8_t preamble[16];
       uint8_t* pos = preamble;
       pos = WriteVarInt(
           MakeTagLengthDelimited(protos::Trace::kPacketFieldNumber), pos);
-      pos = WriteVarInt(static_cast<uint32_t>(chunk.size), pos);
+      pos = WriteVarInt(static_cast<uint32_t>(slice.size), pos);
       fwrite(reinterpret_cast<const char*>(preamble), pos - preamble, 1,
              trace_out_stream_.get());
-      fwrite(reinterpret_cast<const char*>(chunk.start), chunk.size, 1,
+      fwrite(reinterpret_cast<const char*>(slice.start), slice.size, 1,
              trace_out_stream_.get());
     }
   }
