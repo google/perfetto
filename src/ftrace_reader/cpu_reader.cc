@@ -154,14 +154,13 @@ CpuReader::CpuReader(const ProtoTranslationTable* table,
 }
 
 CpuReader::~CpuReader() {
-  // Close the staging pipe to cause any pending splice on the worker thread to
-  // exit.
-  staging_read_fd_.reset();
-  staging_write_fd_.reset();
+  // The kernel's splice implementation for the trace pipe doesn't generate a
+  // SIGPIPE if the output pipe is closed (b/73807072). Instead, the call to
+  // close() on the pipe hangs forever. To work around this, we first close the
+  // trace fd (which prevents another splice from starting), raise SIGPIPE and
+  // wait for the worker to exit (i.e., to guarantee no splice is in progress)
+  // and only then close the staging pipe.
   trace_fd_.reset();
-
-  // Not strictly required, but let's also raise the pipe signal explicitly just
-  // to be safe.
   pthread_kill(worker_thread_.native_handle(), SIGPIPE);
   worker_thread_.join();
 }
