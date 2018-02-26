@@ -23,7 +23,7 @@ package perfetto.protos;
 // to reflect changes in the corresponding C++ headers.
 
 message FtraceConfig {
-  repeated string event_names = 1;
+  repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
   repeated string atrace_apps = 3;
   // *Per-CPU* buffer size.
