@@ -50,7 +50,17 @@ inline int ReadStatusLine(int pid, const char* status_string) {
     return -1;
   const char* line = strstr(buf, status_string);
   PERFETTO_DCHECK(line);
-  return atoi(line + sizeof(status_string) - 1);
+  return atoi(line + strlen(status_string));
+}
+
+inline std::vector<std::string> SplitOnNull(const char* input) {
+  std::vector<std::string> output;
+  do {
+    // This works because it will only push the string up to a null character.
+    output.push_back(std::string(input));
+    input += output.back().size() + 1;
+  } while (input[0] != 0);
+  return output;
 }
 
 }  // namespace
@@ -66,14 +76,19 @@ int ReadPpid(int pid) {
 std::unique_ptr<ProcessInfo> ReadProcessInfo(int pid) {
   ProcessInfo* process = new ProcessInfo();
   process->pid = pid;
-  // TODO(taylori) Parse full cmdline into a vector.
-  ReadProcString(pid, "cmdline", process->cmdline, sizeof(process->cmdline));
-  if (process->cmdline[0] == 0) {
-    ReadProcString(pid, "comm", process->cmdline, sizeof(process->cmdline));
+  char cmdline_buf[256];
+  process->cmdline = SplitOnNull("\0");
+  ReadProcString(pid, "cmdline", cmdline_buf, sizeof(cmdline_buf));
+  if (cmdline_buf[0] == 0) {
+    // Nothing in cmdline_buf so read name from /comm instead.
+    char name[256];
+    ReadProcString(pid, "comm", name, sizeof(name));
+    process->cmdline.push_back(name);
     process->in_kernel = true;
   } else {
+    process->cmdline = SplitOnNull(cmdline_buf);
     ReadExePath(pid, process->exe, sizeof(process->exe));
-    process->is_app = IsApp(process->cmdline, process->exe);
+    process->is_app = IsApp(process->cmdline[0].c_str(), process->exe);
   }
   process->ppid = ReadPpid(pid);
   return std::unique_ptr<ProcessInfo>(process);
