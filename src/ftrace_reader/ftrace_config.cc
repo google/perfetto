@@ -37,7 +37,7 @@ bool IsValid(const std::string& str) {
 
 std::set<std::string> FtraceEventsAsSet(const FtraceConfig& config) {
   std::set<std::string> events;
-  for (const std::string& event : config.event_names())
+  for (const std::string& event : config.ftrace_events())
     events.insert(event);
   return events;
 }
@@ -45,7 +45,7 @@ std::set<std::string> FtraceEventsAsSet(const FtraceConfig& config) {
 FtraceConfig CreateFtraceConfig(std::set<std::string> names) {
   FtraceConfig config;
   for (const std::string& name : names)
-    *config.add_event_names() = name;
+    *config.add_ftrace_events() = name;
   return config;
 }
 
@@ -54,7 +54,7 @@ bool RequiresAtrace(const FtraceConfig& config) {
 }
 
 bool ValidConfig(const FtraceConfig& config) {
-  for (const std::string& event_name : config.event_names()) {
+  for (const std::string& event_name : config.ftrace_events()) {
     if (!IsValid(event_name)) {
       PERFETTO_ELOG("Bad event name '%s'", event_name.c_str());
       return false;

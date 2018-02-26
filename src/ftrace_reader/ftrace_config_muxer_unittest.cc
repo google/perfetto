@@ -130,8 +130,8 @@ TEST(FtraceConfigMuxerTest, TurnFtraceOnOff) {
 
   const FtraceConfig* actual_config = model.GetConfig(id);
   EXPECT_TRUE(actual_config);
-  EXPECT_THAT(actual_config->event_names(), Contains("sched_switch"));
-  EXPECT_THAT(actual_config->event_names(), Not(Contains("foo")));
+  EXPECT_THAT(actual_config->ftrace_events(), Contains("sched_switch"));
+  EXPECT_THAT(actual_config->ftrace_events(), Not(Contains("foo")));
 
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "0"));
@@ -180,8 +180,8 @@ TEST(FtraceConfigMuxerTest, MAYBE_Atrace) {
 
   const FtraceConfig* actual_config = model.GetConfig(id);
   EXPECT_TRUE(actual_config);
-  EXPECT_THAT(actual_config->event_names(), Contains("sched_switch"));
-  EXPECT_THAT(actual_config->event_names(), Contains("print"));
+  EXPECT_THAT(actual_config->ftrace_events(), Contains("sched_switch"));
+  EXPECT_THAT(actual_config->ftrace_events(), Contains("print"));
 
   ASSERT_TRUE(model.RemoveConfig(id));
 }

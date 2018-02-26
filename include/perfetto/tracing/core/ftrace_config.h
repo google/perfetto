@@ -55,11 +55,15 @@ class FtraceConfig {
   void FromProto(const perfetto::protos::FtraceConfig&);
   void ToProto(perfetto::protos::FtraceConfig*) const;
 
-  int event_names_size() const { return static_cast<int>(event_names_.size()); }
-  const std::vector<std::string>& event_names() const { return event_names_; }
-  std::string* add_event_names() {
-    event_names_.emplace_back();
-    return &event_names_.back();
+  int ftrace_events_size() const {
+    return static_cast<int>(ftrace_events_.size());
+  }
+  const std::vector<std::string>& ftrace_events() const {
+    return ftrace_events_;
+  }
+  std::string* add_ftrace_events() {
+    ftrace_events_.emplace_back();
+    return &ftrace_events_.back();
   }
 
   int atrace_categories_size() const {
@@ -87,7 +91,7 @@ class FtraceConfig {
   void set_drain_period_ms(uint32_t value) { drain_period_ms_ = value; }
 
  private:
-  std::vector<std::string> event_names_;
+  std::vector<std::string> ftrace_events_;
   std::vector<std::string> atrace_categories_;
   std::vector<std::string> atrace_apps_;
   uint32_t buffer_size_kb_ = {};

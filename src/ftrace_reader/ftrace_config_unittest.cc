@@ -26,9 +26,9 @@ namespace {
 
 TEST(ConfigTest, FtraceEventsAsSet) {
   FtraceConfig config;
-  *config.add_event_names() = "aaa";
-  *config.add_event_names() = "bbb";
-  *config.add_event_names() = "aaa";
+  *config.add_ftrace_events() = "aaa";
+  *config.add_ftrace_events() = "bbb";
+  *config.add_ftrace_events() = "aaa";
 
   EXPECT_EQ(FtraceEventsAsSet(config), std::set<std::string>({
                                            "aaa", "bbb",
@@ -40,8 +40,8 @@ TEST(ConfigTest, CreateFtraceConfig) {
       "aaa", "bbb",
   });
 
-  EXPECT_THAT(config.event_names(), Contains("aaa"));
-  EXPECT_THAT(config.event_names(), Contains("bbb"));
+  EXPECT_THAT(config.ftrace_events(), Contains("aaa"));
+  EXPECT_THAT(config.ftrace_events(), Contains("bbb"));
 }
 
 }  // namespace
