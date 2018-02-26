@@ -24,6 +24,9 @@
 
 namespace perfetto {
 
+// 0 is invalid.
+using FtraceConfigId = uint64_t;
+
 // Utility method for the common case where we don't care about atrace events.
 FtraceConfig CreateFtraceConfig(std::set<std::string> names);
 
