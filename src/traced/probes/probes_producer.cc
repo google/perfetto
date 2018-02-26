@@ -156,8 +156,8 @@ void ProbesProducer::CreateProcessStatsDataSourceInstance(
         auto* process_writer = process_tree->add_processes();
         process_writer->set_pid(process->pid);
         process_writer->set_ppid(process->ppid);
-        process_writer->add_cmdline(process->cmdline);
-
+        for (const auto& field : process->cmdline)
+          process_writer->add_cmdline(field.c_str());
         for (auto& thread : process->threads) {
           auto* thread_writer = process_writer->add_threads();
           thread_writer->set_tid(thread.second.tid);
