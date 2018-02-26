@@ -6,6 +6,7 @@
 #define SRC_PROCESS_STATS_PROCESS_INFO_H_
 
 #include <map>
+#include <vector>
 
 struct ThreadInfo {
   int tid;
@@ -18,7 +19,7 @@ struct ProcessInfo {
   bool in_kernel;
   bool is_app;
   char exe[256];
-  char cmdline[256];
+  std::vector<std::string> cmdline;
   std::map<int, ThreadInfo> threads;
 };
 
