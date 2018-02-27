@@ -134,6 +134,12 @@ void ProbesProducer::CreateFtraceDataSourceInstance(
   PERFETTO_CHECK(sink);
   delegate->sink(std::move(sink));
   delegates_.emplace(id, std::move(delegate));
+  // Building on Android, watchdogs_.emplace(id, 2* source_config.duration_ms())
+  // does not compile. Presumably, this is due to some detail in its libc++.
+  if (source_config.trace_duration_ms() != 0)
+    watchdogs_.emplace(
+        std::piecewise_construct, std::forward_as_tuple(id),
+        std::forward_as_tuple(2 * source_config.trace_duration_ms()));
 }
 
 void ProbesProducer::CreateProcessStatsDataSourceInstance(
@@ -156,8 +162,8 @@ void ProbesProducer::CreateProcessStatsDataSourceInstance(
         auto* process_writer = process_tree->add_processes();
         process_writer->set_pid(process->pid);
         process_writer->set_ppid(process->ppid);
-        process_writer->add_cmdline(process->cmdline);
-
+        for (const auto& field : process->cmdline)
+          process_writer->add_cmdline(field.c_str());
         for (auto& thread : process->threads) {
           auto* thread_writer = process_writer->add_threads();
           thread_writer->set_tid(thread.second.tid);
@@ -173,6 +179,8 @@ void ProbesProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
   if (instances_[id] == kFtraceSourceName) {
     size_t removed = delegates_.erase(id);
     PERFETTO_DCHECK(removed == 1);
+    // Might return 0 if trace_duration_ms == 0.
+    watchdogs_.erase(id);
   }
 }
 

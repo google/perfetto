@@ -67,6 +67,9 @@ class FtraceProcfs {
   // Disables tracing, does not clear the buffer.
   bool DisableTracing();
 
+  // Enabls/disables tracing, does not clear the buffer.
+  bool SetTracingOn(bool enable);
+
   // Returns true iff tracing is enabled.
   // Necessarily racy: another program could enable/disable tracing at any
   // point.
@@ -85,8 +88,12 @@ class FtraceProcfs {
   // Open the raw pipe for |cpu|.
   virtual base::ScopedFile OpenPipeForCpu(size_t cpu);
 
+ protected:
   // virtual and public for testing.
   virtual bool WriteToFile(const std::string& path, const std::string& str);
+  virtual bool ClearFile(const std::string& path);
+  virtual char ReadOneCharFromFile(const std::string& path);
+  virtual std::string ReadFileIntoString(const std::string& path) const;
 
  private:
   // Checks the trace file is present at the given root path.
