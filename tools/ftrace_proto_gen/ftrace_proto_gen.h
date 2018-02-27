@@ -34,6 +34,11 @@ struct Proto {
   std::string ToString();
 };
 
+void PrintFtraceEventProtoAdditions(const std::set<std::string>& events);
+void PrintTraceToTextMain(const std::set<std::string>& events);
+void PrintTraceToTextUsingStatements(const std::set<std::string>& events);
+void PrintTraceToTextFunctions(const std::set<std::string>& events);
+
 bool GenerateProto(const FtraceEvent& format, Proto* proto_out);
 std::string InferProtoType(const FtraceEvent::Field& field);
 
