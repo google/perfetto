@@ -24,4 +24,9 @@ package perfetto.protos;
 message FtraceEventBundle {
   optional uint32 cpu = 1;
   repeated FtraceEvent event = 2;
+  // Total of all overwrite fields from the headers of all kernel
+  // ftrace pages we parsed into this FtraceEventBundle. Zero if
+  // no overwriting occurred, a number larger than zero if some overwriting
+  // occurred.
+  optional uint32 overwrite_count = 3;
 }
