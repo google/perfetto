@@ -91,9 +91,8 @@ const uint32_t kTypeTimeStamp = 31;
 
 struct PageHeader {
   uint64_t timestamp;
-  uint32_t size;
-  uint32_t : 24;
-  uint32_t overwrite : 8;
+  uint64_t size;
+  uint64_t overwrite;
 };
 
 struct EventHeader {
@@ -255,22 +254,33 @@ std::map<uint64_t, std::string> CpuReader::GetFilenamesForInodeNumbers(
 bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
                       const std::array<BundleHandle, kMaxSinks>& bundles) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  std::array<ParserStats, kMaxSinks> statss{};
   while (true) {
     uint8_t* buffer = GetBuffer();
     long bytes =
         PERFETTO_EINTR(read(*staging_read_fd_, buffer, base::kPageSize));
     if (bytes == -1 && errno == EAGAIN)
-      return true;
+      break;
     PERFETTO_CHECK(static_cast<size_t>(bytes) == base::kPageSize);
 
     size_t evt_size = 0;
     for (size_t i = 0; i < kMaxSinks; i++) {
       if (!filters[i])
         break;
-      evt_size = ParsePage(cpu_, buffer, filters[i], &*bundles[i], table_);
+      evt_size =
+          ParsePage(buffer, filters[i], &*bundles[i], table_, &statss[i]);
       PERFETTO_DCHECK(evt_size);
     }
   }
+
+  for (size_t i = 0; i < kMaxSinks; i++) {
+    if (!filters[i])
+      break;
+    bundles[i]->set_cpu(cpu_);
+    bundles[i]->set_overwrite_count(statss[i].overwrite_count);
+  }
+
+  return true;
 }
 
 uint8_t* CpuReader::GetBuffer() {
@@ -289,23 +299,27 @@ uint8_t* CpuReader::GetBuffer() {
 // Some information about the layout of the page header is available in user
 // space at: /sys/kernel/debug/tracing/events/header_event
 // This method is deliberately static so it can be tested independently.
-size_t CpuReader::ParsePage(size_t cpu,
-                            const uint8_t* ptr,
+size_t CpuReader::ParsePage(const uint8_t* ptr,
                             const EventFilter* filter,
                             protos::pbzero::FtraceEventBundle* bundle,
-                            const ProtoTranslationTable* table) {
+                            const ProtoTranslationTable* table,
+                            ParserStats* stats) {
   const uint8_t* const start_of_page = ptr;
   const uint8_t* const end_of_page = ptr + base::kPageSize;
 
-  bundle->set_cpu(cpu);
 
   // TODO(hjd): Read this format dynamically?
   PageHeader page_header;
-  if (!ReadAndAdvance(&ptr, end_of_page, &page_header))
+  uint64_t overwrite_and_size;
+  if (!ReadAndAdvance<uint64_t>(&ptr, end_of_page, &page_header.timestamp))
+    return 0;
+  if (!ReadAndAdvance<uint64_t>(&ptr, end_of_page, &overwrite_and_size))
     return 0;
 
-  // TODO(hjd): There is something wrong with the page header struct.
-  page_header.size = page_header.size & 0xfffful;
+  page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
+  page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
+
+  stats->overwrite_count = page_header.overwrite;
 
   const uint8_t* const end = ptr + page_header.size;
   if (end > end_of_page)

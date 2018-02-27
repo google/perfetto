@@ -86,7 +86,6 @@ void ProbesProducer::CreateDataSourceInstance(
     DataSourceInstanceID id,
     const DataSourceConfig& source_config) {
   instances_[id] = source_config.name();
-  // PERFETTO_LOG("DataSourceInstanceID: %llu", id);
   if (source_config.name() == kFtraceSourceName) {
     CreateFtraceDataSourceInstance(id, source_config);
   } else if (source_config.name() == kProcessStatsSourceName) {

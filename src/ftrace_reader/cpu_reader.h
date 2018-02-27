@@ -42,6 +42,10 @@ class FtraceEventBundle;
 }  // namespace pbzero
 }  // namespace protos
 
+struct ParserStats {
+  size_t overwrite_count;
+};
+
 // Class for efficient 'is event with id x enabled?' tests.
 // Mirrors the data in a FtraceConfig but in a format better suited
 // to be consumed by CpuReader.
@@ -120,11 +124,11 @@ class CpuReader {
   // run time (e.g. field offset and size) information necessary to do this.
   // The table is initialized once at start time by the ftrace controller
   // which passes it to the CpuReader which passes it here.
-  static size_t ParsePage(size_t cpu,
-                          const uint8_t* ptr,
+  static size_t ParsePage(const uint8_t* ptr,
                           const EventFilter*,
                           protos::pbzero::FtraceEventBundle*,
-                          const ProtoTranslationTable* table);
+                          const ProtoTranslationTable* table,
+                          ParserStats*);
 
   // Parse a single raw ftrace event beginning at |start| and ending at |end|
   // and write it into the provided bundle as a proto.
