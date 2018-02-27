@@ -18,7 +18,9 @@
 #define INCLUDE_PERFETTO_BASE_TASK_RUNNER_H_
 
 #include <functional>
+
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -73,7 +75,8 @@ class TaskRunner {
 #if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD) && \
     (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||       \
      PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
-    base::WatchDog w(kWatchdogMillis);
+    Watchdog::Timer handle =
+        base::Watchdog::GetInstance()->CreateFatalTimer(kWatchdogMillis);
 #endif
     task();
   }

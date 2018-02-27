@@ -92,7 +92,7 @@ class ProbesProducer : public Producer {
   // Keeps track of id for each type of data source.
   std::map<DataSourceInstanceID, std::string> instances_;
   std::map<DataSourceInstanceID, std::unique_ptr<SinkDelegate>> delegates_;
-  std::map<DataSourceInstanceID, base::WatchDog> watchdogs_;
+  std::map<DataSourceInstanceID, base::Watchdog::Timer> watchdogs_;
 };
 }  // namespace perfetto
 
