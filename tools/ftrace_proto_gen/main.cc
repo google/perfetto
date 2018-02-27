@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <sys/stat.h>
 #include <fstream>
 #include <memory>
 #include <regex>
@@ -49,6 +50,24 @@ int main(int argc, const char** argv) {
   }
   std::ostringstream ftrace_stream;
   ftrace_stream << input.rdbuf();
+
+  std::set<std::string> new_events;
+  for (auto event : events) {
+    std::string file_name =
+        event.substr(event.find('/') + 1, std::string::npos);
+    struct stat buf;
+    if (stat(("protos/perfetto/trace/ftrace/" + file_name + ".proto").c_str(),
+             &buf) == -1) {
+      new_events.insert(file_name);
+    }
+  }
+
+  if (!new_events.empty()) {
+    perfetto::PrintFtraceEventProtoAdditions(new_events);
+    perfetto::PrintTraceToTextMain(new_events);
+    perfetto::PrintTraceToTextUsingStatements(new_events);
+    perfetto::PrintTraceToTextFunctions(new_events);
+  }
 
   for (auto event : events) {
     std::string proto_file_name =
