@@ -86,6 +86,47 @@ std::string InferProtoType(const FtraceEvent::Field& field) {
   return "";
 }
 
+void PrintFtraceEventProtoAdditions(const std::set<std::string>& events) {
+  printf(
+      "\nNumber appropriately and add output to "
+      "protos/perfetto/trace/ftrace/ftrace_event.proto\n");
+  for (auto event : events) {
+    printf("%sFtraceEvent %s = ;\n", ToCamelCase(event).c_str(), event.c_str());
+  }
+}
+
+void PrintTraceToTextMain(const std::set<std::string>& events) {
+  printf(
+      "\nAdd output to TraceToSystrace for loop in "
+      "tools/ftrace_proto_gen/main.cc\n");
+  for (auto event : events) {
+    printf(
+        "else if (event.has_%s()) {\nconst auto& inner = event.%s();\nline = "
+        "Format%s(inner);\n} ",
+        event.c_str(), event.c_str(), ToCamelCase(event).c_str());
+  }
+}
+
+void PrintTraceToTextUsingStatements(const std::set<std::string>& events) {
+  printf("\nAdd output to tools/ftrace_proto_gen/main.cc\n");
+  for (auto event : events) {
+    printf("using protos::%sFtraceEvent;\n", ToCamelCase(event).c_str());
+  }
+}
+
+void PrintTraceToTextFunctions(const std::set<std::string>& events) {
+  printf(
+      "\nAdd output to tools/ftrace_proto_gen/main.cc and then manually go "
+      "through format files to match fields\n");
+  for (auto event : events) {
+    printf(
+        "std::string Format%s(const %sFtraceEvent& event) {"
+        "\nchar line[2048];"
+        "\nsprintf(line,\"%s: );\nreturn std::string(line);\n}\n",
+        ToCamelCase(event).c_str(), ToCamelCase(event).c_str(), event.c_str());
+  }
+}
+
 bool GenerateProto(const FtraceEvent& format, Proto* proto_out) {
   proto_out->name = ToCamelCase(format.name) + "FtraceEvent";
   proto_out->fields.reserve(format.fields.size());
