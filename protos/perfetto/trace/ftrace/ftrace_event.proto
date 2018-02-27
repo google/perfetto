@@ -238,6 +238,14 @@ import "perfetto/trace/ftrace/block_sleeprq.proto";
 import "perfetto/trace/ftrace/block_split.proto";
 import "perfetto/trace/ftrace/block_touch_buffer.proto";
 import "perfetto/trace/ftrace/block_unplug.proto";
+import "perfetto/trace/ftrace/task_newtask.proto";
+import "perfetto/trace/ftrace/task_rename.proto";
+import "perfetto/trace/ftrace/sched_process_exec.proto";
+import "perfetto/trace/ftrace/sched_process_exit.proto";
+import "perfetto/trace/ftrace/sched_process_fork.proto";
+import "perfetto/trace/ftrace/sched_process_hang.proto";
+import "perfetto/trace/ftrace/sched_process_wait.proto";
+import "perfetto/trace/ftrace/sched_process_free.proto";
 
 package perfetto.protos;
 
@@ -484,5 +492,13 @@ message FtraceEvent {
     Ext4WritepagesFtraceEvent ext4_writepages = 232;
     Ext4WritepagesResultFtraceEvent ext4_writepages_result = 233;
     Ext4ZeroRangeFtraceEvent ext4_zero_range = 234;
+    TaskNewtaskFtraceEvent task_newtask = 235;
+    TaskRenameFtraceEvent task_rename = 236;
+    SchedProcessExecFtraceEvent sched_process_exec = 237;
+    SchedProcessExitFtraceEvent sched_process_exit = 238;
+    SchedProcessForkFtraceEvent sched_process_fork = 239;
+    SchedProcessFreeFtraceEvent sched_process_free = 240;
+    SchedProcessHangFtraceEvent sched_process_hang = 241;
+    SchedProcessWaitFtraceEvent sched_process_wait = 242;
   }
 }

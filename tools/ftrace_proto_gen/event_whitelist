@@ -16,6 +16,13 @@ sched/sched_wakeup
 sched/sched_blocked_reason
 sched/sched_cpu_hotplug
 sched/sched_waking
+sched/sched_wakeup_new
+sched/sched_process_exec
+sched/sched_process_exit
+sched/sched_process_fork
+sched/sched_process_free
+sched/sched_process_hang
+sched/sched_process_wait
 i2c/i2c_read
 i2c/i2c_write
 i2c/i2c_result
@@ -109,7 +116,6 @@ compaction/mm_compaction_suitable
 compaction/mm_compaction_try_to_compact_pages
 compaction/mm_compaction_wakeup_kcompactd
 power/suspend_resume
-sched/sched_wakeup_new
 ext4/ext4_allocate_blocks
 ext4/ext4_allocate_inode
 ext4/ext4_alloc_da_blocks
@@ -220,3 +226,5 @@ block/block_sleeprq
 block/block_split
 block/block_touch_buffer
 block/block_unplug
+task/task_newtask
+task/task_rename
