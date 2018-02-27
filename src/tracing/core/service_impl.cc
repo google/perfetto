@@ -106,6 +106,15 @@ void ServiceImpl::DisconnectProducer(ProducerID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Producer %" PRIu64 " disconnected", id);
   PERFETTO_DCHECK(producers_.count(id));
+
+  for (auto it = data_sources_.begin(); it != data_sources_.end();) {
+    auto next = it;
+    next++;
+    if (it->second.producer_id == id)
+      UnregisterDataSource(id, it->second.data_source_id);
+    it = next;
+  }
+
   producers_.erase(id);
 }
 
@@ -244,15 +253,8 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     // Scan all the registered data sources with a matching name.
     auto range = data_sources_.equal_range(cfg_data_source.config().name());
-    for (auto it = range.first; it != range.second; it++) {
-      const RegisteredDataSource& reg_data_source = it->second;
-      ProducerEndpointImpl* producer = GetProducer(reg_data_source.producer_id);
-      if (!producer) {
-        PERFETTO_DCHECK(false);  // Something in the unregistration is broken.
-        continue;
-      }
-      CreateDataSourceInstanceForProducer(cfg_data_source, producer, &ts);
-    }
+    for (auto it = range.first; it != range.second; it++)
+      CreateDataSourceInstance(cfg_data_source, it->second, &ts);
   }
 
   // Trigger delayed task if the trace is time limited.
@@ -288,10 +290,9 @@ void ServiceImpl::DisableTracing(TracingSessionID tsid) {
 
   for (const auto& data_source_inst : tracing_session->data_source_instances) {
     const ProducerID producer_id = data_source_inst.first;
-    const DataSourceInstanceID ds_inst_id = data_source_inst.second;
+    const DataSourceInstanceID ds_inst_id = data_source_inst.second.instance_id;
     ProducerEndpointImpl* producer = GetProducer(producer_id);
-    if (!producer)
-      continue;  // This could legitimately happen if a Producer disconnects.
+    PERFETTO_DCHECK(producer);
     producer->producer_->TearDownDataSourceInstance(ds_inst_id);
   }
   tracing_session->data_source_instances.clear();
@@ -439,8 +440,8 @@ void ServiceImpl::RegisterDataSource(ProducerID producer_id,
                 producer_id, desc.name().c_str(), ds_id);
 
   PERFETTO_DCHECK(!desc.name().empty());
-  data_sources_.emplace(desc.name(),
-                        RegisteredDataSource{producer_id, ds_id, desc});
+  auto reg_ds = data_sources_.emplace(
+      desc.name(), RegisteredDataSource{producer_id, ds_id, desc});
 
   // If there are existing tracing sessions, we need to check if the new
   // data source is enabled by any of them.
@@ -458,17 +459,51 @@ void ServiceImpl::RegisterDataSource(ProducerID producer_id,
     for (const TraceConfig::DataSource& cfg_data_source :
          tracing_session.config.data_sources()) {
       if (cfg_data_source.config().name() == desc.name())
-        CreateDataSourceInstanceForProducer(cfg_data_source, producer,
-                                            &tracing_session);
+        CreateDataSourceInstance(cfg_data_source, reg_ds->second,
+                                 &tracing_session);
     }
   }
 }
 
-void ServiceImpl::CreateDataSourceInstanceForProducer(
+void ServiceImpl::UnregisterDataSource(ProducerID producer_id,
+                                       DataSourceID ds_id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_CHECK(producer_id);
+  PERFETTO_CHECK(ds_id);
+  ProducerEndpointImpl* producer = GetProducer(producer_id);
+  PERFETTO_DCHECK(producer);
+  for (auto& session : tracing_sessions_) {
+    auto it = session.second.data_source_instances.begin();
+    while (it != session.second.data_source_instances.end()) {
+      if (it->first == producer_id && it->second.data_source_id == ds_id) {
+        producer->producer_->TearDownDataSourceInstance(it->second.instance_id);
+        it = session.second.data_source_instances.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  for (auto it = data_sources_.begin(); it != data_sources_.end(); ++it) {
+    if (it->second.producer_id == producer_id &&
+        it->second.data_source_id == ds_id) {
+      data_sources_.erase(it);
+      return;
+    }
+  }
+  PERFETTO_DLOG("Tried to unregister a non-existent data source %" PRIu64
+                " for producer %" PRIu64,
+                ds_id, producer_id);
+  PERFETTO_DCHECK(false);
+}
+
+void ServiceImpl::CreateDataSourceInstance(
     const TraceConfig::DataSource& cfg_data_source,
-    ProducerEndpointImpl* producer,
+    const RegisteredDataSource& data_source,
     TracingSession* tracing_session) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  ProducerEndpointImpl* producer = GetProducer(data_source.producer_id);
+  PERFETTO_DCHECK(producer);
   // TODO(primiano): match against |producer_name_filter| and add tests
   // for registration ordering (data sources vs consumers).
 
@@ -494,7 +529,8 @@ void ServiceImpl::CreateDataSourceInstanceForProducer(
   ds_config.set_target_buffer(global_id);
 
   DataSourceInstanceID inst_id = ++last_data_source_instance_id_;
-  tracing_session->data_source_instances.emplace(producer->id_, inst_id);
+  tracing_session->data_source_instances.emplace(
+      producer->id_, DataSourceInstance{inst_id, data_source.data_source_id});
   PERFETTO_DLOG("Starting data source %s with target buffer %" PRIu16,
                 ds_config.name().c_str(), global_id);
   producer->producer_->CreateDataSourceInstance(inst_id, ds_config);
@@ -553,8 +589,8 @@ ServiceImpl::ConsumerEndpointImpl::ConsumerEndpointImpl(ServiceImpl* service,
     : service_(service), consumer_(consumer), weak_ptr_factory_(this) {}
 
 ServiceImpl::ConsumerEndpointImpl::~ConsumerEndpointImpl() {
-  consumer_->OnDisconnect();
   service_->DisconnectConsumer(this);
+  consumer_->OnDisconnect();
 }
 
 void ServiceImpl::ConsumerEndpointImpl::EnableTracing(const TraceConfig& cfg) {
@@ -621,8 +657,8 @@ ServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
 }
 
 ServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
-  producer_->OnDisconnect();
   service_->DisconnectProducer(id_);
+  producer_->OnDisconnect();
 }
 
 void ServiceImpl::ProducerEndpointImpl::RegisterDataSource(
@@ -640,10 +676,10 @@ void ServiceImpl::ProducerEndpointImpl::RegisterDataSource(
 }
 
 void ServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
-    DataSourceID dsid) {
+    DataSourceID ds_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_CHECK(dsid);
-  // TODO(primiano): implement the bookkeeping logic.
+  PERFETTO_CHECK(ds_id);
+  service_->UnregisterDataSource(id_, ds_id);
 }
 
 void ServiceImpl::ProducerEndpointImpl::NotifySharedMemoryUpdate(
