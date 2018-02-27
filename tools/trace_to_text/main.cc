@@ -281,6 +281,12 @@ using protos::RegulatorSetVoltageFtraceEvent;
 using protos::RegulatorSetVoltageCompleteFtraceEvent;
 using protos::SchedBlockedReasonFtraceEvent;
 using protos::SchedCpuHotplugFtraceEvent;
+using protos::SchedProcessExecFtraceEvent;
+using protos::SchedProcessExitFtraceEvent;
+using protos::SchedProcessForkFtraceEvent;
+using protos::SchedProcessFreeFtraceEvent;
+using protos::SchedProcessHangFtraceEvent;
+using protos::SchedProcessWaitFtraceEvent;
 using protos::SchedSwitchFtraceEvent;
 using protos::SchedWakeupFtraceEvent;
 using protos::SchedWakeupNewFtraceEvent;
@@ -296,6 +302,8 @@ using protos::WorkqueueActivateWorkFtraceEvent;
 using protos::WorkqueueExecuteEndFtraceEvent;
 using protos::WorkqueueExecuteStartFtraceEvent;
 using protos::WorkqueueQueueWorkFtraceEvent;
+using protos::TaskNewtaskFtraceEvent;
+using protos::TaskRenameFtraceEvent;
 
 using protos::FtraceEvent;
 using protos::FtraceEventBundle;
@@ -1040,6 +1048,64 @@ std::string FormatSchedWakeupNew(const SchedWakeupNewFtraceEvent& event) {
   char line[2048];
   sprintf(line, "sched_wakeup_new: comm=%s pid=%d prio=%d target_cpu=%03d\\n",
           event.comm().c_str(), event.pid(), event.prio(), event.target_cpu());
+  return std::string(line);
+}
+
+std::string FormatSchedProcessExec(const SchedProcessExecFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "sched_process_exec: filename=%s pid=%d old_pid=%d\\n",
+          event.filename().c_str(), event.pid(), event.old_pid());
+  return std::string(line);
+}
+std::string FormatSchedProcessExit(const SchedProcessExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "sched_process_exit: comm=%s pid=%d tgid=%d prio=%d\\n",
+          event.comm().c_str(), event.pid(), event.tgid(), event.prio());
+  return std::string(line);
+}
+std::string FormatSchedProcessFork(const SchedProcessForkFtraceEvent& event) {
+  char line[2048];
+  sprintf(line,
+          "sched_process_fork: parent_comm=%s parent_pid=%d child_comm=%s "
+          "child_pid=%d\\n",
+          event.parent_comm().c_str(), event.parent_pid(),
+          event.child_comm().c_str(), event.child_pid());
+  return std::string(line);
+}
+std::string FormatSchedProcessFree(const SchedProcessFreeFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "sched_process_free: comm=%s pid=%d prio=%d\\n",
+          event.comm().c_str(), event.pid(), event.prio());
+  return std::string(line);
+}
+std::string FormatSchedProcessHang(const SchedProcessHangFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "sched_process_hang: comm=%s pid=%d\\n", event.comm().c_str(),
+          event.pid());
+  return std::string(line);
+}
+
+std::string FormatSchedProcessWait(const SchedProcessWaitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "sched_process_wait: comm=%s pid=%d\\n", event.comm().c_str(),
+          event.pid());
+  return std::string(line);
+}
+
+std::string FormatTaskNewtask(const TaskNewtaskFtraceEvent& event) {
+  char line[2048];
+  sprintf(line,
+          "task_newtask: comm=%s pid=%d clone_flags=%llu oom_score_adj=%d\\n",
+          event.comm().c_str(), event.pid(), event.clone_flags(),
+          event.oom_score_adj());
+  return std::string(line);
+}
+
+std::string FormatTaskRename(const TaskRenameFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "task_rename: pid=%d oldcomm=%s newcomm=%s oom_score_adj=%d\\n",
+          event.pid(), event.newcomm().c_str(), event.oldcomm().c_str(),
+          event.oom_score_adj());
   return std::string(line);
 }
 
@@ -2791,6 +2857,30 @@ int TraceToSystrace(std::istream* input, std::ostream* output) {
       } else if (event.has_workqueue_queue_work()) {
         const auto& inner = event.workqueue_queue_work();
         line = FormatWorkqueueQueueWork(inner);
+      } else if (event.has_sched_process_fork()) {
+        const auto& inner = event.sched_process_fork();
+        line = FormatSchedProcessFork(inner);
+      } else if (event.has_sched_process_hang()) {
+        const auto& inner = event.sched_process_hang();
+        line = FormatSchedProcessHang(inner);
+      } else if (event.has_sched_process_free()) {
+        const auto& inner = event.sched_process_free();
+        line = FormatSchedProcessFree(inner);
+      } else if (event.has_sched_process_exec()) {
+        const auto& inner = event.sched_process_exec();
+        line = FormatSchedProcessExec(inner);
+      } else if (event.has_sched_process_exit()) {
+        const auto& inner = event.sched_process_exit();
+        line = FormatSchedProcessExit(inner);
+      } else if (event.has_sched_process_wait()) {
+        const auto& inner = event.sched_process_wait();
+        line = FormatSchedProcessWait(inner);
+      } else if (event.has_task_rename()) {
+        const auto& inner = event.task_rename();
+        line = FormatTaskRename(inner);
+      } else if (event.has_task_newtask()) {
+        const auto& inner = event.task_newtask();
+        line = FormatTaskNewtask(inner);
       } else {
         continue;
       }

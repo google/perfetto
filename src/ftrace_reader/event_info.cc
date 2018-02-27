@@ -2566,6 +2566,73 @@ std::vector<Event> GetStaticEventInfo() {
   {
     events.emplace_back(Event{});
     Event* event = &events.back();
+    event->name = "sched_process_exec";
+    event->group = "sched";
+    event->proto_field_id = 237;
+    event->fields.push_back(MakeField("filename", 1, kProtoString));
+    event->fields.push_back(MakeField("pid", 2, kProtoInt32));
+    event->fields.push_back(MakeField("old_pid", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "sched_process_exit";
+    event->group = "sched";
+    event->proto_field_id = 238;
+    event->fields.push_back(MakeField("comm", 1, kProtoString));
+    event->fields.push_back(MakeField("pid", 2, kProtoInt32));
+    event->fields.push_back(MakeField("tgid", 3, kProtoInt32));
+    event->fields.push_back(MakeField("prio", 4, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "sched_process_fork";
+    event->group = "sched";
+    event->proto_field_id = 239;
+    event->fields.push_back(MakeField("parent_comm", 1, kProtoString));
+    event->fields.push_back(MakeField("parent_pid", 2, kProtoInt32));
+    event->fields.push_back(MakeField("child_comm", 3, kProtoString));
+    event->fields.push_back(MakeField("child_pid", 4, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "sched_process_free";
+    event->group = "sched";
+    event->proto_field_id = 240;
+    event->fields.push_back(MakeField("comm", 1, kProtoString));
+    event->fields.push_back(MakeField("pid", 2, kProtoInt32));
+    event->fields.push_back(MakeField("prio", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "sched_process_hang";
+    event->group = "sched";
+    event->proto_field_id = 241;
+    event->fields.push_back(MakeField("comm", 1, kProtoString));
+    event->fields.push_back(MakeField("pid", 2, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "sched_process_wait";
+    event->group = "sched";
+    event->proto_field_id = 242;
+    event->fields.push_back(MakeField("comm", 1, kProtoString));
+    event->fields.push_back(MakeField("pid", 2, kProtoInt32));
+    event->fields.push_back(MakeField("prio", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
     event->name = "sched_switch";
     event->group = "sched";
     event->proto_field_id = 4;
@@ -2646,6 +2713,30 @@ std::vector<Event> GetStaticEventInfo() {
     event->fields.push_back(MakeField("name", 1, kProtoString));
     event->fields.push_back(MakeField("status", 2, kProtoInt32));
     event->fields.push_back(MakeField("begin", 3, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "task_newtask";
+    event->group = "task";
+    event->proto_field_id = 235;
+    event->fields.push_back(MakeField("pid", 1, kProtoInt32));
+    event->fields.push_back(MakeField("comm", 2, kProtoString));
+    event->fields.push_back(MakeField("clone_flags", 3, kProtoUint64));
+    event->fields.push_back(MakeField("oom_score_adj", 4, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "task_rename";
+    event->group = "task";
+    event->proto_field_id = 236;
+    event->fields.push_back(MakeField("pid", 1, kProtoInt32));
+    event->fields.push_back(MakeField("oldcomm", 2, kProtoString));
+    event->fields.push_back(MakeField("newcomm", 3, kProtoString));
+    event->fields.push_back(MakeField("oom_score_adj", 4, kProtoInt32));
   }
 
   {
