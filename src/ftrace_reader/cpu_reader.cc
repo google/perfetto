@@ -339,9 +339,8 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
       case kTypePadding: {
         // Left over page padding or discarded event.
         if (event_header.time_delta == 0) {
-          // TODO(hjd): Look at the next few bytes for read size;
-          PERFETTO_ELOG("Padding time_delta == 0 not handled.");
-          PERFETTO_DCHECK(false);  // TODO(hjd): Handle
+          // Not clear what the correct behaviour is in this case.
+          PERFETTO_DCHECK(false);
           return 0;
         }
         uint32_t length;
@@ -364,21 +363,30 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
         TimeStamp time_stamp;
         if (!ReadAndAdvance<TimeStamp>(&ptr, end, &time_stamp))
           return 0;
-        // TODO(hjd): Handle.
+        // Not implemented in the kernel, nothing should generate this.
+        PERFETTO_DCHECK(false);
         break;
       }
       // Data record:
       default: {
         PERFETTO_CHECK(event_header.type_or_length <= kTypeDataTypeLengthMax);
         // type_or_length is <=28 so it represents the length of a data record.
+        // if == 0, this is an extended record and the size of the record is
+        // stored in the first uint32_t word in the payload.
+        // See Kernel's include/linux/ring_buffer.h
+        uint32_t event_size;
         if (event_header.type_or_length == 0) {
-          // TODO(hjd): Look at the next few bytes for real size.
-          PERFETTO_ELOG("Data type_or_length == 0 not handled.");
-          PERFETTO_DCHECK(false);
-          return 0;
+          if (!ReadAndAdvance<uint32_t>(&ptr, end, &event_size))
+            return 0;
+          // Size includes the size field itself.
+          if (event_size < 4)
+            return 0;
+          event_size -= 4;
+        } else {
+          event_size = 4 * event_header.type_or_length;
         }
         const uint8_t* start = ptr;
-        const uint8_t* next = ptr + 4 * event_header.type_or_length;
+        const uint8_t* next = ptr + event_size;
 
         uint16_t ftrace_event_id;
         if (!ReadAndAdvance<uint16_t>(&ptr, end, &ftrace_event_id))
