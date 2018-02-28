@@ -38,8 +38,10 @@
 using testing::Each;
 using testing::ElementsAre;
 using testing::ElementsAreArray;
+using testing::EndsWith;
 using testing::Eq;
 using testing::Pair;
+using testing::StartsWith;
 
 namespace perfetto {
 
@@ -351,6 +353,114 @@ TEST(CpuReaderTest, ParseSinglePrint) {
   EXPECT_EQ(event.pid(), 28712ul);
   EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 608934, 535199));
   EXPECT_EQ(event.print().buf(), "Hello, world!\n");
+}
+
+// # tracer: nop
+// #
+// # entries-in-buffer/entries-written: 2/2   #P:8
+// #
+// #                                      _-----=> irqs-off
+// #                                     / _----=> need-resched
+// #                                    | / _---=> hardirq/softirq
+// #                                    || / _--=> preempt-depth
+// #                                    ||| /     delay
+// #           TASK-PID    TGID   CPU#  ||||    TIMESTAMP  FUNCTION
+// #              | |        |      |   ||||       |         |
+//             echo-6908  ( 6908) [000] ...1 282762.884473: tracing_mark_write: qwertyuiopqwrtyuiopqwertyuiopqwertyuiopqwer[...]
+//             echo-6908  ( 6908) [000] ...1 282762.884492: tracing_mark_write:
+ExamplePage g_really_long_event{
+    "synthetic",
+    R"(
+      00000000: 6be0 48dd 2b01 0100 e403 0000 0000 0000  k.H.+...........
+      00000010: 1e00 0000 0000 0000 0000 0000 c003 0000  ................
+      00000020: 0500 0001 fc1a 0000 4096 3615 9cff ffff  ........@.6.....
+      00000030: 7177 6572 7479 7569 6f70 7177 7274 7975  qwertyuiopqwrtyu
+      00000040: 696f 7071 7765 7274 7975 696f 7071 7765  iopqwertyuiopqwe
+      00000050: 7274 7975 696f 7071 7765 7274 7975 696f  rtyuiopqwertyuio
+      00000060: 7071 7772 7479 7569 6f70 7177 6572 7479  pqwrtyuiopqwerty
+      00000070: 7569 6f70 7177 6572 7479 7569 6f71 7765  uiopqwertyuioqwe
+      00000080: 7274 7975 696f 7071 7772 7479 7569 6f70  rtyuiopqwrtyuiop
+      00000090: 7177 6572 7479 7569 6f70 7177 6572 7479  qwertyuiopqwerty
+      000000a0: 7569 6f71 7765 7274 7975 696f 7071 7772  uioqwertyuiopqwr
+      000000b0: 7479 7569 6f70 7177 6572 7479 7569 6f70  tyuiopqwertyuiop
+      000000c0: 7177 6572 7479 7569 6f70 7070 7177 6572  qwertyuiopppqwer
+      000000d0: 7479 7569 6f70 7177 7274 7975 696f 7071  tyuiopqwrtyuiopq
+      000000e0: 7765 7274 7975 696f 7071 7765 7274 7975  wertyuiopqwertyu
+      000000f0: 696f 7071 7765 7274 7975 696f 7071 7772  iopqwertyuiopqwr
+      00000100: 7479 7569 6f70 7177 6572 7479 7569 6f70  tyuiopqwertyuiop
+      00000110: 7177 6572 7479 7569 6f71 7765 7274 7975  qwertyuioqwertyu
+      00000120: 696f 7071 7772 7479 7569 6f70 7177 6572  iopqwrtyuiopqwer
+      00000130: 7479 7569 6f70 7177 6572 7479 7569 6f71  tyuiopqwertyuioq
+      00000140: 7765 7274 7975 696f 7071 7772 7479 7569  wertyuiopqwrtyui
+      00000150: 6f70 7177 6572 7479 7569 6f70 7177 6572  opqwertyuiopqwer
+      00000160: 7479 7569 6f70 7070 7177 6572 7479 7569  tyuiopppqwertyui
+      00000170: 6f70 7177 7274 7975 696f 7071 7765 7274  opqwrtyuiopqwert
+      00000180: 7975 696f 7071 7765 7274 7975 696f 7071  yuiopqwertyuiopq
+      00000190: 7765 7274 7975 696f 7071 7772 7479 7569  wertyuiopqwrtyui
+      000001a0: 6f70 7177 6572 7479 7569 6f70 7177 6572  opqwertyuiopqwer
+      000001b0: 7479 7569 6f71 7765 7274 7975 696f 7071  tyuioqwertyuiopq
+      000001c0: 7772 7479 7569 6f70 7177 6572 7479 7569  wrtyuiopqwertyui
+      000001d0: 6f70 7177 6572 7479 7569 6f71 7765 7274  opqwertyuioqwert
+      000001e0: 7975 696f 7071 7772 7479 7569 6f70 7177  yuiopqwrtyuiopqw
+      000001f0: 6572 7479 7569 6f70 7177 6572 7479 7569  ertyuiopqwertyui
+      00000200: 6f70 7070 7177 6572 7479 7569 6f70 7177  opppqwertyuiopqw
+      00000210: 7274 7975 696f 7071 7765 7274 7975 696f  rtyuiopqwertyuio
+      00000220: 7071 7765 7274 7975 696f 7071 7765 7274  pqwertyuiopqwert
+      00000230: 7975 696f 7071 7772 7479 7569 6f70 7177  yuiopqwrtyuiopqw
+      00000240: 6572 7479 7569 6f70 7177 6572 7479 7569  ertyuiopqwertyui
+      00000250: 6f71 7765 7274 7975 696f 7071 7772 7479  oqwertyuiopqwrty
+      00000260: 7569 6f70 7177 6572 7479 7569 6f70 7177  uiopqwertyuiopqw
+      00000270: 6572 7479 7569 6f71 7765 7274 7975 696f  ertyuioqwertyuio
+      00000280: 7071 7772 7479 7569 6f70 7177 6572 7479  pqwrtyuiopqwerty
+      00000290: 7569 6f70 7177 6572 7479 7569 6f70 7070  uiopqwertyuioppp
+      000002a0: 7177 6572 7479 7569 6f70 7177 7274 7975  qwertyuiopqwrtyu
+      000002b0: 696f 7071 7765 7274 7975 696f 7071 7765  iopqwertyuiopqwe
+      000002c0: 7274 7975 696f 7071 7765 7274 7975 696f  rtyuiopqwertyuio
+      000002d0: 7071 7772 7479 7569 6f70 7177 6572 7479  pqwrtyuiopqwerty
+      000002e0: 7569 6f70 7177 6572 7479 7569 6f71 7765  uiopqwertyuioqwe
+      000002f0: 7274 7975 696f 7071 7772 7479 7569 6f70  rtyuiopqwrtyuiop
+      00000300: 7177 6572 7479 7569 6f70 7177 6572 7479  qwertyuiopqwerty
+      00000310: 7569 6f71 7765 7274 7975 696f 7071 7772  uioqwertyuiopqwr
+      00000320: 7479 7569 6f70 7177 6572 7479 7569 6f70  tyuiopqwertyuiop
+      00000330: 7177 6572 7479 7569 6f70 7070 7177 6572  qwertyuiopppqwer
+      00000340: 7479 7569 6f70 7177 7274 7975 696f 7071  tyuiopqwrtyuiopq
+      00000350: 7765 7274 7975 696f 7071 7765 7274 7975  wertyuiopqwertyu
+      00000360: 696f 7071 7765 7274 7975 696f 7071 7772  iopqwertyuiopqwr
+      00000370: 7479 7569 6f70 7177 6572 7479 7569 6f70  tyuiopqwertyuiop
+      00000380: 7177 6572 7479 7569 6f71 7765 7274 7975  qwertyuioqwertyu
+      00000390: 696f 7071 7772 7479 7569 6f70 7177 6572  iopqwrtyuiopqwer
+      000003a0: 7479 7569 6f70 7177 6572 7479 7569 6f71  tyuiopqwertyuioq
+      000003b0: 7765 7274 7975 696f 7071 7772 7479 7569  wertyuiopqwrtyui
+      000003c0: 6f70 7177 6572 7479 7569 6f70 7177 6572  opqwertyuiopqwer
+      000003d0: 7479 7569 6f70 7070 0a00 5115 6562 0900  tyuioppp..Q.eb..
+      000003e0: 0500 0001 fc1a 0000 4096 3615 9cff ffff  ........@.6.....
+      000003f0: 0a00 0000 0000 0000 0000 0000 0000 0000  ................
+      00000400: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+      00000410: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+      00000420: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+  )",
+};
+
+TEST(CpuReaderTest, ReallyLongEvent) {
+  const ExamplePage* test_case = &g_really_long_event;
+
+  BundleProvider bundle_provider(base::kPageSize);
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  EventFilter filter(*table, {"print"});
+
+  ParserStats stats{};
+  CpuReader::ParsePage(page.get(), &filter,
+                                      bundle_provider.writer(), table, &stats);
+
+  auto bundle = bundle_provider.ParseProto();
+  ASSERT_TRUE(bundle);
+  const protos::FtraceEvent& long_print = bundle->event().Get(0);
+  EXPECT_THAT(long_print.print().buf(), StartsWith("qwerty"));
+  EXPECT_THAT(long_print.print().buf(), EndsWith("ppp\n"));
+  const protos::FtraceEvent& newline = bundle->event().Get(1);
+  EXPECT_EQ(newline.print().buf(), "\n");
 }
 
 // This event is as the event for ParseSinglePrint above except the string
