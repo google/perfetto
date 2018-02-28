@@ -132,6 +132,8 @@ class Service {
   // |shared_buffer_size_hint_bytes| is an optional hint on the size of the
   // shared memory buffer. The service can ignore the hint (e.g., if the hint
   // is unreasonably large).
+  // Can return null in the unlikely event that service has too many producers
+  // connected.
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
       Producer*,
       uid_t uid,
