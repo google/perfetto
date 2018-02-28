@@ -49,7 +49,8 @@ void FuzzCpuReaderParsePage(const uint8_t* data, size_t size) {
   EventFilter filter(*table, {"sched_switch", "print"});
 
   writer.Reset(&stream);
-  CpuReader::ParsePage(42 /* cpu number */, g_page, &filter, &writer, table);
+  ParserStats stats{};
+  CpuReader::ParsePage(g_page, &filter, &writer, table, &stats);
 }
 
 }  // namespace perfetto

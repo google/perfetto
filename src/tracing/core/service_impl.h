@@ -123,6 +123,7 @@ class ServiceImpl : public Service {
   void RegisterDataSource(ProducerID,
                           DataSourceID,
                           const DataSourceDescriptor&);
+  void UnregisterDataSource(ProducerID, DataSourceID);
   void CopyProducerPageIntoLogBuffer(ProducerID,
                                      BufferID,
                                      const uint8_t*,
@@ -153,6 +154,12 @@ class ServiceImpl : public Service {
     ProducerID producer_id;
     DataSourceID data_source_id;
     DataSourceDescriptor descriptor;
+  };
+
+  // Represents an active data source for a tracing session.
+  struct DataSourceInstance {
+    DataSourceInstanceID instance_id;
+    DataSourceID data_source_id;
   };
 
   struct TraceBuffer {
@@ -208,7 +215,7 @@ class ServiceImpl : public Service {
 
     // List of data source instances that have been enabled on the various
     // producers for this tracing session.
-    std::multimap<ProducerID, DataSourceInstanceID> data_source_instances;
+    std::multimap<ProducerID, DataSourceInstance> data_source_instances;
 
     // Maps a per-trace-session buffer index into the corresponding global
     // BufferID (shared namespace amongst all consumers). This vector has as
@@ -219,10 +226,9 @@ class ServiceImpl : public Service {
   ServiceImpl(const ServiceImpl&) = delete;
   ServiceImpl& operator=(const ServiceImpl&) = delete;
 
-  void CreateDataSourceInstanceForProducer(
-      const TraceConfig::DataSource& cfg_data_source,
-      ProducerEndpointImpl* producer,
-      TracingSession* tracing_session);
+  void CreateDataSourceInstance(const TraceConfig::DataSource&,
+                                const RegisteredDataSource&,
+                                TracingSession*);
 
   // Returns a pointer to the |tracing_sessions_| entry or nullptr if the
   // session doesn't exists.

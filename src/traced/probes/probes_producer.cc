@@ -86,7 +86,6 @@ void ProbesProducer::CreateDataSourceInstance(
     DataSourceInstanceID id,
     const DataSourceConfig& source_config) {
   instances_[id] = source_config.name();
-  // PERFETTO_LOG("DataSourceInstanceID: %llu", id);
   if (source_config.name() == kFtraceSourceName) {
     CreateFtraceDataSourceInstance(id, source_config);
   } else if (source_config.name() == kProcessStatsSourceName) {
@@ -136,10 +135,12 @@ void ProbesProducer::CreateFtraceDataSourceInstance(
   delegates_.emplace(id, std::move(delegate));
   // Building on Android, watchdogs_.emplace(id, 2* source_config.duration_ms())
   // does not compile. Presumably, this is due to some detail in its libc++.
+  // Add constant (5 s, semi arbitrarily) to account for very short trace
+  // durations.
   if (source_config.trace_duration_ms() != 0)
     watchdogs_.emplace(
         std::piecewise_construct, std::forward_as_tuple(id),
-        std::forward_as_tuple(2 * source_config.trace_duration_ms()));
+        std::forward_as_tuple(5000 + 2 * source_config.trace_duration_ms()));
 }
 
 void ProbesProducer::CreateProcessStatsDataSourceInstance(
