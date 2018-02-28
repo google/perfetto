@@ -130,7 +130,10 @@ void ProbesProducer::CreateFtraceDataSourceInstance(
   auto delegate =
       std::unique_ptr<SinkDelegate>(new SinkDelegate(std::move(trace_writer)));
   auto sink = ftrace_->CreateSink(std::move(proto_config), delegate.get());
-  PERFETTO_CHECK(sink);
+  if (!sink) {
+    PERFETTO_ELOG("Failed to start tracing (maybe someone else is using it?)");
+    return;
+  }
   delegate->sink(std::move(sink));
   delegates_.emplace(id, std::move(delegate));
   // Building on Android, watchdogs_.emplace(id, 2* source_config.duration_ms())
