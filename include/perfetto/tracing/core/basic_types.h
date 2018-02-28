@@ -23,7 +23,7 @@
 namespace perfetto {
 
 // Unique within the scope of the tracing service.
-using ProducerID = uint64_t;
+using ProducerID = uint16_t;
 
 // Unique within the scope of the tracing service.
 using DataSourceID = uint64_t;
@@ -33,6 +33,10 @@ using DataSourceInstanceID = uint64_t;
 
 // Unique within the scope of a Producer.
 using WriterID = uint16_t;
+
+// We need one FD per producer and we are not going to be able to keep > 64k FDs
+// open in the service.
+static constexpr ProducerID kMaxProducerID = static_cast<ProducerID>(-1);
 
 // 1024 Writers per producer seems a resonable bound. This reduces the ability
 // to memory-DoS the service by having to keep track of too many writer IDs.
