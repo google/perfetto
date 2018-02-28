@@ -14,10 +14,23 @@
 # limitations under the License.
 set -e
 
-function is_monolithic() {
+function is_monolithic {
   local out=$1
   gn args $out --list --short | grep 'monolithic_binaries = true' > /dev/null
   return $?
+}
+
+function adb_supports_push_sync {
+  adb --help | grep 'push.*\[--sync\]'
+}
+
+function push {
+  local maybe_sync=''
+  if adb_supports_push_sync; then
+    maybe_sync='--sync '
+  fi
+  echo adb push $maybe_sync $1 $2
+  adb push $maybe_sync $1 $2
 }
 
 # If not set guess the OUT dir using the latest directory.
@@ -33,11 +46,9 @@ CONFIG="${CONFIG:-:test}"
 
 ninja -C $OUT traced traced_probes perfetto trace_to_text test/configs
 
-set -x
-adb push $OUT/traced /data/local/tmp/
-adb push $OUT/traced_probes /data/local/tmp/
-adb push $OUT/perfetto /data/local/tmp/
-set +x
+push $OUT/traced /data/local/tmp/
+push $OUT/traced_probes /data/local/tmp/
+push $OUT/perfetto /data/local/tmp/
 
 PREFIX=""
 if ! is_monolithic $OUT;  then
