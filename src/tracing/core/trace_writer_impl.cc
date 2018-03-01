@@ -132,6 +132,8 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
         PERFETTO_DCHECK(patch_it != patch_list_.end());
       }
 #endif
+      // TODO(primiano): this needs to be adjusted to be the offset within the
+      // payload, not from the start of the chunk header.
       auto cur_hdr_offset = static_cast<uint16_t>(cur_hdr - cur_chunk_.begin());
       patch_list_.emplace_front(cur_chunk_id_, cur_hdr_offset);
       Patch& patch = patch_list_.front();

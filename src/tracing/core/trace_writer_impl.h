@@ -34,7 +34,6 @@ class TraceWriterImpl : public TraceWriter,
                         public protozero::ScatteredStreamWriter::Delegate {
  public:
   // TracePacketHandle is defined in trace_writer.h
-
   TraceWriterImpl(SharedMemoryArbiterImpl*, WriterID, BufferID);
   ~TraceWriterImpl() override;
 
