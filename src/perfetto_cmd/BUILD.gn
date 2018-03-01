@@ -14,14 +14,14 @@
 
 source_set("perfetto_cmd") {
   public_deps = [
-    "../../../include/perfetto/traced",
+    "../../include/perfetto/traced",
   ]
   deps = [
-    "../../../gn:default_deps",
-    "../../../protos/perfetto/config",
-    "../../base",
-    "../../protozero",
-    "../../tracing:ipc_consumer",
+    "../../gn:default_deps",
+    "../../protos/perfetto/config",
+    "../base",
+    "../protozero",
+    "../tracing:ipc_consumer",
   ]
   sources = [
     "perfetto_cmd.cc",
