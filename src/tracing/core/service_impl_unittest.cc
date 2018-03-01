@@ -32,6 +32,7 @@
 namespace perfetto {
 using ::testing::_;
 using ::testing::InSequence;
+using ::testing::Invoke;
 using ::testing::Mock;
 
 namespace {
@@ -134,7 +135,6 @@ TEST_F(ServiceImplTest, RegisterAndUnregister) {
 
   ASSERT_EQ(0u, svc->num_producers());
 }
-
 TEST_F(ServiceImplTest, EnableAndDisableTracing) {
   MockProducer mock_producer;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
@@ -265,6 +265,69 @@ TEST_F(ServiceImplTest, ReconnectProducerWhileTracing) {
   producer_endpoint.reset();
   Mock::VerifyAndClearExpectations(&mock_producer);
   Mock::VerifyAndClearExpectations(&mock_consumer);
+}
+
+TEST_F(ServiceImplTest, ProducerIDWrapping) {
+  base::TestTaskRunner task_runner;
+  auto shm_factory =
+      std::unique_ptr<SharedMemory::Factory>(new TestSharedMemory::Factory());
+  std::unique_ptr<ServiceImpl> svc(static_cast<ServiceImpl*>(
+      Service::CreateInstance(std::move(shm_factory), &task_runner).release()));
+
+  std::map<ProducerID, std::pair<std::unique_ptr<MockProducer>,
+                                 std::unique_ptr<Service::ProducerEndpoint>>>
+      producers;
+
+  auto ConnectProducerAndWait = [&task_runner, &svc, &producers]() {
+    char checkpoint_name[32];
+    static int checkpoint_num = 0;
+    sprintf(checkpoint_name, "on_connect_%d", checkpoint_num++);
+    auto on_connect = task_runner.CreateCheckpoint(checkpoint_name);
+    std::unique_ptr<MockProducer> producer(new MockProducer());
+    std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
+        svc->ConnectProducer(producer.get(), 123u /* uid */);
+    EXPECT_CALL(*producer, OnConnect()).WillOnce(Invoke(on_connect));
+    task_runner.RunUntilCheckpoint(checkpoint_name);
+    EXPECT_EQ(&*producer_endpoint, svc->GetProducer(svc->last_producer_id_));
+    const ProducerID pr_id = svc->last_producer_id_;
+    producers.emplace(pr_id, std::make_pair(std::move(producer),
+                                            std::move(producer_endpoint)));
+    return pr_id;
+  };
+
+  auto DisconnectProducerAndWait = [&task_runner,
+                                    &producers](ProducerID pr_id) {
+    char checkpoint_name[32];
+    static int checkpoint_num = 0;
+    sprintf(checkpoint_name, "on_disconnect_%d", checkpoint_num++);
+    auto on_disconnect = task_runner.CreateCheckpoint(checkpoint_name);
+    auto it = producers.find(pr_id);
+    PERFETTO_CHECK(it != producers.end());
+    EXPECT_CALL(*it->second.first, OnDisconnect())
+        .WillOnce(Invoke(on_disconnect));
+    producers.erase(pr_id);
+    task_runner.RunUntilCheckpoint(checkpoint_name);
+  };
+
+  // Connect producers 1-4.
+  for (ProducerID i = 1; i <= 4; i++)
+    ASSERT_EQ(i, ConnectProducerAndWait());
+
+  // Disconnect producers 1,3.
+  DisconnectProducerAndWait(1);
+  DisconnectProducerAndWait(3);
+
+  svc->last_producer_id_ = kMaxProducerID - 1;
+  ASSERT_EQ(kMaxProducerID, ConnectProducerAndWait());
+  ASSERT_EQ(1u, ConnectProducerAndWait());
+  ASSERT_EQ(3u, ConnectProducerAndWait());
+  ASSERT_EQ(5u, ConnectProducerAndWait());
+  ASSERT_EQ(6u, ConnectProducerAndWait());
+
+  // Disconnect all producers to mute spurious callbacks.
+  DisconnectProducerAndWait(kMaxProducerID);
+  for (ProducerID i = 1; i <= 6; i++)
+    DisconnectProducerAndWait(i);
 }
 
 }  // namespace perfetto
