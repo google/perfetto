@@ -69,7 +69,7 @@ class ConsumerIPCClientImpl : public Service::ConsumerEndpoint,
   void OnDisconnect() override;
 
  private:
-  void OnReadBuffersResponse(ipc::AsyncResult<ReadBuffersResponse>);
+  void OnReadBuffersResponse(ipc::AsyncResult<protos::ReadBuffersResponse>);
 
   // TODO(primiano): think to dtor order, do we rely on any specific sequence?
   Consumer* const consumer_;
@@ -79,7 +79,7 @@ class ConsumerIPCClientImpl : public Service::ConsumerEndpoint,
 
   // The proxy interface for the consumer port of the service. It is bound
   // to |ipc_channel_| and (de)serializes method invocations over the wire.
-  ConsumerPortProxy consumer_port_;
+  protos::ConsumerPortProxy consumer_port_;
 
   bool connected_ = false;
 

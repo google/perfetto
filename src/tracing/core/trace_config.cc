@@ -169,10 +169,9 @@ void TraceConfig::DataSource::ToProto(
   config_.ToProto(proto->mutable_config());
 
   for (const auto& it : producer_name_filter_) {
-    auto* entry = proto->add_producer_name_filter();
+    proto->add_producer_name_filter(it);
     static_assert(sizeof(it) == sizeof(proto->producer_name_filter(0)),
                   "size mismatch");
-    *entry = static_cast<decltype(proto->producer_name_filter(0))>(it);
   }
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }

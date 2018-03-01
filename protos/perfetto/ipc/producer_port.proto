@@ -20,7 +20,7 @@ option optimize_for = LITE_RUNTIME;
 import "perfetto/config/data_source_config.proto";
 import "perfetto/config/data_source_descriptor.proto";
 
-package perfetto;
+package perfetto.protos;
 
 // IPC interface definition for the producer port of the tracing service.
 service ProducerPort {
