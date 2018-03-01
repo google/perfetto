@@ -37,20 +37,20 @@ class Host;
 // Implements the Consumer port of the IPC service. This class proxies requests
 // and responses between the core service logic (|svc_|) and remote Consumer(s)
 // on the IPC socket, through the methods overriddden from ConsumerPort.
-class ConsumerIPCService : public ConsumerPort /* from consumer_port.proto */ {
+class ConsumerIPCService : public protos::ConsumerPort {
  public:
   using Service = ::perfetto::Service;  // To avoid collisions w/ ipc::Service.
   explicit ConsumerIPCService(Service* core_service);
   ~ConsumerIPCService() override;
 
   // ConsumerPort implementation (from .proto IPC definition).
-  void EnableTracing(const EnableTracingRequest&,
+  void EnableTracing(const protos::EnableTracingRequest&,
                      DeferredEnableTracingResponse) override;
-  void DisableTracing(const DisableTracingRequest&,
+  void DisableTracing(const protos::DisableTracingRequest&,
                       DeferredDisableTracingResponse) override;
-  void ReadBuffers(const ReadBuffersRequest&,
+  void ReadBuffers(const protos::ReadBuffersRequest&,
                    DeferredReadBuffersResponse) override;
-  void FreeBuffers(const FreeBuffersRequest&,
+  void FreeBuffers(const protos::FreeBuffersRequest&,
                    DeferredFreeBuffersResponse) override;
   void OnClientDisconnected() override;
 

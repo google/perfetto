@@ -72,13 +72,14 @@ void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config) {
 
   // Serialize the |trace_config| into a EnableTracingRequest protobuf.
   // Keep this in sync with changes in consumer_port.proto.
-  EnableTracingRequest req;
+  protos::EnableTracingRequest req;
   trace_config.ToProto(req.mutable_trace_config());
-  ipc::Deferred<EnableTracingResponse> async_response;
-  async_response.Bind([](ipc::AsyncResult<EnableTracingResponse> response) {
-    if (!response)
-      PERFETTO_DLOG("EnableTracing() failed");
-  });
+  ipc::Deferred<protos::EnableTracingResponse> async_response;
+  async_response.Bind(
+      [](ipc::AsyncResult<protos::EnableTracingResponse> response) {
+        if (!response)
+          PERFETTO_DLOG("EnableTracing() failed");
+      });
   consumer_port_.EnableTracing(req, std::move(async_response));
 }
 
@@ -88,12 +89,13 @@ void ConsumerIPCClientImpl::DisableTracing() {
     return;
   }
 
-  ipc::Deferred<DisableTracingResponse> async_response;
-  async_response.Bind([](ipc::AsyncResult<DisableTracingResponse> response) {
-    if (!response)
-      PERFETTO_DLOG("DisableTracing() failed");
-  });
-  consumer_port_.DisableTracing(DisableTracingRequest(),
+  ipc::Deferred<protos::DisableTracingResponse> async_response;
+  async_response.Bind(
+      [](ipc::AsyncResult<protos::DisableTracingResponse> response) {
+        if (!response)
+          PERFETTO_DLOG("DisableTracing() failed");
+      });
+  consumer_port_.DisableTracing(protos::DisableTracingRequest(),
                                 std::move(async_response));
 }
 
@@ -103,20 +105,22 @@ void ConsumerIPCClientImpl::ReadBuffers() {
     return;
   }
 
-  ipc::Deferred<ReadBuffersResponse> async_response;
+  ipc::Deferred<protos::ReadBuffersResponse> async_response;
 
   // The IPC layer guarantees that callbacks are destroyed after this object
   // is destroyed (by virtue of destroying the |consumer_port_|). In turn the
   // contract of this class expects the caller to not destroy the Consumer class
   // before having destroyed this class. Hence binding |this| here is safe.
-  async_response.Bind([this](ipc::AsyncResult<ReadBuffersResponse> response) {
-    OnReadBuffersResponse(std::move(response));
-  });
-  consumer_port_.ReadBuffers(ReadBuffersRequest(), std::move(async_response));
+  async_response.Bind(
+      [this](ipc::AsyncResult<protos::ReadBuffersResponse> response) {
+        OnReadBuffersResponse(std::move(response));
+      });
+  consumer_port_.ReadBuffers(protos::ReadBuffersRequest(),
+                             std::move(async_response));
 }
 
 void ConsumerIPCClientImpl::OnReadBuffersResponse(
-    ipc::AsyncResult<ReadBuffersResponse> response) {
+    ipc::AsyncResult<protos::ReadBuffersResponse> response) {
   if (!response) {
     PERFETTO_DLOG("ReadBuffers() failed");
     return;
@@ -139,12 +143,13 @@ void ConsumerIPCClientImpl::FreeBuffers() {
     return;
   }
 
-  FreeBuffersRequest req;
-  ipc::Deferred<FreeBuffersResponse> async_response;
-  async_response.Bind([](ipc::AsyncResult<FreeBuffersResponse> response) {
-    if (!response)
-      PERFETTO_DLOG("FreeBuffers() failed");
-  });
+  protos::FreeBuffersRequest req;
+  ipc::Deferred<protos::FreeBuffersResponse> async_response;
+  async_response.Bind(
+      [](ipc::AsyncResult<protos::FreeBuffersResponse> response) {
+        if (!response)
+          PERFETTO_DLOG("FreeBuffers() failed");
+      });
   consumer_port_.FreeBuffers(req, std::move(async_response));
 }
 

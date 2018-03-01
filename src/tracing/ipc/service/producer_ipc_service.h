@@ -37,23 +37,23 @@ class Host;
 // Implements the Producer port of the IPC service. This class proxies requests
 // and responses between the core service logic (|svc_|) and remote Producer(s)
 // on the IPC socket, through the methods overriddden from ProducerPort.
-class ProducerIPCService : public ProducerPort /* from producer_port.proto */ {
+class ProducerIPCService : public protos::ProducerPort {
  public:
   using Service = ::perfetto::Service;  // To avoid collisions w/ ipc::Service.
   explicit ProducerIPCService(Service* core_service);
   ~ProducerIPCService() override;
 
   // ProducerPort implementation (from .proto IPC definition).
-  void InitializeConnection(const InitializeConnectionRequest&,
+  void InitializeConnection(const protos::InitializeConnectionRequest&,
                             DeferredInitializeConnectionResponse) override;
-  void RegisterDataSource(const RegisterDataSourceRequest&,
+  void RegisterDataSource(const protos::RegisterDataSourceRequest&,
                           DeferredRegisterDataSourceResponse) override;
-  void UnregisterDataSource(const UnregisterDataSourceRequest&,
+  void UnregisterDataSource(const protos::UnregisterDataSourceRequest&,
                             DeferredUnregisterDataSourceResponse) override;
   void NotifySharedMemoryUpdate(
-      const NotifySharedMemoryUpdateRequest&,
+      const protos::NotifySharedMemoryUpdateRequest&,
       DeferredNotifySharedMemoryUpdateResponse) override;
-  void GetAsyncCommand(const GetAsyncCommandRequest&,
+  void GetAsyncCommand(const protos::GetAsyncCommandRequest&,
                        DeferredGetAsyncCommandResponse) override;
   void OnClientDisconnected() override;
 
