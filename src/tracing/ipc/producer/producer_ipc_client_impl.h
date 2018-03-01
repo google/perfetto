@@ -80,7 +80,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
 
   // Invoked when the remote Service sends an IPC to tell us to do something
   // (e.g. start/stop a data source).
-  void OnServiceRequest(const GetAsyncCommandResponse&);
+  void OnServiceRequest(const protos::GetAsyncCommandResponse&);
 
   // Callback passed to SharedMemoryArbiterImpl.
   void OnPagesComplete(const std::vector<uint32_t>&);
@@ -94,7 +94,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
 
   // The proxy interface for the producer port of the service. It is bound
   // to |ipc_channel_| and (de)serializes method invocations over the wire.
-  ProducerPortProxy producer_port_;
+  protos::ProducerPortProxy producer_port_;
 
   std::unique_ptr<PosixSharedMemory> shared_memory_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;

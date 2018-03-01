@@ -441,16 +441,15 @@ void ProtoToCpp::GenCpp(const Descriptor* msg, Printer* p, std::string prefix) {
       }
     } else {  // is_repeated()
       p->Print("for (const auto& it : $n$_) {\n", "n", field->name());
-      p->Print("  auto* entry = proto->add_$n$();\n", "n", field->name());
       if (field->type() == FieldDescriptor::TYPE_MESSAGE) {
+        p->Print("  auto* entry = proto->add_$n$();\n", "n", field->name());
         p->Print("  it.ToProto(entry);\n");
       } else {
+        p->Print("  proto->add_$n$(it);\n", "n", field->name());
         p->Print(
             "static_assert(sizeof(it) == sizeof(proto->$n$(0)), \"size "
             "mismatch\");\n",
             "n", field->name());
-        p->Print("  *entry = static_cast<decltype(proto->$n$(0))>(it);\n", "n",
-                 field->name());
       }
       p->Print("}\n");
     }
@@ -465,7 +464,8 @@ void ProtoToCpp::GenCpp(const Descriptor* msg, Printer* p, std::string prefix) {
 
     if (field->type() == FieldDescriptor::TYPE_MESSAGE &&
         field->message_type()->file() == msg->file()) {
-      GenCpp(field->message_type(), p, msg->name() + "::");
+      std::string child_prefix = prefix + msg->name() + "::";
+      GenCpp(field->message_type(), p, child_prefix);
     }
   }
 }

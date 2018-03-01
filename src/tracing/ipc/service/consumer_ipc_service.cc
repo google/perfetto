@@ -55,23 +55,24 @@ void ConsumerIPCService::OnClientDisconnected() {
 }
 
 // Called by the IPC layer.
-void ConsumerIPCService::EnableTracing(const EnableTracingRequest& req,
+void ConsumerIPCService::EnableTracing(const protos::EnableTracingRequest& req,
                                        DeferredEnableTracingResponse resp) {
   TraceConfig trace_config;
   trace_config.FromProto(req.trace_config());
   GetConsumerForCurrentRequest()->service_endpoint->EnableTracing(trace_config);
-  resp.Resolve(ipc::AsyncResult<EnableTracingResponse>::Create());
+  resp.Resolve(ipc::AsyncResult<protos::EnableTracingResponse>::Create());
 }
 
 // Called by the IPC layer.
-void ConsumerIPCService::DisableTracing(const DisableTracingRequest& req,
-                                        DeferredDisableTracingResponse resp) {
+void ConsumerIPCService::DisableTracing(
+    const protos::DisableTracingRequest& req,
+    DeferredDisableTracingResponse resp) {
   GetConsumerForCurrentRequest()->service_endpoint->DisableTracing();
-  resp.Resolve(ipc::AsyncResult<DisableTracingResponse>::Create());
+  resp.Resolve(ipc::AsyncResult<protos::DisableTracingResponse>::Create());
 }
 
 // Called by the IPC layer.
-void ConsumerIPCService::ReadBuffers(const ReadBuffersRequest& req,
+void ConsumerIPCService::ReadBuffers(const protos::ReadBuffersRequest& req,
                                      DeferredReadBuffersResponse resp) {
   RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
   remote_consumer->read_buffers_response = std::move(resp);
@@ -79,10 +80,10 @@ void ConsumerIPCService::ReadBuffers(const ReadBuffersRequest& req,
 }
 
 // Called by the IPC layer.
-void ConsumerIPCService::FreeBuffers(const FreeBuffersRequest& req,
+void ConsumerIPCService::FreeBuffers(const protos::FreeBuffersRequest& req,
                                      DeferredFreeBuffersResponse resp) {
   GetConsumerForCurrentRequest()->service_endpoint->FreeBuffers();
-  resp.Resolve(ipc::AsyncResult<FreeBuffersResponse>::Create());
+  resp.Resolve(ipc::AsyncResult<protos::FreeBuffersResponse>::Create());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,7 +108,7 @@ void ConsumerIPCService::RemoteConsumer::OnTraceData(
   if (!read_buffers_response.IsBound())
     return;
 
-  auto result = ipc::AsyncResult<ReadBuffersResponse>::Create();
+  auto result = ipc::AsyncResult<protos::ReadBuffersResponse>::Create();
   result.set_has_more(has_more);
   // TODO(primiano): Expose the slices to the Consumer rather than stitching
   // them and wasting cpu time to hide this detail.
