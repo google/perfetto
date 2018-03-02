@@ -58,6 +58,7 @@ class HostImpl : public Host, public UnixSocket::EventListener {
     ClientID id;
     std::unique_ptr<UnixSocket> sock;
     BufferedFrameDeserializer frame_deserializer;
+    base::ScopedFile received_fd;
   };
   struct ExposedService {
     ExposedService(ServiceID, const std::string&, std::unique_ptr<Service>);

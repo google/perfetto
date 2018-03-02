@@ -46,7 +46,8 @@ void ServiceProxy::InitializeBinding(
 
 void ServiceProxy::BeginInvoke(const std::string& method_name,
                                const ProtoMessage& request,
-                               DeferredBase reply) {
+                               DeferredBase reply,
+                               int fd) {
   // |reply| will auto-resolve if it gets out of scope early.
   if (!connected()) {
     PERFETTO_DCHECK(false);
@@ -62,7 +63,8 @@ void ServiceProxy::BeginInvoke(const std::string& method_name,
     request_id =
         static_cast<ClientImpl*>(client_.get())
             ->BeginInvoke(service_id_, method_name, remote_method_it->second,
-                          request, drop_reply, weak_ptr_factory_.GetWeakPtr());
+                          request, drop_reply, weak_ptr_factory_.GetWeakPtr(),
+                          fd);
   } else {
     PERFETTO_DLOG("Cannot find method \"%s\" on the host", method_name.c_str());
   }

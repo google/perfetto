@@ -59,7 +59,8 @@ class ClientImpl : public Client, public UnixSocket::EventListener {
                         MethodID remote_method_id,
                         const ProtoMessage& method_args,
                         bool drop_reply,
-                        base::WeakPtr<ServiceProxy>);
+                        base::WeakPtr<ServiceProxy>,
+                        int fd = -1);
 
  private:
   struct QueuedRequest {
@@ -75,7 +76,7 @@ class ClientImpl : public Client, public UnixSocket::EventListener {
   ClientImpl(const ClientImpl&) = delete;
   ClientImpl& operator=(const ClientImpl&) = delete;
 
-  bool SendFrame(const Frame&);
+  bool SendFrame(const Frame&, int fd = -1);
   void OnFrameReceived(const Frame&);
   void OnBindServiceReply(QueuedRequest, const Frame::BindServiceReply&);
   void OnInvokeMethodReply(QueuedRequest, const Frame::InvokeMethodReply&);
