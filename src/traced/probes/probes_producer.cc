@@ -52,6 +52,7 @@ const char* kProcessStatsSourceName = "com.google.perfetto.process_stats";
 //                    +--------------+
 //
 
+ProbesProducer::ProbesProducer() {}
 ProbesProducer::~ProbesProducer() = default;
 
 void ProbesProducer::OnConnect() {
@@ -127,8 +128,8 @@ void ProbesProducer::CreateFtraceDataSourceInstance(
   // TODO(hjd): Static cast is bad, target_buffer() should return a BufferID.
   auto trace_writer = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
-  auto delegate =
-      std::unique_ptr<SinkDelegate>(new SinkDelegate(std::move(trace_writer)));
+  auto delegate = std::unique_ptr<SinkDelegate>(
+      new SinkDelegate(task_runner_, std::move(trace_writer)));
   auto sink = ftrace_->CreateSink(std::move(proto_config), delegate.get());
   if (!sink) {
     PERFETTO_ELOG("Failed to start tracing (maybe someone else is using it?)");
@@ -210,20 +211,39 @@ void ProbesProducer::ResetConnectionBackoff() {
   connection_backoff_ms_ = kInitialConnectionBackoffMs;
 }
 
-ProbesProducer::SinkDelegate::SinkDelegate(std::unique_ptr<TraceWriter> writer)
-    : writer_(std::move(writer)) {}
+ProbesProducer::SinkDelegate::SinkDelegate(base::TaskRunner* task_runner,
+                                           std::unique_ptr<TraceWriter> writer)
+    : task_runner_(task_runner),
+      writer_(std::move(writer)),
+      weak_factory_(this) {}
 
 ProbesProducer::SinkDelegate::~SinkDelegate() = default;
 
 ProbesProducer::FtraceBundleHandle
+
 ProbesProducer::SinkDelegate::GetBundleForCpu(size_t) {
   trace_packet_ = writer_->NewTracePacket();
   return FtraceBundleHandle(trace_packet_->set_ftrace_events());
 }
 
-void ProbesProducer::SinkDelegate::OnBundleComplete(size_t,
-                                                    FtraceBundleHandle) {
+void ProbesProducer::SinkDelegate::OnBundleComplete(
+    size_t,
+    FtraceBundleHandle,
+    const FtraceMetadata& metadata) {
   trace_packet_->Finalize();
+  if (!metadata.inodes.empty()) {
+    auto weak_this = weak_factory_.GetWeakPtr();
+    auto inodes = metadata.inodes;
+    task_runner_->PostTask([weak_this, inodes] {
+      if (weak_this)
+        weak_this->OnInodes(inodes);
+    });
+  }
+}
+
+void ProbesProducer::SinkDelegate::OnInodes(
+    const std::vector<uint64_t>& inodes) {
+  PERFETTO_DLOG("Saw FtraceBundle with %zu inodes.", inodes.size());
 }
 
 }  // namespace perfetto

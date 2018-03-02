@@ -37,6 +37,22 @@
 
 namespace perfetto {
 
+struct FtraceMetadata {
+  FtraceMetadata();
+
+  size_t overwrite_count;
+
+  // A vector not a set to keep the writer_fast.
+  std::vector<uint64_t> inodes;
+  std::vector<uint64_t> pids;
+
+  void Clear() {
+    inodes.clear();
+    pids.clear();
+    overwrite_count = 0;
+  }
+};
+
 namespace protos {
 namespace pbzero {
 class FtraceEventBundle;
@@ -67,9 +83,9 @@ class FtraceSink {
    public:
     virtual protozero::MessageHandle<FtraceEventBundle> GetBundleForCpu(
         size_t) = 0;
-    virtual void OnBundleComplete(
-        size_t,
-        protozero::MessageHandle<FtraceEventBundle>) = 0;
+    virtual void OnBundleComplete(size_t,
+                                  protozero::MessageHandle<FtraceEventBundle>,
+                                  const FtraceMetadata&) = 0;
     virtual ~Delegate() = default;
   };
 
@@ -88,13 +104,16 @@ class FtraceSink {
   FtraceSink(const FtraceSink&) = delete;
   FtraceSink& operator=(const FtraceSink&) = delete;
 
-  EventFilter* get_event_filter() { return filter_.get(); }
+  EventFilter* event_filter() { return filter_.get(); }
+  FtraceMetadata* metadata_mutable() { return &metadata_; }
+
   protozero::MessageHandle<FtraceEventBundle> GetBundleForCpu(size_t cpu) {
     return delegate_->GetBundleForCpu(cpu);
   }
   void OnBundleComplete(size_t cpu,
                         protozero::MessageHandle<FtraceEventBundle> bundle) {
-    delegate_->OnBundleComplete(cpu, std::move(bundle));
+    delegate_->OnBundleComplete(cpu, std::move(bundle), metadata_);
+    metadata_.Clear();
   }
 
   const std::set<std::string>& enabled_events();
@@ -103,6 +122,7 @@ class FtraceSink {
   const FtraceConfigId id_;
   const FtraceConfig config_;
   std::unique_ptr<EventFilter> filter_;
+  FtraceMetadata metadata_;
   FtraceSink::Delegate* delegate_;
 };
 
