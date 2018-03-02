@@ -108,8 +108,9 @@ static const char kCppMethodDescriptor[] = R"(
 )";
 
 static const char kCppMethod[] = R"(
-void $c$Proxy::$m$(const $i$& request, Deferred$o$ reply) {
-  BeginInvoke("$m$", request, ::perfetto::ipc::DeferredBase(std::move(reply)));
+void $c$Proxy::$m$(const $i$& request, Deferred$o$ reply, int fd) {
+  BeginInvoke("$m$", request, ::perfetto::ipc::DeferredBase(std::move(reply)),
+              fd);
 }
 )";
 
@@ -170,7 +171,7 @@ void GenerateServiceHeader(const FileDescriptor& file,
                      "o", output_type);
       types_seen.insert(output_type);
     }
-    printer->Print("  void $m$(const $i$&, Deferred$o$);\n\n", "m",
+    printer->Print("  void $m$(const $i$&, Deferred$o$, int fd = -1);\n\n", "m",
                    method.name(), "i", input_type, "o", output_type);
   });
   printer->Print("};\n\n");
