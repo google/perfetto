@@ -71,6 +71,9 @@ class FakeService : public Service {
 
   const ServiceDescriptor& GetDescriptor() override { return descriptor_; }
 
+  base::ScopedFile TakeReceivedFD() { return ipc::Service::TakeReceivedFD(); }
+
+  base::ScopedFile received_fd_;
   ServiceDescriptor descriptor_;
 };
 
@@ -101,7 +104,8 @@ class FakeClient : public UnixSocket::EventListener {
   void InvokeMethod(ServiceID service_id,
                     MethodID method_id,
                     const ProtoMessage& args,
-                    bool drop_reply = false) {
+                    bool drop_reply = false,
+                    int fd = -1) {
     Frame frame;
     uint64_t request_id = requests_.empty() ? 1 : requests_.rbegin()->first + 1;
     requests_.emplace(request_id, 0);
@@ -110,7 +114,7 @@ class FakeClient : public UnixSocket::EventListener {
     frame.mutable_msg_invoke_method()->set_method_id(method_id);
     frame.mutable_msg_invoke_method()->set_drop_reply(drop_reply);
     frame.mutable_msg_invoke_method()->set_args_proto(args.SerializeAsString());
-    SendFrame(frame);
+    SendFrame(frame, fd);
   }
 
   // UnixSocket::EventListener implementation.
@@ -145,9 +149,9 @@ class FakeClient : public UnixSocket::EventListener {
     }
   }
 
-  void SendFrame(const Frame& frame) {
+  void SendFrame(const Frame& frame, int fd = -1) {
     std::string buf = BufferedFrameDeserializer::Serialize(frame);
-    ASSERT_TRUE(sock_->Send(buf.data(), buf.size()));
+    ASSERT_TRUE(sock_->Send(buf.data(), buf.size(), fd));
   }
 
   BufferedFrameDeserializer frame_deserializer_;
@@ -351,6 +355,42 @@ TEST_F(HostImplTest, SendFileDescriptor) {
       }));
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_));
   task_runner_->RunUntilCheckpoint("on_fd_received");
+}
+
+TEST_F(HostImplTest, ReceiveFileDescriptor) {
+  auto received = task_runner_->CreateCheckpoint("received");
+  FakeService* fake_service = new FakeService("FakeService");
+  ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
+  auto on_bind = task_runner_->CreateCheckpoint("on_bind");
+  cli_->BindService("FakeService");
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  task_runner_->RunUntilCheckpoint("on_bind");
+
+  static constexpr char kFileContent[] = "shared file";
+  RequestProto req_args;
+  base::ScopedFstream tx_file(
+      tmpfile());  // Automatically unlinked from the filesystem.
+  fwrite(kFileContent, sizeof(kFileContent), 1, tx_file.get());
+  fflush(tx_file.get());
+  cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args, false,
+                     fileno(tx_file.get()));
+  EXPECT_CALL(*cli_, OnInvokeMethodReply(_));
+  base::ScopedFile rx_fd;
+  EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
+      .WillOnce(Invoke([received, &fake_service, &rx_fd](
+                           const RequestProto& req, DeferredBase* reply) {
+        rx_fd = fake_service->TakeReceivedFD();
+        received();
+      }));
+
+  task_runner_->RunUntilCheckpoint("received");
+
+  ASSERT_TRUE(rx_fd);
+  char buf[sizeof(kFileContent)] = {};
+  ASSERT_EQ(0, lseek(*rx_fd, 0, SEEK_SET));
+  ASSERT_EQ(static_cast<int32_t>(sizeof(buf)),
+            PERFETTO_EINTR(read(*rx_fd, buf, sizeof(buf))));
+  ASSERT_STREQ(kFileContent, buf);
 }
 
 // Invoke a method and immediately after disconnect the client.
