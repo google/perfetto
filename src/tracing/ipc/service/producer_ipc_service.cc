@@ -21,6 +21,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ipc/host.h"
+#include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/service.h"
@@ -174,27 +175,20 @@ void ProducerIPCService::UnregisterDataSource(
       ipc::AsyncResult<protos::UnregisterDataSourceResponse>::Create());
 }
 
-void ProducerIPCService::NotifySharedMemoryUpdate(
-    const protos::NotifySharedMemoryUpdateRequest& req,
-    DeferredNotifySharedMemoryUpdateResponse) {
-  // The response object is deliberately not resolved. NotifySharedMemoryUpdate
-  // messages don't expect any response (i.e. the client sends them with the
-  // |drop_reply| flag). This is to avoid useless wakeups on the client side.
+void ProducerIPCService::CommitData(const protos::CommitDataRequest& proto_req,
+                                    DeferredCommitDataResponse) {
+  // The response object is deliberately not resolved. CommitData messages don't
+  // expect any response (the client sends them with the |drop_reply| flag).
+  // This is to avoid useless wakeups on the client side.
   RemoteProducer* producer = GetProducerForCurrentRequest();
   if (!producer) {
     PERFETTO_DLOG(
-        "Producer invoked NotifySharedMemoryUpdate() before "
-        "InitializeConnection()");
+        "Producer invoked CommitData() before InitializeConnection()");
     return;
   }
-  // TODO(fmayer): check that the page indexes are consistent with the size of
-  // the shared memory region (once the SHM logic is there). Also add a test for
-  // it.
-  std::vector<uint32_t> changed_pages;
-  changed_pages.reserve(req.changed_pages_size());
-  for (const uint32_t& changed_page : req.changed_pages())
-    changed_pages.push_back(changed_page);
-  producer->service_endpoint->NotifySharedMemoryUpdate(changed_pages);
+  CommitDataRequest req;
+  req.FromProto(proto_req);
+  producer->service_endpoint->CommitData(req);
 }
 
 void ProducerIPCService::GetAsyncCommand(

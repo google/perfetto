@@ -32,6 +32,7 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
+class CommitDataRequest;
 class Consumer;
 class DataSourceDescriptor;
 class Producer;
@@ -74,8 +75,7 @@ class Service {
 
     // Called by the Producer to signal that some pages in the shared memory
     // buffer (shared between Service and Producer) have changed.
-    virtual void NotifySharedMemoryUpdate(
-        const std::vector<uint32_t>& changed_pages) = 0;
+    virtual void CommitData(const CommitDataRequest&) = 0;
 
     // TODO(primiano): remove this, we shouldn't be exposing the raw
     // SHM object but only the TraceWriter (below).
