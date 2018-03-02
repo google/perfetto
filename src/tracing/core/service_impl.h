@@ -64,8 +64,7 @@ class ServiceImpl : public Service {
     void RegisterDataSource(const DataSourceDescriptor&,
                             RegisterDataSourceCallback) override;
     void UnregisterDataSource(DataSourceID) override;
-    void NotifySharedMemoryUpdate(
-        const std::vector<uint32_t>& changed_pages) override;
+    void CommitData(const CommitDataRequest&) override;
     std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override;
     SharedMemory* shared_memory() const override;
 
