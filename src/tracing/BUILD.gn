@@ -29,6 +29,7 @@ source_set("tracing") {
     "../base",
   ]
   sources = [
+    "core/commit_data_request.cc",
     "core/data_source_config.cc",
     "core/data_source_descriptor.cc",
     "core/ftrace_config.cc",

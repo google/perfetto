@@ -50,9 +50,8 @@ class ProducerIPCService : public protos::ProducerPort {
                           DeferredRegisterDataSourceResponse) override;
   void UnregisterDataSource(const protos::UnregisterDataSourceRequest&,
                             DeferredUnregisterDataSourceResponse) override;
-  void NotifySharedMemoryUpdate(
-      const protos::NotifySharedMemoryUpdateRequest&,
-      DeferredNotifySharedMemoryUpdateResponse) override;
+  void CommitData(const protos::CommitDataRequest&,
+                  DeferredCommitDataResponse) override;
   void GetAsyncCommand(const protos::GetAsyncCommandRequest&,
                        DeferredGetAsyncCommandResponse) override;
   void OnClientDisconnected() override;

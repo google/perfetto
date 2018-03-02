@@ -216,7 +216,7 @@ size_t TraceBuffez::DeleteNextChunksFor(size_t bytes_to_clear) {
     // zeroes from here to end().
     // TODO(primiano): optimization: if during Initialize() we fill the buffer
     // with padding records we could get rid of this branch.
-    if (!next_chunk.is_valid()) {
+    if (PERFETTO_UNLIKELY(!next_chunk.is_valid())) {
       // This should happen only at the first iteration. The zeroed area can
       // only begin precisely at the |wptr_|, not after. Otherwise it means that
       // we wrapped but screwed up the ChunkRecord chain.

@@ -16,9 +16,11 @@
 
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/base/test/test_task_runner.h"
@@ -27,17 +29,30 @@
 namespace perfetto {
 namespace {
 
+using testing::Invoke;
+using testing::_;
+
+class MockProducerEndpoint : public Service::ProducerEndpoint {
+ public:
+  void RegisterDataSource(const DataSourceDescriptor&,
+                          RegisterDataSourceCallback) override {}
+  void UnregisterDataSource(DataSourceID) override {}
+  SharedMemory* shared_memory() const override { return nullptr; }
+  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override {
+    return nullptr;
+  }
+
+  MOCK_METHOD1(CommitData, void(const CommitDataRequest&));
+};
+
 class SharedMemoryArbiterImplTest : public AlignedBufferTest {
  public:
   void SetUp() override {
     AlignedBufferTest::SetUp();
-    auto callback = [this](const std::vector<uint32_t>& arg) {
-      if (on_pages_complete_)
-        on_pages_complete_(arg);
-    };
     task_runner_.reset(new base::TestTaskRunner());
     arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
-                                               callback, task_runner_.get()));
+                                               &mock_producer_endpoint_,
+                                               task_runner_.get()));
   }
 
   void TearDown() override {
@@ -47,6 +62,7 @@ class SharedMemoryArbiterImplTest : public AlignedBufferTest {
 
   std::unique_ptr<base::TestTaskRunner> task_runner_;
   std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
+  MockProducerEndpoint mock_producer_endpoint_;
   std::function<void(const std::vector<uint32_t>&)> on_pages_complete_;
 };
 
@@ -138,13 +154,14 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
   // check that the notification callback is posted.
 
   auto on_callback = task_runner_->CreateCheckpoint("on_callback");
-  on_pages_complete_ =
-      [on_callback](const std::vector<uint32_t>& completed_pages) {
-        ASSERT_EQ(2u, completed_pages.size());
-        ASSERT_EQ(0u, completed_pages[0]);
-        ASSERT_EQ(3u, completed_pages[1]);
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_))
+      .WillOnce(Invoke([on_callback](const CommitDataRequest& req) {
+        ASSERT_EQ(2, req.chunks_to_move_size());
+        ASSERT_EQ(0u, req.chunks_to_move()[0].page());
+        ASSERT_EQ(3u, req.chunks_to_move()[1].page());
+        // TODO(primiano): In next CL, ASSERT_EQ on buffer and chunk number.
         on_callback();
-      };
+      }));
   for (size_t i = 0; i < 14; i++) {
     arbiter_->ReturnCompletedChunk(std::move(chunks[14 * i]));
     arbiter_->ReturnCompletedChunk(std::move(chunks[14 * i + 3]));

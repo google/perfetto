@@ -35,7 +35,7 @@ namespace perfetto {
 // ultimately stored into. The service will own several instances of this class,
 // at least one per active consumer (as defined in the |buffers| section of
 // trace_config.proto) and will copy chunks from the producer's shared memory
-// buffers into here when a NotifySharedMemoryUpdate IPC is received.
+// buffers into here when a CommitData IPC is received.
 //
 // Writing into the buffer
 // -----------------------

@@ -57,6 +57,7 @@ cc_library_shared {
     "src/traced/probes/probes.cc",
     "src/traced/probes/probes_producer.cc",
     "src/traced/service/service.cc",
+    "src/tracing/core/commit_data_request.cc",
     "src/tracing/core/data_source_config.cc",
     "src/tracing/core/data_source_descriptor.cc",
     "src/tracing/core/ftrace_config.cc",
@@ -133,6 +134,7 @@ cc_binary {
     "src/protozero/message_handle.cc",
     "src/protozero/proto_utils.cc",
     "src/protozero/scattered_stream_writer.cc",
+    "src/tracing/core/commit_data_request.cc",
     "src/tracing/core/data_source_config.cc",
     "src/tracing/core/data_source_descriptor.cc",
     "src/tracing/core/ftrace_config.cc",
@@ -252,6 +254,7 @@ cc_test {
     "src/protozero/proto_utils.cc",
     "src/protozero/scattered_stream_writer.cc",
     "src/traced/probes/probes_producer.cc",
+    "src/tracing/core/commit_data_request.cc",
     "src/tracing/core/data_source_config.cc",
     "src/tracing/core/data_source_descriptor.cc",
     "src/tracing/core/ftrace_config.cc",
@@ -357,6 +360,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_ipc_ipc_gen",
   srcs: [
+    "protos/perfetto/ipc/commit_data_request.proto",
     "protos/perfetto/ipc/consumer_port.proto",
     "protos/perfetto/ipc/producer_port.proto",
   ],
@@ -366,6 +370,8 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos --plugin=protoc-gen-plugin=$(location perfetto_src_ipc_protoc_plugin_ipc_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=:$(genDir)/external/perfetto/protos $(in)",
   out: [
+    "external/perfetto/protos/perfetto/ipc/commit_data_request.ipc.cc",
+    "external/perfetto/protos/perfetto/ipc/commit_data_request.pb.cc",
     "external/perfetto/protos/perfetto/ipc/consumer_port.ipc.cc",
     "external/perfetto/protos/perfetto/ipc/consumer_port.pb.cc",
     "external/perfetto/protos/perfetto/ipc/producer_port.ipc.cc",
@@ -377,6 +383,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_ipc_ipc_gen_headers",
   srcs: [
+    "protos/perfetto/ipc/commit_data_request.proto",
     "protos/perfetto/ipc/consumer_port.proto",
     "protos/perfetto/ipc/producer_port.proto",
   ],
@@ -386,6 +393,8 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos --plugin=protoc-gen-plugin=$(location perfetto_src_ipc_protoc_plugin_ipc_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=:$(genDir)/external/perfetto/protos $(in)",
   out: [
+    "external/perfetto/protos/perfetto/ipc/commit_data_request.ipc.h",
+    "external/perfetto/protos/perfetto/ipc/commit_data_request.pb.h",
     "external/perfetto/protos/perfetto/ipc/consumer_port.ipc.h",
     "external/perfetto/protos/perfetto/ipc/consumer_port.pb.h",
     "external/perfetto/protos/perfetto/ipc/producer_port.ipc.h",
@@ -2849,6 +2858,7 @@ cc_library_static {
     "src/protozero/message_handle.cc",
     "src/protozero/proto_utils.cc",
     "src/protozero/scattered_stream_writer.cc",
+    "src/tracing/core/commit_data_request.cc",
     "src/tracing/core/data_source_config.cc",
     "src/tracing/core/data_source_descriptor.cc",
     "src/tracing/core/ftrace_config.cc",
@@ -2990,6 +3000,7 @@ cc_test {
     "src/protozero/scattered_stream_writer_unittest.cc",
     "src/protozero/test/fake_scattered_buffer.cc",
     "src/protozero/test/protozero_conformance_unittest.cc",
+    "src/tracing/core/commit_data_request.cc",
     "src/tracing/core/data_source_config.cc",
     "src/tracing/core/data_source_descriptor.cc",
     "src/tracing/core/ftrace_config.cc",

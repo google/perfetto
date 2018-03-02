@@ -169,8 +169,7 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
     writer->NewTracePacket()->set_for_testing()->set_str(buf, strlen(buf));
   }
 
-  // Allow the service to see the NotifySharedMemoryUpdate() before disabling
-  // tracing.
+  // Allow the service to see the CommitData() before disabling tracing.
   task_runner_->RunUntilIdle();
 
   // Disable tracing.
