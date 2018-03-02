@@ -21,6 +21,7 @@
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ipc/client.h"
+#include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/producer.h"
@@ -103,30 +104,10 @@ void ProducerIPCClientImpl::OnConnectionInitialized(bool connection_succeeded) {
   // TODO(primiano): handle mmap failure in case of OOM.
   shared_memory_ = PosixSharedMemory::AttachToFd(std::move(shmem_fd));
 
-  auto on_pages_complete = [this](const std::vector<uint32_t>& changed_pages) {
-    OnPagesComplete(changed_pages);
-  };
   shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
-      shared_memory_.get(), kBufferPageSize, on_pages_complete, task_runner_);
+      shared_memory_.get(), kBufferPageSize, this, task_runner_);
 
   producer_->OnConnect();
-}
-
-// Called by SharedMemoryArbiterImpl when some chunks are complete and we need
-// to notify the service about that.
-void ProducerIPCClientImpl::OnPagesComplete(
-    const std::vector<uint32_t>& changed_pages) {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!connected_) {
-    PERFETTO_DLOG("Cannot OnPagesComplete(), not connected to tracing service");
-    return;
-  }
-  protos::NotifySharedMemoryUpdateRequest req;
-  for (uint32_t page_idx : changed_pages)
-    req.add_changed_pages(page_idx);
-
-  producer_port_.NotifySharedMemoryUpdate(
-      req, ipc::Deferred<protos::NotifySharedMemoryUpdateResponse>());
 }
 
 void ProducerIPCClientImpl::OnServiceRequest(
@@ -197,19 +178,16 @@ void ProducerIPCClientImpl::UnregisterDataSource(DataSourceID id) {
       req, ipc::Deferred<protos::UnregisterDataSourceResponse>());
 }
 
-void ProducerIPCClientImpl::NotifySharedMemoryUpdate(
-    const std::vector<uint32_t>& changed_pages) {
+void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!connected_) {
-    PERFETTO_DLOG(
-        "Cannot NotifySharedMemoryUpdate(), not connected to tracing service");
+    PERFETTO_DLOG("Cannot CommitData(), not connected to tracing service");
     return;
   }
-  protos::NotifySharedMemoryUpdateRequest req;
-  for (uint32_t changed_page : changed_pages)
-    req.add_changed_pages(changed_page);
-  producer_port_.NotifySharedMemoryUpdate(
-      req, ipc::Deferred<protos::NotifySharedMemoryUpdateResponse>());
+  protos::CommitDataRequest proto_req;
+  req.ToProto(&proto_req);
+  producer_port_.CommitData(proto_req,
+                            ipc::Deferred<protos::CommitDataResponse>());
 }
 
 std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(

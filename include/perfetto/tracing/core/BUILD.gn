@@ -18,6 +18,7 @@ source_set("core") {
   ]
   sources = [
     "basic_types.h",
+    "commit_data_request.h",
     "consumer.h",
     "data_source_config.h",
     "data_source_descriptor.h",

@@ -25,6 +25,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/producer.h"
@@ -697,21 +698,28 @@ void ServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
   service_->UnregisterDataSource(id_, ds_id);
 }
 
-void ServiceImpl::ProducerEndpointImpl::NotifySharedMemoryUpdate(
-    const std::vector<uint32_t>& changed_pages) {
+void ServiceImpl::ProducerEndpointImpl::CommitData(
+    const CommitDataRequest& req_untrusted) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  for (uint32_t page_idx : changed_pages) {
+
+  for (const auto& chunks : req_untrusted.chunks_to_move()) {
+    const uint32_t page_idx = chunks.page();
     if (page_idx >= shmem_abi_.num_pages())
-      continue;  // Very likely a malicious producer playing dirty.
+      continue;  // A buggy or malicious producer.
 
     if (!shmem_abi_.is_page_complete(page_idx))
       continue;
+
+    // TODO(primiano): implement per-chunk move.
+    PERFETTO_DCHECK(chunks.chunk() == 0);
+
     if (!shmem_abi_.TryAcquireAllChunksForReading(page_idx))
       continue;
 
     // TODO(fmayer): we should start collecting individual chunks from non fully
     // complete pages after a while.
 
+    // TODO(primiano): in next CL, use chunks.target_buffer() instead.
     service_->CopyProducerPageIntoLogBuffer(
         id_, shmem_abi_.get_target_buffer(page_idx),
         shmem_abi_.page_start(page_idx), shmem_abi_.page_size());
