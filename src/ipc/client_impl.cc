@@ -82,7 +82,8 @@ RequestID ClientImpl::BeginInvoke(ServiceID service_id,
                                   MethodID remote_method_id,
                                   const ProtoMessage& method_args,
                                   bool drop_reply,
-                                  base::WeakPtr<ServiceProxy> service_proxy) {
+                                  base::WeakPtr<ServiceProxy> service_proxy,
+                                  int fd) {
   std::string args_proto;
   RequestID request_id = ++last_request_id_;
   Frame frame;
@@ -93,7 +94,7 @@ RequestID ClientImpl::BeginInvoke(ServiceID service_id,
   req->set_drop_reply(drop_reply);
   bool did_serialize = method_args.SerializeToString(&args_proto);
   req->set_args_proto(args_proto);
-  if (!did_serialize || !SendFrame(frame)) {
+  if (!did_serialize || !SendFrame(frame, fd)) {
     PERFETTO_DLOG("BeginInvoke() failed while sending the frame");
     return 0;
   }
@@ -108,7 +109,7 @@ RequestID ClientImpl::BeginInvoke(ServiceID service_id,
   return request_id;
 }
 
-bool ClientImpl::SendFrame(const Frame& frame) {
+bool ClientImpl::SendFrame(const Frame& frame, int fd) {
   // Serialize the frame into protobuf, add the size header, and send it.
   std::string buf = BufferedFrameDeserializer::Serialize(frame);
 
@@ -116,7 +117,7 @@ bool ClientImpl::SendFrame(const Frame& frame) {
   // socket buffer is full? We might want to either drop the request or throttle
   // the send and PostTask the reply later? Right now we are making Send()
   // blocking as a workaround. Propagate bakpressure to the caller instead.
-  bool res = sock_->Send(buf.data(), buf.size(), -1 /*fd*/,
+  bool res = sock_->Send(buf.data(), buf.size(), fd,
                          UnixSocket::BlockingMode::kBlocking);
   PERFETTO_CHECK(res || !sock_->is_connected());
   return res;

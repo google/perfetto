@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_IPC_SERVICE_H_
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/scoped_file.h"
 #include "perfetto/ipc/client_info.h"
 
 namespace perfetto {
@@ -40,14 +41,31 @@ class Service {
 
   // Returns the ClientInfo for the current IPC request. Returns an invalid
   // ClientInfo if called outside the scope of an IPC method.
-  ClientInfo client_info() const {
+  const ClientInfo& client_info() {
     PERFETTO_DCHECK(client_info_.is_valid());
     return client_info_;
+  }
+
+  base::ScopedFile TakeReceivedFD() {
+    if (received_fd_)
+      return std::move(*received_fd_);
+    return base::ScopedFile();
   }
 
  private:
   friend class HostImpl;
   ClientInfo client_info_;
+  // This is a pointer because the received fd needs to remain owned by the
+  // ClientConnection, as we will provide it to all method invocations
+  // for that client until one of them calls Service::TakeReceivedFD.
+  //
+  // Different clients might have sent different FDs so this cannot be owned
+  // here.
+  //
+  // Note that this means that there can always only be one outstanding
+  // invocation per client that supplies an FD and the client needs to
+  // wait for this one to return before calling another one.
+  base::ScopedFile* received_fd_;
 };
 
 }  // namespace ipc
