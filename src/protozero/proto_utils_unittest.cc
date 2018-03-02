@@ -156,6 +156,16 @@ TEST(ProtoUtilsTest, VarIntDecoding) {
   }
 }
 
+TEST(ProtoUtilsTest, VarIntDecodingOutOfBounds) {
+  uint8_t buf[] = {0xff, 0xff, 0xff, 0xff};
+  for (size_t i = 0; i < 5; i++) {
+    uint64_t value = -1;
+    const uint8_t* res = ParseVarInt(buf, buf + i, &value);
+    EXPECT_EQ(&buf[0] + i, res);
+    EXPECT_EQ(0u, value);
+  }
+}
+
 TEST(ProtoUtilsTest, FieldDecoding) {
   struct FieldExpectation {
     const char* encoded;
