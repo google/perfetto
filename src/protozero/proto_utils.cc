@@ -21,6 +21,7 @@
 #include <limits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/utils.h"
 
 #define PERFETTO_CHECK_PTR_LE(a, b)                \
   PERFETTO_CHECK(reinterpret_cast<uintptr_t>(a) <= \
@@ -43,7 +44,10 @@ const uint8_t* ParseVarInt(const uint8_t* start,
   uint64_t shift = 0;
   *value = 0;
   do {
-    PERFETTO_CHECK_PTR_LE(pos, end - 1);
+    if (PERFETTO_UNLIKELY(pos >= end)) {
+      *value = 0;
+      break;
+    }
     PERFETTO_DCHECK(shift < 64ull);
     *value |= static_cast<uint64_t>(*pos & 0x7f) << shift;
     shift += 7;
