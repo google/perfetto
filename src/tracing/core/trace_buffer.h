@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <array>
 #include <limits>
 #include <map>
 #include <tuple>
@@ -126,7 +127,6 @@ namespace perfetto {
 class TraceBuffez {
  public:
   static const size_t InlineChunkHeaderSize;  // For test/fake_packet.{cc,h}.
-  static constexpr size_t kPatchLen = 4;  // SharedMemoryABI::kPacketHeaderSize.
 
   struct Stats {
     size_t failed_patches = 0;
@@ -137,6 +137,15 @@ class TraceBuffez {
     // TODO(primiano): add packets_{read,written}.
     // TODO(primiano): add bytes_{read,written}.
     // TODO(primiano): add bytes_lost_for_padding.
+  };
+
+  // Argument for out-of-band patches applied through TryPatchChunkContents().
+  struct Patch {
+    // From SharedMemoryABI::kPacketHeaderSize.
+    static constexpr size_t kSize = 4;
+
+    size_t offset_untrusted;
+    std::array<uint8_t, kSize> data;
   };
 
   // Can return nullptr if the memory allocation fails.
@@ -158,16 +167,19 @@ class TraceBuffez {
                           uint8_t chunk_flags,
                           const uint8_t* src,
                           size_t size);
-
-  // Patches SharedMemoryABI::kPacketHeaderSize bytes at the given
-  // |patch_offset|, replacing them with the contents of |patch_value|, if the
-  // given chunk exists. Does nothing if the given ChunkID is gone.
+  // Applies a batch of |patches| to the given chunk, if the given chunk is
+  // still in the buffer. Does nothing if the given ChunkID is gone.
   // Returns true if the chunk has been found and patched, false otherwise.
+  // |other_patches_pending| is used to determine whether this is the only
+  // batch of patches for the chunk or there is more.
+  // If |other_patches_pending| == false, the chunk is marked as ready to be
+  // consumed. If true, the state of the chunk is not altered.
   bool TryPatchChunkContents(ProducerID,
                              WriterID,
                              ChunkID,
-                             size_t patch_offset,
-                             std::array<uint8_t, kPatchLen> patch);
+                             const Patch* patches,
+                             size_t patches_size,
+                             bool other_patches_pending);
 
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
@@ -306,7 +318,7 @@ class TraceBuffez {
         : chunk_record{c}, flags{f}, num_fragments{p} {}
 
     ChunkRecord* const chunk_record;   // Addr of ChunkRecord within |data_|.
-    const uint8_t flags = 0;           // See SharedMemoryABI::flags.
+    uint8_t flags = 0;                 // See SharedMemoryABI::flags.
     const uint16_t num_fragments = 0;  // Total number of packet fragments.
     uint16_t num_fragments_read = 0;   // Number of fragments already read.
 

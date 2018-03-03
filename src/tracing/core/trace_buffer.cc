@@ -61,6 +61,8 @@ constexpr uint8_t kFirstPacketContinuesFromPrevChunk =
     SharedMemoryABI::ChunkHeader::kFirstPacketContinuesFromPrevChunk;
 constexpr uint8_t kLastPacketContinuesOnNextChunk =
     SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk;
+constexpr uint8_t kChunkNeedsPatching =
+    SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 }  // namespace.
 
 constexpr size_t TraceBuffez::ChunkRecord::kMaxSize;
@@ -262,15 +264,16 @@ void TraceBuffez::AddPaddingRecord(size_t size) {
 bool TraceBuffez::TryPatchChunkContents(ProducerID producer_id,
                                         WriterID writer_id,
                                         ChunkID chunk_id,
-                                        size_t patch_offset_untrusted,
-                                        std::array<uint8_t, kPatchLen> patch) {
+                                        const Patch* patches,
+                                        size_t patches_size,
+                                        bool other_patches_pending) {
   ChunkMeta::Key key(producer_id, writer_id, chunk_id);
   auto it = index_.find(key);
   if (it == index_.end()) {
     stats_.failed_patches++;
     return false;
   }
-  const ChunkMeta& chunk_meta = it->second;
+  ChunkMeta& chunk_meta = it->second;
 
   // Check that the index is consistent with the actual ProducerID/WriterID
   // stored in the ChunkRecord.
@@ -280,32 +283,42 @@ bool TraceBuffez::TryPatchChunkContents(ProducerID producer_id,
   uint8_t* chunk_end = chunk_begin + chunk_meta.chunk_record->size;
   PERFETTO_DCHECK(chunk_end <= end());
 
-  static_assert(kPatchLen == SharedMemoryABI::kPacketHeaderSize,
-                "kPatchLen out of sync with SharedMemoryABI");
+  static_assert(Patch::kSize == SharedMemoryABI::kPacketHeaderSize,
+                "Patch::kSize out of sync with SharedMemoryABI");
 
-  uint8_t* ptr = chunk_begin + sizeof(ChunkRecord) + patch_offset_untrusted;
-  TRACE_BUFFER_DLOG("PatchChunk {%" PRIu32 ",%" PRIu32
-                    ",%u} size=%zu @ %zu with {%02x %02x %02x %02x}",
-                    producer_id, writer_id, chunk_id, chunk_end - chunk_begin,
-                    patch_offset_untrusted, patch[0], patch[1], patch[2],
-                    patch[3]);
-  if (ptr < chunk_begin + sizeof(ChunkRecord) || ptr > chunk_end - kPatchLen) {
-    // Either the IPC was so slow and in the meantime the writer managed to wrap
-    // over |chunk_id| or the producer sent a malicious IPC.
-    stats_.failed_patches++;
-    return false;
+  for (size_t i = 0; i < patches_size; i++) {
+    uint8_t* ptr =
+        chunk_begin + sizeof(ChunkRecord) + patches[i].offset_untrusted;
+    TRACE_BUFFER_DLOG("PatchChunk {%" PRIu32 ",%" PRIu32
+                      ",%u} size=%zu @ %zu with {%02x %02x %02x %02x}",
+                      producer_id, writer_id, chunk_id, chunk_end - chunk_begin,
+                      patches[i].offset_untrusted, patches[i].data[0],
+                      patches[i].data[1], patches[i].data[2],
+                      patches[i].data[3]);
+    if (ptr < chunk_begin + sizeof(ChunkRecord) ||
+        ptr > chunk_end - Patch::kSize) {
+      // Either the IPC was so slow and in the meantime the writer managed to
+      // wrap over |chunk_id| or the producer sent a malicious IPC.
+      stats_.failed_patches++;
+      return false;
+    }
+
+    // DCHECK that we are writing into a size-field zero-filled by
+    // trace_writer_impl.cc and that we are not writing over other valid data.
+    char zero[Patch::kSize]{};
+    PERFETTO_DCHECK(memcmp(ptr, &zero, Patch::kSize) == 0);
+
+    memcpy(ptr, &patches[i].data[0], Patch::kSize);
   }
-
-  // DCHECK that we are writing into a size-field zero-filled by
-  // trace_writer_impl.cc and that we are not writing over other valid data.
-  char zero[kPatchLen]{};
-  PERFETTO_DCHECK(memcmp(ptr, &zero, kPatchLen) == 0);
-
-  memcpy(ptr, &patch, kPatchLen);
   TRACE_BUFFER_DLOG(
       "Chunk raw (after patch): %s",
       HexDump(chunk_begin, chunk_meta.chunk_record->size).c_str());
-  stats_.succeeded_patches++;
+
+  stats_.succeeded_patches += patches_size;
+  if (!other_patches_pending) {
+    chunk_meta.flags &= ~kChunkNeedsPatching;
+    chunk_meta.chunk_record->flags = chunk_meta.flags;
+  }
   return true;
 }
 
@@ -394,6 +407,13 @@ bool TraceBuffez::ReadNextTracePacket(Slices* slices) {
     }
 
     ChunkMeta& chunk_meta = *read_iter_;
+
+    // If the chunk has holes that are awaiting to be patched out-of-band,
+    // skip the current sequence and move to the next one.
+    if (chunk_meta.flags & kChunkNeedsPatching) {
+      read_iter_.MoveToEnd();
+      continue;
+    }
 
     // At this point we have a chunk in |chunk_meta| that has not been fully
     // read. We don't know yet whether we have enough data to read the full
