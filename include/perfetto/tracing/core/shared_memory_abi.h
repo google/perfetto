@@ -301,6 +301,11 @@ class SharedMemoryABI {
       // If set, the last TracePacket in the chunk is partial and continues on
       // |chunk_id| + 1 (within the same |writer_id|).
       kLastPacketContinuesOnNextChunk = 1 << 1,
+
+      // The data in the chunk has holes (even if the chunk is marked as
+      // kChunkComplete) that need to be patched out-of-band before the chunk
+      // can be read.
+      kChunkNeedsPatching = 1 << 2,
     };
 
     struct Packets {
