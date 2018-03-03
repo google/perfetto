@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
+#include <fcntl.h>
 #include <getopt.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/unix_task_runner.h"
 #include "perfetto/traced/traced.h"
 
+#include "src/ftrace_reader/ftrace_procfs.h"
 #include "src/traced/probes/probes_producer.h"
 
 namespace perfetto {
@@ -48,6 +52,19 @@ int __attribute__((visibility("default"))) ProbesMain(int argc, char** argv) {
   watchdog->Start();
 
   PERFETTO_LOG("Starting %s service", argv[0]);
+
+  // This environment variable is set by Android's init to a fd to /dev/kmsg
+  // opened for writing (see perfetto.rc). We cannot open the file directly
+  // due to permissions.
+  const char* env = getenv("ANDROID_FILE__dev_kmsg");
+  if (env) {
+    FtraceProcfs::g_kmesg_fd = atoi(env);
+    // The file descriptor passed by init doesn't have the FD_CLOEXEC bit set.
+    // Set it so we don't leak this fd while invoking atrace.
+    int res = fcntl(FtraceProcfs::g_kmesg_fd, F_SETFD, FD_CLOEXEC);
+    PERFETTO_DCHECK(res == 0);
+  }
+
   base::UnixTaskRunner task_runner;
   ProbesProducer producer;
   producer.ConnectWithRetries(PERFETTO_PRODUCER_SOCK_NAME, &task_runner);
