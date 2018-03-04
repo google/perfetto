@@ -20,9 +20,12 @@
 #include <stdint.h>
 
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <vector>
 
+#include "perfetto/base/thread_checker.h"
+#include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
 #include "perfetto/tracing/core/shared_memory_arbiter.h"
@@ -30,6 +33,7 @@
 
 namespace perfetto {
 
+class CommitDataRequest;
 class TraceWriter;
 
 namespace base {
@@ -50,11 +54,11 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // pages. See tradeoff considerations in shared_memory_abi.h.
   // |OnPagesCompleteCallback|: a callback that will be posted on the passed
   // |TaskRunner| when one or more pages are complete (and hence the Producer
-  // should send a NotifySharedMemoryUpdate() to the Service).
+  // should send a CommitData request to the Service).
   SharedMemoryArbiterImpl(void* start,
                           size_t size,
                           size_t page_size,
-                          OnPagesCompleteCallback,
+                          Service::ProducerEndpoint*,
                           base::TaskRunner*);
 
   // Returns a new Chunk to write tracing data. The call always returns a valid
@@ -89,18 +93,22 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // Called by the TraceWriter destructor.
   void ReleaseWriterID(WriterID);
 
-  void NotifySharedMemoryUpdate();
+  void SendPendingCommitDataRequest();
 
   base::TaskRunner* const task_runner_;
-  OnPagesCompleteCallback on_pages_complete_callback_;
+  Service::ProducerEndpoint* const producer_endpoint_;
+  PERFETTO_THREAD_CHECKER(thread_checker_)
 
   // --- Begin lock-protected members ---
   std::mutex lock_;
   SharedMemoryABI shmem_abi_;
   size_t page_idx_ = 0;
+  std::unique_ptr<CommitDataRequest> commit_data_req_;
   IdAllocator<WriterID> active_writer_ids_;
-  std::vector<uint32_t> pages_to_notify_;
   // --- End lock-protected members ---
+
+  // Keep at the end.
+  base::WeakPtrFactory<SharedMemoryArbiterImpl> weak_ptr_factory_;
 };
 
 }  // namespace perfetto

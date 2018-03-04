@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/service.h"
 
 namespace perfetto {
 
@@ -31,6 +32,7 @@ namespace base {
 class TaskRunner;
 }
 
+class CommitDataRequest;
 class SharedMemory;
 class TraceWriter;
 
@@ -38,9 +40,6 @@ class TraceWriter;
 // from the SharedMemory it receives from the Service-side.
 class SharedMemoryArbiter {
  public:
-  using OnPagesCompleteCallback =
-      std::function<void(const std::vector<uint32_t>& /*page_indexes*/)>;
-
   virtual ~SharedMemoryArbiter() = default;
 
   // Creates a new TraceWriter and assigns it a new WriterID. The WriterID is
@@ -55,7 +54,7 @@ class SharedMemoryArbiter {
   static std::unique_ptr<SharedMemoryArbiter> CreateInstance(
       SharedMemory*,
       size_t page_size,
-      OnPagesCompleteCallback,
+      Service::ProducerEndpoint*,
       base::TaskRunner*);
 };
 

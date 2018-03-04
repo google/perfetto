@@ -99,6 +99,20 @@ TEST(Utils, EintrWrapper) {
   sigaction(SIGUSR2, &old_sa, nullptr);
 }
 
+TEST(Utils, Align) {
+  EXPECT_EQ(0u, AlignUp<4>(0));
+  EXPECT_EQ(4u, AlignUp<4>(1));
+  EXPECT_EQ(4u, AlignUp<4>(3));
+  EXPECT_EQ(4u, AlignUp<4>(4));
+  EXPECT_EQ(8u, AlignUp<4>(5));
+  EXPECT_EQ(0u, AlignUp<16>(0));
+  EXPECT_EQ(16u, AlignUp<16>(1));
+  EXPECT_EQ(16u, AlignUp<16>(15));
+  EXPECT_EQ(16u, AlignUp<16>(16));
+  EXPECT_EQ(32u, AlignUp<16>(17));
+  EXPECT_EQ(0xffffff00u, AlignUp<16>(0xffffff00 - 1));
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

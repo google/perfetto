@@ -141,10 +141,10 @@ if (!build_with_chromium && (is_linux || is_android)) {
   executable("perfetto") {
     deps = [
       "gn:default_deps",
-      "src/traced/perfetto_cmd",
+      "src/perfetto_cmd",
     ]
     sources = [
-      "src/traced/perfetto_cmd/main.cc",
+      "src/perfetto_cmd/main.cc",
     ]
     if (is_android) {
       deps += [ "src/base:android_task_runner" ]

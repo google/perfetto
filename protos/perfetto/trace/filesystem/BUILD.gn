@@ -12,24 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("core") {
-  public_deps = [
-    "../../base",
-  ]
-  sources = [
-    "basic_types.h",
-    "commit_data_request.h",
-    "consumer.h",
-    "data_source_config.h",
-    "data_source_descriptor.h",
-    "producer.h",
-    "service.h",
-    "shared_memory.h",
-    "shared_memory_abi.h",
-    "shared_memory_arbiter.h",
-    "slice.h",
-    "trace_config.h",
-    "trace_packet.h",
-    "trace_writer.h",
-  ]
+import("../../../../gn/perfetto.gni")
+import("../../../../src/protozero/protozero_library.gni")
+
+inode_proto_names = [ "inode_file_map.proto" ]
+
+proto_library("lite") {
+  generate_python = false
+  sources = inode_proto_names
+  proto_in_dir = "$perfetto_root_path/protos"
+  proto_out_dir = "$perfetto_root_path/protos"
+}
+
+protozero_library("zero") {
+  sources = inode_proto_names
+  proto_in_dir = "$perfetto_root_path/protos"
+  proto_out_dir = "$perfetto_root_path/protos"
+  generator_plugin_options = "wrapper_namespace=pbzero"
 }

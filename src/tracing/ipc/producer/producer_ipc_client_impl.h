@@ -62,8 +62,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
   void RegisterDataSource(const DataSourceDescriptor&,
                           RegisterDataSourceCallback) override;
   void UnregisterDataSource(DataSourceID) override;
-  void NotifySharedMemoryUpdate(
-      const std::vector<uint32_t>& changed_pages) override;
+  void CommitData(const CommitDataRequest&) override;
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) override;
   SharedMemory* shared_memory() const override;
@@ -80,10 +79,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
 
   // Invoked when the remote Service sends an IPC to tell us to do something
   // (e.g. start/stop a data source).
-  void OnServiceRequest(const GetAsyncCommandResponse&);
-
-  // Callback passed to SharedMemoryArbiterImpl.
-  void OnPagesComplete(const std::vector<uint32_t>&);
+  void OnServiceRequest(const protos::GetAsyncCommandResponse&);
 
   // TODO think to destruction order, do we rely on any specific dtor sequence?
   Producer* const producer_;
@@ -94,7 +90,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
 
   // The proxy interface for the producer port of the service. It is bound
   // to |ipc_channel_| and (de)serializes method invocations over the wire.
-  ProducerPortProxy producer_port_;
+  protos::ProducerPortProxy producer_port_;
 
   std::unique_ptr<PosixSharedMemory> shared_memory_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;

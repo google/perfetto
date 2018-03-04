@@ -128,7 +128,10 @@ class FakeHost : public UnixSocket::EventListener {
     if (sock != client_sock.get())
       return;
     auto buf = frame_deserializer.BeginReceive();
-    size_t rsize = client_sock->Receive(buf.data, buf.size);
+    base::ScopedFile fd;
+    size_t rsize = client_sock->Receive(buf.data, buf.size, &fd);
+    if (fd)
+      received_fd_ = std::move(fd);
     EXPECT_TRUE(frame_deserializer.EndReceive(rsize));
     while (std::unique_ptr<Frame> frame = frame_deserializer.PopNextFrame())
       OnFrameReceived(*frame);
@@ -190,6 +193,7 @@ class FakeHost : public UnixSocket::EventListener {
   std::map<std::string, std::unique_ptr<FakeService>> services;
   ServiceID last_service_id = 0;
   int next_reply_fd = -1;
+  base::ScopedFile received_fd_;
 };  // FakeHost.
 
 class ClientImplTest : public ::testing::Test {
@@ -332,8 +336,6 @@ TEST_F(ClientImplTest, BindAndInvokeStreamingMethod) {
   ASSERT_EQ(kNumReplies, replies_seen);
 }
 
-// Like BindAndInvokeMethod, but this time invoke a streaming method that
-// provides > 1 reply per invocation.
 TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   auto* host_svc = host_->AddFakeService("FakeSvc");
   auto* host_method = host_svc->AddFakeMethod("FakeMethod1");
@@ -351,7 +353,6 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   fflush(tx_file);
   host_->next_reply_fd = fileno(tx_file);
 
-  // Invoke a valid method, reply kNumReplies times.
   EXPECT_CALL(*host_method, OnInvoke(_, _))
       .WillOnce(Invoke(
           [](const Frame::InvokeMethod& req, Frame::InvokeMethodReply* reply) {
@@ -372,6 +373,51 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
 
   fclose(tx_file);
   base::ScopedFile rx_fd = cli_->TakeReceivedFD();
+  ASSERT_TRUE(rx_fd);
+  char buf[sizeof(kFileContent)] = {};
+  ASSERT_EQ(0, lseek(*rx_fd, 0, SEEK_SET));
+  ASSERT_EQ(static_cast<long>(sizeof(buf)),
+            PERFETTO_EINTR(read(*rx_fd, buf, sizeof(buf))));
+  ASSERT_STREQ(kFileContent, buf);
+}
+
+TEST_F(ClientImplTest, SendFileDescriptor) {
+  auto* host_svc = host_->AddFakeService("FakeSvc");
+  auto* host_method = host_svc->AddFakeMethod("FakeMethod1");
+
+  // Create and bind |proxy| to the fake host.
+  std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
+  cli_->BindService(proxy->GetWeakPtr());
+  auto on_connect = task_runner_->CreateCheckpoint("on_connect");
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  task_runner_->RunUntilCheckpoint("on_connect");
+
+  base::ScopedFstream tx_file(
+      tmpfile());  // Automatically unlinked from the filesystem.
+  static constexpr char kFileContent[] = "shared file";
+  fwrite(kFileContent, sizeof(kFileContent), 1, tx_file.get());
+  fflush(tx_file.get());
+
+  EXPECT_CALL(*host_method, OnInvoke(_, _))
+      .WillOnce(Invoke(
+          [](const Frame::InvokeMethod& req, Frame::InvokeMethodReply* reply) {
+            RequestProto req_args;
+            reply->set_reply_proto(ReplyProto().SerializeAsString());
+            reply->set_success(true);
+          }));
+
+  RequestProto req;
+  auto on_reply = task_runner_->CreateCheckpoint("on_reply");
+  Deferred<ProtoMessage> deferred_reply(
+      [on_reply](AsyncResult<ProtoMessage> reply) {
+        EXPECT_TRUE(reply.success());
+        on_reply();
+      });
+  proxy->BeginInvoke("FakeMethod1", req, std::move(deferred_reply),
+                     fileno(tx_file.get()));
+  task_runner_->RunUntilCheckpoint("on_reply");
+
+  base::ScopedFile rx_fd = std::move(host_->received_fd_);
   ASSERT_TRUE(rx_fd);
   char buf[sizeof(kFileContent)] = {};
   ASSERT_EQ(0, lseek(*rx_fd, 0, SEEK_SET));
