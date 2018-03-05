@@ -89,12 +89,15 @@ class MockDelegate : public perfetto::FtraceSink::Delegate {
  public:
   MOCK_METHOD1(GetBundleForCpu,
                protozero::MessageHandle<FtraceEventBundle>(size_t));
-  MOCK_METHOD2(OnBundleComplete_,
-               void(size_t, protozero::MessageHandle<FtraceEventBundle>&));
+  MOCK_METHOD3(OnBundleComplete_,
+               void(size_t,
+                    protozero::MessageHandle<FtraceEventBundle>&,
+                    const FtraceMetadata& metadata));
 
   void OnBundleComplete(size_t cpu,
-                        protozero::MessageHandle<FtraceEventBundle> bundle) {
-    OnBundleComplete_(cpu, bundle);
+                        protozero::MessageHandle<FtraceEventBundle> bundle,
+                        const FtraceMetadata& metadata) override {
+    OnBundleComplete_(cpu, bundle, metadata);
   }
 };
 

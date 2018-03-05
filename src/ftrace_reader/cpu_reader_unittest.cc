@@ -340,14 +340,14 @@ TEST(CpuReaderTest, ParseSinglePrint) {
 
   EventFilter filter(*table, {"print"});
 
-  ParserStats stats{};
+  FtraceMetadata metadata{};
   size_t bytes = CpuReader::ParsePage(
-      page.get(), &filter, bundle_provider.writer(), table, &stats);
+      page.get(), &filter, bundle_provider.writer(), table, &metadata);
   EXPECT_EQ(bytes, 60ul);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(stats.overwrite_count, 0ul);
+  EXPECT_EQ(metadata.overwrite_count, 0ul);
   ASSERT_EQ(bundle->event().size(), 1);
   const protos::FtraceEvent& event = bundle->event().Get(0);
   EXPECT_EQ(event.pid(), 28712ul);
@@ -450,9 +450,9 @@ TEST(CpuReaderTest, ReallyLongEvent) {
 
   EventFilter filter(*table, {"print"});
 
-  ParserStats stats{};
-  CpuReader::ParsePage(page.get(), &filter,
-                                      bundle_provider.writer(), table, &stats);
+  FtraceMetadata metadata{};
+  CpuReader::ParsePage(page.get(), &filter, bundle_provider.writer(), table,
+                       &metadata);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
@@ -485,13 +485,13 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
 
   EventFilter filter(*table, {"print"});
 
-  ParserStats stats{};
+  FtraceMetadata metadata{};
   ASSERT_FALSE(CpuReader::ParsePage(
-      page.get(), &filter, bundle_provider.writer(), table, &stats));
+      page.get(), &filter, bundle_provider.writer(), table, &metadata));
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(stats.overwrite_count, 0ul);
+  EXPECT_EQ(metadata.overwrite_count, 0ul);
   ASSERT_EQ(bundle->event().size(), 1);
   // Although one field is malformed we still see data for the rest
   // since we write the fields as we parse them for speed.
@@ -510,13 +510,13 @@ TEST(CpuReaderTest, FilterByEvent) {
 
   EventFilter filter(*table, {});
 
-  ParserStats stats{};
+  FtraceMetadata metadata{};
   ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &stats));
+                                   bundle_provider.writer(), table, &metadata));
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(stats.overwrite_count, 0ul);
+  EXPECT_EQ(metadata.overwrite_count, 0ul);
   ASSERT_EQ(bundle->event().size(), 0);
 }
 
@@ -560,13 +560,13 @@ TEST(CpuReaderTest, ParseThreePrint) {
 
   EventFilter filter(*table, {"print"});
 
-  ParserStats stats{};
+  FtraceMetadata metadata{};
   ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &stats));
+                                   bundle_provider.writer(), table, &metadata));
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(stats.overwrite_count, 0ul);
+  EXPECT_EQ(metadata.overwrite_count, 0ul);
   ASSERT_EQ(bundle->event().size(), 3);
 
   {
@@ -663,13 +663,13 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
 
   EventFilter filter(*table, {"sched_switch"});
 
-  ParserStats stats{};
+  FtraceMetadata metadata{};
   ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &stats));
+                                   bundle_provider.writer(), table, &metadata));
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(stats.overwrite_count, 0ul);
+  EXPECT_EQ(metadata.overwrite_count, 0ul);
   ASSERT_EQ(bundle->event().size(), 6);
 
   {
@@ -770,21 +770,16 @@ TEST(CpuReaderTest, ParseAllFields) {
   writer.Write<int32_t>(9999);  // A gap we shouldn't read.
   writer.Write<int32_t>(1002);
   writer.WriteFixedString(16, "Hello");
-  // Use a file that is pushed for both linux and android to ensure this passes
-  std::string filename =
-      "./src/ftrace_reader/test/data/android_seed_N2F62_3.10.49/events";
-  struct stat buf;
-  ASSERT_NE(stat(filename.c_str(), &buf), -1);
-  writer.Write<int32_t>(buf.st_ino);
+  writer.Write<int32_t>(99);
   writer.WriteFixedString(300, "Goodbye");
 
   auto input = writer.GetCopy();
   auto length = writer.written();
-  std::set<uint64_t> inode_numbers;
+  FtraceMetadata metadata{};
 
   ASSERT_TRUE(CpuReader::ParseEvent(ftrace_event_id, input.get(),
                                     input.get() + length, &table,
-                                    provider.writer(), &inode_numbers));
+                                    provider.writer(), &metadata));
 
   auto event = provider.ParseProto();
   ASSERT_TRUE(event);
@@ -793,12 +788,7 @@ TEST(CpuReaderTest, ParseAllFields) {
   EXPECT_EQ(event->all_fields().field_uint32(), 1002ul);
   EXPECT_EQ(event->all_fields().field_char_16(), "Hello");
   EXPECT_EQ(event->all_fields().field_char(), "Goodbye");
-  EXPECT_EQ(event->all_fields().field_inode(), buf.st_ino);
-  // Check inode number gets added and linked to the correct file
-  EXPECT_THAT(inode_numbers, Each(Eq(buf.st_ino)));
-  std::map<uint64_t, std::string> inode_to_filename =
-      CpuReader::GetFilenamesForInodeNumbers(inode_numbers);
-  EXPECT_THAT(inode_to_filename, ElementsAre(Pair(buf.st_ino, filename)));
+  EXPECT_EQ(event->all_fields().field_inode(), 99u);
 }
 
 // # tracer: nop
@@ -1261,13 +1251,13 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
 
   EventFilter filter(*table, {"sched_switch"});
 
-  ParserStats stats{};
+  FtraceMetadata metadata{};
   ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &stats));
+                                   bundle_provider.writer(), table, &metadata));
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(stats.overwrite_count, 0ul);
+  EXPECT_EQ(metadata.overwrite_count, 0ul);
   EXPECT_EQ(bundle->event().size(), 59);
 }
 
@@ -1688,13 +1678,13 @@ TEST(CpuReaderTest, ParseExt4WithOverwrite) {
 
   EventFilter filter(*table, {"sched_switch"});
 
-  ParserStats stats{};
+  FtraceMetadata metadata{};
   ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &stats));
+                                   bundle_provider.writer(), table, &metadata));
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(stats.overwrite_count, 192ul);
+  EXPECT_EQ(metadata.overwrite_count, 192ul);
 }
 
 }  // namespace perfetto
