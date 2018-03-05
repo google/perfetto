@@ -255,13 +255,15 @@ void FtraceController::OnRawFtraceDataAvailable(size_t cpu) {
       protozero::MessageHandle<protos::pbzero::FtraceEventBundle>;
   std::array<const EventFilter*, kMaxSinks> filters{};
   std::array<BundleHandle, kMaxSinks> bundles{};
+  std::array<FtraceMetadata*, kMaxSinks> metadatas{};
   size_t sink_count = sinks_.size();
   size_t i = 0;
   for (FtraceSink* sink : sinks_) {
-    filters[i] = sink->get_event_filter();
+    filters[i] = sink->event_filter();
+    metadatas[i] = sink->metadata_mutable();
     bundles[i++] = sink->GetBundleForCpu(cpu);
   }
-  reader->Drain(filters, bundles);
+  reader->Drain(filters, bundles, metadatas);
   i = 0;
   for (FtraceSink* sink : sinks_)
     sink->OnBundleComplete(cpu, std::move(bundles[i++]));
@@ -357,6 +359,12 @@ FtraceSink::~FtraceSink() {
 
 const std::set<std::string>& FtraceSink::enabled_events() {
   return filter_->enabled_names();
+}
+
+FtraceMetadata::FtraceMetadata() {
+  // A lot of the time there will only be a small number of inodes.
+  inodes.reserve(10);
+  pids.reserve(10);
 }
 
 }  // namespace perfetto
