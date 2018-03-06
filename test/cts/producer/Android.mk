@@ -32,5 +32,4 @@ LOCAL_JNI_SHARED_LIBRARIES := \
     libperfettocts_jni \
     libnativehelper_compat_libc++
 
-
-# include $(BUILD_PACKAGE)
+include $(BUILD_PACKAGE)
