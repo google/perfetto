@@ -307,10 +307,12 @@ using protos::TaskRenameFtraceEvent;
 
 using protos::FtraceEvent;
 using protos::FtraceEventBundle;
+using protos::InodeFileMap;
 using protos::PrintFtraceEvent;
 using protos::ProcessTree;
 using protos::Trace;
 using protos::TracePacket;
+using Entry = protos::InodeFileMap::Entry;
 using Process = protos::ProcessTree::Process;
 
 // TODO(hjd): Add tests.
@@ -445,6 +447,8 @@ const char* MmCompactionSuitableArray[] = {"DMA", "Normal", "Movable"};
 const char* SoftirqArray[] = {"HI",      "TIMER",        "NET_TX",  "NET_RX",
                               "BLOCK",   "BLOCK_IOPOLL", "TASKLET", "SCHED",
                               "HRTIMER", "RCU"};
+
+const char* inodeFileTypeArray[] = {"UNKNOWN", "FILE", "DIRECTORY"};
 
 uint64_t TimestampToSeconds(uint64_t timestamp) {
   return timestamp / 1000000000ul;
@@ -2311,6 +2315,19 @@ std::string FormatProcess(const Process& process) {
   return output;
 }
 
+std::string FormatInodeFileMap(const Entry& entry) {
+  char line[2048];
+  sprintf(line, "inode_file_map: ino=%llu type=%s path=", entry.inode_number(),
+          inodeFileTypeArray[entry.type()]);
+  std::string output = std::string(line);
+  for (auto field : entry.paths()) {
+    char path[2048];
+    sprintf(path, "%s", field.c_str());
+    output += std::string(path);
+  }
+  return output;
+}
+
 int TraceToSystrace(std::istream* input, std::ostream* output) {
   std::multimap<uint64_t, std::string> sorted;
 
@@ -2328,6 +2345,15 @@ int TraceToSystrace(std::istream* input, std::ostream* output) {
       const ProcessTree& process_tree = packet.process_tree();
       for (const auto& process : process_tree.processes()) {
         std::string line = FormatProcess(process);
+        sorted.emplace(0, line);
+      }
+    }
+
+    if (packet.has_inode_file_map()) {
+      const InodeFileMap& inode_file_map = packet.inode_file_map();
+      // TODO(azappone): format device block id and mount points
+      for (const auto& entry : inode_file_map.entries()) {
+        std::string line = FormatInodeFileMap(entry);
         sorted.emplace(0, line);
       }
     }
