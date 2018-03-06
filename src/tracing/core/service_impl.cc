@@ -86,6 +86,12 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
     size_t shared_buffer_size_hint_bytes) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
+  if (lockdown_mode_ && uid != geteuid()) {
+    PERFETTO_DLOG("Lockdown mode. Rejecting producer with UID %ld",
+                  static_cast<unsigned long>(uid));
+    return nullptr;
+  }
+
   if (producers_.size() >= kMaxProducerID) {
     PERFETTO_DCHECK(false);
     return nullptr;
@@ -165,6 +171,10 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Enabling tracing for consumer %p",
                 reinterpret_cast<void*>(consumer));
+  if (cfg.lockdown_mode() == TraceConfig::LockdownModeOperation::LOCKDOWN_SET)
+    lockdown_mode_ = true;
+  if (cfg.lockdown_mode() == TraceConfig::LockdownModeOperation::LOCKDOWN_CLEAR)
+    lockdown_mode_ = false;
   if (consumer->tracing_session_id_) {
     PERFETTO_DLOG(
         "A Consumer is trying to EnableTracing() but another tracing session "
@@ -516,6 +526,12 @@ void ServiceImpl::CreateDataSourceInstance(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   ProducerEndpointImpl* producer = GetProducer(data_source.producer_id);
   PERFETTO_DCHECK(producer);
+  // An existing producer that is not ftrace could have registered itself as
+  // ftrace, we must not enable it in that case.
+  if (lockdown_mode_ && producer->uid_ != getuid()) {
+    PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
+    return;
+  }
   // TODO(primiano): match against |producer_name_filter| and add tests
   // for registration ordering (data sources vs consumers).
 
