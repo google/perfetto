@@ -233,6 +233,7 @@ void ProbesProducer::SinkDelegate::OnBundleComplete(
   if (!metadata.inodes.empty()) {
     auto weak_this = weak_factory_.GetWeakPtr();
     auto inodes = metadata.inodes;
+    // TODO(hjd): This call back should be one in total, not one per CPU.
     task_runner_->PostTask([weak_this, inodes] {
       if (weak_this)
         weak_this->OnInodes(inodes);
