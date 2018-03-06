@@ -24,10 +24,13 @@
 #include "perfetto/tracing/core/trace_writer.h"
 #include "perfetto/tracing/ipc/producer_ipc_client.h"
 
+#include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
+
 #ifndef SRC_TRACED_PROBES_PROBES_PRODUCER_H_
 #define SRC_TRACED_PROBES_PROBES_PRODUCER_H_
 
 namespace perfetto {
+
 class ProbesProducer : public Producer {
  public:
   ProbesProducer();
@@ -46,6 +49,9 @@ class ProbesProducer : public Producer {
   void CreateFtraceDataSourceInstance(DataSourceInstanceID id,
                                       const DataSourceConfig& source_config);
   void CreateProcessStatsDataSourceInstance(
+      const DataSourceConfig& source_config);
+  void CreateInodeFileMapDataSourceInstance(
+      DataSourceInstanceID id,
       const DataSourceConfig& source_config);
 
   void OnMetadata(const FtraceMetadata& metadata);
@@ -81,6 +87,17 @@ class ProbesProducer : public Producer {
     base::WeakPtrFactory<SinkDelegate> weak_factory_;
   };
 
+  class InodeFileMapDataSource {
+   public:
+    explicit InodeFileMapDataSource(std::unique_ptr<TraceWriter> writer);
+    ~InodeFileMapDataSource();
+
+    void WriteInodes(const FtraceMetadata& metadata);
+
+   private:
+    std::unique_ptr<TraceWriter> writer_;
+  };
+
   enum State {
     kNotStarted = 0,
     kNotConnected,
@@ -91,6 +108,8 @@ class ProbesProducer : public Producer {
   void Connect();
   void ResetConnectionBackoff();
   void IncreaseConnectionBackoff();
+  void AddWatchdogsTimer(DataSourceInstanceID id,
+                         const DataSourceConfig& source_config);
 
   State state_ = kNotStarted;
   base::TaskRunner* task_runner_;
@@ -103,6 +122,8 @@ class ProbesProducer : public Producer {
   std::map<DataSourceInstanceID, std::string> instances_;
   std::map<DataSourceInstanceID, std::unique_ptr<SinkDelegate>> delegates_;
   std::map<DataSourceInstanceID, base::Watchdog::Timer> watchdogs_;
+  std::map<DataSourceInstanceID, std::unique_ptr<InodeFileMapDataSource>>
+      file_map_sources_;
 };
 }  // namespace perfetto
 
