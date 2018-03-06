@@ -92,4 +92,13 @@ message TraceConfig {
   // and enables guardrails that limit resource usage for traces requested
   // by statsd.
   optional bool enable_extra_guardrails = 4;
+
+  enum LockdownModeOperation {
+    LOCKDOWN_UNCHANGED = 0;
+    LOCKDOWN_CLEAR = 1;
+    LOCKDOWN_SET = 2;
+  }
+  // Reject producers that are not running under the same UID as the tracing
+  // service.
+  optional LockdownModeOperation lockdown_mode = 5;
 }

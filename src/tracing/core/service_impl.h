@@ -262,6 +262,8 @@ class ServiceImpl : public Service {
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
   std::map<BufferID, TraceBuffer> buffers_;
 
+  bool lockdown_mode_ = false;
+
   PERFETTO_THREAD_CHECKER(thread_checker_)
 
   base::WeakPtrFactory<ServiceImpl> weak_ptr_factory_;  // Keep at the end.
