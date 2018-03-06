@@ -85,7 +85,6 @@ void ClearFile(const char* path) {
 
 }  // namespace
 
-// TODO(fmayer): Actually call this on shutdown.
 // Method of last resort to reset ftrace state.
 // We don't know what state the rest of the system and process is so as far
 // as possible avoid allocations.
