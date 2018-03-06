@@ -63,13 +63,12 @@ void ProbesProducer::OnConnect() {
 
   DataSourceDescriptor ftrace_descriptor;
   ftrace_descriptor.set_name(kFtraceSourceName);
-  endpoint_->RegisterDataSource(ftrace_descriptor,
-                                [](DataSourceInstanceID id) {});
+  endpoint_->RegisterDataSource(ftrace_descriptor, [](DataSourceInstanceID) {});
 
   DataSourceDescriptor process_stats_descriptor;
   process_stats_descriptor.set_name(kProcessStatsSourceName);
   endpoint_->RegisterDataSource(process_stats_descriptor,
-                                [](DataSourceInstanceID id) {});
+                                [](DataSourceInstanceID) {});
 }
 
 void ProbesProducer::OnDisconnect() {
