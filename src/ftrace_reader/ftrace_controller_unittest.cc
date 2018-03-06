@@ -36,6 +36,8 @@ using testing::ByMove;
 using testing::Invoke;
 using testing::NiceMock;
 using testing::Return;
+using testing::IsEmpty;
+using testing::ElementsAre;
 
 using Table = perfetto::ProtoTranslationTable;
 using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
@@ -595,6 +597,26 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     auto sink = controller->CreateSink(config, &delegate);
     EXPECT_EQ(200u, controller->drain_period_ms());
   }
+}
+
+TEST(FtraceMetadataTest, Clear) {
+  FtraceMetadata metadata;
+  metadata.inodes.push_back(1);
+  metadata.pids.push_back(2);
+  metadata.overwrite_count = 3;
+  metadata.Clear();
+  EXPECT_THAT(metadata.inodes, IsEmpty());
+  EXPECT_THAT(metadata.pids, IsEmpty());
+  EXPECT_EQ(metadata.overwrite_count, 0u);
+}
+
+TEST(FtraceMetadataTest, AddPid) {
+  FtraceMetadata metadata;
+  metadata.AddPid(1);
+  metadata.AddPid(2);
+  metadata.AddPid(2);
+  metadata.AddPid(3);
+  EXPECT_THAT(metadata.pids, ElementsAre(1, 2, 3));
 }
 
 }  // namespace perfetto
