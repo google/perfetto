@@ -50,10 +50,26 @@ Watchdog::Watchdog(uint32_t polling_interval_ms)
     : polling_interval_ms_(polling_interval_ms) {}
 
 Watchdog::~Watchdog() {
-  QuitThreadUnlocked();
+  if (!thread_.joinable()) {
+    PERFETTO_DCHECK(quit_);
+    return;
+  }
+
+  {
+    std::lock_guard<std::mutex> guard(mutex_);
+    PERFETTO_DCHECK(!quit_);
+    quit_ = true;
+  }
+  exit_signal_.notify_one();
+  thread_.join();
 }
 
 Watchdog* Watchdog::GetInstance() {
+#if PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+  // Ensure that it is impossible to use watchdog on a Chromium build.
+  PERFETTO_CHECK(false);
+#endif
+
   static Watchdog* watchdog = new Watchdog(kDefaultPollingInterval);
   return watchdog;
 }
@@ -62,33 +78,43 @@ Watchdog::Timer Watchdog::CreateFatalTimer(uint32_t ms) {
   return Watchdog::Timer(ms);
 }
 
-void Watchdog::SetMemoryLimit(uint32_t bytes, uint32_t window_ms) {
-  {
-    // Update the fields under the lock.
-    std::lock_guard<std::mutex> guard(mutex_);
+void Watchdog::Start() {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (thread_.joinable()) {
+    PERFETTO_DCHECK(!quit_);
+  } else {
+    PERFETTO_DCHECK(quit_);
 
-    PERFETTO_CHECK(IsMultipleOf(window_ms, polling_interval_ms_) || bytes == 0);
-
-    size_t size = bytes == 0 ? 0 : window_ms / polling_interval_ms_ + 1;
-    memory_window_bytes_.Reset(size);
-    memory_limit_bytes_ = bytes;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    // Kick the thread to start running but only on Android or Linux.
+    quit_ = false;
+    thread_ = std::thread(&Watchdog::ThreadMain, this);
+#endif
   }
-  UpdateThreadStateUnlocked();
+}
+
+void Watchdog::SetMemoryLimit(uint32_t bytes, uint32_t window_ms) {
+  // Update the fields under the lock.
+  std::lock_guard<std::mutex> guard(mutex_);
+
+  PERFETTO_CHECK(IsMultipleOf(window_ms, polling_interval_ms_) || bytes == 0);
+
+  size_t size = bytes == 0 ? 0 : window_ms / polling_interval_ms_ + 1;
+  memory_window_bytes_.Reset(size);
+  memory_limit_bytes_ = bytes;
 }
 
 void Watchdog::SetCpuLimit(uint32_t percentage, uint32_t window_ms) {
-  {
-    std::lock_guard<std::mutex> guard(mutex_);
+  std::lock_guard<std::mutex> guard(mutex_);
 
-    PERFETTO_CHECK(percentage <= 100);
-    PERFETTO_CHECK(IsMultipleOf(window_ms, polling_interval_ms_) ||
-                   percentage == 0);
+  PERFETTO_CHECK(percentage <= 100);
+  PERFETTO_CHECK(IsMultipleOf(window_ms, polling_interval_ms_) ||
+                 percentage == 0);
 
-    size_t size = percentage == 0 ? 0 : window_ms / polling_interval_ms_ + 1;
-    cpu_window_time_ticks_.Reset(size);
-    cpu_limit_percentage_ = percentage;
-  }
-  UpdateThreadStateUnlocked();
+  size_t size = percentage == 0 ? 0 : window_ms / polling_interval_ms_ + 1;
+  cpu_window_time_ticks_.Reset(size);
+  cpu_limit_percentage_ = percentage;
 }
 
 void Watchdog::ThreadMain() {
@@ -163,48 +189,6 @@ void Watchdog::CheckCpu(uint64_t cpu_time) {
     if (percentage > cpu_limit_percentage_) {
       kill(getpid(), SIGABRT);
     }
-  }
-}
-
-void Watchdog::UpdateThreadStateUnlocked() {
-  if (cpu_limit_percentage_ > 0 || memory_limit_bytes_ > 0) {
-    StartThreadUnlocked();
-  } else if (cpu_limit_percentage_ == 0 && memory_limit_bytes_ == 0) {
-    QuitThreadUnlocked();
-  }
-}
-
-void Watchdog::StartThreadUnlocked() {
-  if (thread_.joinable()) {
-#if PERFETTO_DCHECK_IS_ON()
-    std::lock_guard<std::mutex> guard(mutex_);
-    PERFETTO_DCHECK(!quit_);
-#endif
-  } else {
-    // Don't need to lock because thread is not running.
-    PERFETTO_DCHECK(quit_);
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    // Kick the thread to start running but only on Android or Linux.
-    quit_ = false;
-    thread_ = std::thread(&Watchdog::ThreadMain, this);
-#endif
-  }
-}
-
-void Watchdog::QuitThreadUnlocked() {
-  if (thread_.joinable()) {
-    {
-      std::lock_guard<std::mutex> guard(mutex_);
-      PERFETTO_DCHECK(!quit_);
-      quit_ = true;
-    }
-    exit_signal_.notify_one();
-    thread_.join();
-    thread_ = std::thread();
-  } else {
-    PERFETTO_DCHECK(quit_);
   }
 }
 
