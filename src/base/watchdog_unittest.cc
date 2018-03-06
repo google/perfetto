@@ -69,6 +69,7 @@ TEST(WatchdogTest, CrashMemory) {
 
         TestWatchdog watchdog(5);
         watchdog.SetMemoryLimit(8 * 1024 * 1024, 25);
+        watchdog.Start();
 
         // Sleep so that the watchdog has some time to pick it up.
         usleep(1000 * 1000);
@@ -81,6 +82,7 @@ TEST(WatchdogTest, CrashCpu) {
       {
         TestWatchdog watchdog(1);
         watchdog.SetCpuLimit(10, 25);
+        watchdog.Start();
         volatile int x = 0;
         while (true) {
           x++;

@@ -26,7 +26,7 @@ source_set("base") {
     "thread_checker.cc",
     "unix_task_runner.cc",
   ]
-  if (is_linux || is_android) {
+  if (!build_with_chromium && (is_linux || is_android)) {
     sources += [ "watchdog.cc" ]
   }
   if (is_debug) {
@@ -103,7 +103,7 @@ source_set("base_unittests") {
     "utils_unittest.cc",
     "weak_ptr_unittest.cc",
   ]
-  if (is_linux || is_android) {
+  if (!build_with_chromium && (is_linux || is_android)) {
     sources += [ "watchdog_unittest.cc" ]
   }
 }
