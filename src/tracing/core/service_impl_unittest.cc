@@ -174,6 +174,49 @@ TEST_F(ServiceImplTest, EnableAndDisableTracing) {
   Mock::VerifyAndClearExpectations(&mock_consumer);
 }
 
+TEST_F(ServiceImplTest, LockdownMode) {
+  MockConsumer mock_consumer;
+  EXPECT_CALL(mock_consumer, OnConnect());
+  std::unique_ptr<Service::ConsumerEndpoint> consumer_endpoint =
+      svc->ConnectConsumer(&mock_consumer);
+
+  TraceConfig trace_config;
+  trace_config.set_lockdown_mode(
+      TraceConfig::LockdownModeOperation::LOCKDOWN_SET);
+  consumer_endpoint->EnableTracing(trace_config);
+  task_runner.RunUntilIdle();
+
+  InSequence seq;
+
+  MockProducer mock_producer;
+  std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
+      svc->ConnectProducer(&mock_producer, geteuid() + 1 /* uid */);
+
+  MockProducer mock_producer_sameuid;
+  std::unique_ptr<Service::ProducerEndpoint> producer_endpoint_sameuid =
+      svc->ConnectProducer(&mock_producer_sameuid, geteuid() /* uid */);
+
+  EXPECT_CALL(mock_producer, OnConnect()).Times(0);
+  EXPECT_CALL(mock_producer_sameuid, OnConnect());
+  task_runner.RunUntilIdle();
+
+  Mock::VerifyAndClearExpectations(&mock_producer);
+
+  consumer_endpoint->DisableTracing();
+  task_runner.RunUntilIdle();
+
+  trace_config.set_lockdown_mode(
+      TraceConfig::LockdownModeOperation::LOCKDOWN_CLEAR);
+  consumer_endpoint->EnableTracing(trace_config);
+  task_runner.RunUntilIdle();
+
+  EXPECT_CALL(mock_producer, OnConnect());
+  producer_endpoint_sameuid =
+      svc->ConnectProducer(&mock_producer, geteuid() + 1);
+
+  task_runner.RunUntilIdle();
+}
+
 TEST_F(ServiceImplTest, DisconnectConsumerWhileTracing) {
   MockProducer mock_producer;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
