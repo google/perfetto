@@ -5,15 +5,15 @@ cc_test {
   ],
   static_libs: [
     "libgmock",
-    "libgtest",
-    "libgtest_main",
     "libprotobuf-cpp-lite",
     "perfetto_src_tracing_ipc",
-    "perfetto_cts_deps",
   ],
   shared_libs: [
     "libandroid",
     "liblog",
+  ],
+  whole_static_libs: [
+    "perfetto_cts_deps"
   ],
   test_suites: [
     "cts",
