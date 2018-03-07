@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "ftrace_procfs.h"
+#include "src/ftrace_reader/ftrace_procfs.h"
 
-#include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <fstream>
 #include <sstream>
@@ -42,23 +42,16 @@ namespace perfetto {
 
 namespace {
 
-int OpenKmesgFD() {
-  // This environment variable gets set to a fd to /dev/kmsg opened for writing.
-  // The file gets opened by init as configured in perfetto.rc. We cannot open
-  // the file directly due to permissions.
-  const char* env = getenv("ANDROID_FILE__dev_kmsg");
-  return env != nullptr ? atoi(env) : -1;
-}
-
 void KernelLogWrite(const char* s) {
   PERFETTO_DCHECK(*s && s[strlen(s) - 1] == '\n');
-  static int kmesg_fd = OpenKmesgFD();
-  if (kmesg_fd != -1) {
-    base::ignore_result(write(kmesg_fd, s, strlen(s)));
-  }
+  if (FtraceProcfs::g_kmesg_fd != -1)
+    base::ignore_result(write(FtraceProcfs::g_kmesg_fd, s, strlen(s)));
 }
 
 }  // namespace
+
+// static
+int FtraceProcfs::g_kmesg_fd = -1;  // Set by ProbesMain() in probes.cc .
 
 // static
 std::unique_ptr<FtraceProcfs> FtraceProcfs::Create(const std::string& root) {
