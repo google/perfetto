@@ -24,6 +24,7 @@
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="CtsPerfettoTestCases->/data/local/tmp/CtsPerfettoTestCases" />
+        <option name="append-bitness" value="true" />
     </target_preparer>
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="run-command" value="am start -n android.perfetto.producer/.ProducerActivity" />
