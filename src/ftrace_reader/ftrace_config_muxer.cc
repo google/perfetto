@@ -61,6 +61,10 @@ bool RunAtrace(const std::vector<std::string>& args) {
   pid_t pid = fork();
   PERFETTO_CHECK(pid >= 0);
   if (pid == 0) {
+    // Close stdin/out/err + any file descriptor that we might have mistakenly
+    // not marked as FD_CLOEXEC.
+    for (int i = 0; i < 128; i++)
+      close(i);
     execv("/system/bin/atrace", &argv[0]);
     // Reached only if execv fails.
     _exit(1);
