@@ -16,7 +16,9 @@
 
 #include "src/ipc/client_impl.h"
 
+#include <fcntl.h>
 #include <inttypes.h>
+#include <unistd.h>
 
 #include <utility>
 
@@ -156,6 +158,8 @@ void ClientImpl::OnDataAvailable(UnixSocket*) {
     rsize = sock_->Receive(buf.data, buf.size, &fd);
     if (fd) {
       PERFETTO_DCHECK(!received_fd_);
+      int res = fcntl(*fd, F_SETFD, FD_CLOEXEC);
+      PERFETTO_DCHECK(res == 0);
       received_fd_ = std::move(fd);
     }
     if (!frame_deserializer_.EndReceive(rsize)) {
