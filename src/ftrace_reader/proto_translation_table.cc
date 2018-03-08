@@ -178,6 +178,12 @@ bool InferFtraceType(const std::string& type_and_name,
     }
   }
 
+  // Pids (as in 'sched_switch').
+  if (StartsWith(type_and_name, "pid_t ") && size == 4) {
+    *out = kFtracePid32;
+    return true;
+  }
+
   // Ints of various sizes:
   if (size == 1 && !is_signed) {
     *out = kFtraceUint8;
@@ -223,7 +229,7 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     std::string contents =
         ftrace_procfs->ReadEventFormat(event.group, event.name);
     FtraceEvent ftrace_event;
-    if (contents == "" || !ParseFtraceEvent(contents, &ftrace_event)) {
+    if (contents.empty() || !ParseFtraceEvent(contents, &ftrace_event)) {
       continue;
     }
 

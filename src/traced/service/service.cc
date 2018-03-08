@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/base/unix_task_runner.h"
+#include "perfetto/base/watchdog.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/ipc/service_ipc_host.h"
 
@@ -40,6 +41,13 @@ int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
     unlink(PERFETTO_CONSUMER_SOCK_NAME);
     svc->Start(PERFETTO_PRODUCER_SOCK_NAME, PERFETTO_CONSUMER_SOCK_NAME);
   }
+
+  // Set the CPU limit and start the watchdog running. The memory limit will
+  // be set inside the service code as it relies on the size of buffers.
+  // The CPU limit is 75% over a 30 second interval.
+  base::Watchdog* watchdog = base::Watchdog::GetInstance();
+  watchdog->SetCpuLimit(75, 30 * 1000);
+  watchdog->Start();
 
   PERFETTO_ILOG("Started traced, listening on %s %s",
                 PERFETTO_PRODUCER_SOCK_NAME, PERFETTO_CONSUMER_SOCK_NAME);

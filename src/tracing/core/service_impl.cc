@@ -86,6 +86,12 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
     size_t shared_buffer_size_hint_bytes) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
+  if (lockdown_mode_ && uid != geteuid()) {
+    PERFETTO_DLOG("Lockdown mode. Rejecting producer with UID %ld",
+                  static_cast<unsigned long>(uid));
+    return nullptr;
+  }
+
   if (producers_.size() >= kMaxProducerID) {
     PERFETTO_DCHECK(false);
     return nullptr;
@@ -105,6 +111,8 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer_));
+
+  UpdateMemoryGuardrail();
   return std::move(endpoint);
 }
 
@@ -122,6 +130,7 @@ void ServiceImpl::DisconnectProducer(ProducerID id) {
   }
 
   producers_.erase(id);
+  UpdateMemoryGuardrail();
 }
 
 ServiceImpl::ProducerEndpointImpl* ServiceImpl::GetProducer(
@@ -162,6 +171,10 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Enabling tracing for consumer %p",
                 reinterpret_cast<void*>(consumer));
+  if (cfg.lockdown_mode() == TraceConfig::LockdownModeOperation::LOCKDOWN_SET)
+    lockdown_mode_ = true;
+  if (cfg.lockdown_mode() == TraceConfig::LockdownModeOperation::LOCKDOWN_CLEAR)
+    lockdown_mode_ = false;
   if (consumer->tracing_session_id_) {
     PERFETTO_DLOG(
         "A Consumer is trying to EnableTracing() but another tracing session "
@@ -238,6 +251,7 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       break;
     }
   }
+  UpdateMemoryGuardrail();
 
   // This can happen if either:
   // - All the kMaxTraceBufferID slots are taken.
@@ -337,7 +351,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
         continue;
       const uid_t page_owner = tbuf.get_page_owner(page_idx);
       uint32_t layout = abi.page_layout_dbg(page_idx);
-      size_t num_chunks = abi.GetNumChunksForLayout(layout);
+      size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(layout);
       for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
         if (abi.GetChunkState(page_idx, chunk_idx) ==
             SharedMemoryABI::kChunkFree) {
@@ -433,6 +447,8 @@ void ServiceImpl::FreeBuffers(TracingSessionID tsid) {
     buffers_.erase(buffer_id);
   }
   tracing_sessions_.erase(tsid);
+  UpdateMemoryGuardrail();
+
   PERFETTO_LOG("Tracing session %" PRIu64 " ended, total sessions:%zu", tsid,
                tracing_sessions_.size());
 }
@@ -510,6 +526,12 @@ void ServiceImpl::CreateDataSourceInstance(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   ProducerEndpointImpl* producer = GetProducer(data_source.producer_id);
   PERFETTO_DCHECK(producer);
+  // An existing producer that is not ftrace could have registered itself as
+  // ftrace, we must not enable it in that case.
+  if (lockdown_mode_ && producer->uid_ != getuid()) {
+    PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
+    return;
+  }
   // TODO(primiano): match against |producer_name_filter| and add tests
   // for registration ordering (data sources vs consumers).
 
@@ -593,6 +615,27 @@ ProducerID ServiceImpl::GetNextProducerID() {
   } while (producers_.count(last_producer_id_) || last_producer_id_ == 0);
   PERFETTO_DCHECK(last_producer_id_ > 0 && last_producer_id_ <= kMaxProducerID);
   return last_producer_id_;
+}
+
+void ServiceImpl::UpdateMemoryGuardrail() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+  uint64_t total_buffer_bytes = 0;
+
+  // Sum up all the shared memory buffers.
+  for (const auto& id_to_producer : producers_) {
+    total_buffer_bytes += id_to_producer.second->shared_memory()->size();
+  }
+
+  // Sum up all the trace buffers.
+  for (const auto& id_to_buffer : buffers_) {
+    total_buffer_bytes += id_to_buffer.second.size;
+  }
+
+  // Set the guard rail to 32MB + the sum of all the buffers over a 30 second
+  // interval.
+  uint64_t guardrail = 32 * 1024 * 1024 + total_buffer_bytes;
+  base::Watchdog::GetInstance()->SetMemoryLimit(guardrail, 30 * 1000);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
