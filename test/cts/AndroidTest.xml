@@ -28,6 +28,7 @@
     </target_preparer>
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="run-command" value="am start -n android.perfetto.producer/.ProducerActivity" />
+        <option name="run-command" value="setprop persist.traced.enable 1" />
     </target_preparer>
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp" />
