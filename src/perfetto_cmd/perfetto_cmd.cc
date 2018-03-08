@@ -267,7 +267,7 @@ void PerfettoCmd::OnTimeout() {
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   PERFETTO_DLOG("Received trace packet, has_more=%d", has_more);
   for (TracePacket& packet : packets) {
-    for (const Slice& slice : packet) {
+    for (const Slice& slice : packet.slices()) {
       uint8_t preamble[16];
       uint8_t* pos = preamble;
       pos = WriteVarInt(

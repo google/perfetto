@@ -101,6 +101,9 @@ class CommitDataRequest {
 
       const std::string& data() const { return data_; }
       void set_data(const std::string& value) { data_ = value; }
+      void set_data(const void* p, size_t s) {
+        data_.assign(reinterpret_cast<const char*>(p), s);
+      }
 
      private:
       uint32_t offset_ = {};

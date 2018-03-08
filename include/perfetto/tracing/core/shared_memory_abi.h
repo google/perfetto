@@ -346,6 +346,10 @@ class SharedMemoryABI {
 
     // Begin of the first packet (or packet fragment).
     uint8_t* payload_begin() const { return begin_ + sizeof(ChunkHeader); }
+    size_t payload_size() const {
+      PERFETTO_DCHECK(size_ >= sizeof(ChunkHeader));
+      return size_ - sizeof(ChunkHeader);
+    }
 
     bool is_valid() const { return begin_ && size_; }
 

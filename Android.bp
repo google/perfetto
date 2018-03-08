@@ -3011,6 +3011,7 @@ cc_test {
     "src/tracing/core/id_allocator_unittest.cc",
     "src/tracing/core/packet_stream_validator.cc",
     "src/tracing/core/packet_stream_validator_unittest.cc",
+    "src/tracing/core/patch_list_unittest.cc",
     "src/tracing/core/service_impl.cc",
     "src/tracing/core/service_impl_unittest.cc",
     "src/tracing/core/shared_memory_abi.cc",
