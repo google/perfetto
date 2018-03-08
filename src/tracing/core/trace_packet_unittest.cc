@@ -30,12 +30,12 @@ TEST(TracePacketTest, Simple) {
   proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
-  tp.AddSlice({ser_buf.data(), ser_buf.size()});
-  auto slice = tp.begin();
-  ASSERT_NE(tp.end(), slice);
+  tp.AddSlice(ser_buf.data(), ser_buf.size());
+  auto slice = tp.slices().begin();
+  ASSERT_NE(tp.slices().end(), slice);
   ASSERT_EQ(ser_buf.data(), slice->start);
   ASSERT_EQ(ser_buf.size(), slice->size);
-  ASSERT_EQ(tp.end(), ++slice);
+  ASSERT_EQ(tp.slices().end(), ++slice);
 
   ASSERT_TRUE(tp.Decode());
   ASSERT_TRUE(tp.Decode());  // Decode() should be idempotent.
@@ -65,20 +65,20 @@ TEST(TracePacketTest, Sliced) {
   tp.AddSlice({ser_buf.data() + 3 + 5, ser_buf.size() - 3 - 5});
   ASSERT_EQ(ser_buf.size(), tp.size());
 
-  auto slice = tp.begin();
-  ASSERT_NE(tp.end(), slice);
+  auto slice = tp.slices().begin();
+  ASSERT_NE(tp.slices().end(), slice);
   ASSERT_EQ(ser_buf.data(), slice->start);
   ASSERT_EQ(3u, slice->size);
 
-  ASSERT_NE(tp.end(), ++slice);
+  ASSERT_NE(tp.slices().end(), ++slice);
   ASSERT_EQ(ser_buf.data() + 3, slice->start);
   ASSERT_EQ(5u, slice->size);
 
-  ASSERT_NE(tp.end(), ++slice);
+  ASSERT_NE(tp.slices().end(), ++slice);
   ASSERT_EQ(ser_buf.data() + 3 + 5, slice->start);
   ASSERT_EQ(ser_buf.size() - 3 - 5, slice->size);
 
-  ASSERT_EQ(tp.end(), ++slice);
+  ASSERT_EQ(tp.slices().end(), ++slice);
 
   ASSERT_TRUE(tp.Decode());
   ASSERT_NE(nullptr, tp.operator->());

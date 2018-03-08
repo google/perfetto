@@ -618,7 +618,8 @@ ProducerID ServiceImpl::GetNextProducerID() {
 }
 
 void ServiceImpl::UpdateMemoryGuardrail() {
-#if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+#if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   uint64_t total_buffer_bytes = 0;
 
   // Sum up all the shared memory buffers.
