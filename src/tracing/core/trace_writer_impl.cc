@@ -59,7 +59,7 @@ TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
 TraceWriterImpl::~TraceWriterImpl() {
   if (cur_chunk_.is_valid()) {
     cur_packet_->Finalize();
-    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_));
+    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_);
   }
   shmem_arbiter_->ReleaseWriterID(id_);
 }
@@ -143,7 +143,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
   }
 
   if (cur_chunk_.is_valid())
-    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_));
+    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_);
 
   // Start a new chunk.
 
@@ -161,7 +161,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
   header.chunk_id.store(cur_chunk_id_++, std::memory_order_relaxed);
   header.packets.store(packets, std::memory_order_relaxed);
 
-  cur_chunk_ = shmem_arbiter_->GetNewChunk(header, target_buffer_);
+  cur_chunk_ = shmem_arbiter_->GetNewChunk(header);
   uint8_t* payload_begin = cur_chunk_.payload_begin();
   if (fragmenting_packet_) {
     cur_packet_->set_size_field(payload_begin);
