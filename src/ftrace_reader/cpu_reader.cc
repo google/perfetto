@@ -157,10 +157,11 @@ CpuReader::~CpuReader() {
 }
 
 // static
-void CpuReader::RunWorkerThread(size_t cpu,
-                                int trace_fd,
-                                int staging_write_fd,
-                                std::function<void()> on_data_available) {
+void CpuReader::RunWorkerThread(
+    size_t cpu,
+    int trace_fd,
+    int staging_write_fd,
+    const std::function<void()>& on_data_available) {
   // This thread is responsible for moving data from the trace pipe into the
   // staging pipe at least one page at a time. This is done using the splice(2)
   // system call, which unlike poll/select makes it possible to block until at

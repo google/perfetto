@@ -229,7 +229,7 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     std::string contents =
         ftrace_procfs->ReadEventFormat(event.group, event.name);
     FtraceEvent ftrace_event;
-    if (contents == "" || !ParseFtraceEvent(contents, &ftrace_event)) {
+    if (contents.empty() || !ParseFtraceEvent(contents, &ftrace_event)) {
       continue;
     }
 
