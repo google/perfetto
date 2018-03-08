@@ -141,11 +141,11 @@ std::string FtraceProcfs::GetClock() {
   std::string path = root_ + "trace_clock";
   std::string s = ReadFileIntoString(path);
 
-  size_t start = s.find("[");
+  size_t start = s.find('[');
   if (start == std::string::npos)
     return "";
 
-  size_t end = s.find("]", start);
+  size_t end = s.find(']', start);
   if (end == std::string::npos)
     return "";
 
@@ -161,7 +161,7 @@ std::set<std::string> FtraceProcfs::AvailableClocks() {
   size_t end = 0;
 
   while (true) {
-    end = s.find(" ", start);
+    end = s.find(' ', start);
     if (end == std::string::npos)
       end = s.size();
     if (start == end)
@@ -194,7 +194,7 @@ bool FtraceProcfs::WriteNumberToFile(const std::string& path, size_t value) {
 
 bool FtraceProcfs::WriteToFile(const std::string& path,
                                const std::string& str) {
-  base::ScopedFile fd = base::OpenFile(path.c_str(), O_WRONLY);
+  base::ScopedFile fd = base::OpenFile(path, O_WRONLY);
   if (!fd)
     return false;
   ssize_t written = PERFETTO_EINTR(write(fd.get(), str.c_str(), str.length()));
@@ -207,11 +207,11 @@ bool FtraceProcfs::WriteToFile(const std::string& path,
 base::ScopedFile FtraceProcfs::OpenPipeForCpu(size_t cpu) {
   std::string path =
       root_ + "per_cpu/cpu" + std::to_string(cpu) + "/trace_pipe_raw";
-  return base::OpenFile(path.c_str(), O_RDONLY | O_NONBLOCK);
+  return base::OpenFile(path, O_RDONLY | O_NONBLOCK);
 }
 
 char FtraceProcfs::ReadOneCharFromFile(const std::string& path) {
-  base::ScopedFile fd = base::OpenFile(path.c_str(), O_RDONLY);
+  base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
   PERFETTO_CHECK(fd);
   char result = '\0';
   ssize_t bytes = PERFETTO_EINTR(read(fd.get(), &result, 1));
@@ -220,7 +220,7 @@ char FtraceProcfs::ReadOneCharFromFile(const std::string& path) {
 }
 
 bool FtraceProcfs::ClearFile(const std::string& path) {
-  base::ScopedFile fd = base::OpenFile(path.c_str(), O_WRONLY | O_TRUNC);
+  base::ScopedFile fd = base::OpenFile(path, O_WRONLY | O_TRUNC);
   return !!fd;
 }
 

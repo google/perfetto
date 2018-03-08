@@ -135,7 +135,7 @@ std::unique_ptr<FtraceConfigMuxer> FakeModel(
 
 class MockFtraceProcfs : public FtraceProcfs {
  public:
-  MockFtraceProcfs(size_t cpu_count = 1) : FtraceProcfs("/root/") {
+  explicit MockFtraceProcfs(size_t cpu_count = 1) : FtraceProcfs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(cpu_count));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
 

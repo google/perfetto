@@ -34,7 +34,7 @@ bool IsNumeric(const char* str);
 // Invokes predicate(pid) for each folder in |proc_path|/[0-9]+ which has
 // a numeric name (typically pids and tids).
 void ForEachPidInProcPath(const char* proc_path,
-                          std::function<void(int)> predicate);
+                          const std::function<void(int)>& predicate);
 
 // Reads the contents of |path| fully into |buf| up to |length| chars.
 // |buf| is guaranteed to be null terminated.
