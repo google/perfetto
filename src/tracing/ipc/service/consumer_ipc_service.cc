@@ -115,7 +115,7 @@ void ConsumerIPCService::RemoteConsumer::OnTraceData(
   for (const TracePacket& trace_packet : trace_packets) {
     std::string* dst = result->add_trace_packets();
     dst->reserve(trace_packet.size());
-    for (const Slice& slice : trace_packet)
+    for (const Slice& slice : trace_packet.slices())
       dst->append(reinterpret_cast<const char*>(slice.start), slice.size);
   }
   read_buffers_response.Resolve(std::move(result));

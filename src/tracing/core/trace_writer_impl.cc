@@ -128,16 +128,13 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
       if (!size_in_current_chunk) {
         auto patch_it = std::find_if(
             patch_list_.begin(), patch_list_.end(),
-            [cur_hdr](const Patch& p) { return p.size_field == cur_hdr; });
+            [cur_hdr](const Patch& p) { return &p.size_field[0] == cur_hdr; });
         PERFETTO_DCHECK(patch_it != patch_list_.end());
       }
 #endif
-      // TODO(primiano): this needs to be adjusted to be the offset within the
-      // payload, not from the start of the chunk header.
-      auto cur_hdr_offset = static_cast<uint16_t>(cur_hdr - cur_chunk_.begin());
-      patch_list_.emplace_front(cur_chunk_id_, cur_hdr_offset);
-      Patch& patch = patch_list_.front();
-      nested_msg->set_size_field(patch.size_field);
+      auto offset = static_cast<uint16_t>(cur_hdr - cur_chunk_.payload_begin());
+      Patch* patch = patch_list_.emplace_back(cur_chunk_id_, offset);
+      nested_msg->set_size_field(&patch->size_field[0]);
       PERFETTO_DLOG("Created new patchlist entry for protobuf nested message");
     }
   }
@@ -176,9 +173,6 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
 WriterID TraceWriterImpl::writer_id() const {
   return id_;
 };
-
-TraceWriterImpl::Patch::Patch(uint16_t cid, uint16_t offset)
-    : chunk_id(cid), offset_in_chunk(offset) {}
 
 // Base class ctor/dtor definition.
 TraceWriter::TraceWriter() = default;

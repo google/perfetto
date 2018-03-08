@@ -328,6 +328,12 @@ void ProtoToCpp::GenHeader(const Descriptor* msg, Printer* p) {
       } else {
         p->Print("void set_$n$($t$ value) { $n$_ = value; }\n", "t",
                  GetCppType(field, true), "n", field->lowercase_name());
+        if (field->type() == FieldDescriptor::TYPE_BYTES) {
+          p->Print(
+              "void set_$n$(const void* p, size_t s) { "
+              "$n$_.assign(reinterpret_cast<const char*>(p), s); }\n",
+              "n", field->lowercase_name());
+        }
       }
     } else {  // is_repeated()
       p->Print(
