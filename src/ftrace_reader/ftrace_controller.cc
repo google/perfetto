@@ -271,7 +271,7 @@ void FtraceController::OnRawFtraceDataAvailable(size_t cpu) {
 }
 
 std::unique_ptr<FtraceSink> FtraceController::CreateSink(
-    const FtraceConfig& config,
+    FtraceConfig config,
     FtraceSink::Delegate* delegate) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (sinks_.size() >= kMaxSinks)
@@ -287,8 +287,9 @@ std::unique_ptr<FtraceSink> FtraceController::CreateSink(
   auto filter = std::unique_ptr<EventFilter>(new EventFilter(
       *table_, FtraceEventsAsSet(*ftrace_config_muxer_->GetConfig(id))));
 
-  auto sink = std::unique_ptr<FtraceSink>(new FtraceSink(
-      std::move(controller_weak), id, config, std::move(filter), delegate));
+  auto sink = std::unique_ptr<FtraceSink>(
+      new FtraceSink(std::move(controller_weak), id, std::move(config),
+                     std::move(filter), delegate));
   Register(sink.get());
   return sink;
 }
