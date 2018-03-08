@@ -58,7 +58,6 @@ SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
 
 Chunk SharedMemoryArbiterImpl::GetNewChunk(
     const SharedMemoryABI::ChunkHeader& header,
-    BufferID target_buffer,
     size_t size_hint) {
   PERFETTO_DCHECK(size_hint == 0);  // Not implemented yet.
   int stall_count = 0;
@@ -71,8 +70,6 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     {
       std::lock_guard<std::mutex> scoped_lock(lock_);
       const size_t initial_page_idx = page_idx_;
-      // TODO(primiano): instead of scanning, we could maintain a bitmap of
-      // free chunks for each |target_buffer| and one for fully free pages.
       for (size_t i = 0; i < shmem_abi_.num_pages(); i++) {
         page_idx_ = (initial_page_idx + i) % shmem_abi_.num_pages();
         bool is_new_page = false;
@@ -82,31 +79,14 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
 
         if (shmem_abi_.is_page_free(page_idx_)) {
           // TODO(primiano): Use the |size_hint| here to decide the layout.
-          is_new_page =
-              shmem_abi_.TryPartitionPage(page_idx_, layout, target_buffer);
+          is_new_page = shmem_abi_.TryPartitionPage(page_idx_, layout);
         }
         uint32_t free_chunks;
-        size_t tbuf;
         if (is_new_page) {
           free_chunks = (1 << SharedMemoryABI::kNumChunksForLayout[layout]) - 1;
-          tbuf = target_buffer;
         } else {
           free_chunks = shmem_abi_.GetFreeChunks(page_idx_);
-
-          // |tbuf| here is advisory only and could change at any point, before
-          // or after this read. The only use of |tbuf| here is to to skip pages
-          // that are more likely to belong to other target_buffers, avoiding
-          // the more epxensive atomic operations in those cases. The
-          // authoritative check on |tbuf| happens atomically in the
-          // TryAcquireChunkForWriting() call below.
-          tbuf = shmem_abi_.page_header(page_idx_)->target_buffer.load(
-              std::memory_order_relaxed);
         }
-        PERFETTO_DLOG("Free chunks for page %zu: %x. Target buffer: %zu",
-                      page_idx_, free_chunks, tbuf);
-
-        if (tbuf != target_buffer)
-          continue;
 
         for (uint32_t chunk_idx = 0; free_chunks;
              chunk_idx++, free_chunks >>= 1) {
@@ -114,7 +94,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
             continue;
           // We found a free chunk.
           Chunk chunk = shmem_abi_.TryAcquireChunkForWriting(
-              page_idx_, chunk_idx, tbuf, &header);
+              page_idx_, chunk_idx, &header);
           if (!chunk.is_valid())
             continue;
           PERFETTO_DLOG("Acquired chunk %zu:%u", page_idx_, chunk_idx);
@@ -125,11 +105,6 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
           }
           return chunk;
         }
-        // TODO(fmayer): we should have some policy to guarantee fairness of the
-        // SMB page allocator w.r.t |target_buffer|? Or is the SMB best-effort.
-        // All chunks in the page are busy (either kBeingRead or kBeingWritten),
-        // or all the pages are assigned to a different target buffer. Try with
-        // the next page.
       }
     }  // std::lock_guard<std::mutex>
 
@@ -154,14 +129,15 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
   }
 }
 
-void SharedMemoryArbiterImpl::ReturnCompletedChunk(Chunk chunk) {
+void SharedMemoryArbiterImpl::ReturnCompletedChunk(Chunk chunk,
+                                                   BufferID target_buffer) {
   bool should_post_callback = false;
   base::WeakPtr<SharedMemoryArbiterImpl> weak_this;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
-    size_t page_index = shmem_abi_.ReleaseChunkAsComplete(std::move(chunk));
-
-    if (page_index != SharedMemoryABI::kInvalidPageIdx) {
+    uint8_t chunk_idx = chunk.chunk_idx();
+    size_t page_idx = shmem_abi_.ReleaseChunkAsComplete(std::move(chunk));
+    if (page_idx != SharedMemoryABI::kInvalidPageIdx) {
       if (!commit_data_req_) {
         commit_data_req_.reset(new CommitDataRequest());
         weak_this = weak_ptr_factory_.GetWeakPtr();
@@ -169,10 +145,9 @@ void SharedMemoryArbiterImpl::ReturnCompletedChunk(Chunk chunk) {
       }
       CommitDataRequest::ChunksToMove* ctm =
           commit_data_req_->add_chunks_to_move();
-      ctm->set_page(static_cast<uint32_t>(page_index));
-      // TODO(primiano): implement per-chunk notifications.
-      // ctm->add_chunk_numbers(...)
-      // ctm->set_target_buffer(target_buffer);
+      ctm->set_page(static_cast<uint32_t>(page_idx));
+      ctm->set_chunk(chunk_idx);
+      ctm->set_target_buffer(target_buffer);
     }
   }
 
