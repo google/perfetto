@@ -123,11 +123,11 @@ void HostImpl::OnDataAvailable(UnixSocket* sock) {
 
 void HostImpl::OnReceivedFrame(ClientConnection* client,
                                const Frame& req_frame) {
-  if (req_frame.msg_case() == Frame::kMsgBindService) {
+  if (req_frame.msg_case() == Frame::kMsgBindService)
     return OnBindService(client, req_frame);
-  } else if (req_frame.msg_case() == Frame::kMsgInvokeMethod) {
+  if (req_frame.msg_case() == Frame::kMsgInvokeMethod)
     return OnInvokeMethod(client, req_frame);
-  }
+
   PERFETTO_DLOG("Received invalid RPC frame %u from client %" PRIu64,
                 req_frame.msg_case(), client->id);
   Frame reply_frame;

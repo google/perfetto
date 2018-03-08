@@ -24,7 +24,7 @@ bool IsNumeric(const char* str) {
 }
 
 void ForEachPidInProcPath(const char* proc_path,
-                          std::function<void(int)> predicate) {
+                          const std::function<void(int)>& predicate) {
   DIR* root_dir = opendir(proc_path);
   ScopedDir autoclose(root_dir);
   struct dirent* child_dir;
@@ -48,7 +48,7 @@ ssize_t ReadFile(const char* path, char* buf, size_t length) {
       break;
     if (rsize == -1 && errno == EINTR)
       continue;
-    else if (rsize < 0)
+    if (rsize < 0)
       return -1;
     tot_read += static_cast<size_t>(rsize);
   } while (tot_read < length);

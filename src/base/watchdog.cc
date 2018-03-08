@@ -30,13 +30,13 @@ namespace base {
 
 namespace {
 
-static constexpr uint32_t kDefaultPollingInterval = 30 * 1000;
+constexpr uint32_t kDefaultPollingInterval = 30 * 1000;
 
 bool IsMultipleOf(uint32_t number, uint32_t divisor) {
   return number >= divisor && number % divisor == 0;
 }
 
-double MeanForArray(uint64_t array[], size_t size) {
+double MeanForArray(const uint64_t array[], size_t size) {
   uint64_t total = 0;
   for (size_t i = 0; i < size; i++) {
     total += array[i];

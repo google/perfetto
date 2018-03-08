@@ -170,7 +170,7 @@ class CpuReader {
   static void RunWorkerThread(size_t cpu,
                               int trace_fd,
                               int staging_write_fd,
-                              std::function<void()> on_data_available);
+                              const std::function<void()>& on_data_available);
 
   uint8_t* GetBuffer();
   CpuReader(const CpuReader&) = delete;

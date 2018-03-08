@@ -129,7 +129,8 @@ class FtraceController {
   static std::unique_ptr<FtraceController> Create(base::TaskRunner*);
   virtual ~FtraceController();
 
-  std::unique_ptr<FtraceSink> CreateSink(FtraceConfig, FtraceSink::Delegate*);
+  std::unique_ptr<FtraceSink> CreateSink(const FtraceConfig&,
+                                         FtraceSink::Delegate*);
 
   void DisableAllEvents();
   void WriteTraceMarker(const std::string& s);
@@ -165,7 +166,7 @@ class FtraceController {
                        uint32_t drain_period_ms);
 
   static void DrainCPUs(base::WeakPtr<FtraceController>, size_t generation);
-  static void UnblockReaders(base::WeakPtr<FtraceController>);
+  static void UnblockReaders(const base::WeakPtr<FtraceController>&);
 
   uint32_t GetDrainPeriodMs();
 
