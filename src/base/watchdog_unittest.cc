@@ -29,7 +29,8 @@ namespace {
 
 class TestWatchdog : public Watchdog {
  public:
-  TestWatchdog(uint32_t polling_interval_ms) : Watchdog(polling_interval_ms) {}
+  explicit TestWatchdog(uint32_t polling_interval_ms)
+      : Watchdog(polling_interval_ms) {}
   ~TestWatchdog() override {}
   TestWatchdog(TestWatchdog&& other) noexcept = default;
 };

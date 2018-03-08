@@ -351,7 +351,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
         continue;
       const uid_t page_owner = tbuf.get_page_owner(page_idx);
       uint32_t layout = abi.page_layout_dbg(page_idx);
-      size_t num_chunks = abi.GetNumChunksForLayout(layout);
+      size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(layout);
       for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
         if (abi.GetChunkState(page_idx, chunk_idx) ==
             SharedMemoryABI::kChunkFree) {

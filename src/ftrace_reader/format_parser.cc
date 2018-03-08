@@ -45,7 +45,7 @@ bool IsCIdentifier(const std::string& s) {
     if (!(std::isalnum(c) || c == '_'))
       return false;
   }
-  return s.size() > 0 && !std::isdigit(s[0]);
+  return !s.empty() && !std::isdigit(s[0]);
 }
 
 }  // namespace
@@ -140,7 +140,7 @@ bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
     return false;
   }
 
-  if (!has_id || !has_name || fields.size() == 0) {
+  if (!has_id || !has_name || fields.empty()) {
     if (output)
       fprintf(stderr, "Could not parse format file: %s.\n",
               !has_id ? "no ID found"
