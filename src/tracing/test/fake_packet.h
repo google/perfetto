@@ -64,6 +64,8 @@ class FakeChunk {
 
   FakeChunk& ClearBytes(size_t offset, size_t len);
 
+  FakeChunk& SetUID(uid_t);
+
   // Returns the full size of the chunk including the ChunkRecord header.
   size_t CopyIntoTraceBuffer();
 
@@ -74,6 +76,7 @@ class FakeChunk {
   ChunkID chunk_id;
   uint8_t flags = 0;
   uint16_t num_packets = 0;
+  uid_t uid = -1;
   std::vector<uint8_t> data;
 };
 

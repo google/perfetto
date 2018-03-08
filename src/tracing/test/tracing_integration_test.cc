@@ -168,6 +168,7 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
     sprintf(buf, "evt_%zu", i);
     writer->NewTracePacket()->set_for_testing()->set_str(buf, strlen(buf));
   }
+  writer.reset();
 
   // Allow the service to see the CommitData() before disabling tracing.
   task_runner_->RunUntilIdle();
@@ -185,7 +186,6 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   size_t num_pack_rx = 0;
   auto all_packets_rx = task_runner_->CreateCheckpoint("all_packets_rx");
   EXPECT_CALL(consumer, OnTracePackets(_, _))
-      .Times(kNumPackets)
       .WillRepeatedly(
           Invoke([&num_pack_rx, all_packets_rx](
                      std::vector<TracePacket>* packets, bool has_more) {
@@ -195,6 +195,7 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
               all_packets_rx();
           }));
   task_runner_->RunUntilCheckpoint("all_packets_rx");
+  ASSERT_EQ(kNumPackets, num_pack_rx);
 
   // TODO(primiano): cover FreeBuffers.
 

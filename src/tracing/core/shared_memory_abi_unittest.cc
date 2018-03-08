@@ -111,6 +111,8 @@ TEST_P(SharedMemoryABITest, NominalCases) {
           (page_size() - sizeof(SharedMemoryABI::PageHeader)) / num_chunks;
       expected_chunk_size = expected_chunk_size - (expected_chunk_size % 4);
       ASSERT_EQ(expected_chunk_size, chunk.size());
+      ASSERT_EQ(expected_chunk_size - sizeof(SharedMemoryABI::ChunkHeader),
+                chunk.payload_size());
       ASSERT_GT(chunk.begin(), page_start);
       ASSERT_GT(chunk.begin(), last_chunk_begin);
       ASSERT_GE(chunk.begin(), last_chunk_end);

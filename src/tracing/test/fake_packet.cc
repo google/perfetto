@@ -132,8 +132,13 @@ FakeChunk& FakeChunk::ClearBytes(size_t offset, size_t len) {
   return *this;
 }
 
+FakeChunk& FakeChunk::SetUID(uid_t u) {
+  uid = u;
+  return *this;
+}
+
 size_t FakeChunk::CopyIntoTraceBuffer() {
-  trace_buffer_->CopyChunkUntrusted(producer_id, writer_id, chunk_id,
+  trace_buffer_->CopyChunkUntrusted(producer_id, uid, writer_id, chunk_id,
                                     num_packets, flags, data.data(),
                                     data.size());
   return data.size() + TraceBuffez::InlineChunkHeaderSize;
