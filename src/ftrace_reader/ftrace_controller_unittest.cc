@@ -260,8 +260,9 @@ std::unique_ptr<TestFtraceController> CreateTestController(
         std::unique_ptr<MockFtraceProcfs>(new MockFtraceProcfs(cpu_count));
   }
 
-  MockFtraceProcfs* raw_procfs = ftrace_procfs.get();
   auto model = FakeModel(ftrace_procfs.get(), table.get());
+
+  MockFtraceProcfs* raw_procfs = ftrace_procfs.get();
   return std::unique_ptr<TestFtraceController>(new TestFtraceController(
       std::move(ftrace_procfs), std::move(table), std::move(model),
       std::move(runner), raw_procfs));

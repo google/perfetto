@@ -16,16 +16,14 @@
 
 #include "ftrace_config_muxer.h"
 
-#include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include <algorithm>
 
+#include "atrace_wrapper.h"
 #include "perfetto/base/utils.h"
 #include "proto_translation_table.h"
 
@@ -45,32 +43,6 @@ std::vector<std::string> difference(const std::set<std::string>& a,
   std::set_difference(a.begin(), a.end(), b.begin(), b.end(),
                       std::inserter(result, result.begin()));
   return result;
-}
-
-// Including "atrace" for argv[0].
-bool RunAtrace(const std::vector<std::string>& args) {
-  int status = 1;
-
-  std::vector<char*> argv;
-  // args, and then a null.
-  argv.reserve(1 + args.size());
-  for (const auto& arg : args)
-    argv.push_back(const_cast<char*>(arg.c_str()));
-  argv.push_back(nullptr);
-
-  pid_t pid = fork();
-  PERFETTO_CHECK(pid >= 0);
-  if (pid == 0) {
-    // Close stdin/out/err + any file descriptor that we might have mistakenly
-    // not marked as FD_CLOEXEC.
-    for (int i = 0; i < 128; i++)
-      close(i);
-    execv("/system/bin/atrace", &argv[0]);
-    // Reached only if execv fails.
-    _exit(1);
-  }
-  PERFETTO_EINTR(waitpid(pid, &status, 0));
-  return status == 0;
 }
 
 }  // namespace
@@ -119,7 +91,7 @@ FtraceConfigId FtraceConfigMuxer::RequestConfig(const FtraceConfig& request) {
 
     // If we're about to turn tracing on use this opportunity do some setup:
     if (RequiresAtrace(request))
-      EnableAtraceOnAndroid(request);
+      EnableAtrace(request);
     SetupClock(request);
     SetupBufferSize(request);
   } else {
@@ -188,7 +160,7 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId id) {
     ftrace_->ClearTrace();
     current_state_.tracing_on = false;
     if (current_state_.atrace_on)
-      DisableAtraceOnAndroid();
+      DisableAtrace();
   }
 
   return true;
@@ -221,19 +193,11 @@ void FtraceConfigMuxer::SetupBufferSize(const FtraceConfig& request) {
   current_state_.cpu_buffer_size_pages = pages;
 }
 
-void FtraceConfigMuxer::EnableAtraceOnAndroid(const FtraceConfig& request) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  EnableAtrace(request);
-#else
-  PERFETTO_LOG("Atrace only supported on Android.");
-#endif
-}
-
 void FtraceConfigMuxer::EnableAtrace(const FtraceConfig& request) {
   PERFETTO_DCHECK(!current_state_.atrace_on);
-  current_state_.atrace_on = true;
 
   PERFETTO_DLOG("Start atrace...");
+
   std::vector<std::string> args;
   args.push_back("atrace");  // argv0 for exec()
   args.push_back("--async_start");
@@ -245,26 +209,21 @@ void FtraceConfigMuxer::EnableAtrace(const FtraceConfig& request) {
       args.push_back(app);
   }
 
-  PERFETTO_CHECK(RunAtrace(args));
-  PERFETTO_DLOG("...done");
-}
+  if (RunAtrace(args))
+    current_state_.atrace_on = true;
 
-void FtraceConfigMuxer::DisableAtraceOnAndroid() {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  DisableAtrace();
-#else
-  PERFETTO_LOG("Atrace only supported on Android.");
-#endif
+  PERFETTO_DLOG("...done");
 }
 
 void FtraceConfigMuxer::DisableAtrace() {
-  PERFETTO_DCHECK(!current_state_.atrace_on);
+  PERFETTO_DCHECK(current_state_.atrace_on);
 
   PERFETTO_DLOG("Stop atrace...");
-  PERFETTO_CHECK(RunAtrace({"atrace", "--async_stop"}));
-  PERFETTO_DLOG("...done");
 
-  current_state_.atrace_on = false;
+  if (RunAtrace({"atrace", "--async_stop"}))
+    current_state_.atrace_on = false;
+
+  PERFETTO_DLOG("...done");
 }
 
 }  // namespace perfetto
