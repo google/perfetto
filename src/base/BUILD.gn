@@ -22,6 +22,7 @@ source_set("base") {
     "../../include/perfetto/base",
   ]
   sources = [
+    "file_utils.cc",
     "page_allocator.cc",
     "thread_checker.cc",
     "unix_task_runner.cc",
