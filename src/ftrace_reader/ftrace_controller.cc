@@ -368,6 +368,14 @@ FtraceMetadata::FtraceMetadata() {
   pids.reserve(10);
 }
 
+void FtraceMetadata::AddDevice(uint32_t device_id) {
+  last_seen_device_id = device_id;
+}
+
+void FtraceMetadata::AddInode(uint64_t inode_number) {
+  inodes.push_back(std::make_pair(inode_number, last_seen_device_id));
+}
+
 void FtraceMetadata::AddPid(int32_t pid) {
   // Speculative optimization aginst repated pid's while keeping
   // faster insertion than a set.
@@ -380,6 +388,7 @@ void FtraceMetadata::Clear() {
   inodes.clear();
   pids.clear();
   overwrite_count = 0;
+  last_seen_device_id = 0;
 }
 
 }  // namespace perfetto
