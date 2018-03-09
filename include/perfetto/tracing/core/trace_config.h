@@ -43,6 +43,7 @@ class TraceConfig_BufferConfig;
 class TraceConfig_DataSource;
 class DataSourceConfig;
 class FtraceConfig;
+class ChromeConfig;
 }  // namespace protos
 }  // namespace perfetto
 
