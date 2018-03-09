@@ -309,6 +309,7 @@ TEST(ReadAndAdvanceTest, Underruns) {
   EXPECT_EQ(actual, expected);
 }
 
+// clang-format off
 // # tracer: nop
 // #
 // # entries-in-buffer/entries-written: 1/1   #P:8
@@ -321,6 +322,8 @@ TEST(ReadAndAdvanceTest, Underruns) {
 // #           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
 // #              | |       |   ||||       |         |
 //               sh-28712 [000] ...1 608934.535199: tracing_mark_write: Hello, world!
+// clang-format on
+
 ExamplePage g_single_print{
     "synthetic",
     R"(
@@ -355,6 +358,7 @@ TEST(CpuReaderTest, ParseSinglePrint) {
   EXPECT_EQ(event.print().buf(), "Hello, world!\n");
 }
 
+// clang-format off
 // # tracer: nop
 // #
 // # entries-in-buffer/entries-written: 2/2   #P:8
@@ -368,6 +372,8 @@ TEST(CpuReaderTest, ParseSinglePrint) {
 // #              | |        |      |   ||||       |         |
 //             echo-6908  ( 6908) [000] ...1 282762.884473: tracing_mark_write: qwertyuiopqwrtyuiopqwertyuiopqwertyuiopqwer[...]
 //             echo-6908  ( 6908) [000] ...1 282762.884492: tracing_mark_write:
+// clang-format on
+
 ExamplePage g_really_long_event{
     "synthetic",
     R"(
@@ -520,6 +526,7 @@ TEST(CpuReaderTest, FilterByEvent) {
   ASSERT_EQ(bundle->event().size(), 0);
 }
 
+// clang-format off
 // # tracer: nop
 // #
 // # entries-in-buffer/entries-written: 3/3   #P:8
@@ -534,6 +541,8 @@ TEST(CpuReaderTest, FilterByEvent) {
 //               sh-30693 [000] ...1 615436.216806: tracing_mark_write: Hello, world!
 //               sh-30693 [000] ...1 615486.377232: tracing_mark_write: Good afternoon, world!
 //               sh-30693 [000] ...1 615495.632679: tracing_mark_write: Goodbye, world!
+// clang-format on
+
 ExamplePage g_three_prints{
     "synthetic",
     R"(
@@ -591,6 +600,7 @@ TEST(CpuReaderTest, ParseThreePrint) {
   }
 }
 
+// clang-format off
 // # tracer: nop
 // #
 // # entries-in-buffer/entries-written: 6/6   #P:8
@@ -602,24 +612,14 @@ TEST(CpuReaderTest, ParseThreePrint) {
 // #                            ||| /     delay
 // #           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
 // #              | |       |   ||||       |         |
-//      ksoftirqd/0-3     [000] d..3 1045157.722134: sched_switch:
-//      prev_comm=ksoftirqd/0 prev_pid=3 prev_prio=120 prev_state=S ==>
-//      next_comm=sleep next_pid=3733 next_prio=120
-//            sleep-3733  [000] d..3 1045157.725035: sched_switch:
-//            prev_comm=sleep prev_pid=3733 prev_prio=120 prev_state=R+ ==>
-//            next_comm=rcuop/0 next_pid=10 next_prio=120
-//      rcu_preempt-7     [000] d..3 1045157.725182: sched_switch:
-//      prev_comm=rcu_preempt prev_pid=7 prev_prio=120 prev_state=S ==>
-//      next_comm=sleep next_pid=3733 next_prio=120
-//            sleep-3733  [000] d..3 1045157.725671: sched_switch:
-//            prev_comm=sleep prev_pid=3733 prev_prio=120 prev_state=R+ ==>
-//            next_comm=sh next_pid=3513 next_prio=120
-//               sh-3513  [000] d..3 1045157.726668: sched_switch: prev_comm=sh
-//               prev_pid=3513 prev_prio=120 prev_state=S ==> next_comm=sleep
-//               next_pid=3733 next_prio=120
-//            sleep-3733  [000] d..3 1045157.726697: sched_switch:
-//            prev_comm=sleep prev_pid=3733 prev_prio=120 prev_state=x ==>
-//            next_comm=kworker/u16:3 next_pid=3681 next_prio=120
+//      ksoftirqd/0-3     [000] d..3 1045157.722134: sched_switch: prev_comm=ksoftirqd/0 prev_pid=3 prev_prio=120 prev_state=S ==> next_comm=sleep next_pid=3733 next_prio=120
+//            sleep-3733  [000] d..3 1045157.725035: sched_switch: prev_comm=sleep prev_pid=3733 prev_prio=120 prev_state=R+ ==> next_comm=rcuop/0 next_pid=10 next_prio=120
+//      rcu_preempt-7     [000] d..3 1045157.725182: sched_switch: prev_comm=rcu_preempt prev_pid=7 prev_prio=120 prev_state=S ==> next_comm=sleep next_pid=3733 next_prio=120
+//            sleep-3733  [000] d..3 1045157.725671: sched_switch: prev_comm=sleep prev_pid=3733 prev_prio=120 prev_state=R+ ==> next_comm=sh next_pid=3513 next_prio=120
+//               sh-3513  [000] d..3 1045157.726668: sched_switch: prev_comm=sh prev_pid=3513 prev_prio=120 prev_state=S ==> next_comm=sleep next_pid=3733 next_prio=120
+//            sleep-3733  [000] d..3 1045157.726697: sched_switch: prev_comm=sleep prev_pid=3733 prev_prio=120 prev_state=x ==> next_comm=kworker/u16:3 next_pid=3681 next_prio=120
+// clang-format on
+
 ExamplePage g_six_sched_switch{
     "synthetic",
     R"(
@@ -837,9 +837,10 @@ TEST(CpuReaderTest, ParseAllFields) {
   EXPECT_THAT(metadata.inodes, Contains(Pair(99u, 1002ul)));
 }
 
+// clang-format off
 // # tracer: nop
 // #
-// # entries-in-buffer/entries-written: 86106/86106   #P:8
+// # entries-in-buffer/entries-written: 1041/238740   #P:8
 // #
 // #                              _-----=> irqs-off
 // #                             / _----=> need-resched
@@ -848,183 +849,141 @@ TEST(CpuReaderTest, ParseAllFields) {
 // #                            ||| /     delay
 // #           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
 // #              | |       |   ||||       |         |
-//            <...>-3348  [000] d..3   112.247370: sched_switch: prev_comm=Jit
-//            thread pool prev_pid=3348 prev_prio=129 prev_state=R+ ==>
-//            next_comm=EventThread next_pid=624 next_prio=97
-//      EventThread-624   [000] d..3   112.247400: sched_switch:
-//      prev_comm=EventThread prev_pid=624 prev_prio=97 prev_state=S ==>
-//      next_comm=Jit thread pool next_pid=3348 next_prio=129
-//            <...>-3348  [000] d..3   112.255808: sched_switch: prev_comm=Jit
-//            thread pool prev_pid=3348 prev_prio=129 prev_state=S ==>
-//            next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.263558: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=DispSync next_pid=623 next_prio=97
-//         DispSync-623   [000] d..3   112.263620: sched_switch:
-//         prev_comm=DispSync prev_pid=623 prev_prio=97 prev_state=S ==>
-//         next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.263896: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=EventThread next_pid=624 next_prio=97
-//      EventThread-624   [000] d..3   112.263919: sched_switch:
-//      prev_comm=EventThread prev_pid=624 prev_prio=97 prev_state=S ==>
-//      next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.266159: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=sugov:0 next_pid=568 next_prio=49
-//            <...>-568   [000] d..3   112.266200: sched_switch:
-//            prev_comm=sugov:0 prev_pid=568 prev_prio=49 prev_state=S ==>
-//            next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.267581: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=DispSync next_pid=623 next_prio=97
-//         DispSync-623   [000] d..3   112.267615: sched_switch:
-//         prev_comm=DispSync prev_pid=623 prev_prio=97 prev_state=S ==>
-//         next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.267650: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=surfaceflinger next_pid=587 next_prio=98
-//   surfaceflinger-587   [000] d..3   112.268143: sched_switch:
-//   prev_comm=surfaceflinger prev_pid=587 prev_prio=98 prev_state=S ==>
-//   next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.268348: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=mdss_fb0 next_pid=5207 next_prio=83
-//         mdss_fb0-5207  [000] d..3   112.270246: sched_switch:
-//         prev_comm=mdss_fb0 prev_pid=5207 prev_prio=83 prev_state=D ==>
-//         next_comm=ksoftirqd/0 next_pid=3 next_prio=120
-//            <...>-3     [000] d..3   112.270561: sched_switch:
-//            prev_comm=ksoftirqd/0 prev_pid=3 prev_prio=120 prev_state=S ==>
-//            next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.273353: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:6 next_pid=356 next_prio=120
-//            <...>-356   [000] d..3   112.273438: sched_switch:
-//            prev_comm=kworker/u16:6 prev_pid=356 prev_prio=120 prev_state=D
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.275699: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=Binder:2168_15 next_pid=5350 next_prio=120
-//            <...>-5350  [000] d..3   112.275954: sched_switch:
-//            prev_comm=Binder:2168_15 prev_pid=5350 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.276738: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:9 next_pid=1250 next_prio=120
-//    kworker/u16:9-1250  [000] d..3   112.276755: sched_switch:
-//    prev_comm=kworker/u16:9 prev_pid=1250 prev_prio=120 prev_state=S ==>
-//    next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.276923: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:9 next_pid=1250 next_prio=120
-//    kworker/u16:9-1250  [000] d..3   112.276939: sched_switch:
-//    prev_comm=kworker/u16:9 prev_pid=1250 prev_prio=120 prev_state=S ==>
-//    next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.277227: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:9 next_pid=1250 next_prio=120
-//    kworker/u16:9-1250  [000] d..3   112.277235: sched_switch:
-//    prev_comm=kworker/u16:9 prev_pid=1250 prev_prio=120 prev_state=S ==>
-//    next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.280347: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=DispSync next_pid=623 next_prio=97
-//         DispSync-623   [000] d..3   112.280403: sched_switch:
-//         prev_comm=DispSync prev_pid=623 prev_prio=97 prev_state=S ==>
-//         next_comm=ksoftirqd/0 next_pid=3 next_prio=120
-//            <...>-3     [000] d..3   112.280470: sched_switch:
-//            prev_comm=ksoftirqd/0 prev_pid=3 prev_prio=120 prev_state=S ==>
-//            next_comm=dex2oat next_pid=7988 next_prio=130
-//            <...>-7988  [000] d..3   112.280484: sched_switch:
-//            prev_comm=dex2oat prev_pid=7988 prev_prio=130 prev_state=R ==>
-//            next_comm=sugov:0 next_pid=568 next_prio=49
-//            <...>-568   [000] d..3   112.280498: sched_switch:
-//            prev_comm=sugov:0 prev_pid=568 prev_prio=49 prev_state=R+ ==>
-//            next_comm=migration/0 next_pid=13 next_prio=0
-//      migration/0-13    [000] d..3   112.280511: sched_switch:
-//      prev_comm=migration/0 prev_pid=13 prev_prio=0 prev_state=S ==>
-//      next_comm=sugov:0 next_pid=568 next_prio=49
-//            <...>-568   [000] d..3   112.280563: sched_switch:
-//            prev_comm=sugov:0 prev_pid=568 prev_prio=49 prev_state=S ==>
-//            next_comm=dex2oat next_pid=7988 next_prio=130
-//            <...>-7988  [000] d..3   112.280740: sched_switch:
-//            prev_comm=dex2oat prev_pid=7988 prev_prio=130 prev_state=D ==>
-//            next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.281141: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=android.hardwar next_pid=2770 next_prio=120
-//            <...>-2770  [000] d..3   112.281182: sched_switch:
-//            prev_comm=android.hardwar prev_pid=2770 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.281576: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=android.hardwar next_pid=2770 next_prio=120
-//            <...>-2770  [000] d..3   112.281602: sched_switch:
-//            prev_comm=android.hardwar prev_pid=2770 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.282168: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=android.hardwar next_pid=2770 next_prio=120
-//            <...>-2770  [000] d..3   112.282193: sched_switch:
-//            prev_comm=android.hardwar prev_pid=2770 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.282890: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=android.hardwar next_pid=2770 next_prio=120
-//            <...>-2770  [000] d..3   112.282914: sched_switch:
-//            prev_comm=android.hardwar prev_pid=2770 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.284356: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=DispSync next_pid=623 next_prio=97
-//         DispSync-623   [000] d..3   112.284398: sched_switch:
-//         prev_comm=DispSync prev_pid=623 prev_prio=97 prev_state=S ==>
-//         next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.284434: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=surfaceflinger next_pid=587 next_prio=98
-//   surfaceflinger-587   [000] d..3   112.284570: sched_switch:
-//   prev_comm=surfaceflinger prev_pid=587 prev_prio=98 prev_state=S ==>
-//   next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.289826: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:6 next_pid=356 next_prio=120
-//            <...>-356   [000] d..3   112.289839: sched_switch:
-//            prev_comm=kworker/u16:6 prev_pid=356 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.290021: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:6 next_pid=356 next_prio=120
-//            <...>-356   [000] d..3   112.290061: sched_switch:
-//            prev_comm=kworker/u16:6 prev_pid=356 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.290949: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:6 next_pid=356 next_prio=120
-//            <...>-356   [000] d..3   112.290986: sched_switch:
-//            prev_comm=kworker/u16:6 prev_pid=356 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.291102: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:6 next_pid=356 next_prio=120
-//            <...>-356   [000] d..3   112.291111: sched_switch:
-//            prev_comm=kworker/u16:6 prev_pid=356 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.291408: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:6 next_pid=356 next_prio=120
-//            <...>-356   [000] d..3   112.291416: sched_switch:
-//            prev_comm=kworker/u16:6 prev_pid=356 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.291435: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:6 next_pid=356 next_prio=120
-//            <...>-356   [000] d..3   112.291442: sched_switch:
-//            prev_comm=kworker/u16:6 prev_pid=356 prev_prio=120 prev_state=S
-//            ==> next_comm=swapper/0 next_pid=0 next_prio=120
-//           <idle>-0     [000] d..3   112.291512: sched_switch:
-//           prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==>
-//           next_comm=kworker/u16:6 next_pid=356 next_prio=120
+//       android.bg-1668  [000] ...1 174991.234105: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//       android.bg-1668  [000] ...1 174991.234108: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
+//       android.bg-1668  [000] ...1 174991.234118: ext4_da_write_begin: dev 259,32 ino 2883605 pos 20480 len 4096 flags 0
+//       android.bg-1668  [000] ...1 174991.234126: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//       android.bg-1668  [000] ...1 174991.234133: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk 5
+//       android.bg-1668  [000] ...1 174991.234135: ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [5/4294967290) 576460752303423487 H0x10
+//       android.bg-1668  [000] ...2 174991.234140: ext4_da_reserve_space: dev 259,32 ino 2883605 mode 0100600 i_blocks 8 reserved_data_blocks 6 reserved_meta_blocks 0
+//       android.bg-1668  [000] ...1 174991.234142: ext4_es_insert_extent: dev 259,32 ino 2883605 es [5/1) mapped 576460752303423487 status D
+//       android.bg-1668  [000] ...1 174991.234153: ext4_da_write_end: dev 259,32 ino 2883605 pos 20480 len 4096 copied 4096
+//       android.bg-1668  [000] ...1 174991.234158: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//       android.bg-1668  [000] ...1 174991.234160: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
+//       android.bg-1668  [000] ...1 174991.234170: ext4_da_write_begin: dev 259,32 ino 2883605 pos 24576 len 2968 flags 0
+//       android.bg-1668  [000] ...1 174991.234178: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//       android.bg-1668  [000] ...1 174991.234184: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk 6
+//       android.bg-1668  [000] ...1 174991.234187: ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [6/4294967289) 576460752303423487 H0x10
+//       android.bg-1668  [000] ...2 174991.234191: ext4_da_reserve_space: dev 259,32 ino 2883605 mode 0100600 i_blocks 8 reserved_data_blocks 7 reserved_meta_blocks 0
+//       android.bg-1668  [000] ...1 174991.234193: ext4_es_insert_extent: dev 259,32 ino 2883605 es [6/1) mapped 576460752303423487 status D
+//       android.bg-1668  [000] ...1 174991.234203: ext4_da_write_end: dev 259,32 ino 2883605 pos 24576 len 2968 copied 2968
+//       android.bg-1668  [000] ...1 174991.234209: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//       android.bg-1668  [000] ...1 174991.234211: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
+//       android.bg-1668  [000] ...1 174991.234262: ext4_sync_file_enter: dev 259,32 ino 2883605 parent 2883592 datasync 0
+//       android.bg-1668  [000] ...1 174991.234270: ext4_writepages: dev 259,32 ino 2883605 nr_to_write 9223372036854775807 pages_skipped 0 range_start 0 range_end 9223372036854775807 sync_mode 1 for_kupdate 0 range_cyclic 0 writeback_index 0
+//       android.bg-1668  [000] ...1 174991.234287: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller ext4_writepages+0x6a4/0x119c
+//       android.bg-1668  [000] ...1 174991.234294: ext4_da_write_pages: dev 259,32 ino 2883605 first_page 0 nr_to_write 9223372036854775807 sync_mode 1
+//       android.bg-1668  [000] ...1 174991.234319: ext4_da_write_pages_extent: dev 259,32 ino 2883605 lblk 0 len 7 flags 0x200
+//       android.bg-1668  [000] ...1 174991.234322: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk 0
+//       android.bg-1668  [000] ...1 174991.234324: ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [0/7) 576460752303423487 D0x10
+//       android.bg-1668  [000] ...1 174991.234328: ext4_ext_map_blocks_enter: dev 259,32 ino 2883605 lblk 0 len 7 flags CREATE|DELALLOC|METADATA_NOFAIL
+//       android.bg-1668  [000] ...1 174991.234341: ext4_request_blocks: dev 259,32 ino 2883605 flags HINT_DATA|DELALLOC_RESV|USE_RESV len 7 lblk 0 goal 11567104 lleft 0 lright 0 pleft 0 pright 0
+//       android.bg-1668  [000] ...1 174991.234394: ext4_mballoc_prealloc: dev 259,32 inode 2883605 orig 353/0/7@0 result 65/25551/7@0
+//       android.bg-1668  [000] ...1 174991.234400: ext4_allocate_blocks: dev 259,32 ino 2883605 flags HINT_DATA|DELALLOC_RESV|USE_RESV len 7 block 2155471 lblk 0 goal 11567104 lleft 0 lright 0 pleft 0 pright 0
+//       android.bg-1668  [000] ...1 174991.234409: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller __ext4_ext_dirty+0x104/0x170
+//       android.bg-1668  [000] ...1 174991.234420: ext4_get_reserved_cluster_alloc: dev 259,32 ino 2883605 lblk 0 len 7
+//       android.bg-1668  [000] ...2 174991.234426: ext4_da_update_reserve_space: dev 259,32 ino 2883605 mode 0100600 i_blocks 8 used_blocks 7 reserved_data_blocks 7 reserved_meta_blocks 0 allocated_meta_blocks 0 quota_claim 1
+//       android.bg-1668  [000] ...1 174991.234434: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
+//       android.bg-1668  [000] ...1 174991.234441: ext4_es_lookup_extent_enter: dev 259,32 ino 3 lblk 1
+//       android.bg-1668  [000] ...1 174991.234445: ext4_es_lookup_extent_exit: dev 259,32 ino 3 found 1 [0/2) 9255 W0x10
+//       android.bg-1668  [000] ...1 174991.234456: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
+//       android.bg-1668  [000] ...1 174991.234460: ext4_es_lookup_extent_enter: dev 259,32 ino 4 lblk 1
+//       android.bg-1668  [000] ...1 174991.234463: ext4_es_lookup_extent_exit: dev 259,32 ino 4 found 1 [0/2) 9257 W0x10
+//       android.bg-1668  [000] ...1 174991.234471: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//       android.bg-1668  [000] ...1 174991.234474: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
+//       android.bg-1668  [000] ...1 174991.234481: ext4_ext_map_blocks_exit: dev 259,32 ino 2883605 flags CREATE|DELALLOC|METADATA_NOFAIL lblk 0 pblk 2155471 len 7 mflags NM ret 7
+//       android.bg-1668  [000] ...1 174991.234484: ext4_es_insert_extent: dev 259,32 ino 2883605 es [0/7) mapped 2155471 status W
+//       android.bg-1668  [000] ...1 174991.234547: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_writepages+0xdc0/0x119c
+//       android.bg-1668  [000] ...1 174991.234604: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller ext4_writepages+0x6a4/0x119c
+//       android.bg-1668  [000] ...1 174991.234609: ext4_da_write_pages: dev 259,32 ino 2883605 first_page 7 nr_to_write 9223372036854775800 sync_mode 1
+//       android.bg-1668  [000] ...1 174991.234876: ext4_writepages_result: dev 259,32 ino 2883605 ret 0 pages_written 7 pages_skipped 0 sync_mode 1 writeback_index 7
+//    Profile Saver-5504  [000] ...1 175002.711928: ext4_discard_preallocations: dev 259,32 ino 1311176
+//    Profile Saver-5504  [000] ...1 175002.714165: ext4_begin_ordered_truncate: dev 259,32 ino 1311176 new_size 0
+//    Profile Saver-5504  [000] ...1 175002.714172: ext4_journal_start: dev 259,32 blocks, 3 rsv_blocks, 0 caller ext4_setattr+0x5b4/0x788
+//    Profile Saver-5504  [000] ...1 175002.714218: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_setattr+0x65c/0x788
+//    Profile Saver-5504  [000] ...1 175002.714277: ext4_invalidatepage: dev 259,32 ino 1311176 page_index 0 offset 0 length 4096
+//    Profile Saver-5504  [000] ...1 175002.714281: ext4_releasepage: dev 259,32 ino 1311176 page_index 0
+//    Profile Saver-5504  [000] ...1 175002.714295: ext4_invalidatepage: dev 259,32 ino 1311176 page_index 1 offset 0 length 4096
+//    Profile Saver-5504  [000] ...1 175002.714296: ext4_releasepage: dev 259,32 ino 1311176 page_index 1
+//    Profile Saver-5504  [000] ...1 175002.714315: ext4_truncate_enter: dev 259,32 ino 1311176 blocks 24
+//    Profile Saver-5504  [000] ...1 175002.714318: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller ext4_truncate+0x258/0x4b8
+//    Profile Saver-5504  [000] ...1 175002.714322: ext4_discard_preallocations: dev 259,32 ino 1311176
+//    Profile Saver-5504  [000] ...1 175002.714324: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_ext_truncate+0x24/0xc8
+//    Profile Saver-5504  [000] ...1 175002.714328: ext4_es_remove_extent: dev 259,32 ino 1311176 es [0/4294967295)
+//    Profile Saver-5504  [000] ...1 175002.714335: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_ext_remove_space+0x60/0x1180
+//    Profile Saver-5504  [000] ...1 175002.714338: ext4_ext_remove_space: dev 259,32 ino 1311176 since 0 end 4294967294 depth 0
+//    Profile Saver-5504  [000] ...1 175002.714347: ext4_ext_rm_leaf: dev 259,32 ino 1311176 start_lblk 0 last_extent [0(5276994), 2]partial_cluster 0
+//    Profile Saver-5504  [000] ...1 175002.714351: ext4_remove_blocks: dev 259,32 ino 1311176 extent [0(5276994), 2]from 0 to 1 partial_cluster 0
+//    Profile Saver-5504  [000] ...1 175002.714354: ext4_free_blocks: dev 259,32 ino 1311176 mode 0100600 block 5276994 count 2 flags 1ST_CLUSTER
+//    Profile Saver-5504  [000] ...1 175002.714365: ext4_mballoc_free: dev 259,32 inode 1311176 extent 161/1346/2
+//    Profile Saver-5504  [000] ...1 175002.714382: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
+//    Profile Saver-5504  [000] ...1 175002.714391: ext4_es_lookup_extent_enter: dev 259,32 ino 3 lblk 4
+//    Profile Saver-5504  [000] ...1 175002.714394: ext4_es_lookup_extent_exit: dev 259,32 ino 3 found 1 [4/1) 557094 W0x10
+//    Profile Saver-5504  [000] ...1 175002.714402: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
+//    Profile Saver-5504  [000] ...1 175002.714404: ext4_es_lookup_extent_enter: dev 259,32 ino 4 lblk 8
+//    Profile Saver-5504  [000] ...1 175002.714406: ext4_es_lookup_extent_exit: dev 259,32 ino 4 found 1 [8/3) 7376914 W0x10
+//    Profile Saver-5504  [000] ...1 175002.714413: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.714414: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.714420: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller __ext4_ext_dirty+0x104/0x170
+//    Profile Saver-5504  [000] ...1 175002.714423: ext4_ext_remove_space_done: dev 259,32 ino 1311176 since 0 end 4294967294 depth 0 partial 0 remaining_entries 0
+//    Profile Saver-5504  [000] ...1 175002.714425: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller __ext4_ext_dirty+0x104/0x170
+//    Profile Saver-5504  [000] ...1 175002.714433: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_truncate+0x3c4/0x4b8
+//    Profile Saver-5504  [000] ...1 175002.714436: ext4_truncate_exit: dev 259,32 ino 1311176 blocks 8
+//    Profile Saver-5504  [000] ...1 175002.714437: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.714438: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.714462: ext4_da_write_begin: dev 259,32 ino 1311176 pos 0 len 4 flags 0
+//    Profile Saver-5504  [000] ...1 175002.714472: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.714477: ext4_es_lookup_extent_enter: dev 259,32 ino 1311176 lblk 0
+//    Profile Saver-5504  [000] ...1 175002.714477: ext4_es_lookup_extent_exit: dev 259,32 ino 1311176 found 0 [0/0) 0
+//    Profile Saver-5504  [000] ...1 175002.714480: ext4_ext_map_blocks_enter: dev 259,32 ino 1311176 lblk 0 len 1 flags
+//    Profile Saver-5504  [000] ...1 175002.714485: ext4_es_find_delayed_extent_range_enter: dev 259,32 ino 1311176 lblk 0
+//    Profile Saver-5504  [000] ...1 175002.714488: ext4_es_find_delayed_extent_range_exit: dev 259,32 ino 1311176 es [0/0) mapped 0 status
+//    Profile Saver-5504  [000] ...1 175002.714490: ext4_es_insert_extent: dev 259,32 ino 1311176 es [0/4294967295) mapped 576460752303423487 status H
+//    Profile Saver-5504  [000] ...1 175002.714495: ext4_ext_map_blocks_exit: dev 259,32 ino 1311176 flags  lblk 0 pblk 4294967296 len 1 mflags  ret 0
+//    Profile Saver-5504  [000] ...2 175002.714501: ext4_da_reserve_space: dev 259,32 ino 1311176 mode 0100600 i_blocks 8 reserved_data_blocks 1 reserved_meta_blocks 0
+//    Profile Saver-5504  [000] ...1 175002.714505: ext4_es_insert_extent: dev 259,32 ino 1311176 es [0/1) mapped 576460752303423487 status D
+//    Profile Saver-5504  [000] ...1 175002.714513: ext4_da_write_end: dev 259,32 ino 1311176 pos 0 len 4 copied 4
+//    Profile Saver-5504  [000] ...1 175002.714519: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.714520: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.714527: ext4_da_write_begin: dev 259,32 ino 1311176 pos 4 len 4 flags 0
+//    Profile Saver-5504  [000] ...1 175002.714529: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.714531: ext4_da_write_end: dev 259,32 ino 1311176 pos 4 len 4 copied 4
+//    Profile Saver-5504  [000] ...1 175002.714532: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.714532: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.715313: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.715322: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.723849: ext4_da_write_begin: dev 259,32 ino 1311176 pos 8 len 5 flags 0
+//    Profile Saver-5504  [000] ...1 175002.723862: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.723873: ext4_da_write_end: dev 259,32 ino 1311176 pos 8 len 5 copied 5
+//    Profile Saver-5504  [000] ...1 175002.723877: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.723879: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.726857: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.726867: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.726881: ext4_da_write_begin: dev 259,32 ino 1311176 pos 13 len 4 flags 0
+//    Profile Saver-5504  [000] ...1 175002.726883: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.726890: ext4_da_write_end: dev 259,32 ino 1311176 pos 13 len 4 copied 4
+//    Profile Saver-5504  [000] ...1 175002.726892: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.726892: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.726900: ext4_da_write_begin: dev 259,32 ino 1311176 pos 17 len 4079 flags 0
+//    Profile Saver-5504  [000] ...1 175002.726901: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.726904: ext4_da_write_end: dev 259,32 ino 1311176 pos 17 len 4079 copied 4079
+//    Profile Saver-5504  [000] ...1 175002.726905: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.726906: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.726908: ext4_da_write_begin: dev 259,32 ino 1311176 pos 4096 len 2780 flags 0
+//    Profile Saver-5504  [000] ...1 175002.726916: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.726921: ext4_es_lookup_extent_enter: dev 259,32 ino 1311176 lblk 1
+//    Profile Saver-5504  [000] ...1 175002.726924: ext4_es_lookup_extent_exit: dev 259,32 ino 1311176 found 1 [1/4294967294) 576460752303423487 H0x10
+//    Profile Saver-5504  [000] ...2 175002.726931: ext4_da_reserve_space: dev 259,32 ino 1311176 mode 0100600 i_blocks 8 reserved_data_blocks 2 reserved_meta_blocks 0
+//    Profile Saver-5504  [000] ...1 175002.726933: ext4_es_insert_extent: dev 259,32 ino 1311176 es [1/1) mapped 576460752303423487 status D
+//    Profile Saver-5504  [000] ...1 175002.726940: ext4_da_write_end: dev 259,32 ino 1311176 pos 4096 len 2780 copied 2780
+//    Profile Saver-5504  [000] ...1 175002.726941: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.726942: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//   d.process.acor-27885 [000] ...1 175018.227675: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//   d.process.acor-27885 [000] ...1 175018.227699: ext4_mark_inode_dirty: dev 259,32 ino 3278189 caller ext4_dirty_inode+0x48/0x68
+//   d.process.acor-27885 [000] ...1 175018.227839: ext4_sync_file_enter: dev 259,32 ino 3278183 parent 3277001 datasync 1
+//   d.process.acor-27885 [000] ...1 175018.227847: ext4_writepages: dev 259,32 ino 3278183 nr_to_write 9223372036854775807 pages_skipped 0 range_start 0 range_end 9223372036854775807 sync_mode 1 for_kupdate 0 range_cyclic 0 writeback_index 2
+//   d.process.acor-27885 [000] ...1 175018.227852: ext4_writepages_result: dev 259,32 ino 3278183 ret 0 pages_written 0 pages_skipped 0 sync_mode 1 writeback_index 2
+// clang-format on
 
 ExamplePage g_full_page_sched_switch{
     "synthetic",
@@ -1307,6 +1266,7 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
   EXPECT_EQ(bundle->event().size(), 59);
 }
 
+// clang-format off
 // # tracer: nop
 // #
 // # entries-in-buffer/entries-written: 1041/238740   #P:8
@@ -1318,263 +1278,141 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
 // #                            ||| /     delay
 // #           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
 // #              | |       |   ||||       |         |
-//       android.bg-1668  [000] ...1 174991.234105: ext4_journal_start: dev
-//       259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//       android.bg-1668  [000] ...1 174991.234108: ext4_mark_inode_dirty: dev
-//       259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68 android.bg-1668
-//       [000] ...1 174991.234118: ext4_da_write_begin: dev 259,32 ino 2883605
-//       pos 20480 len 4096 flags 0 android.bg-1668  [000] ...1 174991.234126:
-//       ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller
-//       ext4_da_write_begin+0x3d4/0x518 android.bg-1668  [000] ...1
-//       174991.234133: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk
-//       5 android.bg-1668  [000] ...1 174991.234135:
-//       ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1
-//       [5/4294967290) 576460752303423487 H0x10 android.bg-1668  [000] ...2
-//       174991.234140: ext4_da_reserve_space: dev 259,32 ino 2883605 mode
-//       0100600 i_blocks 8 reserved_data_blocks 6 reserved_meta_blocks 0
-//       android.bg-1668  [000] ...1 174991.234142: ext4_es_insert_extent: dev
-//       259,32 ino 2883605 es [5/1) mapped 576460752303423487 status D
-//       android.bg-1668  [000] ...1 174991.234153: ext4_da_write_end: dev
-//       259,32 ino 2883605 pos 20480 len 4096 copied 4096 android.bg-1668
-//       [000] ...1 174991.234158: ext4_journal_start: dev 259,32 blocks, 2
-//       rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68 android.bg-1668  [000]
-//       ...1 174991.234160: ext4_mark_inode_dirty: dev 259,32 ino 2883605
-//       caller ext4_dirty_inode+0x48/0x68 android.bg-1668  [000] ...1
-//       174991.234170: ext4_da_write_begin: dev 259,32 ino 2883605 pos 24576
-//       len 2968 flags 0 android.bg-1668  [000] ...1 174991.234178:
-//       ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller
-//       ext4_da_write_begin+0x3d4/0x518 android.bg-1668  [000] ...1
-//       174991.234184: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk
-//       6 android.bg-1668  [000] ...1 174991.234187:
-//       ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1
-//       [6/4294967289) 576460752303423487 H0x10 android.bg-1668  [000] ...2
-//       174991.234191: ext4_da_reserve_space: dev 259,32 ino 2883605 mode
-//       0100600 i_blocks 8 reserved_data_blocks 7 reserved_meta_blocks 0
-//       android.bg-1668  [000] ...1 174991.234193: ext4_es_insert_extent: dev
-//       259,32 ino 2883605 es [6/1) mapped 576460752303423487 status D
-//       android.bg-1668  [000] ...1 174991.234203: ext4_da_write_end: dev
-//       259,32 ino 2883605 pos 24576 len 2968 copied 2968 android.bg-1668
-//       [000] ...1 174991.234209: ext4_journal_start: dev 259,32 blocks, 2
-//       rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68 android.bg-1668  [000]
-//       ...1 174991.234211: ext4_mark_inode_dirty: dev 259,32 ino 2883605
-//       caller ext4_dirty_inode+0x48/0x68 android.bg-1668  [000] ...1
-//       174991.234262: ext4_sync_file_enter: dev 259,32 ino 2883605 parent
-//       2883592 datasync 0 android.bg-1668  [000] ...1 174991.234270:
-//       ext4_writepages: dev 259,32 ino 2883605 nr_to_write 9223372036854775807
-//       pages_skipped 0 range_start 0 range_end 9223372036854775807 sync_mode 1
-//       for_kupdate 0 range_cyclic 0 writeback_index 0 android.bg-1668  [000]
-//       ...1 174991.234287: ext4_journal_start: dev 259,32 blocks, 10
-//       rsv_blocks, 0 caller ext4_writepages+0x6a4/0x119c android.bg-1668
-//       [000] ...1 174991.234294: ext4_da_write_pages: dev 259,32 ino 2883605
-//       first_page 0 nr_to_write 9223372036854775807 sync_mode 1
-//       android.bg-1668  [000] ...1 174991.234319: ext4_da_write_pages_extent:
-//       dev 259,32 ino 2883605 lblk 0 len 7 flags 0x200 android.bg-1668  [000]
-//       ...1 174991.234322: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605
-//       lblk 0 android.bg-1668  [000] ...1 174991.234324:
-//       ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [0/7)
-//       576460752303423487 D0x10 android.bg-1668  [000] ...1 174991.234328:
-//       ext4_ext_map_blocks_enter: dev 259,32 ino 2883605 lblk 0 len 7 flags
-//       CREATE|DELALLOC|METADATA_NOFAIL android.bg-1668  [000] ...1
-//       174991.234341: ext4_request_blocks: dev 259,32 ino 2883605 flags
-//       HINT_DATA|DELALLOC_RESV|USE_RESV len 7 lblk 0 goal 11567104 lleft 0
-//       lright 0 pleft 0 pright 0 android.bg-1668  [000] ...1 174991.234394:
-//       ext4_mballoc_prealloc: dev 259,32 inode 2883605 orig 353/0/7@0 result
-//       65/25551/7@0 android.bg-1668  [000] ...1 174991.234400:
-//       ext4_allocate_blocks: dev 259,32 ino 2883605 flags
-//       HINT_DATA|DELALLOC_RESV|USE_RESV len 7 block 2155471 lblk 0 goal
-//       11567104 lleft 0 lright 0 pleft 0 pright 0 android.bg-1668  [000] ...1
-//       174991.234409: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller
-//       __ext4_ext_dirty+0x104/0x170 android.bg-1668  [000] ...1 174991.234420:
-//       ext4_get_reserved_cluster_alloc: dev 259,32 ino 2883605 lblk 0 len 7
-//       android.bg-1668  [000] ...2 174991.234426:
-//       ext4_da_update_reserve_space: dev 259,32 ino 2883605 mode 0100600
-//       i_blocks 8 used_blocks 7 reserved_data_blocks 7 reserved_meta_blocks 0
-//       allocated_meta_blocks 0 quota_claim 1 android.bg-1668  [000] ...1
-//       174991.234434: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0
-//       caller ext4_mark_dquot_dirty+0x80/0xd4 android.bg-1668  [000] ...1
-//       174991.234441: ext4_es_lookup_extent_enter: dev 259,32 ino 3 lblk 1
-//       android.bg-1668  [000] ...1 174991.234445: ext4_es_lookup_extent_exit:
-//       dev 259,32 ino 3 found 1 [0/2) 9255 W0x10 android.bg-1668  [000] ...1
-//       174991.234456: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0
-//       caller ext4_mark_dquot_dirty+0x80/0xd4 android.bg-1668  [000] ...1
-//       174991.234460: ext4_es_lookup_extent_enter: dev 259,32 ino 4 lblk 1
-//       android.bg-1668  [000] ...1 174991.234463: ext4_es_lookup_extent_exit:
-//       dev 259,32 ino 4 found 1 [0/2) 9257 W0x10 android.bg-1668  [000] ...1
-//       174991.234471: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0
-//       caller ext4_dirty_inode+0x30/0x68 android.bg-1668  [000] ...1
-//       174991.234474: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller
-//       ext4_dirty_inode+0x48/0x68 android.bg-1668  [000] ...1 174991.234481:
-//       ext4_ext_map_blocks_exit: dev 259,32 ino 2883605 flags
-//       CREATE|DELALLOC|METADATA_NOFAIL lblk 0 pblk 2155471 len 7 mflags NM ret
-//       7 android.bg-1668  [000] ...1 174991.234484: ext4_es_insert_extent: dev
-//       259,32 ino 2883605 es [0/7) mapped 2155471 status W android.bg-1668
-//       [000] ...1 174991.234547: ext4_mark_inode_dirty: dev 259,32 ino 2883605
-//       caller ext4_writepages+0xdc0/0x119c android.bg-1668  [000] ...1
-//       174991.234604: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0
-//       caller ext4_writepages+0x6a4/0x119c android.bg-1668  [000] ...1
-//       174991.234609: ext4_da_write_pages: dev 259,32 ino 2883605 first_page 7
-//       nr_to_write 9223372036854775800 sync_mode 1 android.bg-1668  [000] ...1
-//       174991.234876: ext4_writepages_result: dev 259,32 ino 2883605 ret 0
-//       pages_written 7 pages_skipped 0 sync_mode 1 writeback_index 7
-//    Profile Saver-5504  [000] ...1 175002.711928: ext4_discard_preallocations:
-//    dev 259,32 ino 1311176 Profile Saver-5504  [000] ...1 175002.714165:
-//    ext4_begin_ordered_truncate: dev 259,32 ino 1311176 new_size 0 Profile
-//    Saver-5504  [000] ...1 175002.714172: ext4_journal_start: dev 259,32
-//    blocks, 3 rsv_blocks, 0 caller ext4_setattr+0x5b4/0x788 Profile Saver-5504
-//    [000] ...1 175002.714218: ext4_mark_inode_dirty: dev 259,32 ino 1311176
-//    caller ext4_setattr+0x65c/0x788 Profile Saver-5504  [000] ...1
-//    175002.714277: ext4_invalidatepage: dev 259,32 ino 1311176 page_index 0
-//    offset 0 length 4096 Profile Saver-5504  [000] ...1 175002.714281:
-//    ext4_releasepage: dev 259,32 ino 1311176 page_index 0 Profile Saver-5504
-//    [000] ...1 175002.714295: ext4_invalidatepage: dev 259,32 ino 1311176
-//    page_index 1 offset 0 length 4096 Profile Saver-5504  [000] ...1
-//    175002.714296: ext4_releasepage: dev 259,32 ino 1311176 page_index 1
-//    Profile Saver-5504  [000] ...1 175002.714315: ext4_truncate_enter: dev
-//    259,32 ino 1311176 blocks 24 Profile Saver-5504  [000] ...1 175002.714318:
-//    ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller
-//    ext4_truncate+0x258/0x4b8 Profile Saver-5504  [000] ...1 175002.714322:
-//    ext4_discard_preallocations: dev 259,32 ino 1311176 Profile Saver-5504
-//    [000] ...1 175002.714324: ext4_mark_inode_dirty: dev 259,32 ino 1311176
-//    caller ext4_ext_truncate+0x24/0xc8 Profile Saver-5504  [000] ...1
-//    175002.714328: ext4_es_remove_extent: dev 259,32 ino 1311176 es
-//    [0/4294967295) Profile Saver-5504  [000] ...1 175002.714335:
-//    ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller
-//    ext4_ext_remove_space+0x60/0x1180 Profile Saver-5504  [000] ...1
-//    175002.714338: ext4_ext_remove_space: dev 259,32 ino 1311176 since 0 end
-//    4294967294 depth 0 Profile Saver-5504  [000] ...1 175002.714347:
-//    ext4_ext_rm_leaf: dev 259,32 ino 1311176 start_lblk 0 last_extent
-//    [0(5276994), 2]partial_cluster 0 Profile Saver-5504  [000] ...1
-//    175002.714351: ext4_remove_blocks: dev 259,32 ino 1311176 extent
-//    [0(5276994), 2]from 0 to 1 partial_cluster 0 Profile Saver-5504  [000]
-//    ...1 175002.714354: ext4_free_blocks: dev 259,32 ino 1311176 mode 0100600
-//    block 5276994 count 2 flags 1ST_CLUSTER Profile Saver-5504  [000] ...1
-//    175002.714365: ext4_mballoc_free: dev 259,32 inode 1311176 extent
-//    161/1346/2 Profile Saver-5504  [000] ...1 175002.714382:
-//    ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller
-//    ext4_mark_dquot_dirty+0x80/0xd4 Profile Saver-5504  [000] ...1
-//    175002.714391: ext4_es_lookup_extent_enter: dev 259,32 ino 3 lblk 4
-//    Profile Saver-5504  [000] ...1 175002.714394: ext4_es_lookup_extent_exit:
-//    dev 259,32 ino 3 found 1 [4/1) 557094 W0x10 Profile Saver-5504  [000] ...1
-//    175002.714402: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0
-//    caller ext4_mark_dquot_dirty+0x80/0xd4 Profile Saver-5504  [000] ...1
-//    175002.714404: ext4_es_lookup_extent_enter: dev 259,32 ino 4 lblk 8
-//    Profile Saver-5504  [000] ...1 175002.714406: ext4_es_lookup_extent_exit:
-//    dev 259,32 ino 4 found 1 [8/3) 7376914 W0x10 Profile Saver-5504  [000]
-//    ...1 175002.714413: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0
-//    caller ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000] ...1
-//    175002.714414: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68 Profile Saver-5504  [000] ...1 175002.714420:
-//    ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    __ext4_ext_dirty+0x104/0x170 Profile Saver-5504  [000] ...1 175002.714423:
-//    ext4_ext_remove_space_done: dev 259,32 ino 1311176 since 0 end 4294967294
-//    depth 0 partial 0 remaining_entries 0 Profile Saver-5504  [000] ...1
-//    175002.714425: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    __ext4_ext_dirty+0x104/0x170 Profile Saver-5504  [000] ...1 175002.714433:
-//    ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_truncate+0x3c4/0x4b8 Profile Saver-5504  [000] ...1 175002.714436:
-//    ext4_truncate_exit: dev 259,32 ino 1311176 blocks 8 Profile Saver-5504
-//    [000] ...1 175002.714437: ext4_journal_start: dev 259,32 blocks, 2
-//    rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000]
-//    ...1 175002.714438: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68 Profile Saver-5504  [000] ...1 175002.714462:
-//    ext4_da_write_begin: dev 259,32 ino 1311176 pos 0 len 4 flags 0 Profile
-//    Saver-5504  [000] ...1 175002.714472: ext4_journal_start: dev 259,32
-//    blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518 Profile
-//    Saver-5504  [000] ...1 175002.714477: ext4_es_lookup_extent_enter: dev
-//    259,32 ino 1311176 lblk 0 Profile Saver-5504  [000] ...1 175002.714477:
-//    ext4_es_lookup_extent_exit: dev 259,32 ino 1311176 found 0 [0/0) 0 Profile
-//    Saver-5504  [000] ...1 175002.714480: ext4_ext_map_blocks_enter: dev
-//    259,32 ino 1311176 lblk 0 len 1 flags Profile Saver-5504  [000] ...1
-//    175002.714485: ext4_es_find_delayed_extent_range_enter: dev 259,32 ino
-//    1311176 lblk 0 Profile Saver-5504  [000] ...1 175002.714488:
-//    ext4_es_find_delayed_extent_range_exit: dev 259,32 ino 1311176 es [0/0)
-//    mapped 0 status Profile Saver-5504  [000] ...1 175002.714490:
-//    ext4_es_insert_extent: dev 259,32 ino 1311176 es [0/4294967295) mapped
-//    576460752303423487 status H Profile Saver-5504  [000] ...1 175002.714495:
-//    ext4_ext_map_blocks_exit: dev 259,32 ino 1311176 flags  lblk 0 pblk
-//    4294967296 len 1 mflags  ret 0 Profile Saver-5504  [000] ...2
-//    175002.714501: ext4_da_reserve_space: dev 259,32 ino 1311176 mode 0100600
-//    i_blocks 8 reserved_data_blocks 1 reserved_meta_blocks 0 Profile
-//    Saver-5504  [000] ...1 175002.714505: ext4_es_insert_extent: dev 259,32
-//    ino 1311176 es [0/1) mapped 576460752303423487 status D Profile Saver-5504
-//    [000] ...1 175002.714513: ext4_da_write_end: dev 259,32 ino 1311176 pos 0
-//    len 4 copied 4 Profile Saver-5504  [000] ...1 175002.714519:
-//    ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller
-//    ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000] ...1 175002.714520:
-//    ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68 Profile Saver-5504  [000] ...1 175002.714527:
-//    ext4_da_write_begin: dev 259,32 ino 1311176 pos 4 len 4 flags 0 Profile
-//    Saver-5504  [000] ...1 175002.714529: ext4_journal_start: dev 259,32
-//    blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518 Profile
-//    Saver-5504  [000] ...1 175002.714531: ext4_da_write_end: dev 259,32 ino
-//    1311176 pos 4 len 4 copied 4 Profile Saver-5504  [000] ...1 175002.714532:
-//    ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller
-//    ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000] ...1 175002.714532:
-//    ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68 Profile Saver-5504  [000] ...1 175002.715313:
-//    ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller
-//    ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000] ...1 175002.715322:
-//    ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68 Profile Saver-5504  [000] ...1 175002.723849:
-//    ext4_da_write_begin: dev 259,32 ino 1311176 pos 8 len 5 flags 0 Profile
-//    Saver-5504  [000] ...1 175002.723862: ext4_journal_start: dev 259,32
-//    blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518 Profile
-//    Saver-5504  [000] ...1 175002.723873: ext4_da_write_end: dev 259,32 ino
-//    1311176 pos 8 len 5 copied 5 Profile Saver-5504  [000] ...1 175002.723877:
-//    ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller
-//    ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000] ...1 175002.723879:
-//    ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68 Profile Saver-5504  [000] ...1 175002.726857:
-//    ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller
-//    ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000] ...1 175002.726867:
-//    ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68 Profile Saver-5504  [000] ...1 175002.726881:
-//    ext4_da_write_begin: dev 259,32 ino 1311176 pos 13 len 4 flags 0 Profile
-//    Saver-5504  [000] ...1 175002.726883: ext4_journal_start: dev 259,32
-//    blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518 Profile
-//    Saver-5504  [000] ...1 175002.726890: ext4_da_write_end: dev 259,32 ino
-//    1311176 pos 13 len 4 copied 4 Profile Saver-5504  [000] ...1
-//    175002.726892: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0
-//    caller ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000] ...1
-//    175002.726892: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68 Profile Saver-5504  [000] ...1 175002.726900:
-//    ext4_da_write_begin: dev 259,32 ino 1311176 pos 17 len 4079 flags 0
-//    Profile Saver-5504  [000] ...1 175002.726901: ext4_journal_start: dev
-//    259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//    Profile Saver-5504  [000] ...1 175002.726904: ext4_da_write_end: dev
-//    259,32 ino 1311176 pos 17 len 4079 copied 4079 Profile Saver-5504  [000]
-//    ...1 175002.726905: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0
-//    caller ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000] ...1
-//    175002.726906: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68 Profile Saver-5504  [000] ...1 175002.726908:
-//    ext4_da_write_begin: dev 259,32 ino 1311176 pos 4096 len 2780 flags 0
-//    Profile Saver-5504  [000] ...1 175002.726916: ext4_journal_start: dev
-//    259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//    Profile Saver-5504  [000] ...1 175002.726921: ext4_es_lookup_extent_enter:
-//    dev 259,32 ino 1311176 lblk 1 Profile Saver-5504  [000] ...1
-//    175002.726924: ext4_es_lookup_extent_exit: dev 259,32 ino 1311176 found 1
-//    [1/4294967294) 576460752303423487 H0x10 Profile Saver-5504  [000] ...2
-//    175002.726931: ext4_da_reserve_space: dev 259,32 ino 1311176 mode 0100600
-//    i_blocks 8 reserved_data_blocks 2 reserved_meta_blocks 0 Profile
-//    Saver-5504  [000] ...1 175002.726933: ext4_es_insert_extent: dev 259,32
-//    ino 1311176 es [1/1) mapped 576460752303423487 status D Profile Saver-5504
-//    [000] ...1 175002.726940: ext4_da_write_end: dev 259,32 ino 1311176 pos
-//    4096 len 2780 copied 2780 Profile Saver-5504  [000] ...1 175002.726941:
-//    ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller
-//    ext4_dirty_inode+0x30/0x68 Profile Saver-5504  [000] ...1 175002.726942:
-//    ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller
-//    ext4_dirty_inode+0x48/0x68
-//   d.process.acor-27885 [000] ...1 175018.227675: ext4_journal_start: dev
-//   259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//   d.process.acor-27885 [000] ...1 175018.227699: ext4_mark_inode_dirty: dev
-//   259,32 ino 3278189 caller ext4_dirty_inode+0x48/0x68 d.process.acor-27885
-//   [000] ...1 175018.227839: ext4_sync_file_enter: dev 259,32 ino 3278183
-//   parent 3277001 datasync 1 d.process.acor-27885 [000] ...1 175018.227847:
-//   ext4_writepages: dev 259,32 ino 3278183 nr_to_write 9223372036854775807
-//   pages_skipped 0 range_start 0 range_end 9223372036854775807 sync_mode 1
-//   for_kupdate 0 range_cyclic 0 writeback_index 2 d.process.acor-27885 [000]
-//   ...1 175018.227852: ext4_writepages_result: dev 259,32 ino 3278183 ret 0
-//   pages_written 0 pages_skipped 0 sync_mode 1 writeback_index 2
+//       android.bg-1668  [000] ...1 174991.234105: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//       android.bg-1668  [000] ...1 174991.234108: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
+//       android.bg-1668  [000] ...1 174991.234118: ext4_da_write_begin: dev 259,32 ino 2883605 pos 20480 len 4096 flags 0
+//       android.bg-1668  [000] ...1 174991.234126: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//       android.bg-1668  [000] ...1 174991.234133: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk 5
+//       android.bg-1668  [000] ...1 174991.234135: ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [5/4294967290) 576460752303423487 H0x10
+//       android.bg-1668  [000] ...2 174991.234140: ext4_da_reserve_space: dev 259,32 ino 2883605 mode 0100600 i_blocks 8 reserved_data_blocks 6 reserved_meta_blocks 0
+//       android.bg-1668  [000] ...1 174991.234142: ext4_es_insert_extent: dev 259,32 ino 2883605 es [5/1) mapped 576460752303423487 status D
+//       android.bg-1668  [000] ...1 174991.234153: ext4_da_write_end: dev 259,32 ino 2883605 pos 20480 len 4096 copied 4096
+//       android.bg-1668  [000] ...1 174991.234158: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//       android.bg-1668  [000] ...1 174991.234160: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
+//       android.bg-1668  [000] ...1 174991.234170: ext4_da_write_begin: dev 259,32 ino 2883605 pos 24576 len 2968 flags 0
+//       android.bg-1668  [000] ...1 174991.234178: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//       android.bg-1668  [000] ...1 174991.234184: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk 6
+//       android.bg-1668  [000] ...1 174991.234187: ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [6/4294967289) 576460752303423487 H0x10
+//       android.bg-1668  [000] ...2 174991.234191: ext4_da_reserve_space: dev 259,32 ino 2883605 mode 0100600 i_blocks 8 reserved_data_blocks 7 reserved_meta_blocks 0
+//       android.bg-1668  [000] ...1 174991.234193: ext4_es_insert_extent: dev 259,32 ino 2883605 es [6/1) mapped 576460752303423487 status D
+//       android.bg-1668  [000] ...1 174991.234203: ext4_da_write_end: dev 259,32 ino 2883605 pos 24576 len 2968 copied 2968
+//       android.bg-1668  [000] ...1 174991.234209: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//       android.bg-1668  [000] ...1 174991.234211: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
+//       android.bg-1668  [000] ...1 174991.234262: ext4_sync_file_enter: dev 259,32 ino 2883605 parent 2883592 datasync 0
+//       android.bg-1668  [000] ...1 174991.234270: ext4_writepages: dev 259,32 ino 2883605 nr_to_write 9223372036854775807 pages_skipped 0 range_start 0 range_end 9223372036854775807 sync_mode 1 for_kupdate 0 range_cyclic 0 writeback_index 0
+//       android.bg-1668  [000] ...1 174991.234287: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller ext4_writepages+0x6a4/0x119c
+//       android.bg-1668  [000] ...1 174991.234294: ext4_da_write_pages: dev 259,32 ino 2883605 first_page 0 nr_to_write 9223372036854775807 sync_mode 1
+//       android.bg-1668  [000] ...1 174991.234319: ext4_da_write_pages_extent: dev 259,32 ino 2883605 lblk 0 len 7 flags 0x200
+//       android.bg-1668  [000] ...1 174991.234322: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk 0
+//       android.bg-1668  [000] ...1 174991.234324: ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [0/7) 576460752303423487 D0x10
+//       android.bg-1668  [000] ...1 174991.234328: ext4_ext_map_blocks_enter: dev 259,32 ino 2883605 lblk 0 len 7 flags CREATE|DELALLOC|METADATA_NOFAIL
+//       android.bg-1668  [000] ...1 174991.234341: ext4_request_blocks: dev 259,32 ino 2883605 flags HINT_DATA|DELALLOC_RESV|USE_RESV len 7 lblk 0 goal 11567104 lleft 0 lright 0 pleft 0 pright 0
+//       android.bg-1668  [000] ...1 174991.234394: ext4_mballoc_prealloc: dev 259,32 inode 2883605 orig 353/0/7@0 result 65/25551/7@0
+//       android.bg-1668  [000] ...1 174991.234400: ext4_allocate_blocks: dev 259,32 ino 2883605 flags HINT_DATA|DELALLOC_RESV|USE_RESV len 7 block 2155471 lblk 0 goal 11567104 lleft 0 lright 0 pleft 0 pright 0
+//       android.bg-1668  [000] ...1 174991.234409: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller __ext4_ext_dirty+0x104/0x170
+//       android.bg-1668  [000] ...1 174991.234420: ext4_get_reserved_cluster_alloc: dev 259,32 ino 2883605 lblk 0 len 7
+//       android.bg-1668  [000] ...2 174991.234426: ext4_da_update_reserve_space: dev 259,32 ino 2883605 mode 0100600 i_blocks 8 used_blocks 7 reserved_data_blocks 7 reserved_meta_blocks 0 allocated_meta_blocks 0 quota_claim 1
+//       android.bg-1668  [000] ...1 174991.234434: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
+//       android.bg-1668  [000] ...1 174991.234441: ext4_es_lookup_extent_enter: dev 259,32 ino 3 lblk 1
+//       android.bg-1668  [000] ...1 174991.234445: ext4_es_lookup_extent_exit: dev 259,32 ino 3 found 1 [0/2) 9255 W0x10
+//       android.bg-1668  [000] ...1 174991.234456: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
+//       android.bg-1668  [000] ...1 174991.234460: ext4_es_lookup_extent_enter: dev 259,32 ino 4 lblk 1
+//       android.bg-1668  [000] ...1 174991.234463: ext4_es_lookup_extent_exit: dev 259,32 ino 4 found 1 [0/2) 9257 W0x10
+//       android.bg-1668  [000] ...1 174991.234471: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//       android.bg-1668  [000] ...1 174991.234474: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
+//       android.bg-1668  [000] ...1 174991.234481: ext4_ext_map_blocks_exit: dev 259,32 ino 2883605 flags CREATE|DELALLOC|METADATA_NOFAIL lblk 0 pblk 2155471 len 7 mflags NM ret 7
+//       android.bg-1668  [000] ...1 174991.234484: ext4_es_insert_extent: dev 259,32 ino 2883605 es [0/7) mapped 2155471 status W
+//       android.bg-1668  [000] ...1 174991.234547: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_writepages+0xdc0/0x119c
+//       android.bg-1668  [000] ...1 174991.234604: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller ext4_writepages+0x6a4/0x119c
+//       android.bg-1668  [000] ...1 174991.234609: ext4_da_write_pages: dev 259,32 ino 2883605 first_page 7 nr_to_write 9223372036854775800 sync_mode 1
+//       android.bg-1668  [000] ...1 174991.234876: ext4_writepages_result: dev 259,32 ino 2883605 ret 0 pages_written 7 pages_skipped 0 sync_mode 1 writeback_index 7
+//    Profile Saver-5504  [000] ...1 175002.711928: ext4_discard_preallocations: dev 259,32 ino 1311176
+//    Profile Saver-5504  [000] ...1 175002.714165: ext4_begin_ordered_truncate: dev 259,32 ino 1311176 new_size 0
+//    Profile Saver-5504  [000] ...1 175002.714172: ext4_journal_start: dev 259,32 blocks, 3 rsv_blocks, 0 caller ext4_setattr+0x5b4/0x788
+//    Profile Saver-5504  [000] ...1 175002.714218: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_setattr+0x65c/0x788
+//    Profile Saver-5504  [000] ...1 175002.714277: ext4_invalidatepage: dev 259,32 ino 1311176 page_index 0 offset 0 length 4096
+//    Profile Saver-5504  [000] ...1 175002.714281: ext4_releasepage: dev 259,32 ino 1311176 page_index 0
+//    Profile Saver-5504  [000] ...1 175002.714295: ext4_invalidatepage: dev 259,32 ino 1311176 page_index 1 offset 0 length 4096
+//    Profile Saver-5504  [000] ...1 175002.714296: ext4_releasepage: dev 259,32 ino 1311176 page_index 1
+//    Profile Saver-5504  [000] ...1 175002.714315: ext4_truncate_enter: dev 259,32 ino 1311176 blocks 24
+//    Profile Saver-5504  [000] ...1 175002.714318: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller ext4_truncate+0x258/0x4b8
+//    Profile Saver-5504  [000] ...1 175002.714322: ext4_discard_preallocations: dev 259,32 ino 1311176
+//    Profile Saver-5504  [000] ...1 175002.714324: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_ext_truncate+0x24/0xc8
+//    Profile Saver-5504  [000] ...1 175002.714328: ext4_es_remove_extent: dev 259,32 ino 1311176 es [0/4294967295)
+//    Profile Saver-5504  [000] ...1 175002.714335: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_ext_remove_space+0x60/0x1180
+//    Profile Saver-5504  [000] ...1 175002.714338: ext4_ext_remove_space: dev 259,32 ino 1311176 since 0 end 4294967294 depth 0
+//    Profile Saver-5504  [000] ...1 175002.714347: ext4_ext_rm_leaf: dev 259,32 ino 1311176 start_lblk 0 last_extent [0(5276994), 2]partial_cluster 0
+//    Profile Saver-5504  [000] ...1 175002.714351: ext4_remove_blocks: dev 259,32 ino 1311176 extent [0(5276994), 2]from 0 to 1 partial_cluster 0
+//    Profile Saver-5504  [000] ...1 175002.714354: ext4_free_blocks: dev 259,32 ino 1311176 mode 0100600 block 5276994 count 2 flags 1ST_CLUSTER
+//    Profile Saver-5504  [000] ...1 175002.714365: ext4_mballoc_free: dev 259,32 inode 1311176 extent 161/1346/2
+//    Profile Saver-5504  [000] ...1 175002.714382: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
+//    Profile Saver-5504  [000] ...1 175002.714391: ext4_es_lookup_extent_enter: dev 259,32 ino 3 lblk 4
+//    Profile Saver-5504  [000] ...1 175002.714394: ext4_es_lookup_extent_exit: dev 259,32 ino 3 found 1 [4/1) 557094 W0x10
+//    Profile Saver-5504  [000] ...1 175002.714402: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
+//    Profile Saver-5504  [000] ...1 175002.714404: ext4_es_lookup_extent_enter: dev 259,32 ino 4 lblk 8
+//    Profile Saver-5504  [000] ...1 175002.714406: ext4_es_lookup_extent_exit: dev 259,32 ino 4 found 1 [8/3) 7376914 W0x10
+//    Profile Saver-5504  [000] ...1 175002.714413: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.714414: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.714420: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller __ext4_ext_dirty+0x104/0x170
+//    Profile Saver-5504  [000] ...1 175002.714423: ext4_ext_remove_space_done: dev 259,32 ino 1311176 since 0 end 4294967294 depth 0 partial 0 remaining_entries 0
+//    Profile Saver-5504  [000] ...1 175002.714425: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller __ext4_ext_dirty+0x104/0x170
+//    Profile Saver-5504  [000] ...1 175002.714433: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_truncate+0x3c4/0x4b8
+//    Profile Saver-5504  [000] ...1 175002.714436: ext4_truncate_exit: dev 259,32 ino 1311176 blocks 8
+//    Profile Saver-5504  [000] ...1 175002.714437: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.714438: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.714462: ext4_da_write_begin: dev 259,32 ino 1311176 pos 0 len 4 flags 0
+//    Profile Saver-5504  [000] ...1 175002.714472: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.714477: ext4_es_lookup_extent_enter: dev 259,32 ino 1311176 lblk 0
+//    Profile Saver-5504  [000] ...1 175002.714477: ext4_es_lookup_extent_exit: dev 259,32 ino 1311176 found 0 [0/0) 0
+//    Profile Saver-5504  [000] ...1 175002.714480: ext4_ext_map_blocks_enter: dev 259,32 ino 1311176 lblk 0 len 1 flags
+//    Profile Saver-5504  [000] ...1 175002.714485: ext4_es_find_delayed_extent_range_enter: dev 259,32 ino 1311176 lblk 0
+//    Profile Saver-5504  [000] ...1 175002.714488: ext4_es_find_delayed_extent_range_exit: dev 259,32 ino 1311176 es [0/0) mapped 0 status
+//    Profile Saver-5504  [000] ...1 175002.714490: ext4_es_insert_extent: dev 259,32 ino 1311176 es [0/4294967295) mapped 576460752303423487 status H
+//    Profile Saver-5504  [000] ...1 175002.714495: ext4_ext_map_blocks_exit: dev 259,32 ino 1311176 flags  lblk 0 pblk 4294967296 len 1 mflags  ret 0
+//    Profile Saver-5504  [000] ...2 175002.714501: ext4_da_reserve_space: dev 259,32 ino 1311176 mode 0100600 i_blocks 8 reserved_data_blocks 1 reserved_meta_blocks 0
+//    Profile Saver-5504  [000] ...1 175002.714505: ext4_es_insert_extent: dev 259,32 ino 1311176 es [0/1) mapped 576460752303423487 status D
+//    Profile Saver-5504  [000] ...1 175002.714513: ext4_da_write_end: dev 259,32 ino 1311176 pos 0 len 4 copied 4
+//    Profile Saver-5504  [000] ...1 175002.714519: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.714520: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.714527: ext4_da_write_begin: dev 259,32 ino 1311176 pos 4 len 4 flags 0
+//    Profile Saver-5504  [000] ...1 175002.714529: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.714531: ext4_da_write_end: dev 259,32 ino 1311176 pos 4 len 4 copied 4
+//    Profile Saver-5504  [000] ...1 175002.714532: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.714532: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.715313: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.715322: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.723849: ext4_da_write_begin: dev 259,32 ino 1311176 pos 8 len 5 flags 0
+//    Profile Saver-5504  [000] ...1 175002.723862: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.723873: ext4_da_write_end: dev 259,32 ino 1311176 pos 8 len 5 copied 5
+//    Profile Saver-5504  [000] ...1 175002.723877: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.723879: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.726857: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.726867: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.726881: ext4_da_write_begin: dev 259,32 ino 1311176 pos 13 len 4 flags 0
+//    Profile Saver-5504  [000] ...1 175002.726883: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.726890: ext4_da_write_end: dev 259,32 ino 1311176 pos 13 len 4 copied 4
+//    Profile Saver-5504  [000] ...1 175002.726892: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.726892: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.726900: ext4_da_write_begin: dev 259,32 ino 1311176 pos 17 len 4079 flags 0
+//    Profile Saver-5504  [000] ...1 175002.726901: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.726904: ext4_da_write_end: dev 259,32 ino 1311176 pos 17 len 4079 copied 4079
+//    Profile Saver-5504  [000] ...1 175002.726905: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.726906: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//    Profile Saver-5504  [000] ...1 175002.726908: ext4_da_write_begin: dev 259,32 ino 1311176 pos 4096 len 2780 flags 0
+//    Profile Saver-5504  [000] ...1 175002.726916: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
+//    Profile Saver-5504  [000] ...1 175002.726921: ext4_es_lookup_extent_enter: dev 259,32 ino 1311176 lblk 1
+//    Profile Saver-5504  [000] ...1 175002.726924: ext4_es_lookup_extent_exit: dev 259,32 ino 1311176 found 1 [1/4294967294) 576460752303423487 H0x10
+//    Profile Saver-5504  [000] ...2 175002.726931: ext4_da_reserve_space: dev 259,32 ino 1311176 mode 0100600 i_blocks 8 reserved_data_blocks 2 reserved_meta_blocks 0
+//    Profile Saver-5504  [000] ...1 175002.726933: ext4_es_insert_extent: dev 259,32 ino 1311176 es [1/1) mapped 576460752303423487 status D
+//    Profile Saver-5504  [000] ...1 175002.726940: ext4_da_write_end: dev 259,32 ino 1311176 pos 4096 len 2780 copied 2780
+//    Profile Saver-5504  [000] ...1 175002.726941: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//    Profile Saver-5504  [000] ...1 175002.726942: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
+//   d.process.acor-27885 [000] ...1 175018.227675: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
+//   d.process.acor-27885 [000] ...1 175018.227699: ext4_mark_inode_dirty: dev 259,32 ino 3278189 caller ext4_dirty_inode+0x48/0x68
+//   d.process.acor-27885 [000] ...1 175018.227839: ext4_sync_file_enter: dev 259,32 ino 3278183 parent 3277001 datasync 1
+//   d.process.acor-27885 [000] ...1 175018.227847: ext4_writepages: dev 259,32 ino 3278183 nr_to_write 9223372036854775807 pages_skipped 0 range_start 0 range_end 9223372036854775807 sync_mode 1 for_kupdate 0 range_cyclic 0 writeback_index 2
+//   d.process.acor-27885 [000] ...1 175018.227852: ext4_writepages_result: dev 259,32 ino 3278183 ret 0 pages_written 0 pages_skipped 0 sync_mode 1 writeback_index 2
+// clang-format on
 
 ExamplePage g_full_page_ext4{
     "synthetic",
