@@ -38,6 +38,7 @@ using testing::NiceMock;
 using testing::Return;
 using testing::IsEmpty;
 using testing::ElementsAre;
+using testing::Pair;
 
 using Table = perfetto::ProtoTranslationTable;
 using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
@@ -602,13 +603,34 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
 
 TEST(FtraceMetadataTest, Clear) {
   FtraceMetadata metadata;
-  metadata.inodes.push_back(1);
+  metadata.inodes.push_back(std::make_pair(1, 1));
   metadata.pids.push_back(2);
   metadata.overwrite_count = 3;
+  metadata.last_seen_device_id = 100;
   metadata.Clear();
   EXPECT_THAT(metadata.inodes, IsEmpty());
   EXPECT_THAT(metadata.pids, IsEmpty());
   EXPECT_EQ(metadata.overwrite_count, 0u);
+  EXPECT_EQ(metadata.last_seen_device_id, 0u);
+}
+
+TEST(FtraceMetadataTest, AddDevice) {
+  FtraceMetadata metadata;
+  metadata.AddDevice(1);
+  EXPECT_EQ(metadata.last_seen_device_id, 1u);
+  metadata.AddDevice(3);
+  EXPECT_EQ(metadata.last_seen_device_id, 3u);
+}
+
+TEST(FtraceMetadataTest, AddInode) {
+  FtraceMetadata metadata;
+  metadata.AddDevice(3);
+  metadata.AddInode(2);
+  metadata.AddInode(1);
+  // Check same inode number is added
+  metadata.AddDevice(5);
+  metadata.AddInode(2);
+  EXPECT_THAT(metadata.inodes, ElementsAre(Pair(2, 3), Pair(1, 3), Pair(2, 5)));
 }
 
 TEST(FtraceMetadataTest, AddPid) {
