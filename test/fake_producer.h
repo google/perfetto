@@ -49,6 +49,7 @@ class FakeProducer : public Producer {
 
   std::string name_;
   DataSourceID id_ = 0;
+
   std::unique_ptr<Service::ProducerEndpoint> endpoint_;
   base::TaskRunner* task_runner_ = nullptr;
   std::function<void()> data_produced_callback_;

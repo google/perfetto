@@ -22,6 +22,7 @@ PROTOS = (
   'protos/perfetto/config/chrome/chrome_config.proto',
   'protos/perfetto/config/data_source_config.proto',
   'protos/perfetto/config/ftrace/ftrace_config.proto',
+  'protos/perfetto/config/test_config.proto',
   'protos/perfetto/config/trace_config.proto',
 )
 
