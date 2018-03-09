@@ -43,6 +43,8 @@ bool SetTranslationStrategy(FtraceFieldType ftrace,
     *out = kInode64ToUint64;
   } else if (ftrace == kFtracePid32 && proto == kProtoInt32) {
     *out = kPid32ToInt32;
+  } else if (ftrace == kFtraceDevId32 && proto == kProtoUint32) {
+    *out = kDevId32ToUint32;
   } else if (ftrace == kFtraceUint8 && proto == kProtoUint32) {
     *out = kUint8ToUint32;
   } else if (ftrace == kFtraceUint16 && proto == kProtoUint32) {

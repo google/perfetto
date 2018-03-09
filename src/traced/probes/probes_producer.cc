@@ -17,6 +17,7 @@
 #include "src/traced/probes/probes_producer.h"
 
 #include <stdio.h>
+#include <sys/stat.h>
 #include <queue>
 #include <string>
 
@@ -206,7 +207,7 @@ void ProbesProducer::CreateProcessStatsDataSourceInstance(
 // static
 void ProbesProducer::CreateDeviceToInodeMap(
     const std::string& root_directory,
-    std::map<uint64_t, InodeMap>* block_device_map) {
+    std::map<uint32_t, InodeMap>* block_device_map) {
   // Return immediately if we've already filled in the system map
   if (!block_device_map->empty())
     return;
@@ -225,15 +226,19 @@ void ProbesProducer::CreateDeviceToInodeMap(
       if (filename == "." || filename == "..")
         continue;
       uint64_t inode_number = entry->d_ino;
-      uint64_t block_device_id = 0;
+      struct stat buf;
+      if (lstat(filepath.c_str(), &buf) != 0)
+        continue;
+      uint32_t block_device_id = buf.st_dev;
       InodeMap& inode_map = (*block_device_map)[block_device_id];
       // Default
       Type type = protos::pbzero::InodeFileMap_Entry_Type_UNKNOWN;
-      if (entry->d_type == DT_DIR) {
+      // Readdir and stat not guaranteed to have directory info for all systems
+      if (entry->d_type == DT_DIR || S_ISDIR(buf.st_mode)) {
         // Continue iterating through files if current entry is a directory
         queue.push(filepath + filename);
         type = protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY;
-      } else if (entry->d_type == DT_REG) {
+      } else if (entry->d_type == DT_REG || S_ISREG(buf.st_mode)) {
         type = protos::pbzero::InodeFileMap_Entry_Type_FILE;
       }
       inode_map[inode_number].first = type;
@@ -312,12 +317,12 @@ void ProbesProducer::SinkDelegate::OnBundleComplete(
 }
 
 void ProbesProducer::SinkDelegate::OnInodes(
-    const std::vector<uint64_t>& inodes) {
+    const std::vector<std::pair<uint64_t, uint32_t>>& inodes) {
   PERFETTO_DLOG("Saw FtraceBundle with %zu inodes.", inodes.size());
 }
 
 ProbesProducer::InodeFileMapDataSource::InodeFileMapDataSource(
-    std::map<uint64_t, InodeMap>* file_system_inodes,
+    std::map<uint32_t, InodeMap>* file_system_inodes,
     std::unique_ptr<TraceWriter> writer)
     : file_system_inodes_(file_system_inodes), writer_(std::move(writer)) {}
 
@@ -327,15 +332,16 @@ void ProbesProducer::InodeFileMapDataSource::WriteInodes(
     const FtraceMetadata& metadata) {
   auto trace_packet = writer_->NewTracePacket();
   auto inode_file_map = trace_packet->set_inode_file_map();
-  // TODO(azappone): Get block_device_id and mount_points & add to the proto
-  uint64_t block_device_id = 0;
+  // TODO(azappone): Get mount_points & add to the proto
   auto inodes = metadata.inodes;
   for (const auto& inode : inodes) {
+    uint32_t block_device_id = inode.first;
+    uint64_t inode_number = inode.second;
     auto* entry = inode_file_map->add_entries();
-    entry->set_inode_number(inode);
+    entry->set_inode_number(inode_number);
     auto block_device_map = file_system_inodes_->find(block_device_id);
     if (block_device_map != file_system_inodes_->end()) {
-      auto inode_map = block_device_map->second.find(inode);
+      auto inode_map = block_device_map->second.find(inode_number);
       if (inode_map != block_device_map->second.end()) {
         entry->set_type(inode_map->second.first);
         for (const auto& path : inode_map->second.second)
