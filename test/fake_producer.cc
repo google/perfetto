@@ -16,6 +16,8 @@
 
 #include "test/fake_producer.h"
 
+#include <random>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/trace/test_event.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -51,9 +53,12 @@ void FakeProducer::CreateDataSourceInstance(
     const DataSourceConfig& source_config) {
   auto trace_writer = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
-  for (int i = 0; i < 10; i++) {
+
+  const TestConfig& config = source_config.for_testing();
+  std::minstd_rand0 random(config.seed());
+  for (size_t i = 0; i < config.message_count(); i++) {
     auto handle = trace_writer->NewTracePacket();
-    handle->set_for_testing()->set_str("test");
+    handle->set_for_testing()->set_seq_value(random());
     handle->Finalize();
   }
 
