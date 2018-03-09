@@ -26,6 +26,7 @@ proto_sources = [
 # Protozero generated stubs, for writers.
 protozero_library("zero") {
   deps = [
+    "chrome:zero",
     "filesystem:zero",
     "ftrace:zero",
     "ps:zero",
@@ -41,6 +42,7 @@ proto_library("lite") {
   generate_python = false
   deps = [
     "../ipc",
+    "chrome:lite",
     "filesystem:lite",
     "ftrace:lite",
     "ps:lite",
