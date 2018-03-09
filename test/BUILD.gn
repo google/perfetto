@@ -27,18 +27,15 @@ source_set("end_to_end_integrationtests") {
   deps = [
     ":fake_consumer",
     ":task_runner_thread",
+    ":task_runner_thread_delegates",
     "../gn:default_deps",
     "../gn:gtest_deps",
     "../protos/perfetto/trace:lite",
     "../src/base:base",
     "../src/base:test_support",
-    "../src/traced/probes:probes_src",
-    "../src/tracing:ipc",
   ]
   sources = [
     "end_to_end_integrationtest.cc",
-    "fake_producer.cc",
-    "fake_producer.h",
   ]
   if (is_android && !build_with_chromium) {
     deps += [ "../src/base:android_task_runner" ]
@@ -92,6 +89,22 @@ source_set("task_runner_thread") {
   sources = [
     "task_runner_thread.cc",
     "task_runner_thread.h",
+  ]
+}
+
+source_set("task_runner_thread_delegates") {
+  testonly = true
+  deps = [
+    ":task_runner_thread",
+    "../gn:default_deps",
+    "../src/base:test_support",
+    "../src/traced/probes:probes_src",
+    "../src/tracing:ipc",
+  ]
+  sources = [
+    "fake_producer.cc",
+    "fake_producer.h",
+    "task_runner_thread_delegates.h",
   ]
 }
 
