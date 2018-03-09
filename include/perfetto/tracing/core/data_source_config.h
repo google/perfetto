@@ -35,6 +35,7 @@
 
 #include "perfetto/tracing/core/chrome_config.h"
 #include "perfetto/tracing/core/ftrace_config.h"
+#include "perfetto/tracing/core/test_config.h"
 
 // Forward declarations for protobuf types.
 namespace perfetto {
@@ -42,6 +43,7 @@ namespace protos {
 class DataSourceConfig;
 class FtraceConfig;
 class ChromeConfig;
+class TestConfig;
 }  // namespace protos
 }  // namespace perfetto
 
@@ -75,12 +77,16 @@ class DataSourceConfig {
   const ChromeConfig& chrome_config() const { return chrome_config_; }
   ChromeConfig* mutable_chrome_config() { return &chrome_config_; }
 
+  const TestConfig& for_testing() const { return for_testing_; }
+  TestConfig* mutable_for_testing() { return &for_testing_; }
+
  private:
   std::string name_ = {};
   uint32_t target_buffer_ = {};
   uint32_t trace_duration_ms_ = {};
   FtraceConfig ftrace_config_ = {};
   ChromeConfig chrome_config_ = {};
+  TestConfig for_testing_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
