@@ -36,6 +36,8 @@ using testing::ByMove;
 using testing::Invoke;
 using testing::NiceMock;
 using testing::Return;
+using testing::IsEmpty;
+using testing::ElementsAre;
 
 using Table = perfetto::ProtoTranslationTable;
 using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
@@ -89,12 +91,15 @@ class MockDelegate : public perfetto::FtraceSink::Delegate {
  public:
   MOCK_METHOD1(GetBundleForCpu,
                protozero::MessageHandle<FtraceEventBundle>(size_t));
-  MOCK_METHOD2(OnBundleComplete_,
-               void(size_t, protozero::MessageHandle<FtraceEventBundle>&));
+  MOCK_METHOD3(OnBundleComplete_,
+               void(size_t,
+                    protozero::MessageHandle<FtraceEventBundle>&,
+                    const FtraceMetadata& metadata));
 
   void OnBundleComplete(size_t cpu,
-                        protozero::MessageHandle<FtraceEventBundle> bundle) {
-    OnBundleComplete_(cpu, bundle);
+                        protozero::MessageHandle<FtraceEventBundle> bundle,
+                        const FtraceMetadata& metadata) override {
+    OnBundleComplete_(cpu, bundle, metadata);
   }
 };
 
@@ -130,7 +135,7 @@ std::unique_ptr<FtraceConfigMuxer> FakeModel(
 
 class MockFtraceProcfs : public FtraceProcfs {
  public:
-  MockFtraceProcfs(size_t cpu_count = 1) : FtraceProcfs("/root/") {
+  explicit MockFtraceProcfs(size_t cpu_count = 1) : FtraceProcfs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(cpu_count));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
 
@@ -255,8 +260,9 @@ std::unique_ptr<TestFtraceController> CreateTestController(
         std::unique_ptr<MockFtraceProcfs>(new MockFtraceProcfs(cpu_count));
   }
 
-  MockFtraceProcfs* raw_procfs = ftrace_procfs.get();
   auto model = FakeModel(ftrace_procfs.get(), table.get());
+
+  MockFtraceProcfs* raw_procfs = ftrace_procfs.get();
   return std::unique_ptr<TestFtraceController>(new TestFtraceController(
       std::move(ftrace_procfs), std::move(table), std::move(model),
       std::move(runner), raw_procfs));
@@ -592,6 +598,26 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     auto sink = controller->CreateSink(config, &delegate);
     EXPECT_EQ(200u, controller->drain_period_ms());
   }
+}
+
+TEST(FtraceMetadataTest, Clear) {
+  FtraceMetadata metadata;
+  metadata.inodes.push_back(1);
+  metadata.pids.push_back(2);
+  metadata.overwrite_count = 3;
+  metadata.Clear();
+  EXPECT_THAT(metadata.inodes, IsEmpty());
+  EXPECT_THAT(metadata.pids, IsEmpty());
+  EXPECT_EQ(metadata.overwrite_count, 0u);
+}
+
+TEST(FtraceMetadataTest, AddPid) {
+  FtraceMetadata metadata;
+  metadata.AddPid(1);
+  metadata.AddPid(2);
+  metadata.AddPid(2);
+  metadata.AddPid(3);
+  EXPECT_THAT(metadata.pids, ElementsAre(1, 2, 3));
 }
 
 }  // namespace perfetto

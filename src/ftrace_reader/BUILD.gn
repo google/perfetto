@@ -112,6 +112,8 @@ source_set("ftrace_reader") {
     "../protozero",
   ]
   sources = [
+    "atrace_wrapper.cc",
+    "atrace_wrapper.h",
     "cpu_reader.cc",
     "cpu_reader.h",
     "event_info.cc",

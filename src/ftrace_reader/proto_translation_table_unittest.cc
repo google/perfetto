@@ -272,6 +272,9 @@ TEST(TranslationTableTest, InferFtraceType) {
   ASSERT_TRUE(InferFtraceType("ino_t foo", 8, false, &type));
   ASSERT_EQ(type, kFtraceInode64);
 
+  ASSERT_TRUE(InferFtraceType("pid_t foo", 4, false, &type));
+  ASSERT_EQ(type, kFtracePid32);
+
   EXPECT_FALSE(InferFtraceType("foo", 64, false, &type));
 }
 

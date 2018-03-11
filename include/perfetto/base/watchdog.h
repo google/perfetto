@@ -55,6 +55,10 @@ class Watchdog {
   // returned handle is not destroyed before this point.
   Timer CreateFatalTimer(uint32_t ms);
 
+  // Starts the watchdog thread which monitors the memory and CPU usage
+  // of the program.
+  void Start();
+
   // Sets a limit on the memory (defined as the RSS) used by the program
   // averaged over the last |window_ms| milliseconds. If |kb| is 0, any
   // existing limit is removed.
@@ -117,15 +121,6 @@ class Watchdog {
 
   // Main method for the watchdog thread.
   void ThreadMain();
-
-  // Change whether the thread is running or not based on resource limits.
-  void UpdateThreadStateUnlocked();
-
-  // Starts the thread if not already started.
-  void StartThreadUnlocked();
-
-  // Quits the thread if not already quit.
-  void QuitThreadUnlocked();
 
   // Check each type of resource every |polling_interval_ms_| miillis.
   void CheckMemory(uint64_t rss_bytes);

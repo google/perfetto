@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,21 @@
  * limitations under the License.
  */
 
-syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
+#ifndef SRC_FTRACE_READER_ATRACE_WRAPPER_H_
+#define SRC_FTRACE_READER_ATRACE_WRAPPER_H_
 
-message FakeFtraceEvent {
-  optional uint32 common_field = 1;
-  oneof event { FakeAllFieldsFtraceEvent all_fields = 42; }
-}
+#include <string>
+#include <type_traits>
+#include <vector>
 
-message FakeAllFieldsFtraceEvent {
-  optional uint32 field_uint32 = 1;
-  optional int32 field_pid = 2;
-  optional uint32 field_inode_32 = 3;
-  optional uint64 field_inode_64 = 4;
-  optional string field_char_16 = 500;
-  optional string field_char = 501;
-}
+namespace perfetto {
+
+using RunAtraceFunction =
+    std::add_pointer<bool(const std::vector<std::string>& /*args*/)>::type;
+
+bool RunAtrace(const std::vector<std::string>& args);
+void SetRunAtraceForTesting(RunAtraceFunction);
+
+}  // namespace perfetto
+
+#endif  // SRC_FTRACE_READER_ATRACE_WRAPPER_H_

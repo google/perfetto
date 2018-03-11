@@ -238,6 +238,10 @@ class ServiceImpl : public Service {
   // session doesn't exists.
   TracingSession* GetTracingSession(TracingSessionID);
 
+  // Update the memory guard rail by using the latest information from the
+  // shared memory and trace buffers.
+  void UpdateMemoryGuardrail();
+
   base::TaskRunner* const task_runner_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
   ProducerID last_producer_id_ = 0;
@@ -257,6 +261,8 @@ class ServiceImpl : public Service {
   std::set<ConsumerEndpointImpl*> consumers_;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
   std::map<BufferID, TraceBuffer> buffers_;
+
+  bool lockdown_mode_ = false;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 

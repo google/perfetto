@@ -28,6 +28,7 @@ namespace perfetto {
 class FtraceProcfs {
  public:
   static std::unique_ptr<FtraceProcfs> Create(const std::string& root);
+  static int g_kmesg_fd;
 
   explicit FtraceProcfs(const std::string& root);
   virtual ~FtraceProcfs();
