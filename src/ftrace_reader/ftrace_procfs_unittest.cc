@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "ftrace_procfs.h"
+#include "src/ftrace_reader/ftrace_procfs.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

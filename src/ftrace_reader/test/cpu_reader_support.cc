@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "cpu_reader_support.h"
+#include "src/ftrace_reader/test/cpu_reader_support.h"
 
 #include "src/ftrace_reader/ftrace_procfs.h"
 

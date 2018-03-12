@@ -17,8 +17,8 @@
 #ifndef SRC_FTRACE_READER_FTRACE_CONFIG_MUXER_H_
 #define SRC_FTRACE_READER_FTRACE_CONFIG_MUXER_H_
 
-#include "ftrace_procfs.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
+#include "src/ftrace_reader/ftrace_procfs.h"
 
 namespace perfetto {
 
