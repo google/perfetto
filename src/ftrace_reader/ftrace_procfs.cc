@@ -25,6 +25,7 @@
 #include <sstream>
 #include <string>
 
+#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
 
@@ -225,19 +226,12 @@ bool FtraceProcfs::ClearFile(const std::string& path) {
 }
 
 std::string FtraceProcfs::ReadFileIntoString(const std::string& path) const {
-  std::ifstream fin(path, std::ios::in);
-  if (!fin) {
-    PERFETTO_DLOG("Could not read '%s'", path.c_str());
-    return "";
-  }
-
-  std::string str;
   // You can't seek or stat the procfs files on Android.
   // The vast majority (884/886) of format files are under 4k.
+  std::string str;
   str.reserve(4096);
-  str.assign(std::istreambuf_iterator<char>(fin),
-             std::istreambuf_iterator<char>());
-
+  if (!base::ReadFile(path, &str))
+    return "";
   return str;
 }
 
