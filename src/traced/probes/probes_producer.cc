@@ -151,7 +151,7 @@ void ProbesProducer::CreateFtraceDataSourceInstance(
     PERFETTO_ELOG("Failed to start tracing (maybe someone else is using it?)");
     return;
   }
-  delegate->sink(std::move(sink));
+  delegate->set_sink(std::move(sink));
   delegates_.emplace(id, std::move(delegate));
   AddWatchdogsTimer(id, source_config);
 }
