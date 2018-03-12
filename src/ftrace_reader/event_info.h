@@ -19,8 +19,8 @@
 
 #include <vector>
 
-#include "event_info_constants.h"
 #include "perfetto/base/logging.h"
+#include "src/ftrace_reader/event_info_constants.h"
 
 namespace perfetto {
 

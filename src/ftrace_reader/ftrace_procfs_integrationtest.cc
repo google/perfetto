@@ -19,11 +19,11 @@
 #include <sstream>
 #include <string>
 
-#include "ftrace_procfs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/file_utils.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
+#include "src/ftrace_reader/ftrace_procfs.h"
 
 using testing::HasSubstr;
 using testing::Not;

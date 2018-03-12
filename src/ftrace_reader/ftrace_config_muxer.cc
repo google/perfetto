@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "ftrace_config_muxer.h"
+#include "src/ftrace_reader/ftrace_config_muxer.h"
 
 #include <stdint.h>
 #include <string.h>

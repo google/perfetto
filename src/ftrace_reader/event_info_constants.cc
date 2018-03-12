@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "event_info_constants.h"
+#include "src/ftrace_reader/event_info_constants.h"
 
 namespace perfetto {
 
