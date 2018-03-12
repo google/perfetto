@@ -77,7 +77,7 @@ class ProbesProducer : public Producer {
                           FtraceBundleHandle bundle,
                           const FtraceMetadata& metadata) override;
 
-    void sink(std::unique_ptr<FtraceSink> sink) { sink_ = std::move(sink); }
+    void set_sink(std::unique_ptr<FtraceSink> sink) { sink_ = std::move(sink); }
     void OnInodes(const std::vector<std::pair<uint64_t, uint32_t>>& inodes);
 
    private:
