@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "cpu_reader.h"
+#include "src/ftrace_reader/cpu_reader.h"
 
 #include <signal.h>
 

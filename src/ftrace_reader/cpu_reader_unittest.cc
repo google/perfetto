@@ -18,10 +18,10 @@
 
 #include <sys/stat.h>
 
-#include "event_info.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "proto_translation_table.h"
+#include "src/ftrace_reader/event_info.h"
 
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
