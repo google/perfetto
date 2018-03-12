@@ -1,4 +1,4 @@
-# Copyright (C) 2017 The Android Open Source Project
+# Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,21 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("base") {
-  sources = [
-    "build_config.h",
-    "file_utils.h",
-    "logging.h",
-    "page_allocator.h",
-    "scoped_file.h",
-    "task_runner.h",
-    "thread_checker.h",
-    "unix_task_runner.h",
-    "utils.h",
-    "watchdog.h",
-    "weak_ptr.h",
+source_set("filesystem") {
+  deps = [
+    "../../../../gn:default_deps",
   ]
-  if (is_android) {
-    sources += [ "android_task_runner.h" ]
-  }
+  sources = [
+    "fs_mount.cc",
+    "fs_mount.h",
+  ]
+}
+
+source_set("filesystem_unittests") {
+  testonly = true
+  deps = [
+    ":filesystem",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_deps",
+  ]
+  sources = [
+    "fs_mount_unittest.cc",
+  ]
 }
