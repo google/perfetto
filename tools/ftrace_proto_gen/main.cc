@@ -23,6 +23,7 @@
 #include <string>
 
 #include "ftrace_proto_gen.h"
+#include "perfetto/base/file_utils.h"
 #include "perfetto/ftrace_reader/format_parser.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 
@@ -40,16 +41,13 @@ int main(int argc, const char** argv) {
   std::set<std::string> events = perfetto::GetWhitelistedEvents(whitelist_path);
   std::vector<std::string> events_info;
 
-  // proto_field_id for each event is read from this file.
-  std::ifstream input("protos/perfetto/trace/ftrace/ftrace_event.proto",
-                      std::ios::in | std::ios::binary);
-  if (!input) {
+  std::string ftrace;
+  if (!perfetto::base::ReadFile(
+          "protos/perfetto/trace/ftrace/ftrace_event.proto", &ftrace)) {
     fprintf(stderr, "Failed to open %s\n",
             "protos/perfetto/trace/ftrace/ftrace_event.proto");
     return 1;
   }
-  std::ostringstream ftrace_stream;
-  ftrace_stream << input.rdbuf();
 
   std::set<std::string> new_events;
   for (auto event : events) {
@@ -76,15 +74,11 @@ int main(int argc, const char** argv) {
     std::string input_path = input_dir + event + std::string("/format");
     std::string output_path = output_dir + std::string("/") + proto_file_name;
 
-    std::ifstream fin(input_path.c_str(), std::ios::in);
-    if (!fin) {
+    std::string contents;
+    if (!perfetto::base::ReadFile(input_path, &contents)) {
       fprintf(stderr, "Failed to open %s\n", input_path.c_str());
       return 1;
     }
-    std::ostringstream stream;
-    stream << fin.rdbuf();
-    fin.close();
-    std::string contents = stream.str();
 
     perfetto::FtraceEvent format;
     if (!perfetto::ParseFtraceEvent(contents, &format)) {
@@ -100,8 +94,6 @@ int main(int argc, const char** argv) {
     }
 
     std::smatch match;
-    std::string ftrace =
-        ftrace_stream.str();  // regex_search requires a non-temporary string
     std::regex event_regex(format.name + "\\s*=\\s*(\\d+)");
     std::regex_search(ftrace, match, event_regex);
     std::string proto_field_id = match[1].str().c_str();
@@ -126,6 +118,5 @@ int main(int argc, const char** argv) {
     fout.close();
   }
 
-  input.close();
   perfetto::GenerateEventInfo(events_info);
 }
