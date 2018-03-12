@@ -60,6 +60,7 @@ executable("perfetto_unittests") {
     "src/base:base_unittests",
     "src/ipc:perfetto_ipc_unittests",
     "src/protozero:protozero_unittests",
+    "src/traced/probes/filesystem:filesystem_unittests",
     "src/tracing:tracing_unittests",
   ]
   if (is_linux || is_android) {

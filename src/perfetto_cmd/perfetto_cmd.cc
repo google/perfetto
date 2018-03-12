@@ -25,6 +25,7 @@
 #include <sstream>
 #include <string>
 
+#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/unix_task_runner.h"
@@ -158,14 +159,10 @@ int PerfettoCmd::Main(int argc, char** argv) {
         ds_config->set_target_buffer(0);
         test_config.SerializeToString(&trace_config_raw);
       } else {
-        std::ifstream file_stream;
-        file_stream.open(optarg, std::ios_base::in | std::ios_base::binary);
-        if (!file_stream.is_open()) {
+        if (!base::ReadFile(optarg, &trace_config_raw)) {
           PERFETTO_ELOG("Could not open %s", optarg);
           return 1;
         }
-        std::istreambuf_iterator<char> begin(file_stream), end;
-        trace_config_raw.assign(begin, end);
       }
       continue;
     }
