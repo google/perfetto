@@ -209,7 +209,7 @@ UnixSocket::UnixSocket(EventListener* event_listener,
 
 UnixSocket::~UnixSocket() {
   // The implicit dtor of |weak_ptr_factory_| will no-op pending callbacks.
-  Shutdown();
+  Shutdown(true);
 }
 
 // Called only by the Connect() static constructor.
@@ -289,6 +289,7 @@ void UnixSocket::OnEvent() {
       return event_listener_->OnConnect(this, true /* connected */);
     }
     last_error_ = sock_err;
+    Shutdown(false);
     return event_listener_->OnConnect(this, false /* connected */);
   }
 
@@ -370,23 +371,26 @@ bool UnixSocket::Send(const void* msg,
   // happened.
   last_error_ = errno;
   PERFETTO_DPLOG("sendmsg() failed");
-  Shutdown();
+  Shutdown(true);
   return false;
 }
 
-void UnixSocket::Shutdown() {
+void UnixSocket::Shutdown(bool notify) {
   base::WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
-  if (state_ == State::kConnected) {
-    task_runner_->PostTask([weak_ptr]() {
-      if (weak_ptr)
-        weak_ptr->event_listener_->OnDisconnect(weak_ptr.get());
-    });
-  } else if (state_ == State::kConnecting) {
-    task_runner_->PostTask([weak_ptr]() {
-      if (weak_ptr)
-        weak_ptr->event_listener_->OnConnect(weak_ptr.get(), false);
-    });
+  if (notify) {
+    if (state_ == State::kConnected) {
+      task_runner_->PostTask([weak_ptr]() {
+        if (weak_ptr)
+          weak_ptr->event_listener_->OnDisconnect(weak_ptr.get());
+      });
+    } else if (state_ == State::kConnecting) {
+      task_runner_->PostTask([weak_ptr]() {
+        if (weak_ptr)
+          weak_ptr->event_listener_->OnConnect(weak_ptr.get(), false);
+      });
+    }
   }
+
   if (fd_) {
     shutdown(*fd_, SHUT_RDWR);
     task_runner_->RemoveFileDescriptorWatch(*fd_);
@@ -419,7 +423,7 @@ size_t UnixSocket::Receive(void* msg, size_t len, base::ScopedFile* recv_fd) {
   }
   if (sz <= 0) {
     last_error_ = errno;
-    Shutdown();
+    Shutdown(true);
     return 0;
   }
   PERFETTO_CHECK(static_cast<size_t>(sz) <= len);
@@ -444,7 +448,7 @@ size_t UnixSocket::Receive(void* msg, size_t len, base::ScopedFile* recv_fd) {
     for (size_t i = 0; fds && i < fds_len; ++i)
       close(fds[i]);
     last_error_ = EMSGSIZE;
-    Shutdown();
+    Shutdown(true);
     return 0;
   }
 
@@ -469,6 +473,9 @@ std::string UnixSocket::ReceiveString(size_t max_length) {
 }
 
 void UnixSocket::NotifyConnectionState(bool success) {
+  if (!success)
+    Shutdown(false);
+
   base::WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_ptr, success]() {
     if (weak_ptr)
