@@ -19,10 +19,10 @@
 
 #include <algorithm>
 
-#include "cpu_reader.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "src/ftrace_reader/cpu_reader.h"
 #include "test/cpu_reader_support.h"
 #include "test/scattered_stream_null_delegate.h"
 

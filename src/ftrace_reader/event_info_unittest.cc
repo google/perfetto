@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "event_info.h"
+#include "src/ftrace_reader/event_info.h"
 
 #include "gtest/gtest.h"
 
