@@ -58,7 +58,8 @@ std::multimap<BlockDeviceID, std::string> ParseMounts() {
   for (const std::string& line : lines) {
     std::vector<std::string> words = split(line, ' ');
     if (words.size() < 2) {
-      PERFETTO_DLOG("Encountered incomplete row in %s: %s.", kMountsPath, line);
+      PERFETTO_DLOG("Encountered incomplete row in %s: %s.", kMountsPath,
+                    line.c_str());
       continue;
     }
     std::string& mountpoint = words[1];

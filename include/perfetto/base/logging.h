@@ -20,13 +20,13 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>  // For strerror.
 #include <unistd.h>
 
 #if defined(NDEBUG)
 #define PERFETTO_DCHECK_IS_ON() 0
 #else
 #define PERFETTO_DCHECK_IS_ON() 1
-#include <string.h>  // For strerror.
 #endif
 
 #include "perfetto/base/build_config.h"
