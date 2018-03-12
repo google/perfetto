@@ -143,7 +143,7 @@ class UnixSocket {
   // Shuts down the current connection, if any. If the socket was Listen()-ing,
   // stops listening. The socket goes back to kNotInitialized state, so it can
   // be reused with Listen() or Connect().
-  void Shutdown();
+  void Shutdown(bool notify);
 
   // Returns true is the message was queued, false if there was no space in the
   // output buffer, in which case the client should retry or give up.
