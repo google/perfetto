@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/string_splitter.h"
 #include "perfetto/base/utils.h"
 
 namespace perfetto {
@@ -80,9 +81,6 @@ std::string GetNameFromTypeAndName(const std::string& type_and_name) {
 }
 
 bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
-  std::unique_ptr<char[], base::FreeDeleter> input_copy(strdup(input.c_str()));
-  char* s = input_copy.get();
-
   char buffer[MAX_FIELD_LENGTH + 1];
 
   bool has_id = false;
@@ -93,7 +91,8 @@ bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
   std::vector<FtraceEvent::Field> common_fields;
   std::vector<FtraceEvent::Field> fields;
 
-  for (char* line = strtok(s, "\n"); line; line = strtok(nullptr, "\n")) {
+  for (base::StringSplitter ss(input, '\n'); ss.Next();) {
+    const char* line = ss.cur_token();
     if (!has_id && sscanf(line, "ID: %d", &id) == 1) {
       has_id = true;
       continue;
