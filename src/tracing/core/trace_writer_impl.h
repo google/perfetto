@@ -38,6 +38,7 @@ class TraceWriterImpl : public TraceWriter,
 
   // TraceWriter implementation. See documentation in trace_writer.h .
   TracePacketHandle NewTracePacket() override;
+  void Flush() override;
   WriterID writer_id() const override;
 
  private:

@@ -33,18 +33,21 @@ namespace {
 using testing::Contains;
 using testing::Pair;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 TEST(FsMountTest, ParseRealMounts) {
   std::multimap<BlockDeviceID, std::string> mounts = ParseMounts();
   struct stat buf = {};
   ASSERT_NE(stat("/proc", &buf), -1);
   EXPECT_THAT(mounts, Contains(Pair(buf.st_dev, "/proc")));
 }
+#endif
 
 TEST(FsMountTest, ParseSyntheticMounts) {
   const char kMounts[] = R"(
-procfs /proc proc rw,nosuid,nodev,noexec,relatime 0 0
-#INVALIDLINE
 sysfs / sysfs rw,nosuid,nodev,noexec,relatime 0 0
+#INVALIDLINE
+devfs /dev devfs,local,nobrowse
 )";
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   char tmp_path[PATH_MAX] = "/data/local/tmp/fake_mounts.XXXXXX";
@@ -59,10 +62,10 @@ sysfs / sysfs rw,nosuid,nodev,noexec,relatime 0 0
 
   std::multimap<BlockDeviceID, std::string> mounts = ParseMounts(tmp_path);
   unlink(tmp_path);
-  struct stat proc_stat = {}, root_stat = {};
-  ASSERT_NE(stat("/proc", &proc_stat), -1);
+  struct stat dev_stat = {}, root_stat = {};
+  ASSERT_NE(stat("/dev", &dev_stat), -1);
   ASSERT_NE(stat("/", &root_stat), -1);
-  EXPECT_THAT(mounts, Contains(Pair(proc_stat.st_dev, "/proc")));
+  EXPECT_THAT(mounts, Contains(Pair(dev_stat.st_dev, "/dev")));
   EXPECT_THAT(mounts, Contains(Pair(root_stat.st_dev, "/")));
 }  // namespace
 

@@ -335,8 +335,8 @@ class SharedMemoryABI {
     // TryLock operations below.
     Chunk(const Chunk&) = delete;
     Chunk operator=(const Chunk&) = delete;
-    Chunk(Chunk&&) noexcept = default;
-    Chunk& operator=(Chunk&&) = default;
+    Chunk(Chunk&&) noexcept;
+    Chunk& operator=(Chunk&&);
 
     uint8_t* begin() const { return begin_; }
     uint8_t* end() const { return begin_ + size_; }
