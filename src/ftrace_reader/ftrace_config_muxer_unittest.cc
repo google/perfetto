@@ -110,7 +110,7 @@ std::unique_ptr<ProtoTranslationTable> CreateFakeTable() {
       new ProtoTranslationTable(events, std::move(common_fields)));
 }
 
-TEST(FtraceConfigMuxer, ComputeCpuBufferSizeInPages) {
+TEST(FtraceConfigMuxerTest, ComputeCpuBufferSizeInPages) {
   // No buffer size given: good default (128 pages = 512kb).
   EXPECT_EQ(ComputeCpuBufferSizeInPages(0), 128u);
   // Buffer size given way too big: good default.
