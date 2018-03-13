@@ -9,7 +9,7 @@
 #include <memory>
 #include <string>
 
-#include "process_info.h"
+#include "src/process_stats/process_info.h"
 
 namespace procfs_utils {
 

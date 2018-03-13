@@ -29,6 +29,7 @@ source_set("tracing") {
     "../base",
   ]
   sources = [
+    "core/chrome_config.cc",
     "core/commit_data_request.cc",
     "core/data_source_config.cc",
     "core/data_source_descriptor.cc",
@@ -37,6 +38,7 @@ source_set("tracing") {
     "core/id_allocator.h",
     "core/packet_stream_validator.cc",
     "core/packet_stream_validator.h",
+    "core/patch_list.h",
     "core/service_impl.cc",
     "core/service_impl.h",
     "core/shared_memory_abi.cc",
@@ -44,6 +46,7 @@ source_set("tracing") {
     "core/shared_memory_arbiter_impl.h",
     "core/sliced_protobuf_input_stream.cc",
     "core/sliced_protobuf_input_stream.h",
+    "core/test_config.cc",
     "core/trace_buffer.cc",
     "core/trace_buffer.h",
     "core/trace_config.cc",
@@ -119,6 +122,7 @@ source_set("tracing_unittests") {
   sources = [
     "core/id_allocator_unittest.cc",
     "core/packet_stream_validator_unittest.cc",
+    "core/patch_list_unittest.cc",
     "core/service_impl_unittest.cc",
     "core/shared_memory_abi_unittest.cc",
     "core/shared_memory_arbiter_impl_unittest.cc",

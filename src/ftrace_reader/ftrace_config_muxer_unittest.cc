@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "ftrace_config_muxer.h"
+#include "src/ftrace_reader/ftrace_config_muxer.h"
 
 #include <memory>
 
@@ -110,7 +110,7 @@ std::unique_ptr<ProtoTranslationTable> CreateFakeTable() {
       new ProtoTranslationTable(events, std::move(common_fields)));
 }
 
-TEST(FtraceConfigMuxer, ComputeCpuBufferSizeInPages) {
+TEST(FtraceConfigMuxerTest, ComputeCpuBufferSizeInPages) {
   // No buffer size given: good default (128 pages = 512kb).
   EXPECT_EQ(ComputeCpuBufferSizeInPages(0), 128u);
   // Buffer size given way too big: good default.

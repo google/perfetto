@@ -20,9 +20,11 @@ proto_library("config") {
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   sources = [
+    "chrome/chrome_config.proto",
     "data_source_config.proto",
     "data_source_descriptor.proto",
     "ftrace/ftrace_config.proto",
+    "test_config.proto",
     "trace_config.proto",
   ]
 }

@@ -28,14 +28,14 @@
 #include <string>
 #include <utility>
 
-#include "cpu_reader.h"
-#include "event_info.h"
-#include "ftrace_config_muxer.h"
-#include "ftrace_procfs.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
-#include "proto_translation_table.h"
+#include "src/ftrace_reader/cpu_reader.h"
+#include "src/ftrace_reader/event_info.h"
+#include "src/ftrace_reader/ftrace_config_muxer.h"
+#include "src/ftrace_reader/ftrace_procfs.h"
+#include "src/ftrace_reader/proto_translation_table.h"
 
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 
@@ -368,6 +368,14 @@ FtraceMetadata::FtraceMetadata() {
   pids.reserve(10);
 }
 
+void FtraceMetadata::AddDevice(uint32_t device_id) {
+  last_seen_device_id = device_id;
+}
+
+void FtraceMetadata::AddInode(uint64_t inode_number) {
+  inodes.push_back(std::make_pair(inode_number, last_seen_device_id));
+}
+
 void FtraceMetadata::AddPid(int32_t pid) {
   // Speculative optimization aginst repated pid's while keeping
   // faster insertion than a set.
@@ -380,6 +388,7 @@ void FtraceMetadata::Clear() {
   inodes.clear();
   pids.clear();
   overwrite_count = 0;
+  last_seen_device_id = 0;
 }
 
 }  // namespace perfetto

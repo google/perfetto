@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "cpu_reader.h"
+#include "src/ftrace_reader/cpu_reader.h"
 
 #include <signal.h>
 
@@ -486,6 +486,9 @@ bool CpuReader::ParseField(const Field& field,
       return true;
     case kPid32ToInt32:
       ReadPid(field_start, field_id, message, metadata);
+      return true;
+    case kDevId32ToUint32:
+      ReadDevId(field_start, field_id, message, metadata);
       return true;
   }
   // Not reached, for gcc.

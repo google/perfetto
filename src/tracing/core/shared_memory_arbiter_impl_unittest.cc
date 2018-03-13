@@ -71,102 +71,55 @@ INSTANTIATE_TEST_CASE_P(PageSize,
                         SharedMemoryArbiterImplTest,
                         ::testing::ValuesIn(kPageSizes));
 
-// Checks that chunks that target different buffer IDs are placed in different
-// pages.
-TEST_P(SharedMemoryArbiterImplTest, ChunksAllocationByTargetBufferID) {
-  SharedMemoryArbiterImpl::set_default_layout_for_testing(
-      SharedMemoryABI::PageLayout::kPageDiv4);
-  SharedMemoryABI::Chunk chunks[8];
-  chunks[0] = arbiter_->GetNewChunk({}, 1 /* target buffer id */, 0);
-  chunks[1] = arbiter_->GetNewChunk({}, 1 /* target buffer id */, 0);
-  chunks[2] = arbiter_->GetNewChunk({}, 1 /* target buffer id */, 0);
-  chunks[3] = arbiter_->GetNewChunk({}, 2 /* target buffer id */, 0);
-  chunks[4] = arbiter_->GetNewChunk({}, 1 /* target buffer id */, 0);
-  chunks[5] = arbiter_->GetNewChunk({}, 1 /* target buffer id */, 0);
-  chunks[6] = arbiter_->GetNewChunk({}, 3 /* target buffer id */, 0);
-  chunks[7] = arbiter_->GetNewChunk({}, 3 /* target buffer id */, 0);
-
-  // "first" == "page index", "second" == "chunk index".
-  std::pair<size_t, size_t> idx[base::ArraySize(chunks)];
-  for (size_t i = 0; i < base::ArraySize(chunks); i++)
-    idx[i] = arbiter_->shmem_abi_for_testing()->GetPageAndChunkIndex(chunks[i]);
-
-  // The first three chunks should lay in the same page, as they target the same
-  // buffer id (1).
-  EXPECT_EQ(idx[0].first, idx[1].first);
-  EXPECT_EQ(idx[0].first, idx[2].first);
-
-  // Check also that the chunk IDs are different.
-  EXPECT_NE(idx[0].second, idx[1].second);
-  EXPECT_NE(idx[1].second, idx[2].second);
-  EXPECT_NE(idx[0].second, idx[2].second);
-
-  // The next one instead should be given a dedicated page because it targets
-  // a different buffer id (2);
-  EXPECT_NE(idx[2].first, idx[3].first);
-
-  // Hoever the next two chunks should be able to fit back into the same page.
-  EXPECT_EQ(idx[4].first, idx[5].first);
-  EXPECT_NE(idx[4].second, idx[5].second);
-
-  // Similarly the last two chunks should be able to share the same page, but
-  // not any page of the previous chunks.
-  EXPECT_NE(idx[0].first, idx[6].first);
-  EXPECT_NE(idx[3].first, idx[6].first);
-  EXPECT_EQ(idx[6].first, idx[7].first);
-  EXPECT_NE(idx[6].second, idx[7].second);
-
-  // TODO(primiano): check that after saturating all the pages, the arbiter
-  // goes back and reuses free chunks of previous pages. e.g., at some point
-  // a chunk targeting buffer id == 1 should be placed into (page:0, chunk:3).
-}
-
 // The buffer has 14 pages (kNumPages), each will be partitioned in 14 chunks.
-// The test requests all 14 * 14 chunks, alternating amongst 14 target buf IDs.
-// Because a chunk can share a page only if all other chunks in the page have
-// the same target buffer ID, there is only one possible final distribution:
-// each page is filled with chunks that all belong to the same buffer ID.
+// The test requests 30 chunks (2 full pages + 2 chunks from a 3rd page) and
+// releases them in different batches. It tests the consistency of the batches
+// and the releasing order.
 TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
   SharedMemoryArbiterImpl::set_default_layout_for_testing(
       SharedMemoryABI::PageLayout::kPageDiv14);
   static constexpr size_t kTotChunks = kNumPages * 14;
   SharedMemoryABI::Chunk chunks[kTotChunks];
-  for (size_t i = 0; i < kTotChunks; i++) {
-    BufferID target_buffer = i % 14;
-    chunks[i] = arbiter_->GetNewChunk({}, target_buffer, 0 /*size_hint*/);
+  for (size_t i = 0; i < 14 * 2 + 2; i++) {
+    chunks[i] = arbiter_->GetNewChunk({}, 0 /*size_hint*/);
     ASSERT_TRUE(chunks[i].is_valid());
   }
 
-  SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
-  for (size_t page_idx = 0; page_idx < kNumPages; page_idx++) {
-    ASSERT_FALSE(abi->is_page_free(page_idx));
-    ASSERT_EQ(0u, abi->GetFreeChunks(page_idx));
-    const uint32_t page_layout = abi->page_layout_dbg(page_idx);
-    ASSERT_EQ(14u, SharedMemoryABI::GetNumChunksForLayout(page_layout));
-    ASSERT_EQ(page_idx % 14, abi->page_header(page_idx)->target_buffer.load());
-    for (size_t chunk_idx = 0; chunk_idx < 14; chunk_idx++) {
-      auto chunk = abi->GetChunkUnchecked(page_idx, page_layout, chunk_idx);
-      ASSERT_TRUE(chunk.is_valid());
-    }
-  }
-
-  // Finally return just two pages marking all their chunks as complete, and
-  // check that the notification callback is posted.
-
-  auto on_callback = task_runner_->CreateCheckpoint("on_callback");
+  // Finally return the first 28 chunks (full 2 pages) and only the 2nd chunk of
+  // the 2rd page. Chunks are release in interleaved order: 1,0,3,2,5,4,7,6.
+  // Check that the notification callback is posted and order is consistent.
+  auto on_commit_1 = task_runner_->CreateCheckpoint("on_commit_1");
   EXPECT_CALL(mock_producer_endpoint_, CommitData(_))
-      .WillOnce(Invoke([on_callback](const CommitDataRequest& req) {
-        ASSERT_EQ(2, req.chunks_to_move_size());
-        ASSERT_EQ(0u, req.chunks_to_move()[0].page());
-        ASSERT_EQ(3u, req.chunks_to_move()[1].page());
-        // TODO(primiano): In next CL, ASSERT_EQ on buffer and chunk number.
-        on_callback();
+      .WillOnce(Invoke([on_commit_1](const CommitDataRequest& req) {
+        ASSERT_EQ(14 * 2 + 1, req.chunks_to_move_size());
+        for (size_t i = 0; i < 14 * 2; i++) {
+          ASSERT_EQ(i / 14, req.chunks_to_move()[i].page());
+          ASSERT_EQ((i % 14) ^ 1, req.chunks_to_move()[i].chunk());
+          ASSERT_EQ(i % 5, req.chunks_to_move()[i].target_buffer());
+        }
+        ASSERT_EQ(2u, req.chunks_to_move()[28].page());
+        ASSERT_EQ(1u, req.chunks_to_move()[28].chunk());
+        ASSERT_EQ(42u, req.chunks_to_move()[28].target_buffer());
+        on_commit_1();
       }));
-  for (size_t i = 0; i < 14; i++) {
-    arbiter_->ReturnCompletedChunk(std::move(chunks[14 * i]));
-    arbiter_->ReturnCompletedChunk(std::move(chunks[14 * i + 3]));
-  }
-  task_runner_->RunUntilCheckpoint("on_callback");
+  for (size_t i = 0; i < 14 * 2; i++)
+    arbiter_->ReturnCompletedChunk(std::move(chunks[i ^ 1]), i % 5);
+  arbiter_->ReturnCompletedChunk(std::move(chunks[29]), 42);
+  task_runner_->RunUntilCheckpoint("on_commit_1");
+
+  // Then release the 1st chunk of the 3rd page, and check that we get a
+  // notification for that as well.
+  auto on_commit_2 = task_runner_->CreateCheckpoint("on_commit_2");
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_))
+      .WillOnce(Invoke([on_commit_2](const CommitDataRequest& req) {
+        ASSERT_EQ(1, req.chunks_to_move_size());
+        ASSERT_EQ(2u, req.chunks_to_move()[0].page());
+        ASSERT_EQ(0u, req.chunks_to_move()[0].chunk());
+        ASSERT_EQ(43u, req.chunks_to_move()[0].target_buffer());
+        on_commit_2();
+      }));
+  arbiter_->ReturnCompletedChunk(std::move(chunks[28]), 43);
+  task_runner_->RunUntilCheckpoint("on_commit_2");
 }
 
 // Check that we can actually create up to kMaxWriterID TraceWriter(s).

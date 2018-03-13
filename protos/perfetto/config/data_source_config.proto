@@ -19,8 +19,9 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
+import "perfetto/config/chrome/chrome_config.proto";
 import "perfetto/config/ftrace/ftrace_config.proto";
-
+import "perfetto/config/test_config.proto";
 // When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
 // to reflect changes in the corresponding C++ headers.
 
@@ -47,4 +48,9 @@ message DataSourceConfig {
   // data-sources and needs to be processed by the traced daemon.
 
   optional FtraceConfig ftrace_config = 100;
+  optional ChromeConfig chrome_config = 101;
+
+  // This field is only used for testing.
+  optional TestConfig for_testing =
+      536870911;  // 2^29 - 1, max field id for protos.
 }

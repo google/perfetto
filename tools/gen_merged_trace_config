@@ -19,8 +19,10 @@ import subprocess
 import sys
 
 PROTOS = (
+  'protos/perfetto/config/chrome/chrome_config.proto',
   'protos/perfetto/config/data_source_config.proto',
   'protos/perfetto/config/ftrace/ftrace_config.proto',
+  'protos/perfetto/config/test_config.proto',
   'protos/perfetto/config/trace_config.proto',
 )
 
@@ -55,7 +57,7 @@ def main():
     content = content[len(header):]
     if merged_content == '':
       merged_content += REPLACEMENT_HEADER.lstrip() % __file__
-    content = re.sub(r'\nimport.*?\n', '', content)
+    content = re.sub(r'^import.*?\n', '', content, flags=re.MULTILINE)
     content = re.sub(r'TODO\([^)]*\):', 'TODO:', content)
     merged_content += '\n// Begin of %s\n' % proto
     merged_content += content

@@ -19,10 +19,11 @@
 #include <sstream>
 #include <string>
 
-#include "ftrace_procfs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto/base/file_utils.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
+#include "src/ftrace_reader/ftrace_procfs.h"
 
 using testing::HasSubstr;
 using testing::Not;
@@ -40,15 +41,9 @@ void ResetFtrace(FtraceProcfs* ftrace) {
 }
 
 std::string ReadFile(const std::string& name) {
-  std::string path = std::string(kTracingPath) + name;
-  std::ifstream fin(path, std::ios::in);
-  if (!fin) {
-    return "";
-  }
-  std::ostringstream stream;
-  stream << fin.rdbuf();
-  fin.close();
-  return stream.str();
+  std::string result;
+  PERFETTO_CHECK(base::ReadFile(kTracingPath + name, &result));
+  return result;
 }
 
 std::string GetTraceOutput() {

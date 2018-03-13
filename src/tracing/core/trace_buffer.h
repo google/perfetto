@@ -32,6 +32,8 @@
 
 namespace perfetto {
 
+class TracePacket;
+
 // The main buffer, owned by the tracing service, where all the trace data is
 // ultimately stored into. The service will own several instances of this class,
 // at least one per active consumer (as defined in the |buffers| section of
@@ -161,6 +163,7 @@ class TraceBuffez {
   // None of the arguments should be trusted, unless otherwise stated. We can
   // trust that |src| points to a valid memory area, but not its contents.
   void CopyChunkUntrusted(ProducerID producer_id_trusted,
+                          uid_t producer_uid_trusted,
                           WriterID writer_id,
                           ChunkID chunk_id,
                           uint16_t num_fragments,
@@ -189,13 +192,14 @@ class TraceBuffez {
   // Reads in the TraceBuffer are NOT idempotent.
   void BeginRead();
 
-  // Returns the next packet in the buffer, if any. Returns false if no packets
-  // can be read at this point.
+  // Returns the next packet in the buffer, if any, and the uid of the producer
+  // that wrote it (as passed in the CopyChunkUntrusted() call). Returns false
+  // if no packets can be read at this point.
   // This function returns only complete packets. Specifically:
   // When there is at least one complete packet in the buffer, this function
-  // returns true and populates the |slices| argument with the boundaries of
+  // returns true and populates the TracePacket argument with the boundaries of
   // each fragment for one packet.
-  // The output |slices|.size() will be >= 1 when this function returns true.
+  // TracePacket will have at least one slice when this function returns true.
   // When there are no whole packets eligible to read (e.g. we are still missing
   // fragments) this function returns false.
   // This function guarantees also that packets for a given
@@ -210,9 +214,10 @@ class TraceBuffez {
   //   P1, P4, P7, P2, P3, P5, P8, P9, P6
   // But the following is guaranteed to NOT happen:
   //   P1, P5, P7, P4 (P4 cannot come after P5)
-  bool ReadNextTracePacket(Slices* slices);
+  bool ReadNextTracePacket(TracePacket*, uid_t* producer_uid);
 
   const Stats& stats() const { return stats_; }
+  size_t size() const { return size_; }
 
  private:
   friend class TraceBufferTest;
@@ -314,10 +319,11 @@ class TraceBuffez {
       ChunkID chunk_id;
     };
 
-    ChunkMeta(ChunkRecord* c, uint16_t p, uint8_t f)
-        : chunk_record{c}, flags{f}, num_fragments{p} {}
+    ChunkMeta(ChunkRecord* c, uint16_t p, uint8_t f, uid_t u)
+        : chunk_record{c}, trusted_uid{u}, flags{f}, num_fragments{p} {}
 
     ChunkRecord* const chunk_record;   // Addr of ChunkRecord within |data_|.
+    const uid_t trusted_uid;           // uid of the producer.
     uint8_t flags = 0;                 // See SharedMemoryABI::flags.
     const uint16_t num_fragments = 0;  // Total number of packet fragments.
     uint16_t num_fragments_read = 0;   // Number of fragments already read.
@@ -327,11 +333,6 @@ class TraceBuffez {
     // payload (the 1st fragment starts at |chunk_record| +
     // sizeof(ChunkRecord)).
     uint16_t cur_fragment_offset = 0;
-
-    // If != 0 the last fragment in the chunk cannot be read, even if the
-    // subsequent ChunkID is already available, until a patch is applied through
-    // MaybePatchChunkContents().
-    // TODO(primiano): implement this logic in next CL.
   };
 
   using ChunkMap = std::map<ChunkMeta::Key, ChunkMeta>;
@@ -421,11 +422,12 @@ class TraceBuffez {
   void AddPaddingRecord(size_t);
 
   // Look for contiguous fragment of the same packet starting from |read_iter_|.
-  // If a contiguous packet is found, all the fragments are pushed into |slices|
-  // and the function returns kSucceededReturnSlices. If not, the function
-  // returns either kFailedMoveToNextSequence or kFailedStayOnSameSequence,
-  // telling the caller to continue looking for packets.
-  ReadAheadResult ReadAhead(Slices* slices);
+  // If a contiguous packet is found, all the fragments are pushed into
+  // TracePacket and the function returns kSucceededReturnSlices. If not, the
+  // function returns either kFailedMoveToNextSequence or
+  // kFailedStayOnSameSequence, telling the caller to continue looking for
+  // packets.
+  ReadAheadResult ReadAhead(TracePacket*);
 
   // Deletes (by marking the record invalid and removing form the index) all
   // chunks from |wptr_| to |wptr_| + |bytes_to_clear|. Returns the size of the
@@ -443,11 +445,12 @@ class TraceBuffez {
   size_t DeleteNextChunksFor(size_t bytes_to_clear);
 
   // Decodes the boundaries of the next packet (or a fragment) pointed by
-  // ChunkMeta and pushes that into |Slices*|. It also increments the
+  // ChunkMeta and pushes that into |TracePacket|. It also increments the
   // |num_fragments_read| counter.
-  // The Slices pointer can be nullptr, in which case the read state is still
-  // advanced.
-  bool ReadNextPacketInChunk(ChunkMeta*, Slices*);
+  // TracePacket can be nullptr, in which case the read state is still advanced.
+  // When TracePacket is not nullptr, ProducerID must also be not null and will
+  // be updated with the ProducerID that originally wrote the chunk.
+  bool ReadNextPacketInChunk(ChunkMeta*, TracePacket*);
 
   void DcheckIsAlignedAndWithinBounds(const uint8_t* ptr) const {
     PERFETTO_DCHECK(ptr >= begin() && ptr <= end() - sizeof(ChunkRecord));

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "procfs_utils.h"
+#include "src/process_stats/procfs_utils.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -11,6 +11,7 @@
 #include "file_utils.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/string_splitter.h"
 
 using file_utils::ForEachPidInProcPath;
 using file_utils::ReadProcFile;
@@ -53,17 +54,6 @@ inline int ReadStatusLine(int pid, const char* status_string) {
   return atoi(line + strlen(status_string));
 }
 
-inline std::vector<std::string> SplitOnNull(const char* input, size_t size) {
-  std::vector<std::string> output;
-  const char* end = input + size;
-  do {
-    // This works because it will only push the string up to a null character.
-    output.push_back(std::string(input));
-    input += output.back().size() + 1;
-  } while (input[0] != 0 && input < end);
-  return output;
-}
-
 }  // namespace
 
 int ReadTgid(int pid) {
@@ -86,7 +76,9 @@ std::unique_ptr<ProcessInfo> ReadProcessInfo(int pid) {
     process->cmdline.push_back(name);
     process->in_kernel = true;
   } else {
-    process->cmdline = SplitOnNull(cmdline_buf, sizeof(cmdline_buf));
+    using perfetto::base::StringSplitter;
+    for (StringSplitter ss(cmdline_buf, sizeof(cmdline_buf), '\0'); ss.Next();)
+      process->cmdline.push_back(ss.cur_token());
     ReadExePath(pid, process->exe, sizeof(process->exe));
     process->is_app = IsApp(process->cmdline[0].c_str(), process->exe);
   }
