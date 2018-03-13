@@ -175,7 +175,9 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     lockdown_mode_ = true;
   if (cfg.lockdown_mode() == TraceConfig::LockdownModeOperation::LOCKDOWN_CLEAR)
     lockdown_mode_ = false;
-  if (consumer->tracing_session_id_) {
+  TracingSession* tracing_session =
+      GetTracingSession(consumer->tracing_session_id_);
+  if (tracing_session) {
     PERFETTO_DLOG(
         "A Consumer is trying to EnableTracing() but another tracing session "
         "is already active (forgot a call to FreeBuffers() ?)");

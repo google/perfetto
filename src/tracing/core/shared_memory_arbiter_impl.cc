@@ -61,7 +61,9 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     size_t size_hint) {
   PERFETTO_DCHECK(size_hint == 0);  // Not implemented yet.
   int stall_count = 0;
-  const useconds_t kStallIntervalUs = 100000;
+  useconds_t stall_interval_us = 0;
+  static const useconds_t kMaxStallIntervalUs = 100000;
+  static const int kLogAfterNStalls = 3;
 
   for (;;) {
     // TODO(primiano): Probably this lock is not really required and this code
@@ -97,11 +99,9 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
               page_idx_, chunk_idx, &header);
           if (!chunk.is_valid())
             continue;
-          PERFETTO_DLOG("Acquired chunk %zu:%u", page_idx_, chunk_idx);
-          if (stall_count) {
-            PERFETTO_LOG(
-                "Recovered from stall after %" PRIu64 " ms",
-                static_cast<uint64_t>(kStallIntervalUs * stall_count / 1000));
+          if (stall_count > kLogAfterNStalls) {
+            PERFETTO_LOG("Recovered from stall after %d iterations",
+                         stall_count);
           }
           return chunk;
         }
@@ -111,7 +111,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // All chunks are taken (either kBeingWritten by us or kBeingRead by the
     // Service). TODO: at this point we should return a bankrupcy chunk, not
     // crash the process.
-    if (stall_count++ == 0) {
+    if (stall_count++ == kLogAfterNStalls) {
       PERFETTO_ELOG("Shared memory buffer overrun! Stalling");
 
       // TODO(primiano): sending the IPC synchronously is a temporary workaround
@@ -125,7 +125,9 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
       // main thread.
       SendPendingCommitDataRequest();
     }
-    usleep(kStallIntervalUs);
+    usleep(stall_interval_us);
+    stall_interval_us =
+        std::min(kMaxStallIntervalUs, (stall_interval_us + 1) * 8);
   }
 }
 

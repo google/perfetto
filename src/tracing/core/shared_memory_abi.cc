@@ -298,6 +298,20 @@ SharedMemoryABI::Chunk::Chunk(uint8_t* begin, uint16_t size, uint8_t chunk_idx)
   PERFETTO_CHECK(size > 0);
 }
 
+SharedMemoryABI::Chunk::Chunk(Chunk&& o) noexcept {
+  *this = std::move(o);
+}
+
+SharedMemoryABI::Chunk& SharedMemoryABI::Chunk::operator=(Chunk&& o) {
+  begin_ = o.begin_;
+  size_ = o.size_;
+  chunk_idx_ = o.chunk_idx_;
+  o.begin_ = nullptr;
+  o.size_ = 0;
+  o.chunk_idx_ = 0;
+  return *this;
+}
+
 std::pair<size_t, size_t> SharedMemoryABI::GetPageAndChunkIndex(
     const Chunk& chunk) {
   PERFETTO_DCHECK(chunk.is_valid());
