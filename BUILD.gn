@@ -66,6 +66,7 @@ executable("perfetto_unittests") {
   if (is_linux || is_android) {
     deps += [
       "src/ftrace_reader:ftrace_reader_unittests",
+      "src/traced/probes:probes_unittests",
       "tools/ftrace_proto_gen:ftrace_proto_gen_unittests",
     ]
   }
