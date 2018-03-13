@@ -105,6 +105,7 @@ TEST_P(TraceWriterImplTest, SingleWriter) {
 }
 
 // TODO(primiano): add multi-writer test.
+// TODO(primiano): add Flush() test.
 
 }  // namespace
 }  // namespace perfetto

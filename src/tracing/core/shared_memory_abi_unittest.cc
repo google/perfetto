@@ -199,6 +199,7 @@ TEST_P(SharedMemoryABITest, BatchAcquireAndRelease) {
   ASSERT_FALSE(abi.TryAcquireAllChunksForReading(0));
 
   ASSERT_EQ(0u, abi.ReleaseChunkAsComplete(std::move(chunk)));
+  ASSERT_FALSE(chunk.is_valid());
 
   // TryAcquireAllChunksForReading() should succeed given that the page has only
   // one chunk and is now complete.
@@ -222,6 +223,7 @@ TEST_P(SharedMemoryABITest, BatchAcquireAndRelease) {
 
   // Mark only one chunks as complete and try again, it should still fail.
   ASSERT_EQ(0u, abi.ReleaseChunkAsComplete(std::move(chunk0)));
+  ASSERT_FALSE(chunk0.is_valid());
 
   ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi.GetChunkState(0, 0));
   ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, 1));
@@ -232,6 +234,7 @@ TEST_P(SharedMemoryABITest, BatchAcquireAndRelease) {
   // Now release also the last chunk as complete and try again the
   // TryAcquireAllChunksForReading(). This time it should succeed.
   ASSERT_EQ(0u, abi.ReleaseChunkAsComplete(std::move(chunk3)));
+  ASSERT_FALSE(chunk3.is_valid());
 
   ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi.GetChunkState(0, 0));
   ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, 1));
