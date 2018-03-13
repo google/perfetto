@@ -27,7 +27,10 @@ namespace perfetto {
 // On ARM, st_dev is not dev_t but unsigned long long.
 using BlockDeviceID = decltype(stat::st_dev);
 
-std::multimap<BlockDeviceID, std::string> ParseMounts();
+constexpr char kMountsPath[] = "/proc/mounts";
+
+std::multimap<BlockDeviceID, std::string> ParseMounts(
+    const char* path = kMountsPath);
 
 }  // namespace perfetto
 

@@ -23,51 +23,31 @@
 
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/string_splitter.h"
 
 namespace perfetto {
 
-namespace {
-constexpr const char kMountsPath[] = "/proc/mounts";
-
-std::vector<std::string> split(const std::string& text, char s) {
-  std::vector<std::string> result;
-  size_t start = 0;
-  size_t end = 0;
-  do {
-    end = text.find(s, start);
-    if (end == std::string::npos)
-      end = text.size();
-    std::string sub = text.substr(start, end - start);
-    if (!sub.empty())
-      result.emplace_back(std::move(sub));
-    start = end + 1;
-  } while (start < text.size());
-  return result;
-}
-}  // namespace
-
-std::multimap<BlockDeviceID, std::string> ParseMounts() {
+std::multimap<BlockDeviceID, std::string> ParseMounts(const char* path) {
   std::string data;
-  if (!base::ReadFile(kMountsPath, &data)) {
-    PERFETTO_ELOG("Failed to read %s.", kMountsPath);
+  if (!base::ReadFile(path, &data)) {
+    PERFETTO_ELOG("Failed to read %s", path);
     return {};
   }
   std::multimap<BlockDeviceID, std::string> device_to_mountpoints;
-  std::vector<std::string> lines = split(data, '\n');
-  struct stat buf {};
-  for (const std::string& line : lines) {
-    std::vector<std::string> words = split(line, ' ');
-    if (words.size() < 2) {
-      PERFETTO_DLOG("Encountered incomplete row in %s: %s.", kMountsPath,
-                    line.c_str());
+
+  for (base::StringSplitter lines(std::move(data), '\n'); lines.Next();) {
+    base::StringSplitter words(&lines, ' ');
+    if (!words.Next() || !words.Next()) {
+      PERFETTO_DLOG("Invalid mount point: %s.", lines.cur_token());
       continue;
     }
-    std::string& mountpoint = words[1];
-    if (stat(mountpoint.c_str(), &buf) == -1) {
+    const char* mountpoint = words.cur_token();
+    struct stat buf {};
+    if (stat(mountpoint, &buf) == -1) {
       PERFETTO_PLOG("stat");
       continue;
     }
-    device_to_mountpoints.emplace(buf.st_dev, std::move(mountpoint));
+    device_to_mountpoints.emplace(buf.st_dev, mountpoint);
   }
   return device_to_mountpoints;
 }
