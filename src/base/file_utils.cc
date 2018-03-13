@@ -32,10 +32,8 @@ bool ReadFile(const std::string& path, std::string* out) {
   size_t i = out->size();
 
   base::ScopedFile fd = base::OpenFile(path.c_str(), O_RDONLY);
-  if (!fd) {
-    PERFETTO_PLOG(path.c_str());
+  if (!fd)
     return false;
-  }
 
   struct stat buf {};
   if (fstat(*fd, &buf) != -1) {
