@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_TRACING_CORE_TRACE_WRITER_H_
 
 #include "perfetto/protozero/message_handle.h"
+#include "perfetto/tracing/core/basic_types.h"
 
 namespace perfetto {
 

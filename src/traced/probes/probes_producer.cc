@@ -29,12 +29,8 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
 
-#include "src/process_stats/file_utils.h"
-#include "src/process_stats/procfs_utils.h"
-
 #include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "perfetto/trace/ps/process_tree.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -174,34 +170,13 @@ void ProbesProducer::CreateProcessStatsDataSourceInstance(
     DataSourceInstanceID id,
     const DataSourceConfig& source_config) {
   PERFETTO_DCHECK(process_stats_sources_.count(id) == 0);
-  process_stats_sources_.insert(id);
   auto trace_writer = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
-  procfs_utils::ProcessMap processes;
-  auto trace_packet = trace_writer->NewTracePacket();
-  protos::pbzero::ProcessTree* process_tree = trace_packet->set_process_tree();
-
-  file_utils::ForEachPidInProcPath(
-      "/proc", [&processes, &process_tree](int pid) {
-        if (!processes.count(pid)) {
-          if (procfs_utils::ReadTgid(pid) != pid)
-            return;
-          processes[pid] = procfs_utils::ReadProcessInfo(pid);
-        }
-        ProcessInfo* process = processes[pid].get();
-        procfs_utils::ReadProcessThreads(process);
-        auto* process_writer = process_tree->add_processes();
-        process_writer->set_pid(process->pid);
-        process_writer->set_ppid(process->ppid);
-        for (const auto& field : process->cmdline)
-          process_writer->add_cmdline(field.c_str());
-        for (auto& thread : process->threads) {
-          auto* thread_writer = process_writer->add_threads();
-          thread_writer->set_tid(thread.second.tid);
-          thread_writer->set_name(thread.second.name);
-        }
-      });
-  trace_packet->Finalize();
+  auto source = std::unique_ptr<ProcessStatsDataSource>(
+      new ProcessStatsDataSource(std::move(trace_writer)));
+  auto it_and_inserted = process_stats_sources_.emplace(id, std::move(source));
+  PERFETTO_DCHECK(it_and_inserted.second);
+  it_and_inserted.first->second->WriteAllProcesses();
 }
 
 // static
