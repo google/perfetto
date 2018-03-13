@@ -56,6 +56,14 @@ class TraceWriter {
   // be used after either: (i) the TraceWriter instance is destroyed, (ii) a
   // subsequence NewTracePacket() call is made on the same TraceWriter instance.
   virtual TracePacketHandle NewTracePacket() = 0;
+
+  // Commits the data pending for the current chunk into the shared memory
+  // buffer and sends a CommitDataRequest() to the service. This can be called
+  // only if handle returned by NewTracePacket() has been destroyed (i.e. we
+  // cannot Flush() while writing a TracePacket).
+  // Note: Flush() also happens implicitly when destroying the TraceWriter.
+  virtual void Flush() = 0;
+
   virtual WriterID writer_id() const = 0;
 
  private:

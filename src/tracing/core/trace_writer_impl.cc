@@ -57,11 +57,20 @@ TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
 }
 
 TraceWriterImpl::~TraceWriterImpl() {
-  if (cur_chunk_.is_valid()) {
-    cur_packet_->Finalize();
-    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_);
-  }
+  cur_packet_->Finalize();
+  Flush();
   shmem_arbiter_->ReleaseWriterID(id_);
+}
+
+void TraceWriterImpl::Flush() {
+  // Flush() cannot be called in the middle of a TracePacket.
+  PERFETTO_CHECK(cur_packet_->is_finalized());
+  if (cur_chunk_.is_valid()) {
+    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_);
+    // TODO(primiano): In next CL:
+    // shmem_arbiter_->FlushPendingCommitDataRequests();
+  }
+  protobuf_stream_writer_.Reset({nullptr, nullptr});
 }
 
 TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
