@@ -20,7 +20,7 @@
 namespace perfetto {
 namespace {
 
-TEST(FtraceEventParser, InferProtoType) {
+TEST(FtraceEventParserTest, InferProtoType) {
   using Field = FtraceEvent::Field;
   EXPECT_EQ(InferProtoType(Field{"char foo[16]", 0, 16, false}), "string");
   EXPECT_EQ(InferProtoType(Field{"char bar_42[64]", 0, 64, false}), "string");
@@ -41,7 +41,7 @@ TEST(FtraceEventParser, InferProtoType) {
   EXPECT_EQ(InferProtoType(Field{"char foo", 0, 0, false}), "string");
 }
 
-TEST(FtraceEventParser, GenerateProtoName) {
+TEST(FtraceEventParserTest, GenerateProtoName) {
   FtraceEvent input;
   Proto output;
   input.name = "the_snake_case_name";
