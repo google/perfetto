@@ -4,8 +4,9 @@ cc_library_shared {
     "fake_producer_jni.cc",
   ],
   static_libs: [
-    "perfetto_cts_jni_deps",
+    "libgtest",
     "libprotobuf-cpp-lite",
+    "perfetto_cts_jni_deps",
     "perfetto_src_tracing_ipc",
   ],
   shared_libs: [
