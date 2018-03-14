@@ -19,6 +19,8 @@ source_set("filesystem") {
   sources = [
     "fs_mount.cc",
     "fs_mount.h",
+    "lru_inode_cache.cc",
+    "lru_inode_cache.h",
   ]
 }
 
@@ -31,5 +33,6 @@ source_set("filesystem_unittests") {
   ]
   sources = [
     "fs_mount_unittest.cc",
+    "lru_inode_cache_unittest.cc",
   ]
 }
