@@ -57,17 +57,17 @@ executable("perfetto_unittests") {
   deps = [
     "gn:default_deps",
     "gn:gtest_main",
-    "src/base:base_unittests",
-    "src/ipc:perfetto_ipc_unittests",
-    "src/protozero:protozero_unittests",
-    "src/traced/probes/filesystem:filesystem_unittests",
-    "src/tracing:tracing_unittests",
+    "src/base:unittests",
+    "src/ipc:unittests",
+    "src/protozero:unittests",
+    "src/traced/probes/filesystem:unittests",
+    "src/tracing:unittests",
   ]
   if (is_linux || is_android) {
     deps += [
-      "src/ftrace_reader:ftrace_reader_unittests",
-      "src/traced/probes:probes_unittests",
-      "tools/ftrace_proto_gen:ftrace_proto_gen_unittests",
+      "src/ftrace_reader:unittests",
+      "src/traced/probes:unittests",
+      "tools/ftrace_proto_gen:unittests",
     ]
   }
   if (!build_with_chromium) {
