@@ -3273,8 +3273,8 @@ cc_library_static {
     "libprotobuf-cpp-lite",
   ],
   static_libs: [
+    "libgtest",
     "perfetto_src_tracing_ipc",
-    "libgtest_prod",
   ],
   cflags: [
     "-DPERFETTO_BUILD_WITH_ANDROID",
@@ -3295,6 +3295,7 @@ cc_library_static {
     ".",
   ],
   static_libs: [
+    "libgtest",
     "perfetto_src_tracing_ipc",
   ],
   cflags: [
