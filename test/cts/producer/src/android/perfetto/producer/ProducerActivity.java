@@ -19,26 +19,46 @@ package android.perfetto.producer;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 
 public class ProducerActivity extends Activity {
+    private boolean paused = true;
+    private final Handler handler = new Handler();
+
     @Override
     public void onResume() {
         super.onResume();
 
-        startService(new Intent(this, ProducerService.class));
-        startService(new Intent(this, ProducerIsolatedService.class));
-
-        System.loadLibrary("perfettocts_jni");
-        new Thread(new Runnable() {
+        paused = false;
+        handler.post(new Runnable() {
+            @Override
             public void run() {
-                try {
-                    setupProducer();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
+                if (paused) {
+                    return;
                 }
+
+                startService(new Intent(ProducerActivity.this, ProducerService.class));
+                startService(new Intent(ProducerActivity.this, ProducerIsolatedService.class));
+
+                System.loadLibrary("perfettocts_jni");
+                new Thread(new Runnable() {
+                    public void run() {
+                        try {
+                            setupProducer();
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+                })
+                        .start();
             }
-        })
-                .start();
+        });
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        paused = true;
     }
 
     private static native void setupProducer();
