@@ -203,7 +203,7 @@ bool InferFtraceType(const std::string& type_and_name,
   // Pids (as in 'sched_switch').
   if (StartsWith(type_and_name, "pid_t ") && size == 4) {
     *out = kFtracePid32;
-    return false;
+    return true;
   }
 
   // Ints of various sizes:
