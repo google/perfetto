@@ -61,14 +61,14 @@ TraceWriterImpl::~TraceWriterImpl() {
   shmem_arbiter_->ReleaseWriterID(id_);
 }
 
-void TraceWriterImpl::Flush() {
+void TraceWriterImpl::Flush(std::function<void()> callback) {
   // Flush() cannot be called in the middle of a TracePacket.
   PERFETTO_CHECK(cur_packet_->is_finalized());
 
   if (cur_chunk_.is_valid()) {
     shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_,
                                          &patch_list_);
-    shmem_arbiter_->FlushPendingCommitDataRequests();
+    shmem_arbiter_->FlushPendingCommitDataRequests(callback);
   } else {
     PERFETTO_DCHECK(patch_list_.empty());
   }

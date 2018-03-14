@@ -43,7 +43,7 @@ class MockProducerEndpoint : public Service::ProducerEndpoint {
     return nullptr;
   }
 
-  MOCK_METHOD1(CommitData, void(const CommitDataRequest&));
+  MOCK_METHOD2(CommitData, void(const CommitDataRequest&, CommitDataCallback));
 };
 
 class SharedMemoryArbiterImplTest : public AlignedBufferTest {
@@ -90,8 +90,9 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
   // the 2rd page. Chunks are release in interleaved order: 1,0,3,2,5,4,7,6.
   // Check that the notification callback is posted and order is consistent.
   auto on_commit_1 = task_runner_->CreateCheckpoint("on_commit_1");
-  EXPECT_CALL(mock_producer_endpoint_, CommitData(_))
-      .WillOnce(Invoke([on_commit_1](const CommitDataRequest& req) {
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillOnce(Invoke([on_commit_1](const CommitDataRequest& req,
+                                     MockProducerEndpoint::CommitDataCallback) {
         ASSERT_EQ(14 * 2 + 1, req.chunks_to_move_size());
         for (size_t i = 0; i < 14 * 2; i++) {
           ASSERT_EQ(i / 14, req.chunks_to_move()[i].page());
@@ -112,8 +113,9 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
   // Then release the 1st chunk of the 3rd page, and check that we get a
   // notification for that as well.
   auto on_commit_2 = task_runner_->CreateCheckpoint("on_commit_2");
-  EXPECT_CALL(mock_producer_endpoint_, CommitData(_))
-      .WillOnce(Invoke([on_commit_2](const CommitDataRequest& req) {
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillOnce(Invoke([on_commit_2](const CommitDataRequest& req,
+                                     MockProducerEndpoint::CommitDataCallback) {
         ASSERT_EQ(1, req.chunks_to_move_size());
         ASSERT_EQ(2u, req.chunks_to_move()[0].page());
         ASSERT_EQ(0u, req.chunks_to_move()[0].chunk());

@@ -83,7 +83,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   // Forces a synchronous commit of the completed packets without waiting for
   // the next task.
-  void FlushPendingCommitDataRequests();
+  void FlushPendingCommitDataRequests(std::function<void()> callback = {});
 
   SharedMemoryABI* shmem_abi_for_testing() { return &shmem_abi_; }
 

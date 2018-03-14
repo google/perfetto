@@ -168,10 +168,12 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
     sprintf(buf, "evt_%zu", i);
     writer->NewTracePacket()->set_for_testing()->set_str(buf, strlen(buf));
   }
-  writer.reset();
 
   // Allow the service to see the CommitData() before disabling tracing.
-  task_runner_->RunUntilIdle();
+  auto on_data_committed = task_runner_->CreateCheckpoint("on_data_committed");
+  writer->Flush(on_data_committed);
+  task_runner_->RunUntilCheckpoint("on_data_committed");
+  writer.reset();
 
   // Disable tracing.
   consumer_endpoint->DisableTracing();
