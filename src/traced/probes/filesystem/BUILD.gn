@@ -31,7 +31,7 @@ source_set("filesystem") {
   ]
 }
 
-source_set("filesystem_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":filesystem",

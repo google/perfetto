@@ -40,7 +40,7 @@ source_set("test_support") {
   ]
 }
 
-source_set("ftrace_reader_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":ftrace_reader",

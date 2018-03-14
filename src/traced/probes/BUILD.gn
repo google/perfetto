@@ -44,7 +44,7 @@ source_set("probes_src") {
   ]
 }
 
-source_set("probes_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":probes_src",
