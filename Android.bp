@@ -3124,6 +3124,8 @@ cc_test {
     "src/protozero/test/protozero_conformance_unittest.cc",
     "src/traced/probes/filesystem/fs_mount.cc",
     "src/traced/probes/filesystem/fs_mount_unittest.cc",
+    "src/traced/probes/filesystem/lru_inode_cache.cc",
+    "src/traced/probes/filesystem/lru_inode_cache_unittest.cc",
     "src/traced/probes/probes_producer.cc",
     "src/traced/probes/process_stats_data_source.cc",
     "src/traced/probes/process_stats_data_source_unittest.cc",
