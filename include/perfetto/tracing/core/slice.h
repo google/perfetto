@@ -23,6 +23,8 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 
 // A simple wrapper around a virtually contiguous memory range that contains a
@@ -32,14 +34,18 @@ struct Slice {
   Slice(const void* st, size_t sz) : start(st), size(sz) {}
   Slice(Slice&& other) noexcept = default;
 
-  // Create a Slice which contains (and owns) a copy of the given memory.
-  static Slice Copy(const void* start, size_t size) {
-    Slice c;
-    c.own_data_.reset(new uint8_t[size]);
-    c.size = size;
-    c.start = &c.own_data_[0];
-    memcpy(&c.own_data_[0], start, size);
-    return c;
+  // Create a Slice which owns |size| bytes of memory.
+  static Slice Allocate(size_t size) {
+    Slice slice;
+    slice.own_data_.reset(new uint8_t[size]);
+    slice.start = &slice.own_data_[0];
+    slice.size = size;
+    return slice;
+  }
+
+  uint8_t* own_data() {
+    PERFETTO_DCHECK(own_data_);
+    return own_data_.get();
   }
 
   const void* start;

@@ -358,6 +358,10 @@ class SharedMemoryABI {
 
     ChunkHeader* header() { return reinterpret_cast<ChunkHeader*>(begin_); }
 
+    uint16_t writer_id() {
+      return header()->writer_id.load(std::memory_order_relaxed);
+    }
+
     // Returns the count of packets and the flags with acquire-load semantics.
     std::pair<uint16_t, uint8_t> GetPacketCountAndFlags() {
       auto packets = header()->packets.load(std::memory_order_acquire);
