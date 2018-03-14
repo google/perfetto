@@ -34,7 +34,7 @@ source_set("protozero") {
   ]
 }
 
-source_set("protozero_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":protozero",

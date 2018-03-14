@@ -107,7 +107,7 @@ source_set("ipc_consumer") {
   ]
 }
 
-source_set("tracing_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":ipc",

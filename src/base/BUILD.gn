@@ -86,7 +86,7 @@ source_set("test_support") {
   ]
 }
 
-source_set("base_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":base",
