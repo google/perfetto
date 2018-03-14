@@ -185,16 +185,7 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
   base::WeakPtr<HostImpl> host_weak_ptr = weak_ptr_factory_.GetWeakPtr();
   ClientID client_id = client->id;
 
-  if (req.drop_reply()) {
-    deferred_reply.Bind([](AsyncResult<ProtoMessage> reply) {
-      if (reply.success()) {
-        PERFETTO_DLOG(
-            "The service is replying to an IPC request but the client hasn't "
-            "any callback attached to it (the request was sent with "
-            "drop_reply=true). Dropping reply.");
-      }
-    });
-  } else {
+  if (!req.drop_reply()) {
     deferred_reply.Bind([host_weak_ptr, client_id,
                          request_id](AsyncResult<ProtoMessage> reply) {
       if (!host_weak_ptr)

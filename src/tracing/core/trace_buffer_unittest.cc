@@ -926,8 +926,41 @@ TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderInSequence) {
       .CopyIntoTraceBuffer();
 
   trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'd')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'e')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(5, 'f')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Similar to Malicious_ZeroVarintHeader, but this time the zero-sized fragment
+// is the last fragment for a chunk and is marked for continuation.
+// One might argue that this case is borderline legit, and in this case we
+// should just read a packet consisting of (4, 'c'). However this is too complex
+// to support and doesn't bring any benefit.
+TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderAtEndOfChunk) {
+  ResetBuffer(4096);
+  SuppressSanityDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(4, 'a')
+      .AddPacket(4, 'b', kContOnNextChunk)
+      .ClearBytes(4, 4)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(4, 'c', kContFromPrevChunk)
+      .AddPacket(4, 'd')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+      .AddPacket(4, 'e')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(3))
+      .AddPacket(4, 'f')
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'd')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'e')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'f')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 

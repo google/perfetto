@@ -75,7 +75,9 @@ class Service {
 
     // Called by the Producer to signal that some pages in the shared memory
     // buffer (shared between Service and Producer) have changed.
-    virtual void CommitData(const CommitDataRequest&) = 0;
+    using CommitDataCallback = std::function<void()>;
+    virtual void CommitData(const CommitDataRequest&,
+                            CommitDataCallback callback = {}) = 0;
 
     // TODO(primiano): remove this, we shouldn't be exposing the raw
     // SHM object but only the TraceWriter (below).
