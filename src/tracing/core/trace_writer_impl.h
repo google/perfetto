@@ -38,7 +38,7 @@ class TraceWriterImpl : public TraceWriter,
 
   // TraceWriter implementation. See documentation in trace_writer.h .
   TracePacketHandle NewTracePacket() override;
-  void Flush() override;
+  void Flush(std::function<void()> callback = {}) override;
   WriterID writer_id() const override;
 
  private:
@@ -61,7 +61,7 @@ class TraceWriterImpl : public TraceWriter,
 
   // Monotonic (% wrapping) sequence id of the chunk. Together with the WriterID
   // this allows the Service to reconstruct the linear sequence of packets.
-  uint16_t cur_chunk_id_ = 0;
+  uint16_t next_chunk_id_ = 0;
 
   // The chunk we are holding onto (if any).
   SharedMemoryABI::Chunk cur_chunk_;

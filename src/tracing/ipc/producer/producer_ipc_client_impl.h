@@ -62,7 +62,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
   void RegisterDataSource(const DataSourceDescriptor&,
                           RegisterDataSourceCallback) override;
   void UnregisterDataSource(DataSourceID) override;
-  void CommitData(const CommitDataRequest&) override;
+  void CommitData(const CommitDataRequest&, CommitDataCallback) override;
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) override;
   SharedMemory* shared_memory() const override;

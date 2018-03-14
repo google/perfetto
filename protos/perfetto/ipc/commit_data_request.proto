@@ -54,17 +54,20 @@ message CommitDataRequest {
       // Bytes to patch at the given offset.
       optional bytes data = 2;
     }
+
+    optional uint32 target_buffer = 1;
+
     // {WriterID, ChunkID} uniquely identify a chunk for the current producer.
-    optional uint32 writer_id = 1;
-    optional uint32 chunk_id = 2;
+    optional uint32 writer_id = 2;
+    optional uint32 chunk_id = 3;
 
     // List of patches to apply to the given chunk.
-    repeated Patch patches = 3;
+    repeated Patch patches = 4;
 
     // When true more patches will follow in future requests and the chunk
     // should be still considered as patch-pending. When false the chunk becomes
     // eligible for reading.
-    optional bool has_more_patches = 4;
+    optional bool has_more_patches = 5;
   }
   repeated ChunkToPatch chunks_to_patch = 2;
 }
