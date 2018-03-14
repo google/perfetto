@@ -94,7 +94,7 @@ TEST_P(TraceWriterImplTest, SingleWriter) {
       auto chunk_state = abi->GetChunkState(page_idx, chunk_idx);
       ASSERT_TRUE(chunk_state == SharedMemoryABI::kChunkFree ||
                   chunk_state == SharedMemoryABI::kChunkComplete);
-      auto chunk = abi->TryAcquireChunkForReading(page_idx, chunk_idx, kBufId);
+      auto chunk = abi->TryAcquireChunkForReading(page_idx, chunk_idx);
       if (!chunk.is_valid())
         continue;
       packets_count += chunk.header()->packets.load().count;

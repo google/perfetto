@@ -22,8 +22,8 @@ import android.os.Bundle;
 
 public class ProducerActivity extends Activity {
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    public void onResume() {
+        super.onResume();
 
         startService(new Intent(this, ProducerService.class));
         startService(new Intent(this, ProducerIsolatedService.class));

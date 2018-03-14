@@ -164,7 +164,7 @@ void ClientImpl::OnDataAvailable(UnixSocket*) {
     }
     if (!frame_deserializer_.EndReceive(rsize)) {
       // The endpoint tried to send a frame that is way too large.
-      return sock_->Shutdown();  // In turn will trigger an OnDisconnect().
+      return sock_->Shutdown(true);  // In turn will trigger an OnDisconnect().
       // TODO(fmayer): check this.
     }
   } while (rsize > 0);

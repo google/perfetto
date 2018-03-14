@@ -18,10 +18,12 @@ import subprocess
 import sys
 
 PROTOS = (
+  'perfetto/config/chrome/chrome_config.proto',
   'perfetto/config/data_source_config.proto',
   'perfetto/config/data_source_descriptor.proto',
   'perfetto/config/ftrace/ftrace_config.proto',
   'perfetto/config/trace_config.proto',
+  'perfetto/config/test_config.proto',
   'perfetto/ipc/commit_data_request.proto',
 )
 

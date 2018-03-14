@@ -21,12 +21,12 @@
 #include "google/protobuf/text_format.h"
 #include "gtest/gtest.h"
 
-#include "ftrace_procfs.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/unix_task_runner.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
+#include "src/ftrace_reader/ftrace_procfs.h"
 #include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
 
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pb.h"

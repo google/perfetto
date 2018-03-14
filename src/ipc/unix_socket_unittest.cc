@@ -99,7 +99,7 @@ TEST_F(UnixSocketTest, ConnectionImmediatelyDroppedByServer) {
       .WillOnce(
           Invoke([this, srv_did_shutdown](UnixSocket*, UnixSocket* new_conn) {
             EXPECT_CALL(event_listener_, OnDisconnect(new_conn));
-            new_conn->Shutdown();
+            new_conn->Shutdown(true);
             srv_did_shutdown();
           }));
 
@@ -161,7 +161,7 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
   auto cli_disconnected = task_runner_.CreateCheckpoint("cli_disconnected");
   EXPECT_CALL(event_listener_, OnDisconnect(cli.get()))
       .WillOnce(InvokeWithoutArgs(cli_disconnected));
-  cli->Shutdown();
+  cli->Shutdown(true);
   char msg[4];
   ASSERT_EQ(0u, cli->Receive(&msg, sizeof(msg)));
   ASSERT_EQ("", cli->ReceiveString());
@@ -169,7 +169,7 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
   ASSERT_EQ("", srv_conn->ReceiveString());
   ASSERT_FALSE(cli->Send("foo"));
   ASSERT_FALSE(srv_conn->Send("bar"));
-  srv->Shutdown();
+  srv->Shutdown(true);
   task_runner_.RunUntilCheckpoint("cli_disconnected");
   task_runner_.RunUntilCheckpoint("srv_disconnected");
 }

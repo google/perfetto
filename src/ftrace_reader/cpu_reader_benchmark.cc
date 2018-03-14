@@ -14,7 +14,7 @@
 
 #include "benchmark/benchmark.h"
 
-#include "cpu_reader.h"
+#include "src/ftrace_reader/cpu_reader.h"
 
 #include "perfetto/protozero/scattered_stream_writer.h"
 

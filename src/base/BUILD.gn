@@ -22,7 +22,9 @@ source_set("base") {
     "../../include/perfetto/base",
   ]
   sources = [
+    "file_utils.cc",
     "page_allocator.cc",
+    "string_splitter.cc",
     "thread_checker.cc",
     "unix_task_runner.cc",
   ]
@@ -98,6 +100,7 @@ source_set("base_unittests") {
   sources = [
     "page_allocator_unittest.cc",
     "scoped_file_unittest.cc",
+    "string_splitter_unittest.cc",
     "task_runner_unittest.cc",
     "thread_checker_unittest.cc",
     "utils_unittest.cc",

@@ -19,6 +19,13 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
+// Event used by testing code.
 message TestEvent {
-  optional string str = 1;
+  oneof data {
+    // Arbitary string used in tests.
+    string str = 1;
+
+    // The current value of the random number sequence used in tests.
+    uint32 seq_value = 2;
+  }
 }

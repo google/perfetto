@@ -618,7 +618,8 @@ ProducerID ServiceImpl::GetNextProducerID() {
 }
 
 void ServiceImpl::UpdateMemoryGuardrail() {
-#if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+#if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   uint64_t total_buffer_bytes = 0;
 
   // Sum up all the shared memory buffers.
@@ -753,19 +754,17 @@ void ServiceImpl::ProducerEndpointImpl::CommitData(
     if (!shmem_abi_.is_page_complete(page_idx))
       continue;
 
-    // TODO(primiano): implement per-chunk move.
+    // TODO(primiano): implement per-chunk move and replace
+    // ReleaseAllChunksAsFree() with just ReleaseChunk.
     PERFETTO_DCHECK(chunks.chunk() == 0);
 
     if (!shmem_abi_.TryAcquireAllChunksForReading(page_idx))
       continue;
 
-    // TODO(fmayer): we should start collecting individual chunks from non fully
-    // complete pages after a while.
-
-    // TODO(primiano): in next CL, use chunks.target_buffer() instead.
-    service_->CopyProducerPageIntoLogBuffer(
-        id_, shmem_abi_.get_target_buffer(page_idx),
-        shmem_abi_.page_start(page_idx), shmem_abi_.page_size());
+    BufferID target_buffer = static_cast<BufferID>(chunks.target_buffer());
+    service_->CopyProducerPageIntoLogBuffer(id_, target_buffer,
+                                            shmem_abi_.page_start(page_idx),
+                                            shmem_abi_.page_size());
 
     shmem_abi_.ReleaseAllChunksAsFree(page_idx);
   }

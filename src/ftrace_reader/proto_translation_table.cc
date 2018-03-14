@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "proto_translation_table.h"
+#include "src/ftrace_reader/proto_translation_table.h"
 
 #include <regex.h>
 
