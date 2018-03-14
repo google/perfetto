@@ -322,8 +322,7 @@ bool PerfettoCmd::OpenOutputFile() {
   if (!dropbox_tag_.empty()) {
     // If we are tracing to DropBox, there's no need to make a
     // filesystem-visible temporary file.
-    // TODO(skyostil): Fall back to mkstemp() + open() + unlink() for older
-    // devices.
+    // TODO(skyostil): Fall back to base::TempFile for older devices.
     fd.reset(open(kTempDropBoxTraceDir, O_TMPFILE | O_RDWR, 0600));
     if (!fd) {
       PERFETTO_ELOG("Could not create a temporary trace file in %s",
