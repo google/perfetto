@@ -126,6 +126,10 @@ CommitDataRequest::ChunkToPatch& CommitDataRequest::ChunkToPatch::operator=(
 
 void CommitDataRequest::ChunkToPatch::FromProto(
     const perfetto::protos::CommitDataRequest_ChunkToPatch& proto) {
+  static_assert(sizeof(target_buffer_) == sizeof(proto.target_buffer()),
+                "size mismatch");
+  target_buffer_ = static_cast<decltype(target_buffer_)>(proto.target_buffer());
+
   static_assert(sizeof(writer_id_) == sizeof(proto.writer_id()),
                 "size mismatch");
   writer_id_ = static_cast<decltype(writer_id_)>(proto.writer_id());
@@ -149,6 +153,11 @@ void CommitDataRequest::ChunkToPatch::FromProto(
 void CommitDataRequest::ChunkToPatch::ToProto(
     perfetto::protos::CommitDataRequest_ChunkToPatch* proto) const {
   proto->Clear();
+
+  static_assert(sizeof(target_buffer_) == sizeof(proto->target_buffer()),
+                "size mismatch");
+  proto->set_target_buffer(
+      static_cast<decltype(proto->target_buffer())>(target_buffer_));
 
   static_assert(sizeof(writer_id_) == sizeof(proto->writer_id()),
                 "size mismatch");

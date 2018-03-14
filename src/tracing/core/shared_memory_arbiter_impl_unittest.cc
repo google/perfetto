@@ -24,6 +24,7 @@
 #include "perfetto/tracing/core/shared_memory_abi.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/tracing/core/patch_list.h"
 #include "src/tracing/test/aligned_buffer_test.h"
 
 namespace perfetto {
@@ -102,9 +103,10 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
         ASSERT_EQ(42u, req.chunks_to_move()[28].target_buffer());
         on_commit_1();
       }));
+  PatchList ignored;
   for (size_t i = 0; i < 14 * 2; i++)
-    arbiter_->ReturnCompletedChunk(std::move(chunks[i ^ 1]), i % 5);
-  arbiter_->ReturnCompletedChunk(std::move(chunks[29]), 42);
+    arbiter_->ReturnCompletedChunk(std::move(chunks[i ^ 1]), i % 5, &ignored);
+  arbiter_->ReturnCompletedChunk(std::move(chunks[29]), 42, &ignored);
   task_runner_->RunUntilCheckpoint("on_commit_1");
 
   // Then release the 1st chunk of the 3rd page, and check that we get a
@@ -118,7 +120,7 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
         ASSERT_EQ(43u, req.chunks_to_move()[0].target_buffer());
         on_commit_2();
       }));
-  arbiter_->ReturnCompletedChunk(std::move(chunks[28]), 43);
+  arbiter_->ReturnCompletedChunk(std::move(chunks[28]), 43, &ignored);
   task_runner_->RunUntilCheckpoint("on_commit_2");
 }
 
