@@ -28,9 +28,6 @@
 
 #include "perfetto/trace/trace_packet.pbzero.h"
 
-// TODO(primiano): right now this class is accumulating a patchlist but not
-// sending it to the service.
-
 using protozero::proto_utils::kMessageLengthFieldSize;
 using protozero::proto_utils::WriteRedundantVarInt;
 using ChunkHeader = perfetto::SharedMemoryABI::ChunkHeader;
@@ -57,18 +54,23 @@ TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
 }
 
 TraceWriterImpl::~TraceWriterImpl() {
-  cur_packet_->Finalize();
-  Flush();
+  if (cur_chunk_.is_valid()) {
+    cur_packet_->Finalize();
+    Flush();
+  }
   shmem_arbiter_->ReleaseWriterID(id_);
 }
 
-void TraceWriterImpl::Flush() {
+void TraceWriterImpl::Flush(std::function<void()> callback) {
   // Flush() cannot be called in the middle of a TracePacket.
   PERFETTO_CHECK(cur_packet_->is_finalized());
+
   if (cur_chunk_.is_valid()) {
-    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_);
-    // TODO(primiano): In next CL:
-    // shmem_arbiter_->FlushPendingCommitDataRequests();
+    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_,
+                                         &patch_list_);
+    shmem_arbiter_->FlushPendingCommitDataRequests(callback);
+  } else {
+    PERFETTO_DCHECK(patch_list_.empty());
   }
   protobuf_stream_writer_.Reset({nullptr, nullptr});
 }
@@ -80,15 +82,18 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
 
   fragmenting_packet_ = false;
 
-  // TODO(fmayer): hack to get a new page every time and reduce fragmentation
-  // (that requires stitching support in the service).
-  protobuf_stream_writer_.Reset(GetNewBuffer());
-
   // Reserve space for the size of the message. Note: this call might re-enter
   // into this class invoking GetNewBuffer() if there isn't enough space or if
   // this is the very first call to NewTracePacket().
   static_assert(kPacketHeaderSize == kMessageLengthFieldSize,
                 "The packet header must match the Message header size");
+
+  // It doesn't make sense to begin a packet that is going to fragment
+  // immediately after (8 is just an arbitrary estimation on the minimum size of
+  // a realistic packet).
+  if (protobuf_stream_writer_.bytes_available() < kPacketHeaderSize + 8)
+    protobuf_stream_writer_.Reset(GetNewBuffer());
+
   cur_packet_->Reset(&protobuf_stream_writer_);
   uint8_t* header = protobuf_stream_writer_.ReserveBytes(kPacketHeaderSize);
   memset(header, 0, kPacketHeaderSize);
@@ -116,6 +121,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     PERFETTO_DCHECK(partial_size < cur_chunk_.size());
 
     // Backfill the packet header with the fragment size.
+    PERFETTO_DCHECK(partial_size > 0);
     cur_packet_->inc_size_already_written(partial_size);
     cur_chunk_.SetFlag(ChunkHeader::kLastPacketContinuesOnNextChunk);
     WriteRedundantVarInt(partial_size, cur_packet_->size_field());
@@ -127,29 +133,39 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     for (auto* nested_msg = cur_packet_->nested_message(); nested_msg;
          nested_msg = nested_msg->nested_message()) {
       uint8_t* const cur_hdr = nested_msg->size_field();
-#if PERFETTO_DCHECK_IS_ON()
-      // Ensure that the size field of the nested message either points to
-      // somewhere in the current chunk or a size field of a patch in the
-      // patch list.
-      bool size_in_current_chunk =
+
+      // If this is false the protozero Message has already been instructed to
+      // write, upon Finalize(), its size into the patch list.
+      bool size_field_points_within_chunk =
           cur_hdr >= cur_chunk_.payload_begin() &&
           cur_hdr + kMessageLengthFieldSize <= cur_chunk_.end();
-      if (!size_in_current_chunk) {
+
+      if (size_field_points_within_chunk) {
+        auto offset =
+            static_cast<uint16_t>(cur_hdr - cur_chunk_.payload_begin());
+        const ChunkID cur_chunk_id =
+            cur_chunk_.header()->chunk_id.load(std::memory_order_relaxed);
+        Patch* patch = patch_list_.emplace_back(cur_chunk_id, offset);
+        nested_msg->set_size_field(&patch->size_field[0]);
+      } else {
+#if PERFETTO_DCHECK_IS_ON()
+        // Ensure that the size field of the message points to an element of the
+        // patch list.
         auto patch_it = std::find_if(
             patch_list_.begin(), patch_list_.end(),
             [cur_hdr](const Patch& p) { return &p.size_field[0] == cur_hdr; });
         PERFETTO_DCHECK(patch_it != patch_list_.end());
-      }
 #endif
-      auto offset = static_cast<uint16_t>(cur_hdr - cur_chunk_.payload_begin());
-      Patch* patch = patch_list_.emplace_back(cur_chunk_id_, offset);
-      nested_msg->set_size_field(&patch->size_field[0]);
-      PERFETTO_DLOG("Created new patchlist entry for protobuf nested message");
-    }
-  }
+      }
+    }  // for(nested_msg
+  }    // if(fragmenting_packet)
 
-  if (cur_chunk_.is_valid())
-    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_);
+  if (cur_chunk_.is_valid()) {
+    // ReturnCompletedChunk will consume the first patched entries from
+    // |patch_list_| and shrink it.
+    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_,
+                                         &patch_list_);
+  }
 
   // Start a new chunk.
 
@@ -164,7 +180,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
   // into the shared buffer with the proper barriers.
   ChunkHeader header = {};
   header.writer_id.store(id_, std::memory_order_relaxed);
-  header.chunk_id.store(cur_chunk_id_++, std::memory_order_relaxed);
+  header.chunk_id.store(next_chunk_id_++, std::memory_order_relaxed);
   header.packets.store(packets, std::memory_order_relaxed);
 
   cur_chunk_ = shmem_arbiter_->GetNewChunk(header);

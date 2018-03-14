@@ -25,13 +25,13 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/shared_memory.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "src/tracing/core/packet_stream_validator.h"
+#include "src/tracing/core/trace_buffer.h"
 
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trusted_packet.pb.h"
@@ -48,8 +48,8 @@ using protozero::proto_utils::ParseVarInt;
 using protozero::proto_utils::WriteVarInt;
 
 namespace {
-constexpr size_t kDefaultShmSize = base::kPageSize * 64;  // 256 KB.
-constexpr size_t kMaxShmSize = base::kPageSize * 1024;    // 4 MB.
+constexpr size_t kDefaultShmSize = 256 * 1024ul;
+constexpr size_t kMaxShmSize = 4096 * 1024 * 1024ul;
 constexpr int kMaxBuffersPerConsumer = 128;
 
 constexpr uint64_t kMillisPerHour = 3600000;
@@ -238,17 +238,17 @@ void ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     const TraceConfig::BufferConfig& buffer_cfg = cfg.buffers()[i];
     BufferID global_id = buffer_ids_.Allocate();
     if (!global_id) {
-      did_allocate_all_buffers = false;  // We ran out of indexes.
+      did_allocate_all_buffers = false;  // We ran out of IDs.
       break;
     }
     ts.buffers_index.push_back(global_id);
-    auto it_and_inserted = buffers_.emplace(global_id, TraceBuffer());
-    PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
-    TraceBuffer& trace_buffer = it_and_inserted.first->second;
-    // TODO(primiano): make TraceBuffer::kBufferPageSize dynamic.
-    const size_t buf_size = buffer_cfg.size_kb() * 1024u;
+    const size_t buf_size_bytes = buffer_cfg.size_kb() * 1024u;
     total_buf_size_kb += buffer_cfg.size_kb();
-    if (!trace_buffer.Create(buf_size)) {
+    auto it_and_inserted =
+        buffers_.emplace(global_id, TraceBuffez::Create(buf_size_bytes));
+    PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
+    std::unique_ptr<TraceBuffez>& trace_buffer = it_and_inserted.first->second;
+    if (!trace_buffer) {
       did_allocate_all_buffers = false;
       break;
     }
@@ -326,111 +326,84 @@ void ServiceImpl::DisableTracing(TracingSessionID tsid) {
 void ServiceImpl::ReadBuffers(TracingSessionID tsid,
                               ConsumerEndpointImpl* consumer) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_DLOG("Reading buffers for session %" PRIu64, tsid);
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
     PERFETTO_DLOG(
         "Consumer invoked ReadBuffers() but no tracing session is active");
     return;  // TODO(primiano): signal failure?
   }
-  // TODO(primiano): Most of this code is temporary and we should find a better
-  // solution to bookkeep the log buffer (e.g., an allocator-like freelist)
-  // rather than leveraging the SharedMemoryABI (which is intended only for the
-  // Producer <> Service SMB and not for the TraceBuffer itself).
-  auto weak_consumer = consumer->GetWeakPtr();
-  for (size_t buf_idx = 0; buf_idx < tracing_session->num_buffers();
+  std::vector<TracePacket> packets;
+  size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
+
+  // This is a rough threshold to determine how to split packets within each
+  // IPC. This is not an upper bound, we just stop accumulating packets and send
+  // an IPC out every time we cross this threshold (i.e. all IPCs % last one
+  // will be >= this).
+  static constexpr size_t kApproxBytesPerRead = 4096;
+  bool did_hit_threshold = false;
+
+  // TODO(primiano): Extend the ReadBuffers API to allow reading only some
+  // buffers, not all of them in one go.
+  for (size_t buf_idx = 0;
+       buf_idx < tracing_session->num_buffers() && !did_hit_threshold;
        buf_idx++) {
     auto tbuf_iter = buffers_.find(tracing_session->buffers_index[buf_idx]);
     if (tbuf_iter == buffers_.end()) {
       PERFETTO_DCHECK(false);
       continue;
     }
-    TraceBuffer& tbuf = tbuf_iter->second;
-    SharedMemoryABI& abi = *tbuf.abi;
-    for (size_t i = 0; i < tbuf.num_pages(); i++) {
-      const size_t page_idx = (i + tbuf.cur_page) % tbuf.num_pages();
-      if (abi.is_page_free(page_idx))
+    TraceBuffez& tbuf = *tbuf_iter->second;
+    tbuf.BeginRead();
+    while (!did_hit_threshold) {
+      TracePacket packet;
+      uid_t producer_uid = -1;
+      if (!tbuf.ReadNextTracePacket(&packet, &producer_uid))
+        break;
+      PERFETTO_DCHECK(producer_uid != static_cast<uid_t>(-1));
+      PERFETTO_DCHECK(packet.size() > 0);
+      if (!PacketStreamValidator::Validate(packet.slices())) {
+        PERFETTO_DLOG("Dropping invalid packet");
         continue;
-      const uid_t page_owner = tbuf.get_page_owner(page_idx);
-      uint32_t layout = abi.page_layout_dbg(page_idx);
-      size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(layout);
-      for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
-        if (abi.GetChunkState(page_idx, chunk_idx) ==
-            SharedMemoryABI::kChunkFree) {
-          continue;
-        }
-        auto chunk = abi.GetChunkUnchecked(page_idx, layout, chunk_idx);
-        uint16_t num_packets;
-        uint8_t flags;
-        std::tie(num_packets, flags) = chunk.GetPacketCountAndFlags();
-        const uint8_t* ptr = chunk.payload_begin();
+      }
 
-        // shared_ptr is really a workardound for the fact that is not possible
-        // to std::move() move-only types in labmdas until C++17.
-        std::shared_ptr<std::vector<TracePacket>> packets(
-            new std::vector<TracePacket>());
-        packets->reserve(num_packets);
+      // Append a slice with the trusted UID of the producer. This can't
+      // be spoofed because above we validated that the existing slices
+      // don't contain any trusted UID fields. For added safety we append
+      // instead of prepending because according to protobuf semantics, if
+      // the same field is encountered multiple times the last instance
+      // takes priority. Note that truncated packets are also rejected, so
+      // the producer can't give us a partial packet (e.g., a truncated
+      // string) which only becomes valid when the UID is appended here.
+      protos::TrustedPacket trusted_packet;
+      trusted_packet.set_trusted_uid(producer_uid);
+      static constexpr size_t kTrustedBufSize = 16;
+      Slice slice = Slice::Allocate(kTrustedBufSize);
+      PERFETTO_CHECK(
+          trusted_packet.SerializeToArray(slice.own_data(), kTrustedBufSize));
+      slice.size = static_cast<size_t>(trusted_packet.GetCachedSize());
+      PERFETTO_DCHECK(slice.size > 0 && slice.size <= kTrustedBufSize);
+      packet.AddSlice(std::move(slice));
 
-        for (size_t pack_idx = 0; pack_idx < num_packets; pack_idx++) {
-          uint64_t pack_size = 0;
-          ptr = ParseVarInt(ptr, chunk.end(), &pack_size);
-          // TODO(fmayer): stitching, look at the flags.
-          bool skip = (pack_idx == 0 &&
-                       flags & SharedMemoryABI::ChunkHeader::
-                                   kFirstPacketContinuesFromPrevChunk) ||
-                      (pack_idx == num_packets - 1 &&
-                       flags & SharedMemoryABI::ChunkHeader::
-                                   kLastPacketContinuesOnNextChunk);
+      // Append the packet (inclusive of the trusted uid) to |packets|.
+      packets_bytes += packet.size();
+      did_hit_threshold = packets_bytes >= kApproxBytesPerRead;
+      packets.emplace_back(std::move(packet));
+    }  // for(packets...)
+  }    // for(buffers...)
 
-          PERFETTO_DLOG("  #%-3zu len:%" PRIu64 " skip: %d", pack_idx,
-                        pack_size, skip);
-          if (ptr > chunk.end() - pack_size) {
-            PERFETTO_DLOG("out of bounds!");
-            break;
-          }
-          Slices slices;
-          slices.emplace_back(ptr, pack_size);
-          if (!skip && !PacketStreamValidator::Validate(slices)) {
-            PERFETTO_DLOG("Dropping invalid packet");
-            skip = true;
-          }
+  const bool has_more = did_hit_threshold;
+  if (has_more) {
+    auto weak_consumer = consumer->GetWeakPtr();
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+    task_runner_->PostTask([weak_this, weak_consumer, tsid] {
+      if (!weak_this || !weak_consumer)
+        return;
+      weak_this->ReadBuffers(tsid, weak_consumer.get());
+    });
+  }
 
-          if (!skip) {
-            packets->emplace_back();
-            for (Slice& validated_slice : slices)
-              packets->back().AddSlice(std::move(validated_slice));
-
-            // Append a chunk with the trusted UID of the producer. This can't
-            // be spoofed because above we validated that the existing chunks
-            // don't contain any trusted UID fields. For added safety we append
-            // instead of prepending because according to protobuf semantics, if
-            // the same field is encountered multiple times the last instance
-            // takes priority. Note that truncated packets are also rejected, so
-            // the producer can't give us a partial packet (e.g., a truncated
-            // string) which only becomes valid when the UID is appended here.
-            protos::TrustedPacket trusted_packet;
-            trusted_packet.set_trusted_uid(page_owner);
-            uint8_t trusted_buf[16];
-            PERFETTO_CHECK(trusted_packet.SerializeToArray(
-                &trusted_buf, sizeof(trusted_buf)));
-            packets->back().AddSlice(
-                Slice::Copy(trusted_buf, trusted_packet.ByteSize()));
-          }
-          ptr += pack_size;
-        }  // for(packet)
-        task_runner_->PostTask([weak_consumer, packets]() {
-          if (weak_consumer)
-            weak_consumer->consumer_->OnTraceData(std::move(*packets),
-                                                  true /*has_more*/);
-        });
-      }  // for(chunk)
-    }    // for(page_idx)
-  }      // for(buffer_id)
-  task_runner_->PostTask([weak_consumer]() {
-    if (weak_consumer)
-      weak_consumer->consumer_->OnTraceData(std::vector<TracePacket>(),
-                                            false /*has_more*/);
-  });
+  // Keep this as tail call, just in case the consumer re-enters.
+  consumer->consumer_->OnTraceData(std::move(packets), has_more);
 }
 
 void ServiceImpl::FreeBuffers(TracingSessionID tsid) {
@@ -566,21 +539,26 @@ void ServiceImpl::CreateDataSourceInstance(
   producer->producer_->CreateDataSourceInstance(inst_id, ds_config);
 }
 
-void ServiceImpl::CopyProducerPageIntoLogBuffer(ProducerID producer_id,
-                                                BufferID target_buffer_id,
+// Note: all the fields % *_trusted ones are untrusted, as in, the Producer
+// might be lying / returning garbage contents. |src| and |size| can be trusted
+// in terms of being a valid pointer, but not the contents.
+void ServiceImpl::CopyProducerPageIntoLogBuffer(ProducerID producer_id_trusted,
+                                                uid_t producer_uid_trusted,
+                                                WriterID writer_id,
+                                                ChunkID chunk_id,
+                                                BufferID buffer_id,
+                                                uint16_t num_fragments,
+                                                uint8_t chunk_flags,
                                                 const uint8_t* src,
                                                 size_t size) {
-  // TODO(fmayer): right now the page_size in the SMB and the trace_buffers_ can
-  // mismatch. Remove the ability to decide the page size on the Producer.
-
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto buf_iter = buffers_.find(target_buffer_id);
-  if (buf_iter == buffers_.end()) {
-    PERFETTO_DLOG("Could not find target buffer %u for producer %" PRIu16,
-                  target_buffer_id, producer_id);
+  TraceBuffez* buf = GetBufferByID(buffer_id);
+  if (!buf) {
+    PERFETTO_DLOG("Could not find target buffer %" PRIu16
+                  " for producer %" PRIu16,
+                  buffer_id, producer_id_trusted);
     return;
   }
-  TraceBuffer& buf = buf_iter->second;
 
   // TODO(primiano): we should have a set<BufferID> |allowed_target_buffers| in
   // ProducerEndpointImpl to perform ACL checks and prevent that the Producer
@@ -588,16 +566,55 @@ void ServiceImpl::CopyProducerPageIntoLogBuffer(ProducerID producer_id,
   // Essentially we want to prevent a malicious producer to inject data into a
   // log buffer that has nothing to do with it.
 
-  PERFETTO_DCHECK(size == kBufferPageSize);
-  uid_t uid = GetProducer(producer_id)->uid_;
-  uint8_t* dst = buf.acquire_next_page(uid);
+  buf->CopyChunkUntrusted(producer_id_trusted, producer_uid_trusted, writer_id,
+                          chunk_id, num_fragments, chunk_flags, src, size);
+}
 
-  // TODO(primiano): use sendfile(). Requires to make the tbuf itself
-  // a file descriptor (just use SharedMemory without sharing it).
-  PERFETTO_DLOG(
-      "Copying page %p from producer %" PRIu16 " into buffer %" PRIu16,
-      reinterpret_cast<const void*>(src), producer_id, target_buffer_id);
-  memcpy(dst, src, size);
+void ServiceImpl::ApplyChunkPatches(
+    ProducerID producer_id_trusted,
+    const std::vector<CommitDataRequest::ChunkToPatch>& chunks_to_patch) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  for (const auto& chunk : chunks_to_patch) {
+    const ChunkID chunk_id = static_cast<ChunkID>(chunk.chunk_id());
+    const WriterID writer_id = static_cast<WriterID>(chunk.writer_id());
+    TraceBuffez* buf =
+        GetBufferByID(static_cast<BufferID>(chunk.target_buffer()));
+    static_assert(std::numeric_limits<ChunkID>::max() == kMaxChunkID,
+                  "Add a '|| chunk_id > kMaxChunkID' below if this fails");
+    if (!writer_id || writer_id > kMaxWriterID || !buf) {
+      PERFETTO_DLOG(
+          "Received invalid chunks_to_patch request from Producer: %" PRIu16
+          ", BufferID: %" PRIu32 " ChunkdID: %" PRIu32 " WriterID: %" PRIu16,
+          producer_id_trusted, chunk.target_buffer(), chunk_id, writer_id);
+      continue;
+    }
+    // Speculate on the fact that there are going to be a limited amount of
+    // patches per request, so we can allocate the |patches| array on the stack.
+    std::array<TraceBuffez::Patch, 1024> patches;  // Uninitialized.
+    if (chunk.patches().size() > patches.size()) {
+      PERFETTO_DLOG("Too many patches (%zu) batched in the same request",
+                    patches.size());
+      PERFETTO_DCHECK(false);
+      continue;
+    }
+
+    size_t i = 0;
+    for (const auto& patch : chunk.patches()) {
+      const std::string& patch_data = patch.data();
+      if (patch_data.size() != patches[i].data.size()) {
+        PERFETTO_DLOG("Received patch from producer: %" PRIu16
+                      " of unexpected size %zu",
+                      producer_id_trusted, patch_data.size());
+        continue;
+      }
+      patches[i].offset_untrusted = patch.offset();
+      memcpy(&patches[i].data[0], patch_data.data(), patches[i].data.size());
+      i++;
+    }
+    buf->TryPatchChunkContents(producer_id_trusted, writer_id, chunk_id,
+                               &patches[0], i, chunk.has_more_patches());
+  }
 }
 
 ServiceImpl::TracingSession* ServiceImpl::GetTracingSession(
@@ -619,6 +636,13 @@ ProducerID ServiceImpl::GetNextProducerID() {
   return last_producer_id_;
 }
 
+TraceBuffez* ServiceImpl::GetBufferByID(BufferID buffer_id) {
+  auto buf_iter = buffers_.find(buffer_id);
+  if (buf_iter == buffers_.end())
+    return nullptr;
+  return &*buf_iter->second;
+}
+
 void ServiceImpl::UpdateMemoryGuardrail() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
@@ -631,7 +655,7 @@ void ServiceImpl::UpdateMemoryGuardrail() {
 
   // Sum up all the trace buffers.
   for (const auto& id_to_buffer : buffers_) {
-    total_buffer_bytes += id_to_buffer.second.size;
+    total_buffer_bytes += id_to_buffer.second->size();
   }
 
   // Set the guard rail to 32MB + the sum of all the buffers over a 30 second
@@ -682,6 +706,7 @@ void ServiceImpl::ConsumerEndpointImpl::FreeBuffers() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (tracing_session_id_) {
     service_->FreeBuffers(tracing_session_id_);
+    tracing_session_id_ = 0;
   } else {
     PERFETTO_LOG("Consumer called FreeBuffers() but tracing was not active");
   }
@@ -745,31 +770,51 @@ void ServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
 }
 
 void ServiceImpl::ProducerEndpointImpl::CommitData(
-    const CommitDataRequest& req_untrusted) {
+    const CommitDataRequest& req_untrusted,
+    CommitDataCallback callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
-  for (const auto& chunks : req_untrusted.chunks_to_move()) {
-    const uint32_t page_idx = chunks.page();
+  for (const auto& entry : req_untrusted.chunks_to_move()) {
+    const uint32_t page_idx = entry.page();
     if (page_idx >= shmem_abi_.num_pages())
       continue;  // A buggy or malicious producer.
 
-    if (!shmem_abi_.is_page_complete(page_idx))
+    SharedMemoryABI::Chunk chunk =
+        shmem_abi_.TryAcquireChunkForReading(page_idx, entry.chunk());
+    if (!chunk.is_valid()) {
+      PERFETTO_DLOG("Asked to move chunk %d:%d, but it's not complete",
+                    entry.page(), entry.chunk());
       continue;
+    }
 
-    // TODO(primiano): implement per-chunk move and replace
-    // ReleaseAllChunksAsFree() with just ReleaseChunk.
-    PERFETTO_DCHECK(chunks.chunk() == 0);
+    // TryAcquireChunkForReading() has load-acquire semantics. Once acquired,
+    // the ABI contract expects the producer to not touch the chunk anymore
+    // (until the service marks that as free). This is why all the reads below
+    // are just memory_order_relaxed. Also, the code here assumes that all this
+    // data can be malicious and just gives up if anything is malformed.
+    BufferID buffer_id = static_cast<BufferID>(entry.target_buffer());
+    const SharedMemoryABI::ChunkHeader& chunk_header = *chunk.header();
+    WriterID writer_id = chunk_header.writer_id.load(std::memory_order_relaxed);
+    ChunkID chunk_id = chunk_header.chunk_id.load(std::memory_order_relaxed);
+    auto packets = chunk_header.packets.load(std::memory_order_relaxed);
+    uint16_t num_fragments = packets.count;
+    uint8_t chunk_flags = packets.flags;
 
-    if (!shmem_abi_.TryAcquireAllChunksForReading(page_idx))
-      continue;
+    service_->CopyProducerPageIntoLogBuffer(
+        id_, uid_, writer_id, chunk_id, buffer_id, num_fragments, chunk_flags,
+        chunk.payload_begin(), chunk.payload_size());
 
-    BufferID target_buffer = static_cast<BufferID>(chunks.target_buffer());
-    service_->CopyProducerPageIntoLogBuffer(id_, target_buffer,
-                                            shmem_abi_.page_start(page_idx),
-                                            shmem_abi_.page_size());
+    // This one has release-store semantics.
+    shmem_abi_.ReleaseChunkAsFree(std::move(chunk));
+  }  // for(chunks_to_move)
 
-    shmem_abi_.ReleaseAllChunksAsFree(page_idx);
-  }
+  service_->ApplyChunkPatches(id_, req_untrusted.chunks_to_patch());
+
+  // Keep this invocation last. ProducerIPCService::CommitData() relies on this
+  // callback being invoked within the same callstack and not posted. If this
+  // changes, the code there needs to be changed accordingly.
+  if (callback)
+    callback();
 }
 
 SharedMemory* ServiceImpl::ProducerEndpointImpl::shared_memory() const {
@@ -786,32 +831,6 @@ ServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID) {
   // want to support, but not too interesting right now.
   PERFETTO_CHECK(false);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// ServiceImpl::TraceBuffer implementation
-////////////////////////////////////////////////////////////////////////////////
-
-ServiceImpl::TraceBuffer::TraceBuffer() = default;
-
-bool ServiceImpl::TraceBuffer::Create(size_t size_in_bytes) {
-  data = base::PageAllocator::AllocateMayFail(size_in_bytes);
-  if (!data) {
-    PERFETTO_ELOG("Trace buffer allocation failed (size: %zu, page_size: %zu)",
-                  size_in_bytes, kBufferPageSize);
-    return false;
-  }
-  size = size_in_bytes;
-  abi.reset(new SharedMemoryABI(get_page(0), size_in_bytes, kBufferPageSize));
-  PERFETTO_DCHECK(page_owners.empty());
-  page_owners.resize(num_pages(), -1);
-  return true;
-}
-
-ServiceImpl::TraceBuffer::~TraceBuffer() = default;
-ServiceImpl::TraceBuffer::TraceBuffer(ServiceImpl::TraceBuffer&&) noexcept =
-    default;
-ServiceImpl::TraceBuffer& ServiceImpl::TraceBuffer::operator=(
-    ServiceImpl::TraceBuffer&&) = default;
 
 ////////////////////////////////////////////////////////////////////////////////
 // ServiceImpl::TracingSession implementation

@@ -286,11 +286,12 @@ bool TraceBuffez::TryPatchChunkContents(ProducerID producer_id,
     uint8_t* ptr =
         chunk_begin + sizeof(ChunkRecord) + patches[i].offset_untrusted;
     TRACE_BUFFER_DLOG("PatchChunk {%" PRIu32 ",%" PRIu32
-                      ",%u} size=%zu @ %zu with {%02x %02x %02x %02x}",
+                      ",%u} size=%zu @ %zu with {%02x %02x %02x %02x} cur "
+                      "{%02x %02x %02x %02x}",
                       producer_id, writer_id, chunk_id, chunk_end - chunk_begin,
                       patches[i].offset_untrusted, patches[i].data[0],
                       patches[i].data[1], patches[i].data[2],
-                      patches[i].data[3]);
+                      patches[i].data[3], ptr[0], ptr[1], ptr[2], ptr[3]);
     if (ptr < chunk_begin + sizeof(ChunkRecord) ||
         ptr > chunk_end - Patch::kSize) {
       // Either the IPC was so slow and in the meantime the writer managed to
@@ -299,8 +300,9 @@ bool TraceBuffez::TryPatchChunkContents(ProducerID producer_id,
       return false;
     }
 
-    // DCHECK that we are writing into a size-field zero-filled by
-    // trace_writer_impl.cc and that we are not writing over other valid data.
+    // DCHECK that we are writing into a zero-filled size field and not into
+    // valid data. It relies on ScatteredStreamWriter::ReserveBytes() to
+    // zero-fill reservations in debug builds.
     char zero[Patch::kSize]{};
     PERFETTO_DCHECK(memcmp(ptr, &zero, Patch::kSize) == 0);
 
@@ -404,16 +406,16 @@ bool TraceBuffez::ReadNextTracePacket(TracePacket* packet,
       PERFETTO_DCHECK(read_iter_.is_valid() && read_iter_.cur != index_.end());
     }
 
-    ChunkMeta& chunk_meta = *read_iter_;
+    ChunkMeta* chunk_meta = &*read_iter_;
 
     // If the chunk has holes that are awaiting to be patched out-of-band,
     // skip the current sequence and move to the next one.
-    if (chunk_meta.flags & kChunkNeedsPatching) {
+    if (chunk_meta->flags & kChunkNeedsPatching) {
       read_iter_.MoveToEnd();
       continue;
     }
 
-    const uid_t trusted_uid = chunk_meta.trusted_uid;
+    const uid_t trusted_uid = chunk_meta->trusted_uid;
 
     // At this point we have a chunk in |chunk_meta| that has not been fully
     // read. We don't know yet whether we have enough data to read the full
@@ -439,41 +441,43 @@ bool TraceBuffez::ReadNextTracePacket(TracePacket* packet,
     // | Packet 3  ... |   |                   |  | Packet 5 ...  |
     // +---------------+   +-------------------+  +---------------+
 
-    PERFETTO_DCHECK(chunk_meta.num_fragments_read <= chunk_meta.num_fragments);
-    while (chunk_meta.num_fragments_read < chunk_meta.num_fragments) {
+    PERFETTO_DCHECK(chunk_meta->num_fragments_read <=
+                    chunk_meta->num_fragments);
+    while (chunk_meta->num_fragments_read < chunk_meta->num_fragments) {
       enum { kSkip = 0, kReadOnePacket, kTryReadAhead } action;
-      if (chunk_meta.num_fragments_read == 0) {
-        if (chunk_meta.flags & kFirstPacketContinuesFromPrevChunk) {
+      if (chunk_meta->num_fragments_read == 0) {
+        if (chunk_meta->flags & kFirstPacketContinuesFromPrevChunk) {
           action = kSkip;  // Case A.
-        } else if (chunk_meta.num_fragments == 1 &&
-                   (chunk_meta.flags & kLastPacketContinuesOnNextChunk)) {
+        } else if (chunk_meta->num_fragments == 1 &&
+                   (chunk_meta->flags & kLastPacketContinuesOnNextChunk)) {
           action = kTryReadAhead;  // Case C.
         } else {
           action = kReadOnePacket;  // Case B.
         }
-      } else if (chunk_meta.num_fragments_read < chunk_meta.num_fragments - 1 ||
-                 !(chunk_meta.flags & kLastPacketContinuesOnNextChunk)) {
+      } else if (chunk_meta->num_fragments_read <
+                     chunk_meta->num_fragments - 1 ||
+                 !(chunk_meta->flags & kLastPacketContinuesOnNextChunk)) {
         action = kReadOnePacket;  // Case B.
       } else {
         action = kTryReadAhead;  // Case C.
       }
 
       TRACE_BUFFER_DLOG("  chunk %u, packet %hu of %hu, action=%d",
-                        read_iter_.chunk_id(), chunk_meta.num_fragments_read,
-                        chunk_meta.num_fragments, action);
+                        read_iter_.chunk_id(), chunk_meta->num_fragments_read,
+                        chunk_meta->num_fragments, action);
 
       if (action == kSkip) {
         // This fragment will be skipped forever, not just in this ReadPacket()
         // iteration. This happens by virtue of ReadNextPacketInChunk()
         // incrementing the |num_fragments_read| and marking the fragment as
         // read even if we didn't really.
-        ReadNextPacketInChunk(&chunk_meta, nullptr);
+        ReadNextPacketInChunk(chunk_meta, nullptr);
         continue;
       }
 
       if (action == kReadOnePacket) {
         // The easy peasy case B.
-        if (PERFETTO_LIKELY(ReadNextPacketInChunk(&chunk_meta, packet))) {
+        if (PERFETTO_LIKELY(ReadNextPacketInChunk(chunk_meta, packet))) {
           *producer_uid = trusted_uid;
           return true;
         }
@@ -481,6 +485,7 @@ bool TraceBuffez::ReadNextTracePacket(TracePacket* packet,
         // In extremely rare cases (producer bugged / malicious) the chunk might
         // contain an invalid fragment. In such case we don't want to stall the
         // sequence but just skip the chunk and move on.
+        PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
         break;
       }
 
@@ -510,6 +515,10 @@ bool TraceBuffez::ReadNextTracePacket(TracePacket* packet,
       }
 
       PERFETTO_DCHECK(ra_res == ReadAheadResult::kFailedStayOnSameSequence);
+
+      // In this case ReadAhead() might advance |read_iter_|, so we need to
+      // re-cache the |chunk_meta| pointer to point to the current chunk.
+      chunk_meta = &*read_iter_;
     }  // while(...)  [iterate over packet fragments for the current chunk].
   }    // for(;;MoveNext()) [iterate over chunks].
 }
@@ -541,8 +550,14 @@ TraceBuffez::ReadAheadResult TraceBuffez::ReadAhead(TracePacket* packet) {
       return ReadAheadResult::kFailedMoveToNextSequence;
     }
 
+    // If the chunk is contiguous but has not been patched yet move to the next
+    // sequence and try coming back here on the next ReadNextTracePacket() call.
+    // TODO(primiano): add a test to cover this, it's a subtle case.
+    if ((*it).flags & kChunkNeedsPatching)
+      return ReadAheadResult::kFailedMoveToNextSequence;
+
     // This is the case of an intermediate chunk which contains only one
-    // fragment which continues on the next. This is the case for large
+    // fragment which continues on the next chunk. This is the case for large
     // packets, e.g.: [Packet0, Packet1(0)] [Packet1(1)] [Packet1(2), ...]
     // (Packet1(X) := fragment X of Packet1).
     if ((*it).num_fragments == 1 &&
@@ -575,6 +590,7 @@ TraceBuffez::ReadAheadResult TraceBuffez::ReadAhead(TracePacket* packet) {
     PERFETTO_DCHECK(read_iter_.cur == it.cur);
 
     if (PERFETTO_UNLIKELY(packet_corruption)) {
+      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
       *packet = TracePacket();  // clear.
       return ReadAheadResult::kFailedStayOnSameSequence;
     }
@@ -587,7 +603,7 @@ TraceBuffez::ReadAheadResult TraceBuffez::ReadAhead(TracePacket* packet) {
 bool TraceBuffez::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
                                         TracePacket* packet) {
   PERFETTO_DCHECK(chunk_meta->num_fragments_read < chunk_meta->num_fragments);
-  // TODO DCHECK for chunks that are still awaiting patching.
+  PERFETTO_DCHECK(!(chunk_meta->flags & kChunkNeedsPatching));
 
   const uint8_t* record_begin =
       reinterpret_cast<const uint8_t*>(chunk_meta->chunk_record);
@@ -617,8 +633,10 @@ bool TraceBuffez::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
       static_cast<uint16_t>(next_packet - packets_begin);
   chunk_meta->num_fragments_read++;
 
-  if (PERFETTO_UNLIKELY(packet_size == 0))
+  if (PERFETTO_UNLIKELY(packet_size == 0)) {
+    PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     return false;
+  }
 
   if (PERFETTO_LIKELY(packet))
     packet->AddSlice(packet_data, static_cast<size_t>(packet_size));
