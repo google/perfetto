@@ -3084,6 +3084,7 @@ cc_test {
     "src/base/test/vm_test_utils.cc",
     "src/base/thread_checker.cc",
     "src/base/thread_checker_unittest.cc",
+    "src/base/time_unittest.cc",
     "src/base/unix_task_runner.cc",
     "src/base/utils_unittest.cc",
     "src/base/watchdog.cc",
