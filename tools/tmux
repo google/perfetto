@@ -20,6 +20,10 @@ function is_monolithic {
   return $?
 }
 
+function reset_tracing {
+  adb shell 'echo 0 > /d/tracing/tracing_on'
+}
+
 function adb_supports_push_sync {
   adb --help | grep 'push.*\[--sync\]'
 }
@@ -49,6 +53,7 @@ ninja -C $OUT traced traced_probes perfetto trace_to_text test/configs
 push $OUT/traced /data/local/tmp/
 push $OUT/traced_probes /data/local/tmp/
 push $OUT/perfetto /data/local/tmp/
+reset_tracing
 
 PREFIX=""
 if ! is_monolithic $OUT;  then

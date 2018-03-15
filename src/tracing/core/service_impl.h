@@ -49,8 +49,6 @@ class TraceConfig;
 // The tracing service business logic.
 class ServiceImpl : public Service {
  public:
-  using TracingSessionID = uint64_t;
-
   // The implementation behind the service endpoint exposed to each producer.
   class ProducerEndpointImpl : public Service::ProducerEndpoint {
    public:
