@@ -20,6 +20,7 @@
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_checker.h"
+#include "perfetto/base/time.h"
 
 #include <poll.h>
 #include <chrono>
@@ -53,15 +54,11 @@ class UnixTaskRunner : public TaskRunner {
   void RemoveFileDescriptorWatch(int fd) override;
 
  private:
-  using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
-  using TimeDurationMs = std::chrono::milliseconds;
-  TimePoint GetTime() const;
-
   void WakeUp();
 
   void UpdateWatchTasksLocked();
 
-  TimeDurationMs GetDelayToNextTaskLocked() const;
+  int GetDelayMsToNextTaskLocked() const;
   void RunImmediateAndDelayedTask();
   void PostFileDescriptorWatches();
   void RunFileDescriptorWatch(int fd);
@@ -78,7 +75,7 @@ class UnixTaskRunner : public TaskRunner {
   std::mutex lock_;
 
   std::deque<std::function<void()>> immediate_tasks_;
-  std::multimap<TimePoint, std::function<void()>> delayed_tasks_;
+  std::multimap<TimeMillis, std::function<void()>> delayed_tasks_;
   bool quit_ = false;
 
   struct WatchTask {

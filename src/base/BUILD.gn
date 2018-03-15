@@ -105,6 +105,7 @@ source_set("unittests") {
     "task_runner_unittest.cc",
     "temp_file_unittest.cc",
     "thread_checker_unittest.cc",
+    "time_unittest.cc",
     "utils_unittest.cc",
     "weak_ptr_unittest.cc",
   ]
