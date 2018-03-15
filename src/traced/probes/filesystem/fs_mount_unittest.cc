@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/scoped_file.h"
+#include "perfetto/base/temp_file.h"
 #include "perfetto/base/utils.h"
 
 namespace perfetto {
@@ -49,19 +50,11 @@ sysfs / sysfs rw,nosuid,nodev,noexec,relatime 0 0
 #INVALIDLINE
 devfs /dev devfs,local,nobrowse
 )";
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  char tmp_path[PATH_MAX] = "/data/local/tmp/fake_mounts.XXXXXX";
-#else
-  char tmp_path[PATH_MAX] = "/tmp/fake_mounts.XXXXXX";
-#endif
 
-  base::ScopedFile tmp_fd(mkstemp(tmp_path));
-  ASSERT_GT(*tmp_fd, -1);
-  base::ignore_result(write(*tmp_fd, kMounts, sizeof(kMounts)));
-  tmp_fd.reset();
-
-  std::multimap<BlockDeviceID, std::string> mounts = ParseMounts(tmp_path);
-  unlink(tmp_path);
+  base::TempFile tmp_file = base::TempFile::Create();
+  base::ignore_result(write(tmp_file.fd(), kMounts, sizeof(kMounts)));
+  std::multimap<BlockDeviceID, std::string> mounts =
+      ParseMounts(tmp_file.path().c_str());
   struct stat dev_stat = {}, root_stat = {};
   ASSERT_NE(stat("/dev", &dev_stat), -1);
   ASSERT_NE(stat("/", &root_stat), -1);
