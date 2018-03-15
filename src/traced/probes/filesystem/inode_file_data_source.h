@@ -20,10 +20,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 
-#include "perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/traced/probes/filesystem/fs_mount.h"
@@ -34,6 +34,7 @@ namespace perfetto {
 
 using Inode = uint64_t;
 using InodeFileMap = protos::pbzero::InodeFileMap;
+class TraceWriter;
 
 class InodeMapValue {
  public:
@@ -61,7 +62,7 @@ class InodeFileDataSource {
           file_system_inodes,
       std::unique_ptr<TraceWriter> writer);
 
-  void WriteInodes(const FtraceMetadata& metadata);
+  void WriteInodes(const std::vector<std::pair<uint64_t, uint32_t>>&);
 
  private:
   std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>* file_system_inodes_;
