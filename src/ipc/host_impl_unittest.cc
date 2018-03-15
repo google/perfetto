@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/temp_file.h"
+#include "perfetto/base/utils.h"
 #include "perfetto/ipc/service.h"
 #include "perfetto/ipc/service_descriptor.h"
 #include "src/base/test/test_task_runner.h"
@@ -329,7 +330,7 @@ TEST_F(HostImplTest, SendFileDescriptor) {
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
   auto on_reply_sent = task_runner_->CreateCheckpoint("on_reply_sent");
   base::TempFile tx_file = base::TempFile::CreateUnlinked();
-  write(tx_file.fd(), kFileContent, sizeof(kFileContent));
+  base::ignore_result(write(tx_file.fd(), kFileContent, sizeof(kFileContent)));
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
       .WillOnce(Invoke([on_reply_sent, &tx_file](const RequestProto& req,
                                                  DeferredBase* reply) {
@@ -369,7 +370,7 @@ TEST_F(HostImplTest, ReceiveFileDescriptor) {
   static constexpr char kFileContent[] = "shared file";
   RequestProto req_args;
   base::TempFile tx_file = base::TempFile::CreateUnlinked();
-  write(tx_file.fd(), kFileContent, sizeof(kFileContent));
+  base::ignore_result(write(tx_file.fd(), kFileContent, sizeof(kFileContent)));
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args, false,
                      tx_file.fd());
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_));
