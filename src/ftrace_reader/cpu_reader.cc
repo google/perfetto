@@ -457,6 +457,7 @@ bool CpuReader::ParseField(const Field& field,
     case kUint64ToUint64:
       ReadIntoVarInt<uint64_t>(field_start, field_id, message);
       return true;
+    case kInt8ToInt32:
     case kInt16ToInt32:
     case kInt32ToInt32:
     case kInt32ToInt64:
