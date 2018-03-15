@@ -15,11 +15,11 @@
 source_set("filesystem") {
   public_deps = [
     "../../../../protos/perfetto/trace/filesystem:zero",
+    "../../../tracing",
   ]
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
-    "../../../ftrace_reader",
   ]
   sources = [
     "fs_mount.cc",
