@@ -74,9 +74,13 @@ void CreateDeviceToInodeMap(
 }
 
 InodeFileDataSource::InodeFileDataSource(
+    TracingSessionID id,
     std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>* file_system_inodes,
     std::unique_ptr<TraceWriter> writer)
-    : file_system_inodes_(file_system_inodes), writer_(std::move(writer)) {}
+    : session_id_(id),
+      file_system_inodes_(file_system_inodes),
+      writer_(std::move(writer)),
+      weak_factory_(this) {}
 
 void InodeFileDataSource::WriteInodes(
     const std::vector<std::pair<uint64_t, uint32_t>>& inodes) {
@@ -122,6 +126,15 @@ void InodeFileDataSource::WriteInodes(
     }
     trace_packet->Finalize();
   }
+}
+
+base::WeakPtr<InodeFileDataSource> InodeFileDataSource::GetWeakPtr() const {
+  return weak_factory_.GetWeakPtr();
+}
+
+void InodeFileDataSource::OnInodes(
+    const std::vector<std::pair<uint64_t, uint32_t>>& inodes) {
+  PERFETTO_DLOG("Saw FtraceBundle with %zu inodes.", inodes.size());
 }
 
 }  // namespace perfetto

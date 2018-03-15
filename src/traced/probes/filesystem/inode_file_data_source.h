@@ -24,6 +24,7 @@
 #include <set>
 #include <string>
 
+#include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/traced/probes/filesystem/fs_mount.h"
@@ -57,17 +58,24 @@ void CreateDeviceToInodeMap(
 
 class InodeFileDataSource {
  public:
-  explicit InodeFileDataSource(
-      std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>*
-          file_system_inodes,
-      std::unique_ptr<TraceWriter> writer);
+  InodeFileDataSource(TracingSessionID,
+                      std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>*
+                          file_system_inodes,
+                      std::unique_ptr<TraceWriter> writer);
+
+  TracingSessionID session_id() const { return session_id_; }
+  base::WeakPtr<InodeFileDataSource> GetWeakPtr() const;
 
   void WriteInodes(const std::vector<std::pair<uint64_t, uint32_t>>&);
+  // TODO(hjd): Combine with above.
+  void OnInodes(const std::vector<std::pair<uint64_t, uint32_t>>& inodes);
 
  private:
+  const TracingSessionID session_id_;
   std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>* file_system_inodes_;
   std::multimap<BlockDeviceID, std::string> mount_points_;
   std::unique_ptr<TraceWriter> writer_;
+  base::WeakPtrFactory<InodeFileDataSource> weak_factory_;  // Keep last.
 };
 
 }  // namespace perfetto

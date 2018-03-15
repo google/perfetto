@@ -23,6 +23,9 @@
 namespace perfetto {
 
 // Unique within the scope of the tracing service.
+using TracingSessionID = uint64_t;
+
+// Unique within the scope of the tracing service.
 using ProducerID = uint16_t;
 
 // Unique within the scope of the tracing service.
