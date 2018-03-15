@@ -18,8 +18,10 @@
 #define SRC_TRACED_PROBES_PROCESS_STATS_DATA_SOURCE_H_
 
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/weak_ptr.h"
+#include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/trace_writer.h"
 
 namespace perfetto {
