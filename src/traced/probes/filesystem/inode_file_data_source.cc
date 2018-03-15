@@ -21,9 +21,9 @@
 #include <unistd.h>
 #include <queue>
 
-#include "include/perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/tracing/core/trace_packet.h"
+#include "perfetto/tracing/core/trace_writer.h"
 
 #include "perfetto/trace/trace_packet.pbzero.h"
 
@@ -78,14 +78,14 @@ InodeFileDataSource::InodeFileDataSource(
     std::unique_ptr<TraceWriter> writer)
     : file_system_inodes_(file_system_inodes), writer_(std::move(writer)) {}
 
-void InodeFileDataSource::WriteInodes(const FtraceMetadata& metadata) {
+void InodeFileDataSource::WriteInodes(
+    const std::vector<std::pair<uint64_t, uint32_t>>& inodes) {
   PERFETTO_DLOG("Write Inodes start");
 
   if (mount_points_.empty()) {
     mount_points_ = ParseMounts();
   }
   // Group inodes from FtraceMetadata by block device
-  auto inodes = metadata.inodes;
   std::map<BlockDeviceID, std::set<Inode>> inode_file_maps;
   for (const auto& inode : inodes) {
     BlockDeviceID block_device_id = inode.first;
