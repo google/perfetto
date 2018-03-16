@@ -60,19 +60,25 @@ class InodeFileDataSource {
  public:
   InodeFileDataSource(TracingSessionID,
                       std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>*
-                          file_system_inodes,
+                          system_partition_files,
                       std::unique_ptr<TraceWriter> writer);
 
   TracingSessionID session_id() const { return session_id_; }
   base::WeakPtr<InodeFileDataSource> GetWeakPtr() const;
 
-  void WriteInodes(const std::vector<std::pair<uint64_t, uint32_t>>&);
-  // TODO(hjd): Combine with above.
-  void OnInodes(const std::vector<std::pair<uint64_t, uint32_t>>& inodes);
+  void OnInodes(const std::vector<std::pair<Inode, BlockDeviceID>>& inodes);
+
+  bool AddInodeFileMapEntry(
+      InodeFileMap* inode_file_map,
+      BlockDeviceID block_device_id,
+      Inode inode,
+      const std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>&
+          block_device_map);
 
  private:
   const TracingSessionID session_id_;
-  std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>* file_system_inodes_;
+  std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>*
+      system_partition_files_;
   std::multimap<BlockDeviceID, std::string> mount_points_;
   std::unique_ptr<TraceWriter> writer_;
   base::WeakPtrFactory<InodeFileDataSource> weak_factory_;  // Keep last.
