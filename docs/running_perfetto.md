@@ -16,12 +16,11 @@ the results (either to a file or to [Android's Dropbox][dropbox])
 
 
 ## Instructions:
+Make sure that Perfetto daemons (`traced` / `traced_probes`) are started.
+They are enabled by default on Pixel and Pixel 2 (walleye, taimen, marlin,
+sailfish). On other devices start them manually by doing:
 ```
-# TODO(primiano): this is temporary until we fix SELinux policies.
-adb shell su root setenforce 0
-
-adb shell su root start traced
-adb shell su root start traced_probes
+adb shell setprop persist.traced.enable 1
 ```
 
 If this works you will see something like:
@@ -36,33 +35,47 @@ perfetto: probes_producer.cc:32 Connected to the service
 At which point you can grab a trace by doing:
 
 ```
-$ adb shell perfetto --config :test --out /data/local/tmp/trace
+$ adb shell perfetto --config :test --out /data/misc/perfetto-traces/trace
 ```
 
-or to save it to [Android's Dropbox][dropbox]:
+Note: If the output file is not under `/data/misc/perfetto-traces`, it might
+fail due to SELinux (shell is allowed to read that directory).
+
+Alternatively, it can be saved to [Android's Dropbox][dropbox]
+(to test the uploader):
 
 ```
 $ adb shell perfetto --config :test --dropbox perfetto
 ```
 
+### Trace config
 `--config :test` uses a hard-coded test trace config. It is possible to pass
 an arbitrary trace config by doing the following:
 ```
 cat > /tmp/config.txpb <<EOF
 # This is a text-encoded protobuf for /protos/perfetto/config/trace_config.proto
-duration_ms: 2000
+duration_ms: 10000
+
 buffers {
-  size_kb: 1024
-  optimize_for: ONE_SHOT_READ
-  fill_policy: RING_BUFFER
+  size_kb: 10240
 }
+
 data_sources {
   config {
     name: "com.google.perfetto.ftrace"
     target_buffer: 0
     ftrace_config {
-      event_names: "sched_switch"
+      buffer_size_kb: 40 # Kernel ftrace buffer size.
+      ftrace_events: "sched_switch"
+      ftrace_events: "print"
     }
+  }
+}
+
+data_sources {
+  config {
+    name: "com.google.perfetto.process_stats"
+    target_buffer: 0
   }
 }
 EOF
@@ -71,13 +84,12 @@ protoc=$(pwd)/out/android/gcc_like_host/protoc
 
 $protoc --encode=perfetto.protos.TraceConfig \
         -I$(pwd)/external/perfetto/protos \
-        $(pwd)/external/perfetto/protos/perfetto/config/trace_config.proto \
+        $(pwd)/external/perfetto/protos/perfetto/config/perfetto_config.proto \
         < /tmp/config.txpb \
         > /tmp/config.pb
 
-adb push /tmp/config.pb /data/local/tmp/
-adb shell perfetto -c /data/local/tmp/config.pb -o /data/local/tmp/trace.pb
-adb pull /data/local/tmp/trace.pb /tmp/
+cat /tmp/config.pb | adb shell perfetto -c - -o /data/misc/perfetto-traces/trace.pb
+adb pull /data/misc/perfetto-traces/trace.pb /tmp/
 out/android/trace_to_text systrace < /tmp/trace.pb > /tmp/trace.json
 
 # The file can now be viewed in chrome://tracing
