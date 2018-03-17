@@ -20,6 +20,7 @@
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_checker.h"
+#include "perfetto/base/time.h"
 
 #include <poll.h>
 #include <chrono>
@@ -58,35 +59,6 @@ class AndroidTaskRunner : public TaskRunner {
   void RemoveFileDescriptorWatch(int fd) override;
 
  private:
-  class TimePoint : public timespec {
-   public:
-    TimePoint() { tv_sec = tv_nsec = 0; }
-
-    bool operator<(const TimePoint& other) const {
-      if (tv_sec == other.tv_sec)
-        return tv_nsec < other.tv_nsec;
-      return tv_sec < other.tv_sec;
-    }
-
-    explicit operator bool() const { return tv_sec || tv_nsec; }
-
-    TimePoint AdvanceByMs(time_t ms) {
-      const time_t kSecondsPerNs = 1000000000;
-      PERFETTO_DCHECK(tv_nsec < kSecondsPerNs);
-      TimePoint result(*this);
-      time_t seconds = ms / 1000;
-      result.tv_sec += seconds;
-      ms -= seconds * 1000;
-      result.tv_nsec += ms * 1000 * 1000;
-      if (result.tv_nsec >= kSecondsPerNs) {
-        result.tv_sec++;
-        result.tv_nsec -= kSecondsPerNs;
-      }
-      return result;
-    }
-  };
-  TimePoint GetTime() const;
-
   bool OnFileDescriptorEvent(int signalled_fd, int events);
   void RunImmediateTask();
   void RunDelayedTask();
@@ -94,7 +66,7 @@ class AndroidTaskRunner : public TaskRunner {
   void GetNextDelayedTaskRunTimeLocked(struct itimerspec* runtime);
 
   void ScheduleImmediateWakeUp();
-  void ScheduleDelayedWakeUp(const TimePoint& time);
+  void ScheduleDelayedWakeUp(TimeMillis time);
 
   ALooper* const looper_;
   ScopedFile immediate_event_;
@@ -107,7 +79,7 @@ class AndroidTaskRunner : public TaskRunner {
   // Note: std::deque allocates blocks of 4k in some implementations. Consider
   // another data structure if we end up having many task runner instances.
   std::deque<std::function<void()>> immediate_tasks_;
-  std::multimap<TimePoint, std::function<void()>> delayed_tasks_;
+  std::multimap<TimeMillis, std::function<void()>> delayed_tasks_;
   std::map<int, std::function<void()>> watch_tasks_;
   bool quit_ = false;
   // --- End lock-protected members.

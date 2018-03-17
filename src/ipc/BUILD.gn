@@ -59,7 +59,7 @@ if (use_libfuzzer) {
   }
 }
 
-source_set("perfetto_ipc_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":ipc",

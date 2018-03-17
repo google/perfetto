@@ -2295,6 +2295,7 @@ std::string FormatExt4ZeroRange(const Ext4ZeroRangeFtraceEvent& event) {
 }
 
 // TODO(taylori): Confirm correct format for this.
+// Calling this breaks loading into chrome://tracing
 std::string FormatProcess(const Process& process) {
   char line[2048];
   sprintf(line, "process: pid=%d ppid=%d cmdline=", process.pid(),
@@ -2315,6 +2316,7 @@ std::string FormatProcess(const Process& process) {
   return output;
 }
 
+// Calling this breaks loading into chrome://tracing
 std::string FormatInodeFileMap(const Entry& entry) {
   char line[2048];
   sprintf(line, "inode_file_map: ino=%llu type=%s path=", entry.inode_number(),
@@ -2341,22 +2343,6 @@ int TraceToSystrace(std::istream* input, std::ostream* output) {
   }
 
   for (const TracePacket& packet : trace.packet()) {
-    if (packet.has_process_tree()) {
-      const ProcessTree& process_tree = packet.process_tree();
-      for (const auto& process : process_tree.processes()) {
-        std::string line = FormatProcess(process);
-        sorted.emplace(0, line);
-      }
-    }
-
-    if (packet.has_inode_file_map()) {
-      const InodeFileMap& inode_file_map = packet.inode_file_map();
-      // TODO(azappone): format device block id and mount points
-      for (const auto& entry : inode_file_map.entries()) {
-        std::string line = FormatInodeFileMap(entry);
-        sorted.emplace(0, line);
-      }
-    }
 
     if (!packet.has_ftrace_events())
       continue;

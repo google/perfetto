@@ -35,7 +35,7 @@ class FakeProducerEndpoint : public Service::ProducerEndpoint {
   void RegisterDataSource(const DataSourceDescriptor&,
                           RegisterDataSourceCallback) override {}
   void UnregisterDataSource(DataSourceID) override {}
-  void CommitData(const CommitDataRequest&) override {}
+  void CommitData(const CommitDataRequest&, CommitDataCallback) override {}
   SharedMemory* shared_memory() const override { return nullptr; }
   std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override {
     return nullptr;
@@ -105,6 +105,7 @@ TEST_P(TraceWriterImplTest, SingleWriter) {
 }
 
 // TODO(primiano): add multi-writer test.
+// TODO(primiano): add Flush() test.
 
 }  // namespace
 }  // namespace perfetto

@@ -18,23 +18,31 @@
 #define SRC_TRACED_PROBES_PROCESS_STATS_DATA_SOURCE_H_
 
 #include <memory>
+#include <vector>
 
+#include "perfetto/base/weak_ptr.h"
+#include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/trace_writer.h"
 
 namespace perfetto {
 
 class ProcessStatsDataSource {
  public:
-  explicit ProcessStatsDataSource(std::unique_ptr<TraceWriter> writer);
+  ProcessStatsDataSource(TracingSessionID, std::unique_ptr<TraceWriter> writer);
   ~ProcessStatsDataSource();
 
+  TracingSessionID session_id() const { return session_id_; }
+  base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
   void WriteAllProcesses();
+  void OnPids(const std::vector<int32_t>& pids);
 
  private:
   ProcessStatsDataSource(const ProcessStatsDataSource&) = delete;
   ProcessStatsDataSource& operator=(const ProcessStatsDataSource&) = delete;
 
+  const TracingSessionID session_id_;
   std::unique_ptr<TraceWriter> writer_;
+  base::WeakPtrFactory<ProcessStatsDataSource> weak_factory_;  // Keep last.
 };
 
 }  // namespace perfetto

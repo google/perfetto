@@ -23,6 +23,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <limits>
+
 namespace perfetto {
 namespace base {
 
@@ -58,10 +60,6 @@ UnixTaskRunner::UnixTaskRunner() {
 
 UnixTaskRunner::~UnixTaskRunner() = default;
 
-UnixTaskRunner::TimePoint UnixTaskRunner::GetTime() const {
-  return std::chrono::steady_clock::now();
-}
-
 void UnixTaskRunner::WakeUp() {
   const char dummy = 'P';
   if (write(control_write_.get(), &dummy, 1) <= 0 && errno != EAGAIN)
@@ -77,7 +75,7 @@ void UnixTaskRunner::Run() {
       std::lock_guard<std::mutex> lock(lock_);
       if (quit_)
         return;
-      poll_timeout_ms = static_cast<int>(GetDelayToNextTaskLocked().count());
+      poll_timeout_ms = GetDelayMsToNextTaskLocked();
       UpdateWatchTasksLocked();
     }
     int ret = PERFETTO_EINTR(poll(
@@ -121,7 +119,7 @@ void UnixTaskRunner::RunImmediateAndDelayedTask() {
   // becomes an issue.
   std::function<void()> immediate_task;
   std::function<void()> delayed_task;
-  auto now = GetTime();
+  TimeMillis now = GetWallTimeMs();
   {
     std::lock_guard<std::mutex> lock(lock_);
     if (!immediate_tasks_.empty()) {
@@ -197,17 +195,15 @@ void UnixTaskRunner::RunFileDescriptorWatch(int fd) {
   RunTask(task);
 }
 
-UnixTaskRunner::TimeDurationMs UnixTaskRunner::GetDelayToNextTaskLocked()
-    const {
+int UnixTaskRunner::GetDelayMsToNextTaskLocked() const {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!immediate_tasks_.empty())
-    return TimeDurationMs(0);
+    return 0;
   if (!delayed_tasks_.empty()) {
-    return std::max(TimeDurationMs(0),
-                    std::chrono::duration_cast<TimeDurationMs>(
-                        delayed_tasks_.begin()->first - GetTime()));
+    TimeMillis diff = delayed_tasks_.begin()->first - GetWallTimeMs();
+    return std::max(0, static_cast<int>(diff.count()));
   }
-  return TimeDurationMs(-1);
+  return -1;
 }
 
 void UnixTaskRunner::PostTask(std::function<void()> task) {
@@ -223,7 +219,7 @@ void UnixTaskRunner::PostTask(std::function<void()> task) {
 
 void UnixTaskRunner::PostDelayedTask(std::function<void()> task, int delay_ms) {
   PERFETTO_DCHECK(delay_ms >= 0);
-  auto runtime = GetTime() + std::chrono::milliseconds(delay_ms);
+  TimeMillis runtime = GetWallTimeMs() + TimeMillis(delay_ms);
   {
     std::lock_guard<std::mutex> lock(lock_);
     delayed_tasks_.insert(std::make_pair(runtime, std::move(task)));
