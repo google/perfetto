@@ -33,7 +33,6 @@
 
 namespace perfetto {
 
-using Inode = uint64_t;
 using InodeFileMap = protos::pbzero::InodeFileMap;
 class TraceWriter;
 

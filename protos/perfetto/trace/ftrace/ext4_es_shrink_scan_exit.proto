@@ -7,7 +7,7 @@ option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 message Ext4EsShrinkScanExitFtraceEvent {
-  optional uint32 dev = 1;
+  optional uint64 dev = 1;
   optional int32 nr_shrunk = 2;
   optional int32 cache_cnt = 3;
 }
