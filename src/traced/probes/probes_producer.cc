@@ -268,8 +268,8 @@ void ProbesProducer::SinkDelegate::OnBundleComplete(
     const FtraceMetadata& metadata) {
   trace_packet_->Finalize();
 
-  if (file_source_ && !metadata.inodes.empty()) {
-    auto inodes = metadata.inodes;
+  if (file_source_ && !metadata.inode_and_device.empty()) {
+    auto inodes = metadata.inode_and_device;
     auto weak_file_source = file_source_;
     task_runner_->PostTask([weak_file_source, inodes] {
       if (weak_file_source)

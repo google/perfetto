@@ -28,7 +28,7 @@ message ProcessTree {
     optional string name = 2;
   }
 
-  // Representation of a processs.
+  // Representation of a process.
   message Process {
     // The UNIX process ID, aka thread group ID (as per getpid()).
     optional int32 pid = 1;
