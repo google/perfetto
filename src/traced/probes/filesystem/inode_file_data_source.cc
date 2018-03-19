@@ -51,7 +51,7 @@ void CreateDeviceToInodeMap(
       struct stat buf;
       if (lstat(filepath.c_str(), &buf) != 0)
         continue;
-      BlockDeviceID block_device_id = static_cast<BlockDeviceID>(buf.st_dev);
+      BlockDeviceID block_device_id = buf.st_dev;
       // Default
       protos::pbzero::InodeFileMap_Entry_Type type =
           protos::pbzero::InodeFileMap_Entry_Type_UNKNOWN;
