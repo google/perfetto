@@ -29,6 +29,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/temp_file.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <linux/memfd.h>
@@ -52,11 +53,8 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
   }
 #endif
 
-  if (!fd) {
-    FILE* tmp_file = tmpfile();
-    PERFETTO_CHECK(tmp_file);
-    fd.reset(fileno(tmp_file));
-  }
+  if (!fd)
+    fd = base::TempFile::CreateUnlinked().ReleaseFD();
 
   PERFETTO_CHECK(fd);
   int res = ftruncate(fd.get(), static_cast<off_t>(size));

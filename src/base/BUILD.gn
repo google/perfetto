@@ -25,6 +25,7 @@ source_set("base") {
     "file_utils.cc",
     "page_allocator.cc",
     "string_splitter.cc",
+    "temp_file.cc",
     "thread_checker.cc",
     "unix_task_runner.cc",
   ]
@@ -86,7 +87,7 @@ source_set("test_support") {
   ]
 }
 
-source_set("base_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":base",
@@ -102,7 +103,9 @@ source_set("base_unittests") {
     "scoped_file_unittest.cc",
     "string_splitter_unittest.cc",
     "task_runner_unittest.cc",
+    "temp_file_unittest.cc",
     "thread_checker_unittest.cc",
+    "time_unittest.cc",
     "utils_unittest.cc",
     "weak_ptr_unittest.cc",
   ]

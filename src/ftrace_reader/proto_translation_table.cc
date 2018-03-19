@@ -48,7 +48,9 @@ const std::vector<Event> BuildEventsVector(const std::vector<Event>& events) {
 // Merge the information from |ftrace_field| into |field| (mutating it).
 // We should set the following fields: offset, size, ftrace field type and
 // translation strategy.
-bool MergeFieldInfo(const FtraceEvent::Field& ftrace_field, Field* field) {
+bool MergeFieldInfo(const FtraceEvent::Field& ftrace_field,
+                    Field* field,
+                    const char* event_name_for_debug) {
   PERFETTO_DCHECK(field->ftrace_name);
   PERFETTO_DCHECK(field->proto_field_id);
   PERFETTO_DCHECK(field->proto_field_type);
@@ -56,15 +58,34 @@ bool MergeFieldInfo(const FtraceEvent::Field& ftrace_field, Field* field) {
   PERFETTO_DCHECK(!field->ftrace_size);
   PERFETTO_DCHECK(!field->ftrace_type);
 
-  bool success = InferFtraceType(ftrace_field.type_and_name, ftrace_field.size,
-                                 ftrace_field.is_signed, &field->ftrace_type);
+  if (!InferFtraceType(ftrace_field.type_and_name, ftrace_field.size,
+                       ftrace_field.is_signed, &field->ftrace_type)) {
+    PERFETTO_DLOG(
+        "Failed to infer ftrace field type for \"%s.%s\" (type:\"%s\" size:%d "
+        "signed:%d)",
+        event_name_for_debug, field->ftrace_name,
+        ftrace_field.type_and_name.c_str(), ftrace_field.size,
+        ftrace_field.is_signed);
+    PERFETTO_DCHECK(false);
+    return false;
+  }
+
   field->ftrace_offset = ftrace_field.offset;
   field->ftrace_size = ftrace_field.size;
-  success = success &&
-            SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
-                                   &field->strategy);
 
-  return success;
+  if (!SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                              &field->strategy)) {
+    PERFETTO_DLOG(
+        "Failed to find translation stratagy for ftrace field \"%s.%s\" (%s -> "
+        "%s)",
+        event_name_for_debug, field->ftrace_name, ToString(field->ftrace_type),
+        ToString(field->proto_field_type));
+    // TODO(hjd): Uncomment DCHECK when proto generation is fixed.
+    // PERFETTO_DCHECK(false);
+    return false;
+  }
+
+  return true;
 }
 
 // For each field in |fields| find the matching field from |ftrace_fields| (by
@@ -73,7 +94,8 @@ bool MergeFieldInfo(const FtraceEvent::Field& ftrace_field, Field* field) {
 // |ftrace_fields| remove the Field from |fields|. Return the maximum observed
 // 'field end' (offset + size).
 uint16_t MergeFields(const std::vector<FtraceEvent::Field>& ftrace_fields,
-                     std::vector<Field>* fields) {
+                     std::vector<Field>* fields,
+                     const char* event_name_for_debug) {
   uint16_t fields_end = 0;
 
   // Loop over each Field in |fields| modifiying it with information from the
@@ -86,7 +108,7 @@ uint16_t MergeFields(const std::vector<FtraceEvent::Field>& ftrace_fields,
           field->ftrace_name)
         continue;
 
-      success = MergeFieldInfo(ftrace_field, &*field);
+      success = MergeFieldInfo(ftrace_field, &*field, event_name_for_debug);
 
       uint16_t field_end = field->ftrace_offset + field->ftrace_size;
       fields_end = std::max<uint16_t>(fields_end, field_end);
@@ -185,7 +207,10 @@ bool InferFtraceType(const std::string& type_and_name,
   }
 
   // Ints of various sizes:
-  if (size == 1 && !is_signed) {
+  if (size == 1 && is_signed) {
+    *out = kFtraceInt8;
+    return true;
+  } else if (size == 1 && !is_signed) {
     *out = kFtraceUint8;
     return true;
   } else if (size == 2 && is_signed) {
@@ -237,11 +262,12 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
 
     if (!common_fields_processed) {
       common_fields_end =
-          MergeFields(ftrace_event.common_fields, &common_fields);
+          MergeFields(ftrace_event.common_fields, &common_fields, event.name);
       common_fields_processed = true;
     }
 
-    uint16_t fields_end = MergeFields(ftrace_event.fields, &event.fields);
+    uint16_t fields_end =
+        MergeFields(ftrace_event.fields, &event.fields, event.name);
 
     event.size = std::max<uint16_t>(fields_end, common_fields_end);
   }

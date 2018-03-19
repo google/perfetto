@@ -21,6 +21,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/scoped_file.h"
+#include "perfetto/base/temp_file.h"
+#include "perfetto/base/utils.h"
 #include "perfetto/ipc/service.h"
 #include "perfetto/ipc/service_descriptor.h"
 #include "src/base/test/test_task_runner.h"
@@ -327,21 +329,20 @@ TEST_F(HostImplTest, SendFileDescriptor) {
   RequestProto req_args;
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
   auto on_reply_sent = task_runner_->CreateCheckpoint("on_reply_sent");
-  FILE* tx_file = tmpfile();
-  fwrite(kFileContent, sizeof(kFileContent), 1, tx_file);
-  fflush(tx_file);
+  base::TempFile tx_file = base::TempFile::CreateUnlinked();
+  base::ignore_result(write(tx_file.fd(), kFileContent, sizeof(kFileContent)));
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(Invoke([on_reply_sent, tx_file](const RequestProto& req,
-                                                DeferredBase* reply) {
+      .WillOnce(Invoke([on_reply_sent, &tx_file](const RequestProto& req,
+                                                 DeferredBase* reply) {
         std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
         auto async_res = AsyncResult<ProtoMessage>(
             std::unique_ptr<ProtoMessage>(reply_args.release()));
-        async_res.set_fd(fileno(tx_file));
+        async_res.set_fd(tx_file.fd());
         reply->Resolve(std::move(async_res));
         on_reply_sent();
       }));
   task_runner_->RunUntilCheckpoint("on_reply_sent");
-  fclose(tx_file);
+  tx_file.ReleaseFD();
 
   auto on_fd_received = task_runner_->CreateCheckpoint("on_fd_received");
   EXPECT_CALL(*cli_, OnFileDescriptorReceived(_))
@@ -368,12 +369,10 @@ TEST_F(HostImplTest, ReceiveFileDescriptor) {
 
   static constexpr char kFileContent[] = "shared file";
   RequestProto req_args;
-  base::ScopedFstream tx_file(
-      tmpfile());  // Automatically unlinked from the filesystem.
-  fwrite(kFileContent, sizeof(kFileContent), 1, tx_file.get());
-  fflush(tx_file.get());
+  base::TempFile tx_file = base::TempFile::CreateUnlinked();
+  base::ignore_result(write(tx_file.fd(), kFileContent, sizeof(kFileContent)));
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args, false,
-                     fileno(tx_file.get()));
+                     tx_file.fd());
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_));
   base::ScopedFile rx_fd;
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))

@@ -47,6 +47,7 @@ class AllTranslationTableTest : public TestWithParam<const char*> {
     FtraceProcfs ftrace_procfs(path);
     table_ = ProtoTranslationTable::Create(&ftrace_procfs, GetStaticEventInfo(),
                                            GetStaticCommonFieldsInfo());
+    PERFETTO_CHECK(table_);
   }
 
   std::unique_ptr<ProtoTranslationTable> table_;
@@ -80,12 +81,13 @@ TEST_P(AllTranslationTableTest, Create) {
   EXPECT_EQ(pid_field.proto_field_id, 2u);
 
   {
-    auto event = table_->GetEventByName("cpufreq_interactive_boost");
-    EXPECT_EQ(std::string(event->name), "cpufreq_interactive_boost");
-    EXPECT_EQ(std::string(event->group), "cpufreq_interactive");
-    EXPECT_EQ(event->fields.at(0).proto_field_type, kProtoString);
-    EXPECT_EQ(event->fields.at(0).ftrace_type, kFtraceStringPtr);
-    EXPECT_EQ(event->fields.at(0).strategy, kStringPtrToString);
+    auto event = table_->GetEventByName("print");
+    EXPECT_TRUE(event);
+    EXPECT_EQ(std::string(event->name), "print");
+    EXPECT_EQ(std::string(event->group), "ftrace");
+    EXPECT_EQ(event->fields.at(1).proto_field_type, kProtoString);
+    EXPECT_EQ(event->fields.at(1).ftrace_type, kFtraceCString);
+    EXPECT_EQ(event->fields.at(1).strategy, kCStringToString);
   }
 }
 
@@ -274,6 +276,9 @@ TEST(TranslationTableTest, InferFtraceType) {
 
   ASSERT_TRUE(InferFtraceType("pid_t foo", 4, false, &type));
   ASSERT_EQ(type, kFtracePid32);
+
+  ASSERT_TRUE(InferFtraceType("char foo", 1, true, &type));
+  ASSERT_EQ(type, kFtraceInt8);
 
   EXPECT_FALSE(InferFtraceType("foo", 64, false, &type));
 }

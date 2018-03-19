@@ -23,6 +23,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto/base/temp_file.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/ipc/service_descriptor.h"
 #include "perfetto/ipc/service_proxy.h"
@@ -347,11 +348,10 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
   task_runner_->RunUntilCheckpoint("on_connect");
 
-  FILE* tx_file = tmpfile();  // Automatically unlinked from the filesystem.
+  base::TempFile tx_file = base::TempFile::CreateUnlinked();
   static constexpr char kFileContent[] = "shared file";
-  fwrite(kFileContent, sizeof(kFileContent), 1, tx_file);
-  fflush(tx_file);
-  host_->next_reply_fd = fileno(tx_file);
+  base::ignore_result(write(tx_file.fd(), kFileContent, sizeof(kFileContent)));
+  host_->next_reply_fd = tx_file.fd();
 
   EXPECT_CALL(*host_method, OnInvoke(_, _))
       .WillOnce(Invoke(
@@ -371,7 +371,7 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   proxy->BeginInvoke("FakeMethod1", req, std::move(deferred_reply));
   task_runner_->RunUntilCheckpoint("on_reply");
 
-  fclose(tx_file);
+  tx_file.ReleaseFD();
   base::ScopedFile rx_fd = cli_->TakeReceivedFD();
   ASSERT_TRUE(rx_fd);
   char buf[sizeof(kFileContent)] = {};
@@ -392,12 +392,9 @@ TEST_F(ClientImplTest, SendFileDescriptor) {
   EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
   task_runner_->RunUntilCheckpoint("on_connect");
 
-  base::ScopedFstream tx_file(
-      tmpfile());  // Automatically unlinked from the filesystem.
+  base::TempFile tx_file = base::TempFile::CreateUnlinked();
   static constexpr char kFileContent[] = "shared file";
-  fwrite(kFileContent, sizeof(kFileContent), 1, tx_file.get());
-  fflush(tx_file.get());
-
+  base::ignore_result(write(tx_file.fd(), kFileContent, sizeof(kFileContent)));
   EXPECT_CALL(*host_method, OnInvoke(_, _))
       .WillOnce(Invoke(
           [](const Frame::InvokeMethod& req, Frame::InvokeMethodReply* reply) {
@@ -414,7 +411,7 @@ TEST_F(ClientImplTest, SendFileDescriptor) {
         on_reply();
       });
   proxy->BeginInvoke("FakeMethod1", req, std::move(deferred_reply),
-                     fileno(tx_file.get()));
+                     tx_file.fd());
   task_runner_->RunUntilCheckpoint("on_reply");
 
   base::ScopedFile rx_fd = std::move(host_->received_fd_);

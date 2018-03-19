@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("ftrace_proto_gen_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":ftrace_proto_gen_src",

@@ -13,16 +13,25 @@
 # limitations under the License.
 
 source_set("filesystem") {
+  public_deps = [
+    "../../../../protos/perfetto/trace/filesystem:zero",
+    "../../../tracing",
+  ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../base",
   ]
   sources = [
     "fs_mount.cc",
     "fs_mount.h",
+    "inode_file_data_source.cc",
+    "inode_file_data_source.h",
+    "lru_inode_cache.cc",
+    "lru_inode_cache.h",
   ]
 }
 
-source_set("filesystem_unittests") {
+source_set("unittests") {
   testonly = true
   deps = [
     ":filesystem",
@@ -31,5 +40,6 @@ source_set("filesystem_unittests") {
   ]
   sources = [
     "fs_mount_unittest.cc",
+    "lru_inode_cache_unittest.cc",
   ]
 }

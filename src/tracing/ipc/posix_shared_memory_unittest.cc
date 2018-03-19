@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/scoped_file.h"
+#include "perfetto/base/temp_file.h"
 #include "perfetto/base/utils.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/vm_test_utils.h"
@@ -65,13 +66,13 @@ TEST(PosixSharedMemoryTest, DestructorClosesFD) {
 }
 
 TEST(PosixSharedMemoryTest, AttachToFd) {
-  FILE* tmp_file = tmpfile();  // Creates an unlinked auto-deleting temp file.
-  const int fd_num = fileno(tmp_file);
+  base::TempFile tmp_file = base::TempFile::CreateUnlinked();
+  const int fd_num = tmp_file.fd();
   ASSERT_EQ(0, ftruncate(fd_num, base::kPageSize));
   ASSERT_EQ(7, PERFETTO_EINTR(write(fd_num, "foobar", 7)));
 
   std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::AttachToFd(base::ScopedFile(fd_num));
+      PosixSharedMemory::AttachToFd(tmp_file.ReleaseFD());
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(nullptr, shm_start);

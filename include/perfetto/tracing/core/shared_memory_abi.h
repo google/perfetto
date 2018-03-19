@@ -335,8 +335,8 @@ class SharedMemoryABI {
     // TryLock operations below.
     Chunk(const Chunk&) = delete;
     Chunk operator=(const Chunk&) = delete;
-    Chunk(Chunk&&) noexcept = default;
-    Chunk& operator=(Chunk&&) = default;
+    Chunk(Chunk&&) noexcept;
+    Chunk& operator=(Chunk&&);
 
     uint8_t* begin() const { return begin_; }
     uint8_t* end() const { return begin_ + size_; }
@@ -357,6 +357,10 @@ class SharedMemoryABI {
     uint8_t chunk_idx() const { return chunk_idx_; }
 
     ChunkHeader* header() { return reinterpret_cast<ChunkHeader*>(begin_); }
+
+    uint16_t writer_id() {
+      return header()->writer_id.load(std::memory_order_relaxed);
+    }
 
     // Returns the count of packets and the flags with acquire-load semantics.
     std::pair<uint16_t, uint8_t> GetPacketCountAndFlags() {

@@ -34,6 +34,7 @@
 namespace perfetto {
 
 class CommitDataRequest;
+class PatchList;
 class TraceWriter;
 
 namespace base {
@@ -68,7 +69,21 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   SharedMemoryABI::Chunk GetNewChunk(const SharedMemoryABI::ChunkHeader&,
                                      size_t size_hint = 0);
 
-  void ReturnCompletedChunk(SharedMemoryABI::Chunk, BufferID target_buffer);
+  // Puts back a Chunk that has been completed and sends a request to the
+  // service to move it to the central tracing buffer. |target_buffer| is the
+  // absolute trace buffer ID where the service should move the chunk onto (the
+  // producer is just to copy back the same number received in the
+  // DataSourceConfig upon the CreateDataSourceInstance() reques).
+  // PatchList is a pointer to the list of patches for previous chunks. The
+  // first patched entries will be removed from the patched list and sent over
+  // to the service in the same CommitData() IPC request.
+  void ReturnCompletedChunk(SharedMemoryABI::Chunk,
+                            BufferID target_buffer,
+                            PatchList*);
+
+  // Forces a synchronous commit of the completed packets without waiting for
+  // the next task.
+  void FlushPendingCommitDataRequests(std::function<void()> callback = {});
 
   SharedMemoryABI* shmem_abi_for_testing() { return &shmem_abi_; }
 
@@ -92,8 +107,6 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // Called by the TraceWriter destructor.
   void ReleaseWriterID(WriterID);
 
-  void SendPendingCommitDataRequest();
-
   base::TaskRunner* const task_runner_;
   Service::ProducerEndpoint* const producer_endpoint_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
@@ -103,6 +116,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   SharedMemoryABI shmem_abi_;
   size_t page_idx_ = 0;
   std::unique_ptr<CommitDataRequest> commit_data_req_;
+  size_t bytes_pending_commit_ = 0;  // SUM(chunk.size() : commit_data_req_).
   IdAllocator<WriterID> active_writer_ids_;
   // --- End lock-protected members ---
 

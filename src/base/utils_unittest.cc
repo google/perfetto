@@ -27,7 +27,7 @@ namespace perfetto {
 namespace base {
 namespace {
 
-TEST(Utils, ArraySize) {
+TEST(UtilsTest, ArraySize) {
   char char_arr_1[1];
   char char_arr_4[4];
   EXPECT_EQ(1u, ArraySize(char_arr_1));
@@ -58,7 +58,7 @@ TEST(Utils, ArraySize) {
 
 int pipe_fd[2];
 
-TEST(Utils, EintrWrapper) {
+TEST(UtilsTest, EintrWrapper) {
   ASSERT_EQ(0, pipe(pipe_fd));
 
   struct sigaction sa = {};
@@ -99,7 +99,7 @@ TEST(Utils, EintrWrapper) {
   sigaction(SIGUSR2, &old_sa, nullptr);
 }
 
-TEST(Utils, Align) {
+TEST(UtilsTest, Align) {
   EXPECT_EQ(0u, AlignUp<4>(0));
   EXPECT_EQ(4u, AlignUp<4>(1));
   EXPECT_EQ(4u, AlignUp<4>(3));

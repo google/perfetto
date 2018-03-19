@@ -26,6 +26,7 @@
 #include "perfetto/base/page_allocator.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/service.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
@@ -42,13 +43,12 @@ class Consumer;
 class DataSourceConfig;
 class Producer;
 class SharedMemory;
+class TraceBuffez;
 class TraceConfig;
 
 // The tracing service business logic.
 class ServiceImpl : public Service {
  public:
-  using TracingSessionID = uint64_t;
-
   // The implementation behind the service endpoint exposed to each producer.
   class ProducerEndpointImpl : public Service::ProducerEndpoint {
    public:
@@ -64,7 +64,7 @@ class ServiceImpl : public Service {
     void RegisterDataSource(const DataSourceDescriptor&,
                             RegisterDataSourceCallback) override;
     void UnregisterDataSource(DataSourceID) override;
-    void CommitData(const CommitDataRequest&) override;
+    void CommitData(const CommitDataRequest&, CommitDataCallback) override;
     std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override;
     SharedMemory* shared_memory() const override;
 
@@ -124,9 +124,16 @@ class ServiceImpl : public Service {
                           const DataSourceDescriptor&);
   void UnregisterDataSource(ProducerID, DataSourceID);
   void CopyProducerPageIntoLogBuffer(ProducerID,
+                                     uid_t,
+                                     WriterID,
+                                     ChunkID,
                                      BufferID,
-                                     const uint8_t*,
-                                     size_t);
+                                     uint16_t num_fragments,
+                                     uint8_t chunk_flags,
+                                     const uint8_t* src,
+                                     size_t size);
+  void ApplyChunkPatches(ProducerID,
+                         const std::vector<CommitDataRequest::ChunkToPatch>&);
 
   // Called by ConsumerEndpointImpl.
   void DisconnectConsumer(ConsumerEndpointImpl*);
@@ -161,46 +168,6 @@ class ServiceImpl : public Service {
   struct DataSourceInstance {
     DataSourceInstanceID instance_id;
     DataSourceID data_source_id;
-  };
-
-  struct TraceBuffer {
-    TraceBuffer();
-    ~TraceBuffer();
-    TraceBuffer(TraceBuffer&&) noexcept;
-    TraceBuffer& operator=(TraceBuffer&&);
-
-    bool Create(size_t size_in_bytes);
-    size_t num_pages() const { return size / kBufferPageSize; }
-
-    uint8_t* get_page(size_t page) {
-      PERFETTO_DCHECK(page < num_pages());
-      return reinterpret_cast<uint8_t*>(data.get()) + page * kBufferPageSize;
-    }
-
-    uid_t get_page_owner(size_t page) const {
-      PERFETTO_DCHECK(page < num_pages());
-      return page_owners[page];
-    }
-
-    uint8_t* acquire_next_page(uid_t uid) {
-      size_t cur = cur_page;
-      cur_page = cur_page == num_pages() - 1 ? 0 : cur_page + 1;
-      page_owners[cur] = uid;
-      return get_page(cur);
-    }
-
-    size_t size = 0;
-    size_t cur_page = 0;  // Write pointer in the ring buffer.
-    base::PageAllocator::UniquePtr data;
-
-    // TODO(primiano): The TraceBuffer is not shared and there is no reason to
-    // use the SharedMemoryABI. This is just a a temporary workaround to reuse
-    // the convenience of SharedMemoryABI for bookkeeping of the buffer when
-    // implementing ReadBuffers().
-    std::unique_ptr<SharedMemoryABI> abi;
-
-    // Trusted uid for each acquired page.
-    std::vector<uid_t> page_owners;
   };
 
   // Holds the state of a tracing session. A tracing session is uniquely bound
@@ -242,6 +209,8 @@ class ServiceImpl : public Service {
   // shared memory and trace buffers.
   void UpdateMemoryGuardrail();
 
+  TraceBuffez* GetBufferByID(BufferID);
+
   base::TaskRunner* const task_runner_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
   ProducerID last_producer_id_ = 0;
@@ -260,7 +229,7 @@ class ServiceImpl : public Service {
 
   std::set<ConsumerEndpointImpl*> consumers_;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
-  std::map<BufferID, TraceBuffer> buffers_;
+  std::map<BufferID, std::unique_ptr<TraceBuffez>> buffers_;
 
   bool lockdown_mode_ = false;
 
