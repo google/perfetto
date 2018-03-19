@@ -804,7 +804,7 @@ TEST(CpuReaderTest, ParseAllFields) {
   BinaryWriter writer;
   writer.Write<int32_t>(1001);  // Common field.
   writer.Write<int32_t>(9999);  // A gap we shouldn't read.
-  writer.Write<int32_t>(1002);  // Dev id
+  writer.Write<int32_t>(271581216ul);  // Dev id
   writer.Write<int32_t>(97);    // Pid
   writer.Write<int32_t>(1003);  // Uint32 field
   writer.Write<int32_t>(98);    // Inode 1
@@ -824,7 +824,7 @@ TEST(CpuReaderTest, ParseAllFields) {
   ASSERT_TRUE(event);
   EXPECT_EQ(event->common_field(), 1001ul);
   EXPECT_EQ(event->event_case(), FakeFtraceEvent::kAllFields);
-  EXPECT_EQ(event->all_fields().field_dev(), 1002ul);
+  EXPECT_EQ(event->all_fields().field_dev(), 271581216ul);
   EXPECT_EQ(event->all_fields().field_pid(), 97);
   EXPECT_EQ(event->all_fields().field_uint32(), 1003u);
   EXPECT_EQ(event->all_fields().field_inode_32(), 98u);
@@ -833,8 +833,8 @@ TEST(CpuReaderTest, ParseAllFields) {
   EXPECT_EQ(event->all_fields().field_char(), "Goodbye");
   EXPECT_THAT(metadata.pids, Contains(97));
   EXPECT_EQ(metadata.inodes.size(), 2U);
-  EXPECT_THAT(metadata.inodes, Contains(Pair(98u, 1002)));
-  EXPECT_THAT(metadata.inodes, Contains(Pair(99u, 1002ul)));
+  EXPECT_THAT(metadata.inodes, Contains(Pair(98u, 66336)));
+  EXPECT_THAT(metadata.inodes, Contains(Pair(99u, 66336)));
 }
 
 // clang-format off
