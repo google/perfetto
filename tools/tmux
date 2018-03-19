@@ -16,7 +16,13 @@ set -e
 
 function is_monolithic {
   local out=$1
-  gn args $out --list --short | grep 'monolithic_binaries = true' > /dev/null
+  gn args $out --list --short | grep 'monolithic_binaries = true' 2>&1 >/dev/null
+  return $?
+}
+
+function is_android {
+  local out=$1
+  gn args $out --list --short | grep 'target_os = "android"' 2>&1 >/dev/null
   return $?
 }
 
@@ -25,16 +31,39 @@ function reset_tracing {
 }
 
 function adb_supports_push_sync {
-  adb --help | grep 'push.*\[--sync\]'
+  adb --help | grep 'push.*\[--sync\]' 2>&1 >/dev/null
+}
+
+function traced_probes_cmd {
+  if is_android $OUT; then
+    echo "$PREFIX $DIR/traced_probes"
+  else
+    echo "sudo $PREFIX $DIR/traced_probes"
+  fi
 }
 
 function push {
-  local maybe_sync=''
-  if adb_supports_push_sync; then
-    maybe_sync='--sync '
+  if is_android $OUT; then
+    local maybe_sync=''
+    if adb_supports_push_sync; then
+      maybe_sync='--sync '
+    fi
+    echo adb push $maybe_sync $1 $DIR
+    adb push $maybe_sync $1 $DIR
+  else
+    echo cp $1 $DIR
+    cp $1 $DIR
   fi
-  echo adb push $maybe_sync $1 $2
-  adb push $maybe_sync $1 $2
+}
+
+function pull {
+  if is_android $OUT; then
+    echo adb pull $DIR/$1 $2
+    adb pull $DIR/$1 $2
+  else
+    echo cp $DIR/$1 $2
+    cp $DIR/$1 $2
+  fi
 }
 
 # If not set guess the OUT dir using the latest directory.
@@ -48,32 +77,34 @@ fi
 # CONFIG=ftrace.cfg or to :test. Defaults to :test.
 CONFIG="${CONFIG:-:test}"
 
+if is_android $OUT ; then
+  DIR=/data/local/tmp
+else
+  DIR=$(mktemp -d)
+fi
+
 ninja -C $OUT traced traced_probes perfetto trace_to_text test/configs
 
-push $OUT/traced /data/local/tmp/
-push $OUT/traced_probes /data/local/tmp/
-push $OUT/perfetto /data/local/tmp/
+push $OUT/traced
+push $OUT/traced_probes
+push $OUT/perfetto
 reset_tracing
 
 PREFIX=""
-if ! is_monolithic $OUT;  then
-  PREFIX="LD_LIBRARY_PATH=/data/local/tmp"
-  set -x
-  adb push $OUT/libtraced_shared.so /data/local/tmp/
-  set +x
+if ! is_monolithic $OUT; then
+  PREFIX="LD_LIBRARY_PATH=$DIR"
+  push $OUT/libtraced_shared.so
 fi
 
 CONFIG_DEVICE_PATH=$CONFIG
 if [[ "$CONFIG" != ":test" ]]; then
-  CONFIG_DEVICE_PATH=/data/local/tmp/$CONFIG.protobuf
+  CONFIG_DEVICE_PATH=$DIR/$CONFIG.protobuf
   CONFIG_PATH=$OUT/$CONFIG.protobuf;
   if [[ ! -f $CONFIG_PATH ]]; then
     echo 'Config "'$CONFIG_PATH'" not known.'
     exit 1
   fi
-  set -x
-  adb push $CONFIG_PATH /data/local/tmp/
-  set +x
+  push $CONFIG_PATH
 fi
 
 if tmux has-session -t demo; then
@@ -97,26 +128,32 @@ tmux select-layout even-vertical
 
 tmux select-pane -t 0
 tmux send-keys "clear" C-m
-tmux send-keys "adb shell" C-m
+if is_android $OUT; then
+  tmux send-keys "adb shell" C-m
+fi
 
 tmux select-pane -t 1
 tmux send-keys "clear" C-m
-tmux send-keys "adb shell" C-m
+if is_android $OUT; then
+  tmux send-keys "adb shell" C-m
+fi
 
 tmux select-pane -t 2
 tmux send-keys "clear" C-m
-tmux send-keys "adb shell" C-m
+if is_android $OUT; then
+  tmux send-keys "adb shell" C-m
+fi
 
 sleep 2
 
 tmux select-pane -t 1
-tmux send-keys "$PREFIX /data/local/tmp/traced" Enter
+tmux send-keys "$PREFIX $DIR/traced" Enter
 
 tmux select-pane -t 0
-tmux send-keys "$PREFIX /data/local/tmp/traced_probes" Enter
+tmux send-keys "$(traced_probes_cmd)" Enter
 
 tmux select-pane -t 2
-tmux send-keys "$PREFIX /data/local/tmp/perfetto -c $CONFIG_DEVICE_PATH -o /data/local/tmp/trace"
+tmux send-keys "$PREFIX $DIR/perfetto -c $CONFIG_DEVICE_PATH -o $DIR/trace"
 
 # Select consumer pane.
 tmux select-pane -t 2
@@ -125,6 +162,5 @@ tmux -2 attach-session -t demo
 
 TRACE=$HOME/Downloads/trace.json
 echo -e "\n\x1b[32mPulling trace into $TRACE\x1b[0m"
-set -x
-adb pull /data/local/tmp/trace /tmp/trace.protobuf
+pull trace /tmp/trace.protobuf
 $OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE
