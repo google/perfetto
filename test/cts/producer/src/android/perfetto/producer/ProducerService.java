@@ -16,13 +16,22 @@
 
 package android.perfetto.producer;
 
+import android.app.Notification;
 import android.app.Service;
 import android.os.IBinder;
 import android.content.Intent;
 
 public class ProducerService extends Service {
+    private static final int NOTIFICATION_ID = 456;
+
     @Override
     public void onCreate() {
+        Notification.Builder builder = new Notification.Builder(this, "service");
+        builder.setContentTitle("Perfetto service")
+                .setContentText("Perfetto service")
+                .setSmallIcon(R.mipmap.ic_launcher);
+        startForeground(NOTIFICATION_ID, builder.build());
+
         System.loadLibrary("perfettocts_jni");
         new Thread(new Runnable() {
             @Override
