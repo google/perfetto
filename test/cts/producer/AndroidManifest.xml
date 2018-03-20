@@ -17,6 +17,8 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="android.perfetto.producer">
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+
     <application>
         <activity android:name=".ProducerActivity" >
             <intent-filter>
