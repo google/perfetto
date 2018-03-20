@@ -14,6 +14,7 @@
 
 source_set("traced") {
   sources = [
+    "data_source_types.h",
     "traced.h",
   ]
 }
