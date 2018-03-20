@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACED_PROBES_FILESYSTEM_FS_MOUNT_H_
-#define SRC_TRACED_PROBES_FILESYSTEM_FS_MOUNT_H_
+#ifndef INCLUDE_PERFETTO_TRACED_DATA_SOURCE_TYPES_H_
+#define INCLUDE_PERFETTO_TRACED_DATA_SOURCE_TYPES_H_
 
 #include <sys/stat.h>
-#include <map>
-#include <string>
-#include <vector>
-#include "perfetto/traced/data_source_types.h"
+#include <sys/types.h>
+#include <unistd.h>
 
 namespace perfetto {
 
-constexpr char kMountsPath[] = "/proc/mounts";
+// On ARM, st_ino is not ino_t but unsigned long long.
+using Inode = decltype(stat::st_ino);
 
-std::multimap<BlockDeviceID, std::string> ParseMounts(
-    const char* path = kMountsPath);
+// On ARM, st_dev is not dev_t but unsigned long long.
+using BlockDeviceID = decltype(stat::st_dev);
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACED_PROBES_FILESYSTEM_FS_MOUNT_H_
+#endif  // INCLUDE_PERFETTO_TRACED_DATA_SOURCE_TYPES_H_
