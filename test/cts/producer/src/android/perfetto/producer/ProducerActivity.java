@@ -17,48 +17,49 @@
 package android.perfetto.producer;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 
 public class ProducerActivity extends Activity {
-    private boolean paused = true;
-    private final Handler handler = new Handler();
 
     @Override
     public void onResume() {
         super.onResume();
 
-        paused = false;
-        handler.post(new Runnable() {
-            @Override
+        NotificationManager manager =
+                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+        NotificationChannel serviceChannel =
+                new NotificationChannel("service", "service", NotificationManager.IMPORTANCE_LOW);
+        serviceChannel.setDescription("Perfetto service");
+        serviceChannel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        manager.createNotificationChannel(serviceChannel);
+
+        NotificationChannel isolatedChannel = new NotificationChannel(
+                "isolated_service", "isolated_service", NotificationManager.IMPORTANCE_LOW);
+        isolatedChannel.setDescription("Perfetto isolated service");
+        isolatedChannel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        manager.createNotificationChannel(isolatedChannel);
+
+        startForegroundService(new Intent(ProducerActivity.this, ProducerService.class));
+        startForegroundService(new Intent(ProducerActivity.this, ProducerIsolatedService.class));
+
+        System.loadLibrary("perfettocts_jni");
+        new Thread(new Runnable() {
             public void run() {
-                if (paused) {
-                    return;
+                try {
+                    setupProducer();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
                 }
-
-                startService(new Intent(ProducerActivity.this, ProducerService.class));
-                startService(new Intent(ProducerActivity.this, ProducerIsolatedService.class));
-
-                System.loadLibrary("perfettocts_jni");
-                new Thread(new Runnable() {
-                    public void run() {
-                        try {
-                            setupProducer();
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
-                        }
-                    }
-                })
-                        .start();
             }
-        });
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        paused = true;
+        })
+                .start();
     }
 
     private static native void setupProducer();
