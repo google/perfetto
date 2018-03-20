@@ -108,7 +108,6 @@ bool InodeFileDataSource::AddInodeFileMapEntry(
 void InodeFileDataSource::OnInodes(
     const std::vector<std::pair<Inode, BlockDeviceID>>& inodes) {
   PERFETTO_DLOG("Saw FtraceBundle with %zu inodes.", inodes.size());
-
   if (mount_points_.empty()) {
     mount_points_ = ParseMounts();
   }

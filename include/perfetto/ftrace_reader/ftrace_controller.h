@@ -35,6 +35,7 @@
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/ftrace_reader/ftrace_config.h"
 #include "perfetto/protozero/message_handle.h"
+#include "perfetto/traced/data_source_types.h"
 
 namespace perfetto {
 
