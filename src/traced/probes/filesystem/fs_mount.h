@@ -24,8 +24,8 @@
 
 namespace perfetto {
 
-// On ARM, st_dev is not dev_t but unsigned long long.
-using BlockDeviceID = uint32_t;
+using BlockDeviceID = decltype(stat::st_dev);
+using Inode = decltype(stat::st_ino);
 
 constexpr char kMountsPath[] = "/proc/mounts";
 
