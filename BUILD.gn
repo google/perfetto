@@ -161,6 +161,15 @@ if (!build_with_chromium && (is_linux || is_android)) {
       ]
     }
   }
+
+  # This target exports perfetto trace protos in the Android build system,
+  # allowing both host and device targets to implement custom parsers based on
+  # our protos.
+  static_library("perfetto_trace_protos") {
+    deps = [
+      "protos/perfetto/trace:lite",
+    ]
+  }
 } else {
   group("lib") {
     public_configs = [ "gn:public_config" ]
