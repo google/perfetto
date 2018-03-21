@@ -17,6 +17,7 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
 proto_sources = [
+  "clock_snapshot.proto",
   "test_event.proto",
   "trace_packet.proto",
   "trace.proto",
