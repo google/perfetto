@@ -64,8 +64,8 @@ class FtraceEventBundle;
 }  // namespace pbzero
 }  // namespace protos
 
-const size_t kMaxSinks = 32;
-const size_t kMaxCpus = 64;
+constexpr size_t kMaxSinks = 32;
+constexpr size_t kMaxCpus = 64;
 
 // Method of last resort to reset ftrace state.
 void HardResetFtraceState();

@@ -27,7 +27,7 @@
 namespace protozero {
 namespace {
 
-const size_t kChunkSize = 8;
+constexpr size_t kChunkSize = 8;
 
 TEST(ScatteredStreamWriterTest, ScatteredWrites) {
   FakeScatteredBuffer delegate(kChunkSize);

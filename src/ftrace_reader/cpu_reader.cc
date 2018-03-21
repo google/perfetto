@@ -76,10 +76,10 @@ void SetBlocking(int fd, bool is_blocking) {
 // linux/include/linux/ring_buffer.h
 // Some information about the values of these constants are exposed to user
 // space at: /sys/kernel/debug/tracing/events/header_event
-const uint32_t kTypeDataTypeLengthMax = 28;
-const uint32_t kTypePadding = 29;
-const uint32_t kTypeTimeExtend = 30;
-const uint32_t kTypeTimeStamp = 31;
+constexpr uint32_t kTypeDataTypeLengthMax = 28;
+constexpr uint32_t kTypePadding = 29;
+constexpr uint32_t kTypeTimeExtend = 30;
+constexpr uint32_t kTypeTimeStamp = 31;
 
 struct PageHeader {
   uint64_t timestamp;

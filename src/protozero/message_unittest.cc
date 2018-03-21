@@ -30,10 +30,12 @@ namespace protozero {
 
 namespace {
 
-const size_t kChunkSize = 16;
-const uint8_t kTestBytes[] = {0, 0, 0, 0, 0x42, 1, 0x42, 0xff, 0x42, 0};
-const char kStartWatermark[] = {'a', 'b', 'c', 'd', '1', '2', '3', '\0'};
-const char kEndWatermark[] = {'9', '8', '7', '6', 'z', 'w', 'y', '\0'};
+constexpr size_t kChunkSize = 16;
+constexpr uint8_t kTestBytes[] = {0, 0, 0, 0, 0x42, 1, 0x42, 0xff, 0x42, 0};
+constexpr const char kStartWatermark[] = {'a', 'b', 'c', 'd',
+                                          '1', '2', '3', '\0'};
+constexpr const char kEndWatermark[] = {'9', '8', '7', '6',
+                                        'z', 'w', 'y', '\0'};
 
 class FakeRootMessage : public Message {};
 class FakeChildMessage : public Message {};
