@@ -18,12 +18,12 @@ import("../../../gn/ipc_library.gni")
 # IPC service definitions.
 ipc_library("ipc") {
   deps = [
+    "../common",
     "../config",
   ]
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   sources = [
-    "commit_data_request.proto",
     "consumer_port.proto",
     "producer_port.proto",
   ]
