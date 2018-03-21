@@ -439,17 +439,18 @@ const char* GetExt4ExtFlag(int32_t state) {
   return "";
 }
 
-const char* MmCompactionRetArray[] = {
+constexpr const char* MmCompactionRetArray[] = {
     "deferred", "skipped",          "continue",          "partial",
     "complete", "no_suitable_page", "not_suitable_zone", "contended"};
 
-const char* MmCompactionSuitableArray[] = {"DMA", "Normal", "Movable"};
+constexpr const char* MmCompactionSuitableArray[] = {"DMA", "Normal",
+                                                     "Movable"};
 
-const char* SoftirqArray[] = {"HI",      "TIMER",        "NET_TX",  "NET_RX",
-                              "BLOCK",   "BLOCK_IOPOLL", "TASKLET", "SCHED",
-                              "HRTIMER", "RCU"};
+constexpr const char* SoftirqArray[] = {
+    "HI",           "TIMER",   "NET_TX", "NET_RX",  "BLOCK",
+    "BLOCK_IOPOLL", "TASKLET", "SCHED",  "HRTIMER", "RCU"};
 
-const char* inodeFileTypeArray[] = {"UNKNOWN", "FILE", "DIRECTORY"};
+constexpr const char* inodeFileTypeArray[] = {"UNKNOWN", "FILE", "DIRECTORY"};
 
 uint64_t TimestampToSeconds(uint64_t timestamp) {
   return timestamp / 1000000000ul;

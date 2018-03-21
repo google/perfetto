@@ -21,8 +21,8 @@ namespace procfs_utils {
 
 namespace {
 
-const char kJavaAppPrefix[] = "/system/bin/app_process";
-const char kZygotePrefix[] = "zygote";
+constexpr const char kJavaAppPrefix[] = "/system/bin/app_process";
+constexpr const char kZygotePrefix[] = "zygote";
 
 inline void ReadProcString(int pid, const char* path, char* buf, size_t size) {
   if (!file_utils::ReadProcFileTrimmed(pid, path, buf, size))

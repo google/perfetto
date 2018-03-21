@@ -24,7 +24,7 @@
 
 namespace {
 
-const size_t kPageSize = 4096;
+constexpr size_t kPageSize = 4096;
 
 perfetto::ExamplePage g_full_page_sched_switch{
     "synthetic",

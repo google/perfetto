@@ -24,7 +24,7 @@
 namespace perfetto {
 namespace base {
 namespace {
-const size_t kBufSize = 2048;
+constexpr size_t kBufSize = 2048;
 }
 
 bool ReadFile(const std::string& path, std::string* out) {

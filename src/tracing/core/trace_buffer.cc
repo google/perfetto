@@ -60,7 +60,7 @@ constexpr uint8_t kChunkNeedsPatching =
 }  // namespace.
 
 constexpr size_t TraceBuffez::ChunkRecord::kMaxSize;
-const size_t TraceBuffez::InlineChunkHeaderSize = sizeof(ChunkRecord);
+constexpr size_t TraceBuffez::InlineChunkHeaderSize = sizeof(ChunkRecord);
 
 // static
 std::unique_ptr<TraceBuffez> TraceBuffez::Create(size_t size_in_bytes) {
