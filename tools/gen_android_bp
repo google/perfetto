@@ -38,6 +38,7 @@ import sys
 default_targets = [
     '//:libtraced_shared',
     '//:perfetto_integrationtests',
+    '//:perfetto_trace_protos',
     '//:perfetto_unittests',
     '//:perfetto',
     '//:traced',
@@ -49,6 +50,10 @@ default_targets = [
 target_initrc = {
     '//:traced': 'perfetto.rc',
 }
+
+target_host_supported = [
+    '//:perfetto_trace_protos',
+]
 
 # Arguments for the GN output directory.
 gn_args = 'target_os="android" target_cpu="arm" is_debug=false build_with_android=true'
@@ -157,6 +162,7 @@ class Module(object):
         self.static_libs = []
         self.tools = []
         self.cmd = None
+        self.host_supported = False
         self.init_rc = []
         self.out = []
         self.export_include_dirs = []
@@ -176,6 +182,7 @@ class Module(object):
         self._output_field(output, 'static_libs')
         self._output_field(output, 'tools')
         self._output_field(output, 'cmd', sort=False)
+        self._output_field(output, 'host_supported')
         self._output_field(output, 'init_rc')
         self._output_field(output, 'out')
         self._output_field(output, 'export_include_dirs')
@@ -204,8 +211,11 @@ class Module(object):
             for item in sorted(value) if sort else value:
                 output.append('    "%s",' % item)
             output.append('  ],')
-        else:
-            output.append('  %s: "%s",' % (name, value))
+            return
+        if isinstance(value, bool):
+           output.append('  %s: true,' % name)
+           return
+        output.append('  %s: "%s",' % (name, value))
 
 
 class Blueprint(object):
@@ -484,6 +494,8 @@ def create_modules_from_target(blueprint, desc, target_name):
         module.comment = 'GN target: %s' % target_name
         if target_name in target_initrc:
           module.init_rc = [target_initrc[target_name]]
+        if target_name in target_host_supported:
+          module.host_supported = True
 
         # Don't try to inject library/source dependencies into genrules because
         # they are not compiled in the traditional sense.
