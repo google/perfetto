@@ -47,8 +47,8 @@ namespace perfetto {
 
 namespace {
 
-const char kFooEnablePath[] = "/root/events/group/foo/enable";
-const char kBarEnablePath[] = "/root/events/group/bar/enable";
+constexpr char kFooEnablePath[] = "/root/events/group/foo/enable";
+constexpr char kBarEnablePath[] = "/root/events/group/bar/enable";
 
 class MockTaskRunner : public base::TaskRunner {
  public:

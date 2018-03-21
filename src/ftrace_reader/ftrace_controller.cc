@@ -45,18 +45,18 @@ namespace perfetto {
 namespace {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-const char* kTracingPaths[] = {
+constexpr const char* kTracingPaths[] = {
     "/sys/kernel/tracing/", "/sys/kernel/debug/tracing/", nullptr,
 };
 #else
-const char* kTracingPaths[] = {
+constexpr const char* kTracingPaths[] = {
     "/sys/kernel/debug/tracing/", nullptr,
 };
 #endif
 
-const int kDefaultDrainPeriodMs = 100;
-const int kMinDrainPeriodMs = 1;
-const int kMaxDrainPeriodMs = 1000 * 60;
+constexpr int kDefaultDrainPeriodMs = 100;
+constexpr int kMinDrainPeriodMs = 1;
+constexpr int kMaxDrainPeriodMs = 1000 * 60;
 
 uint32_t ClampDrainPeriodMs(uint32_t drain_period_ms) {
   if (drain_period_ms == 0) {

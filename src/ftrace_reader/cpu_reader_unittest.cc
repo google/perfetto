@@ -48,8 +48,8 @@ namespace perfetto {
 
 namespace {
 
-const uint64_t kNanoInSecond = 1000 * 1000 * 1000;
-const uint64_t kNanoInMicro = 1000;
+constexpr uint64_t kNanoInSecond = 1000 * 1000 * 1000;
+constexpr uint64_t kNanoInMicro = 1000;
 
 ::testing::AssertionResult WithinOneMicrosecond(uint64_t actual_ns,
                                                 uint64_t expected_s,
