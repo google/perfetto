@@ -17,7 +17,6 @@
 #include <inttypes.h>
 
 #include <stdio.h>
-#include <sys/sysmacros.h>
 #include <algorithm>
 #include <fstream>
 #include <iostream>
