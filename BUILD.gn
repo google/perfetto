@@ -47,6 +47,7 @@ group("all") {
         ":perfetto_integrationtests",
         ":traced",
         ":traced_probes",
+        "tools/skippy",
       ]
     }
   }
