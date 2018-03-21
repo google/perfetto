@@ -40,19 +40,25 @@ void ScanFilesDFS(
   std::vector<std::string> queue{root_directory};
   while (!queue.empty()) {
     struct dirent* entry;
-    std::string filepath = queue.back();
+    std::string directory = queue.back();
     queue.pop_back();
-    DIR* dir = opendir(filepath.c_str());
-    filepath += "/";
+    DIR* dir = opendir(directory.c_str());
+    directory += "/";
     if (dir == nullptr)
       continue;
     while ((entry = readdir(dir)) != nullptr) {
       std::string filename = entry->d_name;
       if (filename == "." || filename == "..")
         continue;
+      std::string filepath = directory + filename;
 
       struct stat buf;
       if (lstat(filepath.c_str(), &buf) != 0)
+        continue;
+
+      // This might happen on filesystems that do not return
+      // information in entry->d_type.
+      if (S_ISLNK(buf.st_mode))
         continue;
 
       Inode inode_number = entry->d_ino;
@@ -63,13 +69,13 @@ void ScanFilesDFS(
       // Readdir and stat not guaranteed to have directory info for all systems
       if (entry->d_type == DT_DIR || S_ISDIR(buf.st_mode)) {
         // Continue iterating through files if current entry is a directory
-        queue.push_back(filepath + filename);
+        queue.push_back(filepath);
         type = protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY;
       } else if (entry->d_type == DT_REG || S_ISREG(buf.st_mode)) {
         type = protos::pbzero::InodeFileMap_Entry_Type_FILE;
       }
 
-      fn(block_device_id, inode_number, filepath + filename, type);
+      fn(block_device_id, inode_number, filepath, type);
     }
     closedir(dir);
   }
