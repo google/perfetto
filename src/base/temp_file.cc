@@ -23,9 +23,9 @@ namespace base {
 
 namespace {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-const char kSysTmpPath[] = "/data/local/tmp";
+constexpr char kSysTmpPath[] = "/data/local/tmp";
 #else
-const char kSysTmpPath[] = "/tmp";
+constexpr char kSysTmpPath[] = "/tmp";
 #endif
 }  // namespace
 

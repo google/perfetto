@@ -23,7 +23,7 @@
 namespace perfetto {
 namespace {
 
-const size_t kPageSize = 4096;
+constexpr size_t kPageSize = 4096;
 
 std::map<std::string, std::unique_ptr<ProtoTranslationTable>>* g_tables;
 
