@@ -52,12 +52,22 @@ constexpr size_t SharedMemoryABI::kNumChunksForLayout[];
 constexpr const char* SharedMemoryABI::kChunkStateStr[];
 constexpr const size_t SharedMemoryABI::kInvalidPageIdx;
 
-SharedMemoryABI::SharedMemoryABI(uint8_t* start, size_t size, size_t page_size)
-    : start_(start),
-      size_(size),
-      page_size_(page_size),
-      num_pages_(size / page_size),
-      chunk_sizes_(InitChunkSizes(page_size)) {
+SharedMemoryABI::SharedMemoryABI() = default;
+
+SharedMemoryABI::SharedMemoryABI(uint8_t* start,
+                                 size_t size,
+                                 size_t page_size) {
+  Initialize(start, size, page_size);
+}
+
+void SharedMemoryABI::Initialize(uint8_t* start,
+                                 size_t size,
+                                 size_t page_size) {
+  start_ = start;
+  size_ = size;
+  page_size_ = page_size;
+  num_pages_ = size / page_size;
+  chunk_sizes_ = InitChunkSizes(page_size);
   static_assert(sizeof(PageHeader) == 8, "PageHeader size");
   static_assert(sizeof(ChunkHeader) == 8, "ChunkHeader size");
   static_assert(sizeof(ChunkHeader::chunk_id) == sizeof(ChunkID),
