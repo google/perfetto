@@ -31,10 +31,10 @@ namespace perfetto {
 namespace {
 
 // trace_clocks in preference order.
-const char* kClocks[] = {"boot", "global", "local"};
+constexpr const char* kClocks[] = {"boot", "global", "local"};
 
-const int kDefaultPerCpuBufferSizeKb = 512;   // 512kb
-const int kMaxPerCpuBufferSizeKb = 2 * 1024;  // 2mb
+constexpr int kDefaultPerCpuBufferSizeKb = 512;   // 512kb
+constexpr int kMaxPerCpuBufferSizeKb = 2 * 1024;  // 2mb
 
 std::vector<std::string> difference(const std::set<std::string>& a,
                                     const std::set<std::string>& b) {
