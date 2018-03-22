@@ -24,6 +24,7 @@
 
 #include "gtest/gtest_prod.h"
 #include "perfetto/base/page_allocator.h"
+#include "perfetto/base/time.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/commit_data_request.h"
@@ -45,6 +46,7 @@ class Producer;
 class SharedMemory;
 class TraceBuffez;
 class TraceConfig;
+class TracePacket;
 
 // The tracing service business logic.
 class ServiceImpl : public Service {
@@ -189,6 +191,9 @@ class ServiceImpl : public Service {
     // BufferID (shared namespace amongst all consumers). This vector has as
     // many entries as |config.buffers_size()|.
     std::vector<BufferID> buffers_index;
+
+    // When the last clock snapshot was emitted into the output stream.
+    base::TimeMillis last_clock_snapshot = {};
   };
 
   ServiceImpl(const ServiceImpl&) = delete;
@@ -208,6 +213,8 @@ class ServiceImpl : public Service {
   // Update the memory guard rail by using the latest information from the
   // shared memory and trace buffers.
   void UpdateMemoryGuardrail();
+
+  void MaybeSnapshotClocks(TracingSession*, std::vector<TracePacket>*);
 
   TraceBuffez* GetBufferByID(BufferID);
 
