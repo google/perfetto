@@ -212,10 +212,12 @@ TEST_F(ServiceImplTest, LockdownMode) {
   consumer_endpoint->EnableTracing(trace_config);
   task_runner.RunUntilIdle();
 
+  EXPECT_CALL(mock_producer_sameuid, OnDisconnect());
   EXPECT_CALL(mock_producer, OnConnect());
   producer_endpoint_sameuid =
       svc->ConnectProducer(&mock_producer, geteuid() + 1);
 
+  EXPECT_CALL(mock_producer, OnDisconnect());
   task_runner.RunUntilIdle();
 }
 
