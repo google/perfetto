@@ -129,7 +129,6 @@ class CpuReader {
     memcpy(&t, reinterpret_cast<const void*>(start), sizeof(T));
     BlockDeviceID dev_id = TranslateBlockDeviceIDToUserspace<T>(t);
     out->AppendVarInt<BlockDeviceID>(field_id, dev_id);
-    PERFETTO_DCHECK(t != 0);
     metadata->AddDevice(dev_id);
   }
 
