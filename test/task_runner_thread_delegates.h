@@ -75,6 +75,8 @@ class FakeProducerDelegate : public ThreadDelegate {
                        std::move(connect_callback_));
   }
 
+  FakeProducer* producer() { return producer_.get(); }
+
  private:
   std::string producer_socket_;
   std::unique_ptr<FakeProducer> producer_;

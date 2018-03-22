@@ -82,6 +82,7 @@ std::function<void()> TestTaskRunner::CreateCheckpoint(
   PERFETTO_DCHECK(checkpoints_.count(checkpoint) == 0);
   auto checkpoint_iter = checkpoints_.emplace(checkpoint, false);
   return [this, checkpoint_iter] {
+    PERFETTO_DCHECK_THREAD(thread_checker_);
     checkpoint_iter.first->second = true;
     if (pending_checkpoint_ == checkpoint_iter.first->first) {
       pending_checkpoint_.clear();
