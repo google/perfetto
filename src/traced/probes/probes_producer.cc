@@ -219,6 +219,9 @@ void ProbesProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
   watchdogs_.erase(id);
 }
 
+void ProbesProducer::OnTracingStart() {}
+void ProbesProducer::OnTracingStop() {}
+
 void ProbesProducer::ConnectWithRetries(const char* socket_name,
                                         base::TaskRunner* task_runner) {
   PERFETTO_DCHECK(state_ == kNotStarted);

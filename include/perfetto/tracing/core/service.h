@@ -79,9 +79,11 @@ class Service {
     virtual void CommitData(const CommitDataRequest&,
                             CommitDataCallback callback = {}) = 0;
 
-    // TODO(primiano): remove this, we shouldn't be exposing the raw
-    // SHM object but only the TraceWriter (below).
     virtual SharedMemory* shared_memory() const = 0;
+
+    // Size of shared memory buffer pages. It's always a multiple of 4K.
+    // See shared_memory_abi.h
+    virtual size_t shared_buffer_page_size_kb() const = 0;
 
     // Creates a trace writer, which allows to create events, handling the
     // underying shared memory buffer and signalling to the Service. This method
@@ -131,7 +133,7 @@ class Service {
   // to destroy the Producer once the Producer::OnDisconnect() has been invoked.
   // |uid| is the trusted user id of the producer process, used by the consumers
   // for validating the origin of trace data.
-  // |shared_buffer_size_hint_bytes| is an optional hint on the size of the
+  // |shared_memory_size_hint_bytes| is an optional hint on the size of the
   // shared memory buffer. The service can ignore the hint (e.g., if the hint
   // is unreasonably large).
   // Can return null in the unlikely event that service has too many producers
@@ -139,7 +141,7 @@ class Service {
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
       Producer*,
       uid_t uid,
-      size_t shared_buffer_size_hint_bytes = 0) = 0;
+      size_t shared_memory_size_hint_bytes = 0) = 0;
 
   // Coonects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.

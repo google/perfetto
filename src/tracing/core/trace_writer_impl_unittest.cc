@@ -37,6 +37,7 @@ class FakeProducerEndpoint : public Service::ProducerEndpoint {
   void UnregisterDataSource(DataSourceID) override {}
   void CommitData(const CommitDataRequest&, CommitDataCallback) override {}
   SharedMemory* shared_memory() const override { return nullptr; }
+  size_t shared_buffer_page_size_kb() const override { return 0; }
   std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override {
     return nullptr;
   }

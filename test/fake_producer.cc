@@ -74,4 +74,8 @@ void FakeProducer::CreateDataSourceInstance(
 
 void FakeProducer::TearDownDataSourceInstance(DataSourceInstanceID) {}
 
+void FakeProducer::OnTracingStart() {}
+
+void FakeProducer::OnTracingStop() {}
+
 }  // namespace perfetto

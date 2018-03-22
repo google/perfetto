@@ -43,6 +43,8 @@ class FakeProducer : public Producer {
   void CreateDataSourceInstance(DataSourceInstanceID,
                                 const DataSourceConfig& source_config) override;
   void TearDownDataSourceInstance(DataSourceInstanceID) override;
+  void OnTracingStart() override;
+  void OnTracingStop() override;
 
  private:
   void Shutdown();
