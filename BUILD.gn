@@ -60,6 +60,7 @@ executable("perfetto_unittests") {
     "gn:gtest_main",
     "src/base:unittests",
     "src/ipc:unittests",
+    "src/perfetto_cmd:unittests",
     "src/protozero:unittests",
     "src/traced/probes/filesystem:unittests",
     "src/tracing:unittests",

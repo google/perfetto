@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/perfetto.gni")
+import("../../gn/proto_library.gni")
+
 source_set("perfetto_cmd") {
   public_deps = [
+    ":protos",
     "../../include/perfetto/traced",
   ]
   deps = [
@@ -25,5 +29,31 @@ source_set("perfetto_cmd") {
   ]
   sources = [
     "perfetto_cmd.cc",
+    "perfetto_cmd.h",
+    "rate_limiter.cc",
+    "rate_limiter.h",
+  ]
+}
+
+proto_library("protos") {
+  generate_python = false
+  deps = []
+  sources = [
+    "perfetto_cmd_state.proto",
+  ]
+  proto_in_dir = perfetto_root_path
+  proto_out_dir = perfetto_root_path
+}
+
+source_set("unittests") {
+  testonly = true
+  public_deps = []
+  deps = [
+    ":perfetto_cmd",
+    "../../gn:default_deps",
+    "../../gn:gtest_deps",
+  ]
+  sources = [
+    "rate_limiter_unittest.cc",
   ]
 }
