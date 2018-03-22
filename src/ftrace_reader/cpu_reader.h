@@ -140,6 +140,14 @@ class CpuReader {
     metadata->AddPid(pid);
   }
 
+  static void ReadCommonPid(const uint8_t* start,
+                            size_t field_id,
+                            protozero::Message* out,
+                            FtraceMetadata* metadata) {
+    int32_t pid = ReadIntoVarInt<int32_t>(start, field_id, out);
+    metadata->AddCommonPid(pid);
+  }
+
   // Internally the kernel stores device ids in a different layout to that
   // exposed to userspace via stat etc. There's no userspace function to convert
   // between the formats so we have to do it ourselves.

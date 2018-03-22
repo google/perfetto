@@ -37,7 +37,9 @@ std::vector<Field> GetStaticCommonFieldsInfo() {
 bool SetTranslationStrategy(FtraceFieldType ftrace,
                             ProtoFieldType proto,
                             TranslationStrategy* out) {
-  if (ftrace == kFtraceInode32 && proto == kProtoUint64) {
+  if (ftrace == kFtraceCommonPid32 && proto == kProtoInt32) {
+    *out = kCommonPid32ToInt32;
+  } else if (ftrace == kFtraceInode32 && proto == kProtoUint64) {
     *out = kInode32ToUint64;
   } else if (ftrace == kFtraceInode64 && proto == kProtoUint64) {
     *out = kInode64ToUint64;
