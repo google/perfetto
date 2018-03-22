@@ -47,6 +47,8 @@ class MockProducer : public Producer {
   MOCK_METHOD2(CreateDataSourceInstance,
                void(DataSourceInstanceID, const DataSourceConfig&));
   MOCK_METHOD1(TearDownDataSourceInstance, void(DataSourceInstanceID));
+  MOCK_METHOD0(OnTracingStart, void());
+  MOCK_METHOD0(OnTracingStop, void());
 };
 
 class MockConsumer : public Consumer {

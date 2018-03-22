@@ -58,8 +58,7 @@ class ServiceImpl : public Service {
                          uid_t uid,
                          ServiceImpl*,
                          base::TaskRunner*,
-                         Producer*,
-                         std::unique_ptr<SharedMemory>);
+                         Producer*);
     ~ProducerEndpointImpl() override;
 
     // Service::ProducerEndpoint implementation.
@@ -67,8 +66,11 @@ class ServiceImpl : public Service {
                             RegisterDataSourceCallback) override;
     void UnregisterDataSource(DataSourceID) override;
     void CommitData(const CommitDataRequest&, CommitDataCallback) override;
+    void SetSharedMemory(std::unique_ptr<SharedMemory>);
+
     std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override;
     SharedMemory* shared_memory() const override;
+    size_t shared_buffer_page_size_kb() const override;
 
    private:
     friend class ServiceImpl;
@@ -82,7 +84,9 @@ class ServiceImpl : public Service {
     base::TaskRunner* const task_runner_;
     Producer* producer_;
     std::unique_ptr<SharedMemory> shared_memory_;
+    size_t shared_buffer_page_size_kb_ = 0;
     SharedMemoryABI shmem_abi_;
+    size_t shared_memory_size_hint_bytes_ = 0;
     DataSourceID last_data_source_id_ = 0;
     PERFETTO_THREAD_CHECKER(thread_checker_)
   };
@@ -148,7 +152,7 @@ class ServiceImpl : public Service {
   std::unique_ptr<Service::ProducerEndpoint> ConnectProducer(
       Producer*,
       uid_t uid,
-      size_t shared_buffer_size_hint_bytes = 0) override;
+      size_t shared_memory_size_hint_bytes = 0) override;
 
   std::unique_ptr<Service::ConsumerEndpoint> ConnectConsumer(
       Consumer*) override;
@@ -178,6 +182,12 @@ class ServiceImpl : public Service {
     explicit TracingSession(const TraceConfig&);
 
     size_t num_buffers() const { return buffers_index.size(); }
+
+    // Retrieves the page size from the trace config.
+    size_t GetDesiredPageSizeKb();
+
+    // Retrieves the SHM size from the trace config.
+    size_t GetDesiredShmSizeKb();
 
     // The original trace config provided by the Consumer when calling
     // EnableTracing().
@@ -223,6 +233,7 @@ class ServiceImpl : public Service {
   ProducerID last_producer_id_ = 0;
   DataSourceInstanceID last_data_source_instance_id_ = 0;
   TracingSessionID last_tracing_session_id_ = 0;
+  size_t shared_memory_size_hint_bytes_ = 0;
 
   // Buffer IDs are global across all consumers (because a Producer can produce
   // data for more than one trace session, hence more than one consumer).

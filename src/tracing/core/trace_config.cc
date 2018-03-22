@@ -65,6 +65,12 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
   static_assert(sizeof(lockdown_mode_) == sizeof(proto.lockdown_mode()),
                 "size mismatch");
   lockdown_mode_ = static_cast<decltype(lockdown_mode_)>(proto.lockdown_mode());
+
+  producers_.clear();
+  for (const auto& field : proto.producers()) {
+    producers_.emplace_back();
+    producers_.back().FromProto(field);
+  }
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -97,6 +103,11 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
                 "size mismatch");
   proto->set_lockdown_mode(
       static_cast<decltype(proto->lockdown_mode())>(lockdown_mode_));
+
+  for (const auto& it : producers_) {
+    auto* entry = proto->add_producers();
+    it.ToProto(entry);
+  }
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
@@ -182,6 +193,54 @@ void TraceConfig::DataSource::ToProto(
     static_assert(sizeof(it) == sizeof(proto->producer_name_filter(0)),
                   "size mismatch");
   }
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+TraceConfig::ProducerConfig::ProducerConfig() = default;
+TraceConfig::ProducerConfig::~ProducerConfig() = default;
+TraceConfig::ProducerConfig::ProducerConfig(
+    const TraceConfig::ProducerConfig&) = default;
+TraceConfig::ProducerConfig& TraceConfig::ProducerConfig::operator=(
+    const TraceConfig::ProducerConfig&) = default;
+TraceConfig::ProducerConfig::ProducerConfig(
+    TraceConfig::ProducerConfig&&) noexcept = default;
+TraceConfig::ProducerConfig& TraceConfig::ProducerConfig::operator=(
+    TraceConfig::ProducerConfig&&) = default;
+
+void TraceConfig::ProducerConfig::FromProto(
+    const perfetto::protos::TraceConfig_ProducerConfig& proto) {
+  static_assert(sizeof(producer_name_) == sizeof(proto.producer_name()),
+                "size mismatch");
+  producer_name_ = static_cast<decltype(producer_name_)>(proto.producer_name());
+
+  static_assert(sizeof(shm_size_kb_) == sizeof(proto.shm_size_kb()),
+                "size mismatch");
+  shm_size_kb_ = static_cast<decltype(shm_size_kb_)>(proto.shm_size_kb());
+
+  static_assert(sizeof(page_size_kb_) == sizeof(proto.page_size_kb()),
+                "size mismatch");
+  page_size_kb_ = static_cast<decltype(page_size_kb_)>(proto.page_size_kb());
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void TraceConfig::ProducerConfig::ToProto(
+    perfetto::protos::TraceConfig_ProducerConfig* proto) const {
+  proto->Clear();
+
+  static_assert(sizeof(producer_name_) == sizeof(proto->producer_name()),
+                "size mismatch");
+  proto->set_producer_name(
+      static_cast<decltype(proto->producer_name())>(producer_name_));
+
+  static_assert(sizeof(shm_size_kb_) == sizeof(proto->shm_size_kb()),
+                "size mismatch");
+  proto->set_shm_size_kb(
+      static_cast<decltype(proto->shm_size_kb())>(shm_size_kb_));
+
+  static_assert(sizeof(page_size_kb_) == sizeof(proto->page_size_kb()),
+                "size mismatch");
+  proto->set_page_size_kb(
+      static_cast<decltype(proto->page_size_kb())>(page_size_kb_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
