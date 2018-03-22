@@ -44,11 +44,11 @@
 
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include <android/os/DropBoxManager.h>
 #include <utils/Looper.h>
 #include <utils/StrongPointer.h>
-#endif  // defined(PERFETTO_BUILD_WITH_ANDROID)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 
 // TODO(primiano): add the ability to pass the file descriptor directly to the
 // traced service instead of receiving a copy of the slices and writing them
@@ -141,7 +141,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     }
 
     if (option == 'd') {
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
       dropbox_tag_ = optarg ? optarg : kDefaultDropBoxTag;
       continue;
 #else
@@ -277,7 +277,7 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     PERFETTO_ILOG("Wrote %ld bytes into %s", bytes_written,
                   trace_out_path_.c_str());
   } else {
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     android::sp<android::os::DropBoxManager> dropbox =
         new android::os::DropBoxManager();
     fseek(*trace_out_stream_, 0, SEEK_SET);
@@ -300,7 +300,7 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     bytes_uploaded_to_dropbox_ = bytes_written;
     PERFETTO_ILOG("Uploaded %ld bytes into DropBox with tag %s", bytes_written,
                   dropbox_tag_.c_str());
-#endif  // defined(PERFETTO_BUILD_WITH_ANDROID)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   }
   did_process_full_trace_ = true;
 }
@@ -308,6 +308,7 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
 bool PerfettoCmd::OpenOutputFile() {
   base::ScopedFile fd;
   if (!dropbox_tag_.empty()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     // If we are tracing to DropBox, there's no need to make a
     // filesystem-visible temporary file.
     // TODO(skyostil): Fall back to base::TempFile for older devices.
@@ -317,6 +318,9 @@ bool PerfettoCmd::OpenOutputFile() {
                     kTempDropBoxTraceDir);
       return false;
     }
+#else
+    PERFETTO_CHECK(false);
+#endif
   } else {
     // Otherwise create a temporary file in the directory where the final trace
     // is going to be.

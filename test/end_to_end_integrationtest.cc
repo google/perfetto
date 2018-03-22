@@ -22,6 +22,7 @@
 #include <thread>
 
 #include "gtest/gtest.h"
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -66,7 +67,7 @@ class PerfettoTest : public ::testing::Test {
 
 // TODO(b/73453011): reenable this on more platforms (including standalone
 // Android).
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #define MAYBE_TestFtraceProducer TestFtraceProducer
 #else
 #define MAYBE_TestFtraceProducer DISABLED_TestFtraceProducer
