@@ -14,22 +14,25 @@
  * limitations under the License.
  */
 
+#include <pthread.h>
+#include <stdlib.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <condition_variable>
 #include <thread>
 
+#include "perfetto/base/file_utils.h"
+#include "perfetto/base/string_splitter.h"
+#include "perfetto/base/time.h"
 #include "test/task_runner_thread.h"
 
 namespace perfetto {
 
-TaskRunnerThread::TaskRunnerThread() = default;
+TaskRunnerThread::TaskRunnerThread(const char* name) : name_(name) {}
 TaskRunnerThread::~TaskRunnerThread() {
-  {
-    std::unique_lock<std::mutex> lock(mutex_);
-    if (runner_)
-      runner_->Quit();
-  }
-
-  if (thread_.joinable())
-    thread_.join();
+  Stop();
 }
 
 void TaskRunnerThread::Start(std::unique_ptr<ThreadDelegate> delegate) {
@@ -45,7 +48,38 @@ void TaskRunnerThread::Start(std::unique_ptr<ThreadDelegate> delegate) {
                   [this]() { return runner_ != nullptr; });
 }
 
+void TaskRunnerThread::Stop() {
+  {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (runner_)
+      runner_->Quit();
+  }
+
+  if (thread_.joinable())
+    thread_.join();
+}
+
+uint64_t TaskRunnerThread::GetThreadCPUTimeNs() {
+  std::condition_variable cv;
+  std::unique_lock<std::mutex> lock(mutex_);
+  uint64_t thread_time_ns = 0;
+
+  if (!runner_)
+    return 0;
+
+  runner_->PostTask([this, &thread_time_ns, &cv] {
+    std::unique_lock<std::mutex> inner_lock(mutex_);
+    thread_time_ns = base::GetThreadCPUTimeNs().count();
+    cv.notify_one();
+  });
+
+  cv.wait(lock, [&thread_time_ns] { return thread_time_ns != 0; });
+  return thread_time_ns;
+}
+
 void TaskRunnerThread::Run(std::unique_ptr<ThreadDelegate> delegate) {
+  pthread_setname_np(pthread_self(), name_);
+
   // Create the task runner and execute the specicalised code.
   base::PlatformTaskRunner task_runner;
   delegate->Initialize(&task_runner);
