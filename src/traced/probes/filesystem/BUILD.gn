@@ -28,6 +28,10 @@ source_set("filesystem") {
     "inode_file_data_source.h",
     "lru_inode_cache.cc",
     "lru_inode_cache.h",
+    "prefix_finder.cc",
+    "prefix_finder.h",
+    "range_tree.cc",
+    "range_tree.h",
   ]
 }
 
@@ -41,5 +45,7 @@ source_set("unittests") {
   sources = [
     "fs_mount_unittest.cc",
     "lru_inode_cache_unittest.cc",
+    "prefix_finder_unittest.cc",
+    "range_tree_unittest.cc",
   ]
 }
