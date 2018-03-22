@@ -26,6 +26,7 @@
 namespace perfetto {
 namespace base {
 
+using TimeSeconds = std::chrono::seconds;
 using TimeMillis = std::chrono::milliseconds;
 using TimeNanos = std::chrono::nanoseconds;
 constexpr clockid_t kWallTimeClockSource = CLOCK_MONOTONIC;
@@ -46,6 +47,10 @@ inline TimeNanos GetWallTimeNs() {
 
 inline TimeMillis GetWallTimeMs() {
   return std::chrono::duration_cast<TimeMillis>(GetWallTimeNs());
+}
+
+inline TimeSeconds GetWallTimeS() {
+  return std::chrono::duration_cast<TimeSeconds>(GetWallTimeNs());
 }
 
 inline TimeNanos GetThreadCPUTimeNs() {
