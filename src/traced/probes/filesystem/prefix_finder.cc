@@ -20,22 +20,29 @@
 
 namespace perfetto {
 
-std::string PrefixFinder::Node::ToString() {
+std::string PrefixFinder::Node::ToString() const {
   if (parent_ != nullptr)
     return parent_->ToString() + "/" + name_;
   return name_;
 }
 
-std::unique_ptr<PrefixFinder::Node>& PrefixFinder::Node::Child(
-    const std::string& name) {
-  return children_[name];
+PrefixFinder::Node* PrefixFinder::Node::AddChild(std::string name) {
+  auto p = children_.emplace(std::move(name), this);
+  PERFETTO_DCHECK(p.second);
+  // This is fine as long as the comparator only uses const members of Node.
+  return const_cast<Node*>(&(*p.first));
 }
 
 PrefixFinder::Node* PrefixFinder::Node::MaybeChild(const std::string& name) {
-  auto it = children_.find(name);
+  // This will be nicer with C++14 transparent comparators.
+  // Then we will be able to look up by just the name using a sutiable
+  // comparator.
+  Node search_node(name, nullptr);
+  auto it = children_.find(search_node);
   if (it == children_.end())
     return nullptr;
-  return it->second.get();
+  // This is fine as long as the comparator only uses const members of Node.
+  return const_cast<Node*>(&(*it));
 }
 
 PrefixFinder::PrefixFinder(size_t limit) : limit_(limit) {}
@@ -44,10 +51,10 @@ void PrefixFinder::InsertPrefix(size_t len) {
   Node* cur = &root_;
   for (auto it = state_.cbegin() + 1;
        it != state_.cbegin() + static_cast<ssize_t>(len + 1); it++) {
-    std::unique_ptr<Node>& next = cur->Child(it->first);
+    Node* next = cur->MaybeChild(it->first);
     if (!next)
-      next.reset(new Node(it->first, cur));
-    cur = next.get();
+      next = cur->AddChild(it->first);
+    cur = next;
   }
 }
 
