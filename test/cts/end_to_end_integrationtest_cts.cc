@@ -58,7 +58,10 @@ class PerfettoCtsTest : public ::testing::Test {
                         std::vector<TracePacket> packets, bool has_more) {
       for (auto& packet : packets) {
         ASSERT_TRUE(packet.Decode());
-        ASSERT_TRUE(packet->has_for_testing());
+        ASSERT_TRUE(packet->has_for_testing() || packet->has_clock_snapshot());
+        if (packet->has_clock_snapshot()) {
+          continue;
+        }
         ASSERT_EQ(protos::TracePacket::kTrustedUid,
                   packet->optional_trusted_uid_case());
         ASSERT_EQ(packet->for_testing().seq_value(), rnd_engine());
