@@ -85,6 +85,7 @@ if (!build_with_chromium && (is_linux || is_android)) {
       "src/ftrace_reader:ftrace_reader_benchmarks",
       "src/tracing:tracing_benchmarks",
       "test:benchmark_main",
+      "test:end_to_end_benchmarks",
     ]
   }
 

@@ -27,7 +27,8 @@ namespace {
 void ListenAndRespond(const std::string& name) {
   base::TestTaskRunner task_runner;
   FakeProducer producer(name);
-  producer.Connect(PERFETTO_PRODUCER_SOCK_NAME, &task_runner, []() {});
+  producer.Connect(PERFETTO_PRODUCER_SOCK_NAME, &task_runner,
+                   [&producer]() { producer.ProduceEventBatch([] {}); });
   task_runner.Run();
 }
 }  // namespace
