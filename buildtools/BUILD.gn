@@ -490,6 +490,7 @@ config("benchmark_config") {
   cflags = [
     "-Wno-global-constructors",
     "-Wno-covered-switch-default",
+    "-Wno-used-but-marked-unused",
   ]
 }
 
@@ -523,7 +524,8 @@ source_set("benchmark") {
     "benchmark/src/reporter.cc",
     "benchmark/src/sleep.cc",
     "benchmark/src/sleep.h",
-    "benchmark/src/stat.h",
+    "benchmark/src/statistics.cc",
+    "benchmark/src/statistics.h",
     "benchmark/src/string_util.cc",
     "benchmark/src/string_util.h",
     "benchmark/src/sysinfo.cc",
