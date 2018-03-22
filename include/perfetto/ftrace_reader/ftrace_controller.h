@@ -19,6 +19,7 @@
 
 #include <unistd.h>
 
+#include <sys/stat.h>
 #include <bitset>
 #include <condition_variable>
 #include <map>
@@ -34,21 +35,25 @@
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/ftrace_reader/ftrace_config.h"
 #include "perfetto/protozero/message_handle.h"
+#include "perfetto/traced/data_source_types.h"
 
 namespace perfetto {
+
+using BlockDeviceID = decltype(stat::st_dev);
+using Inode = decltype(stat::st_ino);
 
 struct FtraceMetadata {
   FtraceMetadata();
 
   size_t overwrite_count;
-  uint32_t last_seen_device_id;
+  BlockDeviceID last_seen_device_id;
 
   // A vector not a set to keep the writer_fast.
-  std::vector<std::pair<uint64_t, uint32_t>> inodes;
+  std::vector<std::pair<Inode, BlockDeviceID>> inode_and_device;
   std::vector<int32_t> pids;
 
-  void AddDevice(uint32_t);
-  void AddInode(uint64_t);
+  void AddDevice(BlockDeviceID);
+  void AddInode(Inode);
   void AddPid(int32_t);
   void Clear();
 };
@@ -59,8 +64,8 @@ class FtraceEventBundle;
 }  // namespace pbzero
 }  // namespace protos
 
-const size_t kMaxSinks = 32;
-const size_t kMaxCpus = 64;
+constexpr size_t kMaxSinks = 32;
+constexpr size_t kMaxCpus = 64;
 
 // Method of last resort to reset ftrace state.
 void HardResetFtraceState();

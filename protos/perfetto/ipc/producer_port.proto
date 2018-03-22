@@ -19,7 +19,7 @@ option optimize_for = LITE_RUNTIME;
 
 import "perfetto/config/data_source_config.proto";
 import "perfetto/config/data_source_descriptor.proto";
-import "perfetto/ipc/commit_data_request.proto";
+import "perfetto/common/commit_data_request.proto";
 
 package perfetto.protos;
 
@@ -58,7 +58,11 @@ message InitializeConnectionRequest {
   // Optional. Provides a hint to the tracing service about the suggested size
   // of the shared memory buffer. The service is not required to respect this
   // and might return a smaller buffer.
-  optional uint32 shared_buffer_size_hint_bytes = 2;
+  optional uint32 shared_memory_size_hint_bytes = 2;
+
+  // Required to match the producer config set by the service to the correct
+  // producer.
+  optional string producer_name = 3;
 }
 
 message InitializeConnectionResponse {
@@ -108,8 +112,16 @@ message GetAsyncCommandResponse {
 
   message StopDataSource { optional uint64 instance_id = 1; }
 
+  // This message also transports the file descriptor for the shared memory
+  // buffer.
+  message OnTracingStart { optional uint64 shared_buffer_page_size_kb = 1; }
+
+  message OnTracingStop {}
+
   oneof cmd {
     StartDataSource start_data_source = 1;
     StopDataSource stop_data_source = 2;
+    OnTracingStart on_tracing_start = 3;
+    OnTracingStop on_tracing_stop = 4;
   }
 }

@@ -32,7 +32,7 @@ using testing::Contains;
 namespace perfetto {
 namespace {
 
-const char kTracingPath[] = "/sys/kernel/debug/tracing/";
+constexpr char kTracingPath[] = "/sys/kernel/debug/tracing/";
 
 void ResetFtrace(FtraceProcfs* ftrace) {
   ftrace->DisableAllEvents();

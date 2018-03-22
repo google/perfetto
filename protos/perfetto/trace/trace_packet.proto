@@ -18,21 +18,25 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "perfetto/trace/chrome/chrome_trace_event.proto";
+import "perfetto/trace/clock_snapshot.proto";
+import "perfetto/trace/filesystem/inode_file_map.proto";
 import "perfetto/trace/ftrace/ftrace_event_bundle.proto";
 import "perfetto/trace/ps/process_tree.proto";
-import "perfetto/trace/filesystem/inode_file_map.proto";
 import "perfetto/trace/test_event.proto";
 
 package perfetto.protos;
 
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
+//
+// Next id: 7.
 message TracePacket {
   oneof data {
     FtraceEventBundle ftrace_events = 1;
     ProcessTree process_tree = 2;
     InodeFileMap inode_file_map = 4;
     ChromeEventBundle chrome_events = 5;
+    ClockSnapshot clock_snapshot = 6;
 
     // This field is only used for testing.
     TestEvent for_testing = 536870911;  // 2^29 - 1, max field id for protos.

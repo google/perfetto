@@ -10,5 +10,5 @@ message MmFilemapAddToPageCacheFtraceEvent {
   optional uint64 pfn = 1;
   optional uint64 i_ino = 2;
   optional uint64 index = 3;
-  optional uint32 s_dev = 4;
+  optional uint64 s_dev = 4;
 }

@@ -24,7 +24,7 @@ PROTOS = (
   'perfetto/config/ftrace/ftrace_config.proto',
   'perfetto/config/trace_config.proto',
   'perfetto/config/test_config.proto',
-  'perfetto/ipc/commit_data_request.proto',
+  'perfetto/common/commit_data_request.proto',
 )
 
 HEADER_PATH = 'include/perfetto/tracing/core'

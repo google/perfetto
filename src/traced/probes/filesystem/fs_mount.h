@@ -21,11 +21,9 @@
 #include <map>
 #include <string>
 #include <vector>
+#include "perfetto/traced/data_source_types.h"
 
 namespace perfetto {
-
-// On ARM, st_dev is not dev_t but unsigned long long.
-using BlockDeviceID = decltype(stat::st_dev);
 
 constexpr char kMountsPath[] = "/proc/mounts";
 

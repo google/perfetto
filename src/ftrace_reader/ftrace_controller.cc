@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -44,18 +45,18 @@ namespace perfetto {
 namespace {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-const char* kTracingPaths[] = {
+constexpr const char* kTracingPaths[] = {
     "/sys/kernel/tracing/", "/sys/kernel/debug/tracing/", nullptr,
 };
 #else
-const char* kTracingPaths[] = {
+constexpr const char* kTracingPaths[] = {
     "/sys/kernel/debug/tracing/", nullptr,
 };
 #endif
 
-const int kDefaultDrainPeriodMs = 100;
-const int kMinDrainPeriodMs = 1;
-const int kMaxDrainPeriodMs = 1000 * 60;
+constexpr int kDefaultDrainPeriodMs = 100;
+constexpr int kMinDrainPeriodMs = 1;
+constexpr int kMaxDrainPeriodMs = 1000 * 60;
 
 uint32_t ClampDrainPeriodMs(uint32_t drain_period_ms) {
   if (drain_period_ms == 0) {
@@ -363,16 +364,16 @@ const std::set<std::string>& FtraceSink::enabled_events() {
 
 FtraceMetadata::FtraceMetadata() {
   // A lot of the time there will only be a small number of inodes.
-  inodes.reserve(10);
+  inode_and_device.reserve(10);
   pids.reserve(10);
 }
 
-void FtraceMetadata::AddDevice(uint32_t device_id) {
+void FtraceMetadata::AddDevice(BlockDeviceID device_id) {
   last_seen_device_id = device_id;
 }
 
-void FtraceMetadata::AddInode(uint64_t inode_number) {
-  inodes.push_back(std::make_pair(inode_number, last_seen_device_id));
+void FtraceMetadata::AddInode(Inode inode_number) {
+  inode_and_device.push_back(std::make_pair(inode_number, last_seen_device_id));
 }
 
 void FtraceMetadata::AddPid(int32_t pid) {
@@ -384,7 +385,7 @@ void FtraceMetadata::AddPid(int32_t pid) {
 }
 
 void FtraceMetadata::Clear() {
-  inodes.clear();
+  inode_and_device.clear();
   pids.clear();
   overwrite_count = 0;
   last_seen_device_id = 0;

@@ -7,7 +7,7 @@ option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 message Ext4IndMapBlocksEnterFtraceEvent {
-  optional uint32 dev = 1;
+  optional uint64 dev = 1;
   optional uint64 ino = 2;
   optional uint32 lblk = 3;
   optional uint32 len = 4;

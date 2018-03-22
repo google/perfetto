@@ -403,14 +403,18 @@ class SharedMemoryABI {
     uint8_t chunk_idx_ = 0;
   };
 
-  // Construct an instace from an existing shared memory buffer.
+  // Construct an instance from an existing shared memory buffer.
   SharedMemoryABI(uint8_t* start, size_t size, size_t page_size);
+  SharedMemoryABI();
+
+  void Initialize(uint8_t* start, size_t size, size_t page_size);
 
   uint8_t* start() const { return start_; }
   uint8_t* end() const { return start_ + size_; }
   size_t size() const { return size_; }
   size_t page_size() const { return page_size_; }
   size_t num_pages() const { return num_pages_; }
+  bool is_valid() { return num_pages() > 0; }
 
   uint8_t* page_start(size_t page_idx) {
     PERFETTO_DCHECK(page_idx < num_pages_);
@@ -529,11 +533,11 @@ class SharedMemoryABI {
                         const ChunkHeader*);
   size_t ReleaseChunk(Chunk chunk, ChunkState);
 
-  uint8_t* const start_;
-  const size_t size_;
-  const size_t page_size_;
-  const size_t num_pages_;
-  std::array<uint16_t, kNumPageLayouts> const chunk_sizes_;
+  uint8_t* start_ = 0;
+  size_t size_ = 0;
+  size_t page_size_ = 0;
+  size_t num_pages_ = 0;
+  std::array<uint16_t, kNumPageLayouts> chunk_sizes_;
 };
 
 }  // namespace perfetto

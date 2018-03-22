@@ -67,21 +67,17 @@ void ProducerIPCService::InitializeConnection(
 
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
-      producer.get(), client_info.uid(), req.shared_buffer_size_hint_bytes());
+      producer.get(), client_info.uid(), req.shared_memory_size_hint_bytes());
 
   // Could happen if the service has too many producers connected.
   if (!producer->service_endpoint)
     response.Reject();
 
-  const int shm_fd = static_cast<PosixSharedMemory*>(
-                         producer->service_endpoint->shared_memory())
-                         ->fd();
   producers_.emplace(ipc_client_id, std::move(producer));
   // Because of the std::move() |producer| is invalid after this point.
 
   auto async_res =
       ipc::AsyncResult<protos::InitializeConnectionResponse>::Create();
-  async_res.set_fd(shm_fd);
   response.Resolve(std::move(async_res));
 }
 
@@ -265,6 +261,28 @@ void ProducerIPCService::RemoteProducer::TearDownDataSourceInstance(
   cmd.set_has_more(true);
   cmd->mutable_stop_data_source()->set_instance_id(dsid);
   async_producer_commands.Resolve(std::move(cmd));
+}
+
+void ProducerIPCService::RemoteProducer::OnTracingStart() {
+  if (!async_producer_commands.IsBound()) {
+    PERFETTO_DLOG(
+        "The Service tried to allocate the shared memory but the remote "
+        "Producer has not yet initialized the connection");
+    return;
+  }
+  PERFETTO_CHECK(service_endpoint->shared_memory());
+  const int shm_fd =
+      static_cast<PosixSharedMemory*>(service_endpoint->shared_memory())->fd();
+  auto cmd = ipc::AsyncResult<protos::GetAsyncCommandResponse>::Create();
+  cmd.set_has_more(true);
+  cmd.set_fd(shm_fd);
+  cmd->mutable_on_tracing_start()->set_shared_buffer_page_size_kb(
+      service_endpoint->shared_buffer_page_size_kb());
+  async_producer_commands.Resolve(std::move(cmd));
+}
+
+void ProducerIPCService::RemoteProducer::OnTracingStop() {
+  // TODO(taylori): Implement.
 }
 
 }  // namespace perfetto

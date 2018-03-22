@@ -72,6 +72,8 @@ class ProducerIPCService : public protos::ProducerPort {
     void CreateDataSourceInstance(DataSourceInstanceID,
                                   const DataSourceConfig&) override;
     void TearDownDataSourceInstance(DataSourceInstanceID) override;
+    void OnTracingStart() override;
+    void OnTracingStop() override;
 
     // RegisterDataSource requests that haven't been replied yet.
     std::map<std::string, DeferredRegisterDataSourceResponse>

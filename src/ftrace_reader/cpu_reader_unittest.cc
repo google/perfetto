@@ -48,8 +48,8 @@ namespace perfetto {
 
 namespace {
 
-const uint64_t kNanoInSecond = 1000 * 1000 * 1000;
-const uint64_t kNanoInMicro = 1000;
+constexpr uint64_t kNanoInSecond = 1000 * 1000 * 1000;
+constexpr uint64_t kNanoInMicro = 1000;
 
 ::testing::AssertionResult WithinOneMicrosecond(uint64_t actual_ns,
                                                 uint64_t expected_s,
@@ -713,14 +713,14 @@ TEST(CpuReaderTest, ParseAllFields) {
     event->proto_field_id = 42;
     event->ftrace_event_id = ftrace_event_id;
     {
-      // dev32 -> uint32
+      // dev32 -> uint64
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
       field->ftrace_offset = 8;
       field->ftrace_size = 4;
       field->ftrace_type = kFtraceDevId32;
       field->proto_field_id = 1;
-      field->proto_field_type = kProtoUint32;
+      field->proto_field_type = kProtoUint64;
       SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
                              &field->strategy);
     }
@@ -761,10 +761,22 @@ TEST(CpuReaderTest, ParseAllFields) {
                              &field->strategy);
     }
     {
-      // ino_t (64bit) -> uint64
+      // dev64 -> uint64
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
       field->ftrace_offset = 24;
+      field->ftrace_size = 8;
+      field->ftrace_type = kFtraceDevId64;
+      field->proto_field_id = 6;
+      field->proto_field_type = kProtoUint64;
+      SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                             &field->strategy);
+    }
+    {
+      // ino_t (64bit) -> uint64
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->ftrace_offset = 32;
       field->ftrace_size = 8;
       field->ftrace_type = kFtraceInode64;
       field->proto_field_id = 4;
@@ -776,7 +788,7 @@ TEST(CpuReaderTest, ParseAllFields) {
       // char[16] -> string
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
-      field->ftrace_offset = 32;
+      field->ftrace_offset = 40;
       field->ftrace_size = 16;
       field->ftrace_type = kFtraceFixedCString;
       field->proto_field_id = 500;
@@ -788,7 +800,7 @@ TEST(CpuReaderTest, ParseAllFields) {
       // char -> string
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
-      field->ftrace_offset = 48;
+      field->ftrace_offset = 56;
       field->ftrace_size = 0;
       field->ftrace_type = kFtraceCString;
       field->proto_field_id = 501;
@@ -802,13 +814,26 @@ TEST(CpuReaderTest, ParseAllFields) {
   FakeEventProvider provider(base::kPageSize);
 
   BinaryWriter writer;
+
+  // Must use the bit masks to translate between kernel and userspace device ids
+  // to generate the below examples
+  const uint32_t example_32_bit_kdev = 271581216;
+  const uint64_t example_32_bit_userspace_dev =
+      CpuReader::TranslateBlockDeviceIDToUserspace<uint32_t>(
+          example_32_bit_kdev);
+  const uint64_t example_64_bit_kdev = 4442450946;
+  const uint64_t example_64_bit_userspace_dev =
+      CpuReader::TranslateBlockDeviceIDToUserspace<uint64_t>(
+          example_64_bit_kdev);
+
   writer.Write<int32_t>(1001);  // Common field.
   writer.Write<int32_t>(9999);  // A gap we shouldn't read.
-  writer.Write<int32_t>(1002);  // Dev id
+  writer.Write<int32_t>(example_32_bit_kdev);  // Dev id
   writer.Write<int32_t>(97);    // Pid
   writer.Write<int32_t>(1003);  // Uint32 field
-  writer.Write<int32_t>(98);    // Inode 1
-  writer.Write<int64_t>(99);    // Inode 2
+  writer.Write<int32_t>(98);    // Inode 32
+  writer.Write<int64_t>(example_64_bit_kdev);  // Dev id 64
+  writer.Write<int64_t>(99u);                  // Inode 64
   writer.WriteFixedString(16, "Hello");
   writer.WriteFixedString(300, "Goodbye");
 
@@ -824,17 +849,114 @@ TEST(CpuReaderTest, ParseAllFields) {
   ASSERT_TRUE(event);
   EXPECT_EQ(event->common_field(), 1001ul);
   EXPECT_EQ(event->event_case(), FakeFtraceEvent::kAllFields);
-  EXPECT_EQ(event->all_fields().field_dev(), 1002ul);
+  EXPECT_EQ(event->all_fields().field_dev_32(), example_32_bit_userspace_dev);
   EXPECT_EQ(event->all_fields().field_pid(), 97);
   EXPECT_EQ(event->all_fields().field_uint32(), 1003u);
   EXPECT_EQ(event->all_fields().field_inode_32(), 98u);
+  EXPECT_EQ(event->all_fields().field_dev_64(), example_64_bit_userspace_dev);
   EXPECT_EQ(event->all_fields().field_inode_64(), 99u);
   EXPECT_EQ(event->all_fields().field_char_16(), "Hello");
   EXPECT_EQ(event->all_fields().field_char(), "Goodbye");
   EXPECT_THAT(metadata.pids, Contains(97));
-  EXPECT_EQ(metadata.inodes.size(), 2U);
-  EXPECT_THAT(metadata.inodes, Contains(Pair(98u, 1002)));
-  EXPECT_THAT(metadata.inodes, Contains(Pair(99u, 1002ul)));
+  EXPECT_THAT(metadata.last_seen_device_id, example_64_bit_userspace_dev);
+  EXPECT_EQ(metadata.inode_and_device.size(), 2U);
+  EXPECT_THAT(metadata.inode_and_device,
+              Contains(Pair(98u, example_32_bit_userspace_dev)));
+  EXPECT_THAT(metadata.inode_and_device,
+              Contains(Pair(99u, example_64_bit_userspace_dev)));
+}
+
+TEST(CpuReaderTest, TranslateBlockDeviceIDToUserspace) {
+  using FakeEventProvider =
+      ProtoProvider<pbzero::FakeFtraceEvent, FakeFtraceEvent>;
+
+  uint16_t ftrace_event_id = 102;
+
+  std::vector<Field> common_fields;
+  {
+    common_fields.emplace_back(Field{});
+    Field* field = &common_fields.back();
+    field->ftrace_offset = 0;
+    field->ftrace_size = 4;
+    field->ftrace_type = kFtraceUint32;
+    field->proto_field_id = 1;
+    field->proto_field_type = kProtoUint32;
+    SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                           &field->strategy);
+  }
+
+  std::vector<Event> events;
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "";
+    event->group = "";
+    event->proto_field_id = 42;
+    event->ftrace_event_id = ftrace_event_id;
+    {
+      // dev32 -> uint64
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->ftrace_offset = 8;
+      field->ftrace_size = 4;
+      field->ftrace_type = kFtraceDevId32;
+      field->proto_field_id = 1;
+      field->proto_field_type = kProtoUint64;
+      SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                             &field->strategy);
+    }
+    {
+      // dev64 -> uint64
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->ftrace_offset = 12;
+      field->ftrace_size = 8;
+      field->ftrace_type = kFtraceDevId64;
+      field->proto_field_id = 6;
+      field->proto_field_type = kProtoUint64;
+      SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
+                             &field->strategy);
+    }
+  }
+  ProtoTranslationTable table(events, std::move(common_fields));
+
+  FakeEventProvider provider(base::kPageSize);
+
+  BinaryWriter writer;
+
+  const uint32_t example_32_bit_kdev = 271581216;
+  const uint64_t example_32_bit_userspace_dev = 66336;
+  // Test downcasting
+  const uint64_t example_64_bit_kdev = 4442450946;
+  const uint64_t example_64_bit_userspace_dev = 17594983681026;
+
+  writer.Write<int32_t>(1001);                 // Common field.
+  writer.Write<int32_t>(9999);                 // A gap we shouldn't read.
+  writer.Write<int32_t>(example_32_bit_kdev);  // Dev id 32
+  writer.Write<int64_t>(example_64_bit_kdev);  // Dev id 64
+
+  auto input = writer.GetCopy();
+  auto length = writer.written();
+  FtraceMetadata metadata{};
+
+  ASSERT_TRUE(CpuReader::ParseEvent(ftrace_event_id, input.get(),
+                                    input.get() + length, &table,
+                                    provider.writer(), &metadata));
+
+  auto event = provider.ParseProto();
+  ASSERT_TRUE(event);
+  EXPECT_EQ(event->common_field(), 1001ul);
+  EXPECT_EQ(event->event_case(), FakeFtraceEvent::kAllFields);
+  EXPECT_EQ(event->all_fields().field_dev_32(), example_32_bit_userspace_dev);
+  EXPECT_EQ(event->all_fields().field_dev_64(), example_64_bit_userspace_dev);
+  EXPECT_THAT(metadata.last_seen_device_id, example_64_bit_userspace_dev);
+
+  EXPECT_THAT(CpuReader::TranslateBlockDeviceIDToUserspace<uint32_t>(
+                  example_32_bit_kdev),
+              example_32_bit_userspace_dev);
+  EXPECT_THAT(CpuReader::TranslateBlockDeviceIDToUserspace<uint64_t>(
+                  example_64_bit_kdev),
+              example_64_bit_userspace_dev);
 }
 
 // clang-format off

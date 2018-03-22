@@ -200,6 +200,16 @@ bool InferFtraceType(const std::string& type_and_name,
     }
   }
 
+  if (StartsWith(type_and_name, "dev_t ")) {
+    if (size == 4) {
+      *out = kFtraceDevId32;
+      return true;
+    } else if (size == 8) {
+      *out = kFtraceDevId64;
+      return true;
+    }
+  }
+
   // Pids (as in 'sched_switch').
   if (StartsWith(type_and_name, "pid_t ") && size == 4) {
     *out = kFtracePid32;

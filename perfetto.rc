@@ -32,6 +32,12 @@ service traced_probes /system/bin/traced_probes
     onrestart exec_background - nobody shell -- /system/bin/traced_probes --cleanup-after-crash
     file /dev/kmsg w
 
+on property:sys.traced.enable_override=1
+    setprop persist.traced.enable 1
+
+on property:sys.traced.enable_override=0
+    setprop persist.traced.enable 0
+
 on property:persist.traced.enable=1
     # Trace files need to be:
     # - Written by either uid:shell or uid:statsd.
