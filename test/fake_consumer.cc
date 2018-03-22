@@ -16,10 +16,10 @@
 
 #include "test/fake_consumer.h"
 
-#include <gtest/gtest.h>
 #include <utility>
 #include <vector>
 
+#include "gtest/gtest.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/trace/test_event.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -31,28 +31,41 @@ namespace perfetto {
 
 FakeConsumer::FakeConsumer(
     const TraceConfig& trace_config,
+    std::function<void()> on_connect,
     std::function<void(std::vector<TracePacket>, bool)> packet_callback,
     base::TaskRunner* task_runner)
-    : packet_callback_(std::move(packet_callback)),
+    : task_runner_(task_runner),
       trace_config_(trace_config),
-      task_runner_(task_runner) {}
+      on_connect_(on_connect),
+      packet_callback_(std::move(packet_callback)) {}
 FakeConsumer::~FakeConsumer() = default;
 
 void FakeConsumer::Connect(const char* socket_name) {
   endpoint_ = ConsumerIPCClient::Connect(socket_name, this, task_runner_);
 }
 
+void FakeConsumer::Disconnect() {
+  endpoint_.reset();
+}
+
 void FakeConsumer::OnConnect() {
+  on_connect_();
+}
+
+void FakeConsumer::EnableTracing() {
   endpoint_->EnableTracing(trace_config_);
 }
 
+void FakeConsumer::FreeBuffers() {
+  endpoint_->FreeBuffers();
+}
+
 void FakeConsumer::ReadTraceData() {
-  endpoint_->DisableTracing();
   endpoint_->ReadBuffers();
 }
 
 void FakeConsumer::OnDisconnect() {
-  FAIL() << "Disconnected from service unexpectedly";
+  FAIL() << "Consumer unexpectedly disconnected from the service";
 }
 
 void FakeConsumer::OnTraceData(std::vector<TracePacket> data, bool has_more) {
