@@ -23,12 +23,12 @@ message FakeFtraceEvent {
 }
 
 message FakeAllFieldsFtraceEvent {
-  optional uint64 field_dev_32 = 1;
+  optional uint32 field_uint32 = 1;
   optional int32 field_pid = 2;
-  optional uint32 field_uint32 = 5;
-  optional uint64 field_inode_32 = 3;
-  optional uint64 field_dev_64 = 6;
-  optional uint64 field_inode_64 = 4;
+  optional uint64 field_dev_32 = 3;
+  optional uint64 field_inode_32 = 4;
+  optional uint64 field_dev_64 = 5;
+  optional uint64 field_inode_64 = 6;
   optional string field_char_16 = 500;
   optional string field_char = 501;
 }

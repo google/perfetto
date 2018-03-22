@@ -373,7 +373,11 @@ void FtraceMetadata::AddDevice(BlockDeviceID device_id) {
 }
 
 void FtraceMetadata::AddInode(Inode inode_number) {
+  PERFETTO_DCHECK(last_seen_device_id != 0);
   inode_and_device.push_back(std::make_pair(inode_number, last_seen_device_id));
+#if PERFETTO_DCHECK_IS_ON()
+  last_seen_device_id = 0;
+#endif
 }
 
 void FtraceMetadata::AddPid(int32_t pid) {
