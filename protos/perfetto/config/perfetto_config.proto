@@ -88,6 +88,11 @@ message TestConfig {
   // The seed value for a simple multiplicative congruential pseudo-random
   // number sequence.
   optional uint32 seed = 2;
+
+  // The size of each message in bytes. Should be greater than or equal 5 to
+  // account for the number of bytes needed to encode the random number and a
+  // null byte for the string.
+  optional uint64 message_size = 3;
 }
 
 // End of protos/perfetto/config/test_config.proto
