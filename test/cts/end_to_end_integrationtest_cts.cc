@@ -53,8 +53,9 @@ class PerfettoCtsTest : public ::testing::Test {
 
     // Setip the function.
     uint64_t total = 0;
-    auto finish = task_runner.CreateCheckpoint("no.more.packets");
-    auto function = [&total, &finish, &rnd_engine](
+    auto on_readback_complete =
+        task_runner.CreateCheckpoint("readback.complete");
+    auto function = [&total, &on_readback_complete, &rnd_engine](
                         std::vector<TracePacket> packets, bool has_more) {
       for (auto& packet : packets) {
         ASSERT_TRUE(packet.Decode());
@@ -69,8 +70,9 @@ class PerfettoCtsTest : public ::testing::Test {
       total += packets.size();
 
       if (!has_more) {
+        // One extra packet for the clock snapshot.
         ASSERT_EQ(total, kEventCount + 1);
-        finish();
+        on_readback_complete();
       }
     };
 
@@ -79,17 +81,12 @@ class PerfettoCtsTest : public ::testing::Test {
     FakeConsumer consumer(trace_config, std::move(on_connect),
                           std::move(function), &task_runner);
     consumer.Connect(PERFETTO_CONSUMER_SOCK_NAME);
-
     task_runner.RunUntilCheckpoint("consumer.connected");
-    consumer.EnableTracing();
 
-    // TODO(skyostil): There's a race here before the service processes our data
-    // and the consumer tries to retrieve it. For now wait a bit until the
-    // service is done, but we should add explicit flushing to avoid this.
+    consumer.EnableTracing();
     task_runner.PostDelayedTask([&consumer]() { consumer.ReadTraceData(); },
                                 1000);
-
-    task_runner.RunUntilCheckpoint("no.more.packets");
+    task_runner.RunUntilCheckpoint("readback.complete");
   }
 };
 
