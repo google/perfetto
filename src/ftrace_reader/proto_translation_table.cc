@@ -216,6 +216,11 @@ bool InferFtraceType(const std::string& type_and_name,
     return true;
   }
 
+  if (Contains(type_and_name, "common_pid") && size == 4) {
+    *out = kFtraceCommonPid32;
+    return true;
+  }
+
   // Ints of various sizes:
   if (size == 1 && is_signed) {
     *out = kFtraceInt8;

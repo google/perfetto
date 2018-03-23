@@ -23,6 +23,7 @@
 
 #include <time.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/unix_task_runner.h"
 #include "perfetto/tracing/core/consumer.h"
@@ -35,11 +36,11 @@
 #include "perfetto/base/android_task_runner.h"
 #endif  // defined(PERFETTO_OS_ANDROID)
 
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include <android/os/DropBoxManager.h>
 #include <utils/Looper.h>
 #include <utils/StrongPointer.h>
-#endif  // defined(PERFETTO_BUILD_WITH_ANDROID)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 
 namespace perfetto {
 

@@ -17,8 +17,8 @@
 #ifndef SRC_TRACED_PROBES_FILESYSTEM_PREFIX_FINDER_H_
 #define SRC_TRACED_PROBES_FILESYSTEM_PREFIX_FINDER_H_
 
-#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -48,23 +48,35 @@ class PrefixFinder {
   class Node {
    public:
     friend class PrefixFinder;
+    Node(std::string name, Node* parent) : name_(name), parent_(parent) {}
 
     Node(const Node& that) = delete;
     Node& operator=(const Node&) = delete;
 
     // Return string representation of prefix, e.g. /foo/bar.
     // Does not enclude a trailing /.
-    std::string ToString();
+    std::string ToString() const;
 
    private:
-    Node(std::string name, Node* parent) : name_(name), parent_(parent) {}
+    class CompareNames {
+     public:
+      // ONLY USE CONST MEMBERS IN THIS AS WE ARE USING MUTABLE POINTERS
+      // TO SET ELEMENTS.
+      bool operator()(const Node& one, const Node& other) const {
+        return one.name_ < other.name_;
+      }
+    };
 
-    std::unique_ptr<Node>& Child(const std::string& name);
+    // Add a new child to this node.
+    Node* AddChild(std::string name);
+
+    // Get existing child for this node. Return nullptr if it
+    // does not exist.
     Node* MaybeChild(const std::string& name);
 
-    std::string name_;
-    std::map<std::string, std::unique_ptr<Node>> children_;
-    Node* parent_;
+    const std::string name_;
+    const Node* parent_;
+    std::set<Node, CompareNames> children_;
   };
 
   PrefixFinder(size_t limit);
