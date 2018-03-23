@@ -430,6 +430,7 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
 
   // This finalizes |nested| automatically.
   message->Finalize();
+  metadata->FinishEvent();
   return success;
 }
 
