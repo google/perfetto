@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "perfetto/base/export.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
 
@@ -40,7 +41,7 @@ namespace protozero {
 // The purpose of this class is to abstract away the non-contiguous write logic.
 // This class knows how to deal with writes as long as they fall in the same
 // ContiguousMemoryRange and defers the chunk-chaining logic to the Delegate.
-class ScatteredStreamWriter {
+class PERFETTO_EXPORT ScatteredStreamWriter {
  public:
   class Delegate {
    public:

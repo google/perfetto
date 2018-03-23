@@ -172,11 +172,18 @@ if (!build_with_chromium && (is_linux || is_android)) {
       "protos/perfetto/trace:lite",
     ]
   }
-} else {
-  group("lib") {
+}
+
+if (build_with_chromium) {
+  component("libperfetto") {
     public_configs = [ "gn:public_config" ]
     deps = [
       "src/tracing",
     ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+    public_deps = [
+      "include/perfetto/tracing/core",
+    ]
   }
-}  # !build_with_chromium
+}
