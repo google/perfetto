@@ -17,9 +17,8 @@
 #include "src/traced/probes/filesystem/lru_inode_cache.h"
 
 namespace perfetto {
-namespace base {
 
-const LRUInodeCache::InodeValue* LRUInodeCache::Get(const InodeKey& k) {
+InodeMapValue* LRUInodeCache::Get(const InodeKey& k) {
   const auto& map_it = map_.find(k);
   if (map_it == map_.end()) {
     return nullptr;
@@ -29,17 +28,17 @@ const LRUInodeCache::InodeValue* LRUInodeCache::Get(const InodeKey& k) {
   // We can borrow both elements of the pair stored in the list because
   // insert does not need them.
   Insert(map_it, std::move(list_entry->first), std::move(list_entry->second));
-  return &list_.cbegin()->second;
+  return &list_.begin()->second;
 }
 
-void LRUInodeCache::Insert(InodeKey k, InodeValue v) {
+void LRUInodeCache::Insert(InodeKey k, InodeMapValue v) {
   auto it = map_.find(k);
   return Insert(it, std::move(k), std::move(v));
 }
 
 void LRUInodeCache::Insert(typename MapType::iterator map_it,
                            InodeKey k,
-                           InodeValue v) {
+                           InodeMapValue v) {
   list_.emplace_front(k, std::move(v));
   if (map_it != map_.end()) {
     ListIteratorType& list_it = map_it->second;
@@ -56,5 +55,4 @@ void LRUInodeCache::Insert(typename MapType::iterator map_it,
     list_.erase(list_last_it);
   }
 }
-}  // namespace base
 }  // namespace perfetto
