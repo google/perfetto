@@ -61,7 +61,6 @@ static void BM_EndToEnd(benchmark::State& state) {
   producer_thread.Start(std::move(producer_delegate));
 
   // Setup the TraceConfig for the consumer.
-  // TODO(lalitm): the buffer size should be a function of the benchmark.
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(512);
 
@@ -73,10 +72,12 @@ static void BM_EndToEnd(benchmark::State& state) {
   // The parameters for the producer.
   static constexpr uint32_t kRandomSeed = 42;
   uint32_t message_count = state.range(0);
+  uint32_t message_size = state.range(1);
 
   // Setup the test to use a random number generator.
   ds_config->mutable_for_testing()->set_seed(kRandomSeed);
   ds_config->mutable_for_testing()->set_message_count(message_count);
+  ds_config->mutable_for_testing()->set_message_size(message_size);
 
   bool is_first_packet = true;
   auto on_readback_complete = task_runner.CreateCheckpoint("readback.complete");
@@ -140,8 +141,8 @@ static void BM_EndToEnd(benchmark::State& state) {
   // Read back the buffer just to check correctness.
   consumer.ReadTraceData();
   task_runner.RunUntilCheckpoint("readback.complete");
-  state.SetBytesProcessed(int64_t(state.iterations()) *
-                          (sizeof(uint32_t) + 1024) * message_count);
+  state.SetBytesProcessed(int64_t(state.iterations()) * message_size *
+                          message_count);
 
   consumer.Disconnect();
 }
@@ -150,5 +151,5 @@ BENCHMARK(BM_EndToEnd)
     ->Unit(benchmark::kMicrosecond)
     ->UseRealTime()
     ->RangeMultiplier(2)
-    ->Range(16, 1024 * 1024);
+    ->Ranges({{16, 1024 * 1024}, {8, 2048}});
 }
