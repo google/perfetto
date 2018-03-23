@@ -33,6 +33,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/export.h"
+
 // Forward declarations for protobuf types.
 namespace perfetto {
 namespace protos {
@@ -42,7 +44,7 @@ class DataSourceDescriptor;
 
 namespace perfetto {
 
-class DataSourceDescriptor {
+class PERFETTO_EXPORT DataSourceDescriptor {
  public:
   DataSourceDescriptor();
   ~DataSourceDescriptor();

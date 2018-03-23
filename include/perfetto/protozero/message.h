@@ -23,6 +23,7 @@
 
 #include <type_traits>
 
+#include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -42,7 +43,7 @@ class MessageHandleBase;
 // compiler. This class provides the minimal runtime required to support
 // append-only operations and is designed for performance. None of the methods
 // require any dynamic memory allocation.
-class Message {
+class PERFETTO_EXPORT Message {
  public:
   friend class MessageHandleBase;
   // Grant end_to_end_shared_memory_fuzzer access in order to write raw

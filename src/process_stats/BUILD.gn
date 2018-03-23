@@ -15,8 +15,8 @@
 source_set("process_stats") {
   public_deps = []
   deps = [
-    "../../../gn:default_deps",
-    "../../../protos/perfetto/config",
+    "../../gn:default_deps",
+    "../../protos/perfetto/config",
     "../base",
   ]
   sources = [

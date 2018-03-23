@@ -19,6 +19,7 @@
 
 #include <functional>
 
+#include "perfetto/base/export.h"
 #include "perfetto/protozero/message.h"
 
 namespace protozero {
@@ -36,7 +37,7 @@ class Message;
 // Think about this as a WeakPtr<Message> which calls
 // Message::Finalize() when going out of scope.
 
-class MessageHandleBase {
+class PERFETTO_EXPORT MessageHandleBase {
  public:
   ~MessageHandleBase();
 

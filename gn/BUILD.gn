@@ -108,8 +108,14 @@ group("default_deps") {
 }
 
 config("default_config") {
+  defines = [ "PERFETTO_IMPLEMENTATION" ]
+
   if (build_with_chromium) {
-    defines = [ "PERFETTO_BUILD_WITH_CHROMIUM" ]
+    if (is_component_build) {
+      defines += [ "PERFETTO_SHARED_LIBRARY" ]
+    }
+
+    defines += [ "PERFETTO_BUILD_WITH_CHROMIUM" ]
 
     if (is_android) {
       # Included for __android_log_print
