@@ -20,6 +20,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <set>
+#include <string>
+
+#include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
 
 namespace perfetto {
 
@@ -28,6 +32,27 @@ using Inode = decltype(stat::st_ino);
 
 // On ARM, st_dev is not dev_t but unsigned long long.
 using BlockDeviceID = decltype(stat::st_dev);
+
+class InodeMapValue {
+ public:
+  InodeMapValue(protos::pbzero::InodeFileMap_Entry_Type entry_type,
+                std::set<std::string> paths)
+      : entry_type_(entry_type), paths_(std::move(paths)) {}
+
+  InodeMapValue() {}
+
+  protos::pbzero::InodeFileMap_Entry_Type type() const { return entry_type_; }
+  std::set<std::string> paths() const { return paths_; }
+  void SetType(protos::pbzero::InodeFileMap_Entry_Type entry_type) {
+    entry_type_ = entry_type;
+  }
+  void SetPaths(std::set<std::string> paths) { paths_ = paths; }
+  void AddPath(std::string path) { paths_.emplace(path); }
+
+ private:
+  protos::pbzero::InodeFileMap_Entry_Type entry_type_;
+  std::set<std::string> paths_;
+};
 
 }  // namespace perfetto
 
