@@ -85,8 +85,8 @@ enum TranslationStrategy {
   kBoolToUint32,
   kInode32ToUint64,
   kInode64ToUint64,
-  kCommonPid32ToInt32,
   kPid32ToInt32,
+  kCommonPid32ToInt32,
   kDevId32ToUint64,
   kDevId64ToUint64,
 };
