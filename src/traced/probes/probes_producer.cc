@@ -186,10 +186,10 @@ void ProbesProducer::CreateInodeFileDataSourceInstance(
   auto trace_writer = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
   if (system_inodes_.empty())
-    CreateDeviceToInodeMap("/system/", &system_inodes_);
+    CreateStaticDeviceToInodeMap("/system/", &system_inodes_);
   auto file_map_source =
       std::unique_ptr<InodeFileDataSource>(new InodeFileDataSource(
-          session_id, &system_inodes_, std::move(trace_writer)));
+          session_id, &system_inodes_, &cache_, std::move(trace_writer)));
   file_map_sources_.emplace(id, std::move(file_map_source));
   AddWatchdogsTimer(id, source_config);
 }
