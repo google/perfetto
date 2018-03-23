@@ -50,7 +50,7 @@ int main(int argc, const char** argv) {
   }
 
   std::set<std::string> new_events;
-  for (auto event : events) {
+  for (const auto& event : events) {
     std::string file_name =
         event.substr(event.find('/') + 1, std::string::npos);
     struct stat buf;
