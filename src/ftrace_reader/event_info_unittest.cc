@@ -83,6 +83,9 @@ TEST(EventInfoTest, SetTranslationStrategySanityCheck) {
   ASSERT_EQ(strategy, kDevId32ToUint64);
   ASSERT_TRUE(SetTranslationStrategy(kFtraceDevId64, kProtoUint64, &strategy));
   ASSERT_EQ(strategy, kDevId64ToUint64);
+  ASSERT_TRUE(
+      SetTranslationStrategy(kFtraceCommonPid32, kProtoInt32, &strategy));
+  ASSERT_EQ(strategy, kCommonPid32ToInt32);
 }
 
 }  // namespace

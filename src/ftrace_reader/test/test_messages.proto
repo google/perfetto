@@ -19,6 +19,7 @@ option optimize_for = LITE_RUNTIME;
 
 message FakeFtraceEvent {
   optional uint32 common_field = 1;
+  optional uint32 common_pid = 2;
   oneof event { FakeAllFieldsFtraceEvent all_fields = 42; }
 }
 
