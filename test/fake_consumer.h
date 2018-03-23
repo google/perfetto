@@ -43,7 +43,6 @@ class FakeConsumer : public Consumer {
   void Connect(const char* socket_name);
   void Disconnect();
   void ReadTraceData();
-  void BusyWaitReadBuffers();
 
   // Consumer implementation.
   void OnConnect() override;
