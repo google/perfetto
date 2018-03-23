@@ -33,6 +33,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/export.h"
+
 #include "perfetto/tracing/core/chrome_config.h"
 #include "perfetto/tracing/core/ftrace_config.h"
 #include "perfetto/tracing/core/test_config.h"
@@ -49,7 +51,7 @@ class TestConfig;
 
 namespace perfetto {
 
-class DataSourceConfig {
+class PERFETTO_EXPORT DataSourceConfig {
  public:
   DataSourceConfig();
   ~DataSourceConfig();

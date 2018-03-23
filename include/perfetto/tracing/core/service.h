@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/export.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/shared_memory.h"
 
@@ -52,7 +53,7 @@ class TraceWriter;
 //
 // Subclassed by:
 //   The service business logic in src/core/service_impl.cc.
-class Service {
+class PERFETTO_EXPORT Service {
  public:
   // The API for the Producer port of the Service.
   // Subclassed by:
