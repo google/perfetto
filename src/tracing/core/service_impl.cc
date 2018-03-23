@@ -53,6 +53,9 @@ using protozero::proto_utils::WriteVarInt;
 namespace {
 constexpr size_t kDefaultShmSize = 256 * 1024ul;
 constexpr size_t kMaxShmSize = 4096 * 1024 * 512ul;
+// TODO(primiano): How come we can't set this higher?
+constexpr size_t kMaxShmPageSizeKb = 16ul;
+constexpr size_t kDefaultShmPageSizeKb = base::kPageSize / 1024ul;
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kClockSnapshotInterval(10 * 1000);
 
@@ -543,9 +546,10 @@ void ServiceImpl::CreateDataSourceInstance(
   if (!producer->shared_memory()) {
     // TODO(taylori): Handle multiple producers/producer configs.
     producer->shared_buffer_page_size_kb_ =
-        (tracing_session->GetDesiredPageSizeKb() == 0)
-            ? base::kPageSize / 1024  // default
-            : tracing_session->GetDesiredPageSizeKb();
+        std::min((tracing_session->GetDesiredPageSizeKb() == 0)
+                     ? kDefaultShmPageSizeKb
+                     : tracing_session->GetDesiredPageSizeKb(),
+                 kMaxShmPageSizeKb);
     size_t shm_size =
         std::min(tracing_session->GetDesiredShmSizeKb() * 1024, kMaxShmSize);
     if (shm_size % base::kPageSize || shm_size < base::kPageSize)
