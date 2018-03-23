@@ -22,35 +22,34 @@
 #include <string>
 #include <tuple>
 
+#include "perfetto/traced/data_source_types.h"
+
 namespace perfetto {
-namespace base {
 
 // LRUInodeCache keeps up to |capacity| entries in a mapping from InodeKey
-// to InodeValue. This is used to map <block device, inode> tuples to file
+// to InodeMapValue. This is used to map <block device, inode> tuples to file
 // paths.
 class LRUInodeCache {
  public:
-  using InodeKey = std::pair<int64_t, int64_t>;
-  using InodeValue = std::string;
+  using InodeKey = std::pair<BlockDeviceID, Inode>;
 
   explicit LRUInodeCache(size_t capacity) : capacity_(capacity) {}
 
-  const LRUInodeCache::InodeValue* Get(const InodeKey& k);
-  void Insert(InodeKey k, LRUInodeCache::InodeValue v);
+  InodeMapValue* Get(const InodeKey& k);
+  void Insert(InodeKey k, InodeMapValue v);
 
  private:
-  using ItemType = std::pair<const InodeKey, const InodeValue>;
+  using ItemType = std::pair<const InodeKey, InodeMapValue>;
   using ListIteratorType = std::list<ItemType>::iterator;
   using MapType = std::map<const InodeKey, ListIteratorType>;
 
-  void Insert(MapType::iterator map_it, InodeKey k, InodeValue v);
+  void Insert(MapType::iterator map_it, InodeKey k, InodeMapValue v);
 
   const size_t capacity_;
   MapType map_;
   std::list<ItemType> list_;
 };
 
-}  // namespace base
 }  // namespace perfetto
 
 #endif  // SRC_TRACED_PROBES_FILESYSTEM_LRU_INODE_CACHE_H_

@@ -33,6 +33,8 @@
 
 namespace perfetto {
 
+const uint64_t kLRUInodeCacheSize = 1000;
+
 class ProbesProducer : public Producer {
  public:
   ProbesProducer();
@@ -142,6 +144,7 @@ class ProbesProducer : public Producer {
   std::map<DataSourceInstanceID, base::Watchdog::Timer> watchdogs_;
   std::map<DataSourceInstanceID, std::unique_ptr<InodeFileDataSource>>
       file_map_sources_;
+  LRUInodeCache cache_{kLRUInodeCacheSize};
   std::map<BlockDeviceID, std::map<Inode, InodeMapValue>> system_inodes_;
 };
 
