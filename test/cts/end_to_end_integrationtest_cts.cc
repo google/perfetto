@@ -43,10 +43,12 @@ class PerfettoCtsTest : public ::testing::Test {
     // The parameters for the producer.
     static constexpr uint32_t kRandomSeed = 42;
     static constexpr uint32_t kEventCount = 10;
+    static constexpr uint32_t kMessageSizeBytes = 1024;
 
     // Setup the test to use a random number generator.
     ds_config->mutable_for_testing()->set_seed(kRandomSeed);
     ds_config->mutable_for_testing()->set_message_count(kEventCount);
+    ds_config->mutable_for_testing()->set_message_size(kMessageSizeBytes);
 
     // Create the random generator with the same seed.
     std::minstd_rand0 rnd_engine(kRandomSeed);
