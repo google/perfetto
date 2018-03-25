@@ -29,7 +29,6 @@ group("all") {
     "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
     "tools/proto_to_cpp",
-    "tools/trace_to_text",
   ]
   if (is_linux || is_android) {
     deps += [ "tools/ftrace_proto_gen:ftrace_proto_gen" ]
@@ -39,6 +38,7 @@ group("all") {
       "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
       "test/configs",
       "tools:protoc_helper",
+      "tools/trace_to_text",
     ]
     if (is_linux || is_android) {
       deps += [
@@ -47,6 +47,7 @@ group("all") {
         ":perfetto_integrationtests",
         ":traced",
         ":traced_probes",
+        "tools/skippy",
       ]
     }
   }
@@ -59,6 +60,7 @@ executable("perfetto_unittests") {
     "gn:gtest_main",
     "src/base:unittests",
     "src/ipc:unittests",
+    "src/perfetto_cmd:unittests",
     "src/protozero:unittests",
     "src/traced/probes/filesystem:unittests",
     "src/tracing:unittests",
@@ -83,6 +85,7 @@ if (!build_with_chromium && (is_linux || is_android)) {
       "src/ftrace_reader:ftrace_reader_benchmarks",
       "src/tracing:tracing_benchmarks",
       "test:benchmark_main",
+      "test:end_to_end_benchmarks",
     ]
   }
 
@@ -159,6 +162,15 @@ if (!build_with_chromium && (is_linux || is_android)) {
         "utils",
       ]
     }
+  }
+
+  # This target exports perfetto trace protos in the Android build system,
+  # allowing both host and device targets to implement custom parsers based on
+  # our protos.
+  static_library("perfetto_trace_protos") {
+    deps = [
+      "protos/perfetto/trace:lite",
+    ]
   }
 } else {
   group("lib") {

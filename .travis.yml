@@ -135,12 +135,12 @@ script:
     TEST_TARGETS="
     perfetto_integrationtests
     perfetto_unittests
-    perfetto_benchmarks
     "
     if [[ "$CFG" != android-* ]]; then
       for TEST_TARGET in $TEST_TARGETS; do
         "out/dist/$TEST_TARGET"
       done
+      bash -c "out/dist/perfetto_benchmarks --benchmark_filter=\"(\$(out/dist/perfetto_benchmarks  --benchmark_list_tests | sed \"/BM_EndToEnd\/.....*\//d\" | xargs | tr \" \" \"|\"))\""
       if [[ "$CFG" == *-libfuzzer ]]; then
         # Run a single iteration each to make sure they are not crashing.
         out/dist/end_to_end_shared_memory_fuzzer -runs=1
@@ -152,6 +152,7 @@ script:
       for TEST_TARGET in $TEST_TARGETS; do
         tools/run_android_test out/dist "$TEST_TARGET"
       done
+      tools/run_android_test out/dist "perfetto_benchmarks" "--benchmark_filter=\"(\$(perfetto_benchmarks  --benchmark_list_tests | sed \"/BM_EndToEnd\/.....*\//d\" | xargs | tr \" \" \"|\"))\""
     fi
 
 after_script:

@@ -19,6 +19,7 @@ source_set("base") {
     "logging.h",
     "page_allocator.h",
     "scoped_file.h",
+    "small_set.h",
     "string_splitter.h",
     "task_runner.h",
     "thread_checker.h",

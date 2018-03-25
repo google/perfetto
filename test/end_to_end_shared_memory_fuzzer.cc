@@ -34,6 +34,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "test/fake_consumer.h"
 #include "test/task_runner_thread.h"
+#include "test/task_runner_thread_delegates.h"
 
 namespace perfetto {
 namespace shm_fuzz {
@@ -88,6 +89,8 @@ class FakeProducer : public Producer {
   }
 
   void TearDownDataSourceInstance(DataSourceInstanceID) override {}
+  void OnTracingStart() override {}
+  void OnTracingStop() override {}
 
  private:
   const std::string name_;
@@ -117,28 +120,12 @@ class FakeProducerDelegate : public ThreadDelegate {
   FakeConsumer* consumer_;
 };
 
-class ServiceDelegate : public ThreadDelegate {
- public:
-  ServiceDelegate() = default;
-  ~ServiceDelegate() override = default;
-  void Initialize(base::TaskRunner* task_runner) override {
-    svc_ = ServiceIPCHost::CreateInstance(task_runner);
-    unlink(kProducerSocket);
-    unlink(kConsumerSocket);
-    svc_->Start(kProducerSocket, kConsumerSocket);
-  }
-
- private:
-  std::unique_ptr<ServiceIPCHost> svc_;
-  base::ScopedFile producer_fd_;
-  base::ScopedFile consumer_fd_;
-};
-
 int FuzzSharedMemory(const uint8_t* data, size_t size);
 
 int FuzzSharedMemory(const uint8_t* data, size_t size) {
-  TaskRunnerThread service_thread;
-  service_thread.Start(std::unique_ptr<ServiceDelegate>(new ServiceDelegate()));
+  TaskRunnerThread service_thread("perfetto.svc");
+  service_thread.Start(std::unique_ptr<ServiceDelegate>(
+      new ServiceDelegate(kProducerSocket, kConsumerSocket)));
 
   // Setup the TraceConfig for the consumer.
   TraceConfig trace_config;
@@ -160,10 +147,15 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
         finish();
     }
   };
-  FakeConsumer consumer(trace_config, std::move(function), &task_runner);
+  auto on_connect = task_runner.CreateCheckpoint("consumer.connected");
+  FakeConsumer consumer(trace_config, std::move(on_connect),
+                        std::move(function), &task_runner);
   consumer.Connect(kConsumerSocket);
+  task_runner.RunUntilCheckpoint("consumer.connected");
 
-  TaskRunnerThread producer_thread;
+  consumer.EnableTracing();
+
+  TaskRunnerThread producer_thread("perfetto.prd");
   producer_thread.Start(std::unique_ptr<FakeProducerDelegate>(
       new FakeProducerDelegate(data, size, &consumer)));
   task_runner.RunUntilCheckpoint("no.more.packets");

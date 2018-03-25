@@ -7,10 +7,10 @@ option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 message BlockBioRemapFtraceEvent {
-  optional uint32 dev = 1;
+  optional uint64 dev = 1;
   optional uint64 sector = 2;
   optional uint32 nr_sector = 3;
-  optional uint32 old_dev = 4;
+  optional uint64 old_dev = 4;
   optional uint64 old_sector = 5;
   optional string rwbs = 6;
 }

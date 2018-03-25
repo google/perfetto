@@ -14,43 +14,41 @@
  * limitations under the License.
  */
 
+#include "perfetto_cmd.h"
+
 #include <fcntl.h>
 #include <getopt.h>
+#include <stdio.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <sstream>
-#include <string>
 
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/unix_task_runner.h"
+#include "perfetto/base/time.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/traced/traced.h"
-#include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
-#include "perfetto/tracing/ipc/consumer_ipc_client.h"
 
 #include "perfetto/config/trace_config.pb.h"
 #include "perfetto/trace/trace.pb.h"
 
-#if defined(PERFETTO_OS_ANDROID)
-#include "perfetto/base/android_task_runner.h"
-#endif  // defined(PERFETTO_OS_ANDROID)
+#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include <android/os/DropBoxManager.h>
 #include <utils/Looper.h>
 #include <utils/StrongPointer.h>
-#endif  // defined(PERFETTO_BUILD_WITH_ANDROID)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 
 // TODO(primiano): add the ability to pass the file descriptor directly to the
 // traced service instead of receiving a copy of the slices and writing them
@@ -58,10 +56,7 @@
 namespace perfetto {
 namespace {
 
-// Temporary directory for DropBox traces. Note that this is automatically
-// created by the system by setting setprop persist.traced.enable=1.
-const char kTempDropBoxTraceDir[] = "/data/misc/perfetto-traces";
-const char kDefaultDropBoxTag[] = "perfetto";
+constexpr char kDefaultDropBoxTag[] = "perfetto";
 
 std::string GetDirName(const std::string& path) {
   size_t sep = path.find_last_of('/');
@@ -72,51 +67,22 @@ std::string GetDirName(const std::string& path) {
 
 }  // namespace
 
+// Temporary directory for DropBox traces. Note that this is automatically
+// created by the system by setting setprop persist.traced.enable=1.
+const char* kTempDropBoxTraceDir = "/data/misc/perfetto-traces";
+
 using protozero::proto_utils::WriteVarInt;
 using protozero::proto_utils::MakeTagLengthDelimited;
-
-#if defined(PERFETTO_OS_ANDROID)
-using PlatformTaskRunner = base::AndroidTaskRunner;
-#else
-using PlatformTaskRunner = base::UnixTaskRunner;
-#endif
-
-class PerfettoCmd : public Consumer {
- public:
-  int Main(int argc, char** argv);
-  int PrintUsage(const char* argv0);
-  void OnStopTraceTimer();
-  void OnTimeout();
-
-  // perfetto::Consumer implementation.
-  void OnConnect() override;
-  void OnDisconnect() override;
-  void OnTraceData(std::vector<TracePacket>, bool has_more) override;
-
- private:
-  bool OpenOutputFile();
-
-  PlatformTaskRunner task_runner_;
-  std::unique_ptr<perfetto::Service::ConsumerEndpoint> consumer_endpoint_;
-  std::unique_ptr<TraceConfig> trace_config_;
-  base::ScopedFstream trace_out_stream_;
-  std::string trace_out_path_;
-
-  // Only used if linkat(AT_FDCWD) isn't available.
-  std::string tmp_trace_out_path_;
-
-  std::string dropbox_tag_;
-  bool did_process_full_trace_ = false;
-};
 
 int PerfettoCmd::PrintUsage(const char* argv0) {
   PERFETTO_ELOG(R"(
 Usage: %s
-  --background  -b     : Exits immediately and continues tracing in background
-  --config      -c     : /path/to/trace/config/file or - for stdin
-  --out         -o     : /path/to/out/trace/file
-  --dropbox     -d TAG : Upload trace into DropBox using tag TAG (default: %s)
-  --help        -h
+  --background     -b     : Exits immediately and continues tracing in background
+  --config         -c     : /path/to/trace/config/file or - for stdin
+  --out            -o     : /path/to/out/trace/file
+  --dropbox        -d TAG : Upload trace into DropBox using tag TAG (default: %s)
+  --no-guardrails  -n     : Ignore guardrails triggered when using --dropbox (for testing).
+  --help           -h
 )",
                 argv0, kDefaultDropBoxTag);
   return 1;
@@ -130,14 +96,16 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"out", required_argument, 0, 'o'},
       {"background", no_argument, 0, 'b'},
       {"dropbox", optional_argument, 0, 'd'},
+      {"no-guardrails", optional_argument, 0, 'n'},
       {nullptr, 0, nullptr, 0}};
 
   int option_index = 0;
   std::string trace_config_raw;
   bool background = false;
+  bool ignore_guardrails = false;
   for (;;) {
     int option =
-        getopt_long(argc, argv, "c:o:bd::", long_options, &option_index);
+        getopt_long(argc, argv, "c:o:bd::n", long_options, &option_index);
 
     if (option == -1)
       break;  // EOF.
@@ -150,7 +118,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         // TODO(primiano): temporary for testing only.
         perfetto::protos::TraceConfig test_config;
         test_config.add_buffers()->set_size_kb(4096);
-        test_config.set_duration_ms(10000);
+        test_config.set_duration_ms(2000);
         auto* ds_config = test_config.add_data_sources()->mutable_config();
         ds_config->set_name("com.google.perfetto.ftrace");
         ds_config->mutable_ftrace_config()->add_ftrace_events("sched_switch");
@@ -173,7 +141,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     }
 
     if (option == 'd') {
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
       dropbox_tag_ = optarg ? optarg : kDefaultDropBoxTag;
       continue;
 #else
@@ -186,6 +154,12 @@ int PerfettoCmd::Main(int argc, char** argv) {
       background = true;
       continue;
     }
+
+    if (option == 'n') {
+      ignore_guardrails = true;
+      continue;
+    }
+
     return PrintUsage(argv[0]);
   }
 
@@ -224,11 +198,23 @@ int PerfettoCmd::Main(int argc, char** argv) {
     PERFETTO_DLOG("Continuing in background");
   }
 
+  RateLimiter limiter;
+  RateLimiter::Args args{};
+  args.is_dropbox = !dropbox_tag_.empty();
+  args.current_time = base::GetWallTimeS();
+  args.ignore_guardrails = ignore_guardrails;
+  if (!limiter.ShouldTrace(args))
+    return 1;
+
   consumer_endpoint_ = ConsumerIPCClient::Connect(PERFETTO_CONSUMER_SOCK_NAME,
                                                   this, &task_runner_);
   task_runner_.Run();
-  return did_process_full_trace_ ? 0 : 1;
-}  // namespace perfetto
+
+  return limiter.OnTraceDone(args, did_process_full_trace_,
+                             bytes_uploaded_to_dropbox_)
+             ? 0
+             : 1;
+}
 
 void PerfettoCmd::OnConnect() {
   PERFETTO_LOG(
@@ -284,8 +270,14 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   fflush(*trace_out_stream_);
   long bytes_written = ftell(*trace_out_stream_);
 
-  if (!dropbox_tag_.empty()) {
-#if defined(PERFETTO_BUILD_WITH_ANDROID)
+  if (dropbox_tag_.empty()) {
+    trace_out_stream_.reset();
+    PERFETTO_CHECK(
+        rename(tmp_trace_out_path_.c_str(), trace_out_path_.c_str()) == 0);
+    PERFETTO_ILOG("Wrote %ld bytes into %s", bytes_written,
+                  trace_out_path_.c_str());
+  } else {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     android::sp<android::os::DropBoxManager> dropbox =
         new android::os::DropBoxManager();
     fseek(*trace_out_stream_, 0, SEEK_SET);
@@ -304,15 +296,11 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
       PERFETTO_ELOG("DropBox upload failed: %s", status.toString8().c_str());
       return;
     }
+    // TODO(hjd): Account for compression.
+    bytes_uploaded_to_dropbox_ = bytes_written;
     PERFETTO_ILOG("Uploaded %ld bytes into DropBox with tag %s", bytes_written,
                   dropbox_tag_.c_str());
-#endif  // defined(PERFETTO_BUILD_WITH_ANDROID)
-  } else {
-    trace_out_stream_.reset();
-    PERFETTO_CHECK(
-        rename(tmp_trace_out_path_.c_str(), trace_out_path_.c_str()) == 0);
-    PERFETTO_ILOG("Wrote %ld bytes into %s", bytes_written,
-                  trace_out_path_.c_str());
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   }
   did_process_full_trace_ = true;
 }
@@ -320,6 +308,7 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
 bool PerfettoCmd::OpenOutputFile() {
   base::ScopedFile fd;
   if (!dropbox_tag_.empty()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     // If we are tracing to DropBox, there's no need to make a
     // filesystem-visible temporary file.
     // TODO(skyostil): Fall back to base::TempFile for older devices.
@@ -329,6 +318,9 @@ bool PerfettoCmd::OpenOutputFile() {
                     kTempDropBoxTraceDir);
       return false;
     }
+#else
+    PERFETTO_CHECK(false);
+#endif
   } else {
     // Otherwise create a temporary file in the directory where the final trace
     // is going to be.

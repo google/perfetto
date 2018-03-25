@@ -66,6 +66,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) override;
   SharedMemory* shared_memory() const override;
+  size_t shared_buffer_page_size_kb() const override;
 
   // ipc::ServiceProxy::EventListener implementation.
   // These methods are invoked by the IPC layer, which knows nothing about
@@ -94,6 +95,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
 
   std::unique_ptr<PosixSharedMemory> shared_memory_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
+  size_t shared_buffer_page_size_kb_ = 0;
   bool connected_ = false;
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

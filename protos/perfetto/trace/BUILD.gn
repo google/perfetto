@@ -17,6 +17,7 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
 proto_sources = [
+  "clock_snapshot.proto",
   "test_event.proto",
   "trace_packet.proto",
   "trace.proto",
@@ -41,7 +42,6 @@ protozero_library("zero") {
 proto_library("lite") {
   generate_python = false
   deps = [
-    "../ipc",
     "chrome:lite",
     "filesystem:lite",
     "ftrace:lite",

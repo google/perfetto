@@ -16,13 +16,14 @@
 
 #include "test/fake_producer.h"
 
-#include <random>
+#include <condition_variable>
+#include <mutex>
 
+#include "gtest/gtest.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/trace/test_event.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/traced/traced.h"
-#include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/trace_writer.h"
 
@@ -31,47 +32,63 @@ namespace perfetto {
 FakeProducer::FakeProducer(const std::string& name) : name_(name) {}
 FakeProducer::~FakeProducer() = default;
 
-void FakeProducer::Connect(const char* socket_name,
-                           base::TaskRunner* task_runner,
-                           std::function<void()> data_produced_callback) {
+void FakeProducer::Connect(
+    const char* socket_name,
+    base::TaskRunner* task_runner,
+    std::function<void()> on_create_data_source_instance) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   task_runner_ = task_runner;
-  data_produced_callback_ = std::move(data_produced_callback);
   endpoint_ = ProducerIPCClient::Connect(socket_name, this, task_runner);
+  on_create_data_source_instance_ = std::move(on_create_data_source_instance);
 }
 
 void FakeProducer::OnConnect() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   DataSourceDescriptor descriptor;
   descriptor.set_name(name_);
   endpoint_->RegisterDataSource(descriptor,
                                 [this](DataSourceID id) { id_ = id; });
 }
 
-void FakeProducer::OnDisconnect() {}
+void FakeProducer::OnDisconnect() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  FAIL() << "Producer unexpectedly disconnected from the service";
+}
 
 void FakeProducer::CreateDataSourceInstance(
     DataSourceInstanceID,
     const DataSourceConfig& source_config) {
-  auto trace_writer = endpoint_->CreateTraceWriter(
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  trace_writer_ = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
-
-  const TestConfig& config = source_config.for_testing();
-  std::minstd_rand0 random(config.seed());
-  for (size_t i = 0; i < config.message_count(); i++) {
-    auto handle = trace_writer->NewTracePacket();
-    handle->set_for_testing()->set_seq_value(random());
-    handle->Finalize();
-  }
-
-  // TODO(primiano): reenable this once UnregisterDataSource is specified in
-  // ServiceImpl.
-  // endpoint_->UnregisterDataSource(id_);
-
-  // TODO(skyostil): There's a race here before the service processes our data
-  // and the consumer tries to retrieve it. For now wait a bit until the service
-  // is done, but we should add explicit flushing to avoid this.
-  task_runner_->PostDelayedTask(data_produced_callback_, 1000);
+  rnd_engine_ = std::minstd_rand0(source_config.for_testing().seed());
+  message_count_ = source_config.for_testing().message_count();
+  task_runner_->PostTask(on_create_data_source_instance_);
 }
 
-void FakeProducer::TearDownDataSourceInstance(DataSourceInstanceID) {}
+void FakeProducer::TearDownDataSourceInstance(DataSourceInstanceID) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  trace_writer_.reset();
+}
+
+// Note: this will called on a different thread.
+void FakeProducer::ProduceEventBatch(std::function<void()> callback) {
+  task_runner_->PostTask([this, callback] {
+    PERFETTO_CHECK(trace_writer_);
+    char payload[1024];
+    memset(payload, '.', sizeof(payload));
+    payload[sizeof(payload) - 1] = 0;
+    for (size_t i = 0; i < message_count_; i++) {
+      auto handle = trace_writer_->NewTracePacket();
+      handle->set_for_testing()->set_seq_value(rnd_engine_());
+      handle->set_for_testing()->set_str(payload, sizeof(payload));
+    }
+    trace_writer_->Flush(callback);
+  });
+}
+
+void FakeProducer::OnTracingStart() {}
+
+void FakeProducer::OnTracingStop() {}
 
 }  // namespace perfetto

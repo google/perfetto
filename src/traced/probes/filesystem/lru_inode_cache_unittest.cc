@@ -34,9 +34,9 @@ const std::pair<int64_t, int64_t> key1{0, 0};
 const std::pair<int64_t, int64_t> key2{0, 1};
 const std::pair<int64_t, int64_t> key3{0, 2};
 
-const char val1[] = "foo";
-const char val2[] = "bar";
-const char val3[] = "baz";
+constexpr char val1[] = "foo";
+constexpr char val2[] = "bar";
+constexpr char val3[] = "baz";
 
 TEST(LRUInodeCacheTest, Basic) {
   LRUInodeCache cache(2);

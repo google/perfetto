@@ -75,6 +75,13 @@ class Producer {
 
   // Called by the Service to shut down an existing data source instance.
   virtual void TearDownDataSourceInstance(DataSourceInstanceID) = 0;
+
+  // Called by the Service after OnConnect but before the first DataSource is
+  // created. Can be used for any setup required before tracing begins.
+  virtual void OnTracingStart() = 0;
+
+  // Called by the Service after the final DataSource is torn down.
+  virtual void OnTracingStop() = 0;
 };
 
 }  // namespace perfetto

@@ -47,8 +47,8 @@ namespace perfetto {
 
 namespace {
 
-const char kFooEnablePath[] = "/root/events/group/foo/enable";
-const char kBarEnablePath[] = "/root/events/group/bar/enable";
+constexpr char kFooEnablePath[] = "/root/events/group/foo/enable";
+constexpr char kBarEnablePath[] = "/root/events/group/bar/enable";
 
 class MockTaskRunner : public base::TaskRunner {
  public:
@@ -603,12 +603,12 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
 
 TEST(FtraceMetadataTest, Clear) {
   FtraceMetadata metadata;
-  metadata.inodes.push_back(std::make_pair(1, 1));
+  metadata.inode_and_device.push_back(std::make_pair(1, 1));
   metadata.pids.push_back(2);
   metadata.overwrite_count = 3;
   metadata.last_seen_device_id = 100;
   metadata.Clear();
-  EXPECT_THAT(metadata.inodes, IsEmpty());
+  EXPECT_THAT(metadata.inode_and_device, IsEmpty());
   EXPECT_THAT(metadata.pids, IsEmpty());
   EXPECT_EQ(metadata.overwrite_count, 0u);
   EXPECT_EQ(metadata.last_seen_device_id, 0u);
@@ -624,13 +624,19 @@ TEST(FtraceMetadataTest, AddDevice) {
 
 TEST(FtraceMetadataTest, AddInode) {
   FtraceMetadata metadata;
-  metadata.AddDevice(3);
-  metadata.AddInode(2);
+  metadata.AddCommonPid(getpid() + 1);
+  metadata.AddDevice(2);
   metadata.AddInode(1);
-  // Check same inode number is added
+  metadata.AddCommonPid(getpid() + 1);
+  metadata.AddDevice(4);
+  metadata.AddInode(3);
+
+  // Check activity from ourselves is excluded.
+  metadata.AddCommonPid(getpid());
   metadata.AddDevice(5);
-  metadata.AddInode(2);
-  EXPECT_THAT(metadata.inodes, ElementsAre(Pair(2, 3), Pair(1, 3), Pair(2, 5)));
+  metadata.AddInode(5);
+
+  EXPECT_THAT(metadata.inode_and_device, ElementsAre(Pair(1, 2), Pair(3, 4)));
 }
 
 TEST(FtraceMetadataTest, AddPid) {

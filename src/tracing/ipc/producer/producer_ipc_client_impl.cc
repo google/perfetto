@@ -26,6 +26,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/shared_memory_arbiter.h"
+#include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
 
@@ -97,16 +98,6 @@ void ProducerIPCClientImpl::OnConnectionInitialized(bool connection_succeeded) {
   // and there we'll notify the |producer_|. TODO: add a test for this.
   if (!connection_succeeded)
     return;
-
-  base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
-  PERFETTO_CHECK(shmem_fd);
-
-  // TODO(primiano): handle mmap failure in case of OOM.
-  shared_memory_ = PosixSharedMemory::AttachToFd(std::move(shmem_fd));
-
-  shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
-      shared_memory_.get(), kBufferPageSize, this, task_runner_);
-
   producer_->OnConnect();
 }
 
@@ -126,6 +117,26 @@ void ProducerIPCClientImpl::OnServiceRequest(
   if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kStopDataSource) {
     const DataSourceInstanceID dsid = cmd.stop_data_source().instance_id();
     producer_->TearDownDataSourceInstance(dsid);
+    return;
+  }
+
+  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kOnTracingStart) {
+    base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
+    PERFETTO_CHECK(shmem_fd);
+
+    // TODO(primiano): handle mmap failure in case of OOM.
+    shared_memory_ = PosixSharedMemory::AttachToFd(std::move(shmem_fd));
+    shared_buffer_page_size_kb_ =
+        cmd.on_tracing_start().shared_buffer_page_size_kb();
+    shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
+        shared_memory_.get(), shared_buffer_page_size_kb_ * 1024, this,
+        task_runner_);
+    producer_->OnTracingStart();
+    return;
+  }
+
+  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kOnTracingStop) {
+    // TODO (taylori) Tear down the shm.
     return;
   }
 
@@ -212,6 +223,10 @@ std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
 
 SharedMemory* ProducerIPCClientImpl::shared_memory() const {
   return shared_memory_.get();
+}
+
+size_t ProducerIPCClientImpl::shared_buffer_page_size_kb() const {
+  return shared_buffer_page_size_kb_;
 }
 
 }  // namespace perfetto

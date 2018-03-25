@@ -76,10 +76,10 @@ void SetBlocking(int fd, bool is_blocking) {
 // linux/include/linux/ring_buffer.h
 // Some information about the values of these constants are exposed to user
 // space at: /sys/kernel/debug/tracing/events/header_event
-const uint32_t kTypeDataTypeLengthMax = 28;
-const uint32_t kTypePadding = 29;
-const uint32_t kTypeTimeExtend = 30;
-const uint32_t kTypeTimeStamp = 31;
+constexpr uint32_t kTypeDataTypeLengthMax = 28;
+constexpr uint32_t kTypePadding = 29;
+constexpr uint32_t kTypeTimeExtend = 30;
+constexpr uint32_t kTypeTimeStamp = 31;
 
 struct PageHeader {
   uint64_t timestamp;
@@ -488,8 +488,14 @@ bool CpuReader::ParseField(const Field& field,
     case kPid32ToInt32:
       ReadPid(field_start, field_id, message, metadata);
       return true;
-    case kDevId32ToUint32:
-      ReadDevId(field_start, field_id, message, metadata);
+    case kCommonPid32ToInt32:
+      ReadCommonPid(field_start, field_id, message, metadata);
+      return true;
+    case kDevId32ToUint64:
+      ReadDevId<uint32_t>(field_start, field_id, message, metadata);
+      return true;
+    case kDevId64ToUint64:
+      ReadDevId<uint64_t>(field_start, field_id, message, metadata);
       return true;
   }
   // Not reached, for gcc.
