@@ -14,6 +14,7 @@
 
 import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
+import("../../../src/protozero/protozero_library.gni")
 
 proto_library("config") {
   generate_python = false
@@ -27,6 +28,20 @@ proto_library("config") {
     "test_config.proto",
     "trace_config.proto",
   ]
+}
+
+protozero_library("config_zero") {
+  proto_in_dir = "$perfetto_root_path/protos"
+  proto_out_dir = "$perfetto_root_path/protos"
+  sources = [
+    "chrome/chrome_config.proto",
+    "data_source_config.proto",
+    "data_source_descriptor.proto",
+    "ftrace/ftrace_config.proto",
+    "test_config.proto",
+    "trace_config.proto",
+  ]
+  generator_plugin_options = "wrapper_namespace=pbzero"
 }
 
 # This target is not used in the tree and is built only to guarantee that the
