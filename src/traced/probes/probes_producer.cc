@@ -213,7 +213,7 @@ void ProbesProducer::CreateProcessStatsDataSourceInstance(
 void ProbesProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
   PERFETTO_LOG("Producer stop (id=%" PRIu64 ")", id);
   // |id| could be the id of any of the datasources we handle:
-  PERFETTO_DCHECK((failed_sources_.count(id) +
+  PERFETTO_DCHECK((failed_sources_.count(id) + delegates_.count(id) +
                    process_stats_sources_.count(id) +
                    file_map_sources_.count(id)) == 1);
   failed_sources_.erase(id);
