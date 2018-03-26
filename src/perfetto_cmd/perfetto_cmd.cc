@@ -83,12 +83,22 @@ Usage: %s
   --dropbox        -d TAG : Upload trace into DropBox using tag TAG (default: %s)
   --no-guardrails  -n     : Ignore guardrails triggered when using --dropbox (for testing).
   --help           -h
+
+statsd-specific flags:
+  --alert-id           : ID of the alert that triggered this trace.
+  --config-id          : ID of the triggering config.
+  --config-uid         : UID of app which registered the config.
 )",
                 argv0, kDefaultDropBoxTag);
   return 1;
 }
 
 int PerfettoCmd::Main(int argc, char** argv) {
+  enum LongOption {
+    OPT_ALERT_ID = 1000,
+    OPT_CONFIG_ID,
+    OPT_CONFIG_UID,
+  };
   static const struct option long_options[] = {
       // |option_index| relies on the order of options, don't reshuffle them.
       {"help", required_argument, 0, 'h'},
@@ -97,12 +107,16 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"background", no_argument, 0, 'b'},
       {"dropbox", optional_argument, 0, 'd'},
       {"no-guardrails", optional_argument, 0, 'n'},
+      {"alert-id", required_argument, 0, OPT_ALERT_ID},
+      {"config-id", required_argument, 0, OPT_CONFIG_ID},
+      {"config-uid", required_argument, 0, OPT_CONFIG_UID},
       {nullptr, 0, nullptr, 0}};
 
   int option_index = 0;
   std::string trace_config_raw;
   bool background = false;
   bool ignore_guardrails = false;
+  perfetto::protos::TraceConfig::StatsdMetadata statsd_metadata;
   for (;;) {
     int option =
         getopt_long(argc, argv, "c:o:bd::n", long_options, &option_index);
@@ -160,6 +174,21 @@ int PerfettoCmd::Main(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_ALERT_ID) {
+      statsd_metadata.set_triggering_alert_id(atoll(optarg));
+      continue;
+    }
+
+    if (option == OPT_CONFIG_ID) {
+      statsd_metadata.set_triggering_config_id(atoll(optarg));
+      continue;
+    }
+
+    if (option == OPT_CONFIG_UID) {
+      statsd_metadata.set_triggering_config_uid(atol(optarg));
+      continue;
+    }
+
     return PrintUsage(argv[0]);
   }
 
@@ -186,6 +215,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     PERFETTO_ELOG("Could not parse TraceConfig proto from stdin");
     return 1;
   }
+  *trace_config_proto.mutable_statsd_metadata() = std::move(statsd_metadata);
   trace_config_.reset(new TraceConfig());
   trace_config_->FromProto(trace_config_proto);
   trace_config_raw.clear();
