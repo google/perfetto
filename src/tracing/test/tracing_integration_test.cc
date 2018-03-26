@@ -31,6 +31,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/test/test_socket.h"
 
+#include "perfetto/config/trace_config.pb.h"
 #include "perfetto/trace/test_event.pbzero.h"
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -190,10 +191,12 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   consumer_endpoint->ReadBuffers();
   size_t num_pack_rx = 0;
   bool saw_clock_snapshot = false;
+  bool saw_trace_config = false;
   auto all_packets_rx = task_runner_->CreateCheckpoint("all_packets_rx");
   EXPECT_CALL(consumer, OnTracePackets(_, _))
       .WillRepeatedly(
-          Invoke([&num_pack_rx, all_packets_rx, &saw_clock_snapshot](
+          Invoke([&num_pack_rx, all_packets_rx, &trace_config,
+                  &saw_clock_snapshot, &saw_trace_config](
                      std::vector<TracePacket>* packets, bool has_more) {
             for (auto& packet : *packets) {
               ASSERT_TRUE(packet.Decode());
@@ -204,6 +207,23 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
               } else if (packet->has_clock_snapshot()) {
                 EXPECT_GE(packet->clock_snapshot().clocks_size(), 8);
                 saw_clock_snapshot = true;
+              } else if (packet->has_trace_config()) {
+                protos::TraceConfig config_proto;
+                trace_config.ToProto(&config_proto);
+                Slice expected_slice = Slice::Allocate(config_proto.ByteSize());
+                config_proto.SerializeWithCachedSizesToArray(
+                    expected_slice.own_data());
+                Slice actual_slice =
+                    Slice::Allocate(packet->trace_config().ByteSize());
+                packet->trace_config().SerializeWithCachedSizesToArray(
+                    actual_slice.own_data());
+                EXPECT_EQ(std::string(reinterpret_cast<const char*>(
+                                          expected_slice.own_data()),
+                                      expected_slice.size),
+                          std::string(reinterpret_cast<const char*>(
+                                          actual_slice.own_data()),
+                                      actual_slice.size));
+                saw_trace_config = true;
               }
             }
             if (!has_more)
@@ -212,6 +232,7 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   task_runner_->RunUntilCheckpoint("all_packets_rx");
   ASSERT_EQ(kNumPackets, num_pack_rx);
   EXPECT_TRUE(saw_clock_snapshot);
+  EXPECT_TRUE(saw_trace_config);
 
   // TODO(primiano): cover FreeBuffers.
 

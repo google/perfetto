@@ -61,8 +61,9 @@ class PerfettoCtsTest : public ::testing::Test {
                         std::vector<TracePacket> packets, bool has_more) {
       for (auto& packet : packets) {
         ASSERT_TRUE(packet.Decode());
-        ASSERT_TRUE(packet->has_for_testing() || packet->has_clock_snapshot());
-        if (packet->has_clock_snapshot()) {
+        ASSERT_TRUE(packet->has_for_testing() || packet->has_clock_snapshot() ||
+                    packet->has_trace_config());
+        if (packet->has_clock_snapshot() || packet->has_trace_config()) {
           continue;
         }
         ASSERT_EQ(protos::TracePacket::kTrustedUid,
@@ -72,8 +73,8 @@ class PerfettoCtsTest : public ::testing::Test {
       total += packets.size();
 
       if (!has_more) {
-        // One extra packet for the clock snapshot.
-        ASSERT_EQ(total, kEventCount + 1);
+        // Extra packets for the clock snapshot and trace config.
+        ASSERT_EQ(total, kEventCount + 2);
         on_readback_complete();
       }
     };

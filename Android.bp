@@ -20,6 +20,7 @@ cc_library_shared {
   srcs: [
     ":perfetto_protos_perfetto_common_common_gen",
     ":perfetto_protos_perfetto_config_config_gen",
+    ":perfetto_protos_perfetto_config_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
     ":perfetto_protos_perfetto_trace_chrome_lite_gen",
     ":perfetto_protos_perfetto_trace_chrome_zero_gen",
@@ -98,6 +99,7 @@ cc_library_shared {
   generated_headers: [
     "perfetto_protos_perfetto_common_common_gen_headers",
     "perfetto_protos_perfetto_config_config_gen_headers",
+    "perfetto_protos_perfetto_config_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_zero_gen_headers",
@@ -126,6 +128,7 @@ cc_binary {
   srcs: [
     ":perfetto_protos_perfetto_common_common_gen",
     ":perfetto_protos_perfetto_config_config_gen",
+    ":perfetto_protos_perfetto_config_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
     ":perfetto_protos_perfetto_trace_chrome_lite_gen",
     ":perfetto_protos_perfetto_trace_chrome_zero_gen",
@@ -193,6 +196,7 @@ cc_binary {
   generated_headers: [
     "perfetto_protos_perfetto_common_common_gen_headers",
     "perfetto_protos_perfetto_config_config_gen_headers",
+    "perfetto_protos_perfetto_config_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_zero_gen_headers",
@@ -243,6 +247,7 @@ cc_test {
   srcs: [
     ":perfetto_protos_perfetto_common_common_gen",
     ":perfetto_protos_perfetto_config_config_gen",
+    ":perfetto_protos_perfetto_config_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
     ":perfetto_protos_perfetto_trace_chrome_lite_gen",
     ":perfetto_protos_perfetto_trace_chrome_zero_gen",
@@ -333,6 +338,7 @@ cc_test {
   generated_headers: [
     "perfetto_protos_perfetto_common_common_gen_headers",
     "perfetto_protos_perfetto_config_config_gen_headers",
+    "perfetto_protos_perfetto_config_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_zero_gen_headers",
@@ -441,6 +447,61 @@ genrule {
     "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pb.h",
     "external/perfetto/protos/perfetto/config/test_config.pb.h",
     "external/perfetto/protos/perfetto/config/trace_config.pb.h",
+  ],
+  export_include_dirs: [
+    "protos",
+  ],
+}
+
+// GN target: //protos/perfetto/config:config_zero_gen
+genrule {
+  name: "perfetto_protos_perfetto_config_config_zero_gen",
+  srcs: [
+    "protos/perfetto/config/chrome/chrome_config.proto",
+    "protos/perfetto/config/data_source_config.proto",
+    "protos/perfetto/config/data_source_descriptor.proto",
+    "protos/perfetto/config/ftrace/ftrace_config.proto",
+    "protos/perfetto/config/test_config.proto",
+    "protos/perfetto/config/trace_config.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/protos $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.cc",
+    "external/perfetto/protos/perfetto/config/data_source_config.pbzero.cc",
+    "external/perfetto/protos/perfetto/config/data_source_descriptor.pbzero.cc",
+    "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pbzero.cc",
+    "external/perfetto/protos/perfetto/config/test_config.pbzero.cc",
+    "external/perfetto/protos/perfetto/config/trace_config.pbzero.cc",
+  ],
+}
+
+// GN target: //protos/perfetto/config:config_zero_gen
+genrule {
+  name: "perfetto_protos_perfetto_config_config_zero_gen_headers",
+  srcs: [
+    "protos/perfetto/config/chrome/chrome_config.proto",
+    "protos/perfetto/config/data_source_config.proto",
+    "protos/perfetto/config/data_source_descriptor.proto",
+    "protos/perfetto/config/ftrace/ftrace_config.proto",
+    "protos/perfetto/config/test_config.proto",
+    "protos/perfetto/config/trace_config.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/protos $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.h",
+    "external/perfetto/protos/perfetto/config/data_source_config.pbzero.h",
+    "external/perfetto/protos/perfetto/config/data_source_descriptor.pbzero.h",
+    "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pbzero.h",
+    "external/perfetto/protos/perfetto/config/test_config.pbzero.h",
+    "external/perfetto/protos/perfetto/config/trace_config.pbzero.h",
   ],
   export_include_dirs: [
     "protos",
@@ -3029,6 +3090,7 @@ cc_library_static {
   srcs: [
     ":perfetto_protos_perfetto_common_common_gen",
     ":perfetto_protos_perfetto_config_config_gen",
+    ":perfetto_protos_perfetto_config_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
     ":perfetto_protos_perfetto_trace_chrome_lite_gen",
     ":perfetto_protos_perfetto_trace_chrome_zero_gen",
@@ -3094,6 +3156,7 @@ cc_library_static {
   generated_headers: [
     "perfetto_protos_perfetto_common_common_gen_headers",
     "perfetto_protos_perfetto_config_config_gen_headers",
+    "perfetto_protos_perfetto_config_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_zero_gen_headers",
@@ -3110,6 +3173,7 @@ cc_library_static {
   export_generated_headers: [
     "perfetto_protos_perfetto_common_common_gen_headers",
     "perfetto_protos_perfetto_config_config_gen_headers",
+    "perfetto_protos_perfetto_config_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_zero_gen_headers",
@@ -3136,6 +3200,7 @@ cc_library_static {
 cc_library_static {
   name: "perfetto_trace_protos",
   srcs: [
+    ":perfetto_protos_perfetto_config_config_gen",
     ":perfetto_protos_perfetto_trace_chrome_lite_gen",
     ":perfetto_protos_perfetto_trace_filesystem_lite_gen",
     ":perfetto_protos_perfetto_trace_ftrace_lite_gen",
@@ -3151,6 +3216,7 @@ cc_library_static {
     "include",
   ],
   generated_headers: [
+    "perfetto_protos_perfetto_config_config_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
     "perfetto_protos_perfetto_trace_filesystem_lite_gen_headers",
     "perfetto_protos_perfetto_trace_ftrace_lite_gen_headers",
@@ -3158,6 +3224,7 @@ cc_library_static {
     "perfetto_protos_perfetto_trace_ps_lite_gen_headers",
   ],
   export_generated_headers: [
+    "perfetto_protos_perfetto_config_config_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
     "perfetto_protos_perfetto_trace_filesystem_lite_gen_headers",
     "perfetto_protos_perfetto_trace_ftrace_lite_gen_headers",
@@ -3179,6 +3246,7 @@ cc_test {
   srcs: [
     ":perfetto_protos_perfetto_common_common_gen",
     ":perfetto_protos_perfetto_config_config_gen",
+    ":perfetto_protos_perfetto_config_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
     ":perfetto_protos_perfetto_trace_chrome_lite_gen",
     ":perfetto_protos_perfetto_trace_chrome_zero_gen",
@@ -3327,6 +3395,7 @@ cc_test {
   generated_headers: [
     "perfetto_protos_perfetto_common_common_gen_headers",
     "perfetto_protos_perfetto_config_config_gen_headers",
+    "perfetto_protos_perfetto_config_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_zero_gen_headers",
