@@ -67,6 +67,13 @@ class ProtoTranslationTable {
     return name_to_event_.at(name);
   }
 
+  const std::vector<const Event*>* GetEventsByGroup(
+      const std::string& group) const {
+    if (!group_to_events_.count(group))
+      return nullptr;
+    return &group_to_events_.at(group);
+  }
+
   const Event* GetEventById(size_t id) const {
     if (id == 0 || id > largest_id_)
       return nullptr;
@@ -90,6 +97,7 @@ class ProtoTranslationTable {
   const std::vector<Event> events_;
   size_t largest_id_;
   std::map<std::string, const Event*> name_to_event_;
+  std::map<std::string, std::vector<const Event*>> group_to_events_;
   std::vector<Field> common_fields_;
 };
 
