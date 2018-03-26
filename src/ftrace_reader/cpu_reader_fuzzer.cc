@@ -19,6 +19,7 @@
 
 #include <algorithm>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -43,6 +44,11 @@ void FuzzCpuReaderParsePage(const uint8_t* data, size_t size) {
   FtraceEventBundle writer;
 
   ProtoTranslationTable* table = GetTable("synthetic");
+  if (!table) {
+    PERFETTO_FATAL(
+        "Could not read table. "
+        "This fuzzer must be run in the root directory.");
+  }
   memset(g_page, 0, base::kPageSize);
   memcpy(g_page, data, std::min(base::kPageSize, size));
 
