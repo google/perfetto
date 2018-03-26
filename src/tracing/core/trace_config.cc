@@ -71,6 +71,8 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
     producers_.emplace_back();
     producers_.back().FromProto(field);
   }
+
+  statsd_metadata_.FromProto(proto.statsd_metadata());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -108,6 +110,8 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
     auto* entry = proto->add_producers();
     it.ToProto(entry);
   }
+
+  statsd_metadata_.ToProto(proto->mutable_statsd_metadata());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
@@ -241,6 +245,66 @@ void TraceConfig::ProducerConfig::ToProto(
                 "size mismatch");
   proto->set_page_size_kb(
       static_cast<decltype(proto->page_size_kb())>(page_size_kb_));
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+TraceConfig::StatsdMetadata::StatsdMetadata() = default;
+TraceConfig::StatsdMetadata::~StatsdMetadata() = default;
+TraceConfig::StatsdMetadata::StatsdMetadata(
+    const TraceConfig::StatsdMetadata&) = default;
+TraceConfig::StatsdMetadata& TraceConfig::StatsdMetadata::operator=(
+    const TraceConfig::StatsdMetadata&) = default;
+TraceConfig::StatsdMetadata::StatsdMetadata(
+    TraceConfig::StatsdMetadata&&) noexcept = default;
+TraceConfig::StatsdMetadata& TraceConfig::StatsdMetadata::operator=(
+    TraceConfig::StatsdMetadata&&) = default;
+
+void TraceConfig::StatsdMetadata::FromProto(
+    const perfetto::protos::TraceConfig_StatsdMetadata& proto) {
+  static_assert(
+      sizeof(triggering_alert_id_) == sizeof(proto.triggering_alert_id()),
+      "size mismatch");
+  triggering_alert_id_ =
+      static_cast<decltype(triggering_alert_id_)>(proto.triggering_alert_id());
+
+  static_assert(
+      sizeof(triggering_config_uid_) == sizeof(proto.triggering_config_uid()),
+      "size mismatch");
+  triggering_config_uid_ = static_cast<decltype(triggering_config_uid_)>(
+      proto.triggering_config_uid());
+
+  static_assert(
+      sizeof(triggering_config_id_) == sizeof(proto.triggering_config_id()),
+      "size mismatch");
+  triggering_config_id_ = static_cast<decltype(triggering_config_id_)>(
+      proto.triggering_config_id());
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void TraceConfig::StatsdMetadata::ToProto(
+    perfetto::protos::TraceConfig_StatsdMetadata* proto) const {
+  proto->Clear();
+
+  static_assert(
+      sizeof(triggering_alert_id_) == sizeof(proto->triggering_alert_id()),
+      "size mismatch");
+  proto->set_triggering_alert_id(
+      static_cast<decltype(proto->triggering_alert_id())>(
+          triggering_alert_id_));
+
+  static_assert(
+      sizeof(triggering_config_uid_) == sizeof(proto->triggering_config_uid()),
+      "size mismatch");
+  proto->set_triggering_config_uid(
+      static_cast<decltype(proto->triggering_config_uid())>(
+          triggering_config_uid_));
+
+  static_assert(
+      sizeof(triggering_config_id_) == sizeof(proto->triggering_config_id()),
+      "size mismatch");
+  proto->set_triggering_config_id(
+      static_cast<decltype(proto->triggering_config_id())>(
+          triggering_config_id_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

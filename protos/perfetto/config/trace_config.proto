@@ -28,6 +28,8 @@ package perfetto.protos;
 // ProducerPort::StartTracing().
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
+//
+// Next id: 8.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -121,4 +123,17 @@ message TraceConfig {
   }
 
   repeated ProducerConfig producers = 6;
+
+  // Contains statsd-specific metadata about an alert associated with the trace.
+  message StatsdMetadata {
+    // The identifier of the alert which triggered this trace.
+    optional int64 triggering_alert_id = 1;
+    // The uid which registered the triggering configuration with statsd.
+    optional int32 triggering_config_uid = 2;
+    // The identifier of the config which triggered the alert.
+    optional int64 triggering_config_id = 3;
+  }
+
+  // Statsd-specific metadata.
+  optional StatsdMetadata statsd_metadata = 7;
 }
