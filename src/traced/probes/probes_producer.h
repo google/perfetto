@@ -52,7 +52,7 @@ class ProbesProducer : public Producer {
   // Our Impl
   void ConnectWithRetries(const char* socket_name,
                           base::TaskRunner* task_runner);
-  void CreateFtraceDataSourceInstance(TracingSessionID session_id,
+  bool CreateFtraceDataSourceInstance(TracingSessionID session_id,
                                       DataSourceInstanceID id,
                                       const DataSourceConfig& config);
   void CreateProcessStatsDataSourceInstance(TracingSessionID session_id,
@@ -138,6 +138,7 @@ class ProbesProducer : public Producer {
   bool ftrace_creation_failed_ = false;
   uint64_t connection_backoff_ms_ = 0;
   const char* socket_name_ = nullptr;
+  std::set<DataSourceInstanceID> failed_sources_;
   std::map<DataSourceInstanceID, std::unique_ptr<ProcessStatsDataSource>>
       process_stats_sources_;
   std::map<DataSourceInstanceID, std::unique_ptr<SinkDelegate>> delegates_;

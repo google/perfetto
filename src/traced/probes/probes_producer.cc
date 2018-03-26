@@ -97,7 +97,8 @@ void ProbesProducer::CreateDataSourceInstance(DataSourceInstanceID instance_id,
   TracingSessionID session_id = config.target_buffer();
 
   if (config.name() == kFtraceSourceName) {
-    CreateFtraceDataSourceInstance(session_id, instance_id, config);
+    if (!CreateFtraceDataSourceInstance(session_id, instance_id, config))
+      failed_sources_.insert(instance_id);
   } else if (config.name() == kInodeMapSourceName) {
     CreateInodeFileDataSourceInstance(session_id, instance_id, config);
   } else if (config.name() == kProcessStatsSourceName) {
@@ -133,7 +134,7 @@ void ProbesProducer::AddWatchdogsTimer(DataSourceInstanceID id,
                                5000 + 2 * config.trace_duration_ms()));
 }
 
-void ProbesProducer::CreateFtraceDataSourceInstance(
+bool ProbesProducer::CreateFtraceDataSourceInstance(
     TracingSessionID session_id,
     DataSourceInstanceID id,
     const DataSourceConfig& config) {
@@ -141,7 +142,7 @@ void ProbesProducer::CreateFtraceDataSourceInstance(
   // This can legitimately happen on user builds where we cannot access the
   // debug paths, e.g., because of SELinux rules.
   if (ftrace_creation_failed_)
-    return;
+    return false;
 
   // Lazily create on the first instance.
   if (!ftrace_) {
@@ -150,7 +151,7 @@ void ProbesProducer::CreateFtraceDataSourceInstance(
     if (!ftrace_) {
       PERFETTO_ELOG("Failed to create FtraceController");
       ftrace_creation_failed_ = true;
-      return;
+      return false;
     }
 
     ftrace_->DisableAllEvents();
@@ -170,11 +171,12 @@ void ProbesProducer::CreateFtraceDataSourceInstance(
   auto sink = ftrace_->CreateSink(std::move(proto_config), delegate.get());
   if (!sink) {
     PERFETTO_ELOG("Failed to start tracing (maybe someone else is using it?)");
-    return;
+    return false;
   }
   delegate->set_sink(std::move(sink));
   delegates_.emplace(id, std::move(delegate));
   AddWatchdogsTimer(id, config);
+  return true;
 }
 
 void ProbesProducer::CreateInodeFileDataSourceInstance(
@@ -211,8 +213,10 @@ void ProbesProducer::CreateProcessStatsDataSourceInstance(
 void ProbesProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
   PERFETTO_LOG("Producer stop (id=%" PRIu64 ")", id);
   // |id| could be the id of any of the datasources we handle:
-  PERFETTO_DCHECK((delegates_.count(id) + process_stats_sources_.count(id) +
+  PERFETTO_DCHECK((failed_sources_.count(id) +
+                   process_stats_sources_.count(id) +
                    file_map_sources_.count(id)) == 1);
+  failed_sources_.erase(id);
   delegates_.erase(id);
   process_stats_sources_.erase(id);
   file_map_sources_.erase(id);
