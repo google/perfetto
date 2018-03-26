@@ -14,7 +14,7 @@
 
 source_set("traced") {
   deps = [
-    "../../../../protos/perfetto/trace/filesystem:zero",
+    "../../../protos/perfetto/trace/filesystem:zero",
   ]
   sources = [
     "data_source_types.h",
