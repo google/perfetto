@@ -42,12 +42,12 @@ class InodeMapValue {
   InodeMapValue() {}
 
   protos::pbzero::InodeFileMap_Entry_Type type() const { return entry_type_; }
-  std::set<std::string> paths() const { return paths_; }
+  const std::set<std::string>& paths() const { return paths_; }
   void SetType(protos::pbzero::InodeFileMap_Entry_Type entry_type) {
     entry_type_ = entry_type;
   }
-  void SetPaths(std::set<std::string> paths) { paths_ = paths; }
-  void AddPath(std::string path) { paths_.emplace(path); }
+  void SetPaths(std::set<std::string> paths) { paths_ = std::move(paths); }
+  void AddPath(std::string path) { paths_.emplace(std::move(path)); }
 
  private:
   protos::pbzero::InodeFileMap_Entry_Type entry_type_;
