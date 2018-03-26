@@ -101,8 +101,9 @@ TEST(PerfettoTest, MAYBE_TestFtraceProducer) {
                               std::vector<TracePacket> packets, bool has_more) {
     for (auto& packet : packets) {
       ASSERT_TRUE(packet.Decode());
-      ASSERT_TRUE(packet->has_ftrace_events() || packet->has_clock_snapshot());
-      if (packet->has_clock_snapshot())
+      ASSERT_TRUE(packet->has_ftrace_events() || packet->has_clock_snapshot() ||
+                  packet->has_trace_config());
+      if (packet->has_clock_snapshot() || packet->has_trace_config())
         continue;
       for (int ev = 0; ev < packet->ftrace_events().event_size(); ev++) {
         ASSERT_TRUE(packet->ftrace_events().event(ev).has_sched_switch());
@@ -182,7 +183,7 @@ TEST(PerfettoTest, TestFakeProducer) {
                               std::vector<TracePacket> packets, bool has_more) {
     for (auto& packet : packets) {
       ASSERT_TRUE(packet.Decode());
-      if (packet->has_clock_snapshot())
+      if (packet->has_clock_snapshot() || packet->has_trace_config())
         continue;
       ASSERT_TRUE(packet->has_for_testing());
       ASSERT_EQ(protos::TracePacket::kTrustedUid,
@@ -192,8 +193,9 @@ TEST(PerfettoTest, TestFakeProducer) {
     total += packets.size();
 
     if (!has_more) {
-      // One extra packet for the clock snapshot.
-      ASSERT_EQ(total, kEventCount + 1);
+      // One extra packet for the clock snapshot and another for the trace
+      // config.
+      ASSERT_EQ(total, kEventCount + 2);
       on_readback_complete();
     }
   };
