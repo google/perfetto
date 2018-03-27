@@ -23,6 +23,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
 
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/traced/data_source_types.h"
@@ -48,7 +49,8 @@ void ScanFilesDFS(
 // Creates block_device_map for /system partition
 void CreateStaticDeviceToInodeMap(
     const std::string& root_directory,
-    std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>* static_file_map);
+    std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
+        static_file_map);
 
 void FillInodeEntry(InodeFileMap* destination,
                     Inode inode_number,
@@ -58,7 +60,8 @@ class InodeFileDataSource {
  public:
   InodeFileDataSource(
       TracingSessionID,
-      std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>* static_file_map,
+      std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
+          static_file_map,
       LRUInodeCache* cache,
       std::unique_ptr<TraceWriter> writer);
 
@@ -89,7 +92,8 @@ class InodeFileDataSource {
 
  private:
   const TracingSessionID session_id_;
-  std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>* static_file_map_;
+  std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
+      static_file_map_;
   LRUInodeCache* cache_;
   std::multimap<BlockDeviceID, std::string> mount_points_;
   std::unique_ptr<TraceWriter> writer_;
