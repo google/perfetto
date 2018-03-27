@@ -40,6 +40,14 @@ class Consumer {
   // Service process crashes).
   virtual void OnDisconnect() = 0;
 
+  // Called by the Service after the tracing session has ended. This can happen
+  // for a variety of reasons:
+  // - The consumer explicitly called DisableTracing()
+  // - The TraceConfig's |duration_ms| has been reached.
+  // - The TraceConfig's |max_file_size_bytes| has been reached.
+  // - An error occurred while trying to enable tracing.
+  virtual void OnTracingStop() = 0;
+
   // Called back by the Service (or transport layer) after invoking
   // Service::ConsumerEndpoint::ReadBuffers(). This function can be called more
   // than once. Each invocation can carry one or more TracePacket(s).

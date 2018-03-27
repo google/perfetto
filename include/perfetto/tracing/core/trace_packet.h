@@ -20,6 +20,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <tuple>
 
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
@@ -71,14 +72,21 @@ class PERFETTO_EXPORT TracePacket {
   // Total size of all slices.
   size_t size() const { return size_; }
 
+  // Generates a protobuf preamble suitable to represent this packet as a
+  // repeated field within a root trace.proto message.
+  // Returns a pointer to a buffer, owned by this class, containing the preamble
+  // and its size.
+  std::tuple<char*, size_t> GetProtoPreamble();
+
  private:
   TracePacket(const TracePacket&) = delete;
   TracePacket& operator=(const TracePacket&) = delete;
 
   // TODO(primiano): who owns the memory of the slices? Figure out later.
 
-  Slices slices_;    // Not owned.
-  size_t size_ = 0;  // SUM(slice.size for slice in slices_).
+  Slices slices_;     // Not owned.
+  size_t size_ = 0;   // SUM(slice.size for slice in slices_).
+  char preamble_[8];  // Deliberately not initialized.
   std::unique_ptr<DecodedTracePacket> decoded_packet_;
 };
 
