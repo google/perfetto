@@ -206,6 +206,7 @@ TEST(EventFilterTest, EventFilter) {
   {
     Event event;
     event.name = "foo";
+    event.group = "foo_group";
     event.ftrace_event_id = 1;
     events.push_back(event);
   }
@@ -213,6 +214,7 @@ TEST(EventFilterTest, EventFilter) {
   {
     Event event;
     event.name = "bar";
+    event.group = "bar_group";
     event.ftrace_event_id = 10;
     events.push_back(event);
   }

@@ -26,6 +26,10 @@ using testing::ValuesIn;
 using testing::TestWithParam;
 using testing::Return;
 using testing::AnyNumber;
+using testing::IsNull;
+using testing::Contains;
+using testing::Eq;
+using testing::Pointee;
 
 namespace perfetto {
 namespace {
@@ -299,6 +303,7 @@ TEST(TranslationTableTest, Getters) {
   {
     Event event;
     event.name = "foo";
+    event.group = "group_one";
     event.ftrace_event_id = 1;
     events.push_back(event);
   }
@@ -306,6 +311,7 @@ TEST(TranslationTableTest, Getters) {
   {
     Event event;
     event.name = "bar";
+    event.group = "group_one";
     event.ftrace_event_id = 2;
     events.push_back(event);
   }
@@ -313,6 +319,7 @@ TEST(TranslationTableTest, Getters) {
   {
     Event event;
     event.name = "baz";
+    event.group = "group_two";
     event.ftrace_event_id = 100;
     events.push_back(event);
   }
@@ -326,6 +333,14 @@ TEST(TranslationTableTest, Getters) {
   EXPECT_EQ(table.GetEventById(3), nullptr);
   EXPECT_EQ(table.GetEventById(200), nullptr);
   EXPECT_EQ(table.GetEventById(0), nullptr);
+  EXPECT_EQ(table.GetEventByName("foo")->ftrace_event_id, 1u);
+  EXPECT_THAT(*table.GetEventsByGroup("group_one"),
+              Contains(testing::Field(&Event::name, "foo")));
+  EXPECT_THAT(*table.GetEventsByGroup("group_one"),
+              Contains(testing::Field(&Event::name, "bar")));
+  EXPECT_THAT(*table.GetEventsByGroup("group_two"),
+              Contains(testing::Field(&Event::name, "baz")));
+  EXPECT_THAT(table.GetEventsByGroup("group_three"), IsNull());
 }
 
 }  // namespace
