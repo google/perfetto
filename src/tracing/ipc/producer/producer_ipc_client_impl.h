@@ -53,6 +53,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
  public:
   ProducerIPCClientImpl(const char* service_sock_name,
                         Producer*,
+                        const std::string& producer_name,
                         base::TaskRunner*);
   ~ProducerIPCClientImpl() override;
 
@@ -97,6 +98,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
   bool connected_ = false;
+  std::string const name_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 

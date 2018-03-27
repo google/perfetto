@@ -93,7 +93,8 @@ class TracingIntegrationTest : public ::testing::Test {
 
     // Create and connect a Producer.
     producer_endpoint_ = ProducerIPCClient::Connect(
-        kProducerSockName, &producer_, task_runner_.get());
+        kProducerSockName, &producer_, "com.google.perfetto.mock_producer",
+        task_runner_.get());
     auto on_producer_connect =
         task_runner_->CreateCheckpoint("on_producer_connect");
     EXPECT_CALL(producer_, OnConnect()).WillOnce(Invoke(on_producer_connect));
