@@ -283,6 +283,9 @@ TEST(TranslationTableTest, InferFtraceType) {
   ASSERT_TRUE(InferFtraceType("pid_t foo", 4, false, &type));
   ASSERT_EQ(type, kFtracePid32);
 
+  ASSERT_TRUE(InferFtraceType("int common_pid", 4, false, &type));
+  ASSERT_EQ(type, kFtraceCommonPid32);
+
   ASSERT_TRUE(InferFtraceType("char foo", 1, true, &type));
   ASSERT_EQ(type, kFtraceInt8);
 

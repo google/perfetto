@@ -228,6 +228,7 @@ void ProtoToCpp::Convert(const std::string& src_proto) {
   header_printer.Print("#include <vector>\n");
   header_printer.Print("#include <string>\n");
   header_printer.Print("#include <type_traits>\n\n");
+  header_printer.Print("#include \"perfetto/base/export.h\"\n\n");
 
   cpp_printer.Print(kHeader, "f", __FILE__, "p", src_proto);
   PERFETTO_CHECK(dst_header.find("include/") == 0);
@@ -273,7 +274,7 @@ void ProtoToCpp::Convert(const std::string& src_proto) {
 
 void ProtoToCpp::GenHeader(const Descriptor* msg, Printer* p) {
   PERFETTO_ILOG("GEN %s %s", msg->name().c_str(), msg->file()->name().c_str());
-  p->Print("\nclass $n$ {\n", "n", msg->name());
+  p->Print("\nclass PERFETTO_EXPORT $n$ {\n", "n", msg->name());
   p->Print(" public:\n");
   p->Indent();
   // Do a first pass to generate nested types.

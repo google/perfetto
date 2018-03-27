@@ -33,6 +33,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/export.h"
+
 // Forward declarations for protobuf types.
 namespace perfetto {
 namespace protos {
@@ -42,7 +44,7 @@ class ChromeConfig;
 
 namespace perfetto {
 
-class ChromeConfig {
+class PERFETTO_EXPORT ChromeConfig {
  public:
   ChromeConfig();
   ~ChromeConfig();

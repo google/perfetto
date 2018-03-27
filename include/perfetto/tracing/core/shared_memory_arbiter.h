@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/export.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/service.h"
 
@@ -38,7 +39,7 @@ class TraceWriter;
 
 // Used by the Producer-side of the transport layer to vend TraceWriters
 // from the SharedMemory it receives from the Service-side.
-class SharedMemoryArbiter {
+class PERFETTO_EXPORT SharedMemoryArbiter {
  public:
   virtual ~SharedMemoryArbiter() = default;
 

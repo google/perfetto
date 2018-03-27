@@ -43,23 +43,27 @@ class PerfettoCtsTest : public ::testing::Test {
     // The parameters for the producer.
     static constexpr uint32_t kRandomSeed = 42;
     static constexpr uint32_t kEventCount = 10;
+    static constexpr uint32_t kMessageSizeBytes = 1024;
 
     // Setup the test to use a random number generator.
     ds_config->mutable_for_testing()->set_seed(kRandomSeed);
     ds_config->mutable_for_testing()->set_message_count(kEventCount);
+    ds_config->mutable_for_testing()->set_message_size(kMessageSizeBytes);
 
     // Create the random generator with the same seed.
     std::minstd_rand0 rnd_engine(kRandomSeed);
 
     // Setip the function.
     uint64_t total = 0;
-    auto finish = task_runner.CreateCheckpoint("no.more.packets");
-    auto function = [&total, &finish, &rnd_engine](
+    auto on_readback_complete =
+        task_runner.CreateCheckpoint("readback.complete");
+    auto function = [&total, &on_readback_complete, &rnd_engine](
                         std::vector<TracePacket> packets, bool has_more) {
       for (auto& packet : packets) {
         ASSERT_TRUE(packet.Decode());
-        ASSERT_TRUE(packet->has_for_testing() || packet->has_clock_snapshot());
-        if (packet->has_clock_snapshot()) {
+        ASSERT_TRUE(packet->has_for_testing() || packet->has_clock_snapshot() ||
+                    packet->has_trace_config());
+        if (packet->has_clock_snapshot() || packet->has_trace_config()) {
           continue;
         }
         ASSERT_EQ(protos::TracePacket::kTrustedUid,
@@ -69,8 +73,9 @@ class PerfettoCtsTest : public ::testing::Test {
       total += packets.size();
 
       if (!has_more) {
-        ASSERT_EQ(total, kEventCount + 1);
-        finish();
+        // Extra packets for the clock snapshot and trace config.
+        ASSERT_EQ(total, kEventCount + 2);
+        on_readback_complete();
       }
     };
 
@@ -79,17 +84,12 @@ class PerfettoCtsTest : public ::testing::Test {
     FakeConsumer consumer(trace_config, std::move(on_connect),
                           std::move(function), &task_runner);
     consumer.Connect(PERFETTO_CONSUMER_SOCK_NAME);
-
     task_runner.RunUntilCheckpoint("consumer.connected");
-    consumer.EnableTracing();
 
-    // TODO(skyostil): There's a race here before the service processes our data
-    // and the consumer tries to retrieve it. For now wait a bit until the
-    // service is done, but we should add explicit flushing to avoid this.
+    consumer.EnableTracing();
     task_runner.PostDelayedTask([&consumer]() { consumer.ReadTraceData(); },
                                 1000);
-
-    task_runner.RunUntilCheckpoint("no.more.packets");
+    task_runner.RunUntilCheckpoint("readback.complete");
   }
 };
 
