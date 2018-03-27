@@ -21,6 +21,7 @@
 
 #include <vector>
 
+#include "perfetto/base/scoped_file.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/ipc/service_proxy.h"
 #include "perfetto/tracing/core/basic_types.h"
@@ -57,7 +58,7 @@ class ConsumerIPCClientImpl : public Service::ConsumerEndpoint,
   // Service::ConsumerEndpoint implementation.
   // These methods are invoked by the actual Consumer(s) code by clients of the
   // tracing library, which know nothing about the IPC transport.
-  void EnableTracing(const TraceConfig&) override;
+  void EnableTracing(const TraceConfig&, base::ScopedFile) override;
   void DisableTracing() override;
   void ReadBuffers() override;
   void FreeBuffers() override;

@@ -37,16 +37,11 @@ service ConsumerPort {
   // Disables tracing for one or more data sources.
   rpc DisableTracing(DisableTracingRequest) returns (DisableTracingResponse) {}
 
-  // Streams back the contents of one or more buffers. At the moment this can
-  // be called once only after calling DisableTracing(). In future it will be
-  // possible to call this while the trace is enabled to stream continuously the
-  // contents of the buffer(s). One call is enough to drain all the buffers. The
-  // response consists in a sequence of ReadBufferResponse messages (hence the
-  // "stream" in the return type), each carrying one or more TracePacket(s).
-  // An EOF flag is attached to the last ReadBufferResponse through the
-  // |has_more| == false field.
-  // TODO: add the ability to pass a file descriptor and just let the service
-  // write into that.
+  // Streams back the contents of one or more buffers. One call is enough to
+  // drain all the buffers. The response consists in a sequence of
+  // ReadBufferResponse messages (hence the "stream" in the return type), each
+  // carrying one or more TracePacket(s). An EOF flag is attached to the last
+  // ReadBufferResponse through the |has_more| == false field.
   rpc ReadBuffers(ReadBuffersRequest) returns (stream ReadBuffersResponse) {}
 
   // Destroys the buffers previously created. Note: all buffers are destroyed
@@ -54,7 +49,6 @@ service ConsumerPort {
   rpc FreeBuffers(FreeBuffersRequest) returns (FreeBuffersResponse) {}
 
   // TODO rpc ListDataSources(), for the UI.
-  // TODO rpc KillSwitch().
 }
 
 // Arguments for rpc EnableTracing().
@@ -62,7 +56,9 @@ message EnableTracingRequest {
   optional protos.TraceConfig trace_config = 1;
 }
 
-message EnableTracingResponse {}
+message EnableTracingResponse {
+  oneof state { bool stopped = 1; }
+}
 
 // Arguments for rpc DisableTracing().
 message DisableTracingRequest {
@@ -83,7 +79,7 @@ message ReadBuffersResponse {
 
   // Each streaming reply returns one or more trace packets (see
   // trace_packet.proto).
-  // Why "bytes" here? If we just return the full TracePacket object, that will
+  // Why "bytes" below? If we just return the full TracePacket object, that will
   // force the Consumer to deserialize it. In many occasions, the Consumer will
   // not consume the TracePacket(s) locally but will just forward them over
   // the network or save them to a file. Deserializing them on-device would be
