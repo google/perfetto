@@ -20,14 +20,21 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto/base/file_utils.h"
+#include "perfetto/base/temp_file.h"
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/shared_memory.h"
 #include "perfetto/tracing/core/trace_packet.h"
+#include "perfetto/tracing/core/trace_writer.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/test/test_shared_memory.h"
+
+#include "perfetto/trace/test_event.pbzero.h"
+#include "perfetto/trace/trace.pb.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 using ::testing::_;
@@ -58,6 +65,7 @@ class MockConsumer : public Consumer {
   // Consumer implementation.
   MOCK_METHOD0(OnConnect, void());
   MOCK_METHOD0(OnDisconnect, void());
+  MOCK_METHOD0(OnTracingStop, void());
 
   void OnTraceData(std::vector<TracePacket> packets, bool has_more) override {}
 };
@@ -137,6 +145,7 @@ TEST_F(ServiceImplTest, RegisterAndUnregister) {
 
   ASSERT_EQ(0u, svc->num_producers());
 }
+
 TEST_F(ServiceImplTest, EnableAndDisableTracing) {
   MockProducer mock_producer;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
@@ -376,5 +385,95 @@ TEST_F(ServiceImplTest, ProducerIDWrapping) {
   for (ProducerID i = 1; i <= 6; i++)
     DisconnectProducerAndWait(i);
 }
+
+TEST_F(ServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
+  MockProducer mock_producer;
+  std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
+      svc->ConnectProducer(&mock_producer, 123u /* uid */);
+  MockConsumer mock_consumer;
+  std::unique_ptr<Service::ConsumerEndpoint> consumer_endpoint =
+      svc->ConnectConsumer(&mock_consumer);
+
+  EXPECT_CALL(mock_producer, OnConnect());
+  EXPECT_CALL(mock_consumer, OnConnect());
+  task_runner.RunUntilIdle();
+
+  DataSourceDescriptor ds_desc;
+  ds_desc.set_name("datasource");
+  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  task_runner.RunUntilIdle();
+
+  static const char kPayload[] = "1234567890abcdef-";
+  static const int kNumPackets = 10;
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4096);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("datasource");
+  ds_config->set_target_buffer(0);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(1);
+  const uint64_t kMaxFileSize = 512;
+  trace_config.set_max_file_size_bytes(kMaxFileSize);
+  base::TempFile tmp_file = base::TempFile::Create();
+  auto on_tracing_start = task_runner.CreateCheckpoint("on_tracing_start");
+  BufferID buf_id = 0;
+  EXPECT_CALL(mock_producer, OnTracingStart());
+  EXPECT_CALL(mock_producer, CreateDataSourceInstance(_, _))
+      .WillOnce(Invoke([on_tracing_start, &buf_id](
+                           DataSourceInstanceID, const DataSourceConfig& cfg) {
+        buf_id = static_cast<BufferID>(cfg.target_buffer());
+        on_tracing_start();
+      }));
+  consumer_endpoint->EnableTracing(trace_config,
+                                   base::ScopedFile(dup(tmp_file.fd())));
+  task_runner.RunUntilCheckpoint("on_tracing_start");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer_endpoint->CreateTraceWriter(buf_id);
+  // All these packets should fit within kMaxFileSize.
+  for (int i = 0; i < kNumPackets; i++) {
+    auto tp = writer->NewTracePacket();
+    std::string payload(kPayload);
+    payload.append(std::to_string(i));
+    tp->set_for_testing()->set_str(payload.c_str(), payload.size());
+  }
+
+  // Finally add a packet that overflows kMaxFileSize. This should cause the
+  // implicit stop of the trace and should *not* be written in the trace.
+  {
+    auto tp = writer->NewTracePacket();
+    char big_payload[kMaxFileSize] = "BIG!";
+    tp->set_for_testing()->set_str(big_payload, sizeof(big_payload));
+  }
+  writer->Flush();
+  writer.reset();
+
+  auto on_tracing_stop = task_runner.CreateCheckpoint("on_tracing_stop");
+  EXPECT_CALL(mock_producer, TearDownDataSourceInstance(_));
+  EXPECT_CALL(mock_consumer, OnTracingStop()).WillOnce(Invoke(on_tracing_stop));
+  task_runner.RunUntilCheckpoint("on_tracing_stop");
+
+  EXPECT_CALL(mock_consumer, OnDisconnect());
+  EXPECT_CALL(mock_producer, OnDisconnect());
+  consumer_endpoint->DisableTracing();
+  consumer_endpoint.reset();
+  producer_endpoint.reset();
+  task_runner.RunUntilIdle();
+
+  // Verify the contents of the file.
+  std::string trace_raw;
+  ASSERT_TRUE(base::ReadFile(tmp_file.path().c_str(), &trace_raw));
+  protos::Trace trace;
+  ASSERT_TRUE(trace.ParseFromString(trace_raw));
+  ASSERT_GE(trace.packet_size(), kNumPackets);
+  int num_testing_packet = 0;
+  for (int i = 0; i < trace.packet_size(); i++) {
+    const protos::TracePacket& tp = trace.packet(i);
+    if (!tp.has_for_testing())
+      continue;
+    ASSERT_EQ(kPayload + std::to_string(num_testing_packet++),
+              tp.for_testing().str());
+  }
+}  // namespace perfetto
 
 }  // namespace perfetto

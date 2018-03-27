@@ -14,6 +14,10 @@
 # limitations under the License.
 set -e
 
+if [ "$TMPDIR" == "" ]; then
+  TMPDIR=/tmp
+fi
+
 function is_monolithic {
   local out=$1
   gn args $out --list --short | grep 'monolithic_binaries = true' 2>&1 >/dev/null
@@ -27,19 +31,20 @@ function is_android {
 }
 
 function reset_tracing {
-  adb shell 'echo 0 > /d/tracing/tracing_on'
+  if is_android $OUT; then
+    adb shell 'echo 0 > /d/tracing/tracing_on'
+  else
+    if [ ! -w /sys/kernel/debug ]; then
+      echo "debugfs not accessible, try sudo chown -R $USER /sys/kernel/debug"
+      sudo chown -R $USER /sys/kernel/debug
+    fi
+
+    echo 0 > /sys/kernel/debug/tracing/tracing_on
+  fi
 }
 
 function adb_supports_push_sync {
   adb --help | grep 'push.*\[--sync\]' 2>&1 >/dev/null
-}
-
-function traced_probes_cmd {
-  if is_android $OUT; then
-    echo "$PREFIX $DIR/traced_probes"
-  else
-    echo "sudo $PREFIX $DIR/traced_probes"
-  fi
 }
 
 function push {
@@ -61,8 +66,8 @@ function pull {
     echo adb pull $DIR/$1 $2
     adb pull $DIR/$1 $2
   else
-    echo cp $DIR/$1 $2
-    cp $DIR/$1 $2
+    echo mv $DIR/$1 $2
+    mv $DIR/$1 $2
   fi
 }
 
@@ -80,7 +85,7 @@ CONFIG="${CONFIG:-:test}"
 if is_android $OUT ; then
   DIR=/data/local/tmp
 else
-  DIR=$(mktemp -d)
+  DIR=$(mktemp -p $TMPDIR -d perfetto.XXXXXX)
 fi
 
 ninja -C $OUT traced traced_probes perfetto trace_to_text test/configs
@@ -150,7 +155,7 @@ tmux select-pane -t 1
 tmux send-keys "$PREFIX $DIR/traced" Enter
 
 tmux select-pane -t 0
-tmux send-keys "$(traced_probes_cmd)" Enter
+tmux send-keys "$PREFIX $DIR/traced_probes" Enter
 
 tmux select-pane -t 2
 tmux send-keys "$PREFIX $DIR/perfetto -c $CONFIG_DEVICE_PATH -o $DIR/trace"
@@ -159,8 +164,8 @@ tmux send-keys "$PREFIX $DIR/perfetto -c $CONFIG_DEVICE_PATH -o $DIR/trace"
 tmux select-pane -t 2
 
 tmux -2 attach-session -t demo
-
+reset
 TRACE=$HOME/Downloads/trace.json
 echo -e "\n\x1b[32mPulling trace into $TRACE\x1b[0m"
-pull trace /tmp/trace.protobuf
-$OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE
+pull trace $TMPDIR/trace.protobuf
+$OUT/trace_to_text systrace < $TMPDIR/trace.protobuf > $TRACE
