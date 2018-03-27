@@ -103,7 +103,7 @@ std::ostream& operator<<(std::ostream& os, const FakePacketFragment& packet) {
             << packet.payload() << "\"}";
 }
 
-FakeChunk::FakeChunk(TraceBuffez* t, ProducerID p, WriterID w, ChunkID c)
+FakeChunk::FakeChunk(TraceBuffer* t, ProducerID p, WriterID w, ChunkID c)
     : trace_buffer_{t}, producer_id{p}, writer_id{w}, chunk_id{c} {}
 
 FakeChunk& FakeChunk::AddPacket(size_t size, char seed, uint8_t packet_flag) {
@@ -141,7 +141,7 @@ size_t FakeChunk::CopyIntoTraceBuffer() {
   trace_buffer_->CopyChunkUntrusted(producer_id, uid, writer_id, chunk_id,
                                     num_packets, flags, data.data(),
                                     data.size());
-  return data.size() + TraceBuffez::InlineChunkHeaderSize;
+  return data.size() + TraceBuffer::InlineChunkHeaderSize;
 }
 
 }  // namespace perfetto
