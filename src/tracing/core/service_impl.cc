@@ -91,6 +91,7 @@ ServiceImpl::~ServiceImpl() {
 std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
     Producer* producer,
     uid_t uid,
+    const std::string& producer_name,
     size_t shared_memory_size_hint_bytes) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
@@ -107,8 +108,8 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
   const ProducerID id = GetNextProducerID();
   PERFETTO_DLOG("Producer %" PRIu16 " connected", id);
 
-  std::unique_ptr<ProducerEndpointImpl> endpoint(
-      new ProducerEndpointImpl(id, uid, this, task_runner_, producer));
+  std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
+      id, uid, this, task_runner_, producer, producer_name));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   shared_memory_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -226,7 +227,6 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // though, because this assumes that each tracing session creates at most one
   // data source instance in each Producer, and each data source has only one
   // TraceWriter.
-  // TODO(taylori): Handle multiple producers/producer_configs.
   // auto first_producer_config = cfg.producers()[0];
   // if (tracing_sessions_.size() >=
   //     (kDefaultShmSize / first_producer_config.page_size_kb() / 2)) {
@@ -309,8 +309,18 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     // Scan all the registered data sources with a matching name.
     auto range = data_sources_.equal_range(cfg_data_source.config().name());
-    for (auto it = range.first; it != range.second; it++)
-      CreateDataSourceInstance(cfg_data_source, it->second, tracing_session);
+    for (auto it = range.first; it != range.second; it++) {
+      TraceConfig::ProducerConfig producer_config;
+      for (auto& config : cfg.producers()) {
+        if (GetProducer(it->second.producer_id)->name_ ==
+            config.producer_name()) {
+          producer_config = config;
+          break;
+        }
+      }
+      CreateDataSourceInstance(cfg_data_source, producer_config, it->second,
+                               tracing_session);
+    }
   }
 
   // Trigger delayed task if the trace is time limited.
@@ -625,11 +635,18 @@ void ServiceImpl::RegisterDataSource(ProducerID producer_id,
 
   for (auto& iter : tracing_sessions_) {
     TracingSession& tracing_session = iter.second;
+    TraceConfig::ProducerConfig producer_config;
+    for (auto& config : tracing_session.config.producers()) {
+      if (producer->name_ == config.producer_name()) {
+        producer_config = config;
+        break;
+      }
+    }
     for (const TraceConfig::DataSource& cfg_data_source :
          tracing_session.config.data_sources()) {
       if (cfg_data_source.config().name() == desc.name())
-        CreateDataSourceInstance(cfg_data_source, reg_ds->second,
-                                 &tracing_session);
+        CreateDataSourceInstance(cfg_data_source, producer_config,
+                                 reg_ds->second, &tracing_session);
     }
   }
 }
@@ -668,6 +685,7 @@ void ServiceImpl::UnregisterDataSource(ProducerID producer_id,
 
 void ServiceImpl::CreateDataSourceInstance(
     const TraceConfig::DataSource& cfg_data_source,
+    const TraceConfig::ProducerConfig& producer_config,
     const RegisteredDataSource& data_source,
     TracingSession* tracing_session) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -709,14 +727,14 @@ void ServiceImpl::CreateDataSourceInstance(
   PERFETTO_DLOG("Starting data source %s with target buffer %" PRIu16,
                 ds_config.name().c_str(), global_id);
   if (!producer->shared_memory()) {
-    // TODO(taylori): Handle multiple producers/producer configs.
-    producer->shared_buffer_page_size_kb_ =
-        std::min((tracing_session->GetDesiredPageSizeKb() == 0)
-                     ? kDefaultShmPageSizeKb
-                     : tracing_session->GetDesiredPageSizeKb(),
-                 kMaxShmPageSizeKb);
+    producer->shared_buffer_page_size_kb_ = std::min<size_t>(
+        (producer_config.page_size_kb() == 0) ? kDefaultShmPageSizeKb
+                                              : producer_config.page_size_kb(),
+        kMaxShmPageSizeKb);
+
     size_t shm_size =
-        std::min(tracing_session->GetDesiredShmSizeKb() * 1024, kMaxShmSize);
+        std::min<size_t>(producer_config.shm_size_kb() * 1024, kMaxShmSize);
+
     if (shm_size % base::kPageSize || shm_size < base::kPageSize)
       shm_size = std::min(shared_memory_size_hint_bytes_, kMaxShmSize);
     if (shm_size % base::kPageSize || shm_size < base::kPageSize ||
@@ -1003,12 +1021,14 @@ ServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     uid_t uid,
     ServiceImpl* service,
     base::TaskRunner* task_runner,
-    Producer* producer)
+    Producer* producer,
+    const std::string& producer_name)
     : id_(id),
       uid_(uid),
       service_(service),
       task_runner_(task_runner),
-      producer_(producer) {
+      producer_(producer),
+      name_(producer_name) {
   // TODO(primiano): make the page-size for the SHM dynamic and find a way to
   // communicate that to the Producer (add a field to the
   // InitializeConnectionResponse IPC).
@@ -1130,19 +1150,5 @@ ServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID buf_id) {
 ServiceImpl::TracingSession::TracingSession(ConsumerEndpointImpl* consumer_ptr,
                                             const TraceConfig& new_config)
     : consumer(consumer_ptr), config(new_config) {}
-
-size_t ServiceImpl::TracingSession::GetDesiredShmSizeKb() {
-  if (config.producers_size() == 0)
-    return 0;
-  // TODO(taylori): Handle multiple producers/producer configs.
-  return config.producers()[0].shm_size_kb();
-}
-
-size_t ServiceImpl::TracingSession::GetDesiredPageSizeKb() {
-  if (config.producers_size() == 0)
-    return 0;
-  // TODO(taylori): Handle multiple producers/producer configs.
-  return config.producers()[0].page_size_kb();
-}
 
 }  // namespace perfetto
