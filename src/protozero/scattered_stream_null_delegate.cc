@@ -14,22 +14,24 @@
  * limitations under the License.
  */
 
-#include "src/ftrace_reader/test/scattered_stream_null_delegate.h"
+#include "perfetto/protozero/scattered_stream_null_delegate.h"
 
-namespace perfetto {
+namespace protozero {
 
 // An implementation of ScatteredStreamWriter::Delegate which always returns
-// the same bit of memory (to better measure performance of users of
-// ScatteredStreamWriter without noisy allocations).
-
-ScatteredStreamNullDelegate::ScatteredStreamNullDelegate(size_t chunk_size)
+// the same piece of memory.
+// This is used when we need to no-op the writers (e.g. during teardown or in
+// case of resource exhaustion), avoiding that the clients have to deal with
+// nullptr checks.
+ScatteredStreamWriterNullDelegate::ScatteredStreamWriterNullDelegate(
+    size_t chunk_size)
     : chunk_size_(chunk_size),
       chunk_(std::unique_ptr<uint8_t[]>(new uint8_t[chunk_size_])){};
 
-ScatteredStreamNullDelegate::~ScatteredStreamNullDelegate() {}
+ScatteredStreamWriterNullDelegate::~ScatteredStreamWriterNullDelegate() {}
 
-protozero::ContiguousMemoryRange ScatteredStreamNullDelegate::GetNewBuffer() {
+ContiguousMemoryRange ScatteredStreamWriterNullDelegate::GetNewBuffer() {
   return {chunk_.get(), chunk_.get() + chunk_size_};
 }
 
-}  // namespace perfetto
+}  // namespace protozero

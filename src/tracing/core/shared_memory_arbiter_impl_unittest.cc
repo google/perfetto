@@ -137,8 +137,9 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
     ASSERT_TRUE(writers.emplace(writer_id, std::move(writer)).second);
   }
 
-  // A further call should fail as we exhausted writer IDs.
-  ASSERT_EQ(nullptr, arbiter_->CreateTraceWriter(0).get());
+  // A further call should return a null impl of trace writer as we exhausted
+  // writer IDs.
+  ASSERT_EQ(arbiter_->CreateTraceWriter(0)->writer_id(), 0);
 }
 
 // TODO(primiano): add multi-threaded tests.
