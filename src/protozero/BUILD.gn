@@ -30,6 +30,7 @@ source_set("protozero") {
     "message.cc",
     "message_handle.cc",
     "proto_utils.cc",
+    "scattered_stream_null_delegate.cc",
     "scattered_stream_writer.cc",
   ]
 }
