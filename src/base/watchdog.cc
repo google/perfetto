@@ -68,7 +68,7 @@ Watchdog::~Watchdog() {
 Watchdog* Watchdog::GetInstance() {
 #if PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
   // Ensure that it is impossible to use watchdog on a Chromium build.
-  PERFETTO_CHECK(false);
+  PERFETTO_FATAL("perfetto::base::Watchdog should not be used in Chromium");
 #endif
 
   static Watchdog* watchdog = new Watchdog(kDefaultPollingInterval);
