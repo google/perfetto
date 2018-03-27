@@ -46,7 +46,7 @@ class DataSourceConfig;
 class Producer;
 class SharedMemory;
 class SharedMemoryArbiterImpl;
-class TraceBuffez;
+class TraceBuffer;
 class TraceConfig;
 class TracePacket;
 
@@ -257,7 +257,7 @@ class ServiceImpl : public Service {
   void MaybeSnapshotClocks(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
 
-  TraceBuffez* GetBufferByID(BufferID);
+  TraceBuffer* GetBufferByID(BufferID);
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
@@ -278,7 +278,7 @@ class ServiceImpl : public Service {
 
   std::set<ConsumerEndpointImpl*> consumers_;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
-  std::map<BufferID, std::unique_ptr<TraceBuffez>> buffers_;
+  std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
 
   bool lockdown_mode_ = false;
 
