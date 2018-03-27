@@ -56,7 +56,7 @@ def fix_guards(fpath, checkonly):
 def main():
   checkonly = '--check-only' in sys.argv
   num_files_changed = 0
-  for topdir in ('src', 'include', 'test'):
+  for topdir in ('src', 'include', 'test', 'tools'):
     for root, dirs, files in os.walk(topdir):
       for name in files:
         if not name.endswith('.h'):
