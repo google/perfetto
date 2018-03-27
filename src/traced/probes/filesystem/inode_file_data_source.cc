@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <queue>
+#include <unordered_map>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
@@ -84,12 +85,13 @@ void ScanFilesDFS(
 
 void CreateStaticDeviceToInodeMap(
     const std::string& root_directory,
-    std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>* static_file_map) {
+    std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
+        static_file_map) {
   ScanFilesDFS(root_directory,
                [static_file_map](BlockDeviceID block_device_id,
                                  Inode inode_number, const std::string& path,
                                  protos::pbzero::InodeFileMap_Entry_Type type) {
-                 std::map<Inode, InodeMapValue>& inode_map =
+                 std::unordered_map<Inode, InodeMapValue>& inode_map =
                      (*static_file_map)[block_device_id];
                  inode_map[inode_number].SetType(type);
                  inode_map[inode_number].AddPath(path);
@@ -109,7 +111,8 @@ void FillInodeEntry(InodeFileMap* destination,
 
 InodeFileDataSource::InodeFileDataSource(
     TracingSessionID id,
-    std::map<BlockDeviceID, std::map<Inode, InodeMapValue>>* static_file_map,
+    std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
+        static_file_map,
     LRUInodeCache* cache,
     std::unique_ptr<TraceWriter> writer)
     : session_id_(id),
@@ -153,7 +156,8 @@ void InodeFileDataSource::AddInodesFromFilesystemScan(
       });
 
   // Could not be found, just add the inode number
-  PERFETTO_DLOG("%zu inodes not found", inode_numbers->size());
+  if (inode_numbers->size() != 0)
+    PERFETTO_DLOG("%zu inodes not found", inode_numbers->size());
   for (const auto& unresolved_inode : *inode_numbers) {
     auto* entry = destination->add_entries();
     entry->set_inode_number(unresolved_inode);
@@ -200,7 +204,8 @@ void InodeFileDataSource::AddInodesFromLRUCache(BlockDeviceID block_device_id,
     it = inode_numbers->erase(it);
     FillInodeEntry(destination, inode_number, *value);
   }
-  PERFETTO_DLOG("%" PRIu64 " inodes found in cache", cache_found_count);
+  if (cache_found_count > 0)
+    PERFETTO_DLOG("%" PRIu64 " inodes found in cache", cache_found_count);
 }
 
 void InodeFileDataSource::OnInodes(
