@@ -39,9 +39,9 @@ using ::testing::IsEmpty;
 
 class TraceBufferTest : public testing::Test {
  public:
-  using SequenceIterator = TraceBuffez::SequenceIterator;
-  using ChunkMetaKey = TraceBuffez::ChunkMeta::Key;
-  using ChunkRecord = TraceBuffez::ChunkRecord;
+  using SequenceIterator = TraceBuffer::SequenceIterator;
+  using ChunkMetaKey = TraceBuffer::ChunkMeta::Key;
+  using ChunkRecord = TraceBuffer::ChunkRecord;
 
   static constexpr uint8_t kContFromPrevChunk =
       SharedMemoryABI::ChunkHeader::kFirstPacketContinuesFromPrevChunk;
@@ -55,14 +55,14 @@ class TraceBufferTest : public testing::Test {
   }
 
   void ResetBuffer(size_t size_) {
-    trace_buffer_ = TraceBuffez::Create(size_);
+    trace_buffer_ = TraceBuffer::Create(size_);
     ASSERT_TRUE(trace_buffer_);
   }
 
   bool TryPatchChunkContents(ProducerID p,
                              WriterID w,
                              ChunkID c,
-                             std::vector<TraceBuffez::Patch> patches,
+                             std::vector<TraceBuffer::Patch> patches,
                              bool other_patches_pending = false) {
     return trace_buffer_->TryPatchChunkContents(
         p, w, c, patches.data(), patches.size(), other_patches_pending);
@@ -109,7 +109,7 @@ class TraceBufferTest : public testing::Test {
   }
 
   SequenceIterator GetReadIterForSequence(ProducerID p, WriterID w) {
-    TraceBuffez::ChunkMeta::Key key(p, w, 0);
+    TraceBuffer::ChunkMeta::Key key(p, w, 0);
     return trace_buffer_->GetReadIterForSequence(
         trace_buffer_->index_.lower_bound(key));
   }
@@ -126,11 +126,11 @@ class TraceBufferTest : public testing::Test {
     return keys;
   }
 
-  TraceBuffez* trace_buffer() { return trace_buffer_.get(); }
+  TraceBuffer* trace_buffer() { return trace_buffer_.get(); }
   size_t size_to_end() { return trace_buffer_->size_to_end(); }
 
  private:
-  std::unique_ptr<TraceBuffez> trace_buffer_;
+  std::unique_ptr<TraceBuffer> trace_buffer_;
 };
 
 // ----------------------

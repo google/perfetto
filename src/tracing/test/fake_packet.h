@@ -28,7 +28,7 @@
 
 namespace perfetto {
 
-class TraceBuffez;
+class TraceBuffer;
 
 class FakePacketFragment {
  public:
@@ -51,7 +51,7 @@ std::ostream& operator<<(std::ostream&, const FakePacketFragment&);
 
 class FakeChunk {
  public:
-  FakeChunk(TraceBuffez* t, ProducerID p, WriterID w, ChunkID c);
+  FakeChunk(TraceBuffer* t, ProducerID p, WriterID w, ChunkID c);
 
   // Appends a packet of exactly |size| bytes (including the varint header
   // that states the size of the packet itself. The payload of the packet is
@@ -70,7 +70,7 @@ class FakeChunk {
   size_t CopyIntoTraceBuffer();
 
  private:
-  TraceBuffez* trace_buffer_;
+  TraceBuffer* trace_buffer_;
   ProducerID producer_id;
   WriterID writer_id;
   ChunkID chunk_id;
