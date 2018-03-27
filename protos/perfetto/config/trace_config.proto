@@ -33,31 +33,9 @@ package perfetto.protos;
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
-    // TODO: uint32 page_size = 2;
 
-    // Keep include/perfetto/tracing/core/trace_config.h in sync.
-    enum OptimizeFor {
-      DEFAULT = 0;
-      // The log buffer is drained sporadically (typically only once after
-      // DisableTracing()). This mode minimizes the Service overhead when moving
-      // the pages from the Producer(s) shared staging buffers into the central
-      // log buffer, at the cost of doing some extra memory moves to reorder and
-      // reassemble the logged TracePacket(s).
-      ONE_SHOT_READ = 1;
-
-      // The log buffer is streamed continuously to the Consumer.
-      // Advantages:
-      // - It allows to use a smaller log buffer size, as the buffer is only
-      //   needed to cover the pipe latency between Service and Consumer.
-      // - It reduces the total cpu cost of tracing, as TracePackets are
-      //   reshuffled only once when collected from the Producers shmem buffers.
-      // Disadvantage:
-      // - More scheduling intrusive, as will periodically wake up the Consumer
-      //   to stream data.
-      // TODO: Not implemented yet.
-      // CONTINUOUS_STREAMING = 2;
-    }
-    optional OptimizeFor optimize_for = 3;
+    reserved 2;  // |page_size|, now deprecated.
+    reserved 3;  // |optimize_for|, now deprecated.
 
     // Keep include/perfetto/tracing/core/trace_config.h in sync.
     enum FillPolicy {
@@ -136,4 +114,18 @@ message TraceConfig {
 
   // Statsd-specific metadata.
   optional StatsdMetadata statsd_metadata = 7;
+
+  // When true, the EnableTracing() request must also provide a file descriptor.
+  // The service will then periodically read packets out of the trace buffer and
+  // store it into the passed file.
+  optional bool write_into_file = 8;
+
+  // Optional. If non-zero tunes the write period. A min value of 100ms is
+  // enforced (i.e. smaller values are ignored).
+  optional uint32 file_write_period_ms = 9;
+
+  // Optional. When non zero the periodic write stops once at most X bytes
+  // have been written into the file. Tracing is disabled when this limit is
+  // reached, even if |duration_ms| has not been reached yet.
+  optional uint64 max_file_size_bytes = 10;
 }
