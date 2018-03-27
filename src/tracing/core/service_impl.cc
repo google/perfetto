@@ -53,6 +53,8 @@ using protozero::proto_utils::WriteVarInt;
 namespace {
 constexpr size_t kDefaultShmSize = 256 * 1024ul;
 constexpr size_t kMaxShmSize = 4096 * 1024 * 512ul;
+constexpr size_t kMaxShmPageSizeKb = 16ul;
+constexpr size_t kDefaultShmPageSizeKb = base::kPageSize / 1024ul;
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kClockSnapshotInterval(10 * 1000);
 
@@ -338,6 +340,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
   std::vector<TracePacket> packets;
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
   MaybeSnapshotClocks(tracing_session, &packets);
+  MaybeEmitTraceConfig(tracing_session, &packets);
 
   // This is a rough threshold to determine how to split packets within each
   // IPC. This is not an upper bound, we just stop accumulating packets and send
@@ -543,9 +546,10 @@ void ServiceImpl::CreateDataSourceInstance(
   if (!producer->shared_memory()) {
     // TODO(taylori): Handle multiple producers/producer configs.
     producer->shared_buffer_page_size_kb_ =
-        (tracing_session->GetDesiredPageSizeKb() == 0)
-            ? base::kPageSize / 1024  // default
-            : tracing_session->GetDesiredPageSizeKb();
+        std::min((tracing_session->GetDesiredPageSizeKb() == 0)
+                     ? kDefaultShmPageSizeKb
+                     : tracing_session->GetDesiredPageSizeKb(),
+                 kMaxShmPageSizeKb);
     size_t shm_size =
         std::min(tracing_session->GetDesiredShmSizeKb() * 1024, kMaxShmSize);
     if (shm_size % base::kPageSize || shm_size < base::kPageSize)
@@ -736,6 +740,21 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
     c->set_type(clock.type);
     c->set_timestamp(base::FromPosixTimespec(clock.ts).count());
   }
+  packet.set_trusted_uid(getuid());
+  Slice slice = Slice::Allocate(packet.ByteSize());
+  PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
+  packets->emplace_back();
+  packets->back().AddSlice(std::move(slice));
+}
+
+void ServiceImpl::MaybeEmitTraceConfig(TracingSession* tracing_session,
+                                       std::vector<TracePacket>* packets) {
+  if (tracing_session->did_emit_config)
+    return;
+  tracing_session->did_emit_config = true;
+  protos::TracePacket packet;
+  tracing_session->config.ToProto(packet.mutable_trace_config());
+  packet.set_trusted_uid(getuid());
   Slice slice = Slice::Allocate(packet.ByteSize());
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
   packets->emplace_back();

@@ -33,6 +33,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/export.h"
+
 // Forward declarations for protobuf types.
 namespace perfetto {
 namespace protos {
@@ -42,7 +44,7 @@ class FtraceConfig;
 
 namespace perfetto {
 
-class FtraceConfig {
+class PERFETTO_EXPORT FtraceConfig {
  public:
   FtraceConfig();
   ~FtraceConfig();

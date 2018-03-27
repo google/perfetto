@@ -828,6 +828,7 @@ TEST(CpuReaderTest, ParseAllFields) {
   // Must use the bit masks to translate between kernel and userspace device ids
   // to generate the below examples
   const uint32_t kKernelBlockDeviceId = 271581216;
+
   const uint64_t kUserspaceBlockDeviceId =
       CpuReader::TranslateBlockDeviceIDToUserspace<uint32_t>(
           kKernelBlockDeviceId);
@@ -837,7 +838,7 @@ TEST(CpuReaderTest, ParseAllFields) {
           k64BitKernelBlockDeviceId);
 
   writer.Write<int32_t>(1001);  // Common field.
-  writer.Write<int32_t>(9999);  // A gap we shouldn't read.
+  writer.Write<int32_t>(9999);  // Common pid
   writer.Write<int32_t>(1003);  // Uint32 field
   writer.Write<int32_t>(97);    // Pid
   writer.Write<int32_t>(kKernelBlockDeviceId);  // Dev id
@@ -858,6 +859,7 @@ TEST(CpuReaderTest, ParseAllFields) {
   auto event = provider.ParseProto();
   ASSERT_TRUE(event);
   EXPECT_EQ(event->common_field(), 1001ul);
+  EXPECT_EQ(event->common_pid(), 9999ul);
   EXPECT_EQ(event->event_case(), FakeFtraceEvent::kAllFields);
   EXPECT_EQ(event->all_fields().field_uint32(), 1003u);
   EXPECT_EQ(event->all_fields().field_pid(), 97);

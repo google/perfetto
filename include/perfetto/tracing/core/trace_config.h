@@ -33,6 +33,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/export.h"
+
 #include "perfetto/tracing/core/data_source_config.h"
 
 // Forward declarations for protobuf types.
@@ -46,14 +48,15 @@ class FtraceConfig;
 class ChromeConfig;
 class TestConfig;
 class TraceConfig_ProducerConfig;
+class TraceConfig_StatsdMetadata;
 }  // namespace protos
 }  // namespace perfetto
 
 namespace perfetto {
 
-class TraceConfig {
+class PERFETTO_EXPORT TraceConfig {
  public:
-  class BufferConfig {
+  class PERFETTO_EXPORT BufferConfig {
    public:
     enum OptimizeFor {
       DEFAULT = 0,
@@ -93,7 +96,7 @@ class TraceConfig {
     std::string unknown_fields_;
   };
 
-  class DataSource {
+  class PERFETTO_EXPORT DataSource {
    public:
     DataSource();
     ~DataSource();
@@ -135,7 +138,7 @@ class TraceConfig {
     LOCKDOWN_SET = 2,
   };
 
-  class ProducerConfig {
+  class PERFETTO_EXPORT ProducerConfig {
    public:
     ProducerConfig();
     ~ProducerConfig();
@@ -161,6 +164,44 @@ class TraceConfig {
     std::string producer_name_ = {};
     uint32_t shm_size_kb_ = {};
     uint32_t page_size_kb_ = {};
+
+    // Allows to preserve unknown protobuf fields for compatibility
+    // with future versions of .proto files.
+    std::string unknown_fields_;
+  };
+
+  class StatsdMetadata {
+   public:
+    StatsdMetadata();
+    ~StatsdMetadata();
+    StatsdMetadata(StatsdMetadata&&) noexcept;
+    StatsdMetadata& operator=(StatsdMetadata&&);
+    StatsdMetadata(const StatsdMetadata&);
+    StatsdMetadata& operator=(const StatsdMetadata&);
+
+    // Conversion methods from/to the corresponding protobuf types.
+    void FromProto(const perfetto::protos::TraceConfig_StatsdMetadata&);
+    void ToProto(perfetto::protos::TraceConfig_StatsdMetadata*) const;
+
+    int64_t triggering_alert_id() const { return triggering_alert_id_; }
+    void set_triggering_alert_id(int64_t value) {
+      triggering_alert_id_ = value;
+    }
+
+    int32_t triggering_config_uid() const { return triggering_config_uid_; }
+    void set_triggering_config_uid(int32_t value) {
+      triggering_config_uid_ = value;
+    }
+
+    int64_t triggering_config_id() const { return triggering_config_id_; }
+    void set_triggering_config_id(int64_t value) {
+      triggering_config_id_ = value;
+    }
+
+   private:
+    int64_t triggering_alert_id_ = {};
+    int32_t triggering_config_uid_ = {};
+    int64_t triggering_config_id_ = {};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
@@ -214,6 +255,9 @@ class TraceConfig {
     return &producers_.back();
   }
 
+  const StatsdMetadata& statsd_metadata() const { return statsd_metadata_; }
+  StatsdMetadata* mutable_statsd_metadata() { return &statsd_metadata_; }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -221,6 +265,7 @@ class TraceConfig {
   bool enable_extra_guardrails_ = {};
   LockdownModeOperation lockdown_mode_ = {};
   std::vector<ProducerConfig> producers_;
+  StatsdMetadata statsd_metadata_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
