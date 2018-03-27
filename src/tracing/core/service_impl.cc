@@ -278,9 +278,9 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     const size_t buf_size_bytes = buffer_cfg.size_kb() * 1024u;
     total_buf_size_kb += buffer_cfg.size_kb();
     auto it_and_inserted =
-        buffers_.emplace(global_id, TraceBuffez::Create(buf_size_bytes));
+        buffers_.emplace(global_id, TraceBuffer::Create(buf_size_bytes));
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
-    std::unique_ptr<TraceBuffez>& trace_buffer = it_and_inserted.first->second;
+    std::unique_ptr<TraceBuffer>& trace_buffer = it_and_inserted.first->second;
     if (!trace_buffer) {
       did_allocate_all_buffers = false;
       break;
@@ -451,7 +451,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
       PERFETTO_DCHECK(false);
       continue;
     }
-    TraceBuffez& tbuf = *tbuf_iter->second;
+    TraceBuffer& tbuf = *tbuf_iter->second;
     tbuf.BeginRead();
     while (!did_hit_threshold) {
       TracePacket packet;
@@ -765,7 +765,7 @@ void ServiceImpl::CopyProducerPageIntoLogBuffer(ProducerID producer_id_trusted,
                                                 const uint8_t* src,
                                                 size_t size) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  TraceBuffez* buf = GetBufferByID(buffer_id);
+  TraceBuffer* buf = GetBufferByID(buffer_id);
   if (!buf) {
     PERFETTO_DLOG("Could not find target buffer %" PRIu16
                   " for producer %" PRIu16,
@@ -791,7 +791,7 @@ void ServiceImpl::ApplyChunkPatches(
   for (const auto& chunk : chunks_to_patch) {
     const ChunkID chunk_id = static_cast<ChunkID>(chunk.chunk_id());
     const WriterID writer_id = static_cast<WriterID>(chunk.writer_id());
-    TraceBuffez* buf =
+    TraceBuffer* buf =
         GetBufferByID(static_cast<BufferID>(chunk.target_buffer()));
     static_assert(std::numeric_limits<ChunkID>::max() == kMaxChunkID,
                   "Add a '|| chunk_id > kMaxChunkID' below if this fails");
@@ -804,7 +804,7 @@ void ServiceImpl::ApplyChunkPatches(
     }
     // Speculate on the fact that there are going to be a limited amount of
     // patches per request, so we can allocate the |patches| array on the stack.
-    std::array<TraceBuffez::Patch, 1024> patches;  // Uninitialized.
+    std::array<TraceBuffer::Patch, 1024> patches;  // Uninitialized.
     if (chunk.patches().size() > patches.size()) {
       PERFETTO_DLOG("Too many patches (%zu) batched in the same request",
                     patches.size());
@@ -849,7 +849,7 @@ ProducerID ServiceImpl::GetNextProducerID() {
   return last_producer_id_;
 }
 
-TraceBuffez* ServiceImpl::GetBufferByID(BufferID buffer_id) {
+TraceBuffer* ServiceImpl::GetBufferByID(BufferID buffer_id) {
   auto buf_iter = buffers_.find(buffer_id);
   if (buf_iter == buffers_.end())
     return nullptr;
