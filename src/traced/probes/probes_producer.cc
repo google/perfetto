@@ -240,7 +240,8 @@ void ProbesProducer::ConnectWithRetries(const char* socket_name,
 void ProbesProducer::Connect() {
   PERFETTO_DCHECK(state_ == kNotConnected);
   state_ = kConnecting;
-  endpoint_ = ProducerIPCClient::Connect(socket_name_, this, task_runner_);
+  endpoint_ = ProducerIPCClient::Connect(
+      socket_name_, this, "com.google.perfetto.traced_probes", task_runner_);
 }
 
 void ProbesProducer::IncreaseConnectionBackoff() {
