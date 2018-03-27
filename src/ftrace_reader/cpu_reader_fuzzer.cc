@@ -21,11 +21,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
+#include "perfetto/protozero/scattered_stream_null_delegate.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/ftrace_reader/cpu_reader.h"
 #include "test/cpu_reader_support.h"
-#include "test/scattered_stream_null_delegate.h"
 
 namespace perfetto {
 namespace {
@@ -39,7 +39,7 @@ using perfetto::protos::pbzero::FtraceEventBundle;
 void FuzzCpuReaderParsePage(const uint8_t* data, size_t size);
 
 void FuzzCpuReaderParsePage(const uint8_t* data, size_t size) {
-  ScatteredStreamNullDelegate delegate(base::kPageSize);
+  protozero::ScatteredStreamWriterNullDelegate delegate(base::kPageSize);
   protozero::ScatteredStreamWriter stream(&delegate);
   FtraceEventBundle writer;
 
