@@ -138,7 +138,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         test_config.SerializeToString(&trace_config_raw);
       } else {
         if (!base::ReadFile(optarg, &trace_config_raw)) {
-          PERFETTO_ELOG("Could not open %s", optarg);
+          PERFETTO_PLOG("Could not open %s", optarg);
           return 1;
         }
       }
