@@ -65,7 +65,7 @@ uint8_t* ScatteredStreamWriter::ReserveBytes(size_t size) {
   }
   uint8_t* begin = write_ptr_;
   write_ptr_ += size;
-#ifndef NDEBUG
+#if PERFETTO_DCHECK_IS_ON()
   memset(begin, 0, size);
 #endif
   return begin;

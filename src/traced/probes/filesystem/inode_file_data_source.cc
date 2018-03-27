@@ -48,38 +48,41 @@ void ScanFilesDFS(
     directory += "/";
     if (!dir)
       continue;
+
+    struct stat buf;
+    if (lstat(directory.c_str(), &buf) != 0) {
+      PERFETTO_DPLOG("lstat %s", directory.c_str());
+      continue;
+    }
+    if (S_ISLNK(buf.st_mode))
+      continue;
+
+    BlockDeviceID block_device_id = buf.st_dev;
+
     while ((entry = readdir(dir.get())) != nullptr) {
       std::string filename = entry->d_name;
       if (filename == "." || filename == "..")
         continue;
       std::string filepath = directory + filename;
 
-      struct stat buf;
-      if (lstat(filepath.c_str(), &buf) != 0)
-        continue;
-
-      // This might happen on filesystems that do not return
-      // information in entry->d_type.
-      if (S_ISLNK(buf.st_mode))
-        continue;
-
       Inode inode_number = entry->d_ino;
-      BlockDeviceID block_device_id = buf.st_dev;
 
       protos::pbzero::InodeFileMap_Entry_Type type =
           protos::pbzero::InodeFileMap_Entry_Type_UNKNOWN;
       // Readdir and stat not guaranteed to have directory info for all systems
-      if (entry->d_type == DT_DIR || S_ISDIR(buf.st_mode)) {
+      if (entry->d_type == DT_DIR) {
         // Continue iterating through files if current entry is a directory
         queue.push_back(filepath);
         type = protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY;
-      } else if (entry->d_type == DT_REG || S_ISREG(buf.st_mode)) {
+      } else if (entry->d_type == DT_REG) {
         type = protos::pbzero::InodeFileMap_Entry_Type_FILE;
       }
 
       if (!fn(block_device_id, inode_number, filepath, type))
         return;
     }
+    if (errno != 0)
+      PERFETTO_DPLOG("readdir %s", directory.c_str());
   }
 }
 
