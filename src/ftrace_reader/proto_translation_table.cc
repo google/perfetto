@@ -306,6 +306,7 @@ ProtoTranslationTable::ProtoTranslationTable(const std::vector<Event>& events,
       common_fields_(std::move(common_fields)) {
   for (const Event& event : events) {
     name_to_event_[event.name] = &events_.at(event.ftrace_event_id);
+    group_to_events_[event.group].push_back(&events_.at(event.ftrace_event_id));
   }
 }
 

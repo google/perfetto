@@ -93,7 +93,8 @@ class FtraceConfigMuxer {
   std::map<FtraceConfigId, FtraceConfig> configs_;
 };
 
-std::set<std::string> GetFtraceEvents(const FtraceConfig& request);
+std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
+                                      const ProtoTranslationTable*);
 size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb);
 
 }  // namespace perfetto
