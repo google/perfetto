@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#ifndef TOOLS_FTRACE_PROTO_GEN_FTRACE_PROTO_GEN_H_
+#define TOOLS_FTRACE_PROTO_GEN_FTRACE_PROTO_GEN_H_
+
 #include <set>
 #include <string>
 #include <vector>
@@ -50,3 +53,5 @@ std::string SingleEventInfo(perfetto::FtraceEvent format,
 void GenerateEventInfo(const std::vector<std::string>& events_info);
 
 }  // namespace perfetto
+
+#endif  // TOOLS_FTRACE_PROTO_GEN_FTRACE_PROTO_GEN_H_
