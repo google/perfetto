@@ -31,6 +31,7 @@ service traced_probes /system/bin/traced_probes
     # unexpectedly.
     onrestart exec_background - nobody shell -- /system/bin/traced_probes --cleanup-after-crash
     file /dev/kmsg w
+    capabilities DAC_READ_SEARCH
 
 on property:sys.traced.enable_override=1
     setprop persist.traced.enable 1

@@ -262,6 +262,8 @@ FtraceConfigId FtraceConfigMuxer::RequestConfig(const FtraceConfig& request) {
     if (ftrace_->EnableEvent(event->group, event->name)) {
       current_state_.ftrace_events.insert(name);
       *actual.add_ftrace_events() = name;
+    } else {
+      PERFETTO_DPLOG("Failed to enable %s.", name.c_str());
     }
   }
 
