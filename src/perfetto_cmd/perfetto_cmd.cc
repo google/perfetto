@@ -356,7 +356,7 @@ bool PerfettoCmd::OpenOutputFile() {
       return false;
     }
 #else
-    PERFETTO_CHECK(false);
+    PERFETTO_FATAL("Tracing to Dropbox requires the Android build.");
 #endif
   } else {
     fd.reset(open(trace_out_path_.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0600));

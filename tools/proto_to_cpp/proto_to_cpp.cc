@@ -193,7 +193,7 @@ std::string ProtoToCpp::GetCppType(const FieldDescriptor* field,
     case FieldDescriptor::TYPE_ENUM:
       return field->enum_type()->name();
     case FieldDescriptor::TYPE_GROUP:
-      PERFETTO_CHECK(false);
+      PERFETTO_FATAL("No cpp type for a group field.");
   }
 }
 
@@ -281,11 +281,10 @@ void ProtoToCpp::GenHeader(const Descriptor* msg, Printer* p) {
   for (int i = 0; i < msg->field_count(); i++) {
     const FieldDescriptor* field = msg->field(i);
     if (field->has_default_value()) {
-      PERFETTO_ELOG(
+      PERFETTO_FATAL(
           "Error on field %s: Explicitly declared default values are not "
           "supported",
           field->name().c_str());
-      PERFETTO_CHECK(false);
     }
 
     if (field->type() == FieldDescriptor::TYPE_ENUM) {
