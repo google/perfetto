@@ -62,9 +62,12 @@ int main(int argc, const char** argv) {
 
   if (!new_events.empty()) {
     perfetto::PrintFtraceEventProtoAdditions(new_events);
-    perfetto::PrintTraceToTextMain(new_events);
-    perfetto::PrintTraceToTextUsingStatements(new_events);
-    perfetto::PrintTraceToTextFunctions(new_events);
+    perfetto::PrintEventFormatterMain(new_events);
+    perfetto::PrintEventFormatterUsingStatements(new_events);
+    perfetto::PrintEventFormatterFunctions(new_events);
+    printf(
+        "\nAdd output to ParseInode in "
+        "tools/ftrace_proto_gen/ftrace_inode_handler.cc\n");
   }
 
   for (auto event : events) {
@@ -104,6 +107,9 @@ int main(int argc, const char** argv) {
               format.name.c_str());
       return 1;
     }
+
+    if (!new_events.empty())
+      PrintInodeHandlerMain(format.name, proto);
 
     events_info.push_back(
         perfetto::SingleEventInfo(format, proto, group, proto_field_id));
