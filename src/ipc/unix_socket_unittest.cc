@@ -513,7 +513,7 @@ TEST_F(UnixSocketTest, ReceiverDisconnectsDuringSend) {
     auto send_done = tx_task_runner.CreateCheckpoint("send_done");
     // We need a
     static constexpr size_t kBufSize = 32 * 1024 * 1024;
-    std::unique_ptr<char[]> buf(new char[kBufSize]);
+    std::unique_ptr<char[]> buf(new char[kBufSize]());
     tx_task_runner.PostTask([&cli, &buf, send_done] {
       bool send_res = cli->Send(buf.get(), kBufSize, -1 /*fd*/,
                                 UnixSocket::BlockingMode::kBlocking);
