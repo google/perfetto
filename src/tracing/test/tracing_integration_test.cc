@@ -218,6 +218,12 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
           Invoke([&num_pack_rx, all_packets_rx, &trace_config,
                   &saw_clock_snapshot, &saw_trace_config](
                      std::vector<TracePacket>* packets, bool has_more) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+            const int kExpectedMinNumberOfClocks = 1;
+#else
+            const int kExpectedMinNumberOfClocks = 6;
+#endif
+
             for (auto& packet : *packets) {
               ASSERT_TRUE(packet.Decode());
               if (packet->has_for_testing()) {
@@ -225,7 +231,8 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
                 sprintf(buf, "evt_%zu", num_pack_rx++);
                 EXPECT_EQ(std::string(buf), packet->for_testing().str());
               } else if (packet->has_clock_snapshot()) {
-                EXPECT_GE(packet->clock_snapshot().clocks_size(), 6);
+                EXPECT_GE(packet->clock_snapshot().clocks_size(),
+                          kExpectedMinNumberOfClocks);
                 saw_clock_snapshot = true;
               } else if (packet->has_trace_config()) {
                 protos::TraceConfig config_proto;
