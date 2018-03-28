@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <istream>
 #include <limits>
@@ -29,7 +30,6 @@
 #include <memory>
 #include <ostream>
 #include <sstream>
-#include <string>
 #include <utility>
 
 #include <google/protobuf/compiler/importer.h>
