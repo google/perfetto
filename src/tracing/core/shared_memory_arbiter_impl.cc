@@ -215,7 +215,6 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   std::unique_ptr<CommitDataRequest> req;
-  std::vector<uint32_t> pages_to_notify;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
     req = std::move(commit_data_req_);
