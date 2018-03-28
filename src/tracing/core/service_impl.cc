@@ -884,14 +884,16 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
   if (now < tracing_session->last_clock_snapshot + kClockSnapshotInterval)
     return;
   tracing_session->last_clock_snapshot = now;
+
+  protos::TracePacket packet;
+  protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   struct {
     clockid_t id;
     protos::ClockSnapshot::Clock::Type type;
     struct timespec ts;
   } clocks[] = {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-    {CLOCK_UPTIME_RAW, protos::ClockSnapshot::Clock::BOOTTIME, {0, 0}},
-#else
     {CLOCK_BOOTTIME, protos::ClockSnapshot::Clock::BOOTTIME, {0, 0}},
     {CLOCK_REALTIME_COARSE,
      protos::ClockSnapshot::Clock::REALTIME_COARSE,
@@ -899,7 +901,6 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
     {CLOCK_MONOTONIC_COARSE,
      protos::ClockSnapshot::Clock::MONOTONIC_COARSE,
      {0, 0}},
-#endif
     {CLOCK_REALTIME, protos::ClockSnapshot::Clock::REALTIME, {0, 0}},
     {CLOCK_MONOTONIC, protos::ClockSnapshot::Clock::MONOTONIC, {0, 0}},
     {CLOCK_MONOTONIC_RAW, protos::ClockSnapshot::Clock::MONOTONIC_RAW, {0, 0}},
@@ -910,8 +911,6 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
      protos::ClockSnapshot::Clock::THREAD_CPUTIME,
      {0, 0}},
   };
-  protos::TracePacket packet;
-  protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
   // First snapshot all the clocks as atomically as we can.
   for (auto& clock : clocks) {
     if (clock_gettime(clock.id, &clock.ts) == -1)
@@ -922,6 +921,12 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
     c->set_type(clock.type);
     c->set_timestamp(base::FromPosixTimespec(clock.ts).count());
   }
+#else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
+  c->set_type(protos::ClockSnapshot::Clock::MONOTONIC);
+  c->set_timestamp(base::GetWallTimeNs().count());
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+
   packet.set_trusted_uid(getuid());
   Slice slice = Slice::Allocate(packet.ByteSize());
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
