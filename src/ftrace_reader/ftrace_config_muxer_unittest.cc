@@ -212,7 +212,8 @@ TEST(FtraceConfigMuxerTest, Atrace) {
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .WillOnce(Return('0'));
   EXPECT_CALL(atrace,
-              RunAtrace(ElementsAreArray({"atrace", "--async_start", "sched"})))
+              RunAtrace(ElementsAreArray(
+                  {"atrace", "--async_start", "--only_userspace", "sched"})))
       .WillOnce(Return(true));
 
   FtraceConfigId id = model.RequestConfig(config);
@@ -223,7 +224,8 @@ TEST(FtraceConfigMuxerTest, Atrace) {
   EXPECT_THAT(actual_config->ftrace_events(), Contains("sched_switch"));
   EXPECT_THAT(actual_config->ftrace_events(), Contains("print"));
 
-  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_stop"})))
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
+                          {"atrace", "--async_stop", "--only_userspace"})))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id));
 }
