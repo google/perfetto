@@ -33,7 +33,7 @@
 namespace perfetto {
 
 namespace {
-uint64_t kScanIntervalMs = 10000;  // 10s
+const int kScanIntervalMs = 10000;  // 10s
 }
 
 void ScanFilesDFS(
@@ -261,7 +261,7 @@ void InodeFileDataSource::OnInodes(
       missing_inodes_[block_device_id].insert(inode_numbers.cbegin(),
                                               inode_numbers.cend());
       if (first_scan) {
-        PERFETTO_DLOG("Posting to scan filesystem in %lu ms", kScanIntervalMs);
+        PERFETTO_DLOG("Posting to scan filesystem in %d ms", kScanIntervalMs);
         auto weak_this = GetWeakPtr();
         task_runner_->PostDelayedTask(
             [weak_this] {

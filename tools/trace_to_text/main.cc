@@ -316,7 +316,7 @@ void PrintInodeStats(std::ostream* output,
                      const uint64_t& events_with_inodes) {
   *output << "--------------------Inode Stats-------------------\n";
   char line[2048];
-  sprintf(line, "Unique inodes: %" PRIu64 "\n", inode_numbers.size());
+  sprintf(line, "Unique inodes: %zu\n", inode_numbers.size());
   *output << std::string(line);
 
   sprintf(line, "Events with inodes: %" PRIu64 "\n", events_with_inodes);
@@ -330,12 +330,11 @@ void PrintProcessStats(std::ostream* output,
   *output << "----------------Process Tree Stats----------------\n";
 
   char tid[2048];
-  sprintf(tid, "Unique thread ids in process tree: %" PRIu64 "\n",
-          tids_in_tree.size());
+  sprintf(tid, "Unique thread ids in process tree: %zu\n", tids_in_tree.size());
   *output << std::string(tid);
 
   char tid_event[2048];
-  sprintf(tid_event, "Unique thread ids in ftrace events: %" PRIu64 "\n",
+  sprintf(tid_event, "Unique thread ids in ftrace events: %zu\n",
           tids_in_events.size());
   *output << std::string(tid_event);
 
@@ -345,9 +344,7 @@ void PrintProcessStats(std::ostream* output,
                    std::inserter(intersect, intersect.begin()));
 
   char matching[2048];
-  sprintf(matching,
-          "Thread ids with process info: %" PRIu64 "/%" PRIu64 " -> %" PRIu64
-          "%%\n\n",
+  sprintf(matching, "Thread ids with process info: %zu/%zu -> %zu %%\n\n",
           intersect.size(), tids_in_events.size(),
           (intersect.size() * 100) / tids_in_events.size());
   *output << std::string(matching);
