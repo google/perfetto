@@ -283,22 +283,38 @@ int TraceToSummary(std::istream* input, std::ostream* output) {
   uint64_t start = std::numeric_limits<uint64_t>::max();
   uint64_t end = 0;
   std::multiset<uint64_t> ftrace_timestamps;
+  std::set<pid_t> tids_in_tree;
+  std::set<pid_t> tids_in_events;
 
-  ForEachPacketInTrace(input, [&start, &end, &ftrace_timestamps](
-                                  const protos::TracePacket& packet) {
-    if (!packet.has_ftrace_events())
-      return;
+  ForEachPacketInTrace(
+      input, [&start, &end, &ftrace_timestamps, &tids_in_tree,
+              &tids_in_events](const protos::TracePacket& packet) {
 
-    const FtraceEventBundle& bundle = packet.ftrace_events();
+        if (packet.has_process_tree()) {
+          const ProcessTree& tree = packet.process_tree();
+          for (Process process : tree.processes()) {
+            for (ProcessTree::Thread thread : process.threads()) {
+              tids_in_tree.insert(thread.tid());
+            }
+          }
+        }
 
-    for (const FtraceEvent& event : bundle.event()) {
-      if (event.timestamp()) {
-        start = std::min<uint64_t>(start, event.timestamp());
-        end = std::max<uint64_t>(end, event.timestamp());
-        ftrace_timestamps.insert(event.timestamp());
-      }
-    }
-  });
+        if (!packet.has_ftrace_events())
+          return;
+
+        const FtraceEventBundle& bundle = packet.ftrace_events();
+
+        for (const FtraceEvent& event : bundle.event()) {
+          if (event.pid()) {
+            tids_in_events.insert(event.pid());
+          }
+          if (event.timestamp()) {
+            start = std::min<uint64_t>(start, event.timestamp());
+            end = std::max<uint64_t>(end, event.timestamp());
+            ftrace_timestamps.insert(event.timestamp());
+          }
+        }
+      });
 
   fprintf(stderr, "\n");
 
@@ -328,7 +344,33 @@ int TraceToSummary(std::istream* input, std::ostream* output) {
         out[std::min(buckets[i] / (max / out.size()), out.size() - 1)].c_str());
     *output << std::string(line);
   }
-  *output << "\n";
+  *output << "\n\n";
+
+  *output << "----------------Process Tree Stats----------------\n";
+
+  char tid[2048];
+  sprintf(tid, "Unique thread ids in process tree: %" PRIu64 "\n",
+          tids_in_tree.size());
+  *output << std::string(tid);
+
+  char tid_event[2048];
+  sprintf(tid_event, "Unique thread ids in ftrace events: %" PRIu64 "\n",
+          tids_in_events.size());
+  *output << std::string(tid_event);
+
+  std::set<pid_t> intersect;
+  set_intersection(tids_in_tree.begin(), tids_in_tree.end(),
+                   tids_in_events.begin(), tids_in_events.end(),
+                   std::inserter(intersect, intersect.begin()));
+
+  char matching[2048];
+  sprintf(matching,
+          "Thread ids with process info: %" PRIu64 "/%" PRIu64 " -> %" PRIu64
+          "%%\n\n",
+          intersect.size(), tids_in_events.size(),
+          (intersect.size() * 100) / tids_in_events.size());
+  *output << std::string(matching);
+
   return 0;
 }
 
