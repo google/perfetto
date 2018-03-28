@@ -53,7 +53,6 @@ namespace perfetto {
 namespace {
 constexpr size_t kDefaultShmSize = 256 * 1024ul;
 constexpr size_t kMaxShmSize = 4096 * 1024 * 512ul;
-constexpr size_t kMaxShmPageSizeKb = 16ul;
 constexpr size_t kDefaultShmPageSizeKb = base::kPageSize / 1024ul;
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kClockSnapshotInterval(10 * 1000);
@@ -730,7 +729,7 @@ void ServiceImpl::CreateDataSourceInstance(
     producer->shared_buffer_page_size_kb_ = std::min<size_t>(
         (producer_config.page_size_kb() == 0) ? kDefaultShmPageSizeKb
                                               : producer_config.page_size_kb(),
-        kMaxShmPageSizeKb);
+        SharedMemoryABI::kMaxPageSize);
 
     size_t shm_size =
         std::min<size_t>(producer_config.shm_size_kb() * 1024, kMaxShmSize);
