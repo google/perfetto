@@ -115,7 +115,6 @@ message TraceConfig {
     reserved 2;  // |page_size|, now deprecated.
     reserved 3;  // |optimize_for|, now deprecated.
 
-    // Keep include/perfetto/tracing/core/trace_config.h in sync.
     enum FillPolicy {
       UNSPECIFIED = 0;
       RING_BUFFER = 1;

@@ -103,14 +103,7 @@ class TracingIntegrationTest : public ::testing::Test {
     // Register a data source.
     DataSourceDescriptor ds_desc;
     ds_desc.set_name("perfetto.test");
-    auto on_data_source_registered =
-        task_runner_->CreateCheckpoint("on_data_source_registered");
-    producer_endpoint_->RegisterDataSource(
-        ds_desc, [on_data_source_registered](DataSourceID dsid) {
-          PERFETTO_DLOG("Registered data source with ID: %" PRIu64, dsid);
-          on_data_source_registered();
-        });
-    task_runner_->RunUntilCheckpoint("on_data_source_registered");
+    producer_endpoint_->RegisterDataSource(ds_desc);
 
     // Create and connect a Consumer.
     consumer_endpoint_ = ConsumerIPCClient::Connect(

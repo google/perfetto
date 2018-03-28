@@ -35,9 +35,8 @@ using testing::_;
 
 class MockProducerEndpoint : public Service::ProducerEndpoint {
  public:
-  void RegisterDataSource(const DataSourceDescriptor&,
-                          RegisterDataSourceCallback) override {}
-  void UnregisterDataSource(DataSourceID) override {}
+  void RegisterDataSource(const DataSourceDescriptor&) override {}
+  void UnregisterDataSource(const std::string&) override {}
   SharedMemory* shared_memory() const override { return nullptr; }
   size_t shared_buffer_page_size_kb() const override { return 0; }
   std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override {

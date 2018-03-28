@@ -48,8 +48,7 @@ void FakeProducer::OnConnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   DataSourceDescriptor descriptor;
   descriptor.set_name(name_);
-  endpoint_->RegisterDataSource(descriptor,
-                                [this](DataSourceID id) { id_ = id; });
+  endpoint_->RegisterDataSource(descriptor);
 }
 
 void FakeProducer::OnDisconnect() {
