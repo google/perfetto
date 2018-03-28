@@ -26,6 +26,7 @@
 #include "perfetto/ipc/service_proxy.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/service.h"
+#include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/ipc/consumer_ipc_client.h"
 
 #include "perfetto/ipc/consumer_port.ipc.h"
@@ -83,6 +84,13 @@ class ConsumerIPCClientImpl : public Service::ConsumerEndpoint,
   protos::ConsumerPortProxy consumer_port_;
 
   bool connected_ = false;
+
+  // When a packet is too big to fit into a ReadBuffersResponse IPC, the service
+  // will chunk it into several IPCs, each containing few slices of the packet
+  // (a packet's slice is always guaranteed to be << kIPCBufferSize). When
+  // chunking happens this field accumulates the slices received until the
+  // one with |last_slice_for_packet| == true is received.
+  TracePacket partial_packet_;
 
   base::WeakPtrFactory<ConsumerIPCClientImpl> weak_ptr_factory_;
 };
