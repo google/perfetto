@@ -38,9 +38,11 @@ struct Proto {
 };
 
 void PrintFtraceEventProtoAdditions(const std::set<std::string>& events);
-void PrintTraceToTextMain(const std::set<std::string>& events);
-void PrintTraceToTextUsingStatements(const std::set<std::string>& events);
-void PrintTraceToTextFunctions(const std::set<std::string>& events);
+void PrintEventFormatterMain(const std::set<std::string>& events);
+void PrintEventFormatterUsingStatements(const std::set<std::string>& events);
+void PrintEventFormatterFunctions(const std::set<std::string>& events);
+void PrintInodeHandlerMain(const std::string& event_name,
+                           const perfetto::Proto& proto);
 
 bool GenerateProto(const FtraceEvent& format, Proto* proto_out);
 std::string InferProtoType(const FtraceEvent::Field& field);
