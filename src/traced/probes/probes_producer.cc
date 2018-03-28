@@ -188,7 +188,7 @@ void ProbesProducer::CreateInodeFileDataSourceInstance(
   auto trace_writer = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
   if (system_inodes_.empty())
-    CreateStaticDeviceToInodeMap("/system/", &system_inodes_);
+    CreateStaticDeviceToInodeMap("/system", &system_inodes_);
   auto file_map_source =
       std::unique_ptr<InodeFileDataSource>(new InodeFileDataSource(
           session_id, &system_inodes_, &cache_, std::move(trace_writer)));

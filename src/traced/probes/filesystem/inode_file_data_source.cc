@@ -223,7 +223,8 @@ void InodeFileDataSource::OnInodes(
     BlockDeviceID block_device_id = inodes_pair.second;
     inode_file_maps[block_device_id].emplace(inode_number);
   }
-  PERFETTO_DLOG("Saw %zu block devices.", inode_file_maps.size());
+  if (inode_file_maps.size() > 1)
+    PERFETTO_DLOG("Saw %zu block devices.", inode_file_maps.size());
 
   // Write a TracePacket with an InodeFileMap proto for each block device id
   for (const auto& inode_file_map_data : inode_file_maps) {
