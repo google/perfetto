@@ -80,7 +80,7 @@ class FtraceConfigMuxer {
 
   void SetupClock(const FtraceConfig& request);
   void SetupBufferSize(const FtraceConfig& request);
-  void EnableAtrace(const FtraceConfig& request);
+  void UpdateAtrace(const FtraceConfig& request);
   void DisableAtrace();
 
   FtraceConfigId GetNextId();
