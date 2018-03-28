@@ -112,7 +112,7 @@ TEST(PerfettoTest, MAYBE_TestFtraceProducer) {
     total += packets.size();
 
     if (!has_more) {
-      ASSERT_GE(total, static_cast<uint64_t>(sysconf(_SC_NPROCESSORS_CONF)));
+      ASSERT_GT(total, 0u);
       on_readback_complete();
     }
   };

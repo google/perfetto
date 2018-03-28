@@ -64,7 +64,8 @@ void ConsumerIPCClientImpl::OnDisconnect() {
   consumer_->OnDisconnect();
 }
 
-void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config) {
+void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config,
+                                          base::ScopedFile fd) {
   if (!connected_) {
     PERFETTO_DLOG("Cannot EnableTracing(), not connected to tracing service");
     return;
@@ -75,12 +76,18 @@ void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config) {
   protos::EnableTracingRequest req;
   trace_config.ToProto(req.mutable_trace_config());
   ipc::Deferred<protos::EnableTracingResponse> async_response;
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   async_response.Bind(
-      [](ipc::AsyncResult<protos::EnableTracingResponse> response) {
-        if (!response)
-          PERFETTO_DLOG("EnableTracing() failed");
+      [weak_this](ipc::AsyncResult<protos::EnableTracingResponse> response) {
+        if (!weak_this)
+          return;
+        if (!response || response->stopped())
+          weak_this->consumer_->OnTracingStop();
       });
-  consumer_port_.EnableTracing(req, std::move(async_response));
+
+  // |fd| will be closed when this function returns, but it's fine because the
+  // IPC layer dup()'s it when sending the IPC.
+  consumer_port_.EnableTracing(req, std::move(async_response), *fd);
 }
 
 void ConsumerIPCClientImpl::DisableTracing() {

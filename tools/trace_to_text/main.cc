@@ -2195,17 +2195,43 @@ std::string FormatInodeFileMap(const Entry& entry) {
 
 int TraceToSystrace(std::istream* input, std::ostream* output) {
   std::multimap<uint64_t, std::string> sorted;
+  size_t bytes_processed = 0;
+  // The trace stream can be very large. We cannot just pass it in one go to
+  // libprotobuf as that will refuse to parse messages > 64MB. However we know
+  // that a trace is merely a sequence of TracePackets. Here we just manually
+  // tokenize the repeated TracePacket messages and parse them individually
+  // using libprotobuf.
+  for (;;) {
+    fprintf(stderr, "Processing trace: %8zu KB\r", bytes_processed / 1024);
+    fflush(stderr);
+    // A TracePacket consists in one byte stating its field id and type ...
+    char preamble;
+    input->get(preamble);
+    if (!input->good())
+      break;
+    bytes_processed++;
+    PERFETTO_DCHECK(preamble == 0x0a);  // Field ID:1, type:length delimited.
 
-  std::string raw;
-  std::istreambuf_iterator<char> begin(*input), end;
-  raw.assign(begin, end);
-  Trace trace;
-  if (!trace.ParseFromString(raw)) {
-    PERFETTO_ELOG("Could not parse input.");
-    return 1;
-  }
+    // ... a varint stating its size ...
+    uint32_t field_size = 0;
+    uint32_t shift = 0;
+    for (;;) {
+      char c = 0;
+      input->get(c);
+      field_size |= static_cast<uint32_t>(c & 0x7f) << shift;
+      shift += 7;
+      bytes_processed++;
+      if (!(c & 0x80))
+        break;
+    }
 
-  for (const TracePacket& packet : trace.packet()) {
+    // ... and the actual TracePacket itself.
+    std::unique_ptr<char[]> buf(new char[field_size]);
+    input->read(buf.get(), field_size);
+    bytes_processed += field_size;
+
+    protos::TracePacket packet;
+    PERFETTO_CHECK(packet.ParseFromArray(buf.get(), field_size));
 
     if (!packet.has_ftrace_events())
       continue;
@@ -2767,8 +2793,17 @@ int TraceToSystrace(std::istream* input, std::ostream* output) {
   *output << kTraceHeader;
   *output << kFtraceHeader;
 
-  for (auto it = sorted.begin(); it != sorted.end(); it++)
+  fprintf(stderr, "\n");
+  size_t total_events = sorted.size();
+  size_t written_events = 0;
+  for (auto it = sorted.begin(); it != sorted.end(); it++) {
     *output << it->second;
+    if (written_events++ % 100 == 0) {
+      fprintf(stderr, "Writing trace: %.2f %%\r",
+              written_events * 100.0 / total_events);
+      fflush(stderr);
+    }
+  }
 
   *output << kTraceFooter;
 
