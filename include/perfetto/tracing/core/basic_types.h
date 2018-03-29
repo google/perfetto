@@ -29,9 +29,6 @@ using TracingSessionID = uint64_t;
 using ProducerID = uint16_t;
 
 // Unique within the scope of the tracing service.
-using DataSourceID = uint64_t;
-
-// Unique within the scope of the tracing service.
 using DataSourceInstanceID = uint64_t;
 
 // Unique within the scope of a Producer.
