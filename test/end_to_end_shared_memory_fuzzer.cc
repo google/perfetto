@@ -57,7 +57,8 @@ class FakeProducer : public Producer {
         on_produced_and_committed_(on_produced_and_committed) {}
 
   void Connect(const char* socket_name, base::TaskRunner* task_runner) {
-    endpoint_ = ProducerIPCClient::Connect(socket_name, this, task_runner);
+    endpoint_ = ProducerIPCClient::Connect(
+        socket_name, this, "android.perfetto.FakeProducer", task_runner);
   }
 
   void OnConnect() override {
