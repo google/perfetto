@@ -165,7 +165,7 @@ tmux select-pane -t 2
 
 tmux -2 attach-session -t demo
 
-reset
+reset_tracing
 
 TRACE=$HOME/Downloads/trace
 pull trace /tmp/trace.protobuf
