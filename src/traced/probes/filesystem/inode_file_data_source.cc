@@ -29,9 +29,9 @@
 #include "perfetto/tracing/core/trace_writer.h"
 
 #include "perfetto/trace/trace_packet.pbzero.h"
+#include "src/traced/probes/filesystem/file_scanner.h"
 
 namespace perfetto {
-
 namespace {
 const int kScanIntervalMs = 10000;  // 10s
 }
