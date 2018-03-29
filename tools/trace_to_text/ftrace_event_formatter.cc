@@ -379,7 +379,7 @@ std::string FormatSchedSwitch(const SchedSwitchFtraceEvent& sched_switch) {
   sprintf(line,
           "sched_switch: prev_comm=%s "
           "prev_pid=%d prev_prio=%d prev_state=%s ==> next_comm=%s next_pid=%d "
-          "next_prio=%d\\n",
+          "next_prio=%d",
           sched_switch.prev_comm().c_str(), sched_switch.prev_pid(),
           sched_switch.prev_prio(),
           GetSchedSwitchFlag(sched_switch.prev_state()),
@@ -392,7 +392,7 @@ std::string FormatSchedWakeup(const SchedWakeupFtraceEvent& sched_wakeup) {
   char line[2048];
   sprintf(line,
           "sched_wakeup: comm=%s "
-          "pid=%d prio=%d success=%d target_cpu=%03d\\n",
+          "pid=%d prio=%d success=%d target_cpu=%03d",
           sched_wakeup.comm().c_str(), sched_wakeup.pid(), sched_wakeup.prio(),
           sched_wakeup.success(), sched_wakeup.target_cpu());
   return std::string(line);
@@ -401,24 +401,31 @@ std::string FormatSchedWakeup(const SchedWakeupFtraceEvent& sched_wakeup) {
 std::string FormatSchedBlockedReason(
     const SchedBlockedReasonFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sched_blocked_reason: pid=%d iowait=%d caller=%llxS\\n",
+  sprintf(line, "sched_blocked_reason: pid=%d iowait=%d caller=%llxS",
           event.pid(), event.io_wait(), event.caller());
   return std::string(line);
 }
 
 std::string FormatPrint(const PrintFtraceEvent& print) {
-  char line[2048];
-  std::string msg = print.buf();
+  std::string line = "tracing_mark_write: ";
+  size_t dst = line.size();
+  line.resize(2048);
+  const std::string& msg = print.buf();
+
   // Remove any newlines in the message. It's not entirely clear what the right
   // behaviour is here. Maybe we should escape them instead?
-  msg.erase(std::remove(msg.begin(), msg.end(), '\n'), msg.end());
-  sprintf(line, "tracing_mark_write: %s\\n", msg.c_str());
-  return std::string(line);
+  for (size_t src = 0; src < msg.size() && dst < line.size() - 1; src++) {
+    char c = msg[src];
+    if (c != '\n')
+      line[dst++] = c;
+  }
+  line.resize(dst);
+  return line;
 }
 
 std::string FormatCpuFrequency(const CpuFrequencyFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "cpu_frequency: state=%" PRIu32 " cpu_id=%" PRIu32 "\\n",
+  sprintf(line, "cpu_frequency: state=%" PRIu32 " cpu_id=%" PRIu32,
           event.state(), event.cpu_id());
   return std::string(line);
 }
@@ -428,21 +435,21 @@ std::string FormatCpuFrequencyLimits(
   char line[2048];
   sprintf(line,
           "cpu_frequency_limits: min_freq=%" PRIu32 "max_freq=%" PRIu32
-          " cpu_id=%" PRIu32 "\\n",
+          " cpu_id=%" PRIu32,
           event.min_freq(), event.max_freq(), event.cpu_id());
   return std::string(line);
 }
 
 std::string FormatCpuIdle(const CpuIdleFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "cpu_idle: state=%" PRIu32 " cpu_id=%" PRIu32 "\\n",
-          event.state(), event.cpu_id());
+  sprintf(line, "cpu_idle: state=%" PRIu32 " cpu_id=%" PRIu32, event.state(),
+          event.cpu_id());
   return std::string(line);
 }
 
 std::string FormatClockSetRate(const ClockSetRateFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "clock_set_rate: %s state=%llu cpu_id=%llu\\n",
+  sprintf(line, "clock_set_rate: %s state=%llu cpu_id=%llu",
           event.name().empty() ? "todo" : event.name().c_str(), event.state(),
           event.cpu_id());
   return std::string(line);
@@ -450,7 +457,7 @@ std::string FormatClockSetRate(const ClockSetRateFtraceEvent& event) {
 
 std::string FormatClockEnable(const ClockEnableFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "clock_enable: %s state=%llu cpu_id=%llu\\n",
+  sprintf(line, "clock_enable: %s state=%llu cpu_id=%llu",
           event.name().empty() ? "todo" : event.name().c_str(), event.state(),
           event.cpu_id());
   return std::string(line);
@@ -458,7 +465,7 @@ std::string FormatClockEnable(const ClockEnableFtraceEvent& event) {
 
 std::string FormatClockDisable(const ClockDisableFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "clock_disable: %s state=%llu cpu_id=%llu\\n",
+  sprintf(line, "clock_disable: %s state=%llu cpu_id=%llu",
           event.name().empty() ? "todo" : event.name().c_str(), event.state(),
           event.cpu_id());
   return std::string(line);
@@ -466,27 +473,26 @@ std::string FormatClockDisable(const ClockDisableFtraceEvent& event) {
 
 std::string FormatTracingMarkWrite(const TracingMarkWriteFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "tracing_mark_write: %s|%d|%s\\n",
-          event.trace_begin() ? "B" : "E", event.pid(),
-          event.trace_name().c_str());
+  sprintf(line, "tracing_mark_write: %s|%d|%s", event.trace_begin() ? "B" : "E",
+          event.pid(), event.trace_name().c_str());
   return std::string(line);
 }
 
 std::string FormatBinderLocked(const BinderLockedFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "binder_locked: tag=%s\\n", event.tag().c_str());
+  sprintf(line, "binder_locked: tag=%s", event.tag().c_str());
   return std::string(line);
 }
 
 std::string FormatBinderUnlock(const BinderUnlockFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "binder_unlock: tag=%s\\n", event.tag().c_str());
+  sprintf(line, "binder_unlock: tag=%s", event.tag().c_str());
   return std::string(line);
 }
 
 std::string FormatBinderLock(const BinderLockFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "binder_lock: tag=%s\\n", event.tag().c_str());
+  sprintf(line, "binder_lock: tag=%s", event.tag().c_str());
   return std::string(line);
 }
 
@@ -494,7 +500,7 @@ std::string FormatBinderTransaction(const BinderTransactionFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "binder_transaction: transaction=%d dest_node=%d dest_proc=%d "
-          "dest_thread=%d reply=%d flags=0x%x code=0x%x\\n",
+          "dest_thread=%d reply=%d flags=0x%x code=0x%x",
           event.debug_id(), event.target_node(), event.to_proc(),
           event.to_thread(), event.reply(), event.flags(), event.code());
   return std::string(line);
@@ -503,7 +509,7 @@ std::string FormatBinderTransaction(const BinderTransactionFtraceEvent& event) {
 std::string FormatBinderTransactionReceived(
     const BinderTransactionReceivedFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "binder_transaction_received: transaction=%d\\n",
+  sprintf(line, "binder_transaction_received: transaction=%d",
           event.debug_id());
   return std::string(line);
 }
@@ -511,7 +517,7 @@ std::string FormatBinderTransactionReceived(
 std::string FormatExt4SyncFileEnter(const Ext4SyncFileEnterFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_sync_file_enter: dev %d,%d ino %lu parent %lu datasync %d \\n",
+          "ext4_sync_file_enter: dev %d,%d ino %lu parent %lu datasync %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned long)event.parent(), event.datasync());
   return std::string(line);
@@ -519,7 +525,7 @@ std::string FormatExt4SyncFileEnter(const Ext4SyncFileEnterFtraceEvent& event) {
 
 std::string FormatExt4SyncFileExit(const Ext4SyncFileExitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_sync_file_exit: dev %d,%d ino %lu ret %d\\n",
+  sprintf(line, "ext4_sync_file_exit: dev %d,%d ino %lu ret %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.ret());
   return std::string(line);
@@ -528,7 +534,7 @@ std::string FormatExt4SyncFileExit(const Ext4SyncFileExitFtraceEvent& event) {
 std::string FormatExt4DaWriteBegin(const Ext4DaWriteBeginFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_da_write_begin: dev %d,%d ino %lu pos %lld len %u flags %u\\n",
+          "ext4_da_write_begin: dev %d,%d ino %lu pos %lld len %u flags %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.pos(), event.len(), event.flags());
   return std::string(line);
@@ -537,7 +543,7 @@ std::string FormatExt4DaWriteBegin(const Ext4DaWriteBeginFtraceEvent& event) {
 std::string FormatExt4DaWriteEnd(const Ext4DaWriteEndFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_da_write_end: dev %d,%d ino %lu pos %lld len %u copied %u\\n",
+          "ext4_da_write_end: dev %d,%d ino %lu pos %lld len %u copied %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.pos(), event.len(), event.copied());
   return std::string(line);
@@ -545,7 +551,7 @@ std::string FormatExt4DaWriteEnd(const Ext4DaWriteEndFtraceEvent& event) {
 
 std::string FormatBlockRqIssue(const BlockRqIssueFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_rq_issue: %d,%d %s %u (%s) %llu + %u [%s]\\n",
+  sprintf(line, "block_rq_issue: %d,%d %s %u (%s) %llu + %u [%s]",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           event.bytes(), event.cmd().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
@@ -555,29 +561,28 @@ std::string FormatBlockRqIssue(const BlockRqIssueFtraceEvent& event) {
 
 std::string FormatI2cRead(const I2cReadFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "i2c_read: i2c-%d #%u a=%03x f=%04x l=%u\\n",
-          event.adapter_nr(), event.msg_nr(), event.addr(), event.flags(),
-          event.len());
+  sprintf(line, "i2c_read: i2c-%d #%u a=%03x f=%04x l=%u", event.adapter_nr(),
+          event.msg_nr(), event.addr(), event.flags(), event.len());
   return std::string(line);
 }
 
 std::string FormatI2cResult(const I2cResultFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "i2c_result: i2c-%d n=%u ret=%d\\n", event.adapter_nr(),
+  sprintf(line, "i2c_result: i2c-%d n=%u ret=%d", event.adapter_nr(),
           event.nr_msgs(), event.ret());
   return std::string(line);
 }
 
 std::string FormatIrqHandlerEntry(const IrqHandlerEntryFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "irq_handler_entry: irq=%d name=%s\\n", event.irq(),
+  sprintf(line, "irq_handler_entry: irq=%d name=%s", event.irq(),
           event.name().c_str());
   return std::string(line);
 }
 
 std::string FormatIrqHandlerExit(const IrqHandlerExitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "irq_handler_exit: irq=%d ret=%s\\n", event.irq(),
+  sprintf(line, "irq_handler_exit: irq=%d ret=%s", event.irq(),
           event.ret() ? "handled" : "unhandled");
   return std::string(line);
 }
@@ -585,7 +590,7 @@ std::string FormatIrqHandlerExit(const IrqHandlerExitFtraceEvent& event) {
 std::string FormatMmVmscanKswapdWake(
     const MmVmscanKswapdWakeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "mm_vmscan_kswapd_wake: nid=%d order=%d\\n", event.nid(),
+  sprintf(line, "mm_vmscan_kswapd_wake: nid=%d order=%d", event.nid(),
           event.order());
   return std::string(line);
 }
@@ -593,77 +598,76 @@ std::string FormatMmVmscanKswapdWake(
 std::string FormatMmVmscanKswapdSleep(
     const MmVmscanKswapdSleepFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "mm_vmscan_kswapd_sleep: nid=%d\\n", event.nid());
+  sprintf(line, "mm_vmscan_kswapd_sleep: nid=%d", event.nid());
   return std::string(line);
 }
 
 std::string FormatRegulatorEnable(const RegulatorEnableFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "regulator_enable: name=%s\\n", event.name().c_str());
+  sprintf(line, "regulator_enable: name=%s", event.name().c_str());
   return std::string(line);
 }
 
 std::string FormatRegulatorEnableDelay(
     const RegulatorEnableDelayFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "regulator_enable_delay: name=%s\\n", event.name().c_str());
+  sprintf(line, "regulator_enable_delay: name=%s", event.name().c_str());
   return std::string(line);
 }
 
 std::string FormatRegulatorEnableComplete(
     const RegulatorEnableCompleteFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "regulator_enable_complete: name=%s\\n", event.name().c_str());
+  sprintf(line, "regulator_enable_complete: name=%s", event.name().c_str());
   return std::string(line);
 }
 
 std::string FormatRegulatorDisable(const RegulatorDisableFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "regulator_disable: name=%s\\n", event.name().c_str());
+  sprintf(line, "regulator_disable: name=%s", event.name().c_str());
   return std::string(line);
 }
 
 std::string FormatRegulatorDisableComplete(
     const RegulatorDisableCompleteFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "regulator_disable_complete: name=%s\\n", event.name().c_str());
+  sprintf(line, "regulator_disable_complete: name=%s", event.name().c_str());
   return std::string(line);
 }
 
 std::string FormatRegulatorSetVoltage(
     const RegulatorSetVoltageFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "regulator_set_voltage: name=%s (%d-%d)\\n",
-          event.name().c_str(), event.min(), event.max());
+  sprintf(line, "regulator_set_voltage: name=%s (%d-%d)", event.name().c_str(),
+          event.min(), event.max());
   return std::string(line);
 }
 
 std::string FormatRegulatorSetVoltageComplete(
     const RegulatorSetVoltageCompleteFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "regulator_set_voltage_complete: name=%s, val=%u\\n",
+  sprintf(line, "regulator_set_voltage_complete: name=%s, val=%u",
           event.name().c_str(), event.val());
   return std::string(line);
 }
 
 std::string FormatSchedCpuHotplug(const SchedCpuHotplugFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sched_cpu_hotplug: cpu %d %s error=%d\\n",
-          event.affected_cpu(), event.status() ? "online" : "offline",
-          event.error());
+  sprintf(line, "sched_cpu_hotplug: cpu %d %s error=%d", event.affected_cpu(),
+          event.status() ? "online" : "offline", event.error());
   return std::string(line);
 }
 
 std::string FormatSyncTimeline(const SyncTimelineFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sync_timeline: name=%s value=%s\\n", event.name().c_str(),
+  sprintf(line, "sync_timeline: name=%s value=%s", event.name().c_str(),
           event.value().c_str());
   return std::string(line);
 }
 
 std::string FormatSyncWait(const SyncWaitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sync_wait: %s name=%s state=%d\\n",
+  sprintf(line, "sync_wait: %s name=%s state=%d",
           event.begin() ? "begin" : "end", event.name().c_str(),
           event.status());
   return std::string(line);
@@ -671,28 +675,28 @@ std::string FormatSyncWait(const SyncWaitFtraceEvent& event) {
 
 std::string FormatSyncPt(const SyncPtFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sync_pt: name=%s value=%s\\n", event.timeline().c_str(),
+  sprintf(line, "sync_pt: name=%s value=%s", event.timeline().c_str(),
           event.value().c_str());
   return std::string(line);
 }
 
 std::string FormatSoftirqRaise(const SoftirqRaiseFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "softirq_raise: vec=%u [action=%s]\\n", event.vec(),
+  sprintf(line, "softirq_raise: vec=%u [action=%s]", event.vec(),
           SoftirqArray[event.vec()]);
   return std::string(line);
 }
 
 std::string FormatSoftirqEntry(const SoftirqEntryFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "softirq_entry: vec=%u [action=%s]\\n", event.vec(),
+  sprintf(line, "softirq_entry: vec=%u [action=%s]", event.vec(),
           SoftirqArray[event.vec()]);
   return std::string(line);
 }
 
 std::string FormatSoftirqExit(const SoftirqExitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "softirq_exit: vec=%u [action=%s]\\n", event.vec(),
+  sprintf(line, "softirq_exit: vec=%u [action=%s]", event.vec(),
           SoftirqArray[event.vec()]);
   return std::string(line);
 }
@@ -700,18 +704,16 @@ std::string FormatSoftirqExit(const SoftirqExitFtraceEvent& event) {
 std::string FormatI2cWrite(const I2cWriteFtraceEvent& event) {
   char line[2048];
   // TODO(hjd): Check event.buf().
-  sprintf(line, "i2c_write: i2c-%d #%u a=%03x f=%04x l=%u\\n",
-          event.adapter_nr(), event.msg_nr(), event.addr(), event.flags(),
-          event.len());
+  sprintf(line, "i2c_write: i2c-%d #%u a=%03x f=%04x l=%u", event.adapter_nr(),
+          event.msg_nr(), event.addr(), event.flags(), event.len());
   return std::string(line);
 }
 
 std::string FormatI2cReply(const I2cReplyFtraceEvent& event) {
   char line[2048];
   // TODO(hjd): Check event.buf().
-  sprintf(line, "i2c_reply: i2c-%d #%u a=%03x f=%04x l=%u\\n",
-          event.adapter_nr(), event.msg_nr(), event.addr(), event.flags(),
-          event.len());
+  sprintf(line, "i2c_reply: i2c-%d #%u a=%03x f=%04x l=%u", event.adapter_nr(),
+          event.msg_nr(), event.addr(), event.flags(), event.len());
   return std::string(line);
 }
 
@@ -719,7 +721,7 @@ std::string FormatI2cReply(const I2cReplyFtraceEvent& event) {
 std::string FormatMmVmscanDirectReclaimBegin(
     const MmVmscanDirectReclaimBeginFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "mm_vmscan_direct_reclaim_begin: order=%d may_writepage=%d\\n",
+  sprintf(line, "mm_vmscan_direct_reclaim_begin: order=%d may_writepage=%d",
           event.order(), event.may_writepage());
   return std::string(line);
 }
@@ -727,7 +729,7 @@ std::string FormatMmVmscanDirectReclaimBegin(
 std::string FormatMmVmscanDirectReclaimEnd(
     const MmVmscanDirectReclaimEndFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "mm_vmscan_direct_reclaim_end: nr_reclaimed=%llu\\n",
+  sprintf(line, "mm_vmscan_direct_reclaim_end: nr_reclaimed=%llu",
           event.nr_reclaimed());
   return std::string(line);
 }
@@ -736,7 +738,7 @@ std::string FormatLowmemoryKill(const LowmemoryKillFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "lowmemory_kill: %s (%d), page cache %lldkB (limit %lldkB), free "
-          "%lldKb\\n",
+          "%lldKb",
           event.comm().c_str(), event.pid(), event.pagecache_size(),
           event.pagecache_limit(), event.free());
   return std::string(line);
@@ -745,7 +747,7 @@ std::string FormatLowmemoryKill(const LowmemoryKillFtraceEvent& event) {
 std::string FormatWorkqueueExecuteStart(
     const WorkqueueExecuteStartFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "workqueue_execute_start: work struct %llx: function %llxf\\n",
+  sprintf(line, "workqueue_execute_start: work struct %llx: function %llxf",
           event.work(), event.function());
   return std::string(line);
 }
@@ -753,7 +755,7 @@ std::string FormatWorkqueueExecuteStart(
 std::string FormatWorkqueueExecuteEnd(
     const WorkqueueExecuteEndFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "workqueue_execute_end: work struct %llx\\n", event.work());
+  sprintf(line, "workqueue_execute_end: work struct %llx", event.work());
   return std::string(line);
 }
 
@@ -763,7 +765,7 @@ std::string FormatWorkqueueQueueWork(
   sprintf(
       line,
       "workqueue_queue_work: work struct=%llx function=%llxf workqueue=%llx "
-      "req_cpu=%u cpu=%u\\n",
+      "req_cpu=%u cpu=%u",
       event.work(), event.function(), event.workqueue(), event.req_cpu(),
       event.cpu());
   return std::string(line);
@@ -772,7 +774,7 @@ std::string FormatWorkqueueQueueWork(
 std::string FormatWorkqueueActivateWork(
     const WorkqueueActivateWorkFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "workqueue_activate_work: work struct %llx\\n", event.work());
+  sprintf(line, "workqueue_activate_work: work struct %llx", event.work());
   return std::string(line);
 }
 
@@ -780,7 +782,7 @@ std::string FormatMmCompactionBegin(const MmCompactionBeginFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "mm_compaction_begin: zone_start=0x%llx migrate_pfn=0x%llx "
-          "free_pfn=0x%llx zone_end=0x%llx, mode=%s\\n",
+          "free_pfn=0x%llx zone_end=0x%llx, mode=%s",
           event.zone_start(), event.migrate_pfn(), event.free_pfn(),
           event.zone_end(), event.sync() ? "sync" : "async");
   return std::string(line);
@@ -791,7 +793,7 @@ std::string FormatMmCompactionDeferCompaction(
   char line[2048];
   sprintf(line,
           "mm_compaction_defer_compaction: node=%d zone=%-8s order=%d "
-          "order_failed=%d consider=%u limit=%lu\\n",
+          "order_failed=%d consider=%u limit=%lu",
           event.nid(), MmCompactionSuitableArray[event.idx()], event.order(),
           event.order_failed(), event.considered(), 1UL << event.defer_shift());
   return std::string(line);
@@ -802,7 +804,7 @@ std::string FormatMmCompactionDeferred(
   char line[2048];
   sprintf(line,
           "mm_compaction_deferred: node=%d zone=%-8s order=%d order_failed=%d "
-          "consider=%u limit=%lu\\n",
+          "consider=%u limit=%lu",
           event.nid(), MmCompactionSuitableArray[event.idx()], event.order(),
           event.order_failed(), event.considered(), 1UL << event.defer_shift());
   return std::string(line);
@@ -813,7 +815,7 @@ std::string FormatMmCompactionDeferReset(
   char line[2048];
   sprintf(line,
           "mm_compaction_defer_reset: node=%d zone=%-8s order=%d "
-          "order_failed=%d consider=%u limit=%lu\\n",
+          "order_failed=%d consider=%u limit=%lu",
           event.nid(), MmCompactionSuitableArray[event.idx()], event.order(),
           event.order_failed(), event.considered(), 1UL << event.defer_shift());
   return std::string(line);
@@ -823,7 +825,7 @@ std::string FormatMmCompactionEnd(const MmCompactionEndFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "mm_compaction_end: zone_start=0x%llx migrate_pfn=0x%llx "
-          "free_pfn=0x%llx zone_end=0x%llx, mode=%s status=%s\\n",
+          "free_pfn=0x%llx zone_end=0x%llx, mode=%s status=%s",
           event.zone_start(), event.migrate_pfn(), event.free_pfn(),
           event.zone_end(), event.sync() ? "sync" : "aysnc",
           MmCompactionRetArray[event.status()]);
@@ -833,7 +835,7 @@ std::string FormatMmCompactionEnd(const MmCompactionEndFtraceEvent& event) {
 std::string FormatMmCompactionFinished(
     const MmCompactionFinishedFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "mm_compaction_finished: node=%d zone=%-8s order=%d ret=%s\\n",
+  sprintf(line, "mm_compaction_finished: node=%d zone=%-8s order=%d ret=%s",
           event.nid(), MmCompactionSuitableArray[event.idx()], event.order(),
           MmCompactionRetArray[event.ret()]);
   return std::string(line);
@@ -844,7 +846,7 @@ std::string FormatMmCompactionIsolateFreepages(
   char line[2048];
   sprintf(line,
           "mm_compaction_isolate_freepages: range=(0x%llx ~ 0x%llx) "
-          "nr_scanned=%llu nr_taken=%llu\\n",
+          "nr_scanned=%llu nr_taken=%llu",
           event.start_pfn(), event.end_pfn(), event.nr_scanned(),
           event.nr_taken());
   return std::string(line);
@@ -855,7 +857,7 @@ std::string FormatMmCompactionIsolateMigratepages(
   char line[2048];
   sprintf(line,
           "mm_compaction_isolate_migratepages: range=(0x%llx ~ 0x%llx) "
-          "nr_scanned=%llu nr_taken=%llu\\n",
+          "nr_scanned=%llu nr_taken=%llu",
           event.start_pfn(), event.end_pfn(), event.nr_scanned(),
           event.nr_taken());
   return std::string(line);
@@ -864,7 +866,7 @@ std::string FormatMmCompactionIsolateMigratepages(
 std::string FormatMmCompactionKcompactdSleep(
     const MmCompactionKcompactdSleepFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "mm_compaction_kcompactd_sleep: nid=%d\\n", event.nid());
+  sprintf(line, "mm_compaction_kcompactd_sleep: nid=%d", event.nid());
   return std::string(line);
 }
 
@@ -872,7 +874,7 @@ std::string FormatMmCompactionKcompactdWake(
     const MmCompactionKcompactdWakeFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "mm_compaction_kcompactd_wake: nid=%d order=%d classzone_idx=%-8s\\n",
+          "mm_compaction_kcompactd_wake: nid=%d order=%d classzone_idx=%-8s",
           event.nid(), event.order(),
           MmCompactionSuitableArray[event.classzone_idx()]);
   return std::string(line);
@@ -881,8 +883,7 @@ std::string FormatMmCompactionKcompactdWake(
 std::string FormatMmCompactionMigratepages(
     const MmCompactionMigratepagesFtraceEvent& event) {
   char line[2048];
-  sprintf(line,
-          "mm_compaction_migratepages: nr_migrated=%llu nr_failed=%llu\\n",
+  sprintf(line, "mm_compaction_migratepages: nr_migrated=%llu nr_failed=%llu",
           event.nr_migrated(), event.nr_failed());
   return std::string(line);
 }
@@ -890,7 +891,7 @@ std::string FormatMmCompactionMigratepages(
 std::string FormatMmCompactionSuitable(
     const MmCompactionSuitableFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "mm_compaction_suitable: node=%d zone=%-8s order=%d ret=%s\\n",
+  sprintf(line, "mm_compaction_suitable: node=%d zone=%-8s order=%d ret=%s",
           event.nid(), MmCompactionSuitableArray[event.idx()], event.order(),
           MmCompactionRetArray[event.ret()]);
   return std::string(line);
@@ -899,48 +900,46 @@ std::string FormatMmCompactionSuitable(
 std::string FormatMmCompactionTryToCompactPages(
     const MmCompactionTryToCompactPagesFtraceEvent& event) {
   char line[2048];
-  sprintf(
-      line,
-      "mm_compaction_try_to_compact_pages: order=%d gfp_mask=0x%x mode=%d\\n",
-      event.order(), event.gfp_mask(),
-      event.mode());  // convert to int?
+  sprintf(line,
+          "mm_compaction_try_to_compact_pages: order=%d gfp_mask=0x%x mode=%d",
+          event.order(), event.gfp_mask(),
+          event.mode());  // convert to int?
   return std::string(line);
 }
 
 std::string FormatMmCompactionWakeupKcompactd(
     const MmCompactionWakeupKcompactdFtraceEvent& event) {
   char line[2048];
-  sprintf(
-      line,
-      "mm_compaction_wakeup_kcompactd: nid=%d order=%d classzone_idx=%-8s\\n",
-      event.nid(), event.order(),
-      MmCompactionSuitableArray[event.classzone_idx()]);
+  sprintf(line,
+          "mm_compaction_wakeup_kcompactd: nid=%d order=%d classzone_idx=%-8s",
+          event.nid(), event.order(),
+          MmCompactionSuitableArray[event.classzone_idx()]);
   return std::string(line);
 }
 
 std::string FormatSuspendResume(const SuspendResumeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "suspend_resume: %s[%u] %s\\n", event.action().c_str(),
+  sprintf(line, "suspend_resume: %s[%u] %s", event.action().c_str(),
           event.val(), event.start() ? "begin" : "end");
   return std::string(line);
 }
 
 std::string FormatSchedWakeupNew(const SchedWakeupNewFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sched_wakeup_new: comm=%s pid=%d prio=%d target_cpu=%03d\\n",
+  sprintf(line, "sched_wakeup_new: comm=%s pid=%d prio=%d target_cpu=%03d",
           event.comm().c_str(), event.pid(), event.prio(), event.target_cpu());
   return std::string(line);
 }
 
 std::string FormatSchedProcessExec(const SchedProcessExecFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sched_process_exec: filename=%s pid=%d old_pid=%d\\n",
+  sprintf(line, "sched_process_exec: filename=%s pid=%d old_pid=%d",
           event.filename().c_str(), event.pid(), event.old_pid());
   return std::string(line);
 }
 std::string FormatSchedProcessExit(const SchedProcessExitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sched_process_exit: comm=%s pid=%d tgid=%d prio=%d\\n",
+  sprintf(line, "sched_process_exit: comm=%s pid=%d tgid=%d prio=%d",
           event.comm().c_str(), event.pid(), event.tgid(), event.prio());
   return std::string(line);
 }
@@ -948,27 +947,27 @@ std::string FormatSchedProcessFork(const SchedProcessForkFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "sched_process_fork: parent_comm=%s parent_pid=%d child_comm=%s "
-          "child_pid=%d\\n",
+          "child_pid=%d",
           event.parent_comm().c_str(), event.parent_pid(),
           event.child_comm().c_str(), event.child_pid());
   return std::string(line);
 }
 std::string FormatSchedProcessFree(const SchedProcessFreeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sched_process_free: comm=%s pid=%d prio=%d\\n",
+  sprintf(line, "sched_process_free: comm=%s pid=%d prio=%d",
           event.comm().c_str(), event.pid(), event.prio());
   return std::string(line);
 }
 std::string FormatSchedProcessHang(const SchedProcessHangFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sched_process_hang: comm=%s pid=%d\\n", event.comm().c_str(),
+  sprintf(line, "sched_process_hang: comm=%s pid=%d", event.comm().c_str(),
           event.pid());
   return std::string(line);
 }
 
 std::string FormatSchedProcessWait(const SchedProcessWaitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "sched_process_wait: comm=%s pid=%d\\n", event.comm().c_str(),
+  sprintf(line, "sched_process_wait: comm=%s pid=%d", event.comm().c_str(),
           event.pid());
   return std::string(line);
 }
@@ -976,7 +975,7 @@ std::string FormatSchedProcessWait(const SchedProcessWaitFtraceEvent& event) {
 std::string FormatTaskNewtask(const TaskNewtaskFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "task_newtask: comm=%s pid=%d clone_flags=%llu oom_score_adj=%d\\n",
+          "task_newtask: comm=%s pid=%d clone_flags=%llu oom_score_adj=%d",
           event.comm().c_str(), event.pid(), event.clone_flags(),
           event.oom_score_adj());
   return std::string(line);
@@ -984,7 +983,7 @@ std::string FormatTaskNewtask(const TaskNewtaskFtraceEvent& event) {
 
 std::string FormatTaskRename(const TaskRenameFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "task_rename: pid=%d oldcomm=%s newcomm=%s oom_score_adj=%d\\n",
+  sprintf(line, "task_rename: pid=%d oldcomm=%s newcomm=%s oom_score_adj=%d",
           event.pid(), event.newcomm().c_str(), event.oldcomm().c_str(),
           event.oom_score_adj());
   return std::string(line);
@@ -992,7 +991,7 @@ std::string FormatTaskRename(const TaskRenameFtraceEvent& event) {
 
 std::string FormatBlockBioBackmerge(const BlockBioBackmergeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_bio_backmerge: %d,%d %s %llu + %u [%s]\\n",
+  sprintf(line, "block_bio_backmerge: %d,%d %s %llu + %u [%s]",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
@@ -1003,7 +1002,7 @@ std::string FormatBlockBioBounce(const BlockBioBounceFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "block_bio_bounce:"
-          "%d,%d %s %llu + %u [%s]\\n",
+          "%d,%d %s %llu + %u [%s]",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
@@ -1012,7 +1011,7 @@ std::string FormatBlockBioBounce(const BlockBioBounceFtraceEvent& event) {
 
 std::string FormatBlockBioComplete(const BlockBioCompleteFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_bio_complete: %d,%d %s %llu + %u [%d]\\n",
+  sprintf(line, "block_bio_complete: %d,%d %s %llu + %u [%d]",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.error());
@@ -1022,7 +1021,7 @@ std::string FormatBlockBioComplete(const BlockBioCompleteFtraceEvent& event) {
 std::string FormatBlockBioFrontmerge(
     const BlockBioFrontmergeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_bio_frontmerge: %d,%d %s %llu + %u [%s]\\n",
+  sprintf(line, "block_bio_frontmerge: %d,%d %s %llu + %u [%s]",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
@@ -1031,8 +1030,8 @@ std::string FormatBlockBioFrontmerge(
 
 std::string FormatBlockBioQueue(const BlockBioQueueFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_bio_queue: %d,%d %s %llu + %u [%s]\\n",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+  sprintf(line, "block_bio_queue: %d,%d %s %llu + %u [%s]", major(event.dev()),
+          minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
@@ -1040,7 +1039,7 @@ std::string FormatBlockBioQueue(const BlockBioQueueFtraceEvent& event) {
 
 std::string FormatBlockBioRemap(const BlockBioRemapFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_bio_remap:  %d,%d %s %llu + %u <- (%d,%d) %llu\\n",
+  sprintf(line, "block_bio_remap:  %d,%d %s %llu + %u <- (%d,%d) %llu",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           major(event.dev()), minor(event.dev()),
@@ -1050,7 +1049,7 @@ std::string FormatBlockBioRemap(const BlockBioRemapFtraceEvent& event) {
 
 std::string FormatBlockDirtyBuffer(const BlockDirtyBufferFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_dirty_buffer: %d,%d sector=%llu size=%zu\\n",
+  sprintf(line, "block_dirty_buffer: %d,%d sector=%llu size=%zu",
           major(event.dev()), minor(event.dev()),
           static_cast<unsigned long long>(event.sector()),
           static_cast<size_t>(event.size()));
@@ -1059,7 +1058,7 @@ std::string FormatBlockDirtyBuffer(const BlockDirtyBufferFtraceEvent& event) {
 
 std::string FormatBlockGetrq(const BlockGetrqFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_getrq: %d,%d %s %llu + %u [%s]\\n", major(event.dev()),
+  sprintf(line, "block_getrq: %d,%d %s %llu + %u [%s]", major(event.dev()),
           minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
@@ -1068,13 +1067,13 @@ std::string FormatBlockGetrq(const BlockGetrqFtraceEvent& event) {
 
 std::string FormatBlockPlug(const BlockPlugFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_plug: comm=[%s]\\n", event.comm().c_str());
+  sprintf(line, "block_plug: comm=[%s]", event.comm().c_str());
   return std::string(line);
 }
 
 std::string FormatBlockRqAbort(const BlockRqAbortFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_rq_abort: %d,%d %s (%s) %llu + %u [%d]\\n",
+  sprintf(line, "block_rq_abort: %d,%d %s (%s) %llu + %u [%d]",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           event.cmd().c_str(), static_cast<unsigned long long>(event.sector()),
           event.nr_sector(), event.errors());
@@ -1083,7 +1082,7 @@ std::string FormatBlockRqAbort(const BlockRqAbortFtraceEvent& event) {
 
 std::string FormatBlockRqComplete(const BlockRqCompleteFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_rq_complete: %d,%d %s (%s) %llu + %u [%d]\\n",
+  sprintf(line, "block_rq_complete: %d,%d %s (%s) %llu + %u [%d]",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           event.cmd().c_str(), static_cast<unsigned long long>(event.sector()),
           event.nr_sector(), event.errors());
@@ -1092,7 +1091,7 @@ std::string FormatBlockRqComplete(const BlockRqCompleteFtraceEvent& event) {
 
 std::string FormatBlockRqInsert(const BlockRqInsertFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_rq_insert: %d,%d %s %u (%s) %llu + %u [%s]\\n",
+  sprintf(line, "block_rq_insert: %d,%d %s %u (%s) %llu + %u [%s]",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           event.bytes(), event.cmd().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
@@ -1102,7 +1101,7 @@ std::string FormatBlockRqInsert(const BlockRqInsertFtraceEvent& event) {
 
 std::string FormatBlockRqRemap(const BlockRqRemapFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_rq_remap: %d,%d %s %llu + %u <- (%d,%d) %llu %u\\n",
+  sprintf(line, "block_rq_remap: %d,%d %s %llu + %u <- (%d,%d) %llu %u",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           major(event.dev()), minor(event.dev()),
@@ -1112,7 +1111,7 @@ std::string FormatBlockRqRemap(const BlockRqRemapFtraceEvent& event) {
 
 std::string FormatBlockRqRequeue(const BlockRqRequeueFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_rq_requeue: %d,%d %s (%s) %llu + %u [%d\\n",
+  sprintf(line, "block_rq_requeue: %d,%d %s (%s) %llu + %u [%d",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           event.cmd().c_str(), static_cast<unsigned long long>(event.sector()),
           event.nr_sector(), event.errors());
@@ -1121,7 +1120,7 @@ std::string FormatBlockRqRequeue(const BlockRqRequeueFtraceEvent& event) {
 
 std::string FormatBlockSleeprq(const BlockSleeprqFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_sleeprq: %d,%d %s %llu + %u [%s]\\n", major(event.dev()),
+  sprintf(line, "block_sleeprq: %d,%d %s %llu + %u [%s]", major(event.dev()),
           minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
@@ -1130,7 +1129,7 @@ std::string FormatBlockSleeprq(const BlockSleeprqFtraceEvent& event) {
 
 std::string FormatBlockSplit(const BlockSplitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_split: %d,%d %s %llu / %llu [%s]\\n", major(event.dev()),
+  sprintf(line, "block_split: %d,%d %s %llu / %llu [%s]", major(event.dev()),
           minor(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()),
           (unsigned long long)event.new_sector(), event.comm().c_str());
@@ -1139,7 +1138,7 @@ std::string FormatBlockSplit(const BlockSplitFtraceEvent& event) {
 
 std::string FormatBlockTouchBuffer(const BlockTouchBufferFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_touch_buffer: %d,%d sector=%llu size=%zu\\n",
+  sprintf(line, "block_touch_buffer: %d,%d sector=%llu size=%zu",
           major(event.dev()), minor(event.dev()),
           static_cast<unsigned long long>(event.sector()),
           static_cast<size_t>(event.size()));
@@ -1148,8 +1147,7 @@ std::string FormatBlockTouchBuffer(const BlockTouchBufferFtraceEvent& event) {
 
 std::string FormatBlockUnplug(const BlockUnplugFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_unplug: [%s] %d\\n", event.comm().c_str(),
-          event.nr_rq());
+  sprintf(line, "block_unplug: [%s] %d", event.comm().c_str(), event.nr_rq());
   return std::string(line);
 }
 
@@ -1157,7 +1155,7 @@ std::string FormatExt4AllocDaBlocks(const Ext4AllocDaBlocksFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_alloc_da_blocks: dev %d,%d ino %lu data_blocks %u meta_blocks "
-          "%u \\n",
+          "%u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.data_blocks(), event.meta_blocks());
   return std::string(line);
@@ -1168,7 +1166,7 @@ std::string FormatExt4AllocateBlocks(
   char line[2048];
   sprintf(line,
           "ext4_allocate_blocks: dev %d,%d ino %lu flags %s len %u block %llu "
-          "lblk %u goal %llu lleft %u lright %u pleft %llu pright %llu\\n",
+          "lblk %u goal %llu lleft %u lright %u pleft %llu pright %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           GetExt4HintFlag(event.flags()), event.len(), event.block(),
           event.logical(), event.goal(), event.lleft(), event.lright(),
@@ -1178,7 +1176,7 @@ std::string FormatExt4AllocateBlocks(
 
 std::string FormatExt4AllocateInode(const Ext4AllocateInodeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_allocate_inode: dev %d,%d ino %lu dir %lu mode 0%o\\n",
+  sprintf(line, "ext4_allocate_inode: dev %d,%d ino %lu dir %lu mode 0%o",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned long)event.dir(), event.mode());
   return std::string(line);
@@ -1187,8 +1185,7 @@ std::string FormatExt4AllocateInode(const Ext4AllocateInodeFtraceEvent& event) {
 std::string FormatExt4BeginOrderedTruncate(
     const Ext4BeginOrderedTruncateFtraceEvent& event) {
   char line[2048];
-  sprintf(line,
-          "ext4_begin_ordered_truncate: dev %d,%d ino %lu new_size %lld\\n",
+  sprintf(line, "ext4_begin_ordered_truncate: dev %d,%d ino %lu new_size %lld",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.new_size());
   return std::string(line);
@@ -1196,8 +1193,7 @@ std::string FormatExt4BeginOrderedTruncate(
 
 std::string FormatExt4CollapseRange(const Ext4CollapseRangeFtraceEvent& event) {
   char line[2048];
-  sprintf(line,
-          "ext4_collapse_range: dev %d,%d ino %lu offset %lld len %lld\\n",
+  sprintf(line, "ext4_collapse_range: dev %d,%d ino %lu offset %lld len %lld",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.offset(), event.len());
   return std::string(line);
@@ -1209,7 +1205,7 @@ std::string FormatExt4DaReleaseSpace(
   sprintf(line,
           "ext4_da_release_space: dev %d,%d ino %lu mode 0%o i_blocks %llu "
           "freed_blocks %d reserved_data_blocks %d reserved_meta_blocks %d "
-          "allocated_meta_blocks %d\\n",
+          "allocated_meta_blocks %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.mode(), event.i_blocks(), event.freed_blocks(),
           event.reserved_data_blocks(), event.reserved_meta_blocks(),
@@ -1222,7 +1218,7 @@ std::string FormatExt4DaReserveSpace(
   char line[2048];
   sprintf(line,
           "ext4_da_reserve_space:dev %d,%d ino %lu mode 0%o i_blocks %llu "
-          "reserved_data_blocks %d reserved_meta_blocks %d \\n",
+          "reserved_data_blocks %d reserved_meta_blocks %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.mode(), event.i_blocks(), event.reserved_data_blocks(),
           event.reserved_meta_blocks());
@@ -1235,7 +1231,7 @@ std::string FormatExt4DaUpdateReserveSpace(
   sprintf(line,
           "ext4_da_update_reserve_space: dev %d,%d ino %lu mode 0%o i_blocks "
           "%llu used_blocks %d reserved_data_blocks %d reserved_meta_blocks %d "
-          "allocated_meta_blocks %d quota_claim %d\\n",
+          "allocated_meta_blocks %d quota_claim %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.mode(), event.i_blocks(), event.used_blocks(),
           event.reserved_data_blocks(), event.reserved_meta_blocks(),
@@ -1247,7 +1243,7 @@ std::string FormatExt4DaWritePages(const Ext4DaWritePagesFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_da_write_pages: dev %d,%d ino %lu first_page %lu nr_to_write "
-          "%ld sync_mode %d\\n",
+          "%ld sync_mode %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned long)event.first_page(), (long)event.nr_to_write(),
           event.sync_mode());
@@ -1259,7 +1255,7 @@ std::string FormatExt4DaWritePagesExtent(
     const Ext4DaWritePagesExtentFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_da_write_pages_extent: dev %d,%d ino %lu lblk %llu len %u \\n",
+          "ext4_da_write_pages_extent: dev %d,%d ino %lu lblk %llu len %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.lblk(), event.len());
   return std::string(line);
@@ -1267,7 +1263,7 @@ std::string FormatExt4DaWritePagesExtent(
 
 std::string FormatExt4DiscardBlocks(const Ext4DiscardBlocksFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_discard_blocks: dev %d,%d blk %llu count %llu\\n",
+  sprintf(line, "ext4_discard_blocks: dev %d,%d blk %llu count %llu",
           major(event.dev()), minor(event.dev()), event.blk(), event.count());
   return std::string(line);
 }
@@ -1275,14 +1271,14 @@ std::string FormatExt4DiscardBlocks(const Ext4DiscardBlocksFtraceEvent& event) {
 std::string FormatExt4DiscardPreallocations(
     const Ext4DiscardPreallocationsFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_discard_preallocations: dev %d,%d ino %lu\\n",
+  sprintf(line, "ext4_discard_preallocations: dev %d,%d ino %lu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino());
   return std::string(line);
 }
 
 std::string FormatExt4DropInode(const Ext4DropInodeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_drop_inode: dev %d,%d ino %lu drop %d\\n",
+  sprintf(line, "ext4_drop_inode: dev %d,%d ino %lu drop %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.drop());
   return std::string(line);
@@ -1292,7 +1288,7 @@ std::string FormatExt4DropInode(const Ext4DropInodeFtraceEvent& event) {
 std::string FormatExt4EsCacheExtent(const Ext4EsCacheExtentFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_es_cache_extent: dev %d,%d ino %lu es [%u/%u) mapped %llu \\n",
+          "ext4_es_cache_extent: dev %d,%d ino %lu es [%u/%u) mapped %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.lblk(), event.len(), event.pblk());
   return std::string(line);
@@ -1301,11 +1297,10 @@ std::string FormatExt4EsCacheExtent(const Ext4EsCacheExtentFtraceEvent& event) {
 std::string FormatExt4EsFindDelayedExtentRangeEnter(
     const Ext4EsFindDelayedExtentRangeEnterFtraceEvent& event) {
   char line[2048];
-  sprintf(
-      line,
-      "ext4_es_find_delayed_extent_range_enter: dev %d,%d ino %lu lblk %u\\n",
-      major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-      event.lblk());
+  sprintf(line,
+          "ext4_es_find_delayed_extent_range_enter: dev %d,%d ino %lu lblk %u",
+          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          event.lblk());
   return std::string(line);
 }
 
@@ -1315,7 +1310,7 @@ std::string FormatExt4EsFindDelayedExtentRangeExit(
   char line[2048];
   sprintf(line,
           "ext4_es_find_delayed_extent_range_exit: dev %d,%d ino %lu es "
-          "[%u/%u) mapped %llu\\n",
+          "[%u/%u) mapped %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.lblk(), event.len(), event.pblk());
   return std::string(line);
@@ -1326,7 +1321,7 @@ std::string FormatExt4EsInsertExtent(
     const Ext4EsInsertExtentFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_es_insert_extent: dev %d,%d ino %lu es [%u/%u) mapped %llu \\n",
+          "ext4_es_insert_extent: dev %d,%d ino %lu es [%u/%u) mapped %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.lblk(), event.len(), event.pblk());
   return std::string(line);
@@ -1335,7 +1330,7 @@ std::string FormatExt4EsInsertExtent(
 std::string FormatExt4EsLookupExtentEnter(
     const Ext4EsLookupExtentEnterFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_es_lookup_extent_enter: dev %d,%d ino %lu lblk %u\\n",
+  sprintf(line, "ext4_es_lookup_extent_enter: dev %d,%d ino %lu lblk %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.lblk());
   return std::string(line);
@@ -1345,19 +1340,18 @@ std::string FormatExt4EsLookupExtentEnter(
 std::string FormatExt4EsLookupExtentExit(
     const Ext4EsLookupExtentExitFtraceEvent& event) {
   char line[2048];
-  sprintf(
-      line,
-      "ext4_es_lookup_extent_exit: dev %d,%d ino %lu found %d [%u/%u) %llu\\n",
-      major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-      event.found(), event.lblk(), event.len(),
-      event.found() ? event.pblk() : 0);
+  sprintf(line,
+          "ext4_es_lookup_extent_exit: dev %d,%d ino %lu found %d [%u/%u) %llu",
+          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          event.found(), event.lblk(), event.len(),
+          event.found() ? event.pblk() : 0);
   return std::string(line);
 }
 
 std::string FormatExt4EsRemoveExtent(
     const Ext4EsRemoveExtentFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_es_remove_extent: dev %d,%d ino %lu es [%lld/%lld)\\n",
+  sprintf(line, "ext4_es_remove_extent: dev %d,%d ino %lu es [%lld/%lld)",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.lblk(), event.len());
   return std::string(line);
@@ -1367,7 +1361,7 @@ std::string FormatExt4EsShrink(const Ext4EsShrinkFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_es_shrink: dev %d,%d nr_shrunk %d, scan_time %llu nr_skipped "
-          "%d retried %d\\n",
+          "%d retried %d",
           major(event.dev()), minor(event.dev()), event.nr_shrunk(),
           event.scan_time(), event.nr_skipped(), event.retried());
   return std::string(line);
@@ -1375,7 +1369,7 @@ std::string FormatExt4EsShrink(const Ext4EsShrinkFtraceEvent& event) {
 
 std::string FormatExt4EsShrinkCount(const Ext4EsShrinkCountFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_es_shrink_count: dev %d,%d nr_to_scan %d cache_cnt %d\\n",
+  sprintf(line, "ext4_es_shrink_count: dev %d,%d nr_to_scan %d cache_cnt %d",
           major(event.dev()), minor(event.dev()), event.nr_to_scan(),
           event.cache_cnt());
   return std::string(line);
@@ -1385,7 +1379,7 @@ std::string FormatExt4EsShrinkScanEnter(
     const Ext4EsShrinkScanEnterFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_es_shrink_scan_enter: dev %d,%d nr_to_scan %d cache_cnt %d\\n",
+          "ext4_es_shrink_scan_enter: dev %d,%d nr_to_scan %d cache_cnt %d",
           major(event.dev()), minor(event.dev()), event.nr_to_scan(),
           event.cache_cnt());
   return std::string(line);
@@ -1394,8 +1388,7 @@ std::string FormatExt4EsShrinkScanEnter(
 std::string FormatExt4EsShrinkScanExit(
     const Ext4EsShrinkScanExitFtraceEvent& event) {
   char line[2048];
-  sprintf(line,
-          "ext4_es_shrink_scan_exit: dev %d,%d nr_shrunk %d cache_cnt %d\\n",
+  sprintf(line, "ext4_es_shrink_scan_exit: dev %d,%d nr_shrunk %d cache_cnt %d",
           major(event.dev()), minor(event.dev()), event.nr_shrunk(),
           event.cache_cnt());
   return std::string(line);
@@ -1403,7 +1396,7 @@ std::string FormatExt4EsShrinkScanExit(
 
 std::string FormatExt4EvictInode(const Ext4EvictInodeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_evict_inode: dev %d,%d ino %lu nlink %d\\n",
+  sprintf(line, "ext4_evict_inode: dev %d,%d ino %lu nlink %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.nlink());
   return std::string(line);
@@ -1414,7 +1407,7 @@ std::string FormatExt4ExtConvertToInitializedEnter(
   char line[2048];
   sprintf(line,
           "ext4_ext_convert_to_initialized_enter: dev %d,%d ino %lu m_lblk %u "
-          "m_len %u u_lblk %u u_len %u u_pblk %llu\\n",
+          "m_len %u u_lblk %u u_len %u u_pblk %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.m_lblk(), event.m_len(), event.u_lblk(), event.u_len(),
           event.u_pblk());
@@ -1427,7 +1420,7 @@ std::string FormatExt4ExtConvertToInitializedFastpath(
   sprintf(line,
           "ext4_ext_convert_to_initialized_fastpath: dev %d,%d ino %lu m_lblk "
           "%u m_len %u u_lblk %u u_len %u u_pblk %llu i_lblk %u i_len %u "
-          "i_pblk %llu\\n",
+          "i_pblk %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.m_lblk(), event.m_len(), event.u_lblk(), event.u_len(),
           event.u_pblk(), event.i_lblk(), event.i_len(), event.i_pblk());
@@ -1439,7 +1432,7 @@ std::string FormatExt4ExtHandleUnwrittenExtents(
   char line[2048];
   sprintf(line,
           "ext4_ext_handle_unwritten_extents: dev %d,%d ino %lu m_lblk %u "
-          "m_pblk %llu m_len %u flags %s allocated %d newblock %llu\\n",
+          "m_pblk %llu m_len %u flags %s allocated %d newblock %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned)event.lblk(), (unsigned long long)event.pblk(), event.len(),
           GetExt4ExtFlag(event.flags()), (unsigned int)event.allocated(),
@@ -1449,7 +1442,7 @@ std::string FormatExt4ExtHandleUnwrittenExtents(
 
 std::string FormatExt4ExtInCache(const Ext4ExtInCacheFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_ext_in_cache: dev %d,%d ino %lu lblk %u ret %d\\n",
+  sprintf(line, "ext4_ext_in_cache: dev %d,%d ino %lu lblk %u ret %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned)event.lblk(), event.ret());
   return std::string(line);
@@ -1457,7 +1450,7 @@ std::string FormatExt4ExtInCache(const Ext4ExtInCacheFtraceEvent& event) {
 
 std::string FormatExt4ExtLoadExtent(const Ext4ExtLoadExtentFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_ext_load_extent: dev %d,%d ino %lu lblk %u pblk %llu\\n",
+  sprintf(line, "ext4_ext_load_extent: dev %d,%d ino %lu lblk %u pblk %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.lblk(), event.pblk());
   return std::string(line);
@@ -1468,7 +1461,7 @@ std::string FormatExt4ExtMapBlocksEnter(
   char line[2048];
   sprintf(
       line,
-      "ext4_ext_map_blocks_enter: dev %d,%d ino %lu lblk %u len %u flags %s\\n",
+      "ext4_ext_map_blocks_enter: dev %d,%d ino %lu lblk %u len %u flags %s",
       major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
       event.lblk(), event.len(), GetExt4ExtFlag(event.flags()));
   return std::string(line);
@@ -1479,7 +1472,7 @@ std::string FormatExt4ExtMapBlocksExit(
   char line[2048];
   sprintf(line,
           "ext4_ext_map_blocks_exit: dev %d,%d ino %lu lblk %u pblk %llu len "
-          "%u flags %x ret %d\\n",
+          "%u flags %x ret %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.lblk(), event.pblk(), event.len(), event.flags(), event.ret());
   return std::string(line);
@@ -1487,22 +1480,21 @@ std::string FormatExt4ExtMapBlocksExit(
 
 std::string FormatExt4ExtPutInCache(const Ext4ExtPutInCacheFtraceEvent& event) {
   char line[2048];
-  sprintf(
-      line,
-      "ext4_ext_put_in_cache: dev %d,%d ino %lu lblk %u len %u start %llu\\n",
-      major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-      (unsigned)event.lblk(), event.len(), (unsigned long long)event.start());
+  sprintf(line,
+          "ext4_ext_put_in_cache: dev %d,%d ino %lu lblk %u len %u start %llu",
+          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          (unsigned)event.lblk(), event.len(),
+          (unsigned long long)event.start());
   return std::string(line);
 }
 
 std::string FormatExt4ExtRemoveSpace(
     const Ext4ExtRemoveSpaceFtraceEvent& event) {
   char line[2048];
-  sprintf(
-      line,
-      "ext4_ext_remove_space: dev %d,%d ino %lu since %u end %u depth %d\\n",
-      major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-      (unsigned)event.start(), (unsigned)event.end(), event.depth());
+  sprintf(line,
+          "ext4_ext_remove_space: dev %d,%d ino %lu since %u end %u depth %d",
+          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          (unsigned)event.start(), (unsigned)event.end(), event.depth());
   return std::string(line);
 }
 
@@ -1511,7 +1503,7 @@ std::string FormatExt4ExtRemoveSpaceDone(
   char line[2048];
   sprintf(line,
           "ext4_ext_remove_space_done: dev %d,%d ino %lu since %u end %u depth "
-          "%d partial %lld remaining_entries %u\\n",
+          "%d partial %lld remaining_entries %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned)event.start(), (unsigned)event.end(), event.depth(),
           (long long)event.partial(), (unsigned short)event.eh_entries());
@@ -1520,7 +1512,7 @@ std::string FormatExt4ExtRemoveSpaceDone(
 
 std::string FormatExt4ExtRmIdx(const Ext4ExtRmIdxFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_ext_rm_idx: dev %d,%d ino %lu index_pblk %llu\\n",
+  sprintf(line, "ext4_ext_rm_idx: dev %d,%d ino %lu index_pblk %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned long long)event.pblk());
   return std::string(line);
@@ -1530,7 +1522,7 @@ std::string FormatExt4ExtRmLeaf(const Ext4ExtRmLeafFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_ext_rm_leaf: dev %d,%d ino %lu start_lblk %u last_extent "
-          "[%u(%llu), %u]partial_cluster %lld\\n",
+          "[%u(%llu), %u]partial_cluster %lld",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned)event.start(), (unsigned)event.ee_lblk(),
           (unsigned long long)event.ee_pblk(), (unsigned short)event.ee_len(),
@@ -1541,7 +1533,7 @@ std::string FormatExt4ExtRmLeaf(const Ext4ExtRmLeafFtraceEvent& event) {
 std::string FormatExt4ExtShowExtent(const Ext4ExtShowExtentFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_ext_show_extent: dev %d,%d ino %lu lblk %u pblk %llu len %u\\n",
+          "ext4_ext_show_extent: dev %d,%d ino %lu lblk %u pblk %llu len %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned)event.lblk(), (unsigned long long)event.pblk(),
           (unsigned short)event.len());
@@ -1553,7 +1545,7 @@ std::string FormatExt4FallocateEnter(
   char line[2048];
   sprintf(
       line,
-      "ext4_fallocate_enter: dev %d,%d ino %lu offset %lld len %lld mode %s\\n",
+      "ext4_fallocate_enter: dev %d,%d ino %lu offset %lld len %lld mode %s",
       major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
       event.offset(), event.len(), GetExt4ModeFlag(event.mode()));
   return std::string(line);
@@ -1562,7 +1554,7 @@ std::string FormatExt4FallocateEnter(
 std::string FormatExt4FallocateExit(const Ext4FallocateExitFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_fallocate_exit: dev %d,%d ino %lu pos %lld blocks %u ret %d\\n",
+          "ext4_fallocate_exit: dev %d,%d ino %lu pos %lld blocks %u ret %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.pos(), event.blocks(), event.ret());
   return std::string(line);
@@ -1573,7 +1565,7 @@ std::string FormatExt4FindDelallocRange(
   char line[2048];
   sprintf(line,
           "ext4_find_delalloc_range: dev %d,%d ino %lu from %u to %u reverse "
-          "%d found %d (blk = %u)\\n",
+          "%d found %d (blk = %u)",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned)event.from(), (unsigned)event.to(), event.reverse(),
           event.found(), (unsigned)event.found_blk());
@@ -1582,11 +1574,10 @@ std::string FormatExt4FindDelallocRange(
 
 std::string FormatExt4Forget(const Ext4ForgetFtraceEvent& event) {
   char line[2048];
-  sprintf(
-      line,
-      "ext4_forget: dev %d,%d ino %lu mode 0%o is_metadata %d block %llu\\n",
-      major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-      event.mode(), event.is_metadata(), event.block());
+  sprintf(line,
+          "ext4_forget: dev %d,%d ino %lu mode 0%o is_metadata %d block %llu",
+          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          event.mode(), event.is_metadata(), event.block());
   return std::string(line);
 }
 
@@ -1594,7 +1585,7 @@ std::string FormatExt4FreeBlocks(const Ext4FreeBlocksFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_free_blocks: dev %d,%d ino %lu mode 0%o block %llu count %lu "
-          "flags %s\\n",
+          "flags %s",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.mode(), event.block(), (unsigned long)event.count(),
           GetExt4FreeBlocksFlag(event.flags()));
@@ -1605,7 +1596,7 @@ std::string FormatExt4FreeInode(const Ext4FreeInodeFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_free_inode: dev %d,%d ino %lu mode 0%o uid %u gid %u blocks "
-          "%llu\\n",
+          "%llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.mode(), event.uid(), event.gid(), event.blocks());
   return std::string(line);
@@ -1616,7 +1607,7 @@ std::string FormatExt4GetImpliedClusterAllocExit(
   char line[2048];
   sprintf(line,
           "ext4_get_implied_cluster_alloc_exit: dev %d,%d m_lblk %u m_pblk "
-          "%llu m_len %u m_flags %u ret %d\\n",
+          "%llu m_len %u m_flags %u ret %d",
           major(event.dev()), minor(event.dev()), event.lblk(),
           (unsigned long long)event.pblk(), event.len(), event.flags(),
           event.ret());
@@ -1626,11 +1617,10 @@ std::string FormatExt4GetImpliedClusterAllocExit(
 std::string FormatExt4GetReservedClusterAlloc(
     const Ext4GetReservedClusterAllocFtraceEvent& event) {
   char line[2048];
-  sprintf(
-      line,
-      "ext4_get_reserved_cluster_alloc: dev %d,%d ino %lu lblk %u len %u\\n",
-      major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-      (unsigned)event.lblk(), event.len());
+  sprintf(line,
+          "ext4_get_reserved_cluster_alloc: dev %d,%d ino %lu lblk %u len %u",
+          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          (unsigned)event.lblk(), event.len());
   return std::string(line);
 }
 
@@ -1639,7 +1629,7 @@ std::string FormatExt4IndMapBlocksEnter(
   char line[2048];
   sprintf(
       line,
-      "ext4_ind_map_blocks_enter: dev %d,%d ino %lu lblk %u len %u flags %u\\n",
+      "ext4_ind_map_blocks_enter: dev %d,%d ino %lu lblk %u len %u flags %u",
       major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
       event.lblk(), event.len(), event.flags());
   return std::string(line);
@@ -1650,7 +1640,7 @@ std::string FormatExt4IndMapBlocksExit(
   char line[2048];
   sprintf(line,
           "ext4_ind_map_blocks_exit: dev %d,%d ino %lu lblk %u pblk %llu len "
-          "%u flags %x ret %d\\n",
+          "%u flags %x ret %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.lblk(), event.pblk(), event.len(), event.flags(), event.ret());
   return std::string(line);
@@ -1658,7 +1648,7 @@ std::string FormatExt4IndMapBlocksExit(
 
 std::string FormatExt4InsertRange(const Ext4InsertRangeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_insert_range: dev %d,%d ino %lu offset %lld len %lld\\n",
+  sprintf(line, "ext4_insert_range: dev %d,%d ino %lu offset %lld len %lld",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.offset(), event.len());
   return std::string(line);
@@ -1669,7 +1659,7 @@ std::string FormatExt4Invalidatepage(
   char line[2048];
   sprintf(line,
           "ext4_invalidatepage: dev %d,%d ino %lu page_index %lu offset %u "
-          "length %u\\n",
+          "length %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned long)event.index(), event.offset(), event.length());
   return std::string(line);
@@ -1677,19 +1667,17 @@ std::string FormatExt4Invalidatepage(
 
 std::string FormatExt4JournalStart(const Ext4JournalStartFtraceEvent& event) {
   char line[2048];
-  sprintf(
-      line,
-      "ext4_journal_start: dev %d,%d blocks, %d rsv_blocks, %d caller %pS\\n",
-      major(event.dev()), minor(event.dev()), event.blocks(),
-      event.rsv_blocks(), (void*)event.ip());
+  sprintf(line,
+          "ext4_journal_start: dev %d,%d blocks, %d rsv_blocks, %d caller %pS",
+          major(event.dev()), minor(event.dev()), event.blocks(),
+          event.rsv_blocks(), (void*)event.ip());
   return std::string(line);
 }
 
 std::string FormatExt4JournalStartReserved(
     const Ext4JournalStartReservedFtraceEvent& event) {
   char line[2048];
-  sprintf(line,
-          "ext4_journal_start_reserved: dev %d,%d blocks, %d caller %pS\\n",
+  sprintf(line, "ext4_journal_start_reserved: dev %d,%d blocks, %d caller %pS",
           major(event.dev()), minor(event.dev()), event.blocks(),
           (void*)event.ip());
   return std::string(line);
@@ -1700,7 +1688,7 @@ std::string FormatExt4JournalledInvalidatepage(
   char line[2048];
   sprintf(line,
           "ext4_journalled_invalidatepage: dev %d,%d ino %lu page_index %lu "
-          "offset %u length %u\\n",
+          "offset %u length %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned long)event.index(), event.offset(), event.length());
   return std::string(line);
@@ -1711,7 +1699,7 @@ std::string FormatExt4JournalledWriteEnd(
   char line[2048];
   sprintf(line,
           "ext4_journalled_write_end: dev %d,%d ino %lu pos %lld len %u copied "
-          "%u\\n",
+          "%u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.pos(), event.len(), event.copied());
   return std::string(line);
@@ -1719,7 +1707,7 @@ std::string FormatExt4JournalledWriteEnd(
 
 std::string FormatExt4LoadInode(const Ext4LoadInodeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_load_inode: dev %d,%d ino %ld\\n", major(event.dev()),
+  sprintf(line, "ext4_load_inode: dev %d,%d ino %ld", major(event.dev()),
           minor(event.dev()), (unsigned long)event.ino());
   return std::string(line);
 }
@@ -1727,7 +1715,7 @@ std::string FormatExt4LoadInode(const Ext4LoadInodeFtraceEvent& event) {
 std::string FormatExt4LoadInodeBitmap(
     const Ext4LoadInodeBitmapFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_load_inode_bitmap: dev %d,%d group %u\\n",
+  sprintf(line, "ext4_load_inode_bitmap: dev %d,%d group %u",
           major(event.dev()), minor(event.dev()), event.group());
   return std::string(line);
 }
@@ -1735,7 +1723,7 @@ std::string FormatExt4LoadInodeBitmap(
 std::string FormatExt4MarkInodeDirty(
     const Ext4MarkInodeDirtyFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_mark_inode_dirty: dev %d,%d ino %lu caller %pS\\n",
+  sprintf(line, "ext4_mark_inode_dirty: dev %d,%d ino %lu caller %pS",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (void*)event.ip());
   return std::string(line);
@@ -1743,15 +1731,15 @@ std::string FormatExt4MarkInodeDirty(
 
 std::string FormatExt4MbBitmapLoad(const Ext4MbBitmapLoadFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_mb_bitmap_load: dev %d,%d group %u\\n",
-          major(event.dev()), minor(event.dev()), event.group());
+  sprintf(line, "ext4_mb_bitmap_load: dev %d,%d group %u", major(event.dev()),
+          minor(event.dev()), event.group());
   return std::string(line);
 }
 
 std::string FormatExt4MbBuddyBitmapLoad(
     const Ext4MbBuddyBitmapLoadFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_mb_buddy_bitmap_load: dev %d,%d group %u\\n",
+  sprintf(line, "ext4_mb_buddy_bitmap_load: dev %d,%d group %u",
           major(event.dev()), minor(event.dev()), event.group());
   return std::string(line);
 }
@@ -1759,7 +1747,7 @@ std::string FormatExt4MbBuddyBitmapLoad(
 std::string FormatExt4MbDiscardPreallocations(
     const Ext4MbDiscardPreallocationsFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_mb_discard_preallocations: dev %d,%d needed %d\\n",
+  sprintf(line, "ext4_mb_discard_preallocations: dev %d,%d needed %d",
           major(event.dev()), minor(event.dev()), event.needed());
   return std::string(line);
 }
@@ -1768,7 +1756,7 @@ std::string FormatExt4MbNewGroupPa(const Ext4MbNewGroupPaFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_mb_new_group_pa: dev %d,%d ino %lu pstart %llu len %u lstart "
-          "%llu\\n",
+          "%llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.pa_pstart(), event.pa_len(), event.pa_lstart());
   return std::string(line);
@@ -1778,7 +1766,7 @@ std::string FormatExt4MbNewInodePa(const Ext4MbNewInodePaFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_mb_new_inode_pa: dev %d,%d ino %lu pstart %llu len %u lstart "
-          "%llu\\n",
+          "%llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.pa_pstart(), event.pa_len(), event.pa_lstart());
   return std::string(line);
@@ -1787,7 +1775,7 @@ std::string FormatExt4MbNewInodePa(const Ext4MbNewInodePaFtraceEvent& event) {
 std::string FormatExt4MbReleaseGroupPa(
     const Ext4MbReleaseGroupPaFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_mb_release_group_pa: dev %d,%d pstart %llu len %u\\n",
+  sprintf(line, "ext4_mb_release_group_pa: dev %d,%d pstart %llu len %u",
           major(event.dev()), minor(event.dev()), event.pa_pstart(),
           event.pa_len());
   return std::string(line);
@@ -1797,7 +1785,7 @@ std::string FormatExt4MbReleaseInodePa(
     const Ext4MbReleaseInodePaFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_mb_release_inode_pa: dev %d,%d ino %lu block %llu count %u\\n",
+          "ext4_mb_release_inode_pa: dev %d,%d ino %lu block %llu count %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.block(), event.count());
   return std::string(line);
@@ -1808,7 +1796,7 @@ std::string FormatExt4MballocAlloc(const Ext4MballocAllocFtraceEvent& event) {
   sprintf(line,
           "ext4_mballoc_alloc: dev %d,%d inode %lu orig %u/%d/%u@%u goal "
           "%u/%d/%u@%u result %u/%d/%u@%u blks %u grps %u cr %u flags %s tail "
-          "%u broken %u\\n",
+          "%u broken %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.orig_group(), event.orig_start(), event.orig_len(),
           event.orig_logical(), event.goal_group(), event.goal_start(),
@@ -1823,7 +1811,7 @@ std::string FormatExt4MballocAlloc(const Ext4MballocAllocFtraceEvent& event) {
 std::string FormatExt4MballocDiscard(
     const Ext4MballocDiscardFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_mballoc_discard: dev %d,%d inode %lu extent %u/%d/%d \\n",
+  sprintf(line, "ext4_mballoc_discard: dev %d,%d inode %lu extent %u/%d/%d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.result_group(), event.result_start(), event.result_len());
   return std::string(line);
@@ -1831,7 +1819,7 @@ std::string FormatExt4MballocDiscard(
 
 std::string FormatExt4MballocFree(const Ext4MballocFreeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_mballoc_free: dev %d,%d inode %lu extent %u/%d/%d \\n",
+  sprintf(line, "ext4_mballoc_free: dev %d,%d inode %lu extent %u/%d/%d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.result_group(), event.result_start(), event.result_len());
   return std::string(line);
@@ -1842,7 +1830,7 @@ std::string FormatExt4MballocPrealloc(
   char line[2048];
   sprintf(line,
           "ext4_mballoc_prealloc: dev %d,%d inode %lu orig %u/%d/%u@%u result "
-          "%u/%d/%u@%u\\n",
+          "%u/%d/%u@%u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.orig_group(), event.orig_start(), event.orig_len(),
           event.orig_logical(), event.result_group(), event.result_start(),
@@ -1855,7 +1843,7 @@ std::string FormatExt4OtherInodeUpdateTime(
   char line[2048];
   sprintf(line,
           "ext4_other_inode_update_time: dev %d,%d orig_ino %lu ino %lu mode "
-          "0%o uid %u gid %u\\n",
+          "0%o uid %u gid %u",
           major(event.dev()), minor(event.dev()),
           (unsigned long)event.orig_ino(), (unsigned long)event.ino(),
           event.mode(), event.uid(), event.gid());
@@ -1865,7 +1853,7 @@ std::string FormatExt4OtherInodeUpdateTime(
 std::string FormatExt4PunchHole(const Ext4PunchHoleFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_punch_hole: dev %d,%d ino %lu offset %lld len %lld mode %s\\n",
+          "ext4_punch_hole: dev %d,%d ino %lu offset %lld len %lld mode %s",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.offset(), event.len(), GetExt4ModeFlag(event.mode()));
   return std::string(line);
@@ -1874,14 +1862,14 @@ std::string FormatExt4PunchHole(const Ext4PunchHoleFtraceEvent& event) {
 std::string FormatExt4ReadBlockBitmapLoad(
     const Ext4ReadBlockBitmapLoadFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_read_block_bitmap_load: dev %d,%d group %u\\n",
+  sprintf(line, "ext4_read_block_bitmap_load: dev %d,%d group %u",
           major(event.dev()), minor(event.dev()), event.group());
   return std::string(line);
 }
 
 std::string FormatExt4Readpage(const Ext4ReadpageFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_readpage: dev %d,%d ino %lu page_index %lu\\n",
+  sprintf(line, "ext4_readpage: dev %d,%d ino %lu page_index %lu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned long)event.index());
   return std::string(line);
@@ -1889,7 +1877,7 @@ std::string FormatExt4Readpage(const Ext4ReadpageFtraceEvent& event) {
 
 std::string FormatExt4Releasepage(const Ext4ReleasepageFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_releasepage: dev %d,%d ino %lu page_index %lu\\n",
+  sprintf(line, "ext4_releasepage: dev %d,%d ino %lu page_index %lu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned long)event.index());
   return std::string(line);
@@ -1899,7 +1887,7 @@ std::string FormatExt4RemoveBlocks(const Ext4RemoveBlocksFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_remove_blocks: dev %d,%d ino %lu extent [%u(%llu), %u]from %u "
-          "to %u partial_cluster %lld\\n",
+          "to %u partial_cluster %lld",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned)event.ee_lblk(), (unsigned long long)event.ee_pblk(),
           (unsigned short)event.ee_len(), (unsigned)event.from(),
@@ -1911,7 +1899,7 @@ std::string FormatExt4RequestBlocks(const Ext4RequestBlocksFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_request_blocks: dev %d,%d ino %lu flags %s len %u lblk %u goal "
-          "%llu lleft %u lright %u pleft %llu pright %llu \\n",
+          "%llu lleft %u lright %u pleft %llu pright %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           GetExt4HintFlag(event.flags()), event.len(), event.logical(),
           event.goal(), event.lleft(), event.lright(), event.pleft(),
@@ -1921,7 +1909,7 @@ std::string FormatExt4RequestBlocks(const Ext4RequestBlocksFtraceEvent& event) {
 
 std::string FormatExt4RequestInode(const Ext4RequestInodeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_request_inode: dev %d,%d dir %lu mode 0%o\\n",
+  sprintf(line, "ext4_request_inode: dev %d,%d dir %lu mode 0%o",
           major(event.dev()), minor(event.dev()), (unsigned long)event.dir(),
           event.mode());
   return std::string(line);
@@ -1929,14 +1917,14 @@ std::string FormatExt4RequestInode(const Ext4RequestInodeFtraceEvent& event) {
 
 std::string FormatExt4SyncFs(const Ext4SyncFsFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_sync_fs: dev %d,%d wait %d\\n", major(event.dev()),
+  sprintf(line, "ext4_sync_fs: dev %d,%d wait %d", major(event.dev()),
           minor(event.dev()), event.wait());
   return std::string(line);
 }
 
 std::string FormatExt4TrimAllFree(const Ext4TrimAllFreeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_trim_all_free: dev %d,%d group %u, start %d, len %d\\n",
+  sprintf(line, "ext4_trim_all_free: dev %d,%d group %u, start %d, len %d",
           event.dev_major(), event.dev_minor(), event.group(), event.start(),
           event.len());
   return std::string(line);
@@ -1944,7 +1932,7 @@ std::string FormatExt4TrimAllFree(const Ext4TrimAllFreeFtraceEvent& event) {
 
 std::string FormatExt4TrimExtent(const Ext4TrimExtentFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_trim_extent: dev %d,%d group %u, start %d, len %d\\n",
+  sprintf(line, "ext4_trim_extent: dev %d,%d group %u, start %d, len %d",
           event.dev_major(), event.dev_minor(), event.group(), event.start(),
           event.len());
   return std::string(line);
@@ -1952,7 +1940,7 @@ std::string FormatExt4TrimExtent(const Ext4TrimExtentFtraceEvent& event) {
 
 std::string FormatExt4TruncateEnter(const Ext4TruncateEnterFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_truncate_enter: dev %d,%d ino %lu blocks %llu\\n",
+  sprintf(line, "ext4_truncate_enter: dev %d,%d ino %lu blocks %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.blocks());
   return std::string(line);
@@ -1960,7 +1948,7 @@ std::string FormatExt4TruncateEnter(const Ext4TruncateEnterFtraceEvent& event) {
 
 std::string FormatExt4TruncateExit(const Ext4TruncateExitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_truncate_exit: dev %d,%d ino %lu blocks %llu\\n",
+  sprintf(line, "ext4_truncate_exit: dev %d,%d ino %lu blocks %llu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.blocks());
   return std::string(line);
@@ -1968,7 +1956,7 @@ std::string FormatExt4TruncateExit(const Ext4TruncateExitFtraceEvent& event) {
 
 std::string FormatExt4UnlinkEnter(const Ext4UnlinkEnterFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_unlink_enter: dev %d,%d ino %lu size %lld parent %lu\\n",
+  sprintf(line, "ext4_unlink_enter: dev %d,%d ino %lu size %lld parent %lu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.size(), (unsigned long)event.parent());
   return std::string(line);
@@ -1976,7 +1964,7 @@ std::string FormatExt4UnlinkEnter(const Ext4UnlinkEnterFtraceEvent& event) {
 
 std::string FormatExt4UnlinkExit(const Ext4UnlinkExitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_unlink_exit: dev %d,%d ino %lu ret %d\\n",
+  sprintf(line, "ext4_unlink_exit: dev %d,%d ino %lu ret %d",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.ret());
   return std::string(line);
@@ -1984,8 +1972,7 @@ std::string FormatExt4UnlinkExit(const Ext4UnlinkExitFtraceEvent& event) {
 
 std::string FormatExt4WriteBegin(const Ext4WriteBeginFtraceEvent& event) {
   char line[2048];
-  sprintf(line,
-          "ext4_write_begin: dev %d,%d ino %lu pos %lld len %u flags %u\\n",
+  sprintf(line, "ext4_write_begin: dev %d,%d ino %lu pos %lld len %u flags %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.pos(), event.len(), event.flags());
   return std::string(line);
@@ -1993,7 +1980,7 @@ std::string FormatExt4WriteBegin(const Ext4WriteBeginFtraceEvent& event) {
 
 std::string FormatExt4WriteEnd(const Ext4WriteEndFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_write_end: %d,%d ino %lu pos %lld len %u copied %u\\n",
+  sprintf(line, "ext4_write_end: %d,%d ino %lu pos %lld len %u copied %u",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.pos(), event.len(), event.copied());
   return std::string(line);
@@ -2001,7 +1988,7 @@ std::string FormatExt4WriteEnd(const Ext4WriteEndFtraceEvent& event) {
 
 std::string FormatExt4Writepage(const Ext4WritepageFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_writepage: dev %d,%d ino %lu page_index %lu\\n",
+  sprintf(line, "ext4_writepage: dev %d,%d ino %lu page_index %lu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (unsigned long)event.index());
   return std::string(line);
@@ -2012,7 +1999,7 @@ std::string FormatExt4Writepages(const Ext4WritepagesFtraceEvent& event) {
   sprintf(line,
           "ext4_writepages: dev %d,%d ino %lu nr_to_write %ld pages_skipped "
           "%ld range_start %lld range_end %lld sync_mode %d for_kupdate %d "
-          "range_cyclic %d writeback_index %lu\\n",
+          "range_cyclic %d writeback_index %lu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           (long)event.nr_to_write(), (long)event.pages_skipped(),
           event.range_start(), event.range_end(), event.sync_mode(),
@@ -2026,7 +2013,7 @@ std::string FormatExt4WritepagesResult(
   char line[2048];
   sprintf(line,
           "ext4_writepages_result: dev %d,%d ino %lu ret %d pages_written %d "
-          "pages_skipped %ld sync_mode %d writeback_index %lu \\n",
+          "pages_skipped %ld sync_mode %d writeback_index %lu",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.ret(), event.pages_written(), (long)event.pages_skipped(),
           event.sync_mode(), (unsigned long)event.writeback_index());
@@ -2036,7 +2023,7 @@ std::string FormatExt4WritepagesResult(
 std::string FormatExt4ZeroRange(const Ext4ZeroRangeFtraceEvent& event) {
   char line[2048];
   sprintf(line,
-          "ext4_zero_range: dev %d,%d ino %lu offset %lld len %lld mode %s\\n ",
+          "ext4_zero_range: dev %d,%d ino %lu offset %lld len %lld mode %s",
           major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
           event.offset(), event.len(), GetExt4ModeFlag(event.mode()));
   return std::string(line);
