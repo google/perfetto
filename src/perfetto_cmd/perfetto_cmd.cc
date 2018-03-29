@@ -130,7 +130,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         test_config.add_buffers()->set_size_kb(4096);
         test_config.set_duration_ms(2000);
         auto* ds_config = test_config.add_data_sources()->mutable_config();
-        ds_config->set_name("com.google.perfetto.ftrace");
+        ds_config->set_name("linux.ftrace");
         ds_config->mutable_ftrace_config()->add_ftrace_events("sched_switch");
         ds_config->mutable_ftrace_config()->add_ftrace_events("cpu_idle");
         ds_config->mutable_ftrace_config()->add_ftrace_events("cpu_frequency");
