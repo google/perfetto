@@ -164,7 +164,9 @@ void ForEachPacketInTrace(
   }
 }
 
-int TraceToSystrace(std::istream* input, std::ostream* output) {
+int TraceToSystrace(std::istream* input,
+                    std::ostream* output,
+                    bool wrap_in_json) {
   std::multimap<uint64_t, std::string> sorted;
 
   ForEachPacketInTrace(input, [&sorted](const protos::TracePacket& packet) {
@@ -181,22 +183,25 @@ int TraceToSystrace(std::istream* input, std::ostream* output) {
     }
   });
 
-  *output << kTraceHeader;
-  *output << kFtraceHeader;
+  if (wrap_in_json) {
+    *output << kTraceHeader;
+    *output << kFtraceHeader;
+  }
 
   fprintf(stderr, "\n");
   size_t total_events = sorted.size();
   size_t written_events = 0;
   for (auto it = sorted.begin(); it != sorted.end(); it++) {
-    *output << it->second;
-    if (written_events++ % 100 == 0) {
+    *output << it->second << (wrap_in_json ? "\\n" : "\n");
+    if (written_events++ % 100 == 0 && !isatty(STDOUT_FILENO)) {
       fprintf(stderr, "Writing trace: %.2f %%\r",
               written_events * 100.0 / total_events);
       fflush(stderr);
     }
   }
 
-  *output << kTraceFooter;
+  if (wrap_in_json)
+    *output << kTraceFooter;
 
   return 0;
 }
@@ -404,7 +409,7 @@ int TraceToSummary(std::istream* input, std::ostream* output) {
 namespace {
 
 int Usage(int argc, char** argv) {
-  printf("Usage: %s [systrace|text|summary] < trace.proto > trace.txt\n",
+  printf("Usage: %s [systrace|json|text|summary] < trace.proto > trace.txt\n",
          argv[0]);
   return 1;
 }
@@ -417,15 +422,15 @@ int main(int argc, char** argv) {
 
   std::string format(argv[1]);
 
-  bool is_systrace = format == "systrace";
-  bool is_text = format == "text";
-  bool is_summary = format == "summary";
-
-  if (is_systrace)
-    return perfetto::TraceToSystrace(&std::cin, &std::cout);
-  if (is_text)
+  if (format == "json")
+    return perfetto::TraceToSystrace(&std::cin, &std::cout,
+                                     /*wrap_in_json=*/true);
+  if (format == "systrace")
+    return perfetto::TraceToSystrace(&std::cin, &std::cout,
+                                     /*wrap_in_json=*/false);
+  if (format == "text")
     return perfetto::TraceToText(&std::cin, &std::cout);
-  if (is_summary)
+  if (format == "summary")
     return perfetto::TraceToSummary(&std::cin, &std::cout);
   return Usage(argc, argv);
 }
