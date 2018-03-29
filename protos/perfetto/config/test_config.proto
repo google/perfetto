@@ -27,12 +27,18 @@ message TestConfig {
   // The number of messages the fake producer should send.
   optional uint32 message_count = 1;
 
+  // The maximum number of messages which should be sent each second.
+  // The actual obserced speed may be lower if the producer is unable to
+  // work fast enough.
+  // If this is zero or unset, the producer will send as fast as possible.
+  optional uint32 max_messages_per_second = 2;
+
   // The seed value for a simple multiplicative congruential pseudo-random
   // number sequence.
-  optional uint32 seed = 2;
+  optional uint32 seed = 3;
 
   // The size of each message in bytes. Should be greater than or equal 5 to
   // account for the number of bytes needed to encode the random number and a
   // null byte for the string.
-  optional uint64 message_size = 3;
+  optional uint64 message_size = 4;
 }
