@@ -25,6 +25,8 @@ proto_library("config") {
     "data_source_config.proto",
     "data_source_descriptor.proto",
     "ftrace/ftrace_config.proto",
+    "inode_file/inode_file_config.proto",
+    "process_stats/process_stats_config.proto",
     "test_config.proto",
     "trace_config.proto",
   ]
@@ -38,6 +40,8 @@ protozero_library("config_zero") {
     "data_source_config.proto",
     "data_source_descriptor.proto",
     "ftrace/ftrace_config.proto",
+    "inode_file/inode_file_config.proto",
+    "process_stats/process_stats_config.proto",
     "test_config.proto",
     "trace_config.proto",
   ]
