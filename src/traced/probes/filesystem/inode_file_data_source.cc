@@ -35,76 +35,37 @@ namespace perfetto {
 namespace {
 const int kScanIntervalMs = 10000;  // 10s
 uint64_t kScanBatchSize = 15000;
-}
 
-void ScanFilesDFS(
-    const std::string& root_directory,
-    const std::function<bool(BlockDeviceID block_device_id,
-                             Inode inode_number,
-                             const std::string& path,
-                             protos::pbzero::InodeFileMap_Entry_Type type)>&
-        fn) {
-  std::vector<std::string> queue{root_directory};
-  while (!queue.empty()) {
-    struct dirent* entry;
-    std::string directory = queue.back();
-    queue.pop_back();
-    base::ScopedDir dir(opendir(directory.c_str()));
-    directory += "/";
-    if (!dir)
-      continue;
+class StaticMapDelegate : public FileScanner::Delegate {
+ public:
+  StaticMapDelegate(
+      std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>* map)
+      : map_(map) {}
+  ~StaticMapDelegate() {}
 
-    struct stat buf;
-    if (lstat(directory.c_str(), &buf) != 0) {
-      PERFETTO_DPLOG("lstat %s", directory.c_str());
-      continue;
-    }
-    if (S_ISLNK(buf.st_mode))
-      continue;
-
-    BlockDeviceID block_device_id = buf.st_dev;
-
-    while ((entry = readdir(dir.get())) != nullptr) {
-      std::string filename = entry->d_name;
-      if (filename == "." || filename == "..")
-        continue;
-      std::string filepath = directory + filename;
-
-      Inode inode_number = entry->d_ino;
-
-      protos::pbzero::InodeFileMap_Entry_Type type =
-          protos::pbzero::InodeFileMap_Entry_Type_UNKNOWN;
-      // Readdir and stat not guaranteed to have directory info for all systems
-      if (entry->d_type == DT_DIR) {
-        // Continue iterating through files if current entry is a directory
-        queue.push_back(filepath);
-        type = protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY;
-      } else if (entry->d_type == DT_REG) {
-        type = protos::pbzero::InodeFileMap_Entry_Type_FILE;
-      }
-
-      if (!fn(block_device_id, inode_number, filepath, type))
-        return;
-    }
-    if (errno != 0)
-      PERFETTO_DPLOG("readdir %s", directory.c_str());
+ private:
+  bool OnInodeFound(BlockDeviceID block_device_id,
+                    Inode inode_number,
+                    const std::string& path,
+                    protos::pbzero::InodeFileMap_Entry_Type type) {
+    std::unordered_map<Inode, InodeMapValue>& inode_map =
+        (*map_)[block_device_id];
+    inode_map[inode_number].SetType(type);
+    inode_map[inode_number].AddPath(path);
+    return true;
   }
+  void OnInodeScanDone() {}
+  std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>* map_;
+};
 }
 
 void CreateStaticDeviceToInodeMap(
     const std::string& root_directory,
     std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
         static_file_map) {
-  ScanFilesDFS(root_directory,
-               [static_file_map](BlockDeviceID block_device_id,
-                                 Inode inode_number, const std::string& path,
-                                 protos::pbzero::InodeFileMap_Entry_Type type) {
-                 std::unordered_map<Inode, InodeMapValue>& inode_map =
-                     (*static_file_map)[block_device_id];
-                 inode_map[inode_number].SetType(type);
-                 inode_map[inode_number].AddPath(path);
-                 return true;
-               });
+  StaticMapDelegate delegate(static_file_map);
+  FileScanner scanner({root_directory}, &delegate);
+  scanner.Scan();
 }
 
 void FillInodeEntry(InodeFileMap* destination,
