@@ -20,6 +20,8 @@ import sys
 
 PROTOS = (
   'protos/perfetto/config/chrome/chrome_config.proto',
+  'protos/perfetto/config/inode_file/inode_file_config.proto',
+  'protos/perfetto/config/process_stats/process_stats_config.proto',
   'protos/perfetto/config/data_source_config.proto',
   'protos/perfetto/config/ftrace/ftrace_config.proto',
   'protos/perfetto/config/test_config.proto',
