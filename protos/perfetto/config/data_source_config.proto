@@ -50,6 +50,15 @@ message DataSourceConfig {
   optional FtraceConfig ftrace_config = 100;
   optional ChromeConfig chrome_config = 101;
 
+  // This is a fallback mechanism to send a free-form text config to the
+  // producer. In theory this should never be needed. All the code that
+  // is part of the platform (i.e. traced service) is supposed to *not* truncate
+  // the trace config proto and propagate unknown fields. However, if anything
+  // in the pipeline (client or backend) ends up breaking this forward compat
+  // plan, this field will become the escape hatch to allow future data sources
+  // to get some meaningful configuration.
+  optional string legacy_config = 1000;
+
   // This field is only used for testing.
   optional TestConfig for_testing =
       536870911;  // 2^29 - 1, max field id for protos.
