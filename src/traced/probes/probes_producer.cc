@@ -18,6 +18,8 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
+
+#include <algorithm>
 #include <queue>
 #include <string>
 
