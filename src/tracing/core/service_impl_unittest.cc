@@ -110,23 +110,16 @@ TEST_F(ServiceImplTest, RegisterAndUnregister) {
 
   DataSourceDescriptor ds_desc1;
   ds_desc1.set_name("foo");
-  producer_endpoint_1->RegisterDataSource(
-      ds_desc1, [this, &producer_endpoint_1](DataSourceID id) {
-        EXPECT_EQ(1u, id);
-        task_runner.PostTask(
-            std::bind(&Service::ProducerEndpoint::UnregisterDataSource,
-                      producer_endpoint_1.get(), id));
-      });
+  producer_endpoint_1->RegisterDataSource(ds_desc1);
 
   DataSourceDescriptor ds_desc2;
   ds_desc2.set_name("bar");
-  producer_endpoint_2->RegisterDataSource(
-      ds_desc2, [this, &producer_endpoint_2](DataSourceID id) {
-        EXPECT_EQ(1u, id);
-        task_runner.PostTask(
-            std::bind(&Service::ProducerEndpoint::UnregisterDataSource,
-                      producer_endpoint_2.get(), id));
-      });
+  producer_endpoint_2->RegisterDataSource(ds_desc2);
+
+  task_runner.RunUntilIdle();
+
+  producer_endpoint_1->UnregisterDataSource("foo");
+  producer_endpoint_2->UnregisterDataSource("bar");
 
   task_runner.RunUntilIdle();
 
@@ -161,7 +154,7 @@ TEST_F(ServiceImplTest, EnableAndDisableTracing) {
 
   DataSourceDescriptor ds_desc;
   ds_desc.set_name("foo");
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
 
   task_runner.RunUntilIdle();
 
@@ -247,7 +240,7 @@ TEST_F(ServiceImplTest, DisconnectConsumerWhileTracing) {
 
   DataSourceDescriptor ds_desc;
   ds_desc.set_name("foo");
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
   task_runner.RunUntilIdle();
 
   // Disconnecting the consumer while tracing should trigger data source
@@ -287,7 +280,7 @@ TEST_F(ServiceImplTest, ReconnectProducerWhileTracing) {
 
   DataSourceDescriptor ds_desc;
   ds_desc.set_name("foo");
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
   task_runner.RunUntilIdle();
 
   // Disconnecting the producer while tracing should trigger data source
@@ -312,7 +305,7 @@ TEST_F(ServiceImplTest, ReconnectProducerWhileTracing) {
   task_runner.RunUntilIdle();
   EXPECT_CALL(mock_producer, CreateDataSourceInstance(_, _));
   EXPECT_CALL(mock_producer, TearDownDataSourceInstance(_));
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
   task_runner.RunUntilIdle();
 
   EXPECT_CALL(mock_consumer, OnDisconnect());
@@ -403,7 +396,7 @@ TEST_F(ServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
 
   DataSourceDescriptor ds_desc;
   ds_desc.set_name("datasource");
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
   task_runner.RunUntilIdle();
 
   static const char kPayload[] = "1234567890abcdef-";

@@ -70,8 +70,6 @@ void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config,
     return;
   }
 
-  // Serialize the |trace_config| into a EnableTracingRequest protobuf.
-  // Keep this in sync with changes in consumer_port.proto.
   protos::EnableTracingRequest req;
   trace_config.ToProto(req.mutable_trace_config());
   ipc::Deferred<protos::EnableTracingResponse> async_response;

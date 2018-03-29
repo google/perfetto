@@ -65,17 +65,15 @@ void ProbesProducer::OnConnect() {
 
   DataSourceDescriptor ftrace_descriptor;
   ftrace_descriptor.set_name(kFtraceSourceName);
-  endpoint_->RegisterDataSource(ftrace_descriptor, [](DataSourceInstanceID) {});
+  endpoint_->RegisterDataSource(ftrace_descriptor);
 
   DataSourceDescriptor process_stats_descriptor;
   process_stats_descriptor.set_name(kProcessStatsSourceName);
-  endpoint_->RegisterDataSource(process_stats_descriptor,
-                                [](DataSourceInstanceID) {});
+  endpoint_->RegisterDataSource(process_stats_descriptor);
 
   DataSourceDescriptor inode_map_descriptor;
   inode_map_descriptor.set_name(kInodeMapSourceName);
-  endpoint_->RegisterDataSource(inode_map_descriptor,
-                                [](DataSourceInstanceID) {});
+  endpoint_->RegisterDataSource(inode_map_descriptor);
 }
 
 void ProbesProducer::OnDisconnect() {
