@@ -190,10 +190,10 @@ class ServiceImpl : public Service {
 
     size_t num_buffers() const { return buffers_index.size(); }
 
-    int next_write_period_ms() const {
-      PERFETTO_DCHECK(write_period_ms);
-      // TODO(primiano): this will drift. Synchronize % period so it aligns.
-      return write_period_ms;
+    int delay_to_next_write_period_ms() const {
+      PERFETTO_DCHECK(write_period_ms > 0);
+      return write_period_ms -
+             (base::GetWallTimeMs().count() % write_period_ms);
     }
 
     // The consumer that started the session.
