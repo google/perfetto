@@ -40,31 +40,34 @@ base::WeakPtr<ProcessStatsDataSource> ProcessStatsDataSource::GetWeakPtr()
 
 void ProcessStatsDataSource::WriteAllProcesses() {
   procfs_utils::ProcessMap processes;
-  auto trace_packet = writer_->NewTracePacket();
-  protos::pbzero::ProcessTree* process_tree = trace_packet->set_process_tree();
 
-  file_utils::ForEachPidInProcPath(
-      "/proc", [&processes, process_tree](int pid) {
-        // ForEachPid will list all processes and threads. Here we want to
-        // iterate first only by processes (for which pid == thread group id)
-        if (!processes.count(pid)) {
-          if (procfs_utils::ReadTgid(pid) != pid)
-            return;
-          processes[pid] = procfs_utils::ReadProcessInfo(pid);
-        }
-        ProcessInfo* process = processes[pid].get();
-        procfs_utils::ReadProcessThreads(process);
-        auto* process_writer = process_tree->add_processes();
-        process_writer->set_pid(process->pid);
-        process_writer->set_ppid(process->ppid);
-        for (const auto& field : process->cmdline)
-          process_writer->add_cmdline(field.c_str());
-        for (auto& thread : process->threads) {
-          auto* thread_writer = process_writer->add_threads();
-          thread_writer->set_tid(thread.second.tid);
-          thread_writer->set_name(thread.second.name);
-        }
-      });
+  TraceWriter* writer = writer_.get();
+
+  file_utils::ForEachPidInProcPath("/proc", [&processes, writer](int pid) {
+    // TODO(hjd): Move this out when we support large trace packets.
+    auto trace_packet = writer->NewTracePacket();
+    auto* process_tree = trace_packet->set_process_tree();
+
+    // ForEachPid will list all processes and threads. Here we want to
+    // iterate first only by processes (for which pid == thread group id)
+    if (!processes.count(pid)) {
+      if (procfs_utils::ReadTgid(pid) != pid)
+        return;
+      processes[pid] = procfs_utils::ReadProcessInfo(pid);
+    }
+    ProcessInfo* process = processes[pid].get();
+    procfs_utils::ReadProcessThreads(process);
+    auto* process_writer = process_tree->add_processes();
+    process_writer->set_pid(process->pid);
+    process_writer->set_ppid(process->ppid);
+    for (const auto& field : process->cmdline)
+      process_writer->add_cmdline(field.c_str());
+    for (auto& thread : process->threads) {
+      auto* thread_writer = process_writer->add_threads();
+      thread_writer->set_tid(thread.second.tid);
+      thread_writer->set_name(thread.second.name);
+    }
+  });
 }
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
