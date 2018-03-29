@@ -43,6 +43,12 @@ void TestConfig::FromProto(const perfetto::protos::TestConfig& proto) {
                 "size mismatch");
   message_count_ = static_cast<decltype(message_count_)>(proto.message_count());
 
+  static_assert(sizeof(max_messages_per_second_) ==
+                    sizeof(proto.max_messages_per_second()),
+                "size mismatch");
+  max_messages_per_second_ = static_cast<decltype(max_messages_per_second_)>(
+      proto.max_messages_per_second());
+
   static_assert(sizeof(seed_) == sizeof(proto.seed()), "size mismatch");
   seed_ = static_cast<decltype(seed_)>(proto.seed());
 
@@ -59,6 +65,13 @@ void TestConfig::ToProto(perfetto::protos::TestConfig* proto) const {
                 "size mismatch");
   proto->set_message_count(
       static_cast<decltype(proto->message_count())>(message_count_));
+
+  static_assert(sizeof(max_messages_per_second_) ==
+                    sizeof(proto->max_messages_per_second()),
+                "size mismatch");
+  proto->set_max_messages_per_second(
+      static_cast<decltype(proto->max_messages_per_second())>(
+          max_messages_per_second_));
 
   static_assert(sizeof(seed_) == sizeof(proto->seed()), "size mismatch");
   proto->set_seed(static_cast<decltype(proto->seed())>(seed_));

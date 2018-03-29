@@ -61,6 +61,7 @@ class FakeProducer : public Producer {
   std::minstd_rand0 rnd_engine_;
   size_t message_size_ = 0;
   size_t message_count_ = 0;
+  size_t max_messages_per_second_ = 0;
   std::function<void()> on_create_data_source_instance_;
   std::unique_ptr<Service::ProducerEndpoint> endpoint_;
   std::unique_ptr<TraceWriter> trace_writer_;
