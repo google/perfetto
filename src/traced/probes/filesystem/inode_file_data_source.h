@@ -29,6 +29,7 @@
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/traced/data_source_types.h"
 #include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/traced/probes/filesystem/file_scanner.h"
 #include "src/traced/probes/filesystem/fs_mount.h"
@@ -61,6 +62,7 @@ void FillInodeEntry(InodeFileMap* destination,
 class InodeFileDataSource : public FileScanner::Delegate {
  public:
   InodeFileDataSource(
+      DataSourceConfig,
       base::TaskRunner*,
       TracingSessionID,
       std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
@@ -94,6 +96,14 @@ class InodeFileDataSource : public FileScanner::Delegate {
   void OnInodeScanDone();
   void AddRootsForBlockDevice(BlockDeviceID block_device_id,
                               std::vector<std::string>* roots);
+
+  uint64_t GetScanIntervalMs();
+  uint64_t GetScanDelayMs();
+  uint64_t GetScanBatchSize();
+
+  const DataSourceConfig source_config_;
+  std::set<std::string> scan_mount_points_;
+  std::map<std::string, std::vector<std::string>> mount_point_mapping_;
 
   base::TaskRunner* task_runner_;
   const TracingSessionID session_id_;

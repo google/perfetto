@@ -180,16 +180,17 @@ bool ProbesProducer::CreateFtraceDataSourceInstance(
 void ProbesProducer::CreateInodeFileDataSourceInstance(
     TracingSessionID session_id,
     DataSourceInstanceID id,
-    const DataSourceConfig& source_config) {
+    DataSourceConfig source_config) {
   PERFETTO_LOG("Inode file map start (id=%" PRIu64 ", target_buf=%" PRIu32 ")",
                id, source_config.target_buffer());
   auto trace_writer = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
   if (system_inodes_.empty())
     CreateStaticDeviceToInodeMap("/system", &system_inodes_);
-  auto file_map_source = std::unique_ptr<InodeFileDataSource>(
-      new InodeFileDataSource(task_runner_, session_id, &system_inodes_,
-                              &cache_, std::move(trace_writer)));
+  auto file_map_source =
+      std::unique_ptr<InodeFileDataSource>(new InodeFileDataSource(
+          std::move(source_config), task_runner_, session_id, &system_inodes_,
+          &cache_, std::move(trace_writer)));
   file_map_sources_.emplace(id, std::move(file_map_source));
   AddWatchdogsTimer(id, source_config);
 }
@@ -205,6 +206,13 @@ void ProbesProducer::CreateProcessStatsDataSourceInstance(
       new ProcessStatsDataSource(session_id, std::move(trace_writer)));
   auto it_and_inserted = process_stats_sources_.emplace(id, std::move(source));
   PERFETTO_DCHECK(it_and_inserted.second);
+  if (std::find(config.process_stats_config().quirks().begin(),
+                config.process_stats_config().quirks().end(),
+                ProcessStatsConfig::DISABLE_INITIAL_DUMP) !=
+      config.process_stats_config().quirks().end()) {
+    PERFETTO_DLOG("Initial process tree dump is disabled.");
+    return;
+  }
   it_and_inserted.first->second->WriteAllProcesses();
 }
 

@@ -60,7 +60,7 @@ class ProbesProducer : public Producer {
                                             const DataSourceConfig& config);
   void CreateInodeFileDataSourceInstance(TracingSessionID session_id,
                                          DataSourceInstanceID id,
-                                         const DataSourceConfig& config);
+                                         DataSourceConfig config);
 
   void OnMetadata(const FtraceMetadata& metadata);
 
