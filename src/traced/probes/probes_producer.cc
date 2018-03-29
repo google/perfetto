@@ -206,6 +206,13 @@ void ProbesProducer::CreateProcessStatsDataSourceInstance(
       new ProcessStatsDataSource(session_id, std::move(trace_writer)));
   auto it_and_inserted = process_stats_sources_.emplace(id, std::move(source));
   PERFETTO_DCHECK(it_and_inserted.second);
+  if (std::find(config.process_stats_config().quirks().begin(),
+                config.process_stats_config().quirks().end(),
+                ProcessStatsConfig::DISABLE_INITIAL_DUMP) !=
+      config.process_stats_config().quirks().end()) {
+    PERFETTO_DLOG("Initial process tree dump is disabled.");
+    return;
+  }
   it_and_inserted.first->second->WriteAllProcesses();
 }
 

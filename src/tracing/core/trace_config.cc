@@ -220,7 +220,8 @@ void TraceConfig::DataSource::ToProto(
   config_.ToProto(proto->mutable_config());
 
   for (const auto& it : producer_name_filter_) {
-    proto->add_producer_name_filter(it);
+    proto->add_producer_name_filter(
+        static_cast<decltype(proto->producer_name_filter(0))>(it));
     static_assert(sizeof(it) == sizeof(proto->producer_name_filter(0)),
                   "size mismatch");
   }

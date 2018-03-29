@@ -100,7 +100,8 @@ void InodeFileConfig::ToProto(perfetto::protos::InodeFileConfig* proto) const {
       static_cast<decltype(proto->do_not_scan())>(do_not_scan_));
 
   for (const auto& it : scan_mount_points_) {
-    proto->add_scan_mount_points(it);
+    proto->add_scan_mount_points(
+        static_cast<decltype(proto->scan_mount_points(0))>(it));
     static_assert(sizeof(it) == sizeof(proto->scan_mount_points(0)),
                   "size mismatch");
   }
@@ -151,7 +152,7 @@ void InodeFileConfig::MountPointMappingEntry::ToProto(
       static_cast<decltype(proto->mountpoint())>(mountpoint_));
 
   for (const auto& it : scan_roots_) {
-    proto->add_scan_roots(it);
+    proto->add_scan_roots(static_cast<decltype(proto->scan_roots(0))>(it));
     static_assert(sizeof(it) == sizeof(proto->scan_roots(0)), "size mismatch");
   }
   *(proto->mutable_unknown_fields()) = unknown_fields_;

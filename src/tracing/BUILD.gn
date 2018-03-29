@@ -43,6 +43,7 @@ source_set("tracing") {
     "core/packet_stream_validator.cc",
     "core/packet_stream_validator.h",
     "core/patch_list.h",
+    "core/process_stats_config.cc",
     "core/service_impl.cc",
     "core/service_impl.h",
     "core/shared_memory_abi.cc",
