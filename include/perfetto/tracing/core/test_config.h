@@ -60,6 +60,11 @@ class PERFETTO_EXPORT TestConfig {
   uint32_t message_count() const { return message_count_; }
   void set_message_count(uint32_t value) { message_count_ = value; }
 
+  uint32_t max_messages_per_second() const { return max_messages_per_second_; }
+  void set_max_messages_per_second(uint32_t value) {
+    max_messages_per_second_ = value;
+  }
+
   uint32_t seed() const { return seed_; }
   void set_seed(uint32_t value) { seed_ = value; }
 
@@ -68,6 +73,7 @@ class PERFETTO_EXPORT TestConfig {
 
  private:
   uint32_t message_count_ = {};
+  uint32_t max_messages_per_second_ = {};
   uint32_t seed_ = {};
   uint64_t message_size_ = {};
 

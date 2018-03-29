@@ -88,6 +88,10 @@ class PERFETTO_EXPORT TracePacket {
   size_t size_ = 0;   // SUM(slice.size for slice in slices_).
   char preamble_[8];  // Deliberately not initialized.
   std::unique_ptr<DecodedTracePacket> decoded_packet_;
+
+  // Remember to update the move operators and their unittest if adding new
+  // fields. ConsumerIPCClientImpl::OnReadBuffersResponse() relies on
+  // std::move(TracePacket) to clear up the moved-from instance.
 };
 
 }  // namespace perfetto

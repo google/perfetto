@@ -75,10 +75,6 @@ class ProducerIPCService : public protos::ProducerPort {
     void OnTracingStart() override;
     void OnTracingStop() override;
 
-    // RegisterDataSource requests that haven't been replied yet.
-    std::map<std::string, DeferredRegisterDataSourceResponse>
-        pending_data_sources;
-
     // The interface obtained from the core service business logic through
     // Service::ConnectProducer(this). This allows to invoke methods for a
     // specific Producer on the Service business logic.
@@ -96,10 +92,6 @@ class ProducerIPCService : public protos::ProducerPort {
   // Returns the ProducerEndpoint in the core business logic that corresponds to
   // the current IPC request.
   RemoteProducer* GetProducerForCurrentRequest();
-
-  // Called back by the |core_service_| business logic, soon after a call to
-  // RegisterDataSource().
-  void OnDataSourceRegistered(ipc::ClientID, const std::string&, DataSourceID);
 
   Service* const core_service_;
 

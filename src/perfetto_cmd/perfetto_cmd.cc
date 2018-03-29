@@ -130,7 +130,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         test_config.add_buffers()->set_size_kb(4096);
         test_config.set_duration_ms(2000);
         auto* ds_config = test_config.add_data_sources()->mutable_config();
-        ds_config->set_name("com.google.perfetto.ftrace");
+        ds_config->set_name("linux.ftrace");
         ds_config->mutable_ftrace_config()->add_ftrace_events("sched_switch");
         ds_config->mutable_ftrace_config()->add_ftrace_events("cpu_idle");
         ds_config->mutable_ftrace_config()->add_ftrace_events("cpu_frequency");
@@ -138,7 +138,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         test_config.SerializeToString(&trace_config_raw);
       } else {
         if (!base::ReadFile(optarg, &trace_config_raw)) {
-          PERFETTO_ELOG("Could not open %s", optarg);
+          PERFETTO_PLOG("Could not open %s", optarg);
           return 1;
         }
       }
@@ -275,14 +275,14 @@ void PerfettoCmd::OnTimeout() {
 
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   for (TracePacket& packet : packets) {
+    uint8_t preamble[16];
+    uint8_t* pos = preamble;
+    pos = WriteVarInt(MakeTagLengthDelimited(protos::Trace::kPacketFieldNumber),
+                      pos);
+    pos = WriteVarInt(static_cast<uint32_t>(packet.size()), pos);
+    fwrite(reinterpret_cast<const char*>(preamble), pos - preamble, 1,
+           trace_out_stream_.get());
     for (const Slice& slice : packet.slices()) {
-      uint8_t preamble[16];
-      uint8_t* pos = preamble;
-      pos = WriteVarInt(
-          MakeTagLengthDelimited(protos::Trace::kPacketFieldNumber), pos);
-      pos = WriteVarInt(static_cast<uint32_t>(slice.size), pos);
-      fwrite(reinterpret_cast<const char*>(preamble), pos - preamble, 1,
-             trace_out_stream_.get());
       fwrite(reinterpret_cast<const char*>(slice.start), slice.size, 1,
              trace_out_stream_.get());
     }

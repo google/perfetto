@@ -77,22 +77,21 @@ message ReadBuffersRequest {
 message ReadBuffersResponse {
   // TODO: uint32 buffer_id = 1;
 
-  // Each streaming reply returns one or more trace packets (see
-  // trace_packet.proto).
-  // Why "bytes" below? If we just return the full TracePacket object, that will
-  // force the Consumer to deserialize it. In many occasions, the Consumer will
-  // not consume the TracePacket(s) locally but will just forward them over
-  // the network or save them to a file. Deserializing them on-device would be
-  // a waste of time, memory and energy.
+  // Each streaming reply returns one or more slices for one or more trace
+  // packets, or even just a portion of it (if it's too big to fit within one
+  // IPC). The returned slices are ordered and contiguous: packets' slices are
+  // not interleaved and slices are sent only once all slices for a packet are
+  // available (i.e. the consumer will never see any gap).
+  message Slice {
+    optional bytes data = 1;
 
-  // TODO: in the past we agreed that a TracePacket can be very large (MBs).
-  // However here it will hit the limit of the IPC layer in order to keep
-  // the socket buffer bounded. On one side we could upgrade this protocol to
-  // support chunks, so we could directly propagate the chunked TracePacket
-  // stored in the log buffer. On the other side, this will likely just move
-  // the problem on the consumer, that will need larger buffers for reassembly.
-  // Perhaps we should just cap the size of a TracePacket to a lower size?
-  repeated bytes trace_packets = 2;
+    // When true, this is the last slice for the packet. A ReadBufferResponse
+    // might have no slices marked as |last_slice_for_packet|==true, in the case
+    // of a very large packet that gets chunked into several IPCs (in which case
+    // only the last IPC for the packet will have this flag set).
+    optional bool last_slice_for_packet = 2;
+  }
+  repeated Slice slices = 2;
 }
 
 // Arguments for rpc FreeBuffers().

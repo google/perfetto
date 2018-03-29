@@ -22,6 +22,58 @@ message ChromeConfig {
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
 
+// Begin of protos/perfetto/config/inode_file/inode_file_config.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+message InodeFileConfig {
+  message MountPointMappingEntry {
+    optional string mountpoint = 1;
+    repeated string scan_roots = 2;
+  }
+
+  // How long to pause between batches.
+  optional uint64 scan_interval_ms = 1;
+
+  // How long to wait before the first scan in order to accumulate inodes.
+  optional uint64 scan_delay_ms = 2;
+
+  // How many inodes to scan in one batch.
+  optional uint64 scan_batch_size = 3;
+
+  // Do not scan for inodes not found in the static map.
+  optional bool do_not_scan = 4;
+
+  // If non-empty, only scan inodes corresponding to block devices named in
+  // this list.
+  repeated string scan_mount_points = 5;
+
+  // When encountering an inode belonging to a block device corresponding
+  // to one of the mount points in this map, scan its scan_roots instead.
+  repeated MountPointMappingEntry mount_point_mapping = 6;
+}
+
+// End of protos/perfetto/config/inode_file/inode_file_config.proto
+
+// Begin of protos/perfetto/config/process_stats/process_stats_config.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+message ProcessStatsConfig {
+  enum Quirks {
+    QUIRKS_UNSPECIFIED = 0;
+    DISABLE_INITIAL_DUMP = 1;
+    // TODO(taylori) Not implemented.
+    DISABLE_ON_DEMAND = 2;
+  }
+
+  repeated Quirks quirks = 1;
+}
+
+// End of protos/perfetto/config/process_stats/process_stats_config.proto
+
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
@@ -51,6 +103,17 @@ message DataSourceConfig {
 
   optional FtraceConfig ftrace_config = 100;
   optional ChromeConfig chrome_config = 101;
+  optional InodeFileConfig inode_file_config = 102;
+  optional ProcessStatsConfig process_stats_config = 103;
+
+  // This is a fallback mechanism to send a free-form text config to the
+  // producer. In theory this should never be needed. All the code that
+  // is part of the platform (i.e. traced service) is supposed to *not* truncate
+  // the trace config proto and propagate unknown fields. However, if anything
+  // in the pipeline (client or backend) ends up breaking this forward compat
+  // plan, this field will become the escape hatch to allow future data sources
+  // to get some meaningful configuration.
+  optional string legacy_config = 1000;
 
   // This field is only used for testing.
   optional TestConfig for_testing =
@@ -85,14 +148,20 @@ message TestConfig {
   // The number of messages the fake producer should send.
   optional uint32 message_count = 1;
 
+  // The maximum number of messages which should be sent each second.
+  // The actual obserced speed may be lower if the producer is unable to
+  // work fast enough.
+  // If this is zero or unset, the producer will send as fast as possible.
+  optional uint32 max_messages_per_second = 2;
+
   // The seed value for a simple multiplicative congruential pseudo-random
   // number sequence.
-  optional uint32 seed = 2;
+  optional uint32 seed = 3;
 
   // The size of each message in bytes. Should be greater than or equal 5 to
   // account for the number of bytes needed to encode the random number and a
   // null byte for the string.
-  optional uint64 message_size = 3;
+  optional uint64 message_size = 4;
 }
 
 // End of protos/perfetto/config/test_config.proto
@@ -115,7 +184,6 @@ message TraceConfig {
     reserved 2;  // |page_size|, now deprecated.
     reserved 3;  // |optimize_for|, now deprecated.
 
-    // Keep include/perfetto/tracing/core/trace_config.h in sync.
     enum FillPolicy {
       UNSPECIFIED = 0;
       RING_BUFFER = 1;
@@ -162,8 +230,6 @@ message TraceConfig {
 
   message ProducerConfig {
     // Identifies the producer for which this config is for.
-    // TODO: Current behaviour just uses the first producer config,
-    // regardless of name.
     optional string producer_name = 1;
 
     // Specifies the preferred size of the shared memory buffer. If the size is

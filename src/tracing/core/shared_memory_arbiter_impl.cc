@@ -20,6 +20,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/trace_writer_impl.h"
 
 #include <limits>
@@ -214,7 +215,6 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   std::unique_ptr<CommitDataRequest> req;
-  std::vector<uint32_t> pages_to_notify;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
     req = std::move(commit_data_req_);
@@ -240,8 +240,10 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
     std::lock_guard<std::mutex> scoped_lock(lock_);
     id = active_writer_ids_.Allocate();
   }
+  if (!id)
+    return std::unique_ptr<TraceWriter>(new NullTraceWriter());
   return std::unique_ptr<TraceWriter>(
-      id ? new TraceWriterImpl(this, id, target_buffer) : nullptr);
+      new TraceWriterImpl(this, id, target_buffer));
 }
 
 void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {

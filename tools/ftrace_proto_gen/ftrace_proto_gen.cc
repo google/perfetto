@@ -103,10 +103,10 @@ void PrintFtraceEventProtoAdditions(const std::set<std::string>& events) {
   }
 }
 
-void PrintTraceToTextMain(const std::set<std::string>& events) {
+void PrintEventFormatterMain(const std::set<std::string>& events) {
   printf(
-      "\nAdd output to TraceToSystrace for loop in "
-      "tools/ftrace_proto_gen/main.cc\n");
+      "\nAdd output to FormatEventText in "
+      "tools/ftrace_proto_gen/ftrace_event_formatter.cc\n");
   for (auto event : events) {
     printf(
         "else if (event.has_%s()) {\nconst auto& inner = event.%s();\nline = "
@@ -115,17 +115,30 @@ void PrintTraceToTextMain(const std::set<std::string>& events) {
   }
 }
 
-void PrintTraceToTextUsingStatements(const std::set<std::string>& events) {
-  printf("\nAdd output to tools/ftrace_proto_gen/main.cc\n");
+// Add output to ParseInode in ftrace_inode_handler
+void PrintInodeHandlerMain(const std::string& event_name,
+                           const perfetto::Proto& proto) {
+  for (const auto& field : proto.fields) {
+    if (Contains(field.name, "ino") && !Contains(field.name, "minor"))
+      printf(
+          "else if (event.has_%s() && event.%s().%s()) {\n*inode = "
+          "static_cast<uint64_t>(event.%s().%s());\n return true;\n} ",
+          event_name.c_str(), event_name.c_str(), field.name.c_str(),
+          event_name.c_str(), field.name.c_str());
+  }
+}
+
+void PrintEventFormatterUsingStatements(const std::set<std::string>& events) {
+  printf("\nAdd output to tools/ftrace_proto_gen/ftrace_event_formatter.cc\n");
   for (auto event : events) {
     printf("using protos::%sFtraceEvent;\n", ToCamelCase(event).c_str());
   }
 }
 
-void PrintTraceToTextFunctions(const std::set<std::string>& events) {
+void PrintEventFormatterFunctions(const std::set<std::string>& events) {
   printf(
-      "\nAdd output to tools/ftrace_proto_gen/main.cc and then manually go "
-      "through format files to match fields\n");
+      "\nAdd output to tools/ftrace_proto_gen/ftrace_event_formatter.cc and "
+      "then manually go through format files to match fields\n");
   for (auto event : events) {
     printf(
         "std::string Format%s(const %sFtraceEvent& event) {"

@@ -37,6 +37,8 @@
 
 #include "perfetto/tracing/core/chrome_config.h"
 #include "perfetto/tracing/core/ftrace_config.h"
+#include "perfetto/tracing/core/inode_file_config.h"
+#include "perfetto/tracing/core/process_stats_config.h"
 #include "perfetto/tracing/core/test_config.h"
 
 // Forward declarations for protobuf types.
@@ -45,6 +47,9 @@ namespace protos {
 class DataSourceConfig;
 class FtraceConfig;
 class ChromeConfig;
+class InodeFileConfig;
+class InodeFileConfig_MountPointMappingEntry;
+class ProcessStatsConfig;
 class TestConfig;
 }  // namespace protos
 }  // namespace perfetto
@@ -79,6 +84,21 @@ class PERFETTO_EXPORT DataSourceConfig {
   const ChromeConfig& chrome_config() const { return chrome_config_; }
   ChromeConfig* mutable_chrome_config() { return &chrome_config_; }
 
+  const InodeFileConfig& inode_file_config() const {
+    return inode_file_config_;
+  }
+  InodeFileConfig* mutable_inode_file_config() { return &inode_file_config_; }
+
+  const ProcessStatsConfig& process_stats_config() const {
+    return process_stats_config_;
+  }
+  ProcessStatsConfig* mutable_process_stats_config() {
+    return &process_stats_config_;
+  }
+
+  const std::string& legacy_config() const { return legacy_config_; }
+  void set_legacy_config(const std::string& value) { legacy_config_ = value; }
+
   const TestConfig& for_testing() const { return for_testing_; }
   TestConfig* mutable_for_testing() { return &for_testing_; }
 
@@ -88,6 +108,9 @@ class PERFETTO_EXPORT DataSourceConfig {
   uint32_t trace_duration_ms_ = {};
   FtraceConfig ftrace_config_ = {};
   ChromeConfig chrome_config_ = {};
+  InodeFileConfig inode_file_config_ = {};
+  ProcessStatsConfig process_stats_config_ = {};
+  std::string legacy_config_ = {};
   TestConfig for_testing_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility

@@ -35,9 +35,8 @@ using testing::_;
 
 class MockProducerEndpoint : public Service::ProducerEndpoint {
  public:
-  void RegisterDataSource(const DataSourceDescriptor&,
-                          RegisterDataSourceCallback) override {}
-  void UnregisterDataSource(DataSourceID) override {}
+  void RegisterDataSource(const DataSourceDescriptor&) override {}
+  void UnregisterDataSource(const std::string&) override {}
   SharedMemory* shared_memory() const override { return nullptr; }
   size_t shared_buffer_page_size_kb() const override { return 0; }
   std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override {
@@ -137,8 +136,9 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
     ASSERT_TRUE(writers.emplace(writer_id, std::move(writer)).second);
   }
 
-  // A further call should fail as we exhausted writer IDs.
-  ASSERT_EQ(nullptr, arbiter_->CreateTraceWriter(0).get());
+  // A further call should return a null impl of trace writer as we exhausted
+  // writer IDs.
+  ASSERT_EQ(arbiter_->CreateTraceWriter(0)->writer_id(), 0);
 }
 
 // TODO(primiano): add multi-threaded tests.

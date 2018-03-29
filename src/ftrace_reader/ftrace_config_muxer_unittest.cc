@@ -94,7 +94,31 @@ std::unique_ptr<ProtoTranslationTable> CreateFakeTable() {
     Event event;
     event.name = "sched_new";
     event.group = "sched";
-    event.ftrace_event_id = 20;
+    event.ftrace_event_id = 11;
+    events.push_back(event);
+  }
+
+  {
+    Event event;
+    event.name = "cgroup_mkdir";
+    event.group = "cgroup";
+    event.ftrace_event_id = 12;
+    events.push_back(event);
+  }
+
+  {
+    Event event;
+    event.name = "mm_vmscan_direct_reclaim_begin";
+    event.group = "vmscan";
+    event.ftrace_event_id = 13;
+    events.push_back(event);
+  }
+
+  {
+    Event event;
+    event.name = "lowmemory_kill";
+    event.group = "lowmemorykiller";
+    event.ftrace_event_id = 14;
     events.push_back(event);
   }
 
@@ -188,7 +212,8 @@ TEST(FtraceConfigMuxerTest, Atrace) {
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .WillOnce(Return('0'));
   EXPECT_CALL(atrace,
-              RunAtrace(ElementsAreArray({"atrace", "--async_start", "sched"})))
+              RunAtrace(ElementsAreArray(
+                  {"atrace", "--async_start", "--only_userspace", "sched"})))
       .WillOnce(Return(true));
 
   FtraceConfigId id = model.RequestConfig(config);
@@ -199,7 +224,8 @@ TEST(FtraceConfigMuxerTest, Atrace) {
   EXPECT_THAT(actual_config->ftrace_events(), Contains("sched_switch"));
   EXPECT_THAT(actual_config->ftrace_events(), Contains("print"));
 
-  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_stop"})))
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
+                          {"atrace", "--async_stop", "--only_userspace"})))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id));
 }
@@ -234,19 +260,37 @@ TEST(FtraceConfigMuxerTest, SetupClockForTesting) {
 }
 
 TEST(FtraceConfigMuxerTest, GetFtraceEvents) {
+  std::unique_ptr<ProtoTranslationTable> table = CreateFakeTable();
   FtraceConfig config = CreateFtraceConfig({"sched_switch"});
-  std::set<std::string> events = GetFtraceEvents(config);
+  std::set<std::string> events = GetFtraceEvents(config, table.get());
 
   EXPECT_THAT(events, Contains("sched_switch"));
   EXPECT_THAT(events, Not(Contains("print")));
 }
 
 TEST(FtraceConfigMuxerTest, GetFtraceEventsAtrace) {
-  FtraceConfig config = CreateFtraceConfig({"sched_switch"});
+  std::unique_ptr<ProtoTranslationTable> table = CreateFakeTable();
+  FtraceConfig config = CreateFtraceConfig({});
   *config.add_atrace_categories() = "sched";
-  std::set<std::string> events = GetFtraceEvents(config);
+  std::set<std::string> events = GetFtraceEvents(config, table.get());
 
   EXPECT_THAT(events, Contains("sched_switch"));
+  EXPECT_THAT(events, Contains("sched_cpu_hotplug"));
+  EXPECT_THAT(events, Contains("print"));
+}
+
+TEST(FtraceConfigMuxerTest, GetFtraceEventsAtraceCategories) {
+  std::unique_ptr<ProtoTranslationTable> table = CreateFakeTable();
+  FtraceConfig config = CreateFtraceConfig({});
+  *config.add_atrace_categories() = "sched";
+  *config.add_atrace_categories() = "memreclaim";
+  std::set<std::string> events = GetFtraceEvents(config, table.get());
+
+  EXPECT_THAT(events, Contains("sched_switch"));
+  EXPECT_THAT(events, Contains("sched_cpu_hotplug"));
+  EXPECT_THAT(events, Contains("cgroup_mkdir"));
+  EXPECT_THAT(events, Contains("mm_vmscan_direct_reclaim_begin"));
+  EXPECT_THAT(events, Contains("lowmemory_kill"));
   EXPECT_THAT(events, Contains("print"));
 }
 

@@ -451,7 +451,9 @@ void ProtoToCpp::GenCpp(const Descriptor* msg, Printer* p, std::string prefix) {
         p->Print("  auto* entry = proto->add_$n$();\n", "n", field->name());
         p->Print("  it.ToProto(entry);\n");
       } else {
-        p->Print("  proto->add_$n$(it);\n", "n", field->name());
+        p->Print(
+            "  proto->add_$n$(static_cast<decltype(proto->$n$(0))>(it));\n",
+            "n", field->name());
         p->Print(
             "static_assert(sizeof(it) == sizeof(proto->$n$(0)), \"size "
             "mismatch\");\n",

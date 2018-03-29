@@ -86,7 +86,7 @@ TEST(PerfettoTest, MAYBE_TestFtraceProducer) {
 
   // Create the buffer for ftrace.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("com.google.perfetto.ftrace");
+  ds_config->set_name("linux.ftrace");
   ds_config->set_target_buffer(0);
 
   // Setup the config for ftrace.
@@ -174,21 +174,22 @@ TEST(PerfettoTest, TestFakeProducer) {
   ds_config->mutable_for_testing()->set_message_size(kMessageSizeBytes);
 
   // Create the random generator with the same seed.
-  std::minstd_rand0 random(kRandomSeed);
+  std::minstd_rand0 rnd_engine(kRandomSeed);
 
   // Create the function to handle packets as they come in.
   uint64_t total = 0;
   auto on_readback_complete = task_runner.CreateCheckpoint("readback.complete");
-  auto on_consumer_data = [&total, &on_readback_complete, &random](
+  auto on_consumer_data = [&total, &on_readback_complete, &rnd_engine](
                               std::vector<TracePacket> packets, bool has_more) {
     for (auto& packet : packets) {
       ASSERT_TRUE(packet.Decode());
+      ASSERT_TRUE(packet->has_for_testing() || packet->has_clock_snapshot() ||
+                  packet->has_trace_config());
       if (packet->has_clock_snapshot() || packet->has_trace_config())
         continue;
-      ASSERT_TRUE(packet->has_for_testing());
       ASSERT_EQ(protos::TracePacket::kTrustedUid,
                 packet->optional_trusted_uid_case());
-      ASSERT_EQ(packet->for_testing().seq_value(), random());
+      ASSERT_EQ(packet->for_testing().seq_value(), rnd_engine());
     }
     total += packets.size();
 
@@ -222,6 +223,89 @@ TEST(PerfettoTest, TestFakeProducer) {
 
   consumer.ReadTraceData();
   task_runner.RunUntilCheckpoint("readback.complete");
+
+  consumer.Disconnect();
+}
+
+TEST(PerfettoTest, VeryLargePackets) {
+  base::TestTaskRunner task_runner;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+  TaskRunnerThread service_thread("perfetto.svc");
+  service_thread.Start(std::unique_ptr<ServiceDelegate>(
+      new ServiceDelegate(TEST_PRODUCER_SOCK_NAME, TEST_CONSUMER_SOCK_NAME)));
+#endif
+
+  auto on_producer_enabled = task_runner.CreateCheckpoint("producer.enabled");
+  auto posted_on_producer_enabled = [&task_runner, &on_producer_enabled] {
+    task_runner.PostTask(on_producer_enabled);
+  };
+  TaskRunnerThread producer_thread("perfetto.prd");
+  std::unique_ptr<FakeProducerDelegate> producer_delegate(
+      new FakeProducerDelegate(TEST_PRODUCER_SOCK_NAME,
+                               posted_on_producer_enabled));
+  FakeProducerDelegate* producer_delegate_cached = producer_delegate.get();
+  producer_thread.Start(std::move(producer_delegate));
+
+  // Setup the TraceConfig for the consumer.
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4096 * 10);
+
+  static constexpr int kNumPackets = 5;
+  static constexpr uint32_t kRandomSeed = 42;
+  static constexpr uint32_t kMsgSize = 1024 * 1024 - 42;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_for_testing()->set_seed(kRandomSeed);
+  ds_config->mutable_for_testing()->set_message_count(kNumPackets);
+  ds_config->mutable_for_testing()->set_message_size(kMsgSize);
+
+  auto on_readback_complete = task_runner.CreateCheckpoint("readback.complete");
+  int packets_seen = 0;
+  auto on_consumer_data = [&on_readback_complete, &rnd_engine, &packets_seen](
+                              std::vector<TracePacket> packets, bool has_more) {
+    for (auto& packet : packets) {
+      ASSERT_TRUE(packet.Decode());
+      if (!packet->has_for_testing())
+        continue;
+      packets_seen++;
+      ASSERT_EQ(packet->for_testing().seq_value(), rnd_engine());
+      size_t msg_size = packet->for_testing().str().size();
+      ASSERT_EQ(kMsgSize, msg_size);
+      for (size_t i = 0; i < msg_size; i++)
+        ASSERT_EQ(i < msg_size - 1 ? '.' : 0, packet->for_testing().str()[i]);
+    }
+
+    if (!has_more)
+      on_readback_complete();
+  };
+
+  auto on_connect = task_runner.CreateCheckpoint("consumer.connected");
+  FakeConsumer consumer(trace_config, std::move(on_connect),
+                        std::move(on_consumer_data), &task_runner);
+
+  consumer.Connect(TEST_CONSUMER_SOCK_NAME);
+  task_runner.RunUntilCheckpoint("consumer.connected");
+
+  consumer.EnableTracing();
+  task_runner.RunUntilCheckpoint("producer.enabled");
+
+  auto on_produced_and_committed =
+      task_runner.CreateCheckpoint("produced.and.committed");
+  auto posted_on_produced_and_committed = [&task_runner,
+                                           &on_produced_and_committed] {
+    task_runner.PostTask(on_produced_and_committed);
+  };
+  FakeProducer* producer = producer_delegate_cached->producer();
+  producer->ProduceEventBatch(posted_on_produced_and_committed);
+  task_runner.RunUntilCheckpoint("produced.and.committed");
+
+  consumer.ReadTraceData();
+  task_runner.RunUntilCheckpoint("readback.complete");
+  ASSERT_EQ(kNumPackets, packets_seen);
 
   consumer.Disconnect();
 }

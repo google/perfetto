@@ -74,6 +74,7 @@ config("default") {
     cflags += [
       "-fcolor-diagnostics",
       "-Wno-unknown-warning-option",
+      "-fdiagnostics-show-template-tree",
     ]
   } else {
     cflags += [ "-Wno-unknown-warning" ]

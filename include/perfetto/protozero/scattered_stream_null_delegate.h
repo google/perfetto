@@ -14,31 +14,32 @@
  * limitations under the License.
  */
 
-#ifndef SRC_FTRACE_READER_TEST_SCATTERED_STREAM_NULL_DELEGATE_H_
-#define SRC_FTRACE_READER_TEST_SCATTERED_STREAM_NULL_DELEGATE_H_
+#ifndef INCLUDE_PERFETTO_PROTOZERO_SCATTERED_STREAM_NULL_DELEGATE_H_
+#define INCLUDE_PERFETTO_PROTOZERO_SCATTERED_STREAM_NULL_DELEGATE_H_
 
 #include <memory>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 
-namespace perfetto {
+namespace protozero {
 
-class ScatteredStreamNullDelegate
-    : public protozero::ScatteredStreamWriter::Delegate {
+class ScatteredStreamWriterNullDelegate
+    : public ScatteredStreamWriter::Delegate {
  public:
-  explicit ScatteredStreamNullDelegate(size_t chunk_size);
-  ~ScatteredStreamNullDelegate() override;
+  explicit ScatteredStreamWriterNullDelegate(size_t chunk_size);
+  ~ScatteredStreamWriterNullDelegate() override;
 
   // protozero::ScatteredStreamWriter::Delegate implementation.
-  protozero::ContiguousMemoryRange GetNewBuffer() override;
+  ContiguousMemoryRange GetNewBuffer() override;
 
  private:
   const size_t chunk_size_;
   std::unique_ptr<uint8_t[]> chunk_;
 };
 
-}  // namespace perfetto
+}  // namespace protozero
 
-#endif  // SRC_FTRACE_READER_TEST_SCATTERED_STREAM_NULL_DELEGATE_H_
+#endif  // INCLUDE_PERFETTO_PROTOZERO_SCATTERED_STREAM_NULL_DELEGATE_H_

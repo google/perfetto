@@ -12,31 +12,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/perfetto.gni")
+
+source_set("lib") {
+  testonly = true
+  deps = [
+    "../../gn:default_deps",
+    "../../gn:protobuf_full_deps",
+    "../../protos/perfetto/trace:lite",
+  ]
+  sources = [
+    "ftrace_event_formatter.cc",
+    "ftrace_event_formatter.h",
+    "ftrace_inode_handler.cc",
+    "ftrace_inode_handler.h",
+    "main.cc",
+  ]
+}
+
 if (current_toolchain == host_toolchain) {
   executable("trace_to_text_host") {
     testonly = true
     deps = [
+      ":lib",
       "../../gn:default_deps",
-      "../../gn:protobuf_full_deps",
-      "../../protos/perfetto/trace:lite",
-    ]
-    sources = [
-      "main.cc",
     ]
   }
 }
 
-copy("trace_to_text") {
-  testonly = true
-  host_out_dir_ =
-      get_label_info(":trace_to_text_host($host_toolchain)", "root_out_dir")
-  deps = [
-    ":trace_to_text_host($host_toolchain)",
-  ]
-  sources = [
-    "${host_out_dir_}/trace_to_text_host",
-  ]
-  outputs = [
-    "${root_out_dir}/trace_to_text",
-  ]
+# The one for the android tree is defined in the top-level BUILD.gn.
+if (!build_with_android) {
+  copy("trace_to_text") {
+    testonly = true
+    host_out_dir_ =
+        get_label_info(":trace_to_text_host($host_toolchain)", "root_out_dir")
+    deps = [
+      ":trace_to_text_host($host_toolchain)",
+    ]
+    sources = [
+      "${host_out_dir_}/trace_to_text_host",
+    ]
+    outputs = [
+      "${root_out_dir}/trace_to_text",
+    ]
+  }
 }

@@ -90,9 +90,9 @@ TEST_F(ServiceImplTest, RegisterAndUnregister) {
   MockProducer mock_producer_1;
   MockProducer mock_producer_2;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint_1 =
-      svc->ConnectProducer(&mock_producer_1, 123u /* uid */);
+      svc->ConnectProducer(&mock_producer_1, 123u /* uid */, "mock_producer_1");
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint_2 =
-      svc->ConnectProducer(&mock_producer_2, 456u /* uid */);
+      svc->ConnectProducer(&mock_producer_2, 456u /* uid */, "mock_producer_2");
 
   ASSERT_TRUE(producer_endpoint_1);
   ASSERT_TRUE(producer_endpoint_2);
@@ -110,23 +110,16 @@ TEST_F(ServiceImplTest, RegisterAndUnregister) {
 
   DataSourceDescriptor ds_desc1;
   ds_desc1.set_name("foo");
-  producer_endpoint_1->RegisterDataSource(
-      ds_desc1, [this, &producer_endpoint_1](DataSourceID id) {
-        EXPECT_EQ(1u, id);
-        task_runner.PostTask(
-            std::bind(&Service::ProducerEndpoint::UnregisterDataSource,
-                      producer_endpoint_1.get(), id));
-      });
+  producer_endpoint_1->RegisterDataSource(ds_desc1);
 
   DataSourceDescriptor ds_desc2;
   ds_desc2.set_name("bar");
-  producer_endpoint_2->RegisterDataSource(
-      ds_desc2, [this, &producer_endpoint_2](DataSourceID id) {
-        EXPECT_EQ(1u, id);
-        task_runner.PostTask(
-            std::bind(&Service::ProducerEndpoint::UnregisterDataSource,
-                      producer_endpoint_2.get(), id));
-      });
+  producer_endpoint_2->RegisterDataSource(ds_desc2);
+
+  task_runner.RunUntilIdle();
+
+  producer_endpoint_1->UnregisterDataSource("foo");
+  producer_endpoint_2->UnregisterDataSource("bar");
 
   task_runner.RunUntilIdle();
 
@@ -149,7 +142,7 @@ TEST_F(ServiceImplTest, RegisterAndUnregister) {
 TEST_F(ServiceImplTest, EnableAndDisableTracing) {
   MockProducer mock_producer;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
-      svc->ConnectProducer(&mock_producer, 123u /* uid */);
+      svc->ConnectProducer(&mock_producer, 123u /* uid */, "mock_producer");
   MockConsumer mock_consumer;
   std::unique_ptr<Service::ConsumerEndpoint> consumer_endpoint =
       svc->ConnectConsumer(&mock_consumer);
@@ -161,7 +154,7 @@ TEST_F(ServiceImplTest, EnableAndDisableTracing) {
 
   DataSourceDescriptor ds_desc;
   ds_desc.set_name("foo");
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
 
   task_runner.RunUntilIdle();
 
@@ -201,11 +194,13 @@ TEST_F(ServiceImplTest, LockdownMode) {
 
   MockProducer mock_producer;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
-      svc->ConnectProducer(&mock_producer, geteuid() + 1 /* uid */);
+      svc->ConnectProducer(&mock_producer, geteuid() + 1 /* uid */,
+                           "mock_producer");
 
   MockProducer mock_producer_sameuid;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint_sameuid =
-      svc->ConnectProducer(&mock_producer_sameuid, geteuid() /* uid */);
+      svc->ConnectProducer(&mock_producer_sameuid, geteuid() /* uid */,
+                           "mock_producer_sameuid");
 
   EXPECT_CALL(mock_producer, OnConnect()).Times(0);
   EXPECT_CALL(mock_producer_sameuid, OnConnect());
@@ -224,7 +219,7 @@ TEST_F(ServiceImplTest, LockdownMode) {
   EXPECT_CALL(mock_producer_sameuid, OnDisconnect());
   EXPECT_CALL(mock_producer, OnConnect());
   producer_endpoint_sameuid =
-      svc->ConnectProducer(&mock_producer, geteuid() + 1);
+      svc->ConnectProducer(&mock_producer, geteuid() + 1, "mock_producer");
 
   EXPECT_CALL(mock_producer, OnDisconnect());
   task_runner.RunUntilIdle();
@@ -233,7 +228,7 @@ TEST_F(ServiceImplTest, LockdownMode) {
 TEST_F(ServiceImplTest, DisconnectConsumerWhileTracing) {
   MockProducer mock_producer;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
-      svc->ConnectProducer(&mock_producer, 123u /* uid */);
+      svc->ConnectProducer(&mock_producer, 123u /* uid */, "mock_producer");
   MockConsumer mock_consumer;
   std::unique_ptr<Service::ConsumerEndpoint> consumer_endpoint =
       svc->ConnectConsumer(&mock_consumer);
@@ -245,7 +240,7 @@ TEST_F(ServiceImplTest, DisconnectConsumerWhileTracing) {
 
   DataSourceDescriptor ds_desc;
   ds_desc.set_name("foo");
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
   task_runner.RunUntilIdle();
 
   // Disconnecting the consumer while tracing should trigger data source
@@ -273,7 +268,7 @@ TEST_F(ServiceImplTest, DisconnectConsumerWhileTracing) {
 TEST_F(ServiceImplTest, ReconnectProducerWhileTracing) {
   MockProducer mock_producer;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
-      svc->ConnectProducer(&mock_producer, 123u /* uid */);
+      svc->ConnectProducer(&mock_producer, 123u /* uid */, "mock_producer");
   MockConsumer mock_consumer;
   std::unique_ptr<Service::ConsumerEndpoint> consumer_endpoint =
       svc->ConnectConsumer(&mock_consumer);
@@ -285,7 +280,7 @@ TEST_F(ServiceImplTest, ReconnectProducerWhileTracing) {
 
   DataSourceDescriptor ds_desc;
   ds_desc.set_name("foo");
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
   task_runner.RunUntilIdle();
 
   // Disconnecting the producer while tracing should trigger data source
@@ -305,11 +300,12 @@ TEST_F(ServiceImplTest, ReconnectProducerWhileTracing) {
   // Reconnecting a producer with a matching data source should see that data
   // source getting enabled.
   EXPECT_CALL(mock_producer, OnConnect());
-  producer_endpoint = svc->ConnectProducer(&mock_producer, 123u /* uid */);
+  producer_endpoint =
+      svc->ConnectProducer(&mock_producer, 123u /* uid */, "mock_producer");
   task_runner.RunUntilIdle();
   EXPECT_CALL(mock_producer, CreateDataSourceInstance(_, _));
   EXPECT_CALL(mock_producer, TearDownDataSourceInstance(_));
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
   task_runner.RunUntilIdle();
 
   EXPECT_CALL(mock_consumer, OnDisconnect());
@@ -341,7 +337,7 @@ TEST_F(ServiceImplTest, ProducerIDWrapping) {
     auto on_connect = task_runner.CreateCheckpoint(checkpoint_name);
     std::unique_ptr<MockProducer> producer(new MockProducer());
     std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
-        svc->ConnectProducer(producer.get(), 123u /* uid */);
+        svc->ConnectProducer(producer.get(), 123u /* uid */, "mock_producer");
     EXPECT_CALL(*producer, OnConnect()).WillOnce(Invoke(on_connect));
     task_runner.RunUntilCheckpoint(checkpoint_name);
     EXPECT_EQ(&*producer_endpoint, svc->GetProducer(svc->last_producer_id_));
@@ -389,7 +385,7 @@ TEST_F(ServiceImplTest, ProducerIDWrapping) {
 TEST_F(ServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   MockProducer mock_producer;
   std::unique_ptr<Service::ProducerEndpoint> producer_endpoint =
-      svc->ConnectProducer(&mock_producer, 123u /* uid */);
+      svc->ConnectProducer(&mock_producer, 123u /* uid */, "mock_producer");
   MockConsumer mock_consumer;
   std::unique_ptr<Service::ConsumerEndpoint> consumer_endpoint =
       svc->ConnectConsumer(&mock_consumer);
@@ -400,7 +396,7 @@ TEST_F(ServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
 
   DataSourceDescriptor ds_desc;
   ds_desc.set_name("datasource");
-  producer_endpoint->RegisterDataSource(ds_desc, [](DataSourceID) {});
+  producer_endpoint->RegisterDataSource(ds_desc);
   task_runner.RunUntilIdle();
 
   static const char kPayload[] = "1234567890abcdef-";

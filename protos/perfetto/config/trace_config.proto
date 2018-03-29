@@ -37,7 +37,6 @@ message TraceConfig {
     reserved 2;  // |page_size|, now deprecated.
     reserved 3;  // |optimize_for|, now deprecated.
 
-    // Keep include/perfetto/tracing/core/trace_config.h in sync.
     enum FillPolicy {
       UNSPECIFIED = 0;
       RING_BUFFER = 1;
@@ -84,8 +83,6 @@ message TraceConfig {
 
   message ProducerConfig {
     // Identifies the producer for which this config is for.
-    // TODO(taylori): Current behaviour just uses the first producer config,
-    // regardless of name.
     optional string producer_name = 1;
 
     // Specifies the preferred size of the shared memory buffer. If the size is

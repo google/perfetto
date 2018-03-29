@@ -67,7 +67,8 @@ void ProducerIPCService::InitializeConnection(
 
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
-      producer.get(), client_info.uid(), req.shared_memory_size_hint_bytes());
+      producer.get(), client_info.uid(), req.producer_name(),
+      req.shared_memory_size_hint_bytes());
 
   // Could happen if the service has too many producers connected.
   if (!producer->service_endpoint)
@@ -92,54 +93,13 @@ void ProducerIPCService::RegisterDataSource(
     return response.Reject();
   }
 
-  const std::string data_source_name = req.data_source_descriptor().name();
-  if (producer->pending_data_sources.count(data_source_name)) {
-    PERFETTO_DLOG(
-        "A RegisterDataSource() request for \"%s\" is already pending",
-        data_source_name.c_str());
-    return response.Reject();
-  }
-
-  // Deserialize IPC proto -> core DataSourceDescriptor. Keep this in sync with
-  // changes to data_source_descriptor.proto.
   DataSourceDescriptor dsd;
-  dsd.set_name(data_source_name);
-  producer->pending_data_sources[data_source_name] = std::move(response);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  dsd.FromProto(req.data_source_descriptor());
+  GetProducerForCurrentRequest()->service_endpoint->RegisterDataSource(dsd);
 
-  // TODO(fmayer): add test to cover the case of IPC going away before the
-  // RegisterDataSource callback is received.
-  const ipc::ClientID ipc_client_id = ipc::Service::client_info().client_id();
-  GetProducerForCurrentRequest()->service_endpoint->RegisterDataSource(
-      dsd, [weak_this, ipc_client_id, data_source_name](DataSourceID id) {
-        if (!weak_this)
-          return;
-        weak_this->OnDataSourceRegistered(ipc_client_id, data_source_name, id);
-      });
-}
-
-// Called by the Service business logic.
-void ProducerIPCService::OnDataSourceRegistered(
-    ipc::ClientID ipc_client_id,
-    const std::string& data_source_name,
-    DataSourceID id) {
-  auto producer_it = producers_.find(ipc_client_id);
-  if (producer_it == producers_.end())
-    return;  // The producer died in the meantime.
-  RemoteProducer* producer = producer_it->second.get();
-
-  auto it = producer->pending_data_sources.find(data_source_name);
-  PERFETTO_CHECK(it != producer->pending_data_sources.end());
-
-  PERFETTO_DLOG("Data source %s registered, Client:%" PRIu64 " ID: %" PRIu64,
-                data_source_name.c_str(), ipc_client_id, id);
-
-  DeferredRegisterDataSourceResponse ipc_response = std::move(it->second);
-  producer->pending_data_sources.erase(it);
-  auto response =
-      ipc::AsyncResult<protos::RegisterDataSourceResponse>::Create();
-  response->set_data_source_id(id);
-  ipc_response.Resolve(std::move(response));
+  // RegisterDataSource doesn't expect any meaningful response.
+  response.Resolve(
+      ipc::AsyncResult<protos::RegisterDataSourceResponse>::Create());
 }
 
 // Called by the IPC layer.
@@ -164,7 +124,7 @@ void ProducerIPCService::UnregisterDataSource(
         "InitializeConnection()");
     return response.Reject();
   }
-  producer->service_endpoint->UnregisterDataSource(req.data_source_id());
+  producer->service_endpoint->UnregisterDataSource(req.data_source_name());
 
   // UnregisterDataSource doesn't expect any meaningful response.
   response.Resolve(

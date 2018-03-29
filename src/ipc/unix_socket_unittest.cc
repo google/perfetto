@@ -478,6 +478,55 @@ TEST_F(UnixSocketTest, BlockingSend) {
   tx_thread.join();
 }
 
+// Regression test for b/76155349 . If the receiver end disconnects while the
+// sender is in the middle of a large send(), the socket should gracefully give
+// up (i.e. Shutdown()) but not crash.
+TEST_F(UnixSocketTest, ReceiverDisconnectsDuringSend) {
+  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_);
+  ASSERT_TRUE(srv->is_listening());
+  const int kTimeoutMs = 30000;
+
+  auto receive_done = task_runner_.CreateCheckpoint("receive_done");
+  EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
+      .WillOnce(Invoke([this, receive_done](UnixSocket*, UnixSocket* srv_conn) {
+        EXPECT_CALL(event_listener_, OnDataAvailable(srv_conn))
+            .WillOnce(Invoke([receive_done](UnixSocket* s) {
+              char buf[1024];
+              size_t res = s->Receive(buf, sizeof(buf));
+              ASSERT_EQ(1024u, res);
+              s->Shutdown(false /*notify*/);
+              receive_done();
+            }));
+      }));
+
+  // Perform the blocking send form another thread.
+  std::thread tx_thread([] {
+    base::TestTaskRunner tx_task_runner;
+    MockEventListener tx_events;
+    auto cli = UnixSocket::Connect(kSocketName, &tx_events, &tx_task_runner);
+
+    auto cli_connected = tx_task_runner.CreateCheckpoint("cli_connected");
+    EXPECT_CALL(tx_events, OnConnect(cli.get(), true))
+        .WillOnce(InvokeWithoutArgs(cli_connected));
+    tx_task_runner.RunUntilCheckpoint("cli_connected");
+
+    auto send_done = tx_task_runner.CreateCheckpoint("send_done");
+    // We need a
+    static constexpr size_t kBufSize = 32 * 1024 * 1024;
+    std::unique_ptr<char[]> buf(new char[kBufSize]());
+    tx_task_runner.PostTask([&cli, &buf, send_done] {
+      bool send_res = cli->Send(buf.get(), kBufSize, -1 /*fd*/,
+                                UnixSocket::BlockingMode::kBlocking);
+      ASSERT_FALSE(send_res);
+      send_done();
+    });
+
+    tx_task_runner.RunUntilCheckpoint("send_done", kTimeoutMs);
+  });
+  task_runner_.RunUntilCheckpoint("receive_done", kTimeoutMs);
+  tx_thread.join();
+}
+
 // TODO(primiano): add a test to check that in the case of a peer sending a fd
 // and the other end just doing a recv (without taking it), the fd is closed and
 // not left around.

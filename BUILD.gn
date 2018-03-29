@@ -26,20 +26,19 @@ group("all") {
   testonly = true  # allow to build also test targets
   deps = [
     ":perfetto_unittests",
-    "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
     "src/protozero/protoc_plugin($host_toolchain)",
-    "tools/proto_to_cpp",
   ]
-  if (is_linux || is_android) {
-    deps += [ "tools/ftrace_proto_gen:ftrace_proto_gen" ]
-  }
   if (!build_with_chromium) {
     deps += [
       "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
+      "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
       "test/configs",
       "tools:protoc_helper",
-      "tools/trace_to_text",
+      "tools/proto_to_cpp",
     ]
+    if (!build_with_android) {
+      deps += [ "tools/trace_to_text" ]
+    }
     if (is_linux || is_android) {
       deps += [
         ":perfetto",
@@ -47,6 +46,7 @@ group("all") {
         ":perfetto_integrationtests",
         ":traced",
         ":traced_probes",
+        "tools/ftrace_proto_gen:ftrace_proto_gen",
         "tools/skippy",
       ]
     }
@@ -59,21 +59,24 @@ executable("perfetto_unittests") {
     "gn:default_deps",
     "gn:gtest_main",
     "src/base:unittests",
-    "src/ipc:unittests",
-    "src/perfetto_cmd:unittests",
     "src/protozero:unittests",
-    "src/traced/probes/filesystem:unittests",
     "src/tracing:unittests",
   ]
-  if (is_linux || is_android) {
-    deps += [
-      "src/ftrace_reader:unittests",
-      "src/traced/probes:unittests",
-      "tools/ftrace_proto_gen:unittests",
-    ]
-  }
   if (!build_with_chromium) {
-    deps += [ "tools/sanitizers_unittests" ]
+    if (is_linux || is_android) {
+      deps += [
+        "src/ftrace_reader:unittests",
+        "src/traced/probes:unittests",
+        "tools/ftrace_proto_gen:unittests",
+      ]
+    }
+
+    deps += [
+      "src/ipc:unittests",
+      "src/perfetto_cmd:unittests",
+      "src/traced/probes/filesystem:unittests",
+      "tools/sanitizers_unittests",
+    ]
   }
 }
 
@@ -160,6 +163,16 @@ if (!build_with_chromium && (is_linux || is_android)) {
         "binder",
         "services",
         "utils",
+      ]
+    }
+  }
+
+  if (build_with_android) {
+    executable("trace_to_text") {
+      testonly = true
+      deps = [
+        "gn:default_deps",
+        "tools/trace_to_text:lib",
       ]
     }
   }

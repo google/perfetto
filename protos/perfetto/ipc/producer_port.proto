@@ -76,19 +76,16 @@ message RegisterDataSourceRequest {
 }
 
 message RegisterDataSourceResponse {
-  // The ID assigned by the service to this data source. 0 in case of errors.
-  optional uint64 data_source_id = 1;
-
   // Only set in case of errors, when |data_source_id| == 0.
-  optional string error = 2;
+  optional string error = 1;
 };
 
 // Arguments for rpc UnregisterDataSource().
 
 message UnregisterDataSourceRequest {
-  // The ID of the data source to unregister, as previously returned in
-  // |RegisterDataSourceResponse.data_source_id|.
-  optional uint64 data_source_id = 1;
+  // The name of the data source to unregister, as previously passed in
+  // |RegisterDataSourceRequest.name|.
+  optional string data_source_name = 1;
 }
 
 message UnregisterDataSourceResponse {}

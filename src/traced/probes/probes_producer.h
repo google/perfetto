@@ -60,7 +60,7 @@ class ProbesProducer : public Producer {
                                             const DataSourceConfig& config);
   void CreateInodeFileDataSourceInstance(TracingSessionID session_id,
                                          DataSourceInstanceID id,
-                                         const DataSourceConfig& config);
+                                         DataSourceConfig config);
 
   void OnMetadata(const FtraceMetadata& metadata);
 
@@ -146,7 +146,8 @@ class ProbesProducer : public Producer {
   std::map<DataSourceInstanceID, std::unique_ptr<InodeFileDataSource>>
       file_map_sources_;
   LRUInodeCache cache_{kLRUInodeCacheSize};
-  std::map<BlockDeviceID, std::map<Inode, InodeMapValue>> system_inodes_;
+  std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>
+      system_inodes_;
 };
 
 }  // namespace perfetto

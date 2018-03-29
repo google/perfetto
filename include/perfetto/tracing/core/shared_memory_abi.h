@@ -142,6 +142,9 @@ namespace perfetto {
 
 class SharedMemoryABI {
  public:
+  // This is due to Chunk::size being 16 bits.
+  static constexpr size_t kMaxPageSize = 64 * 1024;
+
   // "14" is the max number that can be encoded in a 32 bit atomic word using
   // 2 state bits per Chunk and leaving 4 bits for the page layout.
   // See PageLayout below.

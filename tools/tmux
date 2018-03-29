@@ -164,8 +164,12 @@ tmux send-keys "$PREFIX $DIR/perfetto -c $CONFIG_DEVICE_PATH -o $DIR/trace"
 tmux select-pane -t 2
 
 tmux -2 attach-session -t demo
-reset
-TRACE=$HOME/Downloads/trace.json
-echo -e "\n\x1b[32mPulling trace into $TRACE\x1b[0m"
-pull trace $TMPDIR/trace.protobuf
-$OUT/trace_to_text systrace < $TMPDIR/trace.protobuf > $TRACE
+
+reset_tracing
+
+TRACE=$HOME/Downloads/trace
+pull trace /tmp/trace.protobuf
+echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
+$OUT/trace_to_text text < /tmp/trace.protobuf > $TRACE.pbtext
+echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
+$OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE.json

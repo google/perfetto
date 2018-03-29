@@ -35,8 +35,6 @@ source_set("test_support") {
     "test/cpu_reader_support.h",
     "test/scattered_stream_delegate_for_testing.cc",
     "test/scattered_stream_delegate_for_testing.h",
-    "test/scattered_stream_null_delegate.cc",
-    "test/scattered_stream_null_delegate.h",
   ]
 }
 

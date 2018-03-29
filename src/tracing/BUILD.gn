@@ -37,9 +37,13 @@ source_set("tracing") {
     "core/ftrace_config.cc",
     "core/id_allocator.cc",
     "core/id_allocator.h",
+    "core/inode_file_config.cc",
+    "core/null_trace_writer.cc",
+    "core/null_trace_writer.h",
     "core/packet_stream_validator.cc",
     "core/packet_stream_validator.h",
     "core/patch_list.h",
+    "core/process_stats_config.cc",
     "core/service_impl.cc",
     "core/service_impl.h",
     "core/shared_memory_abi.cc",
@@ -122,6 +126,7 @@ source_set("unittests") {
   ]
   sources = [
     "core/id_allocator_unittest.cc",
+    "core/null_trace_writer_unittest.cc",
     "core/packet_stream_validator_unittest.cc",
     "core/patch_list_unittest.cc",
     "core/service_impl_unittest.cc",

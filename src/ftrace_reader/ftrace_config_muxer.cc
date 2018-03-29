@@ -45,13 +45,159 @@ std::vector<std::string> difference(const std::set<std::string>& a,
   return result;
 }
 
+void AddEventGroup(const ProtoTranslationTable* table,
+                   const std::string& group,
+                   std::set<std::string>* to) {
+  const std::vector<const Event*>* events = table->GetEventsByGroup(group);
+  if (!events)
+    return;
+  for (const Event* event : *events)
+    to->insert(event->name);
+}
+
 }  // namespace
 
-std::set<std::string> GetFtraceEvents(const FtraceConfig& request) {
+std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
+                                      const ProtoTranslationTable* table) {
   std::set<std::string> events;
   events.insert(request.ftrace_events().begin(), request.ftrace_events().end());
   if (RequiresAtrace(request)) {
     events.insert("print");
+
+    // Ideally we should keep this code in sync with:
+    // platform/frameworks/native/cmds/atrace/atrace.cpp
+    // It's not a disaster if they go out of sync, we can always add the ftrace
+    // categories manually server side but this is user friendly and reduces the
+    // size of the configs.
+    for (const std::string& category : request.atrace_categories()) {
+      if (category == "gfx") {
+        AddEventGroup(table, "mdss", &events);
+        AddEventGroup(table, "sde", &events);
+        continue;
+      }
+
+      if (category == "sched") {
+        events.insert("sched_switch");
+        events.insert("sched_wakeup");
+        events.insert("sched_waking");
+        events.insert("sched_blocked_reason");
+        events.insert("sched_cpu_hotplug");
+        AddEventGroup(table, "cgroup", &events);
+        continue;
+      }
+
+      if (category == "irq") {
+        AddEventGroup(table, "irq", &events);
+        AddEventGroup(table, "ipi", &events);
+        continue;
+      }
+
+      if (category == "irqoff") {
+        events.insert("irq_enable");
+        events.insert("irq_disable");
+        continue;
+      }
+
+      if (category == "preemptoff") {
+        events.insert("preempt_enable");
+        events.insert("preempt_disable");
+        continue;
+      }
+
+      if (category == "i2c") {
+        AddEventGroup(table, "i2c", &events);
+        continue;
+      }
+
+      if (category == "freq") {
+        events.insert("cpu_frequency");
+        events.insert("clock_set_rate");
+        events.insert("clock_disable");
+        events.insert("clock_enable");
+        events.insert("clk_set_rate");
+        events.insert("clk_disable");
+        events.insert("clk_enable");
+        events.insert("cpu_frequency_limits");
+        continue;
+      }
+
+      if (category == "membus") {
+        AddEventGroup(table, "memory_bus", &events);
+        continue;
+      }
+
+      if (category == "idle") {
+        events.insert("cpu_idle");
+        continue;
+      }
+
+      if (category == "disk") {
+        events.insert("f2fs_sync_file_enter");
+        events.insert("f2fs_sync_file_exit");
+        events.insert("f2fs_write_begin");
+        events.insert("f2fs_write_end");
+        events.insert("ext4_da_write_begin");
+        events.insert("ext4_da_write_end");
+        events.insert("ext4_sync_file_enter");
+        events.insert("ext4_sync_file_exit");
+        events.insert("block_rq_issue");
+        events.insert("block_rq_complete");
+        continue;
+      }
+
+      if (category == "mmc") {
+        AddEventGroup(table, "mmc", &events);
+        continue;
+      }
+
+      if (category == "load") {
+        AddEventGroup(table, "cpufreq_interactive", &events);
+        continue;
+      }
+
+      if (category == "sync") {
+        AddEventGroup(table, "sync", &events);
+        continue;
+      }
+
+      if (category == "workq") {
+        AddEventGroup(table, "workqueue", &events);
+        continue;
+      }
+
+      if (category == "memreclaim") {
+        events.insert("mm_vmscan_direct_reclaim_begin");
+        events.insert("mm_vmscan_direct_reclaim_end");
+        events.insert("mm_vmscan_kswapd_wake");
+        events.insert("mm_vmscan_kswapd_sleep");
+        AddEventGroup(table, "lowmemorykiller", &events);
+        continue;
+      }
+
+      if (category == "regulators") {
+        AddEventGroup(table, "regulator", &events);
+        continue;
+      }
+
+      if (category == "binder_driver") {
+        events.insert("binder_transaction");
+        events.insert("binder_transaction_received");
+        events.insert("binder_set_priority");
+        continue;
+      }
+
+      if (category == "binder_lock") {
+        events.insert("binder_lock");
+        events.insert("binder_locked");
+        events.insert("binder_unlock");
+        continue;
+      }
+
+      if (category == "pagecache") {
+        AddEventGroup(table, "pagecache", &events);
+        continue;
+      }
+    }
   }
   return events;
 }
@@ -90,8 +236,6 @@ FtraceConfigId FtraceConfigMuxer::RequestConfig(const FtraceConfig& request) {
       return 0;
 
     // If we're about to turn tracing on use this opportunity do some setup:
-    if (RequiresAtrace(request))
-      EnableAtrace(request);
     SetupClock(request);
     SetupBufferSize(request);
   } else {
@@ -100,7 +244,10 @@ FtraceConfigId FtraceConfigMuxer::RequestConfig(const FtraceConfig& request) {
       return 0;
   }
 
-  std::set<std::string> events = GetFtraceEvents(request);
+  std::set<std::string> events = GetFtraceEvents(request, table_);
+
+  if (RequiresAtrace(request))
+    UpdateAtrace(request);
 
   for (auto& name : events) {
     const Event* event = table_->GetEventByName(name);
@@ -116,6 +263,8 @@ FtraceConfigId FtraceConfigMuxer::RequestConfig(const FtraceConfig& request) {
     if (ftrace_->EnableEvent(event->group, event->name)) {
       current_state_.ftrace_events.insert(name);
       *actual.add_ftrace_events() = name;
+    } else {
+      PERFETTO_DPLOG("Failed to enable %s.", name.c_str());
     }
   }
 
@@ -193,14 +342,13 @@ void FtraceConfigMuxer::SetupBufferSize(const FtraceConfig& request) {
   current_state_.cpu_buffer_size_pages = pages;
 }
 
-void FtraceConfigMuxer::EnableAtrace(const FtraceConfig& request) {
-  PERFETTO_DCHECK(!current_state_.atrace_on);
-
-  PERFETTO_DLOG("Start atrace...");
+void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request) {
+  PERFETTO_DLOG("Update atrace config...");
 
   std::vector<std::string> args;
   args.push_back("atrace");  // argv0 for exec()
   args.push_back("--async_start");
+  args.push_back("--only_userspace");
   for (const auto& category : request.atrace_categories())
     args.push_back(category);
   if (!request.atrace_apps().empty()) {
@@ -220,7 +368,7 @@ void FtraceConfigMuxer::DisableAtrace() {
 
   PERFETTO_DLOG("Stop atrace...");
 
-  if (RunAtrace({"atrace", "--async_stop"}))
+  if (RunAtrace({"atrace", "--async_stop", "--only_userspace"}))
     current_state_.atrace_on = false;
 
   PERFETTO_DLOG("...done");

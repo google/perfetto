@@ -44,7 +44,7 @@ std::multimap<BlockDeviceID, std::string> ParseMounts(const char* path) {
     const char* mountpoint = words.cur_token();
     struct stat buf {};
     if (stat(mountpoint, &buf) == -1) {
-      PERFETTO_PLOG("stat");
+      PERFETTO_PLOG("stat %s", mountpoint);
       continue;
     }
     device_to_mountpoints.emplace(buf.st_dev, mountpoint);
