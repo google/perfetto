@@ -64,8 +64,7 @@ class FakeProducer : public Producer {
   void OnConnect() override {
     DataSourceDescriptor descriptor;
     descriptor.set_name(name_);
-    endpoint_->RegisterDataSource(descriptor,
-                                  [this](DataSourceID id) { id_ = id; });
+    endpoint_->RegisterDataSource(descriptor);
   }
 
   void OnDisconnect() override {}
@@ -96,7 +95,6 @@ class FakeProducer : public Producer {
   const std::string name_;
   const uint8_t* data_;
   const size_t size_;
-  DataSourceID id_ = 0;
   std::unique_ptr<Service::ProducerEndpoint> endpoint_;
   std::function<void()> on_produced_and_committed_;
 };
