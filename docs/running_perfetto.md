@@ -62,7 +62,7 @@ buffers {
 
 data_sources {
   config {
-    name: "com.google.perfetto.ftrace"
+    name: "linux.ftrace"
     target_buffer: 0
     ftrace_config {
       buffer_size_kb: 40 # Kernel ftrace buffer size.
@@ -74,7 +74,7 @@ data_sources {
 
 data_sources {
   config {
-    name: "com.google.perfetto.process_stats"
+    name: "linux.process_stats"
     target_buffer: 0
   }
 }
