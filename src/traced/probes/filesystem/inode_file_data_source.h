@@ -102,6 +102,9 @@ class InodeFileDataSource : public FileScanner::Delegate {
   uint64_t GetScanBatchSize();
 
   const DataSourceConfig source_config_;
+  std::set<std::string> scan_mount_points_;
+  std::map<std::string, std::vector<std::string>> mount_point_mapping_;
+
   base::TaskRunner* task_runner_;
   const TracingSessionID session_id_;
   std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*

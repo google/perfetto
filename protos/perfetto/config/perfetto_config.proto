@@ -28,6 +28,11 @@ message ChromeConfig {
 // to reflect changes in the corresponding C++ headers.
 
 message InodeFileConfig {
+  message MountPointMappingEntry {
+    optional string mountpoint = 1;
+    repeated string scan_roots = 2;
+  }
+
   // How long to pause between batches.
   optional uint64 scan_interval_ms = 1;
 
@@ -39,6 +44,14 @@ message InodeFileConfig {
 
   // Do not scan for inodes not found in the static map.
   optional bool do_not_scan = 4;
+
+  // If non-empty, only scan inodes corresponding to block devices named in
+  // this list.
+  repeated string scan_mount_points = 5;
+
+  // When encountering an inode belonging to a block device corresponding
+  // to one of the mount points in this map, scan its scan_roots instead.
+  repeated MountPointMappingEntry mount_point_mapping = 6;
 }
 
 // End of protos/perfetto/config/inode_file/inode_file_config.proto

@@ -47,6 +47,7 @@ class DataSourceConfig;
 class FtraceConfig;
 class ChromeConfig;
 class InodeFileConfig;
+class InodeFileConfig_MountPointMappingEntry;
 class TestConfig;
 class TraceConfig_ProducerConfig;
 class TraceConfig_StatsdMetadata;

@@ -39,13 +39,48 @@
 namespace perfetto {
 namespace protos {
 class InodeFileConfig;
-}
+class InodeFileConfig_MountPointMappingEntry;
+}  // namespace protos
 }  // namespace perfetto
 
 namespace perfetto {
 
 class PERFETTO_EXPORT InodeFileConfig {
  public:
+  class PERFETTO_EXPORT MountPointMappingEntry {
+   public:
+    MountPointMappingEntry();
+    ~MountPointMappingEntry();
+    MountPointMappingEntry(MountPointMappingEntry&&) noexcept;
+    MountPointMappingEntry& operator=(MountPointMappingEntry&&);
+    MountPointMappingEntry(const MountPointMappingEntry&);
+    MountPointMappingEntry& operator=(const MountPointMappingEntry&);
+
+    // Conversion methods from/to the corresponding protobuf types.
+    void FromProto(
+        const perfetto::protos::InodeFileConfig_MountPointMappingEntry&);
+    void ToProto(
+        perfetto::protos::InodeFileConfig_MountPointMappingEntry*) const;
+
+    const std::string& mountpoint() const { return mountpoint_; }
+    void set_mountpoint(const std::string& value) { mountpoint_ = value; }
+
+    int scan_roots_size() const { return static_cast<int>(scan_roots_.size()); }
+    const std::vector<std::string>& scan_roots() const { return scan_roots_; }
+    std::string* add_scan_roots() {
+      scan_roots_.emplace_back();
+      return &scan_roots_.back();
+    }
+
+   private:
+    std::string mountpoint_ = {};
+    std::vector<std::string> scan_roots_;
+
+    // Allows to preserve unknown protobuf fields for compatibility
+    // with future versions of .proto files.
+    std::string unknown_fields_;
+  };
+
   InodeFileConfig();
   ~InodeFileConfig();
   InodeFileConfig(InodeFileConfig&&) noexcept;
@@ -69,11 +104,35 @@ class PERFETTO_EXPORT InodeFileConfig {
   bool do_not_scan() const { return do_not_scan_; }
   void set_do_not_scan(bool value) { do_not_scan_ = value; }
 
+  int scan_mount_points_size() const {
+    return static_cast<int>(scan_mount_points_.size());
+  }
+  const std::vector<std::string>& scan_mount_points() const {
+    return scan_mount_points_;
+  }
+  std::string* add_scan_mount_points() {
+    scan_mount_points_.emplace_back();
+    return &scan_mount_points_.back();
+  }
+
+  int mount_point_mapping_size() const {
+    return static_cast<int>(mount_point_mapping_.size());
+  }
+  const std::vector<MountPointMappingEntry>& mount_point_mapping() const {
+    return mount_point_mapping_;
+  }
+  MountPointMappingEntry* add_mount_point_mapping() {
+    mount_point_mapping_.emplace_back();
+    return &mount_point_mapping_.back();
+  }
+
  private:
   uint64_t scan_interval_ms_ = {};
   uint64_t scan_delay_ms_ = {};
   uint64_t scan_batch_size_ = {};
   bool do_not_scan_ = {};
+  std::vector<std::string> scan_mount_points_;
+  std::vector<MountPointMappingEntry> mount_point_mapping_;
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

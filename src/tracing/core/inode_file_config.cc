@@ -57,6 +57,22 @@ void InodeFileConfig::FromProto(
   static_assert(sizeof(do_not_scan_) == sizeof(proto.do_not_scan()),
                 "size mismatch");
   do_not_scan_ = static_cast<decltype(do_not_scan_)>(proto.do_not_scan());
+
+  scan_mount_points_.clear();
+  for (const auto& field : proto.scan_mount_points()) {
+    scan_mount_points_.emplace_back();
+    static_assert(
+        sizeof(scan_mount_points_.back()) == sizeof(proto.scan_mount_points(0)),
+        "size mismatch");
+    scan_mount_points_.back() =
+        static_cast<decltype(scan_mount_points_)::value_type>(field);
+  }
+
+  mount_point_mapping_.clear();
+  for (const auto& field : proto.mount_point_mapping()) {
+    mount_point_mapping_.emplace_back();
+    mount_point_mapping_.back().FromProto(field);
+  }
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -82,6 +98,62 @@ void InodeFileConfig::ToProto(perfetto::protos::InodeFileConfig* proto) const {
                 "size mismatch");
   proto->set_do_not_scan(
       static_cast<decltype(proto->do_not_scan())>(do_not_scan_));
+
+  for (const auto& it : scan_mount_points_) {
+    proto->add_scan_mount_points(it);
+    static_assert(sizeof(it) == sizeof(proto->scan_mount_points(0)),
+                  "size mismatch");
+  }
+
+  for (const auto& it : mount_point_mapping_) {
+    auto* entry = proto->add_mount_point_mapping();
+    it.ToProto(entry);
+  }
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+InodeFileConfig::MountPointMappingEntry::MountPointMappingEntry() = default;
+InodeFileConfig::MountPointMappingEntry::~MountPointMappingEntry() = default;
+InodeFileConfig::MountPointMappingEntry::MountPointMappingEntry(
+    const InodeFileConfig::MountPointMappingEntry&) = default;
+InodeFileConfig::MountPointMappingEntry&
+InodeFileConfig::MountPointMappingEntry::operator=(
+    const InodeFileConfig::MountPointMappingEntry&) = default;
+InodeFileConfig::MountPointMappingEntry::MountPointMappingEntry(
+    InodeFileConfig::MountPointMappingEntry&&) noexcept = default;
+InodeFileConfig::MountPointMappingEntry&
+InodeFileConfig::MountPointMappingEntry::operator=(
+    InodeFileConfig::MountPointMappingEntry&&) = default;
+
+void InodeFileConfig::MountPointMappingEntry::FromProto(
+    const perfetto::protos::InodeFileConfig_MountPointMappingEntry& proto) {
+  static_assert(sizeof(mountpoint_) == sizeof(proto.mountpoint()),
+                "size mismatch");
+  mountpoint_ = static_cast<decltype(mountpoint_)>(proto.mountpoint());
+
+  scan_roots_.clear();
+  for (const auto& field : proto.scan_roots()) {
+    scan_roots_.emplace_back();
+    static_assert(sizeof(scan_roots_.back()) == sizeof(proto.scan_roots(0)),
+                  "size mismatch");
+    scan_roots_.back() = static_cast<decltype(scan_roots_)::value_type>(field);
+  }
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void InodeFileConfig::MountPointMappingEntry::ToProto(
+    perfetto::protos::InodeFileConfig_MountPointMappingEntry* proto) const {
+  proto->Clear();
+
+  static_assert(sizeof(mountpoint_) == sizeof(proto->mountpoint()),
+                "size mismatch");
+  proto->set_mountpoint(
+      static_cast<decltype(proto->mountpoint())>(mountpoint_));
+
+  for (const auto& it : scan_roots_) {
+    proto->add_scan_roots(it);
+    static_assert(sizeof(it) == sizeof(proto->scan_roots(0)), "size mismatch");
+  }
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
