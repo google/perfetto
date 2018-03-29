@@ -37,6 +37,7 @@ source_set("tracing") {
     "core/ftrace_config.cc",
     "core/id_allocator.cc",
     "core/id_allocator.h",
+    "core/inode_file_config.cc",
     "core/null_trace_writer.cc",
     "core/null_trace_writer.h",
     "core/packet_stream_validator.cc",

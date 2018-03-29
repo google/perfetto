@@ -33,8 +33,15 @@
 
 namespace perfetto {
 namespace {
-const int kScanIntervalMs = 10000;  // 10s
-uint64_t kScanBatchSize = 15000;
+constexpr uint64_t kScanIntervalMs = 10000;  // 10s
+constexpr uint64_t kScanDelayMs = 10000;     // 10s
+constexpr uint64_t kScanBatchSize = 15000;
+
+uint64_t OrDefault(uint64_t value, uint64_t def) {
+  if (value != 0)
+    return value;
+  return def;
+}
 
 class StaticMapDelegate : public FileScanner::Delegate {
  public:
@@ -79,13 +86,15 @@ void FillInodeEntry(InodeFileMap* destination,
 }
 
 InodeFileDataSource::InodeFileDataSource(
+    DataSourceConfig source_config,
     base::TaskRunner* task_runner,
     TracingSessionID id,
     std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
         static_file_map,
     LRUInodeCache* cache,
     std::unique_ptr<TraceWriter> writer)
-    : task_runner_(task_runner),
+    : source_config_(std::move(source_config)),
+      task_runner_(task_runner),
       session_id_(id),
       static_file_map_(static_file_map),
       cache_(cache),
@@ -163,7 +172,10 @@ void InodeFileDataSource::OnInodes(
     // paths/type
     AddInodesFromStaticMap(block_device_id, &inode_numbers);
     AddInodesFromLRUCache(block_device_id, &inode_numbers);
-    // TODO(azappone): Make root directory a mount point
+
+    if (source_config_.inode_file_config().do_not_scan())
+      inode_numbers.clear();
+
     if (!inode_numbers.empty()) {
       // Try to piggy back the current scan.
       auto it = missing_inodes_.find(block_device_id);
@@ -174,7 +186,6 @@ void InodeFileDataSource::OnInodes(
                                                    inode_numbers.cend());
       if (!scan_running_) {
         scan_running_ = true;
-        PERFETTO_DLOG("Posting to scan filesystem in %d ms", kScanIntervalMs);
         auto weak_this = GetWeakPtr();
         task_runner_->PostDelayedTask(
             [weak_this] {
@@ -184,7 +195,7 @@ void InodeFileDataSource::OnInodes(
               }
               weak_this.get()->FindMissingInodes();
             },
-            kScanIntervalMs);
+            GetScanDelayMs());
       }
     }
   }
@@ -266,7 +277,7 @@ void InodeFileDataSource::OnInodeScanDone() {
           }
           weak_this->FindMissingInodes();
         },
-        kScanIntervalMs);
+        GetScanDelayMs());
   }
 }
 
@@ -286,10 +297,25 @@ void InodeFileDataSource::FindMissingInodes() {
 
   PERFETTO_DCHECK(file_scanner_.get() == nullptr);
   auto weak_this = GetWeakPtr();
-  file_scanner_ = std::unique_ptr<FileScanner>(
-      new FileScanner(std::move(roots), this, kScanIntervalMs, kScanBatchSize));
+  file_scanner_ = std::unique_ptr<FileScanner>(new FileScanner(
+      std::move(roots), this, GetScanIntervalMs(), GetScanBatchSize()));
 
   file_scanner_->Scan(task_runner_);
+}
+
+uint64_t InodeFileDataSource::GetScanIntervalMs() {
+  return OrDefault(source_config_.inode_file_config().scan_interval_ms(),
+                   kScanIntervalMs);
+}
+
+uint64_t InodeFileDataSource::GetScanDelayMs() {
+  return OrDefault(source_config_.inode_file_config().scan_delay_ms(),
+                   kScanDelayMs);
+}
+
+uint64_t InodeFileDataSource::GetScanBatchSize() {
+  return OrDefault(source_config_.inode_file_config().scan_batch_size(),
+                   kScanBatchSize);
 }
 
 base::WeakPtr<InodeFileDataSource> InodeFileDataSource::GetWeakPtr() const {
