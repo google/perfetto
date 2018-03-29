@@ -86,7 +86,7 @@ TEST(PerfettoTest, MAYBE_TestFtraceProducer) {
 
   // Create the buffer for ftrace.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("com.google.perfetto.ftrace");
+  ds_config->set_name("linux.ftrace");
   ds_config->set_target_buffer(0);
 
   // Setup the config for ftrace.
