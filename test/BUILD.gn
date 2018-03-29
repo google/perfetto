@@ -25,9 +25,9 @@ if (!build_with_chromium) {
 source_set("end_to_end_integrationtests") {
   testonly = true
   deps = [
-    ":fake_consumer",
     ":task_runner_thread",
     ":task_runner_thread_delegates",
+    ":test_helper",
     "../gn:default_deps",
     "../gn:gtest_deps",
     "../protos/perfetto/trace:lite",
@@ -52,9 +52,9 @@ if (use_libfuzzer) {
     ]
     testonly = true
     deps = [
-      ":fake_consumer",
       ":task_runner_thread",
       ":task_runner_thread_delegates",
+      ":test_helper",
       "../gn:default_deps",
       "../src/base:test_support",
       "../src/protozero",
@@ -63,22 +63,6 @@ if (use_libfuzzer) {
     ]
     configs += [ "../gn:fuzzer_config" ]
   }
-}
-
-source_set("fake_consumer") {
-  testonly = true
-  deps = [
-    "../gn:default_deps",
-    "../gn:gtest_deps",
-    "../protos/perfetto/trace:lite",
-    "../protos/perfetto/trace:zero",
-    "../src/base:base",
-    "../src/base:test_support",
-  ]
-  sources = [
-    "fake_consumer.cc",
-    "fake_consumer.h",
-  ]
 }
 
 source_set("task_runner_thread") {
@@ -109,13 +93,31 @@ source_set("task_runner_thread_delegates") {
   ]
 }
 
+source_set("test_helper") {
+  testonly = true
+  deps = [
+    ":task_runner_thread",
+    ":task_runner_thread_delegates",
+    "../gn:default_deps",
+    "../protos/perfetto/trace:lite",
+    "../src/base:test_support",
+  ]
+  sources = [
+    "test_helper.cc",
+    "test_helper.h",
+  ]
+  if (start_daemons_for_testing) {
+    cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
+  }
+}
+
 if (!build_with_chromium) {
   source_set("end_to_end_benchmarks") {
     testonly = true
     deps = [
-      ":fake_consumer",
       ":task_runner_thread",
       ":task_runner_thread_delegates",
+      ":test_helper",
       "../../gn:default_deps",
       "../gn:gtest_deps",
       "../protos/perfetto/trace:lite",

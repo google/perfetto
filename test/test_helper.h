@@ -14,35 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef TEST_FAKE_CONSUMER_H_
-#define TEST_FAKE_CONSUMER_H_
-
-#include <memory>
-#include <vector>
+#ifndef TEST_TEST_HELPER_H_
+#define TEST_TEST_HELPER_H_
 
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/ipc/consumer_ipc_client.h"
-
 #include "src/base/test/test_task_runner.h"
+#include "test/fake_producer.h"
+#include "test/task_runner_thread.h"
 
 namespace perfetto {
 
-class FakeConsumer : public Consumer {
+class TestHelper : public Consumer {
  public:
-  FakeConsumer(
-      const TraceConfig& trace_config,
-      std::function<void()> on_connect,
-      std::function<void(std::vector<TracePacket>, bool)> packet_callback,
-      base::TaskRunner* task_runner);
-  ~FakeConsumer() override;
-
-  void EnableTracing();
-  void FreeBuffers();
-  void Connect(const char* socket_name);
-  void Disconnect();
-  void ReadTraceData();
+  explicit TestHelper(base::TestTaskRunner* task_runner);
 
   // Consumer implementation.
   void OnConnect() override;
@@ -50,14 +37,30 @@ class FakeConsumer : public Consumer {
   void OnTracingStop() override;
   void OnTraceData(std::vector<TracePacket> packets, bool has_more) override;
 
+  void StartServiceIfRequired();
+  FakeProducer* ConnectFakeProducer();
+  void ConnectConsumer();
+  void StartTracing(const TraceConfig& config);
+  void ReadData(std::function<void(const TracePacket::DecodedTracePacket&)>
+                    packet_callback,
+                std::function<void()> on_finish_callback);
+
+  std::function<void()> WrapTask(const std::function<void()>& function);
+
+  TaskRunnerThread* service_thread() { return &service_thread_; }
+  TaskRunnerThread* producer_thread() { return &producer_thread_; }
+
  private:
-  base::TaskRunner* const task_runner_;
-  const TraceConfig trace_config_;
-  std::function<void()> on_connect_;
-  std::function<void(std::vector<TracePacket>, bool)> packet_callback_;
+  base::TestTaskRunner* task_runner_ = nullptr;
+
+  std::function<void(const TracePacket::DecodedTracePacket&)> packet_callback_;
+  std::function<void()> continuation_callack_;
+
+  TaskRunnerThread service_thread_;
+  TaskRunnerThread producer_thread_;
   std::unique_ptr<Service::ConsumerEndpoint> endpoint_;  // Keep last.
 };
 
 }  // namespace perfetto
 
-#endif  // TEST_FAKE_CONSUMER_H_
+#endif  // TEST_TEST_HELPER_H_
