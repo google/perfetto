@@ -433,11 +433,18 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
     total_slices += packet.slices().size();
   }
 
-  // This is a rough threshold to determine how to split packets within each
-  // IPC. This is not an upper bound, we just stop accumulating packets and send
-  // an IPC out every time we cross this threshold (i.e. all IPCs % last one
-  // will be >= kApproxBytesPerRead).
-  static constexpr size_t kApproxBytesPerRead = 4096;
+  // This is a rough threshold to determine how much to read from the buffer in
+  // each task. This is to avoid executing a single huge sending task for too
+  // long and risk to hit the watchdog. This is *not* an upper bound: we just
+  // stop accumulating new packets and PostTask *after* we cross this threshold.
+  // This constant essentially balances the PostTask and IPC overhead vs the
+  // responsiveness of the service. An extremely small value will cause one IPC
+  // and one PostTask for each slice but will keep the service extremely
+  // responsive. An extremely large value will batch the send for the full
+  // buffer in one large task, will hit the blocking send() once the socket
+  // buffers are full and hang the service for a bit (until the consumer
+  // catches up).
+  static constexpr size_t kApproxBytesPerTask = 32768;
   bool did_hit_threshold = false;
 
   // TODO(primiano): Extend the ReadBuffers API to allow reading only some
@@ -485,7 +492,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
       // Append the packet (inclusive of the trusted uid) to |packets|.
       packets_bytes += packet.size();
       total_slices += packet.slices().size();
-      did_hit_threshold = packets_bytes >= kApproxBytesPerRead &&
+      did_hit_threshold = packets_bytes >= kApproxBytesPerTask &&
                           !tracing_session->write_into_file;
       packets.emplace_back(std::move(packet));
     }  // for(packets...)
