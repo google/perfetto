@@ -109,7 +109,6 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const protos::GetAsyncCommandResponse& cmd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kStartDataSource) {
-    // Keep this in sync with chages in data_source_config.proto.
     const auto& req = cmd.start_data_source();
     const DataSourceInstanceID dsid = req.new_instance_id();
     DataSourceConfig cfg;
@@ -149,38 +148,24 @@ void ProducerIPCClientImpl::OnServiceRequest(
 }
 
 void ProducerIPCClientImpl::RegisterDataSource(
-    const DataSourceDescriptor& descriptor,
-    RegisterDataSourceCallback callback) {
+    const DataSourceDescriptor& descriptor) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!connected_) {
     PERFETTO_DLOG(
         "Cannot RegisterDataSource(), not connected to tracing service");
-    return task_runner_->PostTask(std::bind(callback, 0));
   }
   protos::RegisterDataSourceRequest req;
   descriptor.ToProto(req.mutable_data_source_descriptor());
   ipc::Deferred<protos::RegisterDataSourceResponse> async_response;
-  // TODO(fmayer): add a test that destroys the IPC channel soon after this call
-  // and checks that the callback(0) is invoked.
-  // TODO(fmayer): add a test that destroys ProducerIPCClientImpl soon after
-  // this call and checks that the callback is dropped.
   async_response.Bind(
-      [callback](
-          ipc::AsyncResult<protos::RegisterDataSourceResponse> response) {
-        if (!response) {
+      [](ipc::AsyncResult<protos::RegisterDataSourceResponse> response) {
+        if (!response)
           PERFETTO_DLOG("RegisterDataSource() failed: connection reset");
-          return callback(0);
-        }
-        if (response->data_source_id() == 0) {
-          PERFETTO_DLOG("RegisterDataSource() failed: %s",
-                        response->error().c_str());
-        }
-        callback(response->data_source_id());
       });
   producer_port_.RegisterDataSource(req, std::move(async_response));
 }
 
-void ProducerIPCClientImpl::UnregisterDataSource(DataSourceID id) {
+void ProducerIPCClientImpl::UnregisterDataSource(const std::string& name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!connected_) {
     PERFETTO_DLOG(
@@ -188,7 +173,7 @@ void ProducerIPCClientImpl::UnregisterDataSource(DataSourceID id) {
     return;
   }
   protos::UnregisterDataSourceRequest req;
-  req.set_data_source_id(id);
+  req.set_data_source_name(name);
   producer_port_.UnregisterDataSource(
       req, ipc::Deferred<protos::UnregisterDataSourceResponse>());
 }

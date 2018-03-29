@@ -64,7 +64,7 @@ inline TimeNanos GetWallTimeNs() {
     mach_timebase_info_data_t timebase_info;
     mach_timebase_info(&timebase_info);
     return timebase_info.numer / timebase_info.denom;
-  }
+  };
 
   static uint64_t monotonic_timebase_factor = init_time_factor();
   return TimeNanos(mach_absolute_time() * monotonic_timebase_factor);

@@ -60,9 +60,8 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
   // Service::ProducerEndpoint implementation.
   // These methods are invoked by the actual Producer(s) code by clients of the
   // tracing library, which know nothing about the IPC transport.
-  void RegisterDataSource(const DataSourceDescriptor&,
-                          RegisterDataSourceCallback) override;
-  void UnregisterDataSource(DataSourceID) override;
+  void RegisterDataSource(const DataSourceDescriptor&) override;
+  void UnregisterDataSource(const std::string& name) override;
   void CommitData(const CommitDataRequest&, CommitDataCallback) override;
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) override;
