@@ -27,6 +27,7 @@ if (!build_with_chromium) {
       "atrace.cfg",
       "ftrace.cfg",
       "long_trace.cfg",
+      "processes.cfg",
     ]
 
     outputs = [
