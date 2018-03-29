@@ -307,9 +307,7 @@ void FtraceController::OnDataAvailable(
   if (cpus_to_drain_.none()) {
     // If this was the first CPU to wake up, schedule a drain for the next drain
     // interval.
-    uint64_t delay_ms = NowMs() % drain_period_ms;
-    if (!delay_ms)
-      delay_ms = drain_period_ms;
+    uint64_t delay_ms = drain_period_ms - (NowMs() % drain_period_ms);
     task_runner_->PostDelayedTask(
         std::bind(&FtraceController::DrainCPUs, weak_this, generation),
         static_cast<int>(delay_ms));
