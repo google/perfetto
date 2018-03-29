@@ -341,7 +341,7 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           if (weak_this)
             weak_this->ReadBuffers(tsid, nullptr);
         },
-        tracing_session->next_write_period_ms());
+        tracing_session->delay_to_next_write_period_ms());
   }
 
   tracing_session->tracing_enabled = true;
@@ -575,7 +575,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
           if (weak_this)
             weak_this->ReadBuffers(tsid, nullptr);
         },
-        tracing_session->next_write_period_ms());
+        tracing_session->delay_to_next_write_period_ms());
     return;
   }  // if (tracing_session->write_into_file)
 
