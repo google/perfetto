@@ -23,24 +23,13 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "src/base/test/test_task_runner.h"
-#include "test/fake_consumer.h"
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
+#include "test/test_helper.h"
 
 namespace perfetto {
 
 namespace {
-
-// If we're building on Android and starting the daemons ourselves,
-// create the sockets in a world-writable location.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
-    PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-#define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
-#define TEST_CONSUMER_SOCK_NAME "/data/local/tmp/traced_consumer"
-#else
-#define TEST_PRODUCER_SOCK_NAME PERFETTO_PRODUCER_SOCK_NAME
-#define TEST_CONSUMER_SOCK_NAME PERFETTO_CONSUMER_SOCK_NAME
-#endif
 
 bool IsBenchmarkFunctionalOnly() {
   return getenv("BENCHMARK_FUNCTIONAL_TEST_ONLY") != nullptr;
@@ -49,25 +38,11 @@ bool IsBenchmarkFunctionalOnly() {
 void BenchmarkCommon(benchmark::State& state) {
   base::TestTaskRunner task_runner;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-  TaskRunnerThread service_thread("perfetto.svc");
-  service_thread.Start(std::unique_ptr<ServiceDelegate>(
-      new ServiceDelegate(TEST_PRODUCER_SOCK_NAME, TEST_CONSUMER_SOCK_NAME)));
-#endif
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
 
-  TaskRunnerThread producer_thread("perfetto.prd");
-  auto on_producer_enabled = task_runner.CreateCheckpoint("producer.enabled");
-  auto posted_on_producer_enabled = [&task_runner, &on_producer_enabled] {
-    task_runner.PostTask(on_producer_enabled);
-  };
-  std::unique_ptr<FakeProducerDelegate> producer_delegate(
-      new FakeProducerDelegate(TEST_PRODUCER_SOCK_NAME,
-                               std::move(posted_on_producer_enabled)));
-  FakeProducerDelegate* producer_delegate_cached = producer_delegate.get();
-  producer_thread.Start(std::move(producer_delegate));
-
-  // Once conneced, we can retrieve the inner producer.
-  FakeProducer* producer = producer_delegate_cached->producer();
+  FakeProducer* producer = helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
 
   // Setup the TraceConfig for the consumer.
   TraceConfig trace_config;
@@ -94,61 +69,35 @@ void BenchmarkCommon(benchmark::State& state) {
   ds_config->mutable_for_testing()->set_message_size(message_bytes);
   ds_config->mutable_for_testing()->set_max_messages_per_second(messages_per_s);
 
-  bool is_first_packet = true;
-  auto on_readback_complete = task_runner.CreateCheckpoint("readback.complete");
-  std::minstd_rand0 rnd_engine(kRandomSeed);
-  auto on_consumer_data = [&is_first_packet, &on_readback_complete,
-                           &rnd_engine](std::vector<TracePacket> packets,
-                                        bool has_more) {
-    for (auto& packet : packets) {
-      ASSERT_TRUE(packet.Decode());
-      ASSERT_TRUE(packet->has_for_testing() || packet->has_clock_snapshot() ||
-                  packet->has_trace_config());
-      if (packet->has_clock_snapshot() || packet->has_trace_config())
-        continue;
-      ASSERT_EQ(protos::TracePacket::kTrustedUid,
-                packet->optional_trusted_uid_case());
-      if (is_first_packet) {
-        rnd_engine = std::minstd_rand0(packet->for_testing().seq_value());
-        is_first_packet = false;
-      } else {
-        ASSERT_EQ(packet->for_testing().seq_value(), rnd_engine());
-      }
-    }
+  helper.StartTracing(trace_config);
 
-    if (!has_more) {
-      is_first_packet = true;
-      on_readback_complete();
+  bool is_first_packet = true;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+  auto on_consumer_data = [&is_first_packet, &rnd_engine](
+                              const TracePacket::DecodedTracePacket& packet) {
+    ASSERT_TRUE(packet.has_for_testing());
+    if (is_first_packet) {
+      rnd_engine = std::minstd_rand0(packet.for_testing().seq_value());
+      is_first_packet = false;
+    } else {
+      ASSERT_EQ(packet.for_testing().seq_value(), rnd_engine());
     }
   };
 
-  // Finally, make the consumer connect to the service.
-  auto on_connect = task_runner.CreateCheckpoint("consumer.connected");
-  FakeConsumer consumer(trace_config, std::move(on_connect),
-                        std::move(on_consumer_data), &task_runner);
-  consumer.Connect(TEST_CONSUMER_SOCK_NAME);
-  task_runner.RunUntilCheckpoint("consumer.connected");
-
-  consumer.EnableTracing();
-  task_runner.RunUntilCheckpoint("producer.enabled");
-
   uint64_t wall_start_ns = base::GetWallTimeNs().count();
-  uint64_t service_start_ns = service_thread.GetThreadCPUTimeNs();
-  uint64_t producer_start_ns = producer_thread.GetThreadCPUTimeNs();
+  uint64_t service_start_ns = helper.service_thread()->GetThreadCPUTimeNs();
+  uint64_t producer_start_ns = helper.producer_thread()->GetThreadCPUTimeNs();
   uint64_t iterations = 0;
   for (auto _ : state) {
     auto cname = "produced.and.committed." + std::to_string(iterations++);
     auto on_produced_and_committed = task_runner.CreateCheckpoint(cname);
-    auto posted_on_produced_and_committed = [&task_runner,
-                                             &on_produced_and_committed] {
-      task_runner.PostTask(on_produced_and_committed);
-    };
-    producer->ProduceEventBatch(posted_on_produced_and_committed);
+    producer->ProduceEventBatch(helper.WrapTask(on_produced_and_committed));
     task_runner.RunUntilCheckpoint(cname, time_for_messages_ms);
   }
-  uint64_t service_ns = service_thread.GetThreadCPUTimeNs() - service_start_ns;
+  uint64_t service_ns =
+      helper.service_thread()->GetThreadCPUTimeNs() - service_start_ns;
   uint64_t producer_ns =
-      producer_thread.GetThreadCPUTimeNs() - producer_start_ns;
+      helper.producer_thread()->GetThreadCPUTimeNs() - producer_start_ns;
   uint64_t wall_ns = base::GetWallTimeNs().count() - wall_start_ns;
 
   state.counters["Pro CPU"] = benchmark::Counter(100.0 * producer_ns / wall_ns);
@@ -157,11 +106,10 @@ void BenchmarkCommon(benchmark::State& state) {
       benchmark::Counter(1.0 * service_ns / message_count);
 
   // Read back the buffer just to check correctness.
-  consumer.ReadTraceData();
+  auto on_readback_complete = task_runner.CreateCheckpoint("readback.complete");
+  helper.ReadData(on_consumer_data, on_readback_complete);
   task_runner.RunUntilCheckpoint("readback.complete");
   state.SetBytesProcessed(iterations * message_bytes * message_count);
-
-  consumer.Disconnect();
 }
 
 void SaturateCpuArgs(benchmark::internal::Benchmark* b) {
@@ -185,7 +133,7 @@ void ConstantRateArgs(benchmark::internal::Benchmark* b) {
     b->Args({message_count, 256, speed});
   }
 }
-}
+}  // namespace
 
 static void BM_EndToEnd_SaturateCpu(benchmark::State& state) {
   BenchmarkCommon(state);
