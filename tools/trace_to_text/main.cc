@@ -71,8 +71,6 @@ const char kFtraceHeader[] =
     "#           TASK-PID    TGID   CPU#  ||||    TIMESTAMP  FUNCTION\\n"
     "#              | |        |      |   ||||       |         |\\n";
 
-constexpr const char* inodeFileTypeArray[] = {"UNKNOWN", "FILE", "DIRECTORY"};
-
 using google::protobuf::Descriptor;
 using google::protobuf::DynamicMessageFactory;
 using google::protobuf::FileDescriptor;
@@ -120,61 +118,6 @@ class MFE : public MultiFileErrorCollector {
                   message.c_str());
   }
 };
-
-uint64_t TimestampToSeconds(uint64_t timestamp) {
-  return timestamp / 1000000000ul;
-}
-
-uint64_t TimestampToMicroseconds(uint64_t timestamp) {
-  return (timestamp / 1000) % 1000000ul;
-}
-
-std::string FormatPrefix(uint64_t timestamp, uint64_t cpu) {
-  char line[2048];
-  uint64_t seconds = TimestampToSeconds(timestamp);
-  uint64_t useconds = TimestampToMicroseconds(timestamp);
-  sprintf(line,
-          "<idle>-0     (-----) [%03" PRIu64 "] d..3 %" PRIu64 ".%.6" PRIu64
-          ": ",
-          cpu, seconds, useconds);
-  return std::string(line);
-}
-
-// TODO(taylori): Confirm correct format for this.
-// Calling this breaks loading into chrome://tracing
-std::string FormatProcess(const Process& process) {
-  char line[2048];
-  sprintf(line, "process: pid=%d ppid=%d cmdline=", process.pid(),
-          process.ppid());
-  std::string output = std::string(line);
-  for (auto field : process.cmdline()) {
-    char cmd[2048];
-    sprintf(cmd, "%s ", field.c_str());
-    output += std::string(cmd);
-  }
-  output += "\\n";
-  for (auto thread : process.threads()) {
-    char thread_line[2048];
-    sprintf(thread_line, "thread: tid=%d name=%s\\n", thread.tid(),
-            thread.name().c_str());
-    output += thread_line;
-  }
-  return output;
-}
-
-// Calling this breaks loading into chrome://tracing
-std::string FormatInodeFileMap(const Entry& entry) {
-  char line[2048];
-  sprintf(line, "inode_file_map: ino=%llu type=%s path=", entry.inode_number(),
-          inodeFileTypeArray[entry.type()]);
-  std::string output = std::string(line);
-  for (auto field : entry.paths()) {
-    char path[2048];
-    sprintf(path, "%s", field.c_str());
-    output += std::string(path);
-  }
-  return output;
-}
 
 void ForEachPacketInTrace(
     std::istream* input,
