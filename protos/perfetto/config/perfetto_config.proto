@@ -22,6 +22,58 @@ message ChromeConfig {
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
 
+// Begin of protos/perfetto/config/inode_file/inode_file_config.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+message InodeFileConfig {
+  message MountPointMappingEntry {
+    optional string mountpoint = 1;
+    repeated string scan_roots = 2;
+  }
+
+  // How long to pause between batches.
+  optional uint64 scan_interval_ms = 1;
+
+  // How long to wait before the first scan in order to accumulate inodes.
+  optional uint64 scan_delay_ms = 2;
+
+  // How many inodes to scan in one batch.
+  optional uint64 scan_batch_size = 3;
+
+  // Do not scan for inodes not found in the static map.
+  optional bool do_not_scan = 4;
+
+  // If non-empty, only scan inodes corresponding to block devices named in
+  // this list.
+  repeated string scan_mount_points = 5;
+
+  // When encountering an inode belonging to a block device corresponding
+  // to one of the mount points in this map, scan its scan_roots instead.
+  repeated MountPointMappingEntry mount_point_mapping = 6;
+}
+
+// End of protos/perfetto/config/inode_file/inode_file_config.proto
+
+// Begin of protos/perfetto/config/process_stats/process_stats_config.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+message ProcessStatsConfig {
+  enum Quirks {
+    QUIRKS_UNSPECIFIED = 0;
+    DISABLE_INITIAL_DUMP = 1;
+    // TODO(taylori) Not implemented.
+    DISABLE_ON_DEMAND = 2;
+  }
+
+  repeated Quirks quirks = 1;
+}
+
+// End of protos/perfetto/config/process_stats/process_stats_config.proto
+
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
@@ -51,6 +103,8 @@ message DataSourceConfig {
 
   optional FtraceConfig ftrace_config = 100;
   optional ChromeConfig chrome_config = 101;
+  optional InodeFileConfig inode_file_config = 102;
+  optional ProcessStatsConfig process_stats_config = 103;
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
