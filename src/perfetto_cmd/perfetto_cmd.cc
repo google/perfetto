@@ -275,14 +275,14 @@ void PerfettoCmd::OnTimeout() {
 
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   for (TracePacket& packet : packets) {
+    uint8_t preamble[16];
+    uint8_t* pos = preamble;
+    pos = WriteVarInt(MakeTagLengthDelimited(protos::Trace::kPacketFieldNumber),
+                      pos);
+    pos = WriteVarInt(static_cast<uint32_t>(packet.size()), pos);
+    fwrite(reinterpret_cast<const char*>(preamble), pos - preamble, 1,
+           trace_out_stream_.get());
     for (const Slice& slice : packet.slices()) {
-      uint8_t preamble[16];
-      uint8_t* pos = preamble;
-      pos = WriteVarInt(
-          MakeTagLengthDelimited(protos::Trace::kPacketFieldNumber), pos);
-      pos = WriteVarInt(static_cast<uint32_t>(slice.size), pos);
-      fwrite(reinterpret_cast<const char*>(preamble), pos - preamble, 1,
-             trace_out_stream_.get());
       fwrite(reinterpret_cast<const char*>(slice.start), slice.size, 1,
              trace_out_stream_.get());
     }
