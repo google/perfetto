@@ -20,6 +20,13 @@
 #include <algorithm>
 #include <string>
 
+#include "perfetto/base/build_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/sysmacros.h>  // For major() / minor()
+#endif
+
 namespace perfetto {
 namespace {
 
@@ -541,7 +548,7 @@ std::string FormatBlockRqIssue(const BlockRqIssueFtraceEvent& event) {
   sprintf(line, "block_rq_issue: %d,%d %s %u (%s) %llu + %u [%s]\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           event.bytes(), event.cmd().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
 }
@@ -987,7 +994,7 @@ std::string FormatBlockBioBackmerge(const BlockBioBackmergeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_bio_backmerge: %d,%d %s %llu + %u [%s]\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
 }
@@ -998,7 +1005,7 @@ std::string FormatBlockBioBounce(const BlockBioBounceFtraceEvent& event) {
           "block_bio_bounce:"
           "%d,%d %s %llu + %u [%s]\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
 }
@@ -1007,7 +1014,8 @@ std::string FormatBlockBioComplete(const BlockBioCompleteFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_bio_complete: %d,%d %s %llu + %u [%d]\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(), event.error());
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
+          event.error());
   return std::string(line);
 }
 
@@ -1016,7 +1024,7 @@ std::string FormatBlockBioFrontmerge(
   char line[2048];
   sprintf(line, "block_bio_frontmerge: %d,%d %s %llu + %u [%s]\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
 }
@@ -1025,7 +1033,7 @@ std::string FormatBlockBioQueue(const BlockBioQueueFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_bio_queue: %d,%d %s %llu + %u [%s]\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
 }
@@ -1034,7 +1042,7 @@ std::string FormatBlockBioRemap(const BlockBioRemapFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_bio_remap:  %d,%d %s %llu + %u <- (%d,%d) %llu\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           major(event.dev()), minor(event.dev()),
           (unsigned long long)event.old_sector());
   return std::string(line);
@@ -1044,7 +1052,8 @@ std::string FormatBlockDirtyBuffer(const BlockDirtyBufferFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_dirty_buffer: %d,%d sector=%llu size=%zu\\n",
           major(event.dev()), minor(event.dev()),
-          (unsigned long long)event.sector(), (unsigned long)event.size());
+          static_cast<unsigned long long>(event.sector()),
+          static_cast<size_t>(event.size()));
   return std::string(line);
 }
 
@@ -1052,7 +1061,7 @@ std::string FormatBlockGetrq(const BlockGetrqFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_getrq: %d,%d %s %llu + %u [%s]\\n", major(event.dev()),
           minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
 }
@@ -1067,7 +1076,7 @@ std::string FormatBlockRqAbort(const BlockRqAbortFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_abort: %d,%d %s (%s) %llu + %u [%d]\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          event.cmd().c_str(), (unsigned long long)event.sector(),
+          event.cmd().c_str(), static_cast<unsigned long long>(event.sector()),
           event.nr_sector(), event.errors());
   return std::string(line);
 }
@@ -1076,7 +1085,7 @@ std::string FormatBlockRqComplete(const BlockRqCompleteFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_complete: %d,%d %s (%s) %llu + %u [%d]\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          event.cmd().c_str(), (unsigned long long)event.sector(),
+          event.cmd().c_str(), static_cast<unsigned long long>(event.sector()),
           event.nr_sector(), event.errors());
   return std::string(line);
 }
@@ -1086,7 +1095,7 @@ std::string FormatBlockRqInsert(const BlockRqInsertFtraceEvent& event) {
   sprintf(line, "block_rq_insert: %d,%d %s %u (%s) %llu + %u [%s]\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
           event.bytes(), event.cmd().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
 }
@@ -1095,7 +1104,7 @@ std::string FormatBlockRqRemap(const BlockRqRemapFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_remap: %d,%d %s %llu + %u <- (%d,%d) %llu %u\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           major(event.dev()), minor(event.dev()),
           (unsigned long long)event.old_sector(), event.nr_bios());
   return std::string(line);
@@ -1105,7 +1114,7 @@ std::string FormatBlockRqRequeue(const BlockRqRequeueFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_requeue: %d,%d %s (%s) %llu + %u [%d\\n",
           major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
-          event.cmd().c_str(), (unsigned long long)event.sector(),
+          event.cmd().c_str(), static_cast<unsigned long long>(event.sector()),
           event.nr_sector(), event.errors());
   return std::string(line);
 }
@@ -1114,7 +1123,7 @@ std::string FormatBlockSleeprq(const BlockSleeprqFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_sleeprq: %d,%d %s %llu + %u [%s]\\n", major(event.dev()),
           minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(), event.nr_sector(),
+          static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
 }
@@ -1123,7 +1132,7 @@ std::string FormatBlockSplit(const BlockSplitFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_split: %d,%d %s %llu / %llu [%s]\\n", major(event.dev()),
           minor(event.dev()), event.rwbs().c_str(),
-          (unsigned long long)event.sector(),
+          static_cast<unsigned long long>(event.sector()),
           (unsigned long long)event.new_sector(), event.comm().c_str());
   return std::string(line);
 }
@@ -1132,7 +1141,8 @@ std::string FormatBlockTouchBuffer(const BlockTouchBufferFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_touch_buffer: %d,%d sector=%llu size=%zu\\n",
           major(event.dev()), minor(event.dev()),
-          (unsigned long long)event.sector(), (unsigned long)event.size());
+          static_cast<unsigned long long>(event.sector()),
+          static_cast<size_t>(event.size()));
   return std::string(line);
 }
 

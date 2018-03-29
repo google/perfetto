@@ -35,8 +35,10 @@ group("all") {
       "test/configs",
       "tools:protoc_helper",
       "tools/proto_to_cpp",
-      "tools/trace_to_text",
     ]
+    if (!build_with_android) {
+      deps += [ "tools/trace_to_text" ]
+    }
     if (is_linux || is_android) {
       deps += [
         ":perfetto",
@@ -161,6 +163,16 @@ if (!build_with_chromium && (is_linux || is_android)) {
         "binder",
         "services",
         "utils",
+      ]
+    }
+  }
+
+  if (build_with_android) {
+    executable("trace_to_text") {
+      testonly = true
+      deps = [
+        "gn:default_deps",
+        "tools/trace_to_text:lib",
       ]
     }
   }
