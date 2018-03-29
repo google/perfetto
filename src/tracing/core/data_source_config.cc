@@ -60,6 +60,10 @@ void DataSourceConfig::FromProto(
 
   chrome_config_.FromProto(proto.chrome_config());
 
+  static_assert(sizeof(legacy_config_) == sizeof(proto.legacy_config()),
+                "size mismatch");
+  legacy_config_ = static_cast<decltype(legacy_config_)>(proto.legacy_config());
+
   for_testing_.FromProto(proto.for_testing());
   unknown_fields_ = proto.unknown_fields();
 }
@@ -85,6 +89,11 @@ void DataSourceConfig::ToProto(
   ftrace_config_.ToProto(proto->mutable_ftrace_config());
 
   chrome_config_.ToProto(proto->mutable_chrome_config());
+
+  static_assert(sizeof(legacy_config_) == sizeof(proto->legacy_config()),
+                "size mismatch");
+  proto->set_legacy_config(
+      static_cast<decltype(proto->legacy_config())>(legacy_config_));
 
   for_testing_.ToProto(proto->mutable_for_testing());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
