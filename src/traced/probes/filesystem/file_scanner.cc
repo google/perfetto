@@ -48,7 +48,19 @@ FileScanner::FileScanner(std::vector<std::string> root_directories,
       queue_(std::move(root_directories)),
       weak_factory_(this) {}
 
+FileScanner::FileScanner(std::vector<std::string> root_directories,
+                         Delegate* delegate)
+    : FileScanner(std::move(root_directories),
+                  delegate,
+                  0 /* scan_interval_ms */,
+                  0 /* scan_steps */) {}
+
+void FileScanner::Scan() {
+  while (!Done())
+    Step();
+}
 void FileScanner::Scan(base::TaskRunner* task_runner) {
+  PERFETTO_DCHECK(scan_interval_ms_ && scan_steps_);
   Steps(scan_steps_);
   if (Done())
     return delegate_->OnInodeScanDone();
