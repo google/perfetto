@@ -11,10 +11,10 @@ cc_library_static {
     "src/ftrace_reader/ftrace_procfs.cc",
     "src/ftrace_reader/proto_translation_table.cc",
     "src/traced/probes/probes_producer.cc",
-    "test/fake_producer.cc",
-    "test/fake_consumer.cc",
-    "test/task_runner_thread.cc",
     "test/end_to_end_integrationtest.cc",
+    "test/fake_producer.cc",
+    "test/task_runner_thread.cc",
+    "test/test_helper.cc",
   ],
   export_include_dirs: [
     ".",
