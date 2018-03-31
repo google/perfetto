@@ -78,7 +78,11 @@ uint64_t TaskRunnerThread::GetThreadCPUTimeNs() {
 }
 
 void TaskRunnerThread::Run(std::unique_ptr<ThreadDelegate> delegate) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  pthread_setname_np(name_);
+#else
   pthread_setname_np(pthread_self(), name_);
+#endif
 
   // Create the task runner and execute the specicalised code.
   base::PlatformTaskRunner task_runner;

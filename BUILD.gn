@@ -30,25 +30,23 @@ group("all") {
   ]
   if (!build_with_chromium) {
     deps += [
+      ":perfetto",
+      ":perfetto_benchmarks",
+      ":perfetto_integrationtests",
+      ":traced",
+      ":traced_probes",
       "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
       "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
       "test/configs",
       "tools:protoc_helper",
+      "tools/ftrace_proto_gen:ftrace_proto_gen",
       "tools/proto_to_cpp",
     ]
     if (!build_with_android) {
       deps += [ "tools/trace_to_text" ]
     }
     if (is_linux || is_android) {
-      deps += [
-        ":perfetto",
-        ":perfetto_benchmarks",
-        ":perfetto_integrationtests",
-        ":traced",
-        ":traced_probes",
-        "tools/ftrace_proto_gen:ftrace_proto_gen",
-        "tools/skippy",
-      ]
+      deps += [ "tools/skippy" ]
     }
   }
 }
@@ -63,24 +61,19 @@ executable("perfetto_unittests") {
     "src/tracing:unittests",
   ]
   if (!build_with_chromium) {
-    if (is_linux || is_android) {
-      deps += [
-        "src/ftrace_reader:unittests",
-        "src/traced/probes:unittests",
-        "tools/ftrace_proto_gen:unittests",
-      ]
-    }
-
     deps += [
+      "src/ftrace_reader:unittests",
       "src/ipc:unittests",
       "src/perfetto_cmd:unittests",
+      "src/traced/probes:unittests",
       "src/traced/probes/filesystem:unittests",
+      "tools/ftrace_proto_gen:unittests",
       "tools/sanitizers_unittests",
     ]
   }
 }
 
-if (!build_with_chromium && (is_linux || is_android)) {
+if (!build_with_chromium) {
   executable("perfetto_benchmarks") {
     testonly = true
     deps = [
@@ -175,15 +168,15 @@ if (!build_with_chromium && (is_linux || is_android)) {
         "tools/trace_to_text:lib",
       ]
     }
-  }
 
-  # This target exports perfetto trace protos in the Android build system,
-  # allowing both host and device targets to implement custom parsers based on
-  # our protos.
-  static_library("perfetto_trace_protos") {
-    deps = [
-      "protos/perfetto/trace:lite",
-    ]
+    # This target exports perfetto trace protos in the Android build system,
+    # allowing both host and device targets to implement custom parsers based on
+    # our protos.
+    static_library("perfetto_trace_protos") {
+      deps = [
+        "protos/perfetto/trace:lite",
+      ]
+    }
   }
 }
 

@@ -30,7 +30,9 @@ source_set("base") {
     "unix_task_runner.cc",
   ]
   if (!build_with_chromium && (is_linux || is_android)) {
-    sources += [ "watchdog.cc" ]
+    sources += [ "watchdog_posix.cc" ]
+  } else {
+    sources += [ "watchdog_noop.cc" ]
   }
   if (is_debug) {
     deps += [ ":debug_crash_stack_trace" ]

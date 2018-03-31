@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_BASE_WATCHDOG_H_
-#define INCLUDE_PERFETTO_BASE_WATCHDOG_H_
-
-#include "perfetto/base/build_config.h"
-
-#if (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||    \
-     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-#include "perfetto/base/watchdog_posix.h"
-#else
 #include "perfetto/base/watchdog_noop.h"
-#endif
 
-#endif  // INCLUDE_PERFETTO_BASE_WATCHDOG_H_
+namespace perfetto {
+namespace base {
+
+Watchdog* Watchdog::GetInstance() {
+  static Watchdog* watchdog = new Watchdog();
+  return watchdog;
+}
+
+}  // namespace base
+}  // namespace perfetto

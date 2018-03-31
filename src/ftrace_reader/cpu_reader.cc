@@ -24,6 +24,7 @@
 #include <string>
 #include <utility>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
 #include "proto_translation_table.h"
@@ -162,6 +163,8 @@ void CpuReader::RunWorkerThread(
     int trace_fd,
     int staging_write_fd,
     const std::function<void()>& on_data_available) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // This thread is responsible for moving data from the trace pipe into the
   // staging pipe at least one page at a time. This is done using the splice(2)
   // system call, which unlike poll/select makes it possible to block until at
@@ -207,6 +210,9 @@ void CpuReader::RunWorkerThread(
     // This callback will block until we are allowed to read more data.
     on_data_available();
   }
+#else
+  PERFETTO_ELOG("Supported only on Linux/Android");
+#endif
 }
 
 // static
