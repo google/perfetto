@@ -184,6 +184,8 @@ std::string BufferedFrameDeserializer::Serialize(const Frame& frame) {
   frame.AppendToString(&buf);
   const uint32_t payload_size = static_cast<uint32_t>(buf.size() - kHeaderSize);
   PERFETTO_DCHECK(payload_size == static_cast<uint32_t>(frame.GetCachedSize()));
+  // Don't send messages larger than what the receiver can handle.
+  PERFETTO_DCHECK(kHeaderSize + payload_size <= kIPCBufferSize);
   char header[kHeaderSize];
   memcpy(header, base::AssumeLittleEndian(&payload_size), kHeaderSize);
   buf.replace(0, kHeaderSize, header, kHeaderSize);

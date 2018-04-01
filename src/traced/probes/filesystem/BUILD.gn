@@ -22,6 +22,8 @@ source_set("filesystem") {
     "../../../base",
   ]
   sources = [
+    "file_scanner.cc",
+    "file_scanner.h",
     "fs_mount.cc",
     "fs_mount.h",
     "inode_file_data_source.cc",

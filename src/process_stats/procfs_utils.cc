@@ -67,7 +67,9 @@ int ReadPpid(int pid) {
 std::unique_ptr<ProcessInfo> ReadProcessInfo(int pid) {
   ProcessInfo* process = new ProcessInfo();
   process->pid = pid;
-  char cmdline_buf[256];
+  // It's not enough to just null terminate this since cmdline uses null as
+  // the argument seperator:
+  char cmdline_buf[256]{};
   ReadProcString(pid, "cmdline", cmdline_buf, sizeof(cmdline_buf));
   if (cmdline_buf[0] == 0) {
     // Nothing in cmdline_buf so read name from /comm instead.

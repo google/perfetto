@@ -21,6 +21,8 @@ package perfetto.protos;
 
 import "perfetto/config/chrome/chrome_config.proto";
 import "perfetto/config/ftrace/ftrace_config.proto";
+import "perfetto/config/inode_file/inode_file_config.proto";
+import "perfetto/config/process_stats/process_stats_config.proto";
 import "perfetto/config/test_config.proto";
 // When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
 // to reflect changes in the corresponding C++ headers.
@@ -49,6 +51,17 @@ message DataSourceConfig {
 
   optional FtraceConfig ftrace_config = 100;
   optional ChromeConfig chrome_config = 101;
+  optional InodeFileConfig inode_file_config = 102;
+  optional ProcessStatsConfig process_stats_config = 103;
+
+  // This is a fallback mechanism to send a free-form text config to the
+  // producer. In theory this should never be needed. All the code that
+  // is part of the platform (i.e. traced service) is supposed to *not* truncate
+  // the trace config proto and propagate unknown fields. However, if anything
+  // in the pipeline (client or backend) ends up breaking this forward compat
+  // plan, this field will become the escape hatch to allow future data sources
+  // to get some meaningful configuration.
+  optional string legacy_config = 1000;
 
   // This field is only used for testing.
   optional TestConfig for_testing =

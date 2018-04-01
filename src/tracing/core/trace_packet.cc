@@ -28,8 +28,20 @@ namespace perfetto {
 TracePacket::TracePacket() = default;
 TracePacket::~TracePacket() = default;
 
-TracePacket::TracePacket(TracePacket&&) noexcept = default;
-TracePacket& TracePacket::operator=(TracePacket&&) = default;
+TracePacket::TracePacket(TracePacket&& other) noexcept {
+  *this = std::move(other);
+}
+
+TracePacket& TracePacket::operator=(TracePacket&& other) {
+  slices_ = std::move(other.slices_);
+  other.slices_.clear();
+
+  size_ = other.size_;
+  other.size_ = 0;
+
+  decoded_packet_ = std::move(other.decoded_packet_);
+  return *this;
+}
 
 bool TracePacket::Decode() {
   if (decoded_packet_)

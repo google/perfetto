@@ -93,7 +93,8 @@ class TracingIntegrationTest : public ::testing::Test {
 
     // Create and connect a Producer.
     producer_endpoint_ = ProducerIPCClient::Connect(
-        kProducerSockName, &producer_, task_runner_.get());
+        kProducerSockName, &producer_, "perfetto.mock_producer",
+        task_runner_.get());
     auto on_producer_connect =
         task_runner_->CreateCheckpoint("on_producer_connect");
     EXPECT_CALL(producer_, OnConnect()).WillOnce(Invoke(on_producer_connect));
@@ -102,14 +103,7 @@ class TracingIntegrationTest : public ::testing::Test {
     // Register a data source.
     DataSourceDescriptor ds_desc;
     ds_desc.set_name("perfetto.test");
-    auto on_data_source_registered =
-        task_runner_->CreateCheckpoint("on_data_source_registered");
-    producer_endpoint_->RegisterDataSource(
-        ds_desc, [on_data_source_registered](DataSourceID dsid) {
-          PERFETTO_DLOG("Registered data source with ID: %" PRIu64, dsid);
-          on_data_source_registered();
-        });
-    task_runner_->RunUntilCheckpoint("on_data_source_registered");
+    producer_endpoint_->RegisterDataSource(ds_desc);
 
     // Create and connect a Consumer.
     consumer_endpoint_ = ConsumerIPCClient::Connect(
@@ -217,6 +211,12 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
           Invoke([&num_pack_rx, all_packets_rx, &trace_config,
                   &saw_clock_snapshot, &saw_trace_config](
                      std::vector<TracePacket>* packets, bool has_more) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+            const int kExpectedMinNumberOfClocks = 1;
+#else
+            const int kExpectedMinNumberOfClocks = 6;
+#endif
+
             for (auto& packet : *packets) {
               ASSERT_TRUE(packet.Decode());
               if (packet->has_for_testing()) {
@@ -224,7 +224,8 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
                 sprintf(buf, "evt_%zu", num_pack_rx++);
                 EXPECT_EQ(std::string(buf), packet->for_testing().str());
               } else if (packet->has_clock_snapshot()) {
-                EXPECT_GE(packet->clock_snapshot().clocks_size(), 6);
+                EXPECT_GE(packet->clock_snapshot().clocks_size(),
+                          kExpectedMinNumberOfClocks);
                 saw_clock_snapshot = true;
               } else if (packet->has_trace_config()) {
                 protos::TraceConfig config_proto;

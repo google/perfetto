@@ -16,15 +16,14 @@
 
 #include "src/ftrace_reader/cpu_reader.h"
 
+#include "perfetto/base/utils.h"
+#include "perfetto/protozero/scattered_stream_null_delegate.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "test/cpu_reader_support.h"
-#include "test/scattered_stream_null_delegate.h"
 
 namespace {
-
-constexpr size_t kPageSize = 4096;
 
 perfetto::ExamplePage g_full_page_sched_switch{
     "synthetic",
@@ -293,7 +292,8 @@ perfetto::ExamplePage g_full_page_sched_switch{
 using perfetto::ExamplePage;
 using perfetto::EventFilter;
 using perfetto::ProtoTranslationTable;
-using perfetto::ScatteredStreamNullDelegate;
+using protozero::ScatteredStreamWriterNullDelegate;
+using protozero::ScatteredStreamWriter;
 using perfetto::GetTable;
 using perfetto::PageFromXxd;
 using perfetto::protos::pbzero::FtraceEventBundle;
@@ -303,8 +303,8 @@ using perfetto::FtraceMetadata;
 static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   const ExamplePage* test_case = &g_full_page_sched_switch;
 
-  ScatteredStreamNullDelegate delegate(kPageSize);
-  protozero::ScatteredStreamWriter stream(&delegate);
+  ScatteredStreamWriterNullDelegate delegate(perfetto::base::kPageSize);
+  ScatteredStreamWriter stream(&delegate);
   FtraceEventBundle writer;
 
   ProtoTranslationTable* table = GetTable(test_case->name);

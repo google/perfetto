@@ -59,27 +59,27 @@ constexpr uint8_t kChunkNeedsPatching =
     SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 }  // namespace.
 
-constexpr size_t TraceBuffez::ChunkRecord::kMaxSize;
-constexpr size_t TraceBuffez::InlineChunkHeaderSize = sizeof(ChunkRecord);
+constexpr size_t TraceBuffer::ChunkRecord::kMaxSize;
+constexpr size_t TraceBuffer::InlineChunkHeaderSize = sizeof(ChunkRecord);
 
 // static
-std::unique_ptr<TraceBuffez> TraceBuffez::Create(size_t size_in_bytes) {
-  std::unique_ptr<TraceBuffez> trace_buffer(new TraceBuffez());
+std::unique_ptr<TraceBuffer> TraceBuffer::Create(size_t size_in_bytes) {
+  std::unique_ptr<TraceBuffer> trace_buffer(new TraceBuffer());
   if (!trace_buffer->Initialize(size_in_bytes))
     return nullptr;
   return trace_buffer;
 }
 
-TraceBuffez::TraceBuffez() {
+TraceBuffer::TraceBuffer() {
   // See comments in ChunkRecord for the rationale of this.
   static_assert(sizeof(ChunkRecord) == sizeof(SharedMemoryABI::PageHeader) +
                                            sizeof(SharedMemoryABI::ChunkHeader),
                 "ChunkRecord out of sync with the layout of SharedMemoryABI");
 }
 
-TraceBuffez::~TraceBuffez() = default;
+TraceBuffer::~TraceBuffer() = default;
 
-bool TraceBuffez::Initialize(size_t size) {
+bool TraceBuffer::Initialize(size_t size) {
   static_assert(
       base::kPageSize % sizeof(ChunkRecord) == 0,
       "sizeof(ChunkRecord) must be an integer divider of a page size");
@@ -101,7 +101,7 @@ bool TraceBuffez::Initialize(size_t size) {
 // Note: |src| points to a shmem region that is shared with the producer. Assume
 // that the producer is malicious and will change the content of |src|
 // while we execute here. Don't do any processing on it other than memcpy().
-void TraceBuffez::CopyChunkUntrusted(ProducerID producer_id_trusted,
+void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
                                      uid_t producer_uid_trusted,
                                      WriterID writer_id,
                                      ChunkID chunk_id,
@@ -195,7 +195,7 @@ void TraceBuffez::CopyChunkUntrusted(ProducerID producer_id_trusted,
     AddPaddingRecord(padding_size);
 }
 
-size_t TraceBuffez::DeleteNextChunksFor(size_t bytes_to_clear) {
+size_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
   // Find the position of the first chunk which begins at or after
   // (|wptr_| + |bytes|). Note that such a chunk might not exist and we might
   // either reach the end of the buffer or a zeroed region of the buffer.
@@ -247,7 +247,7 @@ size_t TraceBuffez::DeleteNextChunksFor(size_t bytes_to_clear) {
   return next_chunk_ptr - search_end;
 }
 
-void TraceBuffez::AddPaddingRecord(size_t size) {
+void TraceBuffer::AddPaddingRecord(size_t size) {
   PERFETTO_DCHECK(size >= sizeof(ChunkRecord) && size <= ChunkRecord::kMaxSize);
   ChunkRecord record(size);
   record.is_padding = 1;
@@ -257,7 +257,7 @@ void TraceBuffez::AddPaddingRecord(size_t size) {
   // |wptr_| is deliberately not advanced when writing a padding record.
 }
 
-bool TraceBuffez::TryPatchChunkContents(ProducerID producer_id,
+bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
                                         WriterID writer_id,
                                         ChunkID chunk_id,
                                         const Patch* patches,
@@ -320,14 +320,14 @@ bool TraceBuffez::TryPatchChunkContents(ProducerID producer_id,
   return true;
 }
 
-void TraceBuffez::BeginRead() {
+void TraceBuffer::BeginRead() {
   read_iter_ = GetReadIterForSequence(index_.begin());
 #if PERFETTO_DCHECK_IS_ON()
   changed_since_last_read_ = false;
 #endif
 }
 
-TraceBuffez::SequenceIterator TraceBuffez::GetReadIterForSequence(
+TraceBuffer::SequenceIterator TraceBuffer::GetReadIterForSequence(
     ChunkMap::iterator seq_begin) {
   SequenceIterator iter;
   iter.seq_begin = seq_begin;
@@ -369,7 +369,7 @@ TraceBuffez::SequenceIterator TraceBuffez::GetReadIterForSequence(
   return iter;
 }
 
-void TraceBuffez::SequenceIterator::MoveNext() {
+void TraceBuffer::SequenceIterator::MoveNext() {
   // Note: |seq_begin| might be == |seq_end|.
   if (cur == seq_end || cur->first.chunk_id == wrapping_id) {
     cur = seq_end;
@@ -379,7 +379,7 @@ void TraceBuffez::SequenceIterator::MoveNext() {
     cur = seq_begin;
 }
 
-bool TraceBuffez::ReadNextTracePacket(TracePacket* packet,
+bool TraceBuffer::ReadNextTracePacket(TracePacket* packet,
                                       uid_t* producer_uid) {
   // Note: MoveNext() moves only within the next chunk within the same
   // {ProducerID, WriterID} sequence. Here we want to:
@@ -523,7 +523,7 @@ bool TraceBuffez::ReadNextTracePacket(TracePacket* packet,
   }    // for(;;MoveNext()) [iterate over chunks].
 }
 
-TraceBuffez::ReadAheadResult TraceBuffez::ReadAhead(TracePacket* packet) {
+TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {
   static_assert(static_cast<ChunkID>(kMaxChunkID + 1) == 0,
                 "relying on kMaxChunkID to wrap naturally");
   TRACE_BUFFER_DLOG(" readahead start @ chunk %u", read_iter_.chunk_id());
@@ -600,7 +600,7 @@ TraceBuffez::ReadAheadResult TraceBuffez::ReadAhead(TracePacket* packet) {
   return ReadAheadResult::kFailedMoveToNextSequence;
 }
 
-bool TraceBuffez::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
+bool TraceBuffer::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
                                         TracePacket* packet) {
   PERFETTO_DCHECK(chunk_meta->num_fragments_read < chunk_meta->num_fragments);
   PERFETTO_DCHECK(!(chunk_meta->flags & kChunkNeedsPatching));

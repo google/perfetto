@@ -21,7 +21,12 @@
 
 #include <chrono>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#include <mach/mach_time.h>
+#endif
 
 namespace perfetto {
 namespace base {
@@ -29,11 +34,14 @@ namespace base {
 using TimeSeconds = std::chrono::seconds;
 using TimeMillis = std::chrono::milliseconds;
 using TimeNanos = std::chrono::nanoseconds;
-constexpr clockid_t kWallTimeClockSource = CLOCK_MONOTONIC;
 
 inline TimeNanos FromPosixTimespec(const struct timespec& ts) {
   return TimeNanos(ts.tv_sec * 1000000000LL + ts.tv_nsec);
 }
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+
+constexpr clockid_t kWallTimeClockSource = CLOCK_MONOTONIC;
 
 inline TimeNanos GetTimeInternalNs(clockid_t clk_id) {
   struct timespec ts = {};
@@ -45,16 +53,31 @@ inline TimeNanos GetWallTimeNs() {
   return GetTimeInternalNs(kWallTimeClockSource);
 }
 
+inline TimeNanos GetThreadCPUTimeNs() {
+  return GetTimeInternalNs(CLOCK_THREAD_CPUTIME_ID);
+}
+
+#else  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+
+inline TimeNanos GetWallTimeNs() {
+  auto init_time_factor = []() -> uint64_t {
+    mach_timebase_info_data_t timebase_info;
+    mach_timebase_info(&timebase_info);
+    return timebase_info.numer / timebase_info.denom;
+  };
+
+  static uint64_t monotonic_timebase_factor = init_time_factor();
+  return TimeNanos(mach_absolute_time() * monotonic_timebase_factor);
+}
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+
 inline TimeMillis GetWallTimeMs() {
   return std::chrono::duration_cast<TimeMillis>(GetWallTimeNs());
 }
 
 inline TimeSeconds GetWallTimeS() {
   return std::chrono::duration_cast<TimeSeconds>(GetWallTimeNs());
-}
-
-inline TimeNanos GetThreadCPUTimeNs() {
-  return GetTimeInternalNs(CLOCK_THREAD_CPUTIME_ID);
 }
 
 inline struct timespec ToPosixTimespec(TimeMillis time) {

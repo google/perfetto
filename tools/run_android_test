@@ -114,6 +114,7 @@ def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--no-cleanup', '-n', action='store_true')
   parser.add_argument('--no-data-deps', '-x', action='store_true')
+  parser.add_argument('--env', '-e', action='append')
   parser.add_argument('out_dir', help='out/android/')
   parser.add_argument('test_name', help='perfetto_unittests')
   parser.add_argument('cmd_args', nargs=argparse.REMAINDER)
@@ -138,10 +139,10 @@ def Main():
 
   # LLVM sanitizers require to sideload a libclangrtXX.so on the device.
   sanitizer_libs = os.path.join(args.out_dir, 'sanitizer_libs')
-  env = ''
+  env = ' '.join(args.env if args.env is not None else []) + ' '
   if os.path.exists(sanitizer_libs):
     AdbCall('push', sanitizer_libs, target_dir)
-    env = 'LD_LIBRARY_PATH="%s/sanitizer_libs" ' % (target_dir)
+    env += 'LD_LIBRARY_PATH="%s/sanitizer_libs" ' % (target_dir)
   cmd = 'cd %s;' % target_dir;
   binary = env + './%s' % args.test_name
   cmd += binary

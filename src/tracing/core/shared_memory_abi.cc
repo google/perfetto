@@ -23,6 +23,17 @@
 namespace perfetto {
 
 namespace {
+
+constexpr int kRetryAttempts = 64;
+
+inline void WaitBeforeNextAttempt(int attempt) {
+  if (attempt < kRetryAttempts / 2) {
+    std::this_thread::yield();
+  } else {
+    usleep((attempt / 10) * 1000);
+  }
+}
+
 // Returns the largest 4-bytes aligned chunk size <= |page_size| / |divider|
 // for each divider in PageLayout.
 constexpr size_t GetChunkSize(size_t page_size, size_t divider) {
@@ -51,6 +62,7 @@ std::array<uint16_t, SharedMemoryABI::kNumPageLayouts> InitChunkSizes(
 constexpr size_t SharedMemoryABI::kNumChunksForLayout[];
 constexpr const char* SharedMemoryABI::kChunkStateStr[];
 constexpr const size_t SharedMemoryABI::kInvalidPageIdx;
+constexpr const size_t SharedMemoryABI::kMaxPageSize;
 
 SharedMemoryABI::SharedMemoryABI() = default;
 
@@ -109,9 +121,10 @@ void SharedMemoryABI::Initialize(uint8_t* start,
   chunk_header.writer_id = -1;
   PERFETTO_CHECK(kMaxWriterID <= chunk_header.writer_id);
 
-  PERFETTO_CHECK(page_size >= 4096);
-  PERFETTO_CHECK(page_size % 4096 == 0);
-  PERFETTO_CHECK(reinterpret_cast<uintptr_t>(start) % 4096 == 0);
+  PERFETTO_CHECK(page_size >= base::kPageSize);
+  PERFETTO_CHECK(page_size <= kMaxPageSize);
+  PERFETTO_CHECK(page_size % base::kPageSize == 0);
+  PERFETTO_CHECK(reinterpret_cast<uintptr_t>(start) % base::kPageSize == 0);
   PERFETTO_CHECK(size % page_size == 0);
 }
 
@@ -138,45 +151,44 @@ SharedMemoryABI::Chunk SharedMemoryABI::TryAcquireChunk(
   PERFETTO_DCHECK(desired_chunk_state == kChunkBeingRead ||
                   desired_chunk_state == kChunkBeingWritten);
   PageHeader* phdr = page_header(page_idx);
-  uint32_t layout = phdr->layout.load(std::memory_order_acquire);
-  const size_t num_chunks = GetNumChunksForLayout(layout);
+  for (int attempt = 0; attempt < kRetryAttempts; attempt++) {
+    uint32_t layout = phdr->layout.load(std::memory_order_acquire);
+    const size_t num_chunks = GetNumChunksForLayout(layout);
 
-  // The page layout has changed (or the page is free).
-  if (chunk_idx >= num_chunks)
-    return Chunk();
+    // The page layout has changed (or the page is free).
+    if (chunk_idx >= num_chunks)
+      return Chunk();
 
-  // Verify that the chunk is still in a state that allows the transition to
-  // |desired_chunk_state|. The only allowed transitions are:
-  // 1. kChunkFree -> kChunkBeingWritten (Producer).
-  // 2. kChunkComplete -> kChunkBeingRead (Service).
-  ChunkState expected_chunk_state =
-      desired_chunk_state == kChunkBeingWritten ? kChunkFree : kChunkComplete;
-  auto cur_chunk_state = (layout >> (chunk_idx * kChunkShift)) & kChunkMask;
-  if (cur_chunk_state != expected_chunk_state)
-    return Chunk();
+    // Verify that the chunk is still in a state that allows the transition to
+    // |desired_chunk_state|. The only allowed transitions are:
+    // 1. kChunkFree -> kChunkBeingWritten (Producer).
+    // 2. kChunkComplete -> kChunkBeingRead (Service).
+    ChunkState expected_chunk_state =
+        desired_chunk_state == kChunkBeingWritten ? kChunkFree : kChunkComplete;
+    auto cur_chunk_state = (layout >> (chunk_idx * kChunkShift)) & kChunkMask;
+    if (cur_chunk_state != expected_chunk_state)
+      return Chunk();
 
-  uint32_t next_layout = layout;
-  next_layout &= ~(kChunkMask << (chunk_idx * kChunkShift));
-  next_layout |= (desired_chunk_state << (chunk_idx * kChunkShift));
-  if (!phdr->layout.compare_exchange_strong(layout, next_layout,
-                                            std::memory_order_acq_rel)) {
-    // TODO(fmayer): returning here is too pessimistic. We should look at the
-    // returned |layout| to figure out if some other writer thread took the same
-    // chunk (in which case we should immediately return false) or if they took
-    // another chunk in the same page (in which case we should just retry).
-    return Chunk();
+    uint32_t next_layout = layout;
+    next_layout &= ~(kChunkMask << (chunk_idx * kChunkShift));
+    next_layout |= (desired_chunk_state << (chunk_idx * kChunkShift));
+    if (phdr->layout.compare_exchange_strong(layout, next_layout,
+                                             std::memory_order_acq_rel)) {
+      // Compute the chunk virtual address and write it into |chunk|.
+      Chunk chunk = GetChunkUnchecked(page_idx, layout, chunk_idx);
+      if (desired_chunk_state == kChunkBeingWritten) {
+        PERFETTO_DCHECK(header);
+        ChunkHeader* new_header = chunk.header();
+        new_header->packets.store(header->packets, std::memory_order_relaxed);
+        new_header->writer_id.store(header->writer_id,
+                                    std::memory_order_relaxed);
+        new_header->chunk_id.store(header->chunk_id, std::memory_order_release);
+      }
+      return chunk;
+    }
+    WaitBeforeNextAttempt(attempt);
   }
-
-  // Compute the chunk virtual address and write it into |chunk|.
-  Chunk chunk = GetChunkUnchecked(page_idx, layout, chunk_idx);
-  if (desired_chunk_state == kChunkBeingWritten) {
-    PERFETTO_DCHECK(header);
-    ChunkHeader* new_header = chunk.header();
-    new_header->packets.store(header->packets, std::memory_order_relaxed);
-    new_header->writer_id.store(header->writer_id, std::memory_order_relaxed);
-    new_header->chunk_id.store(header->chunk_id, std::memory_order_release);
-  }
-  return chunk;
+  return Chunk();  // All our attempts failed.
 }
 
 bool SharedMemoryABI::TryPartitionPage(size_t page_idx, PageLayout layout) {
@@ -212,7 +224,7 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
   size_t chunk_idx;
   std::tie(page_idx, chunk_idx) = GetPageAndChunkIndex(chunk);
 
-  for (int attempt = 0; attempt < 64; attempt++) {
+  for (int attempt = 0; attempt < kRetryAttempts; attempt++) {
     PageHeader* phdr = page_header(page_idx);
     uint32_t layout = phdr->layout.load(std::memory_order_relaxed);
     const size_t page_chunk_size = GetChunkSizeForLayout(layout);
@@ -250,11 +262,7 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
                                              std::memory_order_acq_rel)) {
       return page_idx;
     }
-    if (attempt < 32) {
-      std::this_thread::yield();
-    } else {
-      usleep((attempt / 10) * 1000);
-    }
+    WaitBeforeNextAttempt(attempt);
   }
   // Too much contention on this page. Give up. This page will be left pending
   // forever but there isn't much more we can do at this point.

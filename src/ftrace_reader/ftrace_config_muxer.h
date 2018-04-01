@@ -80,7 +80,7 @@ class FtraceConfigMuxer {
 
   void SetupClock(const FtraceConfig& request);
   void SetupBufferSize(const FtraceConfig& request);
-  void EnableAtrace(const FtraceConfig& request);
+  void UpdateAtrace(const FtraceConfig& request);
   void DisableAtrace();
 
   FtraceConfigId GetNextId();
@@ -93,7 +93,8 @@ class FtraceConfigMuxer {
   std::map<FtraceConfigId, FtraceConfig> configs_;
 };
 
-std::set<std::string> GetFtraceEvents(const FtraceConfig& request);
+std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
+                                      const ProtoTranslationTable*);
 size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb);
 
 }  // namespace perfetto

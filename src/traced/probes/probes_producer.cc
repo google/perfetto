@@ -18,6 +18,8 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
+
+#include <algorithm>
 #include <queue>
 #include <string>
 
@@ -40,9 +42,9 @@ namespace {
 
 uint64_t kInitialConnectionBackoffMs = 100;
 uint64_t kMaxConnectionBackoffMs = 30 * 1000;
-constexpr char kFtraceSourceName[] = "com.google.perfetto.ftrace";
-constexpr char kProcessStatsSourceName[] = "com.google.perfetto.process_stats";
-constexpr char kInodeMapSourceName[] = "com.google.perfetto.inode_file_map";
+constexpr char kFtraceSourceName[] = "linux.ftrace";
+constexpr char kProcessStatsSourceName[] = "linux.process_stats";
+constexpr char kInodeMapSourceName[] = "linux.inode_file_map";
 
 }  // namespace.
 
@@ -65,28 +67,44 @@ void ProbesProducer::OnConnect() {
 
   DataSourceDescriptor ftrace_descriptor;
   ftrace_descriptor.set_name(kFtraceSourceName);
-  endpoint_->RegisterDataSource(ftrace_descriptor, [](DataSourceInstanceID) {});
+  endpoint_->RegisterDataSource(ftrace_descriptor);
 
   DataSourceDescriptor process_stats_descriptor;
   process_stats_descriptor.set_name(kProcessStatsSourceName);
-  endpoint_->RegisterDataSource(process_stats_descriptor,
-                                [](DataSourceInstanceID) {});
+  endpoint_->RegisterDataSource(process_stats_descriptor);
 
   DataSourceDescriptor inode_map_descriptor;
   inode_map_descriptor.set_name(kInodeMapSourceName);
-  endpoint_->RegisterDataSource(inode_map_descriptor,
-                                [](DataSourceInstanceID) {});
+  endpoint_->RegisterDataSource(inode_map_descriptor);
 }
 
 void ProbesProducer::OnDisconnect() {
   PERFETTO_DCHECK(state_ == kConnected || state_ == kConnecting);
-  state_ = kNotConnected;
   PERFETTO_LOG("Disconnected from tracing service");
-  IncreaseConnectionBackoff();
+  if (state_ == kConnected)
+    return task_runner_->PostTask([this] { this->Restart(); });
 
-  // TODO(hjd): Erase all sinks and add e2e test for this.
+  state_ = kNotConnected;
+  IncreaseConnectionBackoff();
   task_runner_->PostDelayedTask([this] { this->Connect(); },
                                 connection_backoff_ms_);
+}
+
+void ProbesProducer::Restart() {
+  // We lost the connection with the tracing service. At this point we need
+  // to reset all the data sources. Trying to handle that manually is going to
+  // be error prone. What we do here is simply desroying the instance and
+  // recreating it again.
+  // TODO(hjd): Add e2e test for this.
+
+  base::TaskRunner* task_runner = task_runner_;
+  const char* socket_name = socket_name_;
+
+  // Invoke destructor and then the constructor again.
+  this->~ProbesProducer();
+  new (this) ProbesProducer();
+
+  ConnectWithRetries(socket_name, task_runner);
 }
 
 void ProbesProducer::CreateDataSourceInstance(DataSourceInstanceID instance_id,
@@ -182,16 +200,17 @@ bool ProbesProducer::CreateFtraceDataSourceInstance(
 void ProbesProducer::CreateInodeFileDataSourceInstance(
     TracingSessionID session_id,
     DataSourceInstanceID id,
-    const DataSourceConfig& source_config) {
+    DataSourceConfig source_config) {
   PERFETTO_LOG("Inode file map start (id=%" PRIu64 ", target_buf=%" PRIu32 ")",
                id, source_config.target_buffer());
   auto trace_writer = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
   if (system_inodes_.empty())
-    CreateStaticDeviceToInodeMap("/system/", &system_inodes_);
+    CreateStaticDeviceToInodeMap("/system", &system_inodes_);
   auto file_map_source =
       std::unique_ptr<InodeFileDataSource>(new InodeFileDataSource(
-          session_id, &system_inodes_, &cache_, std::move(trace_writer)));
+          std::move(source_config), task_runner_, session_id, &system_inodes_,
+          &cache_, std::move(trace_writer)));
   file_map_sources_.emplace(id, std::move(file_map_source));
   AddWatchdogsTimer(id, source_config);
 }
@@ -207,6 +226,13 @@ void ProbesProducer::CreateProcessStatsDataSourceInstance(
       new ProcessStatsDataSource(session_id, std::move(trace_writer)));
   auto it_and_inserted = process_stats_sources_.emplace(id, std::move(source));
   PERFETTO_DCHECK(it_and_inserted.second);
+  if (std::find(config.process_stats_config().quirks().begin(),
+                config.process_stats_config().quirks().end(),
+                ProcessStatsConfig::DISABLE_INITIAL_DUMP) !=
+      config.process_stats_config().quirks().end()) {
+    PERFETTO_DLOG("Initial process tree dump is disabled.");
+    return;
+  }
   it_and_inserted.first->second->WriteAllProcesses();
 }
 
@@ -240,7 +266,8 @@ void ProbesProducer::ConnectWithRetries(const char* socket_name,
 void ProbesProducer::Connect() {
   PERFETTO_DCHECK(state_ == kNotConnected);
   state_ = kConnecting;
-  endpoint_ = ProducerIPCClient::Connect(socket_name_, this, task_runner_);
+  endpoint_ = ProducerIPCClient::Connect(
+      socket_name_, this, "perfetto.traced_probes", task_runner_);
 }
 
 void ProbesProducer::IncreaseConnectionBackoff() {
@@ -274,6 +301,15 @@ void ProbesProducer::SinkDelegate::OnBundleComplete(
     FtraceBundleHandle,
     const FtraceMetadata& metadata) {
   trace_packet_->Finalize();
+
+  if (ps_source_ && !metadata.pids.empty()) {
+    const auto& pids = metadata.pids;
+    auto weak_ps_source = ps_source_;
+    task_runner_->PostTask([weak_ps_source, pids] {
+      if (weak_ps_source)
+        weak_ps_source->OnPids(pids);
+    });
+  }
 
   if (file_source_ && !metadata.inode_and_device.empty()) {
     auto inodes = metadata.inode_and_device;

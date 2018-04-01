@@ -60,7 +60,7 @@ class ProbesProducer : public Producer {
                                             const DataSourceConfig& config);
   void CreateInodeFileDataSourceInstance(TracingSessionID session_id,
                                          DataSourceInstanceID id,
-                                         const DataSourceConfig& config);
+                                         DataSourceConfig config);
 
   void OnMetadata(const FtraceMetadata& metadata);
 
@@ -126,13 +126,14 @@ class ProbesProducer : public Producer {
   ProbesProducer& operator=(const ProbesProducer&) = delete;
 
   void Connect();
+  void Restart();
   void ResetConnectionBackoff();
   void IncreaseConnectionBackoff();
   void AddWatchdogsTimer(DataSourceInstanceID id,
                          const DataSourceConfig& source_config);
 
   State state_ = kNotStarted;
-  base::TaskRunner* task_runner_;
+  base::TaskRunner* task_runner_ = nullptr;
   std::unique_ptr<Service::ProducerEndpoint> endpoint_ = nullptr;
   std::unique_ptr<FtraceController> ftrace_ = nullptr;
   bool ftrace_creation_failed_ = false;
@@ -146,7 +147,8 @@ class ProbesProducer : public Producer {
   std::map<DataSourceInstanceID, std::unique_ptr<InodeFileDataSource>>
       file_map_sources_;
   LRUInodeCache cache_{kLRUInodeCacheSize};
-  std::map<BlockDeviceID, std::map<Inode, InodeMapValue>> system_inodes_;
+  std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>
+      system_inodes_;
 };
 
 }  // namespace perfetto

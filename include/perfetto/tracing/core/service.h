@@ -66,14 +66,10 @@ class PERFETTO_EXPORT Service {
    public:
     virtual ~ProducerEndpoint() = default;
 
-    // Called by the Producer to (un)register data sources. The Services returns
-    // asynchronousy the ID for the data source.
-    // TODO(primiano): thinking twice there is no reason why the service choses
-    // ID rather than the Producer. Update in upcoming CLs.
-    using RegisterDataSourceCallback = std::function<void(DataSourceID)>;
-    virtual void RegisterDataSource(const DataSourceDescriptor&,
-                                    RegisterDataSourceCallback) = 0;
-    virtual void UnregisterDataSource(DataSourceID) = 0;
+    // Called by the Producer to (un)register data sources. Data sources are
+    // identified by their name (i.e. DataSourceDescriptor.name)
+    virtual void RegisterDataSource(const DataSourceDescriptor&) = 0;
+    virtual void UnregisterDataSource(const std::string& name) = 0;
 
     // Called by the Producer to signal that some pages in the shared memory
     // buffer (shared between Service and Producer) have changed.
@@ -146,6 +142,7 @@ class PERFETTO_EXPORT Service {
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
       Producer*,
       uid_t uid,
+      const std::string& name,
       size_t shared_memory_size_hint_bytes = 0) = 0;
 
   // Coonects a Consumer instance and obtains a ConsumerEndpoint, which is

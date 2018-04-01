@@ -197,7 +197,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
 
 WriterID TraceWriterImpl::writer_id() const {
   return id_;
-};
+}
 
 // Base class ctor/dtor definition.
 TraceWriter::TraceWriter() = default;

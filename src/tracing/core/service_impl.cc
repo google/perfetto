@@ -53,7 +53,6 @@ namespace perfetto {
 namespace {
 constexpr size_t kDefaultShmSize = 256 * 1024ul;
 constexpr size_t kMaxShmSize = 4096 * 1024 * 512ul;
-constexpr size_t kMaxShmPageSizeKb = 16ul;
 constexpr size_t kDefaultShmPageSizeKb = base::kPageSize / 1024ul;
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kClockSnapshotInterval(10 * 1000);
@@ -91,6 +90,7 @@ ServiceImpl::~ServiceImpl() {
 std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
     Producer* producer,
     uid_t uid,
+    const std::string& producer_name,
     size_t shared_memory_size_hint_bytes) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
@@ -107,8 +107,8 @@ std::unique_ptr<Service::ProducerEndpoint> ServiceImpl::ConnectProducer(
   const ProducerID id = GetNextProducerID();
   PERFETTO_DLOG("Producer %" PRIu16 " connected", id);
 
-  std::unique_ptr<ProducerEndpointImpl> endpoint(
-      new ProducerEndpointImpl(id, uid, this, task_runner_, producer));
+  std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
+      id, uid, this, task_runner_, producer, producer_name));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   shared_memory_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -126,7 +126,7 @@ void ServiceImpl::DisconnectProducer(ProducerID id) {
     auto next = it;
     next++;
     if (it->second.producer_id == id)
-      UnregisterDataSource(id, it->second.data_source_id);
+      UnregisterDataSource(id, it->second.descriptor.name());
     it = next;
   }
 
@@ -226,7 +226,6 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // though, because this assumes that each tracing session creates at most one
   // data source instance in each Producer, and each data source has only one
   // TraceWriter.
-  // TODO(taylori): Handle multiple producers/producer_configs.
   // auto first_producer_config = cfg.producers()[0];
   // if (tracing_sessions_.size() >=
   //     (kDefaultShmSize / first_producer_config.page_size_kb() / 2)) {
@@ -278,9 +277,9 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     const size_t buf_size_bytes = buffer_cfg.size_kb() * 1024u;
     total_buf_size_kb += buffer_cfg.size_kb();
     auto it_and_inserted =
-        buffers_.emplace(global_id, TraceBuffez::Create(buf_size_bytes));
+        buffers_.emplace(global_id, TraceBuffer::Create(buf_size_bytes));
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
-    std::unique_ptr<TraceBuffez>& trace_buffer = it_and_inserted.first->second;
+    std::unique_ptr<TraceBuffer>& trace_buffer = it_and_inserted.first->second;
     if (!trace_buffer) {
       did_allocate_all_buffers = false;
       break;
@@ -309,8 +308,18 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     // Scan all the registered data sources with a matching name.
     auto range = data_sources_.equal_range(cfg_data_source.config().name());
-    for (auto it = range.first; it != range.second; it++)
-      CreateDataSourceInstance(cfg_data_source, it->second, tracing_session);
+    for (auto it = range.first; it != range.second; it++) {
+      TraceConfig::ProducerConfig producer_config;
+      for (auto& config : cfg.producers()) {
+        if (GetProducer(it->second.producer_id)->name_ ==
+            config.producer_name()) {
+          producer_config = config;
+          break;
+        }
+      }
+      CreateDataSourceInstance(cfg_data_source, producer_config, it->second,
+                               tracing_session);
+    }
   }
 
   // Trigger delayed task if the trace is time limited.
@@ -332,7 +341,7 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           if (weak_this)
             weak_this->ReadBuffers(tsid, nullptr);
         },
-        tracing_session->next_write_period_ms());
+        tracing_session->delay_to_next_write_period_ms());
   }
 
   tracing_session->tracing_enabled = true;
@@ -424,11 +433,18 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
     total_slices += packet.slices().size();
   }
 
-  // This is a rough threshold to determine how to split packets within each
-  // IPC. This is not an upper bound, we just stop accumulating packets and send
-  // an IPC out every time we cross this threshold (i.e. all IPCs % last one
-  // will be >= kApproxBytesPerRead).
-  static constexpr size_t kApproxBytesPerRead = 4096;
+  // This is a rough threshold to determine how much to read from the buffer in
+  // each task. This is to avoid executing a single huge sending task for too
+  // long and risk to hit the watchdog. This is *not* an upper bound: we just
+  // stop accumulating new packets and PostTask *after* we cross this threshold.
+  // This constant essentially balances the PostTask and IPC overhead vs the
+  // responsiveness of the service. An extremely small value will cause one IPC
+  // and one PostTask for each slice but will keep the service extremely
+  // responsive. An extremely large value will batch the send for the full
+  // buffer in one large task, will hit the blocking send() once the socket
+  // buffers are full and hang the service for a bit (until the consumer
+  // catches up).
+  static constexpr size_t kApproxBytesPerTask = 32768;
   bool did_hit_threshold = false;
 
   // TODO(primiano): Extend the ReadBuffers API to allow reading only some
@@ -441,7 +457,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
       PERFETTO_DCHECK(false);
       continue;
     }
-    TraceBuffez& tbuf = *tbuf_iter->second;
+    TraceBuffer& tbuf = *tbuf_iter->second;
     tbuf.BeginRead();
     while (!did_hit_threshold) {
       TracePacket packet;
@@ -476,7 +492,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
       // Append the packet (inclusive of the trusted uid) to |packets|.
       packets_bytes += packet.size();
       total_slices += packet.slices().size();
-      did_hit_threshold = packets_bytes >= kApproxBytesPerRead &&
+      did_hit_threshold = packets_bytes >= kApproxBytesPerTask &&
                           !tracing_session->write_into_file;
       packets.emplace_back(std::move(packet));
     }  // for(packets...)
@@ -559,7 +575,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
           if (weak_this)
             weak_this->ReadBuffers(tsid, nullptr);
         },
-        tracing_session->next_write_period_ms());
+        tracing_session->delay_to_next_write_period_ms());
     return;
   }  // if (tracing_session->write_into_file)
 
@@ -601,16 +617,14 @@ void ServiceImpl::FreeBuffers(TracingSessionID tsid) {
 }
 
 void ServiceImpl::RegisterDataSource(ProducerID producer_id,
-                                     DataSourceID ds_id,
                                      const DataSourceDescriptor& desc) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_DLOG("Producer %" PRIu16
-                " registered data source \"%s\", ID: %" PRIu64,
-                producer_id, desc.name().c_str(), ds_id);
+  PERFETTO_DLOG("Producer %" PRIu16 " registered data source \"%s\"",
+                producer_id, desc.name().c_str());
 
   PERFETTO_DCHECK(!desc.name().empty());
-  auto reg_ds = data_sources_.emplace(
-      desc.name(), RegisteredDataSource{producer_id, ds_id, desc});
+  auto reg_ds = data_sources_.emplace(desc.name(),
+                                      RegisteredDataSource{producer_id, desc});
 
   // If there are existing tracing sessions, we need to check if the new
   // data source is enabled by any of them.
@@ -625,26 +639,32 @@ void ServiceImpl::RegisterDataSource(ProducerID producer_id,
 
   for (auto& iter : tracing_sessions_) {
     TracingSession& tracing_session = iter.second;
+    TraceConfig::ProducerConfig producer_config;
+    for (auto& config : tracing_session.config.producers()) {
+      if (producer->name_ == config.producer_name()) {
+        producer_config = config;
+        break;
+      }
+    }
     for (const TraceConfig::DataSource& cfg_data_source :
          tracing_session.config.data_sources()) {
       if (cfg_data_source.config().name() == desc.name())
-        CreateDataSourceInstance(cfg_data_source, reg_ds->second,
-                                 &tracing_session);
+        CreateDataSourceInstance(cfg_data_source, producer_config,
+                                 reg_ds->second, &tracing_session);
     }
   }
 }
 
 void ServiceImpl::UnregisterDataSource(ProducerID producer_id,
-                                       DataSourceID ds_id) {
+                                       const std::string& name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_CHECK(producer_id);
-  PERFETTO_CHECK(ds_id);
   ProducerEndpointImpl* producer = GetProducer(producer_id);
   PERFETTO_DCHECK(producer);
   for (auto& session : tracing_sessions_) {
     auto it = session.second.data_source_instances.begin();
     while (it != session.second.data_source_instances.end()) {
-      if (it->first == producer_id && it->second.data_source_id == ds_id) {
+      if (it->first == producer_id && it->second.data_source_name == name) {
         producer->producer_->TearDownDataSourceInstance(it->second.instance_id);
         it = session.second.data_source_instances.erase(it);
       } else {
@@ -655,19 +675,22 @@ void ServiceImpl::UnregisterDataSource(ProducerID producer_id,
 
   for (auto it = data_sources_.begin(); it != data_sources_.end(); ++it) {
     if (it->second.producer_id == producer_id &&
-        it->second.data_source_id == ds_id) {
+        it->second.descriptor.name() == name) {
       data_sources_.erase(it);
       return;
     }
   }
-  PERFETTO_DLOG("Tried to unregister a non-existent data source %" PRIu64
-                " for producer %" PRIu16,
-                ds_id, producer_id);
+
+  PERFETTO_DLOG(
+      "Tried to unregister a non-existent data source \"%s\" for "
+      "producer %" PRIu16,
+      name.c_str(), producer_id);
   PERFETTO_DCHECK(false);
 }
 
 void ServiceImpl::CreateDataSourceInstance(
     const TraceConfig::DataSource& cfg_data_source,
+    const TraceConfig::ProducerConfig& producer_config,
     const RegisteredDataSource& data_source,
     TracingSession* tracing_session) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -679,8 +702,19 @@ void ServiceImpl::CreateDataSourceInstance(
     PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
     return;
   }
-  // TODO(primiano): match against |producer_name_filter| and add tests
-  // for registration ordering (data sources vs consumers).
+  // TODO(primiano): Add tests for registration ordering
+  // (data sources vs consumers).
+  if (!cfg_data_source.producer_name_filter().empty()) {
+    if (std::find(cfg_data_source.producer_name_filter().begin(),
+                  cfg_data_source.producer_name_filter().end(),
+                  producer->name_) ==
+        cfg_data_source.producer_name_filter().end()) {
+      PERFETTO_DLOG("Data source: %s is filtered out for producer: %s",
+                    cfg_data_source.config().name().c_str(),
+                    producer->name_.c_str());
+      return;
+    }
+  }
 
   // Create a copy of the DataSourceConfig specified in the trace config. This
   // will be passed to the producer after translating the |target_buffer| id.
@@ -705,18 +739,19 @@ void ServiceImpl::CreateDataSourceInstance(
 
   DataSourceInstanceID inst_id = ++last_data_source_instance_id_;
   tracing_session->data_source_instances.emplace(
-      producer->id_, DataSourceInstance{inst_id, data_source.data_source_id});
+      producer->id_,
+      DataSourceInstance{inst_id, data_source.descriptor.name()});
   PERFETTO_DLOG("Starting data source %s with target buffer %" PRIu16,
                 ds_config.name().c_str(), global_id);
   if (!producer->shared_memory()) {
-    // TODO(taylori): Handle multiple producers/producer configs.
-    producer->shared_buffer_page_size_kb_ =
-        std::min((tracing_session->GetDesiredPageSizeKb() == 0)
-                     ? kDefaultShmPageSizeKb
-                     : tracing_session->GetDesiredPageSizeKb(),
-                 kMaxShmPageSizeKb);
+    producer->shared_buffer_page_size_kb_ = std::min<size_t>(
+        (producer_config.page_size_kb() == 0) ? kDefaultShmPageSizeKb
+                                              : producer_config.page_size_kb(),
+        SharedMemoryABI::kMaxPageSize);
+
     size_t shm_size =
-        std::min(tracing_session->GetDesiredShmSizeKb() * 1024, kMaxShmSize);
+        std::min<size_t>(producer_config.shm_size_kb() * 1024, kMaxShmSize);
+
     if (shm_size % base::kPageSize || shm_size < base::kPageSize)
       shm_size = std::min(shared_memory_size_hint_bytes_, kMaxShmSize);
     if (shm_size % base::kPageSize || shm_size < base::kPageSize ||
@@ -747,7 +782,7 @@ void ServiceImpl::CopyProducerPageIntoLogBuffer(ProducerID producer_id_trusted,
                                                 const uint8_t* src,
                                                 size_t size) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  TraceBuffez* buf = GetBufferByID(buffer_id);
+  TraceBuffer* buf = GetBufferByID(buffer_id);
   if (!buf) {
     PERFETTO_DLOG("Could not find target buffer %" PRIu16
                   " for producer %" PRIu16,
@@ -773,7 +808,7 @@ void ServiceImpl::ApplyChunkPatches(
   for (const auto& chunk : chunks_to_patch) {
     const ChunkID chunk_id = static_cast<ChunkID>(chunk.chunk_id());
     const WriterID writer_id = static_cast<WriterID>(chunk.writer_id());
-    TraceBuffez* buf =
+    TraceBuffer* buf =
         GetBufferByID(static_cast<BufferID>(chunk.target_buffer()));
     static_assert(std::numeric_limits<ChunkID>::max() == kMaxChunkID,
                   "Add a '|| chunk_id > kMaxChunkID' below if this fails");
@@ -786,7 +821,7 @@ void ServiceImpl::ApplyChunkPatches(
     }
     // Speculate on the fact that there are going to be a limited amount of
     // patches per request, so we can allocate the |patches| array on the stack.
-    std::array<TraceBuffez::Patch, 1024> patches;  // Uninitialized.
+    std::array<TraceBuffer::Patch, 1024> patches;  // Uninitialized.
     if (chunk.patches().size() > patches.size()) {
       PERFETTO_DLOG("Too many patches (%zu) batched in the same request",
                     patches.size());
@@ -831,7 +866,7 @@ ProducerID ServiceImpl::GetNextProducerID() {
   return last_producer_id_;
 }
 
-TraceBuffez* ServiceImpl::GetBufferByID(BufferID buffer_id) {
+TraceBuffer* ServiceImpl::GetBufferByID(BufferID buffer_id) {
   auto buf_iter = buffers_.find(buffer_id);
   if (buf_iter == buffers_.end())
     return nullptr;
@@ -867,34 +902,35 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
   if (now < tracing_session->last_clock_snapshot + kClockSnapshotInterval)
     return;
   tracing_session->last_clock_snapshot = now;
+
+  protos::TracePacket packet;
+  protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   struct {
     clockid_t id;
     protos::ClockSnapshot::Clock::Type type;
     struct timespec ts;
   } clocks[] = {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-    {CLOCK_UPTIME_RAW, protos::ClockSnapshot::Clock::BOOTTIME, {0, 0}},
-#else
-    {CLOCK_BOOTTIME, protos::ClockSnapshot::Clock::BOOTTIME, {0, 0}},
-    {CLOCK_REALTIME_COARSE,
-     protos::ClockSnapshot::Clock::REALTIME_COARSE,
-     {0, 0}},
-    {CLOCK_MONOTONIC_COARSE,
-     protos::ClockSnapshot::Clock::MONOTONIC_COARSE,
-     {0, 0}},
-#endif
-    {CLOCK_REALTIME, protos::ClockSnapshot::Clock::REALTIME, {0, 0}},
-    {CLOCK_MONOTONIC, protos::ClockSnapshot::Clock::MONOTONIC, {0, 0}},
-    {CLOCK_MONOTONIC_RAW, protos::ClockSnapshot::Clock::MONOTONIC_RAW, {0, 0}},
-    {CLOCK_PROCESS_CPUTIME_ID,
-     protos::ClockSnapshot::Clock::PROCESS_CPUTIME,
-     {0, 0}},
-    {CLOCK_THREAD_CPUTIME_ID,
-     protos::ClockSnapshot::Clock::THREAD_CPUTIME,
-     {0, 0}},
+      {CLOCK_BOOTTIME, protos::ClockSnapshot::Clock::BOOTTIME, {0, 0}},
+      {CLOCK_REALTIME_COARSE,
+       protos::ClockSnapshot::Clock::REALTIME_COARSE,
+       {0, 0}},
+      {CLOCK_MONOTONIC_COARSE,
+       protos::ClockSnapshot::Clock::MONOTONIC_COARSE,
+       {0, 0}},
+      {CLOCK_REALTIME, protos::ClockSnapshot::Clock::REALTIME, {0, 0}},
+      {CLOCK_MONOTONIC, protos::ClockSnapshot::Clock::MONOTONIC, {0, 0}},
+      {CLOCK_MONOTONIC_RAW,
+       protos::ClockSnapshot::Clock::MONOTONIC_RAW,
+       {0, 0}},
+      {CLOCK_PROCESS_CPUTIME_ID,
+       protos::ClockSnapshot::Clock::PROCESS_CPUTIME,
+       {0, 0}},
+      {CLOCK_THREAD_CPUTIME_ID,
+       protos::ClockSnapshot::Clock::THREAD_CPUTIME,
+       {0, 0}},
   };
-  protos::TracePacket packet;
-  protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
   // First snapshot all the clocks as atomically as we can.
   for (auto& clock : clocks) {
     if (clock_gettime(clock.id, &clock.ts) == -1)
@@ -905,6 +941,12 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
     c->set_type(clock.type);
     c->set_timestamp(base::FromPosixTimespec(clock.ts).count());
   }
+#else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
+  c->set_type(protos::ClockSnapshot::Clock::MONOTONIC);
+  c->set_timestamp(base::GetWallTimeNs().count());
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+
   packet.set_trusted_uid(getuid());
   Slice slice = Slice::Allocate(packet.ByteSize());
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
@@ -1003,12 +1045,14 @@ ServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     uid_t uid,
     ServiceImpl* service,
     base::TaskRunner* task_runner,
-    Producer* producer)
+    Producer* producer,
+    const std::string& producer_name)
     : id_(id),
       uid_(uid),
       service_(service),
       task_runner_(task_runner),
-      producer_(producer) {
+      producer_(producer),
+      name_(producer_name) {
   // TODO(primiano): make the page-size for the SHM dynamic and find a way to
   // communicate that to the Producer (add a field to the
   // InitializeConnectionResponse IPC).
@@ -1020,24 +1064,20 @@ ServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
 }
 
 void ServiceImpl::ProducerEndpointImpl::RegisterDataSource(
-    const DataSourceDescriptor& desc,
-    RegisterDataSourceCallback callback) {
+    const DataSourceDescriptor& desc) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  DataSourceID ds_id = ++last_data_source_id_;
-  if (!desc.name().empty()) {
-    service_->RegisterDataSource(id_, ds_id, desc);
-  } else {
+  if (desc.name().empty()) {
     PERFETTO_DLOG("Received RegisterDataSource() with empty name");
-    ds_id = 0;
+    return;
   }
-  task_runner_->PostTask(std::bind(std::move(callback), ds_id));
+
+  service_->RegisterDataSource(id_, desc);
 }
 
 void ServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
-    DataSourceID ds_id) {
+    const std::string& name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_CHECK(ds_id);
-  service_->UnregisterDataSource(id_, ds_id);
+  service_->UnregisterDataSource(id_, name);
 }
 
 void ServiceImpl::ProducerEndpointImpl::CommitData(
@@ -1130,19 +1170,5 @@ ServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID buf_id) {
 ServiceImpl::TracingSession::TracingSession(ConsumerEndpointImpl* consumer_ptr,
                                             const TraceConfig& new_config)
     : consumer(consumer_ptr), config(new_config) {}
-
-size_t ServiceImpl::TracingSession::GetDesiredShmSizeKb() {
-  if (config.producers_size() == 0)
-    return 0;
-  // TODO(taylori): Handle multiple producers/producer configs.
-  return config.producers()[0].shm_size_kb();
-}
-
-size_t ServiceImpl::TracingSession::GetDesiredPageSizeKb() {
-  if (config.producers_size() == 0)
-    return 0;
-  // TODO(taylori): Handle multiple producers/producer configs.
-  return config.producers()[0].page_size_kb();
-}
 
 }  // namespace perfetto

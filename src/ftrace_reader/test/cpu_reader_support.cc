@@ -16,14 +16,13 @@
 
 #include "src/ftrace_reader/test/cpu_reader_support.h"
 
+#include "perfetto/base/utils.h"
 #include "src/ftrace_reader/ftrace_procfs.h"
 
 #include <string.h>
 
 namespace perfetto {
 namespace {
-
-constexpr size_t kPageSize = 4096;
 
 std::map<std::string, std::unique_ptr<ProtoTranslationTable>>* g_tables;
 
@@ -44,9 +43,9 @@ ProtoTranslationTable* GetTable(const std::string& name) {
 }
 
 std::unique_ptr<uint8_t[]> PageFromXxd(const std::string& text) {
-  auto buffer = std::unique_ptr<uint8_t[]>(new uint8_t[kPageSize]);
+  auto buffer = std::unique_ptr<uint8_t[]>(new uint8_t[base::kPageSize]);
   const char* ptr = text.data();
-  memset(buffer.get(), 0xfa, kPageSize);
+  memset(buffer.get(), 0xfa, base::kPageSize);
   uint8_t* out = buffer.get();
   while (*ptr != '\0') {
     if (*(ptr++) != ':')
