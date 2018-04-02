@@ -20,7 +20,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>

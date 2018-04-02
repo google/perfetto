@@ -25,7 +25,10 @@
 #include "perfetto/base/logging.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#include <mach/mach_init.h>
+#include <mach/mach_port.h>
 #include <mach/mach_time.h>
+#include <mach/thread_act.h>
 #endif
 
 namespace perfetto {
@@ -68,6 +71,25 @@ inline TimeNanos GetWallTimeNs() {
 
   static uint64_t monotonic_timebase_factor = init_time_factor();
   return TimeNanos(mach_absolute_time() * monotonic_timebase_factor);
+}
+
+inline TimeNanos GetThreadCPUTimeNs() {
+  mach_port_t this_thread = mach_thread_self();
+  mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+  thread_basic_info_data_t info{};
+  kern_return_t kr =
+      thread_info(this_thread, THREAD_BASIC_INFO,
+                  reinterpret_cast<thread_info_t>(&info), &count);
+  mach_port_deallocate(mach_task_self(), this_thread);
+
+  if (kr != KERN_SUCCESS) {
+    PERFETTO_DCHECK(false);
+    return TimeNanos(0);
+  }
+  return TimeNanos(info.user_time.seconds * 1000000000LL +
+                   info.user_time.microseconds * 1000LL +
+                   info.system_time.seconds * 1000000000LL +
+                   info.system_time.microseconds * 1000LL);
 }
 
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
