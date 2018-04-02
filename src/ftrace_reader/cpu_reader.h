@@ -20,13 +20,13 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <sys/sysmacros.h>
 #include <array>
 #include <memory>
 #include <set>
 #include <thread>
 
 #include "gtest/gtest_prod.h"
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/thread_checker.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
@@ -161,7 +161,9 @@ class CpuReader {
     unsigned int maj = static_cast<unsigned int>((kernel_dev) >> 20);
     unsigned int min =
         static_cast<unsigned int>((kernel_dev) & ((1U << 20) - 1));
-    return static_cast<BlockDeviceID>(makedev(maj, min));
+    return static_cast<BlockDeviceID>(  // From makedev()
+        (((maj)&0xfffff000ULL) << 32) | (((maj)&0xfffULL) << 8) |
+        (((min)&0xffffff00ULL) << 12) | (((min)&0xffULL)));
   }
 
   // Iterate through every file in the current directory and check if the inode
