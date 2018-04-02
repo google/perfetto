@@ -610,16 +610,16 @@ TEST(FtraceMetadataTest, Clear) {
   metadata.Clear();
   EXPECT_THAT(metadata.inode_and_device, IsEmpty());
   EXPECT_THAT(metadata.pids, IsEmpty());
-  EXPECT_EQ(metadata.overwrite_count, 0u);
-  EXPECT_EQ(metadata.last_seen_device_id, 0u);
+  EXPECT_EQ(0u, metadata.overwrite_count);
+  EXPECT_EQ(BlockDeviceID(0), metadata.last_seen_device_id);
 }
 
 TEST(FtraceMetadataTest, AddDevice) {
   FtraceMetadata metadata;
   metadata.AddDevice(1);
-  EXPECT_EQ(metadata.last_seen_device_id, 1u);
+  EXPECT_EQ(BlockDeviceID(1), metadata.last_seen_device_id);
   metadata.AddDevice(3);
-  EXPECT_EQ(metadata.last_seen_device_id, 3u);
+  EXPECT_EQ(BlockDeviceID(3), metadata.last_seen_device_id);
 }
 
 TEST(FtraceMetadataTest, AddInode) {
