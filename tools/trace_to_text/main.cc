@@ -350,6 +350,7 @@ int TraceToSummary(std::istream* input, std::ostream* output) {
         if (packet.has_process_tree()) {
           const ProcessTree& tree = packet.process_tree();
           for (Process process : tree.processes()) {
+            tids_in_tree.insert(process.pid());
             for (ProcessTree::Thread thread : process.threads()) {
               tids_in_tree.insert(thread.tid());
             }
