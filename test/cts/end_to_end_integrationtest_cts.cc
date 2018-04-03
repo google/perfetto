@@ -25,6 +25,8 @@
 #include "src/base/test/test_task_runner.h"
 #include "test/test_helper.h"
 
+#include "perfetto/trace/trace_packet.pb.h"
+
 namespace perfetto {
 
 class PerfettoCtsTest : public ::testing::Test {
@@ -56,8 +58,8 @@ class PerfettoCtsTest : public ::testing::Test {
 
     size_t packets_seen = 0;
     std::minstd_rand0 rnd_engine(kRandomSeed);
-    auto on_consumer_data = [&packets_seen, &rnd_engine](
-                                const TracePacket::DecodedTracePacket& packet) {
+    auto on_consumer_data = [&packets_seen,
+                             &rnd_engine](const protos::TracePacket& packet) {
       ASSERT_TRUE(packet.has_for_testing());
       ASSERT_EQ(packet.for_testing().seq_value(), rnd_engine());
       packets_seen++;

@@ -40,7 +40,6 @@
 #include "src/tracing/core/trace_buffer.h"
 
 #include "perfetto/trace/clock_snapshot.pb.h"
-#include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trusted_packet.pb.h"
 
 // General note: this class must assume that Producers are malicious and will
@@ -903,7 +902,7 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
     return;
   tracing_session->last_clock_snapshot = now;
 
-  protos::TracePacket packet;
+  protos::TrustedPacket packet;
   protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
@@ -959,7 +958,7 @@ void ServiceImpl::MaybeEmitTraceConfig(TracingSession* tracing_session,
   if (tracing_session->did_emit_config)
     return;
   tracing_session->did_emit_config = true;
-  protos::TracePacket packet;
+  protos::TrustedPacket packet;
   tracing_session->config.ToProto(packet.mutable_trace_config());
   packet.set_trusted_uid(getuid());
   Slice slice = Slice::Allocate(packet.ByteSize());

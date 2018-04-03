@@ -20,9 +20,6 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/tracing/core/sliced_protobuf_input_stream.h"
 
-#include "perfetto/trace/trace.pb.h"
-#include "perfetto/trace/trace_packet.pb.h"
-
 namespace perfetto {
 
 TracePacket::TracePacket() = default;
@@ -35,24 +32,9 @@ TracePacket::TracePacket(TracePacket&& other) noexcept {
 TracePacket& TracePacket::operator=(TracePacket&& other) {
   slices_ = std::move(other.slices_);
   other.slices_.clear();
-
   size_ = other.size_;
   other.size_ = 0;
-
-  decoded_packet_ = std::move(other.decoded_packet_);
   return *this;
-}
-
-bool TracePacket::Decode() {
-  if (decoded_packet_)
-    return true;
-  decoded_packet_.reset(new DecodedTracePacket());
-  SlicedProtobufInputStream istr(&slices_);
-  if (!decoded_packet_->ParseFromZeroCopyStream(&istr)) {
-    decoded_packet_.reset();
-    return false;
-  }
-  return true;
 }
 
 void TracePacket::AddSlice(Slice slice) {
@@ -70,7 +52,6 @@ std::tuple<char*, size_t> TracePacket::GetProtoPreamble() {
   using protozero::proto_utils::WriteVarInt;
   uint8_t* ptr = reinterpret_cast<uint8_t*>(&preamble_[0]);
 
-  constexpr uint32_t kPacketFieldNumber = protos::Trace::kPacketFieldNumber;
   constexpr uint8_t tag = MakeTagLengthDelimited(kPacketFieldNumber);
   static_assert(tag < 0x80, "TracePacket tag should fit in one byte");
   *(ptr++) = tag;
@@ -80,6 +61,12 @@ std::tuple<char*, size_t> TracePacket::GetProtoPreamble() {
                          reinterpret_cast<uintptr_t>(&preamble_[0]);
   PERFETTO_DCHECK(preamble_size <= sizeof(preamble_));
   return std::make_tuple(&preamble_[0], preamble_size);
+}
+
+std::unique_ptr<TracePacket::ZeroCopyInputStream>
+TracePacket::CreateSlicedInputStream() const {
+  return std::unique_ptr<ZeroCopyInputStream>(
+      new SlicedProtobufInputStream(&slices_));
 }
 
 }  // namespace perfetto
