@@ -166,14 +166,6 @@ class CpuReader {
         (((min)&0xffffff00ULL) << 12) | (((min)&0xffULL)));
   }
 
-  // Iterate through every file in the current directory and check if the inode
-  // number of each file matches any of the inode numbers saved in events.
-  // Returns map of inode number to filename for every inode number that is
-  // found in the filesystem. If the inode number saved from events is not
-  // found, nothing is added to the map.
-  static std::map<uint64_t, std::string> GetFilenamesForInodeNumbers(
-      const std::set<uint64_t>& inode_numbers);
-
   // Parse a raw ftrace page beginning at ptr and write the events a protos
   // into the provided bundle respecting the given event filter.
   // |table| contains the mix of compile time (e.g. proto field ids) and
