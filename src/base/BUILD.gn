@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("//build_overrides/build.gni")
+import("../../gn/perfetto.gni")
 
 source_set("base") {
   deps = [
@@ -34,7 +35,7 @@ source_set("base") {
   } else {
     sources += [ "watchdog_noop.cc" ]
   }
-  if (is_debug) {
+  if (is_debug && !build_with_chromium && !build_with_android) {
     deps += [ ":debug_crash_stack_trace" ]
   }
 }
@@ -59,7 +60,7 @@ if (is_android && !build_with_chromium) {
   }
 }
 
-if (is_debug) {
+if (is_debug && !build_with_chromium && !build_with_android) {
   source_set("debug_crash_stack_trace") {
     sources = [
       "debug_crash_stack_trace.cc",
@@ -71,6 +72,9 @@ if (is_debug) {
     deps = [
       "../../gn:default_deps",
     ]
+    if (is_linux || is_android) {
+      deps += [ "../../buildtools:libbacktrace" ]
+    }
   }
 }
 
