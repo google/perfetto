@@ -215,41 +215,6 @@ void CpuReader::RunWorkerThread(
 #endif
 }
 
-// static
-std::map<uint64_t, std::string> CpuReader::GetFilenamesForInodeNumbers(
-    const std::set<uint64_t>& inode_numbers) {
-  std::map<uint64_t, std::string> inode_to_filename;
-  if (inode_numbers.empty())
-    return inode_to_filename;
-  std::queue<std::string> queue;
-  // Starts reading files from current directory
-  queue.push(".");
-  while (!queue.empty()) {
-    struct dirent* entry;
-    std::string filepath = queue.front();
-    filepath += "/";
-    DIR* dir = opendir(queue.front().c_str());
-    queue.pop();
-    if (dir == nullptr)
-      continue;
-    while ((entry = readdir(dir)) != nullptr) {
-      std::string filename = entry->d_name;
-      if (filename.compare(".") == 0 || filename.compare("..") == 0)
-        continue;
-      uint64_t inode_number = entry->d_ino;
-      // Check if this inode number matches any of the passed in inode
-      // numbers from events
-      if (inode_numbers.find(inode_number) != inode_numbers.end())
-        inode_to_filename.emplace(inode_number, filepath + filename);
-      // Continue iterating through files if current entry is a directory
-      if (entry->d_type == DT_DIR)
-        queue.push(filepath + filename);
-    }
-    closedir(dir);
-  }
-  return inode_to_filename;
-}
-
 bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
                       const std::array<BundleHandle, kMaxSinks>& bundles,
                       const std::array<FtraceMetadata*, kMaxSinks>& metadatas) {
