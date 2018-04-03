@@ -5,6 +5,7 @@ clang/
 clang_format/
 emulator/
 googletest/
+libbacktrace/
 libcxx/
 libcxxabi/
 libunwind/

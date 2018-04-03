@@ -130,6 +130,13 @@ BUILD_DEPS_HOST = [
    'f387e0df37d54bfd5be239e8d0d3ea2e2c3e34f4',
    'all'
   ),
+
+  # Libbacktrace, for stacktraces in Linux/Android debug builds.
+  ('buildtools/libbacktrace.zip',
+   'https://github.com/ianlancetaylor/libbacktrace/archive/177940370e4a6b2509e92a0aaa9749184e64af43.zip',
+   'b723fe9d671d1ab54df1297f6afbf2893a41c3ea',
+   'all'
+  ),
 ]
 
 # Dependencies required to build Android code.
