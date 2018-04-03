@@ -36,6 +36,7 @@ namespace {
 constexpr uint64_t kScanIntervalMs = 10000;  // 10s
 constexpr uint64_t kScanDelayMs = 10000;     // 10s
 constexpr uint64_t kScanBatchSize = 15000;
+constexpr uint64_t kFlushBeforeEndMs = 500;
 
 uint64_t OrDefault(uint64_t value, uint64_t def) {
   if (value != 0)
@@ -126,7 +127,22 @@ InodeFileDataSource::InodeFileDataSource(
       static_file_map_(static_file_map),
       cache_(cache),
       writer_(std::move(writer)),
-      weak_factory_(this) {}
+      weak_factory_(this) {
+  auto weak_this = GetWeakPtr();
+  // Flush TracePacket of current scan shortly before we expect the trace
+  // to end, to retain information from any scan that might be in
+  // progress.
+  task_runner_->PostDelayedTask(
+      [weak_this] {
+        if (!weak_this) {
+          PERFETTO_DLOG("Giving up flush.");
+          return;
+        }
+        PERFETTO_DLOG("Flushing.");
+        weak_this->ResetTracePacket();
+      },
+      source_config_.trace_duration_ms() - kFlushBeforeEndMs);
+}
 
 void InodeFileDataSource::AddInodesFromStaticMap(
     BlockDeviceID block_device_id,
@@ -296,13 +312,17 @@ bool InodeFileDataSource::OnInodeFound(
   return !missing_inodes_.empty();
 }
 
-void InodeFileDataSource::OnInodeScanDone() {
-  // Finalize the accumulated trace packets.
+void InodeFileDataSource::ResetTracePacket() {
   current_block_device_id_ = 0;
   current_file_map_ = nullptr;
   if (has_current_trace_packet_)
     current_trace_packet_->Finalize();
   has_current_trace_packet_ = false;
+}
+
+void InodeFileDataSource::OnInodeScanDone() {
+  // Finalize the accumulated trace packets.
+  ResetTracePacket();
   file_scanner_.reset();
   if (next_missing_inodes_.empty()) {
     scan_running_ = false;
