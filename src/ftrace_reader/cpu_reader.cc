@@ -350,6 +350,9 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
         const uint8_t* start = ptr;
         const uint8_t* next = ptr + event_size;
 
+        if (next > end)
+          return 0;
+
         uint16_t ftrace_event_id;
         if (!ReadAndAdvance<uint16_t>(&ptr, end, &ftrace_event_id))
           return 0;
@@ -421,7 +424,11 @@ bool CpuReader::ParseField(const Field& field,
 
   switch (field.strategy) {
     case kUint8ToUint32:
+      ReadIntoVarInt<uint8_t>(field_start, field_id, message);
+      return true;
     case kUint16ToUint32:
+      ReadIntoVarInt<uint16_t>(field_start, field_id, message);
+      return true;
     case kUint32ToUint32:
     case kUint32ToUint64:
       ReadIntoVarInt<uint32_t>(field_start, field_id, message);
@@ -430,7 +437,11 @@ bool CpuReader::ParseField(const Field& field,
       ReadIntoVarInt<uint64_t>(field_start, field_id, message);
       return true;
     case kInt8ToInt32:
+      ReadIntoVarInt<int8_t>(field_start, field_id, message);
+      return true;
     case kInt16ToInt32:
+      ReadIntoVarInt<int16_t>(field_start, field_id, message);
+      return true;
     case kInt32ToInt32:
     case kInt32ToInt64:
       ReadIntoVarInt<int32_t>(field_start, field_id, message);
