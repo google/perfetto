@@ -88,6 +88,7 @@ class InodeFileDataSource : public FileScanner::Delegate {
 
  private:
   InodeFileMap* AddToCurrentTracePacket(BlockDeviceID block_device_id);
+  void ResetTracePacket();
   void FindMissingInodes();
   bool OnInodeFound(BlockDeviceID block_device_id,
                     Inode inode_number,
