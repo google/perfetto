@@ -217,25 +217,26 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
             const int kExpectedMinNumberOfClocks = 6;
 #endif
 
-            for (auto& packet : *packets) {
-              ASSERT_TRUE(packet.Decode());
-              if (packet->has_for_testing()) {
+            for (auto& encoded_packet : *packets) {
+              protos::TracePacket packet;
+              ASSERT_TRUE(encoded_packet.Decode(&packet));
+              if (packet.has_for_testing()) {
                 char buf[8];
                 sprintf(buf, "evt_%zu", num_pack_rx++);
-                EXPECT_EQ(std::string(buf), packet->for_testing().str());
-              } else if (packet->has_clock_snapshot()) {
-                EXPECT_GE(packet->clock_snapshot().clocks_size(),
+                EXPECT_EQ(std::string(buf), packet.for_testing().str());
+              } else if (packet.has_clock_snapshot()) {
+                EXPECT_GE(packet.clock_snapshot().clocks_size(),
                           kExpectedMinNumberOfClocks);
                 saw_clock_snapshot = true;
-              } else if (packet->has_trace_config()) {
+              } else if (packet.has_trace_config()) {
                 protos::TraceConfig config_proto;
                 trace_config.ToProto(&config_proto);
                 Slice expected_slice = Slice::Allocate(config_proto.ByteSize());
                 config_proto.SerializeWithCachedSizesToArray(
                     expected_slice.own_data());
                 Slice actual_slice =
-                    Slice::Allocate(packet->trace_config().ByteSize());
-                packet->trace_config().SerializeWithCachedSizesToArray(
+                    Slice::Allocate(packet.trace_config().ByteSize());
+                packet.trace_config().SerializeWithCachedSizesToArray(
                     actual_slice.own_data());
                 EXPECT_EQ(std::string(reinterpret_cast<const char*>(
                                           expected_slice.own_data()),
