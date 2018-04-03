@@ -143,9 +143,6 @@ void SignalHandler(int sig_num, siginfo_t* info, void* ucontext) {
 #endif
 
   for (uint8_t i = 0; i < unwind_state.frame_count; i++) {
-    Print("\n#");
-    PrintHex(i);
-    Print("  ");
     struct SymbolInfo {
       char sym_name[255];
       char file_name[255];
@@ -172,6 +169,10 @@ void SignalHandler(int sig_num, siginfo_t* info, void* ucontext) {
     if (res && dl_info.dli_sname)
       strncpy(sym.sym_name, dl_info.dli_sname, sizeof(sym.sym_name));
 #endif
+
+    Print("\n#");
+    PrintHex(i);
+    Print("  ");
 
     if (sym.sym_name[0]) {
       int ignored;

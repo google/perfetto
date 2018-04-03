@@ -17,14 +17,18 @@
 #ifndef BUILDTOOLS_LIBBACKTRACE_CONFIG_CONFIG_H_
 #define BUILDTOOLS_LIBBACKTRACE_CONFIG_CONFIG_H_
 
+#if defined(__i386__) || defined(__ARMEL__)
+#define BACKTRACE_ELF_SIZE 32
+#else
 #define BACKTRACE_ELF_SIZE 64
+#endif
+
 #define BACKTRACE_XCOFF_SIZE unused
 #define HAVE_ATOMIC_FUNCTIONS 1
 #define HAVE_CLOCK_GETTIME 1
 #define HAVE_DECL_STRNLEN 1
 #define HAVE_DLFCN_H 1
 #define HAVE_FCNTL 1
-#define HAVE_GETIPINFO 1
 #define HAVE_INTTYPES_H 1
 #define HAVE_LSTAT 1
 #define HAVE_MEMORY_H 1
@@ -40,6 +44,7 @@
 #define HAVE_UNISTD_H 1
 #define HAVE_LINK_H 1
 #define STDC_HEADERS 1
+#define HAVE_DL_ITERATE_PHDR 1
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE 1
