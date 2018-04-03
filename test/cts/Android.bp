@@ -7,6 +7,7 @@ cc_test {
     "libgmock",
     "libprotobuf-cpp-lite",
     "perfetto_src_tracing_ipc",
+    "perfetto_trace_protos",
   ],
   shared_libs: [
     "libandroid",

@@ -22,9 +22,26 @@
 
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trusted_packet.pb.h"
 
 namespace perfetto {
 namespace {
+
+static_assert(TracePacket::kPacketFieldNumber ==
+                  protos::Trace::kPacketFieldNumber,
+              "packet field id mismatch");
+
+static_assert(protos::TracePacket::kTrustedUidFieldNumber ==
+                  protos::TrustedPacket::kTrustedUidFieldNumber,
+              "trusted_uid field id mismatch");
+
+static_assert(protos::TracePacket::kTraceConfigFieldNumber ==
+                  protos::TrustedPacket::kTraceConfigFieldNumber,
+              "trace_config field id mismatch");
+
+static_assert(protos::TracePacket::kClockSnapshotFieldNumber ==
+                  protos::TrustedPacket::kClockSnapshotFieldNumber,
+              "clock_snapshot field id mismatch");
 
 TEST(TracePacketTest, Simple) {
   protos::TracePacket proto;
@@ -38,11 +55,9 @@ TEST(TracePacketTest, Simple) {
   ASSERT_EQ(ser_buf.size(), slice->size);
   ASSERT_EQ(tp.slices().end(), ++slice);
 
-  ASSERT_TRUE(tp.Decode());
-  ASSERT_TRUE(tp.Decode());  // Decode() should be idempotent.
-  ASSERT_NE(nullptr, tp.operator->());
-  ASSERT_EQ(proto.for_testing().str(), tp->for_testing().str());
-  ASSERT_EQ(proto.for_testing().str(), (*tp).for_testing().str());
+  protos::TracePacket decoded_packet;
+  ASSERT_TRUE(tp.Decode(&decoded_packet));
+  ASSERT_EQ(proto.for_testing().str(), decoded_packet.for_testing().str());
 }
 
 TEST(TracePacketTest, Sliced) {
@@ -71,9 +86,9 @@ TEST(TracePacketTest, Sliced) {
 
   ASSERT_EQ(tp.slices().end(), ++slice);
 
-  ASSERT_TRUE(tp.Decode());
-  ASSERT_NE(nullptr, tp.operator->());
-  ASSERT_EQ(proto.for_testing().str(), tp->for_testing().str());
+  protos::TracePacket decoded_packet;
+  ASSERT_TRUE(tp.Decode(&decoded_packet));
+  ASSERT_EQ(proto.for_testing().str(), decoded_packet.for_testing().str());
 }
 
 TEST(TracePacketTest, Corrupted) {
@@ -82,7 +97,8 @@ TEST(TracePacketTest, Corrupted) {
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
   tp.AddSlice({ser_buf.data(), ser_buf.size() - 2});  // corrupted.
-  ASSERT_FALSE(tp.Decode());
+  protos::TracePacket decoded_packet;
+  ASSERT_FALSE(tp.Decode(&decoded_packet));
 }
 
 // Tests that the GetProtoPreamble() logic returns a valid preamble that allows

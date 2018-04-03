@@ -30,9 +30,6 @@
 #include "proto_translation_table.h"
 
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "perfetto/trace/ftrace/print.pbzero.h"
-#include "perfetto/trace/ftrace/sched_switch.pbzero.h"
-
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {

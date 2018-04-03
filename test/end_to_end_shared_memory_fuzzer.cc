@@ -23,8 +23,6 @@
 #include "perfetto/base/utils.h"
 #include "perfetto/ipc/host.h"
 #include "perfetto/trace/test_event.pbzero.h"
-#include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
@@ -36,6 +34,9 @@
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
+
+#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace shm_fuzz {
@@ -163,7 +164,7 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
 
   auto on_readback_complete = task_runner.CreateCheckpoint("readback.complete");
   auto on_consumer_data =
-      [&on_readback_complete](const TracePacket::DecodedTracePacket& packet) {
+      [&on_readback_complete](const protos::TracePacket& packet) {
         if (packet.for_testing().str() == "end")
           on_readback_complete();
       };

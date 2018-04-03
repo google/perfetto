@@ -41,7 +41,6 @@
 #include "perfetto/tracing/core/trace_packet.h"
 
 #include "perfetto/config/trace_config.pb.h"
-#include "perfetto/trace/trace.pb.h"
 
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 
@@ -277,8 +276,10 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   for (TracePacket& packet : packets) {
     uint8_t preamble[16];
     uint8_t* pos = preamble;
-    pos = WriteVarInt(MakeTagLengthDelimited(protos::Trace::kPacketFieldNumber),
-                      pos);
+    // ID of the |packet| field in trace.proto. Hardcoded as this we not depend
+    // on protos/trace:lite for binary size saving reasons.
+    static constexpr uint32_t kPacketFieldNumber = 1;
+    pos = WriteVarInt(MakeTagLengthDelimited(kPacketFieldNumber), pos);
     pos = WriteVarInt(static_cast<uint32_t>(packet.size()), pos);
     fwrite(reinterpret_cast<const char*>(preamble), pos - preamble, 1,
            trace_out_stream_.get());
