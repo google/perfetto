@@ -21,6 +21,8 @@
 #include "perfetto/tracing/core/trace_packet.h"
 #include "test/task_runner_thread_delegates.h"
 
+#include "src/tracing/ipc/default_socket.h"
+
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
@@ -33,8 +35,8 @@ namespace perfetto {
 #define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
 #define TEST_CONSUMER_SOCK_NAME "/data/local/tmp/traced_consumer"
 #else
-#define TEST_PRODUCER_SOCK_NAME PERFETTO_PRODUCER_SOCK_NAME
-#define TEST_CONSUMER_SOCK_NAME PERFETTO_CONSUMER_SOCK_NAME
+#define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
+#define TEST_CONSUMER_SOCK_NAME ::perfetto::GetConsumerSocket()
 #endif
 
 TestHelper::TestHelper(base::TestTaskRunner* task_runner)

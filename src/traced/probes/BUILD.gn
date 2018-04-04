@@ -19,6 +19,7 @@ source_set("probes") {
   deps = [
     ":probes_src",
     "../../../gn:default_deps",
+    "../../tracing:ipc",
   ]
   sources = [
     "probes.cc",

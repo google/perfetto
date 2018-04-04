@@ -31,6 +31,7 @@
 #include "perfetto/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/ipc/service_ipc_host.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/tracing/ipc/default_socket.h"
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
@@ -47,7 +48,7 @@ namespace shm_fuzz {
     PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
 #define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
 #else
-#define TEST_PRODUCER_SOCK_NAME PERFETTO_PRODUCER_SOCK_NAME
+#define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
 #endif
 
 // Fake producer writing a protozero message of data into shared memory
