@@ -95,9 +95,16 @@ push $OUT/traced_probes
 push $OUT/perfetto
 reset_tracing
 
-PREFIX=""
+if is_android $OUT; then
+  PREFIX="
+PERFETTO_CONSUMER_SOCK_NAME=/data/misc/perfetto-traces/test_consumer_socket
+PERFETTO_PRODUCER_SOCK_NAME=/data/misc/perfetto-traces/test_producer_socket"
+else
+  PREFIX=""
+fi
+
 if ! is_monolithic $OUT; then
-  PREFIX="LD_LIBRARY_PATH=$DIR"
+  PREFIX="$PREFIX LD_LIBRARY_PATH=$DIR"
   push $OUT/libtraced_shared.so
 fi
 
