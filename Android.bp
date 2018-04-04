@@ -177,6 +177,7 @@ cc_binary {
     "src/tracing/core/trace_packet.cc",
     "src/tracing/core/trace_writer_impl.cc",
     "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
+    "src/tracing/ipc/default_socket.cc",
     "src/tracing/ipc/posix_shared_memory.cc",
   ],
   shared_libs: [
@@ -3181,6 +3182,7 @@ cc_library_static {
     "src/tracing/core/trace_packet.cc",
     "src/tracing/core/trace_writer_impl.cc",
     "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
+    "src/tracing/ipc/default_socket.cc",
     "src/tracing/ipc/posix_shared_memory.cc",
     "src/tracing/ipc/producer/producer_ipc_client_impl.cc",
     "src/tracing/ipc/service/consumer_ipc_service.cc",
@@ -3418,6 +3420,7 @@ cc_test {
     "src/tracing/core/trace_writer_impl.cc",
     "src/tracing/core/trace_writer_impl_unittest.cc",
     "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
+    "src/tracing/ipc/default_socket.cc",
     "src/tracing/ipc/posix_shared_memory.cc",
     "src/tracing/ipc/posix_shared_memory_unittest.cc",
     "src/tracing/test/aligned_buffer_test.cc",
