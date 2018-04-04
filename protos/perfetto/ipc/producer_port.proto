@@ -111,14 +111,12 @@ message GetAsyncCommandResponse {
 
   // This message also transports the file descriptor for the shared memory
   // buffer.
-  message OnTracingStart { optional uint64 shared_buffer_page_size_kb = 1; }
-
-  message OnTracingStop {}
+  message SetupTracing { optional uint64 shared_buffer_page_size_kb = 1; }
 
   oneof cmd {
     StartDataSource start_data_source = 1;
     StopDataSource stop_data_source = 2;
-    OnTracingStart on_tracing_start = 3;
-    OnTracingStop on_tracing_stop = 4;
+    SetupTracing setup_tracing = 3;
+    // id == 4 was teardown_tracing, never implemented.
   }
 }

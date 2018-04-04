@@ -78,8 +78,8 @@ void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config,
       [weak_this](ipc::AsyncResult<protos::EnableTracingResponse> response) {
         if (!weak_this)
           return;
-        if (!response || response->stopped())
-          weak_this->consumer_->OnTracingStop();
+        if (!response || response->disabled())
+          weak_this->consumer_->OnTracingDisabled();
       });
 
   // |fd| will be closed when this function returns, but it's fine because the

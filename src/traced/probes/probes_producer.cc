@@ -249,8 +249,7 @@ void ProbesProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
   watchdogs_.erase(id);
 }
 
-void ProbesProducer::OnTracingStart() {}
-void ProbesProducer::OnTracingStop() {}
+void ProbesProducer::OnTracingSetup() {}
 
 void ProbesProducer::ConnectWithRetries(const char* socket_name,
                                         base::TaskRunner* task_runner) {

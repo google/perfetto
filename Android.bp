@@ -3422,6 +3422,8 @@ cc_test {
     "src/tracing/ipc/posix_shared_memory_unittest.cc",
     "src/tracing/test/aligned_buffer_test.cc",
     "src/tracing/test/fake_packet.cc",
+    "src/tracing/test/mock_consumer.cc",
+    "src/tracing/test/mock_producer.cc",
     "src/tracing/test/test_shared_memory.cc",
     "src/tracing/test/tracing_integration_test.cc",
     "tools/ftrace_proto_gen/ftrace_proto_gen.cc",

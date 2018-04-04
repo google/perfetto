@@ -61,7 +61,7 @@ class PerfettoCmd : public Consumer {
   // perfetto::Consumer implementation.
   void OnConnect() override;
   void OnDisconnect() override;
-  void OnTracingStop() override;
+  void OnTracingDisabled() override;
   void OnTraceData(std::vector<TracePacket>, bool has_more) override;
 
   int ctrl_c_pipe_wr() const { return *ctrl_c_pipe_wr_; }
