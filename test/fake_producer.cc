@@ -118,8 +118,6 @@ void FakeProducer::ProduceEventBatch(std::function<void()> callback) {
   });
 }
 
-void FakeProducer::OnTracingStart() {}
-
-void FakeProducer::OnTracingStop() {}
+void FakeProducer::OnTracingSetup() {}
 
 }  // namespace perfetto

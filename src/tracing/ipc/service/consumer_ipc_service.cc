@@ -109,9 +109,9 @@ void ConsumerIPCService::RemoteConsumer::OnConnect() {}
 // |service_endpoint| (in the RemoteConsumer dtor).
 void ConsumerIPCService::RemoteConsumer::OnDisconnect() {}
 
-void ConsumerIPCService::RemoteConsumer::OnTracingStop() {
+void ConsumerIPCService::RemoteConsumer::OnTracingDisabled() {
   auto result = ipc::AsyncResult<protos::EnableTracingResponse>::Create();
-  result->set_stopped(true);
+  result->set_disabled(true);
   enable_tracing_response.Resolve(std::move(result));
 }
 
