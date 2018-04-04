@@ -27,8 +27,12 @@ namespace perfetto {
 
 ProcessStatsDataSource::ProcessStatsDataSource(
     TracingSessionID id,
-    std::unique_ptr<TraceWriter> writer)
-    : session_id_(id), writer_(std::move(writer)), weak_factory_(this) {}
+    std::unique_ptr<TraceWriter> writer,
+    const DataSourceConfig& config)
+    : session_id_(id),
+      writer_(std::move(writer)),
+      config_(config),
+      weak_factory_(this) {}
 
 ProcessStatsDataSource::~ProcessStatsDataSource() = default;
 
@@ -54,6 +58,8 @@ void ProcessStatsDataSource::WriteAllProcesses() {
                                      WriteProcess(pid, trace_packet_ptr);
                                      seen_pids->insert(pid);
                                    });
+  trace_packet->Finalize();
+  writer_->Flush();
 }
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
