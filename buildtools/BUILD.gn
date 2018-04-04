@@ -555,15 +555,12 @@ if (is_linux || is_android) {
 
   source_set("libbacktrace") {
     sources = [
-      "libbacktrace/backtrace.c",
       "libbacktrace/dwarf.c",
       "libbacktrace/elf.c",
       "libbacktrace/fileline.c",
       "libbacktrace/mmap.c",
       "libbacktrace/mmapio.c",
       "libbacktrace/posix.c",
-      "libbacktrace/print.c",
-      "libbacktrace/simple.c",
       "libbacktrace/sort.c",
       "libbacktrace/state.c",
     ]
