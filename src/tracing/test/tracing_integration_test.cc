@@ -60,8 +60,7 @@ class MockProducer : public Producer {
                void(DataSourceInstanceID, const DataSourceConfig&));
   MOCK_METHOD1(TearDownDataSourceInstance, void(DataSourceInstanceID));
   MOCK_METHOD0(uid, uid_t());
-  MOCK_METHOD0(OnTracingStart, void());
-  MOCK_METHOD0(OnTracingStop, void());
+  MOCK_METHOD0(OnTracingSetup, void());
 };
 
 class MockConsumer : public Consumer {
@@ -71,7 +70,7 @@ class MockConsumer : public Consumer {
   // Producer implementation.
   MOCK_METHOD0(OnConnect, void());
   MOCK_METHOD0(OnDisconnect, void());
-  MOCK_METHOD0(OnTracingStop, void());
+  MOCK_METHOD0(OnTracingDisabled, void());
   MOCK_METHOD2(OnTracePackets, void(std::vector<TracePacket>*, bool));
 
   // Workaround, gmock doesn't support yet move-only types, passing a pointer.
@@ -166,7 +165,7 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   BufferID global_buf_id = 0;
   auto on_create_ds_instance =
       task_runner_->CreateCheckpoint("on_create_ds_instance");
-  EXPECT_CALL(producer_, OnTracingStart());
+  EXPECT_CALL(producer_, OnTracingSetup());
   EXPECT_CALL(producer_, CreateDataSourceInstance(_, _))
       .WillOnce(
           Invoke([on_create_ds_instance, &ds_iid, &global_buf_id](
@@ -258,10 +257,12 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   // Disable tracing.
   consumer_endpoint_->DisableTracing();
 
-  auto on_tracing_stop = task_runner_->CreateCheckpoint("on_tracing_stop");
+  auto on_tracing_disabled =
+      task_runner_->CreateCheckpoint("on_tracing_disabled");
   EXPECT_CALL(producer_, TearDownDataSourceInstance(_));
-  EXPECT_CALL(consumer_, OnTracingStop()).WillOnce(Invoke(on_tracing_stop));
-  task_runner_->RunUntilCheckpoint("on_tracing_stop");
+  EXPECT_CALL(consumer_, OnTracingDisabled())
+      .WillOnce(Invoke(on_tracing_disabled));
+  task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 }
 
 TEST_F(TracingIntegrationTest, WriteIntoFile) {
@@ -280,7 +281,7 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   BufferID global_buf_id = 0;
   auto on_create_ds_instance =
       task_runner_->CreateCheckpoint("on_create_ds_instance");
-  EXPECT_CALL(producer_, OnTracingStart());
+  EXPECT_CALL(producer_, OnTracingSetup());
   EXPECT_CALL(producer_, CreateDataSourceInstance(_, _))
       .WillOnce(Invoke([on_create_ds_instance, &global_buf_id](
                            DataSourceInstanceID, const DataSourceConfig& cfg) {
@@ -307,10 +308,12 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   // file before destroying them.
   consumer_endpoint_->FreeBuffers();
 
-  auto on_tracing_stop = task_runner_->CreateCheckpoint("on_tracing_stop");
+  auto on_tracing_disabled =
+      task_runner_->CreateCheckpoint("on_tracing_disabled");
   EXPECT_CALL(producer_, TearDownDataSourceInstance(_));
-  EXPECT_CALL(consumer_, OnTracingStop()).WillOnce(Invoke(on_tracing_stop));
-  task_runner_->RunUntilCheckpoint("on_tracing_stop");
+  EXPECT_CALL(consumer_, OnTracingDisabled())
+      .WillOnce(Invoke(on_tracing_disabled));
+  task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 
   // Check that |tmp_file| contains a valid trace.proto message.
   ASSERT_EQ(0, lseek(tmp_file.fd(), 0, SEEK_SET));

@@ -31,7 +31,8 @@ service ConsumerPort {
   // rpc CreateBuffers(CreateBuffersRequest) returns (CreateBuffersResponse) {}
 
   // Enables tracing for one or more data sources. At least one buffer must have
-  // been previously created.
+  // been previously created. The EnableTracingResponse is sent when tracing is
+  // disabled (either explicitly or because of the |duration_ms| expired).
   rpc EnableTracing(EnableTracingRequest) returns (EnableTracingResponse) {}
 
   // Disables tracing for one or more data sources.
@@ -57,7 +58,7 @@ message EnableTracingRequest {
 }
 
 message EnableTracingResponse {
-  oneof state { bool stopped = 1; }
+  oneof state { bool disabled = 1; }
 }
 
 // Arguments for rpc DisableTracing().

@@ -293,7 +293,7 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     FinalizeTraceAndExit();  // Reached end of trace.
 }
 
-void PerfettoCmd::OnTracingStop() {
+void PerfettoCmd::OnTracingDisabled() {
   if (trace_config_->write_into_file()) {
     // If write_into_file == true, at this point the passed file contains
     // already all the packets.

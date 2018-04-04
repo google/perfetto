@@ -50,7 +50,7 @@ void TestHelper::OnDisconnect() {
   FAIL() << "Consumer unexpectedly disconnected from the service";
 }
 
-void TestHelper::OnTracingStop() {}
+void TestHelper::OnTracingDisabled() {}
 
 void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   for (auto& encoded_packet : packets) {
