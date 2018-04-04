@@ -3374,6 +3374,7 @@ cc_test {
     "src/protozero/test/fake_scattered_buffer.cc",
     "src/protozero/test/protozero_conformance_unittest.cc",
     "src/traced/probes/filesystem/file_scanner.cc",
+    "src/traced/probes/filesystem/file_scanner_unittest.cc",
     "src/traced/probes/filesystem/fs_mount.cc",
     "src/traced/probes/filesystem/fs_mount_unittest.cc",
     "src/traced/probes/filesystem/inode_file_data_source.cc",
