@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_TRACED_TRACED_H_
-#define INCLUDE_PERFETTO_TRACED_TRACED_H_
-
-#include "perfetto/base/build_config.h"
+#ifndef SRC_TRACING_IPC_DEFAULT_SOCKET_H_
+#define SRC_TRACING_IPC_DEFAULT_SOCKET_H_
 
 namespace perfetto {
 
-int ServiceMain(int argc, char** argv);
-int ProbesMain(int argc, char** argv);
-int PerfettoCmdMain(int argc, char** argv);
+const char* GetConsumerSocket();
+const char* GetProducerSocket();
 
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_TRACED_TRACED_H_
+#endif  // SRC_TRACING_IPC_DEFAULT_SOCKET_H_

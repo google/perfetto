@@ -42,6 +42,8 @@
 
 #include "perfetto/config/trace_config.pb.h"
 
+#include "src/tracing/ipc/default_socket.h"
+
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
@@ -231,8 +233,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
   if (!limiter.ShouldTrace(args))
     return 1;
 
-  consumer_endpoint_ = ConsumerIPCClient::Connect(PERFETTO_CONSUMER_SOCK_NAME,
-                                                  this, &task_runner_);
+  consumer_endpoint_ =
+      ConsumerIPCClient::Connect(GetConsumerSocket(), this, &task_runner_);
   SetupCtrlCSignalHandler();
   task_runner_.Run();
 
