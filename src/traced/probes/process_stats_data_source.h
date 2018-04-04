@@ -23,16 +23,21 @@
 
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_writer.h"
 
 namespace perfetto {
 
 class ProcessStatsDataSource {
  public:
-  ProcessStatsDataSource(TracingSessionID, std::unique_ptr<TraceWriter> writer);
+  ProcessStatsDataSource(TracingSessionID,
+                         std::unique_ptr<TraceWriter> writer,
+                         const DataSourceConfig&);
   ~ProcessStatsDataSource();
 
   TracingSessionID session_id() const { return session_id_; }
+  const DataSourceConfig& config() const { return config_; }
+
   base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
   void WriteAllProcesses();
   void OnPids(const std::vector<int32_t>& pids);
@@ -45,6 +50,7 @@ class ProcessStatsDataSource {
 
   const TracingSessionID session_id_;
   std::unique_ptr<TraceWriter> writer_;
+  const DataSourceConfig config_;
   // TODO(b/76663469): Optimization: use a bitmap.
   std::set<int32_t> seen_pids_;
   base::WeakPtrFactory<ProcessStatsDataSource> weak_factory_;  // Keep last.
