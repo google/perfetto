@@ -18,6 +18,7 @@
 #include "perfetto/base/watchdog.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/ipc/service_ipc_host.h"
+#include "src/tracing/ipc/default_socket.h"
 
 namespace perfetto {
 
@@ -37,9 +38,9 @@ int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
     base::ScopedFile consumer_fd(atoi(env_cons));
     svc->Start(std::move(producer_fd), std::move(consumer_fd));
   } else {
-    unlink(PERFETTO_PRODUCER_SOCK_NAME);
-    unlink(PERFETTO_CONSUMER_SOCK_NAME);
-    svc->Start(PERFETTO_PRODUCER_SOCK_NAME, PERFETTO_CONSUMER_SOCK_NAME);
+    unlink(GetProducerSocket());
+    unlink(GetConsumerSocket());
+    svc->Start(GetProducerSocket(), GetConsumerSocket());
   }
 
   // Set the CPU limit and start the watchdog running. The memory limit will
@@ -49,8 +50,8 @@ int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
   watchdog->SetCpuLimit(75, 30 * 1000);
   watchdog->Start();
 
-  PERFETTO_ILOG("Started traced, listening on %s %s",
-                PERFETTO_PRODUCER_SOCK_NAME, PERFETTO_CONSUMER_SOCK_NAME);
+  PERFETTO_ILOG("Started traced, listening on %s %s", GetProducerSocket(),
+                GetConsumerSocket());
   task_runner.Run();
   return 0;
 }
