@@ -99,9 +99,9 @@ void CreateStaticDeviceToInodeMap(
   scanner.Scan();
 }
 
-void FillInodeEntry(InodeFileMap* destination,
-                    Inode inode_number,
-                    const InodeMapValue& inode_map_value) {
+void InodeFileDataSource::FillInodeEntry(InodeFileMap* destination,
+                                         Inode inode_number,
+                                         const InodeMapValue& inode_map_value) {
   auto* entry = destination->add_entries();
   entry->set_inode_number(inode_number);
   entry->set_type(inode_map_value.type());
@@ -128,20 +128,22 @@ InodeFileDataSource::InodeFileDataSource(
       cache_(cache),
       writer_(std::move(writer)),
       weak_factory_(this) {
-  auto weak_this = GetWeakPtr();
-  // Flush TracePacket of current scan shortly before we expect the trace
-  // to end, to retain information from any scan that might be in
-  // progress.
-  task_runner_->PostDelayedTask(
-      [weak_this] {
-        if (!weak_this) {
-          PERFETTO_DLOG("Giving up flush.");
-          return;
-        }
-        PERFETTO_DLOG("Flushing.");
-        weak_this->ResetTracePacket();
-      },
-      source_config_.trace_duration_ms() - kFlushBeforeEndMs);
+  if (kFlushBeforeEndMs < source_config_.trace_duration_ms()) {
+    auto weak_this = GetWeakPtr();
+    // Flush TracePacket of current scan shortly before we expect the trace
+    // to end, to retain information from any scan that might be in
+    // progress.
+    task_runner_->PostDelayedTask(
+        [weak_this] {
+          if (!weak_this) {
+            PERFETTO_DLOG("Giving up flush.");
+            return;
+          }
+          PERFETTO_DLOG("Flushing.");
+          weak_this->ResetTracePacket();
+        },
+        source_config_.trace_duration_ms() - kFlushBeforeEndMs);
+  }
 }
 
 void InodeFileDataSource::AddInodesFromStaticMap(
@@ -374,17 +376,17 @@ void InodeFileDataSource::FindMissingInodes() {
   file_scanner_->Scan(task_runner_);
 }
 
-uint64_t InodeFileDataSource::GetScanIntervalMs() {
+uint64_t InodeFileDataSource::GetScanIntervalMs() const {
   return OrDefault(source_config_.inode_file_config().scan_interval_ms(),
                    kScanIntervalMs);
 }
 
-uint64_t InodeFileDataSource::GetScanDelayMs() {
+uint64_t InodeFileDataSource::GetScanDelayMs() const {
   return OrDefault(source_config_.inode_file_config().scan_delay_ms(),
                    kScanDelayMs);
 }
 
-uint64_t InodeFileDataSource::GetScanBatchSize() {
+uint64_t InodeFileDataSource::GetScanBatchSize() const {
   return OrDefault(source_config_.inode_file_config().scan_batch_size(),
                    kScanBatchSize);
 }
