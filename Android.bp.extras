@@ -25,6 +25,7 @@ cc_library_static {
   static_libs: [
     "libgtest",
     "perfetto_src_tracing_ipc",
+    "perfetto_trace_protos",
   ],
   cflags: [
     "-DPERFETTO_BUILD_WITH_ANDROID",

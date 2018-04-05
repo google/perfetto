@@ -17,8 +17,6 @@
 
 #include "benchmark/benchmark.h"
 #include "perfetto/base/time.h"
-#include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
@@ -26,6 +24,9 @@
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
+
+#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
@@ -73,8 +74,8 @@ void BenchmarkCommon(benchmark::State& state) {
 
   bool is_first_packet = true;
   std::minstd_rand0 rnd_engine(kRandomSeed);
-  auto on_consumer_data = [&is_first_packet, &rnd_engine](
-                              const TracePacket::DecodedTracePacket& packet) {
+  auto on_consumer_data = [&is_first_packet,
+                           &rnd_engine](const protos::TracePacket& packet) {
     ASSERT_TRUE(packet.has_for_testing());
     if (is_first_packet) {
       rnd_engine = std::minstd_rand0(packet.for_testing().seq_value());

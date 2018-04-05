@@ -23,8 +23,6 @@
 #include "perfetto/base/utils.h"
 #include "perfetto/ipc/host.h"
 #include "perfetto/trace/test_event.pbzero.h"
-#include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
@@ -33,9 +31,13 @@
 #include "perfetto/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/ipc/service_ipc_host.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/tracing/ipc/default_socket.h"
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
+
+#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace shm_fuzz {
@@ -46,7 +48,7 @@ namespace shm_fuzz {
     PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
 #define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
 #else
-#define TEST_PRODUCER_SOCK_NAME PERFETTO_PRODUCER_SOCK_NAME
+#define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
 #endif
 
 // Fake producer writing a protozero message of data into shared memory
@@ -95,8 +97,7 @@ class FakeProducer : public Producer {
   }
 
   void TearDownDataSourceInstance(DataSourceInstanceID) override {}
-  void OnTracingStart() override {}
-  void OnTracingStop() override {}
+  void OnTracingSetup() override {}
 
  private:
   const std::string name_;
@@ -163,7 +164,7 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
 
   auto on_readback_complete = task_runner.CreateCheckpoint("readback.complete");
   auto on_consumer_data =
-      [&on_readback_complete](const TracePacket::DecodedTracePacket& packet) {
+      [&on_readback_complete](const protos::TracePacket& packet) {
         if (packet.for_testing().str() == "end")
           on_readback_complete();
       };

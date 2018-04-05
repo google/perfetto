@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/watchdog.h"
+#include "perfetto/base/watchdog_posix.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
@@ -25,6 +25,10 @@
 #include <stdint.h>
 #include <fstream>
 #include <thread>
+
+#if PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+#error perfetto::base::Watchdog should not be used in Chromium
+#endif
 
 namespace perfetto {
 namespace base {
@@ -66,11 +70,6 @@ Watchdog::~Watchdog() {
 }
 
 Watchdog* Watchdog::GetInstance() {
-#if PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-  // Ensure that it is impossible to use watchdog on a Chromium build.
-  PERFETTO_FATAL("perfetto::base::Watchdog should not be used in Chromium");
-#endif
-
   static Watchdog* watchdog = new Watchdog(kDefaultPollingInterval);
   return watchdog;
 }

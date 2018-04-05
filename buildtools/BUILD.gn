@@ -538,3 +538,33 @@ source_set("benchmark") {
   all_dependent_configs = [ ":benchmark_config" ]
   configs -= [ "//gn/standalone:extra_warnings" ]
 }
+
+# On Linux/Android use libbacktrace in debug builds for better stacktraces.
+if (is_linux || is_android) {
+  config("libbacktrace_config") {
+    visibility = [ ":*" ]
+    include_dirs = [
+      "libbacktrace_config",
+      "libbacktrace",
+    ]
+    cflags = [
+      "-include",
+      rebase_path("libbacktrace_config/config.h", root_build_dir),
+    ]
+  }
+
+  source_set("libbacktrace") {
+    sources = [
+      "libbacktrace/dwarf.c",
+      "libbacktrace/elf.c",
+      "libbacktrace/fileline.c",
+      "libbacktrace/mmap.c",
+      "libbacktrace/mmapio.c",
+      "libbacktrace/posix.c",
+      "libbacktrace/sort.c",
+      "libbacktrace/state.c",
+    ]
+    configs -= [ "//gn/standalone:extra_warnings" ]
+    public_configs = [ ":libbacktrace_config" ]
+  }
+}

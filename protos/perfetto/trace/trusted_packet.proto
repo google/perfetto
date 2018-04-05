@@ -26,12 +26,27 @@
 syntax = "proto3";
 option optimize_for = LITE_RUNTIME;
 
+import "perfetto/config/trace_config.proto";
+import "perfetto/trace/clock_snapshot.proto";
+
 package perfetto.protos;
 
 // This proto contains trusted fields of TracePacket which may only be generated
 // by the service (as opposed to the untrusted producers). Note that the field
 // ids here must be kept in sync with TracePacket.
+// This protobuf serves two purposes:
+// 1. Security validation of packets (see trace_packet_validator.cc)
+// 2. Avoid bloating the service binary with symbols for all possible trace
+//    protos. The service doesn't really care about all the protos in the trace,
+//    is just passes them through.
 message TrustedPacket {
   // User id of the producer which generated this packet.
+  // The oneof boilerplate here is required to tell the difference between
+  // uid == 0 and uid not set (the writer uses proto2).
   oneof optional_trusted_uid { int32 trusted_uid = 3; };
+
+  // The original trace config.
+  TraceConfig trace_config = 33;
+
+  ClockSnapshot clock_snapshot = 6;
 }

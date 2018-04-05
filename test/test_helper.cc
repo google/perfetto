@@ -17,11 +17,14 @@
 #include "test/test_helper.h"
 
 #include "gtest/gtest.h"
-#include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "test/task_runner_thread_delegates.h"
+
+#include "src/tracing/ipc/default_socket.h"
+
+#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
@@ -32,8 +35,8 @@ namespace perfetto {
 #define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
 #define TEST_CONSUMER_SOCK_NAME "/data/local/tmp/traced_consumer"
 #else
-#define TEST_PRODUCER_SOCK_NAME PERFETTO_PRODUCER_SOCK_NAME
-#define TEST_CONSUMER_SOCK_NAME PERFETTO_CONSUMER_SOCK_NAME
+#define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
+#define TEST_CONSUMER_SOCK_NAME ::perfetto::GetConsumerSocket()
 #endif
 
 TestHelper::TestHelper(base::TestTaskRunner* task_runner)
@@ -49,16 +52,17 @@ void TestHelper::OnDisconnect() {
   FAIL() << "Consumer unexpectedly disconnected from the service";
 }
 
-void TestHelper::OnTracingStop() {}
+void TestHelper::OnTracingDisabled() {}
 
 void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
-  for (auto& packet : packets) {
-    ASSERT_TRUE(packet.Decode());
-    if (packet->has_clock_snapshot() || packet->has_trace_config())
+  for (auto& encoded_packet : packets) {
+    protos::TracePacket packet;
+    ASSERT_TRUE(encoded_packet.Decode(&packet));
+    if (packet.has_clock_snapshot() || packet.has_trace_config())
       continue;
     ASSERT_EQ(protos::TracePacket::kTrustedUid,
-              packet->optional_trusted_uid_case());
-    packet_callback_(*packet);
+              packet.optional_trusted_uid_case());
+    packet_callback_(packet);
   }
 
   if (!has_more) {
@@ -97,7 +101,7 @@ void TestHelper::StartTracing(const TraceConfig& config) {
 }
 
 void TestHelper::ReadData(
-    std::function<void(const TracePacket::DecodedTracePacket&)> packet_callback,
+    std::function<void(const protos::TracePacket&)> packet_callback,
     std::function<void()> on_finish_callback) {
   packet_callback_ = packet_callback;
   continuation_callack_ = on_finish_callback;

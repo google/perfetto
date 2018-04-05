@@ -58,6 +58,7 @@ FileScanner::FileScanner(std::vector<std::string> root_directories,
 void FileScanner::Scan() {
   while (!Done())
     Step();
+  delegate_->OnInodeScanDone();
 }
 void FileScanner::Scan(base::TaskRunner* task_runner) {
   PERFETTO_DCHECK(scan_interval_ms_ && scan_steps_);
