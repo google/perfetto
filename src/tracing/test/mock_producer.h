@@ -42,7 +42,10 @@ class MockProducer : public Producer {
   explicit MockProducer(base::TestTaskRunner*);
   ~MockProducer() override;
 
-  void Connect(Service* svc, const std::string& producer_name, uid_t uid = 42);
+  void Connect(Service* svc,
+               const std::string& producer_name,
+               uid_t uid = 42,
+               size_t shared_memory_size_hint_bytes = 0);
   void RegisterDataSource(const std::string& name);
   void UnregisterDataSource(const std::string& name);
   void WaitForTracingSetup();
