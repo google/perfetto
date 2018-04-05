@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/weak_ptr.h"
+#include "perfetto/trace/ps/process_tree.pbzero.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_writer.h"
@@ -43,7 +44,7 @@ class ProcessStatsDataSource {
   void OnPids(const std::vector<int32_t>& pids);
 
  private:
-  static void WriteProcess(int32_t pid, protos::pbzero::TracePacket*);
+  static void WriteProcess(int32_t pid, protos::pbzero::ProcessTree*);
 
   ProcessStatsDataSource(const ProcessStatsDataSource&) = delete;
   ProcessStatsDataSource& operator=(const ProcessStatsDataSource&) = delete;
