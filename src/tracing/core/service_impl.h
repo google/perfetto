@@ -53,6 +53,9 @@ class TracePacket;
 // The tracing service business logic.
 class ServiceImpl : public Service {
  public:
+  static constexpr size_t kDefaultShmSize = 256 * 1024ul;
+  static constexpr size_t kMaxShmSize = 4096 * 1024 * 512ul;
+
   // The implementation behind the service endpoint exposed to each producer.
   class ProducerEndpointImpl : public Service::ProducerEndpoint {
    public:
@@ -80,7 +83,7 @@ class ServiceImpl : public Service {
 
    private:
     friend class ServiceImpl;
-    FRIEND_TEST(ServiceImplTest, RegisterAndUnregister);
+    friend class ServiceImplTest;
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
     SharedMemoryArbiterImpl* GetOrCreateShmemArbiter();
@@ -93,7 +96,7 @@ class ServiceImpl : public Service {
     std::unique_ptr<SharedMemory> shared_memory_;
     size_t shared_buffer_page_size_kb_ = 0;
     SharedMemoryABI shmem_abi_;
-    size_t shared_memory_size_hint_bytes_ = 0;
+    size_t shmem_size_hint_bytes_ = 0;
     const std::string name_;
 
     // This is used only in in-process configurations (mostly tests).
@@ -174,7 +177,7 @@ class ServiceImpl : public Service {
   ProducerEndpointImpl* GetProducer(ProducerID) const;
 
  private:
-  FRIEND_TEST(ServiceImplTest, ProducerIDWrapping);
+  friend class ServiceImplTest;
 
   struct RegisteredDataSource {
     ProducerID producer_id;
@@ -263,7 +266,6 @@ class ServiceImpl : public Service {
   ProducerID last_producer_id_ = 0;
   DataSourceInstanceID last_data_source_instance_id_ = 0;
   TracingSessionID last_tracing_session_id_ = 0;
-  size_t shared_memory_size_hint_bytes_ = 0;
 
   // Buffer IDs are global across all consumers (because a Producer can produce
   // data for more than one trace session, hence more than one consumer).
