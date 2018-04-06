@@ -3380,6 +3380,7 @@ cc_test {
     "src/traced/probes/filesystem/fs_mount.cc",
     "src/traced/probes/filesystem/fs_mount_unittest.cc",
     "src/traced/probes/filesystem/inode_file_data_source.cc",
+    "src/traced/probes/filesystem/inode_file_data_source_unittest.cc",
     "src/traced/probes/filesystem/lru_inode_cache.cc",
     "src/traced/probes/filesystem/lru_inode_cache_unittest.cc",
     "src/traced/probes/filesystem/prefix_finder.cc",
