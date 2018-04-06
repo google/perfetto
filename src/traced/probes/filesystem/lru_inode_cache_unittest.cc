@@ -24,13 +24,6 @@
 
 namespace perfetto {
 
-bool operator==(const perfetto::InodeMapValue& lhs,
-                const perfetto::InodeMapValue& rhs);
-bool operator==(const perfetto::InodeMapValue& lhs,
-                const perfetto::InodeMapValue& rhs) {
-  return lhs.type() == rhs.type() && lhs.paths() == rhs.paths();
-}
-
 namespace {
 
 using ::testing::Eq;
