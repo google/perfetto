@@ -50,6 +50,7 @@ class FakeProducer : public Producer {
                                 const DataSourceConfig& source_config) override;
   void TearDownDataSourceInstance(DataSourceInstanceID) override;
   void OnTracingSetup() override;
+  void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override;
 
  private:
   void Shutdown();

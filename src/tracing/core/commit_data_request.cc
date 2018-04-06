@@ -52,6 +52,11 @@ void CommitDataRequest::FromProto(
     chunks_to_patch_.emplace_back();
     chunks_to_patch_.back().FromProto(field);
   }
+
+  static_assert(sizeof(flush_request_id_) == sizeof(proto.flush_request_id()),
+                "size mismatch");
+  flush_request_id_ =
+      static_cast<decltype(flush_request_id_)>(proto.flush_request_id());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -68,6 +73,11 @@ void CommitDataRequest::ToProto(
     auto* entry = proto->add_chunks_to_patch();
     it.ToProto(entry);
   }
+
+  static_assert(sizeof(flush_request_id_) == sizeof(proto->flush_request_id()),
+                "size mismatch");
+  proto->set_flush_request_id(
+      static_cast<decltype(proto->flush_request_id())>(flush_request_id_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

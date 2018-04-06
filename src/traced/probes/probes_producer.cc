@@ -251,6 +251,30 @@ void ProbesProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
 
 void ProbesProducer::OnTracingSetup() {}
 
+void ProbesProducer::Flush(FlushRequestID flush_request_id,
+                           const DataSourceInstanceID* data_source_ids,
+                           size_t num_data_sources) {
+  for (size_t i = 0; i < num_data_sources; i++) {
+    DataSourceInstanceID ds_id = data_source_ids[i];
+    {
+      auto it = process_stats_sources_.find(ds_id);
+      if (it != process_stats_sources_.end())
+        it->second->Flush();
+    }
+    {
+      auto it = file_map_sources_.find(ds_id);
+      if (it != file_map_sources_.end())
+        it->second->Flush();
+    }
+    {
+      auto it = delegates_.find(ds_id);
+      if (it != delegates_.end())
+        it->second->Flush();
+    }
+  }
+  endpoint_->NotifyFlushComplete(flush_request_id);
+}
+
 void ProbesProducer::ConnectWithRetries(const char* socket_name,
                                         base::TaskRunner* task_runner) {
   PERFETTO_DCHECK(state_ == kNotStarted);
@@ -288,6 +312,15 @@ ProbesProducer::SinkDelegate::SinkDelegate(TracingSessionID id,
       weak_factory_(this) {}
 
 ProbesProducer::SinkDelegate::~SinkDelegate() = default;
+
+void ProbesProducer::SinkDelegate::Flush() {
+  // TODO(primiano): this still doesn't flush data from the kernel ftrace
+  // buffers (see b/73886018). We should do that and delay the
+  // NotifyFlushComplete() until the ftrace data has been drained from the
+  // kernel ftrace buffer and written in the SMB.
+  if (writer_ && (!trace_packet_ || trace_packet_->is_finalized()))
+    writer_->Flush();
+}
 
 ProbesProducer::FtraceBundleHandle
 ProbesProducer::SinkDelegate::GetBundleForCpu(size_t) {

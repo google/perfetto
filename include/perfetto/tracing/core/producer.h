@@ -79,6 +79,17 @@ class Producer {
   // Called by the Service after OnConnect but before the first DataSource is
   // created. Can be used for any setup required before tracing begins.
   virtual void OnTracingSetup() = 0;
+
+  // Called by the service to request the Producer to commit the data of the
+  // given data sources and return their chunks into the shared memory buffer.
+  // The Producer is expected to invoke NotifyFlushComplete(FlushRequestID) on
+  // the Service after the data has been committed. The producer has to either
+  // reply to the flush requests in order, or can just reply to the latest one
+  // Upon seeing a NotifyFlushComplete(N), the service will assume that all
+  // flushes < N have also been committed.
+  virtual void Flush(FlushRequestID,
+                     const DataSourceInstanceID* data_source_ids,
+                     size_t num_data_sources) = 0;
 };
 
 }  // namespace perfetto

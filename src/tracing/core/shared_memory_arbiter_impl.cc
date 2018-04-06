@@ -246,6 +246,31 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
       new TraceWriterImpl(this, id, target_buffer));
 }
 
+void SharedMemoryArbiterImpl::NotifyFlushComplete(FlushRequestID req_id) {
+  bool should_post_commit_task = false;
+  {
+    std::lock_guard<std::mutex> scoped_lock(lock_);
+    // If a commit_data_req_ exists it means that somebody else already posted a
+    // FlushPendingCommitDataRequests() task.
+    if (!commit_data_req_) {
+      commit_data_req_.reset(new CommitDataRequest());
+      should_post_commit_task = true;
+    } else {
+      // If there is another request queued and that also contains is a reply
+      // to a flush request, reply with the highest id.
+      req_id = std::max(req_id, commit_data_req_->flush_request_id());
+    }
+    commit_data_req_->set_flush_request_id(req_id);
+  }
+  if (should_post_commit_task) {
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+    task_runner_->PostTask([weak_this] {
+      if (weak_this)
+        weak_this->FlushPendingCommitDataRequests();
+    });
+  }
+}
+
 void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
   std::lock_guard<std::mutex> scoped_lock(lock_);
   active_writer_ids_.Free(id);
