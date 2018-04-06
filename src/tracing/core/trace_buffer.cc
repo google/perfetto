@@ -610,16 +610,24 @@ bool TraceBuffer::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
   const uint8_t* record_end = record_begin + chunk_meta->chunk_record->size;
   const uint8_t* packets_begin = record_begin + sizeof(ChunkRecord);
   const uint8_t* packet_begin = packets_begin + chunk_meta->cur_fragment_offset;
-  PERFETTO_CHECK(packet_begin >= packets_begin && packet_begin < record_end);
+
+  if (PERFETTO_UNLIKELY(packet_begin < packets_begin ||
+                        packet_begin >= record_end)) {
+    // The producer has a bug or is malicious and did declare that the chunk
+    // contains more packets beyond its boundaries.
+    PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+    return false;
+  }
 
   // A packet (or a fragment) starts with a varint stating its size, followed
   // by its content. The varint shouldn't be larger than 4 bytes (just in case
   // the producer is using a redundant encoding)
   uint64_t packet_size = 0;
+  const uint8_t* header_end =
+      std::min(packet_begin + protozero::proto_utils::kMessageLengthFieldSize,
+               record_end);
   const uint8_t* packet_data = protozero::proto_utils::ParseVarInt(
-      packet_begin,
-      packet_begin + protozero::proto_utils::kMessageLengthFieldSize,
-      &packet_size);
+      packet_begin, header_end, &packet_size);
 
   const uint8_t* next_packet = packet_data + packet_size;
   if (PERFETTO_UNLIKELY(next_packet <= packet_begin ||
