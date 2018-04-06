@@ -68,6 +68,26 @@ void MockConsumer::WaitForTracingDisabled() {
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
+MockConsumer::FlushRequest MockConsumer::Flush(int timeout_ms) {
+  static int i = 0;
+  auto checkpoint_name = "on_consumer_flush_" + std::to_string(i++);
+  auto on_flush = task_runner_->CreateCheckpoint(checkpoint_name);
+  std::shared_ptr<bool> result(new bool());
+  service_endpoint_->Flush(timeout_ms, [result, on_flush](bool success) {
+    *result = success;
+    on_flush();
+  });
+
+  base::TestTaskRunner* task_runner = task_runner_;
+  auto wait_for_flush_completion = [result, task_runner,
+                                    checkpoint_name]() -> bool {
+    task_runner->RunUntilCheckpoint(checkpoint_name);
+    return *result;
+  };
+
+  return FlushRequest(wait_for_flush_completion);
+}
+
 std::vector<protos::TracePacket> MockConsumer::ReadBuffers() {
   std::vector<protos::TracePacket> decoded_packets;
   static int i = 0;

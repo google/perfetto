@@ -50,6 +50,10 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) = 0;
 
+  // Notifies the service that all data for the given FlushRequestID has been
+  // committed in the shared memory buffer.
+  virtual void NotifyFlushComplete(FlushRequestID) = 0;
+
   // Implemented in src/core/shared_memory_arbiter_impl.cc .
   static std::unique_ptr<SharedMemoryArbiter> CreateInstance(
       SharedMemory*,

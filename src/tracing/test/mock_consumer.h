@@ -34,6 +34,15 @@ class TestTaskRunner;
 
 class MockConsumer : public Consumer {
  public:
+  class FlushRequest {
+   public:
+    FlushRequest(std::function<bool(void)> wait_func) : wait_func_(wait_func) {}
+    bool WaitForReply() { return wait_func_(); }
+
+   private:
+    std::function<bool(void)> wait_func_;
+  };
+
   explicit MockConsumer(base::TestTaskRunner*);
   ~MockConsumer() override;
 
@@ -42,6 +51,7 @@ class MockConsumer : public Consumer {
   void DisableTracing();
   void FreeBuffers();
   void WaitForTracingDisabled();
+  FlushRequest Flush(int timeout_ms = 10000);
   std::vector<protos::TracePacket> ReadBuffers();
 
   Service::ConsumerEndpoint* endpoint() { return service_endpoint_.get(); }

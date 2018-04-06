@@ -84,6 +84,13 @@ class ServiceImplTest : public testing::Test {
     return svc->GetProducer(producer_id)->uid_;
   }
 
+  size_t GetNumPendingFlushes() {
+    ServiceImpl::TracingSession* tracing_session =
+        svc->GetTracingSession(svc->last_tracing_session_id_);
+    EXPECT_NE(nullptr, tracing_session);
+    return tracing_session->pending_flushes.size();
+  }
+
   base::TestTaskRunner task_runner;
   std::unique_ptr<ServiceImpl> svc;
 };
@@ -382,6 +389,142 @@ TEST_F(ServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   }
   ASSERT_THAT(actual_page_sizes_kb, ElementsAreArray(kExpectedPageSizesKb));
   ASSERT_THAT(actual_shm_sizes_kb, ElementsAreArray(kExpectedSizesKb));
+}
+
+TEST_F(ServiceImplTest, ExplicitFlush) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->WaitForFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+  EXPECT_THAT(
+      consumer->ReadBuffers(),
+      Contains(Property(&protos::TracePacket::for_testing,
+                        Property(&protos::TestEvent::str, Eq("payload")))));
+}
+
+TEST_F(ServiceImplTest, ImplicitFlushOnTimedTraces) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  trace_config.set_duration_ms(1);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+
+  producer->WaitForFlush(writer.get());
+
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  EXPECT_THAT(
+      consumer->ReadBuffers(),
+      Contains(Property(&protos::TracePacket::for_testing,
+                        Property(&protos::TestEvent::str, Eq("payload")))));
+}
+
+// Tests the monotonic semantic of flush request IDs, i.e., once a producer
+// acks flush request N, all flush requests <= N are considered successful and
+// acked to the consumer.
+TEST_F(ServiceImplTest, BatchFlushes) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+
+  auto flush_req_1 = consumer->Flush();
+  auto flush_req_2 = consumer->Flush();
+  auto flush_req_3 = consumer->Flush();
+
+  // We'll deliberately let the 4th flush request timeout. Use a lower timeout
+  // to keep test time short.
+  auto flush_req_4 = consumer->Flush(/*timeout_ms=*/10);
+  ASSERT_EQ(4u, GetNumPendingFlushes());
+
+  // Make the producer reply only to the 3rd flush request.
+  testing::InSequence seq;
+  producer->WaitForFlush(nullptr);       // Will NOT reply to flush id == 1.
+  producer->WaitForFlush(nullptr);       // Will NOT reply to flush id == 2.
+  producer->WaitForFlush(writer.get());  // Will reply only to flush id == 3.
+  producer->WaitForFlush(nullptr);       // Will NOT reply to flush id == 4.
+
+  // Even if the producer explicily replied only to flush ID == 3, all the
+  // previous flushed < 3 should be implicitly acked.
+  ASSERT_TRUE(flush_req_1.WaitForReply());
+  ASSERT_TRUE(flush_req_2.WaitForReply());
+  ASSERT_TRUE(flush_req_3.WaitForReply());
+
+  // At this point flush id == 4 should still be pending and should fail because
+  // of reaching its timeout.
+  ASSERT_EQ(1u, GetNumPendingFlushes());
+  ASSERT_FALSE(flush_req_4.WaitForReply());
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+  EXPECT_THAT(
+      consumer->ReadBuffers(),
+      Contains(Property(&protos::TracePacket::for_testing,
+                        Property(&protos::TestEvent::str, Eq("payload")))));
 }
 
 }  // namespace perfetto
