@@ -44,21 +44,22 @@ class PERFETTO_EXPORT MessageHandleBase {
   // Move-only type.
   MessageHandleBase(MessageHandleBase&&) noexcept;
   MessageHandleBase& operator=(MessageHandleBase&&);
-
- protected:
-  explicit MessageHandleBase(Message* = nullptr);
-  Message& operator*() const {
+  explicit operator bool() const {
 #if PERFETTO_DCHECK_IS_ON()
     PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
 #endif
-    return *message_;
+    return !!message_;
   }
+
+ protected:
+  explicit MessageHandleBase(Message* = nullptr);
   Message* operator->() const {
 #if PERFETTO_DCHECK_IS_ON()
     PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
 #endif
     return message_;
   }
+  Message& operator*() const { return *(operator->()); }
 
  private:
   friend class Message;

@@ -191,9 +191,13 @@ class PERFETTO_EXPORT CommitDataRequest {
     return &chunks_to_patch_.back();
   }
 
+  uint64_t flush_request_id() const { return flush_request_id_; }
+  void set_flush_request_id(uint64_t value) { flush_request_id_ = value; }
+
  private:
   std::vector<ChunksToMove> chunks_to_move_;
   std::vector<ChunkToPatch> chunks_to_patch_;
+  uint64_t flush_request_id_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

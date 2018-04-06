@@ -93,6 +93,33 @@ void ConsumerIPCService::FreeBuffers(const protos::FreeBuffersRequest& req,
   resp.Resolve(ipc::AsyncResult<protos::FreeBuffersResponse>::Create());
 }
 
+// Called by the IPC layer.
+void ConsumerIPCService::Flush(const protos::FlushRequest& req,
+                               DeferredFlushResponse resp) {
+  auto it = pending_flush_responses_.insert(pending_flush_responses_.end(),
+                                            std::move(resp));
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  auto callback = [weak_this, it](bool success) {
+    if (weak_this)
+      weak_this->OnFlushCallback(success, std::move(it));
+  };
+  GetConsumerForCurrentRequest()->service_endpoint->Flush(req.timeout_ms(),
+                                                          std::move(callback));
+}
+
+// Called by the service in response to a service_endpoint->Flush() request.
+void ConsumerIPCService::OnFlushCallback(
+    bool success,
+    PendingFlushResponses::iterator pending_response_it) {
+  DeferredFlushResponse response(std::move(*pending_response_it));
+  pending_flush_responses_.erase(pending_response_it);
+  if (success) {
+    response.Resolve(ipc::AsyncResult<protos::FlushResponse>::Create());
+  } else {
+    response.Reject();
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // RemoteConsumer methods
 ////////////////////////////////////////////////////////////////////////////////

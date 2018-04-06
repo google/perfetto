@@ -75,6 +75,8 @@ class InodeFileDataSource : public FileScanner::Delegate {
   void AddInodesFromLRUCache(BlockDeviceID block_device_id,
                              std::set<Inode>* inode_numbers);
 
+  void Flush();
+
   virtual ~InodeFileDataSource() {}
 
   virtual void FillInodeEntry(InodeFileMap* destination,
