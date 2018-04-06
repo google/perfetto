@@ -56,11 +56,6 @@ void ProcessStatsDataSource::WriteAllProcesses() {
     WriteProcess(pid, process_tree);
     seen_pids->insert(pid);
   });
-
-  trace_packet->Finalize();
-
-  // TODO(hjd): Remove this once the service flushes the producers on teardown.
-  writer_->Flush();
 }
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
@@ -76,6 +71,10 @@ void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
     }
     WriteProcess(pid, process_tree);
   }
+}
+
+void ProcessStatsDataSource::Flush() {
+  writer_->Flush();
 }
 
 // static

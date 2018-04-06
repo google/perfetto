@@ -36,7 +36,6 @@ namespace {
 constexpr uint64_t kScanIntervalMs = 10000;  // 10s
 constexpr uint64_t kScanDelayMs = 10000;     // 10s
 constexpr uint64_t kScanBatchSize = 15000;
-constexpr uint64_t kFlushBeforeEndMs = 500;
 
 uint64_t OrDefault(uint64_t value, uint64_t def) {
   if (value != 0)
@@ -127,24 +126,7 @@ InodeFileDataSource::InodeFileDataSource(
       static_file_map_(static_file_map),
       cache_(cache),
       writer_(std::move(writer)),
-      weak_factory_(this) {
-  if (kFlushBeforeEndMs < source_config_.trace_duration_ms()) {
-    auto weak_this = GetWeakPtr();
-    // Flush TracePacket of current scan shortly before we expect the trace
-    // to end, to retain information from any scan that might be in
-    // progress.
-    task_runner_->PostDelayedTask(
-        [weak_this] {
-          if (!weak_this) {
-            PERFETTO_DLOG("Giving up flush.");
-            return;
-          }
-          PERFETTO_DLOG("Flushing.");
-          weak_this->ResetTracePacket();
-        },
-        source_config_.trace_duration_ms() - kFlushBeforeEndMs);
-  }
-}
+      weak_factory_(this) {}
 
 void InodeFileDataSource::AddInodesFromStaticMap(
     BlockDeviceID block_device_id,
@@ -190,6 +172,11 @@ void InodeFileDataSource::AddInodesFromLRUCache(
   }
   if (cache_found_count > 0)
     PERFETTO_DLOG("%" PRIu64 " inodes found in cache", cache_found_count);
+}
+
+void InodeFileDataSource::Flush() {
+  ResetTracePacket();
+  writer_->Flush();
 }
 
 void InodeFileDataSource::OnInodes(
