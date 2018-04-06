@@ -827,6 +827,27 @@ TEST_F(TraceBufferTest, Malicious_RepeatedChunkID) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
+TEST_F(TraceBufferTest, Malicious_DeclareMorePacketsBeyondBoundaries) {
+  ResetBuffer(4096);
+  SuppressSanityDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(64, 'a')
+      .IncrementNumPackets()
+      .IncrementNumPackets()
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .IncrementNumPackets()
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(3), ChunkID(0))
+      .AddPacket(32, 'b')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
 TEST_F(TraceBufferTest, Malicious_ZeroVarintHeader) {
   ResetBuffer(4096);
   SuppressSanityDchecksForTesting();
@@ -841,6 +862,22 @@ TEST_F(TraceBufferTest, Malicious_ZeroVarintHeader) {
       .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'c')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Forge a chunk where the first packet is valid but the second packet has a
+// varint header that continues beyond the end of the chunk (and also beyond the
+// end of the buffer).
+TEST_F(TraceBufferTest, Malicious_OverflowingVarintHeader) {
+  ResetBuffer(4096);
+  SuppressSanityDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(4079, 'a')  // 4079 := 4096 - sizeof(ChunkRecord) - 1
+      .AddPacket({0x82})  // 0x8*: that the varint continues on the next byte.
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4079, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
