@@ -126,6 +126,11 @@ FakeChunk& FakeChunk::AddPacket(std::initializer_list<uint8_t> raw) {
   return *this;
 }
 
+FakeChunk& FakeChunk::IncrementNumPackets() {
+  num_packets++;
+  return *this;
+}
+
 FakeChunk& FakeChunk::ClearBytes(size_t offset, size_t len) {
   PERFETTO_DCHECK(offset + len <= data.size());
   memset(data.data() + offset, 0, len);
