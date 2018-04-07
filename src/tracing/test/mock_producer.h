@@ -54,6 +54,10 @@ class MockProducer : public Producer {
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       const std::string& data_source_name);
 
+  // If |writer_to_flush| != nullptr does NOT reply to the flush request.
+  // If |writer_to_flush| == nullptr does NOT reply to the flush request.
+  void WaitForFlush(TraceWriter* writer_to_flush);
+
   Service::ProducerEndpoint* endpoint() { return service_endpoint_.get(); }
 
   // Producer implementation.
@@ -63,6 +67,8 @@ class MockProducer : public Producer {
                void(DataSourceInstanceID, const DataSourceConfig&));
   MOCK_METHOD1(TearDownDataSourceInstance, void(DataSourceInstanceID));
   MOCK_METHOD0(OnTracingSetup, void());
+  MOCK_METHOD3(Flush,
+               void(FlushRequestID, const DataSourceInstanceID*, size_t));
 
  private:
   base::TestTaskRunner* const task_runner_;

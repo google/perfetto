@@ -70,4 +70,9 @@ message CommitDataRequest {
     optional bool has_more_patches = 5;
   }
   repeated ChunkToPatch chunks_to_patch = 2;
+
+  // Optional. If this commit is made in response to a Flush(id) request coming
+  // from the service, copy back the id of the request so the service can tell
+  // when the flush happened.
+  optional uint64 flush_request_id = 3;
 }

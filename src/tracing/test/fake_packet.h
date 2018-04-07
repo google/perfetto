@@ -62,6 +62,9 @@ class FakeChunk {
   // Appends a packet with the given raw content (including varint header).
   FakeChunk& AddPacket(std::initializer_list<uint8_t>);
 
+  // Increments the number of packets in the chunk without adding new data.
+  FakeChunk& IncrementNumPackets();
+
   FakeChunk& ClearBytes(size_t offset, size_t len);
 
   FakeChunk& SetUID(uid_t);
