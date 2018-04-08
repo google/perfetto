@@ -16,12 +16,17 @@ import("../../../src/protozero/protozero_library.gni")
 import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
-proto_sources = [
+# Common protos used by both the ":minimal_lite" target (for the service) and
+# the generic ":lite" target
+proto_sources_minimal = [
   "clock_snapshot.proto",
+  "trusted_packet.proto",
+]
+
+proto_sources = [
   "test_event.proto",
   "trace_packet.proto",
   "trace.proto",
-  "trusted_packet.proto",
 ]
 
 # Protozero generated stubs, for writers.
@@ -33,7 +38,7 @@ protozero_library("zero") {
     "ftrace:zero",
     "ps:zero",
   ]
-  sources = proto_sources
+  sources = proto_sources_minimal + proto_sources
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   generator_plugin_options = "wrapper_namespace=pbzero"
@@ -43,6 +48,7 @@ protozero_library("zero") {
 proto_library("lite") {
   generate_python = false
   deps = [
+    ":minimal_lite",
     "../config:config",
     "chrome:lite",
     "filesystem:lite",
@@ -50,6 +56,17 @@ proto_library("lite") {
     "ps:lite",
   ]
   sources = proto_sources
+  proto_in_dir = "$perfetto_root_path/protos"
+  proto_out_dir = "$perfetto_root_path/protos"
+}
+
+# Used by the traced service for packet sanitization.
+proto_library("minimal_lite") {
+  generate_python = false
+  deps = [
+    "../config:config",
+  ]
+  sources = proto_sources_minimal
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
 }

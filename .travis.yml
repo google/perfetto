@@ -106,6 +106,7 @@ cache:
     - buildtools/benchmark
     - buildtools/emulator
     - buildtools/googletest
+    - buildtools/libbacktrace
     - buildtools/libcxx
     - buildtools/libcxxabi
     - buildtools/libunwind

@@ -95,6 +95,9 @@ source_set("task_runner_thread_delegates") {
 
 source_set("test_helper") {
   testonly = true
+  public_deps = [
+    "../src/tracing:ipc",
+  ]
   deps = [
     ":task_runner_thread",
     ":task_runner_thread_delegates",

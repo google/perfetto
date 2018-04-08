@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/watchdog.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/trace_writer.h"
@@ -46,8 +47,7 @@ class ProbesProducer : public Producer {
   void CreateDataSourceInstance(DataSourceInstanceID,
                                 const DataSourceConfig&) override;
   void TearDownDataSourceInstance(DataSourceInstanceID) override;
-  void OnTracingStart() override;
-  void OnTracingStop() override;
+  void OnTracingSetup() override;
 
   // Our Impl
   void ConnectWithRetries(const char* socket_name,

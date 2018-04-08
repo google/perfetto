@@ -123,23 +123,18 @@ void ProducerIPCClientImpl::OnServiceRequest(
     return;
   }
 
-  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kOnTracingStart) {
+  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kSetupTracing) {
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
     PERFETTO_CHECK(shmem_fd);
 
     // TODO(primiano): handle mmap failure in case of OOM.
     shared_memory_ = PosixSharedMemory::AttachToFd(std::move(shmem_fd));
     shared_buffer_page_size_kb_ =
-        cmd.on_tracing_start().shared_buffer_page_size_kb();
+        cmd.setup_tracing().shared_buffer_page_size_kb();
     shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
         shared_memory_.get(), shared_buffer_page_size_kb_ * 1024, this,
         task_runner_);
-    producer_->OnTracingStart();
-    return;
-  }
-
-  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kOnTracingStop) {
-    // TODO (taylori) Tear down the shm.
+    producer_->OnTracingSetup();
     return;
   }
 

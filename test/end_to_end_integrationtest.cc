@@ -24,15 +24,17 @@
 #include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/tracing/ipc/default_socket.h"
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
+
+#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
@@ -42,7 +44,7 @@ namespace perfetto {
     PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
 #define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
 #else
-#define TEST_PRODUCER_SOCK_NAME PERFETTO_PRODUCER_SOCK_NAME
+#define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
 #endif
 
 // TODO(b/73453011): reenable this on more platforms (including standalone
@@ -83,13 +85,12 @@ TEST(PerfettoTest, MAYBE_TestFtraceProducer) {
   helper.StartTracing(trace_config);
 
   size_t packets_seen = 0;
-  auto on_consumer_data =
-      [&packets_seen](const TracePacket::DecodedTracePacket& packet) {
-        for (int ev = 0; ev < packet.ftrace_events().event_size(); ev++) {
-          ASSERT_TRUE(packet.ftrace_events().event(ev).has_sched_switch());
-        }
-        packets_seen++;
-      };
+  auto on_consumer_data = [&packets_seen](const protos::TracePacket& packet) {
+    for (int ev = 0; ev < packet.ftrace_events().event_size(); ev++) {
+      ASSERT_TRUE(packet.ftrace_events().event(ev).has_sched_switch());
+    }
+    packets_seen++;
+  };
   auto on_readback_complete = task_runner.CreateCheckpoint("readback.complete");
   task_runner.PostDelayedTask(
       [&helper, &on_consumer_data, &on_readback_complete] {
@@ -132,8 +133,8 @@ TEST(PerfettoTest, TestFakeProducer) {
 
   size_t packets_seen = 0;
   std::minstd_rand0 rnd_engine(kRandomSeed);
-  auto on_consumer_data = [&packets_seen, &rnd_engine](
-                              const TracePacket::DecodedTracePacket& packet) {
+  auto on_consumer_data = [&packets_seen,
+                           &rnd_engine](const protos::TracePacket& packet) {
     ASSERT_TRUE(packet.has_for_testing());
     ASSERT_EQ(packet.for_testing().seq_value(), rnd_engine());
     packets_seen++;
@@ -176,8 +177,8 @@ TEST(PerfettoTest, VeryLargePackets) {
 
   size_t packets_seen = 0;
   std::minstd_rand0 rnd_engine(kRandomSeed);
-  auto on_consumer_data = [&packets_seen, &rnd_engine](
-                              const TracePacket::DecodedTracePacket& packet) {
+  auto on_consumer_data = [&packets_seen,
+                           &rnd_engine](const protos::TracePacket& packet) {
     ASSERT_TRUE(packet.has_for_testing());
     ASSERT_EQ(packet.for_testing().seq_value(), rnd_engine());
     size_t msg_size = packet.for_testing().str().size();

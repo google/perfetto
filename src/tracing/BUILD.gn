@@ -20,7 +20,7 @@ source_set("tracing") {
   public_deps = [
     "../../include/perfetto/tracing/core",
     "../../protos/perfetto/common",
-    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace:minimal_lite",
     "../../protos/perfetto/trace:zero",
   ]
   deps = [
@@ -71,6 +71,8 @@ static_library("ipc") {
   sources = [
     "ipc/consumer/consumer_ipc_client_impl.cc",
     "ipc/consumer/consumer_ipc_client_impl.h",
+    "ipc/default_socket.cc",
+    "ipc/default_socket.h",
     "ipc/posix_shared_memory.cc",
     "ipc/posix_shared_memory.h",
     "ipc/producer/producer_ipc_client_impl.cc",
@@ -101,6 +103,8 @@ source_set("ipc_consumer") {
   sources = [
     "ipc/consumer/consumer_ipc_client_impl.cc",
     "ipc/consumer/consumer_ipc_client_impl.h",
+    "ipc/default_socket.cc",
+    "ipc/default_socket.h",
     "ipc/posix_shared_memory.cc",
     "ipc/posix_shared_memory.h",
   ]
@@ -141,6 +145,10 @@ source_set("unittests") {
     "test/aligned_buffer_test.h",
     "test/fake_packet.cc",
     "test/fake_packet.h",
+    "test/mock_consumer.cc",
+    "test/mock_consumer.h",
+    "test/mock_producer.cc",
+    "test/mock_producer.h",
     "test/test_shared_memory.cc",
     "test/test_shared_memory.h",
     "test/tracing_integration_test.cc",

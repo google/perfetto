@@ -46,7 +46,7 @@ class Consumer {
   // - The TraceConfig's |duration_ms| has been reached.
   // - The TraceConfig's |max_file_size_bytes| has been reached.
   // - An error occurred while trying to enable tracing.
-  virtual void OnTracingStop() = 0;
+  virtual void OnTracingDisabled() = 0;
 
   // Called back by the Service (or transport layer) after invoking
   // Service::ConsumerEndpoint::ReadBuffers(). This function can be called more

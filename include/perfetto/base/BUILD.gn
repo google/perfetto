@@ -27,6 +27,8 @@ source_set("base") {
     "unix_task_runner.h",
     "utils.h",
     "watchdog.h",
+    "watchdog_noop.h",
+    "watchdog_posix.h",
     "weak_ptr.h",
   ]
   if (is_android) {
