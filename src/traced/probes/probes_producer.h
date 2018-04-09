@@ -48,6 +48,9 @@ class ProbesProducer : public Producer {
                                 const DataSourceConfig&) override;
   void TearDownDataSourceInstance(DataSourceInstanceID) override;
   void OnTracingSetup() override;
+  void Flush(FlushRequestID,
+             const DataSourceInstanceID* data_source_ids,
+             size_t num_data_sources) override;
 
   // Our Impl
   void ConnectWithRetries(const char* socket_name,
@@ -76,6 +79,8 @@ class ProbesProducer : public Producer {
     ~SinkDelegate() override;
 
     TracingSessionID session_id() const { return session_id_; }
+
+    void Flush();
 
     // FtraceDelegateImpl
     FtraceBundleHandle GetBundleForCpu(size_t cpu) override;
@@ -111,6 +116,7 @@ class ProbesProducer : public Producer {
     // Keep this after the TraceWriter because TracePackets must not outlive
     // their originating writer.
     TraceWriter::TracePacketHandle trace_packet_;
+
     // Keep this last.
     base::WeakPtrFactory<SinkDelegate> weak_factory_;
   };

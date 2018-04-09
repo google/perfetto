@@ -98,6 +98,7 @@ class FakeProducer : public Producer {
 
   void TearDownDataSourceInstance(DataSourceInstanceID) override {}
   void OnTracingSetup() override {}
+  void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override {}
 
  private:
   const std::string name_;

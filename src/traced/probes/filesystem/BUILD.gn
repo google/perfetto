@@ -48,6 +48,7 @@ source_set("unittests") {
   sources = [
     "file_scanner_unittest.cc",
     "fs_mount_unittest.cc",
+    "inode_file_data_source_unittest.cc",
     "lru_inode_cache_unittest.cc",
     "prefix_finder_unittest.cc",
     "range_tree_unittest.cc",

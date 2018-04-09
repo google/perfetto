@@ -49,6 +49,10 @@ class InodeMapValue {
   void SetPaths(std::set<std::string> paths) { paths_ = std::move(paths); }
   void AddPath(std::string path) { paths_.emplace(std::move(path)); }
 
+  bool operator==(const perfetto::InodeMapValue& rhs) const {
+    return type() == rhs.type() && paths() == rhs.paths();
+  }
+
  private:
   protos::pbzero::InodeFileMap_Entry_Type entry_type_;
   std::set<std::string> paths_;

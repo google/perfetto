@@ -163,7 +163,7 @@ TEST_DEPS_ANDROID = [
   ('buildtools/aosp-arm.zip',
    'https://storage.googleapis.com/perfetto/aosp-02022018-arm.zip',
    'a480d5e7d3ca888b0a58fe15ce76b1791537429a',
-   'linux2'
+   'all'
   ),
 
   # platform-tools.zip contains adb binaries.

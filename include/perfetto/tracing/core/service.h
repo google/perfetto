@@ -95,6 +95,10 @@ class PERFETTO_EXPORT Service {
     // DataSourceConfig.target_buffer().
     virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
         BufferID target_buffer) = 0;
+
+    // Called in response to a Producer::Flush(request_id) call after all data
+    // for the flush request has been committed.
+    virtual void NotifyFlushComplete(FlushRequestID) = 0;
   };  // class ProducerEndpoint.
 
   // The API for the Consumer port of the Service.
@@ -112,6 +116,13 @@ class PERFETTO_EXPORT Service {
     virtual void EnableTracing(const TraceConfig&,
                                base::ScopedFile = base::ScopedFile()) = 0;
     virtual void DisableTracing() = 0;
+
+    // Requests all data sources to flush their data immediately and invokes the
+    // passed callback once all of them have acked the flush (in which case
+    // the callback argument |success| will be true) or |timeout_ms| are elapsed
+    // (in which case |success| will be false).
+    using FlushCallback = std::function<void(bool /*success*/)>;
+    virtual void Flush(int timeout_ms, FlushCallback) = 0;
 
     // Tracing data will be delivered invoking Consumer::OnTraceData().
     virtual void ReadBuffers() = 0;

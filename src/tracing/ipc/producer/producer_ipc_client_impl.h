@@ -65,6 +65,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
   void CommitData(const CommitDataRequest&, CommitDataCallback) override;
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) override;
+  void NotifyFlushComplete(FlushRequestID) override;
   SharedMemory* shared_memory() const override;
   size_t shared_buffer_page_size_kb() const override;
 

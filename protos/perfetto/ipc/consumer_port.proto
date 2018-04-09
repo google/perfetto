@@ -49,6 +49,15 @@ service ConsumerPort {
   // implicitly if the Consumer disconnects.
   rpc FreeBuffers(FreeBuffersRequest) returns (FreeBuffersResponse) {}
 
+  // Asks the service to request to all data sources involved in the tracing
+  // session to commit their data into the trace buffer. The FlushResponse is
+  // sent only:
+  // - After the data has been committed (in which case FlushResponse succeeds)
+  // or
+  // - After FlushRequest.timeout_ms milliseconds (in which case the
+  //   FlushResponse is rejected and fails).
+  rpc Flush(FlushRequest) returns (FlushResponse) {}
+
   // TODO rpc ListDataSources(), for the UI.
 }
 
@@ -102,3 +111,10 @@ message FreeBuffersRequest {
 }
 
 message FreeBuffersResponse {}
+
+// Arguments for rpc Flush().
+message FlushRequest {
+  optional uint32 timeout_ms = 1;
+}
+
+message FlushResponse {}
