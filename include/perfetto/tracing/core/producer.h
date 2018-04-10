@@ -43,7 +43,7 @@ class SharedMemory;
 //  2. The transport layer when interposing RPC between service and producers.
 class Producer {
  public:
-  virtual ~Producer() = default;
+  virtual ~Producer();
 
   // Called by Service (or more typically by the transport layer, on behalf of
   // the remote Service), once the Producer <> Service connection has been

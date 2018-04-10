@@ -17,8 +17,8 @@ import("//gn/standalone/sanitizers/sanitizers.gni")
 
 config("extra_warnings") {
   cflags = [
+    "-Wall",
     "-Wextra",
-    "-Wno-unused-parameter",
   ]
   if (is_clang) {
     cflags += [
@@ -30,7 +30,6 @@ config("extra_warnings") {
       "-Wno-gnu-zero-variadic-macro-arguments",
       "-Wno-padded",
       "-Wno-reserved-id-macro",
-      "-Wno-weak-vtables",
     ]
   }
 }
@@ -65,19 +64,15 @@ config("default") {
     "-g",
     "-Wa,--noexecstack",
     "-Wformat",
-    "-Wall",
     "-Werror",
   ]
 
-  # Color compiler output, see https://github.com/ninja-build/ninja/wiki/FAQ
   if (is_clang) {
     cflags += [
+      # Color compiler output, see https://github.com/ninja-build/ninja/wiki/FAQ
       "-fcolor-diagnostics",
-      "-Wno-unknown-warning-option",
       "-fdiagnostics-show-template-tree",
     ]
-  } else {
-    cflags += [ "-Wno-unknown-warning" ]
   }
 
   if (current_cpu == "arm") {

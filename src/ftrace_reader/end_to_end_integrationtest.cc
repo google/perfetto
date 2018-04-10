@@ -78,8 +78,8 @@ class EndToEndIntegrationTest : public ::testing::Test,
   }
 
   virtual void OnBundleComplete(size_t cpu,
-                                FtraceBundleHandle bundle,
-                                const FtraceMetadata& metadata) {
+                                FtraceBundleHandle,
+                                const FtraceMetadata&) {
     PERFETTO_CHECK(currently_writing_);
     currently_writing_ = false;
     EXPECT_NE(cpu_being_written_, 9999ul);

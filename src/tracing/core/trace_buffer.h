@@ -491,7 +491,7 @@ class TraceBuffer {
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.get()); }
   uint8_t* end() const { return begin() + size_; }
-  size_t size_to_end() const { return end() - wptr_; }
+  size_t size_to_end() const { return static_cast<size_t>(end() - wptr_); }
 
   base::PageAllocator::UniquePtr data_;
   size_t size_ = 0;            // Size in bytes of |data_|.

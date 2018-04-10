@@ -43,7 +43,7 @@ struct FtraceEvent {
   };
 
   std::string name;
-  int id;
+  uint32_t id;
   std::vector<Field> common_fields;
   std::vector<Field> fields;
 };

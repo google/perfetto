@@ -48,7 +48,6 @@ constexpr char kSockName[] = TEST_SOCK_NAME("host_impl_unittest.sock");
 
 class FakeService : public Service {
  public:
-  MOCK_METHOD0(Destroyed, void());
   MOCK_METHOD2(OnFakeMethod1, void(const RequestProto&, DeferredBase*));
 
   static void Invoker(Service* service,
@@ -332,7 +331,7 @@ TEST_F(HostImplTest, SendFileDescriptor) {
   base::TempFile tx_file = base::TempFile::CreateUnlinked();
   base::ignore_result(write(tx_file.fd(), kFileContent, sizeof(kFileContent)));
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(Invoke([on_reply_sent, &tx_file](const RequestProto& req,
+      .WillOnce(Invoke([on_reply_sent, &tx_file](const RequestProto&,
                                                  DeferredBase* reply) {
         std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
         auto async_res = AsyncResult<ProtoMessage>(
@@ -376,8 +375,8 @@ TEST_F(HostImplTest, ReceiveFileDescriptor) {
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_));
   base::ScopedFile rx_fd;
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(Invoke([received, &fake_service, &rx_fd](
-                           const RequestProto& req, DeferredBase* reply) {
+      .WillOnce(Invoke([received, &fake_service, &rx_fd](const RequestProto&,
+                                                         DeferredBase*) {
         rx_fd = fake_service->TakeReceivedFD();
         received();
       }));
@@ -408,8 +407,8 @@ TEST_F(HostImplTest, OnClientDisconnect) {
   cli_.reset();  // Disconnect the client.
   auto on_host_method = task_runner_->CreateCheckpoint("on_host_method");
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(Invoke(
-          [on_host_method](const RequestProto& req, DeferredBase* reply) {
+      .WillOnce(
+          Invoke([on_host_method](const RequestProto& req, DeferredBase*) {
             ASSERT_EQ("foo", req.data());
             on_host_method();
           }));
@@ -433,11 +432,11 @@ TEST_F(HostImplTest, MoveReplyObjectAndReplyAsynchronously) {
   auto on_invoke = task_runner_->CreateCheckpoint("on_invoke");
   DeferredBase moved_reply;
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(Invoke([on_invoke, &moved_reply](const RequestProto& req,
-                                                 DeferredBase* reply) {
-        moved_reply = std::move(*reply);
-        on_invoke();
-      }));
+      .WillOnce(Invoke(
+          [on_invoke, &moved_reply](const RequestProto&, DeferredBase* reply) {
+            moved_reply = std::move(*reply);
+            on_invoke();
+          }));
   task_runner_->RunUntilCheckpoint("on_invoke");
 
   // Check that the FakeClient doesn't see any reply yet.

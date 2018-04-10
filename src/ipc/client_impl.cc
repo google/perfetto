@@ -226,8 +226,8 @@ void ClientImpl::OnBindServiceReply(QueuedRequest req,
   std::map<std::string, MethodID> methods;
   for (const auto& method : reply.methods()) {
     if (method.name().empty() || method.id() <= 0) {
-      PERFETTO_DLOG("OnBindServiceReply(): invalid method \"%s\" -> %" PRIu32,
-                    method.name().c_str(), method.id());
+      PERFETTO_DLOG("OnBindServiceReply(): invalid method \"%s\" -> %" PRIu64,
+                    method.name().c_str(), static_cast<uint64_t>(method.id()));
       continue;
     }
     methods[method.name()] = method.id();

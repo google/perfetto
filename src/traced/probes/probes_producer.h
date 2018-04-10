@@ -143,7 +143,7 @@ class ProbesProducer : public Producer {
   std::unique_ptr<Service::ProducerEndpoint> endpoint_ = nullptr;
   std::unique_ptr<FtraceController> ftrace_ = nullptr;
   bool ftrace_creation_failed_ = false;
-  uint64_t connection_backoff_ms_ = 0;
+  uint32_t connection_backoff_ms_ = 0;
   const char* socket_name_ = nullptr;
   std::set<DataSourceInstanceID> failed_sources_;
   std::map<DataSourceInstanceID, std::unique_ptr<ProcessStatsDataSource>>

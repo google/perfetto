@@ -35,7 +35,7 @@ void SetAffinity(size_t cpu) {
       sched_setaffinity(0 /* calling process */, sizeof(cpu_set_t), &set) == 0);
 }
 
-int SkippyMain(int argc, const char** argv) {
+int SkippyMain() {
   static size_t num_cpus = static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
   size_t cpu = 0;
   base::TimeMillis last = base::GetWallTimeMs();
@@ -55,6 +55,6 @@ int SkippyMain(int argc, const char** argv) {
 }  // namespace
 }  // namespace perfetto
 
-int main(int argc, const char** argv) {
-  return perfetto::SkippyMain(argc, argv);
+int main() {
+  return perfetto::SkippyMain();
 }

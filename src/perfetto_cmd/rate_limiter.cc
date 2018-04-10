@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "rate_limiter.h"
+#include "src/perfetto_cmd/rate_limiter.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -43,7 +43,7 @@ RateLimiter::RateLimiter() = default;
 RateLimiter::~RateLimiter() = default;
 
 bool RateLimiter::ShouldTrace(const Args& args) {
-  uint64_t now_in_s = args.current_time.count();
+  uint64_t now_in_s = static_cast<uint64_t>(args.current_time.count());
 
   // Not uploading?
   // -> We can just trace.
@@ -106,7 +106,7 @@ bool RateLimiter::ShouldTrace(const Args& args) {
 }
 
 bool RateLimiter::OnTraceDone(const Args& args, bool success, size_t bytes) {
-  uint64_t now_in_s = args.current_time.count();
+  uint64_t now_in_s = static_cast<uint64_t>(args.current_time.count());
 
   // Failed to upload? Don't update the state.
   if (!success)
@@ -163,7 +163,7 @@ bool RateLimiter::LoadState(PerfettoCmdState* state) {
   ssize_t bytes = PERFETTO_EINTR(read(in_fd.get(), &buf, sizeof(buf)));
   if (bytes <= 0)
     return false;
-  return state->ParseFromArray(&buf, bytes);
+  return state->ParseFromArray(&buf, static_cast<int>(bytes));
 }
 
 bool RateLimiter::SaveState(const PerfettoCmdState& state) {
@@ -173,9 +173,9 @@ bool RateLimiter::SaveState(const PerfettoCmdState& state) {
   if (!out_fd)
     return false;
   char buf[1024];
-  PERFETTO_CHECK(static_cast<size_t>(state.ByteSize()) < sizeof(buf));
-  size_t size = state.ByteSize();
-  if (!state.SerializeToArray(&buf, size))
+  size_t size = static_cast<size_t>(state.ByteSize());
+  PERFETTO_CHECK(size < sizeof(buf));
+  if (!state.SerializeToArray(&buf, static_cast<int>(size)))
     return false;
   ssize_t written = PERFETTO_EINTR(write(out_fd.get(), &buf, size));
   return written >= 0 && static_cast<size_t>(written) == size;

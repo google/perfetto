@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto_cmd.h"
+#include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include <fcntl.h>
 #include <getopt.h>
@@ -98,15 +98,15 @@ int PerfettoCmd::Main(int argc, char** argv) {
   };
   static const struct option long_options[] = {
       // |option_index| relies on the order of options, don't reshuffle them.
-      {"help", required_argument, 0, 'h'},
-      {"config", required_argument, 0, 'c'},
-      {"out", required_argument, 0, 'o'},
-      {"background", no_argument, 0, 'b'},
-      {"dropbox", optional_argument, 0, 'd'},
-      {"no-guardrails", optional_argument, 0, 'n'},
-      {"alert-id", required_argument, 0, OPT_ALERT_ID},
-      {"config-id", required_argument, 0, OPT_CONFIG_ID},
-      {"config-uid", required_argument, 0, OPT_CONFIG_UID},
+      {"help", required_argument, nullptr, 'h'},
+      {"config", required_argument, nullptr, 'c'},
+      {"out", required_argument, nullptr, 'o'},
+      {"background", no_argument, nullptr, 'b'},
+      {"dropbox", optional_argument, nullptr, 'd'},
+      {"no-guardrails", optional_argument, nullptr, 'n'},
+      {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
+      {"config-id", required_argument, nullptr, OPT_CONFIG_ID},
+      {"config-uid", required_argument, nullptr, OPT_CONFIG_UID},
       {nullptr, 0, nullptr, 0}};
 
   int option_index = 0;
@@ -182,7 +182,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     }
 
     if (option == OPT_CONFIG_UID) {
-      statsd_metadata.set_triggering_config_uid(atol(optarg));
+      statsd_metadata.set_triggering_config_uid(atoi(optarg));
       continue;
     }
 
@@ -283,8 +283,8 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     static constexpr uint32_t kPacketFieldNumber = 1;
     pos = WriteVarInt(MakeTagLengthDelimited(kPacketFieldNumber), pos);
     pos = WriteVarInt(static_cast<uint32_t>(packet.size()), pos);
-    fwrite(reinterpret_cast<const char*>(preamble), pos - preamble, 1,
-           trace_out_stream_.get());
+    fwrite(reinterpret_cast<const char*>(preamble),
+           static_cast<size_t>(pos - preamble), 1, trace_out_stream_.get());
     for (const Slice& slice : packet.slices()) {
       fwrite(reinterpret_cast<const char*>(slice.start), slice.size, 1,
              trace_out_stream_.get());
@@ -390,7 +390,7 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
     PERFETTO_CHECK(PERFETTO_EINTR(write(g_consumer_cmd->ctrl_c_pipe_wr(), &one,
                                         sizeof(one))) == 1);
   };
-  sa.sa_flags = SA_RESETHAND | SA_RESTART;
+  sa.sa_flags = static_cast<decltype(sa.sa_flags)>(SA_RESETHAND | SA_RESTART);
 #pragma GCC diagnostic pop
   sigaction(SIGINT, &sa, nullptr);
 

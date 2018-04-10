@@ -45,7 +45,7 @@ using Inode = decltype(stat::st_ino);
 struct FtraceMetadata {
   FtraceMetadata();
 
-  size_t overwrite_count;
+  uint32_t overwrite_count;
   BlockDeviceID last_seen_device_id = 0;
 #if PERFETTO_DCHECK_IS_ON()
   bool seen_device_id = false;
@@ -97,7 +97,7 @@ class FtraceSink {
     virtual void OnBundleComplete(size_t,
                                   protozero::MessageHandle<FtraceEventBundle>,
                                   const FtraceMetadata&) = 0;
-    virtual ~Delegate() = default;
+    virtual ~Delegate();
   };
 
   FtraceSink(base::WeakPtr<FtraceController>,

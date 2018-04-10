@@ -14,15 +14,23 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/process_stats_data_source.h"
+#include "perfetto/ipc/client.h"
+#include "perfetto/ipc/host.h"
+#include "perfetto/ipc/service.h"
+#include "perfetto/ipc/service_proxy.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+// This translation unit contains the definitions for the destructor of pure
+// virtual interfaces for the current build target. The alternative would be
+// introducing a one-liner .cc file for each pure virtual interface, which is
+// overkill. This is for compliance with -Wweak-vtables.
 
 namespace perfetto {
-namespace {
+namespace ipc {
 
-// TODO(hjd): Add tests.
+Client::~Client() = default;
+Host::~Host() = default;
+Service::~Service() = default;
+ServiceProxy::EventListener::~EventListener() = default;
 
-}  // namespace
+}  // namespace ipc
 }  // namespace perfetto

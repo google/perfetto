@@ -99,9 +99,8 @@ TEST(FileScannerTest, TestSynchronousStop) {
   uint64_t seen = 0;
   bool done = false;
   TestDelegate delegate(
-      [&seen](BlockDeviceID block_device_id, Inode inode,
-              const std::string& path,
-              protos::pbzero::InodeFileMap_Entry_Type type) {
+      [&seen](BlockDeviceID, Inode, const std::string&,
+              protos::pbzero::InodeFileMap_Entry_Type) {
         ++seen;
         return false;
       },
@@ -118,9 +117,8 @@ TEST(FileScannerTest, TestAsynchronousStop) {
   uint64_t seen = 0;
   base::TestTaskRunner task_runner;
   TestDelegate delegate(
-      [&seen](BlockDeviceID block_device_id, Inode inode,
-              const std::string& path,
-              protos::pbzero::InodeFileMap_Entry_Type type) {
+      [&seen](BlockDeviceID, Inode, const std::string&,
+              protos::pbzero::InodeFileMap_Entry_Type) {
         ++seen;
         return false;
       },

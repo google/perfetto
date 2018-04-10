@@ -29,6 +29,7 @@ source_set("base") {
     "temp_file.cc",
     "thread_checker.cc",
     "unix_task_runner.cc",
+    "virtual_destructors.cc",
   ]
   if (!build_with_chromium && (is_linux || is_android)) {
     sources += [ "watchdog_posix.cc" ]
@@ -65,16 +66,13 @@ if (is_debug && !build_with_chromium && !build_with_android) {
     sources = [
       "debug_crash_stack_trace.cc",
     ]
-    cflags = [
-      "-Wno-deprecated-dynamic-exception-spec",
-      "-Wno-disabled-macro-expansion",
-    ]
     deps = [
       "../../gn:default_deps",
     ]
     if (is_linux || is_android) {
       deps += [ "../../buildtools:libbacktrace" ]
     }
+    cflags = [ "-Wno-deprecated" ]
   }
 }
 

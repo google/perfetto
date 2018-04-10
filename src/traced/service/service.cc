@@ -22,7 +22,7 @@
 
 namespace perfetto {
 
-int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
+int __attribute__((visibility("default"))) ServiceMain(int, char**) {
   base::UnixTaskRunner task_runner;
   std::unique_ptr<ServiceIPCHost> svc;
   svc = ServiceIPCHost::CreateInstance(&task_runner);

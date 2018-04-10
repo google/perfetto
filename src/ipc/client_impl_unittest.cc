@@ -160,12 +160,10 @@ class FakeHost : public UnixSocket::EventListener {
         Frame reply;
         reply.set_request_id(req.request_id());
         for (const auto& svc : services) {
-          if (static_cast<int32_t>(svc.second->id) !=
-              req.msg_invoke_method().service_id())
+          if (svc.second->id != req.msg_invoke_method().service_id())
             continue;
           for (const auto& method : svc.second->methods) {
-            if (static_cast<int32_t>(method.second->id) !=
-                req.msg_invoke_method().method_id())
+            if (method.second->id != req.msg_invoke_method().method_id())
               continue;
             method.second->OnInvoke(req.msg_invoke_method(),
                                     reply.mutable_msg_invoke_method_reply());
@@ -355,7 +353,7 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
 
   EXPECT_CALL(*host_method, OnInvoke(_, _))
       .WillOnce(Invoke(
-          [](const Frame::InvokeMethod& req, Frame::InvokeMethodReply* reply) {
+          [](const Frame::InvokeMethod&, Frame::InvokeMethodReply* reply) {
             RequestProto req_args;
             reply->set_reply_proto(ReplyProto().SerializeAsString());
             reply->set_success(true);
@@ -397,7 +395,7 @@ TEST_F(ClientImplTest, SendFileDescriptor) {
   base::ignore_result(write(tx_file.fd(), kFileContent, sizeof(kFileContent)));
   EXPECT_CALL(*host_method, OnInvoke(_, _))
       .WillOnce(Invoke(
-          [](const Frame::InvokeMethod& req, Frame::InvokeMethodReply* reply) {
+          [](const Frame::InvokeMethod&, Frame::InvokeMethodReply* reply) {
             RequestProto req_args;
             reply->set_reply_proto(ReplyProto().SerializeAsString());
             reply->set_success(true);

@@ -372,8 +372,9 @@ TEST_F(ServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   for (size_t i = 0; i < kNumProducers; i++) {
     auto* producer_config = trace_config.add_producers();
     producer_config->set_producer_name("mock_producer_" + std::to_string(i));
-    producer_config->set_shm_size_kb(kConfigSizesKb[i]);
-    producer_config->set_page_size_kb(kConfigPageSizesKb[i]);
+    producer_config->set_shm_size_kb(static_cast<uint32_t>(kConfigSizesKb[i]));
+    producer_config->set_page_size_kb(
+        static_cast<uint32_t>(kConfigPageSizesKb[i]));
   }
 
   consumer->EnableTracing(trace_config);
