@@ -99,6 +99,8 @@ class InodeFileDataSource : public FileScanner::Delegate {
 
   void AddRootsForBlockDevice(BlockDeviceID block_device_id,
                               std::vector<std::string>* roots);
+  void RemoveFromNextMissingInodes(BlockDeviceID block_device_id,
+                                   Inode inode_number);
 
   uint32_t GetScanIntervalMs() const;
   uint32_t GetScanDelayMs() const;

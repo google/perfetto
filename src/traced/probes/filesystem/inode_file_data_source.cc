@@ -270,6 +270,15 @@ InodeFileMap* InodeFileDataSource::AddToCurrentTracePacket(
   return current_file_map_;
 }
 
+void InodeFileDataSource::RemoveFromNextMissingInodes(
+    BlockDeviceID block_device_id,
+    Inode inode_number) {
+  auto it = next_missing_inodes_.find(block_device_id);
+  if (it == next_missing_inodes_.end())
+    return;
+  it->second.erase(inode_number);
+}
+
 bool InodeFileDataSource::OnInodeFound(
     BlockDeviceID block_device_id,
     Inode inode_number,
@@ -285,6 +294,8 @@ bool InodeFileDataSource::OnInodeFound(
 
   if (it->second.empty())
     missing_inodes_.erase(it);
+
+  RemoveFromNextMissingInodes(block_device_id, inode_number);
 
   std::pair<BlockDeviceID, Inode> key{block_device_id, inode_number};
   auto cur_val = cache_->Get(key);
