@@ -34,13 +34,13 @@ class SharedMemory {
  public:
   class Factory {
    public:
-    virtual ~Factory() = default;
+    virtual ~Factory();
     virtual std::unique_ptr<SharedMemory> CreateSharedMemory(size_t) = 0;
   };
 
   // The transport layer is expected to tear down the resource associated to
   // this object region when destroyed.
-  virtual ~SharedMemory() = default;
+  virtual ~SharedMemory();
 
   virtual void* start() const = 0;
   virtual size_t size() const = 0;

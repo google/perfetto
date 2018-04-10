@@ -52,7 +52,7 @@ void TestTaskRunner::QuitIfIdle() {
 }
 
 void TestTaskRunner::RunUntilCheckpoint(const std::string& checkpoint,
-                                        int timeout_ms) {
+                                        uint32_t timeout_ms) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (checkpoints_.count(checkpoint) == 0) {
     fprintf(stderr, "[TestTaskRunner] Checkpoint \"%s\" does not exist.\n",
@@ -97,7 +97,7 @@ void TestTaskRunner::PostTask(std::function<void()> closure) {
 }
 
 void TestTaskRunner::PostDelayedTask(std::function<void()> closure,
-                                     int delay_ms) {
+                                     uint32_t delay_ms) {
   task_runner_.PostDelayedTask(std::move(closure), delay_ms);
 }
 

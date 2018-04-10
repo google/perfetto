@@ -23,9 +23,9 @@
 
 #include <algorithm>
 
-#include "atrace_wrapper.h"
 #include "perfetto/base/utils.h"
-#include "proto_translation_table.h"
+#include "src/ftrace_reader/atrace_wrapper.h"
+#include "src/ftrace_reader/proto_translation_table.h"
 
 namespace perfetto {
 namespace {

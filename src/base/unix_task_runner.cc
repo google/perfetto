@@ -217,8 +217,8 @@ void UnixTaskRunner::PostTask(std::function<void()> task) {
     WakeUp();
 }
 
-void UnixTaskRunner::PostDelayedTask(std::function<void()> task, int delay_ms) {
-  PERFETTO_DCHECK(delay_ms >= 0);
+void UnixTaskRunner::PostDelayedTask(std::function<void()> task,
+                                     uint32_t delay_ms) {
   TimeMillis runtime = GetWallTimeMs() + TimeMillis(delay_ms);
   {
     std::lock_guard<std::mutex> lock(lock_);

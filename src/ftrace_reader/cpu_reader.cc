@@ -27,7 +27,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
-#include "proto_translation_table.h"
+#include "src/ftrace_reader/proto_translation_table.h"
 
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -38,12 +38,13 @@ namespace {
 
 bool ReadIntoString(const uint8_t* start,
                     const uint8_t* end,
-                    size_t field_id,
+                    uint32_t field_id,
                     protozero::Message* out) {
   for (const uint8_t* c = start; c < end; c++) {
     if (*c != '\0')
       continue;
-    out->AppendBytes(field_id, reinterpret_cast<const char*>(start), c - start);
+    out->AppendBytes(field_id, reinterpret_cast<const char*>(start),
+                     static_cast<uintptr_t>(c - start));
     return true;
   }
   return false;
@@ -131,11 +132,16 @@ CpuReader::CpuReader(const ProtoTranslationTable* table,
   // hence make the join() in the dtor unreliable.
   struct sigaction current_act = {};
   PERFETTO_CHECK(sigaction(SIGPIPE, nullptr, &current_act) == 0);
+#pragma GCC diagnostic push
+#if defined(__clang__)
+#pragma GCC diagnostic ignored "-Wdisabled-macro-expansion"
+#endif
   if (current_act.sa_handler == SIG_DFL || current_act.sa_handler == SIG_IGN) {
     struct sigaction act = {};
     act.sa_sigaction = [](int, siginfo_t*, void*) {};
     PERFETTO_CHECK(sigaction(SIGPIPE, &act, nullptr) == 0);
   }
+#pragma GCC diagnostic pop
 
   worker_thread_ =
       std::thread(std::bind(&RunWorkerThread, cpu_, *trace_fd_,
@@ -176,8 +182,8 @@ void CpuReader::RunWorkerThread(
     // First do a blocking splice which sleeps until there is at least one
     // page of data available and enough space to write it into the staging
     // pipe.
-    int splice_res = splice(trace_fd, nullptr, staging_write_fd, nullptr,
-                            base::kPageSize, SPLICE_F_MOVE);
+    ssize_t splice_res = splice(trace_fd, nullptr, staging_write_fd, nullptr,
+                                base::kPageSize, SPLICE_F_MOVE);
     if (splice_res < 0) {
       // The kernel ftrace code has its own splice() implementation that can
       // occasionally fail with transient errors not reported in man 2 splice.
@@ -208,6 +214,10 @@ void CpuReader::RunWorkerThread(
     on_data_available();
   }
 #else
+  base::ignore_result(cpu);
+  base::ignore_result(trace_fd);
+  base::ignore_result(staging_write_fd);
+  base::ignore_result(on_data_available);
   PERFETTO_ELOG("Supported only on Linux/Android");
 #endif
 }
@@ -237,7 +247,7 @@ bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
   for (size_t i = 0; i < kMaxSinks; i++) {
     if (!filters[i])
       break;
-    bundles[i]->set_cpu(cpu_);
+    bundles[i]->set_cpu(static_cast<uint32_t>(cpu_));
     bundles[i]->set_overwrite_count(metadatas[i]->overwrite_count);
   }
 
@@ -279,7 +289,7 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
   page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
   page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
 
-  metadata->overwrite_count = page_header.overwrite;
+  metadata->overwrite_count = static_cast<uint32_t>(page_header.overwrite);
 
   const uint8_t* const end = ptr + page_header.size;
   if (end > end_of_page)
@@ -377,7 +387,7 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
                            protozero::Message* message,
                            FtraceMetadata* metadata) {
   PERFETTO_DCHECK(start < end);
-  const size_t length = end - start;
+  const size_t length = static_cast<size_t>(end - start);
 
   // TODO(hjd): Rework to work even if the event is unknown.
   const Event& info = *table->GetEventById(ftrace_event_id);

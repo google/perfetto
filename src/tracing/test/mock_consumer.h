@@ -51,7 +51,7 @@ class MockConsumer : public Consumer {
   void DisableTracing();
   void FreeBuffers();
   void WaitForTracingDisabled();
-  FlushRequest Flush(int timeout_ms = 10000);
+  FlushRequest Flush(uint32_t timeout_ms = 10000);
   std::vector<protos::TracePacket> ReadBuffers();
 
   Service::ConsumerEndpoint* endpoint() { return service_endpoint_.get(); }

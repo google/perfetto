@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "process_stats_data_source.h"
+#include "src/traced/probes/process_stats_data_source.h"
 
 #include <utility>
 

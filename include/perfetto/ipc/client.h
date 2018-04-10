@@ -46,7 +46,7 @@ class Client {
  public:
   static std::unique_ptr<Client> CreateInstance(const char* socket_name,
                                                 base::TaskRunner*);
-  virtual ~Client() = default;
+  virtual ~Client();
 
   virtual void BindService(base::WeakPtr<ServiceProxy>) = 0;
 

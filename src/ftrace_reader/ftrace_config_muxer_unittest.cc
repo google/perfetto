@@ -20,10 +20,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
-#include "atrace_wrapper.h"
-#include "ftrace_procfs.h"
-#include "proto_translation_table.h"
+#include "src/ftrace_reader/atrace_wrapper.h"
+#include "src/ftrace_reader/ftrace_procfs.h"
+#include "src/ftrace_reader/proto_translation_table.h"
 
 using testing::_;
 using testing::AnyNumber;

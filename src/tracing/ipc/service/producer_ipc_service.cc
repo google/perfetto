@@ -237,7 +237,7 @@ void ProducerIPCService::RemoteProducer::OnTracingSetup() {
   cmd.set_has_more(true);
   cmd.set_fd(shm_fd);
   cmd->mutable_setup_tracing()->set_shared_buffer_page_size_kb(
-      service_endpoint->shared_buffer_page_size_kb());
+      static_cast<uint32_t>(service_endpoint->shared_buffer_page_size_kb()));
   async_producer_commands.Resolve(std::move(cmd));
 }
 

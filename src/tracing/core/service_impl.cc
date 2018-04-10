@@ -267,8 +267,9 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // corresponding BufferID, which is a global ID namespace for the service and
   // all producers.
   size_t total_buf_size_kb = 0;
-  tracing_session->buffers_index.reserve(cfg.buffers_size());
-  for (int i = 0; i < cfg.buffers_size(); i++) {
+  const size_t num_buffers = static_cast<size_t>(cfg.buffers_size());
+  tracing_session->buffers_index.reserve(num_buffers);
+  for (size_t i = 0; i < num_buffers; i++) {
     const TraceConfig::BufferConfig& buffer_cfg = cfg.buffers()[i];
     BufferID global_id = buffer_ids_.Allocate();
     if (!global_id) {
@@ -325,14 +326,15 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   }
 
   // Trigger delayed task if the trace is time limited.
-  if (cfg.duration_ms()) {
+  const uint32_t trace_duration_ms = cfg.duration_ms();
+  if (trace_duration_ms > 0) {
     auto weak_this = weak_ptr_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(
         [weak_this, tsid] {
           if (weak_this)
             weak_this->FlushAndDisableTracing(tsid);
         },
-        cfg.duration_ms());
+        trace_duration_ms);
   }
 
   // Start the periodic drain tasks if we should to save the trace into a file.
@@ -347,10 +349,11 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   }
 
   tracing_session->tracing_enabled = true;
-  PERFETTO_LOG("Enabled tracing, #sources:%zu, duration:%" PRIu32
-               " ms, #buffers:%d, total buffer size:%zu KB, total sessions:%zu",
-               cfg.data_sources().size(), cfg.duration_ms(), cfg.buffers_size(),
-               total_buf_size_kb, tracing_sessions_.size());
+  PERFETTO_LOG(
+      "Enabled tracing, #sources:%zu, duration:%d ms, #buffers:%d, total "
+      "buffer size:%zu KB, total sessions:%zu",
+      cfg.data_sources().size(), trace_duration_ms, cfg.buffers_size(),
+      total_buf_size_kb, tracing_sessions_.size());
   return true;
 }
 
@@ -393,7 +396,7 @@ void ServiceImpl::DisableTracing(TracingSessionID tsid) {
 }
 
 void ServiceImpl::Flush(TracingSessionID tsid,
-                        int timeout_ms,
+                        uint32_t timeout_ms,
                         ConsumerEndpoint::FlushCallback callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingSession* tracing_session = GetTracingSession(tsid);
@@ -557,10 +560,10 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
     tbuf.BeginRead();
     while (!did_hit_threshold) {
       TracePacket packet;
-      uid_t producer_uid = -1;
+      uid_t producer_uid = kInvalidUid;
       if (!tbuf.ReadNextTracePacket(&packet, &producer_uid))
         break;
-      PERFETTO_DCHECK(producer_uid != static_cast<uid_t>(-1));
+      PERFETTO_DCHECK(producer_uid != kInvalidUid);
       PERFETTO_DCHECK(packet.size() > 0);
       if (!PacketStreamValidator::Validate(packet.slices())) {
         PERFETTO_DLOG("Dropping invalid packet");
@@ -576,7 +579,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
       // the producer can't give us a partial packet (e.g., a truncated
       // string) which only becomes valid when the UID is appended here.
       protos::TrustedPacket trusted_packet;
-      trusted_packet.set_trusted_uid(producer_uid);
+      trusted_packet.set_trusted_uid(static_cast<int32_t>(producer_uid));
       static constexpr size_t kTrustedBufSize = 16;
       Slice slice = Slice::Allocate(kTrustedBufSize);
       PERFETTO_CHECK(
@@ -598,9 +601,9 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
   // |write_into_file| == true in the trace config, drain the packets read
   // (if any) into the given file descriptor.
   if (tracing_session->write_into_file) {
-    const size_t max_size = tracing_session->max_file_size_bytes
-                                ? tracing_session->max_file_size_bytes
-                                : std::numeric_limits<size_t>::max();
+    const uint64_t max_size = tracing_session->max_file_size_bytes
+                                  ? tracing_session->max_file_size_bytes
+                                  : std::numeric_limits<size_t>::max();
 
     // When writing into a file, the file should look like a root trace.proto
     // message. Each packet should be prepended with a proto preamble stating
@@ -611,7 +614,7 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
     bool stop_writing_into_file = tracing_session->write_period_ms == 0;
     std::unique_ptr<struct iovec[]> iovecs(new struct iovec[max_iovecs]);
     size_t num_iovecs_at_last_packet = 0;
-    size_t bytes_about_to_be_written = 0;
+    uint64_t bytes_about_to_be_written = 0;
     for (TracePacket& packet : packets) {
       std::tie(iovecs[num_iovecs].iov_base, iovecs[num_iovecs].iov_len) =
           packet.GetProtoPreamble();
@@ -639,25 +642,25 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
     PERFETTO_DCHECK(num_iovecs <= max_iovecs);
     int fd = *tracing_session->write_into_file;
 
-    size_t total_wr_size = 0;
+    uint64_t total_wr_size = 0;
 
     // writev() can take at most IOV_MAX entries per call. Batch them.
     constexpr size_t kIOVMax = IOV_MAX;
     for (size_t i = 0; i < num_iovecs; i += kIOVMax) {
-      size_t iov_batch_size = std::min(num_iovecs - i, kIOVMax);
+      int iov_batch_size = static_cast<int>(std::min(num_iovecs - i, kIOVMax));
       ssize_t wr_size = PERFETTO_EINTR(writev(fd, &iovecs[i], iov_batch_size));
       if (wr_size <= 0) {
         PERFETTO_PLOG("writev() failed");
         stop_writing_into_file = true;
         break;
       }
-      total_wr_size += wr_size;
+      total_wr_size += static_cast<size_t>(wr_size);
     }
 
     tracing_session->bytes_written_into_file += total_wr_size;
 
-    PERFETTO_DLOG("Draining into file, written: %zu, stop: %d", total_wr_size,
-                  stop_writing_into_file);
+    PERFETTO_DLOG("Draining into file, written: %" PRIu64 " KB, stop: %d",
+                  (total_wr_size + 1023) / 1024, stop_writing_into_file);
     if (stop_writing_into_file) {
       tracing_session->write_into_file.reset();
       tracing_session->write_period_ms = 0;
@@ -1041,16 +1044,17 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
   for (auto& clock : clocks) {
     protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
     c->set_type(clock.type);
-    c->set_timestamp(base::FromPosixTimespec(clock.ts).count());
+    c->set_timestamp(
+        static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
   }
 #else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
   c->set_type(protos::ClockSnapshot::Clock::MONOTONIC);
-  c->set_timestamp(base::GetWallTimeNs().count());
+  c->set_timestamp(static_cast<uint64_t>(base::GetWallTimeNs().count()));
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 
-  packet.set_trusted_uid(getuid());
-  Slice slice = Slice::Allocate(packet.ByteSize());
+  packet.set_trusted_uid(static_cast<int32_t>(getuid()));
+  Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
   packets->emplace_back();
   packets->back().AddSlice(std::move(slice));
@@ -1063,8 +1067,8 @@ void ServiceImpl::MaybeEmitTraceConfig(TracingSession* tracing_session,
   tracing_session->did_emit_config = true;
   protos::TrustedPacket packet;
   tracing_session->config.ToProto(packet.mutable_trace_config());
-  packet.set_trusted_uid(getuid());
-  Slice slice = Slice::Allocate(packet.ByteSize());
+  packet.set_trusted_uid(static_cast<int32_t>(getuid()));
+  Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
   packets->emplace_back();
   packets->back().AddSlice(std::move(slice));
@@ -1132,7 +1136,7 @@ void ServiceImpl::ConsumerEndpointImpl::FreeBuffers() {
   tracing_session_id_ = 0;
 }
 
-void ServiceImpl::ConsumerEndpointImpl::Flush(int timeout_ms,
+void ServiceImpl::ConsumerEndpointImpl::Flush(uint32_t timeout_ms,
                                               FlushCallback callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!tracing_session_id_) {

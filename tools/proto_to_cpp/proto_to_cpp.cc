@@ -195,6 +195,7 @@ std::string ProtoToCpp::GetCppType(const FieldDescriptor* field,
     case FieldDescriptor::TYPE_GROUP:
       PERFETTO_FATAL("No cpp type for a group field.");
   }
+  PERFETTO_CHECK(false);
 }
 
 void ProtoToCpp::Convert(const std::string& src_proto) {

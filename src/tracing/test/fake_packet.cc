@@ -77,7 +77,7 @@ FakePacketFragment::FakePacketFragment(const void* payload,
   PERFETTO_CHECK(payload_size <= 4096 - 2);
   payload_.assign(reinterpret_cast<const char*>(payload), payload_size);
   uint8_t* end = WriteVarInt(payload_.size(), &header_[0]);
-  header_size_ = end - &header_[0];
+  header_size_ = static_cast<size_t>(end - &header_[0]);
 }
 
 void FakePacketFragment::CopyInto(std::vector<uint8_t>* data) const {

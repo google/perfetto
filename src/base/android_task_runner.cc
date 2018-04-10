@@ -163,7 +163,7 @@ void AndroidTaskRunner::PostTask(std::function<void()> task) {
 }
 
 void AndroidTaskRunner::PostDelayedTask(std::function<void()> task,
-                                        int delay_ms) {
+                                        uint32_t delay_ms) {
   PERFETTO_DCHECK(delay_ms >= 0);
   TimeMillis runtime = GetWallTimeMs() + TimeMillis(delay_ms);
   bool is_next = false;

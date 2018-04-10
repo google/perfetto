@@ -29,7 +29,7 @@ namespace perfetto {
 // Used to perform initialization work on a background TaskRunnerThread.
 class ThreadDelegate {
  public:
-  virtual ~ThreadDelegate() = default;
+  virtual ~ThreadDelegate();
 
   // Invoked on the target thread before the message loop is started.
   virtual void Initialize(base::TaskRunner* task_runner) = 0;

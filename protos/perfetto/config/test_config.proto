@@ -40,5 +40,5 @@ message TestConfig {
   // The size of each message in bytes. Should be greater than or equal 5 to
   // account for the number of bytes needed to encode the random number and a
   // null byte for the string.
-  optional uint64 message_size = 4;
+  optional uint32 message_size = 4;
 }

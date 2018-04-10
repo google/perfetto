@@ -89,7 +89,7 @@ std::string FtraceProcfs::ReadEventFormat(const std::string& group,
 }
 
 size_t FtraceProcfs::NumberOfCpus() const {
-  static size_t num_cpus = sysconf(_SC_NPROCESSORS_CONF);
+  static size_t num_cpus = static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
   return num_cpus;
 }
 

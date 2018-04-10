@@ -92,14 +92,14 @@ class PERFETTO_EXPORT InodeFileConfig {
   void FromProto(const perfetto::protos::InodeFileConfig&);
   void ToProto(perfetto::protos::InodeFileConfig*) const;
 
-  uint64_t scan_interval_ms() const { return scan_interval_ms_; }
-  void set_scan_interval_ms(uint64_t value) { scan_interval_ms_ = value; }
+  uint32_t scan_interval_ms() const { return scan_interval_ms_; }
+  void set_scan_interval_ms(uint32_t value) { scan_interval_ms_ = value; }
 
-  uint64_t scan_delay_ms() const { return scan_delay_ms_; }
-  void set_scan_delay_ms(uint64_t value) { scan_delay_ms_ = value; }
+  uint32_t scan_delay_ms() const { return scan_delay_ms_; }
+  void set_scan_delay_ms(uint32_t value) { scan_delay_ms_ = value; }
 
-  uint64_t scan_batch_size() const { return scan_batch_size_; }
-  void set_scan_batch_size(uint64_t value) { scan_batch_size_ = value; }
+  uint32_t scan_batch_size() const { return scan_batch_size_; }
+  void set_scan_batch_size(uint32_t value) { scan_batch_size_ = value; }
 
   bool do_not_scan() const { return do_not_scan_; }
   void set_do_not_scan(bool value) { do_not_scan_ = value; }
@@ -127,9 +127,9 @@ class PERFETTO_EXPORT InodeFileConfig {
   }
 
  private:
-  uint64_t scan_interval_ms_ = {};
-  uint64_t scan_delay_ms_ = {};
-  uint64_t scan_batch_size_ = {};
+  uint32_t scan_interval_ms_ = {};
+  uint32_t scan_delay_ms_ = {};
+  uint32_t scan_batch_size_ = {};
   bool do_not_scan_ = {};
   std::vector<std::string> scan_mount_points_;
   std::vector<MountPointMappingEntry> mount_point_mapping_;

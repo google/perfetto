@@ -29,13 +29,13 @@ message InodeFileConfig {
   }
 
   // How long to pause between batches.
-  optional uint64 scan_interval_ms = 1;
+  optional uint32 scan_interval_ms = 1;
 
   // How long to wait before the first scan in order to accumulate inodes.
-  optional uint64 scan_delay_ms = 2;
+  optional uint32 scan_delay_ms = 2;
 
   // How many inodes to scan in one batch.
-  optional uint64 scan_batch_size = 3;
+  optional uint32 scan_batch_size = 3;
 
   // Do not scan for inodes not found in the static map.
   optional bool do_not_scan = 4;
