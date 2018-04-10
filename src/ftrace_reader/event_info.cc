@@ -2819,6 +2819,412 @@ std::vector<Event> GetStaticEventInfo() {
     event->fields.push_back(MakeField("cpu", 5, kProtoUint32));
   }
 
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_do_submit_bio";
+    event->group = "f2fs";
+    event->proto_field_id = 243;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("btype", 2, kProtoInt32));
+    event->fields.push_back(MakeField("sync", 3, kProtoUint32));
+    event->fields.push_back(MakeField("sector", 4, kProtoUint64));
+    event->fields.push_back(MakeField("size", 5, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_evict_inode";
+    event->group = "f2fs";
+    event->proto_field_id = 244;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pino", 3, kProtoUint64));
+    event->fields.push_back(MakeField("mode", 4, kProtoUint32));
+    event->fields.push_back(MakeField("size", 5, kProtoInt64));
+    event->fields.push_back(MakeField("nlink", 6, kProtoUint32));
+    event->fields.push_back(MakeField("blocks", 7, kProtoUint64));
+    event->fields.push_back(MakeField("advise", 8, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_fallocate";
+    event->group = "f2fs";
+    event->proto_field_id = 245;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("mode", 3, kProtoInt32));
+    event->fields.push_back(MakeField("offset", 4, kProtoInt64));
+    event->fields.push_back(MakeField("len", 5, kProtoInt64));
+    event->fields.push_back(MakeField("size", 6, kProtoInt64));
+    event->fields.push_back(MakeField("blocks", 7, kProtoUint64));
+    event->fields.push_back(MakeField("ret", 8, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_get_data_block";
+    event->group = "f2fs";
+    event->proto_field_id = 246;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("iblock", 3, kProtoUint64));
+    event->fields.push_back(MakeField("bh_start", 4, kProtoUint64));
+    event->fields.push_back(MakeField("bh_size", 5, kProtoUint64));
+    event->fields.push_back(MakeField("ret", 6, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_get_victim";
+    event->group = "f2fs";
+    event->proto_field_id = 247;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("type", 2, kProtoInt32));
+    event->fields.push_back(MakeField("gc_type", 3, kProtoInt32));
+    event->fields.push_back(MakeField("alloc_mode", 4, kProtoInt32));
+    event->fields.push_back(MakeField("gc_mode", 5, kProtoInt32));
+    event->fields.push_back(MakeField("victim", 6, kProtoUint32));
+    event->fields.push_back(MakeField("ofs_unit", 7, kProtoUint32));
+    event->fields.push_back(MakeField("pre_victim", 8, kProtoUint32));
+    event->fields.push_back(MakeField("prefree", 9, kProtoUint32));
+    event->fields.push_back(MakeField("free", 10, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_iget";
+    event->group = "f2fs";
+    event->proto_field_id = 248;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pino", 3, kProtoUint64));
+    event->fields.push_back(MakeField("mode", 4, kProtoUint32));
+    event->fields.push_back(MakeField("size", 5, kProtoInt64));
+    event->fields.push_back(MakeField("nlink", 6, kProtoUint32));
+    event->fields.push_back(MakeField("blocks", 7, kProtoUint64));
+    event->fields.push_back(MakeField("advise", 8, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_iget_exit";
+    event->group = "f2fs";
+    event->proto_field_id = 249;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("ret", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_new_inode";
+    event->group = "f2fs";
+    event->proto_field_id = 250;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("ret", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_readpage";
+    event->group = "f2fs";
+    event->proto_field_id = 251;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("index", 3, kProtoUint64));
+    event->fields.push_back(MakeField("blkaddr", 4, kProtoUint64));
+    event->fields.push_back(MakeField("type", 5, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_reserve_new_block";
+    event->group = "f2fs";
+    event->proto_field_id = 252;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("nid", 2, kProtoUint32));
+    event->fields.push_back(MakeField("ofs_in_node", 3, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_set_page_dirty";
+    event->group = "f2fs";
+    event->proto_field_id = 253;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("type", 3, kProtoInt32));
+    event->fields.push_back(MakeField("dir", 4, kProtoInt32));
+    event->fields.push_back(MakeField("index", 5, kProtoUint64));
+    event->fields.push_back(MakeField("dirty", 6, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_submit_write_page";
+    event->group = "f2fs";
+    event->proto_field_id = 254;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("type", 3, kProtoInt32));
+    event->fields.push_back(MakeField("index", 4, kProtoUint64));
+    event->fields.push_back(MakeField("block", 5, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_sync_file_enter";
+    event->group = "f2fs";
+    event->proto_field_id = 255;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pino", 3, kProtoUint64));
+    event->fields.push_back(MakeField("mode", 4, kProtoUint32));
+    event->fields.push_back(MakeField("size", 5, kProtoInt64));
+    event->fields.push_back(MakeField("nlink", 6, kProtoUint32));
+    event->fields.push_back(MakeField("blocks", 7, kProtoUint64));
+    event->fields.push_back(MakeField("advise", 8, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_sync_file_exit";
+    event->group = "f2fs";
+    event->proto_field_id = 256;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("need_cp", 3, kProtoUint32));
+    event->fields.push_back(MakeField("datasync", 4, kProtoInt32));
+    event->fields.push_back(MakeField("ret", 5, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_sync_fs";
+    event->group = "f2fs";
+    event->proto_field_id = 257;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("dirty", 2, kProtoInt32));
+    event->fields.push_back(MakeField("wait", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate";
+    event->group = "f2fs";
+    event->proto_field_id = 258;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pino", 3, kProtoUint64));
+    event->fields.push_back(MakeField("mode", 4, kProtoUint32));
+    event->fields.push_back(MakeField("size", 5, kProtoInt64));
+    event->fields.push_back(MakeField("nlink", 6, kProtoUint32));
+    event->fields.push_back(MakeField("blocks", 7, kProtoUint64));
+    event->fields.push_back(MakeField("advise", 8, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate_blocks_enter";
+    event->group = "f2fs";
+    event->proto_field_id = 259;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("size", 3, kProtoInt64));
+    event->fields.push_back(MakeField("blocks", 4, kProtoUint64));
+    event->fields.push_back(MakeField("from", 5, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate_blocks_exit";
+    event->group = "f2fs";
+    event->proto_field_id = 260;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("ret", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate_data_blocks_range";
+    event->group = "f2fs";
+    event->proto_field_id = 261;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("nid", 3, kProtoUint32));
+    event->fields.push_back(MakeField("ofs", 4, kProtoUint32));
+    event->fields.push_back(MakeField("free", 5, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate_inode_blocks_enter";
+    event->group = "f2fs";
+    event->proto_field_id = 262;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("size", 3, kProtoInt64));
+    event->fields.push_back(MakeField("blocks", 4, kProtoUint64));
+    event->fields.push_back(MakeField("from", 5, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate_inode_blocks_exit";
+    event->group = "f2fs";
+    event->proto_field_id = 263;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("ret", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate_node";
+    event->group = "f2fs";
+    event->proto_field_id = 264;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("nid", 3, kProtoUint32));
+    event->fields.push_back(MakeField("blk_addr", 4, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate_nodes_enter";
+    event->group = "f2fs";
+    event->proto_field_id = 265;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("nid", 3, kProtoUint32));
+    event->fields.push_back(MakeField("blk_addr", 4, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate_nodes_exit";
+    event->group = "f2fs";
+    event->proto_field_id = 266;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("ret", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_truncate_partial_nodes";
+    event->group = "f2fs";
+    event->proto_field_id = 267;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("nid", 3, kProtoUint32));
+    event->fields.push_back(MakeField("depth", 4, kProtoInt32));
+    event->fields.push_back(MakeField("err", 5, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_unlink_enter";
+    event->group = "f2fs";
+    event->proto_field_id = 268;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("size", 3, kProtoInt64));
+    event->fields.push_back(MakeField("blocks", 4, kProtoUint64));
+    event->fields.push_back(MakeField("name", 5, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_unlink_exit";
+    event->group = "f2fs";
+    event->proto_field_id = 269;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("ret", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_vm_page_mkwrite";
+    event->group = "f2fs";
+    event->proto_field_id = 270;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("type", 3, kProtoInt32));
+    event->fields.push_back(MakeField("dir", 4, kProtoInt32));
+    event->fields.push_back(MakeField("index", 5, kProtoUint64));
+    event->fields.push_back(MakeField("dirty", 6, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_write_begin";
+    event->group = "f2fs";
+    event->proto_field_id = 271;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pos", 3, kProtoInt64));
+    event->fields.push_back(MakeField("len", 4, kProtoUint32));
+    event->fields.push_back(MakeField("flags", 5, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_write_checkpoint";
+    event->group = "f2fs";
+    event->proto_field_id = 272;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("is_umount", 2, kProtoUint32));
+    event->fields.push_back(MakeField("msg", 3, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "f2fs_write_end";
+    event->group = "f2fs";
+    event->proto_field_id = 301;
+    event->fields.push_back(MakeField("dev", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ino", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pos", 3, kProtoInt64));
+    event->fields.push_back(MakeField("len", 4, kProtoUint32));
+    event->fields.push_back(MakeField("copied", 5, kProtoUint32));
+  }
+
   return events;
 }
 

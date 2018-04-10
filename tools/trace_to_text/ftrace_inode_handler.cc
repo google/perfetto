@@ -326,6 +326,115 @@ bool ParseInode(const protos::FtraceEvent& event, uint64_t* inode) {
     *inode = static_cast<uint64_t>(
         event.mm_filemap_delete_from_page_cache().i_ino());
     return true;
+  } else if (event.has_f2fs_evict_inode() && event.f2fs_evict_inode().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_evict_inode().ino());
+    return true;
+  } else if (event.has_f2fs_evict_inode() && event.f2fs_evict_inode().pino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_evict_inode().pino());
+    return true;
+  } else if (event.has_f2fs_fallocate() && event.f2fs_fallocate().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_fallocate().ino());
+    return true;
+  } else if (event.has_f2fs_get_data_block() &&
+             event.f2fs_get_data_block().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_get_data_block().ino());
+    return true;
+  } else if (event.has_f2fs_iget() && event.f2fs_iget().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_iget().ino());
+    return true;
+  } else if (event.has_f2fs_iget() && event.f2fs_iget().pino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_iget().pino());
+    return true;
+  } else if (event.has_f2fs_iget_exit() && event.f2fs_iget_exit().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_iget_exit().ino());
+    return true;
+  } else if (event.has_f2fs_new_inode() && event.f2fs_new_inode().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_new_inode().ino());
+    return true;
+  } else if (event.has_f2fs_readpage() && event.f2fs_readpage().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_readpage().ino());
+    return true;
+  } else if (event.has_f2fs_set_page_dirty() &&
+             event.f2fs_set_page_dirty().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_set_page_dirty().ino());
+    return true;
+  } else if (event.has_f2fs_submit_write_page() &&
+             event.f2fs_submit_write_page().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_submit_write_page().ino());
+    return true;
+  } else if (event.has_f2fs_sync_file_enter() &&
+             event.f2fs_sync_file_enter().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_sync_file_enter().ino());
+    return true;
+  } else if (event.has_f2fs_sync_file_enter() &&
+             event.f2fs_sync_file_enter().pino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_sync_file_enter().pino());
+    return true;
+  } else if (event.has_f2fs_sync_file_exit() &&
+             event.f2fs_sync_file_exit().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_sync_file_exit().ino());
+    return true;
+  } else if (event.has_f2fs_truncate() && event.f2fs_truncate().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_truncate().ino());
+    return true;
+  } else if (event.has_f2fs_truncate() && event.f2fs_truncate().pino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_truncate().pino());
+    return true;
+  } else if (event.has_f2fs_truncate_blocks_enter() &&
+             event.f2fs_truncate_blocks_enter().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_truncate_blocks_enter().ino());
+    return true;
+  } else if (event.has_f2fs_truncate_blocks_exit() &&
+             event.f2fs_truncate_blocks_exit().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_truncate_blocks_exit().ino());
+    return true;
+  } else if (event.has_f2fs_truncate_data_blocks_range() &&
+             event.f2fs_truncate_data_blocks_range().ino()) {
+    *inode =
+        static_cast<uint64_t>(event.f2fs_truncate_data_blocks_range().ino());
+    return true;
+  } else if (event.has_f2fs_truncate_inode_blocks_enter() &&
+             event.f2fs_truncate_inode_blocks_enter().ino()) {
+    *inode =
+        static_cast<uint64_t>(event.f2fs_truncate_inode_blocks_enter().ino());
+    return true;
+  } else if (event.has_f2fs_truncate_inode_blocks_exit() &&
+             event.f2fs_truncate_inode_blocks_exit().ino()) {
+    *inode =
+        static_cast<uint64_t>(event.f2fs_truncate_inode_blocks_exit().ino());
+    return true;
+  } else if (event.has_f2fs_truncate_node() &&
+             event.f2fs_truncate_node().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_truncate_node().ino());
+    return true;
+  } else if (event.has_f2fs_truncate_nodes_enter() &&
+             event.f2fs_truncate_nodes_enter().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_truncate_nodes_enter().ino());
+    return true;
+  } else if (event.has_f2fs_truncate_nodes_exit() &&
+             event.f2fs_truncate_nodes_exit().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_truncate_nodes_exit().ino());
+    return true;
+  } else if (event.has_f2fs_truncate_partial_nodes() &&
+             event.f2fs_truncate_partial_nodes().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_truncate_partial_nodes().ino());
+    return true;
+  } else if (event.has_f2fs_unlink_enter() && event.f2fs_unlink_enter().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_unlink_enter().ino());
+    return true;
+  } else if (event.has_f2fs_unlink_exit() && event.f2fs_unlink_exit().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_unlink_exit().ino());
+    return true;
+  } else if (event.has_f2fs_vm_page_mkwrite() &&
+             event.f2fs_vm_page_mkwrite().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_vm_page_mkwrite().ino());
+    return true;
+  } else if (event.has_f2fs_write_begin() && event.f2fs_write_begin().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_write_begin().ino());
+    return true;
+  } else if (event.has_f2fs_write_end() && event.f2fs_write_end().ino()) {
+    *inode = static_cast<uint64_t>(event.f2fs_write_end().ino());
+    return true;
   }
   return false;
 }
