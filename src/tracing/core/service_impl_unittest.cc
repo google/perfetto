@@ -515,7 +515,6 @@ TEST_F(ServiceImplTest, BatchFlushes) {
 
   // At this point flush id == 4 should still be pending and should fail because
   // of reaching its timeout.
-  ASSERT_EQ(1u, GetNumPendingFlushes());
   ASSERT_FALSE(flush_req_4.WaitForReply());
 
   consumer->DisableTracing();
