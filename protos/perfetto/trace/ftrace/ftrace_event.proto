@@ -246,6 +246,37 @@ import "perfetto/trace/ftrace/sched_process_fork.proto";
 import "perfetto/trace/ftrace/sched_process_hang.proto";
 import "perfetto/trace/ftrace/sched_process_wait.proto";
 import "perfetto/trace/ftrace/sched_process_free.proto";
+import "perfetto/trace/ftrace/f2fs_do_submit_bio.proto";
+import "perfetto/trace/ftrace/f2fs_evict_inode.proto";
+import "perfetto/trace/ftrace/f2fs_fallocate.proto";
+import "perfetto/trace/ftrace/f2fs_get_data_block.proto";
+import "perfetto/trace/ftrace/f2fs_get_victim.proto";
+import "perfetto/trace/ftrace/f2fs_iget.proto";
+import "perfetto/trace/ftrace/f2fs_iget_exit.proto";
+import "perfetto/trace/ftrace/f2fs_new_inode.proto";
+import "perfetto/trace/ftrace/f2fs_readpage.proto";
+import "perfetto/trace/ftrace/f2fs_reserve_new_block.proto";
+import "perfetto/trace/ftrace/f2fs_set_page_dirty.proto";
+import "perfetto/trace/ftrace/f2fs_submit_write_page.proto";
+import "perfetto/trace/ftrace/f2fs_sync_file_enter.proto";
+import "perfetto/trace/ftrace/f2fs_sync_file_exit.proto";
+import "perfetto/trace/ftrace/f2fs_sync_fs.proto";
+import "perfetto/trace/ftrace/f2fs_truncate.proto";
+import "perfetto/trace/ftrace/f2fs_truncate_blocks_enter.proto";
+import "perfetto/trace/ftrace/f2fs_truncate_blocks_exit.proto";
+import "perfetto/trace/ftrace/f2fs_truncate_data_blocks_range.proto";
+import "perfetto/trace/ftrace/f2fs_truncate_inode_blocks_enter.proto";
+import "perfetto/trace/ftrace/f2fs_truncate_inode_blocks_exit.proto";
+import "perfetto/trace/ftrace/f2fs_truncate_node.proto";
+import "perfetto/trace/ftrace/f2fs_truncate_nodes_enter.proto";
+import "perfetto/trace/ftrace/f2fs_truncate_nodes_exit.proto";
+import "perfetto/trace/ftrace/f2fs_truncate_partial_nodes.proto";
+import "perfetto/trace/ftrace/f2fs_unlink_enter.proto";
+import "perfetto/trace/ftrace/f2fs_unlink_exit.proto";
+import "perfetto/trace/ftrace/f2fs_vm_page_mkwrite.proto";
+import "perfetto/trace/ftrace/f2fs_write_begin.proto";
+import "perfetto/trace/ftrace/f2fs_write_checkpoint.proto";
+import "perfetto/trace/ftrace/f2fs_write_end.proto";
 
 package perfetto.protos;
 
@@ -500,5 +531,39 @@ message FtraceEvent {
     SchedProcessFreeFtraceEvent sched_process_free = 240;
     SchedProcessHangFtraceEvent sched_process_hang = 241;
     SchedProcessWaitFtraceEvent sched_process_wait = 242;
+    F2fsDoSubmitBioFtraceEvent f2fs_do_submit_bio = 243;
+    F2fsEvictInodeFtraceEvent f2fs_evict_inode = 244;
+    F2fsFallocateFtraceEvent f2fs_fallocate = 245;
+    F2fsGetDataBlockFtraceEvent f2fs_get_data_block = 246;
+    F2fsGetVictimFtraceEvent f2fs_get_victim = 247;
+    F2fsIgetFtraceEvent f2fs_iget = 248;
+    F2fsIgetExitFtraceEvent f2fs_iget_exit = 249;
+    F2fsNewInodeFtraceEvent f2fs_new_inode = 250;
+    F2fsReadpageFtraceEvent f2fs_readpage = 251;
+    F2fsReserveNewBlockFtraceEvent f2fs_reserve_new_block = 252;
+    F2fsSetPageDirtyFtraceEvent f2fs_set_page_dirty = 253;
+    F2fsSubmitWritePageFtraceEvent f2fs_submit_write_page = 254;
+    F2fsSyncFileEnterFtraceEvent f2fs_sync_file_enter = 255;
+    F2fsSyncFileExitFtraceEvent f2fs_sync_file_exit = 256;
+    F2fsSyncFsFtraceEvent f2fs_sync_fs = 257;
+    F2fsTruncateFtraceEvent f2fs_truncate = 258;
+    F2fsTruncateBlocksEnterFtraceEvent f2fs_truncate_blocks_enter = 259;
+    F2fsTruncateBlocksExitFtraceEvent f2fs_truncate_blocks_exit = 260;
+    F2fsTruncateDataBlocksRangeFtraceEvent f2fs_truncate_data_blocks_range =
+        261;
+    F2fsTruncateInodeBlocksEnterFtraceEvent f2fs_truncate_inode_blocks_enter =
+        262;
+    F2fsTruncateInodeBlocksExitFtraceEvent f2fs_truncate_inode_blocks_exit =
+        263;
+    F2fsTruncateNodeFtraceEvent f2fs_truncate_node = 264;
+    F2fsTruncateNodesEnterFtraceEvent f2fs_truncate_nodes_enter = 265;
+    F2fsTruncateNodesExitFtraceEvent f2fs_truncate_nodes_exit = 266;
+    F2fsTruncatePartialNodesFtraceEvent f2fs_truncate_partial_nodes = 267;
+    F2fsUnlinkEnterFtraceEvent f2fs_unlink_enter = 268;
+    F2fsUnlinkExitFtraceEvent f2fs_unlink_exit = 269;
+    F2fsVmPageMkwriteFtraceEvent f2fs_vm_page_mkwrite = 270;
+    F2fsWriteBeginFtraceEvent f2fs_write_begin = 271;
+    F2fsWriteCheckpointFtraceEvent f2fs_write_checkpoint = 272;
+    F2fsWriteEndFtraceEvent f2fs_write_end = 273;
   }
 }

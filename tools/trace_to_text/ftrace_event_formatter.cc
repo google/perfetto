@@ -259,6 +259,37 @@ using protos::WorkqueueExecuteStartFtraceEvent;
 using protos::WorkqueueQueueWorkFtraceEvent;
 using protos::TaskNewtaskFtraceEvent;
 using protos::TaskRenameFtraceEvent;
+using protos::F2fsDoSubmitBioFtraceEvent;
+using protos::F2fsEvictInodeFtraceEvent;
+using protos::F2fsFallocateFtraceEvent;
+using protos::F2fsGetDataBlockFtraceEvent;
+using protos::F2fsGetVictimFtraceEvent;
+using protos::F2fsIgetFtraceEvent;
+using protos::F2fsIgetExitFtraceEvent;
+using protos::F2fsNewInodeFtraceEvent;
+using protos::F2fsReadpageFtraceEvent;
+using protos::F2fsReserveNewBlockFtraceEvent;
+using protos::F2fsSetPageDirtyFtraceEvent;
+using protos::F2fsSubmitWritePageFtraceEvent;
+using protos::F2fsSyncFileEnterFtraceEvent;
+using protos::F2fsSyncFileExitFtraceEvent;
+using protos::F2fsSyncFsFtraceEvent;
+using protos::F2fsTruncateFtraceEvent;
+using protos::F2fsTruncateBlocksEnterFtraceEvent;
+using protos::F2fsTruncateBlocksExitFtraceEvent;
+using protos::F2fsTruncateDataBlocksRangeFtraceEvent;
+using protos::F2fsTruncateInodeBlocksEnterFtraceEvent;
+using protos::F2fsTruncateInodeBlocksExitFtraceEvent;
+using protos::F2fsTruncateNodeFtraceEvent;
+using protos::F2fsTruncateNodesEnterFtraceEvent;
+using protos::F2fsTruncateNodesExitFtraceEvent;
+using protos::F2fsTruncatePartialNodesFtraceEvent;
+using protos::F2fsUnlinkEnterFtraceEvent;
+using protos::F2fsUnlinkExitFtraceEvent;
+using protos::F2fsVmPageMkwriteFtraceEvent;
+using protos::F2fsWriteBeginFtraceEvent;
+using protos::F2fsWriteCheckpointFtraceEvent;
+using protos::F2fsWriteEndFtraceEvent;
 
 const char* GetSchedSwitchFlag(int32_t state) {
   state &= 511;
@@ -2029,6 +2060,173 @@ std::string FormatExt4ZeroRange(const Ext4ZeroRangeFtraceEvent& event) {
   return std::string(line);
 }
 
+std::string FormatF2fsDoSubmitBio(const F2fsDoSubmitBioFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_do_submit_bio: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsEvictInode(const F2fsEvictInodeFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_evict_inode: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsFallocate(const F2fsFallocateFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_fallocate: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsGetDataBlock(const F2fsGetDataBlockFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_get_data_block: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsGetVictim(const F2fsGetVictimFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_get_victim: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsIget(const F2fsIgetFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_iget: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsIgetExit(const F2fsIgetExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_iget_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsNewInode(const F2fsNewInodeFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_new_inode: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsReadpage(const F2fsReadpageFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_readpage: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsReserveNewBlock(
+    const F2fsReserveNewBlockFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_reserve_new_block: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSetPageDirty(const F2fsSetPageDirtyFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_set_page_dirty: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSubmitWritePage(
+    const F2fsSubmitWritePageFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_submit_write_page: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSyncFileEnter(const F2fsSyncFileEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_sync_file_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSyncFileExit(const F2fsSyncFileExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_sync_file_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSyncFs(const F2fsSyncFsFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_sync_fs: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncate(const F2fsTruncateFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateBlocksEnter(
+    const F2fsTruncateBlocksEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_blocks_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateBlocksExit(
+    const F2fsTruncateBlocksExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_blocks_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateDataBlocksRange(
+    const F2fsTruncateDataBlocksRangeFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_data_blocks_range: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateInodeBlocksEnter(
+    const F2fsTruncateInodeBlocksEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_inode_blocks_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateInodeBlocksExit(
+    const F2fsTruncateInodeBlocksExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_inode_blocks_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateNode(const F2fsTruncateNodeFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_node: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateNodesEnter(
+    const F2fsTruncateNodesEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_nodes_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateNodesExit(
+    const F2fsTruncateNodesExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_nodes_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncatePartialNodes(
+    const F2fsTruncatePartialNodesFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_partial_nodes: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsUnlinkEnter(const F2fsUnlinkEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_unlink_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsUnlinkExit(const F2fsUnlinkExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_unlink_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsVmPageMkwrite(const F2fsVmPageMkwriteFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_vm_page_mkwrite: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsWriteBegin(const F2fsWriteBeginFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_write_begin: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsWriteCheckpoint(
+    const F2fsWriteCheckpointFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_write_checkpoint: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsWriteEnd(const F2fsWriteEndFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_write_end: TODO(fmayer): add format");
+  return std::string(line);
+}
+
 std::string FormatEventText(const protos::FtraceEvent& event) {
   if (event.has_binder_lock()) {
     const auto& inner = event.binder_lock();
@@ -2573,6 +2771,99 @@ std::string FormatEventText(const protos::FtraceEvent& event) {
   } else if (event.has_task_newtask()) {
     const auto& inner = event.task_newtask();
     return FormatTaskNewtask(inner);
+  } else if (event.has_f2fs_do_submit_bio()) {
+    const auto& inner = event.f2fs_do_submit_bio();
+    return FormatF2fsDoSubmitBio(inner);
+  } else if (event.has_f2fs_evict_inode()) {
+    const auto& inner = event.f2fs_evict_inode();
+    return FormatF2fsEvictInode(inner);
+  } else if (event.has_f2fs_fallocate()) {
+    const auto& inner = event.f2fs_fallocate();
+    return FormatF2fsFallocate(inner);
+  } else if (event.has_f2fs_get_data_block()) {
+    const auto& inner = event.f2fs_get_data_block();
+    return FormatF2fsGetDataBlock(inner);
+  } else if (event.has_f2fs_get_victim()) {
+    const auto& inner = event.f2fs_get_victim();
+    return FormatF2fsGetVictim(inner);
+  } else if (event.has_f2fs_iget()) {
+    const auto& inner = event.f2fs_iget();
+    return FormatF2fsIget(inner);
+  } else if (event.has_f2fs_iget_exit()) {
+    const auto& inner = event.f2fs_iget_exit();
+    return FormatF2fsIgetExit(inner);
+  } else if (event.has_f2fs_new_inode()) {
+    const auto& inner = event.f2fs_new_inode();
+    return FormatF2fsNewInode(inner);
+  } else if (event.has_f2fs_readpage()) {
+    const auto& inner = event.f2fs_readpage();
+    return FormatF2fsReadpage(inner);
+  } else if (event.has_f2fs_reserve_new_block()) {
+    const auto& inner = event.f2fs_reserve_new_block();
+    return FormatF2fsReserveNewBlock(inner);
+  } else if (event.has_f2fs_set_page_dirty()) {
+    const auto& inner = event.f2fs_set_page_dirty();
+    return FormatF2fsSetPageDirty(inner);
+  } else if (event.has_f2fs_submit_write_page()) {
+    const auto& inner = event.f2fs_submit_write_page();
+    return FormatF2fsSubmitWritePage(inner);
+  } else if (event.has_f2fs_sync_file_enter()) {
+    const auto& inner = event.f2fs_sync_file_enter();
+    return FormatF2fsSyncFileEnter(inner);
+  } else if (event.has_f2fs_sync_file_exit()) {
+    const auto& inner = event.f2fs_sync_file_exit();
+    return FormatF2fsSyncFileExit(inner);
+  } else if (event.has_f2fs_sync_fs()) {
+    const auto& inner = event.f2fs_sync_fs();
+    return FormatF2fsSyncFs(inner);
+  } else if (event.has_f2fs_truncate()) {
+    const auto& inner = event.f2fs_truncate();
+    return FormatF2fsTruncate(inner);
+  } else if (event.has_f2fs_truncate_blocks_enter()) {
+    const auto& inner = event.f2fs_truncate_blocks_enter();
+    return FormatF2fsTruncateBlocksEnter(inner);
+  } else if (event.has_f2fs_truncate_blocks_exit()) {
+    const auto& inner = event.f2fs_truncate_blocks_exit();
+    return FormatF2fsTruncateBlocksExit(inner);
+  } else if (event.has_f2fs_truncate_data_blocks_range()) {
+    const auto& inner = event.f2fs_truncate_data_blocks_range();
+    return FormatF2fsTruncateDataBlocksRange(inner);
+  } else if (event.has_f2fs_truncate_inode_blocks_enter()) {
+    const auto& inner = event.f2fs_truncate_inode_blocks_enter();
+    return FormatF2fsTruncateInodeBlocksEnter(inner);
+  } else if (event.has_f2fs_truncate_inode_blocks_exit()) {
+    const auto& inner = event.f2fs_truncate_inode_blocks_exit();
+    return FormatF2fsTruncateInodeBlocksExit(inner);
+  } else if (event.has_f2fs_truncate_node()) {
+    const auto& inner = event.f2fs_truncate_node();
+    return FormatF2fsTruncateNode(inner);
+  } else if (event.has_f2fs_truncate_nodes_enter()) {
+    const auto& inner = event.f2fs_truncate_nodes_enter();
+    return FormatF2fsTruncateNodesEnter(inner);
+  } else if (event.has_f2fs_truncate_nodes_exit()) {
+    const auto& inner = event.f2fs_truncate_nodes_exit();
+    return FormatF2fsTruncateNodesExit(inner);
+  } else if (event.has_f2fs_truncate_partial_nodes()) {
+    const auto& inner = event.f2fs_truncate_partial_nodes();
+    return FormatF2fsTruncatePartialNodes(inner);
+  } else if (event.has_f2fs_unlink_enter()) {
+    const auto& inner = event.f2fs_unlink_enter();
+    return FormatF2fsUnlinkEnter(inner);
+  } else if (event.has_f2fs_unlink_exit()) {
+    const auto& inner = event.f2fs_unlink_exit();
+    return FormatF2fsUnlinkExit(inner);
+  } else if (event.has_f2fs_vm_page_mkwrite()) {
+    const auto& inner = event.f2fs_vm_page_mkwrite();
+    return FormatF2fsVmPageMkwrite(inner);
+  } else if (event.has_f2fs_write_begin()) {
+    const auto& inner = event.f2fs_write_begin();
+    return FormatF2fsWriteBegin(inner);
+  } else if (event.has_f2fs_write_checkpoint()) {
+    const auto& inner = event.f2fs_write_checkpoint();
+    return FormatF2fsWriteCheckpoint(inner);
+  } else if (event.has_f2fs_write_end()) {
+    const auto& inner = event.f2fs_write_end();
+    return FormatF2fsWriteEnd(inner);
   }
   return "";
 }
