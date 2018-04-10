@@ -27,7 +27,7 @@ class TracePacket;
 
 class Consumer {
  public:
-  virtual ~Consumer() = default;
+  virtual ~Consumer();
 
   // Called by Service (or more typically by the transport layer, on behalf of
   // the remote Service), once the Consumer <> Service connection has been

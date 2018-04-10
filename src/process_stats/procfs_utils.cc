@@ -8,7 +8,7 @@
 #include <string.h>
 #include <fstream>
 
-#include "file_utils.h"
+#include "src/process_stats/file_utils.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/string_splitter.h"

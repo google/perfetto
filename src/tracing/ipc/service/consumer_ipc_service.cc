@@ -71,15 +71,14 @@ void ConsumerIPCService::EnableTracing(const protos::EnableTracingRequest& req,
 }
 
 // Called by the IPC layer.
-void ConsumerIPCService::DisableTracing(
-    const protos::DisableTracingRequest& req,
-    DeferredDisableTracingResponse resp) {
+void ConsumerIPCService::DisableTracing(const protos::DisableTracingRequest&,
+                                        DeferredDisableTracingResponse resp) {
   GetConsumerForCurrentRequest()->service_endpoint->DisableTracing();
   resp.Resolve(ipc::AsyncResult<protos::DisableTracingResponse>::Create());
 }
 
 // Called by the IPC layer.
-void ConsumerIPCService::ReadBuffers(const protos::ReadBuffersRequest& req,
+void ConsumerIPCService::ReadBuffers(const protos::ReadBuffersRequest&,
                                      DeferredReadBuffersResponse resp) {
   RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
   remote_consumer->read_buffers_response = std::move(resp);
@@ -87,7 +86,7 @@ void ConsumerIPCService::ReadBuffers(const protos::ReadBuffersRequest& req,
 }
 
 // Called by the IPC layer.
-void ConsumerIPCService::FreeBuffers(const protos::FreeBuffersRequest& req,
+void ConsumerIPCService::FreeBuffers(const protos::FreeBuffersRequest&,
                                      DeferredFreeBuffersResponse resp) {
   GetConsumerForCurrentRequest()->service_endpoint->FreeBuffers();
   resp.Resolve(ipc::AsyncResult<protos::FreeBuffersResponse>::Create());

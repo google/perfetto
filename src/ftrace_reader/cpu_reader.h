@@ -103,7 +103,7 @@ class CpuReader {
   // Returns the raw value not the varint.
   template <typename T>
   static T ReadIntoVarInt(const uint8_t* start,
-                          size_t field_id,
+                          uint32_t field_id,
                           protozero::Message* out) {
     T t;
     memcpy(&t, reinterpret_cast<const void*>(start), sizeof(T));
@@ -113,7 +113,7 @@ class CpuReader {
 
   template <typename T>
   static void ReadInode(const uint8_t* start,
-                        size_t field_id,
+                        uint32_t field_id,
                         protozero::Message* out,
                         FtraceMetadata* metadata) {
     T t = ReadIntoVarInt<T>(start, field_id, out);
@@ -122,7 +122,7 @@ class CpuReader {
 
   template <typename T>
   static void ReadDevId(const uint8_t* start,
-                        size_t field_id,
+                        uint32_t field_id,
                         protozero::Message* out,
                         FtraceMetadata* metadata) {
     T t;
@@ -133,7 +133,7 @@ class CpuReader {
   }
 
   static void ReadPid(const uint8_t* start,
-                      size_t field_id,
+                      uint32_t field_id,
                       protozero::Message* out,
                       FtraceMetadata* metadata) {
     int32_t pid = ReadIntoVarInt<int32_t>(start, field_id, out);
@@ -141,7 +141,7 @@ class CpuReader {
   }
 
   static void ReadCommonPid(const uint8_t* start,
-                            size_t field_id,
+                            uint32_t field_id,
                             protozero::Message* out,
                             FtraceMetadata* metadata) {
     int32_t pid = ReadIntoVarInt<int32_t>(start, field_id, out);
@@ -158,12 +158,11 @@ class CpuReader {
     // Convert to user space id using
     // https://github.com/torvalds/linux/blob/v4.12/include/linux/kdev_t.h#L10
     // TODO(azappone): see if this is the same on all platforms
-    unsigned int maj = static_cast<unsigned int>((kernel_dev) >> 20);
-    unsigned int min =
-        static_cast<unsigned int>((kernel_dev) & ((1U << 20) - 1));
+    uint64_t maj = static_cast<uint64_t>(kernel_dev) >> 20;
+    uint64_t min = static_cast<uint64_t>(kernel_dev) & ((1U << 20) - 1);
     return static_cast<BlockDeviceID>(  // From makedev()
-        (((maj)&0xfffff000ULL) << 32) | (((maj)&0xfffULL) << 8) |
-        (((min)&0xffffff00ULL) << 12) | (((min)&0xffULL)));
+        ((maj & 0xfffff000ULL) << 32) | ((maj & 0xfffULL) << 8) |
+        ((min & 0xffffff00ULL) << 12) | ((min & 0xffULL)));
   }
 
   // Parse a raw ftrace page beginning at ptr and write the events a protos

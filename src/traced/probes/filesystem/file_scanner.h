@@ -36,13 +36,13 @@ class FileScanner {
                               const std::string&,
                               protos::pbzero::InodeFileMap_Entry_Type) = 0;
     virtual void OnInodeScanDone() = 0;
-    virtual ~Delegate() {}
+    virtual ~Delegate();
   };
 
   FileScanner(std::vector<std::string> root_directories,
               Delegate* delegate,
-              uint64_t scan_interval_ms,
-              uint64_t scan_steps);
+              uint32_t scan_interval_ms,
+              uint32_t scan_steps);
 
   // Ctor when only the blocking version of Scan is used.
   FileScanner(std::vector<std::string> root_directories, Delegate* delegate);
@@ -56,12 +56,12 @@ class FileScanner {
  private:
   void NextDirectory();
   void Step();
-  void Steps(uint64_t n);
+  void Steps(uint32_t n);
   bool Done();
 
   Delegate* delegate_;
-  const uint64_t scan_interval_ms_;
-  const uint64_t scan_steps_;
+  const uint32_t scan_interval_ms_;
+  const uint32_t scan_steps_;
 
   std::vector<std::string> queue_;
   base::ScopedDir current_dir_handle_;

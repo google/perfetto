@@ -121,7 +121,7 @@ class ServiceImpl : public Service {
     void DisableTracing() override;
     void ReadBuffers() override;
     void FreeBuffers() override;
-    void Flush(int timeout_ms, FlushCallback) override;
+    void Flush(uint32_t timeout_ms, FlushCallback) override;
 
    private:
     friend class ServiceImpl;
@@ -164,7 +164,7 @@ class ServiceImpl : public Service {
                      base::ScopedFile);
   void DisableTracing(TracingSessionID);
   void Flush(TracingSessionID tsid,
-             int timeout_ms,
+             uint32_t timeout_ms,
              ConsumerEndpoint::FlushCallback);
   void FlushAndDisableTracing(TracingSessionID);
   void ReadBuffers(TracingSessionID, ConsumerEndpointImpl*);
@@ -211,7 +211,7 @@ class ServiceImpl : public Service {
 
     size_t num_buffers() const { return buffers_index.size(); }
 
-    int delay_to_next_write_period_ms() const {
+    uint32_t delay_to_next_write_period_ms() const {
       PERFETTO_DCHECK(write_period_ms > 0);
       return write_period_ms -
              (base::GetWallTimeMs().count() % write_period_ms);
@@ -250,9 +250,9 @@ class ServiceImpl : public Service {
     // trace packets into, rather than returning it to the consumer via
     // OnTraceData().
     base::ScopedFile write_into_file;
-    int write_period_ms = 0;
-    size_t max_file_size_bytes = 0;
-    size_t bytes_written_into_file = 0;
+    uint32_t write_period_ms = 0;
+    uint64_t max_file_size_bytes = 0;
+    uint64_t bytes_written_into_file = 0;
   };
 
   ServiceImpl(const ServiceImpl&) = delete;

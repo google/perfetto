@@ -40,8 +40,8 @@
 namespace perfetto {
 namespace {
 
-uint64_t kInitialConnectionBackoffMs = 100;
-uint64_t kMaxConnectionBackoffMs = 30 * 1000;
+constexpr uint32_t kInitialConnectionBackoffMs = 100;
+constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 constexpr char kFtraceSourceName[] = "linux.ftrace";
 constexpr char kProcessStatsSourceName[] = "linux.process_stats";
 constexpr char kInodeMapSourceName[] = "linux.inode_file_map";

@@ -52,11 +52,12 @@ class TestTaskRunner : public TaskRunner {
   void __attribute__((__noreturn__)) Run();
 
   std::function<void()> CreateCheckpoint(const std::string& checkpoint);
-  void RunUntilCheckpoint(const std::string& checkpoint, int timeout_ms = 5000);
+  void RunUntilCheckpoint(const std::string& checkpoint,
+                          uint32_t timeout_ms = 5000);
 
   // TaskRunner implementation.
   void PostTask(std::function<void()> closure) override;
-  void PostDelayedTask(std::function<void()>, int delay_ms) override;
+  void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
   void AddFileDescriptorWatch(int fd, std::function<void()> callback) override;
   void RemoveFileDescriptorWatch(int fd) override;
 
