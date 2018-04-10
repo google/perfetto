@@ -154,12 +154,12 @@ void ForEachPacketInTrace(
 
     // ... and the actual TracePacket itself.
     std::unique_ptr<char[]> buf(new char[field_size]);
-    input->read(buf.get(), field_size);
+    input->read(buf.get(), static_cast<std::streamsize>(field_size));
     bytes_processed += field_size;
 
     protos::TracePacket packet;
-    PERFETTO_CHECK(packet.ParseFromArray(buf.get(), field_size));
-
+    auto res = packet.ParseFromArray(buf.get(), static_cast<int>(field_size));
+    PERFETTO_CHECK(res);
     f(packet);
   }
 }
@@ -235,13 +235,13 @@ void PrintFtraceTrack(std::ostream* output,
   constexpr char kFtraceTrackName[] = "ftrace ";
   size_t width = GetWidth();
   size_t bucket_count = width - strlen(kFtraceTrackName);
-  size_t bucket_size = (end - start) / bucket_count;
+  size_t bucket_size = static_cast<size_t>(end - start) / bucket_count;
   size_t max = 0;
   std::vector<size_t> buckets(bucket_count);
   for (size_t i = 0; i < bucket_count; i++) {
     auto low = ftrace_timestamps.lower_bound(i * bucket_size + start);
     auto high = ftrace_timestamps.upper_bound((i + 1) * bucket_size + start);
-    buckets[i] = std::distance(low, high);
+    buckets[i] = static_cast<size_t>(std::distance(low, high));
     max = std::max(max, buckets[i]);
   }
 
@@ -380,7 +380,7 @@ int TraceToSummary(std::istream* input, std::ostream* output) {
             ftrace_inode_count++;
           }
           if (event.pid()) {
-            tids_in_events.insert(event.pid());
+            tids_in_events.insert(static_cast<int>(event.pid()));
           }
           if (event.timestamp()) {
             start = std::min<uint64_t>(start, event.timestamp());
@@ -409,9 +409,9 @@ int TraceToSummary(std::istream* input, std::ostream* output) {
 
 namespace {
 
-int Usage(int argc, char** argv) {
+int Usage(const char* argv0) {
   printf("Usage: %s [systrace|json|text|summary] < trace.proto > trace.txt\n",
-         argv[0]);
+         argv0);
   return 1;
 }
 
@@ -419,7 +419,7 @@ int Usage(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   if (argc != 2)
-    return Usage(argc, argv);
+    return Usage(argv[0]);
 
   std::string format(argv[1]);
 
@@ -433,5 +433,5 @@ int main(int argc, char** argv) {
     return perfetto::TraceToText(&std::cin, &std::cout);
   if (format == "summary")
     return perfetto::TraceToSummary(&std::cin, &std::cout);
-  return Usage(argc, argv);
+  return Usage(argv[0]);
 }

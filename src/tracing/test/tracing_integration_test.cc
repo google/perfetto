@@ -208,49 +208,51 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   bool saw_trace_config = false;
   auto all_packets_rx = task_runner_->CreateCheckpoint("all_packets_rx");
   EXPECT_CALL(consumer_, OnTracePackets(_, _))
-      .WillRepeatedly(
-          Invoke([&num_pack_rx, all_packets_rx, &trace_config,
-                  &saw_clock_snapshot, &saw_trace_config](
-                     std::vector<TracePacket>* packets, bool has_more) {
+      .WillRepeatedly(Invoke([&num_pack_rx, all_packets_rx, &trace_config,
+                              &saw_clock_snapshot, &saw_trace_config](
+                                 std::vector<TracePacket>* packets,
+                                 bool has_more) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-            const int kExpectedMinNumberOfClocks = 1;
+        const int kExpectedMinNumberOfClocks = 1;
 #else
-            const int kExpectedMinNumberOfClocks = 6;
+        const int kExpectedMinNumberOfClocks = 6;
 #endif
 
-            for (auto& encoded_packet : *packets) {
-              protos::TracePacket packet;
-              ASSERT_TRUE(encoded_packet.Decode(&packet));
-              if (packet.has_for_testing()) {
-                char buf[8];
-                sprintf(buf, "evt_%zu", num_pack_rx++);
-                EXPECT_EQ(std::string(buf), packet.for_testing().str());
-              } else if (packet.has_clock_snapshot()) {
-                EXPECT_GE(packet.clock_snapshot().clocks_size(),
-                          kExpectedMinNumberOfClocks);
-                saw_clock_snapshot = true;
-              } else if (packet.has_trace_config()) {
-                protos::TraceConfig config_proto;
-                trace_config.ToProto(&config_proto);
-                Slice expected_slice = Slice::Allocate(config_proto.ByteSize());
-                config_proto.SerializeWithCachedSizesToArray(
-                    expected_slice.own_data());
-                Slice actual_slice =
-                    Slice::Allocate(packet.trace_config().ByteSize());
-                packet.trace_config().SerializeWithCachedSizesToArray(
-                    actual_slice.own_data());
-                EXPECT_EQ(std::string(reinterpret_cast<const char*>(
-                                          expected_slice.own_data()),
-                                      expected_slice.size),
-                          std::string(reinterpret_cast<const char*>(
-                                          actual_slice.own_data()),
-                                      actual_slice.size));
-                saw_trace_config = true;
-              }
-            }
-            if (!has_more)
-              all_packets_rx();
-          }));
+        for (auto& encoded_packet : *packets) {
+          protos::TracePacket packet;
+          ASSERT_TRUE(encoded_packet.Decode(&packet));
+          if (packet.has_for_testing()) {
+            char buf[8];
+            sprintf(buf, "evt_%zu", num_pack_rx++);
+            EXPECT_EQ(std::string(buf), packet.for_testing().str());
+          } else if (packet.has_clock_snapshot()) {
+            EXPECT_GE(packet.clock_snapshot().clocks_size(),
+                      kExpectedMinNumberOfClocks);
+            saw_clock_snapshot = true;
+          } else if (packet.has_trace_config()) {
+            protos::TraceConfig config_proto;
+            trace_config.ToProto(&config_proto);
+            Slice expected_slice =
+                Slice::Allocate(static_cast<size_t>(config_proto.ByteSize()));
+            config_proto.SerializeWithCachedSizesToArray(
+                expected_slice.own_data());
+            Slice actual_slice = Slice::Allocate(
+                static_cast<size_t>(packet.trace_config().ByteSize()));
+            packet.trace_config().SerializeWithCachedSizesToArray(
+                actual_slice.own_data());
+            EXPECT_EQ(
+                std::string(
+                    reinterpret_cast<const char*>(expected_slice.own_data()),
+                    expected_slice.size),
+                std::string(
+                    reinterpret_cast<const char*>(actual_slice.own_data()),
+                    actual_slice.size));
+            saw_trace_config = true;
+          }
+        }
+        if (!has_more)
+          all_packets_rx();
+      }));
   task_runner_->RunUntilCheckpoint("all_packets_rx");
   ASSERT_EQ(kNumPackets, num_pack_rx);
   EXPECT_TRUE(saw_clock_snapshot);
@@ -323,7 +325,7 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   ssize_t rsize = read(tmp_file.fd(), tmp_buf, sizeof(tmp_buf));
   ASSERT_GT(rsize, 0);
   protos::Trace tmp_trace;
-  ASSERT_TRUE(tmp_trace.ParseFromArray(tmp_buf, rsize));
+  ASSERT_TRUE(tmp_trace.ParseFromArray(tmp_buf, static_cast<int>(rsize)));
   size_t num_test_packet = 0;
   for (int i = 0; i < tmp_trace.packet_size(); i++) {
     const protos::TracePacket& packet = tmp_trace.packet(i);

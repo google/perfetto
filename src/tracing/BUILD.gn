@@ -58,6 +58,7 @@ source_set("tracing") {
     "core/trace_packet.cc",
     "core/trace_writer_impl.cc",
     "core/trace_writer_impl.h",
+    "core/virtual_destructors.cc",
   ]
 }
 

@@ -147,7 +147,7 @@ void ProducerIPCClientImpl::OnServiceRequest(
                   "data_source_ids should be 64-bit");
     producer_->Flush(cmd.flush().request_id(),
                      reinterpret_cast<const FlushRequestID*>(data_source_ids),
-                     cmd.flush().data_source_ids().size());
+                     static_cast<size_t>(cmd.flush().data_source_ids().size()));
     return;
   }
 

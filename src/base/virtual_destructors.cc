@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/process_stats_data_source.h"
+#include "perfetto/base/task_runner.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+// This translation unit contains the definitions for the destructor of pure
+// virtual interfaces for the current build target. The alternative would be
+// introducing a one-liner .cc file for each pure virtual interface, which is
+// overkill. This is for compliance with -Wweak-vtables.
 
 namespace perfetto {
-namespace {
+namespace base {
 
-// TODO(hjd): Add tests.
+TaskRunner::~TaskRunner() = default;
 
-}  // namespace
+}  // namespace base
 }  // namespace perfetto

@@ -41,7 +41,7 @@ class TraceWriter;
 // from the SharedMemory it receives from the Service-side.
 class PERFETTO_EXPORT SharedMemoryArbiter {
  public:
-  virtual ~SharedMemoryArbiter() = default;
+  virtual ~SharedMemoryArbiter();
 
   // Creates a new TraceWriter and assigns it a new WriterID. The WriterID is
   // written in each chunk header owned by a given TraceWriter and is used by

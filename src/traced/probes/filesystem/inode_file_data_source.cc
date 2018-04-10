@@ -33,14 +33,12 @@
 
 namespace perfetto {
 namespace {
-constexpr uint64_t kScanIntervalMs = 10000;  // 10s
-constexpr uint64_t kScanDelayMs = 10000;     // 10s
-constexpr uint64_t kScanBatchSize = 15000;
+constexpr uint32_t kScanIntervalMs = 10000;  // 10s
+constexpr uint32_t kScanDelayMs = 10000;     // 10s
+constexpr uint32_t kScanBatchSize = 15000;
 
-uint64_t OrDefault(uint64_t value, uint64_t def) {
-  if (value != 0)
-    return value;
-  return def;
+uint32_t OrDefault(uint32_t value, uint32_t def) {
+  return value ? value : def;
 }
 
 std::string DbgFmt(const std::vector<std::string>& values) {
@@ -127,6 +125,8 @@ InodeFileDataSource::InodeFileDataSource(
       cache_(cache),
       writer_(std::move(writer)),
       weak_factory_(this) {}
+
+InodeFileDataSource::~InodeFileDataSource() = default;
 
 void InodeFileDataSource::AddInodesFromStaticMap(
     BlockDeviceID block_device_id,
@@ -259,7 +259,8 @@ InodeFileMap* InodeFileDataSource::AddToCurrentTracePacket(
     has_current_trace_packet_ = true;
 
     // Add block device id to InodeFileMap
-    current_file_map_->set_block_device_id(block_device_id);
+    current_file_map_->set_block_device_id(
+        static_cast<uint64_t>(block_device_id));
     // Add mount points to InodeFileMap
     auto range = mount_points_.equal_range(block_device_id);
     for (std::multimap<BlockDeviceID, std::string>::iterator it = range.first;
@@ -363,17 +364,17 @@ void InodeFileDataSource::FindMissingInodes() {
   file_scanner_->Scan(task_runner_);
 }
 
-uint64_t InodeFileDataSource::GetScanIntervalMs() const {
+uint32_t InodeFileDataSource::GetScanIntervalMs() const {
   return OrDefault(source_config_.inode_file_config().scan_interval_ms(),
                    kScanIntervalMs);
 }
 
-uint64_t InodeFileDataSource::GetScanDelayMs() const {
+uint32_t InodeFileDataSource::GetScanDelayMs() const {
   return OrDefault(source_config_.inode_file_config().scan_delay_ms(),
                    kScanDelayMs);
 }
 
-uint64_t InodeFileDataSource::GetScanBatchSize() const {
+uint32_t InodeFileDataSource::GetScanBatchSize() const {
   return OrDefault(source_config_.inode_file_config().scan_batch_size(),
                    kScanBatchSize);
 }

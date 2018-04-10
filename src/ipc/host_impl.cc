@@ -171,11 +171,11 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
   Service* service = svc_it->second.instance.get();
   const ServiceDescriptor& svc = service->GetDescriptor();
   const auto& methods = svc.methods;
-  if (req.method_id() <= 0 ||
-      static_cast<uint32_t>(req.method_id()) > methods.size())
+  const uint32_t method_id = req.method_id();
+  if (method_id == 0 || method_id > methods.size())
     return SendFrame(client, reply_frame);
 
-  const ServiceDescriptor::Method& method = methods[req.method_id() - 1];
+  const ServiceDescriptor::Method& method = methods[method_id - 1];
   std::unique_ptr<ProtoMessage> decoded_req_args(
       method.request_proto_decoder(req.args_proto()));
   if (!decoded_req_args)

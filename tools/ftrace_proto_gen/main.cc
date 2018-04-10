@@ -22,10 +22,10 @@
 #include <sstream>
 #include <string>
 
-#include "ftrace_proto_gen.h"
 #include "perfetto/base/file_utils.h"
 #include "perfetto/ftrace_reader/format_parser.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
 int main(int argc, const char** argv) {
   if (argc != 4) {

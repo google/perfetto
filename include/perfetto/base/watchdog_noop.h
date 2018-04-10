@@ -32,10 +32,10 @@ class Watchdog {
     ~Timer() {}
   };
   static Watchdog* GetInstance();
-  Timer CreateFatalTimer(uint32_t ms) { return Timer(); }
+  Timer CreateFatalTimer(uint32_t /*ms*/) { return Timer(); }
   void Start() {}
-  void SetMemoryLimit(uint32_t bytes, uint32_t window_ms) {}
-  void SetCpuLimit(uint32_t percentage, uint32_t window_ms) {}
+  void SetMemoryLimit(uint32_t /*bytes*/, uint32_t /*window_ms*/) {}
+  void SetCpuLimit(uint32_t /*percentage*/, uint32_t /*window_ms*/) {}
 };
 
 }  // namespace base

@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/weak_ptr.h"
+#include "perfetto/ipc/basic_types.h"
 
 namespace perfetto {
 
@@ -179,8 +180,8 @@ class UnixSocket {
   // User ID of the peer, as returned by the kernel. If the client disconnects
   // and the socket goes into the kDisconnected state, it retains the uid of
   // the last peer.
-  int peer_uid() const {
-    PERFETTO_DCHECK(!is_listening() && peer_uid_ >= 0);
+  uid_t peer_uid() const {
+    PERFETTO_DCHECK(!is_listening() && peer_uid_ != kInvalidUid);
     return peer_uid_;
   }
 
@@ -201,7 +202,7 @@ class UnixSocket {
   base::ScopedFile fd_;
   State state_ = State::kDisconnected;
   int last_error_ = 0;
-  int peer_uid_ = -1;
+  uid_t peer_uid_ = kInvalidUid;
   EventListener* event_listener_;
   base::TaskRunner* task_runner_;
   base::WeakPtrFactory<UnixSocket> weak_ptr_factory_;

@@ -29,7 +29,7 @@ namespace perfetto {
 namespace ipc {
 namespace {
 
-constexpr size_t kHeaderSize = sizeof(uint32_t);
+constexpr uint32_t kHeaderSize = sizeof(uint32_t);
 
 // Generates a parsable Frame of exactly |size| bytes (including header).
 std::vector<char> GetSimpleFrame(size_t size) {
@@ -44,10 +44,10 @@ std::vector<char> GetSimpleFrame(size_t size) {
   Frame frame;
   std::vector<char> padding;
   char padding_char = '0';
-  const size_t payload_size = size - kHeaderSize;
-  for (size_t size_left = payload_size; size_left > 0;) {
+  const uint32_t payload_size = static_cast<uint32_t>(size - kHeaderSize);
+  for (uint32_t size_left = payload_size; size_left > 0;) {
     PERFETTO_CHECK(size_left >= 2);  // We cannot produce frames < 2 bytes.
-    size_t padding_size;
+    uint32_t padding_size;
     if (size_left <= 127) {
       padding_size = size_left - 2;
       size_left = 0;
@@ -56,7 +56,7 @@ std::vector<char> GetSimpleFrame(size_t size) {
       size_left -= padding_size + 2;
     }
     padding.resize(padding_size);
-    for (size_t i = 0; i < padding_size; i++) {
+    for (uint32_t i = 0; i < padding_size; i++) {
       padding_char = padding_char == 'z' ? '0' : padding_char + 1;
       padding[i] = padding_char;
     }
@@ -66,7 +66,8 @@ std::vector<char> GetSimpleFrame(size_t size) {
   std::vector<char> encoded_frame;
   encoded_frame.resize(size);
   char* enc_buf = encoded_frame.data();
-  PERFETTO_CHECK(frame.SerializeToArray(enc_buf + kHeaderSize, payload_size));
+  PERFETTO_CHECK(frame.SerializeToArray(enc_buf + kHeaderSize,
+                                        static_cast<int>(payload_size)));
   memcpy(enc_buf, base::AssumeLittleEndian(&payload_size), kHeaderSize);
   PERFETTO_CHECK(encoded_frame.size() == size);
   return encoded_frame;
@@ -95,7 +96,7 @@ bool FrameEq(std::vector<char> expected_frame_with_header, const Frame& frame) {
 // Tests the simple case where each recv() just returns one whole header+frame.
 TEST(BufferedFrameDeserializerTest, WholeMessages) {
   BufferedFrameDeserializer bfd;
-  for (int i = 1; i <= 50; i++) {
+  for (size_t i = 1; i <= 50; i++) {
     const size_t size = i * 10;
     BufferedFrameDeserializer::ReceiveBuffer rbuf = bfd.BeginReceive();
 
@@ -131,11 +132,11 @@ TEST(BufferedFrameDeserializerTest, FragmentedFrameIsCorrectlyDeserialized) {
   method->set_id(0x424242);
   method->set_name("foo");
   std::vector<char> serialized_frame;
-  uint32_t payload_size = frame.ByteSize();
+  uint32_t payload_size = static_cast<uint32_t>(frame.ByteSize());
 
   serialized_frame.resize(kHeaderSize + payload_size);
   ASSERT_TRUE(frame.SerializeToArray(serialized_frame.data() + kHeaderSize,
-                                     payload_size));
+                                     static_cast<int>(payload_size)));
   memcpy(serialized_frame.data(), base::AssumeLittleEndian(&payload_size),
          kHeaderSize);
 
@@ -259,7 +260,7 @@ TEST(BufferedFrameDeserializerTest, RejectVeryLargeFrames) {
 // BufferedFrameDeserializer::EndReceive().
 TEST(BufferedFrameDeserializerTest, HighlyFragmentedFrames) {
   BufferedFrameDeserializer bfd;
-  for (int i = 1; i <= 50; i++) {
+  for (size_t i = 1; i <= 50; i++) {
     std::vector<char> frame = GetSimpleFrame(i * 100);
     for (size_t off = 0; off < frame.size(); off++) {
       BufferedFrameDeserializer::ReceiveBuffer rbuf = bfd.BeginReceive();
@@ -282,7 +283,7 @@ TEST(BufferedFrameDeserializerTest, HighlyFragmentedFrames) {
 // nullptr for the unparsable frames but the other frames are decoded peroperly.
 TEST(BufferedFrameDeserializerTest, CanRecoverAfterUnparsableFrames) {
   BufferedFrameDeserializer bfd;
-  for (int i = 1; i <= 50; i++) {
+  for (size_t i = 1; i <= 50; i++) {
     const size_t size = i * 10;
     std::vector<char> frame = GetSimpleFrame(size);
     const bool unparsable = (i % 3) == 1;
@@ -328,9 +329,11 @@ TEST(BufferedFrameDeserializerTest, FillCapacity) {
     std::vector<char> frame1 = GetSimpleFrame(1024);
     std::vector<char> frame2 = GetSimpleFrame(kMaxCapacity);
     std::vector<char> frame2_chunk1(
-        frame2.begin(), frame2.begin() + kMaxCapacity - frame1.size());
-    std::vector<char> frame2_chunk2(frame2.begin() + frame2_chunk1.size(),
-                                    frame2.end());
+        frame2.begin(),
+        frame2.begin() + static_cast<ptrdiff_t>(kMaxCapacity - frame1.size()));
+    std::vector<char> frame2_chunk2(
+        frame2.begin() + static_cast<ptrdiff_t>(frame2_chunk1.size()),
+        frame2.end());
     std::vector<char> frame3 =
         GetSimpleFrame(kMaxCapacity - frame2_chunk2.size());
     std::vector<char> frame4 = GetSimpleFrame(kMaxCapacity);

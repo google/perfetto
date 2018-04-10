@@ -28,7 +28,7 @@
 #include "perfetto/base/unix_task_runner.h"
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/ipc/consumer_ipc_client.h"
-#include "rate_limiter.h"
+#include "src/perfetto_cmd/rate_limiter.h"
 
 #include "src/perfetto_cmd/perfetto_cmd_state.pb.h"
 
@@ -36,11 +36,6 @@
 #include "perfetto/base/android_task_runner.h"
 #endif  // defined(PERFETTO_OS_ANDROID)
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-#include <android/os/DropBoxManager.h>
-#include <utils/Looper.h>
-#include <utils/StrongPointer.h>
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 
 namespace perfetto {
 

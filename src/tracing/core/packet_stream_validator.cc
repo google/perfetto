@@ -33,7 +33,7 @@ bool PacketStreamValidator::Validate(const Slices& slices) {
     size += slice.size;
 
   protos::TrustedPacket packet;
-  if (!packet.ParseFromBoundedZeroCopyStream(&stream, size))
+  if (!packet.ParseFromBoundedZeroCopyStream(&stream, static_cast<int>(size)))
     return false;
 
   // Only the service is allowed to fill in the trusted uid.
