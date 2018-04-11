@@ -250,6 +250,7 @@ void InodeFileDataSource::OnInodes(
 
 InodeFileMap* InodeFileDataSource::AddToCurrentTracePacket(
     BlockDeviceID block_device_id) {
+  seen_block_devices_.emplace(block_device_id);
   if (!has_current_trace_packet_ ||
       current_block_device_id_ != block_device_id) {
     if (has_current_trace_packet_)
@@ -325,6 +326,14 @@ void InodeFileDataSource::OnInodeScanDone() {
   // Finalize the accumulated trace packets.
   ResetTracePacket();
   file_scanner_.reset();
+  if (!missing_inodes_.empty()) {
+    // At least write mount point mapping for inodes that are not found.
+    for (const auto& p : missing_inodes_) {
+      if (seen_block_devices_.count(p.first) == 0)
+        AddToCurrentTracePacket(p.first);
+    }
+  }
+
   if (next_missing_inodes_.empty()) {
     scan_running_ = false;
   } else {

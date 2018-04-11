@@ -118,6 +118,7 @@ class InodeFileDataSource : public FileScanner::Delegate {
   std::unique_ptr<TraceWriter> writer_;
   std::map<BlockDeviceID, std::set<Inode>> missing_inodes_;
   std::map<BlockDeviceID, std::set<Inode>> next_missing_inodes_;
+  std::set<BlockDeviceID> seen_block_devices_;
   BlockDeviceID current_block_device_id_;
   TraceWriter::TracePacketHandle current_trace_packet_;
   InodeFileMap* current_file_map_;
