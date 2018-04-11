@@ -263,22 +263,41 @@ void PrintInodeStats(std::ostream* output,
                      const std::set<uint64_t>& ftrace_inodes,
                      const uint64_t& ftrace_inode_count,
                      const std::set<uint64_t>& resolved_map_inodes,
-                     const std::set<uint64_t>& resolved_scan_inodes) {
-  *output << "--------------------Inode Stats-------------------\n";
+                     const std::set<uint64_t>& resolved_scan_inodes,
+                     bool compact_output) {
+  if (!compact_output)
+    *output << "--------------------Inode Stats-------------------\n";
+
   char line[2048];
-
-  sprintf(line, "Events with inodes: %" PRIu64 "\n", ftrace_inode_count);
+  if (compact_output) {
+    sprintf(line, "events_inodes,%" PRIu64 "\n", ftrace_inode_count);
+  } else {
+    sprintf(line, "Events with inodes: %" PRIu64 "\n", ftrace_inode_count);
+  }
   *output << std::string(line);
 
-  sprintf(line, "Unique inodes from events: %zu\n", ftrace_inodes.size());
+  if (compact_output) {
+    sprintf(line, "events_unique_inodes,%zu\n", ftrace_inodes.size());
+  } else {
+    sprintf(line, "Unique inodes from events: %zu\n", ftrace_inodes.size());
+  }
   *output << std::string(line);
 
-  sprintf(line, "Resolved inodes from static map: %zu\n",
-          resolved_map_inodes.size());
+  if (compact_output) {
+    sprintf(line, "resolved_inodes_static,%zu\n", resolved_map_inodes.size());
+  } else {
+    sprintf(line, "Resolved inodes from static map: %zu\n",
+            resolved_map_inodes.size());
+  }
   *output << std::string(line);
 
-  sprintf(line, "Resolved inodes from scan and cache: %zu\n",
-          resolved_scan_inodes.size());
+  if (compact_output) {
+    sprintf(line, "resolved_inodes_scan_cache,%zu\n",
+            resolved_scan_inodes.size());
+  } else {
+    sprintf(line, "Resolved inodes from scan and cache: %zu\n",
+            resolved_scan_inodes.size());
+  }
   *output << std::string(line);
 
   std::set<uint64_t> resolved_inodes;
@@ -286,7 +305,11 @@ void PrintInodeStats(std::ostream* output,
             resolved_scan_inodes.begin(), resolved_scan_inodes.end(),
             std::inserter(resolved_inodes, resolved_inodes.begin()));
 
-  sprintf(line, "Total resolved inodes: %zu\n", resolved_inodes.size());
+  if (compact_output) {
+    sprintf(line, "total_resolved_inodes,%zu\n", resolved_inodes.size());
+  } else {
+    sprintf(line, "Total resolved inodes: %zu\n", resolved_inodes.size());
+  }
   *output << std::string(line);
 
   std::set<uint64_t> intersect;
@@ -294,28 +317,50 @@ void PrintInodeStats(std::ostream* output,
                    ftrace_inodes.begin(), ftrace_inodes.end(),
                    std::inserter(intersect, intersect.begin()));
 
-  sprintf(line, "Unresolved inodes: %zu\n",
-          ftrace_inodes.size() - intersect.size());
-
-  sprintf(line, "Unexpected inodes from filesystem: %zu\n",
-          resolved_inodes.size() - intersect.size());
+  size_t unresolved_inodes = ftrace_inodes.size() - intersect.size();
+  if (compact_output) {
+    sprintf(line, "unresolved_inodes,%zu\n", unresolved_inodes);
+  } else {
+    sprintf(line, "Unresolved inodes: %zu\n", unresolved_inodes);
+  }
   *output << std::string(line);
 
-  *output << "\n";
+  size_t unexpected_inodes = resolved_inodes.size() - intersect.size();
+  if (compact_output) {
+    sprintf(line, "unexpected_inodes_fs,%zu\n", unexpected_inodes);
+  } else {
+    sprintf(line, "Unexpected inodes from filesystem: %zu\n",
+            unexpected_inodes);
+  }
+  *output << std::string(line);
+
+  if (!compact_output)
+    *output << "\n";
 }
 
 void PrintProcessStats(std::ostream* output,
                        const std::set<pid_t>& tids_in_tree,
-                       const std::set<pid_t>& tids_in_events) {
-  *output << "----------------Process Tree Stats----------------\n";
+                       const std::set<pid_t>& tids_in_events,
+                       bool compact_output) {
+  if (!compact_output)
+    *output << "----------------Process Tree Stats----------------\n";
 
   char tid[2048];
-  sprintf(tid, "Unique thread ids in process tree: %zu\n", tids_in_tree.size());
+  if (compact_output) {
+    sprintf(tid, "unique_thread_process,%zu\n", tids_in_tree.size());
+  } else {
+    sprintf(tid, "Unique thread ids in process tree: %zu\n",
+            tids_in_tree.size());
+  }
   *output << std::string(tid);
 
   char tid_event[2048];
-  sprintf(tid_event, "Unique thread ids in ftrace events: %zu\n",
-          tids_in_events.size());
+  if (compact_output) {
+    sprintf(tid_event, "unique_thread_ftrace,%zu\n", tids_in_events.size());
+  } else {
+    sprintf(tid_event, "Unique thread ids in ftrace events: %zu\n",
+            tids_in_events.size());
+  }
   *output << std::string(tid_event);
 
   std::set<pid_t> intersect;
@@ -324,14 +369,25 @@ void PrintProcessStats(std::ostream* output,
                    std::inserter(intersect, intersect.begin()));
 
   char matching[2048];
-  sprintf(matching, "Thread ids with process info: %zu/%zu -> %zu %%\n\n",
-          intersect.size(), tids_in_events.size(),
-          (intersect.size() * 100) / tids_in_events.size());
+  size_t thread_id_process_info =
+      (intersect.size() * 100) / tids_in_events.size();
+  if (compact_output) {
+    sprintf(matching,
+            "tids_with_pinfo,%zu\ntids,%zu\ntids_with_pinfo_percentage,%zu\n",
+            intersect.size(), tids_in_events.size(), thread_id_process_info);
+  } else {
+    sprintf(matching, "Thread ids with process info: %zu/%zu -> %zu %%\n\n",
+            intersect.size(), tids_in_events.size(), thread_id_process_info);
+  }
   *output << std::string(matching);
-  *output << "\n";
+
+  if (!compact_output)
+    *output << "\n";
 }
 
-int TraceToSummary(std::istream* input, std::ostream* output) {
+int TraceToSummary(std::istream* input,
+                   std::ostream* output,
+                   bool compact_output) {
   uint64_t start = std::numeric_limits<uint64_t>::max();
   uint64_t end = 0;
   std::multiset<uint64_t> ftrace_timestamps;
@@ -393,13 +449,19 @@ int TraceToSummary(std::istream* input, std::ostream* output) {
   fprintf(stderr, "\n");
 
   char line[2048];
-  sprintf(line, "Duration: %" PRIu64 "ms\n", (end - start) / (1000 * 1000));
+  uint64_t duration = (end - start) / (1000 * 1000);
+  if (compact_output) {
+    sprintf(line, "duration,%" PRIu64 "\n", duration);
+  } else {
+    sprintf(line, "Duration: %" PRIu64 "ms\n", duration);
+  }
   *output << std::string(line);
 
-  PrintFtraceTrack(output, start, end, ftrace_timestamps);
-  PrintProcessStats(output, tids_in_tree, tids_in_events);
+  if (!compact_output)
+    PrintFtraceTrack(output, start, end, ftrace_timestamps);
+  PrintProcessStats(output, tids_in_tree, tids_in_events, compact_output);
   PrintInodeStats(output, ftrace_inodes, ftrace_inode_count,
-                  resolved_map_inodes, resolved_scan_inodes);
+                  resolved_map_inodes, resolved_scan_inodes, compact_output);
 
   return 0;
 }
@@ -410,8 +472,10 @@ int TraceToSummary(std::istream* input, std::ostream* output) {
 namespace {
 
 int Usage(const char* argv0) {
-  printf("Usage: %s [systrace|json|text|summary] < trace.proto > trace.txt\n",
-         argv0);
+  printf(
+      "Usage: %s [systrace|json|text|summary|short_summary] < trace.proto > "
+      "trace.txt\n",
+      argv0);
   return 1;
 }
 
@@ -432,6 +496,11 @@ int main(int argc, char** argv) {
   if (format == "text")
     return perfetto::TraceToText(&std::cin, &std::cout);
   if (format == "summary")
-    return perfetto::TraceToSummary(&std::cin, &std::cout);
+    return perfetto::TraceToSummary(&std::cin, &std::cout,
+                                    /* compact_output */ true);
+  if (format == "short_summary")
+    return perfetto::TraceToSummary(&std::cin, &std::cout,
+                                    /* compact_output */ true);
+
   return Usage(argv[0]);
 }
