@@ -21,11 +21,13 @@
 
 #include <vector>
 
+#include "perfetto/base/export.h"
+
 namespace perfetto {
 
 class TracePacket;
 
-class Consumer {
+class PERFETTO_EXPORT Consumer {
  public:
   virtual ~Consumer();
 
