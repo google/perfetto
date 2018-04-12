@@ -21,6 +21,8 @@
 
 #include <memory>
 
+#include "perfetto/base/export.h"
+
 namespace perfetto {
 
 // An abstract interface that models the shared memory region shared between
@@ -30,7 +32,7 @@ namespace perfetto {
 // memory for the out-of-process case (see src/unix_rpc).
 // Both this class and the Factory are subclassed by the transport layer, which
 // will attach platform specific fields to it (e.g., a unix file descriptor).
-class SharedMemory {
+class PERFETTO_EXPORT SharedMemory {
  public:
   class Factory {
    public:
