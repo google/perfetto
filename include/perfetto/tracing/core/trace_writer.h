@@ -19,6 +19,7 @@
 
 #include <functional>
 
+#include "perfetto/base/export.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/core/basic_types.h"
 
@@ -44,7 +45,7 @@ class TracePacket;
 // Otherwise if the shared memory buffer goes away (e.g. the Service crashes)
 // the TraceWriter will keep writing into unmapped memory.
 
-class TraceWriter {
+class PERFETTO_EXPORT TraceWriter {
  public:
   using TracePacketHandle =
       protozero::MessageHandle<protos::pbzero::TracePacket>;
