@@ -3680,6 +3680,7 @@ cc_test {
     "src/tracing/core/trace_config.cc",
     "src/tracing/core/trace_packet.cc",
     "src/tracing/core/trace_packet_unittest.cc",
+    "src/tracing/core/trace_writer_for_testing.cc",
     "src/tracing/core/trace_writer_impl.cc",
     "src/tracing/core/trace_writer_impl_unittest.cc",
     "src/tracing/core/virtual_destructors.cc",
