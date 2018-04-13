@@ -30,11 +30,13 @@ source_set("test_support") {
     "../../gn:default_deps",
     "../protozero",
   ]
+  public_deps = [
+    "../protozero:test_support",
+  ]
+
   sources = [
     "test/cpu_reader_support.cc",
     "test/cpu_reader_support.h",
-    "test/scattered_stream_delegate_for_testing.cc",
-    "test/scattered_stream_delegate_for_testing.h",
   ]
 }
 
