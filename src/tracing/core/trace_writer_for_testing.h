@@ -19,7 +19,7 @@
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/tracing/core/trace_writer.h"
-#include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
+#include "src/protozero/scattered_stream_delegate_for_testing.h"
 
 namespace perfetto {
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
+#include "src/protozero/scattered_stream_delegate_for_testing.h"
 
 namespace perfetto {
 
