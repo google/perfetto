@@ -35,6 +35,20 @@ source_set("protozero") {
   ]
 }
 
+source_set("test_support") {
+  testonly = true
+  deps = [
+    "../../gn:default_deps",
+  ]
+  public_deps = [
+    ":protozero",
+  ]
+  sources = [
+    "scattered_stream_delegate_for_testing.cc",
+    "scattered_stream_delegate_for_testing.h",
+  ]
+}
+
 source_set("unittests") {
   testonly = true
   deps = [
