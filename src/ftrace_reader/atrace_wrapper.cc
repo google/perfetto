@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "atrace_wrapper.h"
+#include "src/ftrace_reader/atrace_wrapper.h"
 
 #include <fcntl.h>
 #include <stdint.h>

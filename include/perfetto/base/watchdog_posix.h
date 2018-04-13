@@ -63,7 +63,7 @@ class Watchdog {
   // averaged over the last |window_ms| milliseconds. If |kb| is 0, any
   // existing limit is removed.
   // Note: |window_ms| has to be a multiple of |polling_interval_ms_|.
-  void SetMemoryLimit(uint32_t bytes, uint32_t window_ms);
+  void SetMemoryLimit(uint64_t bytes, uint32_t window_ms);
 
   // Sets a limit on the CPU usage used by the program averaged over the last
   // |window_ms| milliseconds. If |percentage| is 0, any existing limit is
@@ -139,7 +139,7 @@ class Watchdog {
   std::mutex mutex_;
   bool quit_ = true;
 
-  uint32_t memory_limit_bytes_ = 0;
+  uint64_t memory_limit_bytes_ = 0;
   WindowedInterval memory_window_bytes_;
 
   uint32_t cpu_limit_percentage_ = 0;

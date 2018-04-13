@@ -55,6 +55,12 @@ void TestConfig::FromProto(const perfetto::protos::TestConfig& proto) {
   static_assert(sizeof(message_size_) == sizeof(proto.message_size()),
                 "size mismatch");
   message_size_ = static_cast<decltype(message_size_)>(proto.message_size());
+
+  static_assert(
+      sizeof(send_batch_on_register_) == sizeof(proto.send_batch_on_register()),
+      "size mismatch");
+  send_batch_on_register_ = static_cast<decltype(send_batch_on_register_)>(
+      proto.send_batch_on_register());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -80,6 +86,13 @@ void TestConfig::ToProto(perfetto::protos::TestConfig* proto) const {
                 "size mismatch");
   proto->set_message_size(
       static_cast<decltype(proto->message_size())>(message_size_));
+
+  static_assert(sizeof(send_batch_on_register_) ==
+                    sizeof(proto->send_batch_on_register()),
+                "size mismatch");
+  proto->set_send_batch_on_register(
+      static_cast<decltype(proto->send_batch_on_register())>(
+          send_batch_on_register_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

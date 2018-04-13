@@ -44,51 +44,36 @@ void BenchmarkCommon(benchmark::State& state) {
 
   FakeProducer* producer = helper.ConnectFakeProducer();
   helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
 
-  // Setup the TraceConfig for the consumer.
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(512);
 
-  // Create the buffer for ftrace.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
   ds_config->set_target_buffer(0);
 
-  // The parameters for the producer.
   static constexpr uint32_t kRandomSeed = 42;
-  size_t message_count = state.range(0);
-  size_t message_bytes = state.range(1);
-  size_t mb_per_s = state.range(2);
+  uint32_t message_count = static_cast<uint32_t>(state.range(0));
+  uint32_t message_bytes = static_cast<uint32_t>(state.range(1));
+  uint32_t mb_per_s = static_cast<uint32_t>(state.range(2));
 
-  size_t messages_per_s = mb_per_s * 1024 * 1024 / message_bytes;
-  size_t time_for_messages_ms =
+  uint32_t messages_per_s = mb_per_s * 1024 * 1024 / message_bytes;
+  uint32_t time_for_messages_ms =
       10000 + (messages_per_s == 0 ? 0 : message_count * 1000 / messages_per_s);
 
-  // Setup the test to use a random number generator.
   ds_config->mutable_for_testing()->set_seed(kRandomSeed);
   ds_config->mutable_for_testing()->set_message_count(message_count);
   ds_config->mutable_for_testing()->set_message_size(message_bytes);
   ds_config->mutable_for_testing()->set_max_messages_per_second(messages_per_s);
 
   helper.StartTracing(trace_config);
+  helper.WaitForProducerEnabled();
 
-  bool is_first_packet = true;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
-  auto on_consumer_data = [&is_first_packet,
-                           &rnd_engine](const protos::TracePacket& packet) {
-    ASSERT_TRUE(packet.has_for_testing());
-    if (is_first_packet) {
-      rnd_engine = std::minstd_rand0(packet.for_testing().seq_value());
-      is_first_packet = false;
-    } else {
-      ASSERT_EQ(packet.for_testing().seq_value(), rnd_engine());
-    }
-  };
-
-  uint64_t wall_start_ns = base::GetWallTimeNs().count();
+  uint64_t wall_start_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
   uint64_t service_start_ns = helper.service_thread()->GetThreadCPUTimeNs();
   uint64_t producer_start_ns = helper.producer_thread()->GetThreadCPUTimeNs();
-  uint64_t iterations = 0;
+  uint32_t iterations = 0;
   for (auto _ : state) {
     auto cname = "produced.and.committed." + std::to_string(iterations++);
     auto on_produced_and_committed = task_runner.CreateCheckpoint(cname);
@@ -99,18 +84,30 @@ void BenchmarkCommon(benchmark::State& state) {
       helper.service_thread()->GetThreadCPUTimeNs() - service_start_ns;
   uint64_t producer_ns =
       helper.producer_thread()->GetThreadCPUTimeNs() - producer_start_ns;
-  uint64_t wall_ns = base::GetWallTimeNs().count() - wall_start_ns;
+  uint64_t wall_ns =
+      static_cast<uint64_t>(base::GetWallTimeNs().count()) - wall_start_ns;
 
   state.counters["Pro CPU"] = benchmark::Counter(100.0 * producer_ns / wall_ns);
   state.counters["Ser CPU"] = benchmark::Counter(100.0 * service_ns / wall_ns);
   state.counters["Ser ns/m"] =
       benchmark::Counter(1.0 * service_ns / message_count);
+  state.SetBytesProcessed(iterations * message_bytes * message_count);
 
   // Read back the buffer just to check correctness.
-  auto on_readback_complete = task_runner.CreateCheckpoint("readback.complete");
-  helper.ReadData(on_consumer_data, on_readback_complete);
-  task_runner.RunUntilCheckpoint("readback.complete");
-  state.SetBytesProcessed(iterations * message_bytes * message_count);
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  bool is_first_packet = true;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+  for (const auto& packet : helper.trace()) {
+    ASSERT_TRUE(packet.has_for_testing());
+    if (is_first_packet) {
+      rnd_engine = std::minstd_rand0(packet.for_testing().seq_value());
+      is_first_packet = false;
+    } else {
+      ASSERT_EQ(packet.for_testing().seq_value(), rnd_engine());
+    }
+  }
 }
 
 void SaturateCpuArgs(benchmark::internal::Benchmark* b) {

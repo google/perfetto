@@ -27,6 +27,10 @@
 #include <sys/sysmacros.h>  // For major() / minor()
 #endif
 
+// Not worth doing casts for printfs in this translation unit.
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 namespace perfetto {
 namespace {
 
@@ -259,8 +263,39 @@ using protos::WorkqueueExecuteStartFtraceEvent;
 using protos::WorkqueueQueueWorkFtraceEvent;
 using protos::TaskNewtaskFtraceEvent;
 using protos::TaskRenameFtraceEvent;
+using protos::F2fsDoSubmitBioFtraceEvent;
+using protos::F2fsEvictInodeFtraceEvent;
+using protos::F2fsFallocateFtraceEvent;
+using protos::F2fsGetDataBlockFtraceEvent;
+using protos::F2fsGetVictimFtraceEvent;
+using protos::F2fsIgetFtraceEvent;
+using protos::F2fsIgetExitFtraceEvent;
+using protos::F2fsNewInodeFtraceEvent;
+using protos::F2fsReadpageFtraceEvent;
+using protos::F2fsReserveNewBlockFtraceEvent;
+using protos::F2fsSetPageDirtyFtraceEvent;
+using protos::F2fsSubmitWritePageFtraceEvent;
+using protos::F2fsSyncFileEnterFtraceEvent;
+using protos::F2fsSyncFileExitFtraceEvent;
+using protos::F2fsSyncFsFtraceEvent;
+using protos::F2fsTruncateFtraceEvent;
+using protos::F2fsTruncateBlocksEnterFtraceEvent;
+using protos::F2fsTruncateBlocksExitFtraceEvent;
+using protos::F2fsTruncateDataBlocksRangeFtraceEvent;
+using protos::F2fsTruncateInodeBlocksEnterFtraceEvent;
+using protos::F2fsTruncateInodeBlocksExitFtraceEvent;
+using protos::F2fsTruncateNodeFtraceEvent;
+using protos::F2fsTruncateNodesEnterFtraceEvent;
+using protos::F2fsTruncateNodesExitFtraceEvent;
+using protos::F2fsTruncatePartialNodesFtraceEvent;
+using protos::F2fsUnlinkEnterFtraceEvent;
+using protos::F2fsUnlinkExitFtraceEvent;
+using protos::F2fsVmPageMkwriteFtraceEvent;
+using protos::F2fsWriteBeginFtraceEvent;
+using protos::F2fsWriteCheckpointFtraceEvent;
+using protos::F2fsWriteEndFtraceEvent;
 
-const char* GetSchedSwitchFlag(int32_t state) {
+const char* GetSchedSwitchFlag(int64_t state) {
   state &= 511;
   if (state & 1)
     return "S";
@@ -281,7 +316,7 @@ const char* GetSchedSwitchFlag(int32_t state) {
   return "R";
 }
 
-const char* GetExt4HintFlag(int32_t state) {
+const char* GetExt4HintFlag(int64_t state) {
   if (state & 0x0001)
     return "HINT_MERGE";
   if (state & 0x0002)
@@ -311,7 +346,7 @@ const char* GetExt4HintFlag(int32_t state) {
   return "";
 }
 
-const char* GetExt4FreeBlocksFlag(int32_t state) {
+const char* GetExt4FreeBlocksFlag(int64_t state) {
   if (state & 0x0001)
     return "METADATA";
   if (state & 0x0002)
@@ -327,7 +362,7 @@ const char* GetExt4FreeBlocksFlag(int32_t state) {
   return "";
 }
 
-const char* GetExt4ModeFlag(int32_t state) {
+const char* GetExt4ModeFlag(int64_t state) {
   if (state & 0x01)
     return "KEEP_SIZE";
   if (state & 0x02)
@@ -341,7 +376,7 @@ const char* GetExt4ModeFlag(int32_t state) {
   return "";
 }
 
-const char* GetExt4ExtFlag(int32_t state) {
+const char* GetExt4ExtFlag(int64_t state) {
   if (state & 0x0001)
     return "CREATE";
   if (state & 0x0002)
@@ -361,6 +396,14 @@ const char* GetExt4ExtFlag(int32_t state) {
   if (state & 0x0100)
     return "NO_LOCK";
   return "";
+}
+
+int BlkMaj(uint64_t n) {
+  return static_cast<int>(((n >> 32) & 0xfffff000) | ((n >> 8) & 0xfff));
+}
+
+int BlkMin(uint64_t n) {
+  return static_cast<int>(((n >> 12) & 0xffffff00) | (n & 0xff));
 }
 
 constexpr const char* MmCompactionRetArray[] = {
@@ -518,16 +561,15 @@ std::string FormatExt4SyncFileEnter(const Ext4SyncFileEnterFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_sync_file_enter: dev %d,%d ino %lu parent %lu datasync %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned long)event.parent(), event.datasync());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.parent(),
+          event.datasync());
   return std::string(line);
 }
 
 std::string FormatExt4SyncFileExit(const Ext4SyncFileExitFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_sync_file_exit: dev %d,%d ino %lu ret %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.ret());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.ret());
   return std::string(line);
 }
 
@@ -535,8 +577,8 @@ std::string FormatExt4DaWriteBegin(const Ext4DaWriteBeginFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_da_write_begin: dev %d,%d ino %lu pos %lld len %u flags %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.pos(), event.len(), event.flags());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.pos(),
+          event.len(), event.flags());
   return std::string(line);
 }
 
@@ -544,15 +586,15 @@ std::string FormatExt4DaWriteEnd(const Ext4DaWriteEndFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_da_write_end: dev %d,%d ino %lu pos %lld len %u copied %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.pos(), event.len(), event.copied());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.pos(),
+          event.len(), event.copied());
   return std::string(line);
 }
 
 std::string FormatBlockRqIssue(const BlockRqIssueFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_issue: %d,%d %s %u (%s) %llu + %u [%s]",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           event.bytes(), event.cmd().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
@@ -992,7 +1034,7 @@ std::string FormatTaskRename(const TaskRenameFtraceEvent& event) {
 std::string FormatBlockBioBackmerge(const BlockBioBackmergeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_bio_backmerge: %d,%d %s %llu + %u [%s]",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
@@ -1003,7 +1045,7 @@ std::string FormatBlockBioBounce(const BlockBioBounceFtraceEvent& event) {
   sprintf(line,
           "block_bio_bounce:"
           "%d,%d %s %llu + %u [%s]",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
@@ -1012,7 +1054,7 @@ std::string FormatBlockBioBounce(const BlockBioBounceFtraceEvent& event) {
 std::string FormatBlockBioComplete(const BlockBioCompleteFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_bio_complete: %d,%d %s %llu + %u [%d]",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.error());
   return std::string(line);
@@ -1022,7 +1064,7 @@ std::string FormatBlockBioFrontmerge(
     const BlockBioFrontmergeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_bio_frontmerge: %d,%d %s %llu + %u [%s]",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
@@ -1030,8 +1072,8 @@ std::string FormatBlockBioFrontmerge(
 
 std::string FormatBlockBioQueue(const BlockBioQueueFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_bio_queue: %d,%d %s %llu + %u [%s]", major(event.dev()),
-          minor(event.dev()), event.rwbs().c_str(),
+  sprintf(line, "block_bio_queue: %d,%d %s %llu + %u [%s]", BlkMaj(event.dev()),
+          BlkMin(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
@@ -1040,17 +1082,16 @@ std::string FormatBlockBioQueue(const BlockBioQueueFtraceEvent& event) {
 std::string FormatBlockBioRemap(const BlockBioRemapFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_bio_remap:  %d,%d %s %llu + %u <- (%d,%d) %llu",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
-          major(event.dev()), minor(event.dev()),
-          (unsigned long long)event.old_sector());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.old_sector());
   return std::string(line);
 }
 
 std::string FormatBlockDirtyBuffer(const BlockDirtyBufferFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_dirty_buffer: %d,%d sector=%llu size=%zu",
-          major(event.dev()), minor(event.dev()),
+          BlkMaj(event.dev()), BlkMin(event.dev()),
           static_cast<unsigned long long>(event.sector()),
           static_cast<size_t>(event.size()));
   return std::string(line);
@@ -1058,8 +1099,8 @@ std::string FormatBlockDirtyBuffer(const BlockDirtyBufferFtraceEvent& event) {
 
 std::string FormatBlockGetrq(const BlockGetrqFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_getrq: %d,%d %s %llu + %u [%s]", major(event.dev()),
-          minor(event.dev()), event.rwbs().c_str(),
+  sprintf(line, "block_getrq: %d,%d %s %llu + %u [%s]", BlkMaj(event.dev()),
+          BlkMin(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
@@ -1074,7 +1115,7 @@ std::string FormatBlockPlug(const BlockPlugFtraceEvent& event) {
 std::string FormatBlockRqAbort(const BlockRqAbortFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_abort: %d,%d %s (%s) %llu + %u [%d]",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           event.cmd().c_str(), static_cast<unsigned long long>(event.sector()),
           event.nr_sector(), event.errors());
   return std::string(line);
@@ -1083,7 +1124,7 @@ std::string FormatBlockRqAbort(const BlockRqAbortFtraceEvent& event) {
 std::string FormatBlockRqComplete(const BlockRqCompleteFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_complete: %d,%d %s (%s) %llu + %u [%d]",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           event.cmd().c_str(), static_cast<unsigned long long>(event.sector()),
           event.nr_sector(), event.errors());
   return std::string(line);
@@ -1092,7 +1133,7 @@ std::string FormatBlockRqComplete(const BlockRqCompleteFtraceEvent& event) {
 std::string FormatBlockRqInsert(const BlockRqInsertFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_insert: %d,%d %s %u (%s) %llu + %u [%s]",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           event.bytes(), event.cmd().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
@@ -1102,17 +1143,17 @@ std::string FormatBlockRqInsert(const BlockRqInsertFtraceEvent& event) {
 std::string FormatBlockRqRemap(const BlockRqRemapFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_remap: %d,%d %s %llu + %u <- (%d,%d) %llu %u",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
-          major(event.dev()), minor(event.dev()),
-          (unsigned long long)event.old_sector(), event.nr_bios());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.old_sector(),
+          event.nr_bios());
   return std::string(line);
 }
 
 std::string FormatBlockRqRequeue(const BlockRqRequeueFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_rq_requeue: %d,%d %s (%s) %llu + %u [%d",
-          major(event.dev()), minor(event.dev()), event.rwbs().c_str(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.rwbs().c_str(),
           event.cmd().c_str(), static_cast<unsigned long long>(event.sector()),
           event.nr_sector(), event.errors());
   return std::string(line);
@@ -1120,8 +1161,8 @@ std::string FormatBlockRqRequeue(const BlockRqRequeueFtraceEvent& event) {
 
 std::string FormatBlockSleeprq(const BlockSleeprqFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_sleeprq: %d,%d %s %llu + %u [%s]", major(event.dev()),
-          minor(event.dev()), event.rwbs().c_str(),
+  sprintf(line, "block_sleeprq: %d,%d %s %llu + %u [%s]", BlkMaj(event.dev()),
+          BlkMin(event.dev()), event.rwbs().c_str(),
           static_cast<unsigned long long>(event.sector()), event.nr_sector(),
           event.comm().c_str());
   return std::string(line);
@@ -1129,17 +1170,17 @@ std::string FormatBlockSleeprq(const BlockSleeprqFtraceEvent& event) {
 
 std::string FormatBlockSplit(const BlockSplitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "block_split: %d,%d %s %llu / %llu [%s]", major(event.dev()),
-          minor(event.dev()), event.rwbs().c_str(),
-          static_cast<unsigned long long>(event.sector()),
-          (unsigned long long)event.new_sector(), event.comm().c_str());
+  sprintf(line, "block_split: %d,%d %s %llu / %llu [%s]", BlkMaj(event.dev()),
+          BlkMin(event.dev()), event.rwbs().c_str(),
+          static_cast<unsigned long long>(event.sector()), event.new_sector(),
+          event.comm().c_str());
   return std::string(line);
 }
 
 std::string FormatBlockTouchBuffer(const BlockTouchBufferFtraceEvent& event) {
   char line[2048];
   sprintf(line, "block_touch_buffer: %d,%d sector=%llu size=%zu",
-          major(event.dev()), minor(event.dev()),
+          BlkMaj(event.dev()), BlkMin(event.dev()),
           static_cast<unsigned long long>(event.sector()),
           static_cast<size_t>(event.size()));
   return std::string(line);
@@ -1156,7 +1197,7 @@ std::string FormatExt4AllocDaBlocks(const Ext4AllocDaBlocksFtraceEvent& event) {
   sprintf(line,
           "ext4_alloc_da_blocks: dev %d,%d ino %lu data_blocks %u meta_blocks "
           "%u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.data_blocks(), event.meta_blocks());
   return std::string(line);
 }
@@ -1167,7 +1208,7 @@ std::string FormatExt4AllocateBlocks(
   sprintf(line,
           "ext4_allocate_blocks: dev %d,%d ino %lu flags %s len %u block %llu "
           "lblk %u goal %llu lleft %u lright %u pleft %llu pright %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           GetExt4HintFlag(event.flags()), event.len(), event.block(),
           event.logical(), event.goal(), event.lleft(), event.lright(),
           event.pleft(), event.pright());
@@ -1177,8 +1218,8 @@ std::string FormatExt4AllocateBlocks(
 std::string FormatExt4AllocateInode(const Ext4AllocateInodeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_allocate_inode: dev %d,%d ino %lu dir %lu mode 0%o",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned long)event.dir(), event.mode());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.dir(),
+          event.mode());
   return std::string(line);
 }
 
@@ -1186,7 +1227,7 @@ std::string FormatExt4BeginOrderedTruncate(
     const Ext4BeginOrderedTruncateFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_begin_ordered_truncate: dev %d,%d ino %lu new_size %lld",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.new_size());
   return std::string(line);
 }
@@ -1194,8 +1235,8 @@ std::string FormatExt4BeginOrderedTruncate(
 std::string FormatExt4CollapseRange(const Ext4CollapseRangeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_collapse_range: dev %d,%d ino %lu offset %lld len %lld",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.offset(), event.len());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.offset(),
+          event.len());
   return std::string(line);
 }
 
@@ -1206,10 +1247,9 @@ std::string FormatExt4DaReleaseSpace(
           "ext4_da_release_space: dev %d,%d ino %lu mode 0%o i_blocks %llu "
           "freed_blocks %d reserved_data_blocks %d reserved_meta_blocks %d "
           "allocated_meta_blocks %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.mode(), event.i_blocks(), event.freed_blocks(),
-          event.reserved_data_blocks(), event.reserved_meta_blocks(),
-          event.allocated_meta_blocks());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.mode(),
+          event.i_blocks(), event.freed_blocks(), event.reserved_data_blocks(),
+          event.reserved_meta_blocks(), event.allocated_meta_blocks());
   return std::string(line);
 }
 
@@ -1219,8 +1259,8 @@ std::string FormatExt4DaReserveSpace(
   sprintf(line,
           "ext4_da_reserve_space:dev %d,%d ino %lu mode 0%o i_blocks %llu "
           "reserved_data_blocks %d reserved_meta_blocks %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.mode(), event.i_blocks(), event.reserved_data_blocks(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.mode(),
+          event.i_blocks(), event.reserved_data_blocks(),
           event.reserved_meta_blocks());
   return std::string(line);
 }
@@ -1232,10 +1272,10 @@ std::string FormatExt4DaUpdateReserveSpace(
           "ext4_da_update_reserve_space: dev %d,%d ino %lu mode 0%o i_blocks "
           "%llu used_blocks %d reserved_data_blocks %d reserved_meta_blocks %d "
           "allocated_meta_blocks %d quota_claim %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.mode(), event.i_blocks(), event.used_blocks(),
-          event.reserved_data_blocks(), event.reserved_meta_blocks(),
-          event.allocated_meta_blocks(), event.quota_claim());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.mode(),
+          event.i_blocks(), event.used_blocks(), event.reserved_data_blocks(),
+          event.reserved_meta_blocks(), event.allocated_meta_blocks(),
+          event.quota_claim());
   return std::string(line);
 }
 
@@ -1244,9 +1284,8 @@ std::string FormatExt4DaWritePages(const Ext4DaWritePagesFtraceEvent& event) {
   sprintf(line,
           "ext4_da_write_pages: dev %d,%d ino %lu first_page %lu nr_to_write "
           "%ld sync_mode %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned long)event.first_page(), (long)event.nr_to_write(),
-          event.sync_mode());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
+          event.first_page(), event.nr_to_write(), event.sync_mode());
   return std::string(line);
 }
 
@@ -1256,15 +1295,15 @@ std::string FormatExt4DaWritePagesExtent(
   char line[2048];
   sprintf(line,
           "ext4_da_write_pages_extent: dev %d,%d ino %lu lblk %llu len %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk(), event.len());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.len());
   return std::string(line);
 }
 
 std::string FormatExt4DiscardBlocks(const Ext4DiscardBlocksFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_discard_blocks: dev %d,%d blk %llu count %llu",
-          major(event.dev()), minor(event.dev()), event.blk(), event.count());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.blk(), event.count());
   return std::string(line);
 }
 
@@ -1272,15 +1311,14 @@ std::string FormatExt4DiscardPreallocations(
     const Ext4DiscardPreallocationsFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_discard_preallocations: dev %d,%d ino %lu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino());
   return std::string(line);
 }
 
 std::string FormatExt4DropInode(const Ext4DropInodeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_drop_inode: dev %d,%d ino %lu drop %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.drop());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.drop());
   return std::string(line);
 }
 
@@ -1289,8 +1327,8 @@ std::string FormatExt4EsCacheExtent(const Ext4EsCacheExtentFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_es_cache_extent: dev %d,%d ino %lu es [%u/%u) mapped %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk(), event.len(), event.pblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.len(), event.pblk());
   return std::string(line);
 }
 
@@ -1299,8 +1337,7 @@ std::string FormatExt4EsFindDelayedExtentRangeEnter(
   char line[2048];
   sprintf(line,
           "ext4_es_find_delayed_extent_range_enter: dev %d,%d ino %lu lblk %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk());
   return std::string(line);
 }
 
@@ -1311,8 +1348,8 @@ std::string FormatExt4EsFindDelayedExtentRangeExit(
   sprintf(line,
           "ext4_es_find_delayed_extent_range_exit: dev %d,%d ino %lu es "
           "[%u/%u) mapped %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk(), event.len(), event.pblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.len(), event.pblk());
   return std::string(line);
 }
 
@@ -1322,8 +1359,8 @@ std::string FormatExt4EsInsertExtent(
   char line[2048];
   sprintf(line,
           "ext4_es_insert_extent: dev %d,%d ino %lu es [%u/%u) mapped %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk(), event.len(), event.pblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.len(), event.pblk());
   return std::string(line);
 }
 
@@ -1331,8 +1368,7 @@ std::string FormatExt4EsLookupExtentEnter(
     const Ext4EsLookupExtentEnterFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_es_lookup_extent_enter: dev %d,%d ino %lu lblk %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk());
   return std::string(line);
 }
 
@@ -1342,9 +1378,8 @@ std::string FormatExt4EsLookupExtentExit(
   char line[2048];
   sprintf(line,
           "ext4_es_lookup_extent_exit: dev %d,%d ino %lu found %d [%u/%u) %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.found(), event.lblk(), event.len(),
-          event.found() ? event.pblk() : 0);
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.found(),
+          event.lblk(), event.len(), event.found() ? event.pblk() : 0);
   return std::string(line);
 }
 
@@ -1352,8 +1387,8 @@ std::string FormatExt4EsRemoveExtent(
     const Ext4EsRemoveExtentFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_es_remove_extent: dev %d,%d ino %lu es [%lld/%lld)",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk(), event.len());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.len());
   return std::string(line);
 }
 
@@ -1362,7 +1397,7 @@ std::string FormatExt4EsShrink(const Ext4EsShrinkFtraceEvent& event) {
   sprintf(line,
           "ext4_es_shrink: dev %d,%d nr_shrunk %d, scan_time %llu nr_skipped "
           "%d retried %d",
-          major(event.dev()), minor(event.dev()), event.nr_shrunk(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.nr_shrunk(),
           event.scan_time(), event.nr_skipped(), event.retried());
   return std::string(line);
 }
@@ -1370,7 +1405,7 @@ std::string FormatExt4EsShrink(const Ext4EsShrinkFtraceEvent& event) {
 std::string FormatExt4EsShrinkCount(const Ext4EsShrinkCountFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_es_shrink_count: dev %d,%d nr_to_scan %d cache_cnt %d",
-          major(event.dev()), minor(event.dev()), event.nr_to_scan(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.nr_to_scan(),
           event.cache_cnt());
   return std::string(line);
 }
@@ -1380,7 +1415,7 @@ std::string FormatExt4EsShrinkScanEnter(
   char line[2048];
   sprintf(line,
           "ext4_es_shrink_scan_enter: dev %d,%d nr_to_scan %d cache_cnt %d",
-          major(event.dev()), minor(event.dev()), event.nr_to_scan(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.nr_to_scan(),
           event.cache_cnt());
   return std::string(line);
 }
@@ -1389,7 +1424,7 @@ std::string FormatExt4EsShrinkScanExit(
     const Ext4EsShrinkScanExitFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_es_shrink_scan_exit: dev %d,%d nr_shrunk %d cache_cnt %d",
-          major(event.dev()), minor(event.dev()), event.nr_shrunk(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.nr_shrunk(),
           event.cache_cnt());
   return std::string(line);
 }
@@ -1397,8 +1432,7 @@ std::string FormatExt4EsShrinkScanExit(
 std::string FormatExt4EvictInode(const Ext4EvictInodeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_evict_inode: dev %d,%d ino %lu nlink %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.nlink());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.nlink());
   return std::string(line);
 }
 
@@ -1408,9 +1442,8 @@ std::string FormatExt4ExtConvertToInitializedEnter(
   sprintf(line,
           "ext4_ext_convert_to_initialized_enter: dev %d,%d ino %lu m_lblk %u "
           "m_len %u u_lblk %u u_len %u u_pblk %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.m_lblk(), event.m_len(), event.u_lblk(), event.u_len(),
-          event.u_pblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.m_lblk(),
+          event.m_len(), event.u_lblk(), event.u_len(), event.u_pblk());
   return std::string(line);
 }
 
@@ -1421,9 +1454,9 @@ std::string FormatExt4ExtConvertToInitializedFastpath(
           "ext4_ext_convert_to_initialized_fastpath: dev %d,%d ino %lu m_lblk "
           "%u m_len %u u_lblk %u u_len %u u_pblk %llu i_lblk %u i_len %u "
           "i_pblk %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.m_lblk(), event.m_len(), event.u_lblk(), event.u_len(),
-          event.u_pblk(), event.i_lblk(), event.i_len(), event.i_pblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.m_lblk(),
+          event.m_len(), event.u_lblk(), event.u_len(), event.u_pblk(),
+          event.i_lblk(), event.i_len(), event.i_pblk());
   return std::string(line);
 }
 
@@ -1433,26 +1466,25 @@ std::string FormatExt4ExtHandleUnwrittenExtents(
   sprintf(line,
           "ext4_ext_handle_unwritten_extents: dev %d,%d ino %lu m_lblk %u "
           "m_pblk %llu m_len %u flags %s allocated %d newblock %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.lblk(), (unsigned long long)event.pblk(), event.len(),
-          GetExt4ExtFlag(event.flags()), (unsigned int)event.allocated(),
-          (unsigned long long)event.newblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.pblk(), event.len(), GetExt4ExtFlag(event.flags()),
+          event.allocated(), event.newblk());
   return std::string(line);
 }
 
 std::string FormatExt4ExtInCache(const Ext4ExtInCacheFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_ext_in_cache: dev %d,%d ino %lu lblk %u ret %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.lblk(), event.ret());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.ret());
   return std::string(line);
 }
 
 std::string FormatExt4ExtLoadExtent(const Ext4ExtLoadExtentFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_ext_load_extent: dev %d,%d ino %lu lblk %u pblk %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk(), event.pblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.pblk());
   return std::string(line);
 }
 
@@ -1462,8 +1494,9 @@ std::string FormatExt4ExtMapBlocksEnter(
   sprintf(
       line,
       "ext4_ext_map_blocks_enter: dev %d,%d ino %lu lblk %u len %u flags %s",
-      major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-      event.lblk(), event.len(), GetExt4ExtFlag(event.flags()));
+      BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
+      static_cast<unsigned>(event.lblk()), event.len(),
+      GetExt4ExtFlag(event.flags()));
   return std::string(line);
 }
 
@@ -1473,8 +1506,8 @@ std::string FormatExt4ExtMapBlocksExit(
   sprintf(line,
           "ext4_ext_map_blocks_exit: dev %d,%d ino %lu lblk %u pblk %llu len "
           "%u flags %x ret %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk(), event.pblk(), event.len(), event.flags(), event.ret());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.pblk(), event.len(), event.flags(), event.ret());
   return std::string(line);
 }
 
@@ -1482,9 +1515,8 @@ std::string FormatExt4ExtPutInCache(const Ext4ExtPutInCacheFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_ext_put_in_cache: dev %d,%d ino %lu lblk %u len %u start %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.lblk(), event.len(),
-          (unsigned long long)event.start());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.len(), event.start());
   return std::string(line);
 }
 
@@ -1493,8 +1525,8 @@ std::string FormatExt4ExtRemoveSpace(
   char line[2048];
   sprintf(line,
           "ext4_ext_remove_space: dev %d,%d ino %lu since %u end %u depth %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.start(), (unsigned)event.end(), event.depth());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.start(),
+          event.end(), event.depth());
   return std::string(line);
 }
 
@@ -1504,17 +1536,15 @@ std::string FormatExt4ExtRemoveSpaceDone(
   sprintf(line,
           "ext4_ext_remove_space_done: dev %d,%d ino %lu since %u end %u depth "
           "%d partial %lld remaining_entries %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.start(), (unsigned)event.end(), event.depth(),
-          (long long)event.partial(), (unsigned short)event.eh_entries());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.start(),
+          event.end(), event.depth(), event.partial(), event.eh_entries());
   return std::string(line);
 }
 
 std::string FormatExt4ExtRmIdx(const Ext4ExtRmIdxFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_ext_rm_idx: dev %d,%d ino %lu index_pblk %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned long long)event.pblk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.pblk());
   return std::string(line);
 }
 
@@ -1523,10 +1553,8 @@ std::string FormatExt4ExtRmLeaf(const Ext4ExtRmLeafFtraceEvent& event) {
   sprintf(line,
           "ext4_ext_rm_leaf: dev %d,%d ino %lu start_lblk %u last_extent "
           "[%u(%llu), %u]partial_cluster %lld",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.start(), (unsigned)event.ee_lblk(),
-          (unsigned long long)event.ee_pblk(), (unsigned short)event.ee_len(),
-          (long long)event.partial());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.start(),
+          event.ee_lblk(), event.ee_pblk(), event.ee_len(), event.partial());
   return std::string(line);
 }
 
@@ -1534,9 +1562,8 @@ std::string FormatExt4ExtShowExtent(const Ext4ExtShowExtentFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_ext_show_extent: dev %d,%d ino %lu lblk %u pblk %llu len %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.lblk(), (unsigned long long)event.pblk(),
-          (unsigned short)event.len());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.pblk(), event.len());
   return std::string(line);
 }
 
@@ -1546,8 +1573,8 @@ std::string FormatExt4FallocateEnter(
   sprintf(
       line,
       "ext4_fallocate_enter: dev %d,%d ino %lu offset %lld len %lld mode %s",
-      major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-      event.offset(), event.len(), GetExt4ModeFlag(event.mode()));
+      BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.offset(),
+      event.len(), GetExt4ModeFlag(event.mode()));
   return std::string(line);
 }
 
@@ -1555,8 +1582,8 @@ std::string FormatExt4FallocateExit(const Ext4FallocateExitFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_fallocate_exit: dev %d,%d ino %lu pos %lld blocks %u ret %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.pos(), event.blocks(), event.ret());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.pos(),
+          event.blocks(), event.ret());
   return std::string(line);
 }
 
@@ -1566,9 +1593,8 @@ std::string FormatExt4FindDelallocRange(
   sprintf(line,
           "ext4_find_delalloc_range: dev %d,%d ino %lu from %u to %u reverse "
           "%d found %d (blk = %u)",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.from(), (unsigned)event.to(), event.reverse(),
-          event.found(), (unsigned)event.found_blk());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.from(),
+          event.to(), event.reverse(), event.found(), event.found_blk());
   return std::string(line);
 }
 
@@ -1576,8 +1602,8 @@ std::string FormatExt4Forget(const Ext4ForgetFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_forget: dev %d,%d ino %lu mode 0%o is_metadata %d block %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.mode(), event.is_metadata(), event.block());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.mode(),
+          event.is_metadata(), event.block());
   return std::string(line);
 }
 
@@ -1586,9 +1612,8 @@ std::string FormatExt4FreeBlocks(const Ext4FreeBlocksFtraceEvent& event) {
   sprintf(line,
           "ext4_free_blocks: dev %d,%d ino %lu mode 0%o block %llu count %lu "
           "flags %s",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.mode(), event.block(), (unsigned long)event.count(),
-          GetExt4FreeBlocksFlag(event.flags()));
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.mode(),
+          event.block(), event.count(), GetExt4FreeBlocksFlag(event.flags()));
   return std::string(line);
 }
 
@@ -1597,8 +1622,8 @@ std::string FormatExt4FreeInode(const Ext4FreeInodeFtraceEvent& event) {
   sprintf(line,
           "ext4_free_inode: dev %d,%d ino %lu mode 0%o uid %u gid %u blocks "
           "%llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.mode(), event.uid(), event.gid(), event.blocks());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.mode(),
+          event.uid(), event.gid(), event.blocks());
   return std::string(line);
 }
 
@@ -1608,9 +1633,8 @@ std::string FormatExt4GetImpliedClusterAllocExit(
   sprintf(line,
           "ext4_get_implied_cluster_alloc_exit: dev %d,%d m_lblk %u m_pblk "
           "%llu m_len %u m_flags %u ret %d",
-          major(event.dev()), minor(event.dev()), event.lblk(),
-          (unsigned long long)event.pblk(), event.len(), event.flags(),
-          event.ret());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.lblk(), event.pblk(),
+          event.len(), event.flags(), event.ret());
   return std::string(line);
 }
 
@@ -1619,8 +1643,8 @@ std::string FormatExt4GetReservedClusterAlloc(
   char line[2048];
   sprintf(line,
           "ext4_get_reserved_cluster_alloc: dev %d,%d ino %lu lblk %u len %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.lblk(), event.len());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.len());
   return std::string(line);
 }
 
@@ -1630,8 +1654,8 @@ std::string FormatExt4IndMapBlocksEnter(
   sprintf(
       line,
       "ext4_ind_map_blocks_enter: dev %d,%d ino %lu lblk %u len %u flags %u",
-      major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-      event.lblk(), event.len(), event.flags());
+      BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+      event.len(), event.flags());
   return std::string(line);
 }
 
@@ -1641,16 +1665,16 @@ std::string FormatExt4IndMapBlocksExit(
   sprintf(line,
           "ext4_ind_map_blocks_exit: dev %d,%d ino %lu lblk %u pblk %llu len "
           "%u flags %x ret %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.lblk(), event.pblk(), event.len(), event.flags(), event.ret());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.lblk(),
+          event.pblk(), event.len(), event.flags(), event.ret());
   return std::string(line);
 }
 
 std::string FormatExt4InsertRange(const Ext4InsertRangeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_insert_range: dev %d,%d ino %lu offset %lld len %lld",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.offset(), event.len());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.offset(),
+          event.len());
   return std::string(line);
 }
 
@@ -1660,8 +1684,8 @@ std::string FormatExt4Invalidatepage(
   sprintf(line,
           "ext4_invalidatepage: dev %d,%d ino %lu page_index %lu offset %u "
           "length %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned long)event.index(), event.offset(), event.length());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.index(),
+          event.offset(), event.length());
   return std::string(line);
 }
 
@@ -1669,8 +1693,8 @@ std::string FormatExt4JournalStart(const Ext4JournalStartFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_journal_start: dev %d,%d blocks, %d rsv_blocks, %d caller %pS",
-          major(event.dev()), minor(event.dev()), event.blocks(),
-          event.rsv_blocks(), (void*)event.ip());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.blocks(),
+          event.rsv_blocks(), event.ip());
   return std::string(line);
 }
 
@@ -1678,8 +1702,7 @@ std::string FormatExt4JournalStartReserved(
     const Ext4JournalStartReservedFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_journal_start_reserved: dev %d,%d blocks, %d caller %pS",
-          major(event.dev()), minor(event.dev()), event.blocks(),
-          (void*)event.ip());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.blocks(), event.ip());
   return std::string(line);
 }
 
@@ -1689,8 +1712,8 @@ std::string FormatExt4JournalledInvalidatepage(
   sprintf(line,
           "ext4_journalled_invalidatepage: dev %d,%d ino %lu page_index %lu "
           "offset %u length %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned long)event.index(), event.offset(), event.length());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.index(),
+          event.offset(), event.length());
   return std::string(line);
 }
 
@@ -1700,15 +1723,15 @@ std::string FormatExt4JournalledWriteEnd(
   sprintf(line,
           "ext4_journalled_write_end: dev %d,%d ino %lu pos %lld len %u copied "
           "%u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.pos(), event.len(), event.copied());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.pos(),
+          event.len(), event.copied());
   return std::string(line);
 }
 
 std::string FormatExt4LoadInode(const Ext4LoadInodeFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_load_inode: dev %d,%d ino %ld", major(event.dev()),
-          minor(event.dev()), (unsigned long)event.ino());
+  sprintf(line, "ext4_load_inode: dev %d,%d ino %ld", BlkMaj(event.dev()),
+          BlkMin(event.dev()), event.ino());
   return std::string(line);
 }
 
@@ -1716,7 +1739,7 @@ std::string FormatExt4LoadInodeBitmap(
     const Ext4LoadInodeBitmapFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_load_inode_bitmap: dev %d,%d group %u",
-          major(event.dev()), minor(event.dev()), event.group());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.group());
   return std::string(line);
 }
 
@@ -1724,15 +1747,14 @@ std::string FormatExt4MarkInodeDirty(
     const Ext4MarkInodeDirtyFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_mark_inode_dirty: dev %d,%d ino %lu caller %pS",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (void*)event.ip());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.ip());
   return std::string(line);
 }
 
 std::string FormatExt4MbBitmapLoad(const Ext4MbBitmapLoadFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_mb_bitmap_load: dev %d,%d group %u", major(event.dev()),
-          minor(event.dev()), event.group());
+  sprintf(line, "ext4_mb_bitmap_load: dev %d,%d group %u", BlkMaj(event.dev()),
+          BlkMin(event.dev()), event.group());
   return std::string(line);
 }
 
@@ -1740,7 +1762,7 @@ std::string FormatExt4MbBuddyBitmapLoad(
     const Ext4MbBuddyBitmapLoadFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_mb_buddy_bitmap_load: dev %d,%d group %u",
-          major(event.dev()), minor(event.dev()), event.group());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.group());
   return std::string(line);
 }
 
@@ -1748,7 +1770,7 @@ std::string FormatExt4MbDiscardPreallocations(
     const Ext4MbDiscardPreallocationsFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_mb_discard_preallocations: dev %d,%d needed %d",
-          major(event.dev()), minor(event.dev()), event.needed());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.needed());
   return std::string(line);
 }
 
@@ -1757,7 +1779,7 @@ std::string FormatExt4MbNewGroupPa(const Ext4MbNewGroupPaFtraceEvent& event) {
   sprintf(line,
           "ext4_mb_new_group_pa: dev %d,%d ino %lu pstart %llu len %u lstart "
           "%llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.pa_pstart(), event.pa_len(), event.pa_lstart());
   return std::string(line);
 }
@@ -1767,7 +1789,7 @@ std::string FormatExt4MbNewInodePa(const Ext4MbNewInodePaFtraceEvent& event) {
   sprintf(line,
           "ext4_mb_new_inode_pa: dev %d,%d ino %lu pstart %llu len %u lstart "
           "%llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.pa_pstart(), event.pa_len(), event.pa_lstart());
   return std::string(line);
 }
@@ -1776,7 +1798,7 @@ std::string FormatExt4MbReleaseGroupPa(
     const Ext4MbReleaseGroupPaFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_mb_release_group_pa: dev %d,%d pstart %llu len %u",
-          major(event.dev()), minor(event.dev()), event.pa_pstart(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.pa_pstart(),
           event.pa_len());
   return std::string(line);
 }
@@ -1786,8 +1808,8 @@ std::string FormatExt4MbReleaseInodePa(
   char line[2048];
   sprintf(line,
           "ext4_mb_release_inode_pa: dev %d,%d ino %lu block %llu count %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.block(), event.count());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.block(),
+          event.count());
   return std::string(line);
 }
 
@@ -1797,7 +1819,7 @@ std::string FormatExt4MballocAlloc(const Ext4MballocAllocFtraceEvent& event) {
           "ext4_mballoc_alloc: dev %d,%d inode %lu orig %u/%d/%u@%u goal "
           "%u/%d/%u@%u result %u/%d/%u@%u blks %u grps %u cr %u flags %s tail "
           "%u broken %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.orig_group(), event.orig_start(), event.orig_len(),
           event.orig_logical(), event.goal_group(), event.goal_start(),
           event.goal_len(), event.goal_logical(), event.result_group(),
@@ -1812,7 +1834,7 @@ std::string FormatExt4MballocDiscard(
     const Ext4MballocDiscardFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_mballoc_discard: dev %d,%d inode %lu extent %u/%d/%d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.result_group(), event.result_start(), event.result_len());
   return std::string(line);
 }
@@ -1820,7 +1842,7 @@ std::string FormatExt4MballocDiscard(
 std::string FormatExt4MballocFree(const Ext4MballocFreeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_mballoc_free: dev %d,%d inode %lu extent %u/%d/%d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.result_group(), event.result_start(), event.result_len());
   return std::string(line);
 }
@@ -1831,7 +1853,7 @@ std::string FormatExt4MballocPrealloc(
   sprintf(line,
           "ext4_mballoc_prealloc: dev %d,%d inode %lu orig %u/%d/%u@%u result "
           "%u/%d/%u@%u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.orig_group(), event.orig_start(), event.orig_len(),
           event.orig_logical(), event.result_group(), event.result_start(),
           event.result_len(), event.result_logical());
@@ -1844,9 +1866,8 @@ std::string FormatExt4OtherInodeUpdateTime(
   sprintf(line,
           "ext4_other_inode_update_time: dev %d,%d orig_ino %lu ino %lu mode "
           "0%o uid %u gid %u",
-          major(event.dev()), minor(event.dev()),
-          (unsigned long)event.orig_ino(), (unsigned long)event.ino(),
-          event.mode(), event.uid(), event.gid());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.orig_ino(),
+          event.ino(), event.mode(), event.uid(), event.gid());
   return std::string(line);
 }
 
@@ -1854,8 +1875,8 @@ std::string FormatExt4PunchHole(const Ext4PunchHoleFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_punch_hole: dev %d,%d ino %lu offset %lld len %lld mode %s",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.offset(), event.len(), GetExt4ModeFlag(event.mode()));
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.offset(),
+          event.len(), GetExt4ModeFlag(event.mode()));
   return std::string(line);
 }
 
@@ -1863,23 +1884,21 @@ std::string FormatExt4ReadBlockBitmapLoad(
     const Ext4ReadBlockBitmapLoadFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_read_block_bitmap_load: dev %d,%d group %u",
-          major(event.dev()), minor(event.dev()), event.group());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.group());
   return std::string(line);
 }
 
 std::string FormatExt4Readpage(const Ext4ReadpageFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_readpage: dev %d,%d ino %lu page_index %lu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned long)event.index());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.index());
   return std::string(line);
 }
 
 std::string FormatExt4Releasepage(const Ext4ReleasepageFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_releasepage: dev %d,%d ino %lu page_index %lu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned long)event.index());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.index());
   return std::string(line);
 }
 
@@ -1888,10 +1907,9 @@ std::string FormatExt4RemoveBlocks(const Ext4RemoveBlocksFtraceEvent& event) {
   sprintf(line,
           "ext4_remove_blocks: dev %d,%d ino %lu extent [%u(%llu), %u]from %u "
           "to %u partial_cluster %lld",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned)event.ee_lblk(), (unsigned long long)event.ee_pblk(),
-          (unsigned short)event.ee_len(), (unsigned)event.from(),
-          (unsigned)event.to(), (long long)event.partial());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
+          event.ee_lblk(), event.ee_pblk(), event.ee_len(), event.from(),
+          event.to(), event.partial());
   return std::string(line);
 }
 
@@ -1900,7 +1918,7 @@ std::string FormatExt4RequestBlocks(const Ext4RequestBlocksFtraceEvent& event) {
   sprintf(line,
           "ext4_request_blocks: dev %d,%d ino %lu flags %s len %u lblk %u goal "
           "%llu lleft %u lright %u pleft %llu pright %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           GetExt4HintFlag(event.flags()), event.len(), event.logical(),
           event.goal(), event.lleft(), event.lright(), event.pleft(),
           event.pright());
@@ -1910,15 +1928,14 @@ std::string FormatExt4RequestBlocks(const Ext4RequestBlocksFtraceEvent& event) {
 std::string FormatExt4RequestInode(const Ext4RequestInodeFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_request_inode: dev %d,%d dir %lu mode 0%o",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.dir(),
-          event.mode());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.dir(), event.mode());
   return std::string(line);
 }
 
 std::string FormatExt4SyncFs(const Ext4SyncFsFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "ext4_sync_fs: dev %d,%d wait %d", major(event.dev()),
-          minor(event.dev()), event.wait());
+  sprintf(line, "ext4_sync_fs: dev %d,%d wait %d", BlkMaj(event.dev()),
+          BlkMin(event.dev()), event.wait());
   return std::string(line);
 }
 
@@ -1941,7 +1958,7 @@ std::string FormatExt4TrimExtent(const Ext4TrimExtentFtraceEvent& event) {
 std::string FormatExt4TruncateEnter(const Ext4TruncateEnterFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_truncate_enter: dev %d,%d ino %lu blocks %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.blocks());
   return std::string(line);
 }
@@ -1949,7 +1966,7 @@ std::string FormatExt4TruncateEnter(const Ext4TruncateEnterFtraceEvent& event) {
 std::string FormatExt4TruncateExit(const Ext4TruncateExitFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_truncate_exit: dev %d,%d ino %lu blocks %llu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
           event.blocks());
   return std::string(line);
 }
@@ -1957,40 +1974,38 @@ std::string FormatExt4TruncateExit(const Ext4TruncateExitFtraceEvent& event) {
 std::string FormatExt4UnlinkEnter(const Ext4UnlinkEnterFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_unlink_enter: dev %d,%d ino %lu size %lld parent %lu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.size(), (unsigned long)event.parent());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.size(),
+          event.parent());
   return std::string(line);
 }
 
 std::string FormatExt4UnlinkExit(const Ext4UnlinkExitFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_unlink_exit: dev %d,%d ino %lu ret %d",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.ret());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.ret());
   return std::string(line);
 }
 
 std::string FormatExt4WriteBegin(const Ext4WriteBeginFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_write_begin: dev %d,%d ino %lu pos %lld len %u flags %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.pos(), event.len(), event.flags());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.pos(),
+          event.len(), event.flags());
   return std::string(line);
 }
 
 std::string FormatExt4WriteEnd(const Ext4WriteEndFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_write_end: %d,%d ino %lu pos %lld len %u copied %u",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.pos(), event.len(), event.copied());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.pos(),
+          event.len(), event.copied());
   return std::string(line);
 }
 
 std::string FormatExt4Writepage(const Ext4WritepageFtraceEvent& event) {
   char line[2048];
   sprintf(line, "ext4_writepage: dev %d,%d ino %lu page_index %lu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (unsigned long)event.index());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.index());
   return std::string(line);
 }
 
@@ -2000,11 +2015,10 @@ std::string FormatExt4Writepages(const Ext4WritepagesFtraceEvent& event) {
           "ext4_writepages: dev %d,%d ino %lu nr_to_write %ld pages_skipped "
           "%ld range_start %lld range_end %lld sync_mode %d for_kupdate %d "
           "range_cyclic %d writeback_index %lu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          (long)event.nr_to_write(), (long)event.pages_skipped(),
-          event.range_start(), event.range_end(), event.sync_mode(),
-          event.for_kupdate(), event.range_cyclic(),
-          (unsigned long)event.writeback_index());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(),
+          event.nr_to_write(), event.pages_skipped(), event.range_start(),
+          event.range_end(), event.sync_mode(), event.for_kupdate(),
+          event.range_cyclic(), event.writeback_index());
   return std::string(line);
 }
 
@@ -2014,9 +2028,9 @@ std::string FormatExt4WritepagesResult(
   sprintf(line,
           "ext4_writepages_result: dev %d,%d ino %lu ret %d pages_written %d "
           "pages_skipped %ld sync_mode %d writeback_index %lu",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.ret(), event.pages_written(), (long)event.pages_skipped(),
-          event.sync_mode(), (unsigned long)event.writeback_index());
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.ret(),
+          event.pages_written(), event.pages_skipped(), event.sync_mode(),
+          event.writeback_index());
   return std::string(line);
 }
 
@@ -2024,8 +2038,175 @@ std::string FormatExt4ZeroRange(const Ext4ZeroRangeFtraceEvent& event) {
   char line[2048];
   sprintf(line,
           "ext4_zero_range: dev %d,%d ino %lu offset %lld len %lld mode %s",
-          major(event.dev()), minor(event.dev()), (unsigned long)event.ino(),
-          event.offset(), event.len(), GetExt4ModeFlag(event.mode()));
+          BlkMaj(event.dev()), BlkMin(event.dev()), event.ino(), event.offset(),
+          event.len(), GetExt4ModeFlag(event.mode()));
+  return std::string(line);
+}
+
+std::string FormatF2fsDoSubmitBio(const F2fsDoSubmitBioFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_do_submit_bio: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsEvictInode(const F2fsEvictInodeFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_evict_inode: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsFallocate(const F2fsFallocateFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_fallocate: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsGetDataBlock(const F2fsGetDataBlockFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_get_data_block: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsGetVictim(const F2fsGetVictimFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_get_victim: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsIget(const F2fsIgetFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_iget: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsIgetExit(const F2fsIgetExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_iget_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsNewInode(const F2fsNewInodeFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_new_inode: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsReadpage(const F2fsReadpageFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_readpage: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsReserveNewBlock(
+    const F2fsReserveNewBlockFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_reserve_new_block: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSetPageDirty(const F2fsSetPageDirtyFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_set_page_dirty: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSubmitWritePage(
+    const F2fsSubmitWritePageFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_submit_write_page: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSyncFileEnter(const F2fsSyncFileEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_sync_file_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSyncFileExit(const F2fsSyncFileExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_sync_file_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsSyncFs(const F2fsSyncFsFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_sync_fs: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncate(const F2fsTruncateFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateBlocksEnter(
+    const F2fsTruncateBlocksEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_blocks_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateBlocksExit(
+    const F2fsTruncateBlocksExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_blocks_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateDataBlocksRange(
+    const F2fsTruncateDataBlocksRangeFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_data_blocks_range: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateInodeBlocksEnter(
+    const F2fsTruncateInodeBlocksEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_inode_blocks_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateInodeBlocksExit(
+    const F2fsTruncateInodeBlocksExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_inode_blocks_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateNode(const F2fsTruncateNodeFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_node: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateNodesEnter(
+    const F2fsTruncateNodesEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_nodes_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncateNodesExit(
+    const F2fsTruncateNodesExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_nodes_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsTruncatePartialNodes(
+    const F2fsTruncatePartialNodesFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_truncate_partial_nodes: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsUnlinkEnter(const F2fsUnlinkEnterFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_unlink_enter: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsUnlinkExit(const F2fsUnlinkExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_unlink_exit: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsVmPageMkwrite(const F2fsVmPageMkwriteFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_vm_page_mkwrite: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsWriteBegin(const F2fsWriteBeginFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_write_begin: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsWriteCheckpoint(
+    const F2fsWriteCheckpointFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_write_checkpoint: TODO(fmayer): add format");
+  return std::string(line);
+}
+std::string FormatF2fsWriteEnd(const F2fsWriteEndFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "f2fs_write_end: TODO(fmayer): add format");
   return std::string(line);
 }
 
@@ -2573,6 +2754,99 @@ std::string FormatEventText(const protos::FtraceEvent& event) {
   } else if (event.has_task_newtask()) {
     const auto& inner = event.task_newtask();
     return FormatTaskNewtask(inner);
+  } else if (event.has_f2fs_do_submit_bio()) {
+    const auto& inner = event.f2fs_do_submit_bio();
+    return FormatF2fsDoSubmitBio(inner);
+  } else if (event.has_f2fs_evict_inode()) {
+    const auto& inner = event.f2fs_evict_inode();
+    return FormatF2fsEvictInode(inner);
+  } else if (event.has_f2fs_fallocate()) {
+    const auto& inner = event.f2fs_fallocate();
+    return FormatF2fsFallocate(inner);
+  } else if (event.has_f2fs_get_data_block()) {
+    const auto& inner = event.f2fs_get_data_block();
+    return FormatF2fsGetDataBlock(inner);
+  } else if (event.has_f2fs_get_victim()) {
+    const auto& inner = event.f2fs_get_victim();
+    return FormatF2fsGetVictim(inner);
+  } else if (event.has_f2fs_iget()) {
+    const auto& inner = event.f2fs_iget();
+    return FormatF2fsIget(inner);
+  } else if (event.has_f2fs_iget_exit()) {
+    const auto& inner = event.f2fs_iget_exit();
+    return FormatF2fsIgetExit(inner);
+  } else if (event.has_f2fs_new_inode()) {
+    const auto& inner = event.f2fs_new_inode();
+    return FormatF2fsNewInode(inner);
+  } else if (event.has_f2fs_readpage()) {
+    const auto& inner = event.f2fs_readpage();
+    return FormatF2fsReadpage(inner);
+  } else if (event.has_f2fs_reserve_new_block()) {
+    const auto& inner = event.f2fs_reserve_new_block();
+    return FormatF2fsReserveNewBlock(inner);
+  } else if (event.has_f2fs_set_page_dirty()) {
+    const auto& inner = event.f2fs_set_page_dirty();
+    return FormatF2fsSetPageDirty(inner);
+  } else if (event.has_f2fs_submit_write_page()) {
+    const auto& inner = event.f2fs_submit_write_page();
+    return FormatF2fsSubmitWritePage(inner);
+  } else if (event.has_f2fs_sync_file_enter()) {
+    const auto& inner = event.f2fs_sync_file_enter();
+    return FormatF2fsSyncFileEnter(inner);
+  } else if (event.has_f2fs_sync_file_exit()) {
+    const auto& inner = event.f2fs_sync_file_exit();
+    return FormatF2fsSyncFileExit(inner);
+  } else if (event.has_f2fs_sync_fs()) {
+    const auto& inner = event.f2fs_sync_fs();
+    return FormatF2fsSyncFs(inner);
+  } else if (event.has_f2fs_truncate()) {
+    const auto& inner = event.f2fs_truncate();
+    return FormatF2fsTruncate(inner);
+  } else if (event.has_f2fs_truncate_blocks_enter()) {
+    const auto& inner = event.f2fs_truncate_blocks_enter();
+    return FormatF2fsTruncateBlocksEnter(inner);
+  } else if (event.has_f2fs_truncate_blocks_exit()) {
+    const auto& inner = event.f2fs_truncate_blocks_exit();
+    return FormatF2fsTruncateBlocksExit(inner);
+  } else if (event.has_f2fs_truncate_data_blocks_range()) {
+    const auto& inner = event.f2fs_truncate_data_blocks_range();
+    return FormatF2fsTruncateDataBlocksRange(inner);
+  } else if (event.has_f2fs_truncate_inode_blocks_enter()) {
+    const auto& inner = event.f2fs_truncate_inode_blocks_enter();
+    return FormatF2fsTruncateInodeBlocksEnter(inner);
+  } else if (event.has_f2fs_truncate_inode_blocks_exit()) {
+    const auto& inner = event.f2fs_truncate_inode_blocks_exit();
+    return FormatF2fsTruncateInodeBlocksExit(inner);
+  } else if (event.has_f2fs_truncate_node()) {
+    const auto& inner = event.f2fs_truncate_node();
+    return FormatF2fsTruncateNode(inner);
+  } else if (event.has_f2fs_truncate_nodes_enter()) {
+    const auto& inner = event.f2fs_truncate_nodes_enter();
+    return FormatF2fsTruncateNodesEnter(inner);
+  } else if (event.has_f2fs_truncate_nodes_exit()) {
+    const auto& inner = event.f2fs_truncate_nodes_exit();
+    return FormatF2fsTruncateNodesExit(inner);
+  } else if (event.has_f2fs_truncate_partial_nodes()) {
+    const auto& inner = event.f2fs_truncate_partial_nodes();
+    return FormatF2fsTruncatePartialNodes(inner);
+  } else if (event.has_f2fs_unlink_enter()) {
+    const auto& inner = event.f2fs_unlink_enter();
+    return FormatF2fsUnlinkEnter(inner);
+  } else if (event.has_f2fs_unlink_exit()) {
+    const auto& inner = event.f2fs_unlink_exit();
+    return FormatF2fsUnlinkExit(inner);
+  } else if (event.has_f2fs_vm_page_mkwrite()) {
+    const auto& inner = event.f2fs_vm_page_mkwrite();
+    return FormatF2fsVmPageMkwrite(inner);
+  } else if (event.has_f2fs_write_begin()) {
+    const auto& inner = event.f2fs_write_begin();
+    return FormatF2fsWriteBegin(inner);
+  } else if (event.has_f2fs_write_checkpoint()) {
+    const auto& inner = event.f2fs_write_checkpoint();
+    return FormatF2fsWriteCheckpoint(inner);
+  } else if (event.has_f2fs_write_end()) {
+    const auto& inner = event.f2fs_write_end();
+    return FormatF2fsWriteEnd(inner);
   }
   return "";
 }

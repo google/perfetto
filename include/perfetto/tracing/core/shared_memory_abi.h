@@ -215,7 +215,7 @@ class SharedMemoryABI {
   };
 
   // Keep this consistent with the PageLayout enum above.
-  static constexpr size_t kNumChunksForLayout[] = {0, 1, 2, 4, 7, 14, 0, 0};
+  static constexpr uint32_t kNumChunksForLayout[] = {0, 1, 2, 4, 7, 14, 0, 0};
 
   // Layout of a Page.
   // +===================================================+
@@ -441,7 +441,7 @@ class SharedMemoryABI {
   // whether to TryAcquireAllChunksForReading() or not.
   bool is_page_complete(size_t page_idx) {
     auto layout = page_header(page_idx)->layout.load(std::memory_order_relaxed);
-    const size_t num_chunks = GetNumChunksForLayout(layout);
+    const uint32_t num_chunks = GetNumChunksForLayout(layout);
     if (num_chunks == 0)
       return false;  // Non partitioned pages cannot be complete.
     return (layout & kAllChunksMask) ==
@@ -462,7 +462,7 @@ class SharedMemoryABI {
   // Returns a bitmap in which each bit is set if the corresponding Chunk exists
   // in the page (according to the page layout) and is free. If the page is not
   // partitioned it returns 0 (as if the page had no free chunks).
-  size_t GetFreeChunks(size_t page_idx);
+  uint32_t GetFreeChunks(size_t page_idx);
 
   // Tries to atomically partition a page with the given |layout|. Returns true
   // if the page was free and has been partitioned with the given |layout|,
@@ -518,7 +518,7 @@ class SharedMemoryABI {
 
   std::pair<size_t, size_t> GetPageAndChunkIndex(const Chunk& chunk);
 
-  static constexpr size_t GetNumChunksForLayout(uint32_t page_layout) {
+  static constexpr uint32_t GetNumChunksForLayout(uint32_t page_layout) {
     return kNumChunksForLayout[(page_layout & kLayoutMask) >> kLayoutShift];
   }
 
@@ -536,7 +536,7 @@ class SharedMemoryABI {
                         const ChunkHeader*);
   size_t ReleaseChunk(Chunk chunk, ChunkState);
 
-  uint8_t* start_ = 0;
+  uint8_t* start_ = nullptr;
   size_t size_ = 0;
   size_t page_size_ = 0;
   size_t num_pages_ = 0;

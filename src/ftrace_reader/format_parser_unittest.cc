@@ -43,7 +43,7 @@ print fmt: "client_name=%s heap_name=%s len=%zu mask=0x%x flags=0x%x", REC->clie
   EXPECT_TRUE(ParseFtraceEvent(input));
   EXPECT_TRUE(ParseFtraceEvent(input, &output));
   EXPECT_EQ(output.name, "the_name");
-  EXPECT_EQ(output.id, 42);
+  EXPECT_EQ(output.id, 42u);
   EXPECT_THAT(
       output.fields,
       ElementsAre(

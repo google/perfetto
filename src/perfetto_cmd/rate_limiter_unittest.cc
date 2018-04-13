@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "rate_limiter.h"
+#include "src/perfetto_cmd/rate_limiter.h"
 
 #include <stdio.h>
 

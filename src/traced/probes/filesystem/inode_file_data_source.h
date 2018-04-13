@@ -48,7 +48,6 @@ void CreateStaticDeviceToInodeMap(
     std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
         static_file_map);
 
-
 class InodeFileDataSource : public FileScanner::Delegate {
  public:
   InodeFileDataSource(
@@ -77,7 +76,7 @@ class InodeFileDataSource : public FileScanner::Delegate {
 
   void Flush();
 
-  virtual ~InodeFileDataSource() {}
+  virtual ~InodeFileDataSource();
 
   virtual void FillInodeEntry(InodeFileMap* destination,
                               Inode inode_number,
@@ -100,10 +99,12 @@ class InodeFileDataSource : public FileScanner::Delegate {
 
   void AddRootsForBlockDevice(BlockDeviceID block_device_id,
                               std::vector<std::string>* roots);
+  void RemoveFromNextMissingInodes(BlockDeviceID block_device_id,
+                                   Inode inode_number);
 
-  uint64_t GetScanIntervalMs() const;
-  uint64_t GetScanDelayMs() const;
-  uint64_t GetScanBatchSize() const;
+  uint32_t GetScanIntervalMs() const;
+  uint32_t GetScanDelayMs() const;
+  uint32_t GetScanBatchSize() const;
 
   const DataSourceConfig source_config_;
   std::set<std::string> scan_mount_points_;
@@ -117,6 +118,7 @@ class InodeFileDataSource : public FileScanner::Delegate {
   std::unique_ptr<TraceWriter> writer_;
   std::map<BlockDeviceID, std::set<Inode>> missing_inodes_;
   std::map<BlockDeviceID, std::set<Inode>> next_missing_inodes_;
+  std::set<BlockDeviceID> seen_block_devices_;
   BlockDeviceID current_block_device_id_;
   TraceWriter::TracePacketHandle current_trace_packet_;
   InodeFileMap* current_file_map_;

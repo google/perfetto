@@ -42,6 +42,7 @@ source_set("ipc") {
     "service_proxy.cc",
     "unix_socket.cc",
     "unix_socket.h",
+    "virtual_destructors.cc",
   ]
 }
 

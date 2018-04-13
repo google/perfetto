@@ -86,7 +86,7 @@ bool ParseFtraceEvent(const std::string& input, FtraceEvent* output) {
   bool has_id = false;
   bool has_name = false;
 
-  int id = 0;
+  uint32_t id = 0;
   std::string name;
   std::vector<FtraceEvent::Field> common_fields;
   std::vector<FtraceEvent::Field> fields;

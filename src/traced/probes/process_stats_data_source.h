@@ -26,6 +26,7 @@
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_writer.h"
+#include "src/process_stats/process_info.h"
 
 namespace perfetto {
 
@@ -34,7 +35,7 @@ class ProcessStatsDataSource {
   ProcessStatsDataSource(TracingSessionID,
                          std::unique_ptr<TraceWriter> writer,
                          const DataSourceConfig&);
-  ~ProcessStatsDataSource();
+  virtual ~ProcessStatsDataSource();
 
   TracingSessionID session_id() const { return session_id_; }
   const DataSourceConfig& config() const { return config_; }
@@ -44,11 +45,14 @@ class ProcessStatsDataSource {
   void OnPids(const std::vector<int32_t>& pids);
   void Flush();
 
- private:
-  static void WriteProcess(int32_t pid, protos::pbzero::ProcessTree*);
+  // Virtual for testing.
+  virtual std::unique_ptr<ProcessInfo> ReadProcessInfo(int pid);
 
+ private:
   ProcessStatsDataSource(const ProcessStatsDataSource&) = delete;
   ProcessStatsDataSource& operator=(const ProcessStatsDataSource&) = delete;
+
+  void WriteProcess(int32_t pid, protos::pbzero::ProcessTree*);
 
   const TracingSessionID session_id_;
   std::unique_ptr<TraceWriter> writer_;

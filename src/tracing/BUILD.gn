@@ -58,6 +58,7 @@ source_set("tracing") {
     "core/trace_packet.cc",
     "core/trace_writer_impl.cc",
     "core/trace_writer_impl.h",
+    "core/virtual_destructors.cc",
   ]
 }
 
@@ -127,6 +128,7 @@ source_set("unittests") {
     "../../protos/perfetto/trace:zero",
     "../base",
     "../base:test_support",
+    "../ftrace_reader:test_support",
   ]
   sources = [
     "core/id_allocator_unittest.cc",
@@ -139,6 +141,8 @@ source_set("unittests") {
     "core/sliced_protobuf_input_stream_unittest.cc",
     "core/trace_buffer_unittest.cc",
     "core/trace_packet_unittest.cc",
+    "core/trace_writer_for_testing.cc",
+    "core/trace_writer_for_testing.h",
     "core/trace_writer_impl_unittest.cc",
     "ipc/posix_shared_memory_unittest.cc",
     "test/aligned_buffer_test.cc",

@@ -54,7 +54,7 @@ class AndroidTaskRunner : public TaskRunner {
 
   // TaskRunner implementation:
   void PostTask(std::function<void()>) override;
-  void PostDelayedTask(std::function<void()>, int delay_ms) override;
+  void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
   void AddFileDescriptorWatch(int fd, std::function<void()>) override;
   void RemoveFileDescriptorWatch(int fd) override;
 

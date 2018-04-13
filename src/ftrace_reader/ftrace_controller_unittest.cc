@@ -22,10 +22,10 @@
 
 #include "perfetto/ftrace_reader/ftrace_config.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "proto_translation_table.h"
 #include "src/ftrace_reader/cpu_reader.h"
 #include "src/ftrace_reader/ftrace_config_muxer.h"
 #include "src/ftrace_reader/ftrace_procfs.h"
+#include "src/ftrace_reader/proto_translation_table.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -65,7 +65,7 @@ class MockTaskRunner : public base::TaskRunner {
     task_ = std::move(task);
   }
 
-  void OnPostDelayedTask(std::function<void()> task, int _delay) {
+  void OnPostDelayedTask(std::function<void()> task, int /*delay*/) {
     std::unique_lock<std::mutex> lock(lock_);
     EXPECT_FALSE(task_);
     task_ = std::move(task);
@@ -79,7 +79,7 @@ class MockTaskRunner : public base::TaskRunner {
   }
 
   MOCK_METHOD1(PostTask, void(std::function<void()>));
-  MOCK_METHOD2(PostDelayedTask, void(std::function<void()>, int delay_ms));
+  MOCK_METHOD2(PostDelayedTask, void(std::function<void()>, uint32_t delay_ms));
   MOCK_METHOD2(AddFileDescriptorWatch, void(int fd, std::function<void()>));
   MOCK_METHOD1(RemoveFileDescriptorWatch, void(int fd));
 
@@ -156,17 +156,17 @@ class MockFtraceProcfs : public FtraceProcfs {
         .Times(AnyNumber());
   }
 
-  bool WriteTracingOn(const std::string& path, const std::string& value) {
+  bool WriteTracingOn(const std::string& /*path*/, const std::string& value) {
     PERFETTO_CHECK(value == "1" || value == "0");
     tracing_on_ = value == "1";
     return true;
   }
 
-  char ReadTracingOn(const std::string& path) {
+  char ReadTracingOn(const std::string& /*path*/) {
     return tracing_on_ ? '1' : '0';
   }
 
-  base::ScopedFile OpenPipeForCpu(size_t cpu) override {
+  base::ScopedFile OpenPipeForCpu(size_t /*cpu*/) override {
     return base::ScopedFile(open("/dev/null", O_RDONLY));
   }
 

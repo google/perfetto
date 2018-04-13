@@ -48,7 +48,7 @@ class Host {
   static std::unique_ptr<Host> CreateInstance(base::ScopedFile socket_fd,
                                               base::TaskRunner*);
 
-  virtual ~Host() = default;
+  virtual ~Host();
 
   // Registers a new service and makes it available to remote IPC peers.
   // All the exposed Service instances will be destroyed when destroying the

@@ -21,13 +21,15 @@
 
 #include <vector>
 
+#include "perfetto/base/export.h"
+
 namespace perfetto {
 
 class TracePacket;
 
-class Consumer {
+class PERFETTO_EXPORT Consumer {
  public:
-  virtual ~Consumer() = default;
+  virtual ~Consumer();
 
   // Called by Service (or more typically by the transport layer, on behalf of
   // the remote Service), once the Consumer <> Service connection has been

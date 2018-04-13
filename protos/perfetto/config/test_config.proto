@@ -41,4 +41,8 @@ message TestConfig {
   // account for the number of bytes needed to encode the random number and a
   // null byte for the string.
   optional uint64 message_size = 4;
+
+  // Whether the producer should send a event batch when the data source is
+  // is initially registered.
+  optional bool send_batch_on_register = 5;
 }

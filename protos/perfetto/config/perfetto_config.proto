@@ -34,13 +34,13 @@ message InodeFileConfig {
   }
 
   // How long to pause between batches.
-  optional uint64 scan_interval_ms = 1;
+  optional uint32 scan_interval_ms = 1;
 
   // How long to wait before the first scan in order to accumulate inodes.
-  optional uint64 scan_delay_ms = 2;
+  optional uint32 scan_delay_ms = 2;
 
   // How many inodes to scan in one batch.
-  optional uint64 scan_batch_size = 3;
+  optional uint32 scan_batch_size = 3;
 
   // Do not scan for inodes not found in the static map.
   optional bool do_not_scan = 4;
@@ -161,6 +161,10 @@ message TestConfig {
   // account for the number of bytes needed to encode the random number and a
   // null byte for the string.
   optional uint64 message_size = 4;
+
+  // Whether the producer should send a event batch when the data source is
+  // is initially registered.
+  optional bool send_batch_on_register = 5;
 }
 
 // End of protos/perfetto/config/test_config.proto
