@@ -26,7 +26,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "src/ftrace_reader/test/scattered_stream_delegate_for_testing.h"
+#include "src/protozero/scattered_stream_delegate_for_testing.h"
 
 #include "perfetto/trace/ftrace/ftrace_event.pb.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"

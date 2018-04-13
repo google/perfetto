@@ -128,7 +128,7 @@ source_set("unittests") {
     "../../protos/perfetto/trace:zero",
     "../base",
     "../base:test_support",
-    "../ftrace_reader:test_support",
+    "../protozero:test_support",
   ]
   sources = [
     "core/id_allocator_unittest.cc",
