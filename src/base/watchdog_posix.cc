@@ -94,7 +94,7 @@ void Watchdog::Start() {
   }
 }
 
-void Watchdog::SetMemoryLimit(uint32_t bytes, uint32_t window_ms) {
+void Watchdog::SetMemoryLimit(uint64_t bytes, uint32_t window_ms) {
   // Update the fields under the lock.
   std::lock_guard<std::mutex> guard(mutex_);
 
@@ -150,7 +150,7 @@ void Watchdog::ThreadMain() {
                &utime, &stime, &rss_pages) == 3);
 
     uint64_t cpu_time = utime + stime;
-    uint64_t rss_bytes = static_cast<uint32_t>(rss_pages) * base::kPageSize;
+    uint64_t rss_bytes = static_cast<uint64_t>(rss_pages) * base::kPageSize;
 
     CheckMemory(rss_bytes);
     CheckCpu(cpu_time);
@@ -167,7 +167,7 @@ void Watchdog::CheckMemory(uint64_t rss_bytes) {
     if (memory_window_bytes_.Mean() > memory_limit_bytes_) {
       PERFETTO_ELOG(
           "Memory watchdog trigger. Memory window of %f bytes is above the "
-          "%" PRIu32 " bytes limit.",
+          "%" PRIu64 " bytes limit.",
           memory_window_bytes_.Mean(), memory_limit_bytes_);
       kill(getpid(), SIGABRT);
     }

@@ -20,9 +20,9 @@
 
 #include <algorithm>
 
-#include "event_info.h"
-#include "ftrace_procfs.h"
 #include "perfetto/ftrace_reader/format_parser.h"
+#include "src/ftrace_reader/event_info.h"
+#include "src/ftrace_reader/ftrace_procfs.h"
 
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 

@@ -230,7 +230,7 @@ bool SetTranslationStrategy(FtraceFieldType ftrace,
                             ProtoFieldType proto,
                             TranslationStrategy* out);
 
-Field MakeField(const char* name, size_t id, ProtoFieldType type);
+Field MakeField(const char* name, uint32_t id, ProtoFieldType type);
 
 }  // namespace perfetto
 

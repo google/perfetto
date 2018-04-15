@@ -111,7 +111,7 @@ message GetAsyncCommandResponse {
 
   // This message also transports the file descriptor for the shared memory
   // buffer.
-  message SetupTracing { optional uint64 shared_buffer_page_size_kb = 1; }
+  message SetupTracing { optional uint32 shared_buffer_page_size_kb = 1; }
 
   message Flush {
     // The instance id (i.e. StartDataSource.new_instance_id) of the data

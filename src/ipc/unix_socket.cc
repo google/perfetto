@@ -96,14 +96,7 @@ base::ScopedFile UnixSocket::CreateAndBind(const std::string& socket_name) {
     return base::ScopedFile();
   }
 
-// Android takes an int as 3rd argument of bind() instead of socklen_t.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  const int bind_size = static_cast<int>(addr_size);
-#else
-  const socklen_t bind_size = addr_size;
-#endif
-
-  if (bind(*fd, reinterpret_cast<sockaddr*>(&addr), bind_size)) {
+  if (bind(*fd, reinterpret_cast<sockaddr*>(&addr), addr_size)) {
     PERFETTO_DPLOG("bind()");
     return base::ScopedFile();
   }
@@ -265,7 +258,7 @@ void UnixSocket::ReadPeerCredentials() {
   socklen_t len = sizeof(user_cred);
   int res = getsockopt(*fd_, 0, LOCAL_PEERCRED, &user_cred, &len);
   PERFETTO_CHECK(res == 0 && user_cred.cr_version == XUCRED_VERSION);
-  peer_uid_ = user_cred.cr_uid;
+  peer_uid_ = static_cast<uid_t>(user_cred.cr_uid);
 #endif
 }
 

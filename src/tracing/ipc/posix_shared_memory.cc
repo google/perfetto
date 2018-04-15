@@ -43,8 +43,8 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
   base::ScopedFile fd;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   bool is_memfd = false;
-  fd.reset(syscall(__NR_memfd_create, "perfetto_shmem",
-                   MFD_CLOEXEC | MFD_ALLOW_SEALING));
+  fd.reset(static_cast<int>(syscall(__NR_memfd_create, "perfetto_shmem",
+                                    MFD_CLOEXEC | MFD_ALLOW_SEALING)));
   is_memfd = !!fd;
 
   if (!fd) {
@@ -82,7 +82,8 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::MapFD(base::ScopedFile fd,
                                                             size_t size) {
   PERFETTO_DCHECK(fd);
   PERFETTO_DCHECK(size > 0);
-  void* start = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0);
+  void* start =
+      mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0);
   PERFETTO_CHECK(start != MAP_FAILED);
   return std::unique_ptr<PosixSharedMemory>(
       new PosixSharedMemory(start, size, std::move(fd)));

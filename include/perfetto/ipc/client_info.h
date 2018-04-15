@@ -53,7 +53,7 @@ class ClientInfo {
 
  private:
   ClientID client_id_ = 0;
-  uid_t uid_ = -1;
+  uid_t uid_ = kInvalidUid;
 };
 
 }  // namespace ipc

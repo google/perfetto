@@ -226,7 +226,7 @@ IPCGenerator::IPCGenerator() = default;
 IPCGenerator::~IPCGenerator() = default;
 
 bool IPCGenerator::Generate(const FileDescriptor* file,
-                            const std::string& options,
+                            const std::string& /*options*/,
                             GeneratorContext* context,
                             std::string* error) const {
   if (file->options().cc_generic_services()) {

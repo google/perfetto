@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_TRACING_CORE_PRODUCER_H_
 #define INCLUDE_PERFETTO_TRACING_CORE_PRODUCER_H_
 
+#include "perfetto/base/export.h"
 #include "perfetto/tracing/core/basic_types.h"
 
 namespace perfetto {
@@ -41,9 +42,9 @@ class SharedMemory;
 // This interface is subclassed by:
 //  1. The actual producer code in the clients e.g., the ftrace reader process.
 //  2. The transport layer when interposing RPC between service and producers.
-class Producer {
+class PERFETTO_EXPORT Producer {
  public:
-  virtual ~Producer() = default;
+  virtual ~Producer();
 
   // Called by Service (or more typically by the transport layer, on behalf of
   // the remote Service), once the Producer <> Service connection has been

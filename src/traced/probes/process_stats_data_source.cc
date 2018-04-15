@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "process_stats_data_source.h"
+#include "src/traced/probes/process_stats_data_source.h"
 
 #include <utility>
 
@@ -45,17 +45,18 @@ void ProcessStatsDataSource::WriteAllProcesses() {
   auto* process_tree = trace_packet->set_process_tree();
   std::set<int32_t>* seen_pids = &seen_pids_;
 
-  file_utils::ForEachPidInProcPath("/proc", [process_tree, seen_pids](int pid) {
-    // ForEachPid will list all processes and
-    // threads. Here we want to iterate first
-    // only by processes (for which pid ==
-    // thread group id)
-    if (procfs_utils::ReadTgid(pid) != pid)
-      return;
+  file_utils::ForEachPidInProcPath("/proc",
+                                   [this, process_tree, seen_pids](int pid) {
+                                     // ForEachPid will list all processes and
+                                     // threads. Here we want to iterate first
+                                     // only by processes (for which pid ==
+                                     // thread group id)
+                                     if (procfs_utils::ReadTgid(pid) != pid)
+                                       return;
 
-    WriteProcess(pid, process_tree);
-    seen_pids->insert(pid);
-  });
+                                     WriteProcess(pid, process_tree);
+                                     seen_pids->insert(pid);
+                                   });
 }
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
@@ -77,10 +78,14 @@ void ProcessStatsDataSource::Flush() {
   writer_->Flush();
 }
 
-// static
+// To be overidden for testing.
+std::unique_ptr<ProcessInfo> ProcessStatsDataSource::ReadProcessInfo(int pid) {
+  return procfs_utils::ReadProcessInfo(pid);
+}
+
 void ProcessStatsDataSource::WriteProcess(int32_t pid,
                                           protos::pbzero::ProcessTree* tree) {
-  std::unique_ptr<ProcessInfo> process = procfs_utils::ReadProcessInfo(pid);
+  std::unique_ptr<ProcessInfo> process = ReadProcessInfo(pid);
   procfs_utils::ReadProcessThreads(process.get());
   auto* process_writer = tree->add_processes();
   process_writer->set_pid(process->pid);

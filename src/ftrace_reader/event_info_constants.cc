@@ -18,7 +18,7 @@
 
 namespace perfetto {
 
-Field MakeField(const char* name, size_t id, ProtoFieldType type) {
+Field MakeField(const char* name, uint32_t id, ProtoFieldType type) {
   Field field{};
   field.ftrace_name = name;
   field.proto_field_id = id;

@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 namespace perfetto {
 
@@ -58,6 +59,8 @@ static constexpr BufferID kMaxTraceBufferID = static_cast<BufferID>(-1);
 // TODO(primiano): temporary. The buffer page size should be configurable by
 // consumers.
 static constexpr size_t kBufferPageSize = 8192;
+
+constexpr uid_t kInvalidUid = static_cast<uid_t>(-1);
 
 }  // namespace perfetto
 
