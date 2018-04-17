@@ -3217,7 +3217,7 @@ std::vector<Event> GetStaticEventInfo() {
     Event* event = &events.back();
     event->name = "f2fs_write_end";
     event->group = "f2fs";
-    event->proto_field_id = 301;
+    event->proto_field_id = 273;
     event->fields.push_back(MakeField("dev", 1, kProtoUint64));
     event->fields.push_back(MakeField("ino", 2, kProtoUint64));
     event->fields.push_back(MakeField("pos", 3, kProtoInt64));
