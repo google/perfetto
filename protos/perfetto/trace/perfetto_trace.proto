@@ -203,6 +203,7 @@ message FtraceEvent {
     // removed field with id 124
     BlockRqCompleteFtraceEvent block_rq_complete = 125;
     // removed field with id 126
+    // removed field with id 127;
     // removed field with id 128
     // removed field with id 129
     // removed field with id 130
@@ -295,6 +296,16 @@ message FtraceEvent {
     // removed field with id 217
     // removed field with id 218
     // removed field with id 219
+    // removed field with id 220;
+    // removed field with id 221;
+    // removed field with id 222;
+    // removed field with id 223;
+    // removed field with id 224;
+    // removed field with id 225;
+    // removed field with id 226;
+    // removed field with id 227;
+    // removed field with id 228;
+    // removed field with id 229;
     // removed field with id 230
     // removed field with id 231
     // removed field with id 232

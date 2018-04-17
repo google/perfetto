@@ -38,7 +38,8 @@ int main(int argc, const char** argv) {
   const char* input_dir = argv[2];
   const char* output_dir = argv[3];
 
-  std::set<std::string> events = perfetto::GetWhitelistedEvents(whitelist_path);
+  std::vector<std::string> whitelist = perfetto::GetFileLines(whitelist_path);
+  std::set<std::string> events = perfetto::GetWhitelistedEvents(whitelist);
   std::vector<std::string> events_info;
 
   std::string ftrace;
@@ -61,7 +62,7 @@ int main(int argc, const char** argv) {
   }
 
   if (!new_events.empty()) {
-    perfetto::PrintFtraceEventProtoAdditions(new_events);
+    perfetto::GenerateFtraceEventProto(whitelist);
     perfetto::PrintEventFormatterMain(new_events);
     perfetto::PrintEventFormatterUsingStatements(new_events);
     perfetto::PrintEventFormatterFunctions(new_events);
