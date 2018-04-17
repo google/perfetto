@@ -47,7 +47,10 @@ void PrintInodeHandlerMain(const std::string& event_name,
 bool GenerateProto(const FtraceEvent& format, Proto* proto_out);
 std::string InferProtoType(const FtraceEvent::Field& field);
 
-std::set<std::string> GetWhitelistedEvents(const std::string& whitelist_path);
+std::vector<std::string> GetFileLines(const std::string& filename);
+std::set<std::string> GetWhitelistedEvents(
+    const std::vector<std::string>& raw_whitelist);
+void GenerateFtraceEventProto(const std::vector<std::string>& raw_whitelist);
 std::string SingleEventInfo(perfetto::FtraceEvent format,
                             perfetto::Proto proto,
                             const std::string& group,
