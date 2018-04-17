@@ -35,7 +35,7 @@ message TracePacket {
   oneof data {
     FtraceEventBundle ftrace_events = 1;
     ProcessTree process_tree = 2;
-    // removed field with id 4
+    InodeFileMap inode_file_map = 4;
     // removed field with id 5
     // removed field with id 6
 
@@ -354,6 +354,39 @@ message FtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/ftrace_event.proto
+
+// Begin of protos/perfetto/trace/filesystem/inode_file_map.proto
+
+// Represents the mapping between inode numbers in a block device and their path
+// on the filesystem
+message InodeFileMap {
+  // Representation of Entry
+  message Entry {
+    optional uint64 inode_number = 1;
+
+    // The path to the file, e.g. "etc/file.xml"
+    // List of strings for multiple hardlinks
+    repeated string paths = 2;
+
+    // The file type
+    enum Type {
+      UNKNOWN = 0;
+      FILE = 1;
+      DIRECTORY = 2;
+    }
+    optional Type type = 3;
+  }
+
+  optional uint64 block_device_id = 1;
+
+  // The mount points of the block device, e.g. ["system"].
+  repeated string mount_points = 2;
+
+  // The list of all the entries from the block device
+  repeated Entry entries = 3;
+}
+
+// End of protos/perfetto/trace/filesystem/inode_file_map.proto
 
 // Begin of protos/perfetto/trace/ps/process_tree.proto
 
