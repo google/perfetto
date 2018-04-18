@@ -107,11 +107,12 @@ void FakeProducer::ProduceEventBatch(std::function<void()> callback) {
         handle->set_for_testing()->set_str(payload.get(), message_size_);
       }
       messages_to_emit -= messages_in_minibatch;
+      iterations++;
 
       // Pause until the second boundary to make sure that we are adhering to
       // the speed limitation.
       if (max_messages_per_second_ > 0) {
-        int64_t expected_time_taken = ++iterations * 1000;
+        int64_t expected_time_taken = iterations * 1000;
         base::TimeMillis time_taken = base::GetWallTimeMs() - start;
         while (time_taken.count() < expected_time_taken) {
           usleep(static_cast<useconds_t>(
@@ -119,8 +120,8 @@ void FakeProducer::ProduceEventBatch(std::function<void()> callback) {
           time_taken = base::GetWallTimeMs() - start;
         }
       }
+      trace_writer_->Flush(messages_to_emit > 0 ? [] {} : callback);
     }
-    trace_writer_->Flush(callback);
   });
 }
 
