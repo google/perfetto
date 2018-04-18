@@ -100,9 +100,9 @@ void TestHelper::StartTracing(const TraceConfig& config) {
   endpoint_->EnableTracing(config);
 }
 
-void TestHelper::ReadData() {
-  on_packets_finished_callback_ =
-      task_runner_->CreateCheckpoint("readback.complete");
+void TestHelper::ReadData(uint32_t read_count) {
+  on_packets_finished_callback_ = task_runner_->CreateCheckpoint(
+      "readback.complete." + std::to_string(read_count));
   endpoint_->ReadBuffers();
 }
 
@@ -118,8 +118,9 @@ void TestHelper::WaitForTracingDisabled() {
   task_runner_->RunUntilCheckpoint("stop.tracing");
 }
 
-void TestHelper::WaitForReadData() {
-  task_runner_->RunUntilCheckpoint("readback.complete");
+void TestHelper::WaitForReadData(uint32_t read_count) {
+  task_runner_->RunUntilCheckpoint("readback.complete." +
+                                   std::to_string(read_count));
 }
 
 std::function<void()> TestHelper::WrapTask(
