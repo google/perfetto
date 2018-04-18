@@ -15,6 +15,7 @@
  */
 
 #include <random>
+#include <sys/system_properties.h>
 
 #include "gtest/gtest.h"
 #include "perfetto/trace/test_event.pbzero.h"
@@ -32,6 +33,16 @@ namespace perfetto {
 class PerfettoCtsTest : public ::testing::Test {
  protected:
   void TestMockProducer(const std::string& producer_name) {
+    // Filter out watches; they do not have the required infrastructure to run
+    // these tests.
+    char chars[PROP_VALUE_MAX + 1];
+    int ret = __system_property_get("ro.build.characteristics", chars);
+    ASSERT_GE(ret, 0);
+    std::string characteristics(chars);
+    if (characteristics.find("watch") != std::string::npos) {
+      return;
+    }
+
     base::TestTaskRunner task_runner;
 
     TestHelper helper(&task_runner);
