@@ -45,7 +45,7 @@ source_set("end_to_end_integrationtests") {
   }
 }
 
-if (use_libfuzzer) {
+if (use_libfuzzer && !build_with_chromium) {
   executable("end_to_end_shared_memory_fuzzer") {
     sources = [
       "end_to_end_shared_memory_fuzzer.cc",
