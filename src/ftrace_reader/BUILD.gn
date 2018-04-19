@@ -147,7 +147,7 @@ if (!build_with_chromium) {
   }
 }
 
-if (use_libfuzzer) {
+if (use_libfuzzer && !build_with_chromium) {
   executable("cpu_reader_fuzzer") {
     testonly = true
     sources = [
