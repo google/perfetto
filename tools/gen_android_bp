@@ -368,6 +368,7 @@ def make_genrules_for_action(blueprint, desc, target_name):
     parser.add_argument('--cpp_out')
     parser.add_argument('--plugin')
     parser.add_argument('--plugin_out')
+    parser.add_argument('--descriptor_set_out')
     parser.add_argument('protos', nargs=argparse.REMAINDER)
     args = parser.parse_args(args[1:])
 
