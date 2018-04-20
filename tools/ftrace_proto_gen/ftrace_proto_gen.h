@@ -25,9 +25,23 @@
 
 namespace perfetto {
 
+struct ProtoType {
+  enum Type { INVALID, NUMERIC, STRING };
+  Type type;
+  uint16_t size;
+  bool is_signed;
+
+  ProtoType GetSigned() const;
+  std::string ToString() const;
+
+  static ProtoType Invalid();
+  static ProtoType String();
+  static ProtoType Numeric(uint16_t size, bool is_signed);
+};
+
 struct Proto {
   struct Field {
-    std::string type;
+    ProtoType type;
     std::string name;
     uint32_t number;
   };
@@ -37,6 +51,7 @@ struct Proto {
   std::string ToString();
 };
 
+ProtoType GetCommon(ProtoType one, ProtoType other);
 void PrintFtraceEventProtoAdditions(const std::set<std::string>& events);
 void PrintEventFormatterMain(const std::set<std::string>& events);
 void PrintEventFormatterUsingStatements(const std::set<std::string>& events);
@@ -45,7 +60,7 @@ void PrintInodeHandlerMain(const std::string& event_name,
                            const perfetto::Proto& proto);
 
 bool GenerateProto(const FtraceEvent& format, Proto* proto_out);
-std::string InferProtoType(const FtraceEvent::Field& field);
+ProtoType InferProtoType(const FtraceEvent::Field& field);
 
 std::vector<std::string> GetFileLines(const std::string& filename);
 std::set<std::string> GetWhitelistedEvents(
