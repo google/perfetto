@@ -22,26 +22,39 @@ namespace {
 
 TEST(FtraceEventParserTest, InferProtoType) {
   using Field = FtraceEvent::Field;
-  EXPECT_EQ(InferProtoType(Field{"char foo[16]", 0, 16, false}), "string");
-  EXPECT_EQ(InferProtoType(Field{"char bar_42[64]", 0, 64, false}), "string");
-  EXPECT_EQ(InferProtoType(Field{"__data_loc char[] foo", 0, 4, false}),
+  EXPECT_EQ(InferProtoType(Field{"char foo[16]", 0, 16, false}).ToString(),
             "string");
-  EXPECT_EQ(InferProtoType(Field{"char[] foo", 0, 8, false}), "string");
-  EXPECT_EQ(InferProtoType(Field{"char * foo", 0, 8, false}), "string");
+  EXPECT_EQ(InferProtoType(Field{"char bar_42[64]", 0, 64, false}).ToString(),
+            "string");
+  EXPECT_EQ(
+      InferProtoType(Field{"__data_loc char[] foo", 0, 4, false}).ToString(),
+      "string");
+  EXPECT_EQ(InferProtoType(Field{"char[] foo", 0, 8, false}).ToString(),
+            "string");
+  EXPECT_EQ(InferProtoType(Field{"char * foo", 0, 8, false}).ToString(),
+            "string");
 
-  EXPECT_EQ(InferProtoType(Field{"int foo", 0, 4, true}), "int32");
-  EXPECT_EQ(InferProtoType(Field{"s32 signal", 50, 4, true}), "int32");
+  EXPECT_EQ(InferProtoType(Field{"int foo", 0, 4, true}).ToString(), "int32");
+  EXPECT_EQ(InferProtoType(Field{"s32 signal", 50, 4, true}).ToString(),
+            "int32");
 
-  EXPECT_EQ(InferProtoType(Field{"unsigned int foo", 0, 4, false}), "uint32");
-  EXPECT_EQ(InferProtoType(Field{"u32 control_freq", 44, 4, false}), "uint32");
+  EXPECT_EQ(InferProtoType(Field{"unsigned int foo", 0, 4, false}).ToString(),
+            "uint32");
+  EXPECT_EQ(InferProtoType(Field{"u32 control_freq", 44, 4, false}).ToString(),
+            "uint32");
 
-  EXPECT_EQ(InferProtoType(Field{"ino_t foo", 0, 4, false}), "uint64");
-  EXPECT_EQ(InferProtoType(Field{"ino_t foo", 0, 8, false}), "uint64");
+  EXPECT_EQ(InferProtoType(Field{"ino_t foo", 0, 4, false}).ToString(),
+            "uint64");
+  EXPECT_EQ(InferProtoType(Field{"ino_t foo", 0, 8, false}).ToString(),
+            "uint64");
 
-  EXPECT_EQ(InferProtoType(Field{"dev_t foo", 0, 4, false}), "uint64");
-  EXPECT_EQ(InferProtoType(Field{"dev_t foo", 0, 8, false}), "uint64");
+  EXPECT_EQ(InferProtoType(Field{"dev_t foo", 0, 4, false}).ToString(),
+            "uint64");
+  EXPECT_EQ(InferProtoType(Field{"dev_t foo", 0, 8, false}).ToString(),
+            "uint64");
 
-  EXPECT_EQ(InferProtoType(Field{"char foo", 0, 0, false}), "string");
+  EXPECT_EQ(InferProtoType(Field{"char foo", 0, 0, false}).ToString(),
+            "string");
 }
 
 TEST(FtraceEventParserTest, GenerateProtoName) {

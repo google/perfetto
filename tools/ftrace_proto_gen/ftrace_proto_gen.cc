@@ -16,12 +16,11 @@
 
 #include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
-#include "perfetto/base/string_splitter.h"
-
 #include <fstream>
 #include <regex>
-#include <set>
-#include <string>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/base/string_splitter.h"
 
 namespace perfetto {
 
@@ -64,6 +63,64 @@ bool Contains(const std::string& haystack, const std::string& needle) {
 
 }  // namespace
 
+ProtoType ProtoType::GetSigned() const {
+  PERFETTO_CHECK(type == NUMERIC);
+  if (is_signed)
+    return *this;
+
+  if (size == 64) {
+    return Numeric(64, true);
+  }
+
+  return Numeric(2 * size, true);
+}
+
+std::string ProtoType::ToString() const {
+  switch (type) {
+    case INVALID:
+      PERFETTO_CHECK(false);
+    case STRING:
+      return "string";
+    case NUMERIC: {
+      std::string s;
+      if (!is_signed)
+        s += "u";
+      s += "int";
+      s += std::to_string(size);
+      return s;
+    }
+  }
+  PERFETTO_CHECK(false);  // for GCC.
+}
+
+// static
+ProtoType ProtoType::String() {
+  return {STRING, 0, false};
+}
+
+// static
+ProtoType ProtoType::Invalid() {
+  return {INVALID, 0, false};
+}
+
+// static
+ProtoType ProtoType::Numeric(uint16_t size, bool is_signed) {
+  PERFETTO_CHECK(size == 32 || size == 64);
+  return {NUMERIC, size, is_signed};
+}
+
+ProtoType GetCommon(ProtoType one, ProtoType other) {
+  if (one.type == ProtoType::STRING || other.type == ProtoType::STRING)
+    return ProtoType::String();
+
+  if (one.is_signed || other.is_signed) {
+    one = one.GetSigned();
+    other = other.GetSigned();
+  }
+
+  return ProtoType::Numeric(std::max(one.size, other.size), one.is_signed);
+}
+
 std::vector<std::string> GetFileLines(const std::string& filename) {
   std::string line;
   std::vector<std::string> lines;
@@ -80,44 +137,40 @@ std::vector<std::string> GetFileLines(const std::string& filename) {
   return lines;
 }
 
-std::string InferProtoType(const FtraceEvent::Field& field) {
+ProtoType InferProtoType(const FtraceEvent::Field& field) {
   // Fixed length strings: "char foo[16]"
   if (std::regex_match(field.type_and_name, std::regex(R"(char \w+\[\d+\])")))
-    return "string";
+    return ProtoType::String();
 
   // String pointers: "__data_loc char[] foo" (as in
   // 'cpufreq_interactive_boost').
   if (Contains(field.type_and_name, "char[] "))
-    return "string";
+    return ProtoType::String();
   if (Contains(field.type_and_name, "char * "))
-    return "string";
+    return ProtoType::String();
 
   // Variable length strings: "char* foo"
   if (StartsWith(field.type_and_name, "char *"))
-    return "string";
+    return ProtoType::String();
 
   // Variable length strings: "char foo" + size: 0 (as in 'print').
   if (StartsWith(field.type_and_name, "char ") && field.size == 0)
-    return "string";
+    return ProtoType::String();
 
   // ino_t, i_ino and dev_t are 32bit on some devices 64bit on others. For the
   // protos we need to choose the largest possible size.
   if (StartsWith(field.type_and_name, "ino_t ") ||
       StartsWith(field.type_and_name, "i_ino ") ||
       StartsWith(field.type_and_name, "dev_t ")) {
-    return "uint64";
+    return ProtoType::Numeric(64, /* is_signed= */ false);
   }
 
   // Ints of various sizes:
-  if (field.size <= 4 && field.is_signed)
-    return "int32";
-  if (field.size <= 4 && !field.is_signed)
-    return "uint32";
-  if (field.size <= 8 && field.is_signed)
-    return "int64";
-  if (field.size <= 8 && !field.is_signed)
-    return "uint64";
-  return "";
+  if (field.size <= 4)
+    return ProtoType::Numeric(32, field.is_signed);
+  if (field.size <= 8)
+    return ProtoType::Numeric(64, field.is_signed);
+  return ProtoType::Invalid();
 }
 
 void PrintEventFormatterMain(const std::set<std::string>& events) {
@@ -177,11 +230,12 @@ bool GenerateProto(const FtraceEvent& format, Proto* proto_out) {
     if (name == "" || seen.count(name))
       continue;
     seen.insert(name);
-    std::string type = InferProtoType(field);
+    ProtoType type = InferProtoType(field);
     // Check we managed to infer a type.
-    if (type == "")
+    if (type.type == ProtoType::INVALID)
       continue;
-    proto_out->fields.emplace_back(Proto::Field{type, name, i});
+    proto_out->fields.emplace_back(
+        Proto::Field{std::move(type), std::move(name), i});
     i++;
   }
 
@@ -260,8 +314,8 @@ std::string SingleEventInfo(perfetto::FtraceEvent format,
 
   for (const auto& field : proto.fields) {
     s += "    event->fields.push_back(MakeField(\"" + field.name + "\", " +
-         std::to_string(field.number) + ", kProto" + ToCamelCase(field.type) +
-         "));\n";
+         std::to_string(field.number) + ", kProto" +
+         ToCamelCase(field.type.ToString()) + "));\n";
   }
   return s;
 }
@@ -321,7 +375,7 @@ package perfetto.protos;
 
   s += "message " + name + " {\n";
   for (const Proto::Field& field : fields) {
-    s += "  optional " + field.type + " " + field.name + " = " +
+    s += "  optional " + field.type.ToString() + " " + field.name + " = " +
          std::to_string(field.number) + ";\n";
   }
   s += "}\n";
