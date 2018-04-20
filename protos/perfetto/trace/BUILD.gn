@@ -55,6 +55,7 @@ proto_library("lite") {
     "ftrace:lite",
     "ps:lite",
   ]
+  generate_descriptor = "$perfetto_root_path/protos/trace/trace.descriptor"
   sources = proto_sources
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
