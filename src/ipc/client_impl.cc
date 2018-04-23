@@ -56,8 +56,10 @@ ClientImpl::~ClientImpl() {
 void ClientImpl::BindService(base::WeakPtr<ServiceProxy> service_proxy) {
   if (!service_proxy)
     return;
-  if (!sock_->is_connected())
-    return queued_bindings_.emplace_back(service_proxy);
+  if (!sock_->is_connected()) {
+    queued_bindings_.emplace_back(service_proxy);
+    return;
+  }
   RequestID request_id = ++last_request_id_;
   Frame frame;
   frame.set_request_id(request_id);
