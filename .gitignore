@@ -14,3 +14,4 @@
 *.swp
 /out*
 TAGS
+/node_modules/
