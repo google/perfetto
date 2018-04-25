@@ -26,7 +26,6 @@
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_writer.h"
-#include "src/process_stats/process_info.h"
 
 namespace perfetto {
 
@@ -46,19 +45,32 @@ class ProcessStatsDataSource {
   void Flush();
 
   // Virtual for testing.
-  virtual std::unique_ptr<ProcessInfo> ReadProcessInfo(int pid);
+  virtual std::string ReadProcPidFile(int32_t pid, const std::string& file);
 
  private:
   ProcessStatsDataSource(const ProcessStatsDataSource&) = delete;
   ProcessStatsDataSource& operator=(const ProcessStatsDataSource&) = delete;
 
-  void WriteProcess(int32_t pid, protos::pbzero::ProcessTree*);
+  void WriteProcess(int32_t pid,
+                    const std::string& proc_status,
+                    protos::pbzero::ProcessTree*);
+  void WriteThread(int32_t tid,
+                   int32_t tgid,
+                   const std::string& proc_status,
+                   protos::pbzero::ProcessTree*);
+  void WriteProcessOrThread(int32_t pid, protos::pbzero::ProcessTree*);
+  std::string ReadProcStatusEntry(const std::string& buf, const char* key);
 
   const TracingSessionID session_id_;
   std::unique_ptr<TraceWriter> writer_;
   const DataSourceConfig config_;
+
+  // This set contains PIDs as per the Linux kernel notion of a PID (which is
+  // really a TID). In practice this set will contain all TIDs for all processes
+  // seen, not just the main thread id (aka thread group ID).
   // TODO(b/76663469): Optimization: use a bitmap.
   std::set<int32_t> seen_pids_;
+
   base::WeakPtrFactory<ProcessStatsDataSource> weak_factory_;  // Keep last.
 };
 
