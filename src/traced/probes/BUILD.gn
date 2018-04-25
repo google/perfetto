@@ -33,7 +33,6 @@ source_set("probes_src") {
   deps = [
     "../../../gn:default_deps",
     "../../base",
-    "../../process_stats:process_stats",
     "../../tracing:tracing",
     "filesystem",
   ]
@@ -51,7 +50,6 @@ source_set("unittests") {
     ":probes_src",
     "../../../gn:default_deps",
     "../../../gn:gtest_deps",
-    "../../process_stats:process_stats",
     "../../tracing:unittests",
   ]
   sources = [
