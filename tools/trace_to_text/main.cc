@@ -449,10 +449,11 @@ int TraceToSummary(std::istream* input,
           const ProcessTree& tree = packet.process_tree();
           for (Process process : tree.processes()) {
             tids_in_tree.insert(process.pid());
-            for (ProcessTree::Thread thread : process.threads()) {
+            for (ProcessTree::Thread thread : process.threads_deprecated())
               tids_in_tree.insert(thread.tid());
-            }
           }
+          for (ProcessTree::Thread thread : tree.threads())
+            tids_in_tree.insert(thread.tid());
         }
 
         if (packet.has_inode_file_map()) {
