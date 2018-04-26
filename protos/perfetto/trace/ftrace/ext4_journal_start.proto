@@ -11,4 +11,5 @@ message Ext4JournalStartFtraceEvent {
   optional uint64 ip = 2;
   optional int32 blocks = 3;
   optional int32 rsv_blocks = 4;
+  optional int32 nblocks = 5;
 }
