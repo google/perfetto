@@ -12,5 +12,5 @@ message Ext4EsFindDelayedExtentRangeExitFtraceEvent {
   optional uint32 lblk = 3;
   optional uint32 len = 4;
   optional uint64 pblk = 5;
-  optional uint32 status = 6;
+  optional uint64 status = 6;
 }
