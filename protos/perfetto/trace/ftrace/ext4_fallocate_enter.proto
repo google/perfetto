@@ -12,4 +12,5 @@ message Ext4FallocateEnterFtraceEvent {
   optional int64 offset = 3;
   optional int64 len = 4;
   optional int32 mode = 5;
+  optional int64 pos = 6;
 }

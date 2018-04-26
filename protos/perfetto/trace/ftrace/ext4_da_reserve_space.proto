@@ -13,4 +13,5 @@ message Ext4DaReserveSpaceFtraceEvent {
   optional int32 reserved_data_blocks = 4;
   optional int32 reserved_meta_blocks = 5;
   optional uint32 mode = 6;
+  optional int32 md_needed = 7;
 }
