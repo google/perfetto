@@ -39,8 +39,36 @@
 
 namespace perfetto {
 
+namespace protos {
+namespace pbzero {
+class FtraceEventBundle;
+class FtraceStats;
+class FtraceCpuStats;
+}  // namespace pbzero
+}  // namespace protos
+
 using BlockDeviceID = decltype(stat::st_dev);
 using Inode = decltype(stat::st_ino);
+
+struct FtraceCpuStats {
+  uint64_t cpu;
+  uint64_t entries;
+  uint64_t overrun;
+  uint64_t commit_overrun;
+  uint64_t bytes_read;
+  double oldest_event_ts;
+  double now_ts;
+  uint64_t dropped_events;
+  uint64_t read_events;
+
+  void Write(protos::pbzero::FtraceCpuStats*) const;
+};
+
+struct FtraceStats {
+  std::vector<FtraceCpuStats> cpu_stats;
+
+  void Write(protos::pbzero::FtraceStats*) const;
+};
 
 struct FtraceMetadata {
   FtraceMetadata();
@@ -64,12 +92,6 @@ struct FtraceMetadata {
   void FinishEvent();
 };
 
-namespace protos {
-namespace pbzero {
-class FtraceEventBundle;
-}  // namespace pbzero
-}  // namespace protos
-
 constexpr size_t kMaxSinks = 32;
 constexpr size_t kMaxCpus = 64;
 
@@ -92,6 +114,7 @@ class FtraceSink {
   using FtraceEventBundle = protos::pbzero::FtraceEventBundle;
   class Delegate {
    public:
+    virtual void OnCreate(FtraceSink*) {}
     virtual protozero::MessageHandle<FtraceEventBundle> GetBundleForCpu(
         size_t) = 0;
     virtual void OnBundleComplete(size_t,
@@ -106,6 +129,8 @@ class FtraceSink {
              std::unique_ptr<EventFilter>,
              Delegate*);
   ~FtraceSink();
+
+  void DumpFtraceStats(FtraceStats*);
 
   const FtraceConfig& config() const { return config_; }
 
@@ -155,6 +180,9 @@ class FtraceController {
                    std::unique_ptr<ProtoTranslationTable>,
                    std::unique_ptr<FtraceConfigMuxer>,
                    base::TaskRunner*);
+
+  // Write
+  void DumpFtraceStats(FtraceStats*);
 
   // Called to read data from the staging pipe for the given |cpu| and parse it
   // into the sinks. Protected and virtual for testing.

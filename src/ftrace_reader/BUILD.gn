@@ -51,9 +51,11 @@ source_set("unittests") {
     "../../gn:gtest_deps",
     "../../protos/perfetto/trace/ftrace:lite",
     "../base:test_support",
+    "../tracing:test_support",
   ]
   sources = [
     "cpu_reader_unittest.cc",
+    "cpu_stats_parser_unittest.cc",
     "event_info_unittest.cc",
     "format_parser_unittest.cc",
     "ftrace_config_muxer_unittest.cc",
@@ -116,6 +118,8 @@ source_set("ftrace_reader") {
     "atrace_wrapper.h",
     "cpu_reader.cc",
     "cpu_reader.h",
+    "cpu_stats_parser.cc",
+    "cpu_stats_parser.h",
     "event_info.cc",
     "event_info.h",
     "event_info_constants.cc",

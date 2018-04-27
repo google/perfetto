@@ -121,6 +121,7 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":ipc",
+    ":test_support",
     ":tracing",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
@@ -128,7 +129,6 @@ source_set("unittests") {
     "../../protos/perfetto/trace:zero",
     "../base",
     "../base:test_support",
-    "../protozero:test_support",
   ]
   sources = [
     "core/id_allocator_unittest.cc",
@@ -141,8 +141,6 @@ source_set("unittests") {
     "core/sliced_protobuf_input_stream_unittest.cc",
     "core/trace_buffer_unittest.cc",
     "core/trace_packet_unittest.cc",
-    "core/trace_writer_for_testing.cc",
-    "core/trace_writer_for_testing.h",
     "core/trace_writer_impl_unittest.cc",
     "ipc/posix_shared_memory_unittest.cc",
     "test/aligned_buffer_test.cc",
@@ -156,6 +154,19 @@ source_set("unittests") {
     "test/test_shared_memory.cc",
     "test/test_shared_memory.h",
     "test/tracing_integration_test.cc",
+  ]
+}
+
+source_set("test_support") {
+  testonly = true
+  public_deps = [
+    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace:zero",
+    "../protozero:test_support",
+  ]
+  sources = [
+    "core/trace_writer_for_testing.cc",
+    "core/trace_writer_for_testing.h",
   ]
 }
 
