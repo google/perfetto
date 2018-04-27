@@ -88,6 +88,11 @@ std::string FtraceProcfs::ReadEventFormat(const std::string& group,
   return ReadFileIntoString(path);
 }
 
+std::string FtraceProcfs::ReadCpuStats(size_t cpu) const {
+  std::string path = root_ + "per_cpu/cpu" + std::to_string(cpu) + "/stats";
+  return ReadFileIntoString(path);
+}
+
 size_t FtraceProcfs::NumberOfCpus() const {
   static size_t num_cpus = static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
   return num_cpus;
