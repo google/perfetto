@@ -22,6 +22,7 @@ import "perfetto/trace/chrome/chrome_trace_event.proto";
 import "perfetto/trace/clock_snapshot.proto";
 import "perfetto/trace/filesystem/inode_file_map.proto";
 import "perfetto/trace/ftrace/ftrace_event_bundle.proto";
+import "perfetto/trace/ftrace/ftrace_stats.proto";
 import "perfetto/trace/ps/process_tree.proto";
 import "perfetto/trace/test_event.proto";
 
@@ -42,6 +43,7 @@ message TracePacket {
     // IDs up to 32 are reserved for events that are quite frequent because they
     // take only one byte to encode their preamble.
     TraceConfig trace_config = 33;
+    FtraceStats ftrace_stats = 34;
 
     // This field is only used for testing.
     TestEvent for_testing = 536870911;  // 2^29 - 1, max field id for protos.

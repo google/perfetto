@@ -21,6 +21,7 @@ source_set("base") {
     "scoped_file.h",
     "small_set.h",
     "string_splitter.h",
+    "string_utils.h",
     "task_runner.h",
     "thread_checker.h",
     "time.h",

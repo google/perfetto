@@ -70,6 +70,8 @@ class ProbesProducer : public Producer {
  private:
   using FtraceBundleHandle =
       protozero::MessageHandle<protos::pbzero::FtraceEventBundle>;
+  using FtraceStatsHandle =
+      protozero::MessageHandle<protos::pbzero::FtraceStats>;
 
   class SinkDelegate : public FtraceSink::Delegate {
    public:
@@ -87,6 +89,9 @@ class ProbesProducer : public Producer {
     void OnBundleComplete(size_t cpu,
                           FtraceBundleHandle bundle,
                           const FtraceMetadata& metadata) override;
+    void OnCreate(FtraceSink*) override;
+
+    void WriteStats();
 
     void set_sink(std::unique_ptr<FtraceSink> sink) { sink_ = std::move(sink); }
 
@@ -109,6 +114,7 @@ class ProbesProducer : public Producer {
     base::TaskRunner* task_runner_;
     std::unique_ptr<FtraceSink> sink_ = nullptr;
     std::unique_ptr<TraceWriter> writer_;
+    FtraceStats stats_before_ = {};
 
     base::WeakPtr<ProcessStatsDataSource> ps_source_;
     base::WeakPtr<InodeFileDataSource> file_source_;
