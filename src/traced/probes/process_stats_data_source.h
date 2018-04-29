@@ -51,19 +51,19 @@ class ProcessStatsDataSource {
   ProcessStatsDataSource(const ProcessStatsDataSource&) = delete;
   ProcessStatsDataSource& operator=(const ProcessStatsDataSource&) = delete;
 
-  void WriteProcess(int32_t pid,
-                    const std::string& proc_status,
-                    protos::pbzero::ProcessTree*);
-  void WriteThread(int32_t tid,
-                   int32_t tgid,
-                   const std::string& proc_status,
-                   protos::pbzero::ProcessTree*);
-  void WriteProcessOrThread(int32_t pid, protos::pbzero::ProcessTree*);
+  void WriteProcess(int32_t pid, const std::string& proc_status);
+  void WriteThread(int32_t tid, int32_t tgid, const std::string& proc_status);
+  void WriteProcessOrThread(int32_t pid);
   std::string ReadProcStatusEntry(const std::string& buf, const char* key);
+
+  protos::pbzero::ProcessTree* GetOrCreatePsTree();
+  void FinalizeCurPsTree();
 
   const TracingSessionID session_id_;
   std::unique_ptr<TraceWriter> writer_;
   const DataSourceConfig config_;
+  TraceWriter::TracePacketHandle cur_packet_;
+  protos::pbzero::ProcessTree* cur_ps_tree_ = nullptr;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
