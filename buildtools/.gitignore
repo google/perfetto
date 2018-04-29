@@ -3,6 +3,7 @@ aosp-*/
 benchmark/
 clang/
 clang_format/
+emscripten/
 emulator/
 googletest/
 libbacktrace/
