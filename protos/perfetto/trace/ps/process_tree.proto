@@ -19,10 +19,13 @@ option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 message ProcessTree {
-  // Representation of a thread
+  // Representation of a thread.
   message Thread {
     // The thread id (as per gettid())
     optional int32 tid = 1;
+
+    // Thread group id (i.e. the PID of the process, == TID of the main thread)
+    optional int32 tgid = 3;
 
     // The name of the thread.
     optional string name = 2;
@@ -41,10 +44,18 @@ message ProcessTree {
     // and it will contain /proc/pid/comm.
     repeated string cmdline = 3;
 
-    // The list of all threads in the process.
-    repeated Thread threads = 4;
+    // No longer used as of Apr 2018, when the dedicated |threads| field was
+    // introduced in ProcessTree.
+    repeated Thread threads_deprecated = 4 [deprecated = true];
   }
 
-  // List of all processes in the client.
+  // List of processes and threads in the client. These lists are incremental
+  // and not exhaustive. A process and its threads might show up separately in
+  // different ProcessTree messages. A thread might event not show up at all, if
+  // no sched_switch activity was detected, for instance:
+  // #0 { processes: [{pid: 10, ...}], threads: [{pid: 11, tgid: 10}] }
+  // #1 { threads: [{pid: 12, tgid: 10}] }
+  // #2 { processes: [{pid: 20, ...}], threads: [{pid: 13, tgid: 10}] }
   repeated Process processes = 1;
+  repeated Thread threads = 2;
 }
