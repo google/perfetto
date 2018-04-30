@@ -516,21 +516,21 @@ TEST(FtraceControllerTest, BufferSize) {
   }
 
   {
-    // Way too big buffer size -> good default.
+    // Way too big buffer size -> max size.
     EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "512"));
+                WriteToFile("/root/buffer_size_kb", "65536"));
     FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_buffer_size_kb(10 * 1024 * 1024);
     auto sink = controller->CreateSink(config, &delegate);
   }
 
   {
-    // The limit is 8mb, 9mb is too much.
+    // The limit is 64mb, 65mb is too much.
     EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "512"));
+                WriteToFile("/root/buffer_size_kb", "65536"));
     FtraceConfig config = CreateFtraceConfig({"foo"});
     ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
-    config.set_buffer_size_kb(9 * 1024);
+    config.set_buffer_size_kb(65 * 1024);
     auto sink = controller->CreateSink(config, &delegate);
   }
 
