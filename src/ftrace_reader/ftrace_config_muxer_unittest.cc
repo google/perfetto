@@ -134,12 +134,13 @@ std::unique_ptr<ProtoTranslationTable> CreateFakeTable() {
 }
 
 TEST(FtraceConfigMuxerTest, ComputeCpuBufferSizeInPages) {
+  static constexpr size_t kMaxBufSizeInPages = 16 * 1024u;
   // No buffer size given: good default (128 pages = 512kb).
   EXPECT_EQ(ComputeCpuBufferSizeInPages(0), 128u);
   // Buffer size given way too big: good default.
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(10 * 1024 * 1024), 128u);
-  // The limit is 2mb per CPU, 3mb is too much.
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(3 * 1024), 128u);
+  EXPECT_EQ(ComputeCpuBufferSizeInPages(10 * 1024 * 1024), kMaxBufSizeInPages);
+  // The limit is 64mb per CPU, 512mb is too much.
+  EXPECT_EQ(ComputeCpuBufferSizeInPages(512 * 1024), kMaxBufSizeInPages);
   // Your size ends up with less than 1 page per cpu -> 1 page.
   EXPECT_EQ(ComputeCpuBufferSizeInPages(3), 1u);
   // You picked a good size -> your size rounded to nearest page.
