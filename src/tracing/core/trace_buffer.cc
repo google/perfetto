@@ -114,6 +114,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   const size_t record_size =
       base::AlignUp<sizeof(ChunkRecord)>(size + sizeof(ChunkRecord));
   if (PERFETTO_UNLIKELY(record_size > max_chunk_size_)) {
+    stats_.abi_violations++;
     PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     return;
   }
@@ -167,11 +168,14 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
 
   // Now first insert the new chunk. At the end, if necessary, add the padding.
   ChunkMeta::Key key(record);
+  stats_.chunks_written++;
+  stats_.bytes_written += size;
   auto it_and_inserted =
       index_.emplace(key, ChunkMeta(GetChunkRecordAt(wptr_), num_fragments,
                                     chunk_flags, producer_uid_trusted));
   if (PERFETTO_UNLIKELY(!it_and_inserted.second)) {
     // More likely a producer bug, but could also be a malicious producer.
+    stats_.abi_violations++;
     PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     index_.erase(it_and_inserted.first);
     index_.emplace(key, ChunkMeta(GetChunkRecordAt(wptr_), num_fragments,
@@ -226,7 +230,15 @@ size_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
     // records are not part of the index).
     if (PERFETTO_LIKELY(!next_chunk.is_padding)) {
       ChunkMeta::Key key(next_chunk);
-      const size_t removed = index_.erase(key);
+      auto it = index_.find(key);
+      bool removed = false;
+      if (PERFETTO_LIKELY(it != index_.end())) {
+        const ChunkMeta& meta = it->second;
+        if (PERFETTO_UNLIKELY(meta.num_fragments_read < meta.num_fragments))
+          stats_.chunks_overwritten++;
+        index_.erase(it);
+        removed = true;
+      }
       TRACE_BUFFER_DLOG("  del index {%" PRIu32 ",%" PRIu32
                         ",%u} @ [%lu - %lu] %zu",
                         key.producer_id, key.writer_id, key.chunk_id,
@@ -266,7 +278,7 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
   ChunkMeta::Key key(producer_id, writer_id, chunk_id);
   auto it = index_.find(key);
   if (it == index_.end()) {
-    stats_.failed_patches++;
+    stats_.patches_failed++;
     return false;
   }
   ChunkMeta& chunk_meta = it->second;
@@ -296,7 +308,7 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
         ptr > chunk_end - Patch::kSize) {
       // Either the IPC was so slow and in the meantime the writer managed to
       // wrap over |chunk_id| or the producer sent a malicious IPC.
-      stats_.failed_patches++;
+      stats_.patches_failed++;
       return false;
     }
 
@@ -312,7 +324,7 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
       "Chunk raw (after patch): %s",
       HexDump(chunk_begin, chunk_meta.chunk_record->size).c_str());
 
-  stats_.succeeded_patches += patches_size;
+  stats_.patches_succeeded += patches_size;
   if (!other_patches_pending) {
     chunk_meta.flags &= ~kChunkNeedsPatching;
     chunk_meta.chunk_record->flags = chunk_meta.flags;
@@ -488,6 +500,7 @@ bool TraceBuffer::ReadNextTracePacket(TracePacket* packet,
         // In extremely rare cases (producer bugged / malicious) the chunk might
         // contain an invalid fragment. In such case we don't want to stall the
         // sequence but just skip the chunk and move on.
+        stats_.abi_violations++;
         PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
         break;
       }
@@ -495,7 +508,7 @@ bool TraceBuffer::ReadNextTracePacket(TracePacket* packet,
       PERFETTO_DCHECK(action == kTryReadAhead);
       ReadAheadResult ra_res = ReadAhead(packet);
       if (ra_res == ReadAheadResult::kSucceededReturnSlices) {
-        stats_.fragment_readahead_successes++;
+        stats_.readaheads_succeeded++;
         *producer_uid = trusted_uid;
         return true;
       }
@@ -503,7 +516,7 @@ bool TraceBuffer::ReadNextTracePacket(TracePacket* packet,
       if (ra_res == ReadAheadResult::kFailedMoveToNextSequence) {
         // readahead didn't find a contigous packet sequence. We'll try again
         // on the next ReadPacket() call.
-        stats_.fragment_readahead_failures++;
+        stats_.readaheads_failed++;
 
         // TODO(primiano): optimization: this MoveToEnd() is the reason why
         // MoveNext() (that is called in the outer for(;;MoveNext)) needs to
@@ -593,6 +606,7 @@ TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {
     PERFETTO_DCHECK(read_iter_.cur == it.cur);
 
     if (PERFETTO_UNLIKELY(packet_corruption)) {
+      stats_.abi_violations++;
       PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
       *packet = TracePacket();  // clear.
       return ReadAheadResult::kFailedStayOnSameSequence;
@@ -618,6 +632,7 @@ bool TraceBuffer::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
                         packet_begin >= record_end)) {
     // The producer has a bug or is malicious and did declare that the chunk
     // contains more packets beyond its boundaries.
+    stats_.abi_violations++;
     PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     return false;
   }
@@ -635,6 +650,7 @@ bool TraceBuffer::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
   const uint8_t* next_packet = packet_data + packet_size;
   if (PERFETTO_UNLIKELY(next_packet <= packet_begin ||
                         next_packet > record_end)) {
+    stats_.abi_violations++;
     PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     chunk_meta->cur_fragment_offset = 0;
     chunk_meta->num_fragments_read = chunk_meta->num_fragments;
@@ -645,6 +661,7 @@ bool TraceBuffer::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
   chunk_meta->num_fragments_read++;
 
   if (PERFETTO_UNLIKELY(packet_size == 0)) {
+    stats_.abi_violations++;
     PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     return false;
   }

@@ -25,6 +25,7 @@ import "perfetto/trace/ftrace/ftrace_event_bundle.proto";
 import "perfetto/trace/ftrace/ftrace_stats.proto";
 import "perfetto/trace/ps/process_tree.proto";
 import "perfetto/trace/test_event.proto";
+import "perfetto/trace/trace_stats.proto";
 
 package perfetto.protos;
 
@@ -42,8 +43,10 @@ message TracePacket {
 
     // IDs up to 32 are reserved for events that are quite frequent because they
     // take only one byte to encode their preamble.
+
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
+    TraceStats trace_stats = 35;
 
     // This field is only used for testing.
     TestEvent for_testing = 536870911;  // 2^29 - 1, max field id for protos.
