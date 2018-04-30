@@ -33,8 +33,8 @@ namespace {
 // trace_clocks in preference order.
 constexpr const char* kClocks[] = {"boot", "global", "local"};
 
-constexpr int kDefaultPerCpuBufferSizeKb = 512;   // 512kb
-constexpr int kMaxPerCpuBufferSizeKb = 2 * 1024;  // 2mb
+constexpr int kDefaultPerCpuBufferSizeKb = 512;    // 512kb
+constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;  // 64mb
 
 std::vector<std::string> difference(const std::set<std::string>& a,
                                     const std::set<std::string>& b) {
@@ -209,8 +209,12 @@ std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
 size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb) {
   if (requested_buffer_size_kb == 0)
     requested_buffer_size_kb = kDefaultPerCpuBufferSizeKb;
-  if (requested_buffer_size_kb > kMaxPerCpuBufferSizeKb)
-    requested_buffer_size_kb = kDefaultPerCpuBufferSizeKb;
+  if (requested_buffer_size_kb > kMaxPerCpuBufferSizeKb) {
+    PERFETTO_ELOG(
+        "The requested ftrace buf size (%zu KB) is too big, capping to %d KB",
+        requested_buffer_size_kb, kMaxPerCpuBufferSizeKb);
+    requested_buffer_size_kb = kMaxPerCpuBufferSizeKb;
+  }
 
   size_t pages = requested_buffer_size_kb / (base::kPageSize / 1024);
   if (pages == 0)
