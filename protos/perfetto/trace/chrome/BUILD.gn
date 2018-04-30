@@ -16,6 +16,7 @@ import("../../../../gn/perfetto.gni")
 import("../../../../src/protozero/protozero_library.gni")
 
 chrome_proto_names = [ "chrome_trace_event.proto" ]
+minimal_chrome_proto_names = [ "chrome_trace_packet.proto" ]
 
 proto_library("lite") {
   generate_python = false
@@ -29,4 +30,16 @@ protozero_library("zero") {
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   generator_plugin_options = "wrapper_namespace=pbzero"
+}
+
+proto_library("minimal_complete_lite") {
+  generate_python = false
+  deps = [
+    ":lite",
+    "../:minimal_lite",
+    "../../config:config",
+  ]
+  sources = minimal_chrome_proto_names
+  proto_in_dir = "$perfetto_root_path/protos"
+  proto_out_dir = "$perfetto_root_path/protos"
 }

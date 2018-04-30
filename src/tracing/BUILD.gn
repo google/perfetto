@@ -20,7 +20,7 @@ source_set("tracing") {
   public_deps = [
     "../../include/perfetto/tracing/core",
     "../../protos/perfetto/common",
-    "../../protos/perfetto/trace:minimal_lite",
+    "../../protos/perfetto/trace:trusted_lite",
     "../../protos/perfetto/trace:zero",
   ]
   deps = [
