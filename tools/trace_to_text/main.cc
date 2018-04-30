@@ -40,6 +40,7 @@
 #include <google/protobuf/util/message_differencer.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/trace/ftrace/ftrace_stats.pb.h"
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
 #include "tools/trace_to_text/ftrace_event_formatter.h"
@@ -88,6 +89,9 @@ using protos::PrintFtraceEvent;
 using protos::ProcessTree;
 using protos::Trace;
 using protos::TracePacket;
+using protos::FtraceStats;
+using protos::FtraceStats_Phase_START_OF_TRACE;
+using protos::FtraceStats_Phase_END_OF_TRACE;
 using Entry = protos::InodeFileMap::Entry;
 using Process = protos::ProcessTree::Process;
 
@@ -262,6 +266,8 @@ void PrintFtraceTrack(std::ostream* output,
 void PrintFtraceStats(std::ostream* output,
                       uint64_t overwrite_count,
                       std::map<FtraceEvent::EventCase, uint64_t> event_counts,
+                      const FtraceStats& before_stats,
+                      const FtraceStats& after_stats,
                       bool compact_output) {
   if (!compact_output)
     *output << "--------------------Ftrace Stats-------------------\n";
@@ -294,6 +300,25 @@ void PrintFtraceStats(std::ostream* output,
     }
     *output << std::string(line);
   }
+
+  uint64_t before_total_overrun = 0;
+  uint64_t after_total_overrun = 0;
+  for (const auto& cpu_stats : before_stats.cpu_stats()) {
+    before_total_overrun += cpu_stats.overrun();
+  }
+  for (const auto& cpu_stats : after_stats.cpu_stats()) {
+    after_total_overrun += cpu_stats.overrun();
+  }
+
+  if (compact_output) {
+    sprintf(line, "total_overrun,%" PRIu64 "\n",
+            after_total_overrun - before_total_overrun);
+  } else {
+    sprintf(line, "total_overrun: %" PRIu64 " (= %" PRIu64 " - %" PRIu64 ")\n",
+            after_total_overrun - before_total_overrun, after_total_overrun,
+            before_total_overrun);
+  }
+  *output << std::string(line);
 
   if (!compact_output)
     *output << "\n";
@@ -468,9 +493,12 @@ int TraceToSummary(std::istream* input,
   std::set<uint64_t> resolved_scan_inodes;
   protos::TraceStats last_stats;
 
+  FtraceStats before_stats;
+  FtraceStats after_stats;
+
   ForEachPacketInTrace(
       input,
-      [&start, &end, &ftrace_overwrites, &ftrace_event_counts,
+      [&start, &end, &ftrace_overwrites, &ftrace_event_counts, &before_stats, &after_stats,
        &ftrace_timestamps, &tids_in_tree, &tids_in_events, &ftrace_inodes,
        &ftrace_inode_count, &resolved_map_inodes, &resolved_scan_inodes,
        &last_stats](const protos::TracePacket& packet) {
@@ -499,6 +527,19 @@ int TraceToSummary(std::istream* input,
 
         if (packet.has_trace_stats())
           last_stats = packet.trace_stats();
+
+        if (packet.has_ftrace_stats()) {
+          const auto& ftrace_stats = packet.ftrace_stats();
+          if (ftrace_stats.phase() == FtraceStats_Phase_START_OF_TRACE) {
+            before_stats = ftrace_stats;
+            // TODO(hjd): Check not yet set.
+          } else if (ftrace_stats.phase() == FtraceStats_Phase_END_OF_TRACE) {
+            after_stats = ftrace_stats;
+            // TODO(hjd): Check not yet set.
+          } else {
+            // TODO(hjd): Error here.
+          }
+        }
 
         if (!packet.has_ftrace_events())
           return;
@@ -538,8 +579,8 @@ int TraceToSummary(std::istream* input,
 
   if (!compact_output)
     PrintFtraceTrack(output, start, end, ftrace_timestamps);
-  PrintFtraceStats(output, ftrace_overwrites, ftrace_event_counts,
-                   compact_output);
+  PrintFtraceStats(output, ftrace_overwrites, ftrace_event_counts, before_stats,
+                   after_stats, compact_output);
   PrintProcessStats(output, tids_in_tree, tids_in_events, compact_output);
   PrintInodeStats(output, ftrace_inodes, ftrace_inode_count,
                   resolved_map_inodes, resolved_scan_inodes, compact_output);
