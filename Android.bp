@@ -2931,6 +2931,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_minimal_lite_gen",
   srcs: [
     "protos/perfetto/trace/clock_snapshot.proto",
+    "protos/perfetto/trace/trace_stats.proto",
     "protos/perfetto/trace/trusted_packet.proto",
   ],
   tools: [
@@ -2939,6 +2940,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.cc",
+    "external/perfetto/protos/perfetto/trace/trace_stats.pb.cc",
     "external/perfetto/protos/perfetto/trace/trusted_packet.pb.cc",
   ],
 }
@@ -2948,6 +2950,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_minimal_lite_gen_headers",
   srcs: [
     "protos/perfetto/trace/clock_snapshot.proto",
+    "protos/perfetto/trace/trace_stats.proto",
     "protos/perfetto/trace/trusted_packet.proto",
   ],
   tools: [
@@ -2956,6 +2959,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.h",
+    "external/perfetto/protos/perfetto/trace/trace_stats.pb.h",
     "external/perfetto/protos/perfetto/trace/trusted_packet.pb.h",
   ],
   export_include_dirs: [
@@ -3039,6 +3043,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trace_stats.proto",
     "protos/perfetto/trace/trusted_packet.proto",
   ],
   tools: [
@@ -3051,6 +3056,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/trace_stats.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trusted_packet.pbzero.cc",
   ],
 }
@@ -3063,6 +3069,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trace_stats.proto",
     "protos/perfetto/trace/trusted_packet.proto",
   ],
   tools: [
@@ -3075,6 +3082,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/trace_stats.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trusted_packet.pbzero.h",
   ],
   export_include_dirs: [

@@ -39,6 +39,10 @@ static_assert(protos::TracePacket::kTraceConfigFieldNumber ==
                   protos::TrustedPacket::kTraceConfigFieldNumber,
               "trace_config field id mismatch");
 
+static_assert(protos::TracePacket::kTraceStatsFieldNumber ==
+                  protos::TrustedPacket::kTraceStatsFieldNumber,
+              "trace_stats field id mismatch");
+
 static_assert(protos::TracePacket::kClockSnapshotFieldNumber ==
                   protos::TrustedPacket::kClockSnapshotFieldNumber,
               "clock_snapshot field id mismatch");

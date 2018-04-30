@@ -425,6 +425,33 @@ void PrintProcessStats(std::ostream* output,
     *output << "\n";
 }
 
+void PrintTraceStats(std::ostream* output,
+                     const protos::TraceStats& stats,
+                     bool compact_output) {
+  if (compact_output)
+    return;
+  *output << "--------------------Trace Stats-------------------\n";
+  size_t buf_num = 0;
+  for (const auto& buf : stats.buffer_stats()) {
+    *output << "Buffer " << buf_num++ << "\n"
+            << "  bytes_written: " << buf.bytes_written() << "\n"
+            << "  chunks_written: " << buf.chunks_written() << "\n"
+            << "  chunks_overwritten: " << buf.chunks_overwritten() << "\n"
+            << "  write_wrap_count: " << buf.write_wrap_count() << "\n"
+            << "  patches_succeeded: " << buf.patches_succeeded() << "\n"
+            << "  patches_failed: " << buf.patches_failed() << "\n"
+            << "  readaheads_succeeded: " << buf.readaheads_succeeded() << "\n"
+            << "  readaheads_failed: " << buf.readaheads_failed() << "\n"
+            << "  abi_violations: " << buf.abi_violations() << "\n";
+  }
+  *output << "producers_connected: " << stats.producers_connected() << "\n"
+          << "producers_seen: " << stats.producers_seen() << "\n"
+          << "data_sources_reg: " << stats.data_sources_registered() << "\n"
+          << "data_sources_seen: " << stats.data_sources_seen() << "\n"
+          << "tracing_sessions: " << stats.tracing_sessions() << "\n"
+          << "total_buffers: " << stats.total_buffers() << "\n";
+}
+
 int TraceToSummary(std::istream* input,
                    std::ostream* output,
                    bool compact_output) {
@@ -439,12 +466,14 @@ int TraceToSummary(std::istream* input,
   uint64_t ftrace_inode_count = 0;
   std::set<uint64_t> resolved_map_inodes;
   std::set<uint64_t> resolved_scan_inodes;
+  protos::TraceStats last_stats;
 
   ForEachPacketInTrace(
-      input, [&start, &end, &ftrace_overwrites, &ftrace_event_counts,
-              &ftrace_timestamps, &tids_in_tree, &tids_in_events,
-              &ftrace_inodes, &ftrace_inode_count, &resolved_map_inodes,
-              &resolved_scan_inodes](const protos::TracePacket& packet) {
+      input,
+      [&start, &end, &ftrace_overwrites, &ftrace_event_counts,
+       &ftrace_timestamps, &tids_in_tree, &tids_in_events, &ftrace_inodes,
+       &ftrace_inode_count, &resolved_map_inodes, &resolved_scan_inodes,
+       &last_stats](const protos::TracePacket& packet) {
         if (packet.has_process_tree()) {
           const ProcessTree& tree = packet.process_tree();
           for (Process process : tree.processes()) {
@@ -467,6 +496,9 @@ int TraceToSummary(std::istream* input,
             else
               resolved_map_inodes.insert(entry.inode_number());
         }
+
+        if (packet.has_trace_stats())
+          last_stats = packet.trace_stats();
 
         if (!packet.has_ftrace_events())
           return;
@@ -511,6 +543,7 @@ int TraceToSummary(std::istream* input,
   PrintProcessStats(output, tids_in_tree, tids_in_events, compact_output);
   PrintInodeStats(output, ftrace_inodes, ftrace_inode_count,
                   resolved_map_inodes, resolved_scan_inodes, compact_output);
+  PrintTraceStats(output, last_stats, compact_output);
 
   return 0;
 }
