@@ -16,6 +16,7 @@
 
 #include <cxxabi.h>
 #include <dlfcn.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -105,11 +106,15 @@ _Unwind_Reason_Code TraceStackFrame(_Unwind_Context* context, void* arg) {
   return _URC_NO_REASON;
 }
 
+void RestoreSignalHandlers() {
+  for (size_t i = 0; i < sizeof(g_signals) / sizeof(g_signals[0]); i++)
+    sigaction(g_signals[i].sig_num, &g_signals[i].old_handler, nullptr);
+}
+
 // Note: use only async-safe functions inside this.
 void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
   // Restore the old handlers.
-  for (size_t i = 0; i < sizeof(g_signals) / sizeof(g_signals[0]); i++)
-    sigaction(g_signals[i].sig_num, &g_signals[i].old_handler, nullptr);
+  RestoreSignalHandlers();
 
   Print("\n------------------ BEGINNING OF CRASH ------------------\n");
   Print("Signal: ");
@@ -244,6 +249,13 @@ void EnableStacktraceOnCrashForDebug() {
       SA_RESTART | SA_SIGINFO | SA_RESETHAND);
   for (size_t i = 0; i < sizeof(g_signals) / sizeof(g_signals[0]); i++)
     sigaction(g_signals[i].sig_num, &sigact, &g_signals[i].old_handler);
+
+  // Prevents fork()-ed processes to inherit the crash signal handlers. This
+  // significantly speeds up gtest death tests, because running the unwinder
+  // takes some hundreds of ms. These signal handlers are completely useless
+  // in death tests because: (i) death tests are expected to crash by design;
+  // (ii) the output of death test is not visible.
+  pthread_atfork(nullptr, nullptr, &RestoreSignalHandlers);
 }
 
 }  // namespace
