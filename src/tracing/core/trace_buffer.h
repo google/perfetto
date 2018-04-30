@@ -112,7 +112,7 @@ class TracePacket;
 // -----------------------
 // This class supports one reader only (the consumer). Reads are NOT idempotent
 // as they move the read cursors around. Reading back the buffer is the most
-// conceptually complex part. The ReadPacket() method, in fact, operates with
+// conceptually complex part. The ReadNextTracePacket() method operates with
 // whole packet granularity. Packets are returned only when all their fragments
 // are available.
 // This class takes care of:
@@ -122,19 +122,24 @@ class TracePacket;
 // - Detecting holes in packet fragments (because of loss of chunks).
 // Reads guarantee that packets for the same sequence are read in FIFO order
 // (according to their ChunkID), but don't give any guarantee about the read
-// order of packets from different sequences (see ReadPacket() comments below).
+// order of packets from different sequences, see comments in
+// ReadNextTracePacket() below.
 class TraceBuffer {
  public:
   static const size_t InlineChunkHeaderSize;  // For test/fake_packet.{cc,h}.
 
+  // Maintain these fields consistent with trace_stats.proto. See comments in
+  // the .proto for the semantic of these fields.
   struct Stats {
-    size_t failed_patches = 0;
-    size_t succeeded_patches = 0;
-    size_t fragment_readahead_successes = 0;
-    size_t fragment_readahead_failures = 0;
-    size_t write_wrap_count = 0;
-    // TODO(primiano): add packets_{read,written}.
-    // TODO(primiano): add bytes_{read,written}.
+    uint64_t bytes_written = 0;
+    uint64_t chunks_written = 0;
+    uint64_t chunks_overwritten = 0;
+    uint64_t write_wrap_count = 0;
+    uint64_t patches_succeeded = 0;
+    uint64_t patches_failed = 0;
+    uint64_t readaheads_succeeded = 0;
+    uint64_t readaheads_failed = 0;
+    uint64_t abi_violations = 0;
     // TODO(primiano): add bytes_lost_for_padding.
   };
 
@@ -336,8 +341,8 @@ class TraceBuffer {
 
   // Allows to iterate over a sub-sequence of |index_| for all keys belonging to
   // the same {ProducerID,WriterID}. Furthermore takes into account the wrapping
-  // of ChunkID. Instances are valid only as long as the |index_| is not
-  // altered (can be used safely only between adjacent ReadPacket() calls).
+  // of ChunkID. Instances are valid only as long as the |index_| is not altered
+  // (can be used safely only between adjacent ReadNextTracePacket() calls).
   // The order of the iteration will proceed in the following order:
   // |wrapping_id| + 1 -> |seq_end|, |seq_begin| -> |wrapping_id|.
   // Practical example:

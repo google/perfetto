@@ -1,0 +1,85 @@
+/*
+ * Copyright (C) 2018 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package perfetto.protos;
+
+// Statistics for the internals of the tracing service.
+message TraceStats {
+  // From TraceBuffer::Stats.
+  message BufferStats {
+    // Num. bytes written into the circular buffer.
+    optional uint64 bytes_written = 1;
+
+    // Num. chunks (!= packets) written into the buffer.
+    optional uint64 chunks_written = 2;
+
+    // Num. chunks overwritten before they have been read (i.e. loss of data).
+    optional uint64 chunks_overwritten = 3;
+
+    // Num. times the ring buffer wrapped around.
+    optional uint64 write_wrap_count = 4;
+
+    // Num. out-of-band (OOB) patches that succeeded.
+    optional uint64 patches_succeeded = 5;
+
+    // Num. OOB patches that failed (e.g., the chunk to patch was gone).
+    optional uint64 patches_failed = 6;
+
+    // Num. readaheads (for large multi-chunk packet reads) that ended up in a
+    // successful packet read.
+    optional uint64 readaheads_succeeded = 7;
+
+    // Num. readaheads aborted because of missing chunks in the sequence stream.
+    // Note that a small number > 0 is totally expected: occasionally, when
+    // issuing a read, the very last packet in a sequence might be incomplete
+    // (because the producer is still writing it while we read). The read will
+    // stop at that point, for that sequence, increasing this counter.
+    optional uint64 readaheads_failed = 8;
+
+    // Num. of violations of the SharedMemoryABI found while writing or reading
+    // the buffer. This is an indication of either a bug in the producer(s) or
+    // malicious producer(s).
+    optional uint64 abi_violations = 9;
+  }
+
+  // Stats for the TraceBuffer(s) of the current trace session.
+  repeated BufferStats buffer_stats = 1;
+
+  // Num. producers connected (whether they are involved in the current tracing
+  // session or not).
+  optional uint32 producers_connected = 2;
+
+  // Num. producers ever seen for all trace sessions since startup (it's a good
+  // proxy for inferring num. producers crashed / killed).
+  optional uint64 producers_seen = 3;
+
+  // Num. data sources registered for all trace sessions.
+  optional uint32 data_sources_registered = 4;
+
+  // Num. data sources ever seen for all trace sessions since startupb
+  optional uint64 data_sources_seen = 5;
+
+  // Num. concurrently active tracing sessions.
+  optional uint32 tracing_sessions = 6;
+
+  // Num. buffers for all tracing session (not just the current one). This will
+  // be >= buffer_stats.size(), because the latter is only about the current
+  // session.
+  optional uint32 total_buffers = 7;
+}

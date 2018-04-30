@@ -41,8 +41,10 @@ message TracePacket {
 
     // IDs up to 32 are reserved for events that are quite frequent because they
     // take only one byte to encode their preamble.
+
     // removed field with id 33
     // removed field with id 34
+    // removed field with id 35
 
     // This field is only used for testing.
     // removed field with id 536870911  // 2^29 - 1, max field id for protos.
