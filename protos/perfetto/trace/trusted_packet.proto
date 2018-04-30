@@ -28,6 +28,7 @@ option optimize_for = LITE_RUNTIME;
 
 import "perfetto/config/trace_config.proto";
 import "perfetto/trace/clock_snapshot.proto";
+import "perfetto/trace/trace_stats.proto";
 
 package perfetto.protos;
 
@@ -45,8 +46,7 @@ message TrustedPacket {
   // uid == 0 and uid not set (the writer uses proto2).
   oneof optional_trusted_uid { int32 trusted_uid = 3; };
 
-  // The original trace config.
-  TraceConfig trace_config = 33;
-
   ClockSnapshot clock_snapshot = 6;
+  TraceConfig trace_config = 33;
+  TraceStats trace_stats = 35;
 }

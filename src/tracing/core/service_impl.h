@@ -240,6 +240,9 @@ class ServiceImpl : public Service {
     // When the last clock snapshot was emitted into the output stream.
     base::TimeMillis last_clock_snapshot = {};
 
+    // When the last TraceStats snapshot was emitted into the output stream.
+    base::TimeMillis last_stats_snapshot = {};
+
     // Whether we mirrored the trace config back to the trace output yet.
     bool did_emit_config = false;
 
@@ -276,6 +279,7 @@ class ServiceImpl : public Service {
 
   void MaybeSnapshotClocks(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
+  void MaybeSnapshotStats(TracingSession*, std::vector<TracePacket>*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   TraceBuffer* GetBufferByID(BufferID);
 
@@ -285,6 +289,7 @@ class ServiceImpl : public Service {
   DataSourceInstanceID last_data_source_instance_id_ = 0;
   TracingSessionID last_tracing_session_id_ = 0;
   FlushRequestID last_flush_request_id_ = 0;
+  uid_t uid_ = 0;
 
   // Buffer IDs are global across all consumers (because a Producer can produce
   // data for more than one trace session, hence more than one consumer).
