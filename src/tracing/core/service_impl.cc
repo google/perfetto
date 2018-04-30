@@ -53,6 +53,7 @@ namespace {
 constexpr size_t kDefaultShmPageSize = base::kPageSize;
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kClockSnapshotInterval(10 * 1000);
+constexpr base::TimeMillis kStatsSnapshotInterval(10 * 1000);
 constexpr int kMinWriteIntoFilePeriodMs = 100;
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
 constexpr int kFlushTimeoutMs = 1000;
@@ -80,6 +81,7 @@ ServiceImpl::ServiceImpl(std::unique_ptr<SharedMemory::Factory> shm_factory,
                          base::TaskRunner* task_runner)
     : task_runner_(task_runner),
       shm_factory_(std::move(shm_factory)),
+      uid_(getuid()),
       buffer_ids_(kMaxTraceBufferID),
       weak_ptr_factory_(this) {
   PERFETTO_DCHECK(task_runner_);
@@ -520,7 +522,9 @@ void ServiceImpl::ReadBuffers(TracingSessionID tsid,
   }
 
   std::vector<TracePacket> packets;
+  packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
   MaybeSnapshotClocks(tracing_session, &packets);
+  MaybeSnapshotStats(tracing_session, &packets);
   MaybeEmitTraceConfig(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
@@ -798,7 +802,7 @@ void ServiceImpl::CreateDataSourceInstance(
   PERFETTO_DCHECK(producer);
   // An existing producer that is not ftrace could have registered itself as
   // ftrace, we must not enable it in that case.
-  if (lockdown_mode_ && producer->uid_ != getuid()) {
+  if (lockdown_mode_ && producer->uid_ != uid_) {
     PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
     return;
   }
@@ -1053,7 +1057,52 @@ void ServiceImpl::MaybeSnapshotClocks(TracingSession* tracing_session,
   c->set_timestamp(static_cast<uint64_t>(base::GetWallTimeNs().count()));
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 
-  packet.set_trusted_uid(static_cast<int32_t>(getuid()));
+  packet.set_trusted_uid(static_cast<int32_t>(uid_));
+  Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
+  PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
+  packets->emplace_back();
+  packets->back().AddSlice(std::move(slice));
+}
+
+void ServiceImpl::MaybeSnapshotStats(TracingSession* tracing_session,
+                                     std::vector<TracePacket>* packets) {
+  base::TimeMillis now = base::GetWallTimeMs();
+  if (now < tracing_session->last_stats_snapshot + kStatsSnapshotInterval)
+    return;
+  tracing_session->last_stats_snapshot = now;
+
+  protos::TrustedPacket packet;
+  packet.set_trusted_uid(static_cast<int32_t>(uid_));
+
+  protos::TraceStats* trace_stats = packet.mutable_trace_stats();
+  trace_stats->set_producers_connected(
+      static_cast<uint32_t>(producers_.size()));
+  trace_stats->set_producers_seen(last_producer_id_);
+  trace_stats->set_data_sources_registered(
+      static_cast<uint32_t>(data_sources_.size()));
+  trace_stats->set_data_sources_seen(last_data_source_instance_id_);
+  trace_stats->set_tracing_sessions(
+      static_cast<uint32_t>(tracing_sessions_.size()));
+  trace_stats->set_total_buffers(static_cast<uint32_t>(buffers_.size()));
+
+  for (BufferID buf_id : tracing_session->buffers_index) {
+    TraceBuffer* buf = GetBufferByID(buf_id);
+    if (!buf) {
+      PERFETTO_DCHECK(false);
+      continue;
+    }
+    auto* buf_stats_proto = trace_stats->add_buffer_stats();
+    const TraceBuffer::Stats& buf_stats = buf->stats();
+    buf_stats_proto->set_bytes_written(buf_stats.bytes_written);
+    buf_stats_proto->set_chunks_written(buf_stats.chunks_written);
+    buf_stats_proto->set_chunks_overwritten(buf_stats.chunks_overwritten);
+    buf_stats_proto->set_write_wrap_count(buf_stats.write_wrap_count);
+    buf_stats_proto->set_patches_succeeded(buf_stats.patches_succeeded);
+    buf_stats_proto->set_patches_failed(buf_stats.patches_failed);
+    buf_stats_proto->set_readaheads_succeeded(buf_stats.readaheads_succeeded);
+    buf_stats_proto->set_readaheads_failed(buf_stats.readaheads_failed);
+    buf_stats_proto->set_abi_violations(buf_stats.abi_violations);
+  }  // for (buf in session).
   Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
   packets->emplace_back();
@@ -1067,7 +1116,7 @@ void ServiceImpl::MaybeEmitTraceConfig(TracingSession* tracing_session,
   tracing_session->did_emit_config = true;
   protos::TrustedPacket packet;
   tracing_session->config.ToProto(packet.mutable_trace_config());
-  packet.set_trusted_uid(static_cast<int32_t>(getuid()));
+  packet.set_trusted_uid(static_cast<int32_t>(uid_));
   Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
   packets->emplace_back();
