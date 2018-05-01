@@ -799,10 +799,21 @@ TEST(CpuReaderTest, ParseAllFields) {
     }
 
     {
-      // char -> string
+      // dataloc -> string
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
       field->ftrace_offset = 56;
+      field->ftrace_size = 4;
+      field->ftrace_type = kFtraceDataLoc;
+      field->proto_field_id = 502;
+      field->proto_field_type = kProtoString;
+    }
+
+    {
+      // char -> string
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->ftrace_offset = 60;
       field->ftrace_size = 0;
       field->ftrace_type = kFtraceCString;
       field->proto_field_id = 501;
@@ -842,6 +853,7 @@ TEST(CpuReaderTest, ParseAllFields) {
   writer.Write<int64_t>(k64BitKernelBlockDeviceId);  // Dev id 64
   writer.Write<int64_t>(99u);                        // Inode 64
   writer.WriteFixedString(16, "Hello");
+  writer.Write<uint32_t>(40 | 6 << 16);
   writer.WriteFixedString(300, "Goodbye");
 
   auto input = writer.GetCopy();
@@ -869,6 +881,7 @@ TEST(CpuReaderTest, ParseAllFields) {
   EXPECT_EQ(event->all_fields().field_inode_64(), 99u);
   EXPECT_EQ(event->all_fields().field_char_16(), "Hello");
   EXPECT_EQ(event->all_fields().field_char(), "Goodbye");
+  EXPECT_EQ(event->all_fields().field_data_loc(), "Hello");
   EXPECT_THAT(metadata.pids, Contains(97));
   EXPECT_EQ(metadata.inode_and_device.size(), 2U);
   EXPECT_THAT(metadata.inode_and_device,
