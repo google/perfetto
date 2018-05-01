@@ -21,8 +21,9 @@ import("../../../gn/proto_library.gni")
 proto_sources_minimal = [
   "clock_snapshot.proto",
   "trace_stats.proto",
-  "trusted_packet.proto",
 ]
+
+proto_sources_trusted = [ "trusted_packet.proto" ]
 
 proto_sources = [
   "test_event.proto",
@@ -64,13 +65,25 @@ proto_library("lite") {
   proto_out_dir = "$perfetto_root_path/protos"
 }
 
-# Used by the traced service for packet sanitization.
+# Contains the subprotos of TracePacket that all targets need.
 proto_library("minimal_lite") {
   generate_python = false
   deps = [
     "../config:config",
   ]
   sources = proto_sources_minimal
+  proto_in_dir = "$perfetto_root_path/protos"
+  proto_out_dir = "$perfetto_root_path/protos"
+}
+
+# Used by the traced service for packet sanitization.
+proto_library("trusted_lite") {
+  generate_python = false
+  deps = [
+    ":minimal_lite",
+    "../config:config",
+  ]
+  sources = proto_sources_trusted
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
 }

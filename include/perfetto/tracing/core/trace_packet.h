@@ -60,7 +60,7 @@ class PERFETTO_EXPORT TracePacket {
   // Decodes the packet. This function requires that the caller:
   // 1) Does #include "perfetto/trace/trace_packet.pb.h"
   // 2) Links against the //protos/trace:lite target.
-  // The core service code delierately doesn't link against that in order to
+  // The core service code deliberately doesn't link against that in order to
   // avoid binary bloat. This is the reason why this is a templated function.
   // It doesn't need to be (i.e. the caller should not specify the template
   // argument) but doing so prevents the compiler trying to resolve the
