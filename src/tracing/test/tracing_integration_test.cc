@@ -83,21 +83,21 @@ class MockConsumer : public Consumer {
 
 void CheckTraceStats(const protos::TracePacket& packet) {
   EXPECT_TRUE(packet.has_trace_stats());
-  EXPECT_GE(packet.trace_stats().producers_seen(), 1);
-  EXPECT_EQ(1, packet.trace_stats().producers_connected());
-  EXPECT_EQ(1, packet.trace_stats().data_sources_registered());
-  EXPECT_EQ(1, packet.trace_stats().tracing_sessions());
-  EXPECT_EQ(1, packet.trace_stats().total_buffers());
+  EXPECT_GE(packet.trace_stats().producers_seen(), 1u);
+  EXPECT_EQ(1u, packet.trace_stats().producers_connected());
+  EXPECT_EQ(1u, packet.trace_stats().data_sources_registered());
+  EXPECT_EQ(1u, packet.trace_stats().tracing_sessions());
+  EXPECT_EQ(1u, packet.trace_stats().total_buffers());
   EXPECT_EQ(1, packet.trace_stats().buffer_stats_size());
 
   const auto& buf_stats = packet.trace_stats().buffer_stats(0);
-  EXPECT_GT(buf_stats.bytes_written(), 0);
-  EXPECT_GT(buf_stats.chunks_written(), 0);
-  EXPECT_EQ(0, buf_stats.chunks_overwritten());
-  EXPECT_EQ(0, buf_stats.write_wrap_count());
-  EXPECT_EQ(0, buf_stats.patches_failed());
-  EXPECT_EQ(0, buf_stats.readaheads_failed());
-  EXPECT_EQ(0, buf_stats.abi_violations());
+  EXPECT_GT(buf_stats.bytes_written(), 0u);
+  EXPECT_GT(buf_stats.chunks_written(), 0u);
+  EXPECT_EQ(0u, buf_stats.chunks_overwritten());
+  EXPECT_EQ(0u, buf_stats.write_wrap_count());
+  EXPECT_EQ(0u, buf_stats.patches_failed());
+  EXPECT_EQ(0u, buf_stats.readaheads_failed());
+  EXPECT_EQ(0u, buf_stats.abi_violations());
 }
 
 class TracingIntegrationTest : public ::testing::Test {
