@@ -16,15 +16,27 @@
 
 #include "perfetto/base/thread_checker.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
+#endif
+
 namespace perfetto {
 namespace base {
 
 namespace {
-constexpr pthread_t kDetached = 0;
+constexpr ThreadID kDetached = 0;
+
+ThreadID CurrentThreadId() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return ::GetCurrentThreadId();
+#else
+  return pthread_self();
+#endif
+}
 }  // namespace
 
 ThreadChecker::ThreadChecker() {
-  thread_id_.store(pthread_self());
+  thread_id_.store(CurrentThreadId());
 }
 
 ThreadChecker::~ThreadChecker() = default;
@@ -39,10 +51,10 @@ ThreadChecker& ThreadChecker::operator=(const ThreadChecker& other) {
 }
 
 bool ThreadChecker::CalledOnValidThread() const {
-  pthread_t self = pthread_self();
+  auto self = CurrentThreadId();
 
   // Will re-attach if previously detached using DetachFromThread().
-  pthread_t prev_value = kDetached;
+  auto prev_value = kDetached;
   if (thread_id_.compare_exchange_strong(prev_value, self))
     return true;
   return prev_value == self;

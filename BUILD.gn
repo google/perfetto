@@ -57,9 +57,14 @@ executable("perfetto_unittests") {
     "gn:default_deps",
     "gn:gtest_main",
     "src/base:unittests",
-    "src/protozero:unittests",
-    "src/tracing:unittests",
   ]
+  # TODO(brucedawson): Enable these for Windows when possible.
+  if (!is_win) {
+    deps += [
+      "src/protozero:unittests",
+      "src/tracing:unittests",
+    ]
+  }
   if (!build_with_chromium) {
     deps += [
       "src/ftrace_reader:unittests",
