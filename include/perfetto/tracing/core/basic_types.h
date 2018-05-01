@@ -17,9 +17,15 @@
 #ifndef INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
 #define INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
 
+#include "perfetto/base/build_config.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+using uid_t = unsigned int;
+#endif
 
 namespace perfetto {
 

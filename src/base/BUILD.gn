@@ -24,14 +24,21 @@ source_set("base") {
   ]
   sources = [
     "file_utils.cc",
-    "page_allocator.cc",
     "string_splitter.cc",
     "string_utils.cc",
-    "temp_file.cc",
     "thread_checker.cc",
-    "unix_task_runner.cc",
+    "time.cc",
     "virtual_destructors.cc",
   ]
+  # TODO(brucedawson): Enable these for Windows when possible.
+  if (!is_win) {
+    sources += [
+      "page_allocator.cc",
+      "temp_file.cc",
+      "unix_task_runner.cc",
+    ]
+  }
+
   if (!build_with_chromium && (is_linux || is_android)) {
     sources += [ "watchdog_posix.cc" ]
   } else {
@@ -96,25 +103,33 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":base",
-    ":test_support",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
   ]
+  # TODO(brucedawson): Enable these for Windows when possible.
+  if (!is_win) {
+    deps += [ ":test_support" ]
+  }
   if (is_android && !build_with_chromium) {
     deps += [ ":android_task_runner" ]
   }
   sources = [
-    "page_allocator_unittest.cc",
-    "scoped_file_unittest.cc",
-    "string_splitter_unittest.cc",
-    "string_utils_unittest.cc",
-    "task_runner_unittest.cc",
-    "temp_file_unittest.cc",
-    "thread_checker_unittest.cc",
     "time_unittest.cc",
-    "utils_unittest.cc",
-    "weak_ptr_unittest.cc",
   ]
+  # TODO(brucedawson): Enable these for Windows when possible.
+  if (!is_win) {
+    sources += [
+      "page_allocator_unittest.cc",
+      "scoped_file_unittest.cc",
+      "string_splitter_unittest.cc",
+      "string_utils_unittest.cc",
+      "task_runner_unittest.cc",
+      "temp_file_unittest.cc",
+      "thread_checker_unittest.cc",
+      "utils_unittest.cc",
+      "weak_ptr_unittest.cc",
+    ]
+  }
   if (!build_with_chromium && (is_linux || is_android)) {
     sources += [ "watchdog_unittest.cc" ]
   }
