@@ -33,6 +33,9 @@ is_android = current_os == "android"
 is_linux = current_os == "linux"
 is_linux_host = host_os == "linux"
 is_mac = current_os == "mac"
+# Building with Windows is currently only supported in the Chromium tree so
+# always set this to false.
+is_win = false
 
 if (target_cpu == "") {
   target_cpu = host_cpu

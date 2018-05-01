@@ -21,7 +21,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>  // For strerror.
-#include <unistd.h>
 
 #if defined(NDEBUG)
 #define PERFETTO_DCHECK_IS_ON() 0
@@ -34,6 +33,10 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <android/log.h>
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <unistd.h>
 #endif
 
 namespace perfetto {
