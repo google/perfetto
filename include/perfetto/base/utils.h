@@ -17,6 +17,8 @@
 #ifndef INCLUDE_PERFETTO_BASE_UTILS_H_
 #define INCLUDE_PERFETTO_BASE_UTILS_H_
 
+#include "perfetto/base/build_config.h"
+
 #include <errno.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -32,6 +34,15 @@
 
 #define PERFETTO_LIKELY(_x) __builtin_expect(!!(_x), 1)
 #define PERFETTO_UNLIKELY(_x) __builtin_expect(!!(_x), 0)
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// TODO(brucedawson) - create a ::perfetto::base::IOSize to replace this.
+#if defined(_WIN64)
+using ssize_t = __int64;
+#else
+using ssize_t = long;
+#endif
+#endif
 
 namespace perfetto {
 namespace base {
