@@ -17,13 +17,23 @@
 #ifndef INCLUDE_PERFETTO_BASE_THREAD_CHECKER_H_
 #define INCLUDE_PERFETTO_BASE_THREAD_CHECKER_H_
 
+#include "perfetto/base/build_config.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <pthread.h>
+#endif
 #include <atomic>
 
 #include "perfetto/base/logging.h"
 
 namespace perfetto {
 namespace base {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+using ThreadID = unsigned long;
+#else
+using ThreadID = pthread_t;
+#endif
 
 class ThreadChecker {
  public:
@@ -35,7 +45,7 @@ class ThreadChecker {
   void DetachFromThread();
 
  private:
-  mutable std::atomic<pthread_t> thread_id_;
+  mutable std::atomic<ThreadID> thread_id_;
 };
 
 #if PERFETTO_DCHECK_IS_ON()

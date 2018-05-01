@@ -49,6 +49,28 @@ TEST(TimeTest, Conversions) {
   }
 }
 
+TEST(TimeTest, GetTime) {
+  const auto start_time = GetWallTimeNs();
+  const auto start_cputime = GetThreadCPUTimeNs();
+
+  const unsigned ns_in_ms = 1000000;
+
+  for (;;) {
+    auto cur_time = GetWallTimeNs();
+    auto elapsed = cur_time - start_time;
+    // Spin for a little while.
+    if (elapsed > TimeNanos(20 * ns_in_ms))
+      break;
+  }
+
+  auto end_cputime = GetThreadCPUTimeNs();
+  auto elapsed_cputime = end_cputime - start_cputime;
+  // Check that we're not burning much more CPU time than the length of time
+  // that we spun in the loop. We may burn much less, depending on what else is
+  // happening on the test machine.
+  EXPECT_LE(elapsed_cputime.count(), 50 * ns_in_ms);
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
