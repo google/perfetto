@@ -32,4 +32,5 @@ message FakeAllFieldsFtraceEvent {
   optional uint64 field_inode_64 = 6;
   optional string field_char_16 = 500;
   optional string field_char = 501;
+  optional string field_data_loc = 502;
 }
