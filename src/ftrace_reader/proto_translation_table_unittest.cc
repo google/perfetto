@@ -251,9 +251,6 @@ TEST(TranslationTableTest, InferFtraceType) {
   ASSERT_TRUE(InferFtraceType("char foo[16]", 16, false, &type));
   EXPECT_EQ(type, kFtraceFixedCString);
 
-  ASSERT_TRUE(InferFtraceType("__data_loc char[] foo", 4, false, &type));
-  EXPECT_EQ(type, kFtraceStringPtr);
-
   ASSERT_TRUE(InferFtraceType("char[] foo", 8, false, &type));
   EXPECT_EQ(type, kFtraceStringPtr);
 
@@ -292,6 +289,10 @@ TEST(TranslationTableTest, InferFtraceType) {
 
   ASSERT_TRUE(InferFtraceType("char foo", 1, true, &type));
   ASSERT_EQ(type, kFtraceInt8);
+
+  ASSERT_TRUE(InferFtraceType("__data_loc char[] foo", 4, false, &type));
+  ASSERT_EQ(type, kFtraceDataLoc);
+  ASSERT_FALSE(InferFtraceType("__data_loc char[] foo", 8, false, &type));
 
   EXPECT_FALSE(InferFtraceType("foo", 64, false, &type));
 }

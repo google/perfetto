@@ -77,6 +77,8 @@ bool SetTranslationStrategy(FtraceFieldType ftrace,
     *out = kStringPtrToString;
   } else if (ftrace == kFtraceBool && proto == kProtoUint32) {
     *out = kBoolToUint32;
+  } else if (ftrace == kFtraceDataLoc && proto == kProtoString) {
+    *out = kDataLocToString;
   } else {
     PERFETTO_DLOG("No translation strategy for '%s' -> '%s'", ToString(ftrace),
                   ToString(proto));
