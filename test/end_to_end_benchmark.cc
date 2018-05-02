@@ -222,7 +222,7 @@ void SaturateCpuProducerArgs(benchmark::internal::Benchmark* b) {
 void ConstantRateProducerArgs(benchmark::internal::Benchmark* b) {
   int message_count = IsBenchmarkFunctionalOnly() ? 2 * 1024 : 128 * 1024;
   int min_speed = IsBenchmarkFunctionalOnly() ? 64 : 8;
-  int max_speed = IsBenchmarkFunctionalOnly() ? 128 : 128;
+  int max_speed = 128;
   for (int speed = min_speed; speed <= max_speed; speed *= 2) {
     b->Args({message_count, 128, speed});
     b->Args({message_count, 256, speed});
