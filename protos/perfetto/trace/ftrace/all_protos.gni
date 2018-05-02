@@ -156,6 +156,7 @@ ftrace_proto_names = [
   "ext4_zero_range.proto",
   "ftrace_event.proto",
   "ftrace_event_bundle.proto",
+  "ftrace_stats.proto",
   "i2c_read.proto",
   "i2c_reply.proto",
   "i2c_result.proto",

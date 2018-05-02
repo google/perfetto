@@ -80,47 +80,43 @@ base::WeakPtr<ProcessStatsDataSource> ProcessStatsDataSource::GetWeakPtr()
 }
 
 void ProcessStatsDataSource::WriteAllProcesses() {
+  PERFETTO_DCHECK(!cur_ps_tree_);
   base::ScopedDir proc_dir(opendir("/proc"));
   if (!proc_dir) {
     PERFETTO_PLOG("Failed to opendir(/proc)");
     return;
   }
-  TraceWriter::TracePacketHandle trace_packet = writer_->NewTracePacket();
-  auto* process_tree = trace_packet->set_process_tree();
   while (int32_t pid = ReadNextNumericDir(*proc_dir)) {
-    WriteProcessOrThread(pid, process_tree);
+    WriteProcessOrThread(pid);
     char task_path[255];
     sprintf(task_path, "/proc/%d/task", pid);
     base::ScopedDir task_dir(opendir(task_path));
     if (!task_dir)
       continue;
-    while (int32_t tid = ReadNextNumericDir(*task_dir))
-      WriteProcessOrThread(tid, process_tree);
+    while (int32_t tid = ReadNextNumericDir(*task_dir)) {
+      if (tid == pid)
+        continue;
+      WriteProcessOrThread(tid);
+    }
   }
+  FinalizeCurPsTree();
 }
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
-  TraceWriter::TracePacketHandle trace_packet{};
-  protos::pbzero::ProcessTree* process_tree = nullptr;
-
+  PERFETTO_DCHECK(!cur_ps_tree_);
   for (int32_t pid : pids) {
-    if (seen_pids_.count(pid))
+    if (seen_pids_.count(pid) || pid == 0)
       continue;
-    if (!process_tree) {
-      trace_packet = writer_->NewTracePacket();
-      process_tree = trace_packet->set_process_tree();
-    }
-    WriteProcessOrThread(pid, process_tree);
+    WriteProcessOrThread(pid);
   }
+  FinalizeCurPsTree();
 }
 
 void ProcessStatsDataSource::Flush() {
   writer_->Flush();
 }
 
-void ProcessStatsDataSource::WriteProcessOrThread(
-    int32_t pid,
-    protos::pbzero::ProcessTree* tree) {
+void ProcessStatsDataSource::WriteProcessOrThread(int32_t pid) {
   std::string proc_status = ReadProcPidFile(pid, "status");
   if (proc_status.empty())
     return;
@@ -128,18 +124,17 @@ void ProcessStatsDataSource::WriteProcessOrThread(
   if (tgid <= 0)
     return;
   if (!seen_pids_.count(tgid))
-    WriteProcess(tgid, proc_status, tree);
+    WriteProcess(tgid, proc_status);
   if (pid != tgid) {
     PERFETTO_DCHECK(!seen_pids_.count(pid));
-    WriteThread(pid, tgid, proc_status, tree);
+    WriteThread(pid, tgid, proc_status);
   }
 }
 
 void ProcessStatsDataSource::WriteProcess(int32_t pid,
-                                          const std::string& proc_status,
-                                          protos::pbzero::ProcessTree* tree) {
+                                          const std::string& proc_status) {
   PERFETTO_DCHECK(ToInt(ReadProcStatusEntry(proc_status, "Tgid:")) == pid);
-  auto* proc = tree->add_processes();
+  auto* proc = GetOrCreatePsTree()->add_processes();
   proc->set_pid(pid);
   proc->set_ppid(ToInt(ReadProcStatusEntry(proc_status, "PPid:")));
 
@@ -157,9 +152,8 @@ void ProcessStatsDataSource::WriteProcess(int32_t pid,
 
 void ProcessStatsDataSource::WriteThread(int32_t tid,
                                          int32_t tgid,
-                                         const std::string& proc_status,
-                                         protos::pbzero::ProcessTree* tree) {
-  auto* thread = tree->add_threads();
+                                         const std::string& proc_status) {
+  auto* thread = GetOrCreatePsTree()->add_threads();
   thread->set_tid(tid);
   thread->set_tgid(tgid);
   thread->set_name(ReadProcStatusEntry(proc_status, "Name:").c_str());
@@ -187,6 +181,23 @@ std::string ProcessStatsDataSource::ReadProcStatusEntry(const std::string& buf,
   if (end == std::string::npos || end <= begin)
     return "";
   return buf.substr(begin, end - begin);
+}
+
+protos::pbzero::ProcessTree* ProcessStatsDataSource::GetOrCreatePsTree() {
+  if (!cur_ps_tree_) {
+    cur_packet_ = writer_->NewTracePacket();
+    cur_ps_tree_ = cur_packet_->set_process_tree();
+  }
+  return cur_ps_tree_;
+}
+
+void ProcessStatsDataSource::FinalizeCurPsTree() {
+  if (!cur_ps_tree_) {
+    PERFETTO_DCHECK(!cur_packet_);
+    return;
+  }
+  cur_ps_tree_ = nullptr;
+  cur_packet_ = TraceWriter::TracePacketHandle{};
 }
 
 }  // namespace perfetto

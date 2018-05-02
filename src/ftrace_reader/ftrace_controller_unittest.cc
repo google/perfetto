@@ -22,10 +22,13 @@
 
 #include "perfetto/ftrace_reader/ftrace_config.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 #include "src/ftrace_reader/cpu_reader.h"
 #include "src/ftrace_reader/ftrace_config_muxer.h"
 #include "src/ftrace_reader/ftrace_procfs.h"
 #include "src/ftrace_reader/proto_translation_table.h"
+#include "src/tracing/core/trace_writer_for_testing.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -513,21 +516,21 @@ TEST(FtraceControllerTest, BufferSize) {
   }
 
   {
-    // Way too big buffer size -> good default.
+    // Way too big buffer size -> max size.
     EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "512"));
+                WriteToFile("/root/buffer_size_kb", "65536"));
     FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_buffer_size_kb(10 * 1024 * 1024);
     auto sink = controller->CreateSink(config, &delegate);
   }
 
   {
-    // The limit is 8mb, 9mb is too much.
+    // The limit is 64mb, 65mb is too much.
     EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "512"));
+                WriteToFile("/root/buffer_size_kb", "65536"));
     FtraceConfig config = CreateFtraceConfig({"foo"});
     ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
-    config.set_buffer_size_kb(9 * 1024);
+    config.set_buffer_size_kb(65 * 1024);
     auto sink = controller->CreateSink(config, &delegate);
   }
 
@@ -648,6 +651,29 @@ TEST(FtraceMetadataTest, AddPid) {
   metadata.AddPid(2);
   metadata.AddPid(3);
   EXPECT_THAT(metadata.pids, ElementsAre(1, 2, 3));
+}
+
+TEST(FtraceStatsTest, Write) {
+  FtraceStats stats{};
+  FtraceCpuStats cpu_stats{};
+  cpu_stats.cpu = 0;
+  cpu_stats.entries = 1;
+  cpu_stats.overrun = 2;
+  stats.cpu_stats.push_back(cpu_stats);
+
+  std::unique_ptr<TraceWriterForTesting> writer =
+      std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
+  {
+    auto packet = writer->NewTracePacket();
+    auto* out = packet->set_ftrace_stats();
+    stats.Write(out);
+  }
+
+  std::unique_ptr<protos::TracePacket> result_packet = writer->ParseProto();
+  auto result = result_packet->ftrace_stats().cpu_stats(0);
+  EXPECT_EQ(result.cpu(), 0);
+  EXPECT_EQ(result.entries(), 1);
+  EXPECT_EQ(result.overrun(), 2);
 }
 
 }  // namespace perfetto

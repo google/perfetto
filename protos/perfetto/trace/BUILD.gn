@@ -20,6 +20,7 @@ import("../../../gn/proto_library.gni")
 # the generic ":lite" target
 proto_sources_minimal = [
   "clock_snapshot.proto",
+  "trace_stats.proto",
   "trusted_packet.proto",
 ]
 

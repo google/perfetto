@@ -47,6 +47,9 @@ class FtraceProcfs {
   virtual std::string ReadEventFormat(const std::string& group,
                                       const std::string& name) const;
 
+  // Read the "/per_cpu/cpuXX/stats" file for the given |cpu|.
+  std::string ReadCpuStats(size_t cpu) const;
+
   // Set ftrace buffer size in pages.
   // This size is *per cpu* so for the total size you have to multiply
   // by the number of CPUs.

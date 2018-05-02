@@ -60,8 +60,10 @@ void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   for (auto& encoded_packet : packets) {
     protos::TracePacket packet;
     ASSERT_TRUE(encoded_packet.Decode(&packet));
-    if (packet.has_clock_snapshot() || packet.has_trace_config())
+    if (packet.has_clock_snapshot() || packet.has_trace_config() ||
+        packet.has_trace_stats()) {
       continue;
+    }
     ASSERT_EQ(protos::TracePacket::kTrustedUid,
               packet.optional_trusted_uid_case());
     trace_.push_back(std::move(packet));
