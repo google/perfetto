@@ -24,7 +24,7 @@ namespace perfetto {
 namespace base {
 
 namespace {
-constexpr ThreadID kDetached = 0;
+constexpr ThreadID kDetached{};
 
 ThreadID CurrentThreadId() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
