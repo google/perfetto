@@ -21,6 +21,21 @@ package perfetto.protos;
 // TODO(oysteine) : Separate out commonly repeated values into a separate
 // message (primarily |name| and |category_group_name|).
 message ChromeTraceEvent {
+  message Arg {
+    optional string name = 1;
+
+    oneof value {
+      bool bool_value = 2;
+      uint64 uint_value = 3;
+      int64 int_value = 4;
+      double double_value = 5;
+      string string_value = 6;
+      // Pointers are stored in a separate type as the JSON output treats them
+      // differently from other uint64 values.
+      uint64 pointer_value = 7;
+    }
+  }
+
   optional string name = 1;
   optional int64 timestamp = 2;
   optional int32 phase = 3;
@@ -34,6 +49,8 @@ message ChromeTraceEvent {
   optional int32 process_id = 11;
   optional int64 thread_timestamp = 12;
   optional uint32 bind_id = 13;
+
+  repeated Arg args = 14;
 }
 
 message ChromeEventBundle {
