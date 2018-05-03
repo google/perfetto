@@ -802,7 +802,7 @@ TEST(CpuReaderTest, ParseAllFields) {
       // dataloc -> string
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
-      field->ftrace_offset = 56;
+      field->ftrace_offset = 57;
       field->ftrace_size = 4;
       field->ftrace_type = kFtraceDataLoc;
       field->proto_field_id = 502;
@@ -813,7 +813,7 @@ TEST(CpuReaderTest, ParseAllFields) {
       // char -> string
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
-      field->ftrace_offset = 60;
+      field->ftrace_offset = 61;
       field->ftrace_size = 0;
       field->ftrace_type = kFtraceCString;
       field->proto_field_id = 501;
@@ -853,6 +853,7 @@ TEST(CpuReaderTest, ParseAllFields) {
   writer.Write<int64_t>(k64BitKernelBlockDeviceId);  // Dev id 64
   writer.Write<int64_t>(99u);                        // Inode 64
   writer.WriteFixedString(16, "Hello");
+  writer.Write<uint8_t>(0);  // Deliberately mis-aligning.
   writer.Write<uint32_t>(40 | 6 << 16);
   writer.WriteFixedString(300, "Goodbye");
 
