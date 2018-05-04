@@ -69,7 +69,7 @@ bool ReadDataLoc(const uint8_t* start,
   const uint16_t len = (data >> 16) & 0xffff;
   const uint8_t* const string_start = start + offset;
   const uint8_t* const string_end = string_start + len;
-  if (string_start < start || string_end >= end) {
+  if (string_start <= start || string_end > end) {
     PERFETTO_DCHECK(false);
     return false;
   }
