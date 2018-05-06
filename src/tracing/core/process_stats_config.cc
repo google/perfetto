@@ -49,6 +49,19 @@ void ProcessStatsConfig::FromProto(
                   "size mismatch");
     quirks_.back() = static_cast<decltype(quirks_)::value_type>(field);
   }
+
+  static_assert(sizeof(scan_all_processes_on_start_) ==
+                    sizeof(proto.scan_all_processes_on_start()),
+                "size mismatch");
+  scan_all_processes_on_start_ =
+      static_cast<decltype(scan_all_processes_on_start_)>(
+          proto.scan_all_processes_on_start());
+
+  static_assert(
+      sizeof(record_thread_names_) == sizeof(proto.record_thread_names()),
+      "size mismatch");
+  record_thread_names_ =
+      static_cast<decltype(record_thread_names_)>(proto.record_thread_names());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -60,6 +73,20 @@ void ProcessStatsConfig::ToProto(
     proto->add_quirks(static_cast<decltype(proto->quirks(0))>(it));
     static_assert(sizeof(it) == sizeof(proto->quirks(0)), "size mismatch");
   }
+
+  static_assert(sizeof(scan_all_processes_on_start_) ==
+                    sizeof(proto->scan_all_processes_on_start()),
+                "size mismatch");
+  proto->set_scan_all_processes_on_start(
+      static_cast<decltype(proto->scan_all_processes_on_start())>(
+          scan_all_processes_on_start_));
+
+  static_assert(
+      sizeof(record_thread_names_) == sizeof(proto->record_thread_names()),
+      "size mismatch");
+  proto->set_record_thread_names(
+      static_cast<decltype(proto->record_thread_names())>(
+          record_thread_names_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

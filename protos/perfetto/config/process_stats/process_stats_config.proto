@@ -25,9 +25,21 @@ package perfetto.protos;
 message ProcessStatsConfig {
   enum Quirks {
     QUIRKS_UNSPECIFIED = 0;
-    DISABLE_INITIAL_DUMP = 1;
+
+    // This has been deprecated and ignored as per 2018-05-01. Full scan at
+    // startup is now disabled by default and can be re-enabled using the
+    // |scan_all_processes_on_start| arg.
+    DISABLE_INITIAL_DUMP = 1 [deprecated = true];
+
     DISABLE_ON_DEMAND = 2;
   }
 
   repeated Quirks quirks = 1;
+
+  // If enabled all processes will be scanned and dumped when the trace starts.
+  optional bool scan_all_processes_on_start = 2;
+
+  // If enabled thread names are also recoded (this is redundant if sched_switch
+  // is enabled).
+  optional bool record_thread_names = 3;
 }

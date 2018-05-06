@@ -70,6 +70,7 @@ ProcessStatsDataSource::ProcessStatsDataSource(
     : session_id_(id),
       writer_(std::move(writer)),
       config_(config),
+      record_thread_names_(config.process_stats_config().record_thread_names()),
       weak_factory_(this) {}
 
 ProcessStatsDataSource::~ProcessStatsDataSource() = default;
@@ -113,6 +114,9 @@ void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
 }
 
 void ProcessStatsDataSource::Flush() {
+  // We shouldn't get this in the middle of WriteAllProcesses() or OnPids().
+  PERFETTO_DCHECK(!cur_ps_tree_);
+
   writer_->Flush();
 }
 
@@ -156,7 +160,8 @@ void ProcessStatsDataSource::WriteThread(int32_t tid,
   auto* thread = GetOrCreatePsTree()->add_threads();
   thread->set_tid(tid);
   thread->set_tgid(tgid);
-  thread->set_name(ReadProcStatusEntry(proc_status, "Name:").c_str());
+  if (record_thread_names_)
+    thread->set_name(ReadProcStatusEntry(proc_status, "Name:").c_str());
   seen_pids_.emplace(tid);
 }
 

@@ -73,7 +73,9 @@ TEST_F(ProcessStatsDataSourceTest, WriteOnceProcess) {
 }
 
 TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
-  auto data_source = GetProcessStatsDataSource(DataSourceConfig());
+  DataSourceConfig config;
+  config.mutable_process_stats_config()->set_record_thread_names(true);
+  auto data_source = GetProcessStatsDataSource(config);
   for (int p : {10, 11, 12, 20, 21, 22, 30, 31, 32}) {
     EXPECT_CALL(*data_source, ReadProcPidFile(p, "status"))
         .WillOnce(Invoke([](int32_t pid, const std::string&) {
