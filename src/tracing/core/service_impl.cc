@@ -57,6 +57,7 @@ constexpr base::TimeMillis kStatsSnapshotInterval(10 * 1000);
 constexpr int kMinWriteIntoFilePeriodMs = 100;
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
 constexpr int kFlushTimeoutMs = 1000;
+constexpr int kMaxConcurrentTracingSessions = 5;
 
 constexpr uint64_t kMillisPerHour = 3600000;
 
@@ -222,22 +223,15 @@ bool ServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     return false;
   }
 
-  // TODO(taylori): These assumptions are no longer true. Figure out a new
-  // heuristic.
   // TODO(primiano): This is a workaround to prevent that a producer gets stuck
   // in a state where it stalls by design by having more TraceWriterImpl
-  // instances than free pages in the buffer. This is a very fragile heuristic
-  // though, because this assumes that each tracing session creates at most one
-  // data source instance in each Producer, and each data source has only one
-  // TraceWriter.
-  // auto first_producer_config = cfg.producers()[0];
-  // if (tracing_sessions_.size() >=
-  //     (kDefaultShmSize / first_producer_config.page_size_kb() / 2)) {
-  //   PERFETTO_ELOG("Too many concurrent tracing sesions (%zu)",
-  //                 tracing_sessions_.size());
-  //   // TODO(primiano): make this a bool and return failure to the IPC layer.
-  //   return;
-  //}
+  // instances than free pages in the buffer. This is really a bug in
+  // trace_probes and the way it handles stalls in the shmem buffer.
+  if (tracing_sessions_.size() >= kMaxConcurrentTracingSessions) {
+    PERFETTO_ELOG("Too many concurrent tracing sesions (%zu)",
+                  tracing_sessions_.size());
+    return false;
+  }
 
   const TracingSessionID tsid = ++last_tracing_session_id_;
   tracing_session =
