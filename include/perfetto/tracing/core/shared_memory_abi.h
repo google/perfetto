@@ -193,7 +193,7 @@ class SharedMemoryABI {
     kPageNotPartitioned = 0,
 
     // TODO(primiano): Aligning a chunk @ 16 bytes could allow to use faster
-    // intrinsics based on quad-word moves. Do the path and check what is the
+    // intrinsics based on quad-word moves. Do the math and check what is the
     // fragmentation loss.
 
     // align4(X) := the largest integer N s.t. (N % 4) == 0 && N <= X.
