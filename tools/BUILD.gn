@@ -31,3 +31,14 @@ group("protoc_helper") {
     "../buildtools:protoc($host_toolchain)",
   ]
 }
+
+executable("pipestats") {
+  testonly = true
+  sources = [
+    "pipestats.cc",
+  ]
+  deps = [
+    "../gn:default_deps",
+    "../src/base",
+  ]
+}
