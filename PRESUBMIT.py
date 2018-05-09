@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import subprocess
-
 
 def CheckChange(input, output):
     # There apparently is no way to wrap strings in blueprints, so ignore long
@@ -30,6 +30,7 @@ def CheckChange(input, output):
     results += CheckIncludeGuards(input, output)
     results += CheckAndroidBlueprint(input, output)
     results += CheckMergedTraceConfigProto(input, output)
+    results += CheckWhitelist(input, output)
     return results
 
 
@@ -93,3 +94,19 @@ def CheckMergedTraceConfigProto(input_api, output_api):
                 'date. Please run ' + tool + ' to update it.')
         ]
     return []
+
+
+# Prevent removing or changing lines in event_whitelist.
+def CheckWhitelist(input_api, output_api):
+  for f in input_api.AffectedFiles():
+    if f.LocalPath() != 'tools/ftrace_proto_gen/event_whitelist':
+      continue
+    if any(new_line != 'removed' and new_line != old_line for old_line, new_line
+           in itertools.izip(f.OldContents(), f.NewContents())):
+      return [
+        output_api.PresubmitError(
+            'event_whitelist only has two supported changes: '
+            'appending a new line, and replacing a line with removed.'
+        )
+      ]
+  return []
