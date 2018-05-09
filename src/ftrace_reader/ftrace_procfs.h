@@ -47,6 +47,8 @@ class FtraceProcfs {
   virtual std::string ReadEventFormat(const std::string& group,
                                       const std::string& name) const;
 
+  virtual std::string ReadPageHeaderFormat() const;
+
   // Read the "/per_cpu/cpuXX/stats" file for the given |cpu|.
   std::string ReadCpuStats(size_t cpu) const;
 
