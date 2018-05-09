@@ -26,6 +26,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/metatrace.h"
 #include "perfetto/base/utils.h"
 #include "src/ftrace_reader/proto_translation_table.h"
 
@@ -209,8 +210,12 @@ void CpuReader::RunWorkerThread(
     // First do a blocking splice which sleeps until there is at least one
     // page of data available and enough space to write it into the staging
     // pipe.
-    ssize_t splice_res = splice(trace_fd, nullptr, staging_write_fd, nullptr,
-                                base::kPageSize, SPLICE_F_MOVE);
+    ssize_t splice_res;
+    {
+      PERFETTO_METATRACE("name", "splice_blocking", "pid", cpu);
+      splice_res = splice(trace_fd, nullptr, staging_write_fd, nullptr,
+                          base::kPageSize, SPLICE_F_MOVE);
+    }
     if (splice_res < 0) {
       // The kernel ftrace code has its own splice() implementation that can
       // occasionally fail with transient errors not reported in man 2 splice.
@@ -228,17 +233,22 @@ void CpuReader::RunWorkerThread(
     // pages from the trace pipe into the staging pipe as long as there is
     // data in the former and space in the latter.
     while (true) {
-      splice_res = splice(trace_fd, nullptr, staging_write_fd, nullptr,
-                          base::kPageSize, SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
+      {
+        PERFETTO_METATRACE("name", "splice_nonblocking", "pid", cpu);
+        splice_res = splice(trace_fd, nullptr, staging_write_fd, nullptr,
+                            base::kPageSize, SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
+      }
       if (splice_res < 0) {
         if (errno != EAGAIN && errno != ENOMEM && errno != EBUSY)
           PERFETTO_PLOG("splice");
         break;
       }
     }
-
-    // This callback will block until we are allowed to read more data.
-    on_data_available();
+    {
+      PERFETTO_METATRACE("name", "splice_waitcallback", "pid", cpu);
+      // This callback will block until we are allowed to read more data.
+      on_data_available();
+    }
   }
 #else
   base::ignore_result(cpu);
