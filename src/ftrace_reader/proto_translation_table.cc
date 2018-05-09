@@ -21,7 +21,6 @@
 #include <algorithm>
 
 #include "perfetto/base/string_utils.h"
-#include "perfetto/ftrace_reader/format_parser.h"
 #include "src/ftrace_reader/event_info.h"
 #include "src/ftrace_reader/ftrace_procfs.h"
 
@@ -30,6 +29,23 @@
 namespace perfetto {
 
 namespace {
+
+ProtoTranslationTable::FtracePageHeaderSpec MakeFtracePageHeaderSpec(
+    const std::vector<FtraceEvent::Field>& fields) {
+  ProtoTranslationTable::FtracePageHeaderSpec spec;
+  for (const FtraceEvent::Field& field : fields) {
+    std::string name = GetNameFromTypeAndName(field.type_and_name);
+    if (name == "timestamp")
+      spec.timestamp = field;
+    else if (name == "commit")
+      spec.size = field;
+    else if (name == "overwrite")
+      spec.overwrite = field;
+    else if (name != "data")
+      PERFETTO_DCHECK(false);
+  }
+  return spec;
+}
 
 const std::vector<Event> BuildEventsVector(const std::vector<Event>& events) {
   size_t largest_id = 0;
@@ -261,12 +277,32 @@ bool InferFtraceType(const std::string& type_and_name,
 }
 
 // static
+ProtoTranslationTable::FtracePageHeaderSpec
+ProtoTranslationTable::DefaultPageHeaderSpecForTesting() {
+  std::string page_header =
+      R"(	field: u64 timestamp;	offset:0;	size:8;	signed:0;
+	field: local_t commit;	offset:8;	size:8;	signed:1;
+	field: int overwrite;	offset:8;	size:1;	signed:1;
+	field: char data;	offset:16;	size:4080;	signed:0;)";
+  std::vector<FtraceEvent::Field> page_header_fields;
+  PERFETTO_CHECK(ParseFtraceEventBody(std::move(page_header), nullptr,
+                                      &page_header_fields));
+  return MakeFtracePageHeaderSpec(page_header_fields);
+}
+
+// static
 std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     const FtraceProcfs* ftrace_procfs,
     std::vector<Event> events,
     std::vector<Field> common_fields) {
   bool common_fields_processed = false;
   uint16_t common_fields_end = 0;
+
+  std::vector<FtraceEvent::Field> page_header_fields;
+  std::string page_header = ftrace_procfs->ReadPageHeaderFormat();
+  PERFETTO_CHECK(!page_header.empty());
+  PERFETTO_CHECK(ParseFtraceEventBody(std::move(page_header), nullptr,
+                                      &page_header_fields));
 
   for (Event& event : events) {
     PERFETTO_DCHECK(event.name);
@@ -303,15 +339,19 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
                events.end());
 
   auto table = std::unique_ptr<ProtoTranslationTable>(
-      new ProtoTranslationTable(events, std::move(common_fields)));
+      new ProtoTranslationTable(events, std::move(common_fields),
+                                MakeFtracePageHeaderSpec(page_header_fields)));
   return table;
 }
 
-ProtoTranslationTable::ProtoTranslationTable(const std::vector<Event>& events,
-                                             std::vector<Field> common_fields)
+ProtoTranslationTable::ProtoTranslationTable(
+    const std::vector<Event>& events,
+    std::vector<Field> common_fields,
+    FtracePageHeaderSpec ftrace_page_header_spec)
     : events_(BuildEventsVector(events)),
       largest_id_(events_.size() - 1),
-      common_fields_(std::move(common_fields)) {
+      common_fields_(std::move(common_fields)),
+      ftrace_page_header_spec_(ftrace_page_header_spec) {
   for (const Event& event : events) {
     name_to_event_[event.name] = &events_.at(event.ftrace_event_id);
     group_to_events_[event.group].push_back(&events_.at(event.ftrace_event_id));
