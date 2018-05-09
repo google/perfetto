@@ -24,12 +24,14 @@ source_set("base") {
   ]
   sources = [
     "file_utils.cc",
+    "metatrace.cc",
     "string_splitter.cc",
     "string_utils.cc",
     "thread_checker.cc",
     "time.cc",
     "virtual_destructors.cc",
   ]
+
   # TODO(brucedawson): Enable these for Windows when possible.
   if (!is_win) {
     sources += [
@@ -106,6 +108,7 @@ source_set("unittests") {
     "../../gn:default_deps",
     "../../gn:gtest_deps",
   ]
+
   # TODO(brucedawson): Enable these for Windows when possible.
   if (!is_win) {
     deps += [ ":test_support" ]
@@ -120,6 +123,7 @@ source_set("unittests") {
     "time_unittest.cc",
     "weak_ptr_unittest.cc",
   ]
+
   # TODO(brucedawson): Enable these for Windows when possible.
   if (!is_win) {
     sources += [
