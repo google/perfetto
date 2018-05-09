@@ -54,7 +54,37 @@ std::string GetNameFromTypeAndName(const std::string& type_and_name);
 ::std::ostream& operator<<(::std::ostream& os, const FtraceEvent::Field&);
 void PrintTo(const FtraceEvent::Field& args, ::std::ostream* os);
 
-bool ParseFtraceEvent(const std::string& input, FtraceEvent* output = nullptr);
+// Parses only the body (i.e. contents of format) of an ftrace event format
+// file, e.g.
+//
+//   field:unsigned short common_type;  offset:0;  size:2;  signed:0;
+//   field:unsigned char common_flags;  offset:2;  size:1;  signed:0;
+//   field:unsigned char common_preempt_count;  offset:3;  size:1;  signed:0;
+//   field:int common_pid;  offset:4;  size:4;  signed:1;
+//
+//   field:dev_t dev;  offset:8;  size:4;  signed:0;
+//   field:ino_t ino;  offset:12;  size:4;  signed:0;
+//   field:ino_t dir;  offset:16;  size:4;  signed:0;
+//   field:__u16 mode;  offset:20;  size:2;  signed:0;
+bool ParseFtraceEventBody(std::string input,
+                          std::vector<FtraceEvent::Field>* common_fields,
+                          std::vector<FtraceEvent::Field>* fields);
+// Parses ftrace event format file. This includes the headers specifying
+// name and ID of the event, e.g.
+//
+// name: ext4_allocate_inode
+// ID: 309
+// format:
+//   field:unsigned short common_type;  offset:0;  size:2;  signed:0;
+//   field:unsigned char common_flags;  offset:2;  size:1;  signed:0;
+//   field:unsigned char common_preempt_count;  offset:3;  size:1;  signed:0;
+//   field:int common_pid;  offset:4;  size:4;  signed:1;
+//
+//   field:dev_t dev;  offset:8;  size:4;  signed:0;
+//   field:ino_t ino;  offset:12;  size:4;  signed:0;
+//   field:ino_t dir;  offset:16;  size:4;  signed:0;
+//   field:__u16 mode;  offset:20;  size:2;  signed:0;
+bool ParseFtraceEvent(std::string input, FtraceEvent* output = nullptr);
 
 }  // namespace perfetto
 

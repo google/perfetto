@@ -88,6 +88,11 @@ std::string FtraceProcfs::ReadEventFormat(const std::string& group,
   return ReadFileIntoString(path);
 }
 
+std::string FtraceProcfs::ReadPageHeaderFormat() const {
+  std::string path = root_ + "events/header_page";
+  return ReadFileIntoString(path);
+}
+
 std::string FtraceProcfs::ReadCpuStats(size_t cpu) const {
   std::string path = root_ + "per_cpu/cpu" + std::to_string(cpu) + "/stats";
   return ReadFileIntoString(path);

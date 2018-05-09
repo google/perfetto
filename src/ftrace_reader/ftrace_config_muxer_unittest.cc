@@ -129,8 +129,9 @@ std::unique_ptr<ProtoTranslationTable> CreateFakeTable() {
     events.push_back(event);
   }
 
-  return std::unique_ptr<ProtoTranslationTable>(
-      new ProtoTranslationTable(events, std::move(common_fields)));
+  return std::unique_ptr<ProtoTranslationTable>(new ProtoTranslationTable(
+      events, std::move(common_fields),
+      ProtoTranslationTable::DefaultPageHeaderSpecForTesting()));
 }
 
 TEST(FtraceConfigMuxerTest, ComputeCpuBufferSizeInPages) {
