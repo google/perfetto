@@ -127,7 +127,9 @@ std::unique_ptr<Table> FakeTable() {
     events.push_back(event);
   }
 
-  return std::unique_ptr<Table>(new Table(events, std::move(common_fields)));
+  return std::unique_ptr<Table>(
+      new Table(events, std::move(common_fields),
+                ProtoTranslationTable::DefaultPageHeaderSpecForTesting()));
 }
 
 std::unique_ptr<FtraceConfigMuxer> FakeModel(
