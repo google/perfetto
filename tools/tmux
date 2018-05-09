@@ -108,6 +108,8 @@ if ! is_monolithic $OUT; then
   push $OUT/libtraced_shared.so
 fi
 
+PREFIX="$PREFIX PERFETTO_METATRACE_FILE=$DIR/mtrace"
+
 CONFIG_DEVICE_PATH=$CONFIG
 if [[ "$CONFIG" != ":test" ]]; then
   CONFIG_DEVICE_PATH=$DIR/$CONFIG.protobuf
@@ -176,6 +178,11 @@ reset_tracing
 
 TRACE=$HOME/Downloads/trace
 pull trace /tmp/trace.protobuf
+pull mtrace /tmp/mtrace.json
+# Add [ to beginning of file and replace trailing , with ] to turn into valid
+# JSON array.
+sed -i '$ s/.$/]/' /tmp/mtrace.json
+sed -i '1s/^/[/' /tmp/mtrace.json
 echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
 $OUT/trace_to_text text < /tmp/trace.protobuf > $TRACE.pbtext
 echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
