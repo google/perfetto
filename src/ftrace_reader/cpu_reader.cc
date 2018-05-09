@@ -280,14 +280,27 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
 
   // TODO(hjd): Read this format dynamically?
   PageHeader page_header;
-  uint64_t overwrite_and_size;
   if (!ReadAndAdvance<uint64_t>(&ptr, end_of_page, &page_header.timestamp))
     return 0;
-  if (!ReadAndAdvance<uint64_t>(&ptr, end_of_page, &overwrite_and_size))
-    return 0;
 
-  page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
-  page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
+  // Temporary workaroud to make this work on ARM32 and ARM64 devices.
+  if (sizeof(void*) == 8) {
+    uint64_t overwrite_and_size;
+    if (!ReadAndAdvance<uint64_t>(&ptr, end_of_page, &overwrite_and_size))
+      return 0;
+
+    page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
+    page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
+  } else if (sizeof(void*) == 4) {
+    uint32_t overwrite_and_size;
+    if (!ReadAndAdvance<uint32_t>(&ptr, end_of_page, &overwrite_and_size))
+      return 0;
+
+    page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
+    page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
+  } else {
+    PERFETTO_CHECK(false);
+  }
 
   metadata->overwrite_count = static_cast<uint32_t>(page_header.overwrite);
 
