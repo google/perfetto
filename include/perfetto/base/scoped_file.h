@@ -23,7 +23,7 @@
 #include <stdio.h>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <io.h>
+#include <corecrt_io.h>
 #else
 #include <dirent.h>
 #include <unistd.h>
@@ -74,20 +74,17 @@ class ScopedResource {
   T t_;
 };
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-using ScopedFile = ScopedResource<int, _close, -1>;
-inline static ScopedFile OpenFile(const std::string& path, int flags) {
-  ScopedFile fd(open(path.c_str(), flags));
-  return fd;
-}
-#else
 using ScopedFile = ScopedResource<int, close, -1>;
-// Always open a ScopedFile with O-CLOEXEC so we can safely fork and exec.
 inline static ScopedFile OpenFile(const std::string& path, int flags) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  ScopedFile fd(open(path.c_str(), flags));
+#else
+  // Always open a ScopedFile with O_CLOEXEC so we can safely fork and exec.
   ScopedFile fd(open(path.c_str(), flags | O_CLOEXEC));
+#endif
   return fd;
 }
-
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using ScopedDir = ScopedResource<DIR*, closedir, nullptr>;
 #endif
 
