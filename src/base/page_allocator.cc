@@ -16,7 +16,13 @@
 
 #include "perfetto/base/page_allocator.h"
 
+#include "perfetto/base/build_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
+#else
 #include <sys/mman.h>
+#endif
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
@@ -32,6 +38,15 @@ constexpr size_t kGuardSize = kPageSize;
 PageAllocator::UniquePtr AllocateInternal(size_t size, bool unchecked) {
   PERFETTO_DCHECK(size % kPageSize == 0);
   size_t outer_size = size + kGuardSize * 2;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  void* ptr = VirtualAlloc(nullptr, outer_size, MEM_RESERVE, PAGE_NOACCESS);
+  if (!ptr && unchecked)
+    return nullptr;
+  PERFETTO_CHECK(ptr);
+  char* usable_region = reinterpret_cast<char*>(ptr) + kGuardSize;
+  void* res = VirtualAlloc(usable_region, size, MEM_COMMIT, PAGE_READWRITE);
+  PERFETTO_CHECK(res);
+#else
   void* ptr = mmap(nullptr, outer_size, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
   if (ptr == MAP_FAILED && unchecked)
@@ -41,6 +56,7 @@ PageAllocator::UniquePtr AllocateInternal(size_t size, bool unchecked) {
   int res = mprotect(ptr, kGuardSize, PROT_NONE);
   res |= mprotect(usable_region + size, kGuardSize, PROT_NONE);
   PERFETTO_CHECK(res == 0);
+#endif
   return PageAllocator::UniquePtr(usable_region, PageAllocator::Deleter(size));
 }
 
@@ -54,9 +70,14 @@ void PageAllocator::Deleter::operator()(void* ptr) const {
     return;
   PERFETTO_CHECK(size_);
   char* start = reinterpret_cast<char*>(ptr) - kGuardSize;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  BOOL res = VirtualFree(start, 0, MEM_RELEASE);
+  PERFETTO_CHECK(res != 0);
+#else
   const size_t outer_size = size_ + kGuardSize * 2;
   int res = munmap(start, outer_size);
   PERFETTO_CHECK(res == 0);
+#endif
 }
 
 // static
@@ -67,6 +88,20 @@ PageAllocator::UniquePtr PageAllocator::Allocate(size_t size) {
 // static
 PageAllocator::UniquePtr PageAllocator::AllocateMayFail(size_t size) {
   return AllocateInternal(size, true /*unchecked*/);
+}
+
+// static
+bool PageAllocator::AdviseDontNeed(void* p, size_t size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Discarding pages on Windows has more CPU cost than is justified for the
+  // possible memory savings.
+  return false;
+#else
+  // http://man7.org/linux/man-pages/man2/madvise.2.html
+  int res = madvise(p, size, MADV_DONTNEED);
+  PERFETTO_DCHECK(res == 0);
+  return true;
+#endif
 }
 
 }  // namespace base
