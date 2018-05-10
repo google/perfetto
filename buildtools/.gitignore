@@ -3,7 +3,6 @@ aosp-*/
 benchmark/
 clang/
 clang_format/
-emscripten/
 emulator/
 googletest/
 libbacktrace/
@@ -14,4 +13,5 @@ linux/
 linux64/
 mac/
 ndk/
+nodejs/
 protobuf/
