@@ -23,6 +23,8 @@ declare_args() {
   start_daemons_for_testing = true
 }
 
+build_standalone = !build_with_android && !build_with_chromium
+
 if (!build_with_chromium) {
   perfetto_root_path = "//"
 } else {

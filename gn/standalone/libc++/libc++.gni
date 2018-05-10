@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("//gn/standalone/sanitizers/sanitizers.gni")
+import("//gn/standalone/wasm.gni")
 
 declare_args() {
   # Background:
@@ -39,7 +40,7 @@ declare_args() {
   #    We still retain libstdc++ coverage on the Travis bots by overriding
   #    use_custom_libcxx=false when we target a modern library (see the
   #    GCC7 target in .travis.yml).
-  use_custom_libcxx = is_linux && is_clang
+  use_custom_libcxx = is_linux && is_clang && !is_wasm
   custom_libcxx_is_static = !using_sanitizer
 }
 
