@@ -2,4 +2,3 @@
 	field: local_t commit;	offset:8;	size:8;	signed:1;
 	field: int overwrite;	offset:8;	size:1;	signed:1;
 	field: char data;	offset:16;	size:4080;	signed:0;
-

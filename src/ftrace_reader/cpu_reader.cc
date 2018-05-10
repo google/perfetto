@@ -315,31 +315,22 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
   const uint8_t* const start_of_page = ptr;
   const uint8_t* const end_of_page = ptr + base::kPageSize;
 
-  // TODO(hjd): Read this format dynamically?
   PageHeader page_header;
   if (!ReadAndAdvance<uint64_t>(&ptr, end_of_page, &page_header.timestamp))
     return 0;
 
-  // Temporary workaroud to make this work on ARM32 and ARM64 devices.
-  if (sizeof(void*) == 8) {
-    uint64_t overwrite_and_size;
-    if (!ReadAndAdvance<uint64_t>(&ptr, end_of_page, &overwrite_and_size))
-      return 0;
+  // TODO(fmayer): Do kernel deepdive to double check this.
+  uint16_t size_bytes = table->ftrace_page_header_spec().size.size;
+  PERFETTO_CHECK(size_bytes >= 4);
+  uint32_t overwrite_and_size;
+  if (!ReadAndAdvance<uint32_t>(&ptr, end_of_page, &overwrite_and_size))
+    return 0;
 
-    page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
-    page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
-  } else if (sizeof(void*) == 4) {
-    uint32_t overwrite_and_size;
-    if (!ReadAndAdvance<uint32_t>(&ptr, end_of_page, &overwrite_and_size))
-      return 0;
-
-    page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
-    page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
-  } else {
-    PERFETTO_CHECK(false);
-  }
-
+  page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
+  page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
   metadata->overwrite_count = static_cast<uint32_t>(page_header.overwrite);
+
+  ptr += size_bytes - 4;
 
   const uint8_t* const end = ptr + page_header.size;
   if (end > end_of_page)

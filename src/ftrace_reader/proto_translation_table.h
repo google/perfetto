@@ -99,7 +99,7 @@ class ProtoTranslationTable {
   }
 
   const std::vector<Event>& events() { return events_; }
-  const FtracePageHeaderSpec& ftrace_page_header_spec() {
+  const FtracePageHeaderSpec& ftrace_page_header_spec() const {
     return ftrace_page_header_spec_;
   }
 
