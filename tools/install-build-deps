@@ -186,6 +186,34 @@ TEST_DEPS_ANDROID = [
   ),
 ]
 
+UI_DEPS = [
+  ('buildtools/nodejs.tgz',
+   'https://storage.googleapis.com/perfetto/node-v8.9.1-darwin-x64.tar.gz',
+   'b9ec6fe9701d385e385886a4b171ba02bb6aead7',
+   'darwin'
+  ),
+  ('buildtools/nodejs.tgz',
+   'https://storage.googleapis.com/perfetto/node-v8.9.1-linux-x64.tar.xz',
+   'eaec5de2af934f7ebc7f9597983e71c5d5a9a726',
+   'linux2'
+  ),
+  ('buildtools/emsdk/emscripten.tgz',
+   'https://storage.googleapis.com/perfetto/emscripten-1.37.40.tar.gz',
+   '588c28221321ebbdfc8e3a6f47ea6106f589669b',
+   'all'
+  ),
+  ('buildtools/emsdk/llvm.tgz',
+   'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-darwin.tar.gz',
+   '7a894ef0a52821c62f6abaac552dc4ce5d424607',
+   'darwin'
+  ),
+  ('buildtools/emsdk/llvm.tgz',
+   'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-linux.tar.gz',
+   'fdc26481fe70001ea00e83b99d0df906c9b2a45f',
+   'linux2'
+  ),
+]
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -242,10 +270,13 @@ def CheckoutGitRepo(path, git_url, revision):
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--no-android', action='store_true')
+  parser.add_argument('--ui', action='store_true')
   args = parser.parse_args()
   deps = BUILD_DEPS_HOST
   if not args.no_android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
+  if args.ui:
+    deps += UI_DEPS
   for rel_path, url, expected_sha1, platform in deps:
     if (platform != 'all' and platform != sys.platform):
       continue
@@ -283,7 +314,7 @@ def Main():
       # Decompress the archive.
       if local_path.endswith('.tgz'):
         MkdirRecursive(zip_target_dir)
-        subprocess.check_call(['tar', '-zxf', local_path], cwd=zip_target_dir)
+        subprocess.check_call(['tar', '-xf', local_path], cwd=zip_target_dir)
       elif local_path.endswith('.zip'):
         with zipfile.ZipFile(local_path, 'r') as zf:
           for info in zf.infolist():

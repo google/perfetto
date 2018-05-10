@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("//gn/standalone/android.gni")
+import("//gn/standalone/wasm.gni")
 import("//gn/standalone/sanitizers/sanitizers.gni")
 
 config("extra_warnings") {
@@ -25,6 +26,7 @@ config("extra_warnings") {
       "-Weverything",
       "-Wno-c++98-compat-pedantic",
       "-Wno-c++98-compat",
+      "-Wno-disabled-macro-expansion",
       "-Wno-gnu-include-next",
       "-Wno-gnu-statement-expression",
       "-Wno-gnu-zero-variadic-macro-arguments",
@@ -62,10 +64,13 @@ config("default") {
     "-fstack-protector",
     "-fPIC",
     "-g",
-    "-Wa,--noexecstack",
     "-Wformat",
     "-Werror",
   ]
+
+  if (!is_wasm) {
+    cflags += [ "-Wa,--noexecstack" ]
+  }
 
   if (is_clang) {
     cflags += [
