@@ -1,0 +1,119 @@
+# Copyright (C) 2018 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+wasm_toolchain = "//gn/standalone/toolchain:wasm"
+is_wasm = current_toolchain == wasm_toolchain
+emsdk_dir = rebase_path("//buildtools/emsdk", "")
+nodejs_dir = rebase_path("//buildtools/nodejs", "")
+
+em_config = "EMSCRIPTEN_ROOT='$emsdk_dir/emscripten';"
+em_config += "LLVM_ROOT='$emsdk_dir/llvm';"
+em_config += "BINARYEN_ROOT='$emsdk_dir/llvm/binaryen';"
+em_config += "EMSCRIPTEN_NATIVE_OPTIMIZER='$emsdk_dir/llvm/optimizer';"
+em_config += "NODE_JS='$nodejs_dir/bin/node';"
+em_config += "COMPILER_ENGINE=NODE_JS;"
+em_config += "JS_ENGINES=[NODE_JS];"
+em_config = "\"$em_config\""
+
+# Defines a WASM library target.
+# Args:
+#  generate_js: when true generates a .wasm file and a .js file that wraps it
+#      and provides the boilerplate to initialize the module.
+#  generate_html: when true generates also an example .html file which contains
+#      a minimal console to interact with the module (useful for testing).
+template("wasm_lib") {
+  assert(defined(invoker.sources))
+  assert(is_wasm)
+
+  generate_html = false
+  if (defined(invoker.generate_html)) {
+    generate_html = invoker.generate_html
+  }
+
+  generate_js = false
+  if (defined(invoker.generate_js)) {
+    generate_js = invoker.generate_js
+  }
+
+  target_ldflags = [
+    "-s",
+    "WASM=1",
+    "-s",
+    "BUILD_AS_WORKER=1",
+    "-s",
+    "NO_FILESYSTEM=1",
+    "-s",
+    "DISABLE_EXCEPTION_CATCHING=1",
+    "-s",
+    "TOTAL_MEMORY=33554432",
+    "-s",
+    "RESERVED_FUNCTION_POINTERS=32",
+    "-s",
+    "BINARYEN_METHOD='native-wasm'",
+    "-s",
+    "EXPORT_FUNCTION_TABLES=1",
+    "-s",
+    "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'addFunction']",
+  ]
+  if (!is_debug) {
+    target_ldflags += [ "-O3" ]
+  }
+
+  if (defined(invoker.js_library)) {
+    target_ldflags += [
+      "--js-library",
+      invoker.js_library,
+    ]
+  }
+
+  vars_to_forward = [
+    "cflags",
+    "defines",
+    "deps",
+    "includes",
+    "sources",
+    "include_dirs",
+    "public_configs",
+    "testonly",
+    "visibility",
+  ]
+
+  if (generate_html) {
+    html_target_name = "${target_name}_html"
+    executable(html_target_name) {
+      forward_variables_from(invoker, vars_to_forward)
+      ldflags = target_ldflags
+      output_extension = "html"
+    }
+  }  # if(generate_html)
+
+  if (generate_js) {
+    js_target_name = "${target_name}_js"
+    executable(js_target_name) {
+      forward_variables_from(invoker, vars_to_forward)
+      ldflags = target_ldflags
+      output_extension = "js"
+    }
+  }  # if(generate_js)
+
+  group(target_name) {
+    deps = []
+    if (generate_html) {
+      deps += [ ":$html_target_name($wasm_toolchain)" ]
+    }
+    if (generate_js) {
+      deps += [ ":$js_target_name($wasm_toolchain)" ]
+    }
+  }  # group(target_name)
+}  # template

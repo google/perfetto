@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("//gn/standalone/android.gni")
+import("//gn/standalone/wasm.gni")
 import("llvm.gni")
 
 declare_args() {
@@ -165,4 +166,13 @@ gcc_like_toolchain("gcc_like_host") {
   ar = host_ar
   cc = host_cc
   cxx = host_cxx
+}
+
+gcc_like_toolchain("wasm") {
+  # emsdk_dir and em_config are defined in wasm.gni.
+  cpu = host_cpu
+  os = host_os
+  ar = "$emsdk_dir/emscripten/emar --em-config $em_config"
+  cc = "$emsdk_dir/emscripten/emcc --em-config $em_config"
+  cxx = "$emsdk_dir/emscripten/em++ --em-config $em_config"
 }
