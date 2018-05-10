@@ -330,6 +330,8 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
   page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
   metadata->overwrite_count = static_cast<uint32_t>(page_header.overwrite);
 
+  PERFETTO_DCHECK(page_header.size <= base::kPageSize);
+
   ptr += size_bytes - 4;
 
   const uint8_t* const end = ptr + page_header.size;
