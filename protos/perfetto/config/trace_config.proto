@@ -29,7 +29,7 @@ package perfetto.protos;
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 8.
+// Next id: 11.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -93,7 +93,7 @@ message TraceConfig {
     optional uint32 shm_size_kb = 2;
 
     // Specifies the preferred size of each page in the shared memory buffer.
-    // Must be an integer mutiple of 4K.
+    // Must be an integer multiple of 4K.
     optional uint32 page_size_kb = 3;
   }
 
