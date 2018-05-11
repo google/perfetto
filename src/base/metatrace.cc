@@ -19,7 +19,12 @@
 #include <fcntl.h>
 #include <stdlib.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/time.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <corecrt_io.h>
+#endif
 
 namespace perfetto {
 namespace base {
