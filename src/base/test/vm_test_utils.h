@@ -23,6 +23,9 @@ namespace perfetto {
 namespace base {
 namespace vm_test_utils {
 
+// Are all pages in the specified memory range currently mapped in to the
+// process? If any are not then return false. This is different from asking
+// whether the memory is allocated and can be accessed.
 bool IsMapped(void* start, size_t size);
 
 }  // namespace vm_test_utils
