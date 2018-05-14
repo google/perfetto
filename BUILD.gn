@@ -48,6 +48,9 @@ group("all") {
     if (is_linux || is_android) {
       deps += [ "tools/skippy" ]
     }
+    if (is_linux) {
+      deps += [ "tools:pipestats" ]
+    }
   }
 }
 
@@ -59,11 +62,10 @@ executable("perfetto_unittests") {
     "src/base:unittests",
     "src/protozero:unittests",
   ]
+
   # TODO(brucedawson): Enable these for Windows when possible.
   if (!is_win) {
-    deps += [
-      "src/tracing:unittests",
-    ]
+    deps += [ "src/tracing:unittests" ]
   }
   if (!build_with_chromium) {
     deps += [
