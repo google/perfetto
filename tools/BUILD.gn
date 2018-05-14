@@ -32,13 +32,15 @@ group("protoc_helper") {
   ]
 }
 
-executable("pipestats") {
-  testonly = true
-  sources = [
-    "pipestats.cc",
-  ]
-  deps = [
-    "../gn:default_deps",
-    "../src/base",
-  ]
+if (is_linux) {
+  executable("pipestats") {
+    testonly = true
+    sources = [
+      "pipestats.cc",
+    ]
+    deps = [
+      "../gn:default_deps",
+      "../src/base",
+    ]
+  }
 }
