@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import("//build_overrides/build.gni")
-import("//gn/perfetto.gni")
+import("perfetto.gni")
 
 if (build_standalone) {
   import("//gn/standalone/wasm.gni")
