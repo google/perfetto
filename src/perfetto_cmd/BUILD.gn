@@ -52,6 +52,7 @@ source_set("unittests") {
     ":perfetto_cmd",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
+    "../../include/perfetto/base",
   ]
   sources = [
     "rate_limiter_unittest.cc",

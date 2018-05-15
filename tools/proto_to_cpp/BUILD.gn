@@ -18,6 +18,7 @@ if (current_toolchain == host_toolchain) {
     deps = [
       "../../gn:default_deps",
       "../../gn:protobuf_full_deps",
+      "../../src/base",
     ]
     sources = [
       "proto_to_cpp.cc",
