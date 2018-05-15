@@ -19,7 +19,9 @@ source_set("lib") {
   deps = [
     "../../gn:default_deps",
     "../../gn:protobuf_full_deps",
+    "../../include/perfetto/base",
     "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace/ftrace:lite",
   ]
   sources = [
     "ftrace_event_formatter.cc",

@@ -13,9 +13,6 @@
 # limitations under the License.
 
 source_set("traced") {
-  deps = [
-    "../../../protos/perfetto/trace/filesystem:zero",
-  ]
   sources = [
     "data_source_types.h",
     "traced.h",

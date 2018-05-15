@@ -19,6 +19,7 @@ source_set("filesystem") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/traced",
     "../../../base",
   ]
   sources = [

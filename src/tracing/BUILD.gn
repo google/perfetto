@@ -20,6 +20,7 @@ source_set("tracing") {
   public_deps = [
     "../../include/perfetto/tracing/core",
     "../../protos/perfetto/common",
+    "../../protos/perfetto/trace:minimal_lite",
     "../../protos/perfetto/trace:trusted_lite",
     "../../protos/perfetto/trace:zero",
   ]
@@ -28,6 +29,7 @@ source_set("tracing") {
     "../../gn:gtest_prod_config",
     "../../protos/perfetto/config",
     "../base",
+    "../protozero",
   ]
   sources = [
     "core/chrome_config.cc",
@@ -114,6 +116,7 @@ source_set("ipc_consumer") {
     "../../gn:default_deps",
     "../../protos/perfetto/ipc",
     "../base",
+    "../ipc",
   ]
 }
 
@@ -125,6 +128,7 @@ source_set("unittests") {
     ":tracing",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
+    "../../protos/perfetto/config",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace:zero",
     "../base",
@@ -160,6 +164,7 @@ source_set("unittests") {
 source_set("test_support") {
   testonly = true
   public_deps = [
+    "../../include/perfetto/tracing/core",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace:zero",
     "../protozero:test_support",
