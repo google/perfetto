@@ -29,7 +29,7 @@ import "perfetto/config/test_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
 message DataSourceConfig {
-  // Data source unique name, e.g., "org.chromium.trace_events". This must match
+  // Data source unique name, e.g., "linux.ftrace". This must match
   // the name passed by the data source when it registers (see
   // RegisterDataSource()).
   optional string name = 1;
