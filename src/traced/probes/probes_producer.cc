@@ -183,7 +183,6 @@ bool ProbesProducer::CreateFtraceDataSourceInstance(
 
   FtraceConfig proto_config = config.ftrace_config();
 
-  // TODO(hjd): Static cast is bad, target_buffer() should return a BufferID.
   auto trace_writer = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(config.target_buffer()));
   auto delegate = std::unique_ptr<SinkDelegate>(
