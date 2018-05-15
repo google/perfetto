@@ -31,6 +31,7 @@
 #include "perfetto/tracing/core/ftrace_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
+#include "perfetto/tracing/ipc/producer_ipc_client.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 
 #include "perfetto/trace/filesystem/inode_file_map.pbzero.h"

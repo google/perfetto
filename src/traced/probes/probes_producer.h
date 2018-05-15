@@ -25,8 +25,8 @@
 #include "perfetto/base/watchdog.h"
 #include "perfetto/ftrace_reader/ftrace_controller.h"
 #include "perfetto/tracing/core/producer.h"
+#include "perfetto/tracing/core/service.h"
 #include "perfetto/tracing/core/trace_writer.h"
-#include "perfetto/tracing/ipc/producer_ipc_client.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/process_stats_data_source.h"
 
