@@ -458,6 +458,7 @@ if (use_custom_libcxx) {
       "libcxx/src/utility.cpp",
       "libcxx/src/valarray.cpp",
       "libcxx/src/variant.cpp",
+      "libcxx/src/vector.cpp",
     ]
     configs -= [
       "//gn/standalone:extra_warnings",

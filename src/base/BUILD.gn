@@ -79,6 +79,7 @@ if (is_debug && build_standalone && !is_wasm) {
     ]
     deps = [
       "../../gn:default_deps",
+      "../../include/perfetto/base",
     ]
     if (is_linux || is_android) {
       deps += [ "../../buildtools:libbacktrace" ]
@@ -98,6 +99,7 @@ source_set("test_support") {
     "test/vm_test_utils.cc",
     "test/vm_test_utils.h",
   ]
+
   # The Perfetto task runner is not used on Windows.
   if (!is_win) {
     sources += [

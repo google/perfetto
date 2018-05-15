@@ -44,13 +44,13 @@ from collections import namedtuple
 BUILD_DEPS_HOST = [
   # GN
   ('buildtools/mac/gn',
-   'https://storage.googleapis.com/chromium-gn/c2c934d4dda1f470a6511b1015dda9a9fb1ce50b',
-   'c2c934d4dda1f470a6511b1015dda9a9fb1ce50b',
+   'https://storage.googleapis.com/chromium-gn/9be792dd9010ce303a9c3a497a67bcc5ac8c7666',
+   '9be792dd9010ce303a9c3a497a67bcc5ac8c7666',
    'darwin'
   ),
   ('buildtools/linux64/gn',
-   'https://storage.googleapis.com/chromium-gn/b53fa13e950948c6f9a062189b76b34a9610281f',
-   'b53fa13e950948c6f9a062189b76b34a9610281f',
+   'https://storage.googleapis.com/chromium-gn/2f27ff0b6118e5886df976da5effa6003d19d1ce',
+   '2f27ff0b6118e5886df976da5effa6003d19d1ce',
    'linux2'
   ),
 
@@ -102,25 +102,25 @@ BUILD_DEPS_HOST = [
   # lib from sources. Keep the SHA1s in sync with Chrome's src/buildtools/DEPS.
   ('buildtools/libcxx',
    'https://chromium.googlesource.com/chromium/llvm-project/libcxx.git',
-   '3a07dd740be63878167a0ea19fe81869954badd7',
+   'ece1de8658d749e19c12cacd4458cc330eca94e3',
    'all'
   ),
   ('buildtools/libcxxabi',
    'https://chromium.googlesource.com/chromium/llvm-project/libcxxabi.git',
-   '4072e8fd76febee37f60aeda76d6d9f5e3791daa',
+   '05a73941f3fb177c4a891d4ff2a4ed5785e3b80c',
    'all'
   ),
   ('buildtools/libunwind',
    'https://chromium.googlesource.com/external/llvm.org/libunwind.git',
-   '41f982e5887185b904a456e20dfcd58e6be6cc19',
+   '0f3cbe4123f8afacd646bd4f5414aa6528ef8129',
    'all'
   ),
 
   # Keep the revision in sync with Chrome's CLANG_REVISION in
   # tools/clang/scripts/update.py.
   ('buildtools/clang.tgz',
-   'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-321529-1.tgz',
-   '7ca04034ac7e4a956b0084a8bc604bacab94af26',
+   'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-331747-1.tgz',
+   '973073ca36ae9194019705ec7677852a30c4b54e',
    'linux2'
   ),
 

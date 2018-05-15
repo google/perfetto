@@ -32,7 +32,9 @@ source_set("probes_src") {
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/trace/ps:zero",
     "../../base",
+    "../../tracing:ipc",
     "../../tracing:tracing",
     "filesystem",
   ]
