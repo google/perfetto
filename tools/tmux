@@ -71,6 +71,15 @@ function pull {
   fi
 }
 
+background=0
+
+while getopts b o; do
+  case "$o" in
+    b) background=1;;
+    *) echo "Invalid option $o"; exit;;
+  esac
+done
+
 # If not set guess the OUT dir using the latest directory.
 if [ ! -f "$OUT/args.gn" ]; then
   echo "OUT=$OUT doesn't look like an output directory."
@@ -96,9 +105,7 @@ push $OUT/perfetto
 reset_tracing
 
 if is_android $OUT; then
-  PREFIX="
-PERFETTO_CONSUMER_SOCK_NAME=/data/misc/perfetto-traces/test_consumer_socket
-PERFETTO_PRODUCER_SOCK_NAME=/data/misc/perfetto-traces/test_producer_socket"
+  PREFIX="PERFETTO_CONSUMER_SOCK_NAME=/data/misc/perfetto-traces/test_consumer_socket PERFETTO_PRODUCER_SOCK_NAME=/data/misc/perfetto-traces/test_producer_socket"
 else
   PREFIX=""
 fi
@@ -119,6 +126,13 @@ if [[ "$CONFIG" != ":test" ]]; then
     exit 1
   fi
   push $CONFIG_PATH
+fi
+
+POSTFIX=""
+
+if [[ background -eq 1 ]]; then
+  PREFIX="$PREFIX nohup"
+  POSTFIX=" &> /dev/null &"
 fi
 
 if tmux has-session -t demo; then
@@ -161,29 +175,33 @@ fi
 sleep 2
 
 tmux select-pane -t 1
-tmux send-keys "$PREFIX $DIR/traced" Enter
+tmux send-keys "$PREFIX $DIR/traced $POSTFIX" Enter
 
 tmux select-pane -t 0
-tmux send-keys "$PREFIX $DIR/traced_probes" Enter
+tmux send-keys "$PREFIX $DIR/traced_probes $POSTFIX" Enter
 
 tmux select-pane -t 2
-tmux send-keys "$PREFIX $DIR/perfetto -c $CONFIG_DEVICE_PATH -o $DIR/trace"
+tmux send-keys "$PREFIX $DIR/perfetto -c $CONFIG_DEVICE_PATH -o $DIR/trace $POSTFIX"
 
 # Select consumer pane.
 tmux select-pane -t 2
 
 tmux -2 attach-session -t demo
+if [[ background -eq 1 ]]; then
+  exit 0;
+fi
 
 reset_tracing
 
 TRACE=$HOME/Downloads/trace
 pull trace /tmp/trace.protobuf
+echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
+$OUT/trace_to_text text < /tmp/trace.protobuf > $TRACE.pbtext
+echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
+$OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE.json
+# Keep this last so it can fail.
 pull mtrace /tmp/mtrace.json
 # Add [ to beginning of file and replace trailing , with ] to turn into valid
 # JSON array.
 sed -i '$ s/.$/]/' /tmp/mtrace.json
 sed -i '1s/^/[/' /tmp/mtrace.json
-echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
-$OUT/trace_to_text text < /tmp/trace.protobuf > $TRACE.pbtext
-echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
-$OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE.json
