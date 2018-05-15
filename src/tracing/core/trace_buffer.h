@@ -140,7 +140,6 @@ class TraceBuffer {
     uint64_t readaheads_succeeded = 0;
     uint64_t readaheads_failed = 0;
     uint64_t abi_violations = 0;
-    // TODO(primiano): add bytes_lost_for_padding.
   };
 
   // Argument for out-of-band patches applied through TryPatchChunkContents().

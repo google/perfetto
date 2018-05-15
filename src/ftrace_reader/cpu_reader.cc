@@ -293,10 +293,9 @@ bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
 
 uint8_t* CpuReader::GetBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // TODO(primiano): Guard against overflows, like BufferedFrameDeserializer.
   if (!buffer_)
-    buffer_ = std::unique_ptr<uint8_t[]>(new uint8_t[base::kPageSize]);
-  return buffer_.get();
+    buffer_ = base::PageAllocator::Allocate(base::kPageSize);
+  return reinterpret_cast<uint8_t*>(buffer_.get());
 }
 
 // The structure of a raw trace buffer page is as follows:

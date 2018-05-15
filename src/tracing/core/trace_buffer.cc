@@ -216,8 +216,8 @@ size_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
 
     // We just reached the untouched part of the buffer, it's going to be all
     // zeroes from here to end().
-    // TODO(primiano): optimization: if during Initialize() we fill the buffer
-    // with padding records we could get rid of this branch.
+    // Optimization: if during Initialize() we fill the buffer with padding
+    // records we could get rid of this branch.
     if (PERFETTO_UNLIKELY(!next_chunk.is_valid())) {
       // This should happen only at the first iteration. The zeroed area can
       // only begin precisely at the |wptr_|, not after. Otherwise it means that
