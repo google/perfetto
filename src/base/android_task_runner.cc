@@ -87,8 +87,7 @@ void AndroidTaskRunner::RunImmediateTask() {
     PERFETTO_DPLOG("read");
   }
 
-  // TODO(skyostil): Add a separate work queue in case in case locking overhead
-  // becomes an issue.
+  // If locking overhead becomes an issue, add a separate work queue.
   bool has_next;
   std::function<void()> immediate_task;
   {

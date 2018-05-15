@@ -115,8 +115,7 @@ void UnixTaskRunner::UpdateWatchTasksLocked() {
 }
 
 void UnixTaskRunner::RunImmediateAndDelayedTask() {
-  // TODO(skyostil): Add a separate work queue in case in case locking overhead
-  // becomes an issue.
+  // If locking overhead becomes an issue, add a separate work queue.
   std::function<void()> immediate_task;
   std::function<void()> delayed_task;
   TimeMillis now = GetWallTimeMs();

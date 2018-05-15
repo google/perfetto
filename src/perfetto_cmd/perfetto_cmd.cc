@@ -52,9 +52,6 @@
 #include <utils/StrongPointer.h>
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 
-// TODO(primiano): add the ability to pass the file descriptor directly to the
-// traced service instead of receiving a copy of the slices and writing them
-// from this process.
 namespace perfetto {
 namespace {
 
