@@ -188,13 +188,13 @@ TEST_DEPS_ANDROID = [
 
 UI_DEPS = [
   ('buildtools/nodejs.tgz',
-   'https://storage.googleapis.com/perfetto/node-v8.9.1-darwin-x64.tar.gz',
-   'b9ec6fe9701d385e385886a4b171ba02bb6aead7',
+   'https://storage.googleapis.com/perfetto/node-v8.11.1-darwin-x64.tar.gz',
+   '01effb57fa711aa258d7aab26c6615e1f8a64b1a',
    'darwin'
   ),
   ('buildtools/nodejs.tgz',
-   'https://storage.googleapis.com/perfetto/node-v8.9.1-linux-x64.tar.xz',
-   'eaec5de2af934f7ebc7f9597983e71c5d5a9a726',
+   'https://storage.googleapis.com/perfetto/node-v8.11.1-linux-x64.tar.xz',
+   '04c2e703b042ecfdc9deb32e4797a41c41482966',
    'linux2'
   ),
   ('buildtools/emsdk/emscripten.tgz',
