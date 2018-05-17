@@ -14,6 +14,8 @@
 # limitations under the License.
 
 CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
+NINJA_OUT_DIR=$(cd $CUR_DIR/$(dirname $(readlink $CUR_DIR/dist)); pwd)
+
 LITE_SERVER="$CUR_DIR/node_modules/.bin/lite-server"
 if [ ! -f "$LITE_SERVER" ]; then
   echo "ERROR: cannot find lite-server. You need to run:"
@@ -27,5 +29,6 @@ if [ ! -L "$CUR_DIR/dist" ]; then
 fi
 
 export PATH="$CUR_DIR/../buildtools/nodejs/bin/:$PATH"
-cd "$CUR_DIR/dist"
-exec node node_modules/.bin/lite-server
+cd "$CUR_DIR/../"
+NINJA_OUT_DIR="$NINJA_OUT_DIR" \
+    node ui/node_modules/.bin/lite-server -c ui/bs-config.js
