@@ -131,7 +131,7 @@ install:
 
 script:
   - tools/gn gen out/dist --args="${GN_ARGS}" --check
-  - tools/ninja -C out/dist -j8 all
+  - tools/ninja -C out/dist -j8
   - |
     TEST_TARGETS="
     perfetto_integrationtests

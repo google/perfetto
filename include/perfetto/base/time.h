@@ -31,6 +31,10 @@
 #include <mach/thread_act.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+#include <emscripten/emscripten.h>
+#endif
+
 namespace perfetto {
 namespace base {
 
@@ -77,6 +81,16 @@ inline TimeNanos GetThreadCPUTimeNs() {
                    info.user_time.microseconds * 1000LL +
                    info.system_time.seconds * 1000000000LL +
                    info.system_time.microseconds * 1000LL);
+}
+
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+
+inline TimeNanos GetWallTimeNs() {
+  return TimeNanos(static_cast<uint64_t>(emscripten_get_now()) * 1000000);
+}
+
+inline TimeNanos GetThreadCPUTimeNs() {
+  return TimeNanos(0);
 }
 
 #else

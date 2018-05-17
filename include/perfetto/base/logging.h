@@ -64,7 +64,7 @@ constexpr const char* Basename(const char* str) {
 #define PERFETTO_LOG_LINE PERFETTO_LOG_LINE_(__LINE__)
 
 enum LogLev { kLogDebug = 0, kLogInfo, kLogImportant, kLogError };
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
 // The escape sequences don't work in a Windows command prompt.
 #define PERFETTO_XLOG_STDERR(level, fmt, ...)                              \
   fprintf(stderr, "%-24.24s " fmt "\n",                                    \
