@@ -1,0 +1,21 @@
+{
+  "name": "perfetto-ui",
+  "version": "1.0.0",
+  "description": "Perfetto UI",
+  "repository": "https://android.googlesource.com/platform/external/perfetto",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "lite-server --baseDir=dist"
+  },
+  "author": "Perfetto Team",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "protobufjs": "^6.8.6"
+  },
+  "devDependencies": {
+    "browserify": "^16.2.2",
+    "lite-server": "^2.3.0",
+    "typescript": "^2.8.3"
+  }
+}

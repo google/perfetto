@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+  <title>Perfetto test</title>
+  <style type="text/css">
+    html {
+      font-family: Roboto, verdana, sans-serif;
+      padding: 20px;
+    }
+    #console {
+      border: 1px solid #333;
+      width: auto;
+      height: 200px;
+      background: #eee;
+      margin: 10px 0;
+    }
+
+    #console > div {
+      width: 100%;
+      white-space: pre;
+      overflow: hidden;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1;
+      text-overflow: ellipsis;
+      padding: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div id="console">
+    WASM output goes here
+  </div>
+  <script src="bundle.js" type="text/javascript"></script>
+  <script src="wasm/trace_processor.js" type="text/javascript"></script>
+</body>
+</html>
