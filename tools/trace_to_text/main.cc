@@ -480,8 +480,10 @@ void PrintTraceStats(std::ostream* output,
 int TraceToSummary(std::istream* input,
                    std::ostream* output,
                    bool compact_output) {
-  uint64_t start = std::numeric_limits<uint64_t>::max();
-  uint64_t end = 0;
+  uint64_t ftrace_start = std::numeric_limits<uint64_t>::max();
+  uint64_t ftrace_end = 0;
+  uint64_t boottime_start = std::numeric_limits<uint64_t>::max();
+  uint64_t boottime_end = 0;
   uint64_t ftrace_overwrites = 0;
   std::map<FtraceEvent::EventCase, uint64_t> ftrace_event_counts;
   std::multiset<uint64_t> ftrace_timestamps;
@@ -498,10 +500,11 @@ int TraceToSummary(std::istream* input,
 
   ForEachPacketInTrace(
       input,
-      [&start, &end, &ftrace_overwrites, &ftrace_event_counts, &before_stats, &after_stats,
-       &ftrace_timestamps, &tids_in_tree, &tids_in_events, &ftrace_inodes,
-       &ftrace_inode_count, &resolved_map_inodes, &resolved_scan_inodes,
-       &last_stats](const protos::TracePacket& packet) {
+      [&ftrace_start, &ftrace_end, &ftrace_overwrites, &ftrace_event_counts,
+       &before_stats, &after_stats, &ftrace_timestamps, &tids_in_tree,
+       &tids_in_events, &ftrace_inodes, &ftrace_inode_count,
+       &resolved_map_inodes, &resolved_scan_inodes, &last_stats,
+       &boottime_start, &boottime_end](const protos::TracePacket& packet) {
         if (packet.has_process_tree()) {
           const ProcessTree& tree = packet.process_tree();
           for (Process process : tree.processes()) {
@@ -541,6 +544,17 @@ int TraceToSummary(std::istream* input,
           }
         }
 
+        if (packet.has_clock_snapshot()) {
+          for (const auto& clock : packet.clock_snapshot().clocks()) {
+            if (clock.type() == protos::ClockSnapshot_Clock_Type_MONOTONIC) {
+              boottime_start =
+                  std::min<uint64_t>(boottime_start, clock.timestamp());
+              boottime_end =
+                  std::max<uint64_t>(boottime_end, clock.timestamp());
+            }
+          }
+        }
+
         if (!packet.has_ftrace_events())
           return;
 
@@ -559,8 +573,8 @@ int TraceToSummary(std::istream* input,
             tids_in_events.insert(static_cast<int>(event.pid()));
           }
           if (event.timestamp()) {
-            start = std::min<uint64_t>(start, event.timestamp());
-            end = std::max<uint64_t>(end, event.timestamp());
+            ftrace_start = std::min<uint64_t>(ftrace_start, event.timestamp());
+            ftrace_end = std::max<uint64_t>(ftrace_end, event.timestamp());
             ftrace_timestamps.insert(event.timestamp());
           }
         }
@@ -569,16 +583,24 @@ int TraceToSummary(std::istream* input,
   fprintf(stderr, "\n");
 
   char line[2048];
-  uint64_t duration = (end - start) / (1000 * 1000);
+  uint64_t ftrace_duration = (ftrace_end - ftrace_start) / (1000 * 1000);
   if (compact_output) {
-    sprintf(line, "duration,%" PRIu64 "\n", duration);
+    sprintf(line, "ftrace duration,%" PRIu64 "\n", ftrace_duration);
   } else {
-    sprintf(line, "Duration: %" PRIu64 "ms\n", duration);
+    sprintf(line, "Ftrace Duration: %" PRIu64 "ms\n", ftrace_duration);
+  }
+  *output << std::string(line);
+
+  uint64_t boottime_duration = (boottime_end - boottime_start) / (1000 * 1000);
+  if (compact_output) {
+    sprintf(line, "total duration,%" PRIu64 "\n", boottime_duration);
+  } else {
+    sprintf(line, "Total Duration: %" PRIu64 "ms\n", boottime_duration);
   }
   *output << std::string(line);
 
   if (!compact_output)
-    PrintFtraceTrack(output, start, end, ftrace_timestamps);
+    PrintFtraceTrack(output, ftrace_start, ftrace_end, ftrace_timestamps);
   PrintFtraceStats(output, ftrace_overwrites, ftrace_event_counts, before_stats,
                    after_stats, compact_output);
   PrintProcessStats(output, tids_in_tree, tids_in_events, compact_output);
