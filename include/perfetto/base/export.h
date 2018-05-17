@@ -17,13 +17,27 @@
 #ifndef INCLUDE_PERFETTO_BASE_EXPORT_H_
 #define INCLUDE_PERFETTO_BASE_EXPORT_H_
 
+#include "perfetto/base/build_config.h"
+
 #if defined(PERFETTO_SHARED_LIBRARY)
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+#if defined(PERFETTO_IMPLEMENTATION)
+#define PERFETTO_EXPORT __declspec(dllexport)
+#else
+#define PERFETTO_EXPORT __declspec(dllimport)
+#endif
+
+#else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #if defined(PERFETTO_IMPLEMENTATION)
 #define PERFETTO_EXPORT __attribute__((visibility("default")))
 #else
 #define PERFETTO_EXPORT
 #endif
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #else  // defined(PERFETTO_SHARED_LIBRARY)
 
