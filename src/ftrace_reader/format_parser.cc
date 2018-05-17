@@ -52,7 +52,8 @@ bool IsCIdentifier(const std::string& s) {
 
 bool ParseFtraceEventBody(base::StringSplitter* ss,
                           std::vector<FtraceEvent::Field>* common_fields,
-                          std::vector<FtraceEvent::Field>* fields) {
+                          std::vector<FtraceEvent::Field>* fields,
+                          bool disable_logging_for_testing) {
   PERFETTO_DCHECK(common_fields || fields);
   char buffer[MAX_FIELD_LENGTH + 1];
   while (ss->Next()) {
@@ -81,7 +82,8 @@ bool ParseFtraceEventBody(base::StringSplitter* ss,
       break;
     }
 
-    PERFETTO_ELOG("Cannot parse line: \"%s\"\n", line);
+    if (!disable_logging_for_testing)
+      PERFETTO_DLOG("Cannot parse line: \"%s\"\n", line);
     return false;
   }
   return true;
@@ -120,9 +122,11 @@ std::string GetNameFromTypeAndName(const std::string& type_and_name) {
 
 bool ParseFtraceEventBody(std::string input,
                           std::vector<FtraceEvent::Field>* common_fields,
-                          std::vector<FtraceEvent::Field>* fields) {
+                          std::vector<FtraceEvent::Field>* fields,
+                          bool disable_logging_for_testing) {
   base::StringSplitter ss(std::move(input), '\n');
-  return ParseFtraceEventBody(&ss, common_fields, fields);
+  return ParseFtraceEventBody(&ss, common_fields, fields,
+                              disable_logging_for_testing);
 }
 
 bool ParseFtraceEvent(std::string input, FtraceEvent* output) {
@@ -151,20 +155,21 @@ bool ParseFtraceEvent(std::string input, FtraceEvent* output) {
     }
 
     if (strcmp("format:", line) == 0) {
-      ParseFtraceEventBody(&ss, &common_fields, &fields);
+      ParseFtraceEventBody(&ss, &common_fields, &fields,
+                           /*disable_logging_for_testing=*/output == nullptr);
       break;
     }
 
     if (output)
-      fprintf(stderr, "Cannot parse line: \"%s\"\n", line);
+      PERFETTO_DLOG("Cannot parse line: \"%s\"\n", line);
     return false;
   }
 
   if (!has_id || !has_name || fields.empty()) {
     if (output)
-      fprintf(stderr, "Could not parse format file: %s.\n",
-              !has_id ? "no ID found"
-                      : !has_name ? "no name found" : "no fields found");
+      PERFETTO_DLOG("Could not parse format file: %s.\n",
+                    !has_id ? "no ID found"
+                            : !has_name ? "no name found" : "no fields found");
     return false;
   }
 
