@@ -68,7 +68,8 @@ void PrintTo(const FtraceEvent::Field& args, ::std::ostream* os);
 //   field:__u16 mode;  offset:20;  size:2;  signed:0;
 bool ParseFtraceEventBody(std::string input,
                           std::vector<FtraceEvent::Field>* common_fields,
-                          std::vector<FtraceEvent::Field>* fields);
+                          std::vector<FtraceEvent::Field>* fields,
+                          bool disable_logging_for_testing = false);
 // Parses ftrace event format file. This includes the headers specifying
 // name and ID of the event, e.g.
 //
