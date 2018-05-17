@@ -34,7 +34,7 @@ namespace perfetto {
 // will attach platform specific fields to it (e.g., a unix file descriptor).
 class PERFETTO_EXPORT SharedMemory {
  public:
-  class Factory {
+  class PERFETTO_EXPORT Factory {
    public:
     virtual ~Factory();
     virtual std::unique_ptr<SharedMemory> CreateSharedMemory(size_t) = 0;
