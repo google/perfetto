@@ -14,6 +14,13 @@
 
 import("gn/perfetto.gni")
 
+# For use_libfuzzer.
+if (!build_with_chromium) {
+  import("//gn/standalone/sanitizers/vars.gni")
+} else {
+  import("//build/config/sanitizers/sanitizers.gni")
+}
+
 declare_args() {
   # Only for local development. When true the binaries (perfetto, traced, ...)
   # are monolithic and don't use a common shared library. This is mainly to
@@ -50,6 +57,9 @@ group("all") {
     }
     if (is_linux) {
       deps += [ "tools:pipestats" ]
+    }
+    if (use_libfuzzer) {
+      deps += [ ":fuzzers" ]
     }
   }
 }
@@ -217,6 +227,17 @@ if (build_with_chromium) {
     configs += [ "//build/config/compiler:no_chromium_code" ]
     public_deps = [
       "include/perfetto/tracing/core",
+    ]
+  }
+}
+
+if (use_libfuzzer) {
+  group("fuzzers") {
+    testonly = true
+    deps = [
+      "src/ftrace_reader:cpu_reader_fuzzer",
+      "src/ipc:buffered_frame_deserializer_fuzzer",
+      "test:end_to_end_shared_memory_fuzzer",
     ]
   }
 }
