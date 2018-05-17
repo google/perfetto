@@ -62,7 +62,7 @@ class PERFETTO_EXPORT Service {
   //    the ConnectProducer() method.
   // 2. The transport layer (e.g., src/ipc) when the producer and
   //    the service don't talk locally but via some IPC mechanism.
-  class ProducerEndpoint {
+  class PERFETTO_EXPORT ProducerEndpoint {
    public:
     virtual ~ProducerEndpoint();
 
