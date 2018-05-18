@@ -15,7 +15,12 @@
  */
 #include "perfetto/tracing/core/shared_memory_abi.h"
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/time.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/mman.h>
+#endif
 
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/basic_types.h"
@@ -30,7 +35,7 @@ inline void WaitBeforeNextAttempt(int attempt) {
   if (attempt < kRetryAttempts / 2) {
     std::this_thread::yield();
   } else {
-    usleep((useconds_t(attempt) / 10) * 1000);
+    base::SleepMicroseconds((unsigned(attempt) / 10) * 1000);
   }
 }
 
@@ -299,6 +304,7 @@ bool SharedMemoryABI::TryAcquireAllChunksForReading(size_t page_idx) {
 void SharedMemoryABI::ReleaseAllChunksAsFree(size_t page_idx) {
   PageHeader* phdr = page_header(page_idx);
   phdr->layout.store(0, std::memory_order_release);
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   uint8_t* page_start = start_ + page_idx * page_size_;
   // TODO(fmayer): On Linux/Android this should be MADV_REMOVE if we use
   // memfd_create() and tmpfs supports hole punching (need to consult kernel
@@ -306,6 +312,7 @@ void SharedMemoryABI::ReleaseAllChunksAsFree(size_t page_idx) {
   int ret = madvise(reinterpret_cast<uint8_t*>(page_start), page_size_,
                     MADV_DONTNEED);
   PERFETTO_DCHECK(ret == 0);
+#endif
 }
 
 SharedMemoryABI::Chunk::Chunk() = default;

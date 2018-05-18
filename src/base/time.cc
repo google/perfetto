@@ -19,9 +19,14 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace perfetto {
 namespace base {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 TimeNanos GetWallTimeNs() {
   LARGE_INTEGER freq;
@@ -44,7 +49,21 @@ TimeNanos GetThreadCPUTimeNs() {
   return TimeNanos((kernel_time + user_time) * 100);
 }
 
-}  // namespace base
-}  // namespace perfetto
+void SleepMicroseconds(unsigned interval_us) {
+  // The Windows Sleep function takes a millisecond count. Round up so that
+  // short sleeps don't turn into a busy wait. Note that the sleep granularity
+  // on Windows can dynamically vary from 1 ms to ~16 ms, so don't count on this
+  // being a short sleep.
+  ::Sleep(static_cast<DWORD>((interval_us + 999) / 1000));
+}
+
+#else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+void SleepMicroseconds(unsigned interval_us) {
+  ::usleep(static_cast<useconds_t>(interval_us));
+}
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+}  // namespace base
+}  // namespace perfetto

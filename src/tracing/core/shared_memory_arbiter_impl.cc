@@ -18,6 +18,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/time.h"
 #include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/shared_memory.h"
 #include "src/tracing/core/null_trace_writer.h"
@@ -62,8 +63,8 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     size_t size_hint) {
   PERFETTO_DCHECK(size_hint == 0);  // Not implemented yet.
   int stall_count = 0;
-  useconds_t stall_interval_us = 0;
-  static const useconds_t kMaxStallIntervalUs = 100000;
+  unsigned stall_interval_us = 0;
+  static const unsigned kMaxStallIntervalUs = 100000;
   static const int kLogAfterNStalls = 3;
 
   for (;;) {
@@ -123,7 +124,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
       // SMB.
       FlushPendingCommitDataRequests();
     }
-    usleep(stall_interval_us);
+    base::SleepMicroseconds(stall_interval_us);
     stall_interval_us =
         std::min(kMaxStallIntervalUs, (stall_interval_us + 1) * 8);
   }
