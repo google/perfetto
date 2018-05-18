@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include <array>
+#include <atomic>
 #include <memory>
 #include <set>
 #include <thread>
@@ -202,7 +203,8 @@ class CpuReader {
   static void RunWorkerThread(size_t cpu,
                               int trace_fd,
                               int staging_write_fd,
-                              const std::function<void()>& on_data_available);
+                              const std::function<void()>& on_data_available,
+                              std::atomic<bool>* exiting);
 
   uint8_t* GetBuffer();
   CpuReader(const CpuReader&) = delete;
@@ -215,6 +217,7 @@ class CpuReader {
   base::ScopedFile staging_write_fd_;
   base::PageAllocator::UniquePtr buffer_;
   std::thread worker_thread_;
+  std::atomic<bool> exiting_{false};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 
