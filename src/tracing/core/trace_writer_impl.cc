@@ -56,7 +56,11 @@ TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
 TraceWriterImpl::~TraceWriterImpl() {
   if (cur_chunk_.is_valid()) {
     cur_packet_->Finalize();
+#if !defined(PERFETTO_BUILD_WITH_CHROMIUM)
+    // TODO(primiano) Remove this ifdef when https://crbug.com/844379 is
+    // resolved.
     Flush();
+#endif
   }
   shmem_arbiter_->ReleaseWriterID(id_);
 }

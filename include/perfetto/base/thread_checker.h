@@ -48,7 +48,8 @@ class ThreadChecker {
   mutable std::atomic<ThreadID> thread_id_;
 };
 
-#if PERFETTO_DCHECK_IS_ON()
+#if PERFETTO_DCHECK_IS_ON() && !defined(PERFETTO_BUILD_WITH_CHROMIUM)
+// TODO(primiano) Use Chromium's thread checker in Chromium.
 #define PERFETTO_THREAD_CHECKER(name) base::ThreadChecker name;
 #define PERFETTO_DCHECK_THREAD(name) \
   PERFETTO_DCHECK((name).CalledOnValidThread())
