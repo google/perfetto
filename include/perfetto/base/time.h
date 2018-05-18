@@ -46,6 +46,8 @@ inline TimeNanos FromPosixTimespec(const struct timespec& ts) {
   return TimeNanos(ts.tv_sec * 1000000000LL + ts.tv_nsec);
 }
 
+void SleepMicroseconds(unsigned interval_us);
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 TimeNanos GetWallTimeNs();
