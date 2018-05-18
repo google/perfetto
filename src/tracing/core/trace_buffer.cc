@@ -16,7 +16,6 @@
 
 #include "src/tracing/core/trace_buffer.h"
 
-#include <sys/mman.h>
 #include <limits>
 
 #include "perfetto/base/logging.h"
