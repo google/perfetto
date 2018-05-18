@@ -587,15 +587,15 @@ int TraceToSummary(std::istream* input,
   if (compact_output) {
     sprintf(line, "ftrace duration,%" PRIu64 "\n", ftrace_duration);
   } else {
-    sprintf(line, "Ftrace Duration: %" PRIu64 "ms\n", ftrace_duration);
+    sprintf(line, "Ftrace duration: %" PRIu64 "ms\n", ftrace_duration);
   }
   *output << std::string(line);
 
   uint64_t boottime_duration = (boottime_end - boottime_start) / (1000 * 1000);
   if (compact_output) {
-    sprintf(line, "total duration,%" PRIu64 "\n", boottime_duration);
+    sprintf(line, "boottime duration,%" PRIu64 "\n", boottime_duration);
   } else {
-    sprintf(line, "Total Duration: %" PRIu64 "ms\n", boottime_duration);
+    sprintf(line, "Boottime duration: %" PRIu64 "ms\n", boottime_duration);
   }
   *output << std::string(line);
 
