@@ -173,7 +173,7 @@ CpuReader::CpuReader(const ProtoTranslationTable* table,
 
   worker_thread_ =
       std::thread(std::bind(&RunWorkerThread, cpu_, *trace_fd_,
-                            *staging_write_fd_, on_data_available));
+                            *staging_write_fd_, on_data_available, &exiting_));
 }
 
 CpuReader::~CpuReader() {
@@ -183,17 +183,18 @@ CpuReader::~CpuReader() {
   // trace fd (which prevents another splice from starting), raise SIGPIPE and
   // wait for the worker to exit (i.e., to guarantee no splice is in progress)
   // and only then close the staging pipe.
+  exiting_ = true;
   trace_fd_.reset();
   pthread_kill(worker_thread_.native_handle(), SIGPIPE);
   worker_thread_.join();
 }
 
 // static
-void CpuReader::RunWorkerThread(
-    size_t cpu,
-    int trace_fd,
-    int staging_write_fd,
-    const std::function<void()>& on_data_available) {
+void CpuReader::RunWorkerThread(size_t cpu,
+                                int trace_fd,
+                                int staging_write_fd,
+                                const std::function<void()>& on_data_available,
+                                std::atomic<bool>* exiting) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // This thread is responsible for moving data from the trace pipe into the
@@ -220,11 +221,12 @@ void CpuReader::RunWorkerThread(
       // The kernel ftrace code has its own splice() implementation that can
       // occasionally fail with transient errors not reported in man 2 splice.
       // Just try again if we see these.
-      if (errno == ENOMEM || errno == EBUSY) {
+      if (errno == ENOMEM || errno == EBUSY || (errno == EINTR && !*exiting)) {
         PERFETTO_DPLOG("Transient splice failure -- retrying");
         usleep(100 * 1000);
         continue;
       }
+      PERFETTO_DPLOG("Stopping CPUReader loop for CPU %zd.", cpu);
       PERFETTO_DCHECK(errno == EPIPE || errno == EINTR || errno == EBADF);
       break;  // ~CpuReader is waiting to join this thread.
     }
