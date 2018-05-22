@@ -20,12 +20,24 @@ Prints a user-friendly message if it doesn't.
 
 import os
 import sys
+import argparse
 
 def main():
-  if not os.path.exists(sys.argv[1]):
+  parser = argparse.ArgumentParser(description='Test path for existence')
+  parser.add_argument('path', help='Path to test for existence')
+  parser.add_argument('--touch', help='Touch this path on success')
+  args = parser.parse_args()
+
+  if not os.path.exists(args.path):
     err = '\x1b[31mCannot find %s/%s\nRun tools/install-build-deps --ui\x1b[0m'
     print >>sys.stderr,  err % (os.path.abspath('.'), sys.argv[1])
     return 127
+
+  if args.touch:
+    with open(args.touch, 'a'):
+      os.utime(args.touch, None)
+
+  return 0
 
 if __name__ == '__main__':
   sys.exit(main())
