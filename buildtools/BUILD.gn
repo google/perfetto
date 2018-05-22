@@ -558,3 +558,42 @@ if (is_linux || is_android) {
     public_configs = [ ":libbacktrace_config" ]
   }
 }
+
+config("sqlite_config") {
+  include_dirs = [ "sqlite" ]
+  cflags = [
+    "-DSQLITE_THREADSAFE=0",
+    "-DQLITE_DEFAULT_MEMSTATUS=0",
+    "-DSQLITE_LIKE_DOESNT_MATCH_BLOBS",
+    "-DSQLITE_OMIT_DECLTYPE",
+    "-DSQLITE_OMIT_DEPRECATED",
+    "-DSQLITE_OMIT_SHARED_CACHE",
+    "-DHAVE_USLEEP",
+    "-DHAVE_UTIME",
+    "-DSQLITE_BYTEORDER=1234",
+    "-DSQLITE_DEFAULT_AUTOVACUUM=0",
+    "-DSQLITE_DEFAULT_MMAP_SIZE=0",
+    "-DSQLITE_CORE",
+  ]
+}
+
+source_set("sqlite") {
+  sources = [
+    "sqlite/sqlite3.c",
+    "sqlite/sqlite3.h",
+    "sqlite/sqlite3ext.h",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  public_configs = [ ":sqlite_config" ]
+}
+
+source_set("sqlite_shell") {
+  testonly = true
+  sources = [
+    "sqlite/shell.c",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  deps = [
+    ":sqlite",
+  ]
+}
