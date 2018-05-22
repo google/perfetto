@@ -212,6 +212,11 @@ UI_DEPS = [
    'fdc26481fe70001ea00e83b99d0df906c9b2a45f',
    'linux2'
   ),
+  ('buildtools/sqlite.zip',
+   'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3230100.zip',
+   '98729f2c2d57d166e3d6d9862744c1d66388e286',
+   'all'
+  ),
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
