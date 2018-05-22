@@ -20,12 +20,23 @@
 #include <google/protobuf/descriptor.h>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "perfetto/ftrace_reader/format_parser.h"
 
 namespace perfetto {
+
+class VerifyStream : public std::ostringstream {
+ public:
+  VerifyStream(std::string filename);
+  virtual ~VerifyStream();
+
+ private:
+  std::string filename_;
+  std::string expected_;
+};
 
 class FtraceEventName {
  public:
@@ -88,12 +99,13 @@ bool GenerateProto(const FtraceEvent& format, Proto* proto_out);
 ProtoType InferProtoType(const FtraceEvent::Field& field);
 
 std::vector<FtraceEventName> ReadWhitelist(const std::string& filename);
-void GenerateFtraceEventProto(
-    const std::vector<FtraceEventName>& raw_whitelist);
+void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
+                              std::ostream* fout);
 std::string SingleEventInfo(perfetto::Proto proto,
                             const std::string& group,
                             const uint32_t proto_field_id);
-void GenerateEventInfo(const std::vector<std::string>& events_info);
+void GenerateEventInfo(const std::vector<std::string>& events_info,
+                       std::ostream* fout);
 
 }  // namespace perfetto
 

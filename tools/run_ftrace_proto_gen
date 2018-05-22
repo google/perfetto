@@ -1,0 +1,20 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+BUILDDIR="$DIR/../out/ftrace_proto_gen_build"
+
+"$DIR/gn" gen "$BUILDDIR" --args="is_clang=true is_debug=false"
+"$DIR/ninja" -C "$BUILDDIR" ftrace_proto_gen
+
+# FIXME(fmayer): make ftrace_proto_gen independent of cwd.
+cd "$DIR/.."
+
+"$BUILDDIR/ftrace_proto_gen" \
+  --whitelist_path "$DIR/ftrace_proto_gen/event_whitelist" \
+  --output_dir "$DIR/../protos/perfetto/trace/ftrace/" \
+  --proto_descriptor "$BUILDDIR/gen/protos/perfetto/trace/ftrace.descriptor" \
+  --update_build_files \
+  "$@" \
+  "$DIR"/../src/ftrace_reader/test/data/*/events/
+
+rm -rf "$BUILDDIR"
