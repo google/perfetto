@@ -204,10 +204,14 @@ copy("wasm") {
 
 action("check_node_exists") {
   script = "../gn/standalone/check_buildtool_exists.py"
-  args = [ nodejs_bin ]
+  args = [
+    nodejs_bin,
+    "--touch",
+    rebase_path("$target_out_dir/node_exists", ""),
+  ]
   inputs = []
   outputs = [
-    "$target_out_dir/ignored",
+    "$target_out_dir/node_exists",
   ]
 }
 
