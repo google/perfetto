@@ -176,6 +176,7 @@ class Module(object):
         self.defaults = []
         self.cflags = set()
         self.local_include_dirs = []
+        self.user_debug_flag = False
 
     def to_string(self, output):
         if self.comment:
@@ -196,11 +197,18 @@ class Module(object):
         self._output_field(output, 'defaults')
         self._output_field(output, 'cflags')
         self._output_field(output, 'local_include_dirs')
-        if any(name in library_not_in_pdk for name in self.shared_libs):
+
+        disable_pdk = any(name in library_not_in_pdk for name in self.shared_libs)
+        if self.user_debug_flag or disable_pdk:
             output.append('  product_variables: {')
-            output.append('    pdk: {')
-            output.append('      enabled: false,')
-            output.append('    },')
+            if disable_pdk:
+                output.append('    pdk: {')
+                output.append('      enabled: false,')
+                output.append('    },')
+            if self.user_debug_flag:
+                output.append('    debuggable: {')
+                output.append('      cflags: ["-DPERFETTO_BUILD_WITH_ANDROID_USERDEBUG"],')
+                output.append('    },')
             output.append('  },')
         output.append('}')
         output.append('')
@@ -562,6 +570,7 @@ def create_blueprint_for_targets(desc, targets):
         '-fvisibility=hidden',
         '-Oz',
     ]
+    defaults.user_debug_flag = True
 
     blueprint.add_module(defaults)
     for target in targets:

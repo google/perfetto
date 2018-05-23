@@ -191,7 +191,7 @@ message TestConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 11.
+// Next id: 12.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -287,6 +287,16 @@ message TraceConfig {
   // have been written into the file. Tracing is disabled when this limit is
   // reached, even if |duration_ms| has not been reached yet.
   optional uint64 max_file_size_bytes = 10;
+
+  // Contains flags which override the default values of the guardrails inside
+  // Perfetto. These values are only affect userdebug builds.
+  message GuardrailOverrides {
+    // Override the default limit (in bytes) for uploading data to server within
+    // a 24 hour period.
+    optional uint64 max_upload_per_day_bytes = 1;
+  }
+
+  optional GuardrailOverrides guardrail_overrides = 11;
 }
 
 // End of protos/perfetto/config/trace_config.proto
