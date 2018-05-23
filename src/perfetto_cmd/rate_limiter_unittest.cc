@@ -277,6 +277,22 @@ TEST(RateLimiterTest, DropBox_TooMuch) {
   ASSERT_FALSE(limiter.ShouldTrace(args));
 }
 
+TEST(RateLimiterTest, DropBox_TooMuch_Override) {
+  StrictMock<MockRateLimiter> limiter;
+  RateLimiter::Args args;
+
+  PerfettoCmdState input{};
+  input.set_total_bytes_uploaded(10 * 1024 * 1024 + 1);
+  ASSERT_TRUE(limiter.SaveStateConcrete(input));
+
+  args.is_dropbox = true;
+  args.current_time = base::TimeSeconds(60 * 60);
+  args.max_upload_bytes_override = 10 * 1024 * 1024 + 2;
+
+  EXPECT_CALL(limiter, LoadState(_));
+  ASSERT_TRUE(limiter.ShouldTrace(args));
+}
+
 TEST(RateLimiterTest, DropBox_TooMuchWasUploaded) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
