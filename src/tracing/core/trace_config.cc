@@ -90,6 +90,8 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
       "size mismatch");
   max_file_size_bytes_ =
       static_cast<decltype(max_file_size_bytes_)>(proto.max_file_size_bytes());
+
+  guardrail_overrides_.FromProto(proto.guardrail_overrides());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -148,6 +150,8 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
   proto->set_max_file_size_bytes(
       static_cast<decltype(proto->max_file_size_bytes())>(
           max_file_size_bytes_));
+
+  guardrail_overrides_.ToProto(proto->mutable_guardrail_overrides());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
@@ -333,6 +337,40 @@ void TraceConfig::StatsdMetadata::ToProto(
   proto->set_triggering_config_id(
       static_cast<decltype(proto->triggering_config_id())>(
           triggering_config_id_));
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+TraceConfig::GuardrailOverrides::GuardrailOverrides() = default;
+TraceConfig::GuardrailOverrides::~GuardrailOverrides() = default;
+TraceConfig::GuardrailOverrides::GuardrailOverrides(
+    const TraceConfig::GuardrailOverrides&) = default;
+TraceConfig::GuardrailOverrides& TraceConfig::GuardrailOverrides::operator=(
+    const TraceConfig::GuardrailOverrides&) = default;
+TraceConfig::GuardrailOverrides::GuardrailOverrides(
+    TraceConfig::GuardrailOverrides&&) noexcept = default;
+TraceConfig::GuardrailOverrides& TraceConfig::GuardrailOverrides::operator=(
+    TraceConfig::GuardrailOverrides&&) = default;
+
+void TraceConfig::GuardrailOverrides::FromProto(
+    const perfetto::protos::TraceConfig_GuardrailOverrides& proto) {
+  static_assert(sizeof(max_upload_per_day_bytes_) ==
+                    sizeof(proto.max_upload_per_day_bytes()),
+                "size mismatch");
+  max_upload_per_day_bytes_ = static_cast<decltype(max_upload_per_day_bytes_)>(
+      proto.max_upload_per_day_bytes());
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void TraceConfig::GuardrailOverrides::ToProto(
+    perfetto::protos::TraceConfig_GuardrailOverrides* proto) const {
+  proto->Clear();
+
+  static_assert(sizeof(max_upload_per_day_bytes_) ==
+                    sizeof(proto->max_upload_per_day_bytes()),
+                "size mismatch");
+  proto->set_max_upload_per_day_bytes(
+      static_cast<decltype(proto->max_upload_per_day_bytes())>(
+          max_upload_per_day_bytes_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
