@@ -96,7 +96,10 @@ bool RateLimiter::ShouldTrace(const Args& args) {
 
   // If we've uploaded more than 10mb in the last 24 hours we shouldn't trace
   // now.
-  if (state_.total_bytes_uploaded() > kMaxUploadInBytes) {
+  uint64_t max_upload_guardrail = args.max_upload_bytes_override > 0
+                                      ? args.max_upload_bytes_override
+                                      : kMaxUploadInBytes;
+  if (state_.total_bytes_uploaded() > max_upload_guardrail) {
     PERFETTO_ELOG("Guardrail: Uploaded >10mb DropBox in the last 24h.");
     if (!args.ignore_guardrails)
       return false;

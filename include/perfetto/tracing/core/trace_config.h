@@ -52,6 +52,7 @@ class ProcessStatsConfig;
 class TestConfig;
 class TraceConfig_ProducerConfig;
 class TraceConfig_StatsdMetadata;
+class TraceConfig_GuardrailOverrides;
 }  // namespace protos
 }  // namespace perfetto
 
@@ -203,6 +204,34 @@ class PERFETTO_EXPORT TraceConfig {
     std::string unknown_fields_;
   };
 
+  class PERFETTO_EXPORT GuardrailOverrides {
+   public:
+    GuardrailOverrides();
+    ~GuardrailOverrides();
+    GuardrailOverrides(GuardrailOverrides&&) noexcept;
+    GuardrailOverrides& operator=(GuardrailOverrides&&);
+    GuardrailOverrides(const GuardrailOverrides&);
+    GuardrailOverrides& operator=(const GuardrailOverrides&);
+
+    // Conversion methods from/to the corresponding protobuf types.
+    void FromProto(const perfetto::protos::TraceConfig_GuardrailOverrides&);
+    void ToProto(perfetto::protos::TraceConfig_GuardrailOverrides*) const;
+
+    uint64_t max_upload_per_day_bytes() const {
+      return max_upload_per_day_bytes_;
+    }
+    void set_max_upload_per_day_bytes(uint64_t value) {
+      max_upload_per_day_bytes_ = value;
+    }
+
+   private:
+    uint64_t max_upload_per_day_bytes_ = {};
+
+    // Allows to preserve unknown protobuf fields for compatibility
+    // with future versions of .proto files.
+    std::string unknown_fields_;
+  };
+
   TraceConfig();
   ~TraceConfig();
   TraceConfig(TraceConfig&&) noexcept;
@@ -264,6 +293,13 @@ class PERFETTO_EXPORT TraceConfig {
   uint64_t max_file_size_bytes() const { return max_file_size_bytes_; }
   void set_max_file_size_bytes(uint64_t value) { max_file_size_bytes_ = value; }
 
+  const GuardrailOverrides& guardrail_overrides() const {
+    return guardrail_overrides_;
+  }
+  GuardrailOverrides* mutable_guardrail_overrides() {
+    return &guardrail_overrides_;
+  }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -275,6 +311,7 @@ class PERFETTO_EXPORT TraceConfig {
   bool write_into_file_ = {};
   uint32_t file_write_period_ms_ = {};
   uint64_t max_file_size_bytes_ = {};
+  GuardrailOverrides guardrail_overrides_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
