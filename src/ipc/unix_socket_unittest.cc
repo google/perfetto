@@ -338,7 +338,7 @@ bool AtomicWrites_SendAttempt(UnixSocket* s,
 // The client is extremely aggressive and, when a Send() fails, just keeps
 // re-posting it with the same unique number. The server verifies that we
 // receive one and exactly one of each buffers, without any gaps or truncation.
-TEST_F(UnixSocketTest, SendIsAtomic) {
+TEST_F(UnixSocketTest, DISABLED_SendIsAtomic) {
   static constexpr int kNumFrames = 127;
 
   auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_);
