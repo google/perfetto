@@ -248,6 +248,11 @@ cc_defaults {
   local_include_dirs: [
     "include",
   ],
+  product_variables: {
+    debuggable: {
+      cflags: ["-DPERFETTO_BUILD_WITH_ANDROID_USERDEBUG"],
+    },
+  },
 }
 
 // GN target: //:perfetto_integrationtests
