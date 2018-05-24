@@ -39,6 +39,12 @@ on property:sys.traced.enable_override=1
 on property:sys.traced.enable_override=0
     setprop persist.traced.enable 0
 
+on property:debug.atrace.user_initiated=1
+    stop traced_probes
+
+on property:persist.traced.enable=1 && property:debug.atrace.user_initiated=""
+    start traced_probes
+
 on property:persist.traced.enable=1
     # Trace files need to be:
     # - Written by either uid:shell or uid:statsd.
