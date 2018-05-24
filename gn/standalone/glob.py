@@ -34,11 +34,14 @@ def main():
   parser.add_argument('--root', required=True)
   args = parser.parse_args()
 
-  if not os.path.exists(args.root):
+  root = args.root
+  if not root.endswith('/'):
+    root += '/'
+  if not os.path.exists(root):
     return 0
-  for pardir, dirs, files in os.walk(args.root, topdown=True):
-    assert(pardir.startswith(args.root))
-    relpar = pardir[len(args.root):]
+  for pardir, dirs, files in os.walk(root, topdown=True):
+    assert(pardir.startswith(root))
+    relpar = pardir[len(root):]
     dirs[:] = [d for d in dirs if os.path.join(relpar, d) not in args.exclude]
     for fname in files:
       fpath = os.path.join(relpar, fname)
