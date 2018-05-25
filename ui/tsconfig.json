@@ -1,6 +1,5 @@
 {
-  // All other .ts files should be pulled rescursively
-  "include": [ "./main.ts", "./worker.ts" ],
+  "include": [ "src/" ],
   "exclude": [ "./node_modules/" ],
   "compilerOptions": {
     "target": "es6",

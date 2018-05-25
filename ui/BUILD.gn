@@ -137,7 +137,7 @@ node_bin("protos_to_ts") {
 # Builds all .ts sources in the repo that are reachable from |sources|.
 node_bin("transpile_all_ts") {
   sources = [
-    "main.ts",
+    "src/main.ts",
   ]
   deps = [
     ":dist_symlink",
@@ -162,7 +162,6 @@ node_bin("transpile_all_ts") {
                              "list lines",
                              [ "." ])
   inputs += all_ts_files
-
   node_cmd = "tsc"
   args = [
     "--project",
