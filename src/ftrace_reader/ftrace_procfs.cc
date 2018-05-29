@@ -106,6 +106,20 @@ size_t FtraceProcfs::NumberOfCpus() const {
 void FtraceProcfs::ClearTrace() {
   std::string path = root_ + "trace";
   PERFETTO_CHECK(ClearFile(path));  // Could not clear.
+
+  // Truncating the trace file leads to tracing_reset_online_cpus being called
+  // in the kernel.
+  //
+  // In case some of the CPUs were not online, their buffer needs to be
+  // cleared manually.
+  //
+  // We cannot use PERFETTO_CHECK as we might get a permission denied error
+  // on Android. The permissions to these files are configured in
+  // platform/framework/native/cmds/atrace/atrace.rc.
+  for (size_t cpu = 0; cpu < NumberOfCpus(); cpu++) {
+    if (!ClearFile(root_ + "per_cpu/cpu" + std::to_string(cpu) + "/trace"))
+      PERFETTO_ELOG("Failed to clear buffer for CPU %zd", cpu);
+  }
 }
 
 bool FtraceProcfs::WriteTraceMarker(const std::string& str) {

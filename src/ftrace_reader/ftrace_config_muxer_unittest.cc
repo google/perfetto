@@ -26,6 +26,7 @@
 
 using testing::_;
 using testing::AnyNumber;
+using testing::MatchesRegex;
 using testing::Contains;
 using testing::ElementsAreArray;
 using testing::Eq;
@@ -182,6 +183,7 @@ TEST(FtraceConfigMuxerTest, TurnFtraceOnOff) {
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_switch/enable", "0"));
   EXPECT_CALL(ftrace, ClearFile("/root/trace"));
+  EXPECT_CALL(ftrace, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
   ASSERT_TRUE(model.RemoveConfig(id));
 }
 
