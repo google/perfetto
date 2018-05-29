@@ -38,6 +38,7 @@ using testing::AnyNumber;
 using testing::ByMove;
 using testing::Invoke;
 using testing::NiceMock;
+using testing::MatchesRegex;
 using testing::Return;
 using testing::IsEmpty;
 using testing::ElementsAre;
@@ -311,6 +312,9 @@ TEST(FtraceControllerTest, OneSink) {
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
+  EXPECT_CALL(*controller->procfs(),
+              ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/events/enable", "0"));
@@ -347,6 +351,8 @@ TEST(FtraceControllerTest, MultipleSinks) {
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"));
+  EXPECT_CALL(*controller->procfs(),
+              ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
   sinkB.reset();
 }
 
@@ -365,6 +371,9 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
+  EXPECT_CALL(*controller->procfs(),
+              ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/events/enable", "0"));
