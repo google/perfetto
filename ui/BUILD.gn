@@ -50,11 +50,18 @@ template("node_bin") {
     }
     script = "../gn/standalone/build_tool_wrapper.py"
     _node_cmd = invoker.node_cmd
-    args = [
-             "--path=$nodejs_bin",
-             "node",
-             rebase_path("node_modules/.bin/$_node_cmd", root_build_dir),
-           ] + invoker.args
+    args = []
+    if (defined(invoker.suppress_stdout) && invoker.suppress_stdout) {
+      args += [ "--suppress_stdout" ]
+    }
+    if (defined(invoker.suppress_stderr) && invoker.suppress_stderr) {
+      args += [ "--suppress_stderr" ]
+    }
+    args += [
+              "--path=$nodejs_bin",
+              "node",
+              rebase_path("node_modules/.bin/$_node_cmd", root_build_dir),
+            ] + invoker.args
   }
 }
 
@@ -69,18 +76,24 @@ node_bin("main_bundle") {
   deps = [
     ":transpile_all_ts",
   ]
-  node_cmd = "browserify"
+  node_cmd = "rollup"
   inputs = [
     "$target_out_dir/main.js",
+    "rollup.config.js",
   ]
   outputs = [
     "$target_out_dir/main_bundle.js",
   ]
   args = [
+    "-c",
+    rebase_path("rollup.config.js", root_build_dir),
     rebase_path(inputs[0], root_build_dir),
-    "-d",
     "-o",
     rebase_path(outputs[0], root_build_dir),
+    "-f",
+    "iife",
+    "-m",
+    "--silent",
   ]
 }
 
@@ -88,18 +101,24 @@ node_bin("worker_bundle") {
   deps = [
     ":transpile_all_ts",
   ]
-  node_cmd = "browserify"
+  node_cmd = "rollup"
   inputs = [
     "$target_out_dir/worker.js",
+    "rollup.config.js",
   ]
   outputs = [
     "$target_out_dir/worker_bundle.js",
   ]
   args = [
+    "-c",
+    rebase_path("rollup.config.js", root_build_dir),
     rebase_path(inputs[0], root_build_dir),
-    "-d",
     "-o",
     rebase_path(outputs[0], root_build_dir),
+    "-f",
+    "iife",
+    "-m",
+    "--silent",
   ]
 }
 
@@ -262,7 +281,7 @@ action("check_node_exists") {
 }
 
 # Creates a symlink from out/xxx/ui/node_modules -> ../../../ui/node_modules.
-# This allows to run browserify and other node tools from the out/xxx directory.
+# This allows to run rollup and other node tools from the out/xxx directory.
 action("node_modules_symlink") {
   deps = [
     ":check_node_exists",
