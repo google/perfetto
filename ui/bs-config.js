@@ -21,19 +21,31 @@
 'use strict';
 
 const { spawn } = require('child_process');
+const path = require('path');
 
 // Print without added new line.
 const print = data => process.stdout.write(data);
 const printErr = data => process.stderr.write(data);
 
-const ninjaOutDir = process.env.NINJA_OUT_DIR;
+const ninjaOutDir = process.env.OUT_DIR;
+const uiOutDir = path.join(ninjaOutDir, 'ui');
+const perfettoRoot = process.env.ROOT_DIR;
+const ninjaPath = path.join(perfettoRoot, 'tools', 'ninja');
 let ninjaRunning = false;
+
+function rebasePath(relative_path) {
+  return path.join(perfettoRoot, relative_path);
+}
 
 module.exports = function(bs) {
   return {
     files: [
       {
-        match: ["ui/**", "src/trace_processor/**", "protos/**"],
+        match: [
+          "ui/**",
+          "src/trace_processor/**",
+          "protos/**",
+        ].map(rebasePath),
         fn: function(event, file) {
           console.log(`Change detected on ${file}`);
           if (ninjaRunning) {
@@ -44,7 +56,7 @@ module.exports = function(bs) {
           ninjaRunning = true;
 
           console.log(`Executing: ninja -C ${ninjaOutDir} ui`);
-          const ninja = spawn('ninja', ['-C', ninjaOutDir, 'ui']);
+          const ninja = spawn(ninjaPath, ['-C', ninjaOutDir, 'ui']);
           ninja.stdout.on('data', data => print(data.toString()));
           ninja.stderr.on('data', data => printErr(data.toString()));
 
@@ -57,13 +69,17 @@ module.exports = function(bs) {
           });
         },
         options: {
-          ignored: ["ui/dist/", "ui/.git/", "ui/node_modules/"],
-          ignoreInitial: true
+          ignored: [
+            "ui/dist/",
+            "ui/.git/",
+            "ui/node_modules/",
+          ].map(rebasePath),
+          ignoreInitial: true,
         }
       }
     ],
     server: {
-      baseDir: "ui/dist"
+      baseDir: uiOutDir,
     },
   };
 };
