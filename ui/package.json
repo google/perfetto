@@ -16,9 +16,9 @@
   "devDependencies": {
     "@types/jest": "^22.2.3",
     "browserify": "^16.2.2",
-    "jest": "^22.4.4",
+    "jest": "^23.1.0",
     "lite-server": "^2.3.0",
-    "typescript": "^2.8.3"
+    "typescript": "^2.8.4"
   },
   "jest": {
     "transform": {},
