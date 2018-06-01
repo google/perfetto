@@ -232,23 +232,24 @@ action("node_modules_symlink") {
   deps = [
     ":check_node_exists",
   ]
-  inputs = [
-    "node_modules",
-  ]
-  outputs = [
-    "$target_out_dir/node_modules",
-  ]
+
   script = "../gn/standalone/build_tool_wrapper.py"
+  stamp_file = "$target_out_dir/.$target_name.stamp"
   args = [
+    "--stamp",
+    rebase_path(stamp_file, root_build_dir),
     "/bin/ln",
     "-fns",
-    rebase_path(inputs[0], target_out_dir),
-    rebase_path(outputs[0], root_build_dir),
+    rebase_path("node_modules", root_build_dir),
+    rebase_path("$target_out_dir/node_modules", root_build_dir),
+  ]
+  outputs = [
+    stamp_file,
   ]
 }
 
 # Runs npm install.
-action("node_modules") {
+action("node_modules_install") {
   script = "../gn/standalone/build_tool_wrapper.py"
   stamp_file = "$target_out_dir/.$target_name.stamp"
   args = [
@@ -272,7 +273,11 @@ action("node_modules") {
   outputs = [
     stamp_file,
   ]
+}
+
+group("node_modules") {
   deps = [
+    ":node_modules_install",
     ":node_modules_symlink",
   ]
 }
