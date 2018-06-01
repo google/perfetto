@@ -43,13 +43,24 @@ bool Contains(const std::string& haystack, const std::string& needle) {
   return haystack.find(needle) != std::string::npos;
 }
 
+int SetNonBlocking(int fd) {
+  int flags = fcntl(fd, F_GETFL, 0);
+  if (flags == -1)
+    return -1;
+  return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
+
 std::string RunClangFmt(const std::string& input) {
   std::string output;
   pid_t pid;
   int input_pipes[2];
   int output_pipes[2];
-  PERFETTO_CHECK(pipe2(input_pipes, O_NONBLOCK) != -1);
-  PERFETTO_CHECK(pipe2(output_pipes, O_NONBLOCK) != -1);
+  PERFETTO_CHECK(pipe(input_pipes) != -1);
+  PERFETTO_CHECK(SetNonBlocking(input_pipes[0]) != -1);
+  PERFETTO_CHECK(SetNonBlocking(input_pipes[1]) != -1);
+  PERFETTO_CHECK(pipe(output_pipes) != -1);
+  PERFETTO_CHECK(SetNonBlocking(output_pipes[0]) != -1);
+  PERFETTO_CHECK(SetNonBlocking(output_pipes[1]) != -1);
   if ((pid = fork()) == 0) {
     // Child
     PERFETTO_CHECK(dup2(input_pipes[0], STDIN_FILENO) != -1);
