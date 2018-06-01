@@ -20,7 +20,9 @@ source_set("protozero") {
     "contiguous_memory_range.h",
     "message.h",
     "message_handle.h",
+    "proto_decoder.h",
     "proto_field_descriptor.h",
+    "proto_utils.h",
     "scattered_stream_null_delegate.h",
     "scattered_stream_writer.h",
   ]
