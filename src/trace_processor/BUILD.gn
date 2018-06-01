@@ -30,22 +30,27 @@ wasm_lib("trace_processor") {
 
 source_set("lib") {
   sources = [
+    "blob_reader.h",
+    "trace_parser.cc",
+    "trace_parser.h",
     "trace_storage.cc",
     "trace_storage.h",
   ]
   deps = [
     "../../gn:default_deps",
+    "../base",
   ]
 }
 
 source_set("unittests") {
   testonly = true
+  sources = [
+    "trace_parser_unittest.cc",
+    "trace_storage_unittest.cc",
+  ]
   deps = [
     ":lib",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
-  ]
-  sources = [
-    "trace_storage_unittest.cc",
   ]
 }
