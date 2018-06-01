@@ -106,6 +106,9 @@ executable("perfetto_unittests") {
       "tools/sanitizers_unittests",
     ]
   }
+  if (build_standalone) {
+    deps += [ "src/trace_processor:unittests" ]
+  }
 }
 
 if (!build_with_chromium) {
