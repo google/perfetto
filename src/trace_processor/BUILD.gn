@@ -27,3 +27,25 @@ wasm_lib("trace_processor") {
     "../../protos/perfetto/trace_processor:lite",
   ]
 }
+
+source_set("lib") {
+  sources = [
+    "trace_storage.cc",
+    "trace_storage.h",
+  ]
+  deps = [
+    "../../gn:default_deps",
+  ]
+}
+
+source_set("unittests") {
+  testonly = true
+  deps = [
+    ":lib",
+    "../../gn:default_deps",
+    "../../gn:gtest_deps",
+  ]
+  sources = [
+    "trace_storage_unittest.cc",
+  ]
+}
