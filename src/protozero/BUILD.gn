@@ -29,6 +29,7 @@ source_set("protozero") {
   sources = [
     "message.cc",
     "message_handle.cc",
+    "proto_decoder.cc",
     "proto_utils.cc",
     "scattered_stream_null_delegate.cc",
     "scattered_stream_writer.cc",
@@ -53,6 +54,7 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":protozero",
+    ":test_support",
     ":testing_messages_lite",
     ":testing_messages_zero",
     "../../gn:default_deps",
@@ -62,6 +64,7 @@ source_set("unittests") {
   sources = [
     "message_handle_unittest.cc",
     "message_unittest.cc",
+    "proto_decoder_unittest.cc",
     "proto_utils_unittest.cc",
     "scattered_stream_writer_unittest.cc",
     "test/fake_scattered_buffer.cc",
