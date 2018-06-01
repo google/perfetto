@@ -273,7 +273,7 @@ copy("wasm_release") {
     "$root_build_dir/wasm/trace_processor.wasm",
   ]
   outputs = [
-    "$target_out_dir/wasm/{{source_file_part}}",
+    "$ui_dir/wasm/{{source_file_part}}",
   ]
 }
 
@@ -308,7 +308,7 @@ action("node_modules_symlink") {
     rebase_path(stamp_file, root_build_dir),
     "/bin/ln",
     "-fns",
-    rebase_path("node_modules", root_build_dir),
+    rebase_path("node_modules", target_out_dir),
     rebase_path("$target_out_dir/node_modules", root_build_dir),
   ]
   outputs = [
