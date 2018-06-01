@@ -18,7 +18,7 @@ For more details on `gn` configs see
 Finally run:
 
 ```
-$ ./ui/run-dev-server
+$ ./ui/run-dev-server out/debug
 ```
 
 and navigate to `localhost:3000`.

@@ -13,22 +13,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
-NINJA_OUT_DIR=$(cd $CUR_DIR/$(dirname $(readlink $CUR_DIR/dist)); pwd)
+UI_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
+ROOT_DIR=$(dirname "$UI_DIR")
+NODE=$ROOT_DIR/buildtools/nodejs/bin/node
+LITE="$UI_DIR/node_modules/.bin/lite-server"
 
-LITE_SERVER="$CUR_DIR/node_modules/.bin/lite-server"
-if [ ! -f "$LITE_SERVER" ]; then
+if [ ! -f "$LITE" ]; then
   echo "ERROR: cannot find lite-server. You need to run:"
   echo "  tools/install-build-deps --ui"
   echo "  ninja -C out/xxx ui"
   exit 127
 fi
-if [ ! -L "$CUR_DIR/dist" ]; then
-  echo "ERROR: cannot find the 'dist' symlink. Did you run ninja?"
+if [ -z "$1" ]; then
+  echo "ERROR: no output directory specified."
+  echo "Usage: $0 out/mac_debug"
+  exit 127
+fi
+OUT_DIR="$1"
+UI_OUT_DIR="$OUT_DIR/ui"
+if [ ! -d $OUT_DIR ]; then
+  echo "ERROR: cannot find the output directory (\"$OUT_DIR\")"
+  echo "Did you run ninja?"
+  exit 127
+fi
+if [ ! -d $UI_OUT_DIR ]; then
+  echo "ERROR: cannot find the UI output directory (\"$UI_OUT_DIR\")."
+  echo "Did you run ninja ui?"
   exit 127
 fi
 
-export PATH="$CUR_DIR/../buildtools/nodejs/bin/:$PATH"
-cd "$CUR_DIR/../"
-NINJA_OUT_DIR="$NINJA_OUT_DIR" \
-    node ui/node_modules/.bin/lite-server -c ui/bs-config.js
+OUT_DIR="$OUT_DIR" ROOT_DIR="$ROOT_DIR" $NODE $LITE -c $UI_DIR/bs-config.js
+
