@@ -225,27 +225,41 @@ copy("index_release") {
   ]
 }
 
-copy("main_bundle_release") {
+node_bin("main_bundle_release") {
   deps = [
     ":main_bundle",
   ]
-  sources = [
+  inputs = [
     "$target_out_dir/main_bundle.js",
   ]
   outputs = [
     "$ui_dir/main_bundle.js",
   ]
+  node_cmd = "sorcery"
+  args = [
+    "-i",
+    rebase_path(inputs[0], root_build_dir),
+    "-o",
+    rebase_path(outputs[0], root_build_dir),
+  ]
 }
 
-copy("worker_bundle_release") {
+node_bin("worker_bundle_release") {
   deps = [
     ":worker_bundle",
   ]
-  sources = [
+  inputs = [
     "$target_out_dir/worker_bundle.js",
   ]
   outputs = [
     "$ui_dir/worker_bundle.js",
+  ]
+  node_cmd = "sorcery"
+  args = [
+    "-i",
+    rebase_path(inputs[0], root_build_dir),
+    "-o",
+    rebase_path(outputs[0], root_build_dir),
   ]
 }
 

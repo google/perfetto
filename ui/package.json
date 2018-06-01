@@ -11,7 +11,8 @@
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "protobufjs": "^6.8.6"
+    "protobufjs": "^6.8.6",
+    "sorcery": "^0.10.0"
   },
   "devDependencies": {
     "@types/jest": "^22.2.3",
