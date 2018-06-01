@@ -30,6 +30,8 @@ def main():
   parser.add_argument('--stamp', default=None)
   parser.add_argument('--path', default=None)
   parser.add_argument('--noop', default=False, action='store_true')
+  parser.add_argument('--suppress_stdout', default=False, action='store_true')
+  parser.add_argument('--suppress_stderr', default=False, action='store_true')
   parser.add_argument('cmd', nargs=argparse.REMAINDER)
   args = parser.parse_args()
 
@@ -45,8 +47,17 @@ def main():
   if args.path:
     env['PATH'] = os.path.abspath(args.path) + os.pathsep + env['PATH']
 
+  devnull = open(os.devnull, 'wb')
+  stdout = devnull if args.suppress_stdout else None
+  stderr = devnull if args.suppress_stderr else None
+
   try:
-    proc = subprocess.Popen([exe] + args.cmd[1:], cwd=args.chdir, env=env)
+    proc = subprocess.Popen(
+        [exe] + args.cmd[1:],
+        cwd=args.chdir,
+        env=env,
+        stderr=stderr,
+        stdout=stdout)
     ret = proc.wait()
     if ret == 0 and args.stamp:
       with open(args.stamp, 'w'):
