@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-console.log('Hello world!');
+console.log('Hello from the main thread!');
 
 function writeToUIConsole(line:string) {
   const lineElement = document.createElement('div');
@@ -32,3 +32,13 @@ function writeToUIConsole(line:string) {
     print: writeToUIConsole,
     printErr: writeToUIConsole,
 };
+
+
+function main() {
+  const worker = new Worker("worker_bundle.js");
+  worker.onerror = e => {
+    console.error(e);
+  }
+}
+
+main();
