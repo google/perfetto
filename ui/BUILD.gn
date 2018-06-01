@@ -28,6 +28,7 @@ group("ui") {
     ":index_release",
     ":main_bundle_release",
     ":wasm_release",
+    ":worker_bundle_release",
   ]
 }
 
@@ -63,6 +64,7 @@ template("node_bin") {
 
 # Bundle together all js sources into a bundle.js file, that will ultimately be
 # included by the .html files.
+
 node_bin("main_bundle") {
   deps = [
     ":transpile_all_ts",
@@ -72,7 +74,26 @@ node_bin("main_bundle") {
     "$target_out_dir/main.js",
   ]
   outputs = [
-    "$target_out_dir/bundle.js",
+    "$target_out_dir/main_bundle.js",
+  ]
+  args = [
+    rebase_path(inputs[0], root_build_dir),
+    "-d",
+    "-o",
+    rebase_path(outputs[0], root_build_dir),
+  ]
+}
+
+node_bin("worker_bundle") {
+  deps = [
+    ":transpile_all_ts",
+  ]
+  node_cmd = "browserify"
+  inputs = [
+    "$target_out_dir/worker.js",
+  ]
+  outputs = [
+    "$target_out_dir/worker_bundle.js",
   ]
   args = [
     rebase_path(inputs[0], root_build_dir),
@@ -138,6 +159,7 @@ node_bin("protos_to_ts") {
 node_bin("transpile_all_ts") {
   sources = [
     "src/main.ts",
+    "src/worker.ts",
   ]
   deps = [
     ":dist_symlink",
@@ -146,6 +168,7 @@ node_bin("transpile_all_ts") {
   inputs = sources + [ "tsconfig.json" ]
   outputs = [
     "$target_out_dir/main.js",
+    "$target_out_dir/worker.js",
   ]
 
   # Find all *.ts files and pass them as input triggers. This does NOT affect
@@ -188,10 +211,22 @@ copy("main_bundle_release") {
     ":main_bundle",
   ]
   sources = [
-    "$target_out_dir/bundle.js",
+    "$target_out_dir/main_bundle.js",
   ]
   outputs = [
-    "$ui_dir/bundle.js",
+    "$ui_dir/main_bundle.js",
+  ]
+}
+
+copy("worker_bundle_release") {
+  deps = [
+    ":worker_bundle",
+  ]
+  sources = [
+    "$target_out_dir/worker_bundle.js",
+  ]
+  outputs = [
+    "$ui_dir/worker_bundle.js",
   ]
 }
 
