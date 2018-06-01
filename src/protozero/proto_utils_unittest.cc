@@ -166,51 +166,6 @@ TEST(ProtoUtilsTest, VarIntDecodingOutOfBounds) {
   }
 }
 
-TEST(ProtoUtilsTest, FieldDecoding) {
-  struct FieldExpectation {
-    const char* encoded;
-    size_t encoded_size;
-    uint32_t id;
-    FieldType type;
-    uint64_t int_value;
-  };
-
-  const FieldExpectation kFieldExpectations[] = {
-      {"\x08\x00", 2, 1, kFieldTypeVarInt, 0},
-      {"\x08\x42", 2, 1, kFieldTypeVarInt, 0x42},
-      {"\xF8\x07\x42", 3, 127, kFieldTypeVarInt, 0x42},
-      {"\x90\x4D\xFF\xFF\xFF\xFF\x0F", 7, 1234, kFieldTypeVarInt, 0xFFFFFFFF},
-      {"\x7D\x42\x00\x00\x00", 5, 15, kFieldTypeFixed32, 0x42},
-      {"\x95\x4D\x78\x56\x34\x12", 6, 1234, kFieldTypeFixed32, 0x12345678},
-      {"\x79\x42\x00\x00\x00\x00\x00\x00\x00", 9, 15, kFieldTypeFixed64, 0x42},
-      {"\x91\x4D\x08\x07\x06\x05\x04\x03\x02\x01", 10, 1234, kFieldTypeFixed64,
-       0x0102030405060708},
-      {"\x0A\x00", 2, 1, kFieldTypeLengthDelimited, 0},
-      {"\x0A\x04|abc", 6, 1, kFieldTypeLengthDelimited, 4},
-      {"\x92\x4D\x04|abc", 7, 1234, kFieldTypeLengthDelimited, 4},
-      {"\x92\x4D\x83\x01|abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzab"
-       "cdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstu"
-       "vwx",
-       135, 1234, kFieldTypeLengthDelimited, 131},
-  };
-
-  for (size_t i = 0; i < ArraySize(kFieldExpectations); ++i) {
-    const FieldExpectation& exp = kFieldExpectations[i];
-    FieldType field_type = kFieldTypeVarInt;
-    uint32_t field_id = std::numeric_limits<uint32_t>::max();
-    uint64_t field_intvalue = std::numeric_limits<uint64_t>::max();
-    const uint8_t* res = ParseField(
-        reinterpret_cast<const uint8_t*>(exp.encoded),
-        reinterpret_cast<const uint8_t*>(exp.encoded + exp.encoded_size),
-        &field_id, &field_type, &field_intvalue);
-    ASSERT_EQ(reinterpret_cast<const void*>(exp.encoded + exp.encoded_size),
-              reinterpret_cast<const void*>(res));
-    ASSERT_EQ(exp.id, field_id);
-    ASSERT_EQ(exp.type, field_type);
-    ASSERT_EQ(exp.int_value, field_intvalue);
-  }
-}
-
 }  // namespace
 }  // namespace proto_utils
 }  // namespace protozero

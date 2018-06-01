@@ -112,19 +112,6 @@ const uint8_t* ParseVarInt(const uint8_t* start,
                            const uint8_t* end,
                            uint64_t* value);
 
-// Parses a protobuf field and computes its id, type and value.
-// Returns a pointer to the next unconsumed byte (|start| < retval <= end) that
-// is either the beginning of the next field or the end of the parent message.
-// In the case of a kFieldTypeLengthDelimited field, |field_intvalue| will
-// store the length of the payload (either a string or a nested message). In
-// this case, the start of the payload will be at (return value) -
-// |field_intvalue|.
-const uint8_t* ParseField(const uint8_t* start,
-                          const uint8_t* end,
-                          uint32_t* field_id,
-                          FieldType* field_type,
-                          uint64_t* field_intvalue);
-
 }  // namespace proto_utils
 }  // namespace protozero
 
