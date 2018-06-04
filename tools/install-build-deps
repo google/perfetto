@@ -215,8 +215,8 @@ UI_DEPS = [
    'darwin'
   ),
   ('buildtools/emsdk/llvm.tgz',
-   'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-linux.tar.gz',
-   'fdc26481fe70001ea00e83b99d0df906c9b2a45f',
+   'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-static-linux.tar.gz',
+   '478501b9b7a14884e546c84efe209a90052cbb07',
    'linux2'
   ),
 ]
