@@ -99,12 +99,14 @@ source_set("unittests") {
     "test/mock_producer.h",
     "test/test_shared_memory.cc",
     "test/test_shared_memory.h",
-    "test/tracing_integration_test.cc",
   ]
 
   if (!build_with_chromium) {
     deps += [ ":ipc" ]
-    sources += [ "ipc/posix_shared_memory_unittest.cc" ]
+    sources += [
+      "ipc/posix_shared_memory_unittest.cc",
+      "test/tracing_integration_test.cc",
+    ]
   }
 }
 
