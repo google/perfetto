@@ -47,7 +47,7 @@ TEST(ProtoDecoder, ReadString) {
   ProtoDecoder decoder(data, bytes_used);
   ProtoDecoder::Field field = decoder.ReadField();
 
-  ASSERT_EQ(field.id, 1);
+  ASSERT_EQ(field.id, 1u);
   ASSERT_EQ(field.type, proto_utils::FieldType::kFieldTypeLengthDelimited);
   ASSERT_EQ(field.length_limited.length, sizeof(kTestString) - 1);
   for (size_t i = 0; i < sizeof(kTestString) - 1; i++) {
