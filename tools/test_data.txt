@@ -1,4 +1,4 @@
 # List of test deps that should be pushed on the device. Paths are relative
 # to the root.
-src/ftrace_reader/test/data/
+src/traced/probes/ftrace/test/data/
 src/traced/probes/filesystem/testdata/

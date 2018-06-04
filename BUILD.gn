@@ -94,11 +94,11 @@ executable("perfetto_unittests") {
 
   if (!build_with_chromium) {
     deps += [
-      "src/ftrace_reader:unittests",
       "src/ipc:unittests",
       "src/perfetto_cmd:unittests",
       "src/traced/probes:unittests",
       "src/traced/probes/filesystem:unittests",
+      "src/traced/probes/ftrace:unittests",
       "tools/ftrace_proto_gen:unittests",
       "tools/sanitizers_unittests",
     ]
@@ -113,7 +113,7 @@ if (!build_with_chromium) {
     testonly = true
     deps = [
       "gn:default_deps",
-      "src/ftrace_reader:ftrace_reader_benchmarks",
+      "src/traced/probes/ftrace:benchmarks",
       "src/tracing:tracing_benchmarks",
       "test:benchmark_main",
       "test:end_to_end_benchmarks",
@@ -125,7 +125,7 @@ if (!build_with_chromium) {
     deps = [
       "gn:default_deps",
       "gn:gtest_main",
-      "src/ftrace_reader:ftrace_reader_integrationtests",
+      "src/traced/probes/ftrace:integrationtests",
       "test:end_to_end_integrationtests",
     ]
     if (build_with_android) {
@@ -235,8 +235,8 @@ if (use_libfuzzer && !build_with_chromium) {
   group("fuzzers") {
     testonly = true
     deps = [
-      "src/ftrace_reader:cpu_reader_fuzzer",
       "src/ipc:buffered_frame_deserializer_fuzzer",
+      "src/traced/probes/ftrace:cpu_reader_fuzzer",
       "test:end_to_end_shared_memory_fuzzer",
     ]
   }

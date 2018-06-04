@@ -25,9 +25,10 @@
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>
+
 #include "perfetto/base/file_utils.h"
-#include "perfetto/ftrace_reader/format_parser.h"
-#include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "perfetto/base/logging.h"
+#include "src/traced/probes/ftrace/format_parser.h"
 #include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
 std::unique_ptr<std::ostream> MakeOFStream(const std::string& filename);
@@ -203,7 +204,7 @@ int main(int argc, char** argv) {
 
   {
     std::unique_ptr<std::ostream> out =
-        ostream_factory("src/ftrace_reader/event_info.cc");
+        ostream_factory("src/traced/probes/ftrace/event_info.cc");
     perfetto::GenerateEventInfo(events_info, out.get());
     PERFETTO_CHECK(!out->fail());
   }

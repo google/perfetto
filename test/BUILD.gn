@@ -86,6 +86,7 @@ source_set("task_runner_thread_delegates") {
   deps = [
     ":task_runner_thread",
     "../gn:default_deps",
+    "../include/perfetto/traced",
     "../src/base:test_support",
     "../src/traced/probes:probes_src",
     "../src/tracing:ipc",
