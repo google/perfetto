@@ -14,7 +14,7 @@ This doc should:
 - Describe how session multiplexing works.
 - Describe the page-by-page scheduling algorithm that uses vmsplice()
 
-Code lives in [/src/ftrace_reader](/src/ftrace_reader/).
+Code lives in [/src/traced/probes/ftrace](/src/traced/probes/ftrace/).
 
 From https://android-review.googlesource.com/c/platform/external/perfetto/+/603793/
 ```

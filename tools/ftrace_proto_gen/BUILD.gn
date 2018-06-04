@@ -35,7 +35,7 @@ source_set("ftrace_proto_gen_src") {
     "../../gn:default_deps",
     "../../gn:protobuf_full_deps",
     "../../src/base",
-    "../../src/ftrace_reader",
+    "../../src/traced/probes/ftrace",
   ]
 }
 
@@ -50,6 +50,6 @@ executable("ftrace_proto_gen") {
     "../../gn:protobuf_full_deps",
     "../../protos/perfetto/trace:lite",
     "../../src/base",
-    "../../src/ftrace_reader",
+    "../../src/traced/probes/ftrace",
   ]
 }
