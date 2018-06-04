@@ -23,6 +23,8 @@ if (!build_with_chromium) {
   import("//build/config/sanitizers/sanitizers.gni")
 }
 
+assert(!build_with_chromium)
+
 source_set("ipc") {
   public_configs = [ "../../gn:default_config" ]
   public_deps = [
