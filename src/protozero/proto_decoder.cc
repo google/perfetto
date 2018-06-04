@@ -49,6 +49,11 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
   PERFETTO_DCHECK(pos >= buffer_);
   PERFETTO_DCHECK(pos <= end);
 
+  // If we've already hit the end, just return an invalid field.
+  if (pos >= end) {
+    return field;
+  }
+
   uint64_t raw_field_id = 0;
   pos = ParseVarInt(pos, end, &raw_field_id);
 
@@ -102,8 +107,8 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
       // We need to explicity check for zero to ensure that ParseVarInt doesn't
       // return zero because of running out of space in the buffer.
       if (*pos == 0) {
-        field.length_value.data = ++pos;
-        field.length_value.length = 0;
+        field.length_limited.data = ++pos;
+        field.length_limited.length = 0;
       } else {
         pos = ParseVarInt(pos, end, &field_intvalue);
 
@@ -115,8 +120,8 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
         if (field_intvalue == 0 || pos + field_intvalue > end) {
           return field;
         }
-        field.length_value.data = pos;
-        field.length_value.length = field_intvalue;
+        field.length_limited.data = pos;
+        field.length_limited.length = field_intvalue;
         pos += field_intvalue;
       }
       break;
@@ -132,6 +137,10 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
 bool ProtoDecoder::IsEndOfBuffer() {
   PERFETTO_DCHECK(current_position_ >= buffer_);
   return length_ == static_cast<uint64_t>(current_position_ - buffer_);
+}
+
+void ProtoDecoder::Reset() {
+  current_position_ = buffer_;
 }
 
 }  // namespace protozero
