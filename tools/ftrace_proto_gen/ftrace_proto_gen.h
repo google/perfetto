@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/ftrace_reader/format_parser.h"
+#include "src/traced/probes/ftrace/format_parser.h"
 
 namespace perfetto {
 
