@@ -96,6 +96,11 @@ matrix:
       sudo: true
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-libfuzzer GN_ARGS="is_clang=true is_debug=false use_libfuzzer=true is_asan=true"
+    - os: linux
+      dist: trusty
+      sudo: false
+      compiler: clang
+      env: CFG=ui-clang-x86_64-release GN_ARGS="is_debug=false is_clang=true"
 
 # Cache the deps that get git-pulled to avoid hitting quota limits (b/68252114).
 # Do not cache NDK/SDK and things that come from .zip files rather than git.
@@ -119,10 +124,12 @@ before_install:
 
 install:
   - |
-    if [[ "$CFG" != android-* ]]; then
-      tools/install-build-deps --no-android
-    else
+    if [[ "$CFG" == android-* ]]; then
       tools/install-build-deps
+    elif [[ "$CFG" == ui-* ]]; then
+      tools/install-build-deps --no-android --ui
+    else
+      tools/install-build-deps --no-android
     fi
   - |
     if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
@@ -131,13 +138,27 @@ install:
 
 script:
   - tools/gn gen out/dist --args="${GN_ARGS}" --check
-  - tools/ninja -C out/dist -j8
+  - |
+    if [[ "$CFG" == ui-* ]]; then
+      tools/ninja -C out/dist -j8 ui 2>&1 | grep -v "no version information available"
+    else
+      tools/ninja -C out/dist -j8
+    fi
   - |
     TEST_TARGETS="
     perfetto_integrationtests
     perfetto_unittests
     "
-    if [[ "$CFG" != android-* ]]; then
+    if [[ "$CFG" == ui-* ]]; then
+      true  # TODO(hjd): add in next CLs.
+    elif [[ "$CFG" == android-* ]]; then
+      TARGET_ARCH=$(echo $CFG | cut -d- -f3)
+      tools/run_android_emulator --pid /tmp/emulator.pid -v &
+      for TEST_TARGET in $TEST_TARGETS; do
+        tools/run_android_test out/dist "$TEST_TARGET"
+      done
+      tools/run_android_test --env BENCHMARK_FUNCTIONAL_TEST_ONLY=true out/dist "perfetto_benchmarks"
+    else
       for TEST_TARGET in $TEST_TARGETS; do
         "out/dist/$TEST_TARGET"
       done
@@ -147,13 +168,6 @@ script:
         out/dist/end_to_end_shared_memory_fuzzer -runs=1
         out/dist/buffered_frame_deserializer_fuzzer -runs=1
       fi
-    else
-      TARGET_ARCH=$(echo $CFG | cut -d- -f3)
-      tools/run_android_emulator --pid /tmp/emulator.pid -v &
-      for TEST_TARGET in $TEST_TARGETS; do
-        tools/run_android_test out/dist "$TEST_TARGET"
-      done
-      tools/run_android_test --env BENCHMARK_FUNCTIONAL_TEST_ONLY=true out/dist "perfetto_benchmarks"
     fi
 
 after_script:
