@@ -45,12 +45,13 @@ TEST(PageAllocatorTest, Basic) {
 
     ASSERT_TRUE(vm_test_utils::IsMapped(ptr_raw, kSize));
 
-    bool unmapped = PageAllocator::AdviseDontNeed(ptr_raw, kSize);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    ASSERT_TRUE(PageAllocator::AdviseDontNeed(ptr_raw, kSize));
 
-    if (unmapped) {
-      // Make sure the pages were removed from the working set.
-      ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, kSize));
-    }
+    // Make sure the pages were removed from the working set.
+    ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, kSize));
+#endif
   }
 
   // Freed memory is necessarily not mapped in to the process.
