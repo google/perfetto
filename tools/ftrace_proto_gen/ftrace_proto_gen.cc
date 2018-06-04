@@ -446,7 +446,7 @@ void GenerateEventInfo(const std::vector<std::string>& events_info,
   s += std::string("// ") + __FILE__ + "\n";
   s += "// Do not edit.\n";
   s += R"(
-#include "src/ftrace_reader/event_info.h"
+#include "src/traced/probes/ftrace/event_info.h"
 
 namespace perfetto {
 

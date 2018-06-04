@@ -1,9 +1,21 @@
 #!/bin/bash
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-BUILDDIR="$DIR/../out/ftrace_proto_gen_build"
+# This script generates .proto files for ftrace events from the /format files
+# in src/traced/probes/ftrace/test/data/*/events/.
+# Only the events in the whitelist are translated.
 
-"$DIR/gn" gen "$BUILDDIR" --args="is_clang=true is_debug=false"
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+if [ "$BUILDDIR" == "" ]; then
+  BUILDDIR="$DIR/../out/ftrace_proto_gen_build"
+  "$DIR/gn" gen "$BUILDDIR" --args="is_debug=false"
+else
+  BUILDDIR="$(realpath $BUILDDIR)"
+  if [ ! -d "$BUILDDIR" ]; then
+    echo "Directory does not exist: $BUILDDIR"
+    exit 1
+  fi
+fi
+
 "$DIR/ninja" -C "$BUILDDIR" ftrace_proto_gen
 
 # FIXME(fmayer): make ftrace_proto_gen independent of cwd.
@@ -15,6 +27,4 @@ cd "$DIR/.."
   --proto_descriptor "$BUILDDIR/gen/protos/perfetto/trace/ftrace.descriptor" \
   --update_build_files \
   "$@" \
-  "$DIR"/../src/ftrace_reader/test/data/*/events/
-
-rm -rf "$BUILDDIR"
+  "$DIR"/../src/traced/probes/ftrace/test/data/*/events/

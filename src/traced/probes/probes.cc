@@ -23,7 +23,7 @@
 #include "perfetto/base/unix_task_runner.h"
 #include "perfetto/traced/traced.h"
 
-#include "src/ftrace_reader/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/probes_producer.h"
 #include "src/tracing/ipc/default_socket.h"
 
