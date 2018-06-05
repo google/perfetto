@@ -35,10 +35,13 @@ source_set("lib") {
     "trace_parser.h",
     "trace_storage.cc",
     "trace_storage.h",
+    "virtual_destructors.cc",
   ]
   deps = [
     "../../gn:default_deps",
+    "../../protos/perfetto/trace:lite",
     "../base",
+    "../protozero",
   ]
 }
 
@@ -52,5 +55,7 @@ source_set("unittests") {
     ":lib",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
+    "../../protos/perfetto/trace:lite",
+    "../base",
   ]
 }

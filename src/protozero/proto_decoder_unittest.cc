@@ -49,9 +49,9 @@ TEST(ProtoDecoder, ReadString) {
 
   ASSERT_EQ(field.id, 1);
   ASSERT_EQ(field.type, proto_utils::FieldType::kFieldTypeLengthDelimited);
-  ASSERT_EQ(field.length_value.length, sizeof(kTestString) - 1);
+  ASSERT_EQ(field.length_limited.length, sizeof(kTestString) - 1);
   for (size_t i = 0; i < sizeof(kTestString) - 1; i++) {
-    ASSERT_EQ(field.length_value.data[i], kTestString[i]);
+    ASSERT_EQ(field.length_limited.data[i], kTestString[i]);
   }
 }
 
@@ -93,7 +93,7 @@ TEST(ProtoDecoder, FixedData) {
     ASSERT_EQ(exp.type, field.type);
 
     if (field.type == kFieldTypeLengthDelimited) {
-      ASSERT_EQ(exp.int_value, field.length_value.length);
+      ASSERT_EQ(exp.int_value, field.length_limited.length);
     } else {
       ASSERT_EQ(exp.int_value, field.int_value);
     }

@@ -18,6 +18,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/trace/trace.pb.h"
+#include "perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -27,8 +30,40 @@ using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Invoke;
 
+class FakeStringBlobReader : public BlobReader {
+ public:
+  FakeStringBlobReader(const std::string& data) : data_(data) {}
+  ~FakeStringBlobReader() override {}
+
+  uint32_t Read(uint64_t offset, uint32_t len, uint8_t* dst) override {
+    PERFETTO_CHECK(offset <= data_.size());
+    uint32_t rsize =
+        std::min(static_cast<uint32_t>(data_.size() - offset), len);
+    memcpy(dst, data_.c_str() + offset, rsize);
+    return rsize;
+  }
+
+ private:
+  std::string data_;
+};
+
 TEST(TraceParser, LoadSinglePacket) {
-  // TODO(lalitm): write this test.
+  protos::Trace trace;
+
+  auto* bundle = trace.add_packet()->mutable_ftrace_events();
+  bundle->set_cpu(10);
+
+  auto* event = bundle->add_event();
+  event->set_timestamp(1000);
+
+  auto* sched_switch = event->mutable_sched_switch();
+  sched_switch->set_prev_pid(10);
+  sched_switch->set_next_prio(100);
+
+  FakeStringBlobReader reader(trace.SerializeAsString());
+  TraceStorage storage;
+  TraceParser parser(&reader, &storage, 1024);
+  parser.ParseNextChunk();
 }
 
 TEST(TraceParser, LoadMultiplePacket) {
