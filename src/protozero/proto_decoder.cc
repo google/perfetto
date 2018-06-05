@@ -63,6 +63,7 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
   }
   field.type = static_cast<FieldType>(raw_field_id & kFieldTypeMask);
 
+  const uint8_t* new_pos = nullptr;
   uint64_t field_intvalue = 0;
   switch (field.type) {
     case kFieldTypeFixed64: {
@@ -85,45 +86,33 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
       break;
     }
     case kFieldTypeVarInt: {
-      // We need to explicity check for zero to ensure that ParseVarInt doesn't
-      // return zero because of running out of space in the buffer.
-      if (*pos == 0) {
-        pos++;
-        field.int_value = 0;
-      } else {
-        pos = ParseVarInt(pos, end, &field.int_value);
+      new_pos = ParseVarInt(pos, end, &field.int_value);
 
-        // The parsed value equalling zero means ParseVarInt could not fully
-        // parse the number. This is because we are out of space in the buffer.
-        // Set the id to zero and return but don't update the offset so a future
-        // read can read this field.
-        if (field.int_value == 0) {
-          return field;
-        }
+      // new_pos not being greater than pos means ParseVarInt could not fully
+      // parse the number. This is because we are out of space in the buffer.
+      // Set the id to zero and return but don't update the offset so a future
+      // read can read this field.
+      if (new_pos == pos) {
+        return field;
       }
+      pos = new_pos;
       break;
     }
     case kFieldTypeLengthDelimited: {
-      // We need to explicity check for zero to ensure that ParseVarInt doesn't
-      // return zero because of running out of space in the buffer.
-      if (*pos == 0) {
-        field.length_limited.data = ++pos;
-        field.length_limited.length = 0;
-      } else {
-        pos = ParseVarInt(pos, end, &field_intvalue);
+      new_pos = ParseVarInt(pos, end, &field_intvalue);
 
-        // The parsed value equalling zero means ParseVarInt could not fully
-        // parse the number. This is because we are out of space in the buffer.
-        // Alternatively, we may not have space to fully read the length
-        // delimited field. Set the id to zero and return but don't update the
-        // offset so a future read can read this field.
-        if (field_intvalue == 0 || pos + field_intvalue > end) {
-          return field;
-        }
-        field.length_limited.data = pos;
-        field.length_limited.length = field_intvalue;
-        pos += field_intvalue;
+      // new_pos not being greater than pos means ParseVarInt could not fully
+      // parse the number. This is because we are out of space in the buffer.
+      // Alternatively, we may not have space to fully read the length
+      // delimited field. Set the id to zero and return but don't update the
+      // offset so a future read can read this field.
+      if (new_pos == pos || pos + field_intvalue > end) {
+        return field;
       }
+      pos = new_pos;
+      field.length_limited.data = pos;
+      field.length_limited.length = field_intvalue;
+      pos += field_intvalue;
       break;
     }
   }

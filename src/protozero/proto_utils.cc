@@ -35,7 +35,7 @@ const uint8_t* ParseVarInt(const uint8_t* start,
   do {
     if (PERFETTO_UNLIKELY(pos >= end)) {
       *value = 0;
-      break;
+      return start;
     }
     PERFETTO_DCHECK(shift < 64ull);
     *value |= static_cast<uint64_t>(*pos & 0x7f) << shift;
