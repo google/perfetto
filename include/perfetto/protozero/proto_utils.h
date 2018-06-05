@@ -107,7 +107,9 @@ void StaticAssertSingleBytePreamble() {
 // Parses a VarInt from the encoded buffer [start, end). |end| is STL-style and
 // points one byte past the end of buffer.
 // The parsed int value is stored in the output arg |value|. Returns a pointer
-// to the next unconsumed byte (so start < retval <= end).
+// to the next unconsumed byte (so start < retval <= end) or |start| if the
+// VarInt could not be fully parsed because there was not enough space in the
+// buffer.
 const uint8_t* ParseVarInt(const uint8_t* start,
                            const uint8_t* end,
                            uint64_t* value);
