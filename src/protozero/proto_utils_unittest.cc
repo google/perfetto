@@ -161,7 +161,7 @@ TEST(ProtoUtilsTest, VarIntDecodingOutOfBounds) {
   for (size_t i = 0; i < 5; i++) {
     uint64_t value = static_cast<uint64_t>(-1);
     const uint8_t* res = ParseVarInt(buf, buf + i, &value);
-    EXPECT_EQ(&buf[0] + i, res);
+    EXPECT_EQ(&buf[0], res);
     EXPECT_EQ(0u, value);
   }
 }
