@@ -50,6 +50,18 @@ class ProtoDecoder {
                       type == proto_utils::FieldType::kFieldTypeFixed32);
       return static_cast<uint32_t>(int_value);
     }
+
+    inline const char* as_char_ptr() const {
+      PERFETTO_DCHECK(type ==
+                      proto_utils::FieldType::kFieldTypeLengthDelimited);
+      return reinterpret_cast<const char*>(length_limited.data);
+    }
+
+    inline size_t size() const {
+      PERFETTO_DCHECK(type ==
+                      proto_utils::FieldType::kFieldTypeLengthDelimited);
+      return static_cast<size_t>(length_limited.length);
+    }
   };
 
   // Creates a ProtoDecoder using the given |buffer| with size |length| bytes.
@@ -65,6 +77,11 @@ class ProtoDecoder {
 
   // Resets the current position to the start of the buffer.
   void Reset();
+
+  // Return's offset inside the buffer.
+  uint64_t offset() const {
+    return static_cast<uint64_t>(current_position_ - buffer_);
+  }
 
  private:
   const uint8_t* const buffer_;
