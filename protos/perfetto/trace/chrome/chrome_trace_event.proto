@@ -33,6 +33,7 @@ message ChromeTraceEvent {
       // Pointers are stored in a separate type as the JSON output treats them
       // differently from other uint64 values.
       uint64 pointer_value = 7;
+      string json_value = 8;
     }
   }
 
