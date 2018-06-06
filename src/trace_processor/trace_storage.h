@@ -47,17 +47,14 @@ class TraceStorage {
     }
 
     size_t slice_count() const {
-      PERFETTO_DCHECK(valid_);
       return start_ns_.size();
     }
 
     const std::deque<uint64_t>& start_ns() const {
-      PERFETTO_DCHECK(valid_);
       return start_ns_;
     }
 
     const std::deque<uint64_t>& durations() const {
-      PERFETTO_DCHECK(valid_);
       return durations_;
     }
 
@@ -67,9 +64,6 @@ class TraceStorage {
     std::deque<uint64_t> start_ns_;
     std::deque<uint64_t> durations_;
     std::deque<StringId> thread_names_;
-
-    // Set to true when an event is seen for this CPU.
-    bool valid_ = false;
   };
 
   struct Stats {
