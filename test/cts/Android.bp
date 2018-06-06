@@ -1,6 +1,7 @@
 cc_test {
   name: "CtsPerfettoTestCases",
   srcs: [
+    "device_feature_test_cts.cc",
     "end_to_end_integrationtest_cts.cc",
   ],
   static_libs: [
