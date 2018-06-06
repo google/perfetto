@@ -82,21 +82,14 @@ source_set("unittests") {
     "core/null_trace_writer_unittest.cc",
     "core/packet_stream_validator_unittest.cc",
     "core/patch_list_unittest.cc",
-    "core/service_impl_unittest.cc",
     "core/shared_memory_abi_unittest.cc",
-    "core/shared_memory_arbiter_impl_unittest.cc",
     "core/sliced_protobuf_input_stream_unittest.cc",
     "core/trace_buffer_unittest.cc",
     "core/trace_packet_unittest.cc",
-    "core/trace_writer_impl_unittest.cc",
     "test/aligned_buffer_test.cc",
     "test/aligned_buffer_test.h",
     "test/fake_packet.cc",
     "test/fake_packet.h",
-    "test/mock_consumer.cc",
-    "test/mock_consumer.h",
-    "test/mock_producer.cc",
-    "test/mock_producer.h",
     "test/test_shared_memory.cc",
     "test/test_shared_memory.h",
   ]
@@ -106,6 +99,20 @@ source_set("unittests") {
     sources += [
       "ipc/posix_shared_memory_unittest.cc",
       "test/tracing_integration_test.cc",
+    ]
+  }
+
+  # These tests rely on test_task_runner.h which
+  # has no Windows implementation.
+  if (!is_win) {
+    sources += [
+      "core/service_impl_unittest.cc",
+      "core/shared_memory_arbiter_impl_unittest.cc",
+      "core/trace_writer_impl_unittest.cc",
+      "test/mock_consumer.cc",
+      "test/mock_consumer.h",
+      "test/mock_producer.cc",
+      "test/mock_producer.h",
     ]
   }
 }
