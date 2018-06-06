@@ -33,7 +33,7 @@ class TraceParser {
  public:
   // |reader| is the abstract method of getting chunks of size |chunk_size_b|
   // from a trace file with these chunks parsed into |trace|.
-  TraceParser(BlobReader* reader, TraceStorage* trace, uint32_t chunk_size_b);
+  TraceParser(BlobReader* reader, TraceStorage* storage, uint32_t chunk_size_b);
 
   void ParseNextChunk();
 
@@ -47,7 +47,7 @@ class TraceParser {
                         uint32_t length);
 
   BlobReader* const reader_;
-  TraceStorage* const trace_;
+  TraceStorage* const storage_;
   const uint32_t chunk_size_b_;
 
   uint64_t offset_ = 0;
