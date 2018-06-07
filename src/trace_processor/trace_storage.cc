@@ -57,14 +57,15 @@ void TraceStorage::PushSchedSwitch(uint32_t cpu,
 TraceStorage::StringId TraceStorage::InternString(const char* data,
                                                   size_t length) {
   uint32_t hash = 0;
-  for (uint64_t i = 0; i < length; ++i) {
+  for (size_t i = 0; i < length; ++i) {
     hash = static_cast<uint32_t>(data[i]) + (hash * 31);
   }
   auto id_it = string_index_.find(hash);
   if (id_it != string_index_.end()) {
     // TODO(lalitm): check if this DCHECK happens and if so, then change hash
     // to 64bit.
-    PERFETTO_DCHECK(string_pool_[id_it->second] == std::string(data, length));
+    PERFETTO_DCHECK(
+        strncmp(string_pool_[id_it->second].c_str(), data, length) == 0);
     return id_it->second;
   }
   string_pool_.emplace_back(data, length);
