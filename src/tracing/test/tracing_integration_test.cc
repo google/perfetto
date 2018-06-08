@@ -165,9 +165,9 @@ class TracingIntegrationTest : public ::testing::Test {
 
   std::unique_ptr<base::TestTaskRunner> task_runner_;
   std::unique_ptr<ServiceIPCHost> svc_;
-  std::unique_ptr<Service::ProducerEndpoint> producer_endpoint_;
+  std::unique_ptr<TracingService::ProducerEndpoint> producer_endpoint_;
   MockProducer producer_;
-  std::unique_ptr<Service::ConsumerEndpoint> consumer_endpoint_;
+  std::unique_ptr<TracingService::ConsumerEndpoint> consumer_endpoint_;
   MockConsumer consumer_;
 };
 

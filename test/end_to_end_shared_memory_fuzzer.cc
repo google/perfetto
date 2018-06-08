@@ -102,7 +102,7 @@ class FakeProducer : public Producer {
   const std::string name_;
   const uint8_t* data_;
   const size_t size_;
-  std::unique_ptr<Service::ProducerEndpoint> endpoint_;
+  std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;
   std::function<void()> on_produced_and_committed_;
 };
 

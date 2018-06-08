@@ -23,8 +23,8 @@
 
 #include "gmock/gmock.h"
 #include "perfetto/tracing/core/producer.h"
-#include "perfetto/tracing/core/service.h"
 #include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/tracing/core/tracing_service.h"
 
 namespace perfetto {
 
@@ -42,7 +42,7 @@ class MockProducer : public Producer {
   explicit MockProducer(base::TestTaskRunner*);
   ~MockProducer() override;
 
-  void Connect(Service* svc,
+  void Connect(TracingService* svc,
                const std::string& producer_name,
                uid_t uid = 42,
                size_t shared_memory_size_hint_bytes = 0);
@@ -58,7 +58,9 @@ class MockProducer : public Producer {
   // If |writer_to_flush| == nullptr does NOT reply to the flush request.
   void WaitForFlush(TraceWriter* writer_to_flush);
 
-  Service::ProducerEndpoint* endpoint() { return service_endpoint_.get(); }
+  TracingService::ProducerEndpoint* endpoint() {
+    return service_endpoint_.get();
+  }
 
   // Producer implementation.
   MOCK_METHOD0(OnConnect, void());
@@ -73,7 +75,7 @@ class MockProducer : public Producer {
  private:
   base::TestTaskRunner* const task_runner_;
   std::string producer_name_;
-  std::unique_ptr<Service::ProducerEndpoint> service_endpoint_;
+  std::unique_ptr<TracingService::ProducerEndpoint> service_endpoint_;
   std::map<std::string, EnabledDataSource> data_source_instances_;
 };
 
