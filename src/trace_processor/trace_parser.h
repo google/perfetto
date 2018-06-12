@@ -35,7 +35,9 @@ class TraceParser {
   // from a trace file with these chunks parsed into |trace|.
   TraceParser(BlobReader* reader, TraceStorage* storage, uint32_t chunk_size_b);
 
-  void ParseNextChunk();
+  // Parses the next chunk of TracePackets from the BlobReader. Returns true
+  // if there are more chunks which can be read and false otherwise.
+  bool ParseNextChunk();
 
  private:
   void ParsePacket(const uint8_t* data, uint32_t length);
