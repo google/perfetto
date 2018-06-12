@@ -132,6 +132,7 @@ node_bin("protos_to_js") {
   foreach(proto, trace_processor_protos) {
     inputs += [ "../protos/perfetto/trace_processor/$proto.proto" ]
   }
+  inputs += [ "../protos/perfetto/config/perfetto_config.proto" ]
   outputs = [
     "$proto_gen_dir/protos.js",
   ]
