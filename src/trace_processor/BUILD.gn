@@ -57,6 +57,7 @@ source_set("unittests") {
   ]
   deps = [
     ":lib",
+    "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
     "../../protos/perfetto/trace:lite",
