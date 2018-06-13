@@ -48,13 +48,13 @@ TraceParser::TraceParser(BlobReader* reader,
                          uint32_t chunk_size_b)
     : reader_(reader), storage_(storage), chunk_size_b_(chunk_size_b) {}
 
-void TraceParser::ParseNextChunk() {
+bool TraceParser::ParseNextChunk() {
   if (!buffer_)
     buffer_.reset(new uint8_t[chunk_size_b_]);
 
   uint32_t read = reader_->Read(offset_, chunk_size_b_, buffer_.get());
   if (read == 0)
-    return;
+    return false;
 
   ProtoDecoder decoder(buffer_.get(), read);
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
@@ -67,6 +67,7 @@ void TraceParser::ParseNextChunk() {
   }
 
   offset_ += decoder.offset();
+  return true;
 }
 
 void TraceParser::ParsePacket(const uint8_t* data, uint32_t length) {

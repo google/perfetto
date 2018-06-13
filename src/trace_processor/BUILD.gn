@@ -33,6 +33,8 @@ source_set("lib") {
     "blob_reader.h",
     "sched_slice_table.cc",
     "sched_slice_table.h",
+    "trace_database.cc",
+    "trace_database.h",
     "trace_parser.cc",
     "trace_parser.h",
     "trace_storage.cc",
@@ -43,6 +45,7 @@ source_set("lib") {
     "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace_processor:lite",
     "../base",
     "../protozero",
   ]
