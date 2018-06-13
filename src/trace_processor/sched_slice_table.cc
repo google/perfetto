@@ -44,6 +44,10 @@ inline bool IsOpLt(int op) {
   return op == SQLITE_INDEX_CONSTRAINT_LT;
 }
 
+inline SchedSliceTable* AsTable(sqlite3_vtab* vtab) {
+  return reinterpret_cast<SchedSliceTable*>(vtab);
+}
+
 inline SchedSliceTable::Cursor* AsCursor(sqlite3_vtab_cursor* cursor) {
   return reinterpret_cast<SchedSliceTable::Cursor*>(cursor);
 }
@@ -56,14 +60,53 @@ SchedSliceTable::SchedSliceTable(const TraceStorage* storage)
   memset(&base_, 0, sizeof(base_));
 }
 
+sqlite3_module SchedSliceTable::CreateModule() {
+  sqlite3_module module;
+  memset(&module, 0, sizeof(module));
+  module.xConnect = [](sqlite3* db, void* raw_args, int, const char* const*,
+                       sqlite3_vtab** tab, char**) {
+    int res = sqlite3_declare_vtab(db,
+                                   "CREATE TABLE sched_slices("
+                                   "ts UNSIGNED BIG INT, "
+                                   "cpu UNSIGNED INT, "
+                                   "dur UNSIGNED BIG INT, "
+                                   "PRIMARY KEY(cpu, ts)"
+                                   ") WITHOUT ROWID;");
+    if (res != SQLITE_OK)
+      return res;
+    TraceStorage* storage = static_cast<TraceStorage*>(raw_args);
+    *tab = reinterpret_cast<sqlite3_vtab*>(new SchedSliceTable(storage));
+    return SQLITE_OK;
+  };
+  module.xBestIndex = [](sqlite3_vtab* t, sqlite3_index_info* i) {
+    return AsTable(t)->BestIndex(i);
+  };
+  module.xDisconnect = [](sqlite3_vtab* t) {
+    delete AsTable(t);
+    return SQLITE_OK;
+  };
+  module.xOpen = [](sqlite3_vtab* t, sqlite3_vtab_cursor** c) {
+    return AsTable(t)->Open(c);
+  };
+  module.xClose = [](sqlite3_vtab_cursor* c) {
+    delete AsCursor(c);
+    return SQLITE_OK;
+  };
+  module.xFilter = [](sqlite3_vtab_cursor* c, int i, const char* s, int a,
+                      sqlite3_value** v) {
+    return AsCursor(c)->Filter(i, s, a, v);
+  };
+  module.xNext = [](sqlite3_vtab_cursor* c) { return AsCursor(c)->Next(); };
+  module.xEof = [](sqlite3_vtab_cursor* c) { return AsCursor(c)->Eof(); };
+  module.xColumn = [](sqlite3_vtab_cursor* c, sqlite3_context* a, int b) {
+    return AsCursor(c)->Column(a, b);
+  };
+  return module;
+}
+
 int SchedSliceTable::Open(sqlite3_vtab_cursor** ppCursor) {
   *ppCursor =
       reinterpret_cast<sqlite3_vtab_cursor*>(new Cursor(this, storage_));
-  return SQLITE_OK;
-}
-
-int SchedSliceTable::Close(sqlite3_vtab_cursor* cursor) {
-  delete AsCursor(cursor);
   return SQLITE_OK;
 }
 
@@ -82,15 +125,16 @@ int SchedSliceTable::BestIndex(sqlite3_index_info* idx) {
   idx->orderByConsumed = !external_ordering_required;
 
   indexes_.emplace_back();
-  idx->idxNum = static_cast<int>(indexes_.size());
+  idx->idxNum = static_cast<int>(indexes_.size() - 1);
   std::vector<Constraint>* constraints = &indexes_.back();
   for (int i = 0; i < idx->nConstraint; i++) {
     const auto& cs = idx->aConstraint[i];
     if (!cs.usable)
       continue;
     constraints->emplace_back(cs);
-    idx->aConstraintUsage[i].argvIndex =
-        static_cast<int>(constraints->size() - 1);
+
+    // argvIndex is 1-based so use the current size of the vector.
+    idx->aConstraintUsage[i].argvIndex = static_cast<int>(constraints->size());
   }
   return SQLITE_OK;
 }
