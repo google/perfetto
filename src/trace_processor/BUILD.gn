@@ -17,13 +17,17 @@ import("../../gn/wasm.gni")
 
 wasm_lib("trace_processor") {
   sources = [
+    "emscripten_task_runner.cc",
+    "emscripten_task_runner.h",
     "wasm_bridge.cc",
   ]
 
   # All the deps below are implicitly xxx($wasm_toolchain) because of the
   # outer "is_wasm" block.
   deps = [
+    ":lib",
     "../../gn:default_deps",
+    "../../include/perfetto/base",
     "../../protos/perfetto/trace_processor:lite",
   ]
 }
