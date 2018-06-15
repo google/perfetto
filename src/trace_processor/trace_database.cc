@@ -36,8 +36,6 @@ bool IsColumnULong(const char* type) {
 
 TraceDatabase::TraceDatabase(base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_factory_(this) {
-  static_assert(offsetof(TraceDatabase, db_) == 0,
-                "SQLite database must be the first field.");
   sqlite3_open(":memory:", &db_);
 
   // Setup the sched slice table.
