@@ -39,7 +39,7 @@ void TraceStorage::PushSchedSwitch(uint32_t cpu,
 
   // If we had a valid previous event, then inform the storage about the
   // slice.
-  if (prev->valid()) {
+  if (prev->valid() && prev->next_pid != 0 /* Idle process (swapper/N) */) {
     uint64_t duration = timestamp - prev->timestamp;
     cpu_events_[cpu].AddSlice(prev->timestamp, duration, prev->prev_thread_id);
   }
