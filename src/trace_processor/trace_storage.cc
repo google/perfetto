@@ -22,8 +22,9 @@ namespace perfetto {
 namespace trace_processor {
 
 TraceStorage::TraceStorage() {
-  // Upid 0 is reserved for invalid processes.
+  // Upid/utid 0 is reserved for invalid processes/threads.
   unique_processes_.emplace_back();
+  unique_threads_.emplace_back();
 }
 
 TraceStorage::~TraceStorage() {}
@@ -41,7 +42,10 @@ void TraceStorage::PushSchedSwitch(uint32_t cpu,
   // slice.
   if (prev->valid() && prev->next_pid != 0 /* Idle process (swapper/N) */) {
     uint64_t duration = timestamp - prev->timestamp;
-    cpu_events_[cpu].AddSlice(prev->timestamp, duration, prev->prev_thread_id);
+    cpu_events_[cpu].AddSlice(prev->timestamp, duration, prev->prev_pid,
+                              prev->prev_thread_name_id);
+  } else {
+    cpu_events_[cpu].InitalizeSlices(this);
   }
 
   // If the this events previous pid does not match the previous event's next
@@ -55,29 +59,21 @@ void TraceStorage::PushSchedSwitch(uint32_t cpu,
   prev->timestamp = timestamp;
   prev->prev_pid = prev_pid;
   prev->prev_state = prev_state;
-  prev->prev_thread_id = InternString(prev_comm, prev_comm_len);
+  prev->prev_thread_name_id = InternString(prev_comm, prev_comm_len);
   prev->next_pid = next_pid;
 }
 
 void TraceStorage::PushProcess(uint32_t pid,
                                const char* process_name,
                                size_t process_name_len) {
-  bool exists = false;
   auto pids_pair = pids_.equal_range(pid);
   auto proc_name_id = InternString(process_name, process_name_len);
-  if (pids_pair.first != pids_pair.second) {
-    UniquePid prev_upid = std::prev(pids_pair.second)->second;
-    // If the previous process with the same pid also has the same name,
-    // then no action needs to be taken.
-    exists = unique_processes_[prev_upid].process_name_id == proc_name_id;
-  }
 
-  if (!exists) {
-    pids_.emplace(pid, current_upid_++);
-    ProcessEntry new_process;
-    new_process.start_ns = 0;
-    new_process.end_ns = 0;
-    new_process.process_name_id = proc_name_id;
+  // We only create a new upid if there isn't one for that pid.
+  if (pids_pair.first == pids_pair.second) {
+    pids_.emplace(pid, unique_processes_.size());
+    TaskInfo new_process;
+    new_process.name_id = proc_name_id;
     unique_processes_.emplace_back(std::move(new_process));
   }
 }
