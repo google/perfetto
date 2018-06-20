@@ -91,60 +91,57 @@ template("sorcery") {
 }
 
 # +----------------------------------------------------------------------------+
+# | Template for bundling js                                                   |
+# +----------------------------------------------------------------------------+
+template("bundle") {
+  node_bin(target_name) {
+    assert(defined(invoker.input))
+    assert(defined(invoker.output))
+    forward_variables_from(invoker, [ "deps" ])
+    inputs = [
+      invoker.input,
+      "rollup.config.js",
+    ]
+    outputs = [
+      invoker.output,
+      invoker.output + ".map",
+    ]
+    node_cmd = "rollup"
+    args = [
+      "-c",
+      rebase_path("rollup.config.js", root_build_dir),
+      rebase_path(invoker.input, root_build_dir),
+      "-o",
+      rebase_path(invoker.output, root_build_dir),
+      "-f",
+      "iife",
+      "-m",
+      "--silent",
+    ]
+  }
+}
+
+# +----------------------------------------------------------------------------+
 # | Bundles all *.js files together resolving CommonJS require() deps.         |
 # +----------------------------------------------------------------------------+
 
 # Bundle together all js sources into a bundle.js file, that will ultimately be
 # included by the .html files.
 
-node_bin("main_bundle") {
+bundle("main_bundle") {
   deps = [
     ":transpile_all_ts",
   ]
-  node_cmd = "rollup"
-  inputs = [
-    "$target_out_dir/main.js",
-    "rollup.config.js",
-  ]
-  outputs = [
-    "$target_out_dir/main_bundle.js",
-  ]
-  args = [
-    "-c",
-    rebase_path("rollup.config.js", root_build_dir),
-    rebase_path(inputs[0], root_build_dir),
-    "-o",
-    rebase_path(outputs[0], root_build_dir),
-    "-f",
-    "iife",
-    "-m",
-    "--silent",
-  ]
+  input = "$target_out_dir/main.js"
+  output = "$target_out_dir/main_bundle.js"
 }
 
-node_bin("worker_bundle") {
+bundle("worker_bundle") {
   deps = [
     ":transpile_all_ts",
   ]
-  node_cmd = "rollup"
-  inputs = [
-    "$target_out_dir/worker.js",
-    "rollup.config.js",
-  ]
-  outputs = [
-    "$target_out_dir/worker_bundle.js",
-  ]
-  args = [
-    "-c",
-    rebase_path("rollup.config.js", root_build_dir),
-    rebase_path(inputs[0], root_build_dir),
-    "-o",
-    rebase_path(outputs[0], root_build_dir),
-    "-f",
-    "iife",
-    "-m",
-    "--silent",
-  ]
+  input = "$target_out_dir/worker.js"
+  output = "$target_out_dir/worker_bundle.js"
 }
 
 # +----------------------------------------------------------------------------+
