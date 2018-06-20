@@ -25,7 +25,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/service.h"
+#include "perfetto/tracing/core/tracing_service.h"
 
 namespace perfetto {
 
@@ -58,7 +58,7 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   static std::unique_ptr<SharedMemoryArbiter> CreateInstance(
       SharedMemory*,
       size_t page_size,
-      Service::ProducerEndpoint*,
+      TracingService::ProducerEndpoint*,
       base::TaskRunner*);
 };
 

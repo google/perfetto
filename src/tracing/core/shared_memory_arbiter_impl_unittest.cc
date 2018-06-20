@@ -33,7 +33,7 @@ namespace {
 using testing::Invoke;
 using testing::_;
 
-class MockProducerEndpoint : public Service::ProducerEndpoint {
+class MockProducerEndpoint : public TracingService::ProducerEndpoint {
  public:
   void RegisterDataSource(const DataSourceDescriptor&) override {}
   void UnregisterDataSource(const std::string&) override {}

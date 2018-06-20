@@ -24,7 +24,7 @@
 #include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
-#include "perfetto/tracing/core/service.h"
+#include "perfetto/tracing/core/tracing_service.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
 
 // The remote Producer(s) are not trusted. All the methods from the ProducerPort
@@ -33,7 +33,7 @@
 
 namespace perfetto {
 
-ProducerIPCService::ProducerIPCService(Service* core_service)
+ProducerIPCService::ProducerIPCService(TracingService* core_service)
     : core_service_(core_service), weak_ptr_factory_(this) {}
 
 ProducerIPCService::~ProducerIPCService() = default;
@@ -148,10 +148,10 @@ void ProducerIPCService::CommitData(const protos::CommitDataRequest& proto_req,
   std::function<void()> callback;
   if (resp.IsBound()) {
     // Capturing |resp| by reference here speculates on the fact that
-    // CommitData() in service_impl.cc invokes the passed callback inline,
-    // without posting it. If that assumption changes this code needs to wrap
-    // the response in a shared_ptr (C+11 lambdas don't support move) and use
-    // a weak ptr in the caller.
+    // CommitData() in tracing_service_impl.cc invokes the passed callback
+    // inline, without posting it. If that assumption changes this code needs to
+    // wrap the response in a shared_ptr (C+11 lambdas don't support move) and
+    // use a weak ptr in the caller.
     callback = [&resp] {
       resp.Resolve(ipc::AsyncResult<protos::CommitDataResponse>::Create());
     };

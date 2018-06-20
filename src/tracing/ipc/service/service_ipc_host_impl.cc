@@ -19,7 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ipc/host.h"
-#include "perfetto/tracing/core/service.h"
+#include "perfetto/tracing/core/tracing_service.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
 #include "src/tracing/ipc/service/consumer_ipc_service.h"
 #include "src/tracing/ipc/service/producer_ipc_service.h"
@@ -68,7 +68,7 @@ bool ServiceIPCHostImpl::DoStart() {
   // Create and initialize the platform-independent tracing business logic.
   std::unique_ptr<SharedMemory::Factory> shm_factory(
       new PosixSharedMemory::Factory());
-  svc_ = Service::CreateInstance(std::move(shm_factory), task_runner_);
+  svc_ = TracingService::CreateInstance(std::move(shm_factory), task_runner_);
 
   if (!producer_ipc_port_) {
     Shutdown();
@@ -93,7 +93,7 @@ bool ServiceIPCHostImpl::DoStart() {
   return true;
 }
 
-Service* ServiceIPCHostImpl::service_for_testing() const {
+TracingService* ServiceIPCHostImpl::service_for_testing() const {
   return svc_.get();
 }
 

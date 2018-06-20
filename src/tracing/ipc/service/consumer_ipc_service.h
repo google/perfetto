@@ -25,7 +25,7 @@
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/ipc/basic_types.h"
 #include "perfetto/tracing/core/consumer.h"
-#include "perfetto/tracing/core/service.h"
+#include "perfetto/tracing/core/tracing_service.h"
 
 #include "perfetto/ipc/consumer_port.ipc.h"
 
@@ -40,8 +40,7 @@ class Host;
 // on the IPC socket, through the methods overriddden from ConsumerPort.
 class ConsumerIPCService : public protos::ConsumerPort {
  public:
-  using Service = ::perfetto::Service;  // To avoid collisions w/ ipc::Service.
-  explicit ConsumerIPCService(Service* core_service);
+  explicit ConsumerIPCService(TracingService* core_service);
   ~ConsumerIPCService() override;
 
   // ConsumerPort implementation (from .proto IPC definition).
@@ -73,9 +72,9 @@ class ConsumerIPCService : public protos::ConsumerPort {
     void OnTraceData(std::vector<TracePacket>, bool has_more) override;
 
     // The interface obtained from the core service business logic through
-    // Service::ConnectConsumer(this). This allows to invoke methods for a
-    // specific Consumer on the Service business logic.
-    std::unique_ptr<Service::ConsumerEndpoint> service_endpoint;
+    // TracingService::ConnectConsumer(this). This allows to invoke methods for
+    // a specific Consumer on the Service business logic.
+    std::unique_ptr<TracingService::ConsumerEndpoint> service_endpoint;
 
     // After DisableTracing() is invoked, this binds the async callback that
     // allows to stream trace packets back to the client.
@@ -98,7 +97,7 @@ class ConsumerIPCService : public protos::ConsumerPort {
 
   void OnFlushCallback(bool success, PendingFlushResponses::iterator);
 
-  Service* const core_service_;
+  TracingService* const core_service_;
 
   // Maps IPC clients to ConsumerEndpoint instances registered on the
   // |core_service_| business logic.
