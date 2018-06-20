@@ -32,7 +32,7 @@ class SharedMemory;
 //    (e.g., the ability to get kernel ftraces, to list process stats).
 // 2. The service acknowledges the connection and sends over the SharedMemory
 //    region that will be used to exchange data (together with the signalling
-//    API Service::ProducerEndpoint::OnPageAcquired()/OnPageReleased()).
+//    API TracingService::ProducerEndpoint::OnPageAcquired()/OnPageReleased()).
 // 3. At some point later on, the Service asks the Producer to on turn some of
 //    the previously registered data sources, together with some configuration
 //    parameters. This happens via the CreateDataSourceInstance() callback.
@@ -64,7 +64,7 @@ class PERFETTO_EXPORT Producer {
   // in the next CLs.
 
   // Called by the Service to turn on one of the data source previously
-  // registered through Service::ProducerEndpoint::RegisterDataSource().
+  // registered through TracingService::ProducerEndpoint::RegisterDataSource().
   // Args:
   // - DataSourceInstanceID is an identifier chosen by the Service that should
   //   be assigned to the newly created data source instance. It is used to

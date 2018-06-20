@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_SERVICE_IMPL_H_
-#define SRC_TRACING_CORE_SERVICE_IMPL_H_
+#ifndef SRC_TRACING_CORE_TRACING_SERVICE_IMPL_H_
+#define SRC_TRACING_CORE_TRACING_SERVICE_IMPL_H_
 
 #include <functional>
 #include <map>
@@ -30,9 +30,9 @@
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
-#include "perfetto/tracing/core/service.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
 #include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/tracing/core/tracing_service.h"
 #include "src/tracing/core/id_allocator.h"
 
 namespace perfetto {
@@ -51,23 +51,23 @@ class TraceConfig;
 class TracePacket;
 
 // The tracing service business logic.
-class ServiceImpl : public Service {
+class TracingServiceImpl : public TracingService {
  public:
   static constexpr size_t kDefaultShmSize = 256 * 1024ul;
   static constexpr size_t kMaxShmSize = 32 * 1024 * 1024ul;
 
   // The implementation behind the service endpoint exposed to each producer.
-  class ProducerEndpointImpl : public Service::ProducerEndpoint {
+  class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
    public:
     ProducerEndpointImpl(ProducerID,
                          uid_t uid,
-                         ServiceImpl*,
+                         TracingServiceImpl*,
                          base::TaskRunner*,
                          Producer*,
                          const std::string& producer_name);
     ~ProducerEndpointImpl() override;
 
-    // Service::ProducerEndpoint implementation.
+    // TracingService::ProducerEndpoint implementation.
     void RegisterDataSource(const DataSourceDescriptor&) override;
     void UnregisterDataSource(const std::string& name) override;
     void CommitData(const CommitDataRequest&, CommitDataCallback) override;
@@ -84,15 +84,15 @@ class ServiceImpl : public Service {
     size_t shared_buffer_page_size_kb() const override;
 
    private:
-    friend class ServiceImpl;
-    friend class ServiceImplTest;
+    friend class TracingServiceImpl;
+    friend class TracingServiceImplTest;
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
     SharedMemoryArbiterImpl* GetOrCreateShmemArbiter();
 
     ProducerID const id_;
     const uid_t uid_;
-    ServiceImpl* const service_;
+    TracingServiceImpl* const service_;
     base::TaskRunner* const task_runner_;
     Producer* producer_;
     std::unique_ptr<SharedMemory> shared_memory_;
@@ -108,15 +108,15 @@ class ServiceImpl : public Service {
   };
 
   // The implementation behind the service endpoint exposed to each consumer.
-  class ConsumerEndpointImpl : public Service::ConsumerEndpoint {
+  class ConsumerEndpointImpl : public TracingService::ConsumerEndpoint {
    public:
-    ConsumerEndpointImpl(ServiceImpl*, base::TaskRunner*, Consumer*);
+    ConsumerEndpointImpl(TracingServiceImpl*, base::TaskRunner*, Consumer*);
     ~ConsumerEndpointImpl() override;
 
     void NotifyOnTracingDisabled();
     base::WeakPtr<ConsumerEndpointImpl> GetWeakPtr();
 
-    // Service::ConsumerEndpoint implementation.
+    // TracingService::ConsumerEndpoint implementation.
     void EnableTracing(const TraceConfig&, base::ScopedFile) override;
     void DisableTracing() override;
     void ReadBuffers() override;
@@ -124,21 +124,21 @@ class ServiceImpl : public Service {
     void Flush(uint32_t timeout_ms, FlushCallback) override;
 
    private:
-    friend class ServiceImpl;
+    friend class TracingServiceImpl;
     ConsumerEndpointImpl(const ConsumerEndpointImpl&) = delete;
     ConsumerEndpointImpl& operator=(const ConsumerEndpointImpl&) = delete;
 
     base::TaskRunner* const task_runner_;
-    ServiceImpl* const service_;
+    TracingServiceImpl* const service_;
     Consumer* const consumer_;
     TracingSessionID tracing_session_id_ = 0;
     PERFETTO_THREAD_CHECKER(thread_checker_)
     base::WeakPtrFactory<ConsumerEndpointImpl> weak_ptr_factory_;  // Keep last.
   };
 
-  explicit ServiceImpl(std::unique_ptr<SharedMemory::Factory>,
-                       base::TaskRunner*);
-  ~ServiceImpl() override;
+  explicit TracingServiceImpl(std::unique_ptr<SharedMemory::Factory>,
+                              base::TaskRunner*);
+  ~TracingServiceImpl() override;
 
   // Called by ProducerEndpointImpl.
   void DisconnectProducer(ProducerID);
@@ -171,13 +171,13 @@ class ServiceImpl : public Service {
   void FreeBuffers(TracingSessionID);
 
   // Service implementation.
-  std::unique_ptr<Service::ProducerEndpoint> ConnectProducer(
+  std::unique_ptr<TracingService::ProducerEndpoint> ConnectProducer(
       Producer*,
       uid_t uid,
       const std::string& producer_name,
       size_t shared_memory_size_hint_bytes = 0) override;
 
-  std::unique_ptr<Service::ConsumerEndpoint> ConnectConsumer(
+  std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*) override;
 
   // Exposed mainly for testing.
@@ -185,7 +185,7 @@ class ServiceImpl : public Service {
   ProducerEndpointImpl* GetProducer(ProducerID) const;
 
  private:
-  friend class ServiceImplTest;
+  friend class TracingServiceImplTest;
 
   struct RegisteredDataSource {
     ProducerID producer_id;
@@ -258,8 +258,8 @@ class ServiceImpl : public Service {
     uint64_t bytes_written_into_file = 0;
   };
 
-  ServiceImpl(const ServiceImpl&) = delete;
-  ServiceImpl& operator=(const ServiceImpl&) = delete;
+  TracingServiceImpl(const TracingServiceImpl&) = delete;
+  TracingServiceImpl& operator=(const TracingServiceImpl&) = delete;
 
   void CreateDataSourceInstance(const TraceConfig::DataSource&,
                                 const TraceConfig::ProducerConfig&,
@@ -305,9 +305,10 @@ class ServiceImpl : public Service {
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 
-  base::WeakPtrFactory<ServiceImpl> weak_ptr_factory_;  // Keep at the end.
+  base::WeakPtrFactory<TracingServiceImpl>
+      weak_ptr_factory_;  // Keep at the end.
 };
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_SERVICE_IMPL_H_
+#endif  // SRC_TRACING_CORE_TRACING_SERVICE_IMPL_H_

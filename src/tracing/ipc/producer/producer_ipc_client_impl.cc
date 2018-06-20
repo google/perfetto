@@ -37,13 +37,14 @@
 namespace perfetto {
 
 // static. (Declared in include/tracing/ipc/producer_ipc_client.h).
-std::unique_ptr<Service::ProducerEndpoint> ProducerIPCClient::Connect(
+std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
     const char* service_sock_name,
     Producer* producer,
     const std::string& producer_name,
     base::TaskRunner* task_runner) {
-  return std::unique_ptr<Service::ProducerEndpoint>(new ProducerIPCClientImpl(
-      service_sock_name, producer, producer_name, task_runner));
+  return std::unique_ptr<TracingService::ProducerEndpoint>(
+      new ProducerIPCClientImpl(service_sock_name, producer, producer_name,
+                                task_runner));
 }
 
 ProducerIPCClientImpl::ProducerIPCClientImpl(const char* service_sock_name,

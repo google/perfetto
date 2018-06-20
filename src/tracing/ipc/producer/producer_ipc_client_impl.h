@@ -24,8 +24,8 @@
 #include "perfetto/base/thread_checker.h"
 #include "perfetto/ipc/service_proxy.h"
 #include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/service.h"
 #include "perfetto/tracing/core/shared_memory.h"
+#include "perfetto/tracing/core/tracing_service.h"
 #include "perfetto/tracing/ipc/producer_ipc_client.h"
 
 #include "perfetto/ipc/producer_port.ipc.h"
@@ -48,7 +48,7 @@ class SharedMemoryArbiter;
 // IPC channel to the remote Service. This class is the glue layer between the
 // generic Service interface exposed to the clients of the library and the
 // actual IPC transport.
-class ProducerIPCClientImpl : public Service::ProducerEndpoint,
+class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
   ProducerIPCClientImpl(const char* service_sock_name,
@@ -57,7 +57,7 @@ class ProducerIPCClientImpl : public Service::ProducerEndpoint,
                         base::TaskRunner*);
   ~ProducerIPCClientImpl() override;
 
-  // Service::ProducerEndpoint implementation.
+  // TracingService::ProducerEndpoint implementation.
   // These methods are invoked by the actual Producer(s) code by clients of the
   // tracing library, which know nothing about the IPC transport.
   void RegisterDataSource(const DataSourceDescriptor&) override;

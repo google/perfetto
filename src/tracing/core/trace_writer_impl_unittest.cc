@@ -19,8 +19,8 @@
 #include "gtest/gtest.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/commit_data_request.h"
-#include "perfetto/tracing/core/service.h"
 #include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/tracing/core/tracing_service.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/test/aligned_buffer_test.h"
@@ -31,7 +31,7 @@
 namespace perfetto {
 namespace {
 
-class FakeProducerEndpoint : public Service::ProducerEndpoint {
+class FakeProducerEndpoint : public TracingService::ProducerEndpoint {
   void RegisterDataSource(const DataSourceDescriptor&) override {}
   void UnregisterDataSource(const std::string&) override {}
   void CommitData(const CommitDataRequest&, CommitDataCallback) override {}

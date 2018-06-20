@@ -42,14 +42,14 @@ class ServiceIPCHostImpl : public ServiceIPCHost {
   bool Start(base::ScopedFile producer_socket_fd,
              base::ScopedFile consumer_socket_fd) override;
 
-  Service* service_for_testing() const;
+  TracingService* service_for_testing() const;
 
  private:
   bool DoStart();
   void Shutdown();
 
   base::TaskRunner* const task_runner_;
-  std::unique_ptr<Service> svc_;  // The service business logic.
+  std::unique_ptr<TracingService> svc_;  // The service business logic.
 
   // The IPC host that listens on the Producer socket. It owns the
   // PosixServiceProducerPort instance which deals with all producers' IPC(s).

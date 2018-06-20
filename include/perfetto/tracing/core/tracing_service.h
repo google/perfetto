@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_TRACING_CORE_SERVICE_H_
-#define INCLUDE_PERFETTO_TRACING_CORE_SERVICE_H_
+#ifndef INCLUDE_PERFETTO_TRACING_CORE_TRACING_SERVICE_H_
+#define INCLUDE_PERFETTO_TRACING_CORE_TRACING_SERVICE_H_
 
 #include <stdint.h>
 
@@ -53,12 +53,13 @@ class TraceWriter;
 // 2. Tests.
 //
 // Subclassed by:
-//   The service business logic in src/core/service_impl.cc.
-class PERFETTO_EXPORT Service {
+//   The service business logic in src/core/tracing_service_impl.cc.
+class PERFETTO_EXPORT TracingService {
  public:
   // The API for the Producer port of the Service.
   // Subclassed by:
-  // 1. The service_impl.cc business logic when returning it in response to
+  // 1. The tracing_service_impl.cc business logic when returning it in response
+  // to
   //    the ConnectProducer() method.
   // 2. The transport layer (e.g., src/ipc) when the producer and
   //    the service don't talk locally but via some IPC mechanism.
@@ -103,7 +104,8 @@ class PERFETTO_EXPORT Service {
 
   // The API for the Consumer port of the Service.
   // Subclassed by:
-  // 1. The service_impl.cc business logic when returning it in response to
+  // 1. The tracing_service_impl.cc business logic when returning it in response
+  // to
   //    the ConnectConsumer() method.
   // 2. The transport layer (e.g., src/ipc) when the consumer and
   //    the service don't talk locally but via some IPC mechanism.
@@ -130,12 +132,12 @@ class PERFETTO_EXPORT Service {
     virtual void FreeBuffers() = 0;
   };  // class ConsumerEndpoint.
 
-  // Implemented in src/core/service_impl.cc .
-  static std::unique_ptr<Service> CreateInstance(
+  // Implemented in src/core/tracing_service_impl.cc .
+  static std::unique_ptr<TracingService> CreateInstance(
       std::unique_ptr<SharedMemory::Factory>,
       base::TaskRunner*);
 
-  virtual ~Service();
+  virtual ~TracingService();
 
   // Connects a Producer instance and obtains a ProducerEndpoint, which is
   // essentially a 1:1 channel between one Producer and the Service.
@@ -167,4 +169,4 @@ class PERFETTO_EXPORT Service {
 
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_TRACING_CORE_SERVICE_H_
+#endif  // INCLUDE_PERFETTO_TRACING_CORE_TRACING_SERVICE_H_

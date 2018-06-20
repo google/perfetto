@@ -51,9 +51,10 @@ class PERFETTO_EXPORT Consumer {
   virtual void OnTracingDisabled() = 0;
 
   // Called back by the Service (or transport layer) after invoking
-  // Service::ConsumerEndpoint::ReadBuffers(). This function can be called more
-  // than once. Each invocation can carry one or more TracePacket(s).
-  // Upon the last call, |has_more| is set to true (i.e. |has_more| is a !EOF).
+  // TracingService::ConsumerEndpoint::ReadBuffers(). This function can be
+  // called more than once. Each invocation can carry one or more
+  // TracePacket(s). Upon the last call, |has_more| is set to true (i.e.
+  // |has_more| is a !EOF).
   virtual void OnTraceData(std::vector<TracePacket>, bool has_more) = 0;
 };
 

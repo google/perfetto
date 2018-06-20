@@ -67,7 +67,7 @@ class TestHelper : public Consumer {
 
   TaskRunnerThread service_thread_;
   TaskRunnerThread producer_thread_;
-  std::unique_ptr<Service::ConsumerEndpoint> endpoint_;  // Keep last.
+  std::unique_ptr<TracingService::ConsumerEndpoint> endpoint_;  // Keep last.
 };
 
 }  // namespace perfetto
