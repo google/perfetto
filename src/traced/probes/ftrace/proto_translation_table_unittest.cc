@@ -178,6 +178,7 @@ format:
 print fmt: "some format")"));
   ;
 
+  EXPECT_CALL(ftrace, ReadPageHeaderFormat()).Times(AnyNumber());
   EXPECT_CALL(ftrace, ReadEventFormat(_, _)).Times(AnyNumber());
 
   {
