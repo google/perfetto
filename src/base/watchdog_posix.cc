@@ -247,7 +247,7 @@ Watchdog::Timer::~Timer() {
   }
 }
 
-Watchdog::Timer::Timer(Timer&& other) {
+Watchdog::Timer::Timer(Timer&& other) noexcept {
   timerid_ = other.timerid_;
   other.timerid_ = nullptr;
 }
