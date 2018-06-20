@@ -46,8 +46,6 @@ source_set("tracing") {
     "core/packet_stream_validator.h",
     "core/patch_list.h",
     "core/process_stats_config.cc",
-    "core/service_impl.cc",
-    "core/service_impl.h",
     "core/shared_memory_abi.cc",
     "core/shared_memory_arbiter_impl.cc",
     "core/shared_memory_arbiter_impl.h",
@@ -60,6 +58,8 @@ source_set("tracing") {
     "core/trace_packet.cc",
     "core/trace_writer_impl.cc",
     "core/trace_writer_impl.h",
+    "core/tracing_service_impl.cc",
+    "core/tracing_service_impl.h",
     "core/virtual_destructors.cc",
   ]
 }

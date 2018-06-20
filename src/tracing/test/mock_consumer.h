@@ -21,8 +21,8 @@
 
 #include "gmock/gmock.h"
 #include "perfetto/tracing/core/consumer.h"
-#include "perfetto/tracing/core/service.h"
 #include "perfetto/tracing/core/trace_packet.h"
+#include "perfetto/tracing/core/tracing_service.h"
 
 #include "perfetto/trace/trace_packet.pb.h"
 
@@ -46,7 +46,7 @@ class MockConsumer : public Consumer {
   explicit MockConsumer(base::TestTaskRunner*);
   ~MockConsumer() override;
 
-  void Connect(Service* svc);
+  void Connect(TracingService* svc);
   void EnableTracing(const TraceConfig&, base::ScopedFile = base::ScopedFile());
   void DisableTracing();
   void FreeBuffers();
@@ -54,7 +54,9 @@ class MockConsumer : public Consumer {
   FlushRequest Flush(uint32_t timeout_ms = 10000);
   std::vector<protos::TracePacket> ReadBuffers();
 
-  Service::ConsumerEndpoint* endpoint() { return service_endpoint_.get(); }
+  TracingService::ConsumerEndpoint* endpoint() {
+    return service_endpoint_.get();
+  }
 
   // Consumer implementation.
   MOCK_METHOD0(OnConnect, void());
@@ -71,7 +73,7 @@ class MockConsumer : public Consumer {
 
  private:
   base::TestTaskRunner* const task_runner_;
-  std::unique_ptr<Service::ConsumerEndpoint> service_endpoint_;
+  std::unique_ptr<TracingService::ConsumerEndpoint> service_endpoint_;
 };
 
 }  // namespace perfetto

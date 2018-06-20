@@ -27,7 +27,7 @@ namespace base {
 class TaskRunner;
 }  // namespace base.
 
-class Service;
+class TracingService;
 
 // Creates an instance of the service (business logic + UNIX socket transport).
 // Exposed to:

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/service_impl.h"
+#include "src/tracing/core/tracing_service_impl.h"
 
 #include <string.h>
 
@@ -54,17 +54,17 @@ using ::testing::StrictMock;
 namespace perfetto {
 
 namespace {
-constexpr size_t kDefaultShmSizeKb = ServiceImpl::kDefaultShmSize / 1024;
-constexpr size_t kMaxShmSizeKb = ServiceImpl::kMaxShmSize / 1024;
+constexpr size_t kDefaultShmSizeKb = TracingServiceImpl::kDefaultShmSize / 1024;
+constexpr size_t kMaxShmSizeKb = TracingServiceImpl::kMaxShmSize / 1024;
 }  // namespace
 
-class ServiceImplTest : public testing::Test {
+class TracingServiceImplTest : public testing::Test {
  public:
-  ServiceImplTest() {
+  TracingServiceImplTest() {
     auto shm_factory =
         std::unique_ptr<SharedMemory::Factory>(new TestSharedMemory::Factory());
-    svc.reset(static_cast<ServiceImpl*>(
-        Service::CreateInstance(std::move(shm_factory), &task_runner)
+    svc.reset(static_cast<TracingServiceImpl*>(
+        TracingService::CreateInstance(std::move(shm_factory), &task_runner)
             .release()));
   }
 
@@ -85,17 +85,17 @@ class ServiceImplTest : public testing::Test {
   }
 
   size_t GetNumPendingFlushes() {
-    ServiceImpl::TracingSession* tracing_session =
+    TracingServiceImpl::TracingSession* tracing_session =
         svc->GetTracingSession(svc->last_tracing_session_id_);
     EXPECT_NE(nullptr, tracing_session);
     return tracing_session->pending_flushes.size();
   }
 
   base::TestTaskRunner task_runner;
-  std::unique_ptr<ServiceImpl> svc;
+  std::unique_ptr<TracingServiceImpl> svc;
 };
 
-TEST_F(ServiceImplTest, RegisterAndUnregister) {
+TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
   std::unique_ptr<MockProducer> mock_producer_1 = CreateMockProducer();
   std::unique_ptr<MockProducer> mock_producer_2 = CreateMockProducer();
 
@@ -124,7 +124,7 @@ TEST_F(ServiceImplTest, RegisterAndUnregister) {
   ASSERT_EQ(0u, svc->num_producers());
 }
 
-TEST_F(ServiceImplTest, EnableAndDisableTracing) {
+TEST_F(TracingServiceImplTest, EnableAndDisableTracing) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -146,7 +146,7 @@ TEST_F(ServiceImplTest, EnableAndDisableTracing) {
   consumer->WaitForTracingDisabled();
 }
 
-TEST_F(ServiceImplTest, LockdownMode) {
+TEST_F(TracingServiceImplTest, LockdownMode) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -190,7 +190,7 @@ TEST_F(ServiceImplTest, LockdownMode) {
   consumer->WaitForTracingDisabled();
 }
 
-TEST_F(ServiceImplTest, DisconnectConsumerWhileTracing) {
+TEST_F(TracingServiceImplTest, DisconnectConsumerWhileTracing) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -213,7 +213,7 @@ TEST_F(ServiceImplTest, DisconnectConsumerWhileTracing) {
   producer->WaitForDataSourceStop("data_source");
 }
 
-TEST_F(ServiceImplTest, ReconnectProducerWhileTracing) {
+TEST_F(TracingServiceImplTest, ReconnectProducerWhileTracing) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -240,7 +240,7 @@ TEST_F(ServiceImplTest, ReconnectProducerWhileTracing) {
   producer->WaitForDataSourceStart("data_source");
 }
 
-TEST_F(ServiceImplTest, ProducerIDWrapping) {
+TEST_F(TracingServiceImplTest, ProducerIDWrapping) {
   std::vector<std::unique_ptr<MockProducer>> producers;
   producers.push_back(nullptr);
 
@@ -267,7 +267,7 @@ TEST_F(ServiceImplTest, ProducerIDWrapping) {
   ASSERT_EQ(6u, connect_producer_and_get_id("6"));
 }
 
-TEST_F(ServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
+TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -336,7 +336,7 @@ TEST_F(ServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
 // Test the logic that allows the trace config to set the shm total size and
 // page size from the trace config. Also check that, if the config doesn't
 // specify a value we fall back on the hint provided by the producer.
-TEST_F(ServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
+TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
   const size_t kConfigPageSizesKb[] = /****/ {16, 16, 4, 0, 16, 8, 3, 4096, 4};
@@ -392,7 +392,7 @@ TEST_F(ServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   ASSERT_THAT(actual_shm_sizes_kb, ElementsAreArray(kExpectedSizesKb));
 }
 
-TEST_F(ServiceImplTest, ExplicitFlush) {
+TEST_F(TracingServiceImplTest, ExplicitFlush) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -429,7 +429,7 @@ TEST_F(ServiceImplTest, ExplicitFlush) {
                         Property(&protos::TestEvent::str, Eq("payload")))));
 }
 
-TEST_F(ServiceImplTest, ImplicitFlushOnTimedTraces) {
+TEST_F(TracingServiceImplTest, ImplicitFlushOnTimedTraces) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -468,7 +468,7 @@ TEST_F(ServiceImplTest, ImplicitFlushOnTimedTraces) {
 // Tests the monotonic semantic of flush request IDs, i.e., once a producer
 // acks flush request N, all flush requests <= N are considered successful and
 // acked to the consumer.
-TEST_F(ServiceImplTest, BatchFlushes) {
+TEST_F(TracingServiceImplTest, BatchFlushes) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 

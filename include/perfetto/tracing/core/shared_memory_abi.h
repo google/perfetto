@@ -51,7 +51,7 @@ namespace perfetto {
 // The SMB is *not* the ultimate logging buffer seen by the Consumer. That one
 // is larger (~MBs) and not shared with Producers.
 // Each SMB is small, typically few KB. Its size is configurable by the producer
-// within a max limit of ~MB (see kMaxShmSize in service_impl.cc).
+// within a max limit of ~MB (see kMaxShmSize in tracing_service_impl.cc).
 // The SMB is partitioned into fixed-size Page(s). The size of the Pages are
 // determined by each Producer at connection time and cannot be changed.
 // Hence, different producers can have SMB(s) that have a different Page size

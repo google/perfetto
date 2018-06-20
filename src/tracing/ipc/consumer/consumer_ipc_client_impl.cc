@@ -31,11 +31,11 @@
 namespace perfetto {
 
 // static. (Declared in include/tracing/ipc/consumer_ipc_client.h).
-std::unique_ptr<Service::ConsumerEndpoint> ConsumerIPCClient::Connect(
+std::unique_ptr<TracingService::ConsumerEndpoint> ConsumerIPCClient::Connect(
     const char* service_sock_name,
     Consumer* consumer,
     base::TaskRunner* task_runner) {
-  return std::unique_ptr<Service::ConsumerEndpoint>(
+  return std::unique_ptr<TracingService::ConsumerEndpoint>(
       new ConsumerIPCClientImpl(service_sock_name, consumer, task_runner));
 }
 
