@@ -39,7 +39,7 @@ SharedMemoryABI::PageLayout SharedMemoryArbiterImpl::default_page_layout =
 std::unique_ptr<SharedMemoryArbiter> SharedMemoryArbiter::CreateInstance(
     SharedMemory* shared_memory,
     size_t page_size,
-    Service::ProducerEndpoint* producer_endpoint,
+    TracingService::ProducerEndpoint* producer_endpoint,
     base::TaskRunner* task_runner) {
   return std::unique_ptr<SharedMemoryArbiterImpl>(
       new SharedMemoryArbiterImpl(shared_memory->start(), shared_memory->size(),
@@ -50,7 +50,7 @@ SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
     void* start,
     size_t size,
     size_t page_size,
-    Service::ProducerEndpoint* producer_endpoint,
+    TracingService::ProducerEndpoint* producer_endpoint,
     base::TaskRunner* task_runner)
     : task_runner_(task_runner),
       producer_endpoint_(producer_endpoint),

@@ -69,7 +69,8 @@ class PerfettoCmd : public Consumer {
   void OnTimeout();
 
   PlatformTaskRunner task_runner_;
-  std::unique_ptr<perfetto::Service::ConsumerEndpoint> consumer_endpoint_;
+  std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
+      consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
   base::ScopedFstream trace_out_stream_;
   std::string trace_out_path_;

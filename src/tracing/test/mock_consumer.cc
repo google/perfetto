@@ -38,7 +38,7 @@ MockConsumer::~MockConsumer() {
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
-void MockConsumer::Connect(Service* svc) {
+void MockConsumer::Connect(TracingService* svc) {
   service_endpoint_ = svc->ConnectConsumer(this);
   static int i = 0;
   auto checkpoint_name = "on_consumer_connect_" + std::to_string(i++);

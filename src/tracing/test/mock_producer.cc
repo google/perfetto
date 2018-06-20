@@ -43,7 +43,7 @@ MockProducer::~MockProducer() {
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
-void MockProducer::Connect(Service* svc,
+void MockProducer::Connect(TracingService* svc,
                            const std::string& producer_name,
                            uid_t uid,
                            size_t shared_memory_size_hint_bytes) {

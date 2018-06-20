@@ -23,7 +23,6 @@ source_set("core") {
     "data_source_config.h",
     "data_source_descriptor.h",
     "producer.h",
-    "service.h",
     "shared_memory.h",
     "shared_memory_abi.h",
     "shared_memory_arbiter.h",
@@ -31,5 +30,6 @@ source_set("core") {
     "trace_config.h",
     "trace_packet.h",
     "trace_writer.h",
+    "tracing_service.h",
   ]
 }

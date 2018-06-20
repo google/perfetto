@@ -20,7 +20,7 @@
 #include <memory>
 #include <string>
 
-#include "perfetto/tracing/core/service.h"
+#include "perfetto/tracing/core/tracing_service.h"
 
 namespace perfetto {
 
@@ -41,7 +41,7 @@ class ConsumerIPCClient {
   // callbacks invoked on the Consumer interface: no more Consumer callbacks are
   // invoked immediately after its destruction and any pending callback will be
   // dropped.
-  static std::unique_ptr<Service::ConsumerEndpoint>
+  static std::unique_ptr<TracingService::ConsumerEndpoint>
   Connect(const char* service_sock_name, Consumer*, base::TaskRunner*);
 
  protected:

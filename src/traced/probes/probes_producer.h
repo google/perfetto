@@ -24,8 +24,8 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/watchdog.h"
 #include "perfetto/tracing/core/producer.h"
-#include "perfetto/tracing/core/service.h"
 #include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/tracing/core/tracing_service.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/process_stats_data_source.h"
@@ -146,7 +146,7 @@ class ProbesProducer : public Producer {
 
   State state_ = kNotStarted;
   base::TaskRunner* task_runner_ = nullptr;
-  std::unique_ptr<Service::ProducerEndpoint> endpoint_ = nullptr;
+  std::unique_ptr<TracingService::ProducerEndpoint> endpoint_ = nullptr;
   std::unique_ptr<FtraceController> ftrace_ = nullptr;
   bool ftrace_creation_failed_ = false;
   uint32_t connection_backoff_ms_ = 0;

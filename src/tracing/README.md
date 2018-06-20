@@ -8,7 +8,8 @@ This is not too interesting other than tests and particular cases of nesting
 tracing instances coming from different libraries within the same process
 (concrete example v8, skia and webrtc in Chrome).
 In this configuration, the client is expected to at least:
-- Create an Service instance via Service::CreateInstance (see `core/service.h`)
+- Create a TracingService instance via TracingService::CreateInstance
+  (see `core/tracing_service.h`)
 - Subclass Producer (`core/producer.h`) and connect it to the service.
 - Provide a TaskRunner implementation (see `test/test_task_runner.h`)
 - Provide a trivial SharedMemory implementation (`core/shared_memory.h`) which

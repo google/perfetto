@@ -23,15 +23,15 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ipc/basic_types.h"
 #include "perfetto/ipc/host.h"
-#include "perfetto/tracing/core/service.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
 #include "perfetto/tracing/core/slice.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
+#include "perfetto/tracing/core/tracing_service.h"
 
 namespace perfetto {
 
-ConsumerIPCService::ConsumerIPCService(Service* core_service)
+ConsumerIPCService::ConsumerIPCService(TracingService* core_service)
     : core_service_(core_service), weak_ptr_factory_(this) {}
 
 ConsumerIPCService::~ConsumerIPCService() = default;

@@ -59,7 +59,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   SharedMemoryArbiterImpl(void* start,
                           size_t size,
                           size_t page_size,
-                          Service::ProducerEndpoint*,
+                          TracingService::ProducerEndpoint*,
                           base::TaskRunner*);
 
   // Returns a new Chunk to write tracing data. The call always returns a valid
@@ -110,7 +110,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   void ReleaseWriterID(WriterID);
 
   base::TaskRunner* const task_runner_;
-  Service::ProducerEndpoint* const producer_endpoint_;
+  TracingService::ProducerEndpoint* const producer_endpoint_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
 
   // --- Begin lock-protected members ---
