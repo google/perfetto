@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_SCHED_SLICE_TABLE_H_
 
 #include <limits>
+#include <memory>
 
 #include "sqlite3.h"
 #include "src/trace_processor/trace_storage.h"
@@ -25,15 +26,25 @@
 namespace perfetto {
 namespace trace_processor {
 
+// The implementation of the SQLite table containing slices of CPU time with the
+// metadata for those slices.
 class SchedSliceTable {
  public:
-  using Constraint = sqlite3_index_info::sqlite3_index_constraint;
-
   enum Column { kTimestamp = 0, kCpu = 1, kDuration = 2 };
   struct OrderBy {
     Column column = kTimestamp;
     bool desc = false;
   };
+
+  SchedSliceTable(const TraceStorage* storage);
+  static sqlite3_module CreateModule();
+
+  // Implementation for sqlite3_vtab.
+  int BestIndex(sqlite3_index_info* index_info);
+  int Open(sqlite3_vtab_cursor** ppCursor);
+
+ private:
+  using Constraint = sqlite3_index_info::sqlite3_index_constraint;
 
   struct IndexInfo {
     std::vector<OrderBy> order_by;
@@ -44,6 +55,7 @@ class SchedSliceTable {
    public:
     Cursor(SchedSliceTable* table, const TraceStorage* storage);
 
+    // Implementation of sqlite3_vtab_cursor.
     int Filter(int idxNum, const char* idxStr, int argc, sqlite3_value** argv);
     int Next();
     int Eof();
@@ -79,46 +91,44 @@ class SchedSliceTable {
 
     class FilterState {
      public:
+      FilterState(const TraceStorage* storage,
+                  std::vector<OrderBy> order_by,
+                  std::vector<Constraint> constraints,
+                  sqlite3_value** argv);
+
+      void FindCpuWithNextSlice();
+      bool IsNextCpuValid() const { return next_cpu_ < per_cpu_state_.size(); }
       PerCpuState* StateForCpu(uint32_t cpu) { return &per_cpu_state_[cpu]; }
 
-      void InvalidateNextCpu() { next_cpu_ = per_cpu_state_.size(); }
-
-      bool IsNextCpuValid() const { return next_cpu_ < per_cpu_state_.size(); }
-
-      uint32_t next_cpu() const { return static_cast<uint32_t>(next_cpu_); }
-
-      void set_next_cpu(uint32_t cpu) {
-        PERFETTO_DCHECK(cpu < per_cpu_state_.size());
-        next_cpu_ = cpu;
-      }
-
-      std::vector<OrderBy>* order_by() { return &order_by_; }
+      uint32_t next_cpu() const { return next_cpu_; }
 
      private:
+      // Compares the next slice of the given |cpu| with the next slice of the
+      // |next_cpu_|. Return <0 if |cpu| is ordered before, >0 if ordered after,
+      // and 0 if they are equal.
+      int CompareCpuToNextCpu(uint32_t cpu);
+
+      const TraceStorage* const storage_;
+
       // One entry for each cpu which is used in filtering.
       std::array<PerCpuState, TraceStorage::kMaxCpus> per_cpu_state_;
-      size_t next_cpu_ = 0;
+      uint32_t next_cpu_ = 0;
 
       std::vector<OrderBy> order_by_;
     };
-
-    void FindNextSliceAmongCpus();
 
     sqlite3_vtab_cursor base_;  // Must be first.
 
     SchedSliceTable* const table_;
     const TraceStorage* const storage_;
 
-    FilterState filter_state_;
+    std::unique_ptr<FilterState> filter_state_;
   };
 
-  SchedSliceTable(const TraceStorage* storage);
-  static sqlite3_module CreateModule();
+  static inline Cursor* AsCursor(sqlite3_vtab_cursor* cursor) {
+    return reinterpret_cast<Cursor*>(cursor);
+  }
 
-  int BestIndex(sqlite3_index_info* index_info);
-  int Open(sqlite3_vtab_cursor** ppCursor);
-
- private:
   sqlite3_vtab base_;  // Must be first.
   const TraceStorage* const storage_;
 
