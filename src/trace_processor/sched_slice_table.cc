@@ -261,6 +261,8 @@ int SchedSliceTable::Cursor::Filter(int idxNum,
   filter_state_ = {};
 
   std::bitset<TraceStorage::kMaxCpus> cpu_filter;
+  cpu_filter.set();
+
   const auto& index = table_->indexes_[static_cast<size_t>(idxNum)];
   PERFETTO_CHECK(index.constraints.size() == static_cast<size_t>(argc));
   for (size_t i = 0; i < index.constraints.size(); i++) {
