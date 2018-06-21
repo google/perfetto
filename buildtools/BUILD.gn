@@ -573,6 +573,7 @@ config("sqlite_config") {
     "-DSQLITE_DEFAULT_AUTOVACUUM=0",
     "-DSQLITE_DEFAULT_MMAP_SIZE=0",
     "-DSQLITE_CORE",
+    "-DSQLITE_TEMP_STORE=3",
   ]
 }
 
