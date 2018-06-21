@@ -51,10 +51,6 @@ inline SchedSliceTable* AsTable(sqlite3_vtab* vtab) {
   return reinterpret_cast<SchedSliceTable*>(vtab);
 }
 
-inline SchedSliceTable::Cursor* AsCursor(sqlite3_vtab_cursor* cursor) {
-  return reinterpret_cast<SchedSliceTable::Cursor*>(cursor);
-}
-
 template <size_t N = TraceStorage::kMaxCpus>
 bool PopulateFilterBitmap(int op,
                           sqlite3_value* value,
@@ -258,66 +254,38 @@ int SchedSliceTable::Cursor::Filter(int idxNum,
                                     int argc,
                                     sqlite3_value** argv) {
   // Reset the filter state.
-  filter_state_ = {};
-
-  std::bitset<TraceStorage::kMaxCpus> cpu_filter;
-  cpu_filter.set();
-
   const auto& index = table_->indexes_[static_cast<size_t>(idxNum)];
   PERFETTO_CHECK(index.constraints.size() == static_cast<size_t>(argc));
-  for (size_t i = 0; i < index.constraints.size(); i++) {
-    const auto& cs = index.constraints[i];
-    switch (cs.iColumn) {
-      case Column::kCpu:
-        PopulateFilterBitmap(cs.op, argv[i], &cpu_filter);
-        break;
-    }
-  }
 
-  // Update the filter state with the order by info.
-  *filter_state_.order_by() = std::move(index.order_by);
-
-  // First setup CPU filtering because the trace storage is indexed by CPU.
-  for (uint32_t cpu = 0; cpu < TraceStorage::kMaxCpus; cpu++) {
-    if (!cpu_filter.test(cpu))
-      continue;
-
-    PerCpuState* state = filter_state_.StateForCpu(cpu);
-
-    // Create a sorted index vector based on the order by requirements.
-    *state->sorted_row_ids() = CreateSortedIndexVector(
-        cpu, storage_->SlicesForCpu(cpu), *filter_state_.order_by());
-  }
-
-  // Set the cpu index to be the first item to look at.
-  FindNextSliceAmongCpus();
+  filter_state_.reset(new FilterState(storage_, std::move(index.order_by),
+                                      std::move(index.constraints), argv));
 
   table_->indexes_.clear();
   return SQLITE_OK;
 }
 
 int SchedSliceTable::Cursor::Next() {
-  uint32_t cpu = filter_state_.next_cpu();
-  auto* state = filter_state_.StateForCpu(cpu);
+  uint32_t cpu = filter_state_->next_cpu();
+  auto* state = filter_state_->StateForCpu(cpu);
 
   // TODO(lalitm): maybe one day we may want to filter more efficiently. If so
   // update this method with filter logic.
   state->set_next_row_id_index(state->next_row_id_index() + 1);
 
-  FindNextSliceAmongCpus();
+  filter_state_->FindCpuWithNextSlice();
   return SQLITE_OK;
 }
 
 int SchedSliceTable::Cursor::Eof() {
-  return !filter_state_.IsNextCpuValid();
+  return !filter_state_->IsNextCpuValid();
 }
 
 int SchedSliceTable::Cursor::Column(sqlite3_context* context, int N) {
-  if (!filter_state_.IsNextCpuValid())
+  if (!filter_state_->IsNextCpuValid())
     return SQLITE_ERROR;
 
-  uint32_t cpu = filter_state_.next_cpu();
-  size_t row = filter_state_.StateForCpu(cpu)->next_row_id();
+  uint32_t cpu = filter_state_->next_cpu();
+  size_t row = filter_state_->StateForCpu(cpu)->next_row_id();
   const auto& slices = storage_->SlicesForCpu(cpu);
   switch (N) {
     case Column::kTimestamp: {
@@ -342,39 +310,78 @@ int SchedSliceTable::Cursor::RowId(sqlite_int64* /* pRowid */) {
   return SQLITE_ERROR;
 }
 
-void SchedSliceTable::Cursor::FindNextSliceAmongCpus() {
-  filter_state_.InvalidateNextCpu();
+SchedSliceTable::Cursor::FilterState::FilterState(
+    const TraceStorage* storage,
+    std::vector<OrderBy> order_by,
+    std::vector<Constraint> constraints,
+    sqlite3_value** argv)
+    : storage_(storage), order_by_(std::move(order_by)) {
+  std::bitset<TraceStorage::kMaxCpus> cpu_filter;
+  cpu_filter.set();
+
+  for (size_t i = 0; i < constraints.size(); i++) {
+    const auto& cs = constraints[i];
+    switch (cs.iColumn) {
+      case Column::kCpu:
+        PopulateFilterBitmap(cs.op, argv[i], &cpu_filter);
+        break;
+    }
+  }
+
+  // First setup CPU filtering because the trace storage is indexed by CPU.
+  for (uint32_t cpu = 0; cpu < TraceStorage::kMaxCpus; cpu++) {
+    if (!cpu_filter.test(cpu))
+      continue;
+
+    PerCpuState* state = StateForCpu(cpu);
+
+    // Create a sorted index vector based on the order by requirements.
+    *state->sorted_row_ids() =
+        CreateSortedIndexVector(cpu, storage_->SlicesForCpu(cpu), order_by_);
+  }
+
+  // Set the cpu index to be the first item to look at.
+  FindCpuWithNextSlice();
+}
+
+void SchedSliceTable::Cursor::FilterState::FindCpuWithNextSlice() {
+  next_cpu_ = TraceStorage::kMaxCpus;
 
   for (uint32_t cpu = 0; cpu < TraceStorage::kMaxCpus; cpu++) {
-    const auto& cpu_state = *filter_state_.StateForCpu(cpu);
+    const auto& cpu_state = per_cpu_state_[cpu];
     if (!cpu_state.IsNextRowIdIndexValid())
       continue;
 
     // The first CPU with a valid slice can be set to the next CPU.
-    if (!filter_state_.IsNextCpuValid()) {
-      filter_state_.set_next_cpu(cpu);
+    if (next_cpu_ == TraceStorage::kMaxCpus) {
+      next_cpu_ = cpu;
       continue;
     }
 
-    uint32_t cur_cpu = filter_state_.next_cpu();
-    const auto& cur_slices = storage_->SlicesForCpu(cur_cpu);
-    size_t cur_row = filter_state_.StateForCpu(cur_cpu)->next_row_id();
-
-    const auto& slices = storage_->SlicesForCpu(cpu);
-    size_t row = cpu_state.next_row_id();
-    for (const auto& ob : *filter_state_.order_by()) {
-      int ret = CompareValuesForColumn(cpu, slices, row, cur_cpu, cur_slices,
-                                       cur_row, ob.column, ob.desc);
-      if (ret < 0) {
-        filter_state_.set_next_cpu(cpu);
-        break;
-      } else if (ret > 0) {
-        // If the cpu we are iterating over is not ordered before the current
-        // lowest CPU, then exit the loop.
-        break;
-      }
+    // If the current CPU is ordered before the current "next" CPU, then update
+    // the cpu value.
+    int cmp = CompareCpuToNextCpu(cpu);
+    if (cmp < 0) {
+      next_cpu_ = cpu;
     }
   }
+}
+
+int SchedSliceTable::Cursor::FilterState::CompareCpuToNextCpu(uint32_t cpu) {
+  const auto& next_cpu_slices = storage_->SlicesForCpu(next_cpu_);
+  size_t next_cpu_row = per_cpu_state_[next_cpu_].next_row_id();
+
+  const auto& slices = storage_->SlicesForCpu(cpu);
+  size_t row = per_cpu_state_[cpu].next_row_id();
+  for (const auto& ob : order_by_) {
+    int ret =
+        CompareValuesForColumn(cpu, slices, row, next_cpu_, next_cpu_slices,
+                               next_cpu_row, ob.column, ob.desc);
+    if (ret != 0) {
+      return ret;
+    }
+  }
+  return 0;
 }
 
 }  // namespace trace_processor
