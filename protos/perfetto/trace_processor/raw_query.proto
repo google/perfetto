@@ -27,11 +27,9 @@ message RawQueryResult {
   message ColumnDesc {
     optional string name = 1;
     enum Type {
-      INT = 1;
-      LONG = 2;
-      UNSIGNED_INT = 3;
-      UNSIGNED_LONG = 4;
-      STRING = 5;
+      LONG = 1;
+      DOUBLE = 2;
+      STRING = 3;
     }
     optional Type type = 2;
   }
@@ -39,10 +37,9 @@ message RawQueryResult {
     // Only one of this field will be filled for each column (according to the
     // corresponding descriptor) and that one will have precisely |num_records|
     // elements.
-    repeated int32 int_values = 1;
-    repeated int64 long_values = 2;
-    repeated uint32 uint_values = 3;
-    repeated uint64 ulong_values = 4;
+    repeated int64 long_values = 1;
+    repeated double double_values = 2;
+    repeated string string_values = 3;
   }
   repeated ColumnDesc column_descriptors = 1;
   optional uint64 num_records = 2;
