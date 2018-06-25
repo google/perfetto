@@ -66,20 +66,45 @@ void TraceStorage::PushSchedSwitch(uint32_t cpu,
 void TraceStorage::PushProcess(uint32_t pid,
                                const char* process_name,
                                size_t process_name_len) {
-  auto pids_pair = pids_.equal_range(pid);
+  auto pids_pair = UpidsForPid(pid);
   auto proc_name_id = InternString(process_name, process_name_len);
 
   // We only create a new upid if there isn't one for that pid.
   if (pids_pair.first == pids_pair.second) {
     pids_.emplace(pid, unique_processes_.size());
-    TaskInfo new_process;
+    Process new_process;
     new_process.name_id = proc_name_id;
     unique_processes_.emplace_back(std::move(new_process));
   }
 }
 
+void TraceStorage::MatchThreadToProcess(uint32_t tid, uint32_t tgid) {
+  auto tids_pair = UtidsForTid(tid);
+  // We only care about tids for which we have a matching utid.
+  PERFETTO_CHECK(std::distance(tids_pair.first, tids_pair.second) <= 1);
+  if (tids_pair.first != tids_pair.second) {
+    Thread* thread = &unique_threads_[tids_pair.first->second];
+    // If no upid is set - look it up.
+    if (thread->upid == 0) {
+      auto pids_pair = UpidsForPid(tgid);
+      PERFETTO_CHECK(std::distance(pids_pair.first, pids_pair.second) <= 1);
+      if (pids_pair.first != pids_pair.second) {
+        thread->upid = pids_pair.first->second;
+        // If this is the first time we've used this process, set start_ns.
+        Process process = unique_processes_[pids_pair.first->second];
+        if (process.start_ns == 0)
+          process.start_ns = thread->start_ns;
+      }
+    }
+  }
+}
+
 TraceStorage::UniqueProcessRange TraceStorage::UpidsForPid(uint32_t pid) {
   return pids_.equal_range(pid);
+}
+
+TraceStorage::UniqueThreadRange TraceStorage::UtidsForTid(uint32_t tid) {
+  return tids_.equal_range(tid);
 }
 
 TraceStorage::StringId TraceStorage::InternString(const char* data,
