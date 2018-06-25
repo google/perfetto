@@ -114,6 +114,30 @@ TEST(TraceStorageTest, AddProcessEntry_CorrectName) {
   ASSERT_EQ(storage.GetString(storage.GetProcess(1).name_id), "test");
 }
 
+TEST(TraceStorageTest, MatchThreadToProcess) {
+  TraceStorage storage;
+
+  uint32_t cpu = 3;
+  uint64_t timestamp = 100;
+  uint32_t pid_1 = 1;
+  uint32_t prev_state = 32;
+  static const char kCommProc1[] = "process1";
+  static const char kCommProc2[] = "process2";
+  uint32_t pid_2 = 4;
+
+  storage.PushSchedSwitch(cpu, timestamp, pid_1, prev_state, kCommProc1,
+                          sizeof(kCommProc1) - 1, pid_2);
+  storage.PushSchedSwitch(cpu, timestamp + 1, pid_2, prev_state, kCommProc2,
+                          sizeof(kCommProc2) - 1, pid_1);
+
+  storage.PushProcess(2, "test", 4);
+  storage.MatchThreadToProcess(1, 2);
+
+  TraceStorage::Thread thread = storage.GetThread(1);
+
+  ASSERT_EQ(thread.upid, 1);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

@@ -119,8 +119,6 @@ void TraceParser::ParseThread(const uint8_t* data, size_t length) {
   ProtoDecoder decoder(data, length);
   uint32_t tid = 0;
   uint32_t tgid = 0;
-  const char* thread_name = nullptr;
-  size_t thread_name_len = 0;
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
       case protos::ProcessTree::Thread::kTidFieldNumber:
@@ -129,15 +127,11 @@ void TraceParser::ParseThread(const uint8_t* data, size_t length) {
       case protos::ProcessTree::Thread::kTgidFieldNumber:
         tgid = fld.as_uint32();
         break;
-      case protos::ProcessTree::Thread::kNameFieldNumber:
-        thread_name = fld.as_char_ptr();
-        thread_name_len = fld.size();
-        break;
       default:
         break;
     }
   }
-  // TODO(taylori): Store the thread.
+  storage_->MatchThreadToProcess(tid, tgid);
 
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
