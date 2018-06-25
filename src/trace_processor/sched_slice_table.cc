@@ -125,6 +125,7 @@ inline int CompareValuesForColumn(uint32_t f_cpu,
     case SchedSliceTable::Column::kCpu:
       return Compare(f_cpu, s_cpu, desc);
   }
+  return 0;
 }
 
 // Creates a vector of indices into the given |slices| sorted by the ordering
