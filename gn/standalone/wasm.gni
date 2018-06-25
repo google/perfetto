@@ -40,6 +40,8 @@ template("wasm_lib") {
     assert(defined(invoker.sources))
     _target_ldflags = [
       "-s",
+      "MODULARIZE=1",
+      "-s",
       "WASM=1",
       "-s",
       "NO_FILESYSTEM=1",
@@ -103,12 +105,22 @@ template("wasm_lib") {
       args = [ "--noop" ]
       script = "//gn/standalone/build_tool_wrapper.py"
     }
+
+    copy("${_lib_name}.d.ts") {
+      sources = [
+        "//gn/standalone/wasm_typescript_declaration.d.ts",
+      ]
+      outputs = [
+        "$root_out_dir/$_lib_name.d.ts",
+      ]
+    }
   } else {  # is_wasm
     not_needed(invoker, "*")
   }
 
   group(target_name) {
     deps = [
+      ":${_lib_name}.d.ts($wasm_toolchain)",
       ":${_lib_name}.js($wasm_toolchain)",
       ":${_lib_name}.wasm($wasm_toolchain)",
     ]

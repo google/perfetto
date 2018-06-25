@@ -17,6 +17,7 @@ import("../gn/wasm.gni")
 import("../protos/perfetto/trace_processor/proto_files.gni")
 
 ui_dir = "$root_build_dir/ui"
+ui_gen_dir = "$target_out_dir/gen"
 nodejs_root = "../buildtools/nodejs"
 nodejs_bin = rebase_path("$nodejs_root/bin", root_build_dir)
 
@@ -27,6 +28,7 @@ group("ui") {
   deps = [
     ":index_release",
     ":main_bundle_release",
+    ":wasm_bundle_release",
     ":wasm_release",
     ":worker_bundle_release",
   ]
@@ -144,11 +146,17 @@ bundle("worker_bundle") {
   output = "$target_out_dir/worker_bundle.js"
 }
 
+bundle("wasm_bundle") {
+  deps = [
+    ":transpile_all_ts",
+  ]
+  input = "$target_out_dir/wasm.js"
+  output = "$target_out_dir/wasm_bundle.js"
+}
+
 # +----------------------------------------------------------------------------+
 # | Protobuf: gen rules to create .js and .d.ts files from protos.             |
 # +----------------------------------------------------------------------------+
-proto_gen_dir = "$target_out_dir/gen"
-
 node_bin("protos_to_js") {
   inputs = []
   foreach(proto, trace_processor_protos) {
@@ -156,7 +164,7 @@ node_bin("protos_to_js") {
   }
   inputs += [ "../protos/perfetto/config/perfetto_config.proto" ]
   outputs = [
-    "$proto_gen_dir/protos.js",
+    "$ui_gen_dir/protos.js",
   ]
   node_cmd = "pbjs"
   args = [
@@ -178,10 +186,10 @@ node_bin("protos_to_ts") {
     ":protos_to_js",
   ]
   inputs = [
-    "$proto_gen_dir/protos.js",
+    "$ui_gen_dir/protos.js",
   ]
   outputs = [
-    "$proto_gen_dir/protos.d.ts",
+    "$ui_gen_dir/protos.d.ts",
   ]
   node_cmd = "pbts"
   args = [
@@ -201,16 +209,19 @@ node_bin("protos_to_ts") {
 node_bin("transpile_all_ts") {
   sources = [
     "src/main.ts",
+    "src/wasm.ts",
     "src/worker.ts",
   ]
   deps = [
     ":dist_symlink",
     ":protos_to_ts",
+    ":wasm_gen",
   ]
   inputs = sources + [ "tsconfig.json" ]
   outputs = [
     "$target_out_dir/main.js",
     "$target_out_dir/worker.js",
+    "$target_out_dir/wasm.js",
   ]
 
   # Find all *.ts files and pass them as input triggers. This does NOT affect
@@ -264,17 +275,40 @@ sorcery("worker_bundle_release") {
   output = "$ui_dir/worker_bundle.js"
 }
 
+sorcery("wasm_bundle_release") {
+  deps = [
+    ":wasm_bundle",
+  ]
+  input = "$target_out_dir/wasm_bundle.js"
+  output = "$ui_dir/wasm_bundle.js"
+}
+
 copy("wasm_release") {
   deps = [
+    "//src/trace_processor:trace_processor.wasm($wasm_toolchain)",
+  ]
+  sources = [
+    "$root_build_dir/wasm/trace_processor.wasm",
+  ]
+  outputs = [
+    "$ui_dir/{{source_file_part}}",
+  ]
+}
+
+copy("wasm_gen") {
+  deps = [
+    ":dist_symlink",
+    "//src/trace_processor:trace_processor.d.ts($wasm_toolchain)",
     "//src/trace_processor:trace_processor.js($wasm_toolchain)",
     "//src/trace_processor:trace_processor.wasm($wasm_toolchain)",
   ]
   sources = [
+    "$root_build_dir/wasm/trace_processor.d.ts",
     "$root_build_dir/wasm/trace_processor.js",
     "$root_build_dir/wasm/trace_processor.wasm",
   ]
   outputs = [
-    "$ui_dir/wasm/{{source_file_part}}",
+    "$ui_gen_dir/{{source_file_part}}",
   ]
 }
 
