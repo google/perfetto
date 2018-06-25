@@ -71,3 +71,18 @@ source_set("unittests") {
     "../base",
   ]
 }
+
+source_set("integrationtests") {
+  testonly = true
+  sources = [
+    "sched_slice_table_integrationtest.cc",
+  ]
+  deps = [
+    ":lib",
+    "../../buildtools:sqlite",
+    "../../gn:default_deps",
+    "../../gn:gtest_deps",
+    "../../protos/perfetto/trace:lite",
+    "../base",
+  ]
+}

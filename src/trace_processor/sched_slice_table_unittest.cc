@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open foo Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,16 +23,51 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-TEST(SchedSliceTableTest, BestIndex) {
-  // TODO(lalitm): add a test for this.
+TEST(SchedSliceTableTest, IndexWithNoConstraintsOrderBy) {
+  sqlite3_index_info info;
+  info.nConstraint = 0;
+  info.nOrderBy = 0;
+
+  TraceStorage storage;
+  SchedSliceTable table(&storage);
+  table.BestIndex(&info);
+
+  ASSERT_EQ(info.orderByConsumed, true);
 }
 
-TEST(SchedSliceTableTest, FilterNoRows) {
-  // TODO(lalitm): add a test for this.
-}
+TEST(SchedSliceTableTest, IndexWithConstraintsAndOrderBy) {
+  sqlite3_index_info::sqlite3_index_constraint constraints[2] = {};
+  constraints[0].usable = true;
+  constraints[0].op = SQLITE_INDEX_CONSTRAINT_EQ;
+  constraints[0].iColumn = 0;
 
-TEST(SchedSliceTableTest, FilterSomeRows) {
-  // TODO(lalitm): add a test for this.
+  constraints[1].usable = false;
+  constraints[1].op = SQLITE_INDEX_CONSTRAINT_GE;
+  constraints[1].iColumn = 2;
+
+  sqlite3_index_info::sqlite3_index_orderby orderby[2] = {};
+  orderby[0].iColumn = 0;
+  orderby[0].desc = true;
+
+  orderby[1].iColumn = 1;
+  orderby[1].desc = false;
+
+  sqlite3_index_info::sqlite3_index_constraint_usage constraint_usage[2] = {};
+
+  sqlite3_index_info info;
+  info.nConstraint = sizeof(constraints) / sizeof(constraints[0]);
+  info.aConstraint = constraints;
+  info.nOrderBy = sizeof(orderby) / sizeof(orderby[0]);
+  info.aOrderBy = orderby;
+  info.aConstraintUsage = constraint_usage;
+
+  TraceStorage storage;
+  SchedSliceTable table(&storage);
+  table.BestIndex(&info);
+
+  ASSERT_EQ(info.orderByConsumed, true);
+  ASSERT_EQ(info.aConstraintUsage[0].argvIndex, 1);
+  ASSERT_EQ(info.aConstraintUsage[1].argvIndex, 0);
 }
 
 }  // namespace
