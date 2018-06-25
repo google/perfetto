@@ -79,6 +79,7 @@ TEST_F(SchedSliceTableIntegrationTest, RowsReturnedInCorrectOrderWithinCpu) {
   ASSERT_EQ(sqlite3_column_int64(stmt, Column::kCpu), cpu);
 
   ASSERT_EQ(sqlite3_step(stmt), SQLITE_DONE);
+  sqlite3_finalize(stmt);
 }
 
 TEST_F(SchedSliceTableIntegrationTest, RowsReturnedInCorrectOrderBetweenCpu) {
@@ -125,6 +126,7 @@ TEST_F(SchedSliceTableIntegrationTest, RowsReturnedInCorrectOrderBetweenCpu) {
   ASSERT_EQ(sqlite3_column_int64(stmt, Column::kCpu), cpu_3);
 
   ASSERT_EQ(sqlite3_step(stmt), SQLITE_DONE);
+  sqlite3_finalize(stmt);
 }
 
 TEST_F(SchedSliceTableIntegrationTest, FilterCpus) {
@@ -156,6 +158,7 @@ TEST_F(SchedSliceTableIntegrationTest, FilterCpus) {
   ASSERT_EQ(sqlite3_column_int64(stmt, Column::kCpu), cpu_1);
 
   ASSERT_EQ(sqlite3_step(stmt), SQLITE_DONE);
+  sqlite3_finalize(stmt);
 }
 }  // namespace
 }  // namespace trace_processor
