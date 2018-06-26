@@ -150,7 +150,7 @@ script:
     perfetto_unittests
     "
     if [[ "$CFG" == ui-* ]]; then
-      ui/node ui/node_modules/jest/bin/jest.js --config=ui/package.json  --roots=../out/dist/obj/ui --ci
+      out/dist/ui_tests --ci
     elif [[ "$CFG" == android-* ]]; then
       TARGET_ARCH=$(echo $CFG | cut -d- -f3)
       tools/run_android_emulator --pid /tmp/emulator.pid -v &
