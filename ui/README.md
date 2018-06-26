@@ -15,6 +15,17 @@ $ tools/ninja -C out/debug ui
 For more details on `gn` configs see
 [Build Instructions](../docs/build-instructions.md).
 
+To run the tests:
+```
+$ out/debug/ui_unittests
+$ out/debug/ui_tests
+```
+
+To run the tests in watch mode:
+```
+$ out/debug/ui_unittests --watch
+```
+
 Finally run:
 
 ```
