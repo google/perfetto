@@ -28,6 +28,7 @@ group("ui") {
   deps = [
     ":index_release",
     ":main_bundle_release",
+    ":test_scripts",
     ":wasm_bundle_release",
     ":wasm_release",
     ":worker_bundle_release",
@@ -405,5 +406,30 @@ action("dist_symlink") {
   ]
   outputs = [
     stamp_file,
+  ]
+}
+
+group("test_scripts") {
+  deps = [
+    ":copy_tests_script",
+    ":copy_unittests_script",
+  ]
+}
+
+copy("copy_unittests_script") {
+  sources = [
+    "config/ui_unittests_template",
+  ]
+  outputs = [
+    "$root_build_dir/ui_unittests",
+  ]
+}
+
+copy("copy_tests_script") {
+  sources = [
+    "config/ui_tests_template",
+  ]
+  outputs = [
+    "$root_build_dir/ui_tests",
   ]
 }
