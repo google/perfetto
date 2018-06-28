@@ -16,7 +16,7 @@
 
 import * as m from 'mithril';
 
-const TrackShell = {
+export const trackShell = {
   view() {
     return m('.trackshell',
       { style: { border: "1px solid #ccc", padding: "20px" } },
@@ -24,5 +24,3 @@ const TrackShell = {
     );
   }
 } as m.Component;
-
-export default TrackShell;

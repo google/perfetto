@@ -15,16 +15,14 @@
  */
 
 import * as m from 'mithril';
-import Track from './track';
+import {track} from './track';
 
-const Frontend = {
+export const frontend = {
   view() {
     return m('.frontend',
       { style: { border: "1px solid #ccc", padding: "20px" } },
       m('h1', "Frontend"),
-      m(Track)
+      m(track)
     );
   }
 } as m.Component;
-
-export default Frontend;

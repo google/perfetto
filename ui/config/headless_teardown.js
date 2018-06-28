@@ -18,5 +18,5 @@
  */
 
 module.exports = async function() {
-  console.log("End!"):
+  console.log("End!");
 }
