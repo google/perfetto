@@ -14,6 +14,17 @@
  * limitations under the License.
  */
 
-export class CpuSlicesTrack {
+import * as m from 'mithril';
+import Track from './track';
 
-}
+const Frontend = {
+  view() {
+    return m('.frontend',
+      { style: { border: "1px solid #ccc", padding: "20px" } },
+      m('h1', "Frontend"),
+      m(Track)
+    );
+  }
+} as m.Component;
+
+export default Frontend;

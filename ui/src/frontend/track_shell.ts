@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
-export class CpuSlicesTrack {
+import * as m from 'mithril';
 
-}
+const TrackShell = {
+  view() {
+    return m('.trackshell',
+      { style: { border: "1px solid #ccc", padding: "20px" } },
+      m('h1', "Track Shell")
+    );
+  }
+} as m.Component;
+
+export default TrackShell;
