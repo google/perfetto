@@ -11,6 +11,8 @@
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
+    "@types/mithril": "^1.1.12",
+    "mithril": "^1.1.6",
     "protobufjs": "^6.8.6"
   },
   "devDependencies": {
