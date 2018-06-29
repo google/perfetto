@@ -18,11 +18,17 @@ import * as m from 'mithril';
 import {trackShell} from './track_shell';
 
 export const track = {
-  view() {
+  view({attrs}) {
     return m('.track',
-      { style: { border: "1px solid #ccc", padding: "20px" } },
-      m('h1', "Track"),
-      m(trackShell)
+      {
+        style: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%'
+        }
+      },
+      m(trackShell, attrs)
     );
   }
-} as m.Component;
+} as m.Comp<{ name: string }>;
