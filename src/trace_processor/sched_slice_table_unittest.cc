@@ -39,17 +39,17 @@ TEST(SchedSliceTableTest, IndexWithConstraintsAndOrderBy) {
   sqlite3_index_info::sqlite3_index_constraint constraints[2] = {};
   constraints[0].usable = true;
   constraints[0].op = SQLITE_INDEX_CONSTRAINT_EQ;
-  constraints[0].iColumn = 0;
+  constraints[0].iColumn = SchedSliceTable::Column::kTimestamp;
 
   constraints[1].usable = false;
   constraints[1].op = SQLITE_INDEX_CONSTRAINT_GE;
-  constraints[1].iColumn = 2;
+  constraints[1].iColumn = SchedSliceTable::Column::kDuration;
 
   sqlite3_index_info::sqlite3_index_orderby orderby[2] = {};
-  orderby[0].iColumn = 0;
+  orderby[0].iColumn = SchedSliceTable::Column::kTimestamp;
   orderby[0].desc = true;
 
-  orderby[1].iColumn = 1;
+  orderby[1].iColumn = SchedSliceTable::Column::kCpu;
   orderby[1].desc = false;
 
   sqlite3_index_info::sqlite3_index_constraint_usage constraint_usage[2] = {};
