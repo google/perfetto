@@ -15,7 +15,7 @@
  */
 
 import * as m from 'mithril';
-import Frontend from './frontend';
+import {frontend} from './frontend';
 
 console.log('Hello from the main thread!');
 
@@ -32,7 +32,12 @@ function createFrontend() {
     console.error('root element not found.');
     return;
   }
-  m.mount(root, Frontend);
+  const rect = root.getBoundingClientRect();
+
+  m.render(root, m(frontend, {
+    width: rect.width,
+    height: rect.height
+  }));
 }
 
 function main() {
