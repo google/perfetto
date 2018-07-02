@@ -81,19 +81,20 @@ void TraceStorage::PushProcess(uint32_t pid,
 void TraceStorage::MatchThreadToProcess(uint32_t tid, uint32_t tgid) {
   auto tids_pair = UtidsForTid(tid);
   // We only care about tids for which we have a matching utid.
-  PERFETTO_CHECK(std::distance(tids_pair.first, tids_pair.second) <= 1);
+  PERFETTO_DCHECK(std::distance(tids_pair.first, tids_pair.second) <= 1);
   if (tids_pair.first != tids_pair.second) {
+    PERFETTO_DCHECK(tids_pair.first->second < unique_threads_.size());
     Thread* thread = &unique_threads_[tids_pair.first->second];
     // If no upid is set - look it up.
     if (thread->upid == 0) {
       auto pids_pair = UpidsForPid(tgid);
-      PERFETTO_CHECK(std::distance(pids_pair.first, pids_pair.second) <= 1);
+      PERFETTO_DCHECK(std::distance(pids_pair.first, pids_pair.second) <= 1);
       if (pids_pair.first != pids_pair.second) {
         thread->upid = pids_pair.first->second;
         // If this is the first time we've used this process, set start_ns.
-        Process process = unique_processes_[pids_pair.first->second];
-        if (process.start_ns == 0)
-          process.start_ns = thread->start_ns;
+        Process* process = &unique_processes_[pids_pair.first->second];
+        if (process->start_ns == 0)
+          process->start_ns = thread->start_ns;
       }
     }
   }
