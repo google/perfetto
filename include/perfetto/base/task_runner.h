@@ -20,6 +20,7 @@
 #include <functional>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/export.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/base/watchdog.h"
 
@@ -40,7 +41,7 @@ constexpr int64_t kWatchdogMillis = 30000;  // 30s
 // memory barrier between tasks.
 //
 // All methods of this interface can be called from any thread.
-class TaskRunner {
+class PERFETTO_EXPORT TaskRunner {
  public:
   virtual ~TaskRunner();
 

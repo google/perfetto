@@ -20,13 +20,14 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace protozero {
 
-class ScatteredStreamWriterNullDelegate
+class PERFETTO_EXPORT ScatteredStreamWriterNullDelegate
     : public ScatteredStreamWriter::Delegate {
  public:
   explicit ScatteredStreamWriterNullDelegate(size_t chunk_size);
