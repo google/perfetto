@@ -100,10 +100,6 @@ group("default_deps") {
       "//gn/standalone/libc++:deps",
       "//gn/standalone/sanitizers:deps",
     ]
-  } else {
-    public_deps = [
-      "//build/config:exe_and_shlib_deps",
-    ]
   }
 }
 
