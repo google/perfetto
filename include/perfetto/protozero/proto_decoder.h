@@ -35,7 +35,7 @@ class ProtoDecoder {
   struct Field {
     struct LengthDelimited {
       const uint8_t* data;
-      uint64_t length;
+      size_t length;
     };
 
     uint32_t id = 0;
@@ -91,7 +91,7 @@ class ProtoDecoder {
 
  private:
   const uint8_t* const buffer_;
-  const uint64_t length_;
+  const uint64_t length_;  // The outer buffer can be larger than 4GB.
   const uint8_t* current_position_ = nullptr;
 };
 
