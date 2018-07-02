@@ -246,6 +246,7 @@ class GeneratorJob {
         "#define $guard$\n\n"
         "#include <stddef.h>\n"
         "#include <stdint.h>\n\n"
+        "#include \"perfetto/base/export.h\"\n"
         "#include \"perfetto/protozero/proto_field_descriptor.h\"\n"
         "#include \"perfetto/protozero/message.h\"\n",
         "greeting", greeting, "guard", guard);
@@ -535,7 +536,7 @@ class GeneratorJob {
 
   void GenerateMessageDescriptor(const Descriptor* message) {
     stub_h_->Print(
-        "class $name$ : public ::protozero::Message {\n"
+        "class PERFETTO_EXPORT $name$ : public ::protozero::Message {\n"
         " public:\n",
         "name", GetCppClassName(message));
     stub_h_->Indent();

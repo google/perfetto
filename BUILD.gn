@@ -230,6 +230,8 @@ if (build_with_chromium) {
     configs += [ "//build/config/compiler:no_chromium_code" ]
     public_deps = [
       "include/perfetto/tracing/core",
+      "protos/perfetto/trace:zero",
+      "protos/perfetto/trace/chrome:zero",
     ]
   }
 }
