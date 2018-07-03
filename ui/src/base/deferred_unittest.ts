@@ -22,7 +22,6 @@ test('deferred can resolve', async () => {
   expect(i).toBe(0);
   deferred.resolve();
   expect(i).toBe(0);
-  expect(i).toBe(0);
   await deferred;
   expect(i).toBe(1);
 });
