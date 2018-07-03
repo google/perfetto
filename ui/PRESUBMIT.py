@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import subprocess
+from os.path import relpath
+
 
 def CheckChange(input, output):
     results = []
@@ -41,9 +43,8 @@ def CheckTslint(input_api, output_api):
     if subprocess.call([node, tslint, '--project', ui_path,
                         '--format', 'codeFrame']):
         return [
-        output_api.PresubmitError(
-            'There were tslint errors. You may be able to fix some of them' +
-            'using \n' +
-            '$ ' + tslint + ' --project ' + ui_path + ' --fix')
+            output_api.PresubmitError("""\
+There were tslint errors. You may be able to fix some of them using
+$ {} {} --project {} --fix""".format(relpath(node), relpath(tslint), ui_path))
         ]
     return []

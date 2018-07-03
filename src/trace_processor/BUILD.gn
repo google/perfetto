@@ -26,6 +26,7 @@ wasm_lib("trace_processor") {
   # outer "is_wasm" block.
   deps = [
     ":lib",
+    "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../protos/perfetto/trace_processor:lite",

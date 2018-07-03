@@ -17,4 +17,5 @@
 trace_processor_protos = [
   "sched",
   "raw_query",
+  "trace_processor",
 ]

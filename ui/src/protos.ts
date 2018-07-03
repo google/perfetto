@@ -12,12 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Re-export commonly used protos without the painfully long namespace.
+import * as protos from './gen/protos';
 
-import * as x from './gen/protos';
-
-const TraceConfig = x.perfetto.protos.TraceConfig;
+// Aliases protos to avoid the super nested namespaces.
+// See https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
+import TraceConfig = protos.perfetto.protos.TraceConfig;
+import TraceProcessor = protos.perfetto.protos.TraceProcessor;
+import IRawQueryArgs = protos.perfetto.protos.IRawQueryArgs;
+import RawQueryArgs = protos.perfetto.protos.RawQueryArgs;
+import RawQueryResult = protos.perfetto.protos.RawQueryResult;
 
 export {
   TraceConfig,
+  TraceProcessor,
+  IRawQueryArgs,
+  RawQueryArgs,
+  RawQueryResult,
 };
