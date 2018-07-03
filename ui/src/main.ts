@@ -15,7 +15,10 @@
  */
 
 import * as m from 'mithril';
-import {frontend} from './frontend';
+import { frontend } from './frontend';
+import { Engine } from './engine';
+import { WasmEngineProxy, warmupWasmEngineWorker }
+    from './engine/wasm_engine_proxy';
 
 console.log('Hello from the main thread!');
 
@@ -36,13 +39,31 @@ function createFrontend() {
 
   m.render(root, m(frontend, {
     width: rect.width,
-    height: rect.height
+    height: rect.height,
   }));
 }
 
-function main() {
+function main(input: Element, button: Element) {
   createController();
   createFrontend();
-}
 
-main();
+  warmupWasmEngineWorker();
+  // tslint:disable-next-line:no-any
+  input.addEventListener('change', (e: any) => {
+    const blob: Blob = e.target.files.item(0);
+    if (blob === null) return;
+    const engine: Engine = WasmEngineProxy.create(blob);
+    button.addEventListener('click', () => {
+      engine.rawQuery({
+        sqlQuery: 'select * from sched;',
+      }).then(
+        result => console.log(result)
+      );
+    });
+  });
+}
+const input = document.querySelector('#trace');
+const button = document.querySelector('#query');
+if (input && button) {
+  main(input, button);
+}
