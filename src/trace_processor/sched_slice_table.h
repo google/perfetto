@@ -105,7 +105,7 @@ class SchedSliceTable {
   class FilterState {
    public:
     FilterState(const TraceStorage* storage,
-                IndexInfo index,
+                const IndexInfo& index,
                 sqlite3_value** argv);
 
     // Chooses the next CPU which should be returned according to the sorting
@@ -167,7 +167,7 @@ class SchedSliceTable {
   // Implementation of the SQLite cursor interface.
   class Cursor {
    public:
-    Cursor(SchedSliceTable* table, const TraceStorage* storage);
+    Cursor(const TraceStorage* storage);
 
     // Implementation of sqlite3_vtab_cursor.
     int Filter(int idxNum, const char* idxStr, int argc, sqlite3_value** argv);
@@ -179,9 +179,7 @@ class SchedSliceTable {
    private:
     sqlite3_vtab_cursor base_;  // Must be first.
 
-    SchedSliceTable* const table_;
     const TraceStorage* const storage_;
-
     std::unique_ptr<FilterState> filter_state_;
   };
 
@@ -191,9 +189,6 @@ class SchedSliceTable {
 
   sqlite3_vtab base_;  // Must be first.
   const TraceStorage* const storage_;
-
-  // One entry for each BestIndex call.
-  std::vector<IndexInfo> indexes_;
 };
 
 }  // namespace trace_processor
