@@ -14,6 +14,26 @@
  * limitations under the License.
  */
 
-export class PerfettoEngine {
+import { TraceProcessor, RawQueryResult, IRawQueryArgs } from '../protos';
 
+/**
+ * Abstract interface of a trace proccessor.
+ * This class is wrapper for multiple proto services defined in:
+ * //protos/perfetto/trace_processor/*
+ * For each service ("FooService") Engine will have abstract getter
+ * ("fooService") which returns a protobufjs rpc.Service object for
+ * the given service.
+ *
+ * Engine also defines helpers for the most common service methods
+ * (e.g. rawQuery).
+ */
+export abstract class Engine {
+  abstract get traceProcessor(): TraceProcessor;
+
+  /**
+   * Send a raw SQL query to the engine.
+   */
+  rawQuery(args: IRawQueryArgs): Promise<RawQueryResult> {
+    return this.traceProcessor.rawQuery(args);
+  }
 }
