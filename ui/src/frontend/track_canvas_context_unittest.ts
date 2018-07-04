@@ -18,15 +18,15 @@ import Mock = jest.Mock;
 const setupCanvasContext = () => {
 
   const ctxMock = jest.fn<CanvasRenderingContext2D>(() => ({
-    stroke: jest.fn(),
-    beginPath: jest.fn(),
-    closePath: jest.fn(),
-    measureText: jest.fn(),
-    fillRect: jest.fn(),
-    fillText: jest.fn(),
-    moveTo: jest.fn(),
-    lineTo: jest.fn()
-  }));
+                                                      stroke: jest.fn(),
+                                                      beginPath: jest.fn(),
+                                                      closePath: jest.fn(),
+                                                      measureText: jest.fn(),
+                                                      fillRect: jest.fn(),
+                                                      fillText: jest.fn(),
+                                                      moveTo: jest.fn(),
+                                                      lineTo: jest.fn()
+                                                    }));
 
   return new ctxMock();
 };
@@ -34,8 +34,8 @@ const setupCanvasContext = () => {
 test('track canvas context offsets work on fillrect', async () => {
 
   const ctx = setupCanvasContext();
-  const tcctx = new TrackCanvasContext(ctx, {
-    left: 100, top: 200, width: 200, height: 150});
+  const tcctx = new TrackCanvasContext(
+      ctx, {left: 100, top: 200, width: 200, height: 150});
   const mockCalls = (ctx.fillRect as Mock).mock.calls;
 
   tcctx.fillRect(10, 5, 100, 20);
@@ -46,8 +46,8 @@ test('track canvas context offsets work on fillrect', async () => {
 test('track canvas context offsets work on filltext', async () => {
 
   const ctx = setupCanvasContext();
-  const tcctx = new TrackCanvasContext(ctx, {
-    left: 100, top: 200, width: 200, height: 150});
+  const tcctx = new TrackCanvasContext(
+      ctx, {left: 100, top: 200, width: 200, height: 150});
   const mockCalls = (ctx.fillText as Mock).mock.calls;
 
   tcctx.fillText('', 10, 5);
@@ -59,8 +59,8 @@ test('track canvas context offsets work on filltext', async () => {
 test('track canvas context offsets work on moveto and lineto', async () => {
 
   const ctx = setupCanvasContext();
-  const tcctx = new TrackCanvasContext(ctx, {
-    left: 100, top: 200, width: 200, height: 150});
+  const tcctx = new TrackCanvasContext(
+      ctx, {left: 100, top: 200, width: 200, height: 150});
 
   const mockCallsMove = (ctx.moveTo as Mock).mock.calls;
   tcctx.moveTo(10, 5);
@@ -74,8 +74,8 @@ test('track canvas context offsets work on moveto and lineto', async () => {
 test('track canvas context limits the bbox', async () => {
 
   const ctx = setupCanvasContext();
-  const tcctx = new TrackCanvasContext(ctx, {
-    left: 100, top: 200, width: 200, height: 150});
+  const tcctx = new TrackCanvasContext(
+      ctx, {left: 100, top: 200, width: 200, height: 150});
 
   // Filling the entire rect should work.
   tcctx.fillRect(0, 0, 200, 150);
@@ -113,12 +113,11 @@ test('track canvas context limits the bbox', async () => {
 test('nested track canvas contexts work', async () => {
   const ctx = setupCanvasContext();
   const mockCalls = (ctx.moveTo as Mock).mock.calls;
-  const tcctx = new TrackCanvasContext(ctx, {
-    left: 100, top: 200, width: 200, height: 150});
-  const tcctx2 = new TrackCanvasContext(tcctx, {
-    left: 10, top: 10, width: 10, height: 10});
+  const tcctx = new TrackCanvasContext(
+      ctx, {left: 100, top: 200, width: 200, height: 150});
+  const tcctx2 =
+      new TrackCanvasContext(tcctx, {left: 10, top: 10, width: 10, height: 10});
 
   tcctx2.moveTo(10, 5);
   expect(mockCalls[0]).toEqual([120, 215]);
 });
-

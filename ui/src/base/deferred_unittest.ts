@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { defer, Deferred } from './deferred';
+import {defer, Deferred} from './deferred';
 
 test('deferred can resolve', async () => {
   const deferred: Deferred<void> = defer<void>();
@@ -28,13 +28,12 @@ test('deferred can resolve', async () => {
 
 test('deferred can resolve with value', () => {
   const deferred: Deferred<string> = defer<string>();
-  deferred.resolve("foo");
-  return expect(deferred).resolves.toBe("foo");
+  deferred.resolve('foo');
+  return expect(deferred).resolves.toBe('foo');
 });
 
 test('deferred can reject', () => {
   const deferred: Deferred<string> = defer<string>();
-  deferred.reject("foo");
-  return expect(deferred).rejects.toBe("foo");
+  deferred.reject('foo');
+  return expect(deferred).rejects.toBe('foo');
 });
-
