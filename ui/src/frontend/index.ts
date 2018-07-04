@@ -15,24 +15,22 @@
  */
 
 import * as m from 'mithril';
-import {track} from './track';
+
 import {canvasWrapper} from './canvas_wrapper';
+import {track} from './track';
 
 export const frontend = {
   view({attrs}) {
-    return m('.frontend',
-      {
-        style: {
-          padding: '20px',
-          position: 'relative',
-          width: attrs.width.toString() + 'px'
-        }
-      },
-      m(canvasWrapper, {
-        width: attrs.width,
-        height: attrs.height
-      }),
-      m(track, { name: 'Track 123' }),
-    );
+    return m(
+        '.frontend',
+        {
+          style: {
+            padding: '20px',
+            position: 'relative',
+            width: attrs.width.toString() + 'px'
+          }
+        },
+        m(canvasWrapper, {width: attrs.width, height: attrs.height}),
+        m(track, {name: 'Track 123'}), );
   }
 } as m.Comp<{width: number, height: number}>;

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { WasmBridge, WasmBridgeRequest } from "./engine/wasm_bridge";
+import {WasmBridge, WasmBridgeRequest} from './engine/wasm_bridge';
 import * as init_trace_processor from './gen/trace_processor';
 
 // tslint:disable no-any
@@ -22,10 +22,9 @@ declare var FileReaderSync: any;
 const anySelf = (self as any);
 
 const bridge = new WasmBridge(
-  init_trace_processor, 
-  anySelf.postMessage.bind(anySelf),
-  new FileReaderSync(),
-);
+    init_trace_processor,
+    anySelf.postMessage.bind(anySelf),
+    new FileReaderSync(), );
 bridge.initialize();
 
 anySelf.onmessage = (m: any) => {

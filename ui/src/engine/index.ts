@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { TraceProcessor, RawQueryResult, IRawQueryArgs } from '../protos';
+import {IRawQueryArgs, RawQueryResult, TraceProcessor} from '../protos';
 
 /**
  * Abstract interface of a trace proccessor.

@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { WasmBridge } from './wasm_bridge';
-import { ModuleArgs, Module } from '../gen/trace_processor';
+import {Module, ModuleArgs} from '../gen/trace_processor';
+
+import {WasmBridge} from './wasm_bridge';
 
 class MockModule implements Module {
   locateFile: (s: string) => string;
@@ -24,13 +25,13 @@ class MockModule implements Module {
 
   constructor() {
     this.locateFile = (_) => {
-      throw new Error("locateFile not set");
+      throw new Error('locateFile not set');
     };
     this.onRuntimeInitialized = () => {
-      throw new Error("onRuntimeInitialized not set");
+      throw new Error('onRuntimeInitialized not set');
     };
     this.onAbort = () => {
-      throw new Error("onAbort not set");
+      throw new Error('onAbort not set');
     };
   }
 
