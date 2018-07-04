@@ -13,9 +13,7 @@
 // limitations under the License.
 import * as puppeteer from 'puppeteer';
 
-declare var global: {
-  __BROWSER__: puppeteer.Browser;
-};
+declare var global: {__BROWSER__: puppeteer.Browser;};
 
 test('example headless test', async () => {
   const browser = global.__BROWSER__;

@@ -18,20 +18,15 @@ import * as m from 'mithril';
 
 export const canvasWrapper = {
   view({attrs}) {
-    return m('canvas',
-      {
-        style: {
-          background: '#ccc',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: attrs.width.toString() + 'px',
-          height: attrs.height.toString() + 'px',
-        }
+    return m('canvas', {
+      style: {
+        background: '#ccc',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: attrs.width.toString() + 'px',
+        height: attrs.height.toString() + 'px',
       }
-    );
+    });
   }
-} as m.Comp<{
-  width: number
-  height: number,
-}>;
+} as m.Comp<{width: number, height: number}>;

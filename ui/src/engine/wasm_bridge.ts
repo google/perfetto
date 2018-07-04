@@ -16,8 +16,8 @@
 
 // tslint:disable:no-any
 
+import {defer, Deferred} from '../base/deferred';
 import * as init_trace_processor from '../gen/trace_processor';
-import { defer, Deferred } from '../base/deferred';
 
 function writeToUIConsole(line: string) {
   console.log(line);
@@ -49,9 +49,8 @@ export class WasmBridge {
   connection: init_trace_processor.Module;
 
   constructor(
-    init: init_trace_processor.InitWasm,
-    callback: (_: WasmBridgeResponse) => void,
-    fileReader: any) {
+      init: init_trace_processor.InitWasm,
+      callback: (_: WasmBridgeResponse) => void, fileReader: any) {
     this.replyCount = 0;
     this.deferredRuntimeInitialized = defer<void>();
     this.deferredHaveBlob = defer<void>();
@@ -111,25 +110,26 @@ export class WasmBridge {
   async callWasm(req: WasmBridgeRequest): Promise<void> {
     await this.deferredReady;
     this.connection.ccall(
-        `${req.serviceName}_${req.methodName}`, // C method name.
-        'void',                                 // Return type.
-        ['number', 'array', 'number'],          // Input args.
-        [req.id, req.data, req.data.length]     // Args.
-    );
+        `${req.serviceName}_${req.methodName}`,  // C method name.
+        'void',                                  // Return type.
+        ['number', 'array', 'number'],           // Input args.
+        [req.id, req.data, req.data.length]      // Args.
+        );
   }
 
   async initialize(): Promise<void> {
     await this.deferredRuntimeInitialized;
     await this.deferredHaveBlob;
-    const readTraceFn = this.connection.addFunction(
-      this.onRead.bind(this), 'iiii');
-    const replyFn = this.connection.addFunction(
-      this.onReply.bind(this), 'viiii');
-    this.connection.ccall('Initialize', 'void',
-      ['number', 'number', 'number'],
-      [0, readTraceFn, replyFn]);
+    const readTraceFn =
+        this.connection.addFunction(this.onRead.bind(this), 'iiii');
+    const replyFn =
+        this.connection.addFunction(this.onReply.bind(this), 'viiii');
+    this.connection.ccall(
+        'Initialize',
+        'void',
+        ['number', 'number', 'number'],
+        [0, readTraceFn, replyFn]);
     await this.deferredInitialized;
     this.deferredReady.resolve();
   }
 }
-

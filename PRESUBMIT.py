@@ -25,7 +25,8 @@ def CheckChange(input, output):
     results += input.canned_checks.CheckChangeHasNoTabs(input, output)
     results += input.canned_checks.CheckLongLines(
             input, output, 80, source_file_filter=long_line_sources)
-    results += input.canned_checks.CheckPatchFormatted(input, output)
+    results += input.canned_checks.CheckPatchFormatted(
+            input, output, check_js=True)
     results += input.canned_checks.CheckGNFormatted(input, output)
     results += CheckIncludeGuards(input, output)
     results += CheckAndroidBlueprint(input, output)
