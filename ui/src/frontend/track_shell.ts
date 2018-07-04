@@ -18,27 +18,22 @@ import * as m from 'mithril';
 
 export const trackShell = {
   view({attrs}) {
-    return m('.trackshell',
-      {
-        style: {
-          border: '1px solid #666',
-        }
-      },
-      m('.shell-content', {
+    return m(
+        '.trackshell',
+        {
           style: {
-            background: '#fff',
-            padding: '20px',
-            width: '20%',
-            'border-right': '1px solid #666'
+            border: '1px solid #666',
           }
         },
-        m('h1', {
-          style: {
-            margin: 0,
-            'font-size': '1.5em'
-          }
-        }, attrs.name)
-      )
-    );
+        m('.shell-content',
+          {
+            style: {
+              background: '#fff',
+              padding: '20px',
+              width: '20%',
+              'border-right': '1px solid #666'
+            }
+          },
+          m('h1', {style: {margin: 0, 'font-size': '1.5em'}}, attrs.name)));
   }
-} as m.Comp<{ name: string }>;
+} as m.Comp<{name: string}>;

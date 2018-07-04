@@ -15,14 +15,16 @@
  */
 
 import * as protobufjs from 'protobufjs/light';
-import { TraceProcessor } from '../protos';
-import { Engine } from './index';
-import { WasmBridgeResponse, WasmBridgeRequest } from './wasm_bridge';
+
+import {TraceProcessor} from '../protos';
+
+import {Engine} from './index';
+import {WasmBridgeRequest, WasmBridgeResponse} from './wasm_bridge';
 
 let gWarmWasmWorker: null|Worker = null;
 
 function createNewWasmEngineWorker(): Worker {
-  return new Worker("wasm_bundle.js");
+  return new Worker('wasm_bundle.js');
 }
 
 function createWasmEngineWorker(): Worker {
@@ -76,7 +78,7 @@ export class WasmEngineProxy extends Engine {
     this.worker.onerror = this.onError.bind(this);
     this.worker.onmessage = this.onMessage.bind(this);
     this.traceProcessor_ =
-      TraceProcessor.create(this.rpcImpl.bind(this, 'trace_processor'));
+        TraceProcessor.create(this.rpcImpl.bind(this, 'trace_processor'));
   }
 
   get traceProcessor(): TraceProcessor {
@@ -98,10 +100,8 @@ export class WasmEngineProxy extends Engine {
   }
 
   rpcImpl(
-     serviceName: string,
-     method: Function,
-     requestData: Uint8Array,
-     callback: protobufjs.RPCImplCallback): void {
+      serviceName: string, method: Function, requestData: Uint8Array,
+      callback: protobufjs.RPCImplCallback): void {
     const methodName = method.name;
     const id = this.nextRequestId++;
     this.pendingCallbacks.set(id, callback);
