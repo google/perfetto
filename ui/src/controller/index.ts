@@ -14,6 +14,4 @@
  * limitations under the License.
  */
 
-export class PerfettoController {
-
-}
+export class PerfettoController {}

@@ -15,15 +15,18 @@
  */
 
 import * as m from 'mithril';
-import { frontend } from './frontend';
-import { Engine } from './engine';
-import { WasmEngineProxy, warmupWasmEngineWorker }
-    from './engine/wasm_engine_proxy';
+
+import {Engine} from './engine';
+import {
+  warmupWasmEngineWorker,
+  WasmEngineProxy,
+} from './engine/wasm_engine_proxy';
+import {frontend} from './frontend';
 
 console.log('Hello from the main thread!');
 
 function createController() {
-  const worker = new Worker("worker_bundle.js");
+  const worker = new Worker('worker_bundle.js');
   worker.onerror = e => {
     console.error(e);
   };
@@ -38,9 +41,9 @@ function createFrontend() {
   const rect = root.getBoundingClientRect();
 
   m.render(root, m(frontend, {
-    width: rect.width,
-    height: rect.height,
-  }));
+             width: rect.width,
+             height: rect.height,
+           }));
 }
 
 function main(input: Element, button: Element) {
@@ -54,11 +57,11 @@ function main(input: Element, button: Element) {
     if (blob === null) return;
     const engine: Engine = WasmEngineProxy.create(blob);
     button.addEventListener('click', () => {
-      engine.rawQuery({
-        sqlQuery: 'select * from sched;',
-      }).then(
-        result => console.log(result)
-      );
+      engine
+          .rawQuery({
+            sqlQuery: 'select * from sched;',
+          })
+          .then(result => console.log(result));
     });
   });
 }

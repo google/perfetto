@@ -13,7 +13,6 @@
 // limitations under the License.
 
 test('example async unittest', async () => {
-  const result = await Promise.resolve("foo");
+  const result = await Promise.resolve('foo');
   expect(result).toEqual('foo');
 });
-
