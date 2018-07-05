@@ -26,15 +26,13 @@ constexpr uint32_t kTraceChunkSizeB = 16 * 1024 * 1024;  // 16 MB
 
 TraceDatabase::TraceDatabase(base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_factory_(this) {
-  sqlite3_open(":memory:", &db_);
+  sqlite3* db = nullptr;
+  PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
+  db_.reset(std::move(db));
 
   // Setup the sched slice table.
   static sqlite3_module module = SchedSliceTable::CreateModule();
-  sqlite3_create_module(db_, "sched", &module, static_cast<void*>(&storage_));
-}
-
-TraceDatabase::~TraceDatabase() {
-  sqlite3_close(db_);
+  sqlite3_create_module(*db_, "sched", &module, static_cast<void*>(&storage_));
 }
 
 void TraceDatabase::LoadTrace(BlobReader* reader,
@@ -51,24 +49,25 @@ void TraceDatabase::ExecuteQuery(
   protos::RawQueryResult proto;
 
   const auto& sql = args.sql_query();
-  sqlite3_stmt* stmt;
-  int err = sqlite3_prepare_v2(db_, sql.c_str(), static_cast<int>(sql.size()),
-                               &stmt, nullptr);
+  sqlite3_stmt* raw_stmt;
+  int err = sqlite3_prepare_v2(*db_, sql.c_str(), static_cast<int>(sql.size()),
+                               &raw_stmt, nullptr);
+  ScopedStmt stmt(std::move(raw_stmt));
   if (err) {
     callback(std::move(proto));
     return;
   }
 
-  int col_count = sqlite3_column_count(stmt);
+  int col_count = sqlite3_column_count(*stmt);
   int row_count = 0;
-  for (int r = sqlite3_step(stmt); r == SQLITE_ROW; r = sqlite3_step(stmt)) {
+  for (int r = sqlite3_step(*stmt); r == SQLITE_ROW; r = sqlite3_step(*stmt)) {
     for (int i = 0; i < col_count; i++) {
       if (row_count == 0) {
         // Setup the descriptors.
         auto* descriptor = proto.add_column_descriptors();
-        descriptor->set_name(sqlite3_column_name(stmt, i));
+        descriptor->set_name(sqlite3_column_name(*stmt, i));
 
-        switch (sqlite3_column_type(stmt, i)) {
+        switch (sqlite3_column_type(*stmt, i)) {
           case SQLITE_INTEGER:
             descriptor->set_type(protos::RawQueryResult_ColumnDesc_Type_LONG);
             break;
@@ -90,14 +89,14 @@ void TraceDatabase::ExecuteQuery(
       auto* column = proto.mutable_columns(i);
       switch (proto.column_descriptors(i).type()) {
         case protos::RawQueryResult_ColumnDesc_Type_LONG:
-          column->add_long_values(sqlite3_column_int64(stmt, i));
+          column->add_long_values(sqlite3_column_int64(*stmt, i));
           break;
         case protos::RawQueryResult_ColumnDesc_Type_STRING:
           column->add_string_values(
-              reinterpret_cast<const char*>(sqlite3_column_text(stmt, i)));
+              reinterpret_cast<const char*>(sqlite3_column_text(*stmt, i)));
           break;
         case protos::RawQueryResult_ColumnDesc_Type_DOUBLE:
-          column->add_double_values(sqlite3_column_double(stmt, i));
+          column->add_double_values(sqlite3_column_double(*stmt, i));
           break;
       }
     }
