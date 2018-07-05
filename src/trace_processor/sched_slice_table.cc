@@ -437,7 +437,7 @@ int SchedSliceTable::FilterState::CompareSlicesOnColumn(uint32_t f_cpu,
       return Compare(f_group, s_group, ob.desc);
     }
   }
-  return 0;
+  PERFETTO_FATAL("Unexepcted column %d", ob.column);
 }
 
 void SchedSliceTable::PerCpuState::Initialize(
