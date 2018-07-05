@@ -38,6 +38,7 @@ source_set("lib") {
     "blob_reader.h",
     "sched_slice_table.cc",
     "sched_slice_table.h",
+    "scoped_db.h",
     "trace_database.cc",
     "trace_database.h",
     "trace_parser.cc",
