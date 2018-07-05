@@ -26,12 +26,12 @@ nodejs_bin = rebase_path("$nodejs_root/bin", root_build_dir)
 # +----------------------------------------------------------------------------+
 group("ui") {
   deps = [
-    ":index_release",
-    ":main_bundle_release",
+    ":index_dist",
+    ":main_bundle_dist",
     ":test_scripts",
-    ":wasm_bundle_release",
-    ":wasm_release",
-    ":worker_bundle_release",
+    ":wasm_bundle_dist",
+    ":wasm_dist",
+    ":worker_bundle_dist",
   ]
 }
 
@@ -251,7 +251,7 @@ node_bin("transpile_all_ts") {
 # +----------------------------------------------------------------------------+
 # | Copy rules: create the final output directory.                             |
 # +----------------------------------------------------------------------------+
-copy("index_release") {
+copy("index_dist") {
   sources = [
     "index.html",
   ]
@@ -260,7 +260,7 @@ copy("index_release") {
   ]
 }
 
-sorcery("main_bundle_release") {
+sorcery("main_bundle_dist") {
   deps = [
     ":main_bundle",
   ]
@@ -268,7 +268,7 @@ sorcery("main_bundle_release") {
   output = "$ui_dir/main_bundle.js"
 }
 
-sorcery("worker_bundle_release") {
+sorcery("worker_bundle_dist") {
   deps = [
     ":worker_bundle",
   ]
@@ -276,7 +276,7 @@ sorcery("worker_bundle_release") {
   output = "$ui_dir/worker_bundle.js"
 }
 
-sorcery("wasm_bundle_release") {
+sorcery("wasm_bundle_dist") {
   deps = [
     ":wasm_bundle",
   ]
@@ -284,7 +284,7 @@ sorcery("wasm_bundle_release") {
   output = "$ui_dir/wasm_bundle.js"
 }
 
-copy("wasm_release") {
+copy("wasm_dist") {
   deps = [
     "//src/trace_processor:trace_processor.wasm($wasm_toolchain)",
   ]
