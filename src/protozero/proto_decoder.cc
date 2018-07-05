@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/protozero/proto_utils.h"
 
 namespace protozero {
 
@@ -111,7 +112,8 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
       }
       pos = new_pos;
       field.length_limited.data = pos;
-      field.length_limited.length = field_intvalue;
+      PERFETTO_CHECK(field_intvalue < proto_utils::kMaxMessageLength);
+      field.length_limited.length = static_cast<size_t>(field_intvalue);
       pos += field_intvalue;
       break;
     }
