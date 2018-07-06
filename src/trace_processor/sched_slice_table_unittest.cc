@@ -23,7 +23,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-TEST(SchedSliceTableTest, IndexWithNoConstraintsOrderBy) {
+TEST(SchedSliceTableTest, DISABLED_IndexWithNoConstraintsOrderBy) {
   sqlite3_index_info info;
   info.nConstraint = 0;
   info.nOrderBy = 0;
@@ -35,7 +35,7 @@ TEST(SchedSliceTableTest, IndexWithNoConstraintsOrderBy) {
   ASSERT_EQ(info.orderByConsumed, true);
 }
 
-TEST(SchedSliceTableTest, IndexWithConstraintsAndOrderBy) {
+TEST(SchedSliceTableTest, DISABLED_IndexWithConstraintsAndOrderBy) {
   sqlite3_index_info::sqlite3_index_constraint constraints[2] = {};
   constraints[0].usable = true;
   constraints[0].op = SQLITE_INDEX_CONSTRAINT_EQ;
