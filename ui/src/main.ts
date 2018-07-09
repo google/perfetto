@@ -19,9 +19,9 @@ import * as m from 'mithril';
 import {Engine} from './engine';
 import {
   warmupWasmEngineWorker,
-  WasmEngineProxy,
+  WasmEngineProxy
 } from './engine/wasm_engine_proxy';
-import {frontend} from './frontend';
+import {homePage} from './frontend/home_page';
 
 console.log('Hello from the main thread!');
 
@@ -32,25 +32,10 @@ function createController() {
   };
 }
 
-function createFrontend() {
-  const root = document.getElementById('frontend');
-  if (!root) {
-    console.error('root element not found.');
-    return;
-  }
-  const rect = root.getBoundingClientRect();
-
-  m.render(root, m(frontend, {
-             width: rect.width,
-             height: rect.height,
-           }));
-}
-
 function main(input: Element, button: Element) {
   createController();
-  createFrontend();
-
   warmupWasmEngineWorker();
+
   // tslint:disable-next-line:no-any
   input.addEventListener('change', (e: any) => {
     const blob: Blob = e.target.files.item(0);
@@ -64,7 +49,16 @@ function main(input: Element, button: Element) {
           .then(result => console.log(result));
     });
   });
+
+  const root = document.getElementById('frontend');
+  if (!root) {
+    console.error('root element not found.');
+    return;
+  }
+
+  m.mount(root, homePage);
 }
+
 const input = document.querySelector('#trace');
 const button = document.querySelector('#query');
 if (input && button) {
