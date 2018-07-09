@@ -15,10 +15,10 @@
  */
 
 import * as m from 'mithril';
-import {frontend} from './';
+import {Frontend} from './';
 
-export const homePage = {
+export const HomePage = {
   view() {
-    return m(frontend, {width: 1000, height: 300});
+    return m(Frontend, {width: 1000, height: 300});
   }
 } as m.Component;
