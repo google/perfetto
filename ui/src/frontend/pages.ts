@@ -14,28 +14,25 @@
 
 import * as m from 'mithril';
 
-import {CanvasWrapper} from './canvas_wrapper';
-import {createPage} from './pages';
-import {Track} from './track';
-
-const Frontend = {
-  view({attrs}) {
-    return m(
-        '.frontend',
-        {
-          style: {
-            padding: '20px',
-            position: 'relative',
-            width: attrs.width.toString() + 'px'
-          }
-        },
-        m(CanvasWrapper, {width: attrs.width, height: attrs.height}),
-        m(Track, {name: 'Track 123'}), );
-  }
-} as m.Component<{width: number, height: number}>;
-
-export const FrontendPage = createPage({
+const Nav = {
   view() {
-    return m(Frontend, {width: 1000, height: 300});
+    return m(
+        'ul',
+        m('li', m('a[href=/]', {oncreate: m.route.link}, 'Home')),
+        m('li', m('a[href=/viewer]', {oncreate: m.route.link}, 'Viewer')), );
   }
-});
+} as m.Component;
+
+/**
+ * Wrap component with common UI elements (nav bar etc).
+ */
+export function createPage(component: m.Component): m.Component {
+  return {
+    view() {
+      return [
+        m(Nav),
+        m(component),
+      ];
+    },
+  };
+}
