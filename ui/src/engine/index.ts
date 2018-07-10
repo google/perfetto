@@ -12,26 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {IRawQueryArgs, RawQueryResult, TraceProcessor} from '../protos';
+import * as init_trace_processor from '../gen/trace_processor';
 
-/**
- * Abstract interface of a trace proccessor.
- * This class is wrapper for multiple proto services defined in:
- * //protos/perfetto/trace_processor/*
- * For each service ("FooService") Engine will have abstract getter
- * ("fooService") which returns a protobufjs rpc.Service object for
- * the given service.
- *
- * Engine also defines helpers for the most common service methods
- * (e.g. rawQuery).
- */
-export abstract class Engine {
-  abstract get traceProcessor(): TraceProcessor;
+import {WasmBridge, WasmBridgeRequest} from './wasm_bridge';
 
-  /**
-   * Send a raw SQL query to the engine.
-   */
-  rawQuery(args: IRawQueryArgs): Promise<RawQueryResult> {
-    return this.traceProcessor.rawQuery(args);
+// tslint:disable no-any
+
+declare var FileReaderSync: any;
+
+const anySelf = (self as any);
+
+const bridge = new WasmBridge(
+    init_trace_processor,
+    anySelf.postMessage.bind(anySelf),
+    new FileReaderSync(), );
+bridge.initialize();
+
+anySelf.onmessage = (m: any) => {
+  if (m.data.blob) {
+    bridge.setBlob(m.data.blob);
+    return;
   }
-}
+  const request = (m.data as WasmBridgeRequest);
+  bridge.callWasm(request);
+};
