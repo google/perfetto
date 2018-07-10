@@ -15,11 +15,8 @@
 import * as m from 'mithril';
 
 import {createEmptyState} from './common/state';
-import {Engine} from './engine';
-import {
-  warmupWasmEngineWorker,
-  WasmEngineProxy
-} from './engine/wasm_engine_proxy';
+import {warmupWasmEngineWorker} from './engine/wasm_engine_proxy';
+import {FrontendPage} from './frontend';
 import {gState} from './frontend/globals';
 import {HomePage} from './frontend/home_page';
 
@@ -32,24 +29,10 @@ function createController() {
   };
 }
 
-function main(input: Element, button: Element) {
+function main() {
   gState.set(createEmptyState());
   createController();
   warmupWasmEngineWorker();
-
-  // tslint:disable-next-line:no-any
-  input.addEventListener('change', (e: any) => {
-    const blob: Blob = e.target.files.item(0);
-    if (blob === null) return;
-    const engine: Engine = WasmEngineProxy.create(blob);
-    button.addEventListener('click', () => {
-      engine
-          .rawQuery({
-            sqlQuery: 'select * from sched;',
-          })
-          .then(result => console.log(result));
-    });
-  });
 
   const root = document.getElementById('frontend');
   if (!root) {
@@ -57,11 +40,10 @@ function main(input: Element, button: Element) {
     return;
   }
 
-  m.mount(root, HomePage);
+  m.route(root, '/', {
+    '/': HomePage,
+    '/viewer': FrontendPage,
+  });
 }
 
-const input = document.querySelector('#trace');
-const button = document.querySelector('#query');
-if (input && button) {
-  main(input, button);
-}
+main();
