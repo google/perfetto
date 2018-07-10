@@ -26,12 +26,12 @@ nodejs_bin = rebase_path("$nodejs_root/bin", root_build_dir)
 # +----------------------------------------------------------------------------+
 group("ui") {
   deps = [
+    ":controller_bundle_dist",
+    ":engine_bundle_dist",
+    ":frontend_bundle_dist",
     ":index_dist",
-    ":main_bundle_dist",
     ":test_scripts",
-    ":wasm_bundle_dist",
     ":wasm_dist",
-    ":worker_bundle_dist",
   ]
 }
 
@@ -131,28 +131,28 @@ template("bundle") {
 # Bundle together all js sources into a bundle.js file, that will ultimately be
 # included by the .html files.
 
-bundle("main_bundle") {
+bundle("frontend_bundle") {
   deps = [
     ":transpile_all_ts",
   ]
-  input = "$target_out_dir/main.js"
-  output = "$target_out_dir/main_bundle.js"
+  input = "$target_out_dir/frontend/index.js"
+  output = "$target_out_dir/frontend_bundle.js"
 }
 
-bundle("worker_bundle") {
+bundle("controller_bundle") {
   deps = [
     ":transpile_all_ts",
   ]
-  input = "$target_out_dir/worker.js"
-  output = "$target_out_dir/worker_bundle.js"
+  input = "$target_out_dir/controller/index.js"
+  output = "$target_out_dir/controller_bundle.js"
 }
 
-bundle("wasm_bundle") {
+bundle("engine_bundle") {
   deps = [
     ":transpile_all_ts",
   ]
-  input = "$target_out_dir/wasm.js"
-  output = "$target_out_dir/wasm_bundle.js"
+  input = "$target_out_dir/engine/index.js"
+  output = "$target_out_dir/engine_bundle.js"
 }
 
 # +----------------------------------------------------------------------------+
@@ -209,9 +209,9 @@ node_bin("protos_to_ts") {
 # Builds all .ts sources in the repo that are reachable from |sources|.
 node_bin("transpile_all_ts") {
   sources = [
-    "src/main.ts",
-    "src/wasm.ts",
-    "src/worker.ts",
+    "src/controller/index.ts",
+    "src/engine/index.ts",
+    "src/frontend/index.ts",
   ]
   deps = [
     ":dist_symlink",
@@ -220,9 +220,9 @@ node_bin("transpile_all_ts") {
   ]
   inputs = sources + [ "tsconfig.json" ]
   outputs = [
-    "$target_out_dir/main.js",
-    "$target_out_dir/worker.js",
-    "$target_out_dir/wasm.js",
+    "$target_out_dir/frontend/index.js",
+    "$target_out_dir/engine/index.js",
+    "$target_out_dir/controller/index.js",
   ]
 
   # Find all *.ts files and pass them as input triggers. This does NOT affect
@@ -260,28 +260,28 @@ copy("index_dist") {
   ]
 }
 
-sorcery("main_bundle_dist") {
+sorcery("frontend_bundle_dist") {
   deps = [
-    ":main_bundle",
+    ":frontend_bundle",
   ]
-  input = "$target_out_dir/main_bundle.js"
-  output = "$ui_dir/main_bundle.js"
+  input = "$target_out_dir/frontend_bundle.js"
+  output = "$ui_dir/frontend_bundle.js"
 }
 
-sorcery("worker_bundle_dist") {
+sorcery("controller_bundle_dist") {
   deps = [
-    ":worker_bundle",
+    ":controller_bundle",
   ]
-  input = "$target_out_dir/worker_bundle.js"
-  output = "$ui_dir/worker_bundle.js"
+  input = "$target_out_dir/controller_bundle.js"
+  output = "$ui_dir/controller_bundle.js"
 }
 
-sorcery("wasm_bundle_dist") {
+sorcery("engine_bundle_dist") {
   deps = [
-    ":wasm_bundle",
+    ":engine_bundle",
   ]
-  input = "$target_out_dir/wasm_bundle.js"
-  output = "$ui_dir/wasm_bundle.js"
+  input = "$target_out_dir/engine_bundle.js"
+  output = "$ui_dir/engine_bundle.js"
 }
 
 copy("wasm_dist") {
