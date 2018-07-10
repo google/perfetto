@@ -46,7 +46,7 @@ export const FrontendPage = createPage({
 });
 
 function createController() {
-  const worker = new Worker('worker_bundle.js');
+  const worker = new Worker('controller_bundle.js');
   worker.onerror = e => {
     console.error(e);
   };
