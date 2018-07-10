@@ -14,8 +14,8 @@
 
 import * as m from 'mithril';
 
-import {Engine} from '../engine';
-import {WasmEngineProxy} from '../engine/wasm_engine_proxy';
+import {Engine} from '../controller/engine';
+import {WasmEngineProxy} from '../controller/wasm_engine_proxy';
 
 import {createPage} from './pages';
 
