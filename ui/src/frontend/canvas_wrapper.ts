@@ -16,15 +16,15 @@ import * as m from 'mithril';
 
 export const CanvasWrapper = {
   view({attrs}) {
-    return m('canvas', {
+    return m('.canvasWrapper', {
       style: {
-        background: '#ccc',
         position: 'absolute',
-        top: 0,
-        left: 0,
-        width: attrs.width.toString() + 'px',
-        height: attrs.height.toString() + 'px',
+        top: attrs.topOffset.toString() + 'px',
+        overflow: 'none',
       }
     });
+  },
+  oncreate(vnode) {
+    vnode.dom.appendChild(vnode.attrs.canvasElement);
   }
-} as m.Component<{width: number, height: number}>;
+} as m.Component<{topOffset: number, canvasElement: HTMLCanvasElement}>;
