@@ -22,7 +22,7 @@ import {Engine} from './engine';
 let gWarmWasmWorker: null|Worker = null;
 
 function createNewWasmEngineWorker(): Worker {
-  return new Worker('wasm_bundle.js');
+  return new Worker('engine_bundle.js');
 }
 
 function createWasmEngineWorker(): Worker {
