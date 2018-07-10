@@ -14,7 +14,12 @@
 
 import * as m from 'mithril';
 
+import {createEmptyState} from '../common/state';
+import {warmupWasmEngineWorker} from '../controller/wasm_engine_proxy';
+
 import {CanvasWrapper} from './canvas_wrapper';
+import {gState} from './globals';
+import {HomePage} from './home_page';
 import {createPage} from './pages';
 import {Track} from './track';
 
@@ -39,3 +44,29 @@ export const FrontendPage = createPage({
     return m(Frontend, {width: 1000, height: 300});
   }
 });
+
+function createController() {
+  const worker = new Worker('worker_bundle.js');
+  worker.onerror = e => {
+    console.error(e);
+  };
+}
+
+function main() {
+  gState.set(createEmptyState());
+  createController();
+  warmupWasmEngineWorker();
+
+  const root = document.getElementById('frontend');
+  if (!root) {
+    console.error('root element not found.');
+    return;
+  }
+
+  m.route(root, '/', {
+    '/': HomePage,
+    '/viewer': FrontendPage,
+  });
+}
+
+main();

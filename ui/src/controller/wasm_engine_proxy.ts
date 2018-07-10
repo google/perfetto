@@ -14,10 +14,10 @@
 
 import * as protobufjs from 'protobufjs/light';
 
-import {TraceProcessor} from '../protos';
+import {TraceProcessor} from '../common/protos';
+import {WasmBridgeRequest, WasmBridgeResponse} from '../engine/wasm_bridge';
 
-import {Engine} from './index';
-import {WasmBridgeRequest, WasmBridgeResponse} from './wasm_bridge';
+import {Engine} from './engine';
 
 let gWarmWasmWorker: null|Worker = null;
 
