@@ -1,0 +1,36 @@
+html {
+  font-family: Roboto, verdana, sans-serif;
+}
+
+html, body {
+  height: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#console {
+  border: 1px solid #333;
+  background: #eee;
+  height: 20%;
+}
+
+#console > div {
+  width: 100%;
+  white-space: pre;
+  overflow: hidden;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  padding: 2px;
+}
+
+#frontend {
+  width: 100%;
+  height: 80%;
+}
+
