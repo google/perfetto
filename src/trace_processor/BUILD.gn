@@ -36,6 +36,8 @@ wasm_lib("trace_processor") {
 source_set("lib") {
   sources = [
     "blob_reader.h",
+    "query_constraints.cc",
+    "query_constraints.h",
     "sched_slice_table.cc",
     "sched_slice_table.h",
     "scoped_db.h",
@@ -60,6 +62,7 @@ source_set("lib") {
 source_set("unittests") {
   testonly = true
   sources = [
+    "query_constraints_unittest.cc",
     "sched_slice_table_unittest.cc",
     "trace_parser_unittest.cc",
     "trace_storage_unittest.cc",
