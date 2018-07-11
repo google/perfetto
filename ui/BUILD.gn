@@ -27,6 +27,7 @@ nodejs_bin = rebase_path("$nodejs_root/bin", root_build_dir)
 group("ui") {
   deps = [
     ":controller_bundle_dist",
+    ":css_dist",
     ":engine_bundle_dist",
     ":frontend_bundle_dist",
     ":index_dist",
@@ -257,6 +258,15 @@ copy("index_dist") {
   ]
   outputs = [
     "$ui_dir/index.html",
+  ]
+}
+
+copy("css_dist") {
+  sources = [
+    "perfetto.css",
+  ]
+  outputs = [
+    "$ui_dir/perfetto.css",
   ]
 }
 
