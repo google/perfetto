@@ -13,19 +13,20 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-
-import {TrackCanvasContext} from './track_canvas_context';
 import {TrackShell} from './track_shell';
+import {VirtualCanvasContext} from './virtual_canvas_context';
 
 export const Track = {
   view({attrs}) {
 
-    attrs.trackContext.fillStyle = '#ccc';
-    attrs.trackContext.fillRect(0, 0, 1000, 73);
+    if (attrs.trackContext.isOnCanvas()) {
+      attrs.trackContext.fillStyle = '#ccc';
+      attrs.trackContext.fillRect(0, 0, 1000, 73);
 
-    attrs.trackContext.font = '16px Arial';
-    attrs.trackContext.fillStyle = '#000';
-    attrs.trackContext.fillText(attrs.name + ' rendered by canvas', 500, 20);
+      attrs.trackContext.font = '16px Arial';
+      attrs.trackContext.fillStyle = '#000';
+      attrs.trackContext.fillText(attrs.name + ' rendered by canvas', 500, 20);
+    }
 
     return m(
         '.track',
@@ -39,4 +40,6 @@ export const Track = {
         },
         m(TrackShell, attrs));
   }
-} as m.Component<{name: string, trackContext: TrackCanvasContext, top: number}>;
+} as
+    m.Component<
+        {name: string, trackContext: VirtualCanvasContext, top: number}>;
