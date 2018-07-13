@@ -36,6 +36,14 @@ def CheckTslint(input_api, output_api):
     node = path.join(ui_path, 'node')
     tslint = path.join(ui_path, 'node_modules', '.bin', 'tslint')
 
+    if not path.exists(tslint):
+        repo_root = input_api.change.RepositoryRoot()
+        install_path = path.join(repo_root, 'tools', 'install-build-deps')
+        return [
+            output_api.PresubmitError("Tslint not found. Please first run\n" +
+                "$ {0} --ui".format(install_path))
+        ]
+
     # Some tslint rules require type information and thus need the whole
     # project. We therefore call tslint on the whole project instead of only the
     # changed files. It is possible to break tslint on files that was not
