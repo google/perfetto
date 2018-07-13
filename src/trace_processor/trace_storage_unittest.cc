@@ -134,8 +134,10 @@ TEST(TraceStorageTest, MatchThreadToProcess) {
   storage.MatchThreadToProcess(1, 2);
 
   TraceStorage::Thread thread = storage.GetThread(1);
+  TraceStorage::Process process = storage.GetProcess(1);
 
   ASSERT_EQ(thread.upid, 1);
+  ASSERT_EQ(process.start_ns, timestamp);
 }
 
 }  // namespace
