@@ -217,6 +217,14 @@ if (!build_with_chromium) {
         "protos/perfetto/trace:lite",
       ]
     }
+  } else {
+    # The library which eases processing of Perfetto traces by exposing reading
+    # friendly APIs.
+    static_library("trace_processor") {
+      deps = [
+        "src/trace_processor:lib",
+      ]
+    }
   }
 }
 
