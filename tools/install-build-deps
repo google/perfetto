@@ -273,6 +273,12 @@ def CheckoutGitRepo(path, git_url, revision):
   subprocess.check_call(['git', 'checkout', revision, '--quiet'], cwd=path)
   assert(IsGitRepoCheckoutOutAtRevision(path, revision))
 
+def InstallNodeModules():
+  ui_dir = os.path.join(ROOT_DIR, 'ui')
+  logging.info("Running npm install in {0}".format(ui_dir))
+  subprocess.check_call(
+    [os.path.join(ui_dir, 'npm'), 'install', '--no-save'],
+    cwd=os.path.join(ROOT_DIR, 'ui'))
 
 def Main():
   parser = argparse.ArgumentParser()
@@ -342,6 +348,9 @@ def Main():
         stamp_file.write(expected_sha1)
       os.remove(local_path)
 
+  if args.ui:
+    # Needs to happen after nodejs is installed above.
+    InstallNodeModules()
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.INFO)
