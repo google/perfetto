@@ -324,7 +324,7 @@ copy("wasm_gen") {
 }
 
 # +----------------------------------------------------------------------------+
-# | Node JS: run npm install and creates a symlink in the out directory.       |
+# | Node JS: Creates a symlink in the out directory to node_modules.           |
 # +----------------------------------------------------------------------------+
 
 action("check_node_exists") {
@@ -362,36 +362,8 @@ action("node_modules_symlink") {
   ]
 }
 
-# Runs npm install.
-action("node_modules_install") {
-  script = "../gn/standalone/build_tool_wrapper.py"
-  stamp_file = "$target_out_dir/.$target_name.stamp"
-  args = [
-    "--chdir",
-    rebase_path(".", root_build_dir),
-    "--stamp",
-    rebase_path(stamp_file, root_build_dir),
-  ]
-  args += [
-    "--path=$nodejs_bin",
-    "node",
-    rebase_path("$nodejs_root/bin/npm", "."),
-    "install",
-    "--no-save",
-    "--silent",
-  ]
-  inputs = [
-    "package.json",
-    "package-lock.json",
-  ]
-  outputs = [
-    stamp_file,
-  ]
-}
-
 group("node_modules") {
   deps = [
-    ":node_modules_install",
     ":node_modules_symlink",
   ]
 }
