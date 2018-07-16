@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#include "perfetto/base/export.h"
+
 namespace protozero {
 
 // Used for minimal reflection support in auto-generated .pbzero.h files.
@@ -45,6 +47,8 @@ class ProtoFieldDescriptor {
     TYPE_SINT32 = 17,
     TYPE_SINT64 = 18,
   };
+
+  static PERFETTO_EXPORT const ProtoFieldDescriptor* GetInvalidInstance();
 
   ProtoFieldDescriptor(const char* name,
                        Type type,
