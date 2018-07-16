@@ -96,6 +96,15 @@ Docs
 * [ProtoZero internals](docs/protozero.md)
 * [IPC internals](docs/ipc.md)
 
+
+Bugs
+----
+* For bugs affecting Android or the tracing internals use the internal
+bug tracker ([go/perfetto-bugs](http://goto.google.com/perfetto-bugs)).
+* For bugs affecting Chrome use http://crbug.com, Component:Speed>Tracing
+label:Perfetto.
+
+
 [ftrace]: https://www.kernel.org/doc/Documentation/trace/ftrace.txt
 [systrace]: https://developer.android.com/studio/command-line/systrace.html
 [chrome-tracing]: https://www.chromium.org/developers/how-tos/trace-event-profiling-tool
