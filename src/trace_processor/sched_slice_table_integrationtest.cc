@@ -52,8 +52,7 @@ class SchedSliceTableIntegrationTest : public ::testing::Test {
   ScopedStmt stmt_;
 };
 
-TEST_F(SchedSliceTableIntegrationTest,
-       DISABLED_RowsReturnedInCorrectOrderWithinCpu) {
+TEST_F(SchedSliceTableIntegrationTest, RowsReturnedInCorrectOrderWithinCpu) {
   uint32_t cpu = 3;
   uint64_t timestamp = 100;
   uint32_t pid_1 = 2;
@@ -90,8 +89,7 @@ TEST_F(SchedSliceTableIntegrationTest,
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
-TEST_F(SchedSliceTableIntegrationTest,
-       DISABLED_RowsReturnedInCorrectOrderBetweenCpu) {
+TEST_F(SchedSliceTableIntegrationTest, RowsReturnedInCorrectOrderBetweenCpu) {
   uint32_t cpu_1 = 3;
   uint32_t cpu_2 = 8;
   uint32_t cpu_3 = 4;
@@ -134,7 +132,7 @@ TEST_F(SchedSliceTableIntegrationTest,
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
-TEST_F(SchedSliceTableIntegrationTest, DISABLED_FilterCpus) {
+TEST_F(SchedSliceTableIntegrationTest, FilterCpus) {
   uint32_t cpu_1 = 3;
   uint32_t cpu_2 = 8;
   uint64_t timestamp = 100;
@@ -162,7 +160,7 @@ TEST_F(SchedSliceTableIntegrationTest, DISABLED_FilterCpus) {
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
-TEST_F(SchedSliceTableIntegrationTest, DISABLED_QuanitsiationCpuNativeOrder) {
+TEST_F(SchedSliceTableIntegrationTest, QuanitsiationCpuNativeOrder) {
   uint32_t cpu_1 = 3;
   uint32_t cpu_2 = 8;
   uint64_t timestamp = 100;
@@ -204,8 +202,7 @@ TEST_F(SchedSliceTableIntegrationTest, DISABLED_QuanitsiationCpuNativeOrder) {
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
-TEST_F(SchedSliceTableIntegrationTest,
-       DISABLED_QuantizationSqliteDurationOrder) {
+TEST_F(SchedSliceTableIntegrationTest, QuantizationSqliteDurationOrder) {
   uint32_t cpu_1 = 3;
   uint32_t cpu_2 = 8;
   uint64_t timestamp = 100;
@@ -247,7 +244,7 @@ TEST_F(SchedSliceTableIntegrationTest,
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
-TEST_F(SchedSliceTableIntegrationTest, DISABLED_QuantizationGroupAndSum) {
+TEST_F(SchedSliceTableIntegrationTest, QuantizationGroupAndSum) {
   uint32_t cpu_1 = 3;
   uint32_t cpu_2 = 8;
   uint64_t timestamp = 100;
