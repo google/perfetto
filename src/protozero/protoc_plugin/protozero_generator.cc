@@ -278,16 +278,6 @@ class GeneratorJob {
     }
     stub_cc_->Print("\n");
 
-    if (messages_.size() > 0) {
-      stub_cc_->Print(
-          "namespace {\n"
-          "  static const ::protozero::ProtoFieldDescriptor "
-          "kInvalidField = {\"\", "
-          "::protozero::ProtoFieldDescriptor::Type::TYPE_INVALID, "
-          "0, false};\n"
-          "}\n\n");
-    }
-
     // Print namespaces.
     for (const std::string& ns : namespaces_) {
       stub_h_->Print("namespace $ns$ {\n", "ns", ns);
@@ -524,11 +514,13 @@ class GeneratorJob {
       }
       stub_cc_->Print(
           "default:\n"
-          "  return &kInvalidField;\n");
+          "  return "
+          "::protozero::ProtoFieldDescriptor::GetInvalidInstance();\n");
       stub_cc_->Outdent();
       stub_cc_->Print("}\n");
     } else {
-      stub_cc_->Print("return &kInvalidField;\n");
+      stub_cc_->Print(
+          "return ::protozero::ProtoFieldDescriptor::GetInvalidInstance();\n");
     }
     stub_cc_->Outdent();
     stub_cc_->Print("}\n\n");
