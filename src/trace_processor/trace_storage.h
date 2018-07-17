@@ -172,6 +172,13 @@ class TraceStorage {
     return string_pool_[id];
   }
 
+  // |unique_processes_| always contains at least 1 element becuase the 0th ID
+  // is reserved to indicate an invalid process.
+  size_t process_count() const { return unique_processes_.size() - 1; }
+  // |unique_threads_| always contains at least 1 element becuase the 0th ID
+  // is reserved to indicate an invalid thread.
+  size_t thread_count() const { return unique_threads_.size() - 1; }
+
  private:
   using StringHash = uint32_t;
 
