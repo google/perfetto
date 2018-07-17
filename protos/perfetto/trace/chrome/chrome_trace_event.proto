@@ -54,6 +54,18 @@ message ChromeTraceEvent {
   repeated Arg args = 14;
 }
 
+message ChromeMetadata {
+  optional string name = 1;
+
+  oneof value {
+    string string_value = 2;
+    bool bool_value = 3;
+    int64 int_value = 4;
+    string json_value = 5;
+  }
+}
+
 message ChromeEventBundle {
   repeated ChromeTraceEvent trace_events = 1;
+  repeated ChromeMetadata metadata = 2;
 }
