@@ -30,15 +30,26 @@ export class CanvasController {
   private scrollOffset = 0;
 
   // Number of additional pixels above/below for compositor scrolling.
-  private extraHeightPerSide: number;
+  private extraHeightPerSide = 0;
 
-  private canvasHeight: number;
-  private canvasWidth: number;
+  private canvasHeight = 0;
+  private canvasWidth = 0;
 
-  constructor(canvasWidth: number, visibleCanvasHeight: number) {
+  constructor() {
     this.canvas = document.createElement('canvas');
 
-    this.canvasWidth = canvasWidth;
+    const ctx = this.canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error('Could not create canvas context');
+    }
+
+    this.ctx = ctx;
+    this.rootVirtualContext = new RootVirtualContext(this.ctx);
+  }
+
+  setDimensions(width: number, visibleCanvasHeight: number) {
+    this.canvasWidth = width;
     this.canvasHeight = visibleCanvasHeight * CANVAS_OVERDRAW_FACTOR;
     this.extraHeightPerSide =
         Math.round((this.canvasHeight - visibleCanvasHeight) / 2);
@@ -48,21 +59,10 @@ export class CanvasController {
     this.canvas.style.height = this.canvasHeight.toString() + 'px';
     this.canvas.width = this.canvasWidth * dpr;
     this.canvas.height = this.canvasHeight * dpr;
+    this.ctx.scale(dpr, dpr);
 
-    const ctx = this.canvas.getContext('2d');
-
-    if (!ctx) {
-      throw new Error('Could not create canvas context');
-    }
-
-    ctx.scale(dpr, dpr);
-
-    this.ctx = ctx;
-    this.rootVirtualContext = new RootVirtualContext(
-        this.ctx,
-        this.getCanvasTopOffset(),
-        this.canvasWidth,
-        this.canvasHeight);
+    this.rootVirtualContext.setCanvasTopOffset(this.getCanvasTopOffset());
+    this.rootVirtualContext.setCanvasSize(this.canvasWidth, this.canvasHeight);
   }
 
   clear(): void {
