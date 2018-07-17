@@ -26,6 +26,7 @@
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/sched_slice_table.h"
 #include "src/trace_processor/scoped_db.h"
+#include "src/trace_processor/thread_table.h"
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
 
