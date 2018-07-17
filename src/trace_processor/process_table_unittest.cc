@@ -24,8 +24,6 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-using Column = ProcessTable::Column;
-
 class ProcessTableUnittest : public ::testing::Test {
  public:
   ProcessTableUnittest() {

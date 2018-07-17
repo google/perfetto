@@ -43,6 +43,8 @@ source_set("lib") {
     "sched_slice_table.cc",
     "sched_slice_table.h",
     "scoped_db.h",
+    "thread_table.cc",
+    "thread_table.h",
     "trace_database.cc",
     "trace_database.h",
     "trace_parser.cc",
@@ -67,6 +69,7 @@ source_set("unittests") {
     "process_table_unittest.cc",
     "query_constraints_unittest.cc",
     "sched_slice_table_unittest.cc",
+    "thread_table_unittest.cc",
     "trace_parser_unittest.cc",
     "trace_storage_unittest.cc",
   ]

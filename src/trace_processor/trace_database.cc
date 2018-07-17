@@ -39,6 +39,11 @@ TraceDatabase::TraceDatabase(base::TaskRunner* task_runner)
   static sqlite3_module p_module = ProcessTable::CreateModule();
   sqlite3_create_module(*db_, "process", &p_module,
                         static_cast<void*>(&storage_));
+
+  // Setup the thread table.
+  static sqlite3_module t_module = ThreadTable::CreateModule();
+  sqlite3_create_module(*db_, "thread", &t_module,
+                        static_cast<void*>(&storage_));
 }
 
 void TraceDatabase::LoadTrace(BlobReader* reader,
