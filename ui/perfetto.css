@@ -1,15 +1,53 @@
 html {
   font-family: Roboto, verdana, sans-serif;
+  height: 100%;
+  width: 100%;
 }
 
 html, body {
   height: 100%;
+  width: 100%;
   padding: 0;
   margin: 0;
+  color: #121212;
 }
 
 * {
   box-sizing: border-box;
+}
+
+nav {
+  border-bottom: solid 1px #20262e;
+  margin-bottom: 50px;
+}
+
+nav > ul {
+  margin: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+nav > ul > li {
+  display: inline-block;
+  padding: 1rem;
+}
+
+.full-page-loading-screen {
+  position: absolute;
+  background: #20262e;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: row;
+}
+
+.full-page-loading-screen::after {
+  content: "Perfetto";
+  color: white;
+  font-weight: 100;
+  font-size: 300%;
 }
 
 #console {
@@ -33,4 +71,81 @@ html, body {
   width: 100%;
   height: 100%;
 }
+
+.query-page {
+  display: flex;
+  flex-direction: column;
+  margin: auto;
+  max-width: 1000px;
+}
+
+.query-input {
+  font-size: 300%;
+  display: block;
+  width: 1000px;
+  padding: 5px;
+}
+
+.query-input:focus {
+  outline: none;
+}
+
+.query-log-entry {
+  display: grid;
+  grid-template: "query stats" "result result";
+  margin: 50px 0;
+  grid-row-gap: 25px;
+}
+
+.query-log-entry-query {
+  grid-area: query;
+  align-self: center;
+  font-family: monospace;
+}
+
+.query-log-entry-stats {
+  grid-area: stats;
+  align-self: center;
+  text-align: right;
+}
+
+.query-log-entry-result {
+  grid-area: result;
+}
+
+th {
+  font-weight: 400;
+  font-style: italic;
+}
+
+.home-page {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
+
+.home-page-title {
+  font-weight: 100;
+  font-size: 300%;
+}
+
+.home-page-controls {
+}
+
+/* Match Blinks built-in buttons for now. */
+label.file-input {
+  -webkit-appearance: button;
+  font: 400 13.3333px Arial;
+  padding: 1px 6px;
+  border-width: 2px;
+  border-style: outset;
+  border-color: buttonface;
+  border-image: initial;
+}
+
+/* input[type=file] is un-styleable - just hide it and style the label. */
+label.file-input > input[type=file] {
+  display: none;
+}
+
 

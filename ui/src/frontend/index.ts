@@ -23,6 +23,7 @@ import {ChildVirtualContext} from './child_virtual_context';
 import {gState} from './globals';
 import {HomePage} from './home_page';
 import {createPage} from './pages';
+import {QueryPage} from './query_page';
 import {ScrollableContainer} from './scrollable_container';
 import {Track} from './track';
 
@@ -184,6 +185,7 @@ function main() {
   m.route(root, '/', {
     '/': HomePage,
     '/viewer': FrontendPage,
+    '/query/:trace': QueryPage,
   });
 }
 
