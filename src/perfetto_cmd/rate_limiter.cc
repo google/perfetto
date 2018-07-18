@@ -171,8 +171,14 @@ bool RateLimiter::LoadState(PerfettoCmdState* state) {
 
 bool RateLimiter::SaveState(const PerfettoCmdState& state) {
   base::ScopedFile out_fd;
+  // Rationale for 0666: the cmdline client can be executed under two
+  // different Unix UIDs: shell and statsd. If we run one after the
+  // other and the file has 0600 permissions, then the 2nd run won't
+  // be able to read the file and will clear it, aborting the trace.
+  // SELinux still prevents that anything other than the perfetto
+  // executable can change the guardrail file.
   out_fd.reset(
-      open(GetStateFilePath().c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600));
+      open(GetStateFilePath().c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666));
   if (!out_fd)
     return false;
   char buf[1024];
