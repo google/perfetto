@@ -12,25 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Global} from '../base/global';
-
-const exampleGlobal = new Global<string>();
-
-beforeEach(() => {
-  exampleGlobal.resetForTesting();
-});
-
-afterEach(() => {
-  exampleGlobal.resetForTesting();
-});
-
-test('it throws if accessed before set', () => {
-  expect(() => exampleGlobal.get()).toThrow('Global not set');
-});
-
-test('it can be set', () => {
-  exampleGlobal.set('hello');
-  expect(exampleGlobal.get()).toEqual('hello');
-  exampleGlobal.set('world');
-  expect(exampleGlobal.get()).toEqual('world');
-});
+export interface Action {}
