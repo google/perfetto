@@ -31,7 +31,7 @@ export interface WasmBridgeRequest {
 export interface WasmBridgeResponse {
   id: number;
   success: boolean;
-  data: Uint8Array;
+  data?: Uint8Array;
 }
 
 export class WasmBridge {
@@ -43,6 +43,8 @@ export class WasmBridge {
   private blob: Blob|null;
   private callback: (_: WasmBridgeResponse) => void;
   private replyCount: number;
+  private aborted: boolean;
+  private outstandingRequests: Set<number>;
 
   connection: init_trace_processor.Module;
 
@@ -57,6 +59,8 @@ export class WasmBridge {
     this.fileReader = fileReader;
     this.callback = callback;
     this.blob = null;
+    this.aborted = false;
+    this.outstandingRequests = new Set();
 
     this.connection = init({
       locateFile: (s: string) => s,
@@ -68,7 +72,11 @@ export class WasmBridge {
   }
 
   onAbort() {
-    console.error('Abort!');
+    this.aborted = true;
+    for (const id of this.outstandingRequests) {
+      this.abortRequest(id);
+    }
+    this.outstandingRequests.clear();
   }
 
   onRead(offset: number, length: number, dstPtr: number): number {
@@ -90,12 +98,24 @@ export class WasmBridge {
       this.deferredInitialized.resolve();
       return;
     }
+    if (!this.outstandingRequests.has(reqId)) {
+      throw new Error(`Unknown request id: "${reqId}"`);
+    }
+    this.outstandingRequests.delete(reqId);
     this.replyCount++;
     const data = this.connection.HEAPU8.slice(heapPtr, heapPtr + size);
     this.callback({
       id: reqId,
       success,
       data,
+    });
+  }
+
+  abortRequest(requestId: number) {
+    this.callback({
+      id: requestId,
+      success: false,
+      data: undefined,
     });
   }
 
@@ -107,6 +127,12 @@ export class WasmBridge {
 
   async callWasm(req: WasmBridgeRequest): Promise<void> {
     await this.deferredReady;
+    if (this.aborted) {
+      this.abortRequest(req.id);
+      return;
+    }
+
+    this.outstandingRequests.add(req.id);
     this.connection.ccall(
         `${req.serviceName}_${req.methodName}`,  // C method name.
         'void',                                  // Return type.
