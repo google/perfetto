@@ -85,3 +85,59 @@ test('wasm bridge early calls are delayed', async () => {
   expect(m.ccall.mock.calls[1][0]).toBe('service_method');
   expect(callback.mock.calls[0][0].id).toBe(100);
 });
+
+test('wasm bridge aborts all calls on failure', async () => {
+  const m = new MockModule();
+  const callback = jest.fn();
+  const fileReader = jest.fn();
+  const bridge = new WasmBridge(m.init.bind(m), callback, fileReader);
+
+  const readyPromise = bridge.initialize();
+
+  m.onRuntimeInitialized();
+  // tslint:disable-next-line no-any
+  bridge.setBlob(null as any);
+  bridge.onReply(0, true, 0, 0);
+
+  bridge.callWasm({
+    id: 100,
+    serviceName: 'service',
+    methodName: 'method',
+    data: new Uint8Array(42),
+  });
+
+  await readyPromise;
+
+  await bridge.callWasm({
+    id: 200,
+    serviceName: 'service',
+    methodName: 'method',
+    data: new Uint8Array(42),
+  });
+
+  bridge.onAbort();
+
+  await bridge.callWasm({
+    id: 300,
+    serviceName: 'service',
+    methodName: 'method',
+    data: new Uint8Array(42),
+  });
+
+  console.log(callback.mock.calls);
+  expect(callback.mock.calls[0][0]).toEqual({
+    id: 100,
+    success: false,
+    data: undefined,
+  });
+  expect(callback.mock.calls[1][0]).toEqual({
+    id: 200,
+    success: false,
+    data: undefined,
+  });
+  expect(callback.mock.calls[2][0]).toEqual({
+    id: 300,
+    success: false,
+    data: undefined,
+  });
+});

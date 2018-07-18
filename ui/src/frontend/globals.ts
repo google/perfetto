@@ -14,8 +14,12 @@
 
 import {Global} from '../base/global';
 import {State} from '../common/state';
+import {Engine} from '../controller/engine';
 
 /**
  * Global accessor for the state in the frontend.
  */
 export const gState = new Global<State>();
+
+// TODO(hjd): Temporary while bringing up controller worker.
+export const gEngines = new Map<string, Engine>();
