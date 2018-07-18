@@ -76,6 +76,7 @@ Usage: %s
   --out            -o     : /path/to/out/trace/file
   --dropbox        -d TAG : Upload trace into DropBox using tag TAG (default: %s)
   --no-guardrails  -n     : Ignore guardrails triggered when using --dropbox (for testing).
+  --reset-guardrails      : Resets the state of the guardails and exits (for testing).
   --help           -h
 
 statsd-specific flags:
@@ -92,6 +93,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     OPT_ALERT_ID = 1000,
     OPT_CONFIG_ID,
     OPT_CONFIG_UID,
+    OPT_RESET_GUARDRAILS,
   };
   static const struct option long_options[] = {
       // |option_index| relies on the order of options, don't reshuffle them.
@@ -104,6 +106,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
       {"config-id", required_argument, nullptr, OPT_CONFIG_ID},
       {"config-uid", required_argument, nullptr, OPT_CONFIG_UID},
+      {"reset-guardrails", no_argument, nullptr, OPT_RESET_GUARDRAILS},
       {nullptr, 0, nullptr, 0}};
 
   int option_index = 0;
@@ -111,6 +114,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
   bool background = false;
   bool ignore_guardrails = false;
   perfetto::protos::TraceConfig::StatsdMetadata statsd_metadata;
+  RateLimiter limiter;
+
   for (;;) {
     int option =
         getopt_long(argc, argv, "c:o:bd::n", long_options, &option_index);
@@ -168,6 +173,12 @@ int PerfettoCmd::Main(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_RESET_GUARDRAILS) {
+      PERFETTO_CHECK(limiter.ClearState());
+      PERFETTO_ILOG("Guardrail state cleared");
+      return 0;
+    }
+
     if (option == OPT_ALERT_ID) {
       statsd_metadata.set_triggering_alert_id(atoll(optarg));
       continue;
@@ -222,7 +233,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
     PERFETTO_DLOG("Continuing in background");
   }
 
-  RateLimiter limiter;
   RateLimiter::Args args{};
   args.is_dropbox = !dropbox_tag_.empty();
   args.current_time = base::GetWallTimeS();
