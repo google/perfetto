@@ -16,7 +16,8 @@ import * as m from 'mithril';
 
 import {WasmEngineProxy} from '../controller/wasm_engine_proxy';
 
-import {gEngines} from './globals';
+import {gEngines, globals} from './globals';
+import {quietDispatch} from './mithril_helpers';
 import {createPage} from './pages';
 
 function extractBlob(e: Event): Blob|null {
@@ -37,6 +38,7 @@ async function loadExampleTrace() {
 
 export const HomePage = createPage({
   view() {
+    const count = globals.state.i;
     return m(
         '.home-page',
         m('.home-page-title', 'Perfetto'),
@@ -50,12 +52,9 @@ export const HomePage = createPage({
                 m.route.set('/query/0');
               },
             }),
-            'Load trace', ),
+            'Load trace'),
           ' or ',
-          m('button',
-            {
-              onclick: loadExampleTrace,
-            },
-            'Open demo trace')));
+          m('button', {onclick: loadExampleTrace}, 'Open demo trace'),
+          m('button', {onclick: quietDispatch({})}, `Increment ${count}`)));
   }
 });

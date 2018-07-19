@@ -12,14 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Global} from '../base/global';
+import {Action} from '../common/actions';
 import {State} from '../common/state';
 import {Engine} from '../controller/engine';
 
+type Dispatch = (action: Action) => void;
+
 /**
- * Global accessor for the state in the frontend.
+ * Global accessors for state/dispatch in the frontend.
  */
-export const gState = new Global<State>();
+class Globals {
+  _dispatch?: Dispatch = undefined;
+  _state?: State = undefined;
+
+  get state(): State {
+    if (this._state === undefined) throw new Error('Global not set');
+    return this._state;
+  }
+
+  set state(value: State) {
+    this._state = value;
+  }
+
+  get dispatch(): Dispatch {
+    if (this._dispatch === undefined) throw new Error('Global not set');
+    return this._dispatch;
+  }
+
+  set dispatch(value: Dispatch) {
+    this._dispatch = value;
+  }
+
+  resetForTesting() {
+    this._state = undefined;
+    this._dispatch = undefined;
+  }
+}
 
 // TODO(hjd): Temporary while bringing up controller worker.
 export const gEngines = new Map<string, Engine>();
+
+export const globals = new Globals();

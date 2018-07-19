@@ -124,7 +124,6 @@ test('wasm bridge aborts all calls on failure', async () => {
     data: new Uint8Array(42),
   });
 
-  console.log(callback.mock.calls);
   expect(callback.mock.calls[0][0]).toEqual({
     id: 100,
     success: false,
