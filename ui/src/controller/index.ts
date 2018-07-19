@@ -12,4 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-console.log('Hello from the worker!');
+import {createEmptyState, State} from '../common/state';
+
+const state: State = createEmptyState();
+
+function main() {
+  // TODO(hjd): Compile this with the worker lib.
+  // tslint:disable-next-line no-any
+  (self as any).onmessage = (_: MessageEvent) => {
+    state.i++;
+    // TODO(hjd): Compile this with the worker lib.
+    // tslint:disable-next-line no-any
+    (self as any).postMessage(state);
+  };
+}
+
+main();
