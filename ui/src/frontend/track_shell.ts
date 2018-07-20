@@ -15,23 +15,25 @@
 import * as m from 'mithril';
 
 export const TrackShell = {
-  view({attrs}) {
+  view({attrs, children}) {
     return m(
         '.trackshell',
-        {
-          style: {
-            border: '1px solid #666',
-          }
-        },
+        {style: {border: '1px solid #666', position: 'relative'}},
         m('.shell-content',
           {
             style: {
               background: '#fff',
               padding: '20px',
-              width: '20%',
+              width: '200px',
               'border-right': '1px solid #666'
             }
           },
-          m('h1', {style: {margin: 0, 'font-size': '1.5em'}}, attrs.name)));
+          m('h1', {style: {margin: 0, 'font-size': '1.5em'}}, attrs.name)),
+        m('.track-content',
+          {
+            style:
+                {width: '80%', position: 'absolute', left: '200px', top: '0'}
+          },
+          children));
   }
 } as m.Component<{name: string}>;
