@@ -19,6 +19,7 @@ export const CanvasWrapper = {
     return m('.canvasWrapper', {
       style: {
         position: 'absolute',
+        left: '200px',
         top: attrs.topOffset.toString() + 'px',
         overflow: 'none',
       }

@@ -13,19 +13,34 @@
 // limitations under the License.
 
 import * as m from 'mithril';
+
+import {Milliseconds, TimeScale} from './time_scale';
 import {TrackShell} from './track_shell';
 import {VirtualCanvasContext} from './virtual_canvas_context';
 
 export const Track = {
   view({attrs}) {
+    const sliceStart: Milliseconds = 100000;
+    const sliceEnd: Milliseconds = 400000;
+
+    const rectStart = attrs.timeScale.msToPx(sliceStart);
+    const rectWidth = attrs.timeScale.msToPx(sliceEnd) - rectStart;
+    const shownStart = rectStart > attrs.width ? attrs.width : rectStart;
+    const shownWidth = rectWidth + (rectStart as number) > attrs.width ?
+        attrs.width :
+        rectWidth;
+
     if (attrs.trackContext.isOnCanvas()) {
       attrs.trackContext.fillStyle = '#ccc';
       attrs.trackContext.fillRect(0, 0, attrs.width, 73);
 
+      attrs.trackContext.fillStyle = '#c00';
+      attrs.trackContext.fillRect(shownStart, 40, shownWidth, 30);
+
       attrs.trackContext.font = '16px Arial';
       attrs.trackContext.fillStyle = '#000';
       attrs.trackContext.fillText(
-          attrs.name + ' rendered by canvas', Math.round(attrs.width / 2), 20);
+          attrs.name + ' rendered by canvas', shownStart, 60);
     }
 
     return m(
@@ -38,11 +53,24 @@ export const Track = {
             width: '100%'
           }
         },
-        m(TrackShell, attrs));
+        m(TrackShell,
+          attrs,
+          m('.marker',
+            {
+              style: {
+                'font-size': '1.5em',
+                position: 'absolute',
+                left: rectStart.toString() + 'px',
+                width: rectWidth.toString() + 'px',
+                background: '#aca'
+              }
+            },
+            attrs.name + ' DOM Content')));
   }
 } as m.Component<{
   name: string,
   trackContext: VirtualCanvasContext,
   top: number,
-  width: number
+  width: number,
+  timeScale: TimeScale
 }>;
