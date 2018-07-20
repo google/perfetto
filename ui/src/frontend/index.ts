@@ -54,7 +54,7 @@ export const Frontend = {
   view({}) {
     const canvasTopOffset = this.canvasController.getCanvasTopOffset();
     const ctx = this.canvasController.getContext();
-    const timeScale = new TimeScale([0, 1000000], [0, 1000]);
+    const timeScale = new TimeScale([0, 1000000], [0, this.width]);
 
     this.canvasController.clear();
 

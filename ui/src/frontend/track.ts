@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 
+import {GridlineHelper} from './gridline_helper';
 import {Milliseconds, TimeScale} from './time_scale';
 import {TrackShell} from './track_shell';
 import {VirtualCanvasContext} from './virtual_canvas_context';
@@ -33,6 +34,9 @@ export const Track = {
     if (attrs.trackContext.isOnCanvas()) {
       attrs.trackContext.fillStyle = '#ccc';
       attrs.trackContext.fillRect(0, 0, attrs.width, 73);
+
+      GridlineHelper.drawGridLines(
+          attrs.trackContext, attrs.timeScale, [0, 1000000], attrs.width, 73);
 
       attrs.trackContext.fillStyle = '#c00';
       attrs.trackContext.fillRect(shownStart, 40, shownWidth, 30);
