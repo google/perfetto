@@ -19,18 +19,22 @@
 #include "perfetto/base/build_config.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #include <limits>
 
+#if PERFETTO_USE_EVENTFD()
+#include <sys/eventfd.h>
+#endif
+
 namespace perfetto {
 namespace base {
 
 UnixTaskRunner::UnixTaskRunner() {
-  // Create a self-pipe which is used to wake up the main thread from inside
-  // poll(2).
+#if PERFETTO_USE_EVENTFD()
+  event_.reset(eventfd(/* start value */ 0, EFD_CLOEXEC | EFD_NONBLOCK));
+#else
   int pipe_fds[2];
   PERFETTO_CHECK(pipe(pipe_fds) == 0);
 
@@ -42,17 +46,10 @@ UnixTaskRunner::UnixTaskRunner() {
     PERFETTO_CHECK(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0);
     PERFETTO_CHECK(fcntl(fd, F_SETFD, FD_CLOEXEC) == 0);
   }
-  control_read_.reset(pipe_fds[0]);
-  control_write_.reset(pipe_fds[1]);
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
-  // We are never expecting to have more than a few bytes in the wake-up pipe.
-  // Reduce the buffer size on Linux. Note that this gets rounded up to the page
-  // size.
-  PERFETTO_CHECK(fcntl(control_read_.get(), F_SETPIPE_SZ, 1) > 0);
-#endif
-
-  AddFileDescriptorWatch(control_read_.get(), [] {
+  event_.reset(pipe_fds[0]);
+  event_write_.reset(pipe_fds[1]);
+#endif  // !PERFETTO_USE_EVENTFD()
+  AddFileDescriptorWatch(event_.get(), [] {
     // Not reached -- see PostFileDescriptorWatches().
     PERFETTO_DCHECK(false);
   });
@@ -61,8 +58,13 @@ UnixTaskRunner::UnixTaskRunner() {
 UnixTaskRunner::~UnixTaskRunner() = default;
 
 void UnixTaskRunner::WakeUp() {
-  const char dummy = 'P';
-  if (write(control_write_.get(), &dummy, 1) <= 0 && errno != EAGAIN)
+  const uint64_t value = 1;
+#if PERFETTO_USE_EVENTFD()
+  ssize_t ret = write(event_.get(), &value, sizeof(value));
+#else
+  ssize_t ret = write(event_write_.get(), &value, sizeof(uint8_t));
+#endif
+  if (ret <= 0 && errno != EAGAIN)
     PERFETTO_DPLOG("write()");
 }
 
@@ -151,14 +153,18 @@ void UnixTaskRunner::PostFileDescriptorWatches() {
 
     // The wake-up event is handled inline to avoid an infinite recursion of
     // posted tasks.
-    if (poll_fds_[i].fd == control_read_.get()) {
+    if (poll_fds_[i].fd == event_.get()) {
+#if PERFETTO_USE_EVENTFD()
+      uint64_t value;
+      ssize_t ret = read(event_.get(), &value, sizeof(value));
+#else
       // Drain the byte(s) written to the wake-up pipe. We can potentially read
       // more than one byte if several wake-ups have been scheduled.
       char buffer[16];
-      if (read(control_read_.get(), &buffer[0], sizeof(buffer)) <= 0 &&
-          errno != EAGAIN) {
+      ssize_t ret = read(event_.get(), &buffer[0], sizeof(buffer));
+#endif
+      if (ret <= 0 && errno != EAGAIN)
         PERFETTO_DPLOG("read()");
-      }
       continue;
     }
 
