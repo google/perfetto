@@ -3,11 +3,14 @@
 <head>
   <title>Perfetto UI</title>
   <link href="perfetto.css" rel="stylesheet">
+  <link rel="preload" href="controller_bundle.js" as="script">
+  <link rel="preload" href="engine_bundle.js" as="script">
+  <link rel="preload" href="trace_processor.wasm" as="fetch">
 </head>
 <body>
   <div id="frontend">
     <div class="full-page-loading-screen"></div>
   </div>
-  <script src="frontend_bundle.js" type="text/javascript"></script>
+  <script src="frontend_bundle.js"></script>
 </body>
 </html>
