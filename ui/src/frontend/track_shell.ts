@@ -18,14 +18,21 @@ export const TrackShell = {
   view({attrs, children}) {
     return m(
         '.trackshell',
-        {style: {border: '1px solid #666', position: 'relative'}},
+        {
+          style: {
+            border: '1px solid #666',
+            position: 'relative',
+            height: '100%',
+          }
+        },
         m('.shell-content',
           {
             style: {
               background: '#fff',
               padding: '20px',
               width: '200px',
-              'border-right': '1px solid #666'
+              'border-right': '1px solid #666',
+              height: '100%',
             }
           },
           m('h1', {style: {margin: 0, 'font-size': '1.5em'}}, attrs.name)),

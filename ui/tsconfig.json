@@ -5,12 +5,16 @@
     "./src/gen/"
   ],
   "compilerOptions": {
+    "lib": [
+      "dom",                               // Need to be explicitly mentioned now since we're overriding default included libs.
+      "es2018",                            // Need this to use Object.values.
+    ],
     "target": "es6",
     "module": "commonjs",
     "moduleResolution": "node",
     // Lints and checks.
     "allowJs": true,
-    "checkJs": false,                      // TODO(hjd): Enable after dingus moved out.t 
+    "checkJs": false,                      // TODO(hjd): Enable after dingus moved out.t
     "declaration": false,                  // Generates corresponding '.d.ts' file.
     "sourceMap": true,                     // Generates corresponding '.map' file.
     "outDir": "./dist",                    // Redirect output structure to the directory.
