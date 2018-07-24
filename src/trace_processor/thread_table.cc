@@ -15,135 +15,46 @@
  */
 
 #include "src/trace_processor/thread_table.h"
-#include "src/trace_processor/query_constraints.h"
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/query_constraints.h"
+#include "src/trace_processor/sqlite_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 namespace {
 
-inline bool IsOpEq(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_EQ;
-}
-
-inline bool IsOpGe(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_GE;
-}
-
-inline bool IsOpGt(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_GT;
-}
-
-inline bool IsOpLe(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_LE;
-}
-
-inline bool IsOpLt(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_LT;
-}
-
-inline ThreadTable* AsTable(sqlite3_vtab* vtab) {
-  return reinterpret_cast<ThreadTable*>(vtab);
-}
+using namespace sqlite_utils;
 
 }  // namespace
 
-ThreadTable::ThreadTable(const TraceStorage* storage) : storage_(storage) {
-  static_assert(offsetof(ThreadTable, base_) == 0,
-                "SQLite base class must be first member of the table");
-  memset(&base_, 0, sizeof(base_));
+ThreadTable::ThreadTable(const TraceStorage* storage) : storage_(storage) {}
+
+void ThreadTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
+  Table::Register<ThreadTable>(db, storage,
+                               "CREATE TABLE thread("
+                               "utid UNSIGNED INT, "
+                               "upid UNSIGNED INT, "
+                               "name TEXT, "
+                               "PRIMARY KEY(utid)"
+                               ") WITHOUT ROWID;");
 }
 
-sqlite3_module ThreadTable::CreateModule() {
-  sqlite3_module module;
-  memset(&module, 0, sizeof(module));
-  module.xConnect = [](sqlite3* db, void* raw_args, int, const char* const*,
-                       sqlite3_vtab** tab, char**) {
-    int res = sqlite3_declare_vtab(db,
-                                   "CREATE TABLE threads("
-                                   "utid UNSIGNED INT, "
-                                   "upid UNSIGNED INT, "
-                                   "name TEXT, "
-                                   "PRIMARY KEY(utid)"
-                                   ") WITHOUT ROWID;");
-    if (res != SQLITE_OK)
-      return res;
-    TraceStorage* storage = static_cast<TraceStorage*>(raw_args);
-    *tab = reinterpret_cast<sqlite3_vtab*>(new ThreadTable(storage));
-    return SQLITE_OK;
-  };
-  module.xBestIndex = [](sqlite3_vtab* t, sqlite3_index_info* i) {
-    return AsTable(t)->BestIndex(i);
-  };
-  module.xDisconnect = [](sqlite3_vtab* t) {
-    delete AsTable(t);
-    return SQLITE_OK;
-  };
-  module.xOpen = [](sqlite3_vtab* t, sqlite3_vtab_cursor** c) {
-    return AsTable(t)->Open(c);
-  };
-  module.xClose = [](sqlite3_vtab_cursor* c) {
-    delete AsCursor(c);
-    return SQLITE_OK;
-  };
-  module.xFilter = [](sqlite3_vtab_cursor* c, int i, const char* s, int a,
-                      sqlite3_value** v) {
-    return AsCursor(c)->Filter(i, s, a, v);
-  };
-  module.xNext = [](sqlite3_vtab_cursor* c) { return AsCursor(c)->Next(); };
-  module.xEof = [](sqlite3_vtab_cursor* c) { return AsCursor(c)->Eof(); };
-  module.xColumn = [](sqlite3_vtab_cursor* c, sqlite3_context* a, int b) {
-    return AsCursor(c)->Column(a, b);
-  };
-  module.xRowid = [](sqlite3_vtab_cursor*, sqlite_int64*) {
-    return SQLITE_ERROR;
-  };
-  return module;
+std::unique_ptr<Table::Cursor> ThreadTable::CreateCursor() {
+  return std::unique_ptr<Table::Cursor>(new Cursor(storage_));
 }
 
-int ThreadTable::Open(sqlite3_vtab_cursor** ppCursor) {
-  *ppCursor = reinterpret_cast<sqlite3_vtab_cursor*>(new Cursor(storage_));
+int ThreadTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
+  for (const auto& constraint : qc.constraints()) {
+    // Add a cost of 10 for filtering on utid (because we can do that
+    // efficiently) and 100 otherwise.
+    info->estimated_cost += constraint.iColumn == Column::kUtid ? 10 : 100;
+  }
   return SQLITE_OK;
 }
 
-// Called at least once but possibly many times before filtering things and is
-// the best time to keep track of constriants.
-int ThreadTable::BestIndex(sqlite3_index_info* idx) {
-  QueryConstraints qc;
-
-  for (int i = 0; i < idx->nOrderBy; i++) {
-    Column column = static_cast<Column>(idx->aOrderBy[i].iColumn);
-    unsigned char desc = idx->aOrderBy[i].desc;
-    qc.AddOrderBy(column, desc);
-  }
-  idx->orderByConsumed = true;
-
-  for (int i = 0; i < idx->nConstraint; i++) {
-    const auto& cs = idx->aConstraint[i];
-    if (!cs.usable)
-      continue;
-    qc.AddConstraint(cs.iColumn, cs.op);
-
-    idx->estimatedCost = cs.iColumn == Column::kUtid ? 10 : 100;
-
-    // argvIndex is 1-based so use the current size of the vector.
-    int argv_index = static_cast<int>(qc.constraints().size());
-    idx->aConstraintUsage[i].argvIndex = argv_index;
-  }
-
-  idx->idxStr = qc.ToNewSqlite3String().release();
-  idx->needToFreeIdxStr = true;
-
-  return SQLITE_OK;
-}
-
-ThreadTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {
-  static_assert(offsetof(Cursor, base_) == 0,
-                "SQLite base class must be first member of the cursor");
-  memset(&base_, 0, sizeof(base_));
-}
+ThreadTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {}
 
 int ThreadTable::Cursor::Column(sqlite3_context* context, int N) {
   auto thread = storage_->GetThread(utid_filter_.current);
@@ -170,14 +81,8 @@ int ThreadTable::Cursor::Column(sqlite3_context* context, int N) {
   return SQLITE_OK;
 }
 
-int ThreadTable::Cursor::Filter(int /*idxNum*/,
-                                const char* idxStr,
-                                int argc,
+int ThreadTable::Cursor::Filter(const QueryConstraints& qc,
                                 sqlite3_value** argv) {
-  QueryConstraints qc = QueryConstraints::FromString(idxStr);
-
-  PERFETTO_DCHECK(qc.constraints().size() == static_cast<size_t>(argc));
-
   utid_filter_.min = 1;
   utid_filter_.max = static_cast<uint32_t>(storage_->thread_count());
   utid_filter_.desc = false;

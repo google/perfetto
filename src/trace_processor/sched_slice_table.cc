@@ -22,34 +22,14 @@
 #include <numeric>
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/sqlite_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 namespace {
-inline bool IsOpEq(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_EQ;
-}
 
-inline bool IsOpGe(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_GE;
-}
-
-inline bool IsOpGt(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_GT;
-}
-
-inline bool IsOpLe(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_LE;
-}
-
-inline bool IsOpLt(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_LT;
-}
-
-inline SchedSliceTable* AsTable(sqlite3_vtab* vtab) {
-  return reinterpret_cast<SchedSliceTable*>(vtab);
-}
+using namespace sqlite_utils;
 
 template <size_t N = TraceStorage::kMaxCpus>
 bool PopulateFilterBitmap(int op,
@@ -107,19 +87,11 @@ inline int Compare(T first, T second, bool desc) {
 }  // namespace
 
 SchedSliceTable::SchedSliceTable(const TraceStorage* storage)
-    : storage_(storage) {
-  static_assert(offsetof(SchedSliceTable, base_) == 0,
-                "SQLite base class must be first member of the table");
-  memset(&base_, 0, sizeof(base_));
-}
+    : storage_(storage) {}
 
-sqlite3_module SchedSliceTable::CreateModule() {
-  sqlite3_module module;
-  memset(&module, 0, sizeof(module));
-  module.xConnect = [](sqlite3* db, void* raw_args, int, const char* const*,
-                       sqlite3_vtab** tab, char**) {
-    int res = sqlite3_declare_vtab(db,
-                                   "CREATE TABLE sched_slices("
+void SchedSliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
+  Table::Register<SchedSliceTable>(db, storage,
+                                   "CREATE TABLE sched("
                                    "_quantum HIDDEN BIG INT, "
                                    "ts UNSIGNED BIG INT, "
                                    "cpu UNSIGNED INT, "
@@ -127,73 +99,20 @@ sqlite3_module SchedSliceTable::CreateModule() {
                                    "quantized_group UNSIGNED BIG INT, "
                                    "PRIMARY KEY(cpu, ts)"
                                    ") WITHOUT ROWID;");
-    if (res != SQLITE_OK)
-      return res;
-    TraceStorage* storage = static_cast<TraceStorage*>(raw_args);
-    *tab = reinterpret_cast<sqlite3_vtab*>(new SchedSliceTable(storage));
-    return SQLITE_OK;
-  };
-  module.xBestIndex = [](sqlite3_vtab* t, sqlite3_index_info* i) {
-    return AsTable(t)->BestIndex(i);
-  };
-  module.xDisconnect = [](sqlite3_vtab* t) {
-    delete AsTable(t);
-    return SQLITE_OK;
-  };
-  module.xOpen = [](sqlite3_vtab* t, sqlite3_vtab_cursor** c) {
-    return AsTable(t)->Open(c);
-  };
-  module.xClose = [](sqlite3_vtab_cursor* c) {
-    delete AsCursor(c);
-    return SQLITE_OK;
-  };
-  module.xFilter = [](sqlite3_vtab_cursor* c, int i, const char* s, int a,
-                      sqlite3_value** v) {
-    return AsCursor(c)->Filter(i, s, a, v);
-  };
-  module.xNext = [](sqlite3_vtab_cursor* c) { return AsCursor(c)->Next(); };
-  module.xEof = [](sqlite3_vtab_cursor* c) { return AsCursor(c)->Eof(); };
-  module.xColumn = [](sqlite3_vtab_cursor* c, sqlite3_context* a, int b) {
-    return AsCursor(c)->Column(a, b);
-  };
-  module.xFindFunction = [](sqlite3_vtab*, int, const char* name,
-                            void (**fn)(sqlite3_context*, int, sqlite3_value**),
-                            void** args) {
-    // Add an identity match function to prevent throwing an exception when
-    // matching on the quantum column.
-    if (strcmp(name, "match") == 0) {
-      *fn = [](sqlite3_context* ctx, int n, sqlite3_value** v) {
-        PERFETTO_DCHECK(n == 2 && sqlite3_value_type(v[0]) == SQLITE_INTEGER);
-        sqlite3_result_int64(ctx, sqlite3_value_int64(v[0]));
-      };
-      *args = nullptr;
-      return 1;
-    }
-    return 0;
-  };
-  return module;
 }
 
-int SchedSliceTable::Open(sqlite3_vtab_cursor** ppCursor) {
-  *ppCursor = reinterpret_cast<sqlite3_vtab_cursor*>(new Cursor(storage_));
-  return SQLITE_OK;
+std::unique_ptr<Table::Cursor> SchedSliceTable::CreateCursor() {
+  return std::unique_ptr<Table::Cursor>(new Cursor(storage_));
 }
 
-// Called at least once but possibly many times before filtering things and is
-// the best time to keep track of constriants.
-int SchedSliceTable::BestIndex(sqlite3_index_info* idx) {
-  QueryConstraints query_constraints;
-
+int SchedSliceTable::BestIndex(const QueryConstraints& qc,
+                               BestIndexInfo* info) {
   bool is_quantized_group_order_desc = false;
   bool is_duration_timestamp_order = false;
-  for (int i = 0; i < idx->nOrderBy; i++) {
-    int column = idx->aOrderBy[i].iColumn;
-    bool desc = idx->aOrderBy[i].desc;
-    query_constraints.AddOrderBy(column, desc);
-
-    switch (column) {
+  for (const auto& ob : qc.order_by()) {
+    switch (ob.iColumn) {
       case Column::kQuantizedGroup:
-        if (desc)
+        if (ob.desc)
           is_quantized_group_order_desc = true;
         break;
       case Column::kTimestamp:
@@ -207,51 +126,44 @@ int SchedSliceTable::BestIndex(sqlite3_index_info* idx) {
   }
 
   bool has_quantum_constraint = false;
-  for (int i = 0; i < idx->nConstraint; i++) {
-    const auto& cs = idx->aConstraint[i];
-    if (!cs.usable)
-      continue;
-    query_constraints.AddConstraint(cs.iColumn, cs.op);
-
+  for (const auto& cs : qc.constraints()) {
     if (cs.iColumn == Column::kQuantum)
       has_quantum_constraint = true;
-
-    // argvIndex is 1-based so use the current size of the vector.
-    int argv_index = static_cast<int>(query_constraints.constraints().size());
-    idx->aConstraintUsage[i].argvIndex = argv_index;
   }
+
   // If a quantum constraint is present, we don't support native ordering by
   // time related parameters or by quantized group in descending order.
   bool needs_sqlite_orderby =
       has_quantum_constraint &&
       (is_duration_timestamp_order || is_quantized_group_order_desc);
 
-  idx->orderByConsumed = !needs_sqlite_orderby;
-  if (needs_sqlite_orderby)
-    query_constraints.ClearOrderBy();
-
-  idx->idxStr = query_constraints.ToNewSqlite3String().release();
-  idx->needToFreeIdxStr = true;
+  info->order_by_consumed = !needs_sqlite_orderby;
 
   return SQLITE_OK;
 }
 
-SchedSliceTable::Cursor::Cursor(const TraceStorage* storage)
-    : storage_(storage) {
-  static_assert(offsetof(Cursor, base_) == 0,
-                "SQLite base class must be first member of the cursor");
-  memset(&base_, 0, sizeof(base_));
+int SchedSliceTable::FindFunction(const char* name,
+                                  FindFunctionFn fn,
+                                  void** args) {
+  // Add an identity match function to prevent throwing an exception when
+  // matching on the quantum column.
+  if (strcmp(name, "match") == 0) {
+    *fn = [](sqlite3_context* ctx, int n, sqlite3_value** v) {
+      PERFETTO_DCHECK(n == 2 && sqlite3_value_type(v[0]) == SQLITE_INTEGER);
+      sqlite3_result_int64(ctx, sqlite3_value_int64(v[0]));
+    };
+    *args = nullptr;
+    return 1;
+  }
+  return 0;
 }
 
-int SchedSliceTable::Cursor::Filter(int /* idxNum */,
-                                    const char* idxStr,
-                                    int argc,
-                                    sqlite3_value** argv) {
-  auto query_constraints = QueryConstraints::FromString(idxStr);
-  PERFETTO_CHECK(query_constraints.constraints().size() ==
-                 static_cast<size_t>(argc));
+SchedSliceTable::Cursor::Cursor(const TraceStorage* storage)
+    : storage_(storage) {}
 
-  filter_state_.reset(new FilterState(storage_, query_constraints, argv));
+int SchedSliceTable::Cursor::Filter(const QueryConstraints& qc,
+                                    sqlite3_value** argv) {
+  filter_state_.reset(new FilterState(storage_, qc, argv));
   return SQLITE_OK;
 }
 
@@ -314,10 +226,6 @@ int SchedSliceTable::Cursor::Column(sqlite3_context* context, int N) {
     }
   }
   return SQLITE_OK;
-}
-
-int SchedSliceTable::Cursor::RowId(sqlite_int64* /* pRowid */) {
-  return SQLITE_ERROR;
 }
 
 SchedSliceTable::FilterState::FilterState(
