@@ -131,9 +131,6 @@ if (!build_with_chromium) {
     if (build_with_android) {
       cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
     }
-    if (build_standalone) {
-      deps += [ "src/trace_processor:integrationtests" ]
-    }
   }
 
   if (monolithic_binaries) {
