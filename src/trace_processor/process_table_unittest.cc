@@ -31,9 +31,7 @@ class ProcessTableUnittest : public ::testing::Test {
     PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
     db_.reset(db);
 
-    static sqlite3_module module = ProcessTable::CreateModule();
-    sqlite3_create_module(*db_, "process", &module,
-                          static_cast<void*>(&storage_));
+    ProcessTable::RegisterTable(&*db, &storage_);
   }
 
   void PrepareValidStatement(const std::string& sql) {

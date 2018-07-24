@@ -17,10 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_PROCESS_TABLE_H_
 #define SRC_TRACE_PROCESSOR_PROCESS_TABLE_H_
 
+#include <sqlite3.h>
 #include <limits>
 #include <memory>
 
-#include "sqlite3.h"
+#include "src/trace_processor/table.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -28,36 +29,30 @@ namespace trace_processor {
 
 // The implementation of the SQLite table containing each unique process with
 // their details (only name at the moment).
-class ProcessTable {
+class ProcessTable : public Table {
  public:
   enum Column { kUpid = 0, kName = 1 };
 
-  ProcessTable(const TraceStorage*);
-  static sqlite3_module CreateModule();
+  static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
-  // Implementation for sqlite3_vtab.
-  int BestIndex(sqlite3_index_info*);
-  int Open(sqlite3_vtab_cursor**);
+  ProcessTable(const TraceStorage*);
+
+  // Table implementation.
+  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-  using Constraint = sqlite3_index_info::sqlite3_index_constraint;
-  using OrderBy = sqlite3_index_info::sqlite3_index_orderby;
-
-  class Cursor {
+  class Cursor : public Table::Cursor {
    public:
     Cursor(const TraceStorage*);
 
-    // Implementation of sqlite3_vtab_cursor.
-    int Filter(int idxNum, const char* idxStr, int argc, sqlite3_value** argv);
-    int Next();
-    int Eof();
-
-    int Column(sqlite3_context* context, int N);
-    int RowId(sqlite_int64* rowId);
+    // Implementation of Table::Cursor.
+    int Filter(const QueryConstraints&, sqlite3_value**) override;
+    int Next() override;
+    int Eof() override;
+    int Column(sqlite3_context*, int N) override;
 
    private:
-    sqlite3_vtab_cursor base_;  // Must be first.
-
     struct UpidFilter {
       TraceStorage::UniquePid min;
       TraceStorage::UniquePid max;
@@ -69,11 +64,6 @@ class ProcessTable {
     UpidFilter upid_filter_;
   };
 
-  static inline Cursor* AsCursor(sqlite3_vtab_cursor* cursor) {
-    return reinterpret_cast<Cursor*>(cursor);
-  }
-
-  sqlite3_vtab base_;  // Must be first.
   const TraceStorage* const storage_;
 };
 }  // namespace trace_processor
