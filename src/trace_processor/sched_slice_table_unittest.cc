@@ -276,6 +276,37 @@ TEST_F(SchedSliceTableIntegrationTest, QuantizationGroupAndSum) {
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
+TEST_F(SchedSliceTableIntegrationTest, UtidTest) {
+  uint32_t cpu = 3;
+  uint64_t timestamp = 100;
+  uint32_t pid_1 = 2;
+  uint32_t prev_state = 32;
+  static const char kCommProc1[] = "process1";
+  static const char kCommProc2[] = "process2";
+  uint32_t pid_2 = 4;
+  storage_.PushSchedSwitch(cpu, timestamp, pid_1, prev_state, kCommProc1,
+                           sizeof(kCommProc1) - 1, pid_2);
+  storage_.PushSchedSwitch(cpu, timestamp + 3, pid_2, prev_state, kCommProc2,
+                           sizeof(kCommProc2) - 1, pid_1);
+  storage_.PushSchedSwitch(cpu, timestamp + 4, pid_1, prev_state, kCommProc1,
+                           sizeof(kCommProc1) - 1, pid_2);
+  storage_.PushSchedSwitch(cpu, timestamp + 10, pid_2, prev_state, kCommProc2,
+                           sizeof(kCommProc2) - 1, pid_1);
+
+  PrepareValidStatement("SELECT utid FROM sched ORDER BY utid");
+
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(*stmt_, 0), 1 /* duration */);
+
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(*stmt_, 0), 1 /* duration */);
+
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(*stmt_, 0), 2 /* duration */);
+
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
