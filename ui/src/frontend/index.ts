@@ -19,105 +19,10 @@ import * as m from 'mithril';
 import {ObjectById, TrackState} from '../common/state';
 import {warmupWasmEngineWorker} from '../controller/wasm_engine_proxy';
 
-import {CanvasController} from './canvas_controller';
-import {CanvasWrapper} from './canvas_wrapper';
-import {ChildVirtualContext} from './child_virtual_context';
 import {globals} from './globals';
 import {HomePage} from './home_page';
-import {createPage} from './pages';
 import {QueryPage} from './query_page';
-import {ScrollableContainer} from './scrollable_container';
-import {TimeScale} from './time_scale';
-import {Track} from './track';
-
-export const Frontend = {
-  oninit() {
-    this.width = 0;
-    this.height = 0;
-    this.canvasController = new CanvasController();
-  },
-  oncreate(vnode) {
-    this.onResize = () => {
-      const rect = vnode.dom.getBoundingClientRect();
-      this.width = rect.width;
-      this.height = rect.height;
-      this.canvasController.setDimensions(this.width, this.height);
-      m.redraw();
-    };
-    // Have to redraw after initialization to provide dimensions to view().
-    setTimeout(() => this.onResize());
-
-    // Once ResizeObservers are out, we can stop accessing the window here.
-    window.addEventListener('resize', this.onResize);
-  },
-  onremove() {
-    window.removeEventListener('resize', this.onResize);
-  },
-  view() {
-    const canvasTopOffset = this.canvasController.getCanvasTopOffset();
-    const ctx = this.canvasController.getContext();
-    const timeScale = new TimeScale([0, 1000000], [0, this.width]);
-
-    this.canvasController.clear();
-    const tracks = globals.state.tracks;
-
-    const childTracks: m.Children[] = [];
-
-    let trackYOffset = 0;
-    for (const trackState of Object.values(tracks)) {
-      childTracks.push(m(Track, {
-        trackContext: new ChildVirtualContext(ctx, {
-          y: trackYOffset,
-          x: 0,
-          width: this.width,
-          height: trackState.height,
-        }),
-        top: trackYOffset,
-        width: this.width,
-        trackState,
-        timeScale
-      }));
-      trackYOffset += trackState.height;
-    }
-
-    return m(
-        '.frontend',
-        {
-          style: {
-            position: 'relative',
-            width: '100%',
-            height: 'calc(100% - 105px)',
-            overflow: 'hidden'
-          }
-        },
-        m(ScrollableContainer,
-          {
-            width: this.width,
-            height: this.height,
-            contentHeight: 1000,
-            onPassiveScroll: (scrollTop: number) => {
-              this.canvasController.updateScrollOffset(scrollTop);
-              m.redraw();
-            },
-          },
-          m(CanvasWrapper, {
-            topOffset: canvasTopOffset,
-            canvasElement: this.canvasController.getCanvasElement()
-          }),
-          ...childTracks));
-  },
-} as m.Component<{width: number, height: number}, {
-  canvasController: CanvasController,
-  width: number,
-  height: number,
-  onResize: () => void
-}>;
-
-export const FrontendPage = createPage({
-  view() {
-    return m(Frontend, {width: 1000, height: 300});
-  }
-});
+import {ViewerPage} from './viewer_page';
 
 function createController(): Worker {
   const worker = new Worker('controller_bundle.js');
@@ -167,7 +72,7 @@ function main() {
 
   m.route(root, '/', {
     '/': HomePage,
-    '/viewer': FrontendPage,
+    '/viewer': ViewerPage,
     '/query/:trace': QueryPage,
   });
 }
