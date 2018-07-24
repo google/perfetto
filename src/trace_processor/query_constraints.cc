@@ -16,10 +16,10 @@
 
 #include "src/trace_processor/query_constraints.h"
 
+#include <sqlite3.h>
 #include <string>
 
 #include "include/perfetto/base/string_splitter.h"
-#include "sqlite3.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -131,7 +131,7 @@ QueryConstraints QueryConstraints::FromString(const char* idxStr) {
     qc.AddOrderBy(col, desc);
   }
 
-  PERFETTO_DCHECK(splitter.Next() == false);
+  PERFETTO_DCHECK(!splitter.Next());
   return qc;
 }
 

@@ -17,11 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_SCHED_SLICE_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SCHED_SLICE_TABLE_H_
 
+#include <sqlite3.h>
 #include <limits>
 #include <memory>
 
-#include "sqlite3.h"
 #include "src/trace_processor/query_constraints.h"
+#include "src/trace_processor/table.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -29,7 +30,7 @@ namespace trace_processor {
 
 // The implementation of the SQLite table containing slices of CPU time with the
 // metadata for those slices.
-class SchedSliceTable {
+class SchedSliceTable : public Table {
  public:
   enum Column {
     kQuantum = 0,
@@ -40,11 +41,13 @@ class SchedSliceTable {
   };
 
   SchedSliceTable(const TraceStorage* storage);
-  static sqlite3_module CreateModule();
 
-  // Implementation for sqlite3_vtab.
-  int BestIndex(sqlite3_index_info* index_info);
-  int Open(sqlite3_vtab_cursor** ppCursor);
+  static void RegisterTable(sqlite3* db, const TraceStorage* storage);
+
+  // Table implementation.
+  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
+  int FindFunction(const char* name, FindFunctionFn fn, void** args) override;
 
  private:
   // Transient filter state for each CPU of this trace.
@@ -55,10 +58,10 @@ class SchedSliceTable {
                     uint64_t quantum,
                     std::vector<uint32_t> sorted_row_ids);
     void FindNextSlice();
-
     bool IsNextRowIdIndexValid() const {
       return next_row_id_index_ < sorted_row_ids_.size();
     }
+
     size_t next_row_id() const { return sorted_row_ids_[next_row_id_index_]; }
     uint64_t next_timestamp() const { return next_timestamp_; }
 
@@ -153,29 +156,21 @@ class SchedSliceTable {
   };
 
   // Implementation of the SQLite cursor interface.
-  class Cursor {
+  class Cursor : public Table::Cursor {
    public:
     Cursor(const TraceStorage* storage);
 
-    // Implementation of sqlite3_vtab_cursor.
-    int Filter(int idxNum, const char* idxStr, int argc, sqlite3_value** argv);
-    int Next();
-    int Eof();
-    int Column(sqlite3_context* context, int N);
-    int RowId(sqlite_int64* pRowid);
+    // Implementation of Table::Cursor.
+    int Filter(const QueryConstraints&, sqlite3_value**) override;
+    int Next() override;
+    int Eof() override;
+    int Column(sqlite3_context*, int N) override;
 
    private:
-    sqlite3_vtab_cursor base_;  // Must be first.
-
     const TraceStorage* const storage_;
     std::unique_ptr<FilterState> filter_state_;
   };
 
-  static inline Cursor* AsCursor(sqlite3_vtab_cursor* cursor) {
-    return reinterpret_cast<Cursor*>(cursor);
-  }
-
-  sqlite3_vtab base_;  // Must be first.
   const TraceStorage* const storage_;
 };
 

@@ -32,12 +32,8 @@ class ThreadTableUnittest : public ::testing::Test {
     PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
     db_.reset(db);
 
-    static sqlite3_module t_module = ThreadTable::CreateModule();
-    sqlite3_create_module(*db_, "thread", &t_module,
-                          static_cast<void*>(&storage_));
-    static sqlite3_module p_module = ProcessTable::CreateModule();
-    sqlite3_create_module(*db_, "process", &p_module,
-                          static_cast<void*>(&storage_));
+    ThreadTable::RegisterTable(&*db, &storage_);
+    ProcessTable::RegisterTable(&*db, &storage_);
   }
 
   void PrepareValidStatement(const std::string& sql) {
