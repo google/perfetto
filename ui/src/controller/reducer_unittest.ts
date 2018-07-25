@@ -12,4 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export interface Action { type: string; }
+import {createEmptyState} from '../common/state';
+import {rootReducer} from './reducer';
+
+test('increment', async () => {
+  const before = createEmptyState();
+  const after = rootReducer(before, {type: 'INCREMENT'});
+  expect(after.i).toBe(1);
+});

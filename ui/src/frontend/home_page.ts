@@ -55,6 +55,12 @@ export const HomePage = createPage({
             'Load trace'),
           ' or ',
           m('button', {onclick: loadExampleTrace}, 'Open demo trace'),
-          m('button', {onclick: quietDispatch({})}, `Increment ${count}`)));
+          m('button',
+            {
+              onclick: quietDispatch({
+                type: 'INCREMENT',
+              })
+            },
+            `Increment ${count}`)));
   }
 });

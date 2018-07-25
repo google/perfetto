@@ -58,8 +58,8 @@ class ControllerProxy {
     this.remote = remote;
   }
 
-  init(port: MessagePort): Promise<void> {
-    return this.remote.send<void>('init', [port], [port]);
+  initAndGetState(port: MessagePort): Promise<void> {
+    return this.remote.send<void>('initAndGetState', [port], [port]);
   }
 
   doAction(action: Action): Promise<void> {
@@ -93,7 +93,7 @@ async function main() {
 
   const controller = createController();
   const channel = new MessageChannel();
-  await controller.init(channel.port1);
+  await controller.initAndGetState(channel.port1);
   forwardRemoteCalls(channel.port2, new FrontendApi());
 
   // tslint:disable-next-line deprecation
