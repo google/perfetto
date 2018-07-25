@@ -100,6 +100,11 @@ class PERFETTO_EXPORT TracingService {
     // Called in response to a Producer::Flush(request_id) call after all data
     // for the flush request has been committed.
     virtual void NotifyFlushComplete(FlushRequestID) = 0;
+
+    // Called in response to one or more Producer::TearDownDataSourceInstance(),
+    // if the data source registered setting the flag
+    // DataSourceDescriptor.will_notify_on_stop.
+    virtual void NotifyDataSourceStopped(DataSourceInstanceID) = 0;
   };  // class ProducerEndpoint.
 
   // The API for the Consumer port of the Service.

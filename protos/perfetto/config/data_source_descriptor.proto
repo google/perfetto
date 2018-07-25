@@ -28,6 +28,11 @@ package perfetto.protos;
 message DataSourceDescriptor {
   optional string name = 1;  // e.g., "linux.ftrace", "chromium.tracing"
 
+  // When true the data source is expected to ack the stop request through the
+  // NotifyDataSourceStopped() IPC. This field has been introduced after
+  // Android P in Jul 2018 and is not supported on older versions.
+  optional bool will_notify_on_stop = 2;
+
   // TODO: this should have a structure to enable reflection of the proto
   // fields emitted (see go/perfetto-logging).
 }

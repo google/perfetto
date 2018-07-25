@@ -159,6 +159,26 @@ void ProducerIPCService::CommitData(const protos::CommitDataRequest& proto_req,
   producer->service_endpoint->CommitData(req, callback);
 }
 
+void ProducerIPCService::NotifyDataSourceStopped(
+    const protos::NotifyDataSourceStoppedRequest& request,
+    DeferredNotifyDataSourceStoppedResponse response) {
+  RemoteProducer* producer = GetProducerForCurrentRequest();
+  if (!producer) {
+    PERFETTO_DLOG(
+        "Producer invoked NotifyDataSourceStopped() before "
+        "InitializeConnection()");
+    return;
+  }
+  producer->service_endpoint->NotifyDataSourceStopped(request.data_source_id());
+
+  // NotifyDataSourceStopped shouldn't expect any meaningful response, avoid
+  // a useless IPC in that case.
+  if (response.IsBound()) {
+    response.Resolve(
+        ipc::AsyncResult<protos::NotifyDataSourceStoppedResponse>::Create());
+  }
+}
+
 void ProducerIPCService::GetAsyncCommand(
     const protos::GetAsyncCommandRequest&,
     DeferredGetAsyncCommandResponse response) {
