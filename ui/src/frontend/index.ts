@@ -16,7 +16,10 @@ import '../tracks/all_tracks';
 
 import * as m from 'mithril';
 
+import {forwardRemoteCalls, Remote} from '../base/remote';
+import {Action} from '../common/actions';
 import {ObjectById, TrackState} from '../common/state';
+import {State} from '../common/state';
 import {warmupWasmEngineWorker} from '../controller/wasm_engine_proxy';
 
 import {globals} from './globals';
@@ -24,16 +27,44 @@ import {HomePage} from './home_page';
 import {QueryPage} from './query_page';
 import {ViewerPage} from './viewer_page';
 
-function createController(): Worker {
+function createController(): ControllerProxy {
   const worker = new Worker('controller_bundle.js');
   worker.onerror = e => {
     console.error(e);
   };
-  worker.onmessage = msg => {
-    globals.state = msg.data;
+  const port = worker as {} as MessagePort;
+  return new ControllerProxy(new Remote(port));
+}
+
+/**
+ * The API the main thread exposes to the controller.
+ */
+class FrontendApi {
+  updateState(state: State) {
+    globals.state = state;
     m.redraw();
-  };
-  return worker;
+  }
+}
+
+/**
+ * Proxy for the Controller worker.
+ * This allows us to send strongly typed messages to the contoller.
+ * TODO(hjd): Remove the boiler plate.
+ */
+class ControllerProxy {
+  private readonly remote: Remote;
+
+  constructor(remote: Remote) {
+    this.remote = remote;
+  }
+
+  init(port: MessagePort): Promise<void> {
+    return this.remote.send<void>('init', [port], [port]);
+  }
+
+  doAction(action: Action): Promise<void> {
+    return this.remote.send<void>('doAction', [action]);
+  }
 }
 
 function getDemoTracks(): ObjectById<TrackState> {
@@ -57,11 +88,16 @@ function getDemoTracks(): ObjectById<TrackState> {
   return tracks;
 }
 
-function main() {
+async function main() {
   globals.state = {i: 0, tracks: getDemoTracks()};
-  const worker = createController();
+
+  const controller = createController();
+  const channel = new MessageChannel();
+  await controller.init(channel.port1);
+  forwardRemoteCalls(channel.port2, new FrontendApi());
+
   // tslint:disable-next-line deprecation
-  globals.dispatch = action => worker.postMessage(action);
+  globals.dispatch = controller.doAction.bind(controller);
   warmupWasmEngineWorker();
 
   const root = document.getElementById('frontend');

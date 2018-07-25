@@ -12,19 +12,49 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {forwardRemoteCalls, Remote} from '../base/remote';
+import {Action} from '../common/actions';
 import {createEmptyState, State} from '../common/state';
 
 const state: State = createEmptyState();
 
-function main() {
-  // TODO(hjd): Compile this with the worker lib.
-  // tslint:disable-next-line no-any
-  (self as any).onmessage = (_: MessageEvent) => {
+class Controller {
+  private _frontend?: FrontendProxy;
+
+  get frontend(): FrontendProxy {
+    if (!this._frontend) throw new Error('No FrontendProxy');
+    return this._frontend;
+  }
+
+  init(frontendProxyPort: MessagePort): void {
+    this._frontend = new FrontendProxy(new Remote(frontendProxyPort));
+  }
+
+  doAction(_: Action): void {
     state.i++;
-    // TODO(hjd): Compile this with the worker lib.
-    // tslint:disable-next-line no-any
-    (self as any).postMessage(state);
-  };
+    this.frontend.updateState(state);
+  }
+}
+
+/**
+ * Proxy for talking to the main thread.
+ * TODO(hjd): Reduce the boilerplate.
+ */
+class FrontendProxy {
+  private readonly remote: Remote;
+
+  constructor(remote: Remote) {
+    this.remote = remote;
+  }
+
+  updateState(state: State) {
+    return this.remote.send<void>('updateState', [state]);
+  }
+}
+
+function main() {
+  const controller = new Controller();
+  forwardRemoteCalls(self as {} as MessagePort, controller);
 }
 
 main();
