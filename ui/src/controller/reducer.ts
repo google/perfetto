@@ -12,4 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export interface Action { type: string; }
+import {Action} from '../common/actions';
+import {State} from '../common/state';
+
+export function rootReducer(state: State, action: Action): State {
+  switch (action.type) {
+    // TODO(hjd): Make pure.
+    case 'INCREMENT':
+      state.i++;
+      break;
+    default:
+      break;
+  }
+  return state;
+}
