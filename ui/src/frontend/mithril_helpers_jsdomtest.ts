@@ -36,7 +36,7 @@ test('quietDispatch with object', () => {
   e.redraw = true;
   const d = dingus<(action: Action) => void>('dispatch');
   globals.dispatch = d;
-  const action = {};
+  const action = {type: 'AN_ACTION'};
   quietDispatch(action)(e);
   expect(e.redraw).toBe(false);
   expect(d.calls[0][1][0]).toBe(action);
@@ -49,7 +49,7 @@ test('quietDispatch with function', () => {
   const dispatch = dingus<(action: Action) => void>('dispatch');
   globals.dispatch = dispatch;
 
-  const theAction = {};
+  const theAction = {type: 'AN_ACTION'};
 
   const action = (theEvent: Event) => {
     expect(theEvent).toBe(e);
