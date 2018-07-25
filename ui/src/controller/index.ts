@@ -15,24 +15,29 @@
 import {forwardRemoteCalls, Remote} from '../base/remote';
 import {Action} from '../common/actions';
 import {createEmptyState, State} from '../common/state';
-
-const state: State = createEmptyState();
+import {rootReducer} from './reducer';
 
 class Controller {
+  private state: State;
   private _frontend?: FrontendProxy;
+
+  constructor() {
+    this.state = createEmptyState();
+  }
 
   get frontend(): FrontendProxy {
     if (!this._frontend) throw new Error('No FrontendProxy');
     return this._frontend;
   }
 
-  init(frontendProxyPort: MessagePort): void {
+  initAndGetState(frontendProxyPort: MessagePort): State {
     this._frontend = new FrontendProxy(new Remote(frontendProxyPort));
+    return this.state;
   }
 
-  doAction(_: Action): void {
-    state.i++;
-    this.frontend.updateState(state);
+  doAction(action: Action): void {
+    this.state = rootReducer(this.state, action);
+    this.frontend.updateState(this.state);
   }
 }
 
