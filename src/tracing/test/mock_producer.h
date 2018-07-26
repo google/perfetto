@@ -46,11 +46,12 @@ class MockProducer : public Producer {
                const std::string& producer_name,
                uid_t uid = 42,
                size_t shared_memory_size_hint_bytes = 0);
-  void RegisterDataSource(const std::string& name);
+  void RegisterDataSource(const std::string& name, bool ack_stop = false);
   void UnregisterDataSource(const std::string& name);
   void WaitForTracingSetup();
   void WaitForDataSourceStart(const std::string& name);
   void WaitForDataSourceStop(const std::string& name);
+  DataSourceInstanceID GetDataSourceInstanceId(const std::string& name);
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       const std::string& data_source_name);
 

@@ -60,8 +60,12 @@ class PERFETTO_EXPORT DataSourceDescriptor {
   const std::string& name() const { return name_; }
   void set_name(const std::string& value) { name_ = value; }
 
+  bool will_notify_on_stop() const { return will_notify_on_stop_; }
+  void set_will_notify_on_stop(bool value) { will_notify_on_stop_ = value; }
+
  private:
   std::string name_ = {};
+  bool will_notify_on_stop_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

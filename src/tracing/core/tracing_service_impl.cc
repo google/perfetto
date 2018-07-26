@@ -105,6 +105,7 @@ uid_t geteuid() {
 // These constants instead are defined in the header because are used by tests.
 constexpr size_t TracingServiceImpl::kDefaultShmSize;
 constexpr size_t TracingServiceImpl::kMaxShmSize;
+constexpr uint32_t TracingServiceImpl::kDataSourceStopTimeoutMs;
 
 // static
 std::unique_ptr<TracingService> TracingService::CreateInstance(
@@ -272,7 +273,7 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   const TracingSessionID tsid = ++last_tracing_session_id_;
   tracing_session =
-      &tracing_sessions_.emplace(tsid, TracingSession(consumer, cfg))
+      &tracing_sessions_.emplace(tsid, TracingSession(tsid, consumer, cfg))
            .first->second;
 
   if (cfg.write_into_file()) {
@@ -381,7 +382,8 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         tracing_session->delay_to_next_write_period_ms());
   }
 
-  tracing_session->tracing_enabled = true;
+  tracing_session->pending_stop_acks.clear();
+  tracing_session->state = TracingSession::ENABLED;
   PERFETTO_LOG(
       "Enabled tracing, #sources:%zu, duration:%d ms, #buffers:%d, total "
       "buffer size:%zu KB, total sessions:%zu",
@@ -394,7 +396,8 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 // This is to allow the consumer to freeze the buffers (by stopping the trace)
 // and then drain the buffers. The actual teardown of the TracingSession happens
 // in FreeBuffers().
-void TracingServiceImpl::DisableTracing(TracingSessionID tsid) {
+void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
+                                        bool disable_immediately) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
@@ -404,28 +407,118 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid) {
     return;
   }
 
+  switch (tracing_session->state) {
+    // Spurious call to DisableTracing() while already disabled, nothing to do.
+    case TracingSession::DISABLED:
+      PERFETTO_DCHECK(tracing_session->data_source_instances.empty());
+      PERFETTO_DCHECK(tracing_session->pending_stop_acks.empty());
+      return;
+
+    // This is either:
+    // A) The case of a graceful DisableTracing() call followed by a call to
+    //    FreeBuffers(), iff |disable_immediately| == true. In this case we want
+    //    to forcefully transition in the disabled state without waiting for the
+    //    outstanding acks because the buffers are going to be destroyed soon.
+    // B) A spurious call, iff |disable_immediately| == false, in which case
+    //    there is nothing to do.
+    case TracingSession::DISABLING_WAITING_STOP_ACKS:
+      PERFETTO_DCHECK(tracing_session->data_source_instances.empty());
+      PERFETTO_DCHECK(!tracing_session->pending_stop_acks.empty());
+      if (disable_immediately)
+        DisableTracingNotifyConsumerAndFlushFile(tracing_session);
+      return;
+
+    // This is the nominal case, continues below.
+    case TracingSession::ENABLED:
+      break;
+  }
+
+  tracing_session->pending_stop_acks.clear();
   for (const auto& data_source_inst : tracing_session->data_source_instances) {
     const ProducerID producer_id = data_source_inst.first;
     const DataSourceInstanceID ds_inst_id = data_source_inst.second.instance_id;
     ProducerEndpointImpl* producer = GetProducer(producer_id);
+    if (data_source_inst.second.will_notify_on_stop && !disable_immediately) {
+      tracing_session->pending_stop_acks.insert(
+          std::make_pair(producer_id, ds_inst_id));
+    }
     producer->TearDownDataSource(ds_inst_id);
   }
   tracing_session->data_source_instances.clear();
 
-  // If the client requested us to periodically save the buffer into the passed
-  // file, force a write pass.
-  if (tracing_session->write_into_file) {
-    tracing_session->write_period_ms = 0;
-    ReadBuffers(tsid, nullptr);
-  }
+  // Either this request is flagged with |disable_immediately| or there are no
+  // data sources that are requesting a final handshake. In both cases just mark
+  // the session as disabled immediately, notify the consumer and flush the
+  // trace file (if used).
+  if (tracing_session->pending_stop_acks.empty())
+    return DisableTracingNotifyConsumerAndFlushFile(tracing_session);
 
-  if (tracing_session->tracing_enabled) {
-    tracing_session->tracing_enabled = false;
-    tracing_session->consumer->NotifyOnTracingDisabled();
-  }
+  tracing_session->state = TracingSession::DISABLING_WAITING_STOP_ACKS;
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  auto timeout_ms = override_data_source_test_timeout_ms_for_testing
+                        ? override_data_source_test_timeout_ms_for_testing
+                        : kDataSourceStopTimeoutMs;
+  task_runner_->PostDelayedTask(
+      [weak_this, tsid] {
+        if (weak_this)
+          weak_this->OnDisableTracingTimeout(tsid);
+      },
+      timeout_ms);
 
   // Deliberately NOT removing the session from |tracing_session_|, it's still
   // needed to call ReadBuffers(). FreeBuffers() will erase() the session.
+}
+
+void TracingServiceImpl::NotifyDataSourceStopped(
+    ProducerID producer_id,
+    DataSourceInstanceID data_source_id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (auto& kv : tracing_sessions_) {
+    TracingSession& tracing_session = kv.second;
+    auto& pending_stop_acks = tracing_session.pending_stop_acks;
+    if (pending_stop_acks.empty())
+      continue;
+    if (tracing_session.state != TracingSession::DISABLING_WAITING_STOP_ACKS) {
+      PERFETTO_DCHECK(false);
+      continue;
+    }
+    pending_stop_acks.erase(std::make_pair(producer_id, data_source_id));
+    if (!pending_stop_acks.empty())
+      continue;
+
+    // All data sources acked the termination.
+    DisableTracingNotifyConsumerAndFlushFile(&tracing_session);
+  }  // for (tracing_session)
+}
+
+// Always invoked kDataSourceStopTimeoutMs after DisableTracing(). In nominal
+// conditions all data sources should have acked the stop and this will early
+// out.
+void TracingServiceImpl::OnDisableTracingTimeout(TracingSessionID tsid) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  TracingSession* tracing_session = GetTracingSession(tsid);
+  if (!tracing_session ||
+      tracing_session->state != TracingSession::DISABLING_WAITING_STOP_ACKS)
+    return;  // Tracing session was successfully disabled.
+
+  PERFETTO_ILOG("Timeout while waiting for ACKs for tracing session %" PRIu64,
+                tsid);
+  PERFETTO_DCHECK(!tracing_session->pending_stop_acks.empty());
+  DisableTracingNotifyConsumerAndFlushFile(tracing_session);
+}
+
+void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
+    TracingSession* tracing_session) {
+  PERFETTO_DCHECK(tracing_session->state != TracingSession::DISABLED);
+  tracing_session->pending_stop_acks.clear();
+  tracing_session->state = TracingSession::DISABLED;
+
+  if (tracing_session->write_into_file) {
+    tracing_session->write_period_ms = 0;
+    ReadBuffers(tracing_session->id, nullptr);
+  }
+
+  tracing_session->consumer->NotifyOnTracingDisabled();
 }
 
 void TracingServiceImpl::Flush(TracingSessionID tsid,
@@ -700,7 +793,8 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     if (stop_writing_into_file) {
       tracing_session->write_into_file.reset();
       tracing_session->write_period_ms = 0;
-      DisableTracing(tsid);
+      if (tracing_session->state == TracingSession::ENABLED)
+        DisableTracing(tsid);
       return;
     }
 
@@ -737,7 +831,7 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
     PERFETTO_DLOG("FreeBuffers() failed, invalid session ID %" PRIu64, tsid);
     return;  // TODO(primiano): signal failure?
   }
-  DisableTracing(tsid);
+  DisableTracing(tsid, /*disable_immediately=*/true);
 
   for (BufferID buffer_id : tracing_session->buffers_index) {
     buffer_ids_.Free(buffer_id);
@@ -876,7 +970,8 @@ void TracingServiceImpl::CreateDataSourceInstance(
   DataSourceInstanceID inst_id = ++last_data_source_instance_id_;
   tracing_session->data_source_instances.emplace(
       producer->id_,
-      DataSourceInstance{inst_id, data_source.descriptor.name()});
+      DataSourceInstance{inst_id, data_source.descriptor.name(),
+                         data_source.descriptor.will_notify_on_stop()});
   PERFETTO_DLOG("Starting data source %s with target buffer %" PRIu16,
                 ds_config.name().c_str(), global_id);
   if (!producer->shared_memory()) {
@@ -1424,13 +1519,20 @@ void TracingServiceImpl::ProducerEndpointImpl::NotifyFlushComplete(
   return GetOrCreateShmemArbiter()->NotifyFlushComplete(id);
 }
 
+void TracingServiceImpl::ProducerEndpointImpl::NotifyDataSourceStopped(
+    DataSourceInstanceID data_source_id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  service_->NotifyDataSourceStopped(id_, data_source_id);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // TracingServiceImpl::TracingSession implementation
 ////////////////////////////////////////////////////////////////////////////////
 
 TracingServiceImpl::TracingSession::TracingSession(
+    TracingSessionID session_id,
     ConsumerEndpointImpl* consumer_ptr,
     const TraceConfig& new_config)
-    : consumer(consumer_ptr), config(new_config) {}
+    : id(session_id), consumer(consumer_ptr), config(new_config) {}
 
 }  // namespace perfetto
