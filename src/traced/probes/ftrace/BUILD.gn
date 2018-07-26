@@ -132,8 +132,12 @@ source_set("ftrace") {
     "ftrace_config_muxer.h",
     "ftrace_controller.cc",
     "ftrace_controller.h",
+    "ftrace_metadata.cc",
+    "ftrace_metadata.h",
     "ftrace_procfs.cc",
     "ftrace_procfs.h",
+    "ftrace_sink.cc",
+    "ftrace_sink.h",
     "proto_translation_table.cc",
     "proto_translation_table.h",
   ]

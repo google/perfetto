@@ -173,7 +173,7 @@ CpuReader::CpuReader(const ProtoTranslationTable* table,
 
   worker_thread_ =
       std::thread(std::bind(&RunWorkerThread, cpu_, *trace_fd_,
-                            *staging_write_fd_, on_data_available, &exiting_));
+                            *staging_write_fd_, on_data_available, &cmd_));
 }
 
 CpuReader::~CpuReader() {
@@ -183,7 +183,7 @@ CpuReader::~CpuReader() {
   // trace fd (which prevents another splice from starting), raise SIGPIPE and
   // wait for the worker to exit (i.e., to guarantee no splice is in progress)
   // and only then close the staging pipe.
-  exiting_ = true;
+  cmd_ = ThreadCtl::kExit;
   trace_fd_.reset();
   pthread_kill(worker_thread_.native_handle(), SIGPIPE);
   worker_thread_.join();
@@ -194,7 +194,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
                                 int trace_fd,
                                 int staging_write_fd,
                                 const std::function<void()>& on_data_available,
-                                std::atomic<bool>* exiting) {
+                                std::atomic<ThreadCtl>* cmd_atomic) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // This thread is responsible for moving data from the trace pipe into the
@@ -221,14 +221,19 @@ void CpuReader::RunWorkerThread(size_t cpu,
       // The kernel ftrace code has its own splice() implementation that can
       // occasionally fail with transient errors not reported in man 2 splice.
       // Just try again if we see these.
-      if (errno == ENOMEM || errno == EBUSY || (errno == EINTR && !*exiting)) {
+      ThreadCtl cmd = *cmd_atomic;
+      if (errno == ENOMEM || errno == EBUSY ||
+          (errno == EINTR && cmd == ThreadCtl::kRun)) {
         PERFETTO_DPLOG("Transient splice failure -- retrying");
         usleep(100 * 1000);
         continue;
       }
-      PERFETTO_DPLOG("Stopping CPUReader loop for CPU %zd.", cpu);
-      PERFETTO_DCHECK(errno == EPIPE || errno == EINTR || errno == EBADF);
-      break;  // ~CpuReader is waiting to join this thread.
+      if (cmd == ThreadCtl::kExit) {
+        PERFETTO_DPLOG("Stopping CPUReader loop for CPU %zd.", cpu);
+        PERFETTO_DCHECK(errno == EPIPE || errno == EINTR || errno == EBADF);
+        break;  // ~CpuReader is waiting to join this thread.
+      }
+      PERFETTO_FATAL("Unexpected ThreadCtl value: %d", int(cmd));
     }
 
     // Then do as many non-blocking splices as we can. This moves any full
@@ -257,7 +262,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
   base::ignore_result(trace_fd);
   base::ignore_result(staging_write_fd);
   base::ignore_result(on_data_available);
-  base::ignore_result(exiting);
+  base::ignore_result(cmd_atomic);
   PERFETTO_ELOG("Supported only on Linux/Android");
 #endif
 }
