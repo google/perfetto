@@ -12,72 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
-
 import {TrackState} from '../common/state';
 
-import {Milliseconds, TimeScale} from './time_scale';
-import {TrackImpl} from './track_impl';
-import {trackRegistry} from './track_registry';
-import {TrackShell} from './track_shell';
+import {TimeScale} from './time_scale';
 import {VirtualCanvasContext} from './virtual_canvas_context';
 
-export const Track = {
-  oninit({attrs}) {
-    // TODO: Since ES6 modules are asynchronous and it is conceivable that we
-    // want to load a track implementation on demand, we should not rely here on
-    // the fact that the track is already registered. We should show some
-    // default content until a track implementation is found.
-    const trackCreator = trackRegistry.getCreator(attrs.trackState.type);
-    this.trackImpl = trackCreator.create(attrs.trackState);
-  },
+/**
+ * This interface forces track implementations to have two static properties:
+ * type and a create function.
+ *
+ * Typescript does not have abstract static members, which is why this needs to
+ * be in a seperate interface. We need the |create| method because the stored
+ * value in the registry is an abstract class, and we cannot call 'new'
+ * on an abstract class.
+ */
+export interface TrackCreator {
+  // Store the type explicitly as a string as opposed to using class.name in
+  // case we ever minify our code.
+  readonly type: string;
 
-  view({attrs}) {
-    const sliceStart: Milliseconds = 100000;
-    const sliceEnd: Milliseconds = 400000;
+  create(TrackState: TrackState): Track;
+}
 
-    const rectStart = attrs.timeScale.msToPx(sliceStart);
-    const rectWidth = attrs.timeScale.msToPx(sliceEnd) - rectStart;
-
-    return m(
-        '.track',
-        {
-          style: {
-            position: 'absolute',
-            top: attrs.top.toString() + 'px',
-            left: 0,
-            width: '100%',
-            height: `${attrs.trackState.height}px`,
-          }
-        },
-        m(TrackShell,
-          {name: attrs.trackState.name},
-          // TODO(dproy): Move out DOM Content from the track class.
-          m('.marker',
-            {
-              style: {
-                'font-size': '1.5em',
-                position: 'absolute',
-                left: rectStart.toString() + 'px',
-                width: rectWidth.toString() + 'px',
-                background: '#aca'
-              }
-            },
-            attrs.trackState.name + ' DOM Content')));
-  },
-
-  onupdate({attrs}) {
-    // TODO(dproy): Figure out how track implementations should render DOM.
-    if (attrs.trackContext.isOnCanvas()) {
-      this.trackImpl.draw(attrs.trackContext, attrs.width, attrs.timeScale);
-    }
-  }
-} as m.Component<{
-  trackContext: VirtualCanvasContext,
-  top: number,
-  width: number,
-  timeScale: TimeScale,
-  trackState: TrackState,
-},
-                     // TODO(dproy): Fix formatter. This is ridiculous.
-                     {trackImpl: TrackImpl}>;
+/**
+ * The abstract class that needs to be implemented by all tracks.
+ */
+export abstract class Track {
+  constructor(protected trackState: TrackState) {}
+  abstract renderCanvas(
+      vCtx: VirtualCanvasContext, width: number, timeScale: TimeScale): void;
+}

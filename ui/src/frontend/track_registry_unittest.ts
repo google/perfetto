@@ -16,18 +16,18 @@
 import {TrackState} from '../common/state';
 import {dingus} from '../test/dingus';
 
-import {TrackCreator, TrackImpl} from './track_impl';
+import {Track, TrackCreator} from './track';
 import {trackRegistry} from './track_registry';
 
 // Cannot use dingus on an abstract class.
-class MockTrackImpl extends TrackImpl {
-  draw() {}
+class MockTrack extends Track {
+  renderCanvas() {}
 }
 
 function mockTrackCreator(type: string): TrackCreator {
   return {
     type,
-    create: () => new MockTrackImpl(dingus<TrackState>()),
+    create: () => new MockTrack(dingus<TrackState>()),
   };
 }
 
