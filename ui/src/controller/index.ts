@@ -35,7 +35,7 @@ class Controller {
     return this.state;
   }
 
-  doAction(action: Action): void {
+  dispatch(action: Action): void {
     this.state = rootReducer(this.state, action);
     this.frontend.updateState(this.state);
   }
