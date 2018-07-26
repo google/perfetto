@@ -38,12 +38,11 @@ source_set("probes_src") {
     "../../tracing:ipc",
     "../../tracing:tracing",
     "filesystem",
+    "ps",
   ]
   sources = [
     "probes_producer.cc",
     "probes_producer.h",
-    "process_stats_data_source.cc",
-    "process_stats_data_source.h",
   ]
 }
 
@@ -54,8 +53,7 @@ source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_deps",
     "../../tracing:test_support",
-  ]
-  sources = [
-    "process_stats_data_source_unittest.cc",
+    "filesystem:unittests",
+    "ps:unittests",
   ]
 }
