@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/process_stats_data_source.h"
+#include "src/traced/probes/ps/process_stats_data_source.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/trace/trace_packet.pb.h"

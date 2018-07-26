@@ -14,20 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACED_PROBES_PROCESS_STATS_DATA_SOURCE_H_
-#define SRC_TRACED_PROBES_PROCESS_STATS_DATA_SOURCE_H_
+#ifndef SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
+#define SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
 
 #include <memory>
 #include <set>
 #include <vector>
 
 #include "perfetto/base/weak_ptr.h"
-#include "perfetto/trace/ps/process_tree.pbzero.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_writer.h"
 
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class ProcessTree;
+}  // namespace pbzero
+}  // namespace protos
 
 class ProcessStatsDataSource {
  public:
@@ -77,4 +82,4 @@ class ProcessStatsDataSource {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACED_PROBES_PROCESS_STATS_DATA_SOURCE_H_
+#endif  // SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_

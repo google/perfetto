@@ -19,7 +19,6 @@
 
 #include <unistd.h>
 
-#include <sys/stat.h>
 #include <bitset>
 #include <condition_variable>
 #include <map>
@@ -35,7 +34,7 @@
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/traced/data_source_types.h"
-#include "src/traced/probes/ftrace/ftrace_config.h"
+#include "src/traced/probes/ftrace/ftrace_sink.h"
 
 namespace perfetto {
 
@@ -46,9 +45,6 @@ class FtraceStats;
 class FtraceCpuStats;
 }  // namespace pbzero
 }  // namespace protos
-
-using BlockDeviceID = decltype(stat::st_dev);
-using Inode = decltype(stat::st_ino);
 
 struct FtraceCpuStats {
   uint64_t cpu;
@@ -70,28 +66,6 @@ struct FtraceStats {
   void Write(protos::pbzero::FtraceStats*) const;
 };
 
-struct FtraceMetadata {
-  FtraceMetadata();
-
-  uint32_t overwrite_count;
-  BlockDeviceID last_seen_device_id = 0;
-#if PERFETTO_DCHECK_IS_ON()
-  bool seen_device_id = false;
-#endif
-  int32_t last_seen_common_pid = 0;
-
-  // A vector not a set to keep the writer_fast.
-  std::vector<std::pair<Inode, BlockDeviceID>> inode_and_device;
-  std::vector<int32_t> pids;
-
-  void AddDevice(BlockDeviceID);
-  void AddInode(Inode);
-  void AddPid(int32_t);
-  void AddCommonPid(int32_t);
-  void Clear();
-  void FinishEvent();
-};
-
 constexpr size_t kMaxSinks = 32;
 constexpr size_t kMaxCpus = 64;
 
@@ -100,67 +74,11 @@ void HardResetFtraceState();
 
 class CpuReader;
 class EventFilter;
+class FtraceConfig;
 class FtraceController;
 class FtraceConfigMuxer;
 class FtraceProcfs;
 class ProtoTranslationTable;
-
-// To consume ftrace data clients implement a |FtraceSink::Delegate| and use it
-// to create a |FtraceSink|. While the FtraceSink lives FtraceController will
-// call |GetBundleForCpu|, write data into the bundle then call
-// |OnBundleComplete| allowing the client to perform finalization.
-class FtraceSink {
- public:
-  using FtraceEventBundle = protos::pbzero::FtraceEventBundle;
-  class Delegate {
-   public:
-    virtual void OnCreate(FtraceSink*) {}
-    virtual protozero::MessageHandle<FtraceEventBundle> GetBundleForCpu(
-        size_t) = 0;
-    virtual void OnBundleComplete(size_t,
-                                  protozero::MessageHandle<FtraceEventBundle>,
-                                  const FtraceMetadata&) = 0;
-    virtual ~Delegate();
-  };
-
-  FtraceSink(base::WeakPtr<FtraceController>,
-             FtraceConfigId id,
-             FtraceConfig config,
-             std::unique_ptr<EventFilter>,
-             Delegate*);
-  ~FtraceSink();
-
-  void DumpFtraceStats(FtraceStats*);
-
-  const FtraceConfig& config() const { return config_; }
-
- private:
-  friend FtraceController;
-
-  FtraceSink(const FtraceSink&) = delete;
-  FtraceSink& operator=(const FtraceSink&) = delete;
-
-  EventFilter* event_filter() { return filter_.get(); }
-  FtraceMetadata* metadata_mutable() { return &metadata_; }
-
-  protozero::MessageHandle<FtraceEventBundle> GetBundleForCpu(size_t cpu) {
-    return delegate_->GetBundleForCpu(cpu);
-  }
-  void OnBundleComplete(size_t cpu,
-                        protozero::MessageHandle<FtraceEventBundle> bundle) {
-    delegate_->OnBundleComplete(cpu, std::move(bundle), metadata_);
-    metadata_.Clear();
-  }
-
-  const std::set<std::string>& enabled_events();
-
-  base::WeakPtr<FtraceController> controller_weak_;
-  const FtraceConfigId id_;
-  const FtraceConfig config_;
-  std::unique_ptr<EventFilter> filter_;
-  FtraceMetadata metadata_;
-  FtraceSink::Delegate* delegate_;
-};
 
 // Utility class for controlling ftrace.
 class FtraceController {
@@ -230,7 +148,7 @@ class FtraceController {
   size_t generation_ = 0;
   bool atrace_running_ = false;
   base::TaskRunner* task_runner_ = nullptr;
-  std::map<size_t, std::unique_ptr<CpuReader>> readers_;
+  std::map<size_t, std::unique_ptr<CpuReader>> cpu_readers_;
   std::set<FtraceSink*> sinks_;
   base::WeakPtrFactory<FtraceController> weak_factory_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
