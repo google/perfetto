@@ -29,21 +29,39 @@ class CpuSliceTrack extends Track {
     super(trackState);
   }
 
-  renderCanvas(vCtx: VirtualCanvasContext, width: number, timeScale: TimeScale):
-      void {
+  renderCanvas(
+      vCtx: VirtualCanvasContext, width: number, timeScale: TimeScale,
+      visibleWindowMs: {start: number, end: number}): void {
     const sliceStart: Milliseconds = 100000;
     const sliceEnd: Milliseconds = 400000;
 
     const rectStart = timeScale.msToPx(sliceStart);
     const rectWidth = timeScale.msToPx(sliceEnd) - rectStart;
-    const shownStart = rectStart > width ? width : rectStart;
-    const shownWidth =
-        rectWidth + (rectStart as number) > width ? width : rectWidth;
+
+    let shownStart = rectStart as number;
+    let shownWidth = rectWidth;
+
+    if (shownStart < 0) {
+      shownWidth += shownStart;
+      shownStart = 0;
+    }
+    if (shownStart > width) {
+      shownStart = width;
+      shownWidth = 0;
+    }
+    if (shownStart + shownWidth > width) {
+      shownWidth = width - shownStart;
+    }
 
     vCtx.fillStyle = '#ccc';
     vCtx.fillRect(0, 0, width, 73);
 
-    GridlineHelper.drawGridLines(vCtx, timeScale, [0, 1000000], width, 73);
+    GridlineHelper.drawGridLines(
+        vCtx,
+        timeScale,
+        [visibleWindowMs.start, visibleWindowMs.end],
+        width,
+        73);
 
     vCtx.fillStyle = '#c00';
     vCtx.fillRect(shownStart, 40, shownWidth, 30);

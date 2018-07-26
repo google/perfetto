@@ -71,6 +71,7 @@ export const ScrollingTrackDisplay = {
         width: this.width,
         timeScale: attrs.timeScale,
         trackState,
+        visibleWindowMs: attrs.visibleWindowMs,
       }));
       trackYOffset += trackState.height;
     }
@@ -101,9 +102,13 @@ export const ScrollingTrackDisplay = {
           }),
           ...childTracks));
   },
-} as m.Component<{timeScale: TimeScale}, {
-  canvasController: CanvasController,
-  width: number,
-  height: number,
-  onResize: () => void
-}>;
+} as m.Component<{
+  timeScale: TimeScale,
+  visibleWindowMs: {start: number, end: number},
+},
+                                     {
+                                       canvasController: CanvasController,
+                                       width: number,
+                                       height: number,
+                                       onResize: () => void,
+                                     }>;
