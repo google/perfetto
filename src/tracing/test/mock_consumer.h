@@ -50,7 +50,7 @@ class MockConsumer : public Consumer {
   void EnableTracing(const TraceConfig&, base::ScopedFile = base::ScopedFile());
   void DisableTracing();
   void FreeBuffers();
-  void WaitForTracingDisabled();
+  void WaitForTracingDisabled(uint32_t timeout_ms = 3000);
   FlushRequest Flush(uint32_t timeout_ms = 10000);
   std::vector<protos::TracePacket> ReadBuffers();
 
