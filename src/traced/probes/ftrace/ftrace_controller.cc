@@ -35,6 +35,7 @@
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"
+#include "src/traced/probes/ftrace/ftrace_config.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
@@ -152,45 +153,48 @@ uint64_t FtraceController::NowMs() const {
 void FtraceController::DrainCPUs(base::WeakPtr<FtraceController> weak_this,
                                  size_t generation) {
   // The controller might be gone.
-  if (!weak_this)
+  FtraceController* ctrl = weak_this.get();
+  if (!ctrl)
     return;
+
   // We might have stopped tracing then quickly re-enabled it, in this case
   // we don't want to end up with two periodic tasks for each CPU:
-  if (weak_this->generation_ != generation)
+  if (ctrl->generation_ != generation)
     return;
 
-  PERFETTO_DCHECK_THREAD(weak_this->thread_checker_);
+  PERFETTO_DCHECK_THREAD(ctrl->thread_checker_);
   std::bitset<kMaxCpus> cpus_to_drain;
   {
-    std::unique_lock<std::mutex> lock(weak_this->lock_);
+    std::unique_lock<std::mutex> lock(ctrl->lock_);
     // We might have stopped caring about events.
-    if (!weak_this->listening_for_raw_trace_data_)
+    if (!ctrl->listening_for_raw_trace_data_)
       return;
-    std::swap(cpus_to_drain, weak_this->cpus_to_drain_);
+    std::swap(cpus_to_drain, ctrl->cpus_to_drain_);
   }
 
-  for (size_t cpu = 0; cpu < weak_this->ftrace_procfs_->NumberOfCpus(); cpu++) {
+  for (size_t cpu = 0; cpu < ctrl->ftrace_procfs_->NumberOfCpus(); cpu++) {
     if (!cpus_to_drain[cpu])
       continue;
-    weak_this->OnRawFtraceDataAvailable(cpu);
+    ctrl->OnRawFtraceDataAvailable(cpu);
   }
 
   // If we filled up any SHM pages while draining the data, we will have posted
   // a task to notify traced about this. Only unblock the readers after this
   // notification is sent to make it less likely that they steal CPU time away
   // from traced.
-  weak_this->task_runner_->PostTask(
+  ctrl->task_runner_->PostTask(
       std::bind(&FtraceController::UnblockReaders, weak_this));
 }
 
 // static
 void FtraceController::UnblockReaders(
     const base::WeakPtr<FtraceController>& weak_this) {
-  if (!weak_this)
+  FtraceController* ctrl = weak_this.get();
+  if (!ctrl)
     return;
   // Unblock all waiting readers to start moving more data into their
   // respective staging pipes.
-  weak_this->data_drained_.notify_all();
+  ctrl->data_drained_.notify_all();
 }
 
 void FtraceController::StartIfNeeded() {
@@ -205,7 +209,7 @@ void FtraceController::StartIfNeeded() {
   generation_++;
   base::WeakPtr<FtraceController> weak_this = weak_factory_.GetWeakPtr();
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
-    readers_.emplace(
+    cpu_readers_.emplace(
         cpu, std::unique_ptr<CpuReader>(new CpuReader(
                  table_.get(), cpu, ftrace_procfs_->OpenPipeForCpu(cpu),
                  std::bind(&FtraceController::OnDataAvailable, this, weak_this,
@@ -246,12 +250,12 @@ void FtraceController::StopIfNeeded() {
     cpus_to_drain_.reset();
   }
   data_drained_.notify_all();
-  readers_.clear();
+  cpu_readers_.clear();
 }
 
 void FtraceController::OnRawFtraceDataAvailable(size_t cpu) {
   PERFETTO_CHECK(cpu < ftrace_procfs_->NumberOfCpus());
-  CpuReader* reader = readers_[cpu].get();
+  CpuReader* reader = cpu_readers_[cpu].get();
   using BundleHandle =
       protozero::MessageHandle<protos::pbzero::FtraceEventBundle>;
   std::array<const EventFilter*, kMaxSinks> filters{};
@@ -346,31 +350,6 @@ void FtraceController::DumpFtraceStats(FtraceStats* stats) {
   DumpAllCpuStats(ftrace_procfs_.get(), stats);
 }
 
-FtraceSink::FtraceSink(base::WeakPtr<FtraceController> controller_weak,
-                       FtraceConfigId id,
-                       FtraceConfig config,
-                       std::unique_ptr<EventFilter> filter,
-                       Delegate* delegate)
-    : controller_weak_(std::move(controller_weak)),
-      id_(id),
-      config_(std::move(config)),
-      filter_(std::move(filter)),
-      delegate_(delegate){};
-
-FtraceSink::~FtraceSink() {
-  if (controller_weak_)
-    controller_weak_->Unregister(this);
-};
-
-const std::set<std::string>& FtraceSink::enabled_events() {
-  return filter_->enabled_names();
-}
-
-void FtraceSink::DumpFtraceStats(FtraceStats* stats) {
-  if (controller_weak_)
-    controller_weak_->DumpFtraceStats(stats);
-}
-
 void FtraceStats::Write(protos::pbzero::FtraceStats* writer) const {
   for (const FtraceCpuStats& cpu_specific_stats : cpu_stats) {
     cpu_specific_stats.Write(writer->add_cpu_stats());
@@ -388,64 +367,5 @@ void FtraceCpuStats::Write(protos::pbzero::FtraceCpuStats* writer) const {
   writer->set_dropped_events(dropped_events);
   writer->set_read_events(read_events);
 }
-
-FtraceMetadata::FtraceMetadata() {
-  // A lot of the time there will only be a small number of inodes.
-  inode_and_device.reserve(10);
-  pids.reserve(10);
-}
-
-void FtraceMetadata::AddDevice(BlockDeviceID device_id) {
-  last_seen_device_id = device_id;
-#if PERFETTO_DCHECK_IS_ON()
-  seen_device_id = true;
-#endif
-}
-
-void FtraceMetadata::AddInode(Inode inode_number) {
-#if PERFETTO_DCHECK_IS_ON()
-  PERFETTO_DCHECK(seen_device_id);
-#endif
-  static int32_t cached_pid = 0;
-  if (!cached_pid)
-    cached_pid = getpid();
-
-  PERFETTO_DCHECK(last_seen_common_pid);
-  PERFETTO_DCHECK(cached_pid == getpid());
-  // Ignore own scanning activity.
-  if (cached_pid != last_seen_common_pid) {
-    inode_and_device.push_back(
-        std::make_pair(inode_number, last_seen_device_id));
-  }
-}
-
-void FtraceMetadata::AddCommonPid(int32_t pid) {
-  last_seen_common_pid = pid;
-}
-
-void FtraceMetadata::AddPid(int32_t pid) {
-  // Speculative optimization aginst repated pid's while keeping
-  // faster insertion than a set.
-  if (!pids.empty() && pids.back() == pid)
-    return;
-  pids.push_back(pid);
-}
-
-void FtraceMetadata::FinishEvent() {
-  last_seen_device_id = 0;
-#if PERFETTO_DCHECK_IS_ON()
-  seen_device_id = false;
-#endif
-  last_seen_common_pid = 0;
-}
-
-void FtraceMetadata::Clear() {
-  inode_and_device.clear();
-  pids.clear();
-  overwrite_count = 0;
-  FinishEvent();
-}
-
-FtraceSink::Delegate::~Delegate() = default;
 
 }  // namespace perfetto

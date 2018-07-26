@@ -200,11 +200,12 @@ class CpuReader {
                          FtraceMetadata* metadata);
 
  private:
+  enum ThreadCtl : uint32_t { kRun = 0, kExit };
   static void RunWorkerThread(size_t cpu,
                               int trace_fd,
                               int staging_write_fd,
                               const std::function<void()>& on_data_available,
-                              std::atomic<bool>* exiting);
+                              std::atomic<ThreadCtl>* cmd_atomic);
 
   uint8_t* GetBuffer();
   CpuReader(const CpuReader&) = delete;
@@ -217,7 +218,7 @@ class CpuReader {
   base::ScopedFile staging_write_fd_;
   base::PageAllocator::UniquePtr buffer_;
   std::thread worker_thread_;
-  std::atomic<bool> exiting_{false};
+  std::atomic<ThreadCtl> cmd_{kRun};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 

@@ -28,7 +28,7 @@
 #include "perfetto/tracing/core/tracing_service.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
-#include "src/traced/probes/process_stats_data_source.h"
+#include "src/traced/probes/ps/process_stats_data_source.h"
 
 #include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
 
