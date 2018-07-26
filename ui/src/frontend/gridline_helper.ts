@@ -29,7 +29,7 @@ export abstract class GridlineHelper {
     for (let t: Milliseconds = start; t < timeBounds[1]; t += step) {
       const xPos = Math.floor(x.msToPx(t)) + 0.5;
 
-      if (xPos <= width) {
+      if (xPos >= 0 && xPos <= width) {
         ctx.beginPath();
         ctx.moveTo(xPos, 0);
         ctx.lineTo(xPos, height);
