@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackCreator} from './track_impl';
+import {TrackCreator} from './track';
 
 class TrackRegistry {
   private registry: Map<string, TrackCreator>;
