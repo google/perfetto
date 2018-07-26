@@ -18,6 +18,7 @@ import * as m from 'mithril';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {ScrollingTrackDisplay} from './scrolling_track_display';
+import {TimeAxis} from './time_axis';
 import {TimeScale} from './time_scale';
 
 /**
@@ -84,10 +85,24 @@ const TraceViewer = {
     this.zoomContent.shutdown();
   },
   view() {
-    return m(ScrollingTrackDisplay, {
-      timeScale: this.timeScale,
-      visibleWindowMs: this.visibleWindowMs,
-    });
+    return m(
+        '.frontend-content',
+        {
+          style: {
+            width: '100%',
+            height: '100%',
+          },
+        },
+        m(TimeAxis, {
+          timeScale: this.timeScale,
+          contentOffset: 200,
+          visibleWindowMs: this.visibleWindowMs,
+          width: this.width,
+        }),
+        m(ScrollingTrackDisplay, {
+          timeScale: this.timeScale,
+          visibleWindowMs: this.visibleWindowMs,
+        }));
   },
 } as m.Component<{}, {
   visibleWindowMs: {start: number, end: number},
