@@ -63,6 +63,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void RegisterDataSource(const DataSourceDescriptor&) override;
   void UnregisterDataSource(const std::string& name) override;
   void CommitData(const CommitDataRequest&, CommitDataCallback) override;
+  void NotifyDataSourceStopped(DataSourceInstanceID) override;
+
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) override;
   void NotifyFlushComplete(FlushRequestID) override;
