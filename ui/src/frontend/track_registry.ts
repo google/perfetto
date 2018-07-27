@@ -12,38 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Registry} from '../common/registry';
 import {TrackCreator} from './track';
 
-class TrackRegistry {
-  private registry: Map<string, TrackCreator>;
-
-  constructor() {
-    this.registry = new Map<string, TrackCreator>();
-  }
-
-  register(creator: TrackCreator) {
-    const trackType = creator.type;
-    if (this.registry.has(trackType)) {
-      throw new Error(`TrackType ${trackType} already exists in the registry`);
-    }
-    this.registry.set(trackType, creator);
-  }
-
-  getCreator(trackType: string): TrackCreator {
-    const creator = this.registry.get(trackType);
-    if (creator === undefined) {
-      throw new Error(`No creator for ${trackType} has been registered yet.`);
-    }
-    return creator;
-  }
-
-  unregisterAllTracksForTesting(): void {
-    this.registry.clear();
-  }
-}
-
 /**
- * Global registry that maps types to TrackCreator. Throws error on name
- * collision.
+ * Global registry that maps types to TrackCreator.
  */
-export const trackRegistry = new TrackRegistry();
+export const trackRegistry = new Registry<TrackCreator>();
