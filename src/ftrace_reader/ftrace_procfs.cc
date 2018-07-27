@@ -170,6 +170,8 @@ std::set<std::string> FtraceProcfs::AvailableClocks() {
     end = s.find(' ', start);
     if (end == std::string::npos)
       end = s.size();
+    while (end > start && s[end - 1] == '\n')
+      end--;
     if (start == end)
       break;
 
