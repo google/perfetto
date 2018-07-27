@@ -15,7 +15,7 @@
 
 import * as m from 'mithril';
 
-import {GridlineHelper} from './gridline_helper';
+import {DESIRED_PX_PER_STEP, getGridStepSize} from './gridline_helper';
 import {Milliseconds, TimeScale} from './time_scale';
 
 /**
@@ -24,7 +24,8 @@ import {Milliseconds, TimeScale} from './time_scale';
 export const TimeAxis = {
   view({attrs}) {
     const range = attrs.visibleWindowMs.end - attrs.visibleWindowMs.start;
-    const step = GridlineHelper.getStepSize(range);
+    const desiredSteps = attrs.width / DESIRED_PX_PER_STEP;
+    const step = getGridStepSize(range, desiredSteps);
 
     let unit = 'ns';
     let representationFactor = 1 / 1000;
