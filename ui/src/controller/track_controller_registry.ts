@@ -12,28 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Registry} from '../common/registry';
+
+import {TrackControllerCreator} from './track_controller';
+
 /**
- * A plain js object, holding objects of type |Class| keyed by string id.
- * We use this instead of using |Map| object since it is simpler and faster to
- * serialize for use in postMessage.
+ * Global registry that maps names to TrackControllerCreator.
  */
-export interface ObjectById<Class extends{id: string}> { [id: string]: Class; }
-
-export interface State {
-  i: number;
-  tracks: ObjectById<TrackState>;
-}
-
-export interface TrackState {
-  id: string;
-  type: string;
-  height: number;
-  kind: string;
-}
-
-export function createEmptyState(): State {
-  return {
-    i: 0,
-    tracks: {},
-  };
-}
+export const trackControllerRegistry = new Registry<TrackControllerCreator>();
