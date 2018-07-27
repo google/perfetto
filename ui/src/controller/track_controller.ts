@@ -13,27 +13,15 @@
 // limitations under the License.
 
 /**
- * A plain js object, holding objects of type |Class| keyed by string id.
- * We use this instead of using |Map| object since it is simpler and faster to
- * serialize for use in postMessage.
+ * This interface forces track implementations to have two static properties:
+ * kind and a create function.
  */
-export interface ObjectById<Class extends{id: string}> { [id: string]: Class; }
+export interface TrackControllerCreator {
+  // Store the kind explicitly as a string as opposed to using class.name in
+  // case we ever minify our code.
+  readonly kind: string;
 
-export interface State {
-  i: number;
-  tracks: ObjectById<TrackState>;
+  create(): TrackController;
 }
 
-export interface TrackState {
-  id: string;
-  type: string;
-  height: number;
-  kind: string;
-}
-
-export function createEmptyState(): State {
-  return {
-    i: 0,
-    tracks: {},
-  };
-}
+export abstract class TrackController {}

@@ -16,9 +16,10 @@ import {TrackState} from '../../common/state';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 import {VirtualCanvasContext} from '../../frontend/virtual_canvas_context';
+import {TRACK_KIND} from './common';
 
 class CpuCounterTrack extends Track {
-  static readonly type = 'CpuCounterTrack';
+  static readonly kind = TRACK_KIND;
   static create(trackState: TrackState): CpuCounterTrack {
     return new CpuCounterTrack(trackState);
   }
@@ -32,7 +33,7 @@ class CpuCounterTrack extends Track {
     vCtx.fillRect(0, 0, width, this.trackState.height);
     vCtx.font = '16px Arial';
     vCtx.fillStyle = '#000';
-    vCtx.fillText('Drawing ' + CpuCounterTrack.name, Math.round(width / 2), 20);
+    vCtx.fillText('Drawing ' + CpuCounterTrack.kind, Math.round(width / 2), 20);
   }
 }
 

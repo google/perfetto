@@ -61,7 +61,7 @@ function getDemoTracks(): ObjectById<TrackState> {
       id: i.toString(),
       type: trackType,
       height: 100,
-      name: `Track ${i}`,
+      kind: `Track ${i}`,
     };
   }
   return tracks;

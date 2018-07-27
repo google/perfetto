@@ -12,28 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/**
- * A plain js object, holding objects of type |Class| keyed by string id.
- * We use this instead of using |Map| object since it is simpler and faster to
- * serialize for use in postMessage.
- */
-export interface ObjectById<Class extends{id: string}> { [id: string]: Class; }
+import {TrackController} from '../../controller/track_controller';
+import {
+  trackControllerRegistry
+} from '../../controller/track_controller_registry';
+import {TRACK_KIND} from './common';
 
-export interface State {
-  i: number;
-  tracks: ObjectById<TrackState>;
+class CpuCounterTrackController extends TrackController {
+  static readonly kind = TRACK_KIND;
+  static create(): CpuCounterTrackController {
+    return new CpuCounterTrackController();
+  }
+
+  constructor() {
+    super();
+  }
 }
 
-export interface TrackState {
-  id: string;
-  type: string;
-  height: number;
-  kind: string;
-}
-
-export function createEmptyState(): State {
-  return {
-    i: 0,
-    tracks: {},
-  };
-}
+trackControllerRegistry.register(CpuCounterTrackController);
