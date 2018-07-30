@@ -44,7 +44,7 @@ export const TimeAxis = {
 
     for (let t: Milliseconds = start; t < attrs.visibleWindowMs.end;
          t += step) {
-      const xPos = Math.floor(attrs.timeScale.msToPx(t)) + 0.5;
+      const xPos = Math.floor(attrs.timeScale.msToPx(t));
 
       if (xPos >= 0 && xPos <= attrs.width - attrs.contentOffset) {
         const template =
