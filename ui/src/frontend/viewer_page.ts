@@ -15,6 +15,7 @@
 
 import * as m from 'mithril';
 
+import {OverviewTimeline} from './overview_timeline';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {ScrollingTrackDisplay} from './scrolling_track_display';
@@ -28,16 +29,18 @@ import {TimeScale} from './time_scale';
 const TraceViewer = {
   oninit() {
     this.width = 0;
-    this.visibleWindowMs = {start: 0, end: 1000000};
+    this.contentOffsetX = 200;
+    this.visibleWindowMs = {start: 1000000, end: 2000000};
+    this.maxVisibleWindowMs = {start: 0, end: 10000000};
     this.timeScale = new TimeScale(
         [this.visibleWindowMs.start, this.visibleWindowMs.end],
-        [0, this.width]);
+        [0, this.width - this.contentOffsetX]);
   },
   oncreate(vnode) {
     this.onResize = () => {
       const rect = vnode.dom.getBoundingClientRect();
       this.width = rect.width;
-      this.timeScale.setLimitsPx(0, this.width);
+      this.timeScale.setLimitsPx(0, this.width - this.contentOffsetX);
       m.redraw();
     };
 
@@ -47,11 +50,14 @@ const TraceViewer = {
     // Once ResizeObservers are out, we can stop accessing the window here.
     window.addEventListener('resize', this.onResize);
 
+    const panZoomEl =
+        vnode.dom.getElementsByClassName('page-content')[0] as HTMLElement;
+
     // TODO: ContentOffsetX should be defined somewhere central.
     // Currently it lives here, in canvas wrapper, and in track shell.
     this.zoomContent = new PanAndZoomHandler({
-      element: vnode.dom as HTMLElement,
-      contentOffsetX: 200,
+      element: panZoomEl,
+      contentOffsetX: this.contentOffsetX,
       onPanned: (pannedPx: number) => {
         const deltaMs = this.timeScale.deltaPxToDurationMs(pannedPx);
         this.visibleWindowMs.start += deltaMs;
@@ -85,6 +91,14 @@ const TraceViewer = {
     this.zoomContent.shutdown();
   },
   view() {
+    const onBrushedMs = (start: number, end: number) => {
+      this.visibleWindowMs.start = start;
+      this.visibleWindowMs.end = end;
+      this.timeScale.setLimitsMs(
+          this.visibleWindowMs.start, this.visibleWindowMs.end);
+      m.redraw();
+    };
+
     return m(
         '#page',
         {
@@ -93,23 +107,38 @@ const TraceViewer = {
             height: '100%',
           },
         },
-        m(TimeAxis, {
-          timeScale: this.timeScale,
-          contentOffset: 200,
+        m(OverviewTimeline, {
           visibleWindowMs: this.visibleWindowMs,
+          maxVisibleWindowMs: this.maxVisibleWindowMs,
           width: this.width,
+          onBrushedMs
         }),
-        m(ScrollingTrackDisplay, {
-          timeScale: this.timeScale,
-          visibleWindowMs: this.visibleWindowMs,
-        }));
+        m('.page-content',
+          {
+            style: {
+              width: '100%',
+              height: '100%',
+            }
+          },
+          m(TimeAxis, {
+            timeScale: this.timeScale,
+            contentOffset: 200,
+            visibleWindowMs: this.visibleWindowMs,
+            width: this.width,
+          }),
+          m(ScrollingTrackDisplay, {
+            timeScale: this.timeScale,
+            visibleWindowMs: this.visibleWindowMs,
+          })));
   },
 } as m.Component<{}, {
   visibleWindowMs: {start: number, end: number},
+  maxVisibleWindowMs: {start: number, end: number},
   onResize: () => void,
   timeScale: TimeScale,
   width: number,
   zoomContent: PanAndZoomHandler,
+  contentOffsetX: number,
 }>;
 
 export const ViewerPage = createPage({
