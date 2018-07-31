@@ -175,6 +175,91 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
   task_runner_.RunUntilCheckpoint("srv_disconnected");
 }
 
+constexpr char cli_str[] = "cli>srv";
+constexpr char srv_str[] = "srv>cli";
+
+TEST_F(UnixSocketTest, ClientAndServerExchangeFDs) {
+  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_);
+  ASSERT_TRUE(srv->is_listening());
+
+  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_);
+  EXPECT_CALL(event_listener_, OnConnect(cli.get(), true));
+  auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
+  auto srv_disconnected = task_runner_.CreateCheckpoint("srv_disconnected");
+  EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
+      .WillOnce(Invoke([this, cli_connected, srv_disconnected](
+                           UnixSocket*, UnixSocket* srv_conn) {
+        EXPECT_CALL(event_listener_, OnDisconnect(srv_conn))
+            .WillOnce(InvokeWithoutArgs(srv_disconnected));
+        cli_connected();
+      }));
+  task_runner_.RunUntilCheckpoint("cli_connected");
+
+  auto srv_conn = event_listener_.GetIncomingConnection();
+  ASSERT_TRUE(srv_conn);
+  ASSERT_TRUE(cli->is_connected());
+
+  base::ScopedFile null_fd(open("/dev/null", O_RDONLY));
+  base::ScopedFile zero_fd(open("/dev/zero", O_RDONLY));
+
+  auto cli_did_recv = task_runner_.CreateCheckpoint("cli_did_recv");
+  EXPECT_CALL(event_listener_, OnDataAvailable(cli.get()))
+      .WillRepeatedly(Invoke([cli_did_recv](UnixSocket* s) {
+        base::ScopedFile fd_buf[3];
+        char buf[sizeof(cli_str)];
+        if (!s->Receive(buf, sizeof(buf), fd_buf, base::ArraySize(fd_buf)))
+          return;
+        ASSERT_STREQ(srv_str, buf);
+        ASSERT_NE(*fd_buf[0], -1);
+        ASSERT_NE(*fd_buf[1], -1);
+        ASSERT_EQ(*fd_buf[2], -1);
+
+        char rd_buf[1];
+        // /dev/null
+        ASSERT_EQ(read(*fd_buf[0], rd_buf, sizeof(rd_buf)), 0);
+        // /dev/zero
+        ASSERT_EQ(read(*fd_buf[1], rd_buf, sizeof(rd_buf)), 1);
+        cli_did_recv();
+      }));
+
+  auto srv_did_recv = task_runner_.CreateCheckpoint("srv_did_recv");
+  EXPECT_CALL(event_listener_, OnDataAvailable(srv_conn.get()))
+      .WillRepeatedly(Invoke([srv_did_recv](UnixSocket* s) {
+        base::ScopedFile fd_buf[3];
+        char buf[sizeof(srv_str)];
+        if (!s->Receive(buf, sizeof(buf), fd_buf, base::ArraySize(fd_buf)))
+          return;
+        ASSERT_STREQ(cli_str, buf);
+        ASSERT_NE(*fd_buf[0], -1);
+        ASSERT_NE(*fd_buf[1], -1);
+        ASSERT_EQ(*fd_buf[2], -1);
+
+        char rd_buf[1];
+        // /dev/null
+        ASSERT_EQ(read(*fd_buf[0], rd_buf, sizeof(rd_buf)), 0);
+        // /dev/zero
+        ASSERT_EQ(read(*fd_buf[1], rd_buf, sizeof(rd_buf)), 1);
+        srv_did_recv();
+      }));
+
+  int buf_fd[2] = {null_fd.get(), zero_fd.get()};
+
+  ASSERT_TRUE(cli->Send(cli_str, sizeof(cli_str), buf_fd,
+                        base::ArraySize(buf_fd)));
+  ASSERT_TRUE(srv_conn->Send(srv_str, sizeof(srv_str), buf_fd,
+                             base::ArraySize(buf_fd)));
+  task_runner_.RunUntilCheckpoint("srv_did_recv");
+  task_runner_.RunUntilCheckpoint("cli_did_recv");
+
+  auto cli_disconnected = task_runner_.CreateCheckpoint("cli_disconnected");
+  EXPECT_CALL(event_listener_, OnDisconnect(cli.get()))
+      .WillOnce(InvokeWithoutArgs(cli_disconnected));
+  cli->Shutdown(true);
+  srv->Shutdown(true);
+  task_runner_.RunUntilCheckpoint("srv_disconnected");
+  task_runner_.RunUntilCheckpoint("cli_disconnected");
+}
+
 TEST_F(UnixSocketTest, ListenWithPassedFileDescriptor) {
   auto fd = UnixSocket::CreateAndBind(kSocketName);
   auto srv = UnixSocket::Listen(std::move(fd), &event_listener_, &task_runner_);
