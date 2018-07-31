@@ -86,7 +86,7 @@ const TraceViewer = {
   },
   view() {
     return m(
-        '.frontend-content',
+        '#page',
         {
           style: {
             width: '100%',
