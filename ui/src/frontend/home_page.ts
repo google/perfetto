@@ -40,7 +40,7 @@ export const HomePage = createPage({
   view() {
     const count = globals.state.i;
     return m(
-        '.home-page',
+        '#page.home-page',
         m('.home-page-title', 'Perfetto'),
         m('.home-page-controls',
           m('label.file-input',

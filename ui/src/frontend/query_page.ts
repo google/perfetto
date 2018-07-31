@@ -158,6 +158,7 @@ function createQueryResponse(entry: QueryResponse) {
 
 export const QueryPage = createPage({
   view() {
-    return m('.query-page', m(QueryBox), responses.map(createQueryResponse));
+    return m(
+        '#page.query-page', m(QueryBox), responses.map(createQueryResponse));
   }
 });
