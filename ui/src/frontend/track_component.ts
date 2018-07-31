@@ -32,8 +32,8 @@ export const TrackComponent = {
   },
 
   view({attrs}) {
-    const sliceStart: Milliseconds = 100000;
-    const sliceEnd: Milliseconds = 400000;
+    const sliceStart: Milliseconds = 1100000;
+    const sliceEnd: Milliseconds = 1400000;
 
     const rectStart = attrs.timeScale.msToPx(sliceStart);
     const rectWidth = attrs.timeScale.msToPx(sliceEnd) - rectStart;
@@ -58,6 +58,8 @@ export const TrackComponent = {
               width: '200px',
               'border-right': '1px solid #666',
               height: '100%',
+              'z-index': '100',
+              position: 'relative',
             }
           },
           m('h1',
