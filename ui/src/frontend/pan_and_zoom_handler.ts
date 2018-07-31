@@ -153,7 +153,7 @@ export class PanAndZoomHandler {
       clearTimeout(tapCancelTimeout);
     };
     this.boundOnZoomKeyUp = e => {
-      if (ZOOM_KEYS.includes(e.key)) {
+      if (!ZOOM_KEYS.includes(e.key)) {
         return;
       }
       const cancellingZoomIn = ZOOM_IN_KEYS.includes(e.key);
