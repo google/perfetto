@@ -78,6 +78,9 @@ class PERFETTO_EXPORT DataSourceConfig {
   uint32_t trace_duration_ms() const { return trace_duration_ms_; }
   void set_trace_duration_ms(uint32_t value) { trace_duration_ms_ = value; }
 
+  uint64_t tracing_session_id() const { return tracing_session_id_; }
+  void set_tracing_session_id(uint64_t value) { tracing_session_id_ = value; }
+
   const FtraceConfig& ftrace_config() const { return ftrace_config_; }
   FtraceConfig* mutable_ftrace_config() { return &ftrace_config_; }
 
@@ -106,6 +109,7 @@ class PERFETTO_EXPORT DataSourceConfig {
   std::string name_ = {};
   uint32_t target_buffer_ = {};
   uint32_t trace_duration_ms_ = {};
+  uint64_t tracing_session_id_ = {};
   FtraceConfig ftrace_config_ = {};
   ChromeConfig chrome_config_ = {};
   InodeFileConfig inode_file_config_ = {};

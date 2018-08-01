@@ -119,11 +119,8 @@ void ProbesProducer::Restart() {
 void ProbesProducer::CreateDataSourceInstance(DataSourceInstanceID instance_id,
                                               const DataSourceConfig& config) {
   PERFETTO_DCHECK(data_sources_.count(instance_id) == 0);
-
-  // TODO(hjd): This a hack since we don't actually know the session id. For
-  // now we'll assume anything wit hthe same target buffer is in the same
-  // session.
-  TracingSessionID session_id = config.target_buffer();
+  TracingSessionID session_id = config.tracing_session_id();
+  PERFETTO_CHECK(session_id > 0);
 
   std::unique_ptr<ProbesDataSource> data_source;
   if (config.name() == kFtraceSourceName) {
