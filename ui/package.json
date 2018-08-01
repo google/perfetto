@@ -27,6 +27,6 @@
     "sorcery": "^0.10.0",
     "tslib": "^1.9.3",
     "tslint": "^5.10.0",
-    "typescript": "^2.8.4"
+    "typescript": "^3.0.1"
   }
 }
