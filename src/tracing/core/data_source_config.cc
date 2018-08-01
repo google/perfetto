@@ -58,6 +58,12 @@ void DataSourceConfig::FromProto(
   trace_duration_ms_ =
       static_cast<decltype(trace_duration_ms_)>(proto.trace_duration_ms());
 
+  static_assert(
+      sizeof(tracing_session_id_) == sizeof(proto.tracing_session_id()),
+      "size mismatch");
+  tracing_session_id_ =
+      static_cast<decltype(tracing_session_id_)>(proto.tracing_session_id());
+
   ftrace_config_.FromProto(proto.ftrace_config());
 
   chrome_config_.FromProto(proto.chrome_config());
@@ -91,6 +97,12 @@ void DataSourceConfig::ToProto(
       "size mismatch");
   proto->set_trace_duration_ms(
       static_cast<decltype(proto->trace_duration_ms())>(trace_duration_ms_));
+
+  static_assert(
+      sizeof(tracing_session_id_) == sizeof(proto->tracing_session_id()),
+      "size mismatch");
+  proto->set_tracing_session_id(
+      static_cast<decltype(proto->tracing_session_id())>(tracing_session_id_));
 
   ftrace_config_.ToProto(proto->mutable_ftrace_config());
 
