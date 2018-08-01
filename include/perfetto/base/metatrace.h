@@ -17,9 +17,7 @@
 #ifndef INCLUDE_PERFETTO_BASE_METATRACE_H_
 #define INCLUDE_PERFETTO_BASE_METATRACE_H_
 
-#include <string>
-#include <tuple>
-#include <vector>
+#include <string.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
@@ -27,46 +25,28 @@
 namespace perfetto {
 namespace base {
 
-template <typename T>
-std::string FormatJSON(T value) {
-  return std::to_string(value);
-}
-template <>
-std::string FormatJSON<std::string>(std::string value);
-template <>
-std::string FormatJSON<const char*>(const char* value);
-
-int MaybeOpenTraceFile();
-
 class MetaTrace {
  public:
-  template <typename... Ts>
-  MetaTrace(Ts... args) {
-    AddElements(args...);
-    WriteEvent("B");
+  MetaTrace(const char* evt_name, size_t cpu) : evt_name_(evt_name), cpu_(cpu) {
+    WriteEvent('B', evt_name, cpu);
   }
 
-  template <typename T, typename... Ts>
-  void AddElements(const char* name, T arg, Ts... args) {
-    trace_.emplace_back(FormatJSON(name), FormatJSON(std::move(arg)));
-    AddElements(args...);
-  }
-
-  template <typename T>
-  void AddElements(const char* name, T arg) {
-    trace_.emplace_back(FormatJSON(name), FormatJSON(std::move(arg)));
-  }
-
-  ~MetaTrace() { WriteEvent("E"); }
+  ~MetaTrace() { WriteEvent('E', evt_name_, cpu_); }
 
  private:
-  void WriteEvent(std::string type);
+  MetaTrace(const MetaTrace&) = delete;
+  MetaTrace& operator=(const MetaTrace&) = delete;
 
-  std::vector<std::pair<std::string, std::string>> trace_;
+  void WriteEvent(char type, const char* evt_name, size_t cpu);
+
+  const char* const evt_name_;
+  const size_t cpu_;
 };
 
 #if PERFETTO_DCHECK_IS_ON() && !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-#define PERFETTO_METATRACE(...) ::perfetto::base::MetaTrace(__VA_ARGS__)
+
+#define PERFETTO_METATRACE(...) \
+  ::perfetto::base::MetaTrace metatrace_##__COUNTER__(__VA_ARGS__)
 #else
 #define PERFETTO_METATRACE(...) ::perfetto::base::ignore_result(__VA_ARGS__)
 #endif
