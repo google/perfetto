@@ -31,6 +31,7 @@ source_set("probes_src") {
     "ftrace",
   ]
   deps = [
+    ":data_source",
     "../../../gn:default_deps",
     "../../../include/perfetto/traced",
     "../../../protos/perfetto/trace/ps:zero",
@@ -43,6 +44,19 @@ source_set("probes_src") {
   sources = [
     "probes_producer.cc",
     "probes_producer.h",
+  ]
+}
+
+# Base class for data sources in traced_probes.
+# Needs to be a separate target to avoid cyclical deps.
+source_set("data_source") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../tracing",
+  ]
+  sources = [
+    "probes_data_source.cc",
+    "probes_data_source.h",
   ]
 }
 

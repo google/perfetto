@@ -32,16 +32,16 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/base/utils.h"
+#include "perfetto/tracing/core/trace_writer.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"
-#include "src/traced/probes/ftrace/ftrace_config.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
+#include "src/traced/probes/ftrace/ftrace_data_source.h"
+#include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
-
-#include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 
 namespace perfetto {
 namespace {
@@ -108,7 +108,8 @@ void HardResetFtraceState() {
 // static
 // TODO(taylori): Add a test for tracing paths in integration tests.
 std::unique_ptr<FtraceController> FtraceController::Create(
-    base::TaskRunner* runner) {
+    base::TaskRunner* runner,
+    Observer* observer) {
   size_t index = 0;
   std::unique_ptr<FtraceProcfs> ftrace_procfs = nullptr;
   while (!ftrace_procfs && kTracingPaths[index]) {
@@ -123,25 +124,28 @@ std::unique_ptr<FtraceController> FtraceController::Create(
 
   std::unique_ptr<FtraceConfigMuxer> model = std::unique_ptr<FtraceConfigMuxer>(
       new FtraceConfigMuxer(ftrace_procfs.get(), table.get()));
-  return std::unique_ptr<FtraceController>(new FtraceController(
-      std::move(ftrace_procfs), std::move(table), std::move(model), runner));
+  return std::unique_ptr<FtraceController>(
+      new FtraceController(std::move(ftrace_procfs), std::move(table),
+                           std::move(model), runner, observer));
 }
 
 FtraceController::FtraceController(std::unique_ptr<FtraceProcfs> ftrace_procfs,
                                    std::unique_ptr<ProtoTranslationTable> table,
                                    std::unique_ptr<FtraceConfigMuxer> model,
-                                   base::TaskRunner* task_runner)
-    : ftrace_procfs_(std::move(ftrace_procfs)),
+                                   base::TaskRunner* task_runner,
+                                   Observer* observer)
+    : task_runner_(task_runner),
+      observer_(observer),
+      ftrace_procfs_(std::move(ftrace_procfs)),
       table_(std::move(table)),
       ftrace_config_muxer_(std::move(model)),
-      task_runner_(task_runner),
       weak_factory_(this) {}
 
 FtraceController::~FtraceController() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  for (const auto* sink : sinks_)
-    ftrace_config_muxer_->RemoveConfig(sink->id_);
-  sinks_.clear();
+  for (const auto* data_source : data_sources_)
+    ftrace_config_muxer_->RemoveConfig(data_source->config_id());
+  data_sources_.clear();
   StopIfNeeded();
 }
 
@@ -175,7 +179,10 @@ void FtraceController::DrainCPUs(base::WeakPtr<FtraceController> weak_this,
   for (size_t cpu = 0; cpu < ctrl->ftrace_procfs_->NumberOfCpus(); cpu++) {
     if (!cpus_to_drain[cpu])
       continue;
-    ctrl->OnRawFtraceDataAvailable(cpu);
+    // This method reads the pipe and converts the raw ftrace data into
+    // protobufs using the |data_source|'s TraceWriter.
+    ctrl->cpu_readers_[cpu]->Drain(ctrl->data_sources_);
+    ctrl->OnDrainCpuForTesting(cpu);
   }
 
   // If we filled up any SHM pages while draining the data, we will have posted
@@ -184,6 +191,8 @@ void FtraceController::DrainCPUs(base::WeakPtr<FtraceController> weak_this,
   // from traced.
   ctrl->task_runner_->PostTask(
       std::bind(&FtraceController::UnblockReaders, weak_this));
+
+  ctrl->observer_->OnFtraceDataWrittenIntoDataSourceBuffers();
 }
 
 // static
@@ -198,9 +207,9 @@ void FtraceController::UnblockReaders(
 }
 
 void FtraceController::StartIfNeeded() {
-  if (sinks_.size() > 1)
+  if (data_sources_.size() > 1)
     return;
-  PERFETTO_CHECK(!sinks_.empty());
+  PERFETTO_CHECK(!data_sources_.empty());
   {
     std::unique_lock<std::mutex> lock(lock_);
     PERFETTO_CHECK(!listening_for_raw_trace_data_);
@@ -218,12 +227,12 @@ void FtraceController::StartIfNeeded() {
 }
 
 uint32_t FtraceController::GetDrainPeriodMs() {
-  if (sinks_.empty())
+  if (data_sources_.empty())
     return kDefaultDrainPeriodMs;
   uint32_t min_drain_period_ms = kMaxDrainPeriodMs + 1;
-  for (const FtraceSink* sink : sinks_) {
-    if (sink->config().drain_period_ms() < min_drain_period_ms)
-      min_drain_period_ms = sink->config().drain_period_ms();
+  for (const FtraceDataSource* data_source : data_sources_) {
+    if (data_source->config().drain_period_ms() < min_drain_period_ms)
+      min_drain_period_ms = data_source->config().drain_period_ms();
   }
   return ClampDrainPeriodMs(min_drain_period_ms);
 }
@@ -241,7 +250,7 @@ void FtraceController::WriteTraceMarker(const std::string& s) {
 }
 
 void FtraceController::StopIfNeeded() {
-  if (!sinks_.empty())
+  if (!data_sources_.empty())
     return;
   {
     // Unblock any readers that are waiting for us to drain data.
@@ -253,59 +262,15 @@ void FtraceController::StopIfNeeded() {
   cpu_readers_.clear();
 }
 
-void FtraceController::OnRawFtraceDataAvailable(size_t cpu) {
-  PERFETTO_CHECK(cpu < ftrace_procfs_->NumberOfCpus());
-  CpuReader* reader = cpu_readers_[cpu].get();
-  using BundleHandle =
-      protozero::MessageHandle<protos::pbzero::FtraceEventBundle>;
-  std::array<const EventFilter*, kMaxSinks> filters{};
-  std::array<BundleHandle, kMaxSinks> bundles{};
-  std::array<FtraceMetadata*, kMaxSinks> metadatas{};
-  size_t sink_count = sinks_.size();
-  size_t i = 0;
-  for (FtraceSink* sink : sinks_) {
-    filters[i] = sink->event_filter();
-    metadatas[i] = sink->metadata_mutable();
-    bundles[i++] = sink->GetBundleForCpu(cpu);
-  }
-  reader->Drain(filters, bundles, metadatas);
-  i = 0;
-  for (FtraceSink* sink : sinks_)
-    sink->OnBundleComplete(cpu, std::move(bundles[i++]));
-  PERFETTO_DCHECK(sinks_.size() == sink_count);
-}
-
-std::unique_ptr<FtraceSink> FtraceController::CreateSink(
-    FtraceConfig config,
-    FtraceSink::Delegate* delegate) {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (sinks_.size() >= kMaxSinks)
-    return nullptr;
-  if (!ValidConfig(config))
-    return nullptr;
-
-  FtraceConfigId id = ftrace_config_muxer_->RequestConfig(config);
-  if (!id)
-    return nullptr;
-
-  auto controller_weak = weak_factory_.GetWeakPtr();
-  auto filter = std::unique_ptr<EventFilter>(new EventFilter(
-      *table_, FtraceEventsAsSet(*ftrace_config_muxer_->GetConfig(id))));
-
-  auto sink = std::unique_ptr<FtraceSink>(
-      new FtraceSink(std::move(controller_weak), id, std::move(config),
-                     std::move(filter), delegate));
-  Register(sink.get());
-  delegate->OnCreate(sink.get());
-  return sink;
-}
-
+// This method is called on the worker thread. Lifetime is guaranteed to be
+// valid, because the FtraceController dtor (that happens on the main thread)
+// joins the worker threads. |weak_this| is passed and not derived, because the
+// WeakPtrFactory is accessible only on the main thread.
 void FtraceController::OnDataAvailable(
     base::WeakPtr<FtraceController> weak_this,
     size_t generation,
     size_t cpu,
     uint32_t drain_period_ms) {
-  // Called on the worker thread.
   PERFETTO_DCHECK(cpu < ftrace_procfs_->NumberOfCpus());
   std::unique_lock<std::mutex> lock(lock_);
   if (!listening_for_raw_trace_data_)
@@ -328,21 +293,30 @@ void FtraceController::OnDataAvailable(
   });
 }
 
-void FtraceController::Register(FtraceSink* sink) {
+bool FtraceController::AddDataSource(FtraceDataSource* data_source) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto it_and_inserted = sinks_.insert(sink);
+  if (!ValidConfig(data_source->config()))
+    return false;
+
+  auto config_id = ftrace_config_muxer_->RequestConfig(data_source->config());
+  if (!config_id)
+    return false;
+
+  std::unique_ptr<EventFilter> filter(new EventFilter(
+      *table_, FtraceEventsAsSet(*ftrace_config_muxer_->GetConfig(config_id))));
+  auto it_and_inserted = data_sources_.insert(data_source);
   PERFETTO_DCHECK(it_and_inserted.second);
   StartIfNeeded();
+  data_source->Initialize(config_id, std::move(filter));
+  return true;
 }
 
-void FtraceController::Unregister(FtraceSink* sink) {
+void FtraceController::RemoveDataSource(FtraceDataSource* data_source) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-
-  size_t removed = sinks_.erase(sink);
-  PERFETTO_DCHECK(removed == 1);
-
-  ftrace_config_muxer_->RemoveConfig(sink->id_);
-
+  size_t removed = data_sources_.erase(data_source);
+  if (!removed)
+    return;  // Can happen if AddDataSource failed (e.g. too many sessions).
+  ftrace_config_muxer_->RemoveConfig(data_source->config_id());
   StopIfNeeded();
 }
 
@@ -350,22 +324,6 @@ void FtraceController::DumpFtraceStats(FtraceStats* stats) {
   DumpAllCpuStats(ftrace_procfs_.get(), stats);
 }
 
-void FtraceStats::Write(protos::pbzero::FtraceStats* writer) const {
-  for (const FtraceCpuStats& cpu_specific_stats : cpu_stats) {
-    cpu_specific_stats.Write(writer->add_cpu_stats());
-  }
-}
-
-void FtraceCpuStats::Write(protos::pbzero::FtraceCpuStats* writer) const {
-  writer->set_cpu(cpu);
-  writer->set_entries(entries);
-  writer->set_overrun(overrun);
-  writer->set_commit_overrun(commit_overrun);
-  writer->set_bytes_read(bytes_read);
-  writer->set_oldest_event_ts(oldest_event_ts);
-  writer->set_now_ts(now_ts);
-  writer->set_dropped_events(dropped_events);
-  writer->set_read_events(read_events);
-}
+FtraceController::Observer::~Observer() = default;
 
 }  // namespace perfetto

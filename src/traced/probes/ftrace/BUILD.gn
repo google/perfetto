@@ -96,7 +96,6 @@ source_set("integrationtests") {
     "../../../tracing",
   ]
   sources = [
-    "end_to_end_integrationtest.cc",
     "ftrace_procfs_integrationtest.cc",
   ]
 }
@@ -108,6 +107,7 @@ source_set("ftrace") {
     "../../../tracing",
   ]
   deps = [
+    "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/traced",
     "../../../base",
@@ -132,12 +132,14 @@ source_set("ftrace") {
     "ftrace_config_muxer.h",
     "ftrace_controller.cc",
     "ftrace_controller.h",
+    "ftrace_data_source.cc",
+    "ftrace_data_source.h",
     "ftrace_metadata.cc",
     "ftrace_metadata.h",
     "ftrace_procfs.cc",
     "ftrace_procfs.h",
-    "ftrace_sink.cc",
-    "ftrace_sink.h",
+    "ftrace_stats.cc",
+    "ftrace_stats.h",
     "proto_translation_table.cc",
     "proto_translation_table.h",
   ]

@@ -27,17 +27,19 @@
 #include <thread>
 
 #include "gtest/gtest_prod.h"
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/page_allocator.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/thread_checker.h"
 #include "perfetto/protozero/message.h"
+#include "perfetto/protozero/message_handle.h"
 #include "perfetto/traced/data_source_types.h"
-#include "src/traced/probes/ftrace/ftrace_controller.h"
+#include "src/traced/probes/ftrace/ftrace_config.h"
+#include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto {
 
+class FtraceDataSource;
 class ProtoTranslationTable;
 
 namespace protos {
@@ -46,34 +48,14 @@ class FtraceEventBundle;
 }  // namespace pbzero
 }  // namespace protos
 
-// Class for efficient 'is event with id x enabled?' tests.
-// Mirrors the data in a FtraceConfig but in a format better suited
-// to be consumed by CpuReader.
-class EventFilter {
- public:
-  EventFilter(const ProtoTranslationTable&, std::set<std::string>);
-  ~EventFilter();
+class EventFilter;  // Declared down below.
 
-  bool IsEventEnabled(size_t ftrace_event_id) const {
-    if (ftrace_event_id == 0 || ftrace_event_id > enabled_ids_.size()) {
-      return false;
-    }
-    return enabled_ids_[ftrace_event_id];
-  }
-
-  const std::set<std::string>& enabled_names() const { return enabled_names_; }
-
- private:
-  EventFilter(const EventFilter&) = delete;
-  EventFilter& operator=(const EventFilter&) = delete;
-
-  const std::vector<bool> enabled_ids_;
-  std::set<std::string> enabled_names_;
-};
-
-// Processes raw ftrace data for a logical CPU core.
+// Reads raw ftrace data for a cpu and writes that into the perfetto userspace
+// buffer.
 class CpuReader {
  public:
+  using FtraceEventBundle = protos::pbzero::FtraceEventBundle;
+
   // |on_data_available| will be called on an arbitrary thread when at least one
   // page of ftrace data is available for draining on this CPU.
   CpuReader(const ProtoTranslationTable*,
@@ -82,13 +64,10 @@ class CpuReader {
             std::function<void()> on_data_available);
   ~CpuReader();
 
-  // Drains all available data from the staging pipe into the given sinks.
+  // Drains all available data from the staging pipe into the buffer of the
+  // passed data sources.
   // Should be called in response to the |on_data_available| callback.
-  bool Drain(const std::array<const EventFilter*, kMaxSinks>&,
-             const std::array<
-                 protozero::MessageHandle<protos::pbzero::FtraceEventBundle>,
-                 kMaxSinks>&,
-             const std::array<FtraceMetadata*, kMaxSinks>& metadatas);
+  bool Drain(const std::set<FtraceDataSource*>&);
 
   template <typename T>
   static bool ReadAndAdvance(const uint8_t** ptr, const uint8_t* end, T* out) {
@@ -211,7 +190,7 @@ class CpuReader {
   CpuReader(const CpuReader&) = delete;
   CpuReader& operator=(const CpuReader&) = delete;
 
-  const ProtoTranslationTable* table_;
+  const ProtoTranslationTable* const table_;
   const size_t cpu_;
   base::ScopedFile trace_fd_;
   base::ScopedFile staging_read_fd_;
@@ -220,6 +199,31 @@ class CpuReader {
   std::thread worker_thread_;
   std::atomic<ThreadCtl> cmd_{kRun};
   PERFETTO_THREAD_CHECKER(thread_checker_)
+};
+
+// Class for efficient 'is event with id x enabled?' tests.
+// Mirrors the data in a FtraceConfig but in a format better suited
+// to be consumed by CpuReader.
+class EventFilter {
+ public:
+  EventFilter(const ProtoTranslationTable&, std::set<std::string>);
+  ~EventFilter();
+
+  bool IsEventEnabled(size_t ftrace_event_id) const {
+    if (ftrace_event_id == 0 || ftrace_event_id > enabled_ids_.size()) {
+      return false;
+    }
+    return enabled_ids_[ftrace_event_id];
+  }
+
+  const std::set<std::string>& enabled_names() const { return enabled_names_; }
+
+ private:
+  EventFilter(const EventFilter&) = delete;
+  EventFilter& operator=(const EventFilter&) = delete;
+
+  const std::vector<bool> enabled_ids_;
+  std::set<std::string> enabled_names_;
 };
 
 }  // namespace perfetto

@@ -21,98 +21,75 @@
 
 #include <bitset>
 #include <condition_variable>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <string>
-#include <vector>
 
 #include "gtest/gtest_prod.h"
-#include "perfetto/base/scoped_file.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/utils.h"
 #include "perfetto/base/weak_ptr.h"
-#include "perfetto/protozero/message_handle.h"
-#include "perfetto/traced/data_source_types.h"
-#include "src/traced/probes/ftrace/ftrace_sink.h"
+#include "src/traced/probes/ftrace/ftrace_config.h"
 
 namespace perfetto {
 
-namespace protos {
-namespace pbzero {
-class FtraceEventBundle;
-class FtraceStats;
-class FtraceCpuStats;
-}  // namespace pbzero
-}  // namespace protos
-
-struct FtraceCpuStats {
-  uint64_t cpu;
-  uint64_t entries;
-  uint64_t overrun;
-  uint64_t commit_overrun;
-  uint64_t bytes_read;
-  double oldest_event_ts;
-  double now_ts;
-  uint64_t dropped_events;
-  uint64_t read_events;
-
-  void Write(protos::pbzero::FtraceCpuStats*) const;
-};
-
-struct FtraceStats {
-  std::vector<FtraceCpuStats> cpu_stats;
-
-  void Write(protos::pbzero::FtraceStats*) const;
-};
-
-constexpr size_t kMaxSinks = 32;
-constexpr size_t kMaxCpus = 64;
+class CpuReader;
+class FtraceConfigMuxer;
+class FtraceDataSource;
+class FtraceProcfs;
+class ProtoTranslationTable;
+struct FtraceStats;
 
 // Method of last resort to reset ftrace state.
 void HardResetFtraceState();
 
-class CpuReader;
-class EventFilter;
-class FtraceConfig;
-class FtraceController;
-class FtraceConfigMuxer;
-class FtraceProcfs;
-class ProtoTranslationTable;
-
 // Utility class for controlling ftrace.
 class FtraceController {
  public:
-  static std::unique_ptr<FtraceController> Create(base::TaskRunner*);
-  virtual ~FtraceController();
+  class Observer {
+   public:
+    virtual ~Observer();
+    virtual void OnFtraceDataWrittenIntoDataSourceBuffers() = 0;
+  };
 
-  std::unique_ptr<FtraceSink> CreateSink(FtraceConfig, FtraceSink::Delegate*);
+  // The passed Observer must outlive the returned FtraceController instance.
+  static std::unique_ptr<FtraceController> Create(base::TaskRunner*, Observer*);
+  virtual ~FtraceController();
 
   void DisableAllEvents();
   void WriteTraceMarker(const std::string& s);
   void ClearTrace();
+
+  bool AddDataSource(FtraceDataSource*) PERFETTO_WARN_UNUSED_RESULT;
+  void RemoveDataSource(FtraceDataSource*);
+
+  void DumpFtraceStats(FtraceStats*);
+
+  base::WeakPtr<FtraceController> GetWeakPtr() {
+    return weak_factory_.GetWeakPtr();
+  }
 
  protected:
   // Protected for testing.
   FtraceController(std::unique_ptr<FtraceProcfs>,
                    std::unique_ptr<ProtoTranslationTable>,
                    std::unique_ptr<FtraceConfigMuxer>,
-                   base::TaskRunner*);
+                   base::TaskRunner*,
+                   Observer*);
 
-  // Write
-  void DumpFtraceStats(FtraceStats*);
-
-  // Called to read data from the staging pipe for the given |cpu| and parse it
-  // into the sinks. Protected and virtual for testing.
-  virtual void OnRawFtraceDataAvailable(size_t cpu);
+  virtual void OnDrainCpuForTesting(size_t /*cpu*/) {}
 
   // Protected and virtual for testing.
   virtual uint64_t NowMs() const;
 
  private:
-  friend FtraceSink;
   friend class TestFtraceController;
   FRIEND_TEST(FtraceControllerIntegrationTest, EnableDisableEvent);
+
+  static constexpr size_t kMaxCpus = 64;
 
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
@@ -129,9 +106,6 @@ class FtraceController {
 
   uint32_t GetDrainPeriodMs();
 
-  void Register(FtraceSink*);
-  void Unregister(FtraceSink*);
-
   void StartIfNeeded();
   void StopIfNeeded();
 
@@ -142,15 +116,16 @@ class FtraceController {
   bool listening_for_raw_trace_data_ = false;
   // End lock-protected members.
 
+  base::TaskRunner* const task_runner_;
+  Observer* const observer_;
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
   std::unique_ptr<ProtoTranslationTable> table_;
   std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer_;
   size_t generation_ = 0;
   bool atrace_running_ = false;
-  base::TaskRunner* task_runner_ = nullptr;
   std::map<size_t, std::unique_ptr<CpuReader>> cpu_readers_;
-  std::set<FtraceSink*> sinks_;
-  base::WeakPtrFactory<FtraceController> weak_factory_;
+  std::set<FtraceDataSource*> data_sources_;
+  base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 

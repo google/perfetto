@@ -17,6 +17,7 @@
 #ifndef SRC_TRACED_PROBES_FTRACE_FTRACE_CONFIG_MUXER_H_
 #define SRC_TRACED_PROBES_FTRACE_FTRACE_CONFIG_MUXER_H_
 
+#include "src/traced/probes/ftrace/ftrace_config.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 
