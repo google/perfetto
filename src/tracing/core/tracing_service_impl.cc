@@ -955,6 +955,7 @@ void TracingServiceImpl::CreateDataSourceInstance(
 
   DataSourceConfig ds_config = cfg_data_source.config();  // Deliberate copy.
   ds_config.set_trace_duration_ms(tracing_session->config.duration_ms());
+  ds_config.set_tracing_session_id(tracing_session->id);
   auto relative_buffer_id = ds_config.target_buffer();
   if (relative_buffer_id >= tracing_session->num_buffers()) {
     PERFETTO_LOG(

@@ -105,9 +105,16 @@ message DataSourceConfig {
   // without expensive lookups on its fastpath.
   optional uint32 target_buffer = 2;
 
-  // Gets set by the service to indicate the duration of the trace.
+  // Set by the service to indicate the duration of the trace.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional uint32 trace_duration_ms = 3;
+
+  // Set by the service to indicate which tracing session the data source
+  // belongs to. The intended use case for this is checking if two data sources,
+  // one of which produces metadata for the other one, belong to the same trace
+  // session and hence should be linked together.
+  // This field was introduced in Aug 2018 after Android P.
+  optional uint64 tracing_session_id = 4;
 
   // Keeep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.

@@ -37,6 +37,7 @@ class MockProducer : public Producer {
   struct EnabledDataSource {
     DataSourceInstanceID id;
     BufferID target_buffer;
+    TracingSessionID session_id;
   };
 
   explicit MockProducer(base::TestTaskRunner*);
@@ -52,6 +53,7 @@ class MockProducer : public Producer {
   void WaitForDataSourceStart(const std::string& name);
   void WaitForDataSourceStop(const std::string& name);
   DataSourceInstanceID GetDataSourceInstanceId(const std::string& name);
+  const EnabledDataSource* GetDataSourceInstance(const std::string& name);
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       const std::string& data_source_name);
 
