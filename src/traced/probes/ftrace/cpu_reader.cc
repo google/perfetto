@@ -28,10 +28,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/metatrace.h"
 #include "perfetto/base/utils.h"
+#include "src/traced/probes/ftrace/ftrace_data_source.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
@@ -77,9 +79,6 @@ bool ReadDataLoc(const uint8_t* start,
   ReadIntoString(string_start, string_end, field.proto_field_id, message);
   return true;
 }
-
-using BundleHandle =
-    protozero::MessageHandle<protos::pbzero::FtraceEventBundle>;
 
 const std::vector<bool> BuildEnabledVector(const ProtoTranslationTable& table,
                                            const std::set<std::string>& names) {
@@ -267,9 +266,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
 #endif
 }
 
-bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
-                      const std::array<BundleHandle, kMaxSinks>& bundles,
-                      const std::array<FtraceMetadata*, kMaxSinks>& metadatas) {
+bool CpuReader::Drain(const std::set<FtraceDataSource*>& data_sources) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   while (true) {
     uint8_t* buffer = GetBuffer();
@@ -279,21 +276,16 @@ bool CpuReader::Drain(const std::array<const EventFilter*, kMaxSinks>& filters,
       break;
     PERFETTO_CHECK(static_cast<size_t>(bytes) == base::kPageSize);
 
-    size_t evt_size = 0;
-    for (size_t i = 0; i < kMaxSinks; i++) {
-      if (!filters[i])
-        break;
-      evt_size =
-          ParsePage(buffer, filters[i], &*bundles[i], table_, metadatas[i]);
+    for (FtraceDataSource* data_source : data_sources) {
+      auto packet = data_source->trace_writer()->NewTracePacket();
+      auto* bundle = packet->set_ftrace_events();
+      auto* metadata = data_source->mutable_metadata();
+      auto* filter = data_source->event_filter();
+      size_t evt_size = ParsePage(buffer, filter, bundle, table_, metadata);
       PERFETTO_DCHECK(evt_size);
+      bundle->set_cpu(static_cast<uint32_t>(cpu_));
+      bundle->set_overwrite_count(metadata->overwrite_count);
     }
-  }
-
-  for (size_t i = 0; i < kMaxSinks; i++) {
-    if (!filters[i])
-      break;
-    bundles[i]->set_cpu(static_cast<uint32_t>(cpu_));
-    bundles[i]->set_overwrite_count(metadatas[i]->overwrite_count);
   }
 
   return true;
@@ -316,7 +308,7 @@ uint8_t* CpuReader::GetBuffer() {
 // This method is deliberately static so it can be tested independently.
 size_t CpuReader::ParsePage(const uint8_t* ptr,
                             const EventFilter* filter,
-                            protos::pbzero::FtraceEventBundle* bundle,
+                            FtraceEventBundle* bundle,
                             const ProtoTranslationTable* table,
                             FtraceMetadata* metadata) {
   const uint8_t* const start_of_page = ptr;

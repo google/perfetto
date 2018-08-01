@@ -20,6 +20,7 @@
 #include "perfetto/base/string_utils.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/ftrace_stats.h"
 
 namespace perfetto {
 namespace {
