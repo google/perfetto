@@ -25,6 +25,7 @@
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_writer.h"
+#include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
 
@@ -34,20 +35,21 @@ class ProcessTree;
 }  // namespace pbzero
 }  // namespace protos
 
-class ProcessStatsDataSource {
+class ProcessStatsDataSource : public ProbesDataSource {
  public:
+  static constexpr int kTypeId = 3;
+
   ProcessStatsDataSource(TracingSessionID,
                          std::unique_ptr<TraceWriter> writer,
                          const DataSourceConfig&);
-  virtual ~ProcessStatsDataSource();
+  ~ProcessStatsDataSource() override;
 
-  TracingSessionID session_id() const { return session_id_; }
   const DataSourceConfig& config() const { return config_; }
 
   base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
   void WriteAllProcesses();
   void OnPids(const std::vector<int32_t>& pids);
-  void Flush();
+  void Flush() override;
 
   // Virtual for testing.
   virtual std::string ReadProcPidFile(int32_t pid, const std::string& file);
@@ -64,12 +66,12 @@ class ProcessStatsDataSource {
   protos::pbzero::ProcessTree* GetOrCreatePsTree();
   void FinalizeCurPsTree();
 
-  const TracingSessionID session_id_;
   std::unique_ptr<TraceWriter> writer_;
   const DataSourceConfig config_;
   TraceWriter::TracePacketHandle cur_packet_;
   protos::pbzero::ProcessTree* cur_ps_tree_ = nullptr;
   bool record_thread_names_ = false;
+  bool enable_on_demand_dumps_ = true;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes

@@ -44,7 +44,7 @@ function reset_tracing {
 }
 
 function adb_supports_push_sync {
-  adb --help | grep 'push.*\[--sync\]' 2>&1 >/dev/null
+  adb --help 2>&1 | grep 'push.*\[--sync\]' 2>&1 >/dev/null
 }
 
 function push {

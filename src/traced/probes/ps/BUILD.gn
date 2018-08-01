@@ -17,6 +17,7 @@ source_set("ps") {
     "../../../tracing",
   ]
   deps = [
+    "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/traced",
     "../../../../protos/perfetto/trace/ps:zero",
