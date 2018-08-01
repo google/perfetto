@@ -312,6 +312,16 @@ bool UnixSocket::Send(const void* msg,
                       size_t len,
                       int send_fd,
                       BlockingMode blocking_mode) {
+  if (send_fd != -1)
+    return Send(msg, len, &send_fd, 1, blocking_mode);
+  return Send(msg, len, nullptr, 0, blocking_mode);
+}
+
+bool UnixSocket::Send(const void* msg,
+                      size_t len,
+                      const int* send_fds,
+                      size_t num_fds,
+                      BlockingMode blocking_mode) {
   if (state_ != State::kConnected) {
     errno = last_error_ = ENOTCONN;
     return false;
@@ -323,9 +333,9 @@ bool UnixSocket::Send(const void* msg,
   msg_hdr.msg_iovlen = 1;
   alignas(cmsghdr) char control_buf[256];
 
-  if (send_fd > -1) {
+  if (num_fds > 0) {
     const CBufLenType control_buf_len =
-        static_cast<CBufLenType>(CMSG_SPACE(sizeof(int)));
+        static_cast<CBufLenType>(CMSG_SPACE(num_fds * sizeof(int)));
     PERFETTO_CHECK(control_buf_len <= sizeof(control_buf));
     memset(control_buf, 0, sizeof(control_buf));
     msg_hdr.msg_control = control_buf;
@@ -333,8 +343,8 @@ bool UnixSocket::Send(const void* msg,
     struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg_hdr);
     cmsg->cmsg_level = SOL_SOCKET;
     cmsg->cmsg_type = SCM_RIGHTS;
-    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-    memcpy(CMSG_DATA(cmsg), &send_fd, sizeof(int));
+    cmsg->cmsg_len = CMSG_LEN(num_fds * sizeof(int));
+    memcpy(CMSG_DATA(cmsg), send_fds, num_fds * sizeof(int));
     msg_hdr.msg_controllen = cmsg->cmsg_len;
   }
 
@@ -393,7 +403,14 @@ void UnixSocket::Shutdown(bool notify) {
   state_ = State::kDisconnected;
 }
 
-size_t UnixSocket::Receive(void* msg, size_t len, base::ScopedFile* recv_fd) {
+size_t UnixSocket::Receive(void* msg, size_t len) {
+  return Receive(msg, len, nullptr, 0);
+}
+
+size_t UnixSocket::Receive(void* msg,
+                           size_t len,
+                           base::ScopedFile* fd_vec,
+                           size_t max_files) {
   if (state_ != State::kConnected) {
     last_error_ = ENOTCONN;
     return 0;
@@ -405,9 +422,10 @@ size_t UnixSocket::Receive(void* msg, size_t len, base::ScopedFile* recv_fd) {
   msg_hdr.msg_iovlen = 1;
   alignas(cmsghdr) char control_buf[256];
 
-  if (recv_fd) {
+  if (max_files > 0) {
     msg_hdr.msg_control = control_buf;
-    msg_hdr.msg_controllen = static_cast<CBufLenType>(CMSG_SPACE(sizeof(int)));
+    msg_hdr.msg_controllen =
+        static_cast<CBufLenType>(CMSG_SPACE(max_files * sizeof(int)));
     PERFETTO_CHECK(msg_hdr.msg_controllen <= sizeof(control_buf));
   }
   const ssize_t sz = PERFETTO_EINTR(recvmsg(*fd_, &msg_hdr, kNoSigPipe));
@@ -425,13 +443,13 @@ size_t UnixSocket::Receive(void* msg, size_t len, base::ScopedFile* recv_fd) {
   int* fds = nullptr;
   uint32_t fds_len = 0;
 
-  if (msg_hdr.msg_controllen > 0) {
+  if (max_files > 0) {
     for (cmsghdr* cmsg = CMSG_FIRSTHDR(&msg_hdr); cmsg;
          cmsg = CMSG_NXTHDR(&msg_hdr, cmsg)) {
       const size_t payload_len = cmsg->cmsg_len - CMSG_LEN(0);
       if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
         PERFETTO_DCHECK(payload_len % sizeof(int) == 0u);
-        PERFETTO_DCHECK(fds == nullptr);
+        PERFETTO_CHECK(fds == nullptr);
         fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
         fds_len = static_cast<uint32_t>(payload_len / sizeof(int));
       }
@@ -447,11 +465,10 @@ size_t UnixSocket::Receive(void* msg, size_t len, base::ScopedFile* recv_fd) {
   }
 
   for (size_t i = 0; fds && i < fds_len; ++i) {
-    if (recv_fd && i == 0) {
-      recv_fd->reset(fds[i]);
-    } else {
+    if (i < max_files)
+      fd_vec[i].reset(fds[i]);
+    else
       close(fds[i]);
-    }
   }
 
   last_error_ = 0;
