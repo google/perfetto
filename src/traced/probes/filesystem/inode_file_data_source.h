@@ -34,6 +34,7 @@
 #include "src/traced/probes/filesystem/file_scanner.h"
 #include "src/traced/probes/filesystem/fs_mount.h"
 #include "src/traced/probes/filesystem/lru_inode_cache.h"
+#include "src/traced/probes/probes_data_source.h"
 
 #include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
 
@@ -48,8 +49,11 @@ void CreateStaticDeviceToInodeMap(
     std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
         static_file_map);
 
-class InodeFileDataSource : public FileScanner::Delegate {
+class InodeFileDataSource : public ProbesDataSource,
+                            public FileScanner::Delegate {
  public:
+  static constexpr int kTypeId = 2;
+
   InodeFileDataSource(
       DataSourceConfig,
       base::TaskRunner*,
@@ -59,7 +63,8 @@ class InodeFileDataSource : public FileScanner::Delegate {
       LRUInodeCache* cache,
       std::unique_ptr<TraceWriter> writer);
 
-  TracingSessionID session_id() const { return session_id_; }
+  ~InodeFileDataSource() override;
+
   base::WeakPtr<InodeFileDataSource> GetWeakPtr() const;
 
   // Called when Inodes are seen in the FtraceEventBundle
@@ -74,9 +79,7 @@ class InodeFileDataSource : public FileScanner::Delegate {
   void AddInodesFromLRUCache(BlockDeviceID block_device_id,
                              std::set<Inode>* inode_numbers);
 
-  void Flush();
-
-  virtual ~InodeFileDataSource();
+  void Flush() override;
 
   virtual void FillInodeEntry(InodeFileMap* destination,
                               Inode inode_number,
@@ -94,8 +97,8 @@ class InodeFileDataSource : public FileScanner::Delegate {
   bool OnInodeFound(BlockDeviceID block_device_id,
                     Inode inode_number,
                     const std::string& path,
-                    protos::pbzero::InodeFileMap_Entry_Type type);
-  void OnInodeScanDone();
+                    protos::pbzero::InodeFileMap_Entry_Type type) override;
+  void OnInodeScanDone() override;
 
   void AddRootsForBlockDevice(BlockDeviceID block_device_id,
                               std::vector<std::string>* roots);
@@ -111,7 +114,6 @@ class InodeFileDataSource : public FileScanner::Delegate {
   std::map<std::string, std::vector<std::string>> mount_point_mapping_;
 
   base::TaskRunner* task_runner_;
-  const TracingSessionID session_id_;
   std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
       static_file_map_;
   LRUInodeCache* cache_;

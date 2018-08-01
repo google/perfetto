@@ -18,6 +18,7 @@
 
 #include <stdlib.h>
 
+#include <algorithm>
 #include <utility>
 
 #include "perfetto/base/file_utils.h"
@@ -65,15 +66,23 @@ inline int ToInt(const std::string& str) {
 
 }  // namespace
 
+// static
+constexpr int ProcessStatsDataSource::kTypeId;
+
 ProcessStatsDataSource::ProcessStatsDataSource(
-    TracingSessionID id,
+    TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer,
     const DataSourceConfig& config)
-    : session_id_(id),
+    : ProbesDataSource(session_id, kTypeId),
       writer_(std::move(writer)),
       config_(config),
       record_thread_names_(config.process_stats_config().record_thread_names()),
-      weak_factory_(this) {}
+      weak_factory_(this) {
+  const auto& quirks = config_.process_stats_config().quirks();
+  enable_on_demand_dumps_ =
+      (std::find(quirks.begin(), quirks.end(),
+                 ProcessStatsConfig::DISABLE_ON_DEMAND) == quirks.end());
+}
 
 ProcessStatsDataSource::~ProcessStatsDataSource() = default;
 
@@ -106,6 +115,8 @@ void ProcessStatsDataSource::WriteAllProcesses() {
 }
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
+  if (!enable_on_demand_dumps_)
+    return;
   PERFETTO_DCHECK(!cur_ps_tree_);
   for (int32_t pid : pids) {
     if (seen_pids_.count(pid) || pid == 0)
