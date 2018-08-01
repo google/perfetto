@@ -603,4 +603,61 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledCalledAnywaysInCaseOfTimeout) {
   consumer->WaitForTracingDisabled();
 }
 
+// Tests the session_id logic. Two data sources in the same tracing session
+// should see the same session id.
+TEST_F(TracingServiceImplTest, SessionId) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer1");
+  producer1->RegisterDataSource("ds_1A");
+  producer1->RegisterDataSource("ds_1B");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer2");
+  producer2->RegisterDataSource("ds_2A");
+
+  testing::InSequence seq;
+  TracingSessionID last_session_id = 0;
+  for (int i = 0; i < 3; i++) {
+    TraceConfig trace_config;
+    trace_config.add_buffers()->set_size_kb(128);
+    trace_config.add_data_sources()->mutable_config()->set_name("ds_1A");
+    trace_config.add_data_sources()->mutable_config()->set_name("ds_1B");
+    trace_config.add_data_sources()->mutable_config()->set_name("ds_2A");
+    trace_config.set_duration_ms(1);
+
+    consumer->EnableTracing(trace_config);
+
+    if (i == 0)
+      producer1->WaitForTracingSetup();
+    producer1->WaitForDataSourceStart("ds_1A");
+    producer1->WaitForDataSourceStart("ds_1B");
+
+    if (i == 0)
+      producer2->WaitForTracingSetup();
+    producer2->WaitForDataSourceStart("ds_2A");
+
+    auto* ds1 = producer1->GetDataSourceInstance("ds_1A");
+    auto* ds2 = producer1->GetDataSourceInstance("ds_1B");
+    auto* ds3 = producer2->GetDataSourceInstance("ds_2A");
+    ASSERT_EQ(ds1->session_id, ds2->session_id);
+    ASSERT_EQ(ds1->session_id, ds3->session_id);
+    ASSERT_NE(ds1->session_id, last_session_id);
+    last_session_id = ds1->session_id;
+
+    auto writer1 = producer1->CreateTraceWriter("ds_1A");
+    producer1->WaitForFlush(writer1.get());
+
+    auto writer2 = producer2->CreateTraceWriter("ds_2A");
+    producer2->WaitForFlush(writer2.get());
+
+    producer1->WaitForDataSourceStop("ds_1A");
+    producer1->WaitForDataSourceStop("ds_1B");
+    producer2->WaitForDataSourceStop("ds_2A");
+    consumer->WaitForTracingDisabled();
+    consumer->FreeBuffers();
+  }
+}
 }  // namespace perfetto
