@@ -12,21 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackController} from '../../controller/track_controller';
+import {
+  Engine,
+  PublishFn,
+  TrackController,
+  TrackState
+} from '../../controller/track_controller';
 import {
   trackControllerRegistry
 } from '../../controller/track_controller_registry';
+
 import {TRACK_KIND} from './common';
 
 class CpuCounterTrackController extends TrackController {
   static readonly kind = TRACK_KIND;
-  static create(): CpuCounterTrackController {
+  static create(_config: TrackState, _engine: Engine, _publish: PublishFn):
+      TrackController {
     return new CpuCounterTrackController();
   }
 
   constructor() {
     super();
   }
+
+
+  onBoundsChange(_start: number, _end: number): void {}
 }
 
 trackControllerRegistry.register(CpuCounterTrackController);

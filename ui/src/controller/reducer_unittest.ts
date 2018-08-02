@@ -15,8 +15,8 @@
 import {createEmptyState} from '../common/state';
 import {rootReducer} from './reducer';
 
-test('increment', async () => {
+test('navigate', async () => {
   const before = createEmptyState();
-  const after = rootReducer(before, {type: 'INCREMENT'});
-  expect(after.i).toBe(1);
+  const after = rootReducer(before, {type: 'NAVIGATE', route: '/foo'});
+  expect(after.route).toBe('/foo');
 });

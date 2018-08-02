@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TrackState} from '../common/state';
+import {Engine} from './engine';
+
+export interface PublishFn { (data: {}): void; }
+
 /**
  * This interface forces track implementations to have two static properties:
  * kind and a create function.
@@ -21,7 +26,18 @@ export interface TrackControllerCreator {
   // case we ever minify our code.
   readonly kind: string;
 
-  create(): TrackController;
+  create(config: TrackState, engine: Engine, publish: PublishFn):
+      TrackController;
 }
 
-export abstract class TrackController {}
+export abstract class TrackController {
+  // TODO(hjd): Maybe this should be optional?
+  abstract onBoundsChange(start: number, end: number): void;
+}
+
+// Re-export these so track implementors don't have to import from several
+// files.
+export {
+  TrackState,
+  Engine,
+};
