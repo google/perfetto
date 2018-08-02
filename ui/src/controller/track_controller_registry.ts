@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// TODO(hjd): Merge this with track_controller?
 import {Registry} from '../common/registry';
 
 import {TrackControllerCreator} from './track_controller';

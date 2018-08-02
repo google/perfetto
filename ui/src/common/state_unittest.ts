@@ -16,5 +16,5 @@ import {createEmptyState, State} from './state';
 
 test('createEmptyState', () => {
   const state: State = createEmptyState();
-  expect(state.i).toEqual(0);
+  expect(state.nextId).toEqual(0);
 });
