@@ -34,4 +34,24 @@ export abstract class Engine {
   rawQuery(args: IRawQueryArgs): Promise<RawQueryResult> {
     return this.traceProcessor.rawQuery(args);
   }
+
+  // TODO(hjd): Maybe we should cache result? But then Engine must be
+  // streaming aware.
+  async getNumberOfCpus(): Promise<number> {
+    const result = await this.rawQuery({
+      sqlQuery: 'select count(distinct(cpu)) as cpuCount from sched;',
+    });
+    return +result.columns[0].longValues![0];
+  }
+
+  // TODO(hjd): Maybe we should cache result? But then Engine must be
+  // streaming aware.
+  async getTraceTimeBounds(): Promise<[number, number]> {
+    const result = await this.rawQuery({
+      sqlQuery: 'select max(ts) as start, min(ts) as end from sched;',
+    });
+    const start = +result.columns[0].longValues![0];
+    const end = +result.columns[1].longValues![0];
+    return [start, end];
+  }
 }

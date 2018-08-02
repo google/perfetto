@@ -13,3 +13,35 @@
 // limitations under the License.
 
 export interface Action { type: string; }
+
+export function openTrace(url: string) {
+  return {
+    type: 'OPEN_TRACE',
+    url,
+  };
+}
+
+// TODO(hjd): Remove CPU and add a generic way to handle track specific state.
+export function addTrack(engineId: string, trackKind: string, cpu: number) {
+  return {
+    type: 'ADD_TRACK',
+    engineId,
+    trackKind,
+    cpu,
+  };
+}
+
+export function executeQuery(engineId: string, query: string) {
+  return {
+    type: 'EXECUTE_QUERY',
+    engineId,
+    query,
+  };
+}
+
+export function navigate(route: string) {
+  return {
+    type: 'NAVIGATE',
+    route,
+  };
+}

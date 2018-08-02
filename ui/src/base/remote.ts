@@ -87,9 +87,17 @@ export function forwardRemoteCalls(
     }
 
     const result = handler[method].apply(handler, args);
-    port.postMessage({
-      id,
-      result,
-    });
+    const transferList = [];
+
+    if (result instanceof MessagePort) {
+      transferList.push(result);
+    }
+
+    port.postMessage(
+        {
+          id,
+          result,
+        },
+        transferList);
   };
 }
