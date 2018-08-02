@@ -27,7 +27,7 @@ export const TrackComponent = {
     // want to load a track implementation on demand, we should not rely here on
     // the fact that the track is already registered. We should show some
     // default content until a track implementation is found.
-    const trackCreator = trackRegistry.get(attrs.trackState.type);
+    const trackCreator = trackRegistry.get(attrs.trackState.kind);
     this.track = trackCreator.create(attrs.trackState);
   },
 

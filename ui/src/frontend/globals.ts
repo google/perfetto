@@ -14,8 +14,6 @@
 
 import {Action} from '../common/actions';
 import {State} from '../common/state';
-import {Engine} from '../controller/engine';
-
 import {ControllerProxy} from './controller_proxy';
 
 type Dispatch = (action: Action) => void;
@@ -27,6 +25,10 @@ class Globals {
   _dispatch?: Dispatch = undefined;
   _state?: State = undefined;
   _controller?: ControllerProxy = undefined;
+
+  // Frequently changing data from the controller. Each item is keyed by an ID.
+  // TODO(dproy): Replace with the real thing.
+  published = new Map<string, {}>();
 
   get state(): State {
     if (this._state === undefined) throw new Error('Global not set');
@@ -61,8 +63,5 @@ class Globals {
     this._controller = undefined;
   }
 }
-
-// TODO(hjd): Temporary while bringing up controller worker.
-export const gEngines = new Map<string, Engine>();
 
 export const globals = new Globals();
