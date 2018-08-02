@@ -40,5 +40,5 @@ export abstract class Track {
   constructor(protected trackState: TrackState) {}
   abstract renderCanvas(
       vCtx: VirtualCanvasContext, width: number, timeScale: TimeScale,
-      visibleWindowMs: {start: number, end: number}): void;
+      visibleWindowMs: {start: number, end: number}, data?: {}): void;
 }

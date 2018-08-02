@@ -19,19 +19,25 @@ import {WasmBridgeRequest, WasmBridgeResponse} from '../engine/wasm_bridge';
 
 import {Engine} from './engine';
 
-let gWarmWasmWorker: null|Worker = null;
+let warmWasmWorkerPort: null|MessagePort = null;
 
-function createNewWasmEngineWorker(): Worker {
-  return new Worker('engine_bundle.js');
+function createNewWasmEngineWorkerPort(): MessagePort {
+  const channel = new MessageChannel();
+  const worker = new Worker('engine_bundle.js');
+  // tslint:disable-next-line deprecation
+  worker.postMessage(channel.port1, [channel.port1]);
+  return channel.port2;
 }
 
-function createWasmEngineWorker(): Worker {
-  if (gWarmWasmWorker === null) {
-    return createNewWasmEngineWorker();
+// Take warm engine and start creating a new WASM engine in the background
+// for the next person.
+export function takeWasmEngineWorkerPort(): MessagePort {
+  if (warmWasmWorkerPort === null) {
+    throw new Error('warmWasmEngineWorker not called');
   }
-  const worker = gWarmWasmWorker;
-  gWarmWasmWorker = createNewWasmEngineWorker();
-  return worker;
+  const port = warmWasmWorkerPort;
+  warmWasmWorkerPort = createNewWasmEngineWorkerPort();
+  return port;
 }
 
 /**
@@ -43,10 +49,10 @@ function createWasmEngineWorker(): Worker {
  * implement this behaviour.
  */
 export function warmupWasmEngineWorker(): void {
-  if (gWarmWasmWorker !== null) {
-    return;
+  if (warmWasmWorkerPort !== null) {
+    throw new Error('warmWasmEngineWorker already called');
   }
-  gWarmWasmWorker = createNewWasmEngineWorker();
+  warmWasmWorkerPort = createNewWasmEngineWorkerPort();
 }
 
 /**
@@ -54,37 +60,32 @@ export function warmupWasmEngineWorker(): void {
  * worker thread.
  */
 export class WasmEngineProxy extends Engine {
-  private worker: Worker;
+  private readonly port: MessagePort;
   private readonly traceProcessor_: TraceProcessor;
   private pendingCallbacks: Map<number, protobufjs.RPCImplCallback>;
   private nextRequestId: number;
 
-  static create(blob: Blob): Engine {
-    const worker = createWasmEngineWorker();
+  static create(port: MessagePort, blob: Blob): Engine {
+    // const worker = createWasmEngineWorker();
     // tslint:disable-next-line deprecation
-    worker.postMessage({
+    port.postMessage({
       blob,
     });
-    return new WasmEngineProxy(worker);
+    return new WasmEngineProxy(port);
   }
 
-  constructor(worker: Worker) {
+  constructor(port: MessagePort) {
     super();
     this.nextRequestId = 0;
     this.pendingCallbacks = new Map();
-    this.worker = worker;
-    this.worker.onerror = this.onError.bind(this);
-    this.worker.onmessage = this.onMessage.bind(this);
+    this.port = port;
+    this.port.onmessage = this.onMessage.bind(this);
     this.traceProcessor_ =
         TraceProcessor.create(this.rpcImpl.bind(this, 'trace_processor'));
   }
 
   get traceProcessor(): TraceProcessor {
     return this.traceProcessor_;
-  }
-
-  onError(e: ErrorEvent) {
-    console.error(e);
   }
 
   onMessage(m: MessageEvent) {
@@ -109,7 +110,6 @@ export class WasmEngineProxy extends Engine {
       methodName,
       data: requestData,
     };
-    // tslint:disable-next-line deprecation
-    this.worker.postMessage(request);
+    this.port.postMessage(request);
   }
 }
