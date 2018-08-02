@@ -14,6 +14,10 @@ html, body {
 
 * {
   box-sizing: border-box;
+  overflow: hidden;
+  user-select: none;
+  -webkit-tap-highlight-color: none;
+  touch-action: none;
 }
 
 main {
@@ -141,3 +145,166 @@ label.file-input > input[type=file] {
 }
 
 
+
+
+/** New design **/
+
+
+h1,
+h2,
+h3 {
+  font-family: initial;
+  font-size: initial;
+  padding: initial;
+  margin: initial;
+  font-weight: initial;
+}
+
+.sidebar {
+  position: fixed;
+  background-color: #262f3c;
+  width: 256px;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  overflow-y: auto;
+  z-index: 2;
+}
+
+.sidebar>* {
+  width: 100%;
+  border-bottom: 1px solid #404854;
+}
+
+.sidebar > header {
+  font-family: 'Raleway';
+  height: 48px;
+  line-height: 48px;
+  vertical-align: middle;
+  padding: 0 20px;
+  color: white;
+  font-weight: 400;
+  font-size: 24px;
+  letter-spacing: 0.5px;
+}
+
+.sidebar > header::before {
+  width: 32px;
+  height: 32px;
+  display: inline-block;
+  content: '';
+  vertical-align: middle;
+  background-image: url('/assets/logo.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  margin-right: 15px;
+}
+
+.sidebar>section {
+  padding: 20px 0;
+  max-height: 80px;
+  overflow: hidden;
+  transition: max-height 0.1s ease-out;
+}
+
+.sidebar>section .section-content {
+  opacity: 0;
+}
+
+.sidebar>section:hover {
+  background-color: #373f4b;
+}
+
+.sidebar>section.expanded {
+  background-color: #19212b;
+  max-height: 250px;
+}
+
+.sidebar>section>h1,
+.sidebar>section>h2 {
+  font-family: 'Raleway';
+  letter-spacing: 0.25px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0 24px;
+}
+
+.sidebar>section>h1 {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.sidebar>section>h2 {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  margin-top: 8px;
+  font-weight: 400;
+
+}
+
+.sidebar>section.expanded>h2 {
+  opacity: 0;
+}
+
+.sidebar>section.expanded>div {
+  opacity: 1;
+}
+
+.sidebar>section .section-content , .sidebar>section .section-content a {
+  color: #b4b7ba;
+}
+
+.sidebar>section>.section-content ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar>section>.section-content li a{
+  line-height: 24px;
+  font-size: 14px;
+  font-weight: 400;
+  font-family: 'Raleway';
+  letter-spacing: 0.5px;
+  padding: 5px 24px;
+  text-decoration: none;
+  display: block;
+}
+.sidebar>section>.section-content li a {
+
+}
+
+.sidebar>section>.section-content li a>i {
+  vertical-align: middle;
+  margin-right: 10px;
+}
+
+.sidebar>section>div li:hover {
+  background-color: #373f4b;
+}
+
+.page-content header {
+  height: 25px;
+  background-color: hsl(213, 22%, 82%);
+  color: hsl(213, 22%, 20%);
+  font-size: 14px;
+  font-weight: 400;
+  font-family: 'Google sans';
+  padding: 5px 10px;
+  border-top: 1px solid hsl(213, 22%, 75%);
+  border-bottom: 1px solid hsl(213, 22%, 75%);
+}
+
+
+.page-content {
+  position: fixed;
+  left: 256px;
+  width: calc(100% - 256px);
+  height: 100%;
+}
+
+.track-shell h1 {
+  font-family: 'Google Sans';
+}

@@ -26,7 +26,9 @@ export const OverviewTimeline = {
     this.padding = {top: 0, right: 20, bottom: 0, left: 20};
   },
   view({attrs}) {
-    this.timeScale.setLimitsPx(0, attrs.width);
+    this.timeScale.setLimitsPx(
+        this.padding.left,
+        attrs.width - this.padding.left - this.padding.right);
     this.timeScale.setLimitsMs(
         attrs.maxVisibleWindowMs.start, attrs.maxVisibleWindowMs.end);
 
@@ -42,7 +44,7 @@ export const OverviewTimeline = {
         },
         m(TimeAxis, {
           timeScale: this.timeScale,
-          contentOffset: this.padding.left,
+          contentOffset: 0,
           visibleWindowMs: attrs.maxVisibleWindowMs,
           width: attrs.width,
         }),
@@ -58,7 +60,7 @@ export const OverviewTimeline = {
               position: 'absolute',
               left: `${this.padding.left}px`,
               top: '41px',
-              width: '100%',
+              width: 'calc(100% - 40px)',
               height: 'calc(100% - 41px)',
             }
           },
