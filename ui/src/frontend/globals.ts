@@ -17,6 +17,7 @@ import {State} from '../common/state';
 import {ControllerProxy} from './controller_proxy';
 
 type Dispatch = (action: Action) => void;
+type TrackDataStore = Map<string, {}>;
 
 /**
  * Global accessors for state/dispatch in the frontend.
@@ -25,6 +26,7 @@ class Globals {
   _dispatch?: Dispatch = undefined;
   _state?: State = undefined;
   _controller?: ControllerProxy = undefined;
+  _trackDataStore?: TrackDataStore = undefined;
 
   // Frequently changing data from the controller. Each item is keyed by an ID.
   // TODO(dproy): Replace with the real thing.
@@ -55,6 +57,15 @@ class Globals {
 
   set controller(value: ControllerProxy) {
     this._controller = value;
+  }
+
+  get trackDataStore(): TrackDataStore {
+    if (this._trackDataStore === undefined) throw new Error('Global not set');
+    return this._trackDataStore;
+  }
+
+  set trackDataStore(value: TrackDataStore) {
+    this._trackDataStore = value;
   }
 
   resetForTesting() {

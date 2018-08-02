@@ -16,10 +16,38 @@ import * as m from 'mithril';
 
 import {TrackState} from '../common/state';
 
+import {globals} from './globals';
 import {Milliseconds, TimeScale} from './time_scale';
 import {Track} from './track';
 import {trackRegistry} from './track_registry';
 import {VirtualCanvasContext} from './virtual_canvas_context';
+
+interface TrackComponentAttrs {
+  trackContext: VirtualCanvasContext;
+  top: number;
+  width: number;
+  timeScale: TimeScale;
+  trackState: TrackState;
+  visibleWindowMs: {start: number, end: number};
+}
+
+/**
+ * Passes the necessary handles and data to Track so it can render canvas and
+ * DOM.
+ */
+function renderTrack(attrs: TrackComponentAttrs, track: Track) {
+  // TODO(dproy): Figure out how track implementations should render DOM.
+  const trackData = globals.trackDataStore.get(attrs.trackState.id);
+  if (trackData !== undefined) track.consumeData(trackData);
+
+  if (attrs.trackContext.isOnCanvas()) {
+    track.renderCanvas(
+        attrs.trackContext,
+        attrs.width,
+        attrs.timeScale,
+        attrs.visibleWindowMs);
+  }
+}
 
 export const TrackComponent = {
   oninit({attrs}) {
@@ -32,8 +60,9 @@ export const TrackComponent = {
   },
 
   view({attrs}) {
-    const sliceStart: Milliseconds = 1100000;
-    const sliceEnd: Milliseconds = 1400000;
+
+    const sliceStart: Milliseconds = 100000;
+    const sliceEnd: Milliseconds = 400000;
 
     const rectStart = attrs.timeScale.msToPx(sliceStart);
     const rectWidth = attrs.timeScale.msToPx(sliceEnd) - rectStart;
@@ -64,7 +93,7 @@ export const TrackComponent = {
           },
           m('h1',
             {style: {margin: 0, 'font-size': '1.5em'}},
-            attrs.trackState.kind)),
+            attrs.trackState.name)),
         m('.track-content',
           {
             style: {
@@ -89,23 +118,12 @@ export const TrackComponent = {
             attrs.trackState.kind + ' DOM Content')));
   },
 
+
+  oncreate({attrs}): void {
+    renderTrack(attrs, this.track);
+  },
+
   onupdate({attrs}) {
-    // TODO(dproy): Figure out how track implementations should render DOM.
-    if (attrs.trackContext.isOnCanvas()) {
-      this.track.renderCanvas(
-          attrs.trackContext,
-          attrs.width,
-          attrs.timeScale,
-          attrs.visibleWindowMs);
-    }
+    renderTrack(attrs, this.track);
   }
-} as m.Component<{
-  trackContext: VirtualCanvasContext,
-  top: number,
-  width: number,
-  timeScale: TimeScale,
-  trackState: TrackState,
-  visibleWindowMs: {start: number, end: number},
-},
-                              // TODO(dproy): Fix formatter. This is ridiculous.
-                              {track: Track}>;
+} as m.Component<TrackComponentAttrs, {track: Track}>;

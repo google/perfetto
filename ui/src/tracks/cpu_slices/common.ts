@@ -13,3 +13,11 @@
 // limitations under the License.
 
 export const TRACK_KIND = 'CpuSliceTrack';
+
+interface CpuSlice {
+  start: number;
+  end: number;
+  title: string;
+}
+
+export interface CpuSliceTrackData { slices: CpuSlice[]; }
