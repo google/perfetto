@@ -15,7 +15,6 @@
 import {TrackState} from '../common/state';
 
 import {TimeScale} from './time_scale';
-import {VirtualCanvasContext} from './virtual_canvas_context';
 
 /**
  * This interface forces track implementations to have some static properties.
@@ -44,6 +43,6 @@ export abstract class Track {
   abstract consumeData(trackData: {}): void;
   constructor(protected trackState: TrackState) {}
   abstract renderCanvas(
-      vCtx: VirtualCanvasContext, width: number, timeScale: TimeScale,
-      visibleWindowMs: {start: number, end: number}, data?: {}): void;
+      ctx: CanvasRenderingContext2D, width: number, timeScale: TimeScale,
+      visibleWindowMs: {start: number, end: number}): void;
 }

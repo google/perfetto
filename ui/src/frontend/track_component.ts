@@ -16,14 +16,14 @@ import * as m from 'mithril';
 
 import {TrackState} from '../common/state';
 
+import {CanvasController} from './canvas_controller';
 import {globals} from './globals';
 import {Milliseconds, TimeScale} from './time_scale';
 import {Track} from './track';
 import {trackRegistry} from './track_registry';
-import {VirtualCanvasContext} from './virtual_canvas_context';
 
 interface TrackComponentAttrs {
-  trackContext: VirtualCanvasContext;
+  canvasController: CanvasController;
   top: number;
   width: number;
   timeScale: TimeScale;
@@ -32,20 +32,73 @@ interface TrackComponentAttrs {
 }
 
 /**
+ * Returns yStart for a track relative to canvas top.
+ *
+ * When the canvas extends above ScrollingTrackDisplay, we have:
+ *
+ * -------------------------------- canvas
+ *   |
+ *   |  canvasYStart (negative here)
+ *   |
+ * -------------------------------- ScrollingTrackDisplay top
+ *   |
+ *   |  trackYStart (track.attrs.top)
+ *   |
+ * -------------------------------- track
+ *
+ * Otherwise, we have:
+ *
+ * -------------------------------- ScrollingTrackDisplay top
+ *   |      |
+ *   |      |  canvasYStart (positive here)
+ *   |      |
+ *   |     ------------------------- ScrollingTrackDisplay top
+ *   |
+ *   |  trackYStart (track.attrs.top)
+ *   |
+ * -------------------------------- track
+ *
+ * In both cases, trackYStartOnCanvas for track is trackYStart - canvasYStart.
+ *
+ * @param trackYStart Y position of a Track relative to
+ * ScrollingTrackDisplay.
+ * @param canvasYStart Y position of canvas relative to
+ * ScrollingTrackDisplay.
+ */
+function getTrackYStartOnCanvas(trackYStart: number, canvasYStart: number) {
+  return trackYStart - canvasYStart;
+}
+
+/**
  * Passes the necessary handles and data to Track so it can render canvas and
  * DOM.
  */
 function renderTrack(attrs: TrackComponentAttrs, track: Track) {
-  // TODO(dproy): Figure out how track implementations should render DOM.
   const trackData = globals.trackDataStore.get(attrs.trackState.id);
   if (trackData !== undefined) track.consumeData(trackData);
 
-  if (attrs.trackContext.isOnCanvas()) {
+  const trackBounds = {
+    yStart: attrs.top,
+    yEnd: attrs.top + attrs.trackState.height,
+  };
+
+  if (attrs.canvasController.isYBoundsOnCanvas(trackBounds)) {
+    const trackYStartOnCanvas = getTrackYStartOnCanvas(
+        attrs.top, attrs.canvasController.getCanvasYStart());
+
+    // Translate and clip the canvas context.
+    const ctx = attrs.canvasController.get2DContext();
+    ctx.save();
+    ctx.translate(0, trackYStartOnCanvas);
+    const clipRect = new Path2D();
+    clipRect.rect(0, 0, attrs.width, attrs.trackState.height);
+    ctx.clip(clipRect);
+
+    // TODO(dproy): Figure out how track implementations should render DOM.
     track.renderCanvas(
-        attrs.trackContext,
-        attrs.width,
-        attrs.timeScale,
-        attrs.visibleWindowMs);
+        ctx, attrs.width, attrs.timeScale, attrs.visibleWindowMs);
+
+    ctx.restore();
   }
 }
 

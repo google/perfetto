@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RootVirtualContext} from './root_virtual_context';
-
 const CANVAS_OVERDRAW_FACTOR = 2;
 
+// TODO: The word 'Controller' makes it sound like it lives on the controller
+// thread. Should find a better name.
 /**
- * Creates a canvas with a context that is set up for compositor scrolling.
- * Creates a canvas and a virtual context and handles their size and position
- * for smooth scrolling. The canvas is (width, height * CANVAS_OVERDRAW_FACTOR),
- * and through the virtual context behaves like (width, Inf).
+ * Creates a canvas with a context that is set up for compositor scrolling. The
+ * canvas has a fixed height of visibleHeight * CANVAS_OVERDRAW_FACTOR. This
+ * class is in charge of accepting new scrollTop value for the container element
+ * of the canvas, so it can compute the top offset required to recenter the
+ * canvas.
  */
 export class CanvasController {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private rootVirtualContext: RootVirtualContext;
 
   private scrollOffset = 0;
 
@@ -45,7 +45,6 @@ export class CanvasController {
     }
 
     this.ctx = ctx;
-    this.rootVirtualContext = new RootVirtualContext(this.ctx);
   }
 
   setDimensions(width: number, visibleCanvasHeight: number) {
@@ -60,9 +59,6 @@ export class CanvasController {
     this.canvas.width = this.canvasWidth * dpr;
     this.canvas.height = this.canvasHeight * dpr;
     this.ctx.scale(dpr, dpr);
-
-    this.rootVirtualContext.setCanvasTopOffset(this.getCanvasTopOffset());
-    this.rootVirtualContext.setCanvasSize(this.canvasWidth, this.canvasHeight);
   }
 
   clear(): void {
@@ -70,12 +66,16 @@ export class CanvasController {
     this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
   }
 
-  getContext(): RootVirtualContext {
-    return this.rootVirtualContext;
-  }
-
   getCanvasElement(): HTMLCanvasElement {
     return this.canvas;
+  }
+
+  /**
+   * Returns the canvas 2D rendering context so it doesn't have to be recreated
+   * from the canvas element.
+   */
+  get2DContext(): CanvasRenderingContext2D {
+    return this.ctx;
   }
 
   /**
@@ -86,10 +86,22 @@ export class CanvasController {
    */
   updateScrollOffset(scrollOffset: number): void {
     this.scrollOffset = scrollOffset;
-    this.rootVirtualContext.setCanvasTopOffset(this.getCanvasTopOffset());
   }
 
-  getCanvasTopOffset(): number {
+  /**
+   * Returns the desired y position of canvas relative to the
+   * ScrollingTrackDisplay that owns this so the canvas is centered in the
+   * visible area. Since we overdraw the canvas on top, this value can be
+   * negative.
+   */
+  getCanvasYStart(): number {
     return this.scrollOffset - this.extraHeightPerSide;
+  }
+
+  // TODO(dproy): Need to write tests for this.
+  isYBoundsOnCanvas(bounds: {yStart: number, yEnd: number}) {
+    const canvasYStart = this.getCanvasYStart();
+    const canvasYEnd = canvasYStart + this.canvasHeight;
+    return (bounds.yEnd >= canvasYStart && bounds.yStart <= canvasYEnd);
   }
 }
