@@ -52,19 +52,19 @@ export const ScrollingTrackDisplay = {
     const canvasTopOffset = this.canvasController.getCanvasYStart();
 
     this.canvasController.clear();
-    const tracks = globals.state.tracks;
-
-    const childTracks: m.Children[] = [];
 
     let trackYOffset = 0;
-    for (const trackState of Object.values(tracks)) {
+    const childTracks: m.Children[] = [];
+
+    for (const id of globals.state.displayedTrackIds) {
+      const trackState = globals.state.tracks[id];
       childTracks.push(m(TrackComponent, {
         canvasController: this.canvasController,
         top: trackYOffset,
         width: this.width,
         timeScale: attrs.timeScale,
         trackState,
-        visibleWindowMs: attrs.visibleWindowMs,
+        visibleWindowMs: attrs.visibleWindowMs
       }));
       trackYOffset += trackState.height;
     }

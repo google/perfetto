@@ -45,3 +45,11 @@ export function navigate(route: string) {
     route,
   };
 }
+
+export function moveTrack(trackId: string, direction: 'up'|'down') {
+  return {
+    type: 'MOVE_TRACK',
+    trackId,
+    direction,
+  };
+}
