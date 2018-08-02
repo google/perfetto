@@ -75,7 +75,7 @@ export const ScrollingTrackDisplay = {
           style: {
             position: 'relative',
             width: '100%',
-            height: 'calc(100% - 163px)',
+            height: 'calc(100% - 66px)',
             overflow: 'hidden'
           }
         },
