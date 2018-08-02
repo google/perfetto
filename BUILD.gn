@@ -88,6 +88,7 @@ executable("perfetto_unittests") {
     "gn:default_deps",
     "gn:gtest_main",
     "src/base:unittests",
+    "src/profiling/memory:unittests",
     "src/protozero:unittests",
     "src/tracing:unittests",
   ]
