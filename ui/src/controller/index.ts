@@ -103,7 +103,8 @@ class TrackControllerWrapper {
       engineController: EngineController) {
     this.config = config;
     this.controller = controller;
-    const publish = (data: {}) => this.controller.publish(config.id, data);
+    const publish = (data: {}) =>
+        this.controller.publishTrackData(config.id, data);
     engineController.waitForReady().then(async engine => {
       const factory = trackControllerRegistry.get(this.config.kind);
       this.trackController = factory.create(config, engine, publish);
@@ -144,7 +145,7 @@ class QueryController {
         columns,
         rows,
       };
-      controller.publish(config.id, result);
+      controller.publishTrackData(config.id, result);
     });
   }
 }
@@ -220,8 +221,8 @@ class Controller {
     return repsonse.blob();
   }
 
-  publish(id: string, data: {}) {
-    this.frontend.publish(id, data);
+  publishTrackData(id: string, data: {}) {
+    this.frontend.publishTrackData(id, data);
   }
 
   addLocalFile(file: File): string {
@@ -255,8 +256,8 @@ class FrontendProxy {
     return this.remote.send<MessagePort>('createWasmEnginePort', []);
   }
 
-  publish(id: string, data: {}) {
-    return this.remote.send<void>('publish', [id, data]);
+  publishTrackData(id: string, data: {}) {
+    return this.remote.send<void>('publishTrackData', [id, data]);
   }
 }
 

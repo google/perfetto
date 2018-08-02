@@ -47,8 +47,8 @@ class FrontendApi {
     this.redraw();
   }
 
-  publish(id: string, data: {}) {
-    globals.published.set(id, data);
+  publishTrackData(id: string, data: {}) {
+    globals.trackDataStore.set(id, data);
     this.redraw();
   }
 
@@ -79,6 +79,7 @@ async function main() {
   globals.controller = controller;
   globals.state = await controller.initAndGetState(channel.port1);
   globals.dispatch = controller.dispatch.bind(controller);
+  globals.trackDataStore = new Map<string, {}>();
   warmupWasmEngineWorker();
 
   const root = document.querySelector('main');

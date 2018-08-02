@@ -24,6 +24,9 @@ class CpuCounterTrack extends Track {
     return new CpuCounterTrack(trackState);
   }
 
+  // No-op
+  consumeData() {}
+
   constructor(trackState: TrackState) {
     super(trackState);
   }
