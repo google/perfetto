@@ -13,12 +13,11 @@
 // limitations under the License.
 
 import {Milliseconds, TimeScale} from './time_scale';
-import {VirtualCanvasContext} from './virtual_canvas_context';
 
 export const DESIRED_PX_PER_STEP = 80;
 
 export function drawGridLines(
-    ctx: VirtualCanvasContext,
+    ctx: CanvasRenderingContext2D,
     x: TimeScale,
     timeBounds: [Milliseconds, Milliseconds],
     width: number,
