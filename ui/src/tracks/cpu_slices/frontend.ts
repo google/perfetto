@@ -17,8 +17,6 @@ import {drawGridLines} from '../../frontend/gridline_helper';
 import {TimeScale} from '../../frontend/time_scale';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
-import {VirtualCanvasContext} from '../../frontend/virtual_canvas_context';
-
 import {CpuSliceTrackData, TRACK_KIND} from './common';
 
 function sliceIsVisible(
@@ -44,10 +42,12 @@ class CpuSliceTrack extends Track {
   }
 
   renderCanvas(
-      vCtx: VirtualCanvasContext, width: number, timeScale: TimeScale,
+      ctx: CanvasRenderingContext2D, width: number, timeScale: TimeScale,
       visibleWindowMs: {start: number, end: number}): void {
+    // TODO: This should move up to track class. A track can just draw over the
+    // gridlines / clear rect.
     drawGridLines(
-        vCtx,
+        ctx,
         timeScale,
         [visibleWindowMs.start, visibleWindowMs.end],
         width,
@@ -58,14 +58,8 @@ class CpuSliceTrack extends Track {
       if (!sliceIsVisible(slice, visibleWindowMs)) continue;
       const rectStart = timeScale.msToPx(slice.start);
       const rectEnd = timeScale.msToPx(slice.end);
-
-      // TODO(dproy): Remove vctx and associated bounds checking so we don't
-      // have to do this.
-      const shownStart = Math.max(rectStart, 0);
-      const shownEnd = Math.min(width, rectEnd);
-      const shownWidth = shownEnd - shownStart;
-      vCtx.fillStyle = '#4682b4';
-      vCtx.fillRect(shownStart, 40, shownWidth, 30);
+      ctx.fillStyle = '#4682b4';
+      ctx.fillRect(rectStart, 40, rectEnd, 30);
     }
   }
 }

@@ -15,7 +15,6 @@
 import {TrackState} from '../../common/state';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
-import {VirtualCanvasContext} from '../../frontend/virtual_canvas_context';
 import {TRACK_KIND} from './common';
 
 class CpuCounterTrack extends Track {
@@ -31,12 +30,12 @@ class CpuCounterTrack extends Track {
     super(trackState);
   }
 
-  renderCanvas(vCtx: VirtualCanvasContext, width: number): void {
-    vCtx.fillStyle = '#eee';
-    vCtx.fillRect(0, 0, width, this.trackState.height);
-    vCtx.font = '16px Arial';
-    vCtx.fillStyle = '#000';
-    vCtx.fillText('Drawing ' + CpuCounterTrack.kind, Math.round(width / 2), 20);
+  renderCanvas(ctx: CanvasRenderingContext2D, width: number): void {
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(0, 0, width, this.trackState.height);
+    ctx.font = '16px Arial';
+    ctx.fillStyle = '#000';
+    ctx.fillText('Drawing ' + CpuCounterTrack.kind, Math.round(width / 2), 20);
   }
 }
 
