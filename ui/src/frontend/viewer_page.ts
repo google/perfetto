@@ -51,7 +51,7 @@ const TraceViewer = {
     window.addEventListener('resize', this.onResize);
 
     const panZoomEl =
-        vnode.dom.getElementsByClassName('page-content')[0] as HTMLElement;
+        vnode.dom.getElementsByClassName('tracks-content')[0] as HTMLElement;
 
     // TODO: ContentOffsetX should be defined somewhere central.
     // Currently it lives here, in canvas wrapper, and in track shell.
@@ -107,19 +107,21 @@ const TraceViewer = {
             height: '100%',
           },
         },
+        m('header.overview', 'Big Picture'),
         m(OverviewTimeline, {
           visibleWindowMs: this.visibleWindowMs,
           maxVisibleWindowMs: this.maxVisibleWindowMs,
           width: this.width,
           onBrushedMs
         }),
-        m('.page-content',
+        m('.tracks-content',
           {
             style: {
               width: '100%',
-              height: '100%',
+              height: 'calc(100% - 145px)',
             }
           },
+          m('header.tracks-content', 'Tracks'),
           m(TimeAxis, {
             timeScale: this.timeScale,
             contentOffset: 200,
