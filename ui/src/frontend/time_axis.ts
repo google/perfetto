@@ -52,6 +52,7 @@ export const TimeAxis = {
                 style: {
                   position: 'absolute',
                   left: xPos.toString() + 'px',
+                  overflow: 'visible',
                 }
               },
               m('.mark-label',
@@ -87,6 +88,9 @@ export const TimeAxis = {
             style: {
               position: 'absolute',
               left: attrs.contentOffset.toString() + 'px',
+              width: '100%',
+              height: '100%',
+              overflow: 'visible',
             }
           },
           ...gridMarks));
