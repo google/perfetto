@@ -13,54 +13,41 @@
 // limitations under the License.
 
 export class Animation {
-  private running = false;
-  private runningStartedMs = 0;
-  private end = Infinity;
-  private requestedAnimationFrame = 0;
+  private startMs = 0;
+  private endMs = 0;
+  private lastFrameMs = 0;
+  private rafId = 0;
 
   constructor(private onAnimationStep: (timeSinceLastMs: number) => void) {}
 
-  start(durationMs?: number) {
-    if (durationMs !== undefined) {
-      this.end = Date.now() + durationMs;
+  start(durationMs: number) {
+    const nowMs = performance.now();
+
+    // If the animation is already happening, just update its end time.
+    if (nowMs <= this.endMs) {
+      this.endMs = nowMs + durationMs;
+      return;
     }
-    this.run();
+    this.lastFrameMs = 0;
+    this.startMs = nowMs;
+    this.endMs = nowMs + durationMs;
+    this.rafId = requestAnimationFrame(this.onAnimationFrame.bind(this));
   }
 
   stop() {
-    this.running = false;
-    cancelAnimationFrame(this.requestedAnimationFrame);
+    this.endMs = 0;
+    cancelAnimationFrame(this.rafId);
   }
 
-  getStartTimeMs(): number {
-    return this.runningStartedMs;
+  get startTimeMs(): number {
+    return this.startMs;
   }
 
-  private run() {
-    if (this.running) {
-      return;
+  private onAnimationFrame(nowMs: number) {
+    if (nowMs < this.endMs) {
+      this.rafId = requestAnimationFrame(this.onAnimationFrame.bind(this));
     }
-    let lastFrameTimeMs = 0;
-
-    const raf = (timestampMs: number) => {
-      if (!lastFrameTimeMs) {
-        lastFrameTimeMs = timestampMs;
-      }
-      this.onAnimationStep(timestampMs - lastFrameTimeMs);
-      lastFrameTimeMs = timestampMs;
-
-      if (this.running) {
-        if (Date.now() < this.end) {
-          this.requestedAnimationFrame = requestAnimationFrame(raf);
-        } else {
-          this.running = false;
-        }
-      }
-    };
-
-    this.running = true;
-    this.runningStartedMs = Date.now();
-
-    requestAnimationFrame(raf);
+    this.onAnimationStep(nowMs - (this.lastFrameMs || nowMs));
+    this.lastFrameMs = nowMs;
   }
 }
