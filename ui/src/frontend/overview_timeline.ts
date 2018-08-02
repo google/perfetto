@@ -91,35 +91,44 @@ export const OverviewTimeline = {
  */
 const HorizontalBrushSelection = {
   oninit() {
-    let dragState: 'start'|'end'|'none' = 'none';
+    let dragState: 'draggingStartHandle'|'draggingEndHandle'|'notDragging' =
+        'notDragging';
 
     this.rightHandleMouseDownListener = () => {
-      dragState = 'end';
+      dragState = 'draggingEndHandle';
     };
     this.leftHandleMouseDownListener = () => {
-      dragState = 'start';
+      dragState = 'draggingStartHandle';
+    };
+    this.mouseDownListener = (e: MouseEvent) => {
+      const posX = e.clientX - this.offsetLeft;
+      dragState = 'draggingEndHandle';
+      this.onBrushedPx(posX, posX + 1);
     };
     this.mouseMoveListener = (e: MouseEvent) => {
-      if (dragState === 'none') {
+      if (dragState === 'notDragging') {
         return;
       }
       // Prevent text selections
       e.preventDefault();
 
       const posX = e.clientX - this.offsetLeft;
-      if ((dragState === 'end' && posX < this.selectionPx.start) ||
-          (dragState === 'start' && posX > this.selectionPx.end)) {
+      if ((dragState === 'draggingEndHandle' &&
+           posX < this.selectionPx.start) ||
+          (dragState === 'draggingStartHandle' &&
+           posX > this.selectionPx.end)) {
         // Flip start and end if handle has been dragged past the other limit.
-        dragState = dragState === 'start' ? 'end' : 'start';
+        dragState = dragState === 'draggingStartHandle' ? 'draggingEndHandle' :
+                                                          'draggingStartHandle';
       }
-      if (dragState === 'start') {
+      if (dragState === 'draggingStartHandle') {
         this.onBrushedPx(posX, this.selectionPx.end);
       } else {
         this.onBrushedPx(this.selectionPx.start, posX);
       }
     };
     this.mouseUpListener = () => {
-      dragState = 'none';
+      dragState = 'notDragging';
     };
   },
   oncreate(vnode) {
@@ -144,6 +153,7 @@ const HorizontalBrushSelection = {
     return m(
         '.brushes',
         {
+          onmousedown: this.mouseDownListener.bind(this),
           style: {
             width: '100%',
             height: '100%',
@@ -191,6 +201,7 @@ const HorizontalBrushSelection = {
         {
           rightHandleMouseDownListener: (e: MouseEvent) => void,
           leftHandleMouseDownListener: (e: MouseEvent) => void,
+          mouseDownListener: (e: MouseEvent) => void,
           mouseMoveListener: (e: MouseEvent) => void,
           mouseUpListener: () => void,
           selectionPx: {start: number, end: number},
