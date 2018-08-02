@@ -49,6 +49,7 @@ export interface State {
    */
   engines: ObjectById<EngineConfig>;
   tracks: ObjectById<TrackState>;
+  displayedTrackIds: string[];
   queries: ObjectById<QueryConfig>;
 }
 
@@ -57,6 +58,7 @@ export function createEmptyState(): State {
     route: null,
     nextId: 0,
     tracks: {},
+    displayedTrackIds: [],
     engines: {},
     queries: {},
   };

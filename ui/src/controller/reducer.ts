@@ -45,11 +45,12 @@ export function rootReducer(state: State, action: any): State {
         id,
         engineId: action.engineId,
         kind: action.trackKind,
-        name: 'Cpu Track',
+        name: `Cpu Track ${id}`,
         // TODO(hjd): Should height be part of published information?
         height: 73,
         cpu: action.cpu,
       };
+      nextState.displayedTrackIds.push(id);
       return nextState;
     }
 
@@ -64,6 +65,29 @@ export function rootReducer(state: State, action: any): State {
       };
       return nextState;
     }
+
+    case 'MOVE_TRACK':
+      if (!state.displayedTrackIds.includes(action.trackId) ||
+          !action.direction) {
+        throw new Error(
+            'Trying to move a track that does not exist' +
+            ' or not providing a direction to move to.');
+      }
+      const nextState = {...state};  // Creates a shallow copy.
+      // Copy the displayedTrackIds to prevent side effects.
+      nextState.displayedTrackIds = state.displayedTrackIds.slice();
+
+      const oldIndex = state.displayedTrackIds.indexOf(action.trackId);
+      const newIndex = action.direction === 'up' ? oldIndex - 1 : oldIndex + 1;
+      const swappedTrackId = state.displayedTrackIds[newIndex];
+
+      if (!swappedTrackId) {
+        break;
+      }
+      nextState.displayedTrackIds[newIndex] = action.trackId;
+      nextState.displayedTrackIds[oldIndex] = swappedTrackId;
+
+      return nextState;
 
     default:
       break;
