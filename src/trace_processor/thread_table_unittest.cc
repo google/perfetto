@@ -16,7 +16,11 @@
 
 #include "src/trace_processor/thread_table.h"
 #include "src/trace_processor/process_table.h"
+#include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/sched_tracker.h"
 #include "src/trace_processor/scoped_db.h"
+#include "src/trace_processor/trace_parser.h"
+#include "src/trace_processor/trace_processor_context.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -32,8 +36,12 @@ class ThreadTableUnittest : public ::testing::Test {
     PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
     db_.reset(db);
 
-    ThreadTable::RegisterTable(&*db, &storage_);
-    ProcessTable::RegisterTable(&*db, &storage_);
+    context_.storage.reset(new TraceStorage());
+    context_.process_tracker.reset(new ProcessTracker(&context_));
+    context_.sched_tracker.reset(new SchedTracker(&context_));
+
+    ThreadTable::RegisterTable(db_.get(), context_.storage.get());
+    ProcessTable::RegisterTable(db_.get(), context_.storage.get());
   }
 
   void PrepareValidStatement(const std::string& sql) {
@@ -48,8 +56,10 @@ class ThreadTableUnittest : public ::testing::Test {
     return reinterpret_cast<const char*>(sqlite3_column_text(*stmt_, colId));
   }
 
+  ~ThreadTableUnittest() override { context_.storage->ResetStorage(); }
+
  protected:
-  TraceStorage storage_;
+  TraceProcessorContext context_;
   ScopedDb db_;
   ScopedStmt stmt_;
 };
@@ -63,13 +73,15 @@ TEST_F(ThreadTableUnittest, Select) {
   static const char kCommProc2[] = "thread2";
   uint32_t pid_2 = 4;
 
-  storage_.PushSchedSwitch(cpu, timestamp, pid_1, prev_state, kCommProc1,
-                           sizeof(kCommProc1) - 1, pid_2);
-  storage_.PushSchedSwitch(cpu, timestamp + 1, pid_2, prev_state, kCommProc2,
-                           sizeof(kCommProc2) - 1, pid_1);
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp, pid_1, prev_state,
+                                          kCommProc1, sizeof(kCommProc1) - 1,
+                                          pid_2);
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, pid_2, prev_state,
+                                          kCommProc2, sizeof(kCommProc2) - 1,
+                                          pid_1);
 
-  storage_.PushProcess(2, "test", 4);
-  storage_.MatchThreadToProcess(1, 2);
+  context_.process_tracker->UpdateProcess(2, "test", 4);
+  context_.process_tracker->UpdateThread(1, 2);
   PrepareValidStatement("SELECT utid, upid, name FROM thread");
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
@@ -89,16 +101,19 @@ TEST_F(ThreadTableUnittest, SelectWhere) {
   static const char kCommProc2[] = "thread2";
   uint32_t pid_2 = 4;
 
-  storage_.PushSchedSwitch(cpu, timestamp, pid_1, prev_state, kCommProc1,
-                           sizeof(kCommProc1) - 1, pid_2);
-  storage_.PushSchedSwitch(cpu, timestamp + 1, pid_2, prev_state, kCommProc2,
-                           sizeof(kCommProc2) - 1, pid_1);
-  storage_.PushSchedSwitch(cpu, timestamp + 2, pid_1, prev_state, kCommProc1,
-                           sizeof(kCommProc1) - 1, pid_2);
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp, pid_1, prev_state,
+                                          kCommProc1, sizeof(kCommProc1) - 1,
+                                          pid_2);
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, pid_2, prev_state,
+                                          kCommProc2, sizeof(kCommProc2) - 1,
+                                          pid_1);
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 2, pid_1, prev_state,
+                                          kCommProc1, sizeof(kCommProc1) - 1,
+                                          pid_2);
 
-  storage_.PushProcess(2, "test", 4);
-  storage_.MatchThreadToProcess(1, 2);
-  storage_.MatchThreadToProcess(2, 2);
+  context_.process_tracker->UpdateProcess(2, "test", 4);
+  context_.process_tracker->UpdateThread(1, 2);
+  context_.process_tracker->UpdateThread(2, 2);
   PrepareValidStatement("SELECT utid, upid, name FROM thread where utid = 1");
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
@@ -118,14 +133,16 @@ TEST_F(ThreadTableUnittest, JoinWithProcess) {
   static const char kCommProc2[] = "thread2";
   uint32_t pid_2 = 4;
 
-  storage_.PushSchedSwitch(cpu, timestamp, pid_1, prev_state, kCommProc1,
-                           sizeof(kCommProc1) - 1, pid_2);
-  storage_.PushSchedSwitch(cpu, timestamp + 1, pid_2, prev_state, kCommProc2,
-                           sizeof(kCommProc2) - 1, pid_1);
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp, pid_1, prev_state,
+                                          kCommProc1, sizeof(kCommProc1) - 1,
+                                          pid_2);
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, pid_2, prev_state,
+                                          kCommProc2, sizeof(kCommProc2) - 1,
+                                          pid_1);
 
-  storage_.PushProcess(2, "test", 4);
-  storage_.PushProcess(3, "test1", 5);
-  storage_.MatchThreadToProcess(1, 2);
+  context_.process_tracker->UpdateProcess(2, "test", 4);
+  context_.process_tracker->UpdateProcess(3, "test1", 5);
+  context_.process_tracker->UpdateThread(1, 2);
   PrepareValidStatement(
       "SELECT utid, thread.name, process.upid, process.name FROM thread INNER "
       "JOIN process USING (upid)");
