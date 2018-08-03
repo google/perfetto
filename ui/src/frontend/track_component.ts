@@ -197,9 +197,8 @@ export const TrackComponent = {
 
 const TrackMoveButton = {
   view({attrs}) {
-    const content = attrs.direction === 'up' ? '⇧' : '⇩';
     return m(
-        'button',
+        'i.material-icons',
         {
           onclick: quietDispatch(moveTrack(attrs.trackId, attrs.direction)),
           style: {
@@ -219,7 +218,7 @@ const TrackMoveButton = {
             outline: 'none',
           }
         },
-        content);
+        attrs.direction === 'up' ? 'arrow_upward_alt' : 'arrow_downward_alt');
   }
 } as m.Component<{
   direction: 'up' | 'down',
