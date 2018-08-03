@@ -18,7 +18,7 @@ import {navigate, openTrace} from '../common/actions';
 import {EngineConfig} from '../common/state';
 
 import {globals} from './globals';
-import {MithrilEvent, quietDispatch} from './mithril_helpers';
+import {quietDispatch, RedrawableEvent} from './mithril_helpers';
 import {createPage} from './pages';
 
 const EXAMPLE_TRACE_URL =
@@ -32,7 +32,7 @@ function extractFile(e: Event): File|null {
   return e.target.files.item(0);
 }
 
-async function loadTraceFromFile(e: MithrilEvent) {
+async function loadTraceFromFile(e: RedrawableEvent) {
   e.redraw = false;
   const file = extractFile(e);
   if (!file) return;
