@@ -57,7 +57,7 @@ int ThreadTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
 ThreadTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {}
 
 int ThreadTable::Cursor::Column(sqlite3_context* context, int N) {
-  auto thread = storage_->GetThread(utid_filter_.current);
+  const auto& thread = storage_->GetThread(utid_filter_.current);
   switch (N) {
     case Column::kUtid: {
       sqlite3_result_int64(context, utid_filter_.current);
@@ -91,8 +91,8 @@ int ThreadTable::Cursor::Filter(const QueryConstraints& qc,
   for (size_t j = 0; j < qc.constraints().size(); j++) {
     const auto& cs = qc.constraints()[j];
     if (cs.iColumn == Column::kUtid) {
-      TraceStorage::UniqueTid constraint_utid =
-          static_cast<TraceStorage::UniqueTid>(sqlite3_value_int(argv[j]));
+      UniqueTid constraint_utid =
+          static_cast<UniqueTid>(sqlite3_value_int(argv[j]));
       // Filter the range of utids that we are interested in, based on the
       // constraints in the query. Everything between min and max (inclusive)
       // will be returned.

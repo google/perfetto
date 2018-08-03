@@ -48,9 +48,10 @@ class FakeStringBlobReader : public BlobReader {
   std::string data_;
 };
 
-class MockTraceStorage : public TraceStorage {
+class MockSchedTracker : public SchedTracker {
  public:
-  MockTraceStorage() : TraceStorage() {}
+  MockSchedTracker(TraceProcessorContext* context) : SchedTracker(context) {}
+  virtual ~MockSchedTracker() = default;
 
   MOCK_METHOD7(PushSchedSwitch,
                void(uint32_t cpu,
@@ -60,11 +61,19 @@ class MockTraceStorage : public TraceStorage {
                     const char* prev_comm,
                     size_t prev_comm_len,
                     uint32_t next_pid));
-  MOCK_METHOD3(PushProcess,
-               void(uint32_t pid,
-                    const char* process_name,
-                    size_t process_name_len));
-  MOCK_METHOD2(MatchThreadToProcess, void(uint32_t tid, uint32_t tgid));
+};
+
+class MockProcessTracker : public ProcessTracker {
+ public:
+  MockProcessTracker(TraceProcessorContext* context)
+      : ProcessTracker(context) {}
+
+  MOCK_METHOD3(UpdateProcess,
+               UniquePid(uint32_t pid,
+                         const char* process_name,
+                         size_t process_name_len));
+
+  MOCK_METHOD2(UpdateThread, UniqueTid(uint32_t tid, uint32_t tgid));
 };
 
 TEST(TraceParser, LoadSingleEvent) {
@@ -83,12 +92,14 @@ TEST(TraceParser, LoadSingleEvent) {
   sched_switch->set_prev_comm(kProcName);
   sched_switch->set_next_pid(100);
 
-  MockTraceStorage storage;
-  EXPECT_CALL(storage, PushSchedSwitch(10, 1000, 10, 32, _, _, 100))
+  TraceProcessorContext context;
+  MockSchedTracker* sched = new MockSchedTracker(&context);
+  context.sched_tracker.reset(sched);
+  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32, _, _, 100))
       .With(Args<4, 5>(ElementsAreArray(kProcName, sizeof(kProcName) - 1)));
 
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &storage, 1024);
+  TraceParser parser(&reader, &context, 1024);
   parser.ParseNextChunk();
 }
 
@@ -118,15 +129,17 @@ TEST(TraceParser, LoadMultipleEvents) {
   sched_switch->set_prev_comm(kProcName2);
   sched_switch->set_next_pid(10);
 
-  MockTraceStorage storage;
-  EXPECT_CALL(storage, PushSchedSwitch(10, 1000, 10, 32, _, _, 100))
+  TraceProcessorContext context;
+  MockSchedTracker* sched = new MockSchedTracker(&context);
+  context.sched_tracker.reset(sched);
+  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32, _, _, 100))
       .With(Args<4, 5>(ElementsAreArray(kProcName1, sizeof(kProcName1) - 1)));
 
-  EXPECT_CALL(storage, PushSchedSwitch(10, 1001, 100, 32, _, _, 10))
+  EXPECT_CALL(*sched, PushSchedSwitch(10, 1001, 100, 32, _, _, 10))
       .With(Args<4, 5>(ElementsAreArray(kProcName2, sizeof(kProcName2) - 1)));
 
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &storage, 1024);
+  TraceParser parser(&reader, &context, 1024);
   parser.ParseNextChunk();
 }
 
@@ -159,15 +172,17 @@ TEST(TraceParser, LoadMultiplePackets) {
   sched_switch->set_prev_comm(kProcName2);
   sched_switch->set_next_pid(10);
 
-  MockTraceStorage storage;
-  EXPECT_CALL(storage, PushSchedSwitch(10, 1000, 10, 32, _, _, 100))
+  TraceProcessorContext context;
+  MockSchedTracker* sched = new MockSchedTracker(&context);
+  context.sched_tracker.reset(sched);
+  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32, _, _, 100))
       .With(Args<4, 5>(ElementsAreArray(kProcName1, sizeof(kProcName1) - 1)));
 
-  EXPECT_CALL(storage, PushSchedSwitch(10, 1001, 100, 32, _, _, 10))
+  EXPECT_CALL(*sched, PushSchedSwitch(10, 1001, 100, 32, _, _, 10))
       .With(Args<4, 5>(ElementsAreArray(kProcName2, sizeof(kProcName2) - 1)));
 
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &storage, 1024);
+  TraceParser parser(&reader, &context, 1024);
   parser.ParseNextChunk();
 }
 
@@ -203,15 +218,17 @@ TEST(TraceParser, RepeatedLoadSinglePacket) {
   sched_switch->set_prev_comm(kProcName2);
   sched_switch->set_next_pid(10);
 
-  MockTraceStorage storage;
-  EXPECT_CALL(storage, PushSchedSwitch(10, 1000, 10, 32, _, _, 100))
+  TraceProcessorContext context;
+  MockSchedTracker* sched = new MockSchedTracker(&context);
+  context.sched_tracker.reset(sched);
+  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32, _, _, 100))
       .With(Args<4, 5>(ElementsAreArray(kProcName1, sizeof(kProcName1) - 1)));
 
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &storage, chunk_size);
+  TraceParser parser(&reader, &context, chunk_size);
   parser.ParseNextChunk();
 
-  EXPECT_CALL(storage, PushSchedSwitch(10, 1001, 100, 32, _, _, 10))
+  EXPECT_CALL(*sched, PushSchedSwitch(10, 1001, 100, 32, _, _, 10))
       .With(Args<4, 5>(ElementsAreArray(kProcName2, sizeof(kProcName2) - 1)));
 
   parser.ParseNextChunk();
@@ -228,11 +245,13 @@ TEST(TraceParse, LoadProcessPacket) {
   process->set_pid(1);
   process->set_ppid(2);
 
-  MockTraceStorage storage;
-  EXPECT_CALL(storage, PushProcess(1, _, _))
+  TraceProcessorContext context;
+  MockProcessTracker* process_tracker = new MockProcessTracker(&context);
+  context.process_tracker.reset(process_tracker);
+  EXPECT_CALL(*process_tracker, UpdateProcess(1, _, _))
       .With(Args<1, 2>(ElementsAreArray(kProcName1, sizeof(kProcName1) - 1)));
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &storage, 1024);
+  TraceParser parser(&reader, &context, 1024);
   parser.ParseNextChunk();
 }
 
@@ -249,11 +268,13 @@ TEST(TraceParse, LoadProcessPacket_FirstCmdline) {
   process->set_pid(1);
   process->set_ppid(2);
 
-  MockTraceStorage storage;
-  EXPECT_CALL(storage, PushProcess(1, _, _))
+  TraceProcessorContext context;
+  MockProcessTracker* process_tracker = new MockProcessTracker(&context);
+  context.process_tracker.reset(process_tracker);
+  EXPECT_CALL(*process_tracker, UpdateProcess(1, _, _))
       .With(Args<1, 2>(ElementsAreArray(kProcName1, sizeof(kProcName1) - 1)));
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &storage, 1024);
+  TraceParser parser(&reader, &context, 1024);
   parser.ParseNextChunk();
 }
 
@@ -265,10 +286,12 @@ TEST(TraceParse, LoadThreadPacket) {
   thread->set_tid(1);
   thread->set_tgid(2);
 
-  MockTraceStorage storage;
-  EXPECT_CALL(storage, MatchThreadToProcess(1, 2));
+  TraceProcessorContext context;
+  MockProcessTracker* process_tracker = new MockProcessTracker(&context);
+  context.process_tracker.reset(process_tracker);
+  EXPECT_CALL(*process_tracker, UpdateThread(1, 2));
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &storage, 1024);
+  TraceParser parser(&reader, &context, 1024);
   parser.ParseNextChunk();
 }
 
