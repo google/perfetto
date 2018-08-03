@@ -22,7 +22,7 @@
 #include "perfetto/trace_processor/raw_query.pb.h"
 #include "perfetto/trace_processor/sched.pb.h"
 #include "src/trace_processor/emscripten_task_runner.h"
-#include "src/trace_processor/trace_database.h"
+#include "src/trace_processor/trace_processor.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -58,7 +58,7 @@ using ReplyFunction = void (*)(RequestID,
 namespace {
 
 EmscriptenTaskRunner* g_task_runner;
-TraceDatabase* g_trace_database;
+TraceProcessor* g_trace_processor;
 ReadTraceFunction g_read_trace;
 ReplyFunction g_reply;
 
@@ -93,10 +93,10 @@ void Initialize(RequestID id,
                 ReplyFunction reply_function) {
   PERFETTO_ILOG("Initializing WASM bridge");
   g_task_runner = new EmscriptenTaskRunner();
-  g_trace_database = new TraceDatabase(g_task_runner);
+  g_trace_processor = new TraceProcessor(g_task_runner);
   g_read_trace = read_trace_function;
   g_reply = reply_function;
-  g_trace_database->LoadTrace(blob_reader(), [id]() {
+  g_trace_processor->LoadTrace(blob_reader(), [id]() {
     g_reply(id, true /* success */, nullptr /* ptr */, 0 /* size */);
   });
 }
@@ -123,7 +123,7 @@ void trace_processor_rawQuery(RequestID id,
     g_reply(id, true, encoded.data(), static_cast<uint32_t>(encoded.size()));
   };
 
-  g_trace_database->ExecuteQuery(query, callback);
+  g_trace_processor->ExecuteQuery(query, callback);
 }
 
 }  // extern "C"
