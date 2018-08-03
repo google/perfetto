@@ -54,9 +54,9 @@ class ProcessTable : public Table {
 
    private:
     struct UpidFilter {
-      TraceStorage::UniquePid min;
-      TraceStorage::UniquePid max;
-      TraceStorage::UniquePid current;
+      UniquePid min;
+      UniquePid max;
+      UniquePid current;
       bool desc;
     };
 
