@@ -37,7 +37,7 @@ TEST(RecordReaderTest, ZeroLengthRecord) {
   bool called = false;
   auto callback_fn = [&called](size_t size, std::unique_ptr<uint8_t[]>) {
     called = true;
-    ASSERT_EQ(size, 0);
+    ASSERT_EQ(size, 0u);
   };
   base::ScopedFile fd[2];
   ASSERT_NE(ScopedPipe(fd), -1);
@@ -58,7 +58,7 @@ TEST(RecordReaderTest, OneRecord) {
   bool called = false;
   auto callback_fn = [&called](size_t size, std::unique_ptr<uint8_t[]>) {
     called = true;
-    ASSERT_EQ(size, 1);
+    ASSERT_EQ(size, 1u);
   };
   base::ScopedFile fd[2];
   ASSERT_NE(ScopedPipe(fd), -1);
