@@ -19,6 +19,7 @@ import {TrackState} from '../common/state';
 
 import {CanvasController} from './canvas_controller';
 import {globals} from './globals';
+import {drawGridLines} from './gridline_helper';
 import {quietDispatch} from './mithril_helpers';
 import {Milliseconds, TimeScale} from './time_scale';
 import {Track} from './track';
@@ -96,9 +97,15 @@ function renderTrack(attrs: TrackComponentAttrs, track: Track) {
     clipRect.rect(0, 0, attrs.width, attrs.trackState.height);
     ctx.clip(clipRect);
 
+    drawGridLines(
+        ctx,
+        attrs.timeScale,
+        [attrs.visibleWindowMs.start, attrs.visibleWindowMs.end],
+        attrs.width,
+        attrs.trackState.height);
+
     // TODO(dproy): Figure out how track implementations should render DOM.
-    track.renderCanvas(
-        ctx, attrs.width, attrs.timeScale, attrs.visibleWindowMs);
+    track.renderCanvas(ctx, attrs.timeScale, attrs.visibleWindowMs);
 
     ctx.restore();
   }

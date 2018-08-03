@@ -43,6 +43,6 @@ export abstract class Track {
   abstract consumeData(trackData: {}): void;
   constructor(protected trackState: TrackState) {}
   abstract renderCanvas(
-      ctx: CanvasRenderingContext2D, width: number, timeScale: TimeScale,
+      ctx: CanvasRenderingContext2D, timeScale: TimeScale,
       visibleWindowMs: {start: number, end: number}): void;
 }
