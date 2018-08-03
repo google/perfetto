@@ -59,7 +59,7 @@ class CpuSliceTrack extends Track {
       const rectStart = timeScale.msToPx(slice.start);
       const rectEnd = timeScale.msToPx(slice.end);
       ctx.fillStyle = '#4682b4';
-      ctx.fillRect(rectStart, 40, rectEnd, 30);
+      ctx.fillRect(rectStart, 40, rectEnd - rectStart, 30);
     }
   }
 }
