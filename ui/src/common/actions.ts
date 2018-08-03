@@ -21,6 +21,13 @@ export function openTrace(url: string) {
   };
 }
 
+export function openTraceFromFile(file: File) {
+  return {
+    type: 'OPEN_TRACE_FROM_FILE',
+    file,
+  };
+}
+
 // TODO(hjd): Remove CPU and add a generic way to handle track specific state.
 export function addTrack(engineId: string, trackKind: string, cpu: number) {
   return {

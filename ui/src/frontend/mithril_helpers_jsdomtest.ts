@@ -60,3 +60,19 @@ test('quietDispatch with function', () => {
   expect(e.redraw).toBe(false);
   expect(dispatch.calls[0][1][0]).toBe(theAction);
 });
+
+test('quietDispatch with function', () => {
+  const e = new Event('an_event') as RedrawableEvent;
+  e.redraw = true;
+
+  const dispatch = dingus<(action: Action) => void>('dispatch');
+  globals.dispatch = dispatch;
+
+  const action = (_: Event) => {
+    return null;
+  };
+
+  quietDispatch(action)(e);
+  expect(e.redraw).toBe(false);
+  expect(dispatch.calls.length).toBe(0);
+});
