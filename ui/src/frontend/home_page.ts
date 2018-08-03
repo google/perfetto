@@ -14,11 +14,15 @@
 
 import * as m from 'mithril';
 
-import {navigate, openTrace} from '../common/actions';
+import {
+  Action,
+  navigate,
+  openTrace,
+  openTraceFromFile
+} from '../common/actions';
 import {EngineConfig} from '../common/state';
-
 import {globals} from './globals';
-import {quietDispatch, RedrawableEvent} from './mithril_helpers';
+import {quietDispatch} from './mithril_helpers';
 import {createPage} from './pages';
 
 const EXAMPLE_TRACE_URL =
@@ -32,12 +36,10 @@ function extractFile(e: Event): File|null {
   return e.target.files.item(0);
 }
 
-async function loadTraceFromFile(e: RedrawableEvent) {
-  e.redraw = false;
+function loadTraceFromFile(e: Event): Action|null {
   const file = extractFile(e);
-  if (!file) return;
-  const url = await globals.controller.addLocalFile(file);
-  globals.dispatch(openTrace(url));
+  if (!file) return null;
+  return openTraceFromFile(file);
 }
 
 function renderEngine(engine: EngineConfig) {
@@ -59,7 +61,7 @@ export const HomePage = createPage({
         m('.home-page-controls',
           m('label.file-input',
             m('input[type=file]', {
-              onchange: loadTraceFromFile,
+              onchange: quietDispatch(loadTraceFromFile),
             }),
             'Load trace'),
           ' or ',

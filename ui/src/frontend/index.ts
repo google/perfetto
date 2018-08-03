@@ -76,7 +76,6 @@ async function main() {
   const controller = createController();
   const channel = new MessageChannel();
   forwardRemoteCalls(channel.port2, new FrontendApi());
-  globals.controller = controller;
   globals.state = await controller.initAndGetState(channel.port1);
   globals.dispatch = controller.dispatch.bind(controller);
   globals.trackDataStore = new Map<string, {}>();
