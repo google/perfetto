@@ -14,6 +14,7 @@
 
 import {Animation} from './animation';
 import Timer = NodeJS.Timer;
+import {DragGestureHandler} from './drag_gesture_handler';
 
 const ZOOM_IN_PERCENTAGE_PER_MS = 0.998;
 const ZOOM_OUT_PERCENTAGE_PER_MS = 1 / ZOOM_IN_PERCENTAGE_PER_MS;
@@ -40,12 +41,9 @@ const ZOOM_KEYS = ZOOM_IN_KEYS.concat(ZOOM_OUT_KEYS);
  * Enables horizontal pan and zoom with mouse-based drag and WASD navigation.
  */
 export class PanAndZoomHandler {
-  private mouseDownPositionX: number|null = null;
   private mousePositionX: number|null = null;
 
-  private boundOnMouseDown = this.onMouseDown.bind(this);
   private boundOnMouseMove = this.onMouseMove.bind(this);
-  private boundOnMouseUp = this.onMouseUp.bind(this);
   private boundOnWheel = this.onWheel.bind(this);
 
   private boundOnPanKeyDown: (e: KeyboardEvent) => void = () => {};
@@ -69,19 +67,21 @@ export class PanAndZoomHandler {
     this.onPanned = onPanned;
     this.onZoomed = onZoomed;
 
-    this.element.addEventListener('mousedown', this.boundOnMouseDown);
     this.element.addEventListener('mousemove', this.boundOnMouseMove);
-    this.element.addEventListener('mouseup', this.boundOnMouseUp);
     this.element.addEventListener('wheel', this.boundOnWheel, {passive: true});
+
+    let lastX = -1;
+    new DragGestureHandler(this.element, x => {
+      this.onPanned(lastX - x);
+      lastX = x;
+    }, x => lastX = x);
 
     this.handleKeyPanning();
     this.handleKeyZooming();
   }
 
   shutdown() {
-    this.element.removeEventListener('mousedown', this.boundOnMouseDown);
     this.element.removeEventListener('mousemove', this.boundOnMouseMove);
-    this.element.removeEventListener('mouseup', this.boundOnMouseUp);
     this.element.removeEventListener('wheel', this.boundOnWheel);
 
     document.body.removeEventListener('keydown', this.boundOnPanKeyDown);
@@ -170,30 +170,13 @@ export class PanAndZoomHandler {
     document.body.addEventListener('keyup', this.boundOnZoomKeyUp);
   }
 
-  private onMouseDown(e: MouseEvent) {
-    this.mouseDownPositionX = this.getMouseX(e);
-  }
-
-  private onMouseUp() {
-    this.mouseDownPositionX = null;
-  }
-
   private onMouseMove(e: MouseEvent) {
-    if (this.mouseDownPositionX !== null) {
-      this.onPanned(this.mouseDownPositionX - this.getMouseX(e));
-      this.mouseDownPositionX = this.getMouseX(e);
-      e.preventDefault();
-    }
-    this.mousePositionX = this.getMouseX(e);
+    this.mousePositionX = e.clientX - this.contentOffsetX;
   }
 
   private onWheel(e: WheelEvent) {
     if (e.deltaX) {
       this.onPanned(e.deltaX * HORIZONTAL_WHEEL_PAN_SPEED);
     }
-  }
-
-  private getMouseX(e: MouseEvent) {
-    return e.clientX - this.contentOffsetX;
   }
 }
