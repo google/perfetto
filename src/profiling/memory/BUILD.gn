@@ -24,14 +24,28 @@ source_set("record_reader") {
   ]
 }
 
+source_set("string_interner") {
+  public_configs = [ "../../../gn:default_config" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../src/base",
+  ]
+  sources = [
+    "string_interner.cc",
+    "string_interner.h",
+  ]
+}
+
 source_set("unittests") {
   testonly = true
   deps = [
     ":record_reader",
+    ":string_interner",
     "../../../gn:gtest_deps",
     "../../base",
   ]
   sources = [
     "record_reader_unittest.cc",
+    "string_interner_unittest.cc",
   ]
 }
