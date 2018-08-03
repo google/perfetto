@@ -24,13 +24,26 @@ export function rootReducer(state: State, action: any): State {
       return nextState;
     }
 
+    case 'OPEN_TRACE_FROM_FILE': {
+      const nextState = {...state};
+      nextState.engines = {...state.engines};
+      const id = `${nextState.nextId++}`;
+      nextState.engines[id] = {
+        id,
+        source: action.file,
+      };
+      nextState.route = `/viewer`;
+
+      return nextState;
+    }
+
     case 'OPEN_TRACE': {
       const nextState = {...state};
       nextState.engines = {...state.engines};
       const id = `${nextState.nextId++}`;
       nextState.engines[id] = {
         id,
-        url: action.url,
+        source: action.url,
       };
       nextState.route = `/viewer`;
 

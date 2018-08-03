@@ -31,7 +31,7 @@ export interface TrackState {
 
 export interface EngineConfig {
   id: string;
-  url: string;
+  source: string|File;
 }
 
 export interface QueryConfig {

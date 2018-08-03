@@ -14,7 +14,6 @@
 
 import {Action} from '../common/actions';
 import {State} from '../common/state';
-import {ControllerProxy} from './controller_proxy';
 
 type Dispatch = (action: Action) => void;
 type TrackDataStore = Map<string, {}>;
@@ -25,7 +24,6 @@ type TrackDataStore = Map<string, {}>;
 class Globals {
   _dispatch?: Dispatch = undefined;
   _state?: State = undefined;
-  _controller?: ControllerProxy = undefined;
   _trackDataStore?: TrackDataStore = undefined;
 
   // Frequently changing data from the controller. Each item is keyed by an ID.
@@ -50,15 +48,6 @@ class Globals {
     this._dispatch = value;
   }
 
-  get controller(): ControllerProxy {
-    if (this._controller === undefined) throw new Error('Global not set');
-    return this._controller;
-  }
-
-  set controller(value: ControllerProxy) {
-    this._controller = value;
-  }
-
   get trackDataStore(): TrackDataStore {
     if (this._trackDataStore === undefined) throw new Error('Global not set');
     return this._trackDataStore;
@@ -71,7 +60,7 @@ class Globals {
   resetForTesting() {
     this._state = undefined;
     this._dispatch = undefined;
-    this._controller = undefined;
+    this._trackDataStore = undefined;
   }
 }
 
