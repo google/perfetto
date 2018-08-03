@@ -54,9 +54,9 @@ class ThreadTable : public Table {
 
    private:
     struct UtidFilter {
-      TraceStorage::UniqueTid min;
-      TraceStorage::UniqueTid max;
-      TraceStorage::UniqueTid current;
+      UniqueTid min;
+      UniqueTid max;
+      UniqueTid current;
       bool desc;
     };
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/trace_database.h"
+#include "src/trace_processor/trace_processor.h"
 
 #include <functional>
 
@@ -24,26 +24,31 @@ namespace {
 constexpr uint32_t kTraceChunkSizeB = 16 * 1024 * 1024;  // 16 MB
 }  // namespace
 
-TraceDatabase::TraceDatabase(base::TaskRunner* task_runner)
+TraceProcessor::TraceProcessor(base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_factory_(this) {
   sqlite3* db = nullptr;
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   db_.reset(std::move(db));
 
-  SchedSliceTable::RegisterTable(*db_, &storage_);
-  ProcessTable::RegisterTable(*db_, &storage_);
-  ThreadTable::RegisterTable(*db_, &storage_);
+  context_.sched_tracker.reset(new SchedTracker(&context_));
+  context_.process_tracker.reset(new ProcessTracker(&context_));
+  context_.storage.reset(new TraceStorage());
+
+  SchedSliceTable::RegisterTable(*db_, context_.storage.get());
+  ProcessTable::RegisterTable(*db_, context_.storage.get());
+  ThreadTable::RegisterTable(*db_, context_.storage.get());
 }
 
-void TraceDatabase::LoadTrace(BlobReader* reader,
-                              std::function<void()> callback) {
-  // Reset storage and start a new trace parsing task.
-  storage_ = {};
-  parser_.reset(new TraceParser(reader, &storage_, kTraceChunkSizeB));
+void TraceProcessor::LoadTrace(BlobReader* reader,
+                               std::function<void()> callback) {
+  // Reset storage.
+  context_.storage->ResetStorage();
+  // Start a new trace parsing task.
+  context_.parser.reset(new TraceParser(reader, &context_, kTraceChunkSizeB));
   LoadTraceChunk(callback);
 }
 
-void TraceDatabase::ExecuteQuery(
+void TraceProcessor::ExecuteQuery(
     const protos::RawQueryArgs& args,
     std::function<void(protos::RawQueryResult)> callback) {
   protos::RawQueryResult proto;
@@ -107,8 +112,8 @@ void TraceDatabase::ExecuteQuery(
   callback(std::move(proto));
 }
 
-void TraceDatabase::LoadTraceChunk(std::function<void()> callback) {
-  bool has_more = parser_->ParseNextChunk();
+void TraceProcessor::LoadTraceChunk(std::function<void()> callback) {
+  bool has_more = context_.parser->ParseNextChunk();
   if (!has_more) {
     callback();
     return;

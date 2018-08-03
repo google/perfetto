@@ -62,7 +62,7 @@ int ProcessTable::Cursor::Column(sqlite3_context* context, int N) {
       break;
     }
     case Column::kName: {
-      auto process = storage_->GetProcess(upid_filter_.current);
+      const auto& process = storage_->GetProcess(upid_filter_.current);
       const auto& name = storage_->GetString(process.name_id);
       sqlite3_result_text(context, name.c_str(),
                           static_cast<int>(name.length()), nullptr);
@@ -85,8 +85,7 @@ int ProcessTable::Cursor::Filter(const QueryConstraints& qc,
   for (size_t j = 0; j < qc.constraints().size(); j++) {
     const auto& cs = qc.constraints()[j];
     if (cs.iColumn == Column::kUpid) {
-      auto constraint_upid =
-          static_cast<TraceStorage::UniquePid>(sqlite3_value_int(argv[j]));
+      auto constraint_upid = static_cast<UniquePid>(sqlite3_value_int(argv[j]));
       // Set the range of upids that we are interested in, based on the
       // constraints in the query. Everything between min and max (inclusive)
       // will be returned.
