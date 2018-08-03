@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {TrackState} from '../../common/state';
-import {drawGridLines} from '../../frontend/gridline_helper';
 import {TimeScale} from '../../frontend/time_scale';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -42,17 +41,8 @@ class CpuSliceTrack extends Track {
   }
 
   renderCanvas(
-      ctx: CanvasRenderingContext2D, width: number, timeScale: TimeScale,
+      ctx: CanvasRenderingContext2D, timeScale: TimeScale,
       visibleWindowMs: {start: number, end: number}): void {
-    // TODO: This should move up to track class. A track can just draw over the
-    // gridlines / clear rect.
-    drawGridLines(
-        ctx,
-        timeScale,
-        [visibleWindowMs.start, visibleWindowMs.end],
-        width,
-        73);
-
     if (!this.trackData) return;
     for (const slice of this.trackData.slices) {
       if (!sliceIsVisible(slice, visibleWindowMs)) continue;
