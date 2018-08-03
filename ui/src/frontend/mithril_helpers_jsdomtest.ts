@@ -16,7 +16,7 @@ import {Action} from '../common/actions';
 import {dingus} from '../test/dingus';
 
 import {globals} from './globals';
-import {MithrilEvent, quietDispatch, quietHandler} from './mithril_helpers';
+import {quietDispatch, quietHandler, RedrawableEvent} from './mithril_helpers';
 
 // TODO(hjd): Do this in jsdom environment.
 beforeEach(() => {
@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 test('quietHandler', () => {
-  const e = new Event('an_event') as MithrilEvent;
+  const e = new Event('an_event') as RedrawableEvent;
   e.redraw = true;
   const handler = dingus<(e: Event) => void>('handler');
   quietHandler(handler)(e);
@@ -32,7 +32,7 @@ test('quietHandler', () => {
 });
 
 test('quietDispatch with object', () => {
-  const e = new Event('an_event') as MithrilEvent;
+  const e = new Event('an_event') as RedrawableEvent;
   e.redraw = true;
   const d = dingus<(action: Action) => void>('dispatch');
   globals.dispatch = d;
@@ -43,7 +43,7 @@ test('quietDispatch with object', () => {
 });
 
 test('quietDispatch with function', () => {
-  const e = new Event('an_event') as MithrilEvent;
+  const e = new Event('an_event') as RedrawableEvent;
   e.redraw = true;
 
   const dispatch = dingus<(action: Action) => void>('dispatch');
