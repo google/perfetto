@@ -34,6 +34,18 @@ import {TrackController} from './track_controller';
 import {trackControllerRegistry} from './track_controller_registry';
 import {WasmEngineProxy} from './wasm_engine_proxy';
 
+/**
+ * |source| is either a URL where the Trace can be fetched from
+ * or a File which contains the trace.
+ */
+async function fetchTrace(source: string|File): Promise<Blob> {
+  if (source instanceof File) {
+    return source;
+  }
+  const response = await fetch(source);
+  return response.blob();
+}
+
 type EngineControllerState = 'init'|'waiting_for_file'|'loading'|'ready';
 class EngineController {
   private readonly config: EngineConfig;
@@ -55,13 +67,11 @@ class EngineController {
     return this._state;
   }
 
-  async transition(newState: EngineControllerState) {
+  private async transition(newState: EngineControllerState) {
     switch (newState) {
       case 'waiting_for_file':
-        this.controller.fetchBlob(this.config.url).then(blob => {
-          this.blob = blob;
-          this.transition('loading');
-        });
+        this.blob = await fetchTrace(this.config.source);
+        this.transition('loading');
         break;
       case 'loading':
         const blob = assertExists<Blob>(this.blob);
@@ -153,14 +163,12 @@ class QueryController {
 class Controller {
   private state: State;
   private _frontend?: FrontendProxy;
-  private readonly localFiles: Map<string, File>;
   private readonly engines: Map<string, EngineController>;
   private readonly tracks: Map<string, TrackControllerWrapper>;
   private readonly queries: Map<string, QueryController>;
 
   constructor() {
     this.state = createEmptyState();
-    this.localFiles = new Map();
     this.engines = new Map();
     this.tracks = new Map();
     this.queries = new Map();
@@ -209,26 +217,8 @@ class Controller {
     this.frontend.updateState(this.state);
   }
 
-  async fetchBlob(url: string): Promise<Blob> {
-    // Maybe this a local file:
-    const file = this.localFiles.get(url);
-    if (file) {
-      return Promise.resolve(file);
-    }
-
-    // If not lets try to fetch from network:
-    const repsonse = await fetch(url);
-    return repsonse.blob();
-  }
-
   publishTrackData(id: string, data: {}) {
     this.frontend.publishTrackData(id, data);
-  }
-
-  addLocalFile(file: File): string {
-    const name = file.name;
-    this.localFiles.set(name, file);
-    return name;
   }
 
   async createEngine(blob: Blob): Promise<Engine> {

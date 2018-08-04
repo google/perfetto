@@ -75,3 +75,14 @@ test('reorder tracks', () => {
   expect(after.tracks[after.displayedTrackIds[0]].engineId).toBe('2');
   expect(after.tracks[after.displayedTrackIds[1]].engineId).toBe('1');
 });
+
+test('open trace', async () => {
+  const before = createEmptyState();
+  const after = rootReducer(before, {
+    type: 'OPEN_TRACE',
+    url: 'https://example.com/bar',
+  });
+  expect(after.engines[0].source).toBe('https://example.com/bar');
+  expect(after.nextId).toBe(1);
+  expect(after.route).toBe('/viewer');
+});
