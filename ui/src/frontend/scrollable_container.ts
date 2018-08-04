@@ -17,17 +17,7 @@ import * as m from 'mithril';
 export const ScrollableContainer = {
   view({attrs, children}) {
     return m(
-        '.scrollableContainer',
-        {
-          style: {
-            width: attrs.width.toString() + 'px',
-            height: attrs.height.toString() + 'px',
-            'overflow-y': 'auto',
-            'overflow-x': 'hidden',
-            'will-change': 'transform',
-            position: 'relative'
-          }
-        },
+        '.scrollable-container',
         m(ScrollableContent, {contentHeight: attrs.contentHeight}, children));
   },
 
@@ -37,8 +27,6 @@ export const ScrollableContainer = {
     }, {passive: true});
   }
 } as m.Component<{
-  width: number,
-  height: number,
   contentHeight: number,
   onPassiveScroll: (scrollTop: number) => void,
 }>;
@@ -47,7 +35,7 @@ export const ScrollableContainer = {
 const ScrollableContent = {
   view({attrs, children}) {
     return m(
-        '.scrollableContent',
+        '.scrollable-content',
         {
           style: {
             height: attrs.contentHeight.toString() + 'px',

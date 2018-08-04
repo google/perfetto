@@ -25,32 +25,32 @@ export const OverviewTimeline = {
     this.timeScale = new TimeScale([0, 1], [0, 0]);
     this.padding = {top: 0, right: 20, bottom: 0, left: 20};
   },
-  view({attrs}) {
+  oncreate(vnode) {
+    const rect = vnode.dom.getBoundingClientRect();
+
     this.timeScale.setLimitsPx(
-        this.padding.left,
-        attrs.width - this.padding.left - this.padding.right);
+        this.padding.left, rect.width - this.padding.left - this.padding.right);
+  },
+  onupdate(vnode) {
+    const rect = vnode.dom.getBoundingClientRect();
+
+    this.timeScale.setLimitsPx(
+        this.padding.left, rect.width - this.padding.left - this.padding.right);
+  },
+  view({attrs}) {
     this.timeScale.setLimitsMs(
         attrs.maxVisibleWindowMs.start, attrs.maxVisibleWindowMs.end);
 
     return m(
         '.overview-timeline',
-        {
-          style: {
-            width: attrs.width.toString() + 'px',
-            overflow: 'hidden',
-            height: '120px',
-            position: 'relative',
-          },
-        },
         m(TimeAxis, {
           timeScale: this.timeScale,
           contentOffset: 0,
           visibleWindowMs: attrs.maxVisibleWindowMs,
-          width: attrs.width,
         }),
         m('.visualization', {
           style: {
-            width: `${attrs.width}px`,
+            width: '100%',
             height: '100%',
           }
         }),
@@ -80,7 +80,6 @@ export const OverviewTimeline = {
         {
           visibleWindowMs: {start: number, end: number},
           maxVisibleWindowMs: {start: number, end: number},
-          width: number,
           onBrushedMs: (start: number, end: number) => void,
         },
         {
@@ -161,25 +160,15 @@ const HorizontalBrushSelection = {
             height: '100%',
           }
         },
-        m('.brush-left', {
+        m('.brush-left.brush-rect', {
           style: {
-            background: 'rgba(210,210,210,0.7)',
-            position: 'absolute',
-            'pointer-events': 'none',
             'border-right': '1px solid #aaa',
-            top: '0',
-            height: '100%',
             left: '0',
             width: `${attrs.selectionPx.start}px`,
           }
         }),
-        m('.brush-right', {
+        m('.brush-right.brush-rect', {
           style: {
-            background: 'rgba(210,210,210,0.7)',
-            position: 'absolute',
-            'pointer-events': 'none',
-            top: '0',
-            height: '100%',
             'border-left': '1px solid #aaa',
             left: `${attrs.selectionPx.end}px`,
             width: `calc(100% - ${attrs.selectionPx.end}px)`,
@@ -230,16 +219,7 @@ const BrushHandle = {
         {
           onmousedown: attrs.onMouseDown,
           style: {
-            position: 'absolute',
             left: `${attrs.left - 6}px`,
-            'border-radius': '3px',
-            border: '1px solid #999',
-            cursor: 'pointer',
-            background: '#fff',
-            top: '25px',
-            width: '14px',
-            height: '30px',
-            'pointer-events': 'auto',
           }
         },
         m('.handle-bars',
