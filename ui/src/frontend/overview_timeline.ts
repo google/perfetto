@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 
+import {Animation} from './animation';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {TimeAxis} from './time_axis';
 import {TimeScale} from './time_scale';
@@ -88,6 +89,10 @@ export const OverviewTimeline = {
           padding: {top: number, right: number, bottom: number, left: number},
         }>;
 
+const ZOOM_IN_PERCENTAGE_PER_MS = 0.998;
+const ZOOM_OUT_PERCENTAGE_PER_MS = 1 / ZOOM_IN_PERCENTAGE_PER_MS;
+const WHEEL_ZOOM_DURATION = 200;
+
 /**
  * Interactive horizontal brush for pixel-based selections.
  */
@@ -135,6 +140,38 @@ const HorizontalBrushSelection = {
       this.selectionPx.start = this.selectionPx.end = x - this.offsetLeft;
       dragState = 'draggingEndHandle';
     }, () => dragState = 'notDragging');
+
+    this.onMouseMove = e => {
+      this.mousePositionX = e.clientX - this.offsetLeft;
+    };
+
+    let zoomingIn = true;
+    const zoomAnimation = new Animation((timeSinceLastMs: number) => {
+      const percentagePerMs =
+          zoomingIn ? ZOOM_IN_PERCENTAGE_PER_MS : ZOOM_OUT_PERCENTAGE_PER_MS;
+      const percentage = Math.pow(percentagePerMs, timeSinceLastMs);
+
+      const selectionLength = this.selectionPx.end - this.selectionPx.start;
+      const newSelectionLength = selectionLength * percentage;
+
+      // Brush toward the mouse, like zooming.
+      const zoomPositionPercentage =
+          (this.mousePositionX - this.selectionPx.start) / selectionLength;
+
+      const brushStart =
+          this.mousePositionX - zoomPositionPercentage * newSelectionLength;
+      const brushEnd = this.mousePositionX +
+          (1 - zoomPositionPercentage) * newSelectionLength;
+
+      this.onBrushedPx(brushStart, brushEnd);
+    });
+
+    this.onWheel = e => {
+      if (e.deltaY) {
+        zoomingIn = e.deltaY < 0;
+        zoomAnimation.start(WHEEL_ZOOM_DURATION);
+      }
+    };
   },
   onupdate(vnode) {
     const el = vnode.dom as HTMLElement;
@@ -147,6 +184,8 @@ const HorizontalBrushSelection = {
     return m(
         '.brushes',
         {
+          onwheel: this.onWheel,
+          onmousemove: this.onMouseMove,
           style: {
             width: '100%',
             height: '100%',
@@ -183,7 +222,10 @@ const HorizontalBrushSelection = {
                                    selectionPx: {start: number, end: number},
                                    onBrushedPx: (start: number, end: number) =>
                                        void,
-                                   offsetLeft: number
+                                   offsetLeft: number,
+                                   onWheel: (e: WheelEvent) => void,
+                                   onMouseMove: (e: MouseEvent) => void,
+                                   mousePositionX: number,
                                  }>;
 
 /**
