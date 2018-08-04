@@ -40,7 +40,7 @@
     "no-string-throw": true,
     "no-return-await": true,
     "no-unsafe-finally": true,
-    "no-unused-expression": true,
+    "no-unused-expression": [true, "allow-new"], // E.g. new ModifyGlobalState(); without assignment.
     "no-var-keyword": true,
     "object-literal-shorthand": true,
     "only-arrow-functions": [true, "allow-declarations", "allow-named-functions"],
