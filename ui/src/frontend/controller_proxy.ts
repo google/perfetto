@@ -35,8 +35,4 @@ export class ControllerProxy {
   dispatch(action: Action): Promise<void> {
     return this.remote.send<void>('dispatch', [action]);
   }
-
-  addLocalFile(file: File): Promise<string> {
-    return this.remote.send<string>('addLocalFile', [file]);
-  }
 }

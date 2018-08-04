@@ -30,10 +30,15 @@ export interface RedrawableEvent extends Event { redraw: boolean; }
  * handler which ignores the event entirely (via the (e: Event) overload) or
  * compute the Action from the Event (via the ((e: Event) => Action) overload.
  */
-export function quietDispatch(action: ((e: Event) => Action)|
+export function quietDispatch(action: ((e: Event) => Action | null)|
                               Action): (e: Event) => void {
   if (action instanceof Function) {
-    return quietHandler(event => globals.dispatch(action(event)));
+    return quietHandler(event => {
+      const result = action(event);
+      if (result !== null) {
+        globals.dispatch(result);
+      }
+    });
   }
   return quietHandler(_ => globals.dispatch(action));
 }
