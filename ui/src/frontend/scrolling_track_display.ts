@@ -79,21 +79,26 @@ export const ScrollingTrackDisplay = {
             overflow: 'hidden'
           }
         },
-        m(ScrollableContainer,
+        m('.scroll-size-limiter',
           {
-            width: this.width,
-            height: this.height,
-            contentHeight: 1000,
-            onPassiveScroll: (scrollTop: number) => {
-              this.canvasController.updateScrollOffset(scrollTop);
-              m.redraw();
-            },
+            style: {
+              width: `${this.width}px`,
+              height: `${this.height}px`,
+            }
           },
-          m(CanvasWrapper, {
-            topOffset: canvasTopOffset,
-            canvasElement: this.canvasController.getCanvasElement()
-          }),
-          ...childTracks));
+          m(ScrollableContainer,
+            {
+              contentHeight: 1000,
+              onPassiveScroll: (scrollTop: number) => {
+                this.canvasController.updateScrollOffset(scrollTop);
+                m.redraw();
+              },
+            },
+            m(CanvasWrapper, {
+              topOffset: canvasTopOffset,
+              canvasElement: this.canvasController.getCanvasElement()
+            }),
+            ...childTracks)));
   },
 } as m.Component<{
   timeScale: TimeScale,

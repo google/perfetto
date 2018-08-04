@@ -34,6 +34,9 @@ interface TrackComponentAttrs {
   visibleWindowMs: {start: number, end: number};
 }
 
+export const TRACK_SHELL_WIDTH = 200;
+
+
 /**
  * Returns yStart for a track relative to canvas top.
  *
@@ -68,7 +71,8 @@ interface TrackComponentAttrs {
  * @param canvasYStart Y position of canvas relative to
  * ScrollingTrackDisplay.
  */
-function getTrackYStartOnCanvas(trackYStart: number, canvasYStart: number) {
+export function getTrackYStartOnCanvas(
+    trackYStart: number, canvasYStart: number) {
   return trackYStart - canvasYStart;
 }
 
@@ -133,25 +137,14 @@ export const TrackComponent = {
         '.track',
         {
           style: {
-            'border-top': '1px solid hsl(213, 22%, 82%)',
-            position: 'absolute',
-            top: attrs.top.toString() + 'px',
-            left: 0,
-            width: '100%',
+            top: `${attrs.top}px`,
             height: `${attrs.trackState.height}px`,
           }
         },
         m('.track-shell',
           {
             style: {
-              background: '#fff',
-              padding: '20px',
-              width: '200px',
-              'border-right': '1px solid hsl(213, 22%, 82%)',
-              height: '100%',
-              'z-index': '100',
-              color: 'hsl(213, 22%, 30%)',
-              position: 'relative',
+              width: `${TRACK_SHELL_WIDTH}px`,
             }
           },
           m('h1',
@@ -171,22 +164,16 @@ export const TrackComponent = {
         m('.track-content',
           {
             style: {
-              width: 'calc(100% - 200px)',
-              height: '100%',
-              position: 'absolute',
-              left: '200px',
-              top: '0'
+              width: `calc(100% - ${TRACK_SHELL_WIDTH}px)`,
+              left: `${TRACK_SHELL_WIDTH}px`,
             }
           },
           // TODO(dproy): Move out DOM Content from the track class.
           m('.marker',
             {
               style: {
-                'font-size': '1.5em',
-                position: 'absolute',
                 left: rectStart.toString() + 'px',
                 width: rectWidth.toString() + 'px',
-                background: '#aca'
               }
             },
             attrs.trackState.name + ' DOM Content')));
