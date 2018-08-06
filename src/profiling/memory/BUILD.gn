@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto.gni")
+
+assert(!build_with_chromium)
+
 source_set("record_reader") {
   public_configs = [ "../../../gn:default_config" ]
   deps = [
