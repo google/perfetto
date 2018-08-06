@@ -16,7 +16,18 @@
 
 #include "src/trace_processor/trace_processor.h"
 
+#include <sqlite3.h>
 #include <functional>
+
+#include "perfetto/base/task_runner.h"
+#include "src/trace_processor/process_table.h"
+#include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/sched_slice_table.h"
+#include "src/trace_processor/sched_tracker.h"
+#include "src/trace_processor/thread_table.h"
+#include "src/trace_processor/trace_parser.h"
+
+#include "perfetto/trace_processor/raw_query.pb.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -39,6 +50,8 @@ TraceProcessor::TraceProcessor(base::TaskRunner* task_runner)
   ThreadTable::RegisterTable(*db_, context_.storage.get());
 }
 
+TraceProcessor::~TraceProcessor() = default;
+
 void TraceProcessor::LoadTrace(BlobReader* reader,
                                std::function<void()> callback) {
   // Reset storage.
@@ -50,7 +63,7 @@ void TraceProcessor::LoadTrace(BlobReader* reader,
 
 void TraceProcessor::ExecuteQuery(
     const protos::RawQueryArgs& args,
-    std::function<void(protos::RawQueryResult)> callback) {
+    std::function<void(const protos::RawQueryResult&)> callback) {
   protos::RawQueryResult proto;
 
   const auto& sql = args.sql_query();
@@ -59,6 +72,7 @@ void TraceProcessor::ExecuteQuery(
                                &raw_stmt, nullptr);
   ScopedStmt stmt(std::move(raw_stmt));
   if (err) {
+    proto.set_error(sqlite3_errmsg(*db_));
     callback(std::move(proto));
     return;
   }
@@ -109,7 +123,7 @@ void TraceProcessor::ExecuteQuery(
   }
   proto.set_num_records(static_cast<uint64_t>(row_count));
 
-  callback(std::move(proto));
+  callback(proto);
 }
 
 void TraceProcessor::LoadTraceChunk(std::function<void()> callback) {

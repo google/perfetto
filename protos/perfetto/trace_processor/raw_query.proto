@@ -44,4 +44,5 @@ message RawQueryResult {
   repeated ColumnDesc column_descriptors = 1;
   optional uint64 num_records = 2;
   repeated ColumnValues columns = 3;
+  optional string error = 4;
 }

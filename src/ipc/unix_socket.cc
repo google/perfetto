@@ -343,7 +343,7 @@ bool UnixSocket::Send(const void* msg,
     struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg_hdr);
     cmsg->cmsg_level = SOL_SOCKET;
     cmsg->cmsg_type = SCM_RIGHTS;
-    cmsg->cmsg_len = CMSG_LEN(num_fds * sizeof(int));
+    cmsg->cmsg_len = static_cast<CBufLenType>(CMSG_LEN(num_fds * sizeof(int)));
     memcpy(CMSG_DATA(cmsg), send_fds, num_fds * sizeof(int));
     msg_hdr.msg_controllen = cmsg->cmsg_len;
   }
