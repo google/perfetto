@@ -72,7 +72,7 @@
             height: var(--topbar-height);
             input {
                 color: #9ddc67;
-                font-family: 'Inconsolata', monospace;
+                font-family: var(--monospace-font);
                 padding-left: 0;
             }
             &:before {

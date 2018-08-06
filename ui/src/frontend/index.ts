@@ -51,6 +51,11 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishQueryResult(id: string, data: {}) {
+    globals.queryResults.set(id, data);
+    this.redraw();
+  }
+
   /**
    * Creates a new trace processor wasm engine (backed by a worker running
    * engine_bundle.js) and returns a MessagePort for talking to it.
@@ -78,6 +83,7 @@ async function main() {
   globals.state = await controller.initAndGetState(channel.port1);
   globals.dispatch = controller.dispatch.bind(controller);
   globals.trackDataStore = new Map<string, {}>();
+  globals.queryResults = new Map<string, {}>();
   warmupWasmEngineWorker();
 
   m.route(document.body, '/', {

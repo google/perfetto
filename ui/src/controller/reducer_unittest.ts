@@ -79,7 +79,7 @@ test('reorder tracks', () => {
 test('open trace', async () => {
   const before = createEmptyState();
   const after = rootReducer(before, {
-    type: 'OPEN_TRACE',
+    type: 'OPEN_TRACE_FROM_URL',
     url: 'https://example.com/bar',
   });
   expect(after.engines[0].source).toBe('https://example.com/bar');
