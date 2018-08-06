@@ -19,10 +19,12 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/trace_processor/raw_query.pb.h"
-#include "perfetto/trace_processor/sched.pb.h"
+#include "src/trace_processor/blob_reader.h"
 #include "src/trace_processor/emscripten_task_runner.h"
 #include "src/trace_processor/trace_processor.h"
+
+#include "perfetto/trace_processor/raw_query.pb.h"
+#include "perfetto/trace_processor/sched.pb.h"
 
 namespace perfetto {
 namespace trace_processor {
