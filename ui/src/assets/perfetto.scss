@@ -14,6 +14,7 @@
 :root {
     --sidebar-width: 256px;
     --topbar-height: 48px;
+    --monospace-font: 'Roboto Mono', monospace;
 }
 
 @mixin transition($time:0.1s) {
@@ -139,7 +140,7 @@ body {
     tbody tr {
         @include transition();
         background-color: hsl(214, 22%, 100%);
-        font-family: 'Inconsolata', monospace;
+        font-family: var(--monospace-font);
         &:nth-child(even) {
             background-color: hsl(214, 22%, 95%);
         }
@@ -153,6 +154,12 @@ body {
             background-color: hsl(214, 22%, 90%);
         }
     }
+}
+
+.query-error {
+    padding: 20px 10px;
+    color: hsl(-10, 50%, 50%);
+    font-family: 'Google Sans';
 }
 
 .page header {
@@ -170,7 +177,7 @@ body {
     border-top-width: 1px;
     border-bottom-width: 1px;
     .code {
-        font-family: 'Inconsolata', mononspace;
+        font-family: var(--monospace-font);
         font-size: 12px;
         margin-left: 10px;
         color: hsl(213, 22%, 40%);

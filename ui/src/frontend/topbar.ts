@@ -13,16 +13,22 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-import { globals } from './globals';
-import { quietDispatch } from './mithril_helpers';
-import { navigate } from '../common/actions';
+
+import {deleteQuery, executeQuery} from '../common/actions';
+import {QueryResponse} from '../common/queries';
+import {EngineConfig} from '../common/state';
+
+import {globals} from './globals';
+
+const QUERY_ID = 'quicksearch';
 
 let selResult = 0;
 let numResults = 0;
 let mode: 'search'|'command' = 'search';
 
 function clearOmniboxResults() {
-  // TODO(primiano): Implement in next CLs.
+  globals.queryResults.delete(QUERY_ID);
+  globals.dispatch(deleteQuery(QUERY_ID));
 }
 
 function onKeyDown(e: Event) {
@@ -35,8 +41,7 @@ function onKeyDown(e: Event) {
     e.preventDefault();
     return;
   }
-  const txt =
-      (e.target as HTMLElement).querySelector('input') as HTMLInputElement;
+  const txt = (e.target as HTMLInputElement);
   if (key === ':' && txt.value === '') {
     mode = 'command';
     m.redraw();
@@ -54,7 +59,6 @@ function onKeyDown(e: Event) {
     m.redraw();
     return;
   }
-  // TODO(primiano): add query handling here.
 }
 
 function onKeyUp(e: Event) {
@@ -74,7 +78,15 @@ function onKeyUp(e: Event) {
     m.redraw();
     return;
   }
-  // TODO(primiano): add query handling here.
+  if (mode === 'search') {
+    const name = txt.value.replace(/'/g, '\\\'').replace(/[*]/g, '%');
+    const query =
+        `select name from process where name like '%${name}%' limit 10`;
+    globals.dispatch(executeQuery('0', QUERY_ID, query));
+  }
+  if (mode === 'command' && key === 'Enter') {
+    globals.dispatch(executeQuery('0', 'command', txt.value));
+  }
 }
 
 
@@ -87,6 +99,15 @@ const Omnibox: m.Component = {
   },
   view() {
     // TODO(primiano): handle query results here.
+    const results = [];
+    const resp = globals.queryResults.get(QUERY_ID) as QueryResponse;
+    if (resp !== undefined) {
+      numResults = resp.rows ? resp.rows.length : 0;
+      for (let i = 0; i < resp.rows.length; i++) {
+        const clazz = (i === selResult) ? '.selected' : '';
+        results.push(m(`div${clazz}`, resp.rows[i][resp.columns[0]]));
+      }
+    }
     const placeholder = {
       search: 'Search or type : to enter command mode',
       command: 'e.g., select * from sched left join thread using(utid) limit 10'
@@ -94,12 +115,20 @@ const Omnibox: m.Component = {
     const commandMode = mode === 'command';
     return m(
         `.omnibox${commandMode ? '.command-mode' : ''}`,
-        m(`input[type=text][placeholder=${placeholder[mode]}]`));
+        m(`input[type=text][placeholder=${placeholder[mode]}]`),
+        m('.omnibox-results', results));
   },
 };
 
 export const Topbar: m.Component = {
   view() {
-    return m('.topbar', m(Omnibox));
+    const progBar = [];
+    const engine: EngineConfig = globals.state.engines['0'];
+    if (globals.state.queries[QUERY_ID] !== undefined ||
+        (engine !== undefined && !engine.ready)) {
+      progBar.push(m('.progress'));
+    }
+
+    return m('.topbar', m(Omnibox), ...progBar);
   },
 };
