@@ -28,10 +28,10 @@ group("ui") {
   deps = [
     ":assets_dist",
     ":controller_bundle_dist",
-    ":css_dist",
     ":engine_bundle_dist",
     ":frontend_bundle_dist",
     ":index_dist",
+    ":scss",
     ":test_scripts",
     ":wasm_dist",
   ]
@@ -247,6 +247,33 @@ node_bin("transpile_all_ts") {
 }
 
 # +----------------------------------------------------------------------------+
+# | Build css.                                                                 |
+# +----------------------------------------------------------------------------+
+
+# Build css.
+node_bin("scss") {
+  deps = [
+    ":dist_symlink",
+  ]
+  main_css = "src/assets/perfetto.scss"
+  inputs = [
+    main_css,
+    "src/assets/sidebar.scss",
+    "src/assets/topbar.scss",
+  ]
+  outputs = [
+    "$ui_dir/perfetto.css",
+  ]
+
+  node_cmd = "node-sass"
+  args = [
+    "--quiet",
+    rebase_path(main_css, root_build_dir),
+    rebase_path(outputs[0], root_build_dir),
+  ]
+}
+
+# +----------------------------------------------------------------------------+
 # | Copy rules: create the final output directory.                             |
 # +----------------------------------------------------------------------------+
 copy("index_dist") {
@@ -258,14 +285,6 @@ copy("index_dist") {
   ]
 }
 
-copy("css_dist") {
-  sources = [
-    "perfetto.css",
-  ]
-  outputs = [
-    "$ui_dir/perfetto.css",
-  ]
-}
 copy("assets_dist") {
   sources = [
     "src/assets",

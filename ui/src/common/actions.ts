@@ -14,7 +14,7 @@
 
 export interface Action { type: string; }
 
-export function openTrace(url: string) {
+export function openTraceFromUrl(url: string) {
   return {
     type: 'OPEN_TRACE',
     url,

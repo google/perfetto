@@ -26,7 +26,6 @@ import {
 import {ControllerProxy} from './controller_proxy';
 import {globals} from './globals';
 import {HomePage} from './home_page';
-import {QueryPage} from './query_page';
 import {ViewerPage} from './viewer_page';
 
 function createController(): ControllerProxy {
@@ -81,26 +80,9 @@ async function main() {
   globals.trackDataStore = new Map<string, {}>();
   warmupWasmEngineWorker();
 
-  const root = document.querySelector('main');
-  if (!root) {
-    console.error('root element not found.');
-    return;
-  }
-
-  m.route(root, '/', {
+  m.route(document.body, '/', {
     '/': HomePage,
     '/viewer': ViewerPage,
-    '/query/:engineId': {
-      onmatch(args) {
-        if (globals.state.engines[args.engineId]) {
-          return QueryPage;
-        }
-        // We only hit this case if the user reloads/navigates
-        // while on the query page.
-        m.route.set('/');
-        return undefined;
-      }
-    },
   });
 
   // tslint:disable-next-line no-any
