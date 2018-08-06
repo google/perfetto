@@ -14,26 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SCOPED_DB_H_
-#define SRC_TRACE_PROCESSOR_SCOPED_DB_H_
+#include "src/trace_processor/file_reader.h"
 
-#include "perfetto/base/scoped_file.h"
-
-extern "C" {
-struct sqlite3;
-struct sqlite3_stmt;
-extern int sqlite3_close(sqlite3*);
-extern int sqlite3_finalize(sqlite3_stmt* pStmt);
-}
+#include <fcntl.h>
+#include <sys/stat.h>
 
 namespace perfetto {
 namespace trace_processor {
 
-using ScopedDb = base::ScopedResource<sqlite3*, sqlite3_close, nullptr>;
-using ScopedStmt =
-    base::ScopedResource<sqlite3_stmt*, sqlite3_finalize, nullptr>;
+FileReader::FileReader(const char* path) {
+  fd_.reset(open(path, O_RDONLY));
+  if (!fd_)
+    PERFETTO_FATAL("Could not open %s", path);
+  struct stat stat_buf {};
+  PERFETTO_CHECK(fstat(*fd_, &stat_buf) == 0);
+  file_size_ = static_cast<uint64_t>(stat_buf.st_size);
+}
+
+FileReader::~FileReader() = default;
+
+uint32_t FileReader::Read(uint64_t offset, uint32_t len, uint8_t* dst) {
+  ssize_t res = pread(*fd_, dst, len, static_cast<off_t>(offset));
+  return res > 0 ? static_cast<uint32_t>(res) : 0;
+}
 
 }  // namespace trace_processor
 }  // namespace perfetto
-
-#endif  // SRC_TRACE_PROCESSOR_SCOPED_DB_H_
