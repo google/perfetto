@@ -18,7 +18,14 @@
 }
 
 @mixin transition($time:0.1s) {
-    transition: opacity $time ease, background-color $time ease, max-height $time ease, max-width $time ease, border-radius $time ease;
+    transition: opacity $time ease,
+                background-color $time ease,
+                width $time ease,
+                height $time ease,
+                max-width $time ease,
+                max-height $time ease,
+                margin $time ease,
+                border-radius $time ease;
 }
 
 @mixin material-icon($content) {
