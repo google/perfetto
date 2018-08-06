@@ -16,7 +16,7 @@ export interface Action { type: string; }
 
 export function openTraceFromUrl(url: string) {
   return {
-    type: 'OPEN_TRACE',
+    type: 'OPEN_TRACE_FROM_URL',
     url,
   };
 }
@@ -38,11 +38,19 @@ export function addTrack(engineId: string, trackKind: string, cpu: number) {
   };
 }
 
-export function executeQuery(engineId: string, query: string) {
+export function executeQuery(engineId: string, queryId: string, query: string) {
   return {
     type: 'EXECUTE_QUERY',
     engineId,
+    queryId,
     query,
+  };
+}
+
+export function deleteQuery(queryId: string) {
+  return {
+    type: 'DELETE_QUERY',
+    queryId,
   };
 }
 
@@ -58,5 +66,12 @@ export function moveTrack(trackId: string, direction: 'up'|'down') {
     type: 'MOVE_TRACK',
     trackId,
     direction,
+  };
+}
+
+export function setEngineReady(engineId: string) {
+  return {
+    type: 'SET_ENGINE_READY',
+    engineId,
   };
 }

@@ -30,6 +30,7 @@ export function rootReducer(state: State, action: any): State {
       const id = `${nextState.nextId++}`;
       nextState.engines[id] = {
         id,
+        ready: false,
         source: action.file,
       };
       nextState.route = `/viewer`;
@@ -37,16 +38,16 @@ export function rootReducer(state: State, action: any): State {
       return nextState;
     }
 
-    case 'OPEN_TRACE': {
+    case 'OPEN_TRACE_FROM_URL': {
       const nextState = {...state};
       nextState.engines = {...state.engines};
       const id = `${nextState.nextId++}`;
       nextState.engines[id] = {
         id,
+        ready: false,
         source: action.url,
       };
       nextState.route = `/viewer`;
-
       return nextState;
     }
 
@@ -70,12 +71,18 @@ export function rootReducer(state: State, action: any): State {
     case 'EXECUTE_QUERY': {
       const nextState = {...state};
       nextState.queries = {...state.queries};
-      const id = `${nextState.nextId++}`;
-      nextState.queries[id] = {
-        id,
+      nextState.queries[action.queryId] = {
+        id: action.queryId,
         engineId: action.engineId,
         query: action.query,
       };
+      return nextState;
+    }
+
+    case 'DELETE_QUERY': {
+      const nextState = {...state};
+      nextState.queries = {...state.queries};
+      delete nextState.queries[action.queryId];
       return nextState;
     }
 
@@ -101,6 +108,13 @@ export function rootReducer(state: State, action: any): State {
       nextState.displayedTrackIds[oldIndex] = swappedTrackId;
 
       return nextState;
+
+    case 'SET_ENGINE_READY': {
+      const nextState = {...state};  // Creates a shallow copy.
+      nextState.engines = {...state.engines};
+      nextState.engines[action.engineId].ready = true;
+      return nextState;
+    }
 
     default:
       break;

@@ -31,6 +31,7 @@ export interface TrackState {
 
 export interface EngineConfig {
   id: string;
+  ready: boolean;
   source: string|File;
 }
 
