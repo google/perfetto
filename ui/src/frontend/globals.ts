@@ -17,6 +17,7 @@ import {State} from '../common/state';
 
 type Dispatch = (action: Action) => void;
 type TrackDataStore = Map<string, {}>;
+type QueryResultsStore = Map<string, {}>;
 
 /**
  * Global accessors for state/dispatch in the frontend.
@@ -25,10 +26,7 @@ class Globals {
   _dispatch?: Dispatch = undefined;
   _state?: State = undefined;
   _trackDataStore?: TrackDataStore = undefined;
-
-  // Frequently changing data from the controller. Each item is keyed by an ID.
-  // TODO(dproy): Replace with the real thing.
-  published = new Map<string, {}>();
+  _queryResults?: QueryResultsStore = undefined;
 
   get state(): State {
     if (this._state === undefined) throw new Error('Global not set');
@@ -57,10 +55,20 @@ class Globals {
     this._trackDataStore = value;
   }
 
+  get queryResults(): QueryResultsStore {
+    if (this._queryResults === undefined) throw new Error('Global not set');
+    return this._queryResults;
+  }
+
+  set queryResults(value: QueryResultsStore) {
+    this._queryResults = value;
+  }
+
   resetForTesting() {
     this._state = undefined;
     this._dispatch = undefined;
     this._trackDataStore = undefined;
+    this._queryResults = undefined;
   }
 }
 

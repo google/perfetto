@@ -17,6 +17,7 @@ import {Row} from './protos';
 export interface QueryResponse {
   id: string;
   query: string;
+  error?: string;
   totalRowCount: number;
   durationMs: number;
   columns: string[];

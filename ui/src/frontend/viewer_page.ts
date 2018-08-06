@@ -15,6 +15,9 @@
 
 import * as m from 'mithril';
 
+import {QueryResponse} from '../common/queries';
+
+import {globals} from './globals';
 import {OverviewTimeline} from './overview_timeline';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
@@ -22,6 +25,38 @@ import {ScrollingTrackDisplay} from './scrolling_track_display';
 import {TimeAxis} from './time_axis';
 import {TimeScale} from './time_scale';
 import {TRACK_SHELL_WIDTH} from './track_component';
+
+
+const QueryTable: m.Component<{}, {}> = {
+  view() {
+    const resp = globals.queryResults.get('command') as QueryResponse;
+    if (resp === undefined) {
+      return m('');
+    }
+    const cols = [];
+    for (const col of resp.columns) {
+      cols.push(m('td', col));
+    }
+    const header = m('tr', cols);
+
+    const rows = [];
+    for (let i = 0; i < resp.rows.length; i++) {
+      const cells = [];
+      for (const col of resp.columns) {
+        cells.push(m('td', resp.rows[i][col]));
+      }
+      rows.push(m('tr', cells));
+    }
+    return m(
+        'div',
+        m('header.overview',
+          `Query result - ${resp.durationMs} ms`,
+          m('span.code', resp.query)),
+        resp.error ?
+            m('.query-error', `SQL error: ${resp.error}`) :
+            m('table.query-table', m('thead', header), m('tbody', rows)));
+  },
+};
 
 /**
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
@@ -100,19 +135,20 @@ const TraceViewer = {
     };
 
     return m(
-        '#page',
+        '.page',
         {
           style: {
             width: '100%',
             height: '100%',
           },
         },
-        m('header.overview', 'Big Picture'),
+        m('header.overview', 'Big picture'),
         m(OverviewTimeline, {
           visibleWindowMs: this.visibleWindowMs,
           maxVisibleWindowMs: this.maxVisibleWindowMs,
           onBrushedMs
         }),
+        m(QueryTable),
         m('.tracks-content',
           {
             style: {
