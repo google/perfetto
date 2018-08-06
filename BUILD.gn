@@ -50,7 +50,10 @@ group("all") {
       "tools/proto_to_cpp",
     ]
     if (!build_with_android) {
-      deps += [ "tools/trace_to_text" ]
+      deps += [
+        ":trace_processor",
+        "tools/trace_to_text",
+      ]
     }
     if (is_linux || is_android) {
       deps += [ "tools/skippy" ]
@@ -78,6 +81,14 @@ if (build_standalone) {
   group("ui") {
     deps = [
       "ui",
+    ]
+  }
+
+  # The trace processor shell executable. An interactive shell that allows to
+  # make queries on the trace using the terminal.
+  group("trace_processor") {
+    deps = [
+      "src/trace_processor:trace_processor_shell",
     ]
   }
 }
@@ -213,14 +224,6 @@ if (!build_with_chromium) {
     static_library("perfetto_trace_protos") {
       deps = [
         "protos/perfetto/trace:lite",
-      ]
-    }
-  } else {
-    # The library which eases processing of Perfetto traces by exposing reading
-    # friendly APIs.
-    static_library("trace_processor") {
-      deps = [
-        "src/trace_processor:lib",
       ]
     }
   }

@@ -19,4 +19,11 @@ if (build_standalone) {
   import("//gn/standalone/wasm.gni")
 } else {
   is_wasm = false  # The WASM toolchain is supported only in standalone builds.
+
+  # Create a dummy template to avoid GN warnings in non-standalone builds.
+  template("wasm_lib") {
+    source_set("${target_name}_unused") {
+      forward_variables_from(invoker, "*")
+    }
+  }
 }
