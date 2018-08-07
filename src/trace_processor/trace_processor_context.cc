@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/json_trace_parser.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/sched_tracker.h"
 #include "src/trace_processor/trace_parser.h"
@@ -22,6 +23,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+TraceProcessorContext::TraceProcessorContext() = default;
 TraceProcessorContext::~TraceProcessorContext() = default;
 
 }  // namespace trace_processor

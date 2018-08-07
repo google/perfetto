@@ -138,3 +138,14 @@ config("public_config") {
 config("fuzzer_config") {
   ldflags = [ "-fsanitize=fuzzer" ]
 }
+
+# For now JsonCpp is supported only in standalone builds outside of Android or
+# Chromium.
+group("jsoncpp_deps") {
+  if (build_standalone) {
+    public_configs = [ "//buildtools:jsoncpp_config" ]
+    public_deps = [
+      "//buildtools:jsoncpp",
+    ]
+  }
+}

@@ -144,6 +144,14 @@ BUILD_DEPS_HOST = [
    '98729f2c2d57d166e3d6d9862744c1d66388e286',
    'all'
   ),
+
+  # JsonCpp for legacy json import. Used only by the trace processor in
+  # standalone builds.
+  ('buildtools/jsoncpp.zip',
+   'https://github.com/open-source-parsers/jsoncpp/archive/1.0.0.zip',
+   '3219e26f2e249bb46b7d688478208c7ec138fea4',
+   'all'
+  ),
 ]
 
 # Dependencies required to build Android code.
