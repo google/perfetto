@@ -49,7 +49,7 @@ class ProcessTracker {
   // the thread_name_id.
   UniqueTid UpdateThread(uint64_t timestamp,
                          uint32_t tid,
-                         TraceStorage::StringId thread_name_id);
+                         StringId thread_name_id);
 
   // Called when a thread is seen the process tree. Retrieves the matching utid
   // for the tid and the matching upid for the tgid and stores both.

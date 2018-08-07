@@ -24,11 +24,12 @@ namespace trace_processor {
 
 class ProcessTracker;
 class TraceStorage;
-class TraceParser;
 class SchedTracker;
+class TraceParser;
 
 class TraceProcessorContext {
  public:
+  TraceProcessorContext();
   ~TraceProcessorContext();
 
   std::unique_ptr<ProcessTracker> process_tracker;

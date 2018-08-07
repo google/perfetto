@@ -42,6 +42,8 @@ source_set("lib") {
     "process_table.h",
     "process_tracker.cc",
     "process_tracker.h",
+    "proto_trace_parser.cc",
+    "proto_trace_parser.h",
     "query_constraints.cc",
     "query_constraints.h",
     "sched_slice_table.cc",
@@ -49,12 +51,13 @@ source_set("lib") {
     "sched_tracker.cc",
     "sched_tracker.h",
     "scoped_db.h",
+    "slice_table.cc",
+    "slice_table.h",
     "sqlite_utils.h",
     "table.cc",
     "table.h",
     "thread_table.cc",
     "thread_table.h",
-    "trace_parser.cc",
     "trace_parser.h",
     "trace_processor.cc",
     "trace_processor.h",
@@ -72,6 +75,13 @@ source_set("lib") {
     "../base",
     "../protozero",
   ]
+  if (build_standalone) {
+    sources += [
+      "json_trace_parser.cc",
+      "json_trace_parser.h",
+    ]
+    deps += [ "../../gn:jsoncpp_deps" ]
+  }
 }
 
 executable("trace_processor_shell") {
@@ -91,11 +101,11 @@ source_set("unittests") {
   sources = [
     "process_table_unittest.cc",
     "process_tracker_unittest.cc",
+    "proto_trace_parser_unittest.cc",
     "query_constraints_unittest.cc",
     "sched_slice_table_unittest.cc",
     "sched_tracker_unittest.cc",
     "thread_table_unittest.cc",
-    "trace_parser_unittest.cc",
   ]
   deps = [
     ":lib",

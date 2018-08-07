@@ -598,3 +598,25 @@ source_set("sqlite_shell") {
     ":sqlite",
   ]
 }
+
+config("jsoncpp_config") {
+  cflags = [
+    "-DJSON_USE_EXCEPTION=0",
+
+    # Using -isystem instead of include_dirs (-I), so we don't need to suppress
+    # warnings coming from libprotobuf headers. Doing so would mask warnings in
+    # our own code.
+    "-isystem",
+    rebase_path("jsoncpp/include", root_build_dir),
+  ]
+}
+
+source_set("jsoncpp") {
+  sources = [
+    "jsoncpp/src/lib_json/json_reader.cpp",
+    "jsoncpp/src/lib_json/json_value.cpp",
+    "jsoncpp/src/lib_json/json_writer.cpp",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  public_configs = [ ":jsoncpp_config" ]
+}

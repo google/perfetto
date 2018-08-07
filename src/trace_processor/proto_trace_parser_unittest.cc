@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/trace_parser.h"
+#include "src/trace_processor/proto_trace_parser.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "src/trace_processor/blob_reader.h"
+#include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/sched_tracker.h"
+
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
 
@@ -76,7 +80,7 @@ class MockProcessTracker : public ProcessTracker {
   MOCK_METHOD2(UpdateThread, UniqueTid(uint32_t tid, uint32_t tgid));
 };
 
-TEST(TraceParser, LoadSingleEvent) {
+TEST(ProtoTraceParser, LoadSingleEvent) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -99,11 +103,11 @@ TEST(TraceParser, LoadSingleEvent) {
       .With(Args<4, 5>(ElementsAreArray(kProcName, sizeof(kProcName) - 1)));
 
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &context, 1024);
+  ProtoTraceParser parser(&reader, &context);
   parser.ParseNextChunk();
 }
 
-TEST(TraceParser, LoadMultipleEvents) {
+TEST(ProtoTraceParser, LoadMultipleEvents) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -139,11 +143,11 @@ TEST(TraceParser, LoadMultipleEvents) {
       .With(Args<4, 5>(ElementsAreArray(kProcName2, sizeof(kProcName2) - 1)));
 
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &context, 1024);
+  ProtoTraceParser parser(&reader, &context);
   parser.ParseNextChunk();
 }
 
-TEST(TraceParser, LoadMultiplePackets) {
+TEST(ProtoTraceParser, LoadMultiplePackets) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -182,11 +186,11 @@ TEST(TraceParser, LoadMultiplePackets) {
       .With(Args<4, 5>(ElementsAreArray(kProcName2, sizeof(kProcName2) - 1)));
 
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &context, 1024);
+  ProtoTraceParser parser(&reader, &context);
   parser.ParseNextChunk();
 }
 
-TEST(TraceParser, RepeatedLoadSinglePacket) {
+TEST(ProtoTraceParser, RepeatedLoadSinglePacket) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -225,7 +229,8 @@ TEST(TraceParser, RepeatedLoadSinglePacket) {
       .With(Args<4, 5>(ElementsAreArray(kProcName1, sizeof(kProcName1) - 1)));
 
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &context, chunk_size);
+  ProtoTraceParser parser(&reader, &context);
+  parser.set_chunk_size_for_testing(chunk_size);
   parser.ParseNextChunk();
 
   EXPECT_CALL(*sched, PushSchedSwitch(10, 1001, 100, 32, _, _, 10))
@@ -234,7 +239,7 @@ TEST(TraceParser, RepeatedLoadSinglePacket) {
   parser.ParseNextChunk();
 }
 
-TEST(TraceParse, LoadProcessPacket) {
+TEST(ProtoTraceParserTest, LoadProcessPacket) {
   protos::Trace trace;
 
   auto* tree = trace.add_packet()->mutable_process_tree();
@@ -251,11 +256,11 @@ TEST(TraceParse, LoadProcessPacket) {
   EXPECT_CALL(*process_tracker, UpdateProcess(1, _, _))
       .With(Args<1, 2>(ElementsAreArray(kProcName1, sizeof(kProcName1) - 1)));
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &context, 1024);
+  ProtoTraceParser parser(&reader, &context);
   parser.ParseNextChunk();
 }
 
-TEST(TraceParse, LoadProcessPacket_FirstCmdline) {
+TEST(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
   protos::Trace trace;
 
   auto* tree = trace.add_packet()->mutable_process_tree();
@@ -274,11 +279,11 @@ TEST(TraceParse, LoadProcessPacket_FirstCmdline) {
   EXPECT_CALL(*process_tracker, UpdateProcess(1, _, _))
       .With(Args<1, 2>(ElementsAreArray(kProcName1, sizeof(kProcName1) - 1)));
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &context, 1024);
+  ProtoTraceParser parser(&reader, &context);
   parser.ParseNextChunk();
 }
 
-TEST(TraceParse, LoadThreadPacket) {
+TEST(ProtoTraceParserTest, LoadThreadPacket) {
   protos::Trace trace;
 
   auto* tree = trace.add_packet()->mutable_process_tree();
@@ -291,7 +296,7 @@ TEST(TraceParse, LoadThreadPacket) {
   context.process_tracker.reset(process_tracker);
   EXPECT_CALL(*process_tracker, UpdateThread(1, 2));
   FakeStringBlobReader reader(trace.SerializeAsString());
-  TraceParser parser(&reader, &context, 1024);
+  ProtoTraceParser parser(&reader, &context);
   parser.ParseNextChunk();
 }
 
