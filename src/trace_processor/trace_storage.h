@@ -33,9 +33,13 @@ namespace trace_processor {
 // Unix pids are reused and thus not guaranteed to be unique over a long
 // period of time.
 using UniquePid = uint32_t;
+
 // UniqueTid is an offset into |unique_threads_|. Necessary because tids can
 // be reused.
 using UniqueTid = uint32_t;
+
+// StringId is an offset into |string_pool_|.
+using StringId = size_t;
 
 // Stores a data inside a trace file in a columnar form. This makes it efficient
 // to read or search across a single field of the trace (e.g. all the thread
@@ -49,8 +53,6 @@ class TraceStorage {
 
   constexpr static size_t kMaxCpus = 128;
 
-  // StringId is an offset into |string_pool_|.
-  using StringId = size_t;
 
   struct Stats {
     uint64_t mismatched_sched_switch_tids_ = 0;
@@ -95,7 +97,39 @@ class TraceStorage {
     std::deque<uint64_t> start_ns_;
     std::deque<uint64_t> durations_;
     std::deque<UniqueTid> utids_;
+  };
 
+  class NestableSlices {
+   public:
+    inline void AddSlice(uint64_t start_ns,
+                         uint64_t duration_ns,
+                         UniqueTid utid,
+                         StringId cat,
+                         StringId name,
+                         uint8_t depth) {
+      start_ns_.emplace_back(start_ns);
+      durations_.emplace_back(duration_ns);
+      utids_.emplace_back(utid);
+      cats_.emplace_back(cat);
+      names_.emplace_back(name);
+      depths_.emplace_back(depth);
+    }
+
+    size_t slice_count() const { return start_ns_.size(); }
+    const std::deque<uint64_t>& start_ns() const { return start_ns_; }
+    const std::deque<uint64_t>& durations() const { return durations_; }
+    const std::deque<UniqueTid>& utids() const { return utids_; }
+    const std::deque<StringId>& cats() const { return cats_; }
+    const std::deque<StringId>& names() const { return names_; }
+    const std::deque<uint8_t>& depths() const { return depths_; }
+
+   private:
+    std::deque<uint64_t> start_ns_;
+    std::deque<uint64_t> durations_;
+    std::deque<UniqueTid> utids_;
+    std::deque<StringId> cats_;
+    std::deque<StringId> names_;
+    std::deque<uint8_t> depths_;
   };
 
   void ResetStorage();
@@ -152,9 +186,13 @@ class TraceStorage {
     return unique_threads_[utid];
   }
 
+  const NestableSlices& nestable_slices() const { return nestable_slices_; }
+  NestableSlices* mutable_nestable_slices() { return &nestable_slices_; }
+
   // |unique_processes_| always contains at least 1 element becuase the 0th ID
   // is reserved to indicate an invalid process.
   size_t process_count() const { return unique_processes_.size() - 1; }
+
   // |unique_threads_| always contains at least 1 element becuase the 0th ID
   // is reserved to indicate an invalid thread.
   size_t thread_count() const { return unique_threads_.size() - 1; }
@@ -181,6 +219,9 @@ class TraceStorage {
 
   // One entry for each UniqueTid, with UniqueTid as the index.
   std::deque<Thread> unique_threads_;
+
+  // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
+  NestableSlices nestable_slices_;
 };
 
 }  // namespace trace_processor

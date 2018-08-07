@@ -40,7 +40,7 @@ class SchedTracker {
 
   struct SchedSwitchEvent {
     uint64_t timestamp = 0;
-    TraceStorage::StringId prev_thread_name_id = 0;
+    StringId prev_thread_name_id = 0;
     uint32_t prev_pid = 0;
     uint32_t prev_state = 0;
     uint32_t next_pid = 0;

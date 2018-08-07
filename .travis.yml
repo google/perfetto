@@ -117,6 +117,7 @@ cache:
     - buildtools/benchmark
     - buildtools/emulator
     - buildtools/googletest
+    - buildtools/jsoncpp
     - buildtools/libbacktrace
     - buildtools/libcxx
     - buildtools/libcxxabi
