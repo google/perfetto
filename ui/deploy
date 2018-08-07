@@ -1,0 +1,63 @@
+#!/bin/bash
+# Copyright (C) 2018 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -e
+
+PROJECT_ROOT="$(cd -P ${BASH_SOURCE[0]%/*}/..; pwd)"
+OUT_DIR="$PROJECT_ROOT/out/ui-deploy.tmp"
+UI_DIST_DIR="$OUT_DIR/ui-dist"
+
+set -x
+
+if [ "$1" != "--no-clean" ]; then
+  rm -rf "$OUT_DIR"
+fi
+mkdir -p "$UI_DIST_DIR"
+
+"$PROJECT_ROOT/tools/gn" gen "$OUT_DIR" --args="is_debug=true"
+"$PROJECT_ROOT/tools/ninja" -C "$OUT_DIR" ui
+
+cat<<EOF > "$UI_DIST_DIR/app.yaml"
+runtime: python27
+api_version: 1
+threadsafe: yes
+instance_class: B1
+manual_scaling:
+  instances: 1
+handlers:
+- url: /
+  static_files: static/index.html
+  upload: static/index.html
+  secure: always
+  redirect_http_response_code: 301
+- url: /(.*[.]wasm)
+  static_files: static/\1
+  upload: static/(.*[.]wasm)
+  mime_type: application/wasm
+- url: /(.*)
+  static_files: static/\1
+  upload: static/(.*)
+EOF
+
+ln -s ../ui $UI_DIST_DIR/static
+
+(
+  cd "$UI_DIST_DIR";
+  gcloud app deploy app.yaml --project perfetto-ui -v testing
+)
+
+if [ "$1" != "--no-clean" ]; then
+  rm -rf "$OUT_DIR"
+fi
