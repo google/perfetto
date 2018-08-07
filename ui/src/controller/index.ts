@@ -16,7 +16,7 @@ import '../tracks/all_controller';
 
 import {defer, Deferred} from '../base/deferred';
 import {assertExists} from '../base/logging';
-import {forwardRemoteCalls, Remote} from '../base/remote';
+import {Remote} from '../base/remote';
 import {
   Action,
   addTrack,
@@ -172,26 +172,17 @@ class QueryController {
 
 class Controller {
   private state: State;
-  private _frontend?: FrontendProxy;
+  private frontend: FrontendProxy;
   private readonly engines: Map<string, EngineController>;
   private readonly tracks: Map<string, TrackControllerWrapper>;
   private readonly queries: Map<string, QueryController>;
 
-  constructor() {
+  constructor(frontend: FrontendProxy) {
     this.state = createEmptyState();
+    this.frontend = frontend;
     this.engines = new Map();
     this.tracks = new Map();
     this.queries = new Map();
-  }
-
-  get frontend(): FrontendProxy {
-    if (!this._frontend) throw new Error('No FrontendProxy');
-    return this._frontend;
-  }
-
-  initAndGetState(frontendProxyPort: MessagePort): State {
-    this._frontend = new FrontendProxy(new Remote(frontendProxyPort));
-    return this.state;
   }
 
   dispatch(action: Action): void {
@@ -277,8 +268,13 @@ class FrontendProxy {
 }
 
 function main() {
-  const controller = new Controller();
-  forwardRemoteCalls(self as {} as MessagePort, controller);
+  const port = self as {} as MessagePort;
+  port.onmessage = ({data}) => {
+    const frontendPort = data as MessagePort;
+    const frontend = new FrontendProxy(new Remote(frontendPort));
+    const controller = new Controller(frontend);
+    port.onmessage = ({data}) => controller.dispatch(data);
+  };
 }
 
 main();
