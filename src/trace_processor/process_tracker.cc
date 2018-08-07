@@ -26,7 +26,7 @@ ProcessTracker::~ProcessTracker() = default;
 
 UniqueTid ProcessTracker::UpdateThread(uint64_t timestamp,
                                        uint32_t tid,
-                                       TraceStorage::StringId thread_name_id) {
+                                       StringId thread_name_id) {
   auto pair_it = tids_.equal_range(tid);
 
   // If a utid exists for the tid, find it and update the name.
