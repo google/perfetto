@@ -14,36 +14,51 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PROCESS_TABLE_H_
-#define SRC_TRACE_PROCESSOR_PROCESS_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_SLICE_TABLE_H_
+#define SRC_TRACE_PROCESSOR_SLICE_TABLE_H_
 
 #include <limits>
 #include <memory>
 
 #include "src/trace_processor/table.h"
-#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-// The implementation of the SQLite table containing each unique process with
-// their details (only name at the moment).
-class ProcessTable : public Table {
+class QueryConstraints;
+class TraceStorage;
+
+// A virtual table that allows to query slices coming from userspace events
+// such as chromium TRACE_EVENT macros. Conversely to "shced" slices, these
+// slices can be nested and form stacks.
+// The current implementation of this table is extremely simple and not
+// particularly efficient, as it delegates all the sorting and filtering to
+// the SQLite query engine.
+class SliceTable : public Table {
  public:
-  enum Column { kUpid = 0, kName = 1 };
+  enum Column {
+    kTimestamp = 0,
+    kDuration = 1,
+    kUtid = 2,
+    kCategory = 3,
+    kName = 4,
+    kDepth = 5,
+  };
+
+  SliceTable(const TraceStorage* storage);
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
-
-  ProcessTable(const TraceStorage*);
 
   // Table implementation.
   std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
+  // Implementation of the SQLite cursor interface.
   class Cursor : public Table::Cursor {
    public:
-    Cursor(const TraceStorage*);
+    Cursor(const TraceStorage* storage);
+    ~Cursor() override;
 
     // Implementation of Table::Cursor.
     int Filter(const QueryConstraints&, sqlite3_value**) override;
@@ -52,20 +67,15 @@ class ProcessTable : public Table {
     int Column(sqlite3_context*, int N) override;
 
    private:
-    struct UpidFilter {
-      UniquePid min;
-      UniquePid max;
-      UniquePid current;
-      bool desc;
-    };
-
+    size_t row_ = 0;
+    size_t num_rows_ = 0;
     const TraceStorage* const storage_;
-    UpidFilter upid_filter_;
   };
 
   const TraceStorage* const storage_;
 };
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PROCESS_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_SLICE_TABLE_H_

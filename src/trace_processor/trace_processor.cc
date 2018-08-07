@@ -20,20 +20,20 @@
 #include <functional>
 
 #include "perfetto/base/task_runner.h"
+#include "src/trace_processor/blob_reader.h"
+#include "src/trace_processor/json_trace_parser.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/sched_slice_table.h"
 #include "src/trace_processor/sched_tracker.h"
+#include "src/trace_processor/slice_table.h"
 #include "src/trace_processor/thread_table.h"
-#include "src/trace_processor/trace_parser.h"
 
 #include "perfetto/trace_processor/raw_query.pb.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
-constexpr uint32_t kTraceChunkSizeB = 16 * 1024 * 1024;  // 16 MB
-}  // namespace
 
 TraceProcessor::TraceProcessor(base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_factory_(this) {
@@ -45,8 +45,9 @@ TraceProcessor::TraceProcessor(base::TaskRunner* task_runner)
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.storage.reset(new TraceStorage());
 
-  SchedSliceTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
+  SchedSliceTable::RegisterTable(*db_, context_.storage.get());
+  SliceTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
 }
 
@@ -54,10 +55,20 @@ TraceProcessor::~TraceProcessor() = default;
 
 void TraceProcessor::LoadTrace(BlobReader* reader,
                                std::function<void()> callback) {
-  // Reset storage.
   context_.storage->ResetStorage();
-  // Start a new trace parsing task.
-  context_.parser.reset(new TraceParser(reader, &context_, kTraceChunkSizeB));
+
+  // Guess the trace type (JSON vs proto).
+  char buf[32] = "";
+  const size_t kPreambleLen = strlen(JsonTraceParser::kPreamble);
+  reader->Read(0, kPreambleLen, reinterpret_cast<uint8_t*>(buf));
+  if (strncmp(buf, JsonTraceParser::kPreamble, kPreambleLen) == 0) {
+    PERFETTO_DLOG("Legacy JSON trace detected");
+    context_.parser.reset(new JsonTraceParser(reader, &context_));
+  } else {
+    context_.parser.reset(new ProtoTraceParser(reader, &context_));
+  }
+
+  // Kick off the parsing task chain.
   LoadTraceChunk(callback);
 }
 
