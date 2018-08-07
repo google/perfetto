@@ -253,12 +253,14 @@ void UnixSocket::ReadPeerCredentials() {
   int res = getsockopt(*fd_, SOL_SOCKET, SO_PEERCRED, &user_cred, &len);
   PERFETTO_CHECK(res == 0);
   peer_uid_ = user_cred.uid;
+  peer_pid_ = user_cred.pid;
 #else
   struct xucred user_cred;
   socklen_t len = sizeof(user_cred);
   int res = getsockopt(*fd_, 0, LOCAL_PEERCRED, &user_cred, &len);
   PERFETTO_CHECK(res == 0 && user_cred.cr_version == XUCRED_VERSION);
   peer_uid_ = static_cast<uid_t>(user_cred.cr_uid);
+// There is no pid in the LOCAL_PEERCREDS for MacOS / FreeBSD.
 #endif
 }
 
