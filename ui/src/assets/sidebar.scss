@@ -47,26 +47,29 @@
         padding: 20px 0;
         max-height: 80px;
         overflow: hidden;
-        >h1,
-        >h2 {
-            font-family: 'Raleway';
-            letter-spacing: 0.25px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            margin: 0 24px;
-        }
-        >h1 {
-            color: #fff;
-            font-size: 15px;
-            font-weight: 500;
-        }
-        >h2 {
-            @include transition();
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 12px;
-            margin-top: 8px;
-            font-weight: 400;
+        .section-header {
+            cursor: pointer;
+            >h1,
+            >h2 {
+                font-family: 'Raleway';
+                letter-spacing: 0.25px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                margin: 0 24px;
+            }
+            >h1 {
+                color: #fff;
+                font-size: 15px;
+                font-weight: 500;
+            }
+            >h2 {
+                @include transition();
+                color: rgba(255, 255, 255, 0.5);
+                font-size: 12px;
+                margin-top: 8px;
+                font-weight: 400;
+            }
         }
         &:hover {
             background-color: #373f4b;
@@ -78,11 +81,13 @@
                 opacity: 0;
             }
             .section-content {
+                pointer-events: inherit;
                 opacity: 1;
             }
         }
     }
     .section-content {
+        pointer-events: none;
         @include transition();
         opacity: 0;
         color: #b4b7ba;
