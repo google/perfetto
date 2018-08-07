@@ -16,25 +16,24 @@ import '../tracks/all_frontend';
 
 import * as m from 'mithril';
 
-import {forwardRemoteCalls, Remote} from '../base/remote';
+import {forwardRemoteCalls} from '../base/remote';
 import {State} from '../common/state';
+import {createEmptyState} from '../common/state';
 import {
   takeWasmEngineWorkerPort,
   warmupWasmEngineWorker
 } from '../controller/wasm_engine_proxy';
 
-import {ControllerProxy} from './controller_proxy';
 import {globals} from './globals';
 import {HomePage} from './home_page';
 import {ViewerPage} from './viewer_page';
 
-function createController(): ControllerProxy {
+function createController(): Worker {
   const worker = new Worker('controller_bundle.js');
   worker.onerror = e => {
     console.error(e);
   };
-  const port = worker as {} as MessagePort;
-  return new ControllerProxy(new Remote(port));
+  return worker;
 }
 
 /**
@@ -80,8 +79,9 @@ async function main() {
   const controller = createController();
   const channel = new MessageChannel();
   forwardRemoteCalls(channel.port2, new FrontendApi());
-  globals.state = await controller.initAndGetState(channel.port1);
-  globals.dispatch = controller.dispatch.bind(controller);
+  controller.postMessage(channel.port1, [channel.port1]);
+  globals.state = createEmptyState();
+  globals.dispatch = controller.postMessage.bind(controller);
   globals.trackDataStore = new Map<string, {}>();
   globals.queryResults = new Map<string, {}>();
   warmupWasmEngineWorker();
