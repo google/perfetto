@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_THREAD_TABLE_H_
 #define SRC_TRACE_PROCESSOR_THREAD_TABLE_H_
 
-#include <sqlite3.h>
 #include <limits>
 #include <memory>
 
