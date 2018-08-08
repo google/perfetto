@@ -194,6 +194,19 @@ class UnixSocket {
     return peer_uid_;
   }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Process ID of the peer, as returned by the kernel. If the client
+  // disconnects and the socket goes into the kDisconnected state, it
+  // retains the pid of the last peer.
+  //
+  // This is only available on Linux / Android.
+  pid_t peer_pid() const {
+    PERFETTO_DCHECK(!is_listening() && peer_pid_ != kInvalidPid);
+    return peer_pid_;
+  }
+#endif
+
  private:
   UnixSocket(EventListener*, base::TaskRunner*);
   UnixSocket(EventListener*, base::TaskRunner*, base::ScopedFile, State);
@@ -212,6 +225,10 @@ class UnixSocket {
   State state_ = State::kDisconnected;
   int last_error_ = 0;
   uid_t peer_uid_ = kInvalidUid;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  pid_t peer_pid_ = kInvalidPid;
+#endif
   EventListener* event_listener_;
   base::TaskRunner* task_runner_;
   base::WeakPtrFactory<UnixSocket> weak_ptr_factory_;
