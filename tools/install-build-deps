@@ -152,6 +152,18 @@ BUILD_DEPS_HOST = [
    '3219e26f2e249bb46b7d688478208c7ec138fea4',
    'all'
   ),
+
+  ('buildtools/core',
+   'https://android.googlesource.com/platform/system/core.git',
+   '50973d1865f1ca5d9c72cf8a3ca35b66686c98d7',
+   'all'
+  ),
+
+  ('buildtools/lzma',
+   'https://android.googlesource.com/platform/external/lzma.git',
+   '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3',
+   'all'
+  ),
 ]
 
 # Dependencies required to build Android code.
