@@ -28,15 +28,20 @@ export class DragGestureHandler {
     document.body.addEventListener('mousemove', this.boundOnMouseMove);
     document.body.addEventListener('mouseup', this.boundOnMouseUp);
     this.onDragStarted(e.clientX, e.clientY);
+
+    // Prevent interactions with other DragGestureHandlers and event listeners
+    e.stopPropagation();
   }
 
   private onMouseMove(e: MouseEvent) {
     this.onDrag(e.clientX, e.clientY);
+    e.stopPropagation();
   }
 
-  private onMouseUp() {
+  private onMouseUp(e: MouseEvent) {
     document.body.removeEventListener('mousemove', this.boundOnMouseMove);
     document.body.removeEventListener('mouseup', this.boundOnMouseUp);
     this.onDragFinished();
+    e.stopPropagation();
   }
 }
