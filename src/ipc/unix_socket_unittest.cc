@@ -475,7 +475,7 @@ TEST_F(UnixSocketTest, DISABLED_SendIsAtomic) {
 // Checks that the peer_uid() is retained after the client disconnects. The IPC
 // layer needs to rely on this to validate messages received immediately before
 // a client disconnects.
-TEST_F(UnixSocketTest, PeerUidRetainedAfterDisconnect) {
+TEST_F(UnixSocketTest, PeerCredentialsRetainedAfterDisconnect) {
   auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_);
   ASSERT_TRUE(srv->is_listening());
   UnixSocket* srv_client_conn = nullptr;
@@ -485,6 +485,10 @@ TEST_F(UnixSocketTest, PeerUidRetainedAfterDisconnect) {
           [&srv_client_conn, srv_connected](UnixSocket*, UnixSocket* srv_conn) {
             srv_client_conn = srv_conn;
             EXPECT_EQ(geteuid(), static_cast<uint32_t>(srv_conn->peer_uid()));
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+            EXPECT_EQ(getpid(), static_cast<uint32_t>(srv_conn->peer_pid()));
+#endif
             srv_connected();
           }));
   auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
@@ -511,6 +515,10 @@ TEST_F(UnixSocketTest, PeerUidRetainedAfterDisconnect) {
   task_runner_.RunUntilCheckpoint("cli_disconnected");
   ASSERT_FALSE(srv_client_conn->is_connected());
   EXPECT_EQ(geteuid(), static_cast<uint32_t>(srv_client_conn->peer_uid()));
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  EXPECT_EQ(getpid(), static_cast<uint32_t>(srv_client_conn->peer_pid()));
+#endif
 }
 
 TEST_F(UnixSocketTest, BlockingSend) {
