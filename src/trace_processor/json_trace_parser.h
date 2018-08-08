@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <tuple>
 #include <unordered_map>
 
 #include "src/trace_processor/trace_parser.h"
@@ -51,16 +52,19 @@ class JsonTraceParser : public TraceParser {
     StringId cat_id;
     StringId name_id;
     uint64_t start_ts;
+    uint64_t end_ts;  // Only for complete events (scoped TRACE_EVENT macros).
   };
-  struct ThreadState {
-    std::vector<Slice> stack;
-  };
+  using SlicesStack = std::vector<Slice>;
+
+  static inline void MaybeCloseStack(uint64_t end_ts, SlicesStack&);
+  static inline std::tuple<uint64_t, uint64_t> GetStackHashes(
+      const SlicesStack&);
 
   BlobReader* const reader_;
   TraceProcessorContext* const context_;
   uint64_t offset_ = 0;
   std::unique_ptr<char[]> buffer_;
-  std::unordered_map<UniqueTid, ThreadState> threads_;
+  std::unordered_map<UniqueTid, SlicesStack> threads_;
 };
 
 }  // namespace trace_processor

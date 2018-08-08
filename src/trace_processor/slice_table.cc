@@ -39,6 +39,8 @@ void SliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
                               "cat STRING,"
                               "name STRING,"
                               "depth INT,"
+                              "stack_id UNSIGNED BIG INT,"
+                              "parent_stack_id UNSIGNED BIG INT,"
                               "PRIMARY KEY(utid, ts, depth)"
                               ") WITHOUT ROWID;");
 }
@@ -102,6 +104,14 @@ int SliceTable::Cursor::Column(sqlite3_context* context, int col) {
     case Column::kDepth:
       sqlite3_result_int64(context,
                            static_cast<sqlite3_int64>(slices.depths()[row_]));
+      break;
+    case Column::kStackId:
+      sqlite3_result_int64(
+          context, static_cast<sqlite3_int64>(slices.stack_ids()[row_]));
+      break;
+    case Column::kParentStackId:
+      sqlite3_result_int64(
+          context, static_cast<sqlite3_int64>(slices.parent_stack_ids()[row_]));
       break;
   }
   return SQLITE_OK;
