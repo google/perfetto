@@ -36,6 +36,7 @@ void ProcessTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
                                 "CREATE TABLE process("
                                 "upid UNSIGNED INT, "
                                 "name TEXT, "
+                                "pid UNSIGNED INT, "
                                 "PRIMARY KEY(upid)"
                                 ") WITHOUT ROWID;");
 }
@@ -66,6 +67,11 @@ int ProcessTable::Cursor::Column(sqlite3_context* context, int N) {
       const auto& name = storage_->GetString(process.name_id);
       sqlite3_result_text(context, name.c_str(),
                           static_cast<int>(name.length()), nullptr);
+      break;
+    }
+    case Column::kPid: {
+      const auto& process = storage_->GetProcess(upid_filter_.current);
+      sqlite3_result_int64(context, process.pid);
       break;
     }
     default:
