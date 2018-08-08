@@ -236,13 +236,17 @@ body {
         position: relative;
         left: -100px;
         width: 200px;
+        margin-top: 6px;
         text-align: center;
         cursor: default;
+        font-family: 'Google Sans';
+        font-size: 11px;
+        color: #666;
     }
     .tick {
         height: 20px;
         width: 1px;
-        background: #666;
+        background: #bbb;
     }
 }
 
