@@ -139,6 +139,7 @@ const HorizontalBrushSelection = {
     new DragGestureHandler(el, x => dragged(x - this.offsetLeft), x => {
       this.selectionPx.start = this.selectionPx.end = x - this.offsetLeft;
       dragState = 'draggingEndHandle';
+      this.onBrushedPx(this.selectionPx.start, this.selectionPx.end);
     }, () => dragState = 'notDragging');
 
     this.onMouseMove = e => {
