@@ -41,6 +41,7 @@ using RequestID = uint64_t;
 constexpr size_t kIPCBufferSize = 128 * 1024;
 
 constexpr uid_t kInvalidUid = static_cast<uid_t>(-1);
+constexpr pid_t kInvalidPid = static_cast<pid_t>(-1);
 
 }  // namespace ipc
 }  // namespace perfetto
