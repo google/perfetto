@@ -163,6 +163,13 @@ export const TrackComponent = {
             }))),
         m('.track-content',
           {
+            onmousemove: (e: MouseEvent) => {
+              // TODO(hjd): Trigger a repaint here not a full m.redraw.
+              this.track.onMouseMove({x: e.layerX, y: e.layerY});
+            },
+            onmouseout: () => {
+              this.track.onMouseOut();
+            },
             style: {
               width: `calc(100% - ${TRACK_SHELL_WIDTH}px)`,
               left: `${TRACK_SHELL_WIDTH}px`,
