@@ -43,6 +43,8 @@ class SliceTable : public Table {
     kCategory = 3,
     kName = 4,
     kDepth = 5,
+    kStackId = 6,
+    kParentStackId = 7,
   };
 
   SliceTable(const TraceStorage* storage);

@@ -37,6 +37,7 @@ void ThreadTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
                                "utid UNSIGNED INT, "
                                "upid UNSIGNED INT, "
                                "name TEXT, "
+                               "tid UNSIGNED INT, "
                                "PRIMARY KEY(utid)"
                                ") WITHOUT ROWID;");
 }
@@ -71,6 +72,10 @@ int ThreadTable::Cursor::Column(sqlite3_context* context, int N) {
       const auto& name = storage_->GetString(thread.name_id);
       sqlite3_result_text(context, name.c_str(),
                           static_cast<int>(name.length()), nullptr);
+      break;
+    }
+    case Column::kTid: {
+      sqlite3_result_int64(context, thread.tid);
       break;
     }
     default: {
