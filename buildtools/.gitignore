@@ -17,5 +17,5 @@ ndk/
 nodejs/
 protobuf/
 sqlite/
-core/
+android-core/
 lzma/
