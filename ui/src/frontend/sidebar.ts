@@ -29,7 +29,7 @@ const SECTIONS = [
     expanded: true,
     items: [
       {t: 'Open trace file', a: popupFileSelectionDialog, i: 'folder_open'},
-      {t: 'Open example trace', a: handleOpenTraceURL, i: 'description'},
+      {t: 'Open example trace', a: handleOpenTraceUrl, i: 'description'},
       {t: 'Record new trace', a: navigateHome, i: 'fiber_smart_record'},
       {t: 'Share current trace', a: navigateHome, i: 'share'},
     ],
@@ -70,7 +70,7 @@ function popupFileSelectionDialog(e: Event) {
   (document.querySelector('input[type=file]')! as HTMLInputElement).click();
 }
 
-function handleOpenTraceURL(e: Event) {
+function handleOpenTraceUrl(e: Event) {
   e.preventDefault();
   globals.dispatch(openTraceFromUrl(EXAMPLE_TRACE_URL));
 }
@@ -83,16 +83,11 @@ function onInputElementFileSelectionChanged(e: Event) {
   globals.dispatch(openTraceFromFile(e.target.files[0]));
 }
 
-function stopClickPropagation(e: Event) {
-  e.stopImmediatePropagation();
-}
-
 function navigateHome(_: Event) {
   globals.dispatch(navigate('/'));
 }
 
-
-export const Sidebar: m.Component<{}, {}> = {
+export const Sidebar: m.Component = {
   view() {
     const vdomSections = [];
     for (const section of SECTIONS) {
@@ -107,13 +102,11 @@ export const Sidebar: m.Component<{}, {}> = {
       }
       vdomSections.push(
           m(`section${section.expanded ? '.expanded' : ''}`,
-            {onclick: () => section.expanded = !section.expanded},
-            m('h1', section.title),
-            m('h2', section.summary),
-            m('.section-content',
-              // Prevent that the clicks on the bottom part of the expanded
-              // sections propagate up to and trigger their compression.
-              m('ul', {onclick: stopClickPropagation}, vdomItems))));
+            m('.section-header',
+              {onclick: () => section.expanded = !section.expanded},
+              m('h1', section.title),
+              m('h2', section.summary), ),
+            m('.section-content', m('ul', vdomItems))));
     }
     return m(
         'nav.sidebar',
