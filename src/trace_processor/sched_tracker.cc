@@ -39,9 +39,10 @@ void SchedTracker::PushSchedSwitch(uint32_t cpu,
   // slice.
   if (prev->valid() && prev->next_pid != 0 /* Idle process (swapper/N) */) {
     uint64_t duration = timestamp - prev->timestamp;
-
+    StringId prev_thread_name_id =
+        context_->storage->InternString(prev_comm, prev_comm_len);
     UniqueTid utid = context_->process_tracker->UpdateThread(
-        prev->timestamp, prev->prev_pid, prev->prev_thread_name_id);
+        prev->timestamp, prev->next_pid /* == prev_pid */, prev_thread_name_id);
     context_->storage->AddSliceToCpu(cpu, prev->timestamp, duration, utid);
   }
 
@@ -55,8 +56,6 @@ void SchedTracker::PushSchedSwitch(uint32_t cpu,
   prev->timestamp = timestamp;
   prev->prev_pid = prev_pid;
   prev->prev_state = prev_state;
-  prev->prev_thread_name_id =
-      context_->storage->InternString(prev_comm, prev_comm_len);
   prev->next_pid = next_pid;
 };
 
