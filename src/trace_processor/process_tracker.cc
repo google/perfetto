@@ -16,6 +16,10 @@
 
 #include "src/trace_processor/process_tracker.h"
 
+#include <utility>
+
+#include <inttypes.h>
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -91,8 +95,10 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   }
 
   // Find matching process or create new one.
-  if (thread->upid == 0)  // Not set, upid == 0 is invalid.
-    thread->upid = GetOrCreateProcess(pid, thread->start_ns);
+  if (thread->upid == 0) {  // Not set, upid == 0 is invalid.
+    std::tie(thread->upid, std::ignore) =
+        GetOrCreateProcess(pid, thread->start_ns);
+  }
 
   return utid;
 }
@@ -102,13 +108,16 @@ UniquePid ProcessTracker::UpdateProcess(uint32_t pid,
                                         size_t process_name_len) {
   auto proc_name_id =
       context_->storage->InternString(process_name, process_name_len);
-  UniquePid upid = GetOrCreateProcess(pid, 0 /* start_ns */);
-  auto* process = context_->storage->GetMutableProcess(upid);
+  UniquePid upid;
+  TraceStorage::Process* process;
+  std::tie(upid, process) = GetOrCreateProcess(pid, 0 /* start_ns */);
   process->name_id = proc_name_id;
+  UpdateThread(/*tid=*/pid, pid);  // Create an entry for the main thread.
   return upid;
 }
 
-UniquePid ProcessTracker::GetOrCreateProcess(uint32_t pid, uint64_t start_ns) {
+std::tuple<UniquePid, TraceStorage::Process*>
+ProcessTracker::GetOrCreateProcess(uint32_t pid, uint64_t start_ns) {
   auto pids_pair = pids_.equal_range(pid);
 
   UniquePid upid = 0;
@@ -127,7 +136,18 @@ UniquePid ProcessTracker::GetOrCreateProcess(uint32_t pid, uint64_t start_ns) {
   auto* process = context_->storage->GetMutableProcess(upid);
   if (process->start_ns == 0)
     process->start_ns = start_ns;
-  return upid;
+
+  // Give a default name to the process based on its PID just in case we never
+  // get to see the real comm (e.g., we miss the trace packet that containts it
+  // because of the ring buffer wrapping over).
+  if (process->name_id == 0) {
+    char process_name[64];
+    int len = sprintf(process_name, "[pid:%" PRIu32 "]", pid);
+    process->name_id =
+        context_->storage->InternString(process_name, static_cast<size_t>(len));
+  }
+
+  return std::make_tuple(upid, process);
 }
 
 }  // namespace trace_processor
