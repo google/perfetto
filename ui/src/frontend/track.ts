@@ -45,4 +45,6 @@ export abstract class Track {
   abstract renderCanvas(
       ctx: CanvasRenderingContext2D, timeScale: TimeScale,
       visibleWindowMs: {start: number, end: number}): void;
+  onMouseMove(_position: {x: number, y: number}) {}
+  onMouseOut() {}
 }
