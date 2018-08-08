@@ -67,14 +67,17 @@ void OnQueryResult(base::TimeNanos t_start, const protos::RawQueryResult& res) {
     for (int c = 0; c < res.columns_size(); c++) {
       switch (res.column_descriptors(c).type()) {
         case protos::RawQueryResult_ColumnDesc_Type_STRING:
-          printf("%20s ", res.columns(c).string_values(r).c_str());
+          printf("%-20.20s ", res.columns(c).string_values(r).c_str());
           break;
         case protos::RawQueryResult_ColumnDesc_Type_DOUBLE:
           printf("%20f ", res.columns(c).double_values(r));
           break;
-        case protos::RawQueryResult_ColumnDesc_Type_LONG:
-          printf("%20lld ", res.columns(c).long_values(r));
+        case protos::RawQueryResult_ColumnDesc_Type_LONG: {
+          auto value = res.columns(c).long_values(r);
+          printf((value < 0xffffffll) ? "%20lld " : "%20llx ", value);
+
           break;
+        }
       }
     }
     printf("\n");
