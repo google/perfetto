@@ -45,6 +45,16 @@ config("googletest_prod_config") {
   ]
 }
 
+config("libunwindstack_config") {
+  cflags = [
+    # Using -isystem instead of include_dirs (-I), so we don't need to suppress
+    # warnings coming from libprotobuf headers. Doing so would mask warnings in
+    # our own code.
+    "-isystem",
+    rebase_path("core/libunwindstack/include", root_build_dir),
+  ]
+}
+
 # Config to include gtest.h in test targets.
 config("googletest_config") {
   defines = [ "GTEST_LANG_CXX11=1" ]
@@ -597,6 +607,112 @@ source_set("sqlite_shell") {
   deps = [
     ":sqlite",
   ]
+}
+
+source_set("lzma") {
+  defines = [ "_7ZIP_ST" ]
+  sources = [
+    "lzma/C/7zAlloc.c",
+    "lzma/C/7zArcIn.c",
+    "lzma/C/7zBuf.c",
+    "lzma/C/7zBuf2.c",
+    "lzma/C/7zCrc.c",
+    "lzma/C/7zCrcOpt.c",
+    "lzma/C/7zDec.c",
+    "lzma/C/7zFile.c",
+    "lzma/C/7zStream.c",
+    "lzma/C/Aes.c",
+    "lzma/C/AesOpt.c",
+    "lzma/C/Alloc.c",
+    "lzma/C/Bcj2.c",
+    "lzma/C/Bra.c",
+    "lzma/C/Bra86.c",
+    "lzma/C/BraIA64.c",
+    "lzma/C/CpuArch.c",
+    "lzma/C/Delta.c",
+    "lzma/C/LzFind.c",
+    "lzma/C/Lzma2Dec.c",
+    "lzma/C/Lzma2Enc.c",
+    "lzma/C/Lzma86Dec.c",
+    "lzma/C/Lzma86Enc.c",
+    "lzma/C/LzmaDec.c",
+    "lzma/C/LzmaEnc.c",
+    "lzma/C/LzmaLib.c",
+    "lzma/C/Ppmd7.c",
+    "lzma/C/Ppmd7Dec.c",
+    "lzma/C/Ppmd7Enc.c",
+    "lzma/C/Sha256.c",
+    "lzma/C/Sort.c",
+    "lzma/C/Xz.c",
+    "lzma/C/XzCrc64.c",
+    "lzma/C/XzCrc64Opt.c",
+    "lzma/C/XzDec.c",
+    "lzma/C/XzEnc.c",
+    "lzma/C/XzIn.c",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  cflags = [
+    "-Wno-empty-body",
+    "-Wno-enum-conversion",
+  ]
+}
+source_set("libunwindstack") {
+  include_dirs = [
+    "core/libunwindstack/include",
+    "core/libunwindstack",
+    "core/base/include",
+    "core/liblog/include",
+    "core/libprocinfo/include",
+    "core/include",
+    "lzma/C",
+  ]
+  deps = [
+    ":lzma",
+  ]
+  defines = [ "NO_LIBDEXFILE_SUPPORT" ]
+  sources = [
+    "core/base/file.cpp",
+    "core/base/logging.cpp",
+    "core/base/stringprintf.cpp",
+    "core/base/strings.cpp",
+    "core/base/threads.cpp",
+    "core/libunwindstack/ArmExidx.cpp",
+    "core/libunwindstack/DwarfCfa.cpp",
+    "core/libunwindstack/DwarfEhFrameWithHdr.cpp",
+    "core/libunwindstack/DwarfMemory.cpp",
+    "core/libunwindstack/DwarfOp.cpp",
+    "core/libunwindstack/DwarfSection.cpp",
+    "core/libunwindstack/Elf.cpp",
+    "core/libunwindstack/ElfInterface.cpp",
+    "core/libunwindstack/ElfInterfaceArm.cpp",
+    "core/libunwindstack/JitDebug.cpp",
+    "core/libunwindstack/LocalUnwinder.cpp",
+    "core/libunwindstack/Log.cpp",
+    "core/libunwindstack/MapInfo.cpp",
+    "core/libunwindstack/Maps.cpp",
+    "core/libunwindstack/Memory.cpp",
+    "core/libunwindstack/Regs.cpp",
+    "core/libunwindstack/RegsArm.cpp",
+    "core/libunwindstack/RegsArm64.cpp",
+    "core/libunwindstack/RegsMips.cpp",
+    "core/libunwindstack/RegsMips64.cpp",
+    "core/libunwindstack/RegsX86.cpp",
+    "core/libunwindstack/RegsX86_64.cpp",
+    "core/libunwindstack/Symbols.cpp",
+    "core/libunwindstack/Unwinder.cpp",
+    "core/libunwindstack/tests/LogFake.cpp",
+  ]
+  if (current_cpu == "x86") {
+    sources += [ "core/libunwindstack/AsmGetRegsX86.S" ]
+  } else if (current_cpu == "x64") {
+    sources += [ "core/libunwindstack/AsmGetRegsX86_64.S" ]
+  }
+  configs -= [
+    "//gn/standalone:extra_warnings",
+    "//gn/standalone:c++11",
+  ]
+  configs += [ "//gn/standalone:c++17" ]
+  public_configs = [ ":libunwindstack_config" ]
 }
 
 config("jsoncpp_config") {
