@@ -14,7 +14,12 @@
 
 import * as m from 'mithril';
 
-import {navigate, openTraceFromFile, openTraceFromUrl} from '../common/actions';
+import {
+  createPermalink,
+  navigate,
+  openTraceFromFile,
+  openTraceFromUrl
+} from '../common/actions';
 
 import {globals} from './globals';
 import {quietHandler} from './mithril_helpers';
@@ -31,7 +36,7 @@ const SECTIONS = [
       {t: 'Open trace file', a: popupFileSelectionDialog, i: 'folder_open'},
       {t: 'Open example trace', a: handleOpenTraceUrl, i: 'description'},
       {t: 'Record new trace', a: navigateHome, i: 'fiber_smart_record'},
-      {t: 'Share current trace', a: navigateHome, i: 'share'},
+      {t: 'Share current trace', a: dispatchCreatePermalink, i: 'share'},
     ],
   },
   {
@@ -85,6 +90,10 @@ function onInputElementFileSelectionChanged(e: Event) {
 
 function navigateHome(_: Event) {
   globals.dispatch(navigate('/'));
+}
+
+function dispatchCreatePermalink(_: Event) {
+  globals.dispatch(createPermalink());
 }
 
 export const Sidebar: m.Component = {
