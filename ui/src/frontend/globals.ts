@@ -14,6 +14,7 @@
 
 import {Action} from '../common/actions';
 import {State} from '../common/state';
+import {FrontendLocalState} from './frontend_local_state';
 
 type Dispatch = (action: Action) => void;
 type TrackDataStore = Map<string, {}>;
@@ -27,6 +28,7 @@ class Globals {
   _state?: State = undefined;
   _trackDataStore?: TrackDataStore = undefined;
   _queryResults?: QueryResultsStore = undefined;
+  _frontendLocalState?: FrontendLocalState = undefined;
 
   get state(): State {
     if (this._state === undefined) throw new Error('Global not set');
@@ -62,6 +64,17 @@ class Globals {
 
   set queryResults(value: QueryResultsStore) {
     this._queryResults = value;
+  }
+
+  get frontendLocalState() {
+    if (this._frontendLocalState === undefined) {
+      throw new Error('Global not set');
+    }
+    return this._frontendLocalState;
+  }
+
+  set frontendLocalState(value: FrontendLocalState) {
+    this._frontendLocalState = value;
   }
 
   resetForTesting() {

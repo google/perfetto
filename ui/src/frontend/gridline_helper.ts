@@ -20,9 +20,9 @@ export function drawGridLines(
     ctx: CanvasRenderingContext2D,
     x: TimeScale,
     timeBounds: [Milliseconds, Milliseconds],
-    width: number,
     height: number): void {
   const range = timeBounds[1] - timeBounds[0];
+  const width = x.msToPx(timeBounds[1]) - x.msToPx(timeBounds[0]);
   const desiredSteps = width / DESIRED_PX_PER_STEP;
   const step = getGridStepSize(range, desiredSteps);
   const start = Math.round(timeBounds[0] / step) * step;

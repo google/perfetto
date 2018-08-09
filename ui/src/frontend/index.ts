@@ -24,6 +24,7 @@ import {
   warmupWasmEngineWorker
 } from '../controller/wasm_engine_proxy';
 
+import {createEmptyFrontendState} from './frontend_local_state';
 import {globals} from './globals';
 import {HomePage} from './home_page';
 import {ViewerPage} from './viewer_page';
@@ -84,6 +85,7 @@ async function main() {
   globals.dispatch = controller.postMessage.bind(controller);
   globals.trackDataStore = new Map<string, {}>();
   globals.queryResults = new Map<string, {}>();
+  globals.frontendLocalState = createEmptyFrontendState();
   warmupWasmEngineWorker();
 
   m.route(document.body, '/', {
