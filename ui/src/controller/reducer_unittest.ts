@@ -86,3 +86,21 @@ test('open trace', async () => {
   expect(after.nextId).toBe(1);
   expect(after.route).toBe('/viewer');
 });
+
+test('set state', async () => {
+  const newState = createEmptyState();
+  const before = createEmptyState();
+  const after = rootReducer(before, {
+    type: 'SET_STATE',
+    newState,
+  });
+  expect(after).toBe(newState);
+});
+
+test('create permalink', async () => {
+  const before = createEmptyState();
+  const after = rootReducer(before, {
+    type: 'CREATE_PERMALINK',
+  });
+  expect(after.permalink!.state).toBe(before);
+});
