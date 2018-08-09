@@ -44,6 +44,15 @@ export abstract class Engine {
     return +result.columns[0].longValues![0];
   }
 
+  // TODO: This should live in code that's more specific to chrome, instead of
+  // in engine.
+  async getNumberOfProcesses(): Promise<number> {
+    const result = await this.rawQuery({
+      sqlQuery: 'select count(distinct(upid)) from thread;',
+    });
+    return +result.columns[0].longValues![0];
+  }
+
   // TODO(hjd): Maybe we should cache result? But then Engine must be
   // streaming aware.
   async getTraceTimeBounds(): Promise<[number, number]> {
