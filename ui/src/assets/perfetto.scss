@@ -192,40 +192,46 @@ body {
 }
 
 .track {
-    border: 1px solid hsl(213, 22%, 82%);
-    position: absolute;
+    border: 1px solid #c7d0db;
     left: 0;
     width: 100%;
     .track-shell {
         background: #fff;
         padding: 20px;
-        border-right: 1px solid hsl(213, 22%, 82%);
+        border-right: 1px solid #c7d0db;
         height: 100%;
-        z-index: 100;
-        position: relative;
         h1 {
             margin: 0;
-            font-size: 16px;
+            font-size: 1.5em;
             font-family: 'Google Sans';
             color: hsl(213, 22%, 30%)
         }
-    }
-    .track-content {
-        height: 100%;
-        position: absolute;
-        top: 0;
+        .track-move-icons {
+            position: absolute;
+            right: 10px;
+            color: #fff;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            background: #ced0e7;
+            border-radius: 12px;
+            display: block;
+            width: 24px;
+            height: 24px;
+            border: none;
+            outline: none;
+        }
     }
 }
 
-.scrollable-container {
+.scrolling-panel-container {
+    position: relative;
     width: 100%;
     height: 100%;
-    overflow-y: auto;
     overflow-x: hidden;
-    will-change: transform;
-    position: relative;
+    overflow-y: auto;
+    will-change: transform;  // Force layer creation.
 }
-
 /** Time Axis **/
 
 .axis {
