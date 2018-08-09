@@ -140,6 +140,9 @@ if (!build_with_chromium) {
       "src/traced/probes/ftrace:integrationtests",
       "test:end_to_end_integrationtests",
     ]
+    if (build_standalone && !is_android) {
+      deps += [ "src/trace_processor:integrationtests" ]
+    }
     if (build_with_android) {
       cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
     }
