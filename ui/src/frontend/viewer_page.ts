@@ -14,7 +14,9 @@
 
 import * as m from 'mithril';
 
+import {executeQuery} from '../common/actions';
 import {QueryResponse} from '../common/queries';
+import {EngineConfig} from '../common/state';
 
 import {globals} from './globals';
 import {OverviewTimeline} from './overview_timeline';
@@ -57,6 +59,8 @@ const QueryTable: m.Component<{}, {}> = {
   },
 };
 
+export const OVERVIEW_QUERY_ID = 'overview_query';
+
 /**
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
  * panels, and everything else that's part of the main trace viewer page.
@@ -65,6 +69,7 @@ const TraceViewer = {
   oninit() {
     this.width = 0;
     this.maxVisibleWindowMs = {start: 0, end: 10000000};
+    this.overviewQueryExecuted = false;
   },
   oncreate(vnode) {
     const frontendLocalState = globals.frontendLocalState;
@@ -138,6 +143,42 @@ const TraceViewer = {
       m.redraw();
     };
 
+    const engine: EngineConfig = globals.state.engines['0'];
+    if (engine && engine.ready && !this.overviewQueryExecuted) {
+      this.overviewQueryExecuted = true;
+      globals.dispatch(executeQuery(
+          engine.id,
+          OVERVIEW_QUERY_ID,
+          'select round(ts/1e5) as rts, sum(dur)/1e5 as load, upid, ' +
+              'thread.name from slices inner join thread using(utid) where ' +
+              'depth = 0 group by rts, upid limit 100'));
+      // TODO: Check and uniform the time units, e.g. 1e5.
+    }
+    const resp = globals.queryResults.get(OVERVIEW_QUERY_ID) as QueryResponse;
+    if (resp !== this.overviewQueryResponse) {
+      this.overviewQueryResponse = resp;
+
+      const timesMs =
+          resp.rows.map(processLoad => (processLoad.rts as number) * 1000);
+      const minTimeMs = Math.min(...timesMs);
+      const durationMs = Math.max(...timesMs) - minTimeMs;
+
+      const previousDurationMs =
+          this.maxVisibleWindowMs.end - this.maxVisibleWindowMs.start;
+      const startPercent =
+          (visibleWindowMs.start - this.maxVisibleWindowMs.start) /
+          previousDurationMs;
+      const endPercent = (visibleWindowMs.end - this.maxVisibleWindowMs.start) /
+          previousDurationMs;
+
+      this.maxVisibleWindowMs.start = 0;
+      this.maxVisibleWindowMs.end = durationMs;
+
+      visibleWindowMs.start = durationMs * startPercent;
+      visibleWindowMs.end = durationMs * endPercent;
+      // TODO: Update the local and remote state.
+    }
+
     return m(
         '.page',
         m('header.overview', 'Big picture'),
@@ -179,6 +220,8 @@ const TraceViewer = {
   onResize: () => void,
   width: number,
   zoomContent: PanAndZoomHandler,
+  overviewQueryExecuted: boolean,
+  overviewQueryResponse: QueryResponse,
 }>;
 
 export const ViewerPage = createPage({
