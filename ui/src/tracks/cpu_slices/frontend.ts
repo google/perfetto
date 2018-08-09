@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {TrackState} from '../../common/state';
-import {TimeScale} from '../../frontend/time_scale';
+import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 import {CpuSlice, CpuSliceTrackData, TRACK_KIND} from './common';
@@ -31,7 +31,6 @@ class CpuSliceTrack extends Track {
   }
 
   private trackData: CpuSliceTrackData|undefined;
-  private timeScale: TimeScale|undefined;
   private hoveredSlice: CpuSlice|null = null;
 
   constructor(trackState: TrackState) {
@@ -42,10 +41,9 @@ class CpuSliceTrack extends Track {
     this.trackData = trackData;
   }
 
-  renderCanvas(
-      ctx: CanvasRenderingContext2D, timeScale: TimeScale,
-      visibleWindowMs: {start: number, end: number}): void {
+  renderCanvas(ctx: CanvasRenderingContext2D): void {
     if (!this.trackData) return;
+    const {timeScale, visibleWindowMs} = globals.frontendLocalState;
     for (const slice of this.trackData.slices) {
       if (!sliceIsVisible(slice, visibleWindowMs)) continue;
       const rectStart = timeScale.msToPx(slice.start);
@@ -53,16 +51,16 @@ class CpuSliceTrack extends Track {
       ctx.fillStyle = slice === this.hoveredSlice ? '#b35846' : '#4682b4';
       ctx.fillRect(rectStart, 40, rectEnd - rectStart, 30);
     }
-    this.timeScale = timeScale;
   }
 
   onMouseMove({x, y}: {x: number, y: number}) {
-    if (!this.trackData || !this.timeScale) return;
+    if (!this.trackData) return;
+    const {timeScale} = globals.frontendLocalState;
     if (y < 40 || y > 70) {
       this.hoveredSlice = null;
       return;
     }
-    const xMs = this.timeScale.pxToMs(x);
+    const xMs = timeScale.pxToMs(x);
     this.hoveredSlice = null;
 
     for (const slice of this.trackData.slices) {
