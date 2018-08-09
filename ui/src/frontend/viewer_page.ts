@@ -1,4 +1,3 @@
-
 // Copyright (C) 2018 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,10 +20,10 @@ import {globals} from './globals';
 import {OverviewTimeline} from './overview_timeline';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
-import {ScrollingTrackDisplay} from './scrolling_track_display';
+import {rafScheduler} from './raf_scheduler';
+import {ScrollingPanelContainer} from './scrolling_panel_container';
 import {TimeAxis} from './time_axis';
-import {TimeScale} from './time_scale';
-import {TRACK_SHELL_WIDTH} from './track_component';
+import {TRACK_SHELL_WIDTH} from './track_panel';
 
 
 const QueryTable: m.Component<{}, {}> = {
@@ -65,17 +64,15 @@ const QueryTable: m.Component<{}, {}> = {
 const TraceViewer = {
   oninit() {
     this.width = 0;
-    this.visibleWindowMs = {start: 1000000, end: 2000000};
     this.maxVisibleWindowMs = {start: 0, end: 10000000};
-    this.timeScale = new TimeScale(
-        [this.visibleWindowMs.start, this.visibleWindowMs.end],
-        [0, this.width - TRACK_SHELL_WIDTH]);
   },
   oncreate(vnode) {
+    const frontendLocalState = globals.frontendLocalState;
     this.onResize = () => {
       const rect = vnode.dom.getBoundingClientRect();
       this.width = rect.width;
-      this.timeScale.setLimitsPx(0, this.width - TRACK_SHELL_WIDTH);
+      frontendLocalState.timeScale.setLimitsPx(
+          0, this.width - TRACK_SHELL_WIDTH);
       m.redraw();
     };
 
@@ -88,35 +85,37 @@ const TraceViewer = {
     const panZoomEl =
         vnode.dom.getElementsByClassName('tracks-content')[0] as HTMLElement;
 
-    // TODO: ContentOffsetX should be defined somewhere central.
-    // Currently it lives here, in canvas wrapper, and in track shell.
     this.zoomContent = new PanAndZoomHandler({
       element: panZoomEl,
       contentOffsetX: TRACK_SHELL_WIDTH,
       onPanned: (pannedPx: number) => {
-        const deltaMs = this.timeScale.deltaPxToDurationMs(pannedPx);
-        this.visibleWindowMs.start += deltaMs;
-        this.visibleWindowMs.end += deltaMs;
-        this.timeScale.setLimitsMs(
-            this.visibleWindowMs.start, this.visibleWindowMs.end);
+        const deltaMs =
+            frontendLocalState.timeScale.deltaPxToDurationMs(pannedPx);
+        const visibleWindowMs = globals.frontendLocalState.visibleWindowMs;
+        visibleWindowMs.start += deltaMs;
+        visibleWindowMs.end += deltaMs;
+        frontendLocalState.timeScale.setLimitsMs(
+            visibleWindowMs.start, visibleWindowMs.end);
+        // TODO: Replace this with repaint canvas only instead of full redraw.
         m.redraw();
       },
       onZoomed: (zoomedPositionPx: number, zoomPercentage: number) => {
-        const totalTimespanMs =
-            this.visibleWindowMs.end - this.visibleWindowMs.start;
+        const visibleWindowMs = frontendLocalState.visibleWindowMs;
+        const totalTimespanMs = visibleWindowMs.end - visibleWindowMs.start;
         const newTotalTimespanMs = totalTimespanMs * zoomPercentage;
 
         const zoomedPositionMs =
-            this.timeScale.pxToMs(zoomedPositionPx) as number;
+            frontendLocalState.timeScale.pxToMs(zoomedPositionPx) as number;
         const positionPercentage =
-            (zoomedPositionMs - this.visibleWindowMs.start) / totalTimespanMs;
+            (zoomedPositionMs - visibleWindowMs.start) / totalTimespanMs;
 
-        this.visibleWindowMs.start =
+        visibleWindowMs.start =
             zoomedPositionMs - newTotalTimespanMs * positionPercentage;
-        this.visibleWindowMs.end =
+        visibleWindowMs.end =
             zoomedPositionMs + newTotalTimespanMs * (1 - positionPercentage);
-        this.timeScale.setLimitsMs(
-            this.visibleWindowMs.start, this.visibleWindowMs.end);
+        frontendLocalState.timeScale.setLimitsMs(
+            visibleWindowMs.start, visibleWindowMs.end);
+        // TODO: Replace this with repaint canvas only instead of full redraw.
         m.redraw();
       }
     });
@@ -125,26 +124,26 @@ const TraceViewer = {
     window.removeEventListener('resize', this.onResize);
     this.zoomContent.shutdown();
   },
+  onupdate() {
+    rafScheduler.syncRedraw();
+  },
   view() {
+    const frontendLocalState = globals.frontendLocalState;
+    const {visibleWindowMs} = frontendLocalState;
     const onBrushedMs = (start: number, end: number) => {
-      this.visibleWindowMs.start = start;
-      this.visibleWindowMs.end = end;
-      this.timeScale.setLimitsMs(
-          this.visibleWindowMs.start, this.visibleWindowMs.end);
+      visibleWindowMs.start = start;
+      visibleWindowMs.end = end;
+      globals.frontendLocalState.timeScale.setLimitsMs(
+          visibleWindowMs.start, visibleWindowMs.end);
       m.redraw();
     };
 
     return m(
         '.page',
-        {
-          style: {
-            width: '100%',
-            height: '100%',
-          },
-        },
         m('header.overview', 'Big picture'),
         m(OverviewTimeline, {
-          visibleWindowMs: this.visibleWindowMs,
+          // TODO: Remove global attrs.
+          visibleWindowMs,
           maxVisibleWindowMs: this.maxVisibleWindowMs,
           onBrushedMs
         }),
@@ -154,24 +153,21 @@ const TraceViewer = {
             style: {
               width: '100%',
               height: 'calc(100% - 145px)',
+              position: 'relative',
             }
           },
           m('header.tracks-content', 'Tracks'),
           m(TimeAxis, {
-            timeScale: this.timeScale,
+            // TODO: Remove global attrs.
+            timeScale: frontendLocalState.timeScale,
             contentOffset: TRACK_SHELL_WIDTH,
-            visibleWindowMs: this.visibleWindowMs,
+            visibleWindowMs,
           }),
-          m(ScrollingTrackDisplay, {
-            timeScale: this.timeScale,
-            visibleWindowMs: this.visibleWindowMs,
-          })));
+          m(ScrollingPanelContainer), ), );
   },
 } as m.Component<{}, {
-  visibleWindowMs: {start: number, end: number},
   maxVisibleWindowMs: {start: number, end: number},
   onResize: () => void,
-  timeScale: TimeScale,
   width: number,
   zoomContent: PanAndZoomHandler,
 }>;
