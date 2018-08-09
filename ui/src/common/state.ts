@@ -25,7 +25,7 @@ export interface TrackState {
   height: number;
   kind: string;
   name: string;
-  // TODO(hjd): This needs to be nested into track kind spesific state.
+  // TODO(hjd): This needs to be nested into track kind specific state.
   cpu: number;
 }
 
@@ -41,6 +41,8 @@ export interface QueryConfig {
   query: string;
 }
 
+export interface PermalinkConfig { state: State; }
+
 export interface State {
   route: string|null;
   nextId: number;
@@ -52,6 +54,7 @@ export interface State {
   tracks: ObjectById<TrackState>;
   displayedTrackIds: string[];
   queries: ObjectById<QueryConfig>;
+  permalink: null|PermalinkConfig;
 }
 
 export function createEmptyState(): State {
@@ -62,5 +65,6 @@ export function createEmptyState(): State {
     displayedTrackIds: [],
     engines: {},
     queries: {},
+    permalink: null,
   };
 }
