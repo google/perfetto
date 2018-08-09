@@ -165,6 +165,13 @@ BUILD_DEPS_HOST = [
    '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3',
    'all'
   ),
+
+  # Example traces for regression tests.
+  ('buildtools/test_data.zip',
+   'https://storage.googleapis.com/perfetto/test-data-20180808.zip',
+   '4adec454b60a943dd58603d4be80d42b2db62cbd',
+   'all',
+  ),
 ]
 
 # Dependencies required to build Android code.
