@@ -54,6 +54,8 @@ source_set("lib") {
     "slice_table.cc",
     "slice_table.h",
     "sqlite_utils.h",
+    "string_table.cc",
+    "string_table.h",
     "table.cc",
     "table.h",
     "thread_table.cc",
