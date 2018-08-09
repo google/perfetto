@@ -287,10 +287,15 @@ copy("index_dist") {
 
 copy("assets_dist") {
   sources = [
-    "src/assets",
+    "src/assets/flamegraph.svg",
+    "src/assets/logo-3d.png",
+    "src/assets/logo.png",
+    "src/assets/perfetto.scss",
+    "src/assets/sidebar.scss",
+    "src/assets/topbar.scss",
   ]
   outputs = [
-    "$ui_dir/assets/",
+    "$ui_dir/assets/{{source_file_part}}",
   ]
 }
 
