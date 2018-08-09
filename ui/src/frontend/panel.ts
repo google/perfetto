@@ -12,20 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
-
-export const CanvasWrapper = {
-  view({attrs}) {
-    return m('.canvasWrapper', {
-      style: {
-        position: 'absolute',
-        left: '200px',
-        top: attrs.topOffset.toString() + 'px',
-        overflow: 'none',
-      }
-    });
-  },
-  oncreate(vnode) {
-    vnode.dom.appendChild(vnode.attrs.canvasElement);
-  }
-} as m.Component<{topOffset: number, canvasElement: HTMLCanvasElement}>;
+export interface Panel {
+  renderCanvas(ctx: CanvasRenderingContext2D): void;
+  updateDom(dom: Element): void;
+}
