@@ -116,3 +116,19 @@ source_set("unittests") {
     "../base",
   ]
 }
+
+source_set("integrationtests") {
+  testonly = true
+  sources = [
+    "trace_database_integrationtest.cc",
+  ]
+  deps = [
+    ":lib",
+    "../../buildtools:sqlite",
+    "../../gn:default_deps",
+    "../../gn:gtest_deps",
+    "../../protos/perfetto/trace:lite",
+    "../base",
+    "../base:test_support",
+  ]
+}
