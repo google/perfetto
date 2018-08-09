@@ -83,10 +83,27 @@ table {
 
 body {
     display: grid;
-    grid-template-areas: "sidebar topbar" "sidebar page";
-    grid-template-rows: var(--topbar-height) auto;
+    grid-template-areas:
+      "sidebar topbar"
+      "sidebar page"
+      "sidebar alerts";
+    grid-template-rows: var(--topbar-height) 1fr auto;
     grid-template-columns: var(--sidebar-width) auto;
     color: #121212;
+}
+
+button {
+  background: none;
+  color: inherit;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  outline: inherit;
+}
+
+button.close {
+  font-family: var(--monospace-font);
 }
 
 .full-page-loading-screen {
@@ -107,6 +124,21 @@ body {
 .page {
     grid-area: page;
     position: relative;
+}
+
+.alerts {
+  grid-area: alerts;
+  background-color: #262f3c;
+  div {
+    font-family: 'Raleway';
+    font-weight: 400;
+    letter-spacing: 0.25px;
+    color: white;
+    padding: 25px;
+    a {
+      color: white;
+    }
+  }
 }
 
 @import 'sidebar';

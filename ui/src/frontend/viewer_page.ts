@@ -157,7 +157,7 @@ const TraceViewer = {
               position: 'relative',
             }
           },
-          m('header.tracks-content', 'Tracks'),
+          m('header', 'Tracks'),
           m(TimeAxis, {
             // TODO: Remove global attrs.
             timeScale: frontendLocalState.timeScale,
