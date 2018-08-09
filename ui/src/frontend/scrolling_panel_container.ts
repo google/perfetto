@@ -16,6 +16,7 @@ import * as m from 'mithril';
 
 import {assertExists} from '../base/logging';
 
+import {FlameGraphPanel} from './flame_graph_panel';
 import {globals} from './globals';
 import {Panel} from './panel';
 import {rafScheduler} from './raf_scheduler';
@@ -67,7 +68,6 @@ const PanelComponent = {
         position: 'absolute',
         top: `${attrs.yStart}px`,
       },
-      key: attrs.panelAttrs.key,
     });
   },
 
@@ -207,12 +207,25 @@ export const ScrollingPanelContainer = {
     // can use it.
     this.panelDisplayOrder =
         globals.state.displayedTrackIds.map(id => 'track-' + id);
-    const panelComponents: m.Children[] = [];
 
+    // Show a fake flame graph if there is at least one track.
+    if (globals.state.displayedTrackIds.length > 0) {
+      if (!this.keyToPanelAttrs.has('flamegraph')) {
+        const flameGraphPanelStruct = {
+          panel: new FlameGraphPanel(),
+          height: 500,
+          key: 'flamegraph',
+        };
+        this.keyToPanelAttrs.set('flamegraph', flameGraphPanelStruct);
+      }
+      this.panelDisplayOrder.push('flamegraph');
+    }
+
+    const panelComponents: m.Children[] = [];
     let yStart = 0;
     for (const key of this.panelDisplayOrder) {
       const panelAttrs = assertExists(this.keyToPanelAttrs.get(key));
-      panelComponents.push(m(PanelComponent, {panelAttrs, yStart}));
+      panelComponents.push(m(PanelComponent, {panelAttrs, yStart, key}));
       yStart += panelAttrs.height;
     }
 

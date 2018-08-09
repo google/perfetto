@@ -152,7 +152,8 @@ const TraceViewer = {
           {
             style: {
               width: '100%',
-              height: 'calc(100% - 145px)',
+              // Temporary until everything is moved to panel containers.
+              height: 'calc(100% - 165px)',
               position: 'relative',
             }
           },
@@ -163,7 +164,15 @@ const TraceViewer = {
             contentOffset: TRACK_SHELL_WIDTH,
             visibleWindowMs,
           }),
-          m(ScrollingPanelContainer), ), );
+          // Temporary hack until everything is moved to panel containers.
+          m('div',
+            {
+              style: {
+                position: 'relative',
+                height: 'calc(100% - 70px)',
+              }
+            },
+            m(ScrollingPanelContainer)), ), );
   },
 } as m.Component<{}, {
   maxVisibleWindowMs: {start: number, end: number},
