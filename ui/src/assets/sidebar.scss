@@ -77,7 +77,7 @@
         &.expanded {
             background-color: #19212b;
             max-height: 250px;
-            >h2 {
+            .section-header h2 {
                 opacity: 0;
             }
             .section-content {
