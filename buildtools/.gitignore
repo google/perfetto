@@ -19,3 +19,4 @@ protobuf/
 sqlite/
 android-core/
 lzma/
+test_data/
