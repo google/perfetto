@@ -12,8 +12,10 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@types/mithril": "^1.1.12",
+    "@types/uuid": "^3.4.3",
     "mithril": "^1.1.6",
-    "protobufjs": "^6.8.6"
+    "protobufjs": "^6.8.6",
+    "uuid": "^3.3.2"
   },
   "devDependencies": {
     "@types/jest": "^22.2.3",

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {State} from './state';
 export interface Action { type: string; }
 
 export function openTraceFromUrl(url: string) {
@@ -73,5 +74,18 @@ export function setEngineReady(engineId: string) {
   return {
     type: 'SET_ENGINE_READY',
     engineId,
+  };
+}
+
+export function createPermalink() {
+  return {
+    type: 'CREATE_PERMALINK',
+  };
+}
+
+export function setState(newState: State) {
+  return {
+    type: 'SET_STATE',
+    newState,
   };
 }
