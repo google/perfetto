@@ -28,6 +28,7 @@
 #include "src/trace_processor/sched_slice_table.h"
 #include "src/trace_processor/sched_tracker.h"
 #include "src/trace_processor/slice_table.h"
+#include "src/trace_processor/string_table.h"
 #include "src/trace_processor/thread_table.h"
 
 #include "perfetto/trace_processor/raw_query.pb.h"
@@ -48,6 +49,7 @@ TraceProcessor::TraceProcessor(base::TaskRunner* task_runner)
   ProcessTable::RegisterTable(*db_, context_.storage.get());
   SchedSliceTable::RegisterTable(*db_, context_.storage.get());
   SliceTable::RegisterTable(*db_, context_.storage.get());
+  StringTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
 }
 
