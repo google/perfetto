@@ -210,6 +210,9 @@ class TraceStorage {
   // is reserved to indicate an invalid thread.
   size_t thread_count() const { return unique_threads_.size() - 1; }
 
+  // Number of interned strings in the pool. Includes the empty string w/ ID=0.
+  size_t string_count() const { return string_pool_.size(); }
+
  private:
   TraceStorage& operator=(const TraceStorage&) = default;
 
