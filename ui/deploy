@@ -15,20 +15,49 @@
 
 set -e
 
+function echo_and_do {
+  echo $@
+  $@
+}
+
 PROJECT_ROOT="$(cd -P ${BASH_SOURCE[0]%/*}/..; pwd)"
 OUT_DIR="$PROJECT_ROOT/out/ui-deploy.tmp"
 UI_DIST_DIR="$OUT_DIR/ui-dist"
 
-set -x
+CLEAN_OUT_DIR=true
+DEPLOY_PROD=false
 
-if [ "$1" != "--no-clean" ]; then
-  rm -rf "$OUT_DIR"
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+      --no-clean)
+      CLEAN_OUT_DIR=false
+      shift
+      ;;
+      --prod)
+      DEPLOY_PROD=true
+      shift
+      ;;
+      -h|--help)
+      echo "Usage: $0 [--no-clean] [--prod]"
+      echo "    --no-clean  Don't remove $OUT_DIR"
+      echo "    --prod      Deploy prod version"
+      echo "    -h|--help   Display this message"
+      exit 0
+      shift
+      ;;
+  esac
+done
+
+if [ "$CLEAN_OUT_DIR" = true ]; then
+  echo_and_do rm -rf "$OUT_DIR"
 fi
-mkdir -p "$UI_DIST_DIR"
+echo_and_do mkdir -p "$UI_DIST_DIR"
 
-"$PROJECT_ROOT/tools/gn" gen "$OUT_DIR" --args="is_debug=true"
-"$PROJECT_ROOT/tools/ninja" -C "$OUT_DIR" ui
+echo_and_do "$PROJECT_ROOT/tools/gn" gen "$OUT_DIR" --args="is_debug=true"
+echo_and_do "$PROJECT_ROOT/tools/ninja" -C "$OUT_DIR" ui
 
+echo "Writing $UI_DIST_DIR/app.yaml"
 cat<<EOF > "$UI_DIST_DIR/app.yaml"
 runtime: python27
 api_version: 1
@@ -51,13 +80,18 @@ handlers:
   upload: static/(.*)
 EOF
 
-ln -s ../ui $UI_DIST_DIR/static
+echo_and_do ln -s ../ui $UI_DIST_DIR/static
 
 (
-  cd "$UI_DIST_DIR";
-  gcloud app deploy app.yaml --project perfetto-ui -v testing
+  echo_and_do cd "$UI_DIST_DIR";
+  if [ "$DEPLOY_PROD" = true ]; then
+    echo_and_do gcloud app deploy app.yaml --project perfetto-ui -v testing
+  else
+    echo_and_do gcloud app deploy app.yaml --project perfetto-ui \
+      -v $USER --no-promote
+  fi
 )
 
-if [ "$1" != "--no-clean" ]; then
-  rm -rf "$OUT_DIR"
+if [ "$CLEAN_OUT_DIR" = true ]; then
+  echo_and_do rm -rf "$OUT_DIR"
 fi
