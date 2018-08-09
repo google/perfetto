@@ -267,7 +267,7 @@ button.close {
 /** Time Axis **/
 
 .axis {
-    overflow: hidden;
+    overflow: visible;
     height: 41px;
     position: relative;
     .mark-label {
@@ -291,21 +291,30 @@ button.close {
 /** Overview Timeline **/
 
 .overview-timeline {
-    width: 100%;
-    overflow: hidden;
-    height: 120px;
-    position: relative;
-}
+  width: 100%;
+  height: 120px;
+  position: relative;
+  overflow: visible;
+  padding-left: 20px;
 
-.brush-rect {
+  .timeline-content {
+    position: absolute;
+    left: 20px; // Same as padding-left of overview-timeline
+    top: 41px;
+    width: calc(100% - 40px);
+    height: calc(100% - 41px);
+    overflow: visible;  // For tooltip
+  }
+
+  .brush-rect {
     background: rgba(210, 210, 210, 0.7);
     position: absolute;
     pointer-events: none;
     top: 0;
     height: 100%;
-}
+  }
 
-.brush-handle {
+  .brush-handle {
     position: absolute;
     border-radius: 3px;
     border: 1px solid #999;
@@ -315,4 +324,31 @@ button.close {
     width: 14px;
     height: 30px;
     pointer-events: auto;
+  }
+
+  .tooltip {
+    background: #19212b;
+    color: #fff;
+    position: absolute;
+    padding: 5px;
+    border-radius: 4px;
+    width: 200px;
+    text-align: center;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 300;
+    overflow: visible; // For the arrow.
+    height: 42px;
+    margin-top:-47px; // Height + arrow
+  }
+  .tooltip:after {
+    content: " ";
+    position: absolute;
+    top: 100%; /* At the bottom of the tooltip */
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: black transparent transparent transparent;
+  }
 }
