@@ -23,4 +23,8 @@ export class FlameGraphPanel implements Panel {
         <embed type="image/svg+xml" src="/assets/flamegraph.svg">`;
     this.renderedDom = true;
   }
+
+  getHeight() {
+    return 500;
+  }
 }
