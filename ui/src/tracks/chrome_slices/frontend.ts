@@ -23,25 +23,21 @@ import {
 } from './common';
 
 const SLICE_HEIGHT = 30;
-const TRACK_ROW_HEIGHT = 50;
 const TRACK_PADDING = 5;
-
-// TODO: Pick a better color pallette.
-const COLORS = [
-  '#470000',
-  '#773d00',
-  '#795600',
-  '#486b00',
-  '#40199a',
-  '#005c73',
-  '#003d44',
-  '#1e4f18',
-];
 
 function sliceIsVisible(
     slice: {start: number, end: number},
     visibleWindowMs: {start: number, end: number}) {
   return slice.end > visibleWindowMs.start && slice.start < visibleWindowMs.end;
+}
+
+function hash(s: string): number {
+  let hash = 0x811c9dc5 & 0xfffffff;
+  for (let i = 0; i < s.length; i++) {
+    hash ^= s.charCodeAt(i);
+    hash = (hash * 16777619) & 0xffffffff;
+  }
+  return hash & 0xff;
 }
 
 class ChromeSliceTrack extends Track {
@@ -52,13 +48,9 @@ class ChromeSliceTrack extends Track {
 
   private trackData: ChromeSliceTrackData|undefined;
   private hoveredSlice: ChromeSlice|null = null;
-  // TODO: Should this be in the controller?
-  private titleToColorMap: Map<string, string>;
-  private lastPickedColor = 0;
 
   constructor(trackState: TrackState) {
     super(trackState);
-    this.titleToColorMap = new Map();
   }
 
   consumeData(trackData: ChromeSliceTrackData) {
@@ -68,9 +60,11 @@ class ChromeSliceTrack extends Track {
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     if (!this.trackData) return;
     const {timeScale, visibleWindowMs} = globals.frontendLocalState;
-    ctx.font = '12px monospace';
+    ctx.font = '12px Google Sans';
+    ctx.textAlign = 'center';
+
     // measuretext is expensive so we only use it once.
-    const charWidth = ctx.measureText('a').width;
+    const charWidth = ctx.measureText('abcdefghij').width / 10;
 
     for (const slice of this.trackData.slices) {
       if (!sliceIsVisible(slice, visibleWindowMs)) continue;
@@ -82,18 +76,13 @@ class ChromeSliceTrack extends Track {
       if (slice === this.hoveredSlice) {
         ctx.fillStyle = '#b35846';
       } else {
-        let color = this.titleToColorMap.get(slice.title);
-        if (color === undefined) {
-          this.lastPickedColor = (this.lastPickedColor + 1) % COLORS.length;
-          color = COLORS[this.lastPickedColor];
-          this.titleToColorMap.set(slice.title, color);
-        }
-        ctx.fillStyle = color;
+        const hue = hash(slice.title);
+        const saturation = Math.min(30 + slice.depth * 10, 100);
+        ctx.fillStyle = `hsl(${hue}, ${saturation}%, 40%)`;
       }
 
       ctx.fillRect(rectXStart, rectYStart, rectWidth, SLICE_HEIGHT);
 
-      // Measuretext is expensive. Assume each character is 10px for now.
       const nameLength = slice.title.length * charWidth;
       ctx.fillStyle = 'white';
       const maxTextWidth = rectWidth - 10;
@@ -107,7 +96,8 @@ class ChromeSliceTrack extends Track {
           displayText = slice.title.substring(0, displayedChars) + '...';
         }
       }
-      ctx.fillText(displayText, rectXStart + 5, rectYStart + SLICE_HEIGHT / 2);
+      const rectXCenter = rectXStart + rectWidth / 2;
+      ctx.fillText(displayText, rectXCenter, rectYStart + SLICE_HEIGHT / 2);
     }
   }
 
@@ -133,8 +123,7 @@ class ChromeSliceTrack extends Track {
   }
 
   getHeight() {
-    return TRACK_ROW_HEIGHT * (this.trackState.maxDepth + 1) +
-        2 * TRACK_PADDING;
+    return SLICE_HEIGHT * (this.trackState.maxDepth + 1) + 2 * TRACK_PADDING;
   }
 }
 
