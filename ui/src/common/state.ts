@@ -25,8 +25,12 @@ export interface TrackState {
   height: number;
   kind: string;
   name: string;
-  // TODO(hjd): This needs to be nested into track kind specific state.
+  // TODO: These need to be nested into track kind spesific state.
+  // cpu slice state:
   cpu: number;
+  // chrome slice state:
+  upid?: number;
+  utid?: number;
 }
 
 export interface EngineConfig {

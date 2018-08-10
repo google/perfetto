@@ -68,6 +68,26 @@ export function rootReducer(state: State, action: any): State {
       return nextState;
     }
 
+    // TODO: 'ADD_CHROME_TRACK' string should be a shared const.
+    case 'ADD_CHROME_TRACK': {
+      const nextState = {...state};
+      nextState.tracks = {...state.tracks};
+      const id = `${nextState.nextId++}`;
+      nextState.tracks[id] = {
+        id,
+        engineId: action.engineId,
+        kind: action.trackKind,
+        name: `${action.threadName}`,
+        // TODO(dproy): This should be part of published information.
+        height: action.height,
+        cpu: 0,  // TODO: Remove this after we have kind specific state.
+        upid: action.upid,
+        utid: action.utid,
+      };
+      nextState.displayedTrackIds.push(id);
+      return nextState;
+    }
+
     case 'EXECUTE_QUERY': {
       const nextState = {...state};
       nextState.queries = {...state.queries};
