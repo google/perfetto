@@ -43,22 +43,22 @@ class ProcessTrackerTest : public ::testing::Test {
 
 TEST_F(ProcessTrackerTest, PushProcess) {
   TraceStorage storage;
-  context.process_tracker->UpdateProcess(1, "test", 4);
+  context.process_tracker->UpdateProcess(1, "test");
   auto pair_it = context.process_tracker->UpidsForPid(1);
   ASSERT_EQ(pair_it.first->second, 1);
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
-  context.process_tracker->UpdateProcess(1, "test", 4);
-  context.process_tracker->UpdateProcess(1, "test", 4);
+  context.process_tracker->UpdateProcess(1, "test");
+  context.process_tracker->UpdateProcess(1, "test");
   auto pair_it = context.process_tracker->UpidsForPid(1);
   ASSERT_EQ(pair_it.first->second, 1);
   ASSERT_EQ(++pair_it.first, pair_it.second);
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
-  context.process_tracker->UpdateProcess(1, "test", 4);
-  context.process_tracker->UpdateProcess(3, "test", 4);
+  context.process_tracker->UpdateProcess(1, "test");
+  context.process_tracker->UpdateProcess(3, "test");
   auto pair_it = context.process_tracker->UpidsForPid(1);
   ASSERT_EQ(pair_it.first->second, 1);
   auto second_pair_it = context.process_tracker->UpidsForPid(3);
@@ -66,7 +66,7 @@ TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
 }
 
 TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
-  context.process_tracker->UpdateProcess(1, "test", 4);
+  context.process_tracker->UpdateProcess(1, "test");
   ASSERT_EQ(context.storage->GetString(context.storage->GetProcess(1).name_id),
             "test");
 }
@@ -79,14 +79,14 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   static const char kCommProc2[] = "process2";
 
   context.sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, prev_state,
-                                         kCommProc1, sizeof(kCommProc1) - 1,
+                                         kCommProc1,
                                          /*tid=*/4);
   context.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
                                          prev_state, kCommProc2,
-                                         sizeof(kCommProc2) - 1,
+
                                          /*tid=*/1);
 
-  context.process_tracker->UpdateProcess(2, "test", strlen("test"));
+  context.process_tracker->UpdateProcess(2, "test");
   context.process_tracker->UpdateThread(4, 2);
 
   TraceStorage::Thread thread = context.storage->GetThread(/*utid=*/1);

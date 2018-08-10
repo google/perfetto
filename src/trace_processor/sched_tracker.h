@@ -19,6 +19,7 @@
 
 #include <array>
 
+#include "perfetto/base/string_view.h"
 #include "perfetto/base/utils.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -53,8 +54,7 @@ class SchedTracker {
                                uint64_t timestamp,
                                uint32_t prev_pid,
                                uint32_t prev_state,
-                               const char* prev_comm,
-                               size_t prev_comm_len,
+                               base::StringView prev_comm,
                                uint32_t next_pid);
 
  private:

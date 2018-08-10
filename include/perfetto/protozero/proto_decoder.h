@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/string_view.h"
 #include "perfetto/protozero/proto_utils.h"
 
 namespace protozero {
@@ -30,6 +31,8 @@ namespace protozero {
 // performance sensitive contexts.
 class ProtoDecoder {
  public:
+  using StringView = ::perfetto::base::StringView;
+
   // The field of a protobuf message. |id| == 0 if the tag is not valid (e.g.
   // because the full tag was unable to be read etc.).
   struct Field {
@@ -51,10 +54,11 @@ class ProtoDecoder {
       return static_cast<uint32_t>(int_value);
     }
 
-    inline const char* as_char_ptr() const {
+    inline StringView as_string() const {
       PERFETTO_DCHECK(type ==
                       proto_utils::FieldType::kFieldTypeLengthDelimited);
-      return reinterpret_cast<const char*>(length_limited.data);
+      return StringView(reinterpret_cast<const char*>(length_limited.data),
+                        length_limited.length);
     }
 
     inline const uint8_t* data() const {
