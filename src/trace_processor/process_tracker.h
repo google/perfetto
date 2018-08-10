@@ -19,6 +19,7 @@
 
 #include <tuple>
 
+#include "perfetto/base/string_view.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -59,17 +60,12 @@ class ProcessTracker {
   virtual UniqueTid UpdateThread(uint32_t tid, uint32_t tgid);
 
   // Sets the name of the thread identified by the tuple (tid,pid).
-  void UpdateThreadName(uint32_t tid,
-                        uint32_t pid,
-                        const char* name,
-                        size_t name_len);
+  void UpdateThreadName(uint32_t tid, uint32_t pid, base::StringView name);
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
   // Virtual for testing.
-  virtual UniquePid UpdateProcess(uint32_t pid,
-                                  const char* process_name,
-                                  size_t process_name_len);
+  virtual UniquePid UpdateProcess(uint32_t pid, base::StringView name);
 
   // Returns the bounds of a range that includes all UniquePids that have the
   // requested pid.

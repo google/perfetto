@@ -52,13 +52,11 @@ TEST_F(SchedTrackerTest, InsertSecondSched) {
 
   const auto& timestamps = context.storage->SlicesForCpu(cpu).start_ns();
   context.sched_tracker->PushSchedSwitch(cpu, timestamp, pid_1, prev_state,
-                                         kCommProc1, sizeof(kCommProc1) - 1,
-                                         pid_2);
+                                         kCommProc1, pid_2);
   ASSERT_EQ(timestamps.size(), 0);
 
   context.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, pid_2, prev_state,
-                                         kCommProc2, sizeof(kCommProc2) - 1,
-                                         pid_1);
+                                         kCommProc2, pid_1);
 
   ASSERT_EQ(timestamps.size(), 1ul);
   ASSERT_EQ(timestamps[0], timestamp);
@@ -78,21 +76,18 @@ TEST_F(SchedTrackerTest, InsertThirdSched_SameThread) {
 
   const auto& timestamps = context.storage->SlicesForCpu(cpu).start_ns();
   context.sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/4, prev_state,
-                                         kCommProc1, sizeof(kCommProc1) - 1,
+                                         kCommProc1,
                                          /*tid=*/2);
   ASSERT_EQ(timestamps.size(), 0);
 
   context.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/2,
                                          prev_state, kCommProc1,
-                                         sizeof(kCommProc1) - 1,
                                          /*tid=*/4);
   context.sched_tracker->PushSchedSwitch(cpu, timestamp + 11, /*tid=*/4,
                                          prev_state, kCommProc2,
-                                         sizeof(kCommProc2) - 1,
                                          /*tid=*/2);
   context.sched_tracker->PushSchedSwitch(cpu, timestamp + 31, /*tid=*/4,
                                          prev_state, kCommProc1,
-                                         sizeof(kCommProc1) - 1,
                                          /*tid=*/2);
 
   ASSERT_EQ(timestamps.size(), 3ul);

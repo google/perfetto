@@ -24,6 +24,7 @@ source_set("base") {
     "small_set.h",
     "string_splitter.h",
     "string_utils.h",
+    "string_view.h",
     "task_runner.h",
     "temp_file.h",
     "thread_checker.h",

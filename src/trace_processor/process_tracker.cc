@@ -54,11 +54,10 @@ UniqueTid ProcessTracker::UpdateThread(uint64_t timestamp,
 
 void ProcessTracker::UpdateThreadName(uint32_t tid,
                                       uint32_t pid,
-                                      const char* name,
-                                      size_t name_len) {
+                                      base::StringView name) {
   UniqueTid utid = UpdateThread(tid, pid);
   auto* thread = context_->storage->GetMutableThread(utid);
-  auto name_id = context_->storage->InternString(name, name_len);
+  auto name_id = context_->storage->InternString(name);
   thread->name_id = name_id;
 }
 
@@ -103,11 +102,8 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   return utid;
 }
 
-UniquePid ProcessTracker::UpdateProcess(uint32_t pid,
-                                        const char* process_name,
-                                        size_t process_name_len) {
-  auto proc_name_id =
-      context_->storage->InternString(process_name, process_name_len);
+UniquePid ProcessTracker::UpdateProcess(uint32_t pid, base::StringView name) {
+  auto proc_name_id = context_->storage->InternString(name);
   UniquePid upid;
   TraceStorage::Process* process;
   std::tie(upid, process) = GetOrCreateProcess(pid, 0 /* start_ns */);
@@ -142,9 +138,10 @@ ProcessTracker::GetOrCreateProcess(uint32_t pid, uint64_t start_ns) {
   // because of the ring buffer wrapping over).
   if (process->name_id == 0) {
     char process_name[64];
-    int len = sprintf(process_name, "[pid:%" PRIu32 "]", pid);
+    size_t len =
+        static_cast<size_t>(sprintf(process_name, "[pid:%" PRIu32 "]", pid));
     process->name_id =
-        context_->storage->InternString(process_name, static_cast<size_t>(len));
+        context_->storage->InternString(base::StringView(process_name, len));
   }
 
   return std::make_tuple(upid, process);
