@@ -104,15 +104,16 @@ class ChromeSliceTrack extends Track {
   onMouseMove({x, y}: {x: number, y: number}) {
     if (!this.trackData) return;
     const {timeScale} = globals.frontendLocalState;
-    if (y < 40 || y > 70) {
+    if (y < TRACK_PADDING || y > (SLICE_HEIGHT - TRACK_PADDING)) {
       this.hoveredSlice = null;
       return;
     }
     const xMs = timeScale.pxToMs(x);
+    const depth = Math.floor(y / SLICE_HEIGHT);
     this.hoveredSlice = null;
 
     for (const slice of this.trackData.slices) {
-      if (slice.start <= xMs && slice.end >= xMs) {
+      if (slice.start <= xMs && slice.end >= xMs && slice.depth === depth) {
         this.hoveredSlice = slice;
       }
     }
