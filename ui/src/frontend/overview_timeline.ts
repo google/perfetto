@@ -30,11 +30,6 @@ interface ProcessSummaryData {
   hue: number;
 }
 
-const SATURATION = 70;
-// The bigger load the darker.
-const LIGHTNESS_MIN_LOAD = 80;
-const LIGHTNESS_MAX_LOAD = 20;
-
 /**
  * Overview timeline with a brush for time-based selections.
  */
@@ -46,11 +41,10 @@ export const OverviewTimeline = {
         {top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0};
 
     this.onmousemove = e => {
-      if (!this.processesById) {
-        return;
-      }
+      if (!this.processesById) return;
       const y = e.clientY - this.contentRect.top;
       const processes = Object.values(this.processesById);
+      if (processes.length === 0) return;
       const heightPerProcess = this.contentRect.height / processes.length;
       const index = Math.floor(y / heightPerProcess);
       this.hoveredProcess = processes[index];
@@ -60,7 +54,7 @@ export const OverviewTimeline = {
                               .map(stringTime => Number(stringTime));
       this.hoveredLoad = null;
       for (const loadTimeMs of loadTimesMs) {
-        if (Math.abs(loadTimeMs - hoveredMs) <= 500) {
+        if (Math.abs(loadTimeMs - hoveredMs) <= 100) {
           this.hoveredLoad = {
             timeMs: loadTimeMs,
             load: this.hoveredProcess.loadByTime[loadTimeMs]
@@ -96,23 +90,24 @@ export const OverviewTimeline = {
       // Update data
       if (!this.processesById) {
         this.processesById = {};
-      }
-      const data = resp.rows;
-      const times = data.map(processLoad => processLoad.rts as number);
-      const minTimeMs = Math.min(...times);
+        const data = resp.rows;
+        const timesMs = data.map(row => row.rts as number * 1000);
+        const minTimeMs = Math.min(...timesMs);
 
-      for (const processLoad of data) {
-        const upid = processLoad.upid as number;
-        if (!this.processesById[upid]) {
-          this.processesById[upid] = {
-            upid,
-            name: processLoad.name as string,
-            loadByTime: {},
-            hue: Math.random() * 360,
-          };
+        for (const processLoad of data) {
+          const upid = processLoad.upid as number;
+          if (!this.processesById[upid]) {
+            this.processesById[upid] = {
+              upid,
+              name: processLoad.name as string,
+              loadByTime: {},
+              hue: Math.random() * 360,
+            };
+          }
+          const timeMs = ((processLoad.rts as number) * 1000 - minTimeMs);
+          this.processesById[upid].loadByTime[timeMs] =
+              Number(processLoad.load);
         }
-        const timeMs = (processLoad.rts as number - minTimeMs) * 1000;
-        this.processesById[upid].loadByTime[timeMs] = Number(processLoad.load);
       }
 
       // Render canvas
@@ -132,19 +127,12 @@ export const OverviewTimeline = {
 
         const loadTimes = Object.keys(process.loadByTime)
                               .map(stringTime => Number(stringTime));
-
         for (const loadTime of loadTimes) {
-          const load = process.loadByTime[loadTime];
-          const startPx = this.timeScale.msToPx(loadTime - 500);
-          const endPx = this.timeScale.msToPx(loadTime + 500);
-
-          this.context.fillStyle =
-              `hsl(${process.hue}, ${SATURATION}%, ${
-                                                     LIGHTNESS_MIN_LOAD +
-                                                     (LIGHTNESS_MAX_LOAD -
-                                                      LIGHTNESS_MIN_LOAD) *
-                                                         load / 100
-                                                   }%)`;
+          const load = process.loadByTime[loadTime] * 100;
+          const startPx = this.timeScale.msToPx(loadTime);
+          const endPx = this.timeScale.msToPx(loadTime + 100);
+          const lightness = Math.round(Math.max(100 - 2 * load, 30));
+          this.context.fillStyle = `hsl(${process.hue}, 40%, ${lightness}%)`;
           this.context.fillRect(
               startPx, startY, endPx - startPx, roundedHeightPerProcess);
         }
