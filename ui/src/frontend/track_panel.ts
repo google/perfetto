@@ -24,7 +24,7 @@ import {Panel} from './panel';
 import {Track} from './track';
 import {trackRegistry} from './track_registry';
 
-export const TRACK_SHELL_WIDTH = 200;
+export const TRACK_SHELL_WIDTH = 300;
 
 const TrackShell = {
   view({attrs}) {

@@ -234,9 +234,11 @@ button.close {
         height: 100%;
         h1 {
             margin: 0;
-            font-size: 1.5em;
+            font-size: 1em;
+            text-overflow: ellipsis;
             font-family: 'Google Sans';
-            color: hsl(213, 22%, 30%)
+            color: hsl(213, 22%, 30%);
+            width: 90%;
         }
         .track-move-icons {
             position: absolute;
