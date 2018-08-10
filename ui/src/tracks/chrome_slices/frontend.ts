@@ -20,10 +20,11 @@ import {
   ChromeSlice,
   ChromeSliceTrackData,
   TRACK_KIND,
-  TRACK_PADDING
 } from './common';
 
 const SLICE_HEIGHT = 30;
+const TRACK_ROW_HEIGHT = 50;
+const TRACK_PADDING = 5;
 
 // TODO: Pick a better color pallette.
 const COLORS = [
@@ -129,6 +130,11 @@ class ChromeSliceTrack extends Track {
 
   onMouseOut() {
     this.hoveredSlice = null;
+  }
+
+  getHeight() {
+    return TRACK_ROW_HEIGHT * (this.trackState.maxDepth + 1) +
+        2 * TRACK_PADDING;
   }
 }
 
