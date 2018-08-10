@@ -103,6 +103,11 @@ async function main() {
     const state = await loadState(stateHash);
     globals.dispatch(setState(state));
   }
+
+  // Prevent pinch zoom.
+  document.body.addEventListener('wheel', (e: MouseEvent) => {
+    if (e.ctrlKey) e.preventDefault();
+  });
 }
 
 main();
