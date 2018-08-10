@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -50,8 +51,6 @@ class TraceStorage {
   TraceStorage(const TraceStorage&) = delete;
 
   virtual ~TraceStorage();
-
-  constexpr static size_t kMaxCpus = 128;
 
   struct Stats {
     uint64_t mismatched_sched_switch_tids_ = 0;
@@ -222,7 +221,7 @@ class TraceStorage {
   Stats stats_;
 
   // One entry for each CPU in the trace.
-  std::array<SlicesPerCpu, kMaxCpus> cpu_events_;
+  std::array<SlicesPerCpu, base::kMaxCpus> cpu_events_;
 
   // One entry for each unique string in the trace.
   std::deque<std::string> string_pool_;

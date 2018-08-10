@@ -31,7 +31,6 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
-#include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
@@ -167,7 +166,7 @@ void FtraceController::DrainCPUs(base::WeakPtr<FtraceController> weak_this,
     return;
 
   PERFETTO_DCHECK_THREAD(ctrl->thread_checker_);
-  std::bitset<kMaxCpus> cpus_to_drain;
+  std::bitset<base::kMaxCpus> cpus_to_drain;
   {
     std::unique_lock<std::mutex> lock(ctrl->lock_);
     // We might have stopped caring about events.
