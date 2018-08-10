@@ -14,9 +14,6 @@
 
 export const TRACK_KIND = 'ChromeSliceTrack';
 
-export const TRACK_ROW_HEIGHT = 50;
-export const TRACK_PADDING = 5;
-
 export interface ChromeSlice {
   start: number;
   end: number;
