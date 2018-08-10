@@ -46,7 +46,7 @@ export function addChromeSliceTrack(
     upid: number,
     utid: number,
     threadName: string,
-    height: number) {
+    maxDepth: number) {
   return {
     type: 'ADD_CHROME_TRACK',
     engineId,
@@ -54,7 +54,7 @@ export function addChromeSliceTrack(
     upid,
     utid,
     threadName,
-    height,
+    maxDepth,
   };
 }
 

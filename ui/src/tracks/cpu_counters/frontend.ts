@@ -48,7 +48,7 @@ class CpuCounterTrack extends Track {
         Math.round(0.25 * visibleWidthPx),
         0,
         Math.round(0.5 * visibleWidthPx),
-        this.trackState.height);
+        this.getHeight());
     ctx.font = '16px Arial';
     ctx.fillStyle = '#000';
     ctx.fillText(
