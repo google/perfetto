@@ -72,15 +72,11 @@ TEST_F(ThreadTableUnittest, Select) {
   static const char kThreadName2[] = "thread2";
 
   context_.sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, prev_state,
-                                          kThreadName1,
-                                          sizeof(kThreadName1) - 1,
-                                          /*tid=*/4);
+                                          kThreadName1, /*tid=*/4);
   context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
-                                          prev_state, kThreadName2,
-                                          sizeof(kThreadName2) - 1,
-                                          /*tid=*/1);
+                                          prev_state, kThreadName2, /*tid=*/1);
 
-  context_.process_tracker->UpdateProcess(2, "test", strlen("test"));
+  context_.process_tracker->UpdateProcess(2, "test");
   context_.process_tracker->UpdateThread(4 /*tid*/, 2 /*pid*/);
   PrepareValidStatement("SELECT utid, upid, tid, name FROM thread where tid=4");
 
@@ -102,18 +98,14 @@ TEST_F(ThreadTableUnittest, SelectWhere) {
 
   context_.sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, prev_state,
                                           kThreadName1,
-                                          sizeof(kThreadName1) - 1,
                                           /*tid=*/4);
   context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
                                           prev_state, kThreadName2,
-                                          sizeof(kThreadName2) - 1,
                                           /*tid=*/1);
   context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 2, /*tid=*/1,
-                                          prev_state, kThreadName1,
-                                          sizeof(kThreadName1) - 1,
-                                          /*tid=*/4);
+                                          prev_state, kThreadName1, /*tid=*/4);
 
-  context_.process_tracker->UpdateProcess(2, "test", strlen("test"));
+  context_.process_tracker->UpdateProcess(2, "test");
   context_.process_tracker->UpdateThread(4 /*tid*/, 2 /*pid*/);
   context_.process_tracker->UpdateThread(1 /*tid*/, 2 /*pid*/);
   PrepareValidStatement(
@@ -137,17 +129,17 @@ TEST_F(ThreadTableUnittest, JoinWithProcess) {
 
   context_.sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, prev_state,
                                           kThreadName1,
-                                          sizeof(kThreadName1) - 1,
+
                                           /*tid=*/4);
   context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
                                           prev_state, kThreadName2,
-                                          sizeof(kThreadName2) - 1,
+
                                           /*tid=*/1);
 
   // Also create a process for which we haven't seen any thread.
-  context_.process_tracker->UpdateProcess(7, "pid7", strlen("pid7"));
+  context_.process_tracker->UpdateProcess(7, "pid7");
 
-  context_.process_tracker->UpdateProcess(2, "pid2", strlen("pid2"));
+  context_.process_tracker->UpdateProcess(2, "pid2");
   context_.process_tracker->UpdateThread(/*tid=*/4, /*pid=*/2);
 
   PrepareValidStatement(

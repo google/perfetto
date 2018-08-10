@@ -127,8 +127,8 @@ bool JsonTraceParser::ParseNextChunk() {
     uint64_t ts = value["ts"].asLargestUInt() * 1000;
     const char* cat = value["cat"].asCString();
     const char* name = value["name"].asCString();
-    StringId cat_id = storage->InternString(cat, strlen(cat));
-    StringId name_id = storage->InternString(name, strlen(name));
+    StringId cat_id = storage->InternString(cat);
+    StringId name_id = storage->InternString(name);
     UniqueTid utid = procs->UpdateThread(tid, pid);
     SlicesStack& stack = threads_[utid];
 
@@ -171,12 +171,12 @@ bool JsonTraceParser::ParseNextChunk() {
       case 'M': {  // Metadata events (process and thread names).
         if (strcmp(value["name"].asCString(), "thread_name") == 0) {
           const char* thread_name = value["args"]["name"].asCString();
-          procs->UpdateThreadName(tid, pid, thread_name, strlen(thread_name));
+          procs->UpdateThreadName(tid, pid, thread_name);
           break;
         }
         if (strcmp(value["name"].asCString(), "process_name") == 0) {
           const char* proc_name = value["args"]["name"].asCString();
-          procs->UpdateProcess(pid, proc_name, strlen(proc_name));
+          procs->UpdateProcess(pid, proc_name);
           break;
         }
       }
