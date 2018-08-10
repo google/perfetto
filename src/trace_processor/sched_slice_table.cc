@@ -22,6 +22,7 @@
 #include <numeric>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/utils.h"
 #include "src/trace_processor/sqlite_utils.h"
 
 namespace perfetto {
@@ -31,7 +32,7 @@ namespace {
 
 using namespace sqlite_utils;
 
-template <size_t N = TraceStorage::kMaxCpus>
+template <size_t N = base::kMaxCpus>
 bool PopulateFilterBitmap(int op,
                           sqlite3_value* value,
                           std::bitset<N>* filter) {
@@ -238,7 +239,7 @@ SchedSliceTable::FilterState::FilterState(
     const QueryConstraints& query_constraints,
     sqlite3_value** argv)
     : order_by_(query_constraints.order_by()), storage_(storage) {
-  std::bitset<TraceStorage::kMaxCpus> cpu_filter;
+  std::bitset<base::kMaxCpus> cpu_filter;
   cpu_filter.set();
 
   for (size_t i = 0; i < query_constraints.constraints().size(); i++) {
@@ -254,7 +255,7 @@ SchedSliceTable::FilterState::FilterState(
   }
 
   // First setup CPU filtering because the trace storage is indexed by CPU.
-  for (uint32_t cpu = 0; cpu < TraceStorage::kMaxCpus; cpu++) {
+  for (uint32_t cpu = 0; cpu < base::kMaxCpus; cpu++) {
     if (!cpu_filter.test(cpu))
       continue;
     StateForCpu(cpu)->Initialize(cpu, storage_, quantum_,
@@ -266,15 +267,15 @@ SchedSliceTable::FilterState::FilterState(
 }
 
 void SchedSliceTable::FilterState::FindCpuWithNextSlice() {
-  next_cpu_ = TraceStorage::kMaxCpus;
+  next_cpu_ = base::kMaxCpus;
 
-  for (uint32_t cpu = 0; cpu < TraceStorage::kMaxCpus; cpu++) {
+  for (uint32_t cpu = 0; cpu < base::kMaxCpus; cpu++) {
     const auto& cpu_state = per_cpu_state_[cpu];
     if (!cpu_state.IsNextRowIdIndexValid())
       continue;
 
     // The first CPU with a valid slice can be set to the next CPU.
-    if (next_cpu_ == TraceStorage::kMaxCpus) {
+    if (next_cpu_ == base::kMaxCpus) {
       next_cpu_ = cpu;
       continue;
     }
