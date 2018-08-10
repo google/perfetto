@@ -60,8 +60,7 @@ export function rootReducer(state: State, action: any): State {
         engineId: action.engineId,
         kind: action.trackKind,
         name: `Cpu Track ${id}`,
-        // TODO(hjd): Should height be part of published information?
-        height: 73,
+        maxDepth: 1,
         cpu: action.cpu,
       };
       nextState.displayedTrackIds.push(id);
@@ -79,7 +78,7 @@ export function rootReducer(state: State, action: any): State {
         kind: action.trackKind,
         name: `${action.threadName}`,
         // TODO(dproy): This should be part of published information.
-        height: action.height,
+        maxDepth: action.maxDepth,
         cpu: 0,  // TODO: Remove this after we have kind specific state.
         upid: action.upid,
         utid: action.utid,

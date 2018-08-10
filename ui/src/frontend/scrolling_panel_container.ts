@@ -194,9 +194,10 @@ export const ScrollingPanelContainer = {
       // Makeshift name mangling.
       let panelAttrs = this.keyToPanelAttrs.get('track-' + id);
       if (panelAttrs === undefined) {
+        const trackPanel = new TrackPanel(trackState);
         panelAttrs = {
-          panel: new TrackPanel(trackState),
-          height: trackState.height,
+          panel: trackPanel,
+          height: trackPanel.getHeight(),
           key: id,
         };
         this.keyToPanelAttrs.set('track-' + id, panelAttrs);
@@ -211,9 +212,10 @@ export const ScrollingPanelContainer = {
     // Show a fake flame graph if there is at least one track.
     if (globals.state.displayedTrackIds.length > 0) {
       if (!this.keyToPanelAttrs.has('flamegraph')) {
+        const panel = new FlameGraphPanel();
         const flameGraphPanelStruct = {
-          panel: new FlameGraphPanel(),
-          height: 500,
+          panel,
+          height: panel.getHeight(),
           key: 'flamegraph',
         };
         this.keyToPanelAttrs.set('flamegraph', flameGraphPanelStruct);
