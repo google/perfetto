@@ -89,7 +89,6 @@ class FtraceController {
   friend class TestFtraceController;
   FRIEND_TEST(FtraceControllerIntegrationTest, EnableDisableEvent);
 
-  static constexpr size_t kMaxCpus = 64;
 
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
@@ -112,7 +111,7 @@ class FtraceController {
   // Begin lock-protected members.
   std::mutex lock_;
   std::condition_variable data_drained_;
-  std::bitset<kMaxCpus> cpus_to_drain_;
+  std::bitset<base::kMaxCpus> cpus_to_drain_;
   bool listening_for_raw_trace_data_ = false;
   // End lock-protected members.
 
