@@ -19,6 +19,7 @@ import {assertExists} from '../base/logging';
 import {Remote} from '../base/remote';
 import {
   Action,
+  addChromeSliceTrack,
   addTrack,
   deleteQuery,
   navigate,
@@ -35,6 +36,8 @@ import {
   State,
   TrackState,
 } from '../common/state';
+// TODO: Remove this once track controllers know how to set height.
+import {TRACK_PADDING, TRACK_ROW_HEIGHT} from '../tracks/chrome_slices/common';
 
 import {Engine} from './engine';
 import {rootReducer} from './reducer';
@@ -89,10 +92,52 @@ class EngineController {
       case 'ready':
         const engine = assertExists<Engine>(this.engine);
         const numberOfCpus = await engine.getNumberOfCpus();
-        const addToTrackActions = [];
-        for (let i = 0; i < numberOfCpus; i++) {
-          addToTrackActions.push(addTrack(this.config.id, 'CpuSliceTrack', i));
+        const addToTrackActions: Action[] = [];
+        const addTrackPromises = [];
+        if (numberOfCpus > 0) {
+          // This is a sched slice trace.
+          for (let i = 0; i < numberOfCpus; i++) {
+            addToTrackActions.push(
+                addTrack(this.config.id, 'CpuSliceTrack', i));
+          }
+        } else if ((await engine.getNumberOfProcesses()) > 0) {
+          const threadQuery = await engine.rawQuery(
+              {sqlQuery: 'select upid, utid, name from thread;'});
+          for (let i = 0; i < threadQuery.numRecords; i++) {
+            const upid = threadQuery.columns[0].longValues![i];
+            const utid = threadQuery.columns[1].longValues![i];
+            const threadName = threadQuery.columns[2].stringValues![i];
+            if (threadName === '') continue;
+            // TODO: Track controllers should have a way to specify height.
+            addTrackPromises.push((async () => {
+              const numSlicesForTid =
+                  +(await engine.rawQuery({
+                     sqlQuery:
+                         `select count(*) from slices where utid = ${utid};`
+                   }))
+                       .columns[0]
+                       .longValues![0];
+              if (numSlicesForTid === 0) return;
+              const maxDepth =
+                  +(await engine.rawQuery({
+                     sqlQuery:
+                         `select max(depth) from slices where utid = ${utid};`,
+                   }))
+                       .columns[0]
+                       .longValues![0];
+              const height =
+                  TRACK_ROW_HEIGHT * (maxDepth + 1) + 2 * TRACK_PADDING;
+              addToTrackActions.push(addChromeSliceTrack(
+                  this.config.id,
+                  'ChromeSliceTrack',
+                  upid as number,
+                  utid as number,
+                  threadName,
+                  height));
+            })());
+          }
         }
+        await Promise.all(addTrackPromises);
         this.controller.dispatchMultiple(addToTrackActions);
         this.deferredOnReady.forEach(d => d.resolve(engine));
         this.deferredOnReady.clear();
