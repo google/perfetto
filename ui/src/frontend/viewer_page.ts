@@ -149,17 +149,16 @@ const TraceViewer = {
       globals.dispatch(executeQuery(
           engine.id,
           OVERVIEW_QUERY_ID,
-          'select round(ts/1e5) as rts, sum(dur)/1e5 as load, upid, ' +
-              'thread.name from slices inner join thread using(utid) where ' +
-              'depth = 0 group by rts, upid limit 100'));
-      // TODO: Check and uniform the time units, e.g. 1e5.
+          'select round(ts/1e9, 1) as rts, sum(dur)/1e8 as load, upid, ' +
+          'process.name from slices inner join thread using(utid) inner join ' +
+          'process using(upid) where depth = 0 group by rts, upid ' +
+          'order by upid limit 10000'));
     }
     const resp = globals.queryResults.get(OVERVIEW_QUERY_ID) as QueryResponse;
     if (resp !== this.overviewQueryResponse) {
       this.overviewQueryResponse = resp;
 
-      const timesMs =
-          resp.rows.map(processLoad => (processLoad.rts as number) * 1000);
+      const timesMs = resp.rows.map(row => (row.rts as number) * 1000);
       const minTimeMs = Math.min(...timesMs);
       const durationMs = Math.max(...timesMs) - minTimeMs;
 

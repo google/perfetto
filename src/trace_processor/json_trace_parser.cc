@@ -124,7 +124,7 @@ bool JsonTraceParser::ParseNextChunk() {
     char phase = *ph.asCString();
     uint32_t tid = value["tid"].asUInt();
     uint32_t pid = value["pid"].asUInt();
-    uint64_t ts = value["ts"].asLargestUInt();
+    uint64_t ts = value["ts"].asLargestUInt() * 1000;
     const char* cat = value["cat"].asCString();
     const char* name = value["name"].asCString();
     StringId cat_id = storage->InternString(cat, strlen(cat));
@@ -162,7 +162,7 @@ bool JsonTraceParser::ParseNextChunk() {
       }
       case 'X': {  // TRACE_EVENT (scoped event).
         MaybeCloseStack(ts, stack);
-        uint64_t end_ts = ts + value["dur"].asUInt();
+        uint64_t end_ts = ts + value["dur"].asUInt() * 1000;
         stack.emplace_back(Slice{cat_id, name_id, ts, end_ts});
         Slice& slice = stack.back();
         add_slice(slice);
