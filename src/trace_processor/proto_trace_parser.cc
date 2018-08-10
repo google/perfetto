@@ -19,6 +19,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/string_view.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/blob_reader.h"
@@ -136,24 +137,21 @@ void ProtoTraceParser::ParseThread(const uint8_t* data, size_t length) {
 void ProtoTraceParser::ParseProcess(const uint8_t* data, size_t length) {
   ProtoDecoder decoder(data, length);
   uint32_t pid = 0;
-  const char* process_name = nullptr;
-  size_t process_name_len = 0;
+  base::StringView process_name;
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
       case protos::ProcessTree::Process::kPidFieldNumber:
         pid = fld.as_uint32();
         break;
       case protos::ProcessTree::Process::kCmdlineFieldNumber:
-        if (process_name == nullptr) {
-          process_name = fld.as_char_ptr();
-          process_name_len = fld.size();
-        }
+        if (process_name.empty())
+          process_name = fld.as_string();
         break;
       default:
         break;
     }
   }
-  context_->process_tracker->UpdateProcess(pid, process_name, process_name_len);
+  context_->process_tracker->UpdateProcess(pid, process_name);
 
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
@@ -214,8 +212,7 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
 
   uint32_t prev_pid = 0;
   uint32_t prev_state = 0;
-  const char* prev_comm = nullptr;
-  size_t prev_comm_len = 0;
+  base::StringView prev_comm;
   uint32_t next_pid = 0;
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
@@ -226,8 +223,7 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
         prev_state = fld.as_uint32();
         break;
       case protos::SchedSwitchFtraceEvent::kPrevCommFieldNumber:
-        prev_comm = fld.as_char_ptr();
-        prev_comm_len = fld.size();
+        prev_comm = fld.as_string();
         break;
       case protos::SchedSwitchFtraceEvent::kNextPidFieldNumber:
         next_pid = fld.as_uint32();
@@ -237,7 +233,7 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
     }
   }
   context_->sched_tracker->PushSchedSwitch(cpu, timestamp, prev_pid, prev_state,
-                                           prev_comm, prev_comm_len, next_pid);
+                                           prev_comm, next_pid);
 
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
