@@ -182,7 +182,7 @@ class QueryController {
       const rawResult = await engine.rawQuery({sqlQuery: config.query});
       const end = performance.now();
       const columns = rawQueryResultColumns(rawResult);
-      const rows = firstN<Row>(100, rawQueryResultIter(rawResult));
+      const rows = firstN<Row>(10000, rawQueryResultIter(rawResult));
       const result: QueryResponse = {
         id: config.id,
         query: config.query,
