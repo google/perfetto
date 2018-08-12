@@ -12,26 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Milliseconds, TimeScale} from './time_scale';
+import {TimeSpan} from '../common/time';
+
+import {TimeScale} from './time_scale';
 
 export const DESIRED_PX_PER_STEP = 80;
 
 export function drawGridLines(
     ctx: CanvasRenderingContext2D,
     x: TimeScale,
-    timeBounds: [Milliseconds, Milliseconds],
+    timeSpan: TimeSpan,
     height: number): void {
-  const range = timeBounds[1] - timeBounds[0];
-  const width = x.msToPx(timeBounds[1]) - x.msToPx(timeBounds[0]);
+  const width = x.timeToPx(timeSpan.duration);
   const desiredSteps = width / DESIRED_PX_PER_STEP;
-  const step = getGridStepSize(range, desiredSteps);
-  const start = Math.round(timeBounds[0] / step) * step;
+  const step = getGridStepSize(timeSpan.duration, desiredSteps);
+  const start = Math.round(timeSpan.start / step) * step;
 
   ctx.strokeStyle = '#999999';
   ctx.lineWidth = 1;
 
-  for (let t: Milliseconds = start; t < timeBounds[1]; t += step) {
-    const xPos = Math.floor(x.msToPx(t)) + 0.5;
+  for (let sec = start; sec < timeSpan.end; sec += step) {
+    const xPos = Math.floor(x.timeToPx(sec)) + 0.5;
 
     if (xPos >= 0 && xPos <= width) {
       ctx.beginPath();
@@ -43,15 +44,13 @@ export function drawGridLines(
 }
 
 /**
- * Returns the step size of a grid line. The returned step size has two
- * properties:
- *
+ * Returns the step size of a grid line in seconds.
+ * The returned step size has two properties:
  * (1) It is 1, 2, or 5, multiplied by some integer power of 10.
  * (2) The number steps in |range| produced by |stepSize| is as close as
  *     possible to |desiredSteps|.
  */
-export function getGridStepSize(
-    range: Milliseconds, desiredSteps: number): Milliseconds {
+export function getGridStepSize(range: number, desiredSteps: number): number {
   // First, get the largest possible power of 10 that is smaller than the
   // desired step size, and set it to the current step size.
   // For example, if the range is 2345ms and the desired steps is 10, then the

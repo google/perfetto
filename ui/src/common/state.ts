@@ -47,6 +47,11 @@ export interface QueryConfig {
 
 export interface PermalinkConfig { state: State; }
 
+export interface TraceTime {
+  startSec: number;
+  endSec: number;
+}
+
 export interface State {
   route: string|null;
   nextId: number;
@@ -55,6 +60,7 @@ export interface State {
    * Open traces.
    */
   engines: ObjectById<EngineConfig>;
+  traceTime: TraceTime;
   tracks: ObjectById<TrackState>;
   displayedTrackIds: string[];
   queries: ObjectById<QueryConfig>;
@@ -65,9 +71,10 @@ export function createEmptyState(): State {
   return {
     route: null,
     nextId: 0,
+    engines: {},
+    traceTime: {startSec: 0, endSec: 10},
     tracks: {},
     displayedTrackIds: [],
-    engines: {},
     queries: {},
     permalink: null,
   };

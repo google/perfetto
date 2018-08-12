@@ -14,6 +14,6 @@
 
 export interface Panel {
   renderCanvas(ctx: CanvasRenderingContext2D): void;
-  updateDom(dom: Element): void;
+  updateDom(dom: HTMLElement): void;
   getHeight(): number;
 }
