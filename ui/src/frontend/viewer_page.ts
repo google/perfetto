@@ -23,6 +23,8 @@ import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {ScrollingPanelContainer} from './scrolling_panel_container';
 import {TRACK_SHELL_WIDTH} from './track_panel';
 
+export const OVERVIEW_QUERY_ID = 'overview_query';
+
 const MAX_ZOOM_SPAN_SEC = 1e-4;  // 0.1 ms.
 
 const QueryTable: m.Component<{}, {}> = {
@@ -56,7 +58,33 @@ const QueryTable: m.Component<{}, {}> = {
   },
 };
 
-export const OVERVIEW_QUERY_ID = 'overview_query';
+
+/**
+ * CanvasRedrawTrigger hooks our canvas redraw into the Mithril redraw cycle.
+ * Everytime the Mithril redraws (and CanvasRedrawTrigger is in the tree)
+ * it calls either oncreate/onupdate from there we call syncRedraw().
+ *
+ * Ideally the canvas redraw should be:
+ * a) synchronous
+ * b) the very last thing that happens in the Mithril redraw raf
+ * Since oncreate/onupdate is called in pre-order (in terms of the dom:
+ * least-nested to most-nested, top to bottom) so the CanvasRedrawTrigger
+ * should be placed last on the page.
+ */
+const CanvasRedrawTrigger: m.Component = {
+
+  oncreate() {
+    globals.rafScheduler.syncRedraw();
+  },
+
+  onupdate() {
+    globals.rafScheduler.syncRedraw();
+  },
+
+  view() {
+    return null;
+  },
+};
 
 /**
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
@@ -66,6 +94,7 @@ const TraceViewer = {
   oninit() {
     this.width = 0;
   },
+
   oncreate(vnode) {
     const frontendLocalState = globals.frontendLocalState;
     this.onResize = () => {
@@ -114,13 +143,12 @@ const TraceViewer = {
       }
     });
   },
+
   onremove() {
     window.removeEventListener('resize', this.onResize);
     this.zoomContent.shutdown();
   },
-  onupdate() {
-    globals.rafScheduler.syncRedraw();
-  },
+
   view() {
     return m(
         '.page',
@@ -134,8 +162,10 @@ const TraceViewer = {
             }
           },
           m('header', 'Tracks'),
-          m(ScrollingPanelContainer)));
+          m(ScrollingPanelContainer), ),
+        m(CanvasRedrawTrigger), );
   },
+
 } as m.Component<{}, {
   onResize: () => void,
   width: number,
