@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import {TrackState} from '../../common/state';
+import {fromNs, TimeSpan} from '../../common/time';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
+
 import {
   ChromeSlice,
   ChromeSliceTrackData,
@@ -26,9 +28,9 @@ const SLICE_HEIGHT = 30;
 const TRACK_PADDING = 5;
 
 function sliceIsVisible(
-    slice: {start: number, end: number},
-    visibleWindowMs: {start: number, end: number}) {
-  return slice.end > visibleWindowMs.start && slice.start < visibleWindowMs.end;
+    slice: {start: number, end: number}, visibleWindowTime: TimeSpan) {
+  return fromNs(slice.end) > visibleWindowTime.start &&
+      fromNs(slice.start) < visibleWindowTime.end;
 }
 
 function hash(s: string): number {
@@ -59,18 +61,20 @@ class ChromeSliceTrack extends Track {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     if (!this.trackData) return;
-    const {timeScale, visibleWindowMs} = globals.frontendLocalState;
+    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     ctx.font = '12px Google Sans';
     ctx.textAlign = 'center';
 
     // measuretext is expensive so we only use it once.
     const charWidth = ctx.measureText('abcdefghij').width / 10;
+    const pxEnd = timeScale.timeToPx(visibleWindowTime.end);
 
     for (const slice of this.trackData.slices) {
-      if (!sliceIsVisible(slice, visibleWindowMs)) continue;
-      const rectXStart = timeScale.msToPx(slice.start) as number;
-      const rectXEnd = timeScale.msToPx(slice.end) as number;
+      if (!sliceIsVisible(slice, visibleWindowTime)) continue;
+      const rectXStart = Math.max(timeScale.timeToPx(fromNs(slice.start)), 0);
+      const rectXEnd = Math.min(timeScale.timeToPx(fromNs(slice.end)), pxEnd);
       const rectWidth = rectXEnd - rectXStart;
+      if (rectWidth < 0.1) continue;
       const rectYStart = TRACK_PADDING + slice.depth * SLICE_HEIGHT;
 
       if (slice === this.hoveredSlice) {
@@ -85,7 +89,7 @@ class ChromeSliceTrack extends Track {
 
       const nameLength = slice.title.length * charWidth;
       ctx.fillStyle = 'white';
-      const maxTextWidth = rectWidth - 10;
+      const maxTextWidth = rectWidth - 15;
       let displayText = '';
       if (nameLength < maxTextWidth) {
         displayText = slice.title;
@@ -108,12 +112,13 @@ class ChromeSliceTrack extends Track {
       this.hoveredSlice = null;
       return;
     }
-    const xMs = timeScale.pxToMs(x);
+    const t = timeScale.pxToTime(x);
     const depth = Math.floor(y / SLICE_HEIGHT);
     this.hoveredSlice = null;
 
     for (const slice of this.trackData.slices) {
-      if (slice.start <= xMs && slice.end >= xMs && slice.depth === depth) {
+      if (fromNs(slice.start) <= t && fromNs(slice.end) >= t &&
+          slice.depth === depth) {
         this.hoveredSlice = slice;
       }
     }

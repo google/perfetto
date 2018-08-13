@@ -17,7 +17,7 @@ import {Panel} from './panel';
 export class FlameGraphPanel implements Panel {
   private renderedDom = false;
   renderCanvas() {}
-  updateDom(dom: Element) {
+  updateDom(dom: HTMLElement) {
     if (this.renderedDom) return;
     dom.innerHTML = `<header>Flame Graph</Header>
         <embed type="image/svg+xml" src="/assets/flamegraph.svg">`;

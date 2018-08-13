@@ -12,54 +12,62 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO: Ensure RafScheduler does redraw after all other raf callbacks are
-// done.
-class RafScheduler {
-  private redrawCallbacks: Set<(() => void)>;
-  private scheduledRedrawNextFrame = false;
-  private currentlyDrawing = false;
+export type ActionCallback = (nowMs: number) => void;
+export type RedrawCallback = (nowMs: number) => void;
 
-  constructor() {
-    this.redrawCallbacks = new Set<() => void>();
+// This class orchestrates all RAFs in the UI. It ensures that there is only
+// one animation frame handler overall and that callbacks are called in
+// predictable order. There are two types of callbacks here:
+// - actions (e.g. pan/zoon animations), which will alter the "fast"
+//  (main-thread-only) state (e.g. update visible time bounds @ 60 fps).
+// - redraw callbacks that will repaint canvases.
+// This class guarantees that, on each frame, redraw callbacks are called after
+// all action callbacks.
+export class RafScheduler {
+  private actionCallbacks = new Set<ActionCallback>();
+  private redrawCallbacks = new Set<RedrawCallback>();
+  private hasScheduledNextFrame = false;
+  private isRedrawing = false;
+
+  start(cb: ActionCallback) {
+    this.actionCallbacks.add(cb);
+    this.maybeScheduleAnimationFrame();
   }
 
-  addCallback(cb: (() => void)): void {
+  stop(cb: ActionCallback) {
+    this.actionCallbacks.delete(cb);
+  }
+
+  addRedrawCallback(cb: RedrawCallback) {
     this.redrawCallbacks.add(cb);
   }
 
-  removeCallback(cb: (() => void)): void {
+  removeRedrawCallback(cb: RedrawCallback) {
     this.redrawCallbacks.delete(cb);
   }
 
-  scheduleRedraw() {
-    // There should be no good reason to schedule redraw while redrawing.
-    if (this.currentlyDrawing) {
-      throw Error('Cannot schedule redraw while drawing.');
-    }
-
-    if (this.scheduledRedrawNextFrame) return;
-    this.scheduledRedrawNextFrame = true;
-
-    window.requestAnimationFrame(() => {
-      this.currentlyDrawing = true;
-      this.syncRedraw();
-      this.scheduledRedrawNextFrame = false;
-      this.currentlyDrawing = false;
-    });
+  scheduleOneRedraw() {
+    this.maybeScheduleAnimationFrame(true);
   }
 
-  /**
-   * Synchronously executes all redraw callbacks. Use with caution.
-   */
   syncRedraw() {
-    for (const cb of this.redrawCallbacks) {
-      cb();
-    }
+    if (this.isRedrawing) return;
+    this.isRedrawing = true;
+    for (const redraw of this.redrawCallbacks) redraw(performance.now());
+    this.isRedrawing = false;
   }
 
-  clearCallbacks() {
-    this.redrawCallbacks.clear();
+  private maybeScheduleAnimationFrame(force = false) {
+    if (this.hasScheduledNextFrame) return;
+    if (this.actionCallbacks.size === 0 && !force) return;
+    this.hasScheduledNextFrame = true;
+    window.requestAnimationFrame(this.onAnimationFrame.bind(this));
+  }
+
+  private onAnimationFrame(nowMs: number) {
+    this.hasScheduledNextFrame = false;
+    for (const action of this.actionCallbacks) action(nowMs);
+    this.syncRedraw();
+    this.maybeScheduleAnimationFrame();
   }
 }
-
-export const rafScheduler = new RafScheduler();
