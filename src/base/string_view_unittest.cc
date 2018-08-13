@@ -38,7 +38,7 @@ TEST(StringViewTest, BasicCases) {
   EXPECT_TRUE(StringView("x") != StringView(""));
   EXPECT_TRUE(StringView("") != StringView("y"));
   EXPECT_TRUE(StringView("a") != StringView("b"));
-  EXPECT_EQ(StringView("").size(), 0);
+  EXPECT_EQ(StringView("").size(), 0ul);
   EXPECT_NE(StringView("").data(), nullptr);
   EXPECT_TRUE(StringView("").empty());
   EXPECT_FALSE(StringView("x").empty());
