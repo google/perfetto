@@ -23,7 +23,8 @@ import {
   addTrack,
   deleteQuery,
   navigate,
-  setEngineReady
+  setEngineReady,
+  setTraceTime
 } from '../common/actions';
 import {PERMALINK_ID, saveState, saveTrace} from '../common/permalinks';
 import {rawQueryResultColumns, rawQueryResultIter, Row} from '../common/protos';
@@ -91,13 +92,72 @@ class EngineController {
         const engine = assertExists<Engine>(this.engine);
         const numberOfCpus = await engine.getNumberOfCpus();
         const addToTrackActions: Action[] = [];
+        const traceBounds = await engine.getTraceTimeBounds();
+        addToTrackActions.push(
+            setTraceTime(traceBounds.start, traceBounds.end));
+
+        const numSteps = 100;
+        const stepNs = Math.round(traceBounds.duration * 1e9 / numSteps);
+
+        // TODO: the interface for this object should be put in a common file
+        // and shared with the frontend. We need some better solution for the
+        // published track / query data, right now is too free form.
+        const overviewData: {[key: string]:
+                                 {name: string, load: Uint8Array}} = {};
+
         if (numberOfCpus > 0) {
           // This is a sched slice trace.
           for (let i = 0; i < numberOfCpus; i++) {
             addToTrackActions.push(
                 addTrack(this.config.id, 'CpuSliceTrack', i));
           }
+          // TODO: this query and the one below should be more uniforms. Perhaps
+          // the concepts of "sched" and "slices" tables are redundant.
+          const overviewQuery = await engine.rawQuery({
+            sqlQuery: `select round(ts/${stepNs})*${stepNs} as quantized_ts, ` +
+                'sum(dur) as load, cpu from sched ' +
+                'group by quantized_ts, cpu order by cpu limit 10000'
+          });
+          let lastCpu = -1;
+          let loadIdx = 0;
+          for (let i = 0; i < overviewQuery.numRecords; i++) {
+            const load = overviewQuery.columns[1].longValues![i] as number;
+            const cpu = overviewQuery.columns[2].longValues![i] as number;
+            if (cpu !== lastCpu) {
+              overviewData[cpu] = {
+                name: `CPU${cpu}`,
+                load: new Uint8Array(numSteps)
+              };
+              lastCpu = cpu;
+              loadIdx = 0;
+            }
+            overviewData[cpu].load[loadIdx++] = (load / stepNs) * 255;
+          }
         } else if ((await engine.getNumberOfProcesses()) > 0) {
+          const overviewQuery = await engine.rawQuery({
+            sqlQuery: `select round(ts/${stepNs})*${stepNs} as quantized_ts, ` +
+                `sum(dur) as load, upid, process.name ` +
+                'from slices inner join thread using(utid) ' +
+                'inner join  process using(upid) where depth = 0 ' +
+                'group by quantized_ts, upid  order by upid limit 10000'
+          });
+          let lastUpid = -1;
+          let loadIdx = 0;
+          for (let i = 0; i < overviewQuery.numRecords; i++) {
+            const load = overviewQuery.columns[1].longValues![i] as number;
+            const upid = overviewQuery.columns[2].longValues![i] as number;
+            const procName = overviewQuery.columns[3].stringValues![i];
+            if (upid !== lastUpid) {
+              overviewData[upid] = {
+                name: procName,
+                load: new Uint8Array(numSteps)
+              };
+              lastUpid = upid;
+              loadIdx = 0;
+            }
+            overviewData[upid].load[loadIdx++] = (load / stepNs) * 255;
+          }
+
           const threadQuery = await engine.rawQuery({
             sqlQuery:
                 'select upid, utid, tid, thread.name, max(slices.depth) ' +
@@ -119,6 +179,7 @@ class EngineController {
                 maxDepth as number));
           }
         }
+        this.controller.publishQueryResult('overview_query', overviewData);
         this.controller.dispatchMultiple(addToTrackActions);
         this.deferredOnReady.forEach(d => d.resolve(engine));
         this.deferredOnReady.clear();
@@ -192,6 +253,7 @@ class QueryController {
         columns,
         rows,
       };
+      console.log(`Query ${config.query} took ${result.durationMs} ms`);
       controller.publishQueryResult(config.id, result);
       controller.dispatch(deleteQuery(config.id));
     });

@@ -25,9 +25,10 @@ import {
   warmupWasmEngineWorker,
 } from '../controller/wasm_engine_proxy';
 
-import {createEmptyFrontendState} from './frontend_local_state';
+import {FrontendLocalState} from './frontend_local_state';
 import {globals} from './globals';
 import {HomePage} from './home_page';
+import {RafScheduler} from './raf_scheduler';
 import {ViewerPage} from './viewer_page';
 
 function createController(): Worker {
@@ -82,11 +83,16 @@ async function main() {
   const channel = new MessageChannel();
   forwardRemoteCalls(channel.port2, new FrontendApi());
   controller.postMessage(channel.port1, [channel.port1]);
-  globals.state = createEmptyState();
-  globals.dispatch = controller.postMessage.bind(controller);
-  globals.trackDataStore = new Map<string, {}>();
-  globals.queryResults = new Map<string, {}>();
-  globals.frontendLocalState = createEmptyFrontendState();
+
+  globals.initialize(
+      controller.postMessage.bind(controller),  // dispatch
+      createEmptyState(),                       // state
+      new Map<string, {}>(),                    // trackDataStore
+      new Map<string, {}>(),                    // queryResults
+      new FrontendLocalState(),                 // frontendState
+      new RafScheduler(),                       // rafSheduler
+      );
+
   warmupWasmEngineWorker();
 
   m.route(document.body, '/', {
