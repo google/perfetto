@@ -36,11 +36,11 @@ class CpuCounterTrack extends Track {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
-    const {timeScale, visibleWindowMs} = globals.frontendLocalState;
+    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
 
     // It is possible to get width of track from visibleWindowMs.
-    const visibleStartPx = timeScale.msToPx(visibleWindowMs.start);
-    const visibleEndPx = timeScale.msToPx(visibleWindowMs.end);
+    const visibleStartPx = timeScale.timeToPx(visibleWindowTime.start);
+    const visibleEndPx = timeScale.timeToPx(visibleWindowTime.end);
     const visibleWidthPx = visibleEndPx - visibleStartPx;
 
     ctx.fillStyle = '#eee';

@@ -65,13 +65,12 @@ const TrackContent = {
         height: '100%',
       },
       onmousemove: (e: MouseEvent) => {
-        // TODO(hjd): Trigger a repaint here not a full m.redraw.
         attrs.track.onMouseMove({x: e.layerX, y: e.layerY});
-        m.redraw();
+        globals.rafScheduler.scheduleOneRedraw();
       },
       onmouseout: () => {
         attrs.track.onMouseOut();
-        m.redraw();
+        globals.rafScheduler.scheduleOneRedraw();
       },
     }, );
   }
@@ -120,7 +119,7 @@ export class TrackPanel implements Panel {
     return this.track.getHeight();
   }
 
-  updateDom(dom: Element): void {
+  updateDom(dom: HTMLElement): void {
     // TODO: Let tracks render DOM in the content area.
     m.render(
         dom,
@@ -129,11 +128,10 @@ export class TrackPanel implements Panel {
 
   renderCanvas(ctx: CanvasRenderingContext2D) {
     ctx.translate(TRACK_SHELL_WIDTH, 0);
-    const {visibleWindowMs} = globals.frontendLocalState;
     drawGridLines(
         ctx,
         globals.frontendLocalState.timeScale,
-        [visibleWindowMs.start, visibleWindowMs.end],
+        globals.frontendLocalState.visibleWindowTime,
         this.track.getHeight());
 
     const trackData = globals.trackDataStore.get(this.trackState.id);
