@@ -74,8 +74,8 @@ const PanelComponent = {
 
   onupdate({dom, attrs}) {
     attrs.panelAttrs.panel.updateDom(dom as HTMLElement);
-    globals.rafScheduler.scheduleOneRedraw();
   }
+
 } as m.Component<{panelAttrs: PanelAttrs, yStart: number}>;
 
 function panelIsOnCanvas(
@@ -190,7 +190,6 @@ export const ScrollingPanelContainer = {
   },
 
   view() {
-    console.log('ScrollingPanelContainer redraw');
     // TODO: Handle panel deletion.
     // Create all the track panels if they don't already exist.
     for (const id of globals.state.displayedTrackIds) {
