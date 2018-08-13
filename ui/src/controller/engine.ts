@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {IRawQueryArgs, RawQueryResult, TraceProcessor} from '../common/protos';
+import {TimeSpan} from '../common/time';
 
 /**
  * Abstract interface of a trace proccessor.
@@ -35,6 +36,13 @@ export abstract class Engine {
     return this.traceProcessor.rawQuery(args);
   }
 
+  async rawQueryOneRow(sqlQuery: string): Promise<number[]> {
+    const result = await this.rawQuery({sqlQuery});
+    const res: number[] = [];
+    result.columns.map(c => res.push(+c.longValues![0]));
+    return res;
+  }
+
   // TODO(hjd): Maybe we should cache result? But then Engine must be
   // streaming aware.
   async getNumberOfCpus(): Promise<number> {
@@ -53,14 +61,26 @@ export abstract class Engine {
     return +result.columns[0].longValues![0];
   }
 
-  // TODO(hjd): Maybe we should cache result? But then Engine must be
-  // streaming aware.
-  async getTraceTimeBounds(): Promise<[number, number]> {
-    const result = await this.rawQuery({
-      sqlQuery: 'select max(ts) as start, min(ts) as end from sched;',
-    });
-    const start = +result.columns[0].longValues![0];
-    const end = +result.columns[1].longValues![0];
-    return [start, end];
+  async getTraceTimeBounds(): Promise<TimeSpan> {
+    const numSlices =
+        (await this.rawQueryOneRow('select count(ts) from slices'))[0];
+    const numSched =
+        (await this.rawQueryOneRow('select count(ts) from sched'))[0];
+    let start = Infinity;
+    let end = 0;
+    if (numSlices > 0) {
+      [start, end] =
+          await this.rawQueryOneRow('select min(ts), max(ts) from slices');
+    }
+    if (numSched) {
+      let start2, end2;
+      [start2, end2] =
+          await this.rawQueryOneRow('select min(ts), max(ts) from sched');
+      start = Math.min(start, start2);
+      end = Math.max(end, end2);
+    }
+    // TODO: I am not sure we should shift-to-zero times, but right now
+    // everything seems to assume so.
+    return new TimeSpan(0, (end - start) / 1e9);
   }
 }

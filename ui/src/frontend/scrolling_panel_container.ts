@@ -18,8 +18,9 @@ import {assertExists} from '../base/logging';
 
 import {FlameGraphPanel} from './flame_graph_panel';
 import {globals} from './globals';
+import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {Panel} from './panel';
-import {rafScheduler} from './raf_scheduler';
+import {TimeAxisPanel} from './time_axis_panel';
 import {TrackPanel} from './track_panel';
 
 /**
@@ -27,17 +28,13 @@ import {TrackPanel} from './track_panel';
  */
 const CANVAS_OVERDRAW_FACTOR = 2;
 
+type CanvasScrollingContainerVnode =
+    m.VnodeDOM<{}, ScrollingPanelContainerState>;
+
 function getCanvasOverdrawHeightPerSide(visibleHeight: number) {
   const overdrawHeight = (CANVAS_OVERDRAW_FACTOR - 1) * visibleHeight;
   return overdrawHeight / 2;
 }
-
-function getCanvasYStart(visibleHeight: number, containerScrollTop: number) {
-  return containerScrollTop - getCanvasOverdrawHeightPerSide(visibleHeight);
-}
-
-type CanvasScrollingContainerVnode =
-    m.VnodeDOM<{}, ScrollingPanelContainerState>;
 
 function updateDimensionsFromDom(vnode: CanvasScrollingContainerVnode) {
   const rect = vnode.dom.getBoundingClientRect();
@@ -71,8 +68,13 @@ const PanelComponent = {
     });
   },
 
+  oncreate({dom, attrs}) {
+    attrs.panelAttrs.panel.updateDom(dom as HTMLElement);
+  },
+
   onupdate({dom, attrs}) {
-    attrs.panelAttrs.panel.updateDom(dom);
+    attrs.panelAttrs.panel.updateDom(dom as HTMLElement);
+    globals.rafScheduler.scheduleOneRedraw();
   }
 } as m.Component<{panelAttrs: PanelAttrs, yStart: number}>;
 
@@ -81,6 +83,7 @@ function panelIsOnCanvas(
   return panelYBoundsOnCanvas.end > 0 &&
       panelYBoundsOnCanvas.start < canvasHeight;
 }
+
 
 function renderPanelCanvas(
     ctx: CanvasRenderingContext2D,
@@ -98,7 +101,7 @@ function renderPanelCanvas(
   ctx.restore();
 }
 
-function drawCanvas(state: ScrollingPanelContainerState) {
+function redrawAllPanelCavases(state: ScrollingPanelContainerState) {
   if (!state.ctx) return;
   const canvasHeight = state.domHeight * CANVAS_OVERDRAW_FACTOR;
   state.ctx.clearRect(0, 0, state.domWidth, canvasHeight);
@@ -131,7 +134,7 @@ interface ScrollingPanelContainerState {
   keyToPanelAttrs: Map<string, PanelAttrs>;
   panelDisplayOrder: string[];
 
-  // We store this function so we can remove it.
+  // We store these functions so we can remove them.
   onResize: () => void;
   canvasRedrawer: () => void;
 }
@@ -144,8 +147,8 @@ export const ScrollingPanelContainer = {
     this.scrollTop = 0;
     this.ctx = null;
     this.keyToPanelAttrs = new Map<string, PanelAttrs>();
-    this.canvasRedrawer = () => drawCanvas(state);
-    rafScheduler.addCallback(this.canvasRedrawer);
+    this.canvasRedrawer = () => redrawAllPanelCavases(state);
+    globals.rafScheduler.addRedrawCallback(this.canvasRedrawer);
   },
 
   oncreate(vnode) {
@@ -183,10 +186,11 @@ export const ScrollingPanelContainer = {
 
   onremove() {
     window.removeEventListener('resize', this.onResize);
-    rafScheduler.removeCallback(this.canvasRedrawer);
+    globals.rafScheduler.removeRedrawCallback(this.canvasRedrawer);
   },
 
   view() {
+    console.log('ScrollingPanelContainer redraw');
     // TODO: Handle panel deletion.
     // Create all the track panels if they don't already exist.
     for (const id of globals.state.displayedTrackIds) {
@@ -208,6 +212,28 @@ export const ScrollingPanelContainer = {
     // can use it.
     this.panelDisplayOrder =
         globals.state.displayedTrackIds.map(id => 'track-' + id);
+
+    if (this.keyToPanelAttrs.get('timeaxis') === undefined) {
+      const panel = new TimeAxisPanel();
+      const spec = {
+        panel,
+        height: panel.getHeight(),
+        key: 'timeaxis',
+      };
+      this.keyToPanelAttrs.set(spec.key, spec);
+    }
+    this.panelDisplayOrder.unshift('timeaxis');
+
+    if (this.keyToPanelAttrs.get('overview') === undefined) {
+      const panel = new OverviewTimelinePanel();
+      const spec = {
+        panel,
+        height: panel.getHeight(),
+        key: 'overview',
+      };
+      this.keyToPanelAttrs.set(spec.key, spec);
+    }
+    this.panelDisplayOrder.unshift('overview');
 
     // Show a fake flame graph if there is at least one track.
     if (globals.state.displayedTrackIds.length > 0) {
@@ -236,7 +262,8 @@ export const ScrollingPanelContainer = {
       totalContentHeight += panelAttrs.height;
     }
 
-    const canvasYStart = getCanvasYStart(this.domHeight, this.scrollTop);
+    const canvasYStart =
+        this.scrollTop - getCanvasOverdrawHeightPerSide(this.domHeight);
     const canvasHeight = this.domHeight * CANVAS_OVERDRAW_FACTOR;
 
     return m(

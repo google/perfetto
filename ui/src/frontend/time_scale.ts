@@ -12,63 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TimeSpan} from '../common/time';
+
 /**
- * Defines a mapping between pixels and Milliseconds for the entire application.
+ * Defines a mapping between number and Milliseconds for the entire application.
  * Linearly scales time values from boundsMs to pixel values in boundsPx and
  * back.
  */
 export class TimeScale {
-  private startMs: Milliseconds;
-  private endMs: Milliseconds;
-  private startPx: Pixels;
-  private endPx: Pixels;
-  private slopeMsPerPx = 0;
+  private timeBounds: TimeSpan;
+  private startPx: number;
+  private endPx: number;
+  private secPerPx = 0;
 
-  constructor(
-      boundsMs: [Milliseconds, Milliseconds], boundsPx: [Pixels, Pixels]) {
-    this.startMs = boundsMs[0];
-    this.endMs = boundsMs[1];
+  constructor(timeBounds: TimeSpan, boundsPx: [number, number]) {
+    this.timeBounds = timeBounds;
     this.startPx = boundsPx[0];
     this.endPx = boundsPx[1];
     this.updateSlope();
   }
 
   private updateSlope() {
-    this.slopeMsPerPx =
-        (this.endMs - this.startMs) / (this.endPx - this.startPx);
+    this.secPerPx = this.timeBounds.duration / (this.endPx - this.startPx);
   }
 
-  msToPx(time: Milliseconds): Pixels {
-    return this.startPx as number + (time - this.startMs) / this.slopeMsPerPx;
+  timeToPx(time: number): number {
+    return this.startPx + (time - this.timeBounds.start) / this.secPerPx;
   }
 
-  pxToMs(px: Pixels): Milliseconds {
-    return this.startMs as number + (px - this.startPx) * this.slopeMsPerPx;
+  pxToTime(px: number): number {
+    return this.timeBounds.start + (px - this.startPx) * this.secPerPx;
   }
 
-  deltaPxToDurationMs(px: Pixels): Milliseconds {
-    return px * this.slopeMsPerPx;
+  deltaPxToDuration(px: number): number {
+    return px * this.secPerPx;
   }
 
-  setLimitsMs(tStart: Milliseconds, tEnd: Milliseconds) {
-    this.startMs = tStart;
-    this.endMs = tEnd;
+  setTimeBounds(timeBounds: TimeSpan) {
+    this.timeBounds = timeBounds;
     this.updateSlope();
   }
 
-  setLimitsPx(pxStart: Pixels, pxEnd: Pixels) {
+  setLimitsPx(pxStart: number, pxEnd: number) {
     this.startPx = pxStart;
     this.endPx = pxEnd;
     this.updateSlope();
   }
-}
-
-// We are using enums because TypeScript does proper type checking for those,
-// and disallows assigning a pixel value to a milliseconds value, even though
-// they are numbers. Using types, this safeguard would not be here.
-// See: https://stackoverflow.com/a/43832165
-
-export enum Pixels {
-}
-export enum Milliseconds {
 }

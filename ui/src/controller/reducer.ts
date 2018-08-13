@@ -147,6 +147,13 @@ export function rootReducer(state: State, action: any): State {
       return action.newState;
     }
 
+    case 'SET_TRACE_TIME': {
+      const nextState = {...state};
+      nextState.traceTime.startSec = action.startSec;
+      nextState.traceTime.endSec = action.endSec;
+      return nextState;
+    }
+
     default:
       break;
   }
