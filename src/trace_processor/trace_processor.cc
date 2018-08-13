@@ -78,12 +78,13 @@ void TraceProcessor::ExecuteQuery(
     const protos::RawQueryArgs& args,
     std::function<void(const protos::RawQueryResult&)> callback) {
   protos::RawQueryResult proto;
+  query_interrupted_.store(false, std::memory_order_relaxed);
 
   const auto& sql = args.sql_query();
   sqlite3_stmt* raw_stmt;
   int err = sqlite3_prepare_v2(*db_, sql.c_str(), static_cast<int>(sql.size()),
                                &raw_stmt, nullptr);
-  ScopedStmt stmt(std::move(raw_stmt));
+  ScopedStmt stmt(raw_stmt);
   if (err) {
     proto.set_error(sqlite3_errmsg(*db_));
     callback(std::move(proto));
@@ -136,6 +137,15 @@ void TraceProcessor::ExecuteQuery(
   }
   proto.set_num_records(static_cast<uint64_t>(row_count));
 
+  if (query_interrupted_.load()) {
+    PERFETTO_ELOG("SQLite query interrupted");
+    // Calling sqlite3_interrupt will implicitly finalize the statement.
+    // Releasing it here in order to avoid hitting the CHECK in scoped_file.h.
+    sqlite3_stmt* released_stmt = stmt.release();
+    PERFETTO_DCHECK(sqlite3_finalize(released_stmt) != SQLITE_OK);
+    query_interrupted_ = false;
+  }
+
   callback(proto);
 }
 
@@ -153,6 +163,13 @@ void TraceProcessor::LoadTraceChunk(std::function<void()> callback) {
 
     weak_this->LoadTraceChunk(callback);
   });
+}
+
+void TraceProcessor::InterruptQuery() {
+  if (!db_)
+    return;
+  query_interrupted_.store(true);
+  sqlite3_interrupt(db_.get());
 }
 
 }  // namespace trace_processor

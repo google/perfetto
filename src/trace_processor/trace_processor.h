@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
 #define SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
 
+#include <atomic>
 #include <functional>
 #include <memory>
 
@@ -55,12 +56,20 @@ class TraceProcessor {
   void ExecuteQuery(const protos::RawQueryArgs&,
                     std::function<void(const protos::RawQueryResult&)>);
 
+  // Interrupts the current query. Typically used by Ctrl-C handler.
+  void InterruptQuery();
+
  private:
   void LoadTraceChunk(std::function<void()> callback);
 
   ScopedDb db_;  // Keep first.
   TraceProcessorContext context_;
   base::TaskRunner* const task_runner_;
+
+  // This is atomic because it is set by the CTRL-C signal handler and we need
+  // to prevent single-flow compiler optimizations in ExecuteQuery().
+  std::atomic<bool> query_interrupted_{false};
+
   base::WeakPtrFactory<TraceProcessor> weak_factory_;  // Keep last.
 };
 
