@@ -118,7 +118,9 @@ class SchedSliceTable : public Table {
    private:
     // Creates a vector of indices into the slices for the given |cpu| sorted
     // by the order by criteria.
-    std::vector<uint32_t> CreateSortedIndexVectorForCpu(uint32_t cpu);
+    std::vector<uint32_t> CreateSortedIndexVectorForCpu(uint32_t cpu,
+                                                        uint64_t min_ts,
+                                                        uint64_t max_ts);
 
     // Compares the next slice of the given |cpu| with the next slice of the
     // |next_cpu_|. Return <0 if |cpu| is ordered before, >0 if ordered after,
