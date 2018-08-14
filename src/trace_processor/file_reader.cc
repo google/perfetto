@@ -22,19 +22,30 @@
 namespace perfetto {
 namespace trace_processor {
 
-FileReader::FileReader(const char* path) {
+FileReader::FileReader(const char* path, bool print_progress) {
   fd_.reset(open(path, O_RDONLY));
   if (!fd_)
     PERFETTO_FATAL("Could not open %s", path);
   struct stat stat_buf {};
   PERFETTO_CHECK(fstat(*fd_, &stat_buf) == 0);
   file_size_ = static_cast<uint64_t>(stat_buf.st_size);
+  print_progress_ = print_progress;
 }
 
 FileReader::~FileReader() = default;
 
 uint32_t FileReader::Read(uint64_t offset, uint32_t len, uint8_t* dst) {
   ssize_t res = pread(*fd_, dst, len, static_cast<off_t>(offset));
+  uint64_t size_read = offset + static_cast<uint64_t>(res);
+  if (print_progress_ && size_read >= last_progress_bytes_ + 1E7) {
+    last_progress_bytes_ = size_read;
+    double progress = size_read * 100.0 / file_size_;
+    fprintf(stderr, "\rReading trace: %.2f%% %.1f MB / %.1f MB", progress,
+            size_read / 1E6, file_size_ / 1E6);
+    fflush(stderr);
+    if (size_read == file_size_)
+      fprintf(stderr, "\r%80s\r", "");
+  }
   return res > 0 ? static_cast<uint32_t>(res) : 0;
 }
 
