@@ -74,6 +74,10 @@ bool ProtoTraceParser::ParseNextChunk() {
     ParsePacket(fld.data(), fld.size());
   }
 
+  if (decoder.offset() == 0) {
+    PERFETTO_ELOG("The trace file seems truncated, interrupting parsing");
+    return false;
+  }
   offset_ += decoder.offset();
   return true;
 }
