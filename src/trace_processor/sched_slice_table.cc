@@ -242,6 +242,9 @@ SchedSliceTable::FilterState::FilterState(
   std::bitset<base::kMaxCpus> cpu_filter;
   cpu_filter.set();
 
+  uint64_t min_ts = 0;
+  uint64_t max_ts = std::numeric_limits<uint64_t>::max();
+
   for (size_t i = 0; i < query_constraints.constraints().size(); i++) {
     const auto& cs = query_constraints.constraints()[i];
     switch (cs.iColumn) {
@@ -251,6 +254,15 @@ SchedSliceTable::FilterState::FilterState(
       case Column::kQuantum:
         quantum_ = static_cast<uint64_t>(sqlite3_value_int64(argv[i]));
         break;
+      case Column::kTimestamp: {
+        auto ts = static_cast<uint64_t>(sqlite3_value_int64(argv[i]));
+        if (IsOpGe(cs.op) || IsOpGt(cs.op)) {
+          min_ts = IsOpGe(cs.op) ? ts : ts + 1;
+        } else if (IsOpLe(cs.op) || IsOpLt(cs.op)) {
+          max_ts = IsOpLe(cs.op) ? ts : ts - 1;
+        }
+        break;
+      }
     }
   }
 
@@ -258,8 +270,9 @@ SchedSliceTable::FilterState::FilterState(
   for (uint32_t cpu = 0; cpu < base::kMaxCpus; cpu++) {
     if (!cpu_filter.test(cpu))
       continue;
-    StateForCpu(cpu)->Initialize(cpu, storage_, quantum_,
-                                 CreateSortedIndexVectorForCpu(cpu));
+    StateForCpu(cpu)->Initialize(
+        cpu, storage_, quantum_,
+        CreateSortedIndexVectorForCpu(cpu, min_ts, max_ts));
   }
 
   // Set the cpu index to be the first item to look at.
@@ -295,12 +308,23 @@ int SchedSliceTable::FilterState::CompareCpuToNextCpu(uint32_t cpu) {
 }
 
 std::vector<uint32_t>
-SchedSliceTable::FilterState::CreateSortedIndexVectorForCpu(uint32_t cpu) {
+SchedSliceTable::FilterState::CreateSortedIndexVectorForCpu(uint32_t cpu,
+                                                            uint64_t min_ts,
+                                                            uint64_t max_ts) {
   const auto& slices = storage_->SlicesForCpu(cpu);
+  const auto& start_ns = slices.start_ns();
   PERFETTO_CHECK(slices.slice_count() <= std::numeric_limits<uint32_t>::max());
 
-  std::vector<uint32_t> indices(slices.slice_count());
-  std::iota(indices.begin(), indices.end(), 0u);
+  auto min_it = std::lower_bound(start_ns.begin(), start_ns.end(), min_ts);
+  auto max_it = std::upper_bound(min_it, start_ns.end(), max_ts);
+  ptrdiff_t dist = std::distance(min_it, max_it);
+  PERFETTO_CHECK(dist >= 0 && static_cast<size_t>(dist) <= start_ns.size());
+
+  std::vector<uint32_t> indices(static_cast<size_t>(dist));
+
+  // Fill |indices| with the consecutive row numbers affected by the filtering.
+  std::iota(indices.begin(), indices.end(),
+            std::distance(start_ns.begin(), min_it));
 
   // In other cases, sort by the given criteria.
   std::sort(indices.begin(), indices.end(),
