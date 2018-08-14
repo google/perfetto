@@ -22,26 +22,45 @@
 
 #include <stdint.h>
 
+#include "perfetto/base/utils.h"
+
 namespace perfetto {
 
 class RecordReader {
  public:
-  RecordReader(std::function<void(size_t, std::unique_ptr<uint8_t[]>)>
-                   callback_function);
-  ssize_t Read(int fd);
+  struct ReceiveBuffer {
+    uint8_t* data;
+    size_t size;
+  };
+
+  enum class Result {
+    Noop = 0,
+    RecordReceived,
+    KillConnection,
+  };
+
+  struct Record {
+    std::unique_ptr<uint8_t[]> data;
+    // This is not size_t so we can directly copy the received uint64_t
+    // into it.
+    uint64_t size = 0;
+  };
+
+  ReceiveBuffer BeginReceive();
+  Result EndReceive(size_t recv_size,
+                    Record* record) PERFETTO_WARN_UNUSED_RESULT;
 
  private:
-  void MaybeFinishAndReset();
   void Reset();
-  bool done();
-  size_t read_idx();
-  ssize_t ReadRecordSize(int fd);
-  ssize_t ReadRecord(int fd);
 
-  std::function<void(size_t, std::unique_ptr<uint8_t[]>)> callback_function_;
-  size_t read_idx_;
-  uint64_t record_size_;
-  std::unique_ptr<uint8_t[]> buf_;
+  // if < sizeof(uint64_t) we are still filling the record_size_buf_,
+  // otherwise we are filling |record_.data|
+  size_t read_idx_ = 0;
+  alignas(uint64_t) uint8_t record_size_buf_[sizeof(uint64_t)];
+  Record record_;
+
+  static_assert(sizeof(record_size_buf_) == sizeof(record_.size),
+                "sizes mismatch");
 };
 
 }  // namespace perfetto
