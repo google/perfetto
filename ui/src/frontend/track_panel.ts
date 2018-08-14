@@ -24,46 +24,29 @@ import {Panel} from './panel';
 import {Track} from './track';
 import {trackRegistry} from './track_registry';
 
+// TODO(hjd): We should remove the constant where possible.
+// If any uses can't be removed we should read this constant from CSS.
 export const TRACK_SHELL_WIDTH = 300;
 
 const TrackShell = {
   view({attrs}) {
     return m(
         '.track-shell',
-        {
-          style: {
-            position: 'absolute',
-            left: '0px',
-            width: `${TRACK_SHELL_WIDTH}px`,
-            'box-sizing': 'border-box',
-          }
-        },
         m('h1', attrs.trackState.name),
-        m('.reorder-icons',
-          m(TrackMoveButton, {
-            direction: 'up',
-            trackId: attrs.trackState.id,
-            top: 10,
-          }),
-          m(TrackMoveButton, {
-            direction: 'down',
-            trackId: attrs.trackState.id,
-            top: 40,
-          })));
+        m(TrackMoveButton, {
+          direction: 'up',
+          trackId: attrs.trackState.id,
+        }),
+        m(TrackMoveButton, {
+          direction: 'down',
+          trackId: attrs.trackState.id,
+        }));
   },
 } as m.Component<{trackState: TrackState}>;
 
 const TrackContent = {
   view({attrs}) {
     return m('.track-content', {
-      style: {
-        position: 'absolute',
-        left: `${TRACK_SHELL_WIDTH}px`,
-        // TODO: We can use flex-box here and not do this manual
-        // calculation.
-        width: `calc(100% - ${TRACK_SHELL_WIDTH}px)`,
-        height: '100%',
-      },
       onmousemove: (e: MouseEvent) => {
         attrs.track.onMouseMove({x: e.layerX, y: e.layerY});
         globals.rafScheduler.scheduleOneRedraw();
@@ -81,7 +64,7 @@ const TrackComponent = {
     return m('.track', [
       m(TrackShell, {trackState: attrs.trackState}),
       m(TrackContent, {track: attrs.track})
-    ], );
+    ]);
   }
 } as m.Component<{trackState: TrackState, track: Track}>;
 
@@ -91,16 +74,12 @@ const TrackMoveButton = {
         'i.material-icons.track-move-icons',
         {
           onclick: quietDispatch(moveTrack(attrs.trackId, attrs.direction)),
-          style: {
-            top: `${attrs.top}px`,
-          }
         },
         attrs.direction === 'up' ? 'arrow_upward_alt' : 'arrow_downward_alt');
   }
 } as m.Component<{
   direction: 'up' | 'down',
   trackId: string,
-  top: number,
 },
                         {}>;
 
