@@ -223,26 +223,37 @@ button.close {
     }
 }
 
+.panel {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+}
+
 .track {
-    border-bottom: 1px solid #c7d0db;
-    left: 0;
-    width: 100%;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: 1fr;
+    border-top: 1px solid #c7d0db;
     .track-shell {
+        padding: 0 20px;
+        display: grid;
+        grid-template-areas:
+          "title up"
+          "title down";
+        align-items: center;
+        width: 300px;
         background: #fff;
-        padding: 20px;
         border-right: 1px solid #c7d0db;
-        height: 100%;
         h1 {
+            grid-area: title;
             margin: 0;
             font-size: 1em;
             text-overflow: ellipsis;
             font-family: 'Google Sans';
             color: hsl(213, 22%, 30%);
-            width: 90%;
         }
         .track-move-icons {
-            position: absolute;
-            right: 10px;
+            justify-self: end;
             color: #fff;
             font-weight: bold;
             text-align: center;
