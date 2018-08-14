@@ -16,86 +16,97 @@
 
 #include "src/profiling/memory/record_reader.h"
 
-#include "perfetto/base/scoped_file.h"
-
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace perfetto {
 namespace {
 
-int ScopedPipe(base::ScopedFile scoped_fds[2]) {
-  int fds[2];
-  if (pipe(fds) == -1)
-    return -1;
-  scoped_fds[0].reset(fds[0]);
-  scoped_fds[1].reset(fds[1]);
-  return 0;
-}
-
 TEST(RecordReaderTest, ZeroLengthRecord) {
-  bool called = false;
-  auto callback_fn = [&called](size_t size, std::unique_ptr<uint8_t[]>) {
-    called = true;
-    ASSERT_EQ(size, 0u);
-  };
-  base::ScopedFile fd[2];
-  ASSERT_NE(ScopedPipe(fd), -1);
-  RecordReader r(std::move(callback_fn));
+  RecordReader record_reader;
   uint64_t size = 0;
-  ASSERT_NE(write(*fd[1], &size, sizeof(size)), -1);
-
-  size_t itr = 0;
-  while (!called && ++itr < 1000) {
-    ssize_t rd = r.Read(*fd[0]);
-    ASSERT_NE(rd, -1);
-    ASSERT_NE(rd, 0);
-  }
-  ASSERT_TRUE(called);
+  RecordReader::ReceiveBuffer buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, sizeof(uint64_t));
+  memcpy(buf.data, &size, sizeof(size));
+  RecordReader::Record record;
+  ASSERT_EQ(record_reader.EndReceive(sizeof(size), &record),
+            RecordReader::Result::RecordReceived);
+  ASSERT_EQ(record.size, 0);
 }
 
 TEST(RecordReaderTest, OneRecord) {
-  bool called = false;
-  auto callback_fn = [&called](size_t size, std::unique_ptr<uint8_t[]>) {
-    called = true;
-    ASSERT_EQ(size, 1u);
-  };
-  base::ScopedFile fd[2];
-  ASSERT_NE(ScopedPipe(fd), -1);
-  RecordReader r(std::move(callback_fn));
+  RecordReader record_reader;
   uint64_t size = 1;
-  ASSERT_NE(write(*fd[1], &size, sizeof(size)), -1);
-  ASSERT_NE(write(*fd[1], "1", 1), -1);
-  size_t itr = 0;
-  while (!called && ++itr < 1000) {
-    ssize_t rd = r.Read(*fd[0]);
-    ASSERT_NE(rd, -1);
-    ASSERT_NE(rd, 0);
-  }
-  ASSERT_TRUE(called);
+  RecordReader::ReceiveBuffer buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, sizeof(uint64_t));
+  memcpy(buf.data, &size, sizeof(size));
+  RecordReader::Record record;
+  ASSERT_EQ(record_reader.EndReceive(sizeof(size), &record),
+            RecordReader::Result::Noop);
+  buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, 1);
+  memcpy(buf.data, "1", 1);
+  ASSERT_EQ(record_reader.EndReceive(1, &record),
+            RecordReader::Result::RecordReceived);
+  ASSERT_EQ(record.size, 1);
+}
+
+TEST(RecordReaderTest, OneRecordPartialSize) {
+  RecordReader record_reader;
+  uint64_t size = 1;
+  RecordReader::ReceiveBuffer buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, sizeof(uint64_t));
+  memcpy(buf.data, &size, sizeof(size) / 2);
+  RecordReader::Record record;
+  ASSERT_EQ(record_reader.EndReceive(sizeof(size) / 2, &record),
+            RecordReader::Result::Noop);
+  buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, sizeof(uint64_t) / 2);
+  memcpy(buf.data, reinterpret_cast<uint8_t*>(&size) + sizeof(size) / 2,
+         sizeof(size) / 2);
+  ASSERT_EQ(record_reader.EndReceive(sizeof(size) / 2, &record),
+            RecordReader::Result::Noop);
+  buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, 1);
+  memcpy(buf.data, "1", 1);
+  ASSERT_EQ(record_reader.EndReceive(1, &record),
+            RecordReader::Result::RecordReceived);
+  ASSERT_EQ(record.size, 1);
 }
 
 TEST(RecordReaderTest, TwoRecords) {
-  size_t called = 0;
-  auto callback_fn = [&called](size_t size, std::unique_ptr<uint8_t[]>) {
-    ASSERT_EQ(size, ++called);
-  };
-  base::ScopedFile fd[2];
-  ASSERT_NE(ScopedPipe(fd), -1);
-  RecordReader r(std::move(callback_fn));
+  RecordReader record_reader;
   uint64_t size = 1;
-  ASSERT_NE(write(*fd[1], &size, sizeof(size)), -1);
-  ASSERT_NE(write(*fd[1], "1", 1), -1);
+  RecordReader::ReceiveBuffer buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, sizeof(uint64_t));
+  memcpy(buf.data, &size, sizeof(size));
+  RecordReader::Record record;
+  ASSERT_EQ(record_reader.EndReceive(sizeof(size), &record),
+            RecordReader::Result::Noop);
+  buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, 1);
+  memcpy(buf.data, "1", 1);
+  ASSERT_EQ(record_reader.EndReceive(1, &record),
+            RecordReader::Result::RecordReceived);
+  ASSERT_EQ(record.size, 1);
+
   size = 2;
-  ASSERT_NE(write(*fd[1], &size, sizeof(size)), -1);
-  ASSERT_NE(write(*fd[1], "12", 2), -1);
-  size_t itr = 0;
-  while (!called && ++itr < 1000) {
-    ssize_t rd = r.Read(*fd[0]);
-    ASSERT_NE(rd, -1);
-    ASSERT_NE(rd, 0);
-  }
-  ASSERT_TRUE(called);
+  buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, sizeof(uint64_t));
+  memcpy(buf.data, &size, sizeof(size));
+  ASSERT_EQ(record_reader.EndReceive(sizeof(size), &record),
+            RecordReader::Result::Noop);
+  buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, 2);
+  memcpy(buf.data, "1", 1);
+  ASSERT_EQ(record_reader.EndReceive(1, &record), RecordReader::Result::Noop);
+  buf = record_reader.BeginReceive();
+  ASSERT_EQ(buf.size, 1);
+  memcpy(buf.data, "2", 1);
+  ASSERT_EQ(record_reader.EndReceive(1, &record),
+            RecordReader::Result::RecordReceived);
+  ASSERT_EQ(record.size, 2);
+  ASSERT_EQ(record.data[0], '1');
+  ASSERT_EQ(record.data[1], '2');
 }
 
 }  // namespace
