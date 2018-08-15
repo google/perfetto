@@ -46,11 +46,15 @@ std::unique_ptr<Table::Cursor> ProcessTable::CreateCursor() {
 }
 
 int ProcessTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
-  for (const auto& constraint : qc.constraints()) {
-    // Add a cost of 10 for filtering on upid (because we can do that
-    // efficiently) and 100 otherwise.
-    info->estimated_cost += constraint.iColumn == Column::kUpid ? 10 : 100;
+  info->estimated_cost = static_cast<uint32_t>(storage_->process_count());
+
+  // If the query has a constraint on the |upid| field, return a reduced cost
+  // because we can do that filter efficiently.
+  const auto& constraints = qc.constraints();
+  if (constraints.size() == 1 && constraints.front().iColumn == Column::kUpid) {
+    info->estimated_cost = IsOpEq(constraints.front().op) ? 1 : 10;
   }
+
   return SQLITE_OK;
 }
 
@@ -95,15 +99,15 @@ int ProcessTable::Cursor::Filter(const QueryConstraints& qc,
       // Set the range of upids that we are interested in, based on the
       // constraints in the query. Everything between min and max (inclusive)
       // will be returned.
-      if (IsOpGe(cs.op) || IsOpGt(cs.op)) {
+      if (IsOpEq(cs.op)) {
+        upid_filter_.min = constraint_upid;
+        upid_filter_.max = constraint_upid;
+      } else if (IsOpGe(cs.op) || IsOpGt(cs.op)) {
         upid_filter_.min =
             IsOpGt(cs.op) ? constraint_upid + 1 : constraint_upid;
       } else if (IsOpLe(cs.op) || IsOpLt(cs.op)) {
         upid_filter_.max =
             IsOpLt(cs.op) ? constraint_upid - 1 : constraint_upid;
-      } else if (IsOpEq(cs.op)) {
-        upid_filter_.min = constraint_upid;
-        upid_filter_.max = constraint_upid;
       }
     }
   }
