@@ -144,4 +144,4 @@ Enables [Thread Sanitizer](https://github.com/google/sanitizers/wiki/ThreadSanit
 Enables [Undefined Behavior Sanitizer](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
 
 
-[gn-quickstart]: https://chromium.googlesource.com/chromium/src/+/master/tools/gn/docs/quick_start.md
+[gn-quickstart]: https://gn.googlesource.com/gn/+/master/docs/quick_start.md
