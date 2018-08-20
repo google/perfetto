@@ -62,7 +62,7 @@ class QueryConstraints {
 
   // Converts the constraints and order by information to a string for
   // use by sqlite.
-  SqliteString ToNewSqlite3String();
+  SqliteString ToNewSqlite3String() const;
 
   // Deserializes the string into QueryConstraints. String given is in the form
   // C{# of constraints},col1,op1,col2,op2...,O{# of order by},col1,desc1...

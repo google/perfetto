@@ -71,7 +71,7 @@ void QueryConstraints::AddOrderBy(int column, unsigned char desc) {
   order_by_.emplace_back(ob);
 }
 
-QueryConstraints::SqliteString QueryConstraints::ToNewSqlite3String() {
+QueryConstraints::SqliteString QueryConstraints::ToNewSqlite3String() const {
   std::string str_result;
   str_result.reserve(512);
   str_result.append("C");

@@ -93,7 +93,8 @@ SchedSliceTable::SchedSliceTable(const TraceStorage* storage)
 void SchedSliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<SchedSliceTable>(db, storage,
                                    "CREATE TABLE sched("
-                                   "_quantum HIDDEN BIG INT, "
+                                   "quantum HIDDEN BIG INT, "
+                                   "ts_lower_bound HIDDEN BIG INT, "
                                    "ts UNSIGNED BIG INT, "
                                    "cpu UNSIGNED INT, "
                                    "dur UNSIGNED BIG INT, "
@@ -109,6 +110,19 @@ std::unique_ptr<Table::Cursor> SchedSliceTable::CreateCursor() {
 
 int SchedSliceTable::BestIndex(const QueryConstraints& qc,
                                BestIndexInfo* info) {
+  // Omit SQLite constraint checks on the hidden columns, so the client can
+  // write queries of the form "quantum == x" and "ts_lower_bound == x".
+  // Disallow any other constraint on these columns.
+  for (size_t i = 0; i < qc.constraints().size(); i++) {
+    const auto& cs = qc.constraints()[i];
+    if (cs.iColumn == Column::kTimestampLowerBound ||
+        cs.iColumn == Column::kQuantizedGroup) {
+      if (!IsOpEq(cs.op))
+        return SQLITE_CONSTRAINT_FUNCTION;
+      info->omit[i] = true;
+    }
+  }
+
   bool is_quantized_group_order_desc = false;
   bool is_duration_timestamp_order = false;
   for (const auto& ob : qc.order_by()) {
@@ -244,6 +258,7 @@ SchedSliceTable::FilterState::FilterState(
 
   uint64_t min_ts = 0;
   uint64_t max_ts = std::numeric_limits<uint64_t>::max();
+  uint64_t ts_lower_bound = 0;
 
   for (size_t i = 0; i < query_constraints.constraints().size(); i++) {
     const auto& cs = query_constraints.constraints()[i];
@@ -253,6 +268,9 @@ SchedSliceTable::FilterState::FilterState(
         break;
       case Column::kQuantum:
         quantum_ = static_cast<uint64_t>(sqlite3_value_int64(argv[i]));
+        break;
+      case Column::kTimestampLowerBound:
+        ts_lower_bound = static_cast<uint64_t>(sqlite3_value_int64(argv[i]));
         break;
       case Column::kTimestamp: {
         auto ts = static_cast<uint64_t>(sqlite3_value_int64(argv[i]));
@@ -266,7 +284,36 @@ SchedSliceTable::FilterState::FilterState(
     }
   }
 
-  // First setup CPU filtering because the trace storage is indexed by CPU.
+  // If the query specifies a lower bound on ts, find that bound across all
+  // CPUs involved in the query and turn that into a min_ts constraint.
+  // ts_lower_bound is defined as the largest timestamp < X, or if none, the
+  // smallest timestamp >= X.
+  if (ts_lower_bound > 0) {
+    uint64_t largest_ts_before = 0;
+    uint64_t smallest_ts_after = std::numeric_limits<uint64_t>::max();
+    for (uint32_t cpu = 0; cpu < base::kMaxCpus; cpu++) {
+      if (!cpu_filter.test(cpu))
+        continue;
+      const auto& start_ns = storage_->SlicesForCpu(cpu).start_ns();
+      // std::lower_bound will find the first timestamp >= |ts_lower_bound|.
+      // From there we need to move one back, if possible.
+      auto it =
+          std::lower_bound(start_ns.begin(), start_ns.end(), ts_lower_bound);
+      if (std::distance(start_ns.begin(), it) > 0)
+        it--;
+      if (it == start_ns.end())
+        continue;
+      if (*it < ts_lower_bound) {
+        largest_ts_before = std::max(largest_ts_before, *it);
+      } else {
+        smallest_ts_after = std::min(smallest_ts_after, *it);
+      }
+    }
+    uint64_t lower_bound = std::min(largest_ts_before, smallest_ts_after);
+    min_ts = std::max(min_ts, lower_bound);
+  }  // if (ts_lower_bound)
+
+  // Setup CPU filtering because the trace storage is indexed by CPU.
   for (uint32_t cpu = 0; cpu < base::kMaxCpus; cpu++) {
     if (!cpu_filter.test(cpu))
       continue;
@@ -356,7 +403,8 @@ int SchedSliceTable::FilterState::CompareSlicesOnColumn(
   const auto& s_sl = storage_->SlicesForCpu(s_cpu);
   switch (ob.iColumn) {
     case SchedSliceTable::Column::kQuantum:
-      return 0;
+    case SchedSliceTable::Column::kTimestampLowerBound:
+      PERFETTO_CHECK(false);
     case SchedSliceTable::Column::kTimestamp:
       return Compare(f_sl.start_ns()[f_idx], s_sl.start_ns()[s_idx], ob.desc);
     case SchedSliceTable::Column::kDuration:
