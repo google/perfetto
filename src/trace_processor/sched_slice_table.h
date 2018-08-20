@@ -35,11 +35,12 @@ class SchedSliceTable : public Table {
  public:
   enum Column {
     kQuantum = 0,
-    kTimestamp = 1,
-    kCpu = 2,
-    kDuration = 3,
-    kQuantizedGroup = 4,
-    kUtid = 5
+    kTimestampLowerBound = 1,
+    kTimestamp = 2,
+    kCpu = 3,
+    kDuration = 4,
+    kQuantizedGroup = 5,
+    kUtid = 6
   };
 
   SchedSliceTable(const TraceStorage* storage);
