@@ -43,6 +43,8 @@ void SliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
                               "parent_stack_id UNSIGNED BIG INT,"
                               "PRIMARY KEY(utid, ts, depth)"
                               ") WITHOUT ROWID;");
+  // TODO(primiano): add support for ts_lower_bound. It requires the guarantee
+  // that slices are pushed in the storage monotonically.
 }
 
 std::unique_ptr<Table::Cursor> SliceTable::CreateCursor() {
