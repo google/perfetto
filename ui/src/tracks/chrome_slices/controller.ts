@@ -12,84 +12,81 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../base/logging';
-import {rawQueryResultIter} from '../../common/protos';
+import {fromNs} from '../../common/time';
+import {globals} from '../../controller/globals';
 import {
-  Engine,
-  PublishFn,
   TrackController,
-  TrackState
-} from '../../controller/track_controller';
-import {
   trackControllerRegistry
-} from '../../controller/track_controller_registry';
+} from '../../controller/track_controller';
 
-import {ChromeSlice, TRACK_KIND} from './common';
+import {ChromeSliceTrackData, SLICE_TRACK_KIND} from './common';
 
-// Need this because some values in query result is string|number.
-function convertToNumber(x: string|number): number {
-  // tslint:disable-next-line:ban Temporary. parseInt banned by style guide.
-  return typeof x === 'number' ? x : parseInt(x, 10);
-}
-
-// TODO(hjd): Too much bolierplate here. Prehaps TrackController/Track
-// should be an interface and we provide a TrackControllerBase/TrackBase
-// you can inherit from which does the basic things.
 class ChromeSliceTrackController extends TrackController {
-  static readonly kind = TRACK_KIND;
+  static readonly kind = SLICE_TRACK_KIND;
+  private busy = false;
 
-  static create(config: TrackState, engine: Engine, publish: PublishFn):
-      TrackController {
-    return new ChromeSliceTrackController(
-        engine,
-        // TODO: Remove assertExists once we have typecheked kind specific
-        // state.
-        assertExists(config.utid),
-        publish);
-  }
+  onBoundsChange(start: number, end: number, resolution: number) {
+    // TODO: we should really call TraceProcessor.Interrupt() at this point.
+    if (this.busy) return;
+    const LIMIT = 10000;
 
-  // TODO: This publish function should be better typed to only accept
-  // CpuSliceTrackData. Perhaps we can do PublishFn<T>.
-  private publish: PublishFn;
+    // TODO: "ts >= x - dur" below is inefficient because doesn't allow to use
+    // any index. We need to introduce ts_lower_bound also for the slices table
+    // (see sched table).
+    const query = `select ts,dur,depth,cat,name from slices ` +
+        `where utid = ${this.trackState.utid} ` +
+        `and ts >= ${Math.round(start * 1e9)} - dur ` +
+        `and ts <= ${Math.round(end * 1e9)} ` +
+        `and dur >= ${Math.round(resolution * 1e9)} ` +
+        `order by ts ` +
+        `limit ${LIMIT};`;
 
-  constructor(
-      private engine: Engine, private utid: number, publish: PublishFn) {
-    super();
-    this.publish = publish;
-    this.init();
-  }
+    this.busy = true;
+    console.log(query);
+    this.engine.rawQuery({'sqlQuery': query}).then(rawResult => {
+      this.busy = false;
+      if (rawResult.error) {
+        throw new Error(`Query error "${query}": ${rawResult.error}`);
+      }
 
-  async init() {
-    const query =
-        `select ts, dur, name, cat, depth from slices where utid = ${
-                                                                     this.utid
-                                                                   };`;
-    const rawResult = await this.engine.rawQuery({'sqlQuery': query});
-    // TODO(dproy): Remove.
-    const result = [...rawQueryResultIter(rawResult)];
-    const slices: ChromeSlice[] = [];
+      const numRows = +rawResult.numRecords;
 
-    // TODO: We need better time origin handling.
-    if (result.length === 0) return;
-    const firstTimestamp = convertToNumber(result[0].ts);
-
-    for (const row of result) {
-      const start = convertToNumber(row.ts) - firstTimestamp;
-      const end = start + convertToNumber(row.dur);
-      slices.push({
+      const slices: ChromeSliceTrackData = {
         start,
         end,
-        title: (row.name as string),
-        category: (row.cat as string),
-        depth: convertToNumber(row.depth)
-      });
-    }
+        resolution,
+        strings: [],
+        starts: new Float64Array(numRows),
+        ends: new Float64Array(numRows),
+        depths: new Uint16Array(numRows),
+        titles: new Uint16Array(numRows),
+        categories: new Uint16Array(numRows),
+      };
 
-    this.publish({slices});
-  }
+      const stringIndexes = new Map<string, number>();
+      function internString(str: string) {
+        let idx = stringIndexes.get(str);
+        if (idx !== undefined) return idx;
+        idx = slices.strings.length;
+        slices.strings.push(str);
+        stringIndexes.set(str, idx);
+        return idx;
+      }
 
-  onBoundsChange(_start: number, _end: number): void {
-    // TODO: Implement.
+      for (let row = 0; row < numRows; row++) {
+        const cols = rawResult.columns;
+        const startSec = fromNs(+cols[0].longValues![row]);
+        slices.starts[row] = startSec;
+        slices.ends[row] = startSec + fromNs(+cols[1].longValues![row]);
+        slices.depths[row] = +cols[2].longValues![row];
+        slices.categories[row] = internString(cols[3].stringValues![row]);
+        slices.titles[row] = internString(cols[4].stringValues![row]);
+      }
+      if (numRows === LIMIT) {
+        slices.end = slices.ends[slices.ends.length - 1];
+      }
+      globals.publish('TrackData', {id: this.trackId, data: slices});
+    });
   }
 }
 

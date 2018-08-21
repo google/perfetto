@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {State} from '../common/state';
+import {createEmptyState, State} from '../common/state';
 
 // TODO(hjd): Type check this better.
 // tslint:disable-next-line no-any
@@ -25,11 +25,9 @@ export function rootReducer(state: State, action: any): State {
     }
 
     case 'OPEN_TRACE_FROM_FILE': {
-      const nextState = {...state};
-      nextState.engines = {...state.engines};
-      const id = `${nextState.nextId++}`;
-      nextState.engines[id] = {
-        id,
+      const nextState = createEmptyState();
+      nextState.engines[action.id] = {
+        id: action.id,
         ready: false,
         source: action.file,
       };
@@ -39,11 +37,9 @@ export function rootReducer(state: State, action: any): State {
     }
 
     case 'OPEN_TRACE_FROM_URL': {
-      const nextState = {...state};
-      nextState.engines = {...state.engines};
-      const id = `${nextState.nextId++}`;
-      nextState.engines[id] = {
-        id,
+      const nextState = createEmptyState();
+      nextState.engines[action.id] = {
+        id: action.id,
         ready: false,
         source: action.url,
       };
@@ -64,6 +60,24 @@ export function rootReducer(state: State, action: any): State {
         cpu: action.cpu,
       };
       nextState.displayedTrackIds.push(id);
+      return nextState;
+    }
+
+    case 'REQ_TRACK_DATA': {
+      const nextState = {...state};
+      nextState.tracks = {...state.tracks};
+      nextState.tracks[action.trackId].dataReq = {
+        start: action.start,
+        end: action.end,
+        resolution: action.resolution
+      };
+      return nextState;
+    }
+
+    case 'CLEAR_TRACK_DATA_REQ': {
+      const nextState = {...state};
+      nextState.tracks = {...state.tracks};
+      nextState.tracks[action.trackId].dataReq = undefined;
       return nextState;
     }
 
@@ -131,15 +145,28 @@ export function rootReducer(state: State, action: any): State {
     case 'SET_ENGINE_READY': {
       const nextState = {...state};  // Creates a shallow copy.
       nextState.engines = {...state.engines};
-      nextState.engines[action.engineId].ready = true;
+      nextState.engines[action.engineId].ready = action.ready;
       return nextState;
     }
 
     case 'CREATE_PERMALINK': {
       const nextState = {...state};
-      nextState.permalink = {
-        state,
-      };
+      nextState.permalink = {requestId: action.requestId, hash: undefined};
+      return nextState;
+    }
+
+    case 'SET_PERMALINK': {
+      // Drop any links for old requests.
+      if (state.permalink.requestId !== action.requestId) return state;
+
+      const nextState = {...state};
+      nextState.permalink = {requestId: action.requestId, hash: action.hash};
+      return nextState;
+    }
+
+    case 'LOAD_PERMALINK': {
+      const nextState = {...state};
+      nextState.permalink = {requestId: action.requestId, hash: action.hash};
       return nextState;
     }
 
@@ -151,6 +178,21 @@ export function rootReducer(state: State, action: any): State {
       const nextState = {...state};
       nextState.traceTime.startSec = action.startSec;
       nextState.traceTime.endSec = action.endSec;
+      nextState.traceTime.lastUpdate = action.lastUpdate;
+      return nextState;
+    }
+
+    case 'SET_VISIBLE_TRACE_TIME': {
+      const nextState = {...state};
+      nextState.visibleTraceTime.startSec = action.startSec;
+      nextState.visibleTraceTime.endSec = action.endSec;
+      nextState.visibleTraceTime.lastUpdate = action.lastUpdate;
+      return nextState;
+    }
+
+    case 'UPDATE_STATUS': {
+      const nextState = {...state};
+      nextState.status = {msg: action.msg, timestamp: action.timestamp};
       return nextState;
     }
 

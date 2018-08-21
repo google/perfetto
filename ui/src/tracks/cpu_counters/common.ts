@@ -12,4 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export const TRACK_KIND = 'CpuCounterTrack';
+export const CPU_COUNTER_TRACK_KIND = 'CpuCounterTrack';

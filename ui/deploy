@@ -26,6 +26,7 @@ UI_DIST_DIR="$OUT_DIR/ui-dist"
 
 CLEAN_OUT_DIR=true
 DEPLOY_PROD=false
+DEPLOY_STAGING=false
 
 while [[ $# -gt 0 ]]; do
   key="$1"
@@ -38,10 +39,15 @@ while [[ $# -gt 0 ]]; do
       DEPLOY_PROD=true
       shift
       ;;
+      --staging)
+      DEPLOY_STAGING=true
+      shift
+      ;;
       -h|--help)
-      echo "Usage: $0 [--no-clean] [--prod]"
+      echo "Usage: $0 [--no-clean] [--prod] [--staging]"
       echo "    --no-clean  Don't remove $OUT_DIR"
       echo "    --prod      Deploy prod version"
+      echo "    --staging   Deploy staging version"
       echo "    -h|--help   Display this message"
       exit 0
       shift
@@ -80,15 +86,18 @@ handlers:
   upload: static/(.*)
 EOF
 
-echo_and_do ln -s ../ui $UI_DIST_DIR/static
+echo_and_do ln -fs ../ui $UI_DIST_DIR/static
 
 (
   echo_and_do cd "$UI_DIST_DIR";
   if [ "$DEPLOY_PROD" = true ]; then
-    echo_and_do gcloud app deploy app.yaml --project perfetto-ui -v testing
+    echo_and_do gcloud app deploy app.yaml --project perfetto-ui -v prod
+  elif [ "$DEPLOY_STAGING" = true ]; then
+    echo_and_do gcloud app deploy app.yaml --project perfetto-ui \
+        -v staging --no-promote --stop-previous-version
   else
     echo_and_do gcloud app deploy app.yaml --project perfetto-ui \
-      -v $USER --no-promote
+        -v $USER --no-promote --stop-previous-version
   fi
 )
 
