@@ -86,15 +86,31 @@ source_set("lib") {
   }
 }
 
-executable("trace_processor_shell") {
+if (current_toolchain == host_toolchain) {
+  executable("trace_processor_shell_host") {
+    deps = [
+      ":lib",
+      "../../gn:default_deps",
+      "../../protos/perfetto/trace_processor:lite",
+      "../base",
+    ]
+    sources = [
+      "trace_processor_shell.cc",
+    ]
+  }
+}
+
+copy("trace_processor_shell") {
+  host_out_dir_ = get_label_info(":trace_processor_shell_host($host_toolchain)",
+                                 "root_out_dir")
   deps = [
-    ":lib",
-    "../../gn:default_deps",
-    "../../protos/perfetto/trace_processor:lite",
-    "../base",
+    ":trace_processor_shell_host($host_toolchain)",
   ]
   sources = [
-    "trace_processor_shell.cc",
+    "${host_out_dir_}/trace_processor_shell_host",
+  ]
+  outputs = [
+    "${root_out_dir}/trace_processor_shell",
   ]
 }
 

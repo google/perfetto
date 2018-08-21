@@ -73,6 +73,9 @@ class TraceProcessor {
   base::WeakPtrFactory<TraceProcessor> weak_factory_;  // Keep last.
 };
 
+// When set, logs SQLite actions on the console.
+void EnableSQLiteVtableDebugging();
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
