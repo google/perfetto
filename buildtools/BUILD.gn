@@ -136,6 +136,7 @@ config("protobuf_config") {
       "-Wno-unknown-warning-option",
       "-Wno-enum-compare-switch",
       "-Wno-user-defined-warnings",
+      "-Wno-tautological-constant-compare",
     ]
   }
 }
