@@ -28,7 +28,7 @@ declare_args() {
 
 declare_args() {
   android_llvm_dir = "$android_ndk_root/toolchains/llvm/prebuilt/$android_host"
-  android_clangrt_dir = "$android_llvm_dir/lib64/clang/5.0/lib/linux"
+  android_clangrt_dir = "$android_llvm_dir/lib64/clang/6.0.2/lib/linux"
   android_compile_sysroot = "$android_ndk_root/sysroot/usr/include"
 
   if (current_cpu == "x86") {
