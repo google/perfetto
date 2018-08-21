@@ -14,7 +14,7 @@
 
 import {assertExists} from '../base/logging';
 import {Action} from '../common/actions';
-import {State} from '../common/state';
+import {createEmptyState, State} from '../common/state';
 
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
@@ -22,6 +22,22 @@ import {RafScheduler} from './raf_scheduler';
 type Dispatch = (action: Action) => void;
 type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}>;
+
+export interface QuantizedLoad {
+  startSec: number;
+  endSec: number;
+  load: number;
+}
+type OverviewStore = Map<string, QuantizedLoad[]>;
+
+export interface ThreadDesc {
+  utid: number;
+  tid: number;
+  threadName: string;
+  pid: number;
+  procName: string;
+}
+type ThreadMap = Map<number, ThreadDesc>;
 
 /**
  * Global accessors for state/dispatch in the frontend.
@@ -33,17 +49,18 @@ class Globals {
   private _queryResults?: QueryResultsStore = undefined;
   private _frontendLocalState?: FrontendLocalState = undefined;
   private _rafScheduler?: RafScheduler = undefined;
+  private _overviewStore?: OverviewStore = undefined;
+  private _threadMap?: ThreadMap = undefined;
 
-  initialize(
-      dispatch?: Dispatch, state?: State, trackDataStore?: TrackDataStore,
-      queryResults?: QueryResultsStore, frontendLocalState?: FrontendLocalState,
-      rafScheduler?: RafScheduler) {
+  initialize(dispatch?: Dispatch) {
     this._dispatch = dispatch;
-    this._state = state;
-    this._trackDataStore = trackDataStore;
-    this._queryResults = queryResults;
-    this._frontendLocalState = frontendLocalState;
-    this._rafScheduler = rafScheduler;
+    this._state = createEmptyState();
+    this._trackDataStore = new Map<string, {}>();
+    this._queryResults = new Map<string, {}>();
+    this._frontendLocalState = new FrontendLocalState();
+    this._rafScheduler = new RafScheduler();
+    this._overviewStore = new Map<string, QuantizedLoad[]>();
+    this._threadMap = new Map<number, ThreadDesc>();
   }
 
   get state(): State {
@@ -56,6 +73,10 @@ class Globals {
 
   get dispatch(): Dispatch {
     return assertExists(this._dispatch);
+  }
+
+  get overviewStore(): OverviewStore {
+    return assertExists(this._overviewStore);
   }
 
   get trackDataStore(): TrackDataStore {
@@ -74,9 +95,18 @@ class Globals {
     return assertExists(this._rafScheduler);
   }
 
+  get threads() {
+    return assertExists(this._threadMap);
+  }
+
   resetForTesting() {
-    this.initialize(
-        undefined, undefined, undefined, undefined, undefined, undefined);
+    this._dispatch = undefined;
+    this._state = undefined;
+    this._trackDataStore = undefined;
+    this._queryResults = undefined;
+    this._frontendLocalState = undefined;
+    this._rafScheduler = undefined;
+    this._overviewStore = undefined;
   }
 }
 

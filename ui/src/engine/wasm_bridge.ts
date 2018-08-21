@@ -84,6 +84,11 @@ export class WasmBridge {
       throw new Error('No blob set');
     }
     const slice = this.blob.slice(offset, offset + length);
+
+    // TODO: loading progress should be propagated to the UI.
+    const completion = (offset + slice.size) / this.blob.size;
+    console.log(`Loading ${Math.floor(completion * 100)} %`);
+
     const buf: ArrayBuffer = this.fileReader.readAsArrayBuffer(slice);
     const buf8 = new Uint8Array(buf);
     this.connection.HEAPU8.set(buf8, dstPtr);

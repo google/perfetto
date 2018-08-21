@@ -17,13 +17,13 @@ import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
-import {TRACK_KIND} from './common';
+import {CPU_COUNTER_TRACK_KIND} from './common';
 
 /**
  * Demo track as so we can at least have two kinds of tracks.
  */
 class CpuCounterTrack extends Track {
-  static readonly kind = TRACK_KIND;
+  static readonly kind = CPU_COUNTER_TRACK_KIND;
   static create(trackState: TrackState): CpuCounterTrack {
     return new CpuCounterTrack(trackState);
   }
