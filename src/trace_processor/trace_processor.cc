@@ -86,15 +86,16 @@ void TraceProcessor::ExecuteQuery(
   int err = sqlite3_prepare_v2(*db_, sql.c_str(), static_cast<int>(sql.size()),
                                &raw_stmt, nullptr);
   ScopedStmt stmt(raw_stmt);
-  if (err) {
-    proto.set_error(sqlite3_errmsg(*db_));
-    callback(std::move(proto));
-    return;
-  }
-
   int col_count = sqlite3_column_count(*stmt);
   int row_count = 0;
-  for (int r = sqlite3_step(*stmt); r == SQLITE_ROW; r = sqlite3_step(*stmt)) {
+  while (!err) {
+    int r = sqlite3_step(*stmt);
+    if (r != SQLITE_ROW) {
+      if (r != SQLITE_DONE)
+        err = r;
+      break;
+    }
+
     for (int i = 0; i < col_count; i++) {
       if (row_count == 0) {
         // Setup the descriptors.
@@ -136,14 +137,17 @@ void TraceProcessor::ExecuteQuery(
     }
     row_count++;
   }
+
+  if (err) {
+    proto.set_error(sqlite3_errmsg(*db_));
+    callback(std::move(proto));
+    return;
+  }
+
   proto.set_num_records(static_cast<uint64_t>(row_count));
 
   if (query_interrupted_.load()) {
     PERFETTO_ELOG("SQLite query interrupted");
-    // Calling sqlite3_interrupt will implicitly finalize the statement.
-    // Releasing it here in order to avoid hitting the CHECK in scoped_file.h.
-    sqlite3_stmt* released_stmt = stmt.release();
-    PERFETTO_DCHECK(sqlite3_finalize(released_stmt) != SQLITE_OK);
     query_interrupted_ = false;
   }
 

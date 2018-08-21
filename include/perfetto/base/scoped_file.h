@@ -37,7 +37,10 @@ namespace perfetto {
 namespace base {
 
 // RAII classes for auto-releasing fds and dirs.
-template <typename T, int (*CloseFunction)(T), T InvalidValue>
+template <typename T,
+          int (*CloseFunction)(T),
+          T InvalidValue,
+          bool CheckClose = true>
 class ScopedResource {
  public:
   explicit ScopedResource(T t = InvalidValue) : t_(t) {}
@@ -56,7 +59,8 @@ class ScopedResource {
   void reset(T r = InvalidValue) {
     if (t_ != InvalidValue) {
       int res = CloseFunction(t_);
-      PERFETTO_CHECK(res == 0);
+      if (CheckClose)
+        PERFETTO_CHECK(res == 0);
     }
     t_ = r;
   }
