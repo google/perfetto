@@ -23,7 +23,7 @@ export function drawGridLines(
     x: TimeScale,
     timeSpan: TimeSpan,
     height: number): void {
-  const width = x.timeToPx(timeSpan.duration);
+  const width = x.deltaTimeToPx(timeSpan.duration);
   const desiredSteps = width / DESIRED_PX_PER_STEP;
   const step = getGridStepSize(timeSpan.duration, desiredSteps);
   const start = Math.round(timeSpan.start / step) * step;

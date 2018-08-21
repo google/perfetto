@@ -36,6 +36,10 @@ export class TimeScale {
     this.secPerPx = this.timeBounds.duration / (this.endPx - this.startPx);
   }
 
+  deltaTimeToPx(time: number): number {
+    return Math.round(time / this.secPerPx);
+  }
+
   timeToPx(time: number): number {
     return this.startPx + (time - this.timeBounds.start) / this.secPerPx;
   }

@@ -12,14 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export const TRACK_KIND = 'ChromeSliceTrack';
+export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 
-export interface ChromeSlice {
+export interface ChromeSliceTrackData {
   start: number;
   end: number;
-  title: string;
-  depth: number;
-  category: string;
-}
+  resolution: number;
 
-export interface ChromeSliceTrackData { slices: ChromeSlice[]; }
+  // Slices are stored in a columnar fashion. All fields have the same length.
+  strings: string[];
+  starts: Float64Array;
+  ends: Float64Array;
+  depths: Uint16Array;
+  titles: Uint16Array;      // Index in |strings|.
+  categories: Uint16Array;  // Index in |strings|.
+}
