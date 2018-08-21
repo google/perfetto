@@ -51,11 +51,11 @@ void PrintPrompt() {
 }
 
 void OnQueryResult(base::TimeNanos t_start, const protos::RawQueryResult& res) {
-  PERFETTO_CHECK(res.columns_size() == res.column_descriptors_size());
   if (res.has_error()) {
     PERFETTO_ELOG("SQLite error: %s", res.error().c_str());
     return;
   }
+  PERFETTO_CHECK(res.columns_size() == res.column_descriptors_size());
 
   base::TimeNanos t_end = base::GetWallTimeNs();
 
