@@ -17,7 +17,7 @@ This doc should:
 - Explain the API surface:
   - [producer.h](/include/perfetto/tracing/core/producer.h)
   - [consumer.h](/include/perfetto/tracing/core/consumer.h)
-  - [service.h](/include/perfetto/tracing/core/service.h)
+  - [service.h](/include/perfetto/tracing/core/tracing_service.h)
 - Explain the ABI surface:
   - [shared_memory_abi.h](/include/perfetto/tracing/core/shared_memory_abi.h)
   - IPC's [wire protocol](/src/ipc/wire_protocol.proto) (if used)

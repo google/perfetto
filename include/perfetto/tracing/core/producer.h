@@ -33,7 +33,7 @@ class SharedMemory;
 // 2. The service acknowledges the connection and sends over the SharedMemory
 //    region that will be used to exchange data (together with the signalling
 //    API TracingService::ProducerEndpoint::OnPageAcquired()/OnPageReleased()).
-// 3. At some point later on, the Service asks the Producer to on turn some of
+// 3. At some point later on, the Service asks the Producer to turn on some of
 //    the previously registered data sources, together with some configuration
 //    parameters. This happens via the CreateDataSourceInstance() callback.
 // 4. In response to that the Producer will spawn an instance of the given data
