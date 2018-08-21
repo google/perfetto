@@ -29,6 +29,7 @@
 #include "src/trace_processor/sched_tracker.h"
 #include "src/trace_processor/slice_table.h"
 #include "src/trace_processor/string_table.h"
+#include "src/trace_processor/table.h"
 #include "src/trace_processor/thread_table.h"
 
 #include "perfetto/trace_processor/raw_query.pb.h"
@@ -170,6 +171,13 @@ void TraceProcessor::InterruptQuery() {
     return;
   query_interrupted_.store(true);
   sqlite3_interrupt(db_.get());
+}
+
+// static
+void EnableSQLiteVtableDebugging() {
+  // This level of indirection is required to avoid clients to depend on table.h
+  // which in turn requires sqlite headers.
+  Table::debug = true;
 }
 
 }  // namespace trace_processor
