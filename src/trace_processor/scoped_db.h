@@ -30,8 +30,10 @@ namespace perfetto {
 namespace trace_processor {
 
 using ScopedDb = base::ScopedResource<sqlite3*, sqlite3_close, nullptr>;
-using ScopedStmt =
-    base::ScopedResource<sqlite3_stmt*, sqlite3_finalize, nullptr>;
+using ScopedStmt = base::ScopedResource<sqlite3_stmt*,
+                                        sqlite3_finalize,
+                                        nullptr,
+                                        /*CheckClose=*/false>;
 
 }  // namespace trace_processor
 }  // namespace perfetto
