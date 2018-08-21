@@ -15,15 +15,15 @@
 import {assertTrue} from '../base/logging';
 
 export function timeToString(sec: number) {
-  const units = ['ms', 'us', 'ns'];
+  const units = ['s', 'ms', 'us', 'ns'];
   const sign = Math.sign(sec);
-  let n = Math.abs(sec) * 1000;
+  let n = Math.abs(sec);
   let u = 0;
-  while (n < 1 && u !== 0 && u < units.length - 1) {
+  while (n < 1 && n !== 0 && u < units.length - 1) {
     n *= 1000;
     u++;
   }
-  return `${sign < 0 ? '-' : ''}${Math.round(n * 1000) / 1000} ${units[u]}`;
+  return `${sign < 0 ? '-' : ''}${Math.round(n * 10) / 10} ${units[u]}`;
 }
 
 export function fromNs(ns: number) {

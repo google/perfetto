@@ -113,8 +113,6 @@ export class TrackPanel implements Panel {
         globals.frontendLocalState.visibleWindowTime,
         this.track.getHeight());
 
-    const trackData = globals.trackDataStore.get(this.trackState.id);
-    if (trackData !== undefined) this.track.consumeData(trackData);
     this.track.renderCanvas(ctx);
   }
 }

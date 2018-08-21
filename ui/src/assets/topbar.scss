@@ -82,6 +82,17 @@
                 padding-top: 5px;
             }
         }
+        &.message-mode {
+            background-color: hsl(0, 0%, 89%);
+            border-radius: 4px;
+            input::placeholder {
+                font-weight: 400;
+                color: hsl(213, 40%, 50%);
+            }
+            &:before {
+                content: 'bubble_chart';
+            }
+        }
     }
     .omnibox-results {
         @include transition(0.25s);

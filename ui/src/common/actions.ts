@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import {State} from './state';
+import {TimeSpan} from './time';
 export interface Action { type: string; }
 
 export function openTraceFromUrl(url: string) {
   return {
     type: 'OPEN_TRACE_FROM_URL',
+    id: new Date().toISOString(),
     url,
   };
 }
@@ -25,6 +27,7 @@ export function openTraceFromUrl(url: string) {
 export function openTraceFromFile(file: File) {
   return {
     type: 'OPEN_TRACE_FROM_FILE',
+    id: new Date().toISOString(),
     file,
   };
 }
@@ -37,6 +40,15 @@ export function addTrack(engineId: string, trackKind: string, cpu: number) {
     trackKind,
     cpu,
   };
+}
+
+export function requestTrackData(
+    trackId: string, start: number, end: number, resolution: number) {
+  return {type: 'REQ_TRACK_DATA', trackId, start, end, resolution};
+}
+
+export function clearTrackDataRequest(trackId: string) {
+  return {type: 'CLEAR_TRACK_DATA_REQ', trackId};
 }
 
 // TODO: There should be merged with addTrack above.
@@ -89,17 +101,20 @@ export function moveTrack(trackId: string, direction: 'up'|'down') {
   };
 }
 
-export function setEngineReady(engineId: string) {
-  return {
-    type: 'SET_ENGINE_READY',
-    engineId,
-  };
+export function setEngineReady(engineId: string, ready = true) {
+  return {type: 'SET_ENGINE_READY', engineId, ready};
 }
 
 export function createPermalink() {
-  return {
-    type: 'CREATE_PERMALINK',
-  };
+  return {type: 'CREATE_PERMALINK', requestId: new Date().toISOString()};
+}
+
+export function setPermalink(requestId: string, hash: string) {
+  return {type: 'SET_PERMALINK', requestId, hash};
+}
+
+export function loadPermalink(hash: string) {
+  return {type: 'LOAD_PERMALINK', requestId: new Date().toISOString(), hash};
 }
 
 export function setState(newState: State) {
@@ -109,6 +124,24 @@ export function setState(newState: State) {
   };
 }
 
-export function setTraceTime(startSec: number, endSec: number) {
-  return {type: 'SET_TRACE_TIME', startSec, endSec};
+export function setTraceTime(ts: TimeSpan) {
+  return {
+    type: 'SET_TRACE_TIME',
+    startSec: ts.start,
+    endSec: ts.end,
+    lastUpdate: Date.now() / 1000,
+  };
+}
+
+export function setVisibleTraceTime(ts: TimeSpan) {
+  return {
+    type: 'SET_VISIBLE_TRACE_TIME',
+    startSec: ts.start,
+    endSec: ts.end,
+    lastUpdate: Date.now() / 1000,
+  };
+}
+
+export function updateStatus(msg: string) {
+  return {type: 'UPDATE_STATUS', msg, timestamp: Date.now() / 1000};
 }

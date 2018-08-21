@@ -18,7 +18,6 @@ import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {Panel} from './panel';
 import {TimeScale} from './time_scale';
-import {OVERVIEW_QUERY_ID} from './viewer_page';
 
 export class OverviewTimelinePanel implements Panel {
   private width?: number;
@@ -36,7 +35,7 @@ export class OverviewTimelinePanel implements Panel {
   updateDom(dom: HTMLElement) {
     this.width = dom.getBoundingClientRect().width;
     this.totTime = new TimeSpan(
-        0, globals.state.traceTime.endSec - globals.state.traceTime.startSec);
+        globals.state.traceTime.startSec, globals.state.traceTime.endSec);
     this.timeScale = new TimeScale(this.totTime, [0, this.width]);
 
     if (this.gesture === undefined) {
@@ -64,29 +63,30 @@ export class OverviewTimelinePanel implements Panel {
       if (xPos > this.width) break;
       if (i % 10 === 0) {
         ctx.fillRect(xPos, 0, 1, headerHeight - 5);
-        ctx.fillText(timeToString(t), xPos + 5, 18);
+        ctx.fillText(timeToString(t - this.totTime.start), xPos + 5, 18);
       } else {
         ctx.fillRect(xPos, 0, 1, 5);
       }
     }
 
     // Draw mini-tracks with quanitzed density for each process.
-    if (globals.queryResults.has(OVERVIEW_QUERY_ID)) {
-      const res: {[key: string]: {name: string, load: Uint8Array}} =
-          globals.queryResults.get(OVERVIEW_QUERY_ID)!;
-      const numProcs = Object.keys(res).length;
-      const hueStep = Math.floor(255 / numProcs);
+    if (globals.overviewStore.size > 0) {
+      const numTracks = globals.overviewStore.size;
+      let hue = 128;
       let y = 0;
-      const trackHeight = (tracksHeight - 2) / numProcs;
-      for (const upid of Object.keys(res)) {
-        const loads = res[upid].load;
-        const px = this.width / loads.length;
+      const trackHeight = (tracksHeight - 2) / numTracks;
+      for (const key of globals.overviewStore.keys()) {
+        const loads = globals.overviewStore.get(key)!;
         for (let i = 0; i < loads.length; i++) {
-          const lightness = Math.ceil((1 - loads[i] / 0xff * 0.7) * 100);
-          ctx.fillStyle = `hsl(${255 - y * hueStep}, 50%, ${lightness}%)`;
-          ctx.fillRect(i * px, headerHeight + y * trackHeight, px, trackHeight);
+          const xStart = this.timeScale.timeToPx(loads[i].startSec);
+          const xEnd = this.timeScale.timeToPx(loads[i].endSec);
+          const yOff = headerHeight + y * trackHeight;
+          const lightness = Math.ceil((1 - loads[i].load * 0.7) * 100);
+          ctx.fillStyle = `hsl(${hue}, 50%, ${lightness}%)`;
+          ctx.fillRect(xStart, yOff, xEnd - xStart, trackHeight);
         }
         y++;
+        hue = (hue + 32) % 256;
       }
     }
 
@@ -99,17 +99,17 @@ export class OverviewTimelinePanel implements Panel {
     const vizStartPx = this.timeScale.timeToPx(vizTime.start);
     const vizEndPx = this.timeScale.timeToPx(vizTime.end);
 
-    ctx.fillStyle = 'rgba(240, 240, 240, 0.7)';
+    ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
     ctx.fillRect(0, headerHeight, vizStartPx, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, this.width - vizEndPx, tracksHeight);
 
     // Draw brushes.
-    ctx.fillStyle = '#999';
-    ctx.fillRect(vizStartPx, headerHeight, 1, tracksHeight);
-    ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
     const handleWidth = 3;
     const handleHeight = 25;
     const y = headerHeight + (tracksHeight - handleHeight) / 2;
+    ctx.fillStyle = '#333';
+    ctx.fillRect(vizStartPx, headerHeight, 1, tracksHeight);
+    ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
     ctx.fillRect(vizStartPx - handleWidth, y, handleWidth, handleHeight);
     ctx.fillRect(vizEndPx + 1, y, handleWidth, handleHeight);
   }
