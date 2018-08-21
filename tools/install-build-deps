@@ -181,13 +181,13 @@ BUILD_DEPS_HOST = [
 BUILD_DEPS_ANDROID = [
   # Android NDK
   ('buildtools/ndk.zip',
-   'https://dl.google.com/android/repository/android-ndk-r15c-darwin-x86_64.zip',
-   'ea4b5d76475db84745aa8828000d009625fc1f98',
+   'https://dl.google.com/android/repository/android-ndk-r17b-darwin-x86_64.zip',
+   'f990aafaffec0b583d2c5420bfa622e52ac14248',
    'darwin'
   ),
   ('buildtools/ndk.zip',
-   'https://dl.google.com/android/repository/android-ndk-r15c-linux-x86_64.zip',
-   '0bf02d4e8b85fd770fd7b9b2cdec57f9441f27a2',
+   'https://dl.google.com/android/repository/android-ndk-r17b-linux-x86_64.zip',
+   'dd5762ee7ef4995ad04fe0c45a608c344d99ca9f',
    'linux2'
   ),
 ]
