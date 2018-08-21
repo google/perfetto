@@ -115,7 +115,7 @@ executable("perfetto_unittests") {
       "tools/sanitizers_unittests",
     ]
   }
-  if (build_standalone) {
+  if (build_standalone && current_toolchain == host_toolchain) {
     deps += [ "src/trace_processor:unittests" ]
   }
 }
