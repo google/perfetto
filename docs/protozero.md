@@ -25,4 +25,4 @@ within ProtoZero) of 4KB, and an average event size of 32 bytes, only 7 out of
 
 Other resources
 ---------------
-* [Design doc](https://goo.gl/EKvEfa])
+* [Design doc](https://goo.gl/EKvEfa)
