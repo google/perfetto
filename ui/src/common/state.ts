@@ -31,6 +31,13 @@ export interface TrackState {
   // chrome slice state:
   upid?: number;
   utid?: number;
+  dataReq?: TrackDataRequest;
+}
+
+export interface TrackDataRequest {
+  start: number;
+  end: number;
+  resolution: number;
 }
 
 export interface EngineConfig {
@@ -45,11 +52,20 @@ export interface QueryConfig {
   query: string;
 }
 
-export interface PermalinkConfig { state: State; }
+export interface PermalinkConfig {
+  requestId?: string;  // Set by the frontend to request a new permalink.
+  hash?: string;       // Set by the controller when the link has been created.
+}
 
 export interface TraceTime {
   startSec: number;
   endSec: number;
+  lastUpdate: number;  // Epoch in seconds (Date.now() / 1000).
+}
+
+export interface Status {
+  msg: string;
+  timestamp: number;  // Epoch in seconds (Date.now() / 1000).
 }
 
 export interface State {
@@ -61,10 +77,12 @@ export interface State {
    */
   engines: ObjectById<EngineConfig>;
   traceTime: TraceTime;
+  visibleTraceTime: TraceTime;
   tracks: ObjectById<TrackState>;
   displayedTrackIds: string[];
   queries: ObjectById<QueryConfig>;
-  permalink: null|PermalinkConfig;
+  permalink: PermalinkConfig;
+  status: Status;
 }
 
 export function createEmptyState(): State {
@@ -72,10 +90,12 @@ export function createEmptyState(): State {
     route: null,
     nextId: 0,
     engines: {},
-    traceTime: {startSec: 0, endSec: 10},
+    traceTime: {startSec: 0, endSec: 10, lastUpdate: 0},
+    visibleTraceTime: {startSec: 0, endSec: 10, lastUpdate: 0},
     tracks: {},
     displayedTrackIds: [],
     queries: {},
-    permalink: null,
+    permalink: {},
+    status: {msg: '', timestamp: 0},
   };
 }

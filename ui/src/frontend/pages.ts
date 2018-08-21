@@ -14,21 +14,17 @@
 
 import * as m from 'mithril';
 
-import {PERMALINK_ID} from '../common/permalinks';
 import {globals} from './globals';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 
 function renderPermalink(): m.Children {
-  if (!globals.state.permalink) {
-    return null;
-  }
-  const config =
-      globals.trackDataStore.get(PERMALINK_ID) as {} as {url: string};
-  const url = config ? config.url : null;
+  if (!globals.state.permalink.requestId) return null;
+  const hash = globals.state.permalink.hash;
+  const url = `${self.location.origin}#!/?s=${hash}`;
   return m(
       '.alert-permalink',
-      url ? ['Permalink: ', m(`a[href=${url}]`, url)] : 'Uploading...');
+      hash ? ['Permalink: ', m(`a[href=${url}]`, url)] : 'Uploading...');
 }
 
 const Alerts: m.Component = {

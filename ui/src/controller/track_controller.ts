@@ -12,32 +12,51 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackState} from '../common/state';
+import {assertExists} from '../base/logging';
+import {clearTrackDataRequest} from '../common/actions';
+import {Registry} from '../common/registry';
+import {Controller} from './controller';
+import {ControllerFactory} from './controller';
 import {Engine} from './engine';
+import {globals} from './globals';
 
-export interface PublishFn { (data: {}): void; }
+// TrackController is a base class overridden by track implementations (e.g.,
+// sched slices, nestable slices, counters).
+export abstract class TrackController extends Controller<'main'> {
+  readonly trackId: string;
+  readonly engine: Engine;
 
-/**
- * This interface forces track implementations to have two static properties:
- * kind and a create function.
- */
-export interface TrackControllerCreator {
-  // Store the kind explicitly as a string as opposed to using class.name in
-  // case we ever minify our code.
-  readonly kind: string;
+  constructor(args: TrackControllerArgs) {
+    super('main');
+    this.trackId = args.trackId;
+    this.engine = args.engine;
+  }
 
-  create(config: TrackState, engine: Engine, publish: PublishFn):
-      TrackController;
+  // Must be overridden by the track implementation. Is invoked when the track
+  // frontend runs out of cached data. The derived track controller is expected
+  // to publish new track data in response to this call.
+  abstract onBoundsChange(start: number, end: number, resolution: number): void;
+
+  get trackState() {
+    return assertExists(globals.state.tracks[this.trackId]);
+  }
+
+  run() {
+    const dataReq = this.trackState.dataReq;
+    if (dataReq === undefined) return;
+    globals.dispatch(clearTrackDataRequest(this.trackId));
+    this.onBoundsChange(dataReq.start, dataReq.end, dataReq.resolution);
+  }
 }
 
-export abstract class TrackController {
-  // TODO(hjd): Maybe this should be optional?
-  abstract onBoundsChange(start: number, end: number): void;
+export interface TrackControllerArgs {
+  trackId: string;
+  engine: Engine;
 }
 
-// Re-export these so track implementors don't have to import from several
-// files.
-export {
-  TrackState,
-  Engine,
-};
+export interface TrackControllerFactory extends
+    ControllerFactory<TrackControllerArgs> {
+  kind: string;
+}
+
+export const trackControllerRegistry = new Registry<TrackControllerFactory>();

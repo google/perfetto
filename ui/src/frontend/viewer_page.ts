@@ -23,8 +23,6 @@ import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {ScrollingPanelContainer} from './scrolling_panel_container';
 import {TRACK_SHELL_WIDTH} from './track_panel';
 
-export const OVERVIEW_QUERY_ID = 'overview_query';
-
 const MAX_ZOOM_SPAN_SEC = 1e-4;  // 0.1 ms.
 
 const QueryTable: m.Component<{}, {}> = {
@@ -50,7 +48,7 @@ const QueryTable: m.Component<{}, {}> = {
     return m(
         'div',
         m('header.overview',
-          `Query result - ${resp.durationMs} ms`,
+          `Query result - ${Math.round(resp.durationMs)} ms`,
           m('span.code', resp.query)),
         resp.error ?
             m('.query-error', `SQL error: ${resp.error}`) :
@@ -118,17 +116,20 @@ const TraceViewer = {
       element: panZoomEl,
       contentOffsetX: TRACK_SHELL_WIDTH,
       onPanned: (pannedPx: number) => {
-        let vizTime = globals.frontendLocalState.visibleWindowTime;
-        let tDelta = frontendLocalState.timeScale.deltaPxToDuration(pannedPx);
-        const maxTime = globals.state.traceTime;
-        tDelta -= Math.max(vizTime.end + tDelta - maxTime.endSec, 0);
-        if (vizTime.start + tDelta < maxTime.startSec) {
-          tDelta +=
-              Math.abs(tDelta) - Math.abs(vizTime.start - maxTime.startSec);
+        const traceTime = globals.state.traceTime;
+        const vizTime = globals.frontendLocalState.visibleWindowTime;
+        const origDelta = vizTime.duration;
+        const tDelta = frontendLocalState.timeScale.deltaPxToDuration(pannedPx);
+        let tStart = vizTime.start + tDelta;
+        let tEnd = vizTime.end + tDelta;
+        if (tStart < traceTime.startSec) {
+          tStart = traceTime.startSec;
+          tEnd = tStart + origDelta;
+        } else if (tEnd > traceTime.endSec) {
+          tEnd = traceTime.endSec;
+          tStart = tEnd - origDelta;
         }
-        // tDelta += Math.min(maxTime.startSec + tDelta + vizTime.start, 0);
-        vizTime = vizTime.add(tDelta);
-        frontendLocalState.updateVisibleTime(vizTime);
+        frontendLocalState.updateVisibleTime(new TimeSpan(tStart, tEnd));
       },
       onZoomed: (_: number, zoomRatio: number) => {
         const vizTime = frontendLocalState.visibleWindowTime;

@@ -29,6 +29,10 @@ export class Registry<T extends HasKind> {
     this.registry.set(kind, registrant);
   }
 
+  has(kind: string): boolean {
+    return this.registry.has(kind);
+  }
+
   get(kind: string): T {
     const registrant = this.registry.get(kind);
     if (registrant === undefined) {

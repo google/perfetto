@@ -17,27 +17,17 @@ import '../tracks/all_frontend';
 import * as m from 'mithril';
 
 import {forwardRemoteCalls} from '../base/remote';
-import {setState} from '../common/actions';
-import {loadState} from '../common/permalinks';
-import {createEmptyState, State} from '../common/state';
+import {loadPermalink, navigate} from '../common/actions';
+import {State} from '../common/state';
+import {TimeSpan} from '../common/time';
 import {
   takeWasmEngineWorkerPort,
   warmupWasmEngineWorker,
 } from '../controller/wasm_engine_proxy';
 
-import {FrontendLocalState} from './frontend_local_state';
-import {globals} from './globals';
+import {globals, QuantizedLoad, ThreadDesc} from './globals';
 import {HomePage} from './home_page';
-import {RafScheduler} from './raf_scheduler';
 import {ViewerPage} from './viewer_page';
-
-function createController(): Worker {
-  const worker = new Worker('controller_bundle.js');
-  worker.onerror = e => {
-    console.error(e);
-  };
-  return worker;
-}
 
 /**
  * The API the main thread exposes to the controller.
@@ -45,16 +35,49 @@ function createController(): Worker {
 class FrontendApi {
   updateState(state: State) {
     globals.state = state;
+
+    // If the visible time in the global state has been updated more recently
+    // than the visible time handled by the frontend @ 60fps, update it. This
+    // typically happens when restoring the state from a permalink.
+    const vizTraceTime = globals.state.visibleTraceTime;
+    if (vizTraceTime.lastUpdate >
+        globals.frontendLocalState.visibleTimeLastUpdate) {
+      globals.frontendLocalState.updateVisibleTime(
+          new TimeSpan(vizTraceTime.startSec, vizTraceTime.endSec));
+    }
+
     this.redraw();
   }
 
-  publishTrackData(id: string, data: {}) {
-    globals.trackDataStore.set(id, data);
+  // TODO: we can't have a publish method for each batch of data that we don't
+  // want to keep in the global state. Figure out a more generic and type-safe
+  // mechanism to achieve this.
+
+  publishOverviewData(data: {[key: string]: QuantizedLoad}) {
+    for (const key of Object.keys(data)) {
+      if (!globals.overviewStore.has(key)) {
+        globals.overviewStore.set(key, []);
+      }
+      globals.overviewStore.get(key)!.push(data[key]);
+    }
+    globals.rafScheduler.scheduleOneRedraw();
+  }
+
+  publishTrackData(args: {id: string, data: {}}) {
+    globals.trackDataStore.set(args.id, args.data);
+    globals.rafScheduler.scheduleOneRedraw();
+  }
+
+  publishQueryResult(args: {id: string, data: {}}) {
+    globals.queryResults.set(args.id, args.data);
     this.redraw();
   }
 
-  publishQueryResult(id: string, data: {}) {
-    globals.queryResults.set(id, data);
+  publishThreads(data: ThreadDesc[]) {
+    globals.threads.clear();
+    data.forEach(thread => {
+      globals.threads.set(thread.utid, thread);
+    });
     this.redraw();
   }
 
@@ -78,20 +101,16 @@ class FrontendApi {
   }
 }
 
-async function main() {
-  const controller = createController();
+function main() {
+  const controller = new Worker('controller_bundle.js');
+  controller.onerror = e => {
+    console.error(e);
+  };
   const channel = new MessageChannel();
   forwardRemoteCalls(channel.port2, new FrontendApi());
   controller.postMessage(channel.port1, [channel.port1]);
 
-  globals.initialize(
-      controller.postMessage.bind(controller),  // dispatch
-      createEmptyState(),                       // state
-      new Map<string, {}>(),                    // trackDataStore
-      new Map<string, {}>(),                    // queryResults
-      new FrontendLocalState(),                 // frontendState
-      new RafScheduler(),                       // rafSheduler
-      );
+  globals.initialize(controller.postMessage.bind(controller));
 
   warmupWasmEngineWorker();
 
@@ -104,16 +123,18 @@ async function main() {
   (window as {} as {m: {}}).m = m;
   (window as {} as {globals: {}}).globals = globals;
 
+  // /?s=xxxx for permalinks.
   const stateHash = m.route.param('s');
   if (stateHash) {
-    const state = await loadState(stateHash);
-    globals.dispatch(setState(state));
+    globals.dispatch(loadPermalink(stateHash));
   }
 
   // Prevent pinch zoom.
   document.body.addEventListener('wheel', (e: MouseEvent) => {
     if (e.ctrlKey) e.preventDefault();
   });
+
+  globals.dispatch(navigate(m.route.get()));
 }
 
 main();
