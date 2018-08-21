@@ -113,8 +113,9 @@ void TraceProcessor::ExecuteQuery(
             descriptor->set_type(protos::RawQueryResult_ColumnDesc_Type_DOUBLE);
             break;
           case SQLITE_NULL:
-            PERFETTO_CHECK(false);
-            break;
+            proto.set_error("Query yields to NULL column, can't handle that");
+            callback(std::move(proto));
+            return;
         }
 
         // Add an empty column.
@@ -126,10 +127,12 @@ void TraceProcessor::ExecuteQuery(
         case protos::RawQueryResult_ColumnDesc_Type_LONG:
           column->add_long_values(sqlite3_column_int64(*stmt, i));
           break;
-        case protos::RawQueryResult_ColumnDesc_Type_STRING:
-          column->add_string_values(
-              reinterpret_cast<const char*>(sqlite3_column_text(*stmt, i)));
+        case protos::RawQueryResult_ColumnDesc_Type_STRING: {
+          const char* str =
+              reinterpret_cast<const char*>(sqlite3_column_text(*stmt, i));
+          column->add_string_values(str ? str : "[NULL]");
           break;
+        }
         case protos::RawQueryResult_ColumnDesc_Type_DOUBLE:
           column->add_double_values(sqlite3_column_double(*stmt, i));
           break;
