@@ -32,8 +32,6 @@ using namespace proto_utils;
 #error Unimplemented for big endian archs.
 #endif
 
-ProtoDecoder::ProtoDecoder(const uint8_t* buffer, uint64_t length)
-    : buffer_(buffer), length_(length), current_position_(buffer) {}
 
 ProtoDecoder::Field ProtoDecoder::ReadField() {
   Field field{};
@@ -56,36 +54,22 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
   }
 
   uint64_t raw_field_id = 0;
-  pos = ParseVarInt(pos, end, &raw_field_id);
+  if (PERFETTO_LIKELY(*pos < 0x80)) {
+    raw_field_id = *(pos++);  // Fastpath for fields with ID < 32.
+  } else {
+    pos = ParseVarInt(pos, end, &raw_field_id);
+  }
 
   uint32_t field_id = static_cast<uint32_t>(raw_field_id >> kFieldTypeNumBits);
   if (field_id == 0 || pos >= end) {
     return field;
   }
+
   field.type = static_cast<FieldType>(raw_field_id & kFieldTypeMask);
 
   const uint8_t* new_pos = nullptr;
   uint64_t field_intvalue = 0;
   switch (field.type) {
-    case kFieldTypeFixed64: {
-      if (pos + sizeof(uint64_t) > end) {
-        return field;
-      }
-      memcpy(&field_intvalue, pos, sizeof(uint64_t));
-      field.int_value = BYTE_SWAP_TO_LE64(field_intvalue);
-      pos += sizeof(uint64_t);
-      break;
-    }
-    case kFieldTypeFixed32: {
-      if (pos + sizeof(uint32_t) > end) {
-        return field;
-      }
-      uint32_t tmp;
-      memcpy(&tmp, pos, sizeof(uint32_t));
-      field.int_value = BYTE_SWAP_TO_LE32(tmp);
-      pos += sizeof(uint32_t);
-      break;
-    }
     case kFieldTypeVarInt: {
       new_pos = ParseVarInt(pos, end, &field.int_value);
 
@@ -117,21 +101,31 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
       pos += field_intvalue;
       break;
     }
+    case kFieldTypeFixed64: {
+      if (pos + sizeof(uint64_t) > end) {
+        return field;
+      }
+      memcpy(&field_intvalue, pos, sizeof(uint64_t));
+      field.int_value = BYTE_SWAP_TO_LE64(field_intvalue);
+      pos += sizeof(uint64_t);
+      break;
+    }
+    case kFieldTypeFixed32: {
+      if (pos + sizeof(uint32_t) > end) {
+        return field;
+      }
+      uint32_t tmp;
+      memcpy(&tmp, pos, sizeof(uint32_t));
+      field.int_value = BYTE_SWAP_TO_LE32(tmp);
+      pos += sizeof(uint32_t);
+      break;
+    }
   }
   // Set the field id to make the returned value valid and update the current
   // position in the buffer.
   field.id = field_id;
   current_position_ = pos;
   return field;
-}
-
-bool ProtoDecoder::IsEndOfBuffer() {
-  PERFETTO_DCHECK(current_position_ >= buffer_);
-  return length_ == static_cast<uint64_t>(current_position_ - buffer_);
-}
-
-void ProtoDecoder::Reset() {
-  current_position_ = buffer_;
 }
 
 }  // namespace protozero

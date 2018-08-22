@@ -75,7 +75,8 @@ class ProtoDecoder {
   };
 
   // Creates a ProtoDecoder using the given |buffer| with size |length| bytes.
-  ProtoDecoder(const uint8_t* buffer, uint64_t length);
+  inline ProtoDecoder(const uint8_t* buffer, uint64_t length)
+      : buffer_(buffer), length_(length), current_position_(buffer) {}
 
   // Reads the next field from the buffer. If the full field cannot be read,
   // the returned struct will have id 0 which is an invalid field id.
@@ -83,15 +84,27 @@ class ProtoDecoder {
 
   // Returns true if |length_| == |current_position_| - |buffer| and false
   // otherwise.
-  bool IsEndOfBuffer();
+  inline bool IsEndOfBuffer() {
+    PERFETTO_DCHECK(current_position_ >= buffer_);
+    return length_ == static_cast<uint64_t>(current_position_ - buffer_);
+  }
 
   // Resets the current position to the start of the buffer.
-  void Reset();
+  inline void Reset() { current_position_ = buffer_; }
+
+  // Resets to the given position (must be within the buffer).
+  inline void Reset(const uint8_t* pos) {
+    PERFETTO_DCHECK(pos >= buffer_ && pos < buffer_ + length_);
+    current_position_ = pos;
+  }
 
   // Return's offset inside the buffer.
-  uint64_t offset() const {
+  inline uint64_t offset() const {
     return static_cast<uint64_t>(current_position_ - buffer_);
   }
+
+  inline const uint8_t* buffer() const { return buffer_; }
+  inline uint64_t length() const { return length_; }
 
  private:
   const uint8_t* const buffer_;

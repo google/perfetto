@@ -163,7 +163,10 @@ void ForEachPacketInTrace(
 
     protos::TracePacket packet;
     auto res = packet.ParseFromArray(buf.get(), static_cast<int>(field_size));
-    PERFETTO_CHECK(res);
+    if (!res) {
+      PERFETTO_ELOG("Skipping invalid packet");
+      continue;
+    }
     f(packet);
   }
 }
