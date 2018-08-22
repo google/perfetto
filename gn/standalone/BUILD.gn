@@ -127,7 +127,7 @@ config("default") {
       "-isystem$android_compile_sysroot/$android_compile_sysroot_subdir",
       "-isystem$android_compile_sysroot",
       "-DANDROID",
-      "-D__ANDROID_API__=21",
+      "-D__ANDROID_API__=${android_api_level}",
       "--target=$android_abi_target",
     ]
     cflags_cc += [
