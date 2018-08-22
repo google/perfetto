@@ -27,6 +27,7 @@ UI_DIST_DIR="$OUT_DIR/ui-dist"
 CLEAN_OUT_DIR=true
 DEPLOY_PROD=false
 DEPLOY_STAGING=false
+DEBUG_BUILD=true
 
 while [[ $# -gt 0 ]]; do
   key="$1"
@@ -37,17 +38,23 @@ while [[ $# -gt 0 ]]; do
       ;;
       --prod)
       DEPLOY_PROD=true
+      DEBUG_BUILD=false
       shift
       ;;
       --staging)
       DEPLOY_STAGING=true
       shift
       ;;
+      --release)
+      DEBUG_BUILD=false
+      shift
+      ;;
       -h|--help)
       echo "Usage: $0 [--no-clean] [--prod] [--staging]"
       echo "    --no-clean  Don't remove $OUT_DIR"
-      echo "    --prod      Deploy prod version"
+      echo "    --prod      Deploy prod version (implies --release)"
       echo "    --staging   Deploy staging version"
+      echo "    --release   Do a release build"
       echo "    -h|--help   Display this message"
       exit 0
       shift
@@ -60,7 +67,12 @@ if [ "$CLEAN_OUT_DIR" = true ]; then
 fi
 echo_and_do mkdir -p "$UI_DIST_DIR"
 
-echo_and_do "$PROJECT_ROOT/tools/gn" gen "$OUT_DIR" --args="is_debug=true"
+if [ "$DEBUG_BUILD" = true ]; then
+  echo_and_do "$PROJECT_ROOT/tools/gn" gen "$OUT_DIR" --args="is_debug=true"
+else
+  echo_and_do "$PROJECT_ROOT/tools/gn" gen "$OUT_DIR" --args="is_debug=false"
+fi
+
 echo_and_do "$PROJECT_ROOT/tools/ninja" -C "$OUT_DIR" ui
 
 echo "Writing $UI_DIST_DIR/app.yaml"
