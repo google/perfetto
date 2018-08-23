@@ -35,20 +35,25 @@ namespace trace_processor {
 
 using protozero::ProtoDecoder;
 using protozero::proto_utils::kFieldTypeLengthDelimited;
+using protozero::proto_utils::ParseVarInt;
+using protozero::proto_utils::MakeTagVarInt;
 
 namespace {
 
-bool FindIntField(ProtoDecoder* decoder,
-                  uint32_t field_id,
-                  uint64_t* field_value) {
+template <int field_id>
+inline bool FindIntField(ProtoDecoder* decoder, uint64_t* field_value) {
+  bool res = false;
   for (auto f = decoder->ReadField(); f.id != 0; f = decoder->ReadField()) {
     if (f.id == field_id) {
       *field_value = f.int_value;
-      return true;
+      res = true;
+      break;
     }
   }
-  return false;
+  decoder->Reset();
+  return res;
 }
+
 }  // namespace
 
 ProtoTraceParser::ProtoTraceParser(BlobReader* reader,
@@ -164,12 +169,20 @@ void ProtoTraceParser::ParseFtraceEventBundle(const uint8_t* data,
                                               size_t length) {
   ProtoDecoder decoder(data, length);
   uint64_t cpu = 0;
-  if (!FindIntField(&decoder, protos::FtraceEventBundle::kCpuFieldNumber,
-                    &cpu)) {
-    PERFETTO_ELOG("CPU field not found in FtraceEventBundle");
-    return;
+  constexpr auto kCpuFieldNumber = protos::FtraceEventBundle::kCpuFieldNumber;
+  constexpr auto kCpuFieldTag = MakeTagVarInt(kCpuFieldNumber);
+
+  // Speculate on the fact that the cpu is often pushed as the 2nd last field
+  // And is a number < 128.
+  if (PERFETTO_LIKELY(length > 4 && data[length - 4] == kCpuFieldTag) &&
+      data[length - 3] < 0x80) {
+    cpu = data[length - 3];
+  } else {
+    if (!PERFETTO_LIKELY((FindIntField<kCpuFieldNumber>(&decoder, &cpu)))) {
+      PERFETTO_ELOG("CPU field not found in FtraceEventBundle");
+      return;
+    }
   }
-  decoder.Reset();
 
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
@@ -183,17 +196,33 @@ void ProtoTraceParser::ParseFtraceEventBundle(const uint8_t* data,
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
-void ProtoTraceParser::ParseFtraceEvent(uint32_t cpu,
-                                        const uint8_t* data,
-                                        size_t length) {
+PERFETTO_ALWAYS_INLINE void ProtoTraceParser::ParseFtraceEvent(
+    uint32_t cpu,
+    const uint8_t* data,
+    size_t length) {
   ProtoDecoder decoder(data, length);
-  uint64_t timestamp = 0;
-  if (!FindIntField(&decoder, protos::FtraceEvent::kTimestampFieldNumber,
-                    &timestamp)) {
+  constexpr auto kTimestampFieldNumber =
+      protos::FtraceEvent::kTimestampFieldNumber;
+  uint64_t timestamp;
+  bool timestamp_found = false;
+
+  // Speculate on the fact that the timestamp is often the 1st field of the
+  // event.
+  constexpr auto timestampFieldTag = MakeTagVarInt(kTimestampFieldNumber);
+  if (PERFETTO_LIKELY(length > 10 && data[0] == timestampFieldTag)) {
+    // Fastpath.
+    const uint8_t* next = ParseVarInt(data + 1, data + 10, &timestamp);
+    timestamp_found = next != data + 1;
+    decoder.Reset(next);
+  } else {
+    // Slowpath.
+    timestamp_found = FindIntField<kTimestampFieldNumber>(&decoder, &timestamp);
+  }
+
+  if (PERFETTO_UNLIKELY(!timestamp_found)) {
     PERFETTO_ELOG("Timestamp field not found in FtraceEvent");
     return;
   }
-  decoder.Reset();
 
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
@@ -208,12 +237,12 @@ void ProtoTraceParser::ParseFtraceEvent(uint32_t cpu,
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
-void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
-                                        uint64_t timestamp,
-                                        const uint8_t* data,
-                                        size_t length) {
+PERFETTO_ALWAYS_INLINE void ProtoTraceParser::ParseSchedSwitch(
+    uint32_t cpu,
+    uint64_t timestamp,
+    const uint8_t* data,
+    size_t length) {
   ProtoDecoder decoder(data, length);
-
   uint32_t prev_pid = 0;
   uint32_t prev_state = 0;
   base::StringView prev_comm;
