@@ -283,6 +283,10 @@ bool CpuReader::Drain(const std::set<FtraceDataSource*>& data_sources) {
       auto* filter = data_source->event_filter();
       size_t evt_size = ParsePage(buffer, filter, bundle, table_, metadata);
       PERFETTO_DCHECK(evt_size);
+
+      // Note: The fastpath in proto_decoder.cc speculates on the fact that
+      // the cpu field is exactly -4 bytes from the end of the proto message.
+      // If this changes, change the proto_decoder.cc accordingly.
       bundle->set_cpu(static_cast<uint32_t>(cpu_));
       bundle->set_overwrite_count(metadata->overwrite_count);
     }

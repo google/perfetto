@@ -37,7 +37,7 @@ FileReader::~FileReader() = default;
 uint32_t FileReader::Read(uint64_t offset, uint32_t len, uint8_t* dst) {
   ssize_t res = pread(*fd_, dst, len, static_cast<off_t>(offset));
   uint64_t size_read = offset + static_cast<uint64_t>(res);
-  if (print_progress_ && size_read >= last_progress_bytes_ + 1E7) {
+  if (print_progress_ && (!res || size_read >= last_progress_bytes_ + 1E8)) {
     last_progress_bytes_ = size_read;
     double progress = size_read * 100.0 / file_size_;
     fprintf(stderr, "\rReading trace: %.2f%% %.1f MB / %.1f MB", progress,
