@@ -108,7 +108,7 @@ bool RateLimiter::ShouldTrace(const Args& args) {
   return true;
 }
 
-bool RateLimiter::OnTraceDone(const Args& args, bool success, size_t bytes) {
+bool RateLimiter::OnTraceDone(const Args& args, bool success, uint64_t bytes) {
   uint64_t now_in_s = static_cast<uint64_t>(args.current_time.count());
 
   // Failed to upload? Don't update the state.
