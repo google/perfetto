@@ -574,6 +574,34 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForDataSourceStopAcks) {
       TracingServiceImpl::kDataSourceStopTimeoutMs / 2);
 }
 
+// Creates a tracing session where a second data source
+// is added while the service is waiting for DisableTracing
+// acks; the service should not enable the new datasource
+// and should not hit any asserts when the consumer is
+// subsequently destroyed.
+TEST_F(TracingServiceImplTest, OnDataSourceAddedWhilePendingDisableAcks) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_will_ack", /*ack_stop=*/true);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_will_ack");
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_wont_ack");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+
+  consumer->DisableTracing();
+
+  producer->RegisterDataSource("ds_wont_ack");
+
+  consumer.reset();
+}
+
 // Similar to OnTracingDisabledWaitsForDataSourceStopAcks, but deliberately
 // skips the ack and checks that the service invokes the OnTracingDisabled()
 // after the timeout.
