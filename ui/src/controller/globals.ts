@@ -17,7 +17,7 @@ import {Remote} from '../base/remote';
 import {Action} from '../common/actions';
 import {createEmptyState, State} from '../common/state';
 import {ControllerAny} from './controller';
-import {Engine} from './engine';
+import {Engine, EnginePortAndId} from './engine';
 import {rootReducer} from './reducer';
 import {WasmEngineProxy} from './wasm_engine_proxy';
 
@@ -57,9 +57,9 @@ class Globals {
 
     // Run controllers locally until all state machines reach quiescence.
     let runAgain = false;
-    const summary = this._queuedActions.map(action => action.type).join(', ');
-    console.group(`Running controllers loop (${summary})`);
-    console.time('full controllers loop');
+    let summary = this._queuedActions.map(action => action.type).join(', ');
+    summary = `Controllers loop (${summary})`;
+    console.time(summary);
     for (let iter = 0; runAgain || this._queuedActions.length > 0; iter++) {
       if (iter > 100) throw new Error('Controllers are stuck in a livelock');
       const actions = this._queuedActions;
@@ -76,14 +76,17 @@ class Globals {
       }
     }
     assertExists(this._frontend).send<void>('updateState', [this.state]);
-    console.timeEnd('full controllers loop');
-    console.groupEnd();
+    console.timeEnd(summary);
   }
 
-  async createEngine(blob: Blob): Promise<Engine> {
-    const port = await assertExists(this._frontend)
-                     .send<MessagePort>('createWasmEnginePort', []);
-    return WasmEngineProxy.create(port, blob);
+  async createEngine(): Promise<Engine> {
+    const portAndId = await assertExists(this._frontend)
+                          .send<EnginePortAndId>('createEngine', []);
+    return WasmEngineProxy.create(portAndId);
+  }
+
+  async destroyEngine(id: string): Promise<void> {
+    await assertExists(this._frontend).send<void>('destroyEngine', [id]);
   }
 
   // TODO: this needs to be cleaned up.

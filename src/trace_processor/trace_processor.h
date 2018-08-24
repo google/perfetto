@@ -21,15 +21,10 @@
 #include <functional>
 #include <memory>
 
-#include "perfetto/base/weak_ptr.h"
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
 
 namespace perfetto {
-
-namespace base {
-class TaskRunner;
-}
 
 namespace protos {
 class RawQueryArgs;
@@ -38,18 +33,20 @@ class RawQueryResult;
 
 namespace trace_processor {
 
-class BlobReader;
-
-// Coordinates the loading of traces from an arbitary source and allows
+// Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
 class TraceProcessor {
  public:
-  explicit TraceProcessor(base::TaskRunner*);
+  TraceProcessor();
   ~TraceProcessor();
 
-  // Loads a trace by reading from the given blob reader. Invokes |callback|
-  // when the trace has been fully read and parsed.
-  void LoadTrace(BlobReader*, std::function<void()> callback);
+  // The entry point to push trace data into the processor. The trace format
+  // will be automatically discovered on the first push call. It is possible
+  // to make queries between two pushes.
+  // Returns true if parsing has been succeeding so far, false if some
+  // unrecoverable error happened. If this happens, the TraceProcessor will
+  // ignore the following Parse() requests and drop data on the floor.
+  bool Parse(std::unique_ptr<uint8_t[]>, size_t);
 
   // Executes a SQLite query on the loaded portion of the trace. |result| will
   // be invoked once after the result of the query is available.
@@ -60,17 +57,13 @@ class TraceProcessor {
   void InterruptQuery();
 
  private:
-  void LoadTraceChunk(std::function<void()> callback);
-
   ScopedDb db_;  // Keep first.
   TraceProcessorContext context_;
-  base::TaskRunner* const task_runner_;
+  bool unrecoverable_parse_error_ = false;
 
   // This is atomic because it is set by the CTRL-C signal handler and we need
   // to prevent single-flow compiler optimizations in ExecuteQuery().
   std::atomic<bool> query_interrupted_{false};
-
-  base::WeakPtrFactory<TraceProcessor> weak_factory_;  // Keep last.
 };
 
 // When set, logs SQLite actions on the console.
