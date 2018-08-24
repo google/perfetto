@@ -19,8 +19,6 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/blob_reader.h"
-#include "src/trace_processor/emscripten_task_runner.h"
 #include "src/trace_processor/trace_processor.h"
 
 #include "perfetto/trace_processor/raw_query.pb.h"
@@ -30,19 +28,6 @@ namespace perfetto {
 namespace trace_processor {
 
 using RequestID = uint32_t;
-
-// ReadTrace(): reads a portion of the trace file.
-// Invoked by the C++ code in the trace processor to ask the embedder (e.g. the
-// JS code for the case of the UI) to get read a chunk of the trace file.
-// Args:
-//   offset: the start offset (in bytes) in the trace file to read.
-//   len: maximum size of the buffered returned.
-// Returns:
-//   The embedder is supposed to asynchronously call ReadComplete(), passing
-//   back the offset, together with the actual buffer.
-using ReadTraceFunction = uint32_t (*)(uint32_t /*offset*/,
-                                       uint32_t /*len*/,
-                                       uint8_t* /*dst*/);
 
 // Reply(): replies to a RPC method invocation.
 // Called asynchronously (i.e. in a separate task) by the C++ code inside the
@@ -58,49 +43,33 @@ using ReplyFunction = void (*)(RequestID,
                                uint32_t /*len*/);
 
 namespace {
-
-EmscriptenTaskRunner* g_task_runner;
 TraceProcessor* g_trace_processor;
-ReadTraceFunction g_read_trace;
 ReplyFunction g_reply;
-
-// Implements the BlobReader interface passed to the trace processor C++
-// classes. It simply routes the requests to the embedder (e.g. JS/TS).
-class BlobReaderImpl : public BlobReader {
- public:
-  ~BlobReaderImpl() override = default;
-
-  uint32_t Read(uint64_t offset, uint32_t len, uint8_t* dst) override {
-    return g_read_trace(static_cast<uint32_t>(offset), len, dst);
-  }
-};
-
-BlobReaderImpl* blob_reader() {
-  static BlobReaderImpl* instance = new BlobReaderImpl();
-  return instance;
-}
-
 }  // namespace
-
 // +---------------------------------------------------------------------------+
 // | Exported functions called by the JS/TS running in the worker.             |
 // +---------------------------------------------------------------------------+
 extern "C" {
 
-void EMSCRIPTEN_KEEPALIVE Initialize(RequestID,
-                                     ReadTraceFunction,
-                                     ReplyFunction);
-void Initialize(RequestID id,
-                ReadTraceFunction read_trace_function,
-                ReplyFunction reply_function) {
+void EMSCRIPTEN_KEEPALIVE Initialize(ReplyFunction);
+void Initialize(ReplyFunction reply_function) {
   PERFETTO_ILOG("Initializing WASM bridge");
-  g_task_runner = new EmscriptenTaskRunner();
-  g_trace_processor = new TraceProcessor(g_task_runner);
-  g_read_trace = read_trace_function;
+  g_trace_processor = new TraceProcessor();
   g_reply = reply_function;
-  g_trace_processor->LoadTrace(blob_reader(), [id]() {
-    g_reply(id, true /* success */, nullptr /* ptr */, 0 /* size */);
-  });
+}
+
+void EMSCRIPTEN_KEEPALIVE trace_processor_parse(RequestID,
+                                                const uint8_t*,
+                                                uint32_t);
+void trace_processor_parse(RequestID id, const uint8_t* data, size_t size) {
+  // TODO(primiano): This copy is extremely unfortunate. Ideally there should be
+  // a way to take the Blob coming from JS (either from FileReader or from th
+  // fetch() stream) and move into WASM.
+  // See https://github.com/WebAssembly/design/issues/1162.
+  std::unique_ptr<uint8_t[]> buf(new uint8_t[size]);
+  memcpy(buf.get(), data, size);
+  g_trace_processor->Parse(std::move(buf), size);
+  g_reply(id, true, "", 0);
 }
 
 void EMSCRIPTEN_KEEPALIVE trace_processor_rawQuery(RequestID,

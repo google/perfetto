@@ -17,8 +17,6 @@ import("../../gn/wasm.gni")
 
 wasm_lib("trace_processor") {
   sources = [
-    "emscripten_task_runner.cc",
-    "emscripten_task_runner.h",
     "wasm_bridge.cc",
   ]
 
@@ -35,9 +33,6 @@ wasm_lib("trace_processor") {
 
 source_set("lib") {
   sources = [
-    "blob_reader.h",
-    "file_reader.cc",
-    "file_reader.h",
     "process_table.cc",
     "process_table.h",
     "process_tracker.cc",
@@ -146,6 +141,7 @@ source_set("integrationtests") {
     "../../gn:default_deps",
     "../../gn:gtest_deps",
     "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace_processor:lite",
     "../base",
     "../base:test_support",
   ]
