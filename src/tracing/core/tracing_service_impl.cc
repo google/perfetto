@@ -868,6 +868,9 @@ void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
 
   for (auto& iter : tracing_sessions_) {
     TracingSession& tracing_session = iter.second;
+    if (tracing_session.state != TracingSession::ENABLED)
+      continue;
+
     TraceConfig::ProducerConfig producer_config;
     for (auto& config : tracing_session.config.producers()) {
       if (producer->name_ == config.producer_name()) {
