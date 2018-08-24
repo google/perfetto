@@ -87,6 +87,7 @@
             border-radius: 4px;
             input::placeholder {
                 font-weight: 400;
+                font-family: var(--monospace-font);
                 color: hsl(213, 40%, 50%);
             }
             &:before {
