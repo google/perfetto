@@ -77,7 +77,7 @@ class MockProcessTracker : public ProcessTracker {
   MOCK_METHOD2(UpdateThread, UniqueTid(uint32_t tid, uint32_t tgid));
 };
 
-TEST(ProtoTraceParser, LoadSingleEvent) {
+TEST(ProtoTraceParserTest, LoadSingleEvent_CpuStart) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -104,7 +104,63 @@ TEST(ProtoTraceParser, LoadSingleEvent) {
   parser.ParseNextChunk();
 }
 
-TEST(ProtoTraceParser, LoadMultipleEvents) {
+TEST(ProtoTraceParserTest, LoadSingleEvent_CpuMiddle) {
+  protos::Trace trace;
+
+  auto* bundle = trace.add_packet()->mutable_ftrace_events();
+  bundle->set_overwrite_count(999);
+  bundle->set_cpu(10);
+
+  auto* event = bundle->add_event();
+  event->set_timestamp(1000);
+
+  static const char kProcName[] = "proc1";
+  auto* sched_switch = event->mutable_sched_switch();
+  sched_switch->set_prev_pid(10);
+  sched_switch->set_prev_state(32);
+  sched_switch->set_prev_comm(kProcName);
+  sched_switch->set_next_pid(100);
+
+  TraceProcessorContext context;
+  MockSchedTracker* sched = new MockSchedTracker(&context);
+  context.sched_tracker.reset(sched);
+  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32,
+                                      base::StringView(kProcName), 100));
+
+  FakeStringBlobReader reader(trace.SerializeAsString());
+  ProtoTraceParser parser(&reader, &context);
+  parser.ParseNextChunk();
+}
+
+TEST(ProtoTraceParserTest, LoadSingleEvent_CpuSecondFromEnd) {
+  protos::Trace trace;
+
+  auto* bundle = trace.add_packet()->mutable_ftrace_events();
+  auto* event = bundle->add_event();
+  event->set_timestamp(1000);
+
+  static const char kProcName[] = "proc1";
+  auto* sched_switch = event->mutable_sched_switch();
+  sched_switch->set_prev_pid(10);
+  sched_switch->set_prev_state(32);
+  sched_switch->set_prev_comm(kProcName);
+  sched_switch->set_next_pid(100);
+
+  bundle->set_cpu(10);
+  bundle->set_overwrite_count(999);
+
+  TraceProcessorContext context;
+  MockSchedTracker* sched = new MockSchedTracker(&context);
+  context.sched_tracker.reset(sched);
+  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32,
+                                      base::StringView(kProcName), 100));
+
+  FakeStringBlobReader reader(trace.SerializeAsString());
+  ProtoTraceParser parser(&reader, &context);
+  parser.ParseNextChunk();
+}
+
+TEST(ProtoTraceParserTest, LoadMultipleEvents) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -144,7 +200,7 @@ TEST(ProtoTraceParser, LoadMultipleEvents) {
   parser.ParseNextChunk();
 }
 
-TEST(ProtoTraceParser, LoadMultiplePackets) {
+TEST(ProtoTraceParserTest, LoadMultiplePackets) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -187,7 +243,7 @@ TEST(ProtoTraceParser, LoadMultiplePackets) {
   parser.ParseNextChunk();
 }
 
-TEST(ProtoTraceParser, RepeatedLoadSinglePacket) {
+TEST(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
