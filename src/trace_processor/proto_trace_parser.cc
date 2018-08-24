@@ -172,10 +172,14 @@ void ProtoTraceParser::ParseFtraceEventBundle(const uint8_t* data,
   constexpr auto kCpuFieldNumber = protos::FtraceEventBundle::kCpuFieldNumber;
   constexpr auto kCpuFieldTag = MakeTagVarInt(kCpuFieldNumber);
 
-  // Speculate on the fact that the cpu is often pushed as the 2nd last field
-  // And is a number < 128.
-  if (PERFETTO_LIKELY(length > 4 && data[length - 4] == kCpuFieldTag) &&
-      data[length - 3] < 0x80) {
+  // For speed we speculate on the location and size (<128) of the cpu field.
+  // In P+ cpu is pushed as the first field.
+  // In P cpu is pushed as the 2nd last field.
+  if (PERFETTO_LIKELY(length > 2 && data[0] == kCpuFieldTag &&
+                      data[1] < 0x80)) {
+    cpu = data[1];
+  } else if (PERFETTO_LIKELY(length > 4 && data[length - 4] == kCpuFieldTag) &&
+             data[length - 3] < 0x80) {
     cpu = data[length - 3];
   } else {
     if (!PERFETTO_LIKELY((FindIntField<kCpuFieldNumber>(&decoder, &cpu)))) {
