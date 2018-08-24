@@ -14,30 +14,49 @@
 
 import * as protobufjs from 'protobufjs/light';
 
+import {defer} from '../base/deferred';
 import {TraceProcessor} from '../common/protos';
 import {WasmBridgeRequest, WasmBridgeResponse} from '../engine/wasm_bridge';
 
-import {Engine} from './engine';
+import {Engine, EnginePortAndId} from './engine';
 
-let warmWasmWorkerPort: null|MessagePort = null;
+interface WorkerAndPort {
+  worker: Worker;
+  port: MessagePort;
+}
 
-function createNewWasmEngineWorkerPort(): MessagePort {
+const activeWorkers = new Map<string, WorkerAndPort>();
+let warmWorker: null|WorkerAndPort = null;
+
+function createWorker(): WorkerAndPort {
   const channel = new MessageChannel();
   const worker = new Worker('engine_bundle.js');
   // tslint:disable-next-line deprecation
   worker.postMessage(channel.port1, [channel.port1]);
-  return channel.port2;
+  return {worker, port: channel.port2};
 }
 
-// Take warm engine and start creating a new WASM engine in the background
-// for the next person.
-export function takeWasmEngineWorkerPort(): MessagePort {
-  if (warmWasmWorkerPort === null) {
-    throw new Error('warmWasmEngineWorker not called');
+// Take the warm engine and start creating a new WASM engine in the background
+// for the next call.
+export function createWasmEngine(id: string): MessagePort {
+  if (warmWorker === null) {
+    throw new Error('warmupWasmEngine() not called');
   }
-  const port = warmWasmWorkerPort;
-  warmWasmWorkerPort = createNewWasmEngineWorkerPort();
-  return port;
+  if (activeWorkers.has(id)) {
+    throw new Error(`Duplicate worker ID ${id}`);
+  }
+  const activeWorker = warmWorker;
+  warmWorker = createWorker();
+  activeWorkers.set(id, activeWorker);
+  return activeWorker.port;
+}
+
+export function destroyWasmEngine(id: string) {
+  if (!activeWorkers.has(id)) {
+    throw new Error(`Cannot find worker ID ${id}`);
+  }
+  activeWorkers.get(id)!.worker.terminate();
+  activeWorkers.delete(id);
 }
 
 /**
@@ -48,11 +67,11 @@ export function takeWasmEngineWorkerPort(): MessagePort {
  * warmupWasmEngineWorker (together with getWasmEngineWorker)
  * implement this behaviour.
  */
-export function warmupWasmEngineWorker(): void {
-  if (warmWasmWorkerPort !== null) {
-    throw new Error('warmWasmEngineWorker already called');
+export function warmupWasmEngine(): void {
+  if (warmWorker !== null) {
+    throw new Error('warmupWasmEngine() already called');
   }
-  warmWasmWorkerPort = createNewWasmEngineWorkerPort();
+  warmWorker = createWorker();
 }
 
 /**
@@ -64,28 +83,35 @@ export class WasmEngineProxy extends Engine {
   private readonly traceProcessor_: TraceProcessor;
   private pendingCallbacks: Map<number, protobufjs.RPCImplCallback>;
   private nextRequestId: number;
+  readonly id: string;
 
-  static create(port: MessagePort, blob: Blob): Engine {
-    // const worker = createWasmEngineWorker();
-    // tslint:disable-next-line deprecation
-    port.postMessage({
-      blob,
-    });
-    return new WasmEngineProxy(port);
+  static create(args: EnginePortAndId): Engine {
+    return new WasmEngineProxy(args);
   }
 
-  constructor(port: MessagePort) {
+  constructor(args: EnginePortAndId) {
     super();
     this.nextRequestId = 0;
     this.pendingCallbacks = new Map();
-    this.port = port;
+    this.port = args.port;
+    this.id = args.id;
     this.port.onmessage = this.onMessage.bind(this);
     this.traceProcessor_ =
         TraceProcessor.create(this.rpcImpl.bind(this, 'trace_processor'));
   }
 
-  get traceProcessor(): TraceProcessor {
+  get rpc(): TraceProcessor {
     return this.traceProcessor_;
+  }
+
+  parse(data: Uint8Array): Promise<void> {
+    const id = this.nextRequestId++;
+    const request: WasmBridgeRequest =
+        {id, serviceName: 'trace_processor', methodName: 'parse', data};
+    const promise = defer<void>();
+    this.pendingCallbacks.set(id, () => promise.resolve());
+    this.port.postMessage(request);
+    return promise;
   }
 
   onMessage(m: MessageEvent) {

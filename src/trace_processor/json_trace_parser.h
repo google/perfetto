@@ -29,7 +29,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-class BlobReader;
 class TraceProcessorContext;
 
 // Parses legacy chrome JSON traces. The support for now is extremely rough
@@ -38,14 +37,11 @@ class JsonTraceParser : public TraceParser {
  public:
   static constexpr char kPreamble[] = "{\"traceEvents\":[";
 
-  JsonTraceParser(BlobReader*, TraceProcessorContext*);
+  explicit JsonTraceParser(TraceProcessorContext*);
   ~JsonTraceParser() override;
 
   // TraceParser implementation.
-
-  // Parses a batch of JSON events from the BlobReader. Returns true
-  // if there are more chunks which can be read and false otherwise.
-  bool ParseNextChunk() override;
+  bool Parse(std::unique_ptr<uint8_t[]>, size_t) override;
 
  private:
   struct Slice {
@@ -60,10 +56,9 @@ class JsonTraceParser : public TraceParser {
   static inline std::tuple<uint64_t, uint64_t> GetStackHashes(
       const SlicesStack&);
 
-  BlobReader* const reader_;
   TraceProcessorContext* const context_;
   uint64_t offset_ = 0;
-  std::unique_ptr<char[]> buffer_;
+  std::vector<char> buffer_;
   std::unordered_map<UniqueTid, SlicesStack> threads_;
 };
 

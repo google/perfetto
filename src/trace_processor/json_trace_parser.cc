@@ -25,7 +25,6 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
-#include "src/trace_processor/blob_reader.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 
@@ -38,16 +37,18 @@ namespace perfetto {
 namespace trace_processor {
 
 namespace {
-const uint32_t kChunkSize = 1024 * 512;
+
+enum ReadDictRes { kFoundDict, kNeedsMoreData, kEndOfTrace, kFatalError };
 
 // Parses at most one JSON dictionary and returns a pointer to the end of it,
 // or nullptr if no dict could be detected.
 // This is to avoid decoding the full trace in memory and reduce heap traffic.
 // E.g.  input:  { a:1 b:{ c:2, d:{ e:3 } } } , { a:4, ... },
 //       output: [   only this is parsed    ] ^return value points here.
-const char* ReadOneJsonDict(const char* start,
+ReadDictRes ReadOneJsonDict(const char* start,
                             const char* end,
-                            Json::Value* value) {
+                            Json::Value* value,
+                            const char** next) {
   int braces = 0;
   const char* dict_begin = nullptr;
   for (const char* s = start; s < end; s++) {
@@ -61,20 +62,21 @@ const char* ReadOneJsonDict(const char* start,
     }
     if (*s == '}') {
       if (braces <= 0)
-        return nullptr;
+        return kEndOfTrace;
       if (--braces > 0)
         continue;
       Json::Reader reader;
       if (!reader.parse(dict_begin, s + 1, *value, /*collectComments=*/false)) {
         PERFETTO_ELOG("JSON error: %s",
                       reader.getFormattedErrorMessages().c_str());
-        return nullptr;
+        return kFatalError;
       }
-      return s + 1;
+      *next = s + 1;
+      return kFoundDict;
     }
     // TODO(primiano): skip braces in quoted strings, e.g.: {"foo": "ba{z" }
   }
-  return nullptr;
+  return kNeedsMoreData;
 }
 
 }  // namespace
@@ -82,22 +84,16 @@ const char* ReadOneJsonDict(const char* start,
 // static
 constexpr char JsonTraceParser::kPreamble[];
 
-JsonTraceParser::JsonTraceParser(BlobReader* reader,
-                                 TraceProcessorContext* context)
-    : reader_(reader), context_(context) {}
+JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
+    : context_(context) {}
 
 JsonTraceParser::~JsonTraceParser() = default;
 
-bool JsonTraceParser::ParseNextChunk() {
-  if (!buffer_)
-    buffer_.reset(new char[kChunkSize]);
-  char* buf = buffer_.get();
+bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
+  buffer_.insert(buffer_.end(), data.get(), data.get() + size);
+  char* buf = &buffer_[0];
   const char* next = buf;
-
-  uint32_t rsize =
-      reader_->Read(offset_, kChunkSize, reinterpret_cast<uint8_t*>(buf));
-  if (rsize == 0)
-    return false;
+  const char* end = &buffer_[buffer_.size()];
 
   if (offset_ == 0) {
     if (strncmp(buf, kPreamble, strlen(kPreamble))) {
@@ -112,12 +108,13 @@ bool JsonTraceParser::ParseNextChunk() {
   TraceStorage* storage = context_->storage.get();
   TraceStorage::NestableSlices* slices = storage->mutable_nestable_slices();
 
-  while (next < &buf[rsize]) {
+  while (next < end) {
     Json::Value value;
-    const char* res = ReadOneJsonDict(next, buf + rsize, &value);
-    if (!res)
+    const auto res = ReadOneJsonDict(next, end, &value, &next);
+    if (res == kFatalError)
+      return false;
+    if (res == kEndOfTrace || res == kNeedsMoreData)
       break;
-    next = res;
     auto& ph = value["ph"];
     if (!ph.isString())
       continue;
@@ -184,7 +181,8 @@ bool JsonTraceParser::ParseNextChunk() {
     // TODO(primiano): auto-close B slices left open at the end.
   }
   offset_ += static_cast<uint64_t>(next - buf);
-  return next > buf;
+  buffer_.erase(buffer_.begin(), buffer_.begin() + (next - buf));
+  return true;
 }
 
 void JsonTraceParser::MaybeCloseStack(uint64_t ts, SlicesStack& stack) {

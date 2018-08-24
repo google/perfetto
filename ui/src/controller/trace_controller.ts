@@ -39,6 +39,11 @@ import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
 type States = 'init'|'loading_trace'|'ready';
 
 
+declare interface FileReaderSync { readAsArrayBuffer(blob: Blob): ArrayBuffer; }
+
+declare var FileReaderSync:
+    {prototype: FileReaderSync; new (): FileReaderSync;};
+
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
 // tracks data and SQL queries. There is one TraceController instance for each
@@ -50,6 +55,10 @@ export class TraceController extends Controller<States> {
   constructor(engineId: string) {
     super('init');
     this.engineId = engineId;
+  }
+
+  onDestroy() {
+    if (this.engine !== undefined) globals.destroyEngine(this.engine.id);
   }
 
   run() {
@@ -102,17 +111,54 @@ export class TraceController extends Controller<States> {
   }
 
   private async loadTrace() {
+    globals.dispatch(updateStatus('Creating trace processor'));
     const engineCfg = assertExists(globals.state.engines[this.engineId]);
-    let blob: Blob;
+    this.engine = await globals.createEngine();
+
+    const statusHeader = 'Opening trace';
     if (engineCfg.source instanceof File) {
-      blob = engineCfg.source;
+      const blob = engineCfg.source as Blob;
+      const reader = new FileReaderSync();
+      const SLICE_SIZE = 1024 * 1024;
+      for (let off = 0; off < blob.size; off += SLICE_SIZE) {
+        const slice = blob.slice(off, off + SLICE_SIZE);
+        const arrBuf = reader.readAsArrayBuffer(slice);
+        await this.engine.parse(new Uint8Array(arrBuf));
+        const progress = Math.round((off + slice.size) / blob.size * 100);
+        globals.dispatch(updateStatus(`${statusHeader} ${progress} %`));
+      }
     } else {
-      globals.dispatch(updateStatus('Fetching trace from network'));
-      blob = await(await fetch(engineCfg.source)).blob();
+      const resp = await fetch(engineCfg.source);
+      if (resp.status !== 200) {
+        globals.dispatch(updateStatus(`HTTP error ${resp.status}`));
+        throw new Error(`fetch() failed with HTTP error ${resp.status}`);
+      }
+      // tslint:disable-next-line no-any
+      const rd = (resp.body as any).getReader() as ReadableStreamReader;
+      const tStartMs = performance.now();
+      let tLastUpdateMs = 0;
+      for (let off = 0;;) {
+        const readRes = await rd.read() as {value: Uint8Array, done: boolean};
+        if (readRes.value !== undefined) {
+          off += readRes.value.length;
+          await this.engine.parse(readRes.value);
+        }
+        // For traces loaded from the network there doesn't seem to be a
+        // reliable way to compute the %. The content-length exposed by GCS is
+        // before compression (which is handled transparently by the browser).
+        const nowMs = performance.now();
+        if (nowMs - tLastUpdateMs > 100) {
+          tLastUpdateMs = nowMs;
+          const mb = off / 1e6;
+          const tElapsed = (nowMs - tStartMs) / 1e3;
+          let status = `${statusHeader} ${mb.toFixed(1)} MB `;
+          status += `(${(mb / tElapsed).toFixed(1)} MB/s)`;
+          globals.dispatch(updateStatus(status));
+        }
+        if (readRes.done) break;
+      }
     }
 
-    globals.dispatch(updateStatus('Parsing trace'));
-    this.engine = await globals.createEngine(blob);
     const traceTime = await this.engine.getTraceTimeBounds();
     const actions = [
       setTraceTime(traceTime),
