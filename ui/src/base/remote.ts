@@ -89,8 +89,8 @@ export function forwardRemoteCalls(
     const result = handler[method].apply(handler, args);
     const transferList = [];
 
-    if (result instanceof MessagePort) {
-      transferList.push(result);
+    if (result !== undefined && result.port instanceof MessagePort) {
+      transferList.push(result.port);
     }
 
     port.postMessage(

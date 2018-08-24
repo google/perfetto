@@ -52,8 +52,7 @@ class MockModule implements Module {
 test('wasm bridge should locate files', async () => {
   const m = new MockModule();
   const callback = jest.fn();
-  const fileReader = jest.fn();
-  const bridge = new WasmBridge(m.init.bind(m), callback, fileReader);
+  const bridge = new WasmBridge(m.init.bind(m), callback);
   expect(bridge);
   expect(m.locateFile('foo.wasm')).toBe('foo.wasm');
 });
@@ -61,8 +60,7 @@ test('wasm bridge should locate files', async () => {
 test('wasm bridge early calls are delayed', async () => {
   const m = new MockModule();
   const callback = jest.fn();
-  const fileReader = jest.fn();
-  const bridge = new WasmBridge(m.init.bind(m), callback, fileReader);
+  const bridge = new WasmBridge(m.init.bind(m), callback);
 
   const requestPromise = bridge.callWasm({
     id: 100,
@@ -74,9 +72,6 @@ test('wasm bridge early calls are delayed', async () => {
   const readyPromise = bridge.initialize();
 
   m.onRuntimeInitialized();
-  // tslint:disable-next-line no-any
-  bridge.setBlob(null as any);
-  bridge.onReply(0, true, 0, 0);
 
   await readyPromise;
   bridge.onReply(100, true, 0, 1);
@@ -89,15 +84,11 @@ test('wasm bridge early calls are delayed', async () => {
 test('wasm bridge aborts all calls on failure', async () => {
   const m = new MockModule();
   const callback = jest.fn();
-  const fileReader = jest.fn();
-  const bridge = new WasmBridge(m.init.bind(m), callback, fileReader);
+  const bridge = new WasmBridge(m.init.bind(m), callback);
 
   const readyPromise = bridge.initialize();
 
   m.onRuntimeInitialized();
-  // tslint:disable-next-line no-any
-  bridge.setBlob(null as any);
-  bridge.onReply(0, true, 0, 0);
 
   bridge.callWasm({
     id: 100,

@@ -32,7 +32,6 @@ using namespace proto_utils;
 #error Unimplemented for big endian archs.
 #endif
 
-
 ProtoDecoder::Field ProtoDecoder::ReadField() {
   Field field{};
 

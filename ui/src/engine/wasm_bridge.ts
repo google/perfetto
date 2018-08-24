@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// tslint:disable:no-any
-
 import {defer, Deferred} from '../base/deferred';
 import * as init_trace_processor from '../gen/trace_processor';
 
@@ -36,13 +34,8 @@ export interface WasmBridgeResponse {
 
 export class WasmBridge {
   private deferredRuntimeInitialized: Deferred<void>;
-  private deferredHaveBlob: Deferred<void>;
-  private deferredInitialized: Deferred<void>;
   private deferredReady: Deferred<void>;
-  private fileReader: any;
-  private blob: Blob|null;
   private callback: (_: WasmBridgeResponse) => void;
-  private replyCount: number;
   private aborted: boolean;
   private outstandingRequests: Set<number>;
 
@@ -50,15 +43,10 @@ export class WasmBridge {
 
   constructor(
       init: init_trace_processor.InitWasm,
-      callback: (_: WasmBridgeResponse) => void, fileReader: any) {
-    this.replyCount = 0;
+      callback: (_: WasmBridgeResponse) => void) {
     this.deferredRuntimeInitialized = defer<void>();
-    this.deferredHaveBlob = defer<void>();
-    this.deferredInitialized = defer<void>();
     this.deferredReady = defer<void>();
-    this.fileReader = fileReader;
     this.callback = callback;
-    this.blob = null;
     this.aborted = false;
     this.outstandingRequests = new Set();
 
@@ -79,35 +67,11 @@ export class WasmBridge {
     this.outstandingRequests.clear();
   }
 
-  onRead(offset: number, length: number, dstPtr: number): number {
-    if (this.blob === null) {
-      throw new Error('No blob set');
-    }
-    const slice = this.blob.slice(offset, offset + length);
-
-    // TODO: loading progress should be propagated to the UI.
-    const completion = (offset + slice.size) / this.blob.size;
-    console.log(`Loading ${Math.floor(completion * 100)} %`);
-
-    const buf: ArrayBuffer = this.fileReader.readAsArrayBuffer(slice);
-    const buf8 = new Uint8Array(buf);
-    this.connection.HEAPU8.set(buf8, dstPtr);
-    return buf.byteLength;
-  }
-
   onReply(reqId: number, success: boolean, heapPtr: number, size: number) {
-    // The first reply (from Initialize) is special. It has no proto payload
-    // and no associated callback.
-    if (this.replyCount === 0) {
-      this.replyCount++;
-      this.deferredInitialized.resolve();
-      return;
-    }
     if (!this.outstandingRequests.has(reqId)) {
       throw new Error(`Unknown request id: "${reqId}"`);
     }
     this.outstandingRequests.delete(reqId);
-    this.replyCount++;
     const data = this.connection.HEAPU8.slice(heapPtr, heapPtr + size);
     this.callback({
       id: reqId,
@@ -122,12 +86,6 @@ export class WasmBridge {
       success: false,
       data: undefined,
     });
-  }
-
-  setBlob(blob: Blob) {
-    if (this.blob !== null) throw new Error('Blob set twice.');
-    this.blob = blob;
-    this.deferredHaveBlob.resolve();
   }
 
   async callWasm(req: WasmBridgeRequest): Promise<void> {
@@ -148,17 +106,9 @@ export class WasmBridge {
 
   async initialize(): Promise<void> {
     await this.deferredRuntimeInitialized;
-    await this.deferredHaveBlob;
-    const readTraceFn =
-        this.connection.addFunction(this.onRead.bind(this), 'iiii');
     const replyFn =
         this.connection.addFunction(this.onReply.bind(this), 'viiii');
-    this.connection.ccall(
-        'Initialize',
-        'void',
-        ['number', 'number', 'number'],
-        [0, readTraceFn, replyFn]);
-    await this.deferredInitialized;
+    this.connection.ccall('Initialize', 'void', ['number'], [replyFn]);
     this.deferredReady.resolve();
   }
 }
