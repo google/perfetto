@@ -35,7 +35,7 @@ class RateLimiter {
   virtual ~RateLimiter();
 
   bool ShouldTrace(const Args& args);
-  bool OnTraceDone(const Args& args, bool success, size_t bytes);
+  bool OnTraceDone(const Args& args, bool success, uint64_t bytes);
 
   bool ClearState();
 
