@@ -223,12 +223,6 @@ button.close {
     }
 }
 
-.panel {
-    display: grid;
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
-}
-
 .track {
     display: grid;
     grid-template-columns: auto 1fr;
@@ -270,10 +264,46 @@ button.close {
 }
 
 .scrolling-panel-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
-    will-change: transform;  // Force layer creation.
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  will-change: transform;  // Force layer creation.
+}
+
+.pinned-panel-container {
+  position: relative;
+  // Override top level overflow: hidden so height of this flex item can be
+  // its content height.
+  overflow: visible;
+}
+
+.scroll-limiter {
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+canvas.main-canvas {
+  top: 0px;
+  width: 100%;
+  position: absolute;
+}
+
+// If you introduce margins or paddings here, you need to also update the
+// PanelContainer canvas rendering code.
+.panel {
+  position: relative;
+
+  // Make any direct children automatically take up full height.
+  display: grid;
+  grid-template-rows: 1fr;
+  grid-template-columns: 1fr;
+}
+
+.pan-and-zoom-content {
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-flow: column nowrap;
 }

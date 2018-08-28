@@ -83,13 +83,14 @@ const TrackMoveButton = {
 },
                         {}>;
 
-export class TrackPanel implements Panel {
+export class TrackPanel extends Panel {
   private track: Track;
   constructor(public trackState: TrackState) {
     // TODO: Since ES6 modules are asynchronous and it is conceivable that we
     // want to load a track implementation on demand, we should not rely here on
     // the fact that the track is already registered. We should show some
     // default content until a track implementation is found.
+    super();
     const trackCreator = trackRegistry.get(this.trackState.kind);
     this.track = trackCreator.create(this.trackState);
   }
