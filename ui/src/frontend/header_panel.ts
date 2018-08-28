@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as m from 'mithril';
 import {Panel} from './panel';
 
-export class FlameGraphPanel extends Panel {
-  private renderedDom = false;
+export class HeaderPanel extends Panel {
+  constructor(private text: string) {
+    super();
+  }
+
   renderCanvas() {}
   updateDom(dom: HTMLElement) {
-    if (this.renderedDom) return;
-    dom.innerHTML = `<header>Flame Graph</Header>
-        <embed type="image/svg+xml" src="/assets/flamegraph.svg">`;
-    this.renderedDom = true;
+    m.render(dom, m('header', this.text));
   }
 
   getHeight() {
-    return 500;
+    return 25;
   }
 }
