@@ -37,7 +37,19 @@ const Alerts: m.Component = {
  * Wrap component with common UI elements (nav bar etc).
  */
 export function createPage(component: m.Component): m.Component {
-  return {
+  const pageComponent = {
+    oncreate() {
+      // Mithril 1.1.6 does not have a synchronous redraw method, so we use
+      // m.render for a sync redraw.
+      globals.rafScheduler.domRedraw = (() => {
+        m.render(document.body, m(pageComponent));
+      });
+    },
+
+    onremove() {
+      globals.rafScheduler.domRedraw = null;
+    },
+
     view() {
       return [
         m(Sidebar),
@@ -47,4 +59,6 @@ export function createPage(component: m.Component): m.Component {
       ];
     },
   };
+
+  return pageComponent;
 }

@@ -187,7 +187,7 @@ export const PanelContainer = {
       this.parentOnScroll = () => {
         vnodeDom.state.scrollTop = vnodeDom.dom.parentElement!.scrollTop;
         repositionCanvas(vnodeDom);
-        globals.rafScheduler.scheduleOneRedraw();
+        globals.rafScheduler.scheduleRedraw();
       };
       vnodeDom.dom.parentElement!.addEventListener(
           'scroll', this.parentOnScroll, {passive: true});
