@@ -44,19 +44,19 @@ function onKeyDown(e: Event) {
   const txt = (e.target as HTMLInputElement);
   if (key === ':' && txt.value === '') {
     mode = 'command';
-    m.redraw();
+    globals.rafScheduler.scheduleFullRedraw();
     e.preventDefault();
     return;
   }
   if (key === 'Escape' && mode === 'command') {
     txt.value = '';
     mode = 'search';
-    m.redraw();
+    globals.rafScheduler.scheduleFullRedraw();
     return;
   }
   if (key === 'Backspace' && txt.value.length === 0 && mode === 'command') {
     mode = 'search';
-    m.redraw();
+    globals.rafScheduler.scheduleFullRedraw();
     return;
   }
 }
@@ -70,12 +70,12 @@ function onKeyUp(e: Event) {
     selResult = Math.max(selResult, 0);
     selResult = Math.min(selResult, numResults - 1);
     e.preventDefault();
-    m.redraw();
+    globals.rafScheduler.scheduleFullRedraw();
     return;
   }
   if (txt.value.length <= 0 || key === 'Escape') {
     clearOmniboxResults();
-    m.redraw();
+    globals.rafScheduler.scheduleFullRedraw();
     return;
   }
   if (mode === 'search') {
@@ -104,7 +104,8 @@ const Omnibox: m.Component = {
     }
 
     if (msgTTL > 0 || enginesAreBusy) {
-      setTimeout(() => m.redraw(), msgTTL * 1000);
+      setTimeout(
+          () => globals.rafScheduler.scheduleFullRedraw(), msgTTL * 1000);
       return m(
           `.omnibox.message-mode`,
           m(`input[placeholder=${globals.state.status.msg}][readonly]`));

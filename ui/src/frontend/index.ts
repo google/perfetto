@@ -62,12 +62,12 @@ class FrontendApi {
       }
       globals.overviewStore.get(key)!.push(data[key]);
     }
-    globals.rafScheduler.scheduleOneRedraw();
+    globals.rafScheduler.scheduleRedraw();
   }
 
   publishTrackData(args: {id: string, data: {}}) {
     globals.trackDataStore.set(args.id, args.data);
-    globals.rafScheduler.scheduleOneRedraw();
+    globals.rafScheduler.scheduleRedraw();
   }
 
   publishQueryResult(args: {id: string, data: {}}) {
@@ -103,7 +103,7 @@ class FrontendApi {
     if (globals.state.route && globals.state.route !== m.route.get()) {
       m.route.set(globals.state.route);
     } else {
-      m.redraw();
+      globals.rafScheduler.scheduleFullRedraw();
     }
   }
 }
