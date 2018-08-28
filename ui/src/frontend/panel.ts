@@ -12,8 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export interface Panel {
-  renderCanvas(ctx: CanvasRenderingContext2D): void;
-  updateDom(dom: HTMLElement): void;
-  getHeight(): number;
+let nextPanelId = 0;
+
+export abstract class Panel {
+  // Each panel has a unique string id. This is suitable for use as a mithril
+  // component key.
+  readonly id: string;
+
+  constructor() {
+    this.id = 'panel-id-' + (nextPanelId++).toString();
+  }
+
+  abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
+  abstract updateDom(dom: HTMLElement): void;
+
+  // TODO: If a panel changes its height, we need to call m.redraw. Instead of
+  // getHeight, we can have an setHeight method in the abstract class that does
+  // that redraw call.
+  abstract getHeight(): number;
 }
