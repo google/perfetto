@@ -77,7 +77,7 @@ class PerfettoCmd : public Consumer {
   base::ScopedFile ctrl_c_pipe_rd_;
   std::string dropbox_tag_;
   bool did_process_full_trace_ = false;
-  size_t bytes_uploaded_to_dropbox_ = 0;
+  uint64_t bytes_written_ = 0;
 };
 
 }  // namespace perfetto

@@ -73,7 +73,7 @@ int PerfettoCmd::PrintUsage(const char* argv0) {
 Usage: %s
   --background     -b     : Exits immediately and continues tracing in background
   --config         -c     : /path/to/trace/config/file or - for stdin
-  --out            -o     : /path/to/out/trace/file
+  --out            -o     : /path/to/out/trace/file or - for stdout
   --dropbox        -d TAG : Upload trace into DropBox using tag TAG (default: %s)
   --no-guardrails  -n     : Ignore guardrails triggered when using --dropbox (for testing).
   --reset-guardrails      : Resets the state of the guardails and exits (for testing).
@@ -249,10 +249,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
   SetupCtrlCSignalHandler();
   task_runner_.Run();
 
-  return limiter.OnTraceDone(args, did_process_full_trace_,
-                             bytes_uploaded_to_dropbox_)
-             ? 0
-             : 1;
+  return limiter.OnTraceDone(args, did_process_full_trace_, bytes_written_) ? 0
+                                                                            : 1;
 }
 
 void PerfettoCmd::OnConnect() {
@@ -294,11 +292,12 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     static constexpr uint32_t kPacketFieldNumber = 1;
     pos = WriteVarInt(MakeTagLengthDelimited(kPacketFieldNumber), pos);
     pos = WriteVarInt(static_cast<uint32_t>(packet.size()), pos);
-    fwrite(reinterpret_cast<const char*>(preamble),
-           static_cast<size_t>(pos - preamble), 1, trace_out_stream_.get());
+    bytes_written_ +=
+        fwrite(reinterpret_cast<const char*>(preamble), 1,
+               static_cast<size_t>(pos - preamble), trace_out_stream_.get());
     for (const Slice& slice : packet.slices()) {
-      fwrite(reinterpret_cast<const char*>(slice.start), slice.size, 1,
-             trace_out_stream_.get());
+      bytes_written_ += fwrite(reinterpret_cast<const char*>(slice.start), 1,
+                               slice.size, trace_out_stream_.get());
     }
   }
 
@@ -319,13 +318,11 @@ void PerfettoCmd::OnTracingDisabled() {
 
 void PerfettoCmd::FinalizeTraceAndExit() {
   fflush(*trace_out_stream_);
-  fseek(*trace_out_stream_, 0, SEEK_END);
-  long bytes_written = ftell(*trace_out_stream_);
   if (dropbox_tag_.empty()) {
     trace_out_stream_.reset();
     did_process_full_trace_ = true;
-    PERFETTO_ILOG("Wrote %ld bytes into %s", bytes_written,
-                  trace_out_path_.c_str());
+    PERFETTO_ILOG("Wrote %" PRIu64 " bytes into %s", bytes_written_,
+                  trace_out_path_ == "-" ? "stdout" : trace_out_path_.c_str());
   } else {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     android::sp<android::os::DropBoxManager> dropbox =
@@ -345,9 +342,8 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     if (status.isOk()) {
       // TODO(hjd): Account for compression.
       did_process_full_trace_ = true;
-      bytes_uploaded_to_dropbox_ = bytes_written;
-      PERFETTO_ILOG("Uploaded %ld bytes into DropBox with tag %s",
-                    bytes_written, dropbox_tag_.c_str());
+      PERFETTO_ILOG("Uploaded %" PRIu64 " bytes into DropBox with tag %s",
+                    bytes_written_, dropbox_tag_.c_str());
     } else {
       PERFETTO_ELOG("DropBox upload failed: %s", status.toString8().c_str());
     }
@@ -372,6 +368,8 @@ bool PerfettoCmd::OpenOutputFile() {
 #else
     PERFETTO_FATAL("Tracing to Dropbox requires the Android build.");
 #endif
+  } else if (trace_out_path_ == "-") {
+    fd.reset(dup(STDOUT_FILENO));
   } else {
     fd.reset(open(trace_out_path_.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0600));
   }
