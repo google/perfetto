@@ -120,7 +120,7 @@ export class OverviewTimelinePanel extends Panel {
     if (tStart > tEnd) [tStart, tEnd] = [tEnd, tStart];
     const vizTime = new TimeSpan(tStart, tEnd);
     globals.frontendLocalState.updateVisibleTime(vizTime);
-    globals.rafScheduler.scheduleOneRedraw();
+    globals.rafScheduler.scheduleRedraw();
   }
 
   onDragStart(x: number) {

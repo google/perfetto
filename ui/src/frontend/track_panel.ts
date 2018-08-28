@@ -49,11 +49,11 @@ const TrackContent = {
     return m('.track-content', {
       onmousemove: (e: MouseEvent) => {
         attrs.track.onMouseMove({x: e.layerX, y: e.layerY});
-        globals.rafScheduler.scheduleOneRedraw();
+        globals.rafScheduler.scheduleRedraw();
       },
       onmouseout: () => {
         attrs.track.onMouseOut();
-        globals.rafScheduler.scheduleOneRedraw();
+        globals.rafScheduler.scheduleRedraw();
       },
     }, );
   }
