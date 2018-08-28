@@ -19,14 +19,12 @@ import {globals} from './globals';
 import {Panel} from './panel';
 import {TimeScale} from './time_scale';
 
-export class OverviewTimelinePanel implements Panel {
+export class OverviewTimelinePanel extends Panel {
   private width?: number;
   private dragStartPx = 0;
   private gesture?: DragGestureHandler;
   private timeScale?: TimeScale;
   private totTime = new TimeSpan(0, 0);
-
-  constructor() {}
 
   getHeight(): number {
     return 100;

@@ -12,19 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as m from 'mithril';
+
+import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {Panel} from './panel';
+import {PanelContainer} from './panel_container';
+import {TimeAxisPanel} from './time_axis_panel';
 
-export class FlameGraphPanel extends Panel {
-  private renderedDom = false;
-  renderCanvas() {}
-  updateDom(dom: HTMLElement) {
-    if (this.renderedDom) return;
-    dom.innerHTML = `<header>Flame Graph</Header>
-        <embed type="image/svg+xml" src="/assets/flamegraph.svg">`;
-    this.renderedDom = true;
-  }
+export const TopPanelContainer = {
+  oninit() {
+    this.panels = [new OverviewTimelinePanel(), new TimeAxisPanel()];
+  },
 
-  getHeight() {
-    return 500;
-  }
-}
+  view() {
+    return m(
+        '.pinned-panel-container',
+        m(PanelContainer, {panels: this.panels, doesScroll: false}));
+  },
+} as m.Component<{}, {panels: Panel[]}>;

@@ -19,10 +19,8 @@ import {DESIRED_PX_PER_STEP, getGridStepSize} from './gridline_helper';
 import {Panel} from './panel';
 import {TRACK_SHELL_WIDTH} from './track_panel';
 
-export class TimeAxisPanel implements Panel {
+export class TimeAxisPanel extends Panel {
   private width = 200;
-
-  constructor() {}
 
   getHeight(): number {
     return 30;
