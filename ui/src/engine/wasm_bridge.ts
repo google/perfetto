@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer, Deferred} from '../base/deferred';
-import * as init_trace_processor from '../gen/trace_processor';
+import * as init_trace_processor from '../gen/trace_processor_wasm';
 
 function writeToUIConsole(line: string) {
   console.log(line);
