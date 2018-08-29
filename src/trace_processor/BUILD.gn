@@ -15,7 +15,7 @@
 import("../../gn/perfetto.gni")
 import("../../gn/wasm.gni")
 
-wasm_lib("trace_processor") {
+wasm_lib("trace_processor_wasm") {
   sources = [
     "wasm_bridge.cc",
   ]
@@ -28,6 +28,14 @@ wasm_lib("trace_processor") {
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../protos/perfetto/trace_processor:lite",
+  ]
+}
+
+# The library which eases processing of Perfetto traces by exposing reading
+# friendly APIs.
+static_library("trace_processor") {
+  deps = [
+    ":lib",
   ]
 }
 
