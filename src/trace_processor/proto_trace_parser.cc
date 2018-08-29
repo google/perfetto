@@ -232,7 +232,7 @@ void ProtoTraceParser::ParseFtraceEventBundle(const uint8_t* data,
   constexpr auto kCpuFieldTag = MakeTagVarInt(kCpuFieldNumber);
 
   // For speed we speculate on the location and size (<128) of the cpu field.
-  // In P+ cpu is pushed as the first field.
+  // In Q+ cpu is pushed as the first field.
   // In P cpu is pushed as the 2nd last field.
   if (length > 2 && data[0] == kCpuFieldTag && data[1] < 0x80) {
     cpu = data[1];
