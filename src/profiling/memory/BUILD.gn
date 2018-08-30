@@ -13,14 +13,13 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
-
-assert(!build_with_chromium)
+import("//build_overrides/build.gni")
 
 source_set("record_reader") {
   public_configs = [ "../../../gn:default_config" ]
   deps = [
     "../../../gn:default_deps",
-    "../../../src/base",
+    "../../base",
   ]
   sources = [
     "record_reader.cc",
@@ -28,11 +27,45 @@ source_set("record_reader") {
   ]
 }
 
+source_set("unwinding") {
+  public_configs = [
+    "../../../gn:default_config",
+    "../../../buildtools:libunwindstack_config",
+  ]
+  deps = [
+    "../../../buildtools:libunwindstack",
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+  sources = [
+    "unwinding.cc",
+    "unwinding.h",
+  ]
+}
+
+source_set("socket_listener") {
+  public_configs = [
+    "../../../gn:default_config",
+    "../../../buildtools:libunwindstack_config",
+  ]
+  deps = [
+    ":record_reader",
+    ":unwinding",
+    "../../../gn:default_deps",
+    "../../base",
+    "../../ipc",
+  ]
+  sources = [
+    "socket_listener.cc",
+    "socket_listener.h",
+  ]
+}
+
 source_set("string_interner") {
   public_configs = [ "../../../gn:default_config" ]
   deps = [
     "../../../gn:default_deps",
-    "../../../src/base",
+    "../../base",
   ]
   sources = [
     "string_interner.cc",
@@ -41,15 +74,38 @@ source_set("string_interner") {
 }
 
 source_set("unittests") {
+  public_configs = [
+    "../../../gn:default_config",
+    "../../../buildtools:libunwindstack_config",
+  ]
   testonly = true
   deps = [
     ":record_reader",
+    ":socket_listener",
     ":string_interner",
+    ":unwinding",
     "../../../gn:gtest_deps",
     "../../base",
+    "../../base:test_support",
   ]
   sources = [
     "record_reader_unittest.cc",
+    "socket_listener_unittest.cc",
     "string_interner_unittest.cc",
+    "unwinding_unittest.cc",
+  ]
+}
+
+executable("heapprofd") {
+  public_configs = [ "../../../gn:default_config" ]
+  deps = [
+    ":socket_listener",
+    ":unwinding",
+    "../../../gn:default_deps",
+    "../../base",
+    "../../ipc",
+  ]
+  sources = [
+    "main.cc",
   ]
 }
