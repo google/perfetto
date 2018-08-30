@@ -52,7 +52,17 @@ config("libunwindstack_config") {
     # in our own code.
     "-isystem",
     rebase_path("android-core/libunwindstack/include", root_build_dir),
+    "-isystem",
+    rebase_path("android-core/libprocinfo/include", root_build_dir),
+    "-isystem",
+    rebase_path("android-core/base/include", root_build_dir),
   ]
+  if (is_android) {
+    cflags += [
+      "-isystem",
+      rebase_path("bionic/libc/include", root_build_dir),
+    ]
+  }
 }
 
 # Config to include gtest.h in test targets.

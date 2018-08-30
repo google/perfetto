@@ -27,16 +27,12 @@ namespace {
 constexpr size_t kBufSize = 2048;
 }
 
-bool ReadFile(const std::string& path, std::string* out) {
+bool ReadFileDescriptor(int fd, std::string* out) {
   // Do not override existing data in string.
   size_t i = out->size();
 
-  base::ScopedFile fd = base::OpenFile(path.c_str(), O_RDONLY);
-  if (!fd)
-    return false;
-
   struct stat buf {};
-  if (fstat(*fd, &buf) != -1) {
+  if (fstat(fd, &buf) != -1) {
     if (buf.st_size > 0)
       out->resize(i + static_cast<size_t>(buf.st_size));
   }
@@ -46,7 +42,7 @@ bool ReadFile(const std::string& path, std::string* out) {
     if (out->size() < i + kBufSize)
       out->resize(out->size() + kBufSize);
 
-    bytes_read = PERFETTO_EINTR(read(fd.get(), &((*out)[i]), kBufSize));
+    bytes_read = PERFETTO_EINTR(read(fd, &((*out)[i]), kBufSize));
     if (bytes_read > 0) {
       i += static_cast<size_t>(bytes_read);
     } else {
@@ -54,6 +50,14 @@ bool ReadFile(const std::string& path, std::string* out) {
       return bytes_read == 0;
     }
   }
+}
+
+bool ReadFile(const std::string& path, std::string* out) {
+  base::ScopedFile fd = base::OpenFile(path.c_str(), O_RDONLY);
+  if (!fd)
+    return false;
+
+  return ReadFileDescriptor(*fd, out);
 }
 
 }  // namespace base
