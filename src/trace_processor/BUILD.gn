@@ -16,6 +16,7 @@ import("../../gn/perfetto.gni")
 import("../../gn/wasm.gni")
 
 wasm_lib("trace_processor_wasm") {
+  name = "trace_processor"
   sources = [
     "wasm_bridge.cc",
   ]
