@@ -33,8 +33,9 @@ declare_args() {
   monolithic_binaries = false
 
   # libunwindstack requires API level 26 or newer.
-  should_build_heapprofd = !build_with_chromium && is_clang &&
-                           (!is_android || android_api_level >= 26)
+  should_build_heapprofd =
+      !build_with_chromium && is_clang &&
+      (!is_android || android_api_level >= 26 || build_with_android)
 }
 assert(!monolithic_binaries || !build_with_android)
 
