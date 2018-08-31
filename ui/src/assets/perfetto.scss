@@ -231,9 +231,8 @@ button.close {
     .track-shell {
         padding: 0 20px;
         display: grid;
-        grid-template-areas:
-          "title up"
-          "title down";
+        grid-template-areas: "title up down";
+        grid-template-columns: 1fr auto auto;
         align-items: center;
         width: 300px;
         background: #fff;
@@ -248,6 +247,7 @@ button.close {
         }
         .track-move-icons {
             justify-self: end;
+            margin: 0 5px;
             color: #fff;
             font-weight: bold;
             text-align: center;
