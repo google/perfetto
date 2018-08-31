@@ -21,7 +21,7 @@ import {trackRegistry} from '../../frontend/track_registry';
 
 import {CPU_SLICE_TRACK_KIND, CpuSliceTrackData} from './common';
 
-const MARGIN_TOP = 20;
+const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 
 function cropText(str: string, charWidth: number, rectWidth: number) {
@@ -164,15 +164,21 @@ class CpuSliceTrack extends Track {
 
     const hoveredThread = globals.threads.get(this.hoveredUtid);
     if (hoveredThread !== undefined) {
-      ctx.fillStyle = 'hsl(200, 50%, 40%)';
-      ctx.textAlign = 'left';
       const procTitle = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
       const threadTitle =
           `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+
       ctx.font = '10px Google Sans';
-      ctx.fillText(procTitle, this.mouseXpos! + 5, 8);
-      ctx.font = '10px Google Sans';
-      ctx.fillText(threadTitle, this.mouseXpos! + 5, 18);
+      const procTitleWidth = ctx.measureText(procTitle).width;
+      const threadTitleWidth = ctx.measureText(threadTitle).width;
+      const width = Math.max(procTitleWidth, threadTitleWidth);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.fillRect(this.mouseXpos!, MARGIN_TOP, width + 16, RECT_HEIGHT);
+      ctx.fillStyle = 'hsl(200, 50%, 40%)';
+      ctx.textAlign = 'left';
+      ctx.fillText(procTitle, this.mouseXpos! + 8, 18);
+      ctx.fillText(threadTitle, this.mouseXpos! + 8, 28);
     }
   }
 
