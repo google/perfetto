@@ -42,7 +42,7 @@ export abstract class Track {
   constructor(protected trackState: TrackState) {}
   abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
   getHeight(): number {
-    return 70;
+    return 40;
   }
   onMouseMove(_position: {x: number, y: number}) {}
   onMouseOut() {}
