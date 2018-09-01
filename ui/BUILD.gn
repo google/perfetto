@@ -325,10 +325,10 @@ sorcery("engine_bundle_dist") {
 
 copy("wasm_dist") {
   deps = [
-    "//src/trace_processor:trace_processor_wasm.wasm($wasm_toolchain)",
+    "//src/trace_processor:trace_processor.wasm($wasm_toolchain)",
   ]
   sources = [
-    "$root_build_dir/wasm/trace_processor_wasm.wasm",
+    "$root_build_dir/wasm/trace_processor.wasm",
   ]
   outputs = [
     "$ui_dir/{{source_file_part}}",
@@ -338,14 +338,14 @@ copy("wasm_dist") {
 copy("wasm_gen") {
   deps = [
     ":dist_symlink",
-    "//src/trace_processor:trace_processor_wasm.d.ts($wasm_toolchain)",
-    "//src/trace_processor:trace_processor_wasm.js($wasm_toolchain)",
-    "//src/trace_processor:trace_processor_wasm.wasm($wasm_toolchain)",
+    "//src/trace_processor:trace_processor.d.ts($wasm_toolchain)",
+    "//src/trace_processor:trace_processor.js($wasm_toolchain)",
+    "//src/trace_processor:trace_processor.wasm($wasm_toolchain)",
   ]
   sources = [
-    "$root_build_dir/wasm/trace_processor_wasm.d.ts",
-    "$root_build_dir/wasm/trace_processor_wasm.js",
-    "$root_build_dir/wasm/trace_processor_wasm.wasm",
+    "$root_build_dir/wasm/trace_processor.d.ts",
+    "$root_build_dir/wasm/trace_processor.js",
+    "$root_build_dir/wasm/trace_processor.wasm",
   ]
   outputs = [
     "$ui_gen_dir/{{source_file_part}}",

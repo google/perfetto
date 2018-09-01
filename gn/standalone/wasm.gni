@@ -34,7 +34,11 @@ em_config = "\"$em_config\""
 #  generate_html: when true generates also an example .html file which contains
 #      a minimal console to interact with the module (useful for testing).
 template("wasm_lib") {
-  _lib_name = target_name
+  assert(defined(invoker.name))
+
+  # If the name is foo the target_name must be foo_wasm.
+  assert(invoker.name + "_wasm" == target_name)
+  _lib_name = invoker.name
 
   if (is_wasm) {
     assert(defined(invoker.sources))
