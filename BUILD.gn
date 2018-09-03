@@ -13,7 +13,11 @@
 # limitations under the License.
 
 import("gn/perfetto.gni")
-import("gn/standalone/android.gni")
+if (!build_with_chromium) {
+  import("//gn/standalone/android.gni")
+} else {
+  import("//build/config/android/config.gni")
+}
 
 # For use_libfuzzer.
 if (!build_with_chromium) {
