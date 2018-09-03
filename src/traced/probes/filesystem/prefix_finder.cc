@@ -27,22 +27,11 @@ std::string PrefixFinder::Node::ToString() const {
 }
 
 PrefixFinder::Node* PrefixFinder::Node::AddChild(std::string name) {
-  auto p = children_.emplace(std::move(name), this);
-  PERFETTO_DCHECK(p.second);
-  // This is fine as long as the comparator only uses const members of Node.
-  return const_cast<Node*>(&(*p.first));
+  return children_.Emplace(std::move(name), this);
 }
 
 PrefixFinder::Node* PrefixFinder::Node::MaybeChild(const std::string& name) {
-  // This will be nicer with C++14 transparent comparators.
-  // Then we will be able to look up by just the name using a sutiable
-  // comparator.
-  Node search_node(name, nullptr);
-  auto it = children_.find(search_node);
-  if (it == children_.end())
-    return nullptr;
-  // This is fine as long as the comparator only uses const members of Node.
-  return const_cast<Node*>(&(*it));
+  return children_.Get(name);
 }
 
 PrefixFinder::PrefixFinder(size_t limit) : limit_(limit) {}
