@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/trace_parser.h"
+#include "src/trace_processor/chunked_trace_reader.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-TraceParser::~TraceParser() {}
+ChunkedTraceReader::~ChunkedTraceReader() {}
 
 }  // namespace trace_processor
 }  // namespace perfetto

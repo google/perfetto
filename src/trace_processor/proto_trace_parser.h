@@ -18,49 +18,32 @@
 #define SRC_TRACE_PROCESSOR_PROTO_TRACE_PARSER_H_
 
 #include <stdint.h>
-
 #include <memory>
-#include <vector>
 
-#include "perfetto/base/logging.h"
-#include "src/trace_processor/trace_parser.h"
+#include "src/trace_processor/trace_blob_view.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 class TraceProcessorContext;
 
-// Reads a protobuf trace in chunks and parses it into a form which is
-// efficient to query.
-class ProtoTraceParser : public TraceParser {
+class ProtoTraceParser {
  public:
-  // |reader| is the abstract method of getting chunks of size |chunk_size_b|
-  // from a trace file with these chunks parsed into |trace|.
   explicit ProtoTraceParser(TraceProcessorContext*);
-  ~ProtoTraceParser() override;
+  virtual ~ProtoTraceParser();
 
-  // TraceParser implementation.
-  bool Parse(std::unique_ptr<uint8_t[]>, size_t size) override;
+  // virtual for testing.
+  virtual void ParseTracePacket(TraceBlobView);
+  virtual void ParseFtracePacket(uint32_t cpu,
+                                 uint64_t timestamp,
+                                 TraceBlobView);
+  void ParseProcessTree(TraceBlobView);
+  void ParseSchedSwitch(uint32_t cpu, uint64_t timestamp, TraceBlobView);
+  void ParseThread(TraceBlobView);
+  void ParseProcess(TraceBlobView);
 
  private:
-  void ParseInternal(std::unique_ptr<uint8_t[]>, uint8_t* data, size_t size);
-
-  void ParsePacket(const uint8_t* data, size_t length);
-  void ParseFtraceEventBundle(const uint8_t* data, size_t length);
-  void ParseFtraceEvent(uint32_t cpu, const uint8_t* data, size_t length);
-  void ParseSchedSwitch(uint32_t cpu,
-                        uint64_t timestamp,
-                        const uint8_t* data,
-                        size_t length);
-  void ParseProcessTree(const uint8_t* data, size_t length);
-  void ParseProcess(const uint8_t* data, size_t length);
-  void ParseThread(const uint8_t* data, size_t length);
-
   TraceProcessorContext* context_;
-
-  // Used to glue together trace packets that span across two (or more)
-  // Parse() boundaries.
-  std::vector<uint8_t> partial_buf_;
 };
 
 }  // namespace trace_processor
