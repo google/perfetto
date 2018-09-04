@@ -60,6 +60,13 @@ class StackMemory : public unwindstack::Memory {
   uint8_t* stack_;
 };
 
+size_t RegSize(unwindstack::ArchEnum arch);
+
+bool DoUnwind(void* mem,
+              size_t sz,
+              ProcessMetadata* metadata,
+              std::vector<unwindstack::FrameData>* out);
+
 }  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_UNWINDING_H_
