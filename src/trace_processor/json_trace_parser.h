@@ -23,7 +23,7 @@
 #include <tuple>
 #include <unordered_map>
 
-#include "src/trace_processor/trace_parser.h"
+#include "src/trace_processor/chunked_trace_reader.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -33,7 +33,7 @@ class TraceProcessorContext;
 
 // Parses legacy chrome JSON traces. The support for now is extremely rough
 // and supports only explicit TRACE_EVENT_BEGIN/END events.
-class JsonTraceParser : public TraceParser {
+class JsonTraceParser : public ChunkedTraceReader {
  public:
   static constexpr char kPreamble[] = "{\"traceEvents\":[";
 

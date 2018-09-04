@@ -163,6 +163,7 @@ int main(int argc, char** argv) {
     // Parse the completed buffer while the async read is in-flight.
     tp.Parse(std::move(buf), static_cast<size_t>(rsize));
   }
+  tp.NotifyEndOfFile();
   double t_load = (base::GetWallTimeMs() - t_load_start).count() / 1E3;
   double size_mb = file_size / 1E6;
   PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb, size_mb / t_load);
