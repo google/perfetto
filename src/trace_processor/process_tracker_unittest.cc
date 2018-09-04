@@ -17,7 +17,6 @@
 #include "src/trace_processor/process_tracker.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/sched_tracker.h"
 #include "src/trace_processor/trace_processor.h"
 

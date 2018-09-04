@@ -47,6 +47,7 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
       if (!processor.Parse(std::move(buf), rsize))
         return false;
     }
+    processor.NotifyEndOfFile();
     return true;
   }
 

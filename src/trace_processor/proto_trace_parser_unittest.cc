@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/proto_trace_parser.h"
+#include "src/trace_processor/proto_trace_tokenizer.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/sched_tracker.h"
+#include "src/trace_processor/trace_sorter.h"
 
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
@@ -59,14 +61,32 @@ class MockProcessTracker : public ProcessTracker {
   MOCK_METHOD2(UpdateThread, UniqueTid(uint32_t tid, uint32_t tgid));
 };
 
-void ParseTraceProto(const protos::Trace& trace, ProtoTraceParser* parser) {
-  const size_t trace_size = static_cast<size_t>(trace.ByteSize());
-  std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_size]);
-  trace.SerializeWithCachedSizesToArray(&buf[0]);
-  parser->Parse(std::move(buf), trace_size);
-}
+class ProtoTraceParserTest : public ::testing::Test {
+ public:
+  ProtoTraceParserTest() {
+    sched_ = new MockSchedTracker(&context_);
+    context_.sched_tracker.reset(sched_);
+    process_ = new MockProcessTracker(&context_);
+    context_.process_tracker.reset(process_);
+    context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
+    context_.proto_parser.reset(new ProtoTraceParser(&context_));
+  }
 
-TEST(ProtoTraceParserTest, LoadSingleEvent_CpuStart) {
+  void Tokenize(const protos::Trace& trace) {
+    std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace.ByteSize()]);
+    trace.SerializeToArray(raw_trace.get(), trace.ByteSize());
+    ProtoTraceTokenizer tokenizer(&context_);
+    tokenizer.Parse(std::move(raw_trace),
+                    static_cast<size_t>(trace.ByteSize()));
+  }
+
+ protected:
+  TraceProcessorContext context_;
+  MockSchedTracker* sched_;
+  MockProcessTracker* process_;
+};
+
+TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -82,71 +102,12 @@ TEST(ProtoTraceParserTest, LoadSingleEvent_CpuStart) {
   sched_switch->set_prev_comm(kProcName);
   sched_switch->set_next_pid(100);
 
-  TraceProcessorContext context;
-  MockSchedTracker* sched = new MockSchedTracker(&context);
-  context.sched_tracker.reset(sched);
-  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32,
-                                      base::StringView(kProcName), 100));
-
-  ProtoTraceParser parser(&context);
-  ParseTraceProto(trace, &parser);
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32,
+                                       base::StringView(kProcName), 100));
+  Tokenize(trace);
 }
 
-TEST(ProtoTraceParserTest, LoadSingleEvent_CpuMiddle) {
-  protos::Trace trace;
-
-  auto* bundle = trace.add_packet()->mutable_ftrace_events();
-  bundle->set_overwrite_count(999);
-  bundle->set_cpu(10);
-
-  auto* event = bundle->add_event();
-  event->set_timestamp(1000);
-
-  static const char kProcName[] = "proc1";
-  auto* sched_switch = event->mutable_sched_switch();
-  sched_switch->set_prev_pid(10);
-  sched_switch->set_prev_state(32);
-  sched_switch->set_prev_comm(kProcName);
-  sched_switch->set_next_pid(100);
-
-  TraceProcessorContext context;
-  MockSchedTracker* sched = new MockSchedTracker(&context);
-  context.sched_tracker.reset(sched);
-  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32,
-                                      base::StringView(kProcName), 100));
-
-  ProtoTraceParser parser(&context);
-  ParseTraceProto(trace, &parser);
-}
-
-TEST(ProtoTraceParserTest, LoadSingleEvent_CpuSecondFromEnd) {
-  protos::Trace trace;
-
-  auto* bundle = trace.add_packet()->mutable_ftrace_events();
-  auto* event = bundle->add_event();
-  event->set_timestamp(1000);
-
-  static const char kProcName[] = "proc1";
-  auto* sched_switch = event->mutable_sched_switch();
-  sched_switch->set_prev_pid(10);
-  sched_switch->set_prev_state(32);
-  sched_switch->set_prev_comm(kProcName);
-  sched_switch->set_next_pid(100);
-
-  bundle->set_cpu(10);
-  bundle->set_overwrite_count(999);
-
-  TraceProcessorContext context;
-  MockSchedTracker* sched = new MockSchedTracker(&context);
-  context.sched_tracker.reset(sched);
-  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32,
-                                      base::StringView(kProcName), 100));
-
-  ProtoTraceParser parser(&context);
-  ParseTraceProto(trace, &parser);
-}
-
-TEST(ProtoTraceParserTest, LoadMultipleEvents) {
+TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -172,20 +133,16 @@ TEST(ProtoTraceParserTest, LoadMultipleEvents) {
   sched_switch->set_prev_comm(kProcName2);
   sched_switch->set_next_pid(10);
 
-  TraceProcessorContext context;
-  MockSchedTracker* sched = new MockSchedTracker(&context);
-  context.sched_tracker.reset(sched);
-  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32,
-                                      base::StringView(kProcName1), 100));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32,
+                                       base::StringView(kProcName1), 100));
 
-  EXPECT_CALL(*sched, PushSchedSwitch(10, 1001, 100, 32,
-                                      base::StringView(kProcName2), 10));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32,
+                                       base::StringView(kProcName2), 10));
 
-  ProtoTraceParser parser(&context);
-  ParseTraceProto(trace, &parser);
+  Tokenize(trace);
 }
 
-TEST(ProtoTraceParserTest, LoadMultiplePackets) {
+TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
   protos::Trace trace;
 
   auto* bundle = trace.add_packet()->mutable_ftrace_events();
@@ -214,60 +171,49 @@ TEST(ProtoTraceParserTest, LoadMultiplePackets) {
   sched_switch->set_prev_comm(kProcName2);
   sched_switch->set_next_pid(10);
 
-  TraceProcessorContext context;
-  MockSchedTracker* sched = new MockSchedTracker(&context);
-  context.sched_tracker.reset(sched);
-  EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32,
-                                      base::StringView(kProcName1), 100));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32,
+                                       base::StringView(kProcName1), 100));
 
-  EXPECT_CALL(*sched, PushSchedSwitch(10, 1001, 100, 32,
-                                      base::StringView(kProcName2), 10));
-
-  ProtoTraceParser parser(&context);
-  ParseTraceProto(trace, &parser);
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32,
+                                       base::StringView(kProcName2), 10));
+  Tokenize(trace);
 }
 
-TEST(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
-  TraceProcessorContext context;
-  MockSchedTracker* sched = new MockSchedTracker(&context);
-  context.sched_tracker.reset(sched);
-  ProtoTraceParser parser(&context);
+TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
+  protos::Trace trace_1;
+  auto* bundle = trace_1.add_packet()->mutable_ftrace_events();
+  bundle->set_cpu(10);
+  auto* event = bundle->add_event();
+  event->set_timestamp(1000);
+  static const char kProcName1[] = "proc1";
+  auto* sched_switch = event->mutable_sched_switch();
+  sched_switch->set_prev_pid(10);
+  sched_switch->set_prev_state(32);
+  sched_switch->set_prev_comm(kProcName1);
+  sched_switch->set_next_pid(100);
 
-  {
-    protos::Trace trace;
-    auto* bundle = trace.add_packet()->mutable_ftrace_events();
-    bundle->set_cpu(10);
-    auto* event = bundle->add_event();
-    event->set_timestamp(1000);
-    static const char kProcName1[] = "proc1";
-    auto* sched_switch = event->mutable_sched_switch();
-    sched_switch->set_prev_pid(10);
-    sched_switch->set_prev_state(32);
-    sched_switch->set_prev_comm(kProcName1);
-    sched_switch->set_next_pid(100);
-    EXPECT_CALL(*sched, PushSchedSwitch(10, 1000, 10, 32,
-                                        base::StringView(kProcName1), 100));
-    ParseTraceProto(trace, &parser);
-  }
-  {
-    protos::Trace trace;
-    auto* bundle = trace.add_packet()->mutable_ftrace_events();
-    bundle->set_cpu(10);
-    auto* event = bundle->add_event();
-    event->set_timestamp(1001);
-    static const char kProcName2[] = "proc2";
-    auto* sched_switch = event->mutable_sched_switch();
-    sched_switch->set_prev_pid(100);
-    sched_switch->set_prev_state(32);
-    sched_switch->set_prev_comm(kProcName2);
-    sched_switch->set_next_pid(10);
-    EXPECT_CALL(*sched, PushSchedSwitch(10, 1001, 100, 32,
-                                        base::StringView(kProcName2), 10));
-    ParseTraceProto(trace, &parser);
-  }
+  protos::Trace trace_2;
+  bundle = trace_2.add_packet()->mutable_ftrace_events();
+  bundle->set_cpu(10);
+  event = bundle->add_event();
+  event->set_timestamp(1001);
+  static const char kProcName2[] = "proc2";
+  sched_switch = event->mutable_sched_switch();
+  sched_switch->set_prev_pid(100);
+  sched_switch->set_prev_state(32);
+  sched_switch->set_prev_comm(kProcName2);
+  sched_switch->set_next_pid(10);
+
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32,
+                                       base::StringView(kProcName1), 100));
+  Tokenize(trace_1);
+
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32,
+                                       base::StringView(kProcName2), 10));
+  Tokenize(trace_2);
 }
 
-TEST(ProtoTraceParserTest, LoadProcessPacket) {
+TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
   protos::Trace trace;
 
   auto* tree = trace.add_packet()->mutable_process_tree();
@@ -278,15 +224,11 @@ TEST(ProtoTraceParserTest, LoadProcessPacket) {
   process->set_pid(1);
   process->set_ppid(2);
 
-  TraceProcessorContext context;
-  MockProcessTracker* process_tracker = new MockProcessTracker(&context);
-  context.process_tracker.reset(process_tracker);
-  EXPECT_CALL(*process_tracker, UpdateProcess(1, base::StringView(kProcName1)));
-  ProtoTraceParser parser(&context);
-  ParseTraceProto(trace, &parser);
+  EXPECT_CALL(*process_, UpdateProcess(1, base::StringView(kProcName1)));
+  Tokenize(trace);
 }
 
-TEST(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
+TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
   protos::Trace trace;
 
   auto* tree = trace.add_packet()->mutable_process_tree();
@@ -299,15 +241,11 @@ TEST(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
   process->set_pid(1);
   process->set_ppid(2);
 
-  TraceProcessorContext context;
-  MockProcessTracker* process_tracker = new MockProcessTracker(&context);
-  context.process_tracker.reset(process_tracker);
-  EXPECT_CALL(*process_tracker, UpdateProcess(1, base::StringView(kProcName1)));
-  ProtoTraceParser parser(&context);
-  ParseTraceProto(trace, &parser);
+  EXPECT_CALL(*process_, UpdateProcess(1, base::StringView(kProcName1)));
+  Tokenize(trace);
 }
 
-TEST(ProtoTraceParserTest, LoadThreadPacket) {
+TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
   protos::Trace trace;
 
   auto* tree = trace.add_packet()->mutable_process_tree();
@@ -315,12 +253,8 @@ TEST(ProtoTraceParserTest, LoadThreadPacket) {
   thread->set_tid(1);
   thread->set_tgid(2);
 
-  TraceProcessorContext context;
-  MockProcessTracker* process_tracker = new MockProcessTracker(&context);
-  context.process_tracker.reset(process_tracker);
-  EXPECT_CALL(*process_tracker, UpdateThread(1, 2));
-  ProtoTraceParser parser(&context);
-  ParseTraceProto(trace, &parser);
+  EXPECT_CALL(*process_, UpdateThread(1, 2));
+  Tokenize(trace);
 }
 
 }  // namespace

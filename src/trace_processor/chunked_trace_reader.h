@@ -14,18 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_TRACE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_CHUNKED_TRACE_READER_H_
+#define SRC_TRACE_PROCESSOR_CHUNKED_TRACE_READER_H_
+
+#include <stddef.h>
+#include <stdint.h>
 
 #include <memory>
 
 namespace perfetto {
 namespace trace_processor {
 
-// Base interface for trace parsers (JsonTraceParser, ProtoTraceParser).
-class TraceParser {
+// Base interface for first stage of parsing pipeline
+// (JsonTraceParser, ProtoTraceTokenizer).
+class ChunkedTraceReader {
  public:
-  virtual ~TraceParser();
+  virtual ~ChunkedTraceReader();
 
   // Pushes more data into the trace parser. There is no requirement for the
   // caller to match line/protos boundaries. The parser class has to deal with
@@ -39,4 +43,4 @@ class TraceParser {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TRACE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_CHUNKED_TRACE_READER_H_
