@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/lookup_set.h"
 
 namespace perfetto {
 
@@ -48,7 +49,9 @@ class PrefixFinder {
   class Node {
    public:
     friend class PrefixFinder;
-    Node(std::string name, Node* parent) : name_(name), parent_(parent) {}
+    Node(std::string name) : Node(std::move(name), nullptr) {}
+    Node(std::string name, Node* parent)
+        : name_(std::move(name)), parent_(parent) {}
 
     Node(const Node& that) = delete;
     Node& operator=(const Node&) = delete;
@@ -58,15 +61,6 @@ class PrefixFinder {
     std::string ToString() const;
 
    private:
-    class CompareNames {
-     public:
-      // ONLY USE CONST MEMBERS IN THIS AS WE ARE USING MUTABLE POINTERS
-      // TO SET ELEMENTS.
-      bool operator()(const Node& one, const Node& other) const {
-        return one.name_ < other.name_;
-      }
-    };
-
     // Add a new child to this node.
     Node* AddChild(std::string name);
 
@@ -76,7 +70,7 @@ class PrefixFinder {
 
     const std::string name_;
     const Node* parent_;
-    std::set<Node, CompareNames> children_;
+    perfetto::LookupSet<Node, const std::string, &Node::name_> children_;
   };
 
   PrefixFinder(size_t limit);
