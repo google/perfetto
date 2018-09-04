@@ -75,7 +75,7 @@ config("default") {
     "-Werror",
   ]
 
-  if (!is_wasm) {
+  if (!is_wasm && !is_lto) {
     cflags += [ "-Wa,--noexecstack" ]
   }
 
@@ -85,6 +85,11 @@ config("default") {
       "-fcolor-diagnostics",
       "-fdiagnostics-show-template-tree",
     ]
+  }
+
+  if (is_lto) {
+    cflags += [ "-flto=full" ]
+    ldflags += [ "-flto=full" ]
   }
 
   if (current_cpu == "arm") {
