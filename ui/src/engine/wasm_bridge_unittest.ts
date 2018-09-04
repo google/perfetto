@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Module, ModuleArgs} from '../gen/trace_processor_wasm';
+import {Module, ModuleArgs} from '../gen/trace_processor';
 
 import {WasmBridge} from './wasm_bridge';
 
