@@ -18,15 +18,17 @@
 #define SRC_TRACE_PROCESSOR_TABLE_H_
 
 #include <sqlite3.h>
+
 #include <functional>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "src/trace_processor/query_constraints.h"
+
 namespace perfetto {
 namespace trace_processor {
 
-class QueryConstraints;
 class TraceStorage;
 
 // Abstract base class representing a SQLite virtual table. Implements the
@@ -113,6 +115,9 @@ class Table : public sqlite3_vtab {
   Table& operator=(const Table&) = delete;
 
   std::string name_;
+  QueryConstraints qc_cache_;
+  int qc_hash_ = 0;
+  int best_index_num_ = 0;
 };
 
 }  // namespace trace_processor
