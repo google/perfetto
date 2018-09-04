@@ -118,11 +118,14 @@ def enable_protobuf_lite(module):
 def enable_protoc_lib(module):
     module.shared_libs.append('libprotoc')
 
+def enable_libunwindstack(module):
+    module.shared_libs.append('libunwindstack')
+    module.shared_libs.append('libprocinfo')
+    module.shared_libs.append('libbase')
 
 def enable_libunwind(module):
     # libunwind is disabled on Darwin so we cannot depend on it.
     pass
-
 
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
@@ -135,6 +138,7 @@ builtin_deps = {
     '//buildtools:protobuf_full': enable_protobuf_full,
     '//buildtools:protobuf_lite': enable_protobuf_lite,
     '//buildtools:protoc_lib': enable_protoc_lib,
+    '//buildtools:libunwindstack': enable_libunwindstack,
 }
 
 # ----------------------------------------------------------------------------
