@@ -18,6 +18,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include "src/trace_processor/basic_types.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_sorter.h"
 
@@ -51,11 +52,12 @@ class MockTraceParser : public ProtoTraceParser {
   }
 };
 
-class TraceSorterTest : public ::testing::Test {
+class TraceSorterTest : public ::testing::TestWithParam<OptimizationMode> {
  public:
   TraceSorterTest()
       : test_buffer_(std::unique_ptr<uint8_t[]>(new uint8_t[8]), 0, 8) {
-    context_.sorter.reset(new TraceSorter(&context_, 0 /*window_size*/));
+    context_.sorter.reset(
+        new TraceSorter(&context_, GetParam(), 0 /*window_size*/));
     parser_ = new MockTraceParser(&context_);
     context_.proto_parser.reset(parser_);
   }
@@ -66,20 +68,27 @@ class TraceSorterTest : public ::testing::Test {
   TraceBlobView test_buffer_;
 };
 
-TEST_F(TraceSorterTest, TestFtrace) {
+INSTANTIATE_TEST_CASE_P(OptMode,
+                        TraceSorterTest,
+                        ::testing::Values(OptimizationMode::kMaxBandwidth,
+                                          OptimizationMode::kMinLatency));
+
+TEST_P(TraceSorterTest, TestFtrace) {
   TraceBlobView view = test_buffer_.slice(0, 1);
   EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(0, 1000, view.data(), 1));
   context_.sorter->PushFtracePacket(0 /*cpu*/, 1000 /*timestamp*/,
                                     std::move(view));
+  context_.sorter->FlushEventsForced();
 }
 
-TEST_F(TraceSorterTest, TestTracePacket) {
+TEST_P(TraceSorterTest, TestTracePacket) {
   TraceBlobView view = test_buffer_.slice(0, 1);
   EXPECT_CALL(*parser_, MOCK_ParseTracePacket(view.data(), 1));
   context_.sorter->PushTracePacket(1000, std::move(view));
+  context_.sorter->FlushEventsForced();
 }
 
-TEST_F(TraceSorterTest, Ordering) {
+TEST_P(TraceSorterTest, Ordering) {
   TraceBlobView view_1 = test_buffer_.slice(0, 1);
   TraceBlobView view_2 = test_buffer_.slice(0, 2);
   TraceBlobView view_3 = test_buffer_.slice(0, 3);

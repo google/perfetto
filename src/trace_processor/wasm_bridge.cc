@@ -54,7 +54,9 @@ extern "C" {
 void EMSCRIPTEN_KEEPALIVE Initialize(ReplyFunction);
 void Initialize(ReplyFunction reply_function) {
   PERFETTO_ILOG("Initializing WASM bridge");
-  g_trace_processor = new TraceProcessor();
+  TraceProcessor::Config config;
+  config.optimization_mode = OptimizationMode::kMaxBandwidth;
+  g_trace_processor = new TraceProcessor(config);
   g_reply = reply_function;
 }
 
