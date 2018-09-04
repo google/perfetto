@@ -15,6 +15,7 @@
 declare_args() {
   is_debug = true
   is_clang = true
+  is_lto = false
 }
 
 declare_args() {
