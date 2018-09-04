@@ -82,6 +82,20 @@ class ProtoDecoder {
   // the returned struct will have id 0 which is an invalid field id.
   Field ReadField();
 
+  template <int field_id>
+  inline bool FindIntField(uint64_t* field_value) {
+    bool res = false;
+    for (auto f = ReadField(); f.id != 0; f = ReadField()) {
+      if (f.id == field_id) {
+        *field_value = f.int_value;
+        res = true;
+        break;
+      }
+    }
+    Reset();
+    return res;
+  }
+
   // Returns true if |length_| == |current_position_| - |buffer| and false
   // otherwise.
   inline bool IsEndOfBuffer() {
