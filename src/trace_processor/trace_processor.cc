@@ -37,7 +37,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-TraceProcessor::TraceProcessor() {
+TraceProcessor::TraceProcessor(const Config& cfg) {
   sqlite3* db = nullptr;
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   db_.reset(std::move(db));
@@ -46,7 +46,7 @@ TraceProcessor::TraceProcessor() {
   context_.proto_parser.reset(new ProtoTraceParser(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.sorter.reset(
-      new TraceSorter(&context_, static_cast<uint64_t>(5 * 1e9)));
+      new TraceSorter(&context_, cfg.optimization_mode, cfg.window_size_ns));
   context_.storage.reset(new TraceStorage());
 
   ProcessTable::RegisterTable(*db_, context_.storage.get());

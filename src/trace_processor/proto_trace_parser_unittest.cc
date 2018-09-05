@@ -68,7 +68,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.sched_tracker.reset(sched_);
     process_ = new MockProcessTracker(&context_);
     context_.process_tracker.reset(process_);
-    context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
+    const auto optim = OptimizationMode::kMinLatency;
+    context_.sorter.reset(new TraceSorter(&context_, optim, 0 /*window size*/));
     context_.proto_parser.reset(new ProtoTraceParser(&context_));
   }
 
