@@ -118,7 +118,9 @@ int main(int argc, char** argv) {
   }
 
   // Load the trace file into the trace processor.
-  TraceProcessor tp;
+  TraceProcessor::Config config;
+  config.optimization_mode = OptimizationMode::kMaxBandwidth;
+  TraceProcessor tp(config);
   base::ScopedFile fd;
   fd.reset(open(trace_file_path, O_RDONLY));
   PERFETTO_CHECK(fd);

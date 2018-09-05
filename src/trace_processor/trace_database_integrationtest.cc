@@ -33,6 +33,8 @@ namespace {
 
 class TraceProcessorIntegrationTest : public ::testing::Test {
  public:
+  TraceProcessorIntegrationTest() : processor(TraceProcessor::Config()) {}
+
   TraceProcessor processor;
 
  protected:
