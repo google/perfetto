@@ -31,13 +31,17 @@ const std::string& StringInterner::InternedString::str() const {
   return entry_->string;
 }
 
+void* StringInterner::InternedString::id() const {
+  return entry_;
+}
+
 StringInterner::InternedString::~InternedString() {
   if (entry_ != nullptr)
     entry_->interner->Return(entry_);
 }
 
-StringInterner::InternedString StringInterner::Intern(std::string str) {
-  auto itr = entries_.emplace(std::move(str), this);
+StringInterner::InternedString StringInterner::Intern(const std::string& str) {
+  auto itr = entries_.emplace(str, this);
   Entry& entry = const_cast<Entry&>(*itr.first);
   entry.ref_count++;
   return InternedString(&entry);

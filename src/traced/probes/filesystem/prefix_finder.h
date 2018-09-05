@@ -70,7 +70,7 @@ class PrefixFinder {
 
     const std::string name_;
     const Node* parent_;
-    perfetto::LookupSet<Node, const std::string, &Node::name_> children_;
+    base::LookupSet<Node, const std::string, &Node::name_> children_;
   };
 
   PrefixFinder(size_t limit);
