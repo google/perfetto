@@ -19,6 +19,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
+#include <limits>
 #include <memory>
 
 #include "perfetto/base/logging.h"
@@ -35,8 +37,11 @@ class TraceBlobView {
  public:
   TraceBlobView(std::unique_ptr<uint8_t[]> buffer, size_t offset, size_t length)
       : shbuf_(SharedBuf(std::move(buffer))),
-        offset_(offset),
-        length_(length) {}
+        offset_(static_cast<uint32_t>(offset)),
+        length_(static_cast<uint32_t>(length)) {
+    PERFETTO_DCHECK(offset <= std::numeric_limits<uint32_t>::max());
+    PERFETTO_DCHECK(length <= std::numeric_limits<uint32_t>::max());
+  }
 
   // Allow std::move().
   TraceBlobView(TraceBlobView&&) noexcept = default;
@@ -127,11 +132,13 @@ class TraceBlobView {
   inline const uint8_t* start() const { return shbuf_.data(); }
 
   TraceBlobView(SharedBuf b, size_t o, size_t l)
-      : shbuf_(b), offset_(o), length_(l) {}
+      : shbuf_(b),
+        offset_(static_cast<uint32_t>(o)),
+        length_(static_cast<uint32_t>(l)) {}
 
   SharedBuf shbuf_;
-  size_t offset_;
-  size_t length_;  // Measured from |offset_|, not from |data()|.
+  uint32_t offset_;
+  uint32_t length_;  // Measured from |offset_|, not from |data()|.
 };
 
 }  // namespace trace_processor
