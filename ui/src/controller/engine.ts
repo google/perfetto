@@ -35,6 +35,11 @@ export abstract class Engine {
    */
   abstract parse(data: Uint8Array): void;
 
+  /**
+   * Notify the engine no more data is coming.
+   */
+  abstract notifyEof(): void;
+
   /*
    * The RCP interface to call service methods defined in trace_processor.proto.
    */
