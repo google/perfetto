@@ -42,6 +42,7 @@ static_library("trace_processor") {
 
 source_set("lib") {
   sources = [
+    "basic_types.h",
     "chunked_trace_reader.h",
     "process_table.cc",
     "process_table.h",

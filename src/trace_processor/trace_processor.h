@@ -21,6 +21,7 @@
 #include <functional>
 #include <memory>
 
+#include "src/trace_processor/basic_types.h"
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
 
@@ -37,7 +38,11 @@ namespace trace_processor {
 // execution of SQL queries on the events in these traces.
 class TraceProcessor {
  public:
-  TraceProcessor();
+  struct Config {
+    OptimizationMode optimization_mode = OptimizationMode::kMaxBandwidth;
+    uint64_t window_size_ns = 10 * 1000 * 1000 * 1000ULL;  // 10 seconds.
+  };
+  explicit TraceProcessor(const Config&);
   ~TraceProcessor();
 
   // The entry point to push trace data into the processor. The trace format
