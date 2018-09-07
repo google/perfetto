@@ -43,6 +43,10 @@ using UniqueTid = uint32_t;
 // StringId is an offset into |string_pool_|.
 using StringId = size_t;
 
+// A map containing timestamps and the cpu frequency set at that time.
+using CpuFreq =
+    std::deque<std::pair<uint64_t /*timestamp*/, uint32_t /*freq*/>>;
+
 // Stores a data inside a trace file in a columnar form. This makes it efficient
 // to read or search across a single field of the trace (e.g. all the thread
 // names for a given CPU).
@@ -80,10 +84,12 @@ class TraceStorage {
    public:
     inline void AddSlice(uint64_t start_ns,
                          uint64_t duration_ns,
-                         UniqueTid utid) {
+                         UniqueTid utid,
+                         uint64_t cycles) {
       start_ns_.emplace_back(start_ns);
       durations_.emplace_back(duration_ns);
       utids_.emplace_back(utid);
+      cycles_.emplace_back(cycles);
     }
 
     size_t slice_count() const { return start_ns_.size(); }
@@ -94,12 +100,15 @@ class TraceStorage {
 
     const std::deque<UniqueTid>& utids() const { return utids_; }
 
+    const std::deque<uint64_t>& cycles() const { return cycles_; }
+
    private:
     // Each vector below has the same number of entries (the number of slices
     // in the trace for the CPU).
     std::deque<uint64_t> start_ns_;
     std::deque<uint64_t> durations_;
     std::deque<UniqueTid> utids_;
+    std::deque<uint64_t> cycles_;
   };
 
   class NestableSlices {
@@ -150,7 +159,8 @@ class TraceStorage {
   void AddSliceToCpu(uint32_t cpu,
                      uint64_t start_ns,
                      uint64_t duration_ns,
-                     UniqueTid utid);
+                     UniqueTid utid,
+                     uint64_t cycles);
 
   UniqueTid AddEmptyThread(uint32_t tid) {
     unique_threads_.emplace_back(tid);
@@ -202,6 +212,17 @@ class TraceStorage {
   const NestableSlices& nestable_slices() const { return nestable_slices_; }
   NestableSlices* mutable_nestable_slices() { return &nestable_slices_; }
 
+  // Virtual for testing.
+  virtual void PushCpuFreq(uint64_t timestamp,
+                           uint32_t cpu,
+                           uint32_t new_freq) {
+    auto& freqs = cpu_freq_[cpu];
+    PERFETTO_DCHECK(freqs.empty() || timestamp > freqs.back().first);
+    freqs.emplace_back(timestamp, new_freq);
+  }
+
+  const CpuFreq& GetFreqForCpu(uint32_t cpu) { return cpu_freq_[cpu]; }
+
   // |unique_processes_| always contains at least 1 element becuase the 0th ID
   // is reserved to indicate an invalid process.
   size_t process_count() const { return unique_processes_.size() - 1; }
@@ -223,6 +244,10 @@ class TraceStorage {
 
   // One entry for each CPU in the trace.
   std::array<SlicesPerCpu, base::kMaxCpus> cpu_events_;
+
+  // One map containing frequencies for every CPU in the trace. The map contains
+  // timestamps and the cpu frequency value at that time.
+  std::array<CpuFreq, base::kMaxCpus> cpu_freq_;
 
   // One entry for each unique string in the trace.
   std::deque<std::string> string_pool_;

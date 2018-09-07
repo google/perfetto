@@ -35,8 +35,9 @@ TraceStorage::~TraceStorage() {}
 void TraceStorage::AddSliceToCpu(uint32_t cpu,
                                  uint64_t start_ns,
                                  uint64_t duration_ns,
-                                 UniqueTid utid) {
-  cpu_events_[cpu].AddSlice(start_ns, duration_ns, utid);
+                                 UniqueTid utid,
+                                 uint64_t cycles) {
+  cpu_events_[cpu].AddSlice(start_ns, duration_ns, utid, cycles);
 };
 
 StringId TraceStorage::InternString(base::StringView str) {
