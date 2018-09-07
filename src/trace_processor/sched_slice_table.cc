@@ -100,6 +100,7 @@ void SchedSliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
                                    "dur UNSIGNED BIG INT, "
                                    "quantized_group UNSIGNED BIG INT, "
                                    "utid UNSIGNED INT,"
+                                   "cycles UNSIGNED BIG INT,"
                                    "PRIMARY KEY(cpu, ts)"
                                    ") WITHOUT ROWID;");
 }
@@ -242,6 +243,11 @@ int SchedSliceTable::Cursor::Column(sqlite3_context* context, int N) {
     }
     case Column::kUtid: {
       sqlite3_result_int64(context, slices.utids()[row]);
+      break;
+    }
+    case Column::kCycles: {
+      sqlite3_result_int64(context,
+                           static_cast<sqlite3_int64>(slices.cycles()[row]));
       break;
     }
   }
@@ -413,6 +419,8 @@ int SchedSliceTable::FilterState::CompareSlicesOnColumn(
       return Compare(f_cpu, s_cpu, ob.desc);
     case SchedSliceTable::Column::kUtid:
       return Compare(f_sl.utids()[f_idx], s_sl.utids()[s_idx], ob.desc);
+    case SchedSliceTable::Column::kCycles:
+      return Compare(f_sl.cycles()[f_idx], s_sl.cycles()[s_idx], ob.desc);
     case SchedSliceTable::Column::kQuantizedGroup: {
       // We don't support sorting in descending order on quantized group when
       // we have a non-zero quantum.
