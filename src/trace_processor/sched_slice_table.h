@@ -40,7 +40,8 @@ class SchedSliceTable : public Table {
     kCpu = 3,
     kDuration = 4,
     kQuantizedGroup = 5,
-    kUtid = 6
+    kUtid = 6,
+    kCycles = 7,
   };
 
   SchedSliceTable(const TraceStorage* storage);

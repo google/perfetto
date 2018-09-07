@@ -97,6 +97,32 @@ TEST_F(SchedTrackerTest, InsertThirdSched_SameThread) {
   ASSERT_EQ(context.storage->SlicesForCpu(cpu).durations().at(2), 31u - 11u);
   ASSERT_EQ(context.storage->SlicesForCpu(cpu).utids().at(0),
             context.storage->SlicesForCpu(cpu).utids().at(2));
+  ASSERT_EQ(context.storage->SlicesForCpu(cpu).cycles().at(0), 0);
+}
+
+TEST_F(SchedTrackerTest, TestCyclesCalculation) {
+  uint32_t cpu = 3;
+  uint64_t timestamp = 1e9;
+  context.storage->PushCpuFreq(timestamp, cpu, 1e6);
+
+  uint32_t prev_state = 32;
+  static const char kCommProc1[] = "process1";
+  static const char kCommProc2[] = "process2";
+
+  context.sched_tracker->PushSchedSwitch(
+      cpu, static_cast<uint64_t>(timestamp + 1e7L), /*tid=*/2, prev_state,
+      kCommProc1,
+      /*tid=*/4);
+
+  context.storage->PushCpuFreq(static_cast<uint64_t>(timestamp + 1e8L), cpu,
+                               2e6);
+  context.storage->PushCpuFreq(static_cast<uint64_t>(timestamp + 2e8L), cpu,
+                               3e6);
+  context.sched_tracker->PushSchedSwitch(
+      cpu, static_cast<uint64_t>(timestamp + 3e8L), /*tid=*/4, prev_state,
+      kCommProc2,
+      /*tid=*/2);
+  ASSERT_EQ(context.storage->SlicesForCpu(cpu).cycles().at(0), 590000000);
 }
 
 }  // namespace
