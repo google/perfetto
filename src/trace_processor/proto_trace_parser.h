@@ -39,6 +39,7 @@ class ProtoTraceParser {
                                  TraceBlobView);
   void ParseProcessTree(TraceBlobView);
   void ParseSchedSwitch(uint32_t cpu, uint64_t timestamp, TraceBlobView);
+  void ParseCpuFreq(uint64_t timestamp, TraceBlobView);
   void ParseThread(TraceBlobView);
   void ParseProcess(TraceBlobView);
 
