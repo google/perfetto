@@ -39,7 +39,7 @@ config("test_warning_suppressions") {
 config("googletest_prod_config") {
   cflags = [
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
-    # warnings coming from libprotobuf headers. Doing so would mask warnings in
+    # warnings coming from third-party headers. Doing so would mask warnings in
     # our own code.
     "-isystem",
     rebase_path("googletest/googletest/include", root_build_dir),
@@ -71,7 +71,7 @@ config("googletest_config") {
   defines = [ "GTEST_LANG_CXX11=1" ]
   cflags = [
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
-    # warnings coming from libprotobuf headers. Doing so would mask warnings in
+    # warnings coming from third-party headers. Doing so would mask warnings in
     # our own code.
     "-isystem",
     rebase_path("googletest/googletest/include", root_build_dir),
@@ -734,7 +734,7 @@ config("jsoncpp_config") {
     "-DJSON_USE_EXCEPTION=0",
 
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
-    # warnings coming from libprotobuf headers. Doing so would mask warnings in
+    # warnings coming from third-party headers. Doing so would mask warnings in
     # our own code.
     "-isystem",
     rebase_path("jsoncpp/include", root_build_dir),
