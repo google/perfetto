@@ -221,7 +221,11 @@ class TraceStorage {
     freqs.emplace_back(timestamp, new_freq);
   }
 
-  const CpuFreq& GetFreqForCpu(uint32_t cpu) { return cpu_freq_[cpu]; }
+  const CpuFreq& GetFreqForCpu(uint32_t cpu) const { return cpu_freq_[cpu]; }
+
+  uint32_t GetMaxCpu() const {
+    return static_cast<uint32_t>(cpu_freq_.size() - 1);
+  }
 
   // |unique_processes_| always contains at least 1 element becuase the 0th ID
   // is reserved to indicate an invalid process.
