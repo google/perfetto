@@ -44,6 +44,8 @@ source_set("lib") {
   sources = [
     "basic_types.h",
     "chunked_trace_reader.h",
+    "counters_table.cc",
+    "counters_table.h",
     "process_table.cc",
     "process_table.h",
     "process_tracker.cc",
@@ -127,6 +129,7 @@ copy("trace_processor_shell") {
 source_set("unittests") {
   testonly = true
   sources = [
+    "counters_table_unittest.cc",
     "process_table_unittest.cc",
     "process_tracker_unittest.cc",
     "proto_trace_parser_unittest.cc",

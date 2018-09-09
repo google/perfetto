@@ -28,6 +28,10 @@ TraceStorage::TraceStorage() {
 
   // Reserve string ID 0 for the empty string.
   InternString("");
+
+  // Initialize all CPUs @ freq 0Hz.
+  for (size_t cpu = 0; cpu < base::kMaxCpus; cpu++)
+    cpu_freq_[cpu].emplace_back(0, 0);
 }
 
 TraceStorage::~TraceStorage() {}

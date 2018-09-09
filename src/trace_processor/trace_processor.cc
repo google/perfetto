@@ -19,6 +19,7 @@
 #include <sqlite3.h>
 #include <functional>
 
+#include "src/trace_processor/counters_table.h"
 #include "src/trace_processor/json_trace_parser.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/process_tracker.h"
@@ -54,6 +55,7 @@ TraceProcessor::TraceProcessor(const Config& cfg) {
   SliceTable::RegisterTable(*db_, context_.storage.get());
   StringTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
+  CountersTable::RegisterTable(*db_, context_.storage.get());
 }
 
 TraceProcessor::~TraceProcessor() = default;
