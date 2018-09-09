@@ -217,7 +217,11 @@ class TraceStorage {
                            uint32_t cpu,
                            uint32_t new_freq) {
     auto& freqs = cpu_freq_[cpu];
-    PERFETTO_DCHECK(freqs.empty() || timestamp > freqs.back().first);
+    if (!freqs.empty() && timestamp < freqs.back().first) {
+      PERFETTO_ELOG("cpufreq out of order by %.4f ms, skipping",
+                    (freqs.back().first - timestamp) / 1e6);
+      return;
+    }
     freqs.emplace_back(timestamp, new_freq);
   }
 
