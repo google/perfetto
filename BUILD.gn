@@ -34,7 +34,7 @@ declare_args() {
 
   # libunwindstack requires API level 26 or newer.
   should_build_heapprofd =
-      !build_with_chromium && is_clang &&
+      !build_with_chromium && is_clang && (is_linux || is_android) &&
       (!is_android || android_api_level >= 26 || build_with_android)
 }
 assert(!monolithic_binaries || !build_with_android)

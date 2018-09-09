@@ -36,7 +36,11 @@ void SchedTracker::PushSchedSwitch(uint32_t cpu,
                                    base::StringView prev_comm,
                                    uint32_t next_pid) {
   // At this stage all events should be globally timestamp ordered.
-  PERFETTO_DCHECK(prev_timestamp_ <= timestamp);
+  if (timestamp < prev_timestamp_) {
+    PERFETTO_ELOG("sched_switch event out of order by %.4f ms, skipping",
+                  (prev_timestamp_ - timestamp) / 1e6);
+    return;
+  }
   prev_timestamp_ = timestamp;
   PERFETTO_DCHECK(cpu < base::kMaxCpus);
   SchedSwitchEvent* prev = &last_sched_per_cpu_[cpu];

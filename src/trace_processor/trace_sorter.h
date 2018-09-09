@@ -154,7 +154,7 @@ class TraceSorter {
     // too many events in the staging area.
     if (optimization_ == OptimizationMode::kMaxBandwidth &&
         latest_timestamp_ - earliest_timestamp_ < window_size_ns_ * 10 &&
-        events_.size() < 1e6) {
+        events_.size() < 5 * 1e6) {
       return;
     }
 
