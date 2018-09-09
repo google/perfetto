@@ -40,7 +40,7 @@ class TraceProcessor {
  public:
   struct Config {
     OptimizationMode optimization_mode = OptimizationMode::kMaxBandwidth;
-    uint64_t window_size_ns = 10 * 1000 * 1000 * 1000ULL;  // 10 seconds.
+    uint64_t window_size_ns = 60 * 1000 * 1000 * 1000ULL;  // 60 seconds.
   };
   explicit TraceProcessor(const Config&);
   ~TraceProcessor();

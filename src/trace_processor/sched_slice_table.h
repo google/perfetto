@@ -34,14 +34,17 @@ namespace trace_processor {
 class SchedSliceTable : public Table {
  public:
   enum Column {
-    kQuantum = 0,
-    kTimestampLowerBound = 1,
-    kTimestamp = 2,
-    kCpu = 3,
-    kDuration = 4,
-    kQuantizedGroup = 5,
-    kUtid = 6,
-    kCycles = 7,
+    kTimestamp = 0,
+    kCpu = 1,
+    kDuration = 2,
+    kQuantizedGroup = 3,
+    kUtid = 4,
+    kCycles = 5,
+
+    // Hidden columns.
+    kQuantum = 6,
+    kTimestampLowerBound = 7,
+    kClipTimestamp = 8,
   };
 
   SchedSliceTable(const TraceStorage* storage);
@@ -60,6 +63,8 @@ class SchedSliceTable : public Table {
     void Initialize(uint32_t cpu,
                     const TraceStorage* storage,
                     uint64_t quantum,
+                    uint64_t ts_clip_min,
+                    uint64_t ts_clip_max,
                     std::vector<uint32_t> sorted_row_ids);
     void FindNextSlice();
     bool IsNextRowIdIndexValid() const {
@@ -68,6 +73,8 @@ class SchedSliceTable : public Table {
 
     size_t next_row_id() const { return sorted_row_ids_[next_row_id_index_]; }
     uint64_t next_timestamp() const { return next_timestamp_; }
+    uint64_t ts_clip_min() const { return ts_clip_min_; }
+    uint64_t ts_clip_max() const { return ts_clip_max_; }
 
    private:
     const TraceStorage::SlicesPerCpu& Slices() {
@@ -93,6 +100,11 @@ class SchedSliceTable : public Table {
     // The quantum the output slices should fall within.
     uint64_t quantum_ = 0;
 
+    // When clipping is applied (i.e. WHERE ts_clip between X and Y), slices are
+    // cut and shrunk around the min-max boundaries to fit in the clip window.
+    uint64_t ts_clip_min_ = 0;
+    uint64_t ts_clip_max_ = std::numeric_limits<uint64_t>::max();
+
     const TraceStorage* storage_ = nullptr;
   };
 
@@ -104,7 +116,7 @@ class SchedSliceTable : public Table {
                 sqlite3_value** argv);
 
     // Chooses the next CPU which should be returned according to the sorting
-    // citeria specified by |order_by_|.
+    // criteria specified by |order_by_|.
     void FindCpuWithNextSlice();
 
     // Returns whether the next CPU to be returned by this filter operation is
