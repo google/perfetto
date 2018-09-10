@@ -19,7 +19,6 @@ import {TrackState} from '../common/state';
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {quietDispatch} from './mithril_helpers';
 import {Panel} from './panel';
 import {Track} from './track';
 import {trackRegistry} from './track_registry';
@@ -73,7 +72,8 @@ const TrackMoveButton = {
     return m(
         'i.material-icons.track-move-icons',
         {
-          onclick: quietDispatch(moveTrack(attrs.trackId, attrs.direction)),
+          onclick: () =>
+              globals.dispatch(moveTrack(attrs.trackId, attrs.direction)),
         },
         attrs.direction === 'up' ? 'arrow_upward_alt' : 'arrow_downward_alt');
   }
