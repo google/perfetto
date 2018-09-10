@@ -22,7 +22,6 @@ import {
 } from '../common/actions';
 
 import {globals} from './globals';
-import {quietHandler} from './mithril_helpers';
 
 const EXAMPLE_TRACE_URL =
     'https://storage.googleapis.com/perfetto-misc/example_trace_30s';
@@ -92,7 +91,8 @@ function navigateHome(_: Event) {
   globals.dispatch(navigate('/'));
 }
 
-function dispatchCreatePermalink(_: Event) {
+function dispatchCreatePermalink(e: Event) {
+  e.preventDefault();
   globals.dispatch(createPermalink());
 }
 
@@ -105,14 +105,19 @@ export const Sidebar: m.Component = {
         vdomItems.push(
             m('li',
               m(`a[href=#]`,
-                {onclick: quietHandler(item.a)},
+                {onclick: item.a},
                 m('i.material-icons', item.i),
                 item.t)));
       }
       vdomSections.push(
           m(`section${section.expanded ? '.expanded' : ''}`,
             m('.section-header',
-              {onclick: () => section.expanded = !section.expanded},
+              {
+                onclick: () => {
+                  section.expanded = !section.expanded;
+                  globals.rafScheduler.scheduleFullRedraw();
+                }
+              },
               m('h1', section.title),
               m('h2', section.summary), ),
             m('.section-content', m('ul', vdomItems))));
@@ -120,8 +125,7 @@ export const Sidebar: m.Component = {
     return m(
         'nav.sidebar',
         m('header', 'Perfetto'),
-        m('input[type=file]',
-          {onchange: quietHandler(onInputElementFileSelectionChanged)}),
+        m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
         ...vdomSections);
   },
 };
