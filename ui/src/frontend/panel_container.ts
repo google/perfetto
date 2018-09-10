@@ -170,14 +170,14 @@ export const PanelContainer = {
     // Use setTimeout to do it asyncronously at the end of the current redraw.
     setTimeout(() => {
       updateDimensionsFromDom(vnodeDom);
-      m.redraw();
+      globals.rafScheduler.scheduleFullRedraw();
     });
 
     // Save the resize handler in the state so we can remove it later.
     // TODO: Encapsulate resize handling better.
     this.onResize = () => {
       updateDimensionsFromDom(vnodeDom);
-      m.redraw();
+      globals.rafScheduler.scheduleFullRedraw();
     };
 
     // Once ResizeObservers are out, we can stop accessing the window here.
