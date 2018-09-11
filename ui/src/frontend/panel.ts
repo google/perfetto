@@ -12,22 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-let nextPanelId = 0;
+import * as m from 'mithril';
 
-export abstract class Panel {
-  // Each panel has a unique string id. This is suitable for use as a mithril
-  // component key.
-  readonly id: string;
+export interface PanelSize {
+  width: number;
+  height: number;
+}
 
-  constructor() {
-    this.id = 'panel-id-' + (nextPanelId++).toString();
-  }
+export abstract class Panel<Attrs = {}> implements m.ClassComponent<Attrs> {
+  abstract renderCanvas(
+      ctx: CanvasRenderingContext2D, size: PanelSize,
+      vnode: PanelVNode<Attrs>): void;
+  abstract view(vnode: m.CVnode<Attrs>): m.Children|null|void;
+}
 
-  abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
-  abstract updateDom(dom: HTMLElement): void;
 
-  // TODO: If a panel changes its height, we need to call m.redraw. Instead of
-  // getHeight, we can have an setHeight method in the abstract class that does
-  // that redraw call.
-  abstract getHeight(): number;
+export type PanelVNode<Attrs = {}> = m.Vnode<Attrs, Panel<Attrs>>;
+
+export function isPanelVNode(vnode: m.Vnode): vnode is PanelVNode {
+  const tag = vnode.tag as {};
+  return (
+      typeof tag === 'function' && 'prototype' in tag &&
+      tag.prototype instanceof Panel);
 }

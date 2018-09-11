@@ -17,12 +17,16 @@ import * as m from 'mithril';
 import {QueryResponse} from '../common/queries';
 import {TimeSpan} from '../common/time';
 
+import {FlameGraphPanel} from './flame_graph_panel';
 import {globals} from './globals';
+import {HeaderPanel} from './header_panel';
+import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
-import {ScrollingPanelContainer} from './scrolling_panel_container';
-import {TopPanelContainer} from './top_panel_container';
+import {PanelContainer} from './panel_container';
+import {TimeAxisPanel} from './time_axis_panel';
 import {TRACK_SHELL_WIDTH} from './track_panel';
+import {TrackPanel} from './track_panel';
 
 const MAX_ZOOM_SPAN_SEC = 1e-4;  // 0.1 ms.
 
@@ -68,16 +72,20 @@ const TraceViewer = {
 
   oncreate(vnode) {
     const frontendLocalState = globals.frontendLocalState;
-    // TODO: This is probably not needed. Figure out resizing.
-    this.onResize = () => {
+    const updateDimensions = () => {
       const rect = vnode.dom.getBoundingClientRect();
       this.width = rect.width;
       frontendLocalState.timeScale.setLimitsPx(
           0, this.width - TRACK_SHELL_WIDTH);
     };
 
-    // Have to redraw after initialization to provide dimensions to view().
-    setTimeout(() => this.onResize());
+    updateDimensions();
+
+    // TODO: Do resize handling better.
+    this.onResize = () => {
+      updateDimensions();
+      globals.rafScheduler.scheduleFullRedraw();
+    };
 
     // Once ResizeObservers are out, we can stop accessing the window here.
     window.addEventListener('resize', this.onResize);
@@ -124,13 +132,29 @@ const TraceViewer = {
   },
 
   view() {
+    const scrollingPanels = globals.state.displayedTrackIds.length > 0 ?
+        [
+          m(HeaderPanel, {title: 'Tracks'}),
+          ...globals.state.displayedTrackIds.map(id => m(TrackPanel, {id})),
+          m(FlameGraphPanel),
+        ] :
+        [];
     return m(
         '.page',
         m(QueryTable),
         // TODO: Pan and zoom logic should be in its own mithril component.
         m('.pan-and-zoom-content',
-          m(TopPanelContainer),
-          m(ScrollingPanelContainer)));
+          m('.pinned-panel-container', m(PanelContainer, {
+              doesScroll: false,
+              panels: [
+                m(OverviewTimelinePanel),
+                m(TimeAxisPanel),
+              ],
+            })),
+          m('.scrolling-panel-container', m(PanelContainer, {
+              doesScroll: true,
+              panels: scrollingPanels,
+            }))));
   },
 
 } as m.Component<{}, {
