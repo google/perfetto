@@ -90,7 +90,7 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
       // Alternatively, we may not have space to fully read the length
       // delimited field. Set the id to zero and return but don't update the
       // offset so a future read can read this field.
-      if (new_pos == pos || pos + field_intvalue > end) {
+      if (new_pos == pos || new_pos + field_intvalue > end) {
         return field;
       }
       pos = new_pos;
