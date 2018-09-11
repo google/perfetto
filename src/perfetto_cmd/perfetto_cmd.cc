@@ -217,7 +217,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   PERFETTO_DLOG("Parsing TraceConfig, %zu bytes", trace_config_raw.size());
   bool parsed = trace_config_proto.ParseFromString(trace_config_raw);
   if (!parsed) {
-    PERFETTO_ELOG("Could not parse TraceConfig proto from stdin");
+    PERFETTO_ELOG("Could not parse TraceConfig proto");
     return 1;
   }
   *trace_config_proto.mutable_statsd_metadata() = std::move(statsd_metadata);
