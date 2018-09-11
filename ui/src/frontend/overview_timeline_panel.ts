@@ -12,44 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as m from 'mithril';
+
+import {assertExists} from '../base/logging';
 import {TimeSpan, timeToString} from '../common/time';
 
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
-import {Panel} from './panel';
+import {Panel, PanelSize} from './panel';
 import {TimeScale} from './time_scale';
 
 export class OverviewTimelinePanel extends Panel {
-  private width?: number;
+  private width = 0;
   private dragStartPx = 0;
   private gesture?: DragGestureHandler;
   private timeScale?: TimeScale;
   private totTime = new TimeSpan(0, 0);
 
-  getHeight(): number {
-    return 100;
-  }
-
-  updateDom(dom: HTMLElement) {
+  // Must explicitly type now; arguments types are no longer auto-inferred.
+  // https://github.com/Microsoft/TypeScript/issues/1373
+  onupdate({dom}: m.CVnodeDOM) {
     this.width = dom.getBoundingClientRect().width;
     this.totTime = new TimeSpan(
         globals.state.traceTime.startSec, globals.state.traceTime.endSec);
-    this.timeScale = new TimeScale(this.totTime, [0, this.width]);
+    this.timeScale = new TimeScale(this.totTime, [0, assertExists(this.width)]);
 
     if (this.gesture === undefined) {
       this.gesture = new DragGestureHandler(
-          dom,
+          dom as HTMLElement,
           this.onDrag.bind(this),
           this.onDragStart.bind(this),
           this.onDragEnd.bind(this));
     }
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D) {
+  oncreate(vnode: m.CVnodeDOM) {
+    this.onupdate(vnode);
+  }
+
+  view() {
+    return m('.overview-timeline');
+  }
+
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     if (this.width === undefined) return;
     if (this.timeScale === undefined) return;
     const headerHeight = 25;
-    const tracksHeight = this.getHeight() - headerHeight;
+    const tracksHeight = size.height - headerHeight;
 
     // Draw time labels on the top header.
     ctx.font = '10px Google Sans';
@@ -90,7 +99,7 @@ export class OverviewTimelinePanel extends Panel {
 
     // Draw bottom border.
     ctx.fillStyle = 'hsl(219, 40%, 50%)';
-    ctx.fillRect(0, this.getHeight() - 2, this.width, 2);
+    ctx.fillRect(0, size.height - 2, this.width, 2);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
     const vizTime = globals.frontendLocalState.visibleWindowTime;
