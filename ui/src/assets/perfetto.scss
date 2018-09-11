@@ -278,27 +278,22 @@ button.close {
   overflow: visible;
 }
 
+// In the scrolling case, since the canvas is overdrawn and continuously
+// repositioned, we need the canvas to be in a div with overflow hidden and
+// height equaling the total height of the content to prevent scrolling
+// height from growing.
 .scroll-limiter {
   overflow: hidden;
   position: relative;
-  width: 100%;
 }
 
 canvas.main-canvas {
   top: 0px;
-  width: 100%;
   position: absolute;
 }
 
-// If you introduce margins or paddings here, you need to also update the
-// PanelContainer canvas rendering code.
 .panel {
-  position: relative;
-
-  // Make any direct children automatically take up full height.
-  display: grid;
-  grid-template-rows: 1fr;
-  grid-template-columns: 1fr;
+  position: relative;  // Otherwise canvas covers panel dom.
 }
 
 .pan-and-zoom-content {
@@ -306,4 +301,20 @@ canvas.main-canvas {
   position: relative;
   display: flex;
   flex-flow: column nowrap;
+}
+
+.overview-timeline {
+  height: 100px;
+}
+
+.time-axis-panel {
+  height: 30px;
+}
+
+.flame-graph-panel {
+  height: 500px;
+}
+
+header {
+  height: 25px;
 }
