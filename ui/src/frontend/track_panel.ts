@@ -19,7 +19,7 @@ import {TrackState} from '../common/state';
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {Panel} from './panel';
+import {Panel, PanelSize} from './panel';
 import {Track} from './track';
 import {trackRegistry} from './track_registry';
 
@@ -83,36 +83,42 @@ const TrackMoveButton = {
 },
                         {}>;
 
-export class TrackPanel extends Panel {
+interface TrackPanelAttrs {
+  id: string;
+}
+
+export class TrackPanel extends Panel<TrackPanelAttrs> {
   private track: Track;
-  constructor(public trackState: TrackState) {
-    // TODO: Since ES6 modules are asynchronous and it is conceivable that we
-    // want to load a track implementation on demand, we should not rely here on
-    // the fact that the track is already registered. We should show some
-    // default content until a track implementation is found.
+  private trackState: TrackState;
+  constructor(vnode: m.CVnode<TrackPanelAttrs>) {
     super();
+    this.trackState = globals.state.tracks[vnode.attrs.id];
     const trackCreator = trackRegistry.get(this.trackState.kind);
     this.track = trackCreator.create(this.trackState);
   }
 
-  getHeight(): number {
-    return this.track.getHeight();
+  view() {
+    return m(
+        '.track',
+        {
+          style: {
+            height: `${this.track.getHeight()}px`,
+          }
+        },
+        [
+          m(TrackShell, {trackState: this.trackState}),
+          m(TrackContent, {track: this.track})
+        ]);
+    return m(TrackComponent, {trackState: this.trackState, track: this.track});
   }
 
-  updateDom(dom: HTMLElement): void {
-    // TODO: Let tracks render DOM in the content area.
-    m.render(
-        dom,
-        m(TrackComponent, {trackState: this.trackState, track: this.track}));
-  }
-
-  renderCanvas(ctx: CanvasRenderingContext2D) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     ctx.translate(TRACK_SHELL_WIDTH, 0);
     drawGridLines(
         ctx,
         globals.frontendLocalState.timeScale,
         globals.frontendLocalState.visibleWindowTime,
-        this.track.getHeight());
+        size.height);
 
     this.track.renderCanvas(ctx);
   }
