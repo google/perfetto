@@ -357,8 +357,13 @@ void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request) {
     args.push_back(category);
   if (!request.atrace_apps().empty()) {
     args.push_back("-a");
-    for (const auto& app : request.atrace_apps())
-      args.push_back(app);
+    std::string arg = "";
+    for (const auto& app : request.atrace_apps()) {
+      arg += app;
+      if (app != request.atrace_apps().back())
+        arg += ",";
+    }
+    args.push_back(arg);
   }
 
   if (RunAtrace(args))
