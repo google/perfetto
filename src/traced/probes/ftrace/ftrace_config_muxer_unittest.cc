@@ -233,6 +233,39 @@ TEST(FtraceConfigMuxerTest, Atrace) {
   ASSERT_TRUE(model.RemoveConfig(id));
 }
 
+TEST(FtraceConfigMuxerTest, AtraceTwoApps) {
+  std::unique_ptr<ProtoTranslationTable> table = CreateFakeTable();
+  NiceMock<MockFtraceProcfs> ftrace;
+  MockRunAtrace atrace;
+
+  FtraceConfig config = CreateFtraceConfig({});
+  *config.add_atrace_apps() = "com.google.android.gms.persistent";
+  *config.add_atrace_apps() = "com.google.android.gms";
+
+  FtraceConfigMuxer model(&ftrace, table.get());
+
+  EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
+      .WillOnce(Return('0'));
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(ElementsAreArray(
+          {"atrace", "--async_start", "--only_userspace", "-a",
+           "com.google.android.gms.persistent,com.google.android.gms"})))
+      .WillOnce(Return(true));
+
+  FtraceConfigId id = model.RequestConfig(config);
+  ASSERT_TRUE(id);
+
+  const FtraceConfig* actual_config = model.GetConfig(id);
+  EXPECT_TRUE(actual_config);
+  EXPECT_THAT(actual_config->ftrace_events(), Contains("print"));
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
+                          {"atrace", "--async_stop", "--only_userspace"})))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model.RemoveConfig(id));
+}
+
 TEST(FtraceConfigMuxerTest, SetupClockForTesting) {
   std::unique_ptr<ProtoTranslationTable> table = CreateFakeTable();
   MockFtraceProcfs ftrace;
