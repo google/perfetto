@@ -22,7 +22,7 @@ export class FlameGraphPanel extends Panel {
     return [
       m('header', 'Flame Graph'),
       m('embed.flame-graph-panel',
-        {type: 'image/svg+xml', src: '/assets/flamegraph.svg'})
+        {type: 'image/svg+xml', src: 'assets/flamegraph.svg'})
     ];
   }
 }
