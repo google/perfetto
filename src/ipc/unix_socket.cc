@@ -31,6 +31,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/sock_utils.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 
@@ -44,21 +45,6 @@ namespace ipc {
 // TODO(primiano): Add ThreadChecker to methods of this class.
 
 namespace {
-
-// MSG_NOSIGNAL is not supported on Mac OS X, but in that case the socket is
-// created with SO_NOSIGPIPE (See InitializeSocket()).
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-constexpr int kNoSigPipe = 0;
-#else
-constexpr int kNoSigPipe = MSG_NOSIGNAL;
-#endif
-
-// Android takes an int instead of socklen_t for the control buffer size.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-using CBufLenType = size_t;
-#else
-using CBufLenType = socklen_t;
-#endif
 
 bool MakeSockAddr(const std::string& socket_name,
                   sockaddr_un* addr,
@@ -329,30 +315,9 @@ bool UnixSocket::Send(const void* msg,
     return false;
   }
 
-  msghdr msg_hdr = {};
-  iovec iov = {const_cast<void*>(msg), len};
-  msg_hdr.msg_iov = &iov;
-  msg_hdr.msg_iovlen = 1;
-  alignas(cmsghdr) char control_buf[256];
-
-  if (num_fds > 0) {
-    const CBufLenType control_buf_len =
-        static_cast<CBufLenType>(CMSG_SPACE(num_fds * sizeof(int)));
-    PERFETTO_CHECK(control_buf_len <= sizeof(control_buf));
-    memset(control_buf, 0, sizeof(control_buf));
-    msg_hdr.msg_control = control_buf;
-    msg_hdr.msg_controllen = control_buf_len;
-    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg_hdr);
-    cmsg->cmsg_level = SOL_SOCKET;
-    cmsg->cmsg_type = SCM_RIGHTS;
-    cmsg->cmsg_len = static_cast<CBufLenType>(CMSG_LEN(num_fds * sizeof(int)));
-    memcpy(CMSG_DATA(cmsg), send_fds, num_fds * sizeof(int));
-    msg_hdr.msg_controllen = cmsg->cmsg_len;
-  }
-
   if (blocking_mode == BlockingMode::kBlocking)
     SetBlockingIO(true);
-  const ssize_t sz = PERFETTO_EINTR(sendmsg(*fd_, &msg_hdr, kNoSigPipe));
+  const ssize_t sz = base::Send(*fd_, msg, len, send_fds, num_fds);
   if (blocking_mode == BlockingMode::kBlocking)
     SetBlockingIO(false);
 
@@ -418,19 +383,7 @@ size_t UnixSocket::Receive(void* msg,
     return 0;
   }
 
-  msghdr msg_hdr = {};
-  iovec iov = {msg, len};
-  msg_hdr.msg_iov = &iov;
-  msg_hdr.msg_iovlen = 1;
-  alignas(cmsghdr) char control_buf[256];
-
-  if (max_files > 0) {
-    msg_hdr.msg_control = control_buf;
-    msg_hdr.msg_controllen =
-        static_cast<CBufLenType>(CMSG_SPACE(max_files * sizeof(int)));
-    PERFETTO_CHECK(msg_hdr.msg_controllen <= sizeof(control_buf));
-  }
-  const ssize_t sz = PERFETTO_EINTR(recvmsg(*fd_, &msg_hdr, kNoSigPipe));
+  const ssize_t sz = base::Receive(*fd_, msg, len, fd_vec, max_files);
   if (sz < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
     last_error_ = EAGAIN;
     return 0;
@@ -441,39 +394,6 @@ size_t UnixSocket::Receive(void* msg,
     return 0;
   }
   PERFETTO_CHECK(static_cast<size_t>(sz) <= len);
-
-  int* fds = nullptr;
-  uint32_t fds_len = 0;
-
-  if (max_files > 0) {
-    for (cmsghdr* cmsg = CMSG_FIRSTHDR(&msg_hdr); cmsg;
-         cmsg = CMSG_NXTHDR(&msg_hdr, cmsg)) {
-      const size_t payload_len = cmsg->cmsg_len - CMSG_LEN(0);
-      if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
-        PERFETTO_DCHECK(payload_len % sizeof(int) == 0u);
-        PERFETTO_CHECK(fds == nullptr);
-        fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
-        fds_len = static_cast<uint32_t>(payload_len / sizeof(int));
-      }
-    }
-  }
-
-  if (msg_hdr.msg_flags & MSG_TRUNC || msg_hdr.msg_flags & MSG_CTRUNC) {
-    for (size_t i = 0; fds && i < fds_len; ++i)
-      close(fds[i]);
-    last_error_ = EMSGSIZE;
-    Shutdown(true);
-    return 0;
-  }
-
-  for (size_t i = 0; fds && i < fds_len; ++i) {
-    if (i < max_files)
-      fd_vec[i].reset(fds[i]);
-    else
-      close(fds[i]);
-  }
-
-  last_error_ = 0;
   return static_cast<size_t>(sz);
 }
 
