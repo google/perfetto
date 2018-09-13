@@ -82,7 +82,7 @@ message FtraceEvent {
   optional uint32 pid = 2;
 
   oneof event {
-    // removed field with id 3
+    PrintFtraceEvent print = 3;
     SchedSwitchFtraceEvent sched_switch = 4;
     CpufreqInteractiveAlreadyFtraceEvent cpufreq_interactive_already = 5;
     CpufreqInteractiveBoostFtraceEvent cpufreq_interactive_boost = 6;
@@ -436,6 +436,15 @@ message ProcessTree {
 }
 
 // End of protos/perfetto/trace/ps/process_tree.proto
+
+// Begin of protos/perfetto/trace/ftrace/print.proto
+
+message PrintFtraceEvent {
+  optional uint64 ip = 1;
+  optional string buf = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/print.proto
 
 // Begin of protos/perfetto/trace/ftrace/binder_locked.proto
 
