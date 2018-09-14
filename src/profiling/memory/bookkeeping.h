@@ -91,7 +91,7 @@ class MemoryBookkeeping {
   };
 
   // Address -> (size, code location)
-  std::map<uint64_t, std::pair<uint64_t, Node*>> nodes_;
+  std::map<uint64_t, std::pair<uint64_t, Node*>> allocations_;
   StringInterner interner_;
   Node root_{{interner_.Intern(""), interner_.Intern("")}};
 };
