@@ -20,6 +20,7 @@
 #include <set>
 
 namespace perfetto {
+namespace base {
 
 // Set that allows lookup from const member of the object.
 template <typename T, typename U, U T::*p>
@@ -44,6 +45,8 @@ class LookupSet {
     return const_cast<T*>(&(*r.first));
   }
 
+  bool Remove(const T& child) { return set_.erase(child); }
+
   static_assert(std::is_const<U>::value, "key must be const");
 
  private:
@@ -57,6 +60,7 @@ class LookupSet {
   std::set<T, Comparator> set_;
 };
 
+}  // namespace base
 }  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_BASE_LOOKUP_SET_H_

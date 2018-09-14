@@ -44,13 +44,14 @@ class StringInterner {
     InternedString& operator=(InternedString other);
 
     const std::string& str() const;
+    void* id() const;
     ~InternedString();
 
    private:
     StringInterner::Entry* entry_;
   };
 
-  InternedString Intern(std::string str);
+  InternedString Intern(const std::string& str);
   size_t entry_count_for_testing();
 
  private:
