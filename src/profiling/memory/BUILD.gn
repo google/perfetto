@@ -73,6 +73,19 @@ source_set("string_interner") {
   ]
 }
 
+source_set("bookkeeping") {
+  public_configs = [ "../../../gn:default_config" ]
+  deps = [
+    ":string_interner",
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+  sources = [
+    "bookkeeping.cc",
+    "bookkeeping.h",
+  ]
+}
+
 source_set("unittests") {
   public_configs = [
     "../../../gn:default_config",
@@ -80,6 +93,7 @@ source_set("unittests") {
   ]
   testonly = true
   deps = [
+    ":bookkeeping",
     ":record_reader",
     ":socket_listener",
     ":string_interner",
@@ -89,6 +103,7 @@ source_set("unittests") {
     "../../base:test_support",
   ]
   sources = [
+    "bookkeeping_unittest.cc",
     "record_reader_unittest.cc",
     "socket_listener_unittest.cc",
     "string_interner_unittest.cc",
