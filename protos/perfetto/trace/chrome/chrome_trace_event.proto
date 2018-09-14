@@ -18,8 +18,11 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
-// TODO(oysteine) : Separate out commonly repeated values into a separate
-// message (primarily |name| and |category_group_name|).
+message ChromeStringTableEntry {
+  optional string value = 1;
+  optional int32 index = 2;
+}
+
 message ChromeTraceEvent {
   message Arg {
     optional string name = 1;
@@ -35,6 +38,10 @@ message ChromeTraceEvent {
       uint64 pointer_value = 7;
       string json_value = 8;
     }
+
+    // Takes precedence over |name| if set,
+    // and is an index into |string_table|.
+    optional int32 name_index = 9;
   }
 
   optional string name = 1;
@@ -52,6 +59,12 @@ message ChromeTraceEvent {
   optional uint32 bind_id = 13;
 
   repeated Arg args = 14;
+
+  // Takes precedence over respectively |name| and
+  // |category_group_name_index| if set,
+  // and are indices into |string_table|.
+  optional int32 name_index = 15;
+  optional int32 category_group_name_index = 16;
 }
 
 message ChromeMetadata {
@@ -68,4 +81,8 @@ message ChromeMetadata {
 message ChromeEventBundle {
   repeated ChromeTraceEvent trace_events = 1;
   repeated ChromeMetadata metadata = 2;
+
+  // Contents of a string table that's valid for
+  // the whole ChromeEventBundle entry.
+  repeated ChromeStringTableEntry string_table = 3;
 }
