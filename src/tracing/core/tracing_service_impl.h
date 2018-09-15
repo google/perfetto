@@ -56,6 +56,9 @@ class TracingServiceImpl : public TracingService {
   static constexpr size_t kDefaultShmSize = 256 * 1024ul;
   static constexpr size_t kMaxShmSize = 32 * 1024 * 1024ul;
   static constexpr uint32_t kDataSourceStopTimeoutMs = 5000;
+  static constexpr uint8_t kSyncMarker[] = {0x82, 0x47, 0x7a, 0x76, 0xb2, 0x8d,
+                                            0x42, 0xba, 0x81, 0xdc, 0x33, 0x32,
+                                            0x6d, 0x57, 0xa0, 0x79};
 
   // The implementation behind the service endpoint exposed to each producer.
   class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
@@ -252,11 +255,9 @@ class TracingServiceImpl : public TracingService {
     // many entries as |config.buffers_size()|.
     std::vector<BufferID> buffers_index;
 
-    // When the last clock snapshot was emitted into the output stream.
-    base::TimeMillis last_clock_snapshot = {};
-
-    // When the last TraceStats snapshot was emitted into the output stream.
-    base::TimeMillis last_stats_snapshot = {};
+    // When the last snapshots (clock, stats, sync marker) were emitted into
+    // the output stream.
+    base::TimeMillis last_snapshot_time = {};
 
     // Whether we mirrored the trace config back to the trace output yet.
     bool did_emit_config = false;
@@ -292,9 +293,10 @@ class TracingServiceImpl : public TracingService {
   // shared memory and trace buffers.
   void UpdateMemoryGuardrail();
 
-  void MaybeSnapshotClocks(TracingSession*, std::vector<TracePacket>*);
+  void SnapshotSyncMarker(std::vector<TracePacket>*);
+  void SnapshotClocks(std::vector<TracePacket>*);
+  void SnapshotStats(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
-  void MaybeSnapshotStats(TracingSession*, std::vector<TracePacket>*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
@@ -319,6 +321,10 @@ class TracingServiceImpl : public TracingService {
   std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
 
   bool lockdown_mode_ = false;
+  uint32_t min_write_period_ms_ = 100;  // Overridable for testing.
+
+  uint8_t sync_marker_packet_[32];  // Lazily initialized.
+  size_t sync_marker_packet_size_ = 0;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 

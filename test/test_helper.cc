@@ -61,7 +61,7 @@ void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     protos::TracePacket packet;
     ASSERT_TRUE(encoded_packet.Decode(&packet));
     if (packet.has_clock_snapshot() || packet.has_trace_config() ||
-        packet.has_trace_stats()) {
+        packet.has_trace_stats() || !packet.synchronization_marker().empty()) {
       continue;
     }
     ASSERT_EQ(protos::TracePacket::kTrustedUid,

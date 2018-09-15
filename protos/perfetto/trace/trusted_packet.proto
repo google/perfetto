@@ -49,4 +49,5 @@ message TrustedPacket {
   ClockSnapshot clock_snapshot = 6;
   TraceConfig trace_config = 33;
   TraceStats trace_stats = 35;
+  bytes synchronization_marker = 36;
 }

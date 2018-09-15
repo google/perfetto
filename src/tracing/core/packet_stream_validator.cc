@@ -50,6 +50,9 @@ bool PacketStreamValidator::Validate(const Slices& slices) {
   if (packet.has_trace_stats())
     return false;
 
+  if (!packet.synchronization_marker().empty())
+    return false;
+
   // We are deliberately not checking for clock_snapshot for the moment. It's
   // unclear if we want to allow producers to snapshot their clocks. Ideally we
   // want a security model where producers can only snapshot their own clocks

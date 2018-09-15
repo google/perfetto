@@ -46,6 +46,12 @@ message TracePacket {
     // removed field with id 34
     // removed field with id 35
 
+    // This field is emitted at periodic intervals (~10s) and
+    // contains always the binary representation of the UUID
+    // {82477a76-b28d-42ba-81dc-33326d57a079}. This is used to be able to
+    // efficiently partition long traces without having to fully parse them.
+    bytes synchronization_marker = 36;
+
     // This field is only used for testing.
     // removed field with id 536870911  // 2^29 - 1, max field id for protos.
   }
