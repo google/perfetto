@@ -149,6 +149,10 @@ class CpuSliceTrack extends Track {
         title = `${threadInfo.procName} [${threadInfo.pid}]`;
         subTitle = `${threadInfo.threadName} [${threadInfo.tid}]`;
       }
+
+      // Don't render text when we have less than 5px to play with.
+      if (rectWidth < 5) continue;
+
       title = cropText(title, charWidth, rectWidth);
       subTitle = cropText(subTitle, charWidth, rectWidth);
       const rectXCenter = rectStart + rectWidth / 2;
