@@ -768,7 +768,7 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
     ASSERT_TRUE(trace_partition.ParseFromArray(trace_raw.data() + start, size));
     merged_trace.MergeFrom(trace_partition);
   }
-  EXPECT_GE(num_markers, kNumMarkers);
+  EXPECT_GE(num_markers, static_cast<size_t>(kNumMarkers));
 
   protos::Trace whole_trace;
   ASSERT_TRUE(whole_trace.ParseFromString(trace_raw));
