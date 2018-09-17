@@ -57,9 +57,7 @@ namespace perfetto {
 namespace {
 constexpr size_t kDefaultShmPageSize = base::kPageSize;
 constexpr int kMaxBuffersPerConsumer = 128;
-constexpr base::TimeMillis kClockSnapshotInterval(10 * 1000);
-constexpr base::TimeMillis kStatsSnapshotInterval(10 * 1000);
-constexpr int kMinWriteIntoFilePeriodMs = 100;
+constexpr base::TimeMillis kSnapshotsInterval(10 * 1000);
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
 constexpr int kFlushTimeoutMs = 1000;
 constexpr int kMaxConcurrentTracingSessions = 5;
@@ -106,6 +104,7 @@ uid_t geteuid() {
 constexpr size_t TracingServiceImpl::kDefaultShmSize;
 constexpr size_t TracingServiceImpl::kMaxShmSize;
 constexpr uint32_t TracingServiceImpl::kDataSourceStopTimeoutMs;
+constexpr uint8_t TracingServiceImpl::kSyncMarker[];
 
 // static
 std::unique_ptr<TracingService> TracingService::CreateInstance(
@@ -286,8 +285,8 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     uint32_t write_period_ms = cfg.file_write_period_ms();
     if (write_period_ms == 0)
       write_period_ms = kDefaultWriteIntoFilePeriodMs;
-    if (write_period_ms < kMinWriteIntoFilePeriodMs)
-      write_period_ms = kMinWriteIntoFilePeriodMs;
+    if (write_period_ms < min_write_period_ms_)
+      write_period_ms = min_write_period_ms_;
     tracing_session->write_period_ms = write_period_ms;
     tracing_session->max_file_size_bytes = cfg.max_file_size_bytes();
     tracing_session->bytes_written_into_file = 0;
@@ -648,8 +647,14 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
 
   std::vector<TracePacket> packets;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
-  MaybeSnapshotClocks(tracing_session, &packets);
-  MaybeSnapshotStats(tracing_session, &packets);
+
+  base::TimeMillis now = base::GetWallTimeMs();
+  if (now >= tracing_session->last_snapshot_time + kSnapshotsInterval) {
+    tracing_session->last_snapshot_time = now;
+    SnapshotSyncMarker(&packets);
+    SnapshotClocks(&packets);
+    SnapshotStats(tracing_session, &packets);
+  }
   MaybeEmitTraceConfig(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
@@ -1137,14 +1142,32 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
 #endif
 }
 
-void TracingServiceImpl::MaybeSnapshotClocks(
-    TracingSession* tracing_session,
-    std::vector<TracePacket>* packets) {
-  base::TimeMillis now = base::GetWallTimeMs();
-  if (now < tracing_session->last_clock_snapshot + kClockSnapshotInterval)
-    return;
-  tracing_session->last_clock_snapshot = now;
+void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
+  // The sync markes is used to tokenize large traces efficiently.
+  // See description in trace_packet.proto.
+  if (sync_marker_packet_size_ == 0) {
+    // Serialize the marker and the uid separately to guarantee that the marker
+    // is serialzied at the end and is adjacent to the start of the next packet.
+    int size_left = static_cast<int>(sizeof(sync_marker_packet_));
+    uint8_t* dst = &sync_marker_packet_[0];
+    protos::TrustedPacket packet;
+    packet.set_trusted_uid(static_cast<int32_t>(uid_));
+    PERFETTO_CHECK(packet.SerializeToArray(dst, size_left));
+    size_left -= packet.ByteSize();
+    sync_marker_packet_size_ += static_cast<size_t>(packet.ByteSize());
+    dst += sync_marker_packet_size_;
 
+    packet.Clear();
+    packet.set_synchronization_marker(kSyncMarker, sizeof(kSyncMarker));
+    PERFETTO_CHECK(packet.SerializeToArray(dst, size_left));
+    sync_marker_packet_size_ += static_cast<size_t>(packet.ByteSize());
+    PERFETTO_CHECK(sync_marker_packet_size_ <= sizeof(sync_marker_packet_));
+  };
+  packets->emplace_back();
+  packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
+}
+
+void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets) {
   protos::TrustedPacket packet;
   protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
 
@@ -1198,13 +1221,8 @@ void TracingServiceImpl::MaybeSnapshotClocks(
   packets->back().AddSlice(std::move(slice));
 }
 
-void TracingServiceImpl::MaybeSnapshotStats(TracingSession* tracing_session,
-                                            std::vector<TracePacket>* packets) {
-  base::TimeMillis now = base::GetWallTimeMs();
-  if (now < tracing_session->last_stats_snapshot + kStatsSnapshotInterval)
-    return;
-  tracing_session->last_stats_snapshot = now;
-
+void TracingServiceImpl::SnapshotStats(TracingSession* tracing_session,
+                                       std::vector<TracePacket>* packets) {
   protos::TrustedPacket packet;
   packet.set_trusted_uid(static_cast<int32_t>(uid_));
 
