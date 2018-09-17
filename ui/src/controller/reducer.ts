@@ -50,6 +50,7 @@ export function rootReducer(state: State, action: any): State {
     case 'ADD_TRACK': {
       const nextState = {...state};
       nextState.tracks = {...state.tracks};
+      nextState.scrollingTracks = [...state.scrollingTracks];
       const id = `${nextState.nextId++}`;
       nextState.tracks[id] = {
         id,
@@ -59,7 +60,7 @@ export function rootReducer(state: State, action: any): State {
         maxDepth: 1,
         cpu: action.cpu,
       };
-      nextState.displayedTrackIds.push(id);
+      nextState.scrollingTracks.push(id);
       return nextState;
     }
 
@@ -97,7 +98,7 @@ export function rootReducer(state: State, action: any): State {
         upid: action.upid,
         utid: action.utid,
       };
-      nextState.displayedTrackIds.push(id);
+      nextState.scrollingTracks.push(id);
       return nextState;
     }
 
@@ -119,28 +120,58 @@ export function rootReducer(state: State, action: any): State {
       return nextState;
     }
 
-    case 'MOVE_TRACK':
-      if (!state.displayedTrackIds.includes(action.trackId) ||
-          !action.direction) {
-        throw new Error(
-            'Trying to move a track that does not exist' +
-            ' or not providing a direction to move to.');
+    case 'MOVE_TRACK': {
+      if (!action.direction) {
+        throw new Error('No direction given');
       }
-      const nextState = {...state};  // Creates a shallow copy.
-      // Copy the displayedTrackIds to prevent side effects.
-      nextState.displayedTrackIds = state.displayedTrackIds.slice();
+      const id = action.trackId;
+      const isPinned = state.pinnedTracks.includes(id);
+      const isScrolling = state.scrollingTracks.includes(id);
+      if (!isScrolling && !isPinned) {
+        throw new Error(`No track with id ${id}`);
+      }
+      const nextState = {...state};
+      const scrollingTracks = nextState.scrollingTracks =
+          state.scrollingTracks.slice();
+      const pinnedTracks = nextState.pinnedTracks = state.pinnedTracks.slice();
 
-      const oldIndex = state.displayedTrackIds.indexOf(action.trackId);
+      const tracks = isPinned ? pinnedTracks : scrollingTracks;
+
+      const oldIndex = tracks.indexOf(id);
       const newIndex = action.direction === 'up' ? oldIndex - 1 : oldIndex + 1;
-      const swappedTrackId = state.displayedTrackIds[newIndex];
-
-      if (!swappedTrackId) {
-        break;
+      const swappedTrackId = tracks[newIndex];
+      if (isPinned && newIndex === pinnedTracks.length) {
+        // Move from last element of pinned to first element of scrolling.
+        scrollingTracks.unshift(pinnedTracks.pop()!);
+      } else if (isScrolling && newIndex === -1) {
+        // Move first element of scrolling to last element of pinned.
+        pinnedTracks.push(scrollingTracks.shift()!);
+      } else if (swappedTrackId) {
+        tracks[newIndex] = id;
+        tracks[oldIndex] = swappedTrackId;
+      } else {
+        return state;
       }
-      nextState.displayedTrackIds[newIndex] = action.trackId;
-      nextState.displayedTrackIds[oldIndex] = swappedTrackId;
-
       return nextState;
+    }
+
+    case 'TOGGLE_TRACK_PINNED': {
+      const id = action.trackId;
+      const isPinned = state.pinnedTracks.includes(id);
+
+      const nextState = {...state};
+      const pinnedTracks = nextState.pinnedTracks = [...state.pinnedTracks];
+      const scrollingTracks = nextState.scrollingTracks =
+          [...state.scrollingTracks];
+      if (isPinned) {
+        pinnedTracks.splice(pinnedTracks.indexOf(id), 1);
+        scrollingTracks.unshift(id);
+      } else {
+        scrollingTracks.splice(scrollingTracks.indexOf(id), 1);
+        pinnedTracks.push(id);
+      }
+      return nextState;
+    }
 
     case 'SET_ENGINE_READY': {
       const nextState = {...state};  // Creates a shallow copy.
