@@ -48,6 +48,12 @@ message TracePacket {
     FtraceStats ftrace_stats = 34;
     TraceStats trace_stats = 35;
 
+    // This field is emitted at periodic intervals (~10s) and
+    // contains always the binary representation of the UUID
+    // {82477a76-b28d-42ba-81dc-33326d57a079}. This is used to be able to
+    // efficiently partition long traces without having to fully parse them.
+    bytes synchronization_marker = 36;
+
     // This field is only used for testing.
     TestEvent for_testing = 536870911;  // 2^29 - 1, max field id for protos.
   }
