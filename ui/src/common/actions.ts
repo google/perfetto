@@ -14,6 +14,7 @@
 
 import {State} from './state';
 import {TimeSpan} from './time';
+
 export interface Action { type: string; }
 
 export function openTraceFromUrl(url: string) {
@@ -98,6 +99,13 @@ export function moveTrack(trackId: string, direction: 'up'|'down') {
     type: 'MOVE_TRACK',
     trackId,
     direction,
+  };
+}
+
+export function toggleTrackPinned(trackId: string) {
+  return {
+    type: 'TOGGLE_TRACK_PINNED',
+    trackId,
   };
 }
 

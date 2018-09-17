@@ -79,7 +79,8 @@ export interface State {
   traceTime: TraceTime;
   visibleTraceTime: TraceTime;
   tracks: ObjectById<TrackState>;
-  displayedTrackIds: string[];
+  scrollingTracks: string[];
+  pinnedTracks: string[];
   queries: ObjectById<QueryConfig>;
   permalink: PermalinkConfig;
   status: Status;
@@ -93,7 +94,8 @@ export function createEmptyState(): State {
     traceTime: {startSec: 0, endSec: 10, lastUpdate: 0},
     visibleTraceTime: {startSec: 0, endSec: 10, lastUpdate: 0},
     tracks: {},
-    displayedTrackIds: [],
+    pinnedTracks: [],
+    scrollingTracks: [],
     queries: {},
     permalink: {},
     status: {msg: '', timestamp: 0},
