@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) || \
@@ -106,7 +107,7 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
 
   ProcessTracker* procs = context_->process_tracker.get();
   TraceStorage* storage = context_->storage.get();
-  TraceStorage::NestableSlices* slices = storage->mutable_nestable_slices();
+  SliceTracker* slice_tracker = context_->slice_tracker.get();
 
   while (next < end) {
     Json::Value value;
@@ -127,42 +128,19 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
     StringId cat_id = storage->InternString(cat);
     StringId name_id = storage->InternString(name);
     UniqueTid utid = procs->UpdateThread(tid, pid);
-    SlicesStack& stack = threads_[utid];
-
-    auto add_slice = [slices, &stack, utid, cat_id,
-                      name_id](const Slice& slice) {
-      if (stack.size() >= std::numeric_limits<uint8_t>::max())
-        return;
-      const uint8_t depth = static_cast<uint8_t>(stack.size()) - 1;
-      uint64_t parent_stack_id, stack_id;
-      std::tie(parent_stack_id, stack_id) = GetStackHashes(stack);
-      slices->AddSlice(slice.start_ts, slice.end_ts - slice.start_ts, utid,
-                       cat_id, name_id, depth, stack_id, parent_stack_id);
-    };
 
     switch (phase) {
       case 'B': {  // TRACE_EVENT_BEGIN.
-        MaybeCloseStack(ts, stack);
-        stack.emplace_back(Slice{cat_id, name_id, ts, 0});
+        slice_tracker->Begin(ts, utid, cat_id, name_id);
         break;
       }
       case 'E': {  // TRACE_EVENT_END.
-        PERFETTO_CHECK(!stack.empty());
-        MaybeCloseStack(ts, stack);
-        PERFETTO_CHECK(stack.back().cat_id == cat_id);
-        PERFETTO_CHECK(stack.back().name_id == name_id);
-        Slice& slice = stack.back();
-        slice.end_ts = slice.start_ts;
-        add_slice(slice);
-        stack.pop_back();
+        slice_tracker->End(ts, utid, cat_id, name_id);
         break;
       }
       case 'X': {  // TRACE_EVENT (scoped event).
-        MaybeCloseStack(ts, stack);
-        uint64_t end_ts = ts + value["dur"].asUInt() * 1000;
-        stack.emplace_back(Slice{cat_id, name_id, ts, end_ts});
-        Slice& slice = stack.back();
-        add_slice(slice);
+        uint64_t duration = value["dur"].asUInt() * 1000;
+        slice_tracker->Scoped(ts, utid, cat_id, name_id, duration);
         break;
       }
       case 'M': {  // Metadata events (process and thread names).
@@ -178,53 +156,10 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
         }
       }
     }
-    // TODO(primiano): auto-close B slices left open at the end.
   }
   offset_ += static_cast<uint64_t>(next - buf);
   buffer_.erase(buffer_.begin(), buffer_.begin() + (next - buf));
   return true;
-}
-
-void JsonTraceParser::MaybeCloseStack(uint64_t ts, SlicesStack& stack) {
-  bool check_only = false;
-  for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
-    const Slice& slice = stack[size_t(i)];
-    if (slice.end_ts == 0) {
-      check_only = true;
-    }
-
-    if (check_only) {
-      PERFETTO_DCHECK(ts >= slice.start_ts);
-      PERFETTO_DCHECK(slice.end_ts == 0 || ts <= slice.end_ts);
-      continue;
-    }
-
-    if (slice.end_ts <= ts) {
-      stack.pop_back();
-    }
-  }
-}
-
-// Returns <parent_stack_id, stack_id>, where
-// |parent_stack_id| == hash(stack_id - last slice).
-std::tuple<uint64_t, uint64_t> JsonTraceParser::GetStackHashes(
-    const SlicesStack& stack) {
-  PERFETTO_DCHECK(!stack.empty());
-  std::string s;
-  s.reserve(stack.size() * sizeof(uint64_t) * 2);
-  constexpr uint64_t kMask = uint64_t(-1) >> 1;
-  uint64_t parent_stack_id = 0;
-  for (size_t i = 0; i < stack.size(); i++) {
-    if (i == stack.size() - 1)
-      parent_stack_id = i > 0 ? (std::hash<std::string>{}(s)) & kMask : 0;
-    const Slice& slice = stack[i];
-    s.append(reinterpret_cast<const char*>(&slice.cat_id),
-             sizeof(slice.cat_id));
-    s.append(reinterpret_cast<const char*>(&slice.name_id),
-             sizeof(slice.name_id));
-  }
-  uint64_t stack_id = (std::hash<std::string>{}(s)) & kMask;
-  return std::make_tuple(parent_stack_id, stack_id);
 }
 
 }  // namespace trace_processor
