@@ -18,6 +18,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "perfetto/base/string_view.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/sched_tracker.h"
@@ -281,6 +282,15 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 
   EXPECT_CALL(*process_, UpdateThread(1, 2));
   Tokenize(trace);
+}
+
+TEST(SystraceParserTest, SystraceEvent) {
+  SystraceTracePoint result{};
+  ASSERT_TRUE(ParseSystraceTracePoint(base::StringView("B|1|foo"), &result));
+  EXPECT_EQ(result, (SystraceTracePoint{'B', 1, base::StringView("foo"), 0}));
+
+  ASSERT_TRUE(ParseSystraceTracePoint(base::StringView("B|42|Bar"), &result));
+  EXPECT_EQ(result, (SystraceTracePoint{'B', 42, base::StringView("Bar"), 0}));
 }
 
 }  // namespace

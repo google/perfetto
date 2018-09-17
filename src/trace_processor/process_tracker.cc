@@ -112,6 +112,14 @@ UniquePid ProcessTracker::UpdateProcess(uint32_t pid, base::StringView name) {
   return upid;
 }
 
+UniquePid ProcessTracker::UpdateProcess(uint32_t pid) {
+  UniquePid upid;
+  TraceStorage::Process* process;
+  std::tie(upid, process) = GetOrCreateProcess(pid, 0 /* start_ns */);
+  UpdateThread(/*tid=*/pid, pid);  // Create an entry for the main thread.
+  return upid;
+}
+
 std::tuple<UniquePid, TraceStorage::Process*>
 ProcessTracker::GetOrCreateProcess(uint32_t pid, uint64_t start_ns) {
   auto pids_pair = pids_.equal_range(pid);
