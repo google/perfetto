@@ -14,7 +14,8 @@
 
 import * as m from 'mithril';
 
-import {moveTrack} from '../common/actions';
+import {moveTrack, toggleTrackPinned} from '../common/actions';
+import {Action} from '../common/actions';
 import {TrackState} from '../common/state';
 
 import {globals} from './globals';
@@ -27,18 +28,26 @@ import {trackRegistry} from './track_registry';
 // If any uses can't be removed we should read this constant from CSS.
 export const TRACK_SHELL_WIDTH = 300;
 
+function isPinned(id: string) {
+  return globals.state.pinnedTracks.indexOf(id) !== -1;
+}
+
 const TrackShell = {
   view({attrs}) {
     return m(
         '.track-shell',
         m('h1', attrs.trackState.name),
-        m(TrackMoveButton, {
-          direction: 'up',
-          trackId: attrs.trackState.id,
+        m(TrackButton, {
+          action: moveTrack(attrs.trackState.id, 'up'),
+          i: 'arrow_upward_alt',
         }),
-        m(TrackMoveButton, {
-          direction: 'down',
-          trackId: attrs.trackState.id,
+        m(TrackButton, {
+          action: moveTrack(attrs.trackState.id, 'down'),
+          i: 'arrow_downward_alt',
+        }),
+        m(TrackButton, {
+          action: toggleTrackPinned(attrs.trackState.id),
+          i: isPinned(attrs.trackState.id) ? 'star' : 'star_border',
         }));
   },
 } as m.Component<{trackState: TrackState}>;
@@ -67,21 +76,20 @@ const TrackComponent = {
   }
 } as m.Component<{trackState: TrackState, track: Track}>;
 
-const TrackMoveButton = {
+const TrackButton = {
   view({attrs}) {
     return m(
-        'i.material-icons.track-move-icons',
+        'i.material-icons.track-button',
         {
-          onclick: () =>
-              globals.dispatch(moveTrack(attrs.trackId, attrs.direction)),
+          onclick: () => globals.dispatch(attrs.action),
         },
-        attrs.direction === 'up' ? 'arrow_upward_alt' : 'arrow_downward_alt');
+        attrs.i);
   }
 } as m.Component<{
-  direction: 'up' | 'down',
-  trackId: string,
+  action: Action,
+  i: string,
 },
-                        {}>;
+                    {}>;
 
 interface TrackPanelAttrs {
   id: string;
