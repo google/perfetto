@@ -63,6 +63,8 @@ source_set("lib") {
     "scoped_db.h",
     "slice_table.cc",
     "slice_table.h",
+    "slice_tracker.cc",
+    "slice_tracker.h",
     "sqlite_utils.h",
     "string_table.cc",
     "string_table.h",
@@ -136,6 +138,7 @@ source_set("unittests") {
     "query_constraints_unittest.cc",
     "sched_slice_table_unittest.cc",
     "sched_tracker_unittest.cc",
+    "slice_tracker_unittest.cc",
     "thread_table_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
