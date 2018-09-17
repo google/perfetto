@@ -18,6 +18,7 @@
 #define SRC_PROFILING_MEMORY_CLIENT_H_
 
 #include <stddef.h>
+
 #include <mutex>
 #include <vector>
 
@@ -26,6 +27,22 @@
 namespace perfetto {
 
 class SocketPool;
+
+class FreePage {
+ public:
+  FreePage();
+
+  // Can be called from any thread. Must not hold mtx_.`
+  void Add(const uint64_t addr, SocketPool* pool);
+
+ private:
+  // Needs to be called holding mtx_.
+  void Flush(SocketPool* pool);
+
+  std::vector<uint64_t> free_page_;
+  std::mutex mtx_;
+  size_t offset_;
+};
 
 class BorrowedSocket {
  public:
@@ -61,6 +78,7 @@ class SocketPool {
   std::condition_variable cv_;
   std::vector<base::ScopedFile> sockets_;
   size_t available_sockets_;
+  size_t dead_sockets_ = 0;
 };
 
 }  // namespace perfetto
