@@ -132,11 +132,12 @@ const TraceViewer = {
   },
 
   view() {
-    const scrollingPanels = globals.state.displayedTrackIds.length > 0 ?
+    const scrollingPanels = globals.state.scrollingTracks.length > 0 ?
         [
-          m(HeaderPanel, {title: 'Tracks'}),
-          ...globals.state.displayedTrackIds.map(id => m(TrackPanel, {id})),
-          m(FlameGraphPanel),
+          m(HeaderPanel, {title: 'Tracks', key: 'tracksheader'}),
+          ...globals.state.scrollingTracks.map(
+              id => m(TrackPanel, {key: id, id})),
+          m(FlameGraphPanel, {key: 'flamegraph'}),
         ] :
         [];
     return m(
@@ -147,8 +148,10 @@ const TraceViewer = {
           m('.pinned-panel-container', m(PanelContainer, {
               doesScroll: false,
               panels: [
-                m(OverviewTimelinePanel),
-                m(TimeAxisPanel),
+                m(OverviewTimelinePanel, {key: 'overview'}),
+                m(TimeAxisPanel, {key: 'timeaxis'}),
+                ...globals.state.pinnedTracks.map(
+                    id => m(TrackPanel, {key: id, id})),
               ],
             })),
           m('.scrolling-panel-container', m(PanelContainer, {
