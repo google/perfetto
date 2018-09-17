@@ -12,8 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createEmptyState} from '../common/state';
+import {moveTrack, toggleTrackPinned} from '../common/actions';
+import {createEmptyState, State, TrackState} from '../common/state';
+
 import {rootReducer} from './reducer';
+
+function fakeTrack(state: State, id: string): TrackState {
+  const track: TrackState = {
+    id,
+    engineId: '1',
+    maxDepth: 0,
+    kind: 'SOME_TRACK_KIND',
+    name: 'A track',
+    cpu: 0,
+  };
+  state.tracks[id] = track;
+  return track;
+}
 
 test('navigate', async () => {
   const before = createEmptyState();
@@ -36,7 +51,7 @@ test('add tracks', () => {
     cpu: '2',
   });
   expect(Object.values(state.tracks).length).toBe(2);
-  expect(state.displayedTrackIds.length).toBe(2);
+  expect(state.scrollingTracks.length).toBe(2);
 });
 
 test('reorder tracks', () => {
@@ -54,8 +69,8 @@ test('reorder tracks', () => {
     cpu: '2',
   });
 
-  const firstTrackId = before.displayedTrackIds[0];
-  const secondTrackId = before.displayedTrackIds[1];
+  const firstTrackId = before.scrollingTracks[0];
+  const secondTrackId = before.scrollingTracks[1];
 
   const after = rootReducer(before, {
     type: 'MOVE_TRACK',
@@ -65,15 +80,98 @@ test('reorder tracks', () => {
 
   // Ensure the order is swapped. This test would fail to detect side effects
   // if the before state was modified, so other tests are needed as well.
-  expect(after.displayedTrackIds[0]).toBe(secondTrackId);
-  expect(after.displayedTrackIds[1]).toBe(firstTrackId);
+  expect(after.scrollingTracks[0]).toBe(secondTrackId);
+  expect(after.scrollingTracks[1]).toBe(firstTrackId);
 
   // Ensure the track state contents have actually swapped places in the new
   // state, but not in the old one.
-  expect(before.tracks[before.displayedTrackIds[0]].engineId).toBe('1');
-  expect(before.tracks[before.displayedTrackIds[1]].engineId).toBe('2');
-  expect(after.tracks[after.displayedTrackIds[0]].engineId).toBe('2');
-  expect(after.tracks[after.displayedTrackIds[1]].engineId).toBe('1');
+  expect(before.tracks[before.scrollingTracks[0]].engineId).toBe('1');
+  expect(before.tracks[before.scrollingTracks[1]].engineId).toBe('2');
+  expect(after.tracks[after.scrollingTracks[0]].engineId).toBe('2');
+  expect(after.tracks[after.scrollingTracks[1]].engineId).toBe('1');
+});
+
+test('reorder pinned to scrolling', () => {
+  const before = createEmptyState();
+
+  fakeTrack(before, 'a');
+  fakeTrack(before, 'b');
+  fakeTrack(before, 'c');
+
+  before.pinnedTracks = ['a', 'b'];
+  before.scrollingTracks = ['c'];
+
+  const after = rootReducer(before, moveTrack('b', 'down'));
+  expect(after.pinnedTracks).toEqual(['a']);
+  expect(after.scrollingTracks).toEqual(['b', 'c']);
+});
+
+test('reorder scrolling to pinned', () => {
+  const before = createEmptyState();
+  fakeTrack(before, 'a');
+  fakeTrack(before, 'b');
+  fakeTrack(before, 'c');
+
+  before.pinnedTracks = ['a'];
+  before.scrollingTracks = ['b', 'c'];
+
+  const after = rootReducer(before, moveTrack('b', 'up'));
+  expect(after.pinnedTracks).toEqual(['a', 'b']);
+  expect(after.scrollingTracks).toEqual(['c']);
+});
+
+test('reorder clamp bottom', () => {
+  const before = createEmptyState();
+  fakeTrack(before, 'a');
+  fakeTrack(before, 'b');
+  fakeTrack(before, 'c');
+
+  before.pinnedTracks = ['a', 'b'];
+  before.scrollingTracks = ['c'];
+
+  const after = rootReducer(before, moveTrack('a', 'up'));
+  expect(after).toEqual(before);
+});
+
+test('reorder clamp top', () => {
+  const before = createEmptyState();
+  fakeTrack(before, 'a');
+  fakeTrack(before, 'b');
+  fakeTrack(before, 'c');
+
+  before.pinnedTracks = ['a'];
+  before.scrollingTracks = ['b', 'c'];
+
+  const after = rootReducer(before, moveTrack('c', 'down'));
+  expect(after).toEqual(before);
+});
+
+test('pin', () => {
+  const before = createEmptyState();
+  fakeTrack(before, 'a');
+  fakeTrack(before, 'b');
+  fakeTrack(before, 'c');
+
+  before.pinnedTracks = ['a'];
+  before.scrollingTracks = ['b', 'c'];
+
+  const after = rootReducer(before, toggleTrackPinned('c'));
+  expect(after.pinnedTracks).toEqual(['a', 'c']);
+  expect(after.scrollingTracks).toEqual(['b']);
+});
+
+test('unpin', () => {
+  const before = createEmptyState();
+  fakeTrack(before, 'a');
+  fakeTrack(before, 'b');
+  fakeTrack(before, 'c');
+
+  before.pinnedTracks = ['a', 'b'];
+  before.scrollingTracks = ['c'];
+
+  const after = rootReducer(before, toggleTrackPinned('a'));
+  expect(after.pinnedTracks).toEqual(['b']);
+  expect(after.scrollingTracks).toEqual(['a', 'c']);
 });
 
 test('open trace', async () => {

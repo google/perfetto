@@ -231,7 +231,7 @@ button.close {
     .track-shell {
         padding: 0 20px;
         display: grid;
-        grid-template-areas: "title up down";
+        grid-template-areas: "title pin up down";
         grid-template-columns: 1fr auto auto;
         align-items: center;
         width: 300px;
@@ -245,20 +245,11 @@ button.close {
             font-family: 'Google Sans';
             color: hsl(213, 22%, 30%);
         }
-        .track-move-icons {
-            justify-self: end;
+        .track-button {
             margin: 0 5px;
-            color: #fff;
-            font-weight: bold;
-            text-align: center;
+            color: #495767;
             cursor: pointer;
-            background: #ced0e7;
-            border-radius: 12px;
-            display: block;
             width: 24px;
-            height: 24px;
-            border: none;
-            outline: none;
         }
     }
 }
