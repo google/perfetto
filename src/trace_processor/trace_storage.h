@@ -103,7 +103,7 @@ class TraceStorage {
     const std::deque<uint64_t>& cycles() const { return cycles_; }
 
    private:
-    // Each vector below has the same number of entries (the number of slices
+    // Each deque below has the same number of entries (the number of slices
     // in the trace for the CPU).
     std::deque<uint64_t> start_ns_;
     std::deque<uint64_t> durations_;

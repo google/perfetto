@@ -28,6 +28,7 @@
 #include "src/trace_processor/sched_slice_table.h"
 #include "src/trace_processor/sched_tracker.h"
 #include "src/trace_processor/slice_table.h"
+#include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/string_table.h"
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/thread_table.h"
@@ -43,6 +44,7 @@ TraceProcessor::TraceProcessor(const Config& cfg) {
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   db_.reset(std::move(db));
 
+  context_.slice_tracker.reset(new SliceTracker(&context_));
   context_.sched_tracker.reset(new SchedTracker(&context_));
   context_.proto_parser.reset(new ProtoTraceParser(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
