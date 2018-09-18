@@ -31,9 +31,9 @@ using ::testing::Invoke;
 class ProcessTrackerTest : public ::testing::Test {
  public:
   ProcessTrackerTest() {
+    context.storage.reset(new TraceStorage());
     context.process_tracker.reset(new ProcessTracker(&context));
     context.sched_tracker.reset(new SchedTracker(&context));
-    context.storage.reset(new TraceStorage());
   }
 
  protected:

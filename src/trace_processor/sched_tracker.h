@@ -66,6 +66,8 @@ class SchedTracker {
 
   uint64_t prev_timestamp_ = 0;
 
+  StringId const idle_string_id_;
+
   TraceProcessorContext* const context_;
 };
 }  // namespace trace_processor

@@ -243,7 +243,7 @@ export class TraceController extends Controller<States> {
       // Sched overview.
       const schedRows = await engine.rawQuery({
         sqlQuery: `select sum(dur)/${stepSec}/1e9, cpu from sched ` +
-            `where ts >= ${startNs} and ts < ${endNs} ` +
+            `where ts >= ${startNs} and ts < ${endNs} and utid != 0 ` +
             'group by cpu order by cpu'
       });
       const schedData: {[key: string]: QuantizedLoad} = {};
