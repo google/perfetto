@@ -148,7 +148,10 @@ select thread.name as thread_name, process.name as proc_name, tid, pid, cpu_sec 
 
 ### CPU time for top 100 processes
 ``` sql
-select proc_name, cpu_sec from (select process.name as proc_name, upid, cpu_sec from (select utid, sum(dur)/1e9 as cpu_sec from sched group by utid) left join thread using(utid) left join process using(upid)) group by upid order by cpu_sec desc limit 100
+select process.name, tot_proc/1e9 as cpu_sec from (select upid, sum(tot_thd) as
+tot_proc from (select utid, sum(dur) as tot_thd from sched group by utid) join
+thread using(utid) group by upid) join process using(upid) order by cpu_sec desc
+limit 100;
 ```
 
 ### CPU time for top 100 processes broken down by cpu
