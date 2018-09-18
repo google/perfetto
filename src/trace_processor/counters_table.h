@@ -39,9 +39,10 @@ class CountersTable : public Table {
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
-  CountersTable(const TraceStorage*);
+  CountersTable(sqlite3*, const TraceStorage*);
 
   // Table implementation.
+  std::string CreateTableStmt(int argc, const char* const* argv) override;
   std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
