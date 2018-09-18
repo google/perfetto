@@ -29,16 +29,20 @@ using namespace sqlite_utils;
 
 }  // namespace
 
-ProcessTable::ProcessTable(const TraceStorage* storage) : storage_(storage) {}
+ProcessTable::ProcessTable(sqlite3*, const TraceStorage* storage)
+    : storage_(storage) {}
 
 void ProcessTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  Table::Register<ProcessTable>(db, storage,
-                                "CREATE TABLE process("
-                                "upid UNSIGNED INT, "
-                                "name TEXT, "
-                                "pid UNSIGNED INT, "
-                                "PRIMARY KEY(upid)"
-                                ") WITHOUT ROWID;");
+  Table::Register<ProcessTable>(db, storage, "process");
+}
+
+std::string ProcessTable::CreateTableStmt(int, const char* const*) {
+  return "CREATE TABLE x("
+         "upid UNSIGNED INT, "
+         "name TEXT, "
+         "pid UNSIGNED INT, "
+         "PRIMARY KEY(upid)"
+         ") WITHOUT ROWID;";
 }
 
 std::unique_ptr<Table::Cursor> ProcessTable::CreateCursor() {

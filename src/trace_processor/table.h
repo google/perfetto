@@ -37,8 +37,7 @@ class TraceStorage;
 class Table : public sqlite3_vtab {
  public:
   using Factory =
-      std::function<std::unique_ptr<Table>(const TraceStorage*,
-                                           const std::string& name)>;
+      std::function<std::unique_ptr<Table>(sqlite3*, const TraceStorage*)>;
 
   // When set it logs all BestIndex and Filter actions on the console.
   static bool debug;
@@ -80,11 +79,12 @@ class Table : public sqlite3_vtab {
   template <typename T>
   static void Register(sqlite3* db,
                        const TraceStorage* storage,
-                       const std::string& create_statement) {
-    RegisterInternal(db, storage, create_statement, GetFactory<T>());
+                       const std::string& name) {
+    RegisterInternal(db, storage, name, GetFactory<T>());
   }
 
   // Methods to be implemented by derived table classes.
+  virtual std::string CreateTableStmt(int argc, const char* const* argv) = 0;
   virtual std::unique_ptr<Cursor> CreateCursor() = 0;
   virtual int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) = 0;
 
@@ -95,16 +95,14 @@ class Table : public sqlite3_vtab {
  private:
   template <typename TableType>
   static Factory GetFactory() {
-    return [](const TraceStorage* storage, const std::string& name) {
-      auto table = std::unique_ptr<Table>(new TableType(storage));
-      table->name_ = name;
-      return table;
+    return [](sqlite3* db, const TraceStorage* storage) {
+      return std::unique_ptr<Table>(new TableType(db, storage));
     };
   }
 
   static void RegisterInternal(sqlite3* db,
                                const TraceStorage*,
-                               const std::string& create,
+                               const std::string& name,
                                Factory);
 
   // Overriden functions from sqlite3_vtab.

@@ -29,19 +29,23 @@ using namespace sqlite_utils;
 
 }  // namespace
 
-CountersTable::CountersTable(const TraceStorage* storage) : storage_(storage) {}
+CountersTable::CountersTable(sqlite3*, const TraceStorage* storage)
+    : storage_(storage) {}
 
 void CountersTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  Table::Register<CountersTable>(db, storage,
-                                 "CREATE TABLE counters("
-                                 "ts UNSIGNED BIG INT, "
-                                 "name text, "
-                                 "value UNSIGNED BIG INT, "
-                                 "dur UNSIGNED BIG INT, "
-                                 "ref UNSIGNED INT, "
-                                 "reftype TEXT, "
-                                 "PRIMARY KEY(name, ts, ref)"
-                                 ") WITHOUT ROWID;");
+  Table::Register<CountersTable>(db, storage, "counters");
+}
+
+std::string CountersTable::CreateTableStmt(int, const char* const*) {
+  return "CREATE TABLE x("
+         "ts UNSIGNED BIG INT, "
+         "name text, "
+         "value UNSIGNED BIG INT, "
+         "dur UNSIGNED BIG INT, "
+         "ref UNSIGNED INT, "
+         "reftype TEXT, "
+         "PRIMARY KEY(name, ts, ref)"
+         ") WITHOUT ROWID;";
 }
 
 std::unique_ptr<Table::Cursor> CountersTable::CreateCursor() {
