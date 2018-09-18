@@ -27,10 +27,9 @@ namespace trace_processor {
 namespace {
 
 struct TableDescriptor {
-  std::string name;
-  std::string create_statement;
   Table::Factory factory;
   const TraceStorage* storage = nullptr;
+  std::string name;
   sqlite3_module module = {};
 };
 
@@ -52,34 +51,31 @@ Table::~Table() = default;
 
 void Table::RegisterInternal(sqlite3* db,
                              const TraceStorage* storage,
-                             const std::string& create_statement,
+                             const std::string& table_name,
                              Factory factory) {
-  const std::string prefix = "CREATE TABLE ";
-  PERFETTO_CHECK(create_statement.substr(0, prefix.size()) == prefix);
-  size_t name_end = create_statement.find("(");
-  PERFETTO_CHECK(name_end != std::string::npos && name_end > prefix.size());
-  auto table_name =
-      create_statement.substr(prefix.size(), name_end - prefix.size());
-  PERFETTO_CHECK(table_name.size() > 0 && isalnum(table_name.front()) &&
-                 isalnum(table_name.back()));
-
   std::unique_ptr<TableDescriptor> desc(new TableDescriptor());
-  desc->name = table_name;
-  desc->create_statement = create_statement;
   desc->storage = storage;
   desc->factory = factory;
+  desc->name = table_name;
   sqlite3_module* module = &desc->module;
   memset(module, 0, sizeof(*module));
 
-  module->xConnect = [](sqlite3* xdb, void* arg, int, const char* const*,
-                        sqlite3_vtab** tab, char**) {
+  module->xConnect = [](sqlite3* xdb, void* arg, int argc,
+                        const char* const* argv, sqlite3_vtab** tab, char**) {
     const TableDescriptor* xdesc = static_cast<const TableDescriptor*>(arg);
-    int res = sqlite3_declare_vtab(xdb, xdesc->create_statement.c_str());
+    auto table = xdesc->factory(xdb, xdesc->storage);
+
+    auto create_stmt = table->CreateTableStmt(argc, argv);
+    if (create_stmt.empty())
+      return SQLITE_ERROR;
+
+    int res = sqlite3_declare_vtab(xdb, create_stmt.c_str());
     if (res != SQLITE_OK)
       return res;
 
     // Freed in xDisconnect().
-    *tab = xdesc->factory(xdesc->storage, xdesc->name).release();
+    table->name_ = xdesc->name;
+    *tab = table.release();
 
     return SQLITE_OK;
   };

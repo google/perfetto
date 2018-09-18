@@ -36,11 +36,12 @@ class StringTable : public Table {
     kString = 1,
   };
 
-  StringTable(const TraceStorage* storage);
+  StringTable(sqlite3*, const TraceStorage* storage);
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
   // Table implementation.
+  std::string CreateTableStmt(int argc, const char* const* argv) override;
   std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
