@@ -34,6 +34,7 @@ class CpuSliceTrackController extends TrackController {
         `and ts_lower_bound = ${Math.round(start * 1e9)} ` +
         `and ts <= ${Math.round(end * 1e9)} ` +
         `and dur >= ${Math.round(resolution * 1e9)} ` +
+        `and utid != 0 ` +
         `order by ts ` +
         `limit ${LIMIT};`;
 
