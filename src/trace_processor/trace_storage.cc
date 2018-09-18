@@ -41,8 +41,8 @@ void TraceStorage::AddSliceToCpu(uint32_t cpu,
                                  uint64_t duration_ns,
                                  UniqueTid utid,
                                  uint64_t cycles) {
-  cpu_events_[cpu].AddSlice(start_ns, duration_ns, utid, cycles);
-};
+  slices_.AddSlice(cpu, start_ns, duration_ns, utid, cycles);
+}
 
 StringId TraceStorage::InternString(base::StringView str) {
   auto hash = str.Hash();
