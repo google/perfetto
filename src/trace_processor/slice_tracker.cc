@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <limits>
+
 #include <stdint.h>
 
 #include "src/trace_processor/slice_tracker.h"
