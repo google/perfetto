@@ -22,7 +22,7 @@ namespace perfetto {
 namespace trace_processor {
 
 TraceStorage::TraceStorage() {
-  // Upid/utid 0 is reserved for invalid processes/threads.
+  // Upid/utid 0 is reserved for idle processes/threads.
   unique_processes_.emplace_back(0);
   unique_threads_.emplace_back(0);
 

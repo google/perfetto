@@ -73,12 +73,12 @@ class MockTraceStorage : public TraceStorage {
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
+    storage_ = new MockTraceStorage();
+    context_.storage.reset(storage_);
     sched_ = new MockSchedTracker(&context_);
     context_.sched_tracker.reset(sched_);
     process_ = new MockProcessTracker(&context_);
     context_.process_tracker.reset(process_);
-    storage_ = new MockTraceStorage();
-    context_.storage.reset(storage_);
     const auto optim = OptimizationMode::kMinLatency;
     context_.sorter.reset(new TraceSorter(&context_, optim, 0 /*window size*/));
     context_.proto_parser.reset(new ProtoTraceParser(&context_));
