@@ -29,17 +29,21 @@ using namespace sqlite_utils;
 
 }  // namespace
 
-ThreadTable::ThreadTable(const TraceStorage* storage) : storage_(storage) {}
+ThreadTable::ThreadTable(sqlite3*, const TraceStorage* storage)
+    : storage_(storage) {}
 
 void ThreadTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  Table::Register<ThreadTable>(db, storage,
-                               "CREATE TABLE thread("
-                               "utid UNSIGNED INT, "
-                               "upid UNSIGNED INT, "
-                               "name TEXT, "
-                               "tid UNSIGNED INT, "
-                               "PRIMARY KEY(utid)"
-                               ") WITHOUT ROWID;");
+  Table::Register<ThreadTable>(db, storage, "thread");
+}
+
+std::string ThreadTable::CreateTableStmt(int, const char* const*) {
+  return "CREATE TABLE x("
+         "utid UNSIGNED INT, "
+         "upid UNSIGNED INT, "
+         "name TEXT, "
+         "tid UNSIGNED INT, "
+         "PRIMARY KEY(utid)"
+         ") WITHOUT ROWID;";
 }
 
 std::unique_ptr<Table::Cursor> ThreadTable::CreateCursor() {
