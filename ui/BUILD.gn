@@ -260,6 +260,7 @@ node_bin("scss") {
     main_css,
     "src/assets/sidebar.scss",
     "src/assets/topbar.scss",
+    "src/assets/record.scss",
   ]
   outputs = [
     "$ui_dir/perfetto.css",

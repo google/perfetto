@@ -75,7 +75,7 @@ const SECTIONS = [
     items: [
       {t: 'Open trace file', a: popupFileSelectionDialog, i: 'folder_open'},
       {t: 'Open example trace', a: handleOpenTraceUrl, i: 'description'},
-      {t: 'Record new trace', a: navigateHome, i: 'fiber_smart_record'},
+      {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
       {t: 'Share current trace', a: dispatchCreatePermalink, i: 'share'},
     ],
   },
@@ -146,8 +146,14 @@ function onInputElementFileSelectionChanged(e: Event) {
   globals.dispatch(openTraceFromFile(e.target.files[0]));
 }
 
-function navigateHome(_: Event) {
+function navigateHome(e: Event) {
+  e.preventDefault();
   globals.dispatch(navigate('/'));
+}
+
+function navigateRecord(e: Event) {
+  e.preventDefault();
+  globals.dispatch(navigate('/record'));
 }
 
 function dispatchCreatePermalink(e: Event) {
