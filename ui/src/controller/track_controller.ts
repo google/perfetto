@@ -15,6 +15,8 @@
 import {assertExists} from '../base/logging';
 import {clearTrackDataRequest} from '../common/actions';
 import {Registry} from '../common/registry';
+import {TrackState} from '../common/state';
+
 import {Controller} from './controller';
 import {ControllerFactory} from './controller';
 import {Engine} from './engine';
@@ -22,7 +24,7 @@ import {globals} from './globals';
 
 // TrackController is a base class overridden by track implementations (e.g.,
 // sched slices, nestable slices, counters).
-export abstract class TrackController extends Controller<'main'> {
+export abstract class TrackController<Config = {}> extends Controller<'main'> {
   readonly trackId: string;
   readonly engine: Engine;
 
@@ -37,8 +39,12 @@ export abstract class TrackController extends Controller<'main'> {
   // to publish new track data in response to this call.
   abstract onBoundsChange(start: number, end: number, resolution: number): void;
 
-  get trackState() {
+  get trackState(): TrackState {
     return assertExists(globals.state.tracks[this.trackId]);
+  }
+
+  get config(): Config {
+    return this.trackState.config as Config;
   }
 
   run() {

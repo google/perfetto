@@ -17,7 +17,6 @@ import '../tracks/all_controller';
 import {assertExists, assertTrue} from '../base/logging';
 import {
   Action,
-  addChromeSliceTrack,
   addTrack,
   navigate,
   setEngineReady,
@@ -185,7 +184,9 @@ export class TraceController extends Controller<States> {
     const numCpus = await engine.getNumberOfCpus();
     for (let cpu = 0; cpu < numCpus; cpu++) {
       addToTrackActions.push(
-          addTrack(this.engineId, CPU_SLICE_TRACK_KIND, cpu));
+          addTrack(this.engineId, CPU_SLICE_TRACK_KIND, `Cpu ${cpu}`, {
+            cpu,
+          }));
     }
 
     const threadQuery = await engine.rawQuery({
@@ -199,13 +200,12 @@ export class TraceController extends Controller<States> {
       let threadName = threadQuery.columns[3].stringValues![i];
       threadName += `[${threadId}]`;
       const maxDepth = threadQuery.columns[4].longValues![i];
-      addToTrackActions.push(addChromeSliceTrack(
-          this.engineId,
-          SLICE_TRACK_KIND,
-          upid as number,
-          utid as number,
-          threadName,
-          maxDepth as number));
+      addToTrackActions.push(
+          addTrack(this.engineId, SLICE_TRACK_KIND, threadName, {
+            upid: upid as number,
+            utid: utid as number,
+            maxDepth: maxDepth as number,
+          }));
     }
     globals.dispatchMultiple(addToTrackActions);
   }
