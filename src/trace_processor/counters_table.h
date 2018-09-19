@@ -58,10 +58,8 @@ class CountersTable : public Table {
     int Column(sqlite3_context*, int N) override;
 
    private:
-    bool filter_by_cpu_ = false;
-    uint32_t current_cpu_ = 0;
-    size_t index_in_cpu_ = 0;
-    uint32_t filter_cpu_ = 0;
+    size_t num_rows_;
+    size_t row_ = 0;
 
     const TraceStorage* const storage_;
   };
