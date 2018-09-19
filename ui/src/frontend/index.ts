@@ -29,6 +29,7 @@ import {
 
 import {globals, QuantizedLoad, ThreadDesc} from './globals';
 import {HomePage} from './home_page';
+import {RecordPage} from './record_page';
 import {Router} from './router';
 import {ViewerPage} from './viewer_page';
 
@@ -125,6 +126,7 @@ function main() {
       {
         '/': HomePage,
         '/viewer': ViewerPage,
+        '/record': RecordPage,
       },
       dispatch);
   forwardRemoteCalls(channel.port2, new FrontendApi(router));
