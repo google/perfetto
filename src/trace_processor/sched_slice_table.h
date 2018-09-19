@@ -39,12 +39,11 @@ class SchedSliceTable : public Table {
     kDuration = 2,
     kQuantizedGroup = 3,
     kUtid = 4,
-    kCycles = 5,
 
     // Hidden columns.
-    kQuantum = 6,
-    kTimestampLowerBound = 7,
-    kClipTimestamp = 8,
+    kQuantum = 5,
+    kTimestampLowerBound = 6,
+    kClipTimestamp = 7,
   };
 
   SchedSliceTable(sqlite3*, const TraceStorage* storage);

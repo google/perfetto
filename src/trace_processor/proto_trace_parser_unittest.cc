@@ -49,6 +49,13 @@ class MockSchedTracker : public SchedTracker {
                     uint32_t prev_state,
                     base::StringView prev_comm,
                     uint32_t next_pid));
+
+  MOCK_METHOD5(PushCounter,
+               void(uint64_t timestamp,
+                    double value,
+                    StringId name_id,
+                    uint64_t ref,
+                    RefType ref_type));
 };
 
 class MockProcessTracker : public ProcessTracker {
@@ -66,8 +73,7 @@ class MockTraceStorage : public TraceStorage {
  public:
   MockTraceStorage() : TraceStorage() {}
 
-  MOCK_METHOD3(PushCpuFreq,
-               void(uint64_t timestamp, uint32_t cpu, uint32_t new_freq));
+  MOCK_METHOD1(InternString, StringId(base::StringView));
 };
 
 class ProtoTraceParserTest : public ::testing::Test {
@@ -236,7 +242,7 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   cpu_freq->set_cpu_id(10);
   cpu_freq->set_state(2000);
 
-  EXPECT_CALL(*storage_, PushCpuFreq(1000, 10, 2000));
+  EXPECT_CALL(*sched_, PushCounter(1000, 2000, 0, 10, RefType::kCPU_ID));
   Tokenize(trace_1);
 }
 

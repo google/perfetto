@@ -366,42 +366,6 @@ TEST_F(SchedSliceTableTest, TimestampFiltering) {
               ElementsAre(71));
 }
 
-TEST_F(SchedSliceTableTest, CyclesOrdering) {
-  uint32_t cpu = 3;
-  uint64_t timestamp = 100;
-  uint32_t pid_1 = 2;
-  uint32_t prev_state = 32;
-  static const char kCommProc1[] = "process1";
-  static const char kCommProc2[] = "process2";
-  uint32_t pid_2 = 4;
-  context_.sched_tracker->PushSchedSwitch(cpu, timestamp, pid_1, prev_state,
-                                          kCommProc1, pid_2);
-  context_.storage->PushCpuFreq(timestamp + 1, cpu, 1e9);
-  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 2, pid_2, prev_state,
-                                          kCommProc2, pid_1);
-  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 4, pid_1, prev_state,
-                                          kCommProc1, pid_2);
-  context_.storage->PushCpuFreq(timestamp + 5, cpu, 2e9);
-  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 7, pid_2, prev_state,
-                                          kCommProc2, pid_1);
-
-  PrepareValidStatement("SELECT cycles, ts FROM sched ORDER BY cycles desc");
-
-  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 0), 5000 /* cycles */);
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 1), timestamp + 4);
-
-  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 0), 2000 /* cycles */);
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 1), timestamp + 2);
-
-  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 0), 1000 /* cycles */);
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 1), timestamp);
-
-  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
-}
-
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

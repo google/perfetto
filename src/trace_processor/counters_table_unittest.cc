@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/counters_table.h"
+#include "src/trace_processor/sched_tracker.h"
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
 
@@ -33,6 +34,7 @@ class CountersTableUnittest : public ::testing::Test {
     db_.reset(db);
 
     context_.storage.reset(new TraceStorage());
+    context_.sched_tracker.reset(new SchedTracker(&context_));
 
     CountersTable::RegisterTable(db_.get(), context_.storage.get());
   }
@@ -60,20 +62,23 @@ class CountersTableUnittest : public ::testing::Test {
 TEST_F(CountersTableUnittest, SelectWhereCpu) {
   uint64_t timestamp = 1000;
   uint32_t freq = 3000;
-  context_.storage->PushCpuFreq(timestamp, 1 /* cpu */, freq);
-  context_.storage->PushCpuFreq(timestamp + 1, 1 /* cpu */, freq + 1000);
-  context_.storage->PushCpuFreq(timestamp + 2, 2 /* cpu */, freq + 2000);
+  context_.storage->mutable_counters()->AddCounter(
+      timestamp, 0, 1, freq, 1 /* cpu */, RefType::kCPU_ID);
+  context_.storage->mutable_counters()->AddCounter(
+      timestamp + 1, 1, 1, freq + 1000, 1 /* cpu */, RefType::kCPU_ID);
+  context_.storage->mutable_counters()->AddCounter(
+      timestamp + 2, 1, 1, freq + 2000, 2 /* cpu */, RefType::kCPU_ID);
 
   PrepareValidStatement("SELECT ts, dur, value FROM counters where ref = 1");
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
   ASSERT_EQ(sqlite3_column_int(*stmt_, 0), timestamp);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 1), 1);
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 1), 0);
   ASSERT_EQ(sqlite3_column_int(*stmt_, 2), freq);
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
   ASSERT_EQ(sqlite3_column_int(*stmt_, 0), timestamp + 1);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 1), 0);
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 1), 1);
   ASSERT_EQ(sqlite3_column_int(*stmt_, 2), freq + 1000);
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
@@ -82,9 +87,12 @@ TEST_F(CountersTableUnittest, SelectWhereCpu) {
 TEST_F(CountersTableUnittest, GroupByFreq) {
   uint64_t timestamp = 1000;
   uint32_t freq = 3000;
-  context_.storage->PushCpuFreq(timestamp, 1 /* cpu */, freq);
-  context_.storage->PushCpuFreq(timestamp + 1, 1 /* cpu */, freq + 1000);
-  context_.storage->PushCpuFreq(timestamp + 3, 1 /* cpu */, freq);
+  context_.storage->mutable_counters()->AddCounter(
+      timestamp, 1, 1, freq, 1 /* cpu */, RefType::kCPU_ID);
+  context_.storage->mutable_counters()->AddCounter(
+      timestamp + 1, 2, 1, freq + 1000, 1 /* cpu */, RefType::kCPU_ID);
+  context_.storage->mutable_counters()->AddCounter(
+      timestamp + 3, 0, 1, freq, 1 /* cpu */, RefType::kCPU_ID);
 
   PrepareValidStatement(
       "SELECT value, sum(dur) as dur_sum FROM counters where value > 0 group "

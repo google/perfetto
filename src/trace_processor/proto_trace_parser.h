@@ -67,6 +67,7 @@ class ProtoTraceParser {
 
  private:
   TraceProcessorContext* context_;
+  const StringId cpu_freq_name_id_;
 };
 
 }  // namespace trace_processor
