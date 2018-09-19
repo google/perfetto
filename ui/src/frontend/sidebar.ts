@@ -64,8 +64,11 @@ function createCannedQuery(query: string): (_: Event) => void {
   };
 }
 
-const EXAMPLE_TRACE_URL =
+const EXAMPLE_ANDROID_TRACE_URL =
     'https://storage.googleapis.com/perfetto-misc/example_trace_30s';
+
+const EXAMPLE_CHROME_TRACE_URL =
+    'https://storage.googleapis.com/perfetto-misc/example_chrome_trace_10s.json';
 
 const SECTIONS = [
   {
@@ -74,7 +77,16 @@ const SECTIONS = [
     expanded: true,
     items: [
       {t: 'Open trace file', a: popupFileSelectionDialog, i: 'folder_open'},
-      {t: 'Open example trace', a: handleOpenTraceUrl, i: 'description'},
+      {
+        t: 'Open Android example',
+        a: openTraceUrl(EXAMPLE_ANDROID_TRACE_URL),
+        i: 'description'
+      },
+      {
+        t: 'Open Chrome example',
+        a: openTraceUrl(EXAMPLE_CHROME_TRACE_URL),
+        i: 'description'
+      },
       {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
       {t: 'Share current trace', a: dispatchCreatePermalink, i: 'share'},
     ],
@@ -133,9 +145,11 @@ function popupFileSelectionDialog(e: Event) {
   (document.querySelector('input[type=file]')! as HTMLInputElement).click();
 }
 
-function handleOpenTraceUrl(e: Event) {
-  e.preventDefault();
-  globals.dispatch(openTraceFromUrl(EXAMPLE_TRACE_URL));
+function openTraceUrl(url: string): (e: Event) => void {
+  return e => {
+    e.preventDefault();
+    globals.dispatch(openTraceFromUrl(url));
+  };
 }
 
 function onInputElementFileSelectionChanged(e: Event) {
