@@ -44,12 +44,9 @@ void TraceWriterForTesting::Flush(std::function<void()> callback) {
 
 std::unique_ptr<protos::TracePacket> TraceWriterForTesting::ParseProto() {
   PERFETTO_CHECK(cur_packet_->is_finalized());
-  size_t chunk_size_ = base::kPageSize;
   auto packet = std::unique_ptr<protos::TracePacket>(new protos::TracePacket());
-  size_t msg_size =
-      delegate_.chunks().size() * chunk_size_ - stream_.bytes_available();
-  std::unique_ptr<uint8_t[]> buffer = delegate_.StitchChunks(msg_size);
-  if (!packet->ParseFromArray(buffer.get(), static_cast<int>(msg_size)))
+  std::vector<uint8_t> buffer = delegate_.StitchChunks();
+  if (!packet->ParseFromArray(buffer.data(), static_cast<int>(buffer.size())))
     return nullptr;
   return packet;
 }

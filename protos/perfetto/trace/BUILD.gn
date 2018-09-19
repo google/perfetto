@@ -34,11 +34,12 @@ proto_sources = [
 # Protozero generated stubs, for writers.
 protozero_library("zero") {
   deps = [
-    "../config:config_zero",
+    "../config:zero",
     "chrome:zero",
     "filesystem:zero",
     "ftrace:zero",
     "ps:zero",
+    "sys_stats:zero",
   ]
   sources = proto_sources_minimal + proto_sources
   proto_in_dir = "$perfetto_root_path/protos"
@@ -51,11 +52,12 @@ proto_library("lite") {
   generate_python = false
   deps = [
     ":minimal_lite",
-    "../config:config",
+    "../config:lite",
     "chrome:lite",
     "filesystem:lite",
     "ftrace:lite",
     "ps:lite",
+    "sys_stats:lite",
   ]
   if (!build_with_chromium) {
     generate_descriptor = "$perfetto_root_path/protos/trace/trace.descriptor"
@@ -69,7 +71,7 @@ proto_library("lite") {
 proto_library("minimal_lite") {
   generate_python = false
   deps = [
-    "../config:config",
+    "../config:lite",
   ]
   sources = proto_sources_minimal
   proto_in_dir = "$perfetto_root_path/protos"
@@ -81,7 +83,7 @@ proto_library("trusted_lite") {
   generate_python = false
   deps = [
     ":minimal_lite",
-    "../config:config",
+    "../config:lite",
   ]
   sources = proto_sources_trusted
   proto_in_dir = "$perfetto_root_path/protos"

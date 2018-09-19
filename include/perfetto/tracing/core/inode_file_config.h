@@ -140,4 +140,5 @@ class PERFETTO_EXPORT InodeFileConfig {
 };
 
 }  // namespace perfetto
+
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_INODE_FILE_CONFIG_H_

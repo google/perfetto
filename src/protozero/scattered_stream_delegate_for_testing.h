@@ -35,7 +35,7 @@ class ScatteredStreamDelegateForTesting
   protozero::ContiguousMemoryRange GetNewBuffer() override;
 
   // Stitch all the chunks into a single contiguous buffer.
-  std::unique_ptr<uint8_t[]> StitchChunks(size_t size);
+  std::vector<uint8_t> StitchChunks();
 
   const std::vector<std::unique_ptr<uint8_t[]>>& chunks() const {
     return chunks_;

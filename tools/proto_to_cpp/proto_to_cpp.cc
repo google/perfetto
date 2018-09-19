@@ -270,7 +270,7 @@ void ProtoToCpp::Convert(const std::string& src_proto) {
 
   cpp_printer.Print("}  // namespace perfetto\n");
   header_printer.Print("}  // namespace perfetto\n");
-  header_printer.Print("#endif  // $g$\n", "g", include_guard);
+  header_printer.Print("\n#endif  // $g$\n", "g", include_guard);
 }
 
 void ProtoToCpp::GenHeader(const Descriptor* msg, Printer* p) {
