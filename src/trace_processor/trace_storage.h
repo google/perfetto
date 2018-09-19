@@ -220,7 +220,7 @@ class TraceStorage {
   }
 
   Thread* GetMutableThread(UniqueTid utid) {
-    PERFETTO_DCHECK(utid >= 0 && utid < unique_threads_.size());
+    PERFETTO_DCHECK(utid < unique_threads_.size());
     return &unique_threads_[utid];
   }
 
@@ -242,7 +242,7 @@ class TraceStorage {
 
   const Thread& GetThread(UniqueTid utid) const {
     // Allow utid == 0 for idle thread retrieval.
-    PERFETTO_DCHECK(utid >= 0 && utid < unique_threads_.size());
+    PERFETTO_DCHECK(utid < unique_threads_.size());
     return unique_threads_[utid];
   }
 
