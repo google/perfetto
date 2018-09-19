@@ -55,7 +55,8 @@ export class Router {
     history.pushState(undefined, undefined, ROUTE_PREFIX + route);
 
     if (!(route in this.routes)) {
-      // Redirect to default route.
+      console.info(
+          `Route ${route} not known redirecting to ${this.defaultRoute}.`);
       this.dispatch(navigate(this.defaultRoute));
     }
   }
