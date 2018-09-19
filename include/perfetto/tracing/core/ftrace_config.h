@@ -105,4 +105,5 @@ class PERFETTO_EXPORT FtraceConfig {
 };
 
 }  // namespace perfetto
+
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_FTRACE_CONFIG_H_

@@ -23,7 +23,9 @@ import "perfetto/config/chrome/chrome_config.proto";
 import "perfetto/config/ftrace/ftrace_config.proto";
 import "perfetto/config/inode_file/inode_file_config.proto";
 import "perfetto/config/process_stats/process_stats_config.proto";
+import "perfetto/config/sys_stats/sys_stats_config.proto";
 import "perfetto/config/test_config.proto";
+
 // When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
 // to reflect changes in the corresponding C++ headers.
 
@@ -60,6 +62,7 @@ message DataSourceConfig {
   optional ChromeConfig chrome_config = 101;
   optional InodeFileConfig inode_file_config = 102;
   optional ProcessStatsConfig process_stats_config = 103;
+  optional SysStatsConfig sys_stats_config = 104;
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that

@@ -50,6 +50,7 @@ constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 constexpr char kFtraceSourceName[] = "linux.ftrace";
 constexpr char kProcessStatsSourceName[] = "linux.process_stats";
 constexpr char kInodeMapSourceName[] = "linux.inode_file_map";
+constexpr char kSysStatsSourceName[] = "linux.sys_stats";
 
 }  // namespace.
 
@@ -74,17 +75,29 @@ void ProbesProducer::OnConnect() {
   ResetConnectionBackoff();
   PERFETTO_LOG("Connected to the service");
 
-  DataSourceDescriptor ftrace_descriptor;
-  ftrace_descriptor.set_name(kFtraceSourceName);
-  endpoint_->RegisterDataSource(ftrace_descriptor);
+  {
+    DataSourceDescriptor desc;
+    desc.set_name(kFtraceSourceName);
+    endpoint_->RegisterDataSource(desc);
+  }
 
-  DataSourceDescriptor process_stats_descriptor;
-  process_stats_descriptor.set_name(kProcessStatsSourceName);
-  endpoint_->RegisterDataSource(process_stats_descriptor);
+  {
+    DataSourceDescriptor desc;
+    desc.set_name(kProcessStatsSourceName);
+    endpoint_->RegisterDataSource(desc);
+  }
 
-  DataSourceDescriptor inode_map_descriptor;
-  inode_map_descriptor.set_name(kInodeMapSourceName);
-  endpoint_->RegisterDataSource(inode_map_descriptor);
+  {
+    DataSourceDescriptor desc;
+    desc.set_name(kInodeMapSourceName);
+    endpoint_->RegisterDataSource(desc);
+  }
+
+  {
+    DataSourceDescriptor desc;
+    desc.set_name(kSysStatsSourceName);
+    endpoint_->RegisterDataSource(desc);
+  }
 }
 
 void ProbesProducer::OnDisconnect() {
@@ -129,6 +142,8 @@ void ProbesProducer::CreateDataSourceInstance(DataSourceInstanceID instance_id,
     data_source = CreateInodeFileDataSource(session_id, instance_id, config);
   } else if (config.name() == kProcessStatsSourceName) {
     data_source = CreateProcessStatsDataSource(session_id, instance_id, config);
+  } else if (config.name() == kSysStatsSourceName) {
+    data_source = CreateSysStatsDataSource(session_id, instance_id, config);
   }
 
   if (!data_source) {
@@ -214,6 +229,18 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateProcessStatsDataSource(
   return std::move(data_source);
 }
 
+std::unique_ptr<SysStatsDataSource> ProbesProducer::CreateSysStatsDataSource(
+    TracingSessionID session_id,
+    DataSourceInstanceID id,
+    const DataSourceConfig& config) {
+  base::ignore_result(id);
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  auto data_source = std::unique_ptr<SysStatsDataSource>(
+      new SysStatsDataSource(task_runner_, session_id,
+                             endpoint_->CreateTraceWriter(buffer_id), config));
+  return data_source;
+}
+
 void ProbesProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
   PERFETTO_LOG("Producer stop (id=%" PRIu64 ")", id);
   auto it = data_sources_.find(id);
@@ -289,6 +316,8 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
         break;
       case ProcessStatsDataSource::kTypeId:
         ps_data_source = static_cast<ProcessStatsDataSource*>(ds);
+        break;
+      case SysStatsDataSource::kTypeId:
         break;
       default:
         PERFETTO_DCHECK(false);

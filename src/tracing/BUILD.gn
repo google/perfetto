@@ -19,7 +19,7 @@ import("//build_overrides/build.gni")
 source_set("tracing") {
   public_deps = [
     "../../include/perfetto/tracing/core",
-    "../../protos/perfetto/common",
+    "../../protos/perfetto/common:lite",
     "../../protos/perfetto/trace:minimal_lite",
     "../../protos/perfetto/trace:trusted_lite",
     "../../protos/perfetto/trace:zero",
@@ -27,7 +27,7 @@ source_set("tracing") {
   deps = [
     "../../gn:default_deps",
     "../../gn:gtest_prod_config",
-    "../../protos/perfetto/config",
+    "../../protos/perfetto/config:lite",
     "../base",
     "../protozero",
   ]
@@ -51,6 +51,7 @@ source_set("tracing") {
     "core/shared_memory_arbiter_impl.h",
     "core/sliced_protobuf_input_stream.cc",
     "core/sliced_protobuf_input_stream.h",
+    "core/sys_stats_config.cc",
     "core/test_config.cc",
     "core/trace_buffer.cc",
     "core/trace_buffer.h",
@@ -71,7 +72,7 @@ source_set("unittests") {
     ":tracing",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
-    "../../protos/perfetto/config",
+    "../../protos/perfetto/config:lite",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace:zero",
     "../base",

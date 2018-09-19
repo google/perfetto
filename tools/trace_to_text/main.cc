@@ -43,6 +43,7 @@
 #include "perfetto/trace/ftrace/ftrace_stats.pb.h"
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/traced/sys_stats_counters.h"
 #include "tools/trace_to_text/ftrace_event_formatter.h"
 #include "tools/trace_to_text/ftrace_inode_handler.h"
 
@@ -92,6 +93,7 @@ using protos::TracePacket;
 using protos::FtraceStats;
 using protos::FtraceStats_Phase_START_OF_TRACE;
 using protos::FtraceStats_Phase_END_OF_TRACE;
+using protos::SysStats;
 using Entry = protos::InodeFileMap::Entry;
 using Process = protos::ProcessTree::Process;
 
@@ -176,17 +178,46 @@ int TraceToSystrace(std::istream* input,
                     bool wrap_in_json) {
   std::multimap<uint64_t, std::string> sorted;
 
-  ForEachPacketInTrace(input, [&sorted](const protos::TracePacket& packet) {
-    if (!packet.has_ftrace_events())
-      return;
+  std::vector<const char*> meminfo_strs = BuildMeminfoCounterNames();
+  std::vector<const char*> vmstat_strs = BuildVmstatCounterNames();
 
-    const FtraceEventBundle& bundle = packet.ftrace_events();
-    for (const FtraceEvent& event : bundle.event()) {
-      std::string line =
-          FormatFtraceEvent(event.timestamp(), bundle.cpu(), event);
-      if (line == "")
-        continue;
-      sorted.emplace(event.timestamp(), line);
+  ForEachPacketInTrace(input, [&sorted, &meminfo_strs, &vmstat_strs](
+                                  const protos::TracePacket& packet) {
+    if (packet.has_ftrace_events()) {
+      const FtraceEventBundle& bundle = packet.ftrace_events();
+      for (const FtraceEvent& event : bundle.event()) {
+        std::string line =
+            FormatFtraceEvent(event.timestamp(), bundle.cpu(), event);
+        if (line == "")
+          continue;
+        sorted.emplace(event.timestamp(), line);
+      }
+    }  // packet.has_ftrace_events
+
+    if (packet.has_sys_stats()) {
+      const SysStats& sys_stats = packet.sys_stats();
+      for (const auto& meminfo : sys_stats.meminfo()) {
+        FtraceEvent event;
+        uint64_t ts = static_cast<uint64_t>(packet.timestamp());
+        char str[256];
+        event.set_timestamp(ts);
+        event.set_pid(1);
+        sprintf(str, "C|1|%s|%" PRIu64, meminfo_strs[meminfo.key()],
+                static_cast<uint64_t>(meminfo.value()));
+        event.mutable_print()->set_buf(str);
+        sorted.emplace(ts, FormatFtraceEvent(ts, 0, event));
+      }
+      for (const auto& vmstat : sys_stats.vmstat()) {
+        FtraceEvent event;
+        uint64_t ts = static_cast<uint64_t>(packet.timestamp());
+        char str[256];
+        event.set_timestamp(ts);
+        event.set_pid(1);
+        sprintf(str, "C|1|%s|%" PRIu64, vmstat_strs[vmstat.key()],
+                static_cast<uint64_t>(vmstat.value()));
+        event.mutable_print()->set_buf(str);
+        sorted.emplace(ts, FormatFtraceEvent(ts, 0, event));
+      }
     }
   });
 

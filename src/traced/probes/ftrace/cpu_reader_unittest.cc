@@ -88,10 +88,8 @@ class ProtoProvider {
   // on success and nullptr on failure.
   std::unique_ptr<ProtoT> ParseProto() {
     auto bundle = std::unique_ptr<ProtoT>(new ProtoT());
-    size_t msg_size =
-        delegate_.chunks().size() * chunk_size_ - stream_.bytes_available();
-    std::unique_ptr<uint8_t[]> buffer = delegate_.StitchChunks(msg_size);
-    if (!bundle->ParseFromArray(buffer.get(), static_cast<int>(msg_size)))
+    std::vector<uint8_t> buffer = delegate_.StitchChunks();
+    if (!bundle->ParseFromArray(buffer.data(), static_cast<int>(buffer.size())))
       return nullptr;
     return bundle;
   }

@@ -12,27 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
-import("../../../gn/proto_library.gni")
-import("../../../src/protozero/protozero_library.gni")
+import("../../../../gn/perfetto.gni")
+import("../../../../src/protozero/protozero_library.gni")
 
-common_sources = [
-  "commit_data_request.proto",
-  "sys_stats_counters.proto",
-]
+sys_stats_proto_names = [ "sys_stats.proto" ]
 
-# Proto messages that are required by the IPC service definitions but have also
-# a C++ counterpart in tracing/core (i.e. are used also for the non-IPC cases).
 proto_library("lite") {
   generate_python = false
+  deps = [
+    "../../common:lite",
+  ]
+  sources = sys_stats_proto_names
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
-  sources = common_sources
 }
 
 protozero_library("zero") {
+  deps = [
+    "../../common:zero",
+  ]
+  sources = sys_stats_proto_names
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
-  sources = common_sources
   generator_plugin_options = "wrapper_namespace=pbzero"
 }
