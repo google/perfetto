@@ -42,8 +42,9 @@ std::string CountersTable::CreateTableStmt(int, const char* const*) {
          "name text, "
          "value UNSIGNED BIG INT, "
          "dur UNSIGNED BIG INT, "
+         "value_delta UNSIGNED BIG INT, "
          "ref UNSIGNED INT, "
-         "reftype TEXT, "
+         "ref_type TEXT, "
          "PRIMARY KEY(name, ts, ref)"
          ") WITHOUT ROWID;";
 }
@@ -105,6 +106,12 @@ int CountersTable::Cursor::Column(sqlite3_context* context, int N) {
       sqlite3_result_int64(
           context,
           static_cast<int64_t>(storage_->counters().durations()[row_]));
+      break;
+    }
+    case Column::kValueDelta: {
+      sqlite3_result_int64(
+          context,
+          static_cast<int64_t>(storage_->counters().value_deltas()[row_]));
       break;
     }
     default:
