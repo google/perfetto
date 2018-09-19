@@ -97,32 +97,33 @@ TEST_F(SchedTrackerTest, InsertThirdSched_SameThread) {
   ASSERT_EQ(context.storage->SlicesForCpu(cpu).durations().at(2), 31u - 11u);
   ASSERT_EQ(context.storage->SlicesForCpu(cpu).utids().at(0),
             context.storage->SlicesForCpu(cpu).utids().at(2));
-  ASSERT_EQ(context.storage->SlicesForCpu(cpu).cycles().at(0), 0);
 }
 
-TEST_F(SchedTrackerTest, TestCyclesCalculation) {
+TEST_F(SchedTrackerTest, CounterDuration) {
   uint32_t cpu = 3;
-  uint64_t timestamp = 1e9;
-  context.storage->PushCpuFreq(timestamp, cpu, 1e6);
+  uint64_t timestamp = 100;
+  StringId name_id = 0;
+  context.sched_tracker->PushCounter(timestamp, 1000, name_id, cpu,
+                                     RefType::kCPU_ID);
+  context.sched_tracker->PushCounter(timestamp + 1, 4000, name_id, cpu,
+                                     RefType::kCPU_ID);
+  context.sched_tracker->PushCounter(timestamp + 3, 5000, name_id, cpu,
+                                     RefType::kCPU_ID);
+  context.sched_tracker->PushCounter(timestamp + 9, 1000, name_id, cpu,
+                                     RefType::kCPU_ID);
 
-  uint32_t prev_state = 32;
-  static const char kCommProc1[] = "process1";
-  static const char kCommProc2[] = "process2";
+  ASSERT_EQ(context.storage->counters().counter_count(), 3ul);
+  ASSERT_EQ(context.storage->counters().timestamps().at(0), timestamp);
+  ASSERT_EQ(context.storage->counters().durations().at(0), 1);
+  ASSERT_EQ(context.storage->counters().values().at(0), 1000);
 
-  context.sched_tracker->PushSchedSwitch(
-      cpu, static_cast<uint64_t>(timestamp + 1e7L), /*tid=*/2, prev_state,
-      kCommProc1,
-      /*tid=*/4);
+  ASSERT_EQ(context.storage->counters().timestamps().at(1), timestamp + 1);
+  ASSERT_EQ(context.storage->counters().durations().at(1), 2);
+  ASSERT_EQ(context.storage->counters().values().at(1), 4000);
 
-  context.storage->PushCpuFreq(static_cast<uint64_t>(timestamp + 1e8L), cpu,
-                               2e6);
-  context.storage->PushCpuFreq(static_cast<uint64_t>(timestamp + 2e8L), cpu,
-                               3e6);
-  context.sched_tracker->PushSchedSwitch(
-      cpu, static_cast<uint64_t>(timestamp + 3e8L), /*tid=*/4, prev_state,
-      kCommProc2,
-      /*tid=*/2);
-  ASSERT_EQ(context.storage->SlicesForCpu(cpu).cycles().at(0), 590000000);
+  ASSERT_EQ(context.storage->counters().timestamps().at(2), timestamp + 3);
+  ASSERT_EQ(context.storage->counters().durations().at(2), 6);
+  ASSERT_EQ(context.storage->counters().values().at(2), 5000);
 }
 
 }  // namespace

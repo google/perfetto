@@ -46,6 +46,15 @@ class SchedTracker {
     bool valid() const { return timestamp != 0; }
   };
 
+  // A Counter is a trace event that has a value attached to a timestamp.
+  // These include CPU frequency ftrace events and systrace trace_marker
+  // counter events.
+  struct Counter {
+    uint64_t timestamp = 0;
+    double value = 0;
+    StringId name_id = 0;
+  };
+
   // This method is called when a sched switch event is seen in the trace.
   virtual void PushSchedSwitch(uint32_t cpu,
                                uint64_t timestamp,
@@ -54,16 +63,25 @@ class SchedTracker {
                                base::StringView prev_comm,
                                uint32_t next_pid);
 
- private:
-  // Based on the cpu frequencies stored in trace_storage, the number of cycles
-  // between start_ns and end_ns on |cpu| is calculated.
-  uint64_t CalculateCycles(uint32_t cpu, uint64_t start_ns, uint64_t end_ns);
+  // This method is called when a cpu freq event is seen in the trace.
+  // In the future it will be called for all counters.
+  // TODO(taylori): Move to a more appropriate class or rename class.
+  virtual void PushCounter(uint64_t timestamp,
+                           double value,
+                           StringId name_id,
+                           uint64_t ref,
+                           RefType ref_type);
 
+ private:
   // Store the previous sched event to calculate the duration before storing it.
   std::array<SchedSwitchEvent, base::kMaxCpus> last_sched_per_cpu_;
 
-  std::array<size_t, base::kMaxCpus> lower_index_per_cpu_{};
+  // Store the previous counter event to calculate the duration before storing
+  // in trace storage.
+  std::array<Counter, base::kMaxCpus> last_counter_per_cpu_;
 
+  // Timestamp of the previous event. Used to discard events arriving out
+  // of order.
   uint64_t prev_timestamp_ = 0;
 
   StringId const idle_string_id_;

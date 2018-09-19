@@ -52,10 +52,19 @@ class MockTraceParser : public ProtoTraceParser {
   }
 };
 
+class MockTraceStorage : public TraceStorage {
+ public:
+  MockTraceStorage() : TraceStorage() {}
+
+  MOCK_METHOD1(InternString, StringId(base::StringView view));
+};
+
 class TraceSorterTest : public ::testing::TestWithParam<OptimizationMode> {
  public:
   TraceSorterTest()
       : test_buffer_(std::unique_ptr<uint8_t[]>(new uint8_t[8]), 0, 8) {
+    storage_ = new MockTraceStorage();
+    context_.storage.reset(storage_);
     context_.sorter.reset(
         new TraceSorter(&context_, GetParam(), 0 /*window_size*/));
     parser_ = new MockTraceParser(&context_);
@@ -65,6 +74,7 @@ class TraceSorterTest : public ::testing::TestWithParam<OptimizationMode> {
  protected:
   TraceProcessorContext context_;
   MockTraceParser* parser_;
+  MockTraceStorage* storage_;
   TraceBlobView test_buffer_;
 };
 
