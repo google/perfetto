@@ -38,23 +38,17 @@ ScatteredStreamDelegateForTesting::GetNewBuffer() {
   return {begin, begin + chunk_size_};
 }
 
-std::unique_ptr<uint8_t[]> ScatteredStreamDelegateForTesting::StitchChunks(
-    size_t size) {
-  std::unique_ptr<uint8_t[]> buffer =
-      std::unique_ptr<uint8_t[]>(new uint8_t[size]);
-  size_t remaining = size;
+std::vector<uint8_t> ScatteredStreamDelegateForTesting::StitchChunks() {
+  std::vector<uint8_t> buffer;
   size_t i = 0;
   for (const auto& chunk : chunks_) {
-    size_t chunk_size = remaining;
-    if (i < chunks_used_size_.size()) {
-      chunk_size = chunks_used_size_[i];
-    }
+    size_t chunk_size = (i < chunks_used_size_.size())
+                            ? chunks_used_size_[i]
+                            : (chunk_size_ - writer_->bytes_available());
     PERFETTO_CHECK(chunk_size <= chunk_size_);
-    memcpy(buffer.get() + size - remaining, chunk.get(), chunk_size);
-    remaining -= chunk_size;
+    buffer.insert(buffer.end(), chunk.get(), chunk.get() + chunk_size);
     i++;
   }
-
   return buffer;
 }
 

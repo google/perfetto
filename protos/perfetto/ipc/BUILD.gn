@@ -18,8 +18,8 @@ import("../../../gn/ipc_library.gni")
 # IPC service definitions.
 ipc_library("ipc") {
   deps = [
-    "../common",
-    "../config",
+    "../common:lite",
+    "../config:lite",
   ]
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"

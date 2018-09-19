@@ -89,4 +89,5 @@ class PERFETTO_EXPORT TestConfig {
 };
 
 }  // namespace perfetto
+
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_TEST_CONFIG_H_
