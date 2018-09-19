@@ -71,10 +71,25 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
       out->name = base::StringView(s + name_index, len - name_index);
       return true;
     }
-    case 'E':
+    case 'E': {
       return true;
-    case 'C':
+    }
+    case 'C': {
+      size_t name_index = 2 + pid_length + 1;
+      size_t name_length = 0;
+      for (size_t i = name_index; i < len; i++) {
+        if (s[i] == '|' || s[i] == '\n') {
+          name_length = i - name_index;
+          break;
+        }
+      }
+      out->name = base::StringView(s + name_index, name_length);
+      size_t value_index = name_index + name_length + 1;
+      char value_str[32];
+      std::strcpy(value_str, s + value_index);
+      out->value = std::stod(value_str);
       return true;
+    }
     default:
       return false;
   }
@@ -284,6 +299,12 @@ void ProtoTraceParser::ParsePrint(uint32_t,
     case 'E': {
       context_->slice_tracker->End(timestamp, upid);
       break;
+    }
+
+    case 'C': {
+      StringId name_id = context_->storage->InternString(point.name);
+      context_->sched_tracker->PushCounter(timestamp, point.value, name_id,
+                                           upid, RefType::kUPID);
     }
   }
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());

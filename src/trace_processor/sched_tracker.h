@@ -52,7 +52,25 @@ class SchedTracker {
   struct Counter {
     uint64_t timestamp = 0;
     double value = 0;
-    StringId name_id = 0;
+  };
+
+  // Used as the key in |prev_counters_| to find the previous counter with the
+  // same ref and name_id.
+  struct CounterKey {
+    uint64_t ref;      // cpu, utid, ...
+    StringId name_id;  // "cpufreq"
+
+    bool operator==(const CounterKey& other) const {
+      return (ref == other.ref && name_id == other.name_id);
+    }
+
+    struct Hasher {
+      size_t operator()(const CounterKey& c) const {
+        size_t const h1(std::hash<uint64_t>{}(c.ref));
+        size_t const h2(std::hash<size_t>{}(c.name_id));
+        return h1 ^ (h2 << 1);
+      }
+    };
   };
 
   // This method is called when a sched switch event is seen in the trace.
@@ -64,7 +82,6 @@ class SchedTracker {
                                uint32_t next_pid);
 
   // This method is called when a cpu freq event is seen in the trace.
-  // In the future it will be called for all counters.
   // TODO(taylori): Move to a more appropriate class or rename class.
   virtual void PushCounter(uint64_t timestamp,
                            double value,
@@ -76,9 +93,9 @@ class SchedTracker {
   // Store the previous sched event to calculate the duration before storing it.
   std::array<SchedSwitchEvent, base::kMaxCpus> last_sched_per_cpu_;
 
-  // Store the previous counter event to calculate the duration before storing
-  // in trace storage.
-  std::array<Counter, base::kMaxCpus> last_counter_per_cpu_;
+  // Store the previous counter event to calculate the duration and value delta
+  // before storing it in trace storage.
+  std::unordered_map<CounterKey, Counter, CounterKey::Hasher> prev_counters_;
 
   // Timestamp of the previous event. Used to discard events arriving out
   // of order.
