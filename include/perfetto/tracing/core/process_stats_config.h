@@ -90,4 +90,5 @@ class PERFETTO_EXPORT ProcessStatsConfig {
 };
 
 }  // namespace perfetto
+
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_PROCESS_STATS_CONFIG_H_

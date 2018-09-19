@@ -11,6 +11,147 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// Begin of protos/perfetto/common/sys_stats_counters.proto
+
+// When editing entries here remember also to update "sys_stats_counters.h" with
+// the corresponding string definitions for the actual /proc files parser.
+
+// Counter definitions for Linux's /proc/meminfo.
+enum MeminfoCounters {
+  MEMINFO_UNSPECIFIED = 0;
+  MEMINFO_MEM_TOTAL = 1;
+  MEMINFO_MEM_FREE = 2;
+  MEMINFO_MEM_AVAILABLE = 3;
+  MEMINFO_BUFFERS = 4;
+  MEMINFO_CACHED = 5;
+  MEMINFO_SWAP_CACHED = 6;
+  MEMINFO_ACTIVE = 7;
+  MEMINFO_INACTIVE = 8;
+  MEMINFO_ACTIVE_ANON = 9;
+  MEMINFO_INACTIVE_ANON = 10;
+  MEMINFO_ACTIVE_FILE = 11;
+  MEMINFO_INACTIVE_FILE = 12;
+  MEMINFO_UNEVICTABLE = 13;
+  MEMINFO_MLOCKED = 14;
+  MEMINFO_SWAP_TOTAL = 15;
+  MEMINFO_SWAP_FREE = 16;
+  MEMINFO_DIRTY = 17;
+  MEMINFO_WRITEBACK = 18;
+  MEMINFO_ANON_PAGES = 19;
+  MEMINFO_MAPPED = 20;
+  MEMINFO_SHMEM = 21;
+  MEMINFO_SLAB = 22;
+  MEMINFO_SLAB_RECLAIMABLE = 23;
+  MEMINFO_SLAB_UNRECLAIMABLE = 24;
+  MEMINFO_KERNEL_STACK = 25;
+  MEMINFO_PAGE_TABLES = 26;
+  MEMINFO_COMMIT_LIMIT = 27;
+  MEMINFO_COMMITED_AS = 28;
+  MEMINFO_VMALLOC_TOTAL = 29;
+  MEMINFO_VMALLOC_USED = 30;
+  MEMINFO_VMALLOC_CHUNK = 31;
+  MEMINFO_CMA_TOTAL = 32;
+  MEMINFO_CMA_FREE = 33;
+}
+
+// Counter definitions for Linux's /proc/vmstat.
+enum VmstatCounters {
+  VMSTAT_UNSPECIFIED = 0;
+  VMSTAT_NR_FREE_PAGES = 1;
+  VMSTAT_NR_ALLOC_BATCH = 2;
+  VMSTAT_NR_INACTIVE_ANON = 3;
+  VMSTAT_NR_ACTIVE_ANON = 4;
+  VMSTAT_NR_INACTIVE_FILE = 5;
+  VMSTAT_NR_ACTIVE_FILE = 6;
+  VMSTAT_NR_UNEVICTABLE = 7;
+  VMSTAT_NR_MLOCK = 8;
+  VMSTAT_NR_ANON_PAGES = 9;
+  VMSTAT_NR_MAPPED = 10;
+  VMSTAT_NR_FILE_PAGES = 11;
+  VMSTAT_NR_DIRTY = 12;
+  VMSTAT_NR_WRITEBACK = 13;
+  VMSTAT_NR_SLAB_RECLAIMABLE = 14;
+  VMSTAT_NR_SLAB_UNRECLAIMABLE = 15;
+  VMSTAT_NR_PAGE_TABLE_PAGES = 16;
+  VMSTAT_NR_KERNEL_STACK = 17;
+  VMSTAT_NR_OVERHEAD = 18;
+  VMSTAT_NR_UNSTABLE = 19;
+  VMSTAT_NR_BOUNCE = 20;
+  VMSTAT_NR_VMSCAN_WRITE = 21;
+  VMSTAT_NR_VMSCAN_IMMEDIATE_RECLAIM = 22;
+  VMSTAT_NR_WRITEBACK_TEMP = 23;
+  VMSTAT_NR_ISOLATED_ANON = 24;
+  VMSTAT_NR_ISOLATED_FILE = 25;
+  VMSTAT_NR_SHMEM = 26;
+  VMSTAT_NR_DIRTIED = 27;
+  VMSTAT_NR_WRITTEN = 28;
+  VMSTAT_NR_PAGES_SCANNED = 29;
+  VMSTAT_WORKINGSET_REFAULT = 30;
+  VMSTAT_WORKINGSET_ACTIVATE = 31;
+  VMSTAT_WORKINGSET_NODERECLAIM = 32;
+  VMSTAT_NR_ANON_TRANSPARENT_HUGEPAGES = 33;
+  VMSTAT_NR_FREE_CMA = 34;
+  VMSTAT_NR_SWAPCACHE = 35;
+  VMSTAT_NR_DIRTY_THRESHOLD = 36;
+  VMSTAT_NR_DIRTY_BACKGROUND_THRESHOLD = 37;
+  VMSTAT_PGPGIN = 38;
+  VMSTAT_PGPGOUT = 39;
+  VMSTAT_PGPGOUTCLEAN = 40;
+  VMSTAT_PSWPIN = 41;
+  VMSTAT_PSWPOUT = 42;
+  VMSTAT_PGALLOC_DMA = 43;
+  VMSTAT_PGALLOC_NORMAL = 44;
+  VMSTAT_PGALLOC_MOVABLE = 45;
+  VMSTAT_PGFREE = 46;
+  VMSTAT_PGACTIVATE = 47;
+  VMSTAT_PGDEACTIVATE = 48;
+  VMSTAT_PGFAULT = 49;
+  VMSTAT_PGMAJFAULT = 50;
+  VMSTAT_PGREFILL_DMA = 51;
+  VMSTAT_PGREFILL_NORMAL = 52;
+  VMSTAT_PGREFILL_MOVABLE = 53;
+  VMSTAT_PGSTEAL_KSWAPD_DMA = 54;
+  VMSTAT_PGSTEAL_KSWAPD_NORMAL = 55;
+  VMSTAT_PGSTEAL_KSWAPD_MOVABLE = 56;
+  VMSTAT_PGSTEAL_DIRECT_DMA = 57;
+  VMSTAT_PGSTEAL_DIRECT_NORMAL = 58;
+  VMSTAT_PGSTEAL_DIRECT_MOVABLE = 59;
+  VMSTAT_PGSCAN_KSWAPD_DMA = 60;
+  VMSTAT_PGSCAN_KSWAPD_NORMAL = 61;
+  VMSTAT_PGSCAN_KSWAPD_MOVABLE = 62;
+  VMSTAT_PGSCAN_DIRECT_DMA = 63;
+  VMSTAT_PGSCAN_DIRECT_NORMAL = 64;
+  VMSTAT_PGSCAN_DIRECT_MOVABLE = 65;
+  VMSTAT_PGSCAN_DIRECT_THROTTLE = 66;
+  VMSTAT_PGINODESTEAL = 67;
+  VMSTAT_SLABS_SCANNED = 68;
+  VMSTAT_KSWAPD_INODESTEAL = 69;
+  VMSTAT_KSWAPD_LOW_WMARK_HIT_QUICKLY = 70;
+  VMSTAT_KSWAPD_HIGH_WMARK_HIT_QUICKLY = 71;
+  VMSTAT_PAGEOUTRUN = 72;
+  VMSTAT_ALLOCSTALL = 73;
+  VMSTAT_PGROTATED = 74;
+  VMSTAT_DROP_PAGECACHE = 75;
+  VMSTAT_DROP_SLAB = 76;
+  VMSTAT_PGMIGRATE_SUCCESS = 77;
+  VMSTAT_PGMIGRATE_FAIL = 78;
+  VMSTAT_COMPACT_MIGRATE_SCANNED = 79;
+  VMSTAT_COMPACT_FREE_SCANNED = 80;
+  VMSTAT_COMPACT_ISOLATED = 81;
+  VMSTAT_COMPACT_STALL = 82;
+  VMSTAT_COMPACT_FAIL = 83;
+  VMSTAT_COMPACT_SUCCESS = 84;
+  VMSTAT_COMPACT_DAEMON_WAKE = 85;
+  VMSTAT_UNEVICTABLE_PGS_CULLED = 86;
+  VMSTAT_UNEVICTABLE_PGS_SCANNED = 87;
+  VMSTAT_UNEVICTABLE_PGS_RESCUED = 88;
+  VMSTAT_UNEVICTABLE_PGS_MLOCKED = 89;
+  VMSTAT_UNEVICTABLE_PGS_MUNLOCKED = 90;
+  VMSTAT_UNEVICTABLE_PGS_CLEARED = 91;
+  VMSTAT_UNEVICTABLE_PGS_STRANDED = 92;
+}
+// End of protos/perfetto/common/sys_stats_counters.proto
+
 // Begin of protos/perfetto/config/chrome/chrome_config.proto
 
 // When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
@@ -21,6 +162,79 @@ message ChromeConfig {
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
+
+// Begin of protos/perfetto/config/data_source_config.proto
+
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+// The configuration that is passed to each data source when starting tracing.
+message DataSourceConfig {
+  // Data source unique name, e.g., "linux.ftrace". This must match
+  // the name passed by the data source when it registers (see
+  // RegisterDataSource()).
+  optional string name = 1;
+
+  // The index of the logging buffer where TracePacket(s) will be stored.
+  // This field doesn't make a major difference for the Producer(s). The final
+  // logging buffers, in fact, are completely owned by the Service. We just ask
+  // the Producer to copy this number into the chunk headers it emits, so that
+  // the Service can quickly identify the buffer where to move the chunks into
+  // without expensive lookups on its fastpath.
+  optional uint32 target_buffer = 2;
+
+  // Set by the service to indicate the duration of the trace.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional uint32 trace_duration_ms = 3;
+
+  // Set by the service to indicate which tracing session the data source
+  // belongs to. The intended use case for this is checking if two data sources,
+  // one of which produces metadata for the other one, belong to the same trace
+  // session and hence should be linked together.
+  // This field was introduced in Aug 2018 after Android P.
+  optional uint64 tracing_session_id = 4;
+
+  // Keeep the lower IDs (up to 99) for fields that are *not* specific to
+  // data-sources and needs to be processed by the traced daemon.
+
+  optional FtraceConfig ftrace_config = 100;
+  optional ChromeConfig chrome_config = 101;
+  optional InodeFileConfig inode_file_config = 102;
+  optional ProcessStatsConfig process_stats_config = 103;
+  optional SysStatsConfig sys_stats_config = 104;
+
+  // This is a fallback mechanism to send a free-form text config to the
+  // producer. In theory this should never be needed. All the code that
+  // is part of the platform (i.e. traced service) is supposed to *not* truncate
+  // the trace config proto and propagate unknown fields. However, if anything
+  // in the pipeline (client or backend) ends up breaking this forward compat
+  // plan, this field will become the escape hatch to allow future data sources
+  // to get some meaningful configuration.
+  optional string legacy_config = 1000;
+
+  // This field is only used for testing.
+  optional TestConfig for_testing =
+      536870911;  // 2^29 - 1, max field id for protos.
+}
+
+// End of protos/perfetto/config/data_source_config.proto
+
+// Begin of protos/perfetto/config/ftrace/ftrace_config.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+message FtraceConfig {
+  repeated string ftrace_events = 1;
+  repeated string atrace_categories = 2;
+  repeated string atrace_apps = 3;
+  // *Per-CPU* buffer size.
+  optional uint32 buffer_size_kb = 10;
+  optional uint32 drain_period_ms = 11;
+}
+
+// End of protos/perfetto/config/ftrace/ftrace_config.proto
 
 // Begin of protos/perfetto/config/inode_file/inode_file_config.proto
 
@@ -85,76 +299,45 @@ message ProcessStatsConfig {
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
 
-// Begin of protos/perfetto/config/data_source_config.proto
+// Begin of protos/perfetto/config/sys_stats/sys_stats_config.proto
+
 
 // When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
 // to reflect changes in the corresponding C++ headers.
 
-// The configuration that is passed to each data source when starting tracing.
-message DataSourceConfig {
-  // Data source unique name, e.g., "linux.ftrace". This must match
-  // the name passed by the data source when it registers (see
-  // RegisterDataSource()).
-  optional string name = 1;
+// This file defines the configuration for the Linux /proc poller data source,
+// which injects counters in the trace.
+// Counters that are needed in the trace must be explicitly listed in the
+// *_counters fields. This is to avoid spamming the trace with all counters
+// at all times.
+// The sampling rate is configurable. All polling rates (*_period_ms) need
+// to be integer multiples of each other.
+// OK:     [10ms, 10ms, 10ms],  [10ms, 20ms, 10ms],  [10ms, 20ms, 60ms]
+// Not OK: [10ms, 10ms, 11ms],  [10ms, 15ms, 20ms]
+message SysStatsConfig {
+  // Polls /proc/meminfo every X ms, if non-zero.
+  optional uint32 meminfo_period_ms = 1;
 
-  // The index of the logging buffer where TracePacket(s) will be stored.
-  // This field doesn't make a major difference for the Producer(s). The final
-  // logging buffers, in fact, are completely owned by the Service. We just ask
-  // the Producer to copy this number into the chunk headers it emits, so that
-  // the Service can quickly identify the buffer where to move the chunks into
-  // without expensive lookups on its fastpath.
-  optional uint32 target_buffer = 2;
+  // Only the counters specified below are reported.
+  repeated MeminfoCounters meminfo_counters = 2;
 
-  // Set by the service to indicate the duration of the trace.
-  // DO NOT SET in consumer as this will be overridden by the service.
-  optional uint32 trace_duration_ms = 3;
+  // Polls /proc/vmstat every X ms, if non-zero.
+  optional uint32 vmstat_period_ms = 3;
+  repeated VmstatCounters vmstat_counters = 4;
 
-  // Set by the service to indicate which tracing session the data source
-  // belongs to. The intended use case for this is checking if two data sources,
-  // one of which produces metadata for the other one, belong to the same trace
-  // session and hence should be linked together.
-  // This field was introduced in Aug 2018 after Android P.
-  optional uint64 tracing_session_id = 4;
-
-  // Keeep the lower IDs (up to 99) for fields that are *not* specific to
-  // data-sources and needs to be processed by the traced daemon.
-
-  optional FtraceConfig ftrace_config = 100;
-  optional ChromeConfig chrome_config = 101;
-  optional InodeFileConfig inode_file_config = 102;
-  optional ProcessStatsConfig process_stats_config = 103;
-
-  // This is a fallback mechanism to send a free-form text config to the
-  // producer. In theory this should never be needed. All the code that
-  // is part of the platform (i.e. traced service) is supposed to *not* truncate
-  // the trace config proto and propagate unknown fields. However, if anything
-  // in the pipeline (client or backend) ends up breaking this forward compat
-  // plan, this field will become the escape hatch to allow future data sources
-  // to get some meaningful configuration.
-  optional string legacy_config = 1000;
-
-  // This field is only used for testing.
-  optional TestConfig for_testing =
-      536870911;  // 2^29 - 1, max field id for protos.
+  // Pols /proc/stat every X ms, if non-zero.
+  optional uint32 stat_period_ms = 5;
+  enum StatCounters {
+    STAT_UNSPECIFIED = 0;
+    STAT_CPU_TIMES = 1;
+    STAT_IRQ_COUNTS = 2;
+    STAT_SOFTIRQ_COUNTS = 3;
+    STAT_FORK_COUNT = 4;
+  }
+  repeated StatCounters stat_counters = 6;
 }
 
-// End of protos/perfetto/config/data_source_config.proto
-
-// Begin of protos/perfetto/config/ftrace/ftrace_config.proto
-
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
-
-message FtraceConfig {
-  repeated string ftrace_events = 1;
-  repeated string atrace_categories = 2;
-  repeated string atrace_apps = 3;
-  // *Per-CPU* buffer size.
-  optional uint32 buffer_size_kb = 10;
-  optional uint32 drain_period_ms = 11;
-}
-
-// End of protos/perfetto/config/ftrace/ftrace_config.proto
+// End of protos/perfetto/config/sys_stats/sys_stats_config.proto
 
 // Begin of protos/perfetto/config/test_config.proto
 

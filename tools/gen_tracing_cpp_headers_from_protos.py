@@ -22,11 +22,13 @@ PROTOS = (
   'perfetto/config/data_source_config.proto',
   'perfetto/config/inode_file/inode_file_config.proto',
   'perfetto/config/process_stats/process_stats_config.proto',
+  'perfetto/config/sys_stats/sys_stats_config.proto',
   'perfetto/config/data_source_descriptor.proto',
   'perfetto/config/ftrace/ftrace_config.proto',
   'perfetto/config/trace_config.proto',
   'perfetto/config/test_config.proto',
   'perfetto/common/commit_data_request.proto',
+  'perfetto/common/sys_stats_counters.proto',
 )
 
 HEADER_PATH = 'include/perfetto/tracing/core'

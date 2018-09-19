@@ -53,6 +53,11 @@ void SleepMicroseconds(unsigned interval_us);
 TimeNanos GetWallTimeNs();
 TimeNanos GetThreadCPUTimeNs();
 
+// TODO: Clock that counts time during suspend is not implemented on Windows.
+inline TimeNanos GetBootTimeNs() {
+  return GetWallTimeNs();
+}
+
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 
 inline TimeNanos GetWallTimeNs() {
@@ -64,6 +69,11 @@ inline TimeNanos GetWallTimeNs() {
 
   static uint64_t monotonic_timebase_factor = init_time_factor();
   return TimeNanos(mach_absolute_time() * monotonic_timebase_factor);
+}
+
+// TODO: Clock that counts time during suspend is not implemented on Mac.
+inline TimeNanos GetBootTimeNs() {
+  return GetWallTimeNs();
 }
 
 inline TimeNanos GetThreadCPUTimeNs() {
@@ -95,6 +105,11 @@ inline TimeNanos GetThreadCPUTimeNs() {
   return TimeNanos(0);
 }
 
+// TODO: Clock that counts time during suspend is not implemented on WASM.
+inline TimeNanos GetBootTimeNs() {
+  return GetWallTimeNs();
+}
+
 #else
 
 constexpr clockid_t kWallTimeClockSource = CLOCK_MONOTONIC;
@@ -103,6 +118,18 @@ inline TimeNanos GetTimeInternalNs(clockid_t clk_id) {
   struct timespec ts = {};
   PERFETTO_CHECK(clock_gettime(clk_id, &ts) == 0);
   return FromPosixTimespec(ts);
+}
+
+// Return ns from boot. Conversely to GetWallTimeNs, this clock counts also time
+// during suspend (when supported).
+inline TimeNanos GetBootTimeNs() {
+  // Determine if CLOCK_BOOTTIME is available on the first call.
+  static const clockid_t kBootTimeClockSource = [] {
+    struct timespec ts = {};
+    int res = clock_gettime(CLOCK_BOOTTIME, &ts);
+    return res == 0 ? CLOCK_BOOTTIME : kWallTimeClockSource;
+  }();
+  return GetTimeInternalNs(kBootTimeClockSource);
 }
 
 inline TimeNanos GetWallTimeNs() {

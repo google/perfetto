@@ -22,11 +22,13 @@ import subprocess
 import sys
 
 CONFIG_PROTOS = (
+  'protos/perfetto/common/sys_stats_counters.proto',
   'protos/perfetto/config/chrome/chrome_config.proto',
-  'protos/perfetto/config/inode_file/inode_file_config.proto',
-  'protos/perfetto/config/process_stats/process_stats_config.proto',
   'protos/perfetto/config/data_source_config.proto',
   'protos/perfetto/config/ftrace/ftrace_config.proto',
+  'protos/perfetto/config/inode_file/inode_file_config.proto',
+  'protos/perfetto/config/process_stats/process_stats_config.proto',
+  'protos/perfetto/config/sys_stats/sys_stats_config.proto',
   'protos/perfetto/config/test_config.proto',
   'protos/perfetto/config/trace_config.proto',
 )
@@ -34,12 +36,15 @@ CONFIG_PROTOS = (
 MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'
 
 TRACE_PROTOS = (
+  'protos/perfetto/common/sys_stats_counters.proto',
   'protos/perfetto/trace/trace.proto',
   'protos/perfetto/trace/trace_packet.proto',
   'protos/perfetto/trace/ftrace/ftrace_event_bundle.proto',
   'protos/perfetto/trace/ftrace/ftrace_event.proto',
   'protos/perfetto/trace/filesystem/inode_file_map.proto',
   'protos/perfetto/trace/ps/process_tree.proto',
+  'protos/perfetto/trace/clock_snapshot.proto',
+  'protos/perfetto/trace/sys_stats/sys_stats.proto',
 
   # Print proto is special: it doesn't have a enable file so is
   # not present in genfs_contexts.
