@@ -56,18 +56,19 @@ export function rootReducer(state: State, action: any): State {
         id,
         engineId: action.engineId,
         kind: action.trackKind,
-        name: `Cpu Track ${id}`,
-        maxDepth: 1,
-        cpu: action.cpu,
+        name: action.name,
+        config: action.config,
       };
       nextState.scrollingTracks.push(id);
       return nextState;
     }
 
     case 'REQ_TRACK_DATA': {
+      const id = action.trackId;
       const nextState = {...state};
-      nextState.tracks = {...state.tracks};
-      nextState.tracks[action.trackId].dataReq = {
+      const nextTracks = nextState.tracks = {...state.tracks};
+      const nextTrack = nextTracks[id] = {...nextTracks[id]};
+      nextTrack.dataReq = {
         start: action.start,
         end: action.end,
         resolution: action.resolution
@@ -76,29 +77,11 @@ export function rootReducer(state: State, action: any): State {
     }
 
     case 'CLEAR_TRACK_DATA_REQ': {
+      const id = action.trackId;
       const nextState = {...state};
-      nextState.tracks = {...state.tracks};
-      nextState.tracks[action.trackId].dataReq = undefined;
-      return nextState;
-    }
-
-    // TODO: 'ADD_CHROME_TRACK' string should be a shared const.
-    case 'ADD_CHROME_TRACK': {
-      const nextState = {...state};
-      nextState.tracks = {...state.tracks};
-      const id = `${nextState.nextId++}`;
-      nextState.tracks[id] = {
-        id,
-        engineId: action.engineId,
-        kind: action.trackKind,
-        name: `${action.threadName}`,
-        // TODO(dproy): This should be part of published information.
-        maxDepth: action.maxDepth,
-        cpu: 0,  // TODO: Remove this after we have kind specific state.
-        upid: action.upid,
-        utid: action.utid,
-      };
-      nextState.scrollingTracks.push(id);
+      const nextTracks = nextState.tracks = {...state.tracks};
+      const nextTrack = nextTracks[id] = {...nextTracks[id]};
+      nextTrack.dataReq = undefined;
       return nextState;
     }
 

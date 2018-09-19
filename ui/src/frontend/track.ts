@@ -32,15 +32,22 @@ export interface TrackCreator {
 /**
  * The abstract class that needs to be implemented by all tracks.
  */
-export abstract class Track {
+export abstract class Track<Config = {}> {
   /**
    * Receive data published by the TrackController of this track.
    */
   constructor(protected trackState: TrackState) {}
   abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
+
+  get config(): Config {
+    return this.trackState.config as Config;
+  }
+
   getHeight(): number {
     return 40;
   }
+
   onMouseMove(_position: {x: number, y: number}) {}
+
   onMouseOut() {}
 }

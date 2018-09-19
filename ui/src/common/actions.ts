@@ -34,12 +34,14 @@ export function openTraceFromFile(file: File) {
 }
 
 // TODO(hjd): Remove CPU and add a generic way to handle track specific state.
-export function addTrack(engineId: string, trackKind: string, cpu: number) {
+export function addTrack(
+    engineId: string, trackKind: string, name: string, config: {}) {
   return {
     type: 'ADD_TRACK',
     engineId,
     trackKind,
-    cpu,
+    name,
+    config,
   };
 }
 
@@ -50,25 +52,6 @@ export function requestTrackData(
 
 export function clearTrackDataRequest(trackId: string) {
   return {type: 'CLEAR_TRACK_DATA_REQ', trackId};
-}
-
-// TODO: There should be merged with addTrack above.
-export function addChromeSliceTrack(
-    engineId: string,
-    trackKind: string,
-    upid: number,
-    utid: number,
-    threadName: string,
-    maxDepth: number) {
-  return {
-    type: 'ADD_CHROME_TRACK',
-    engineId,
-    trackKind,
-    upid,
-    utid,
-    threadName,
-    maxDepth,
-  };
 }
 
 export function executeQuery(engineId: string, queryId: string, query: string) {

@@ -19,9 +19,13 @@ import {
   trackControllerRegistry
 } from '../../controller/track_controller';
 
-import {CPU_SLICE_TRACK_KIND, CpuSliceTrackData} from './common';
+import {
+  CPU_SLICE_TRACK_KIND,
+  CpuSliceTrackConfig,
+  CpuSliceTrackData
+} from './common';
 
-class CpuSliceTrackController extends TrackController {
+class CpuSliceTrackController extends TrackController<CpuSliceTrackConfig> {
   static readonly kind = CPU_SLICE_TRACK_KIND;
   private busy = false;
 
@@ -30,7 +34,7 @@ class CpuSliceTrackController extends TrackController {
     if (this.busy) return;
     const LIMIT = 10000;
     const query = 'select ts,dur,utid from sched ' +
-        `where cpu = ${this.trackState.cpu} ` +
+        `where cpu = ${this.config.cpu} ` +
         `and ts_lower_bound = ${Math.round(start * 1e9)} ` +
         `and ts <= ${Math.round(end * 1e9)} ` +
         `and dur >= ${Math.round(resolution * 1e9)} ` +
@@ -38,16 +42,12 @@ class CpuSliceTrackController extends TrackController {
         `order by ts ` +
         `limit ${LIMIT};`;
 
-    if (this.trackState.cpu === 0) console.log('QUERY', query);
-
     this.busy = true;
     this.engine.rawQuery({'sqlQuery': query}).then(rawResult => {
       this.busy = false;
       if (rawResult.error) {
         throw new Error(`Query error "${query}": ${rawResult.error}`);
       }
-      if (this.trackState.cpu === 0) console.log('QUERY DONE', query);
-
       const numRows = +rawResult.numRecords;
 
       const slices: CpuSliceTrackData = {
