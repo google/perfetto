@@ -348,6 +348,9 @@ copy("wasm_gen") {
     "$root_build_dir/wasm/trace_processor.js",
     "$root_build_dir/wasm/trace_processor.wasm",
   ]
+  if (is_debug) {
+    sources += [ "$root_build_dir/wasm/trace_processor.wasm.map" ]
+  }
   outputs = [
     "$ui_gen_dir/{{source_file_part}}",
   ]
