@@ -297,6 +297,10 @@ TEST(SystraceParserTest, SystraceEvent) {
 
   ASSERT_TRUE(ParseSystraceTracePoint(base::StringView("B|42|Bar"), &result));
   EXPECT_EQ(result, (SystraceTracePoint{'B', 42, base::StringView("Bar"), 0}));
+
+  ASSERT_TRUE(
+      ParseSystraceTracePoint(base::StringView("C|543|foo|8"), &result));
+  EXPECT_EQ(result, (SystraceTracePoint{'C', 543, base::StringView("foo"), 8}));
 }
 
 }  // namespace
