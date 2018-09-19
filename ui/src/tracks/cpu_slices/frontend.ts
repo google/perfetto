@@ -19,7 +19,11 @@ import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
-import {CPU_SLICE_TRACK_KIND, CpuSliceTrackData} from './common';
+import {
+  CPU_SLICE_TRACK_KIND,
+  CpuSliceTrackConfig,
+  CpuSliceTrackData
+} from './common';
 
 const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
@@ -46,7 +50,7 @@ function getCurResolution() {
   return Math.pow(10, Math.floor(Math.log10(resolution)));
 }
 
-class CpuSliceTrack extends Track {
+class CpuSliceTrack extends Track<CpuSliceTrackConfig> {
   static readonly kind = CPU_SLICE_TRACK_KIND;
   static create(trackState: TrackState): CpuSliceTrack {
     return new CpuSliceTrack(trackState);
@@ -94,7 +98,7 @@ class CpuSliceTrack extends Track {
 
     // TODO: this needs to be kept in sync with the hue generation algorithm
     // of overview_timeline_panel.ts
-    const hue = (128 + (32 * this.trackState.cpu)) % 256;
+    const hue = (128 + (32 * this.config.cpu)) % 256;
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.

@@ -19,6 +19,7 @@ import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {
+  ChromeSliceTrackConfig,
   ChromeSliceTrackData,
   SLICE_TRACK_KIND,
 } from './common';
@@ -41,7 +42,7 @@ function getCurResolution() {
   return Math.pow(10, Math.floor(Math.log10(resolution)));
 }
 
-class ChromeSliceTrack extends Track {
+class ChromeSliceTrack extends Track<ChromeSliceTrackConfig> {
   static readonly kind = SLICE_TRACK_KIND;
   static create(trackState: TrackState): ChromeSliceTrack {
     return new ChromeSliceTrack(trackState);
@@ -53,7 +54,6 @@ class ChromeSliceTrack extends Track {
   constructor(trackState: TrackState) {
     super(trackState);
   }
-
 
   reqDataDeferred() {
     const {visibleWindowTime} = globals.frontendLocalState;
@@ -185,7 +185,7 @@ class ChromeSliceTrack extends Track {
   }
 
   getHeight() {
-    return SLICE_HEIGHT * (this.trackState.maxDepth + 1) + 2 * TRACK_PADDING;
+    return SLICE_HEIGHT * (this.config.maxDepth + 1) + 2 * TRACK_PADDING;
   }
 
   private get trackData(): ChromeSliceTrackData {
