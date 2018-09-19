@@ -143,6 +143,8 @@ button.close {
 
 @import 'sidebar';
 @import 'topbar';
+@import 'record';
+
 .home-page {
     text-align: center;
     padding-top: 20vh;
@@ -308,4 +310,14 @@ canvas.main-canvas {
 
 header {
   height: 25px;
+}
+
+.text-column {
+  font-size: 115%;
+  // 2-3 alphabets per line is comfortable for reading.
+  // https://practicaltypography.com/line-length.html 
+  max-width: calc(26ch*2.34);
+  margin: 3rem auto;
+  user-select: text;
+  word-break: break-word;
 }
