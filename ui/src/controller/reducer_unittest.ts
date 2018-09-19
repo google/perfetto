@@ -21,10 +21,9 @@ function fakeTrack(state: State, id: string): TrackState {
   const track: TrackState = {
     id,
     engineId: '1',
-    maxDepth: 0,
     kind: 'SOME_TRACK_KIND',
     name: 'A track',
-    cpu: 0,
+    config: {},
   };
   state.tracks[id] = track;
   return track;
@@ -60,13 +59,13 @@ test('reorder tracks', () => {
     type: 'ADD_TRACK',
     engineId: '1',
     trackKind: 'cpu',
-    cpu: '1',
+    config: {},
   });
   const before = rootReducer(step1, {
     type: 'ADD_TRACK',
     engineId: '2',
     trackKind: 'cpu',
-    cpu: '2',
+    config: {},
   });
 
   const firstTrackId = before.scrollingTracks[0];
