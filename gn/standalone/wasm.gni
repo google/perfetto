@@ -64,7 +64,9 @@ template("wasm_lib") {
       "-s",
       "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'addFunction']",
     ]
-    if (!is_debug) {
+    if (is_debug) {
+      _target_ldflags += [ "-g4" ]
+    } else {
       _target_ldflags += [ "-O3" ]
     }
 
@@ -106,6 +108,9 @@ template("wasm_lib") {
       outputs = [
         "$root_out_dir/$_lib_name.wasm",
       ]
+      if (is_debug) {
+        outputs += [ "$root_out_dir/$_lib_name.wasm.map" ]
+      }
       args = [ "--noop" ]
       script = "//gn/standalone/build_tool_wrapper.py"
     }
