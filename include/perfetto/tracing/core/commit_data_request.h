@@ -205,4 +205,5 @@ class PERFETTO_EXPORT CommitDataRequest {
 };
 
 }  // namespace perfetto
+
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_COMMIT_DATA_REQUEST_H_

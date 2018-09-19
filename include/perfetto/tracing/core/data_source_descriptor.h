@@ -73,4 +73,5 @@ class PERFETTO_EXPORT DataSourceDescriptor {
 };
 
 }  // namespace perfetto
+
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_DATA_SOURCE_DESCRIPTOR_H_

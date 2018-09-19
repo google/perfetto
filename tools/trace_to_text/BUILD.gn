@@ -20,6 +20,7 @@ source_set("lib") {
     "../../gn:default_deps",
     "../../gn:protobuf_full_deps",
     "../../include/perfetto/base",
+    "../../include/perfetto/traced:sys_stats_counters",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/ftrace:lite",
   ]

@@ -49,6 +49,7 @@ class ChromeConfig;
 class InodeFileConfig;
 class InodeFileConfig_MountPointMappingEntry;
 class ProcessStatsConfig;
+class SysStatsConfig;
 class TestConfig;
 class TraceConfig_ProducerConfig;
 class TraceConfig_StatsdMetadata;
@@ -319,4 +320,5 @@ class PERFETTO_EXPORT TraceConfig {
 };
 
 }  // namespace perfetto
+
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_TRACE_CONFIG_H_
