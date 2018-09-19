@@ -1,6 +1,7 @@
 android_sdk/
 aosp-*/
 benchmark/
+bionic/
 clang/
 clang_format/
 emulator/
