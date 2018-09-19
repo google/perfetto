@@ -24,3 +24,5 @@ export interface CpuSliceTrackData {
   ends: Float64Array;
   utids: Uint32Array;
 }
+
+export interface CpuSliceTrackConfig { cpu: number; }
