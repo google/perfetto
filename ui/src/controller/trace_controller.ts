@@ -189,10 +189,9 @@ export class TraceController extends Controller<States> {
           }));
     }
 
-    const threadQuery = await engine.rawQuery({
-      sqlQuery: 'select upid, utid, tid, thread.name, max(slices.depth) ' +
-          'from thread inner join slices using(utid) group by utid'
-    });
+    const threadQuery = await engine.query(
+        'select upid, utid, tid, thread.name, max(slices.depth) ' +
+        'from thread inner join slices using(utid) group by utid');
     for (let i = 0; i < threadQuery.numRecords; i++) {
       const upid = threadQuery.columns[0].longValues![i];
       const utid = threadQuery.columns[1].longValues![i];
@@ -214,7 +213,7 @@ export class TraceController extends Controller<States> {
     globals.dispatch(updateStatus('Reading thread list'));
     const sqlQuery = 'select utid, tid, pid, thread.name, process.name ' +
         'from thread inner join process using(upid)';
-    const threadRows = await assertExists(this.engine).rawQuery({sqlQuery});
+    const threadRows = await assertExists(this.engine).query(sqlQuery);
     const threads: ThreadDesc[] = [];
     for (let i = 0; i < threadRows.numRecords; i++) {
       const utid = threadRows.columns[0].longValues![i] as number;
@@ -241,11 +240,10 @@ export class TraceController extends Controller<States> {
       const endNs = Math.ceil(endSec * 1e9);
 
       // Sched overview.
-      const schedRows = await engine.rawQuery({
-        sqlQuery: `select sum(dur)/${stepSec}/1e9, cpu from sched ` +
-            `where ts >= ${startNs} and ts < ${endNs} and utid != 0 ` +
-            'group by cpu order by cpu'
-      });
+      const schedRows = await engine.query(
+          `select sum(dur)/${stepSec}/1e9, cpu from sched ` +
+          `where ts >= ${startNs} and ts < ${endNs} and utid != 0 ` +
+          'group by cpu order by cpu');
       const schedData: {[key: string]: QuantizedLoad} = {};
       for (let i = 0; i < schedRows.numRecords; i++) {
         const load = schedRows.columns[0].doubleValues![i];
@@ -255,14 +253,12 @@ export class TraceController extends Controller<States> {
       globals.publish('OverviewData', schedData);
 
       // Slices overview.
-      const slicesRows = await engine.rawQuery({
-        sqlQuery:
-            `select sum(dur)/${stepSec}/1e9, process.name, process.pid, upid ` +
-            'from slices inner join thread using(utid) ' +
-            'inner join process using(upid) where depth = 0 ' +
-            `and ts >= ${startNs} and ts < ${endNs} ` +
-            'group by upid'
-      });
+      const slicesRows = await engine.query(
+          `select sum(dur)/${stepSec}/1e9, process.name, process.pid, upid ` +
+          'from slices inner join thread using(utid) ' +
+          'inner join process using(upid) where depth = 0 ' +
+          `and ts >= ${startNs} and ts < ${endNs} ` +
+          'group by upid');
       const slicesData: {[key: string]: QuantizedLoad} = {};
       for (let i = 0; i < slicesRows.numRecords; i++) {
         const load = slicesRows.columns[0].doubleValues![i];
