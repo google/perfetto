@@ -12,6 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as m from 'mithril';
+
+import {assertTrue} from '../base/logging';
+
+import {
+  debugNow,
+  measure,
+  perfDebug,
+  perfDisplay,
+  RunningStatistics,
+  runningStatStr
+} from './perf';
+
+function statTableHeader() {
+  return m(
+      'tr',
+      m('th', ''),
+      m('th', 'Last (ms)'),
+      m('th', 'Avg (ms)'),
+      m('th', 'Avg-10 (ms)'), );
+}
+
+function statTableRow(title: string, stat: RunningStatistics) {
+  return m(
+      'tr',
+      m('td', title),
+      m('td', stat.last.toFixed(2)),
+      m('td', stat.mean.toFixed(2)),
+      m('td', stat.bufferMean.toFixed(2)), );
+}
+
 export type ActionCallback = (nowMs: number) => void;
 export type RedrawCallback = (nowMs: number) => void;
 
@@ -30,6 +61,14 @@ export class RafScheduler {
   private hasScheduledNextFrame = false;
   private requestedFullRedraw = false;
   private isRedrawing = false;
+
+  private perfStats = {
+    rafActions: new RunningStatistics(),
+    rafCanvas: new RunningStatistics(),
+    rafDom: new RunningStatistics(),
+    rafTotal: new RunningStatistics(),
+    domRedraw: new RunningStatistics(),
+  };
 
   start(cb: ActionCallback) {
     this.actionCallbacks.add(cb);
@@ -61,11 +100,23 @@ export class RafScheduler {
     this.maybeScheduleAnimationFrame(true);
   }
 
+  syncDomRedraw(nowMs: number) {
+    const redrawStart = debugNow();
+    this._syncDomRedraw(nowMs);
+    if (perfDebug()) {
+      this.perfStats.domRedraw.addValue(debugNow() - redrawStart);
+    }
+  }
+
   private syncCanvasRedraw(nowMs: number) {
+    const redrawStart = debugNow();
     if (this.isRedrawing) return;
     this.isRedrawing = true;
     for (const redraw of this.canvasRedrawCallbacks) redraw(nowMs);
     this.isRedrawing = false;
+    if (perfDebug()) {
+      this.perfStats.rafCanvas.addValue(debugNow() - redrawStart);
+    }
   }
 
   private maybeScheduleAnimationFrame(force = false) {
@@ -77,15 +128,64 @@ export class RafScheduler {
   }
 
   private onAnimationFrame(nowMs: number) {
+    const rafStart = debugNow();
     this.hasScheduledNextFrame = false;
 
     const doFullRedraw = this.requestedFullRedraw;
     this.requestedFullRedraw = false;
 
-    for (const action of this.actionCallbacks) action(nowMs);
-    if (doFullRedraw) this._syncDomRedraw(nowMs);
-    this.syncCanvasRedraw(nowMs);
+    const actionTime = measure(() => {
+      for (const action of this.actionCallbacks) action(nowMs);
+    });
+
+    const domTime = measure(() => {
+      if (doFullRedraw) this.syncDomRedraw(nowMs);
+    });
+    const canvasTime = measure(() => this.syncCanvasRedraw(nowMs));
+
+    const totalRafTime = debugNow() - rafStart;
+    this.updatePerfStats(actionTime, domTime, canvasTime, totalRafTime);
+    perfDisplay.renderPerfStats();
 
     this.maybeScheduleAnimationFrame();
+  }
+
+  private updatePerfStats(
+      actionsTime: number, domTime: number, canvasTime: number,
+      totalRafTime: number) {
+    if (!perfDebug()) return;
+    this.perfStats.rafActions.addValue(actionsTime);
+    this.perfStats.rafDom.addValue(domTime);
+    this.perfStats.rafCanvas.addValue(canvasTime);
+    this.perfStats.rafTotal.addValue(totalRafTime);
+  }
+
+  renderPerfStats() {
+    assertTrue(perfDebug());
+    return m(
+        'div',
+        m('div',
+          [
+            m('button',
+              {onclick: () => this.scheduleRedraw()},
+              'Do Canvas Redraw'),
+            '   |   ',
+            m('button',
+              {onclick: () => this.scheduleFullRedraw()},
+              'Do Full Redraw'),
+          ]),
+        m('div',
+          'Raf Timing ' +
+              '(Total may not add up due to imprecision)'),
+        m('table',
+          statTableHeader(),
+          statTableRow('Actions', this.perfStats.rafActions),
+          statTableRow('Dom', this.perfStats.rafDom),
+          statTableRow('Canvas', this.perfStats.rafCanvas),
+          statTableRow('Total', this.perfStats.rafTotal), ),
+        m('div',
+          'Dom redraw: ' +
+              `Count: ${this.perfStats.domRedraw.count} | ` +
+              runningStatStr(this.perfStats.domRedraw)), );
   }
 }
