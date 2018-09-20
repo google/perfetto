@@ -17,7 +17,14 @@ import * as m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 
 import {globals} from './globals';
-import {isPanelVNode} from './panel';
+import {isPanelVNode, Panel, PanelSize} from './panel';
+import {
+  debugNow,
+  perfDebug,
+  perfDisplay,
+  RunningStatistics,
+  runningStatStr
+} from './perf';
 
 /**
  * If the panel container scrolls, the backing canvas height is
@@ -41,6 +48,13 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   private totalPanelHeight = 0;
   private canvasHeight = 0;
 
+  private panelPerfStats = new WeakMap<Panel, RunningStatistics>();
+  private perfStats = {
+    totalPanels: 0,
+    panelsOnCanvas: 0,
+    renderStats: new RunningStatistics(10),
+  };
+
   // attrs received in the most recent mithril redraw.
   private attrs?: Attrs;
 
@@ -56,6 +70,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         vnode.attrs.doesScroll ? SCROLLING_CANVAS_OVERDRAW_FACTOR : 1;
     this.canvasRedrawer = () => this.redrawCanvas();
     globals.rafScheduler.addRedrawCallback(this.canvasRedrawer);
+    perfDisplay.addContainer(this);
   }
 
   oncreate(vnodeDom: m.CVnodeDOM<Attrs>) {
@@ -113,16 +128,21 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     if (attrs.doesScroll) {
       dom.parentElement!.removeEventListener('scroll', this.parentOnScroll);
     }
+    perfDisplay.removeContainer(this);
   }
 
   view({attrs}: m.CVnode<Attrs>) {
     // We receive a new vnode object with new attrs on every mithril redraw. We
     // store the latest attrs so redrawCanvas can use it.
     this.attrs = attrs;
+    const renderPanel = (panel: m.Vnode) => perfDebug() ?
+        m('.panel', panel, m('.debug-panel-border')) :
+        m('.panel', panel);
+
     return m(
         '.scroll-limiter',
         m('canvas.main-canvas'),
-        attrs.panels.map(panel => m('.panel', panel)));
+        attrs.panels.map(renderPanel));
   }
 
   onupdate(vnodeDom: m.CVnodeDOM<Attrs>) {
@@ -186,6 +206,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   }
 
   private redrawCanvas() {
+    const redrawStart = debugNow();
     if (!this.ctx) return;
     this.ctx.clearRect(0, 0, this.parentWidth, this.canvasHeight);
     const canvasYStart = this.scrollTop - this.getCanvasOverdrawHeightPerSide();
@@ -193,6 +214,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     let panelYStart = 0;
     const panels = assertExists(this.attrs).panels;
     assertTrue(panels.length === this.panelHeights.length);
+    let totalOnCanvas = 0;
     for (let i = 0; i < panels.length; i++) {
       const panel = panels[i];
       const panelHeight = this.panelHeights[i];
@@ -202,6 +224,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         panelYStart += panelHeight;
         continue;
       }
+
+      totalOnCanvas++;
 
       if (!isPanelVNode(panel)) {
         throw Error('Vnode passed to panel container is not a panel');
@@ -213,10 +237,53 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       const size = {width: this.parentWidth, height: panelHeight};
       clipRect.rect(0, 0, size.width, size.height);
       this.ctx.clip(clipRect);
+      const beforeRender = debugNow();
       panel.state.renderCanvas(this.ctx, size, panel);
+      this.updatePanelStats(
+          i, panel.state, debugNow() - beforeRender, this.ctx, size);
       this.ctx.restore();
       panelYStart += panelHeight;
     }
+    const redrawDur = debugNow() - redrawStart;
+    this.updatePerfStats(redrawDur, panels.length, totalOnCanvas);
+  }
+
+  private updatePanelStats(
+      panelIndex: number, panel: Panel, renderTime: number,
+      ctx: CanvasRenderingContext2D, size: PanelSize) {
+    if (!perfDebug()) return;
+    let renderStats = this.panelPerfStats.get(panel);
+    if (renderStats === undefined) {
+      renderStats = new RunningStatistics();
+      this.panelPerfStats.set(panel, renderStats);
+    }
+    renderStats.addValue(renderTime);
+
+    const statW = 300;
+    ctx.fillStyle = 'hsl(97, 100%, 96%)';
+    ctx.fillRect(size.width - statW, size.height - 20, statW, 20);
+    ctx.fillStyle = 'hsla(122, 77%, 22%)';
+    const statStr = `Panel ${panelIndex + 1} | ` + runningStatStr(renderStats);
+    ctx.fillText(statStr, size.width - statW, size.height - 10);
+  }
+
+  private updatePerfStats(
+      renderTime: number, totalPanels: number, panelsOnCanvas: number) {
+    if (!perfDebug()) return;
+    this.perfStats.renderStats.addValue(renderTime);
+    this.perfStats.totalPanels = totalPanels;
+    this.perfStats.panelsOnCanvas = panelsOnCanvas;
+  }
+
+  renderPerfStats(index: number) {
+    assertTrue(perfDebug());
+    return [m(
+        'section',
+        m('div', `Panel Container ${index + 1}`),
+        m('div',
+          `${this.perfStats.totalPanels} panels, ` +
+              `${this.perfStats.panelsOnCanvas} on canvas.`),
+        m('div', runningStatStr(this.perfStats.renderStats)), )];
   }
 
   private getCanvasOverdrawHeightPerSide() {

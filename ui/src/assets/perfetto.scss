@@ -321,3 +321,67 @@ header {
   user-select: text;
   word-break: break-word;
 }
+
+.debug-panel-border {
+  position: absolute;
+  top: 0px;
+  height: 100%;
+  width: 100%;
+  border: 1px solid rgba(69, 187, 73, 0.5);
+  pointer-events: none;
+}
+
+.perf-stats {
+  --perfetto-orange: hsl(45, 100%, 48%);
+  --perfetto-red: hsl(6, 70%, 53%);
+  --stroke-color: hsl(217, 39%, 94%);
+  position: fixed;
+  bottom: 0;
+  color: var(--stroke-color);
+  font-family: monospace;
+  padding: 2px 0px;
+  z-index: 100;
+  button:hover {
+    color: var(--perfetto-red);
+  }
+  &[expanded=true] {
+    width: 600px;
+    background-color: rgba(27, 28, 29, 0.95);
+    button {
+      color: var(--perfetto-orange);
+      &:hover {
+        color: var(--perfetto-red);
+      }
+    }
+  }
+  &[expanded=false] {
+    width: var(--sidebar-width);
+    background-color: transparent;
+  }
+  i {
+    margin: 0px 24px;
+    font-size: 30px;
+  }
+  .perf-stats-content {
+    margin: 10px 24px;
+    & > section {
+      padding: 5px;
+      border-bottom: 1px solid var(--stroke-color);
+    }
+    button {
+      text-decoration: underline;
+    }
+    div {
+      margin: 2px 0px;
+    }
+    table, td, th {
+      border: 1px solid var(--stroke-color);
+      text-align: center;
+      padding: 4px;
+      margin: 4px 0px;
+    }
+    table {
+      border-collapse: collapse;
+    }
+  }
+}

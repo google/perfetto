@@ -27,6 +27,7 @@ export class FrontendLocalState {
   timeScale = new TimeScale(this.visibleWindowTime, [0, 0]);
   private _visibleTimeLastUpdate = 0;
   private pendingGlobalTimeUpdate?: TimeSpan;
+  perfDebug = false;
 
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
@@ -51,5 +52,10 @@ export class FrontendLocalState {
 
   get visibleTimeLastUpdate() {
     return this._visibleTimeLastUpdate;
+  }
+
+  togglePerfDebug() {
+    this.perfDebug = !this.perfDebug;
+    globals.rafScheduler.scheduleFullRedraw();
   }
 }
