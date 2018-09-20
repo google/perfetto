@@ -175,7 +175,7 @@ function dispatchCreatePermalink(e: Event) {
   globals.dispatch(createPermalink());
 }
 
-export const Sidebar: m.Component = {
+export class Sidebar implements m.ClassComponent {
   view() {
     const vdomSections = [];
     for (const section of SECTIONS) {
@@ -206,5 +206,5 @@ export const Sidebar: m.Component = {
         m('header', 'Perfetto'),
         m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
         ...vdomSections);
-  },
-};
+  }
+}
