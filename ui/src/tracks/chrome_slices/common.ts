@@ -14,13 +14,13 @@
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 
-export interface ChromeSliceTrackConfig {
+export interface Config {
   maxDepth: number;
   upid: number;
   utid: number;
 }
 
-export interface ChromeSliceTrackData {
+export interface Data {
   start: number;
   end: number;
   resolution: number;

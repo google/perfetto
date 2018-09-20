@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {TrackState} from '../common/state';
+import {globals} from './globals';
 
 /**
  * This interface forces track implementations to have some static properties.
@@ -32,7 +33,7 @@ export interface TrackCreator {
 /**
  * The abstract class that needs to be implemented by all tracks.
  */
-export abstract class Track<Config = {}> {
+export abstract class Track<Config = {}, Data = {}> {
   /**
    * Receive data published by the TrackController of this track.
    */
@@ -41,6 +42,10 @@ export abstract class Track<Config = {}> {
 
   get config(): Config {
     return this.trackState.config as Config;
+  }
+
+  data(): Data {
+    return globals.trackDataStore.get(this.trackState.id) as Data;
   }
 
   getHeight(): number {
