@@ -20,13 +20,6 @@ import {forwardRemoteCalls} from '../base/remote';
 import {loadPermalink} from '../common/actions';
 import {State} from '../common/state';
 import {TimeSpan} from '../common/time';
-import {EnginePortAndId} from '../controller/engine';
-import {
-  createWasmEngine,
-  destroyWasmEngine,
-  warmupWasmEngine,
-} from '../controller/wasm_engine_proxy';
-
 import {globals, QuantizedLoad, ThreadDesc} from './globals';
 import {HomePage} from './home_page';
 import {RecordPage} from './record_page';
@@ -87,22 +80,6 @@ class FrontendApi {
     this.redraw();
   }
 
-  /**
-   * Creates a new trace processor wasm engine (backed by a worker running
-   * engine_bundle.js) and returns a MessagePort for talking to it.
-   * This indirection is due to workers not being able create workers in
-   * Chrome which is tracked at: crbug.com/31666
-   * TODO(hjd): Remove this once the fix has landed.
-   */
-  createEngine(): EnginePortAndId {
-    const id = new Date().toUTCString();
-    return {id, port: createWasmEngine(id)};
-  }
-
-  destroyEngine(id: string) {
-    destroyWasmEngine(id);
-  }
-
   private redraw(): void {
     if (globals.state.route &&
         globals.state.route !== this.router.getRouteFromHash()) {
@@ -135,7 +112,6 @@ function main() {
   globals.rafScheduler.domRedraw = () =>
       m.render(document.body, m(router.resolve(globals.state.route)));
 
-  warmupWasmEngine();
 
   // Put these variables in the global scope for better debugging.
   (window as {} as {m: {}}).m = m;

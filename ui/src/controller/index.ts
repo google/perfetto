@@ -18,18 +18,21 @@ import {Remote} from '../base/remote';
 
 import {AppController} from './app_controller';
 import {globals} from './globals';
+import {warmupWasmEngine} from './wasm_engine_proxy';
 
 function main(port: MessagePort) {
+  warmupWasmEngine();
   let receivedFrontendPort = false;
   port.onmessage = ({data}) => {
-    if (!receivedFrontendPort) {
-      const frontendPort = data as MessagePort;
-      const frontend = new Remote(frontendPort);
-      globals.initialize(new AppController(), frontend);
-      receivedFrontendPort = true;
-    } else {
+    if (receivedFrontendPort) {
       globals.dispatch(data);
+      return;
     }
+
+    const frontendPort = data as MessagePort;
+    const frontend = new Remote(frontendPort);
+    globals.initialize(new AppController(), frontend);
+    receivedFrontendPort = true;
   };
 }
 
