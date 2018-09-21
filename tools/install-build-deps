@@ -178,6 +178,13 @@ BUILD_DEPS_HOST = [
    '4adec454b60a943dd58603d4be80d42b2db62cbd',
    'all',
   ),
+
+  # Linenoise
+  ('buildtools/linenoise',
+   'https://github.com/antirez/linenoise.git',
+   '4a961c0108720741e2683868eb10495f015ee422',
+   'all'
+  ),
 ]
 
 # Dependencies required to build Android code.

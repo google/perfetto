@@ -108,6 +108,9 @@ if (current_toolchain == host_toolchain) {
       "../../protos/perfetto/trace_processor:lite",
       "../base",
     ]
+    if (build_standalone) {
+      deps += [ "../../buildtools:linenoise" ]
+    }
     sources = [
       "trace_processor_shell.cc",
     ]
