@@ -36,6 +36,10 @@
 #define PERFETTO_HAS_SIGNAL_H() 0
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#include <linenoise.h>
+#endif
+
 #if PERFETTO_HAS_SIGNAL_H()
 #include <signal.h>
 #endif
@@ -46,10 +50,44 @@ using namespace perfetto::trace_processor;
 namespace {
 TraceProcessor* g_tp;
 
-void PrintPrompt() {
-  printf("\r%80s\r> ", "");
-  fflush(stdout);
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+
+void SetupLineEditor() {
+  linenoiseSetMultiLine(true);
+  linenoiseHistorySetMaxLen(1000);
 }
+
+void FreeLine(char*) {
+  linenoiseHistoryAdd(line);
+  linenoiseFree(line);
+}
+
+char* GetLine(const char* prompt) {
+  return linenoise(prompt);
+}
+
+#else
+
+void SetupLineEditor() {}
+
+void FreeLine(char* line) {
+  free(line);
+}
+
+char* GetLine(const char* prompt) {
+  printf("\r%80s\r%s", "", prompt);
+  fflush(stdout);
+  char* line = new char[1024];
+  if (!fgets(line, 1024 - 1, stdin)) {
+    FreeLine(line);
+    return nullptr;
+  }
+  if (strlen(line) > 0)
+    line[strlen(line) - 1] = 0;
+  return line;
+}
+
+#endif
 
 void OnQueryResult(base::TimeNanos t_start, const protos::RawQueryResult& res) {
   if (res.has_error()) {
@@ -175,12 +213,13 @@ int main(int argc, char** argv) {
   signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
 #endif
 
+  SetupLineEditor();
+
   for (;;) {
-    PrintPrompt();
-    char line[1024];
-    if (!fgets(line, sizeof(line) - 1, stdin) || strcmp(line, "q\n") == 0)
-      return 0;
-    if (strcmp(line, "\n") == 0)
+    char* line = GetLine("> ");
+    if (!line || strcmp(line, "q\n") == 0)
+      break;
+    if (strcmp(line, "") == 0)
       continue;
     protos::RawQueryArgs query;
     query.set_sql_query(line);
@@ -188,5 +227,9 @@ int main(int argc, char** argv) {
     g_tp->ExecuteQuery(query, [t_start](const protos::RawQueryResult& res) {
       OnQueryResult(t_start, res);
     });
+
+    FreeLine(line);
   }
+
+  return 0;
 }
