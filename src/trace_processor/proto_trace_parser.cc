@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/proto_trace_parser.h"
 
+#include <string.h>
+
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -86,7 +88,7 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
       out->name = base::StringView(s + name_index, name_length);
       size_t value_index = name_index + name_length + 1;
       char value_str[32];
-      std::strcpy(value_str, s + value_index);
+      strcpy(value_str, s + value_index);
       out->value = std::stod(value_str);
       return true;
     }
