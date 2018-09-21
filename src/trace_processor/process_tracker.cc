@@ -42,7 +42,8 @@ UniqueTid ProcessTracker::UpdateThread(uint64_t timestamp,
     auto prev_utid = std::prev(pair_it.second)->second;
     TraceStorage::Thread* thread =
         context_->storage->GetMutableThread(prev_utid);
-    thread->name_id = thread_name_id;
+    if (thread_name_id)
+      thread->name_id = thread_name_id;
     return prev_utid;
   }
 
