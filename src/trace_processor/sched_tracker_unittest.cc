@@ -135,11 +135,11 @@ TEST_F(SchedTrackerTest, MixedEventsValueDelta) {
   context.sched_tracker->PushCounter(timestamp, 1000, name_id_cpu, cpu,
                                      RefType::kCPU_ID);
   context.sched_tracker->PushCounter(timestamp + 1, 0, name_id_upid, upid,
-                                     RefType::kUPID);
+                                     RefType::kUTID);
   context.sched_tracker->PushCounter(timestamp + 3, 5000, name_id_cpu, cpu,
                                      RefType::kCPU_ID);
   context.sched_tracker->PushCounter(timestamp + 9, 1, name_id_upid, upid,
-                                     RefType::kUPID);
+                                     RefType::kUTID);
 
   ASSERT_EQ(context.storage->counters().counter_count(), 2ul);
   ASSERT_EQ(context.storage->counters().timestamps().at(0), timestamp);
