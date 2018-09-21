@@ -11,6 +11,7 @@ libbacktrace/
 libcxx/
 libcxxabi/
 libunwind/
+linenoise/
 linux/
 linux64/
 mac/
