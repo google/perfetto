@@ -87,8 +87,3 @@ export abstract class Engine {
     return new TimeSpan(start / 1e9, end / 1e9);
   }
 }
-
-export interface EnginePortAndId {
-  id: string;
-  port: MessagePort;
-}
