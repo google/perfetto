@@ -45,31 +45,31 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
   const char* s = str.data();
   size_t len = str.size();
 
-  // If str matches '[BEC]\|[0-9]+[\|\n]' set pid_length to the length of
+  // If str matches '[BEC]\|[0-9]+[\|\n]' set tid_length to the length of
   // the number. Otherwise return false.
   if (len < 3 || s[1] != '|')
     return false;
   if (s[0] != 'B' && s[0] != 'E' && s[0] != 'C')
     return false;
-  size_t pid_length;
+  size_t tid_length;
   for (size_t i = 2;; i++) {
     if (i >= len)
       return false;
     if (s[i] == '|' || s[i] == '\n') {
-      pid_length = i - 2;
+      tid_length = i - 2;
       break;
     }
     if (s[i] < '0' || s[i] > '9')
       return false;
   }
 
-  std::string pid_str(s + 2, pid_length);
-  out->pid = static_cast<uint32_t>(std::stoi(pid_str.c_str()));
+  std::string tid_str(s + 2, tid_length);
+  out->tid = static_cast<uint32_t>(std::stoi(tid_str.c_str()));
 
   out->phase = s[0];
   switch (s[0]) {
     case 'B': {
-      size_t name_index = 2 + pid_length + 1;
+      size_t name_index = 2 + tid_length + 1;
       out->name = base::StringView(s + name_index, len - name_index);
       return true;
     }
@@ -77,7 +77,7 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
       return true;
     }
     case 'C': {
-      size_t name_index = 2 + pid_length + 1;
+      size_t name_index = 2 + tid_length + 1;
       size_t name_length = 0;
       for (size_t i = name_index; i < len; i++) {
         if (s[i] == '|' || s[i] == '\n') {
@@ -289,24 +289,25 @@ void ProtoTraceParser::ParsePrint(uint32_t,
   if (!ParseSystraceTracePoint(buf, &point))
     return;
 
-  UniquePid upid = context_->process_tracker->UpdateProcess(point.pid);
+  UniqueTid utid =
+      context_->process_tracker->UpdateThread(timestamp, point.tid, 0);
 
   switch (point.phase) {
     case 'B': {
       StringId name_id = context_->storage->InternString(point.name);
-      context_->slice_tracker->Begin(timestamp, upid, 0 /*cat_id*/, name_id);
+      context_->slice_tracker->Begin(timestamp, utid, 0 /*cat_id*/, name_id);
       break;
     }
 
     case 'E': {
-      context_->slice_tracker->End(timestamp, upid);
+      context_->slice_tracker->End(timestamp, utid);
       break;
     }
 
     case 'C': {
       StringId name_id = context_->storage->InternString(point.name);
       context_->sched_tracker->PushCounter(timestamp, point.value, name_id,
-                                           upid, RefType::kUPID);
+                                           utid, RefType::kUTID);
     }
   }
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
