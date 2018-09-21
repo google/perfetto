@@ -45,20 +45,24 @@ type ThreadMap = Map<number, ThreadDesc>;
 class Globals {
   private _dispatch?: Dispatch = undefined;
   private _state?: State = undefined;
-  private _trackDataStore?: TrackDataStore = undefined;
-  private _queryResults?: QueryResultsStore = undefined;
   private _frontendLocalState?: FrontendLocalState = undefined;
   private _rafScheduler?: RafScheduler = undefined;
+
+  // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
+  private _trackDataStore?: TrackDataStore = undefined;
+  private _queryResults?: QueryResultsStore = undefined;
   private _overviewStore?: OverviewStore = undefined;
   private _threadMap?: ThreadMap = undefined;
 
   initialize(dispatch?: Dispatch) {
     this._dispatch = dispatch;
     this._state = createEmptyState();
-    this._trackDataStore = new Map<string, {}>();
-    this._queryResults = new Map<string, {}>();
     this._frontendLocalState = new FrontendLocalState();
     this._rafScheduler = new RafScheduler();
+
+    // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
+    this._trackDataStore = new Map<string, {}>();
+    this._queryResults = new Map<string, {}>();
     this._overviewStore = new Map<string, QuantizedLoad[]>();
     this._threadMap = new Map<number, ThreadDesc>();
   }
@@ -75,6 +79,15 @@ class Globals {
     return assertExists(this._dispatch);
   }
 
+  get frontendLocalState() {
+    return assertExists(this._frontendLocalState);
+  }
+
+  get rafScheduler() {
+    return assertExists(this._rafScheduler);
+  }
+
+  // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   get overviewStore(): OverviewStore {
     return assertExists(this._overviewStore);
   }
@@ -87,14 +100,6 @@ class Globals {
     return assertExists(this._queryResults);
   }
 
-  get frontendLocalState() {
-    return assertExists(this._frontendLocalState);
-  }
-
-  get rafScheduler() {
-    return assertExists(this._rafScheduler);
-  }
-
   get threads() {
     return assertExists(this._threadMap);
   }
@@ -102,11 +107,14 @@ class Globals {
   resetForTesting() {
     this._dispatch = undefined;
     this._state = undefined;
-    this._trackDataStore = undefined;
-    this._queryResults = undefined;
     this._frontendLocalState = undefined;
     this._rafScheduler = undefined;
+
+    // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
+    this._trackDataStore = undefined;
+    this._queryResults = undefined;
     this._overviewStore = undefined;
+    this._threadMap = undefined;
   }
 }
 

@@ -24,7 +24,8 @@ import {globals} from './globals';
 
 // TrackController is a base class overridden by track implementations (e.g.,
 // sched slices, nestable slices, counters).
-export abstract class TrackController<Config = {}> extends Controller<'main'> {
+export abstract class TrackController<Config = {}, Data = {}> extends
+    Controller<'main'> {
   readonly trackId: string;
   readonly engine: Engine;
 
@@ -45,6 +46,10 @@ export abstract class TrackController<Config = {}> extends Controller<'main'> {
 
   get config(): Config {
     return this.trackState.config as Config;
+  }
+
+  publish(data: Data): void {
+    globals.publish('TrackData', {id: this.trackId, data});
   }
 
   run() {
