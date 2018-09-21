@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {IRawQueryArgs, RawQueryResult, TraceProcessor} from '../common/protos';
+import {RawQueryResult, TraceProcessor} from '../common/protos';
 import {TimeSpan} from '../common/time';
 
 /**
@@ -24,7 +24,7 @@ import {TimeSpan} from '../common/time';
  * the given service.
  *
  * Engine also defines helpers for the most common service methods
- * (e.g. rawQuery).
+ * (e.g. query).
  */
 export abstract class Engine {
   abstract readonly id: string;
@@ -46,14 +46,15 @@ export abstract class Engine {
   abstract get rpc(): TraceProcessor;
 
   /**
-   * Send a raw SQL query to the engine.
+   * Shorthand for sending a SQL query to the engine.
+   * Exactly the same as engine.rpc.rawQuery({rawQuery});
    */
-  rawQuery(args: IRawQueryArgs): Promise<RawQueryResult> {
-    return this.rpc.rawQuery(args);
+  query(sqlQuery: string): Promise<RawQueryResult> {
+    return this.rpc.rawQuery({sqlQuery});
   }
 
-  async rawQueryOneRow(sqlQuery: string): Promise<number[]> {
-    const result = await this.rawQuery({sqlQuery});
+  async queryOneRow(query: string): Promise<number[]> {
+    const result = await this.query(query);
     const res: number[] = [];
     result.columns.map(c => res.push(+c.longValues![0]));
     return res;
@@ -62,18 +63,16 @@ export abstract class Engine {
   // TODO(hjd): Maybe we should cache result? But then Engine must be
   // streaming aware.
   async getNumberOfCpus(): Promise<number> {
-    const result = await this.rawQuery({
-      sqlQuery: 'select count(distinct(cpu)) as cpuCount from sched;',
-    });
+    const result =
+        await this.query('select count(distinct(cpu)) as cpuCount from sched;');
     return +result.columns[0].longValues![0];
   }
 
   // TODO: This should live in code that's more specific to chrome, instead of
   // in engine.
   async getNumberOfProcesses(): Promise<number> {
-    const result = await this.rawQuery({
-      sqlQuery: 'select count(distinct(upid)) from thread;',
-    });
+    const result =
+        await this.query('select count(distinct(upid)) from thread;');
     return +result.columns[0].longValues![0];
   }
 
@@ -82,8 +81,8 @@ export abstract class Engine {
         'union all select max(ts) as ts from slices)';
     const minQuery = 'select min(ts) from (select min(ts) as ts from sched ' +
         'union all select min(ts) as ts from slices)';
-    const start = (await this.rawQueryOneRow(minQuery))[0];
-    const end = (await this.rawQueryOneRow(maxQuery))[0];
+    const start = (await this.queryOneRow(minQuery))[0];
+    const end = (await this.queryOneRow(maxQuery))[0];
     return new TimeSpan(start / 1e9, end / 1e9);
   }
 }
