@@ -121,6 +121,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+    ctx.save();
     ctx.translate(TRACK_SHELL_WIDTH, 0);
     drawGridLines(
         ctx,
@@ -129,5 +130,6 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
         size.height);
 
     this.track.renderCanvas(ctx);
+    ctx.restore();
   }
 }
