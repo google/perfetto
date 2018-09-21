@@ -112,7 +112,7 @@ export class TraceController extends Controller<States> {
   private async loadTrace() {
     globals.dispatch(updateStatus('Creating trace processor'));
     const engineCfg = assertExists(globals.state.engines[this.engineId]);
-    this.engine = await globals.createEngine();
+    this.engine = globals.createEngine();
 
     const statusHeader = 'Opening trace';
     if (engineCfg.source instanceof File) {

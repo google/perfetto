@@ -17,23 +17,13 @@ import * as init_trace_processor from '../gen/trace_processor';
 import {WasmBridge, WasmBridgeRequest} from './wasm_bridge';
 
 // tslint:disable no-any
-
-// We expect to get exactly one message from the creator of the worker:
-// a MessagePort we should listen to for future messages.
-// This indirection is due to workers not being able create workers in Chrome
-// which is tracked at: crbug.com/31666
-// TODO(hjd): Remove this once the fix has landed.
-// Once we have the MessagePort we proxy all messages to WasmBridge#callWasm.
+// Proxy all messages to WasmBridge#callWasm.
 const anySelf = (self as any);
+const boundPostMessage = anySelf.postMessage.bind(anySelf);
+const bridge = new WasmBridge(init_trace_processor, boundPostMessage);
+bridge.initialize();
+
 anySelf.onmessage = (msg: MessageEvent) => {
-  const port: MessagePort = msg.data;
-
-  const bridge =
-      new WasmBridge(init_trace_processor, port.postMessage.bind(port));
-  bridge.initialize();
-
-  port.onmessage = (msg: MessageEvent) => {
-    const request: WasmBridgeRequest = msg.data;
-    bridge.callWasm(request);
-  };
+  const request: WasmBridgeRequest = msg.data;
+  bridge.callWasm(request);
 };
