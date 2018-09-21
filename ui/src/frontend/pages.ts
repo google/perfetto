@@ -27,11 +27,11 @@ function renderPermalink(): m.Children {
       hash ? ['Permalink: ', m(`a[href=${url}]`, url)] : 'Uploading...');
 }
 
-const Alerts: m.Component = {
+class Alerts implements m.ClassComponent {
   view() {
     return m('.alerts', renderPermalink());
-  },
-};
+  }
+}
 
 const TogglePerfDebugButton = {
   view() {

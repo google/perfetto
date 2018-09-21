@@ -89,13 +89,14 @@ function onKeyUp(e: Event) {
 }
 
 
-const Omnibox: m.Component = {
-  oncreate(vnode) {
+class Omnibox implements m.ClassComponent {
+  oncreate(vnode: m.VnodeDOM) {
     const txt = vnode.dom.querySelector('input') as HTMLInputElement;
     txt.addEventListener('blur', clearOmniboxResults);
     txt.addEventListener('keydown', onKeyDown);
     txt.addEventListener('keyup', onKeyUp);
-  },
+  }
+
   view() {
     const msgTTL = globals.state.status.timestamp + 3 - Date.now() / 1e3;
     let enginesAreBusy = false;
@@ -131,10 +132,10 @@ const Omnibox: m.Component = {
         `.omnibox${commandMode ? '.command-mode' : ''}`,
         m(`input[placeholder=${placeholder[mode]}]`),
         m('.omnibox-results', results));
-  },
-};
+  }
+}
 
-export const Topbar: m.Component = {
+export class Topbar implements m.ClassComponent {
   view() {
     const progBar = [];
     const engine: EngineConfig = globals.state.engines['0'];
@@ -142,7 +143,6 @@ export const Topbar: m.Component = {
         (engine !== undefined && !engine.ready)) {
       progBar.push(m('.progress'));
     }
-
-    return m('.topbar', m(Omnibox), ...progBar, );
-  },
-};
+    return m('.topbar', m(Omnibox), ...progBar);
+  }
+}

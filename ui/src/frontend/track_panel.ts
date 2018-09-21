@@ -32,8 +32,11 @@ function isPinned(id: string) {
   return globals.state.pinnedTracks.indexOf(id) !== -1;
 }
 
-const TrackShell = {
-  view({attrs}) {
+interface TrackShellAttrs {
+  trackState: TrackState;
+}
+class TrackShell implements m.ClassComponent<TrackShellAttrs> {
+  view({attrs}: m.CVnode<TrackShellAttrs>) {
     return m(
         '.track-shell',
         m('h1', attrs.trackState.name),
@@ -49,11 +52,14 @@ const TrackShell = {
           action: toggleTrackPinned(attrs.trackState.id),
           i: isPinned(attrs.trackState.id) ? 'star' : 'star_border',
         }));
-  },
-} as m.Component<{trackState: TrackState}>;
+  }
+}
 
-const TrackContent = {
-  view({attrs}) {
+interface TrackContentAttrs {
+  track: Track;
+}
+class TrackContent implements m.ClassComponent<TrackContentAttrs> {
+  view({attrs}: m.CVnode<TrackContentAttrs>) {
     return m('.track-content', {
       onmousemove: (e: MouseEvent) => {
         attrs.track.onMouseMove({x: e.layerX, y: e.layerY});
@@ -65,19 +71,27 @@ const TrackContent = {
       },
     }, );
   }
-} as m.Component<{track: Track}>;
+}
 
-const TrackComponent = {
-  view({attrs}) {
+interface TrackComponentAttrs {
+  trackState: TrackState;
+  track: Track;
+}
+class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
+  view({attrs}: m.CVnode<TrackComponentAttrs>) {
     return m('.track', [
       m(TrackShell, {trackState: attrs.trackState}),
       m(TrackContent, {track: attrs.track})
     ]);
   }
-} as m.Component<{trackState: TrackState, track: Track}>;
+}
 
-const TrackButton = {
-  view({attrs}) {
+interface TrackButtonAttrs {
+  action: Action;
+  i: string;
+}
+class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
+  view({attrs}: m.CVnode<TrackButtonAttrs>) {
     return m(
         'i.material-icons.track-button',
         {
@@ -85,11 +99,7 @@ const TrackButton = {
         },
         attrs.i);
   }
-} as m.Component<{
-  action: Action,
-  i: string,
-},
-                    {}>;
+}
 
 interface TrackPanelAttrs {
   id: string;
