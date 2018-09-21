@@ -13,19 +13,14 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
-import {globals} from '../../controller/globals';
 import {
   TrackController,
   trackControllerRegistry
 } from '../../controller/track_controller';
 
-import {
-  CPU_SLICE_TRACK_KIND,
-  CpuSliceTrackConfig,
-  CpuSliceTrackData
-} from './common';
+import {Config, CPU_SLICE_TRACK_KIND, Data} from './common';
 
-class CpuSliceTrackController extends TrackController<CpuSliceTrackConfig> {
+class CpuSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = CPU_SLICE_TRACK_KIND;
   private busy = false;
 
@@ -50,7 +45,7 @@ class CpuSliceTrackController extends TrackController<CpuSliceTrackConfig> {
       }
       const numRows = +rawResult.numRecords;
 
-      const slices: CpuSliceTrackData = {
+      const slices: Data = {
         start,
         end,
         resolution,
@@ -69,7 +64,7 @@ class CpuSliceTrackController extends TrackController<CpuSliceTrackConfig> {
       if (numRows === LIMIT) {
         slices.end = slices.ends[slices.ends.length - 1];
       }
-      globals.publish('TrackData', {id: this.trackId, data: slices});
+      this.publish(slices);
     });
   }
 }

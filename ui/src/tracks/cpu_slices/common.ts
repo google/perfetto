@@ -14,7 +14,7 @@
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 
-export interface CpuSliceTrackData {
+export interface Data {
   start: number;
   end: number;
   resolution: number;
@@ -25,4 +25,4 @@ export interface CpuSliceTrackData {
   utids: Uint32Array;
 }
 
-export interface CpuSliceTrackConfig { cpu: number; }
+export interface Config { cpu: number; }
