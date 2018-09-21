@@ -751,3 +751,22 @@ source_set("jsoncpp") {
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":jsoncpp_config" ]
 }
+
+config("linenoise_config") {
+  cflags = [
+    # Using -isystem instead of include_dirs (-I), so we don't need to suppress
+    # warnings coming from third-party headers. Doing so would mask warnings in
+    # our own code.
+    "-isystem",
+    rebase_path("linenoise", root_build_dir),
+  ]
+}
+
+source_set("linenoise") {
+  sources = [
+    "linenoise/linenoise.c",
+    "linenoise/linenoise.h",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  public_configs = [ ":linenoise_config" ]
+}
