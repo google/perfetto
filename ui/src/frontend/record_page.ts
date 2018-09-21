@@ -29,8 +29,12 @@ async function copyToClipboard(text: string): Promise<void> {
   }
 }
 
-const CodeSample: m.Component<{text: string}, {}> = {
-  view({attrs}) {
+interface CodeSampleAttrs {
+  text: string;
+}
+
+class CodeSample implements m.ClassComponent<CodeSampleAttrs> {
+  view({attrs}: m.CVnode<CodeSampleAttrs>) {
     return m(
         '.example-code',
         m('code', attrs.text),
@@ -39,8 +43,8 @@ const CodeSample: m.Component<{text: string}, {}> = {
             onclick: () => copyToClipboard(attrs.text),
           },
           'Copy to clipboard'), );
-  },
-};
+  }
+}
 
 export const RecordPage = createPage({
   view() {
