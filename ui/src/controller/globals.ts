@@ -17,9 +17,13 @@ import {Remote} from '../base/remote';
 import {Action} from '../common/actions';
 import {createEmptyState, State} from '../common/state';
 import {ControllerAny} from './controller';
-import {Engine, EnginePortAndId} from './engine';
+import {Engine} from './engine';
 import {rootReducer} from './reducer';
 import {WasmEngineProxy} from './wasm_engine_proxy';
+import {
+  createWasmEngine,
+  destroyWasmEngine,
+} from './wasm_engine_proxy';
 
 /**
  * Global accessors for state/dispatch in the controller.
@@ -79,14 +83,14 @@ class Globals {
     console.timeEnd(summary);
   }
 
-  async createEngine(): Promise<Engine> {
-    const portAndId = await assertExists(this._frontend)
-                          .send<EnginePortAndId>('createEngine', []);
-    return WasmEngineProxy.create(portAndId);
+  createEngine(): Engine {
+    const id = new Date().toUTCString();
+    const portAndId = {id, worker: createWasmEngine(id)};
+    return new WasmEngineProxy(portAndId);
   }
 
-  async destroyEngine(id: string): Promise<void> {
-    await assertExists(this._frontend).send<void>('destroyEngine', [id]);
+  destroyEngine(id: string): void {
+    destroyWasmEngine(id);
   }
 
   // TODO: this needs to be cleaned up.
