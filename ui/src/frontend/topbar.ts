@@ -143,6 +143,6 @@ export const Topbar: m.Component = {
       progBar.push(m('.progress'));
     }
 
-    return m('.topbar', m(Omnibox), ...progBar);
+    return m('.topbar', m(Omnibox), ...progBar, );
   },
 };
