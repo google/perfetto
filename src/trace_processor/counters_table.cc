@@ -95,8 +95,8 @@ int CountersTable::Cursor::Column(sqlite3_context* context, int N) {
           sqlite3_result_text(context, "cpu", -1, nullptr);
           break;
         }
-        case RefType::kUPID: {
-          sqlite3_result_text(context, "upid", -1, nullptr);
+        case RefType::kUTID: {
+          sqlite3_result_text(context, "utid", -1, nullptr);
           break;
         }
       }
