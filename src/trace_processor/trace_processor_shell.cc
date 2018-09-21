@@ -57,7 +57,7 @@ void SetupLineEditor() {
   linenoiseHistorySetMaxLen(1000);
 }
 
-void FreeLine(char*) {
+void FreeLine(char* line) {
   linenoiseHistoryAdd(line);
   linenoiseFree(line);
 }
