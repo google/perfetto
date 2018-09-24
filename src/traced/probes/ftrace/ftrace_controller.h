@@ -89,7 +89,6 @@ class FtraceController {
   friend class TestFtraceController;
   FRIEND_TEST(FtraceControllerIntegrationTest, EnableDisableEvent);
 
-
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
 

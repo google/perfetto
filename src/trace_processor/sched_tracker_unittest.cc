@@ -49,7 +49,7 @@ TEST_F(SchedTrackerTest, InsertSecondSched) {
   static const char kCommProc2[] = "process2";
   uint32_t pid_2 = 4;
 
-  const auto& timestamps = context.storage->SlicesForCpu(cpu).start_ns();
+  const auto& timestamps = context.storage->slices().start_ns();
   context.sched_tracker->PushSchedSwitch(cpu, timestamp, pid_1, prev_state,
                                          kCommProc1, pid_2);
   ASSERT_EQ(timestamps.size(), 0);
@@ -63,7 +63,7 @@ TEST_F(SchedTrackerTest, InsertSecondSched) {
   ASSERT_EQ(std::string(context.storage->GetString(
                 context.storage->GetThread(1).name_id)),
             kCommProc2);
-  ASSERT_EQ(context.storage->SlicesForCpu(cpu).utids().front(), 1);
+  ASSERT_EQ(context.storage->slices().utids().front(), 1);
 }
 
 TEST_F(SchedTrackerTest, InsertThirdSched_SameThread) {
@@ -73,7 +73,7 @@ TEST_F(SchedTrackerTest, InsertThirdSched_SameThread) {
   static const char kCommProc1[] = "process1";
   static const char kCommProc2[] = "process2";
 
-  const auto& timestamps = context.storage->SlicesForCpu(cpu).start_ns();
+  const auto& timestamps = context.storage->slices().start_ns();
   context.sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/4, prev_state,
                                          kCommProc1,
                                          /*tid=*/2);
@@ -92,11 +92,11 @@ TEST_F(SchedTrackerTest, InsertThirdSched_SameThread) {
   ASSERT_EQ(timestamps.size(), 3ul);
   ASSERT_EQ(timestamps[0], timestamp);
   ASSERT_EQ(context.storage->GetThread(1).start_ns, timestamp);
-  ASSERT_EQ(context.storage->SlicesForCpu(cpu).durations().at(0), 1u);
-  ASSERT_EQ(context.storage->SlicesForCpu(cpu).durations().at(1), 11u - 1u);
-  ASSERT_EQ(context.storage->SlicesForCpu(cpu).durations().at(2), 31u - 11u);
-  ASSERT_EQ(context.storage->SlicesForCpu(cpu).utids().at(0),
-            context.storage->SlicesForCpu(cpu).utids().at(2));
+  ASSERT_EQ(context.storage->slices().durations().at(0), 1u);
+  ASSERT_EQ(context.storage->slices().durations().at(1), 11u - 1u);
+  ASSERT_EQ(context.storage->slices().durations().at(2), 31u - 11u);
+  ASSERT_EQ(context.storage->slices().utids().at(0),
+            context.storage->slices().utids().at(2));
 }
 
 TEST_F(SchedTrackerTest, CounterDuration) {
