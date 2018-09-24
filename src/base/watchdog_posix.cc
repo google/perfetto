@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+
+// Watchdog is currently not supported on Mac. This ifdef-based exclusion is
+// here only for the Mac build in AOSP. The standalone and chromium builds
+// exclude this file at the GN level. However, propagating the per-os exclusion
+// through our GN -> BP build file translator is not worth the effort for a
+// one-off case.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+
 #include "perfetto/base/watchdog_posix.h"
 
 #include "perfetto/base/logging.h"
@@ -254,3 +263,5 @@ Watchdog::Timer::Timer(Timer&& other) noexcept {
 
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // PERFETTO_OS_MACOSX
