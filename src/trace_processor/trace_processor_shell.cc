@@ -71,7 +71,7 @@ char* GetLine(const char* prompt) {
 void SetupLineEditor() {}
 
 void FreeLine(char* line) {
-  free(line);
+  delete[] line;
 }
 
 char* GetLine(const char* prompt) {
