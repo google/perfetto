@@ -56,7 +56,7 @@ message ChromeTraceEvent {
   optional string category_group_name = 10;
   optional int32 process_id = 11;
   optional int64 thread_timestamp = 12;
-  optional uint32 bind_id = 13;
+  optional uint64 bind_id = 13;
 
   repeated Arg args = 14;
 
