@@ -43,6 +43,25 @@ inline bool IsOpLt(int op) {
   return op == SQLITE_INDEX_CONSTRAINT_LT;
 }
 
+inline std::string OpToString(int op) {
+  switch (op) {
+    case SQLITE_INDEX_CONSTRAINT_EQ:
+      return "=";
+    case SQLITE_INDEX_CONSTRAINT_NE:
+      return "!=";
+    case SQLITE_INDEX_CONSTRAINT_GE:
+      return ">=";
+    case SQLITE_INDEX_CONSTRAINT_GT:
+      return ">";
+    case SQLITE_INDEX_CONSTRAINT_LE:
+      return "<=";
+    case SQLITE_INDEX_CONSTRAINT_LT:
+      return "<";
+    default:
+      PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
+  }
+}
+
 }  // namespace sqlite_utils
 }  // namespace trace_processor
 }  // namespace perfetto

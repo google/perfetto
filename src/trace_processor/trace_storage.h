@@ -78,17 +78,21 @@ class TraceStorage {
     uint32_t tid = 0;
   };
 
-  class SlicesPerCpu {
+  class Slices {
    public:
-    inline void AddSlice(uint64_t start_ns,
+    inline void AddSlice(uint32_t cpu,
+                         uint64_t start_ns,
                          uint64_t duration_ns,
                          UniqueTid utid) {
+      cpus_.emplace_back(cpu);
       start_ns_.emplace_back(start_ns);
       durations_.emplace_back(duration_ns);
       utids_.emplace_back(utid);
     }
 
     size_t slice_count() const { return start_ns_.size(); }
+
+    const std::deque<uint32_t>& cpus() const { return cpus_; }
 
     const std::deque<uint64_t>& start_ns() const { return start_ns_; }
 
@@ -99,6 +103,7 @@ class TraceStorage {
    private:
     // Each deque below has the same number of entries (the number of slices
     // in the trace for the CPU).
+    std::deque<uint32_t> cpus_;
     std::deque<uint64_t> start_ns_;
     std::deque<uint64_t> durations_;
     std::deque<UniqueTid> utids_;
@@ -225,11 +230,6 @@ class TraceStorage {
   }
 
   // Reading methods.
-  const SlicesPerCpu& SlicesForCpu(uint32_t cpu) const {
-    PERFETTO_DCHECK(cpu < cpu_events_.size());
-    return cpu_events_[cpu];
-  }
-
   const std::string& GetString(StringId id) const {
     PERFETTO_DCHECK(id < string_pool_.size());
     return string_pool_[id];
@@ -246,6 +246,7 @@ class TraceStorage {
     return unique_threads_[utid];
   }
 
+  const Slices& slices() const { return slices_; }
   const NestableSlices& nestable_slices() const { return nestable_slices_; }
   NestableSlices* mutable_nestable_slices() { return &nestable_slices_; }
 
@@ -272,7 +273,7 @@ class TraceStorage {
   Stats stats_;
 
   // One entry for each CPU in the trace.
-  std::array<SlicesPerCpu, base::kMaxCpus> cpu_events_;
+  Slices slices_;
 
   // One entry for each unique string in the trace.
   std::deque<std::string> string_pool_;
