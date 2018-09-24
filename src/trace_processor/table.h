@@ -57,6 +57,9 @@ class Table : public sqlite3_vtab {
     virtual int Eof() = 0;
     virtual int Column(sqlite3_context* context, int N) = 0;
 
+    // Optional methods to implement.
+    virtual int RowId(sqlite3_int64*);
+
    private:
     friend class Table;
 
@@ -79,8 +82,9 @@ class Table : public sqlite3_vtab {
   template <typename T>
   static void Register(sqlite3* db,
                        const TraceStorage* storage,
-                       const std::string& name) {
-    RegisterInternal(db, storage, name, GetFactory<T>());
+                       const std::string& name,
+                       bool read_write = false) {
+    RegisterInternal(db, storage, name, read_write, GetFactory<T>());
   }
 
   // Methods to be implemented by derived table classes.
@@ -91,6 +95,9 @@ class Table : public sqlite3_vtab {
   // Optional metods to implement.
   using FindFunctionFn = void (**)(sqlite3_context*, int, sqlite3_value**);
   virtual int FindFunction(const char* name, FindFunctionFn fn, void** args);
+
+  // At registration time, the function should also pass true for |read_write|.
+  virtual int Update(int, sqlite3_value**, sqlite3_int64*);
 
  private:
   template <typename TableType>
@@ -103,6 +110,7 @@ class Table : public sqlite3_vtab {
   static void RegisterInternal(sqlite3* db,
                                const TraceStorage*,
                                const std::string& name,
+                               bool read_write,
                                Factory);
 
   // Overriden functions from sqlite3_vtab.
