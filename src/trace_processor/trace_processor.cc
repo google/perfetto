@@ -34,6 +34,7 @@
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/thread_table.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/window_operator_table.h"
 
 #include "perfetto/trace_processor/raw_query.pb.h"
 
@@ -60,6 +61,7 @@ TraceProcessor::TraceProcessor(const Config& cfg) {
   ThreadTable::RegisterTable(*db_, context_.storage.get());
   CountersTable::RegisterTable(*db_, context_.storage.get());
   SpanOperatorTable::RegisterTable(*db_, context_.storage.get());
+  WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
 }
 
 TraceProcessor::~TraceProcessor() = default;

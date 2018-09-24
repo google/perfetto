@@ -84,6 +84,8 @@ source_set("lib") {
     "trace_storage.cc",
     "trace_storage.h",
     "virtual_destructors.cc",
+    "window_operator_table.cc",
+    "window_operator_table.h",
   ]
   deps = [
     "../../buildtools:sqlite",
