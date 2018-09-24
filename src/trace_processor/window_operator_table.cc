@@ -133,24 +133,44 @@ int WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
   current_cpu_ = 0;
   quantum_ts_ = 0;
   row_id_ = 0;
-  return_first = qc.constraints().size() == 1 &&
-                 qc.constraints()[0].iColumn == Column::kRowId &&
-                 sqlite3_value_int(v[0]) == 0;
+
+  // Set return first if there is a equals constraint on the row id asking to
+  // return the first row.
+  bool return_first = qc.constraints().size() == 1 &&
+                      qc.constraints()[0].iColumn == Column::kRowId &&
+                      IsOpEq(qc.constraints()[0].op) &&
+                      sqlite3_value_int(v[0]) == 0;
+  // Set return CPU if there is an equals constraint on the CPU column.
+  bool return_cpu = qc.constraints().size() == 1 &&
+                    qc.constraints()[0].iColumn == Column::kCpu &&
+                    IsOpEq(qc.constraints()[0].op);
+  if (return_first) {
+    filter_type_ = FilterType::kReturnFirst;
+  } else if (return_cpu) {
+    filter_type_ = FilterType::kReturnCpu;
+    current_cpu_ = static_cast<uint32_t>(sqlite3_value_int(v[0]));
+  } else {
+    filter_type_ = FilterType::kReturnAll;
+  }
   return SQLITE_OK;
 }
 
 int WindowOperatorTable::Cursor::Next() {
-  // If we're only returning the first row, set the values to EOF.
-  if (return_first) {
-    current_cpu_ = base::kMaxCpus;
-    current_ts_ = window_end_;
-    return SQLITE_OK;
-  }
-
-  if (++current_cpu_ == base::kMaxCpus && current_ts_ < window_end_) {
-    current_cpu_ = 0;
-    current_ts_ += step_size_;
-    quantum_ts_++;
+  switch (filter_type_) {
+    case FilterType::kReturnFirst:
+      current_ts_ = window_end_;
+      break;
+    case FilterType::kReturnCpu:
+      current_ts_ += step_size_;
+      quantum_ts_++;
+      break;
+    case FilterType::kReturnAll:
+      if (++current_cpu_ == base::kMaxCpus && current_ts_ < window_end_) {
+        current_cpu_ = 0;
+        current_ts_ += step_size_;
+        quantum_ts_++;
+      }
+      break;
   }
   row_id_++;
   return SQLITE_OK;
