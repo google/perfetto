@@ -52,6 +52,7 @@ Table::~Table() = default;
 void Table::RegisterInternal(sqlite3* db,
                              const TraceStorage* storage,
                              const std::string& table_name,
+                             bool read_write,
                              Factory factory) {
   std::unique_ptr<TableDescriptor> desc(new TableDescriptor());
   desc->storage = storage;
@@ -60,8 +61,8 @@ void Table::RegisterInternal(sqlite3* db,
   sqlite3_module* module = &desc->module;
   memset(module, 0, sizeof(*module));
 
-  module->xConnect = [](sqlite3* xdb, void* arg, int argc,
-                        const char* const* argv, sqlite3_vtab** tab, char**) {
+  auto create_fn = [](sqlite3* xdb, void* arg, int argc,
+                      const char* const* argv, sqlite3_vtab** tab, char**) {
     const TableDescriptor* xdesc = static_cast<const TableDescriptor*>(arg);
     auto table = xdesc->factory(xdb, xdesc->storage);
 
@@ -79,11 +80,15 @@ void Table::RegisterInternal(sqlite3* db,
 
     return SQLITE_OK;
   };
+  module->xCreate = create_fn;
+  module->xConnect = create_fn;
 
-  module->xDisconnect = [](sqlite3_vtab* t) {
+  auto destroy_fn = [](sqlite3_vtab* t) {
     delete ToTable(t);
     return SQLITE_OK;
   };
+  module->xDisconnect = destroy_fn;
+  module->xDestroy = destroy_fn;
 
   module->xOpen = [](sqlite3_vtab* t, sqlite3_vtab_cursor** c) {
     return ToTable(t)->OpenInternal(c);
@@ -108,14 +113,21 @@ void Table::RegisterInternal(sqlite3* db,
     return ToCursor(c)->Column(a, b);
   };
 
-  module->xRowid = [](sqlite3_vtab_cursor*, sqlite_int64*) {
-    return SQLITE_ERROR;
+  module->xRowid = [](sqlite3_vtab_cursor* c, sqlite3_int64* r) {
+    return ToCursor(c)->RowId(r);
   };
 
   module->xFindFunction =
       [](sqlite3_vtab* t, int, const char* name,
          void (**fn)(sqlite3_context*, int, sqlite3_value**),
          void** args) { return ToTable(t)->FindFunction(name, fn, args); };
+
+  if (read_write) {
+    module->xUpdate = [](sqlite3_vtab* t, int a, sqlite3_value** v,
+                         sqlite3_int64* r) {
+      return ToTable(t)->Update(a, v, r);
+    };
+  }
 
   int res = sqlite3_create_module_v2(
       db, table_name.c_str(), module, desc.release(),
@@ -186,9 +198,17 @@ int Table::BestIndexInternal(sqlite3_index_info* idx) {
 
 int Table::FindFunction(const char*, FindFunctionFn, void**) {
   return 0;
-};
+}
+
+int Table::Update(int, sqlite3_value**, sqlite3_int64*) {
+  return SQLITE_READONLY;
+}
 
 Table::Cursor::~Cursor() = default;
+
+int Table::Cursor::RowId(sqlite3_int64*) {
+  return SQLITE_ERROR;
+}
 
 int Table::Cursor::FilterInternal(int idxNum,
                                   const char* idxStr,
