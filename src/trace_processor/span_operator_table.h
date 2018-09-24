@@ -185,12 +185,23 @@ class SpanOperatorTable : public Table {
     int Column(sqlite3_context* context, int N) override;
 
    private:
-    int PrepareRawStmt(const TableDefinition& def, sqlite3_stmt**);
+    int PrepareRawStmt(const QueryConstraints& qc,
+                       sqlite3_value** argv,
+                       const TableDefinition& def,
+                       bool is_t1,
+                       sqlite3_stmt**);
 
     sqlite3* const db_;
     SpanOperatorTable* const table_;
     std::unique_ptr<FilterState> filter_state_;
   };
+
+  // Converts a joined column index into an index on the columns of the child
+  // tables.
+  // Returns a (bool, index) pair with the bool indicating whether the index is
+  // into table 1 and the index being the offset into the relevant table's
+  // columns.
+  std::pair<bool, size_t> GetTableAndColumnIndex(int joined_column_idx);
 
   TableDefinition t1_defn_;
   TableDefinition t2_defn_;

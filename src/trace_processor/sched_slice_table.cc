@@ -176,6 +176,13 @@ SchedSliceTable::FilterState::FilterState(
     const QueryConstraints& query_constraints,
     sqlite3_value** argv)
     : order_by_(query_constraints.order_by()), storage_(storage) {
+  // Remove ordering on timestamp if it is the only ordering as we are already
+  // sorted on TS. This makes span joining significantly faster.
+  if (order_by_.size() == 1 && order_by_[0].iColumn == Column::kTimestamp &&
+      !order_by_[0].desc) {
+    order_by_.clear();
+  }
+
   std::bitset<base::kMaxCpus> cpu_filter;
   cpu_filter.set();
 

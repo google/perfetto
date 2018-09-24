@@ -55,7 +55,14 @@ std::unique_ptr<Table::Cursor> WindowOperatorTable::CreateCursor() {
       new Cursor(this, window_start_, window_end, step_size));
 }
 
-int WindowOperatorTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
+int WindowOperatorTable::BestIndex(const QueryConstraints& qc,
+                                   BestIndexInfo* info) {
+  // Remove ordering on timestamp if it is the only ordering as we are already
+  // sorted on TS. This makes span joining significantly faster.
+  if (qc.order_by().size() == 1 && qc.order_by()[0].iColumn == Column::kTs &&
+      !qc.order_by()[0].desc) {
+    info->order_by_consumed = true;
+  }
   return SQLITE_OK;
 }
 
