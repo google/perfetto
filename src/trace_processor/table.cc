@@ -60,8 +60,8 @@ void Table::RegisterInternal(sqlite3* db,
   sqlite3_module* module = &desc->module;
   memset(module, 0, sizeof(*module));
 
-  module->xConnect = [](sqlite3* xdb, void* arg, int argc,
-                        const char* const* argv, sqlite3_vtab** tab, char**) {
+  auto create_fn = [](sqlite3* xdb, void* arg, int argc,
+                      const char* const* argv, sqlite3_vtab** tab, char**) {
     const TableDescriptor* xdesc = static_cast<const TableDescriptor*>(arg);
     auto table = xdesc->factory(xdb, xdesc->storage);
 
@@ -79,11 +79,15 @@ void Table::RegisterInternal(sqlite3* db,
 
     return SQLITE_OK;
   };
+  module->xCreate = create_fn;
+  module->xConnect = create_fn;
 
-  module->xDisconnect = [](sqlite3_vtab* t) {
+  auto destroy_fn = [](sqlite3_vtab* t) {
     delete ToTable(t);
     return SQLITE_OK;
   };
+  module->xDisconnect = destroy_fn;
+  module->xDestroy = destroy_fn;
 
   module->xOpen = [](sqlite3_vtab* t, sqlite3_vtab_cursor** c) {
     return ToTable(t)->OpenInternal(c);

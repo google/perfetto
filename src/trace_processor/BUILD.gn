@@ -65,6 +65,8 @@ source_set("lib") {
     "slice_table.h",
     "slice_tracker.cc",
     "slice_tracker.h",
+    "span_operator_table.cc",
+    "span_operator_table.h",
     "sqlite_utils.h",
     "string_table.cc",
     "string_table.h",
@@ -142,6 +144,7 @@ source_set("unittests") {
     "sched_slice_table_unittest.cc",
     "sched_tracker_unittest.cc",
     "slice_tracker_unittest.cc",
+    "span_operator_table_unittest.cc",
     "thread_table_unittest.cc",
     "trace_sorter_unittest.cc",
   ]

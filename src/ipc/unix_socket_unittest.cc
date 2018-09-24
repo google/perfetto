@@ -244,8 +244,8 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeFDs) {
 
   int buf_fd[2] = {null_fd.get(), zero_fd.get()};
 
-  ASSERT_TRUE(cli->Send(cli_str, sizeof(cli_str), buf_fd,
-                        base::ArraySize(buf_fd)));
+  ASSERT_TRUE(
+      cli->Send(cli_str, sizeof(cli_str), buf_fd, base::ArraySize(buf_fd)));
   ASSERT_TRUE(srv_conn->Send(srv_str, sizeof(srv_str), buf_fd,
                              base::ArraySize(buf_fd)));
   task_runner_.RunUntilCheckpoint("srv_did_recv");
