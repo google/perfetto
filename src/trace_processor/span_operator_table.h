@@ -21,6 +21,7 @@
 #include <array>
 #include <deque>
 #include <limits>
+#include <map>
 #include <memory>
 
 #include "src/trace_processor/scoped_db.h"
@@ -36,7 +37,7 @@ namespace trace_processor {
 // operations which run for a particular *span* of time.
 //
 // We draw spans like so (time on the x-axis):
-// start of span->[ time where opeation is running ]<- end of span
+// start of span->[ time where opertion is running ]<- end of span
 //
 // Multiple spans can happen in parallel:
 // [      ]
@@ -104,6 +105,13 @@ class SpanOperatorTable : public Table {
  private:
   static constexpr uint8_t kReservedColumns = Column::kJoinValue + 1;
 
+  // Contains the definition of the child tables.
+  struct TableDefinition {
+    std::string name;
+    std::vector<ColumnDefinition> cols;
+    std::string join_col_name;
+  };
+
   // State used when filtering on the span table.
   class FilterState {
    public:
@@ -116,7 +124,7 @@ class SpanOperatorTable : public Table {
 
    private:
     // Details of a row of one of the child tables.
-    struct TableRow {
+    struct Span {
       uint64_t ts = 0;
       uint64_t dur = 0;
       std::vector<Value> values;  // One for each column.
@@ -128,35 +136,38 @@ class SpanOperatorTable : public Table {
       size_t col_count = 0;
       ScopedStmt stmt;
 
-      // TODO(lalitm): change this from being an arrray to a map.
-      std::array<TableRow, base::kMaxCpus> rows;
+      // The rows of the table indexed by the values of join column.
+      // TODO(lalitm): see how we can expand this past int64_t.
+      std::map<int64_t, Span> spans;
+    };
+
+    // A span which has data from both tables associated with it.
+    struct IntersectingSpan {
+      uint64_t ts = 0;
+      uint64_t dur = 0;
+      int64_t join_val = 0;
+      Span t1_span;
+      Span t2_span;
     };
 
     // Computes the next value from the child tables.
     int ExtractNext(bool pull_t1);
 
-    // Sets the return values for the given rows from table 1 and 2 if valid.
-    // Returns true if anything should returned, false otherwise.
-    bool SetupReturnForJoinValue(uint32_t join_value,
-                                 const TableRow& t1_row,
-                                 const TableRow& t2_row);
+    // Add an intersecting span to the queue if the two child spans intersect
+    // at any point in time.
+    bool MaybeAddIntersectingSpan(int64_t join_value,
+                                  Span t1_span,
+                                  Span t2_span);
 
     // Reports to SQLite the value given by |value| based on its type.
     void ReportSqliteResult(sqlite3_context* context,
                             SpanOperatorTable::Value value);
 
-    uint64_t ts_ = 0;
-    uint64_t dur_ = 0;
-    uint32_t join_val_ = 0;
-    TableRow t1_ret_row_;
-    TableRow t2_ret_row_;
-
     TableState t1_;
     TableState t2_;
 
-    // TODO(lalitm): change this to be a iterator into t1's rows.
-    uint32_t cleanup_join_val_ = 0;
-    bool is_eof_ = true;
+    bool children_have_more_ = true;
+    std::deque<IntersectingSpan> intersecting_spans_;
 
     SpanOperatorTable* const table_;
   };
@@ -174,20 +185,15 @@ class SpanOperatorTable : public Table {
     int Column(sqlite3_context* context, int N) override;
 
    private:
+    int PrepareRawStmt(const TableDefinition& def, sqlite3_stmt**);
+
     sqlite3* const db_;
     SpanOperatorTable* const table_;
     std::unique_ptr<FilterState> filter_state_;
   };
 
-  // Contains the definition of the child tables.
-  struct TableDefinition {
-    std::string name;
-    std::vector<ColumnDefinition> cols;
-    std::string join_col_name;
-  };
-
-  TableDefinition t1_;
-  TableDefinition t2_;
+  TableDefinition t1_defn_;
+  TableDefinition t2_defn_;
   std::string join_col_;
 
   sqlite3* const db_;
