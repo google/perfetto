@@ -129,8 +129,8 @@ void ProbesProducer::Restart() {
   ConnectWithRetries(socket_name, task_runner);
 }
 
-void ProbesProducer::CreateDataSourceInstance(DataSourceInstanceID instance_id,
-                                              const DataSourceConfig& config) {
+void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
+                                     const DataSourceConfig& config) {
   PERFETTO_DCHECK(data_sources_.count(instance_id) == 0);
   TracingSessionID session_id = config.tracing_session_id();
   PERFETTO_CHECK(session_id > 0);
@@ -241,7 +241,7 @@ std::unique_ptr<SysStatsDataSource> ProbesProducer::CreateSysStatsDataSource(
   return data_source;
 }
 
-void ProbesProducer::TearDownDataSourceInstance(DataSourceInstanceID id) {
+void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   PERFETTO_LOG("Producer stop (id=%" PRIu64 ")", id);
   auto it = data_sources_.find(id);
   if (it == data_sources_.end()) {

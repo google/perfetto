@@ -114,13 +114,13 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const DataSourceInstanceID dsid = req.new_instance_id();
     DataSourceConfig cfg;
     cfg.FromProto(req.config());
-    producer_->CreateDataSourceInstance(dsid, cfg);
+    producer_->StartDataSource(dsid, cfg);
     return;
   }
 
   if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kStopDataSource) {
     const DataSourceInstanceID dsid = cmd.stop_data_source().instance_id();
-    producer_->TearDownDataSourceInstance(dsid);
+    producer_->StopDataSource(dsid);
     return;
   }
 
