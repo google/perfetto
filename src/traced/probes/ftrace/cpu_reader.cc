@@ -328,7 +328,10 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
   uint16_t size_bytes = table->ftrace_page_header_spec().size.size;
   PERFETTO_CHECK(size_bytes >= 4);
   uint32_t overwrite_and_size;
-  if (!ReadAndAdvance<uint32_t>(&ptr, end_of_page, &overwrite_and_size))
+  // On little endian, we can just read a uint32_t and reject the rest of the
+  // number later.
+  if (!ReadAndAdvance<uint32_t>(&ptr, end_of_page,
+                                base::AssumeLittleEndian(&overwrite_and_size)))
     return 0;
 
   page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
@@ -337,6 +340,9 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
 
   PERFETTO_DCHECK(page_header.size <= base::kPageSize);
 
+  // Reject rest of the number, if applicable. On 32-bit, size_bytes - 4 will
+  // evaluate to 0 and this will be a no-op. On 64-bit, this will advance by 4
+  // bytes.
   ptr += size_bytes - 4;
 
   const uint8_t* const end = ptr + page_header.size;
