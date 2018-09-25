@@ -31,7 +31,10 @@ class Watchdog {
     Timer(const Timer&) {}
     ~Timer() {}
   };
-  static Watchdog* GetInstance();
+  static Watchdog* GetInstance() {
+    static Watchdog* watchdog = new Watchdog();
+    return watchdog;
+  }
   Timer CreateFatalTimer(uint32_t /*ms*/) { return Timer(); }
   void Start() {}
   void SetMemoryLimit(uint32_t /*bytes*/, uint32_t /*window_ms*/) {}
