@@ -213,7 +213,7 @@ void ProducerIPCService::RemoteProducer::OnDisconnect() {}
 
 // Invoked by the |core_service_| business logic when it wants to start a new
 // data source.
-void ProducerIPCService::RemoteProducer::CreateDataSourceInstance(
+void ProducerIPCService::RemoteProducer::StartDataSource(
     DataSourceInstanceID dsid,
     const DataSourceConfig& cfg) {
   if (!async_producer_commands.IsBound()) {
@@ -229,7 +229,7 @@ void ProducerIPCService::RemoteProducer::CreateDataSourceInstance(
   async_producer_commands.Resolve(std::move(cmd));
 }
 
-void ProducerIPCService::RemoteProducer::TearDownDataSourceInstance(
+void ProducerIPCService::RemoteProducer::StopDataSource(
     DataSourceInstanceID dsid) {
   if (!async_producer_commands.IsBound()) {
     PERFETTO_DLOG(
