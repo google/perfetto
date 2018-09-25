@@ -71,9 +71,9 @@ class ProducerIPCService : public protos::ProducerPort {
     // no connection here, these methods are posted straight away.
     void OnConnect() override;
     void OnDisconnect() override;
-    void CreateDataSourceInstance(DataSourceInstanceID,
-                                  const DataSourceConfig&) override;
-    void TearDownDataSourceInstance(DataSourceInstanceID) override;
+    void StartDataSource(DataSourceInstanceID,
+                         const DataSourceConfig&) override;
+    void StopDataSource(DataSourceInstanceID) override;
     void OnTracingSetup() override;
     void Flush(FlushRequestID,
                const DataSourceInstanceID* data_source_ids,

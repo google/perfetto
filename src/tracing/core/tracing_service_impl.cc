@@ -353,8 +353,8 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           break;
         }
       }
-      CreateDataSourceInstance(cfg_data_source, producer_config, it->second,
-                               tracing_session);
+      StartDataSource(cfg_data_source, producer_config, it->second,
+                      tracing_session);
     }
   }
 
@@ -886,8 +886,8 @@ void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
     for (const TraceConfig::DataSource& cfg_data_source :
          tracing_session.config.data_sources()) {
       if (cfg_data_source.config().name() == desc.name())
-        CreateDataSourceInstance(cfg_data_source, producer_config,
-                                 reg_ds->second, &tracing_session);
+        StartDataSource(cfg_data_source, producer_config, reg_ds->second,
+                        &tracing_session);
     }
   }
 }
@@ -926,7 +926,7 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
   PERFETTO_DCHECK(false);
 }
 
-void TracingServiceImpl::CreateDataSourceInstance(
+void TracingServiceImpl::StartDataSource(
     const TraceConfig::DataSource& cfg_data_source,
     const TraceConfig::ProducerConfig& producer_config,
     const RegisteredDataSource& data_source,
@@ -1011,7 +1011,7 @@ void TracingServiceImpl::CreateDataSourceInstance(
     producer->OnTracingSetup();
     UpdateMemoryGuardrail();
   }
-  producer->CreateDataSourceInstance(inst_id, ds_config);
+  producer->StartDataSource(inst_id, ds_config);
 }
 
 // Note: all the fields % *_trusted ones are untrusted, as in, the Producer
@@ -1482,7 +1482,7 @@ void TracingServiceImpl::ProducerEndpointImpl::TearDownDataSource(
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this, ds_inst_id] {
     if (weak_this)
-      weak_this->producer_->TearDownDataSourceInstance(ds_inst_id);
+      weak_this->producer_->StopDataSource(ds_inst_id);
   });
 }
 
@@ -1524,14 +1524,14 @@ void TracingServiceImpl::ProducerEndpointImpl::Flush(
   });
 }
 
-void TracingServiceImpl::ProducerEndpointImpl::CreateDataSourceInstance(
+void TracingServiceImpl::ProducerEndpointImpl::StartDataSource(
     DataSourceInstanceID ds_id,
     const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this, ds_id, config] {
     if (weak_this)
-      weak_this->producer_->CreateDataSourceInstance(ds_id, std::move(config));
+      weak_this->producer_->StartDataSource(ds_id, std::move(config));
   });
 }
 

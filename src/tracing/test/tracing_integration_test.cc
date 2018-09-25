@@ -56,9 +56,9 @@ class MockProducer : public Producer {
   // Producer implementation.
   MOCK_METHOD0(OnConnect, void());
   MOCK_METHOD0(OnDisconnect, void());
-  MOCK_METHOD2(CreateDataSourceInstance,
+  MOCK_METHOD2(StartDataSource,
                void(DataSourceInstanceID, const DataSourceConfig&));
-  MOCK_METHOD1(TearDownDataSourceInstance, void(DataSourceInstanceID));
+  MOCK_METHOD1(StopDataSource, void(DataSourceInstanceID));
   MOCK_METHOD0(uid, uid_t());
   MOCK_METHOD0(OnTracingSetup, void());
   MOCK_METHOD3(Flush,
@@ -187,7 +187,7 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   auto on_create_ds_instance =
       task_runner_->CreateCheckpoint("on_create_ds_instance");
   EXPECT_CALL(producer_, OnTracingSetup());
-  EXPECT_CALL(producer_, CreateDataSourceInstance(_, _))
+  EXPECT_CALL(producer_, StartDataSource(_, _))
       .WillOnce(
           Invoke([on_create_ds_instance, &ds_iid, &global_buf_id](
                      DataSourceInstanceID id, const DataSourceConfig& cfg) {
@@ -286,7 +286,7 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
 
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
-  EXPECT_CALL(producer_, TearDownDataSourceInstance(_));
+  EXPECT_CALL(producer_, StopDataSource(_));
   EXPECT_CALL(consumer_, OnTracingDisabled())
       .WillOnce(Invoke(on_tracing_disabled));
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
@@ -309,7 +309,7 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   auto on_create_ds_instance =
       task_runner_->CreateCheckpoint("on_create_ds_instance");
   EXPECT_CALL(producer_, OnTracingSetup());
-  EXPECT_CALL(producer_, CreateDataSourceInstance(_, _))
+  EXPECT_CALL(producer_, StartDataSource(_, _))
       .WillOnce(Invoke([on_create_ds_instance, &global_buf_id](
                            DataSourceInstanceID, const DataSourceConfig& cfg) {
         global_buf_id = static_cast<BufferID>(cfg.target_buffer());
@@ -337,7 +337,7 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
 
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
-  EXPECT_CALL(producer_, TearDownDataSourceInstance(_));
+  EXPECT_CALL(producer_, StopDataSource(_));
   EXPECT_CALL(consumer_, OnTracingDisabled())
       .WillOnce(Invoke(on_tracing_disabled));
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");

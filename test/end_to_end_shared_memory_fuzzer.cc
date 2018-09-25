@@ -76,9 +76,8 @@ class FakeProducer : public Producer {
 
   void OnDisconnect() override {}
 
-  void CreateDataSourceInstance(
-      DataSourceInstanceID,
-      const DataSourceConfig& source_config) override {
+  void StartDataSource(DataSourceInstanceID,
+                       const DataSourceConfig& source_config) override {
     auto trace_writer = endpoint_->CreateTraceWriter(
         static_cast<BufferID>(source_config.target_buffer()));
     {
@@ -94,7 +93,7 @@ class FakeProducer : public Producer {
     trace_writer->Flush(on_produced_and_committed_);
   }
 
-  void TearDownDataSourceInstance(DataSourceInstanceID) override {}
+  void StopDataSource(DataSourceInstanceID) override {}
   void OnTracingSetup() override {}
   void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override {}
 
