@@ -83,8 +83,7 @@ class TracingServiceImpl : public TracingService {
     size_t shared_buffer_page_size_kb() const override;
 
     void OnTracingSetup();
-    void CreateDataSourceInstance(DataSourceInstanceID,
-                                  const DataSourceConfig&);
+    void StartDataSource(DataSourceInstanceID, const DataSourceConfig&);
     void TearDownDataSource(DataSourceInstanceID);
     void Flush(FlushRequestID, const std::vector<DataSourceInstanceID>&);
 
@@ -277,10 +276,10 @@ class TracingServiceImpl : public TracingService {
   TracingServiceImpl(const TracingServiceImpl&) = delete;
   TracingServiceImpl& operator=(const TracingServiceImpl&) = delete;
 
-  void CreateDataSourceInstance(const TraceConfig::DataSource&,
-                                const TraceConfig::ProducerConfig&,
-                                const RegisteredDataSource&,
-                                TracingSession*);
+  void StartDataSource(const TraceConfig::DataSource&,
+                       const TraceConfig::ProducerConfig&,
+                       const RegisteredDataSource&,
+                       TracingSession*);
 
   // Returns the next available ProducerID that is not in |producers_|.
   ProducerID GetNextProducerID();
