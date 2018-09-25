@@ -80,8 +80,8 @@ void MockProducer::WaitForDataSourceStart(const std::string& name) {
   static int i = 0;
   auto checkpoint_name = "on_ds_start_" + name + "_" + std::to_string(i++);
   auto on_ds_start = task_runner_->CreateCheckpoint(checkpoint_name);
-  EXPECT_CALL(*this, CreateDataSourceInstance(
-                         _, Property(&DataSourceConfig::name, Eq(name))))
+  EXPECT_CALL(*this,
+              StartDataSource(_, Property(&DataSourceConfig::name, Eq(name))))
       .WillOnce(Invoke([on_ds_start, this](DataSourceInstanceID ds_id,
                                            const DataSourceConfig& cfg) {
         EXPECT_FALSE(data_source_instances_.count(cfg.name()));
@@ -101,7 +101,7 @@ void MockProducer::WaitForDataSourceStop(const std::string& name) {
   auto on_ds_stop = task_runner_->CreateCheckpoint(checkpoint_name);
   ASSERT_EQ(1u, data_source_instances_.count(name));
   DataSourceInstanceID ds_id = data_source_instances_[name].id;
-  EXPECT_CALL(*this, TearDownDataSourceInstance(ds_id))
+  EXPECT_CALL(*this, StopDataSource(ds_id))
       .WillOnce(InvokeWithoutArgs(on_ds_stop));
   task_runner_->RunUntilCheckpoint(checkpoint_name);
   data_source_instances_.erase(name);

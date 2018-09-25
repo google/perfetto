@@ -92,7 +92,7 @@ class PERFETTO_EXPORT TracingService {
     // Args:
     // |target_buffer| is the target buffer ID where the data produced by the
     // writer should be stored by the tracing service. This value is passed
-    // upon creation of the data source (CreateDataSourceInstance()) in the
+    // upon creation of the data source (StartDataSource()) in the
     // DataSourceConfig.target_buffer().
     virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
         BufferID target_buffer) = 0;
@@ -101,7 +101,7 @@ class PERFETTO_EXPORT TracingService {
     // for the flush request has been committed.
     virtual void NotifyFlushComplete(FlushRequestID) = 0;
 
-    // Called in response to one or more Producer::TearDownDataSourceInstance(),
+    // Called in response to one or more Producer::StopDataSource(),
     // if the data source registered setting the flag
     // DataSourceDescriptor.will_notify_on_stop.
     virtual void NotifyDataSourceStopped(DataSourceInstanceID) = 0;

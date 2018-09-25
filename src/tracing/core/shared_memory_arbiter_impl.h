@@ -73,7 +73,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // service to move it to the central tracing buffer. |target_buffer| is the
   // absolute trace buffer ID where the service should move the chunk onto (the
   // producer is just to copy back the same number received in the
-  // DataSourceConfig upon the CreateDataSourceInstance() reques).
+  // DataSourceConfig upon the StartDataSource() reques).
   // PatchList is a pointer to the list of patches for previous chunks. The
   // first patched entries will be removed from the patched list and sent over
   // to the service in the same CommitData() IPC request.

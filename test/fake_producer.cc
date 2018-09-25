@@ -57,9 +57,8 @@ void FakeProducer::OnDisconnect() {
   FAIL() << "Producer unexpectedly disconnected from the service";
 }
 
-void FakeProducer::CreateDataSourceInstance(
-    DataSourceInstanceID,
-    const DataSourceConfig& source_config) {
+void FakeProducer::StartDataSource(DataSourceInstanceID,
+                                   const DataSourceConfig& source_config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   trace_writer_ = endpoint_->CreateTraceWriter(
       static_cast<BufferID>(source_config.target_buffer()));
@@ -75,7 +74,7 @@ void FakeProducer::CreateDataSourceInstance(
   }
 }
 
-void FakeProducer::TearDownDataSourceInstance(DataSourceInstanceID) {
+void FakeProducer::StopDataSource(DataSourceInstanceID) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   trace_writer_.reset();
 }
