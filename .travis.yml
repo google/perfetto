@@ -119,6 +119,7 @@ cache:
     - buildtools/googletest
     - buildtools/jsoncpp
     - buildtools/libbacktrace
+    - buildtools/linenoise
     - buildtools/libcxx
     - buildtools/libcxxabi
     - buildtools/libunwind
