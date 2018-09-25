@@ -44,8 +44,6 @@ source_set("base") {
 
   if (!build_with_chromium && (is_linux || is_android)) {
     sources += [ "watchdog_posix.cc" ]
-  } else {
-    sources += [ "watchdog_noop.cc" ]
   }
   if (is_debug && build_standalone && !is_wasm) {
     deps += [ ":debug_crash_stack_trace" ]
