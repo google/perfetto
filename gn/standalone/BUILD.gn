@@ -191,6 +191,8 @@ config("release") {
   ]
   if (is_android) {
     cflags += [ "-Oz" ]
+  } else if (use_libfuzzer) {
+    cflags += [ "-O1" ]
   } else {
     cflags += [ "-O3" ]
   }
