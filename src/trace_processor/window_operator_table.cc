@@ -32,20 +32,25 @@ void WindowOperatorTable::RegisterTable(sqlite3* db,
   Table::Register<WindowOperatorTable>(db, storage, "window", true);
 }
 
-std::string WindowOperatorTable::CreateTableStmt(int, const char* const*) {
-  return "CREATE TABLE x("
-         // These are the operator columns:
-         "rowid HIDDEN UNSIGNED BIG INT, "
-         "quantum HIDDEN UNSIGNED BIG INT, "
-         "window_start HIDDEN UNSIGNED BIG INT, "
-         "window_dur HIDDEN UNSIGNED BIG INT, "
-         // These are the ouput columns:
-         "ts UNSIGNED BIG INT, "
-         "dur UNSIGNED BIG INT, "
-         "cpu UNSIGNED INT, "
-         "quantum_ts UNSIGNED BIG INT, "
-         "PRIMARY KEY(rowid)"
-         ") WITHOUT ROWID;";
+Table::Schema WindowOperatorTable::CreateSchema(int, const char* const*) {
+  const bool kHidden = true;
+  return Schema(
+      {
+          // These are the operator columns:
+          Table::Column(Column::kRowId, "rowid", ColumnType::kUlong, kHidden),
+          Table::Column(Column::kQuantum, "quantum", ColumnType::kUlong,
+                        kHidden),
+          Table::Column(Column::kWindowStart, "window_start",
+                        ColumnType::kUlong, kHidden),
+          Table::Column(Column::kWindowDur, "window_dur", ColumnType::kUlong,
+                        kHidden),
+          // These are the ouput columns:
+          Table::Column(Column::kTs, "ts", ColumnType::kUlong),
+          Table::Column(Column::kDuration, "dur", ColumnType::kUlong),
+          Table::Column(Column::kCpu, "cpu", ColumnType::kUint),
+          Table::Column(Column::kQuantumTs, "quantum_ts", ColumnType::kUlong),
+      },
+      {Column::kRowId});
 }
 
 std::unique_ptr<Table::Cursor> WindowOperatorTable::CreateCursor() {
