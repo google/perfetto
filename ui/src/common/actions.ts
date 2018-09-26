@@ -20,7 +20,6 @@ export interface Action { type: string; }
 export function openTraceFromUrl(url: string) {
   return {
     type: 'OPEN_TRACE_FROM_URL',
-    id: new Date().toISOString(),
     url,
   };
 }
@@ -28,7 +27,6 @@ export function openTraceFromUrl(url: string) {
 export function openTraceFromFile(file: File) {
   return {
     type: 'OPEN_TRACE_FROM_FILE',
-    id: new Date().toISOString(),
     file,
   };
 }
