@@ -12,15 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../gn/fuzzer.gni")
 import("../gn/perfetto.gni")
 import("//build_overrides/build.gni")
-
-# For use_libfuzzer.
-if (!build_with_chromium) {
-  import("//gn/standalone/sanitizers/vars.gni")
-} else {
-  import("//build/config/sanitizers/sanitizers.gni")
-}
 
 source_set("end_to_end_integrationtests") {
   testonly = true
@@ -47,25 +41,22 @@ source_set("end_to_end_integrationtests") {
   }
 }
 
-if (use_libfuzzer && !build_with_chromium) {
-  executable("end_to_end_shared_memory_fuzzer") {
-    sources = [
-      "end_to_end_shared_memory_fuzzer.cc",
-    ]
-    testonly = true
-    deps = [
-      ":task_runner_thread",
-      ":task_runner_thread_delegates",
-      ":test_helper",
-      "../gn:default_deps",
-      "../protos/perfetto/trace:lite",
-      "../src/base:test_support",
-      "../src/protozero",
-      "../src/tracing",
-      "../src/tracing:ipc",
-    ]
-    configs += [ "../gn:fuzzer_config" ]
-  }
+perfetto_fuzzer_test("end_to_end_shared_memory_fuzzer") {
+  sources = [
+    "end_to_end_shared_memory_fuzzer.cc",
+  ]
+  testonly = true
+  deps = [
+    ":task_runner_thread",
+    ":task_runner_thread_delegates",
+    ":test_helper",
+    "../gn:default_deps",
+    "../protos/perfetto/trace:lite",
+    "../src/base:test_support",
+    "../src/protozero",
+    "../src/tracing",
+    "../src/tracing:ipc",
+  ]
 }
 
 source_set("task_runner_thread") {

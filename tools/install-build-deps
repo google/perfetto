@@ -119,8 +119,15 @@ BUILD_DEPS_HOST = [
   # Keep the revision in sync with Chrome's CLANG_REVISION in
   # tools/clang/scripts/update.py.
   ('buildtools/clang.tgz',
-   'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-331747-1.tgz',
-   '973073ca36ae9194019705ec7677852a30c4b54e',
+   'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-342523-1.tgz',
+   '8ca5cdf045582073386cc227dda82eaf2a3bc2ef',
+   'linux2'
+  ),
+
+  # Keep in sync with chromium DEPS.
+  ('buildtools/libfuzzer',
+   'https://chromium.googlesource.com/chromium/llvm-project/compiler-rt/lib/fuzzer.git',
+   'a305a5eb85ed42edc5c965c14f308f576cb245ca',
    'linux2'
   ),
 
