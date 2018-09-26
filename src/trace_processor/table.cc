@@ -41,6 +41,20 @@ Table::Cursor* ToCursor(sqlite3_vtab_cursor* cursor) {
   return static_cast<Table::Cursor*>(cursor);
 }
 
+std::string TypeToString(Table::ColumnType type) {
+  switch (type) {
+    case Table::ColumnType::kString:
+      return "STRING";
+    case Table::ColumnType::kUint:
+      return "UNSIGNED INT";
+    case Table::ColumnType::kUlong:
+      return "UNSIGNED BIG INT";
+    case Table::ColumnType::kInt:
+      return "INT";
+  }
+  PERFETTO_CHECK(false);
+}
+
 }  // namespace
 
 // static
@@ -66,15 +80,15 @@ void Table::RegisterInternal(sqlite3* db,
     const TableDescriptor* xdesc = static_cast<const TableDescriptor*>(arg);
     auto table = xdesc->factory(xdb, xdesc->storage);
 
-    auto create_stmt = table->CreateTableStmt(argc, argv);
-    if (create_stmt.empty())
-      return SQLITE_ERROR;
+    auto schema = table->CreateSchema(argc, argv);
+    auto create_stmt = schema.ToCreateTableStmt();
 
     int res = sqlite3_declare_vtab(xdb, create_stmt.c_str());
     if (res != SQLITE_OK)
       return res;
 
     // Freed in xDisconnect().
+    table->schema_ = schema;
     table->name_ = xdesc->name;
     *tab = table.release();
 
@@ -228,6 +242,42 @@ int Table::Cursor::FilterInternal(int idxNum,
   PERFETTO_DCHECK(table->qc_cache_.constraints().size() ==
                   static_cast<size_t>(argc));
   return Filter(table->qc_cache_, argv);
+}
+
+Table::Column::Column(size_t index,
+                      std::string name,
+                      ColumnType type,
+                      bool hidden)
+    : index_(index), name_(name), type_(type), hidden_(hidden) {}
+
+Table::Schema::Schema(std::vector<Column> columns,
+                      std::vector<size_t> primary_keys)
+    : columns_(std::move(columns)), primary_keys_(std::move(primary_keys)) {
+  for (size_t i = 0; i < columns_.size(); i++) {
+    PERFETTO_CHECK(columns_[i].index() == i);
+  }
+  for (auto key : primary_keys_) {
+    PERFETTO_CHECK(key < columns_.size());
+  }
+}
+
+Table::Schema::Schema() = default;
+Table::Schema::Schema(const Schema&) = default;
+Table::Schema& Table::Schema::operator=(const Schema&) = default;
+
+std::string Table::Schema::ToCreateTableStmt() {
+  std::string stmt = "CREATE TABLE x(";
+  for (const auto& col : columns_) {
+    stmt += " " + col.name() + " " + TypeToString(col.type()) + ",";
+  }
+  stmt += " PRIMARY KEY(";
+  for (size_t i = 0; i < primary_keys_.size(); i++) {
+    if (i != 0)
+      stmt += ", ";
+    stmt += columns_[primary_keys_[i]].name();
+  }
+  stmt += ")) WITHOUT ROWID;";
+  return stmt;
 }
 
 }  // namespace trace_processor
