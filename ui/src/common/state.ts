@@ -80,13 +80,19 @@ export interface State {
   status: Status;
 }
 
+export const defaultTraceTime = {
+  startSec: 0,
+  endSec: 10,
+  lastUpdate: 0
+};
+
 export function createEmptyState(): State {
   return {
     route: null,
     nextId: 0,
     engines: {},
-    traceTime: {startSec: 0, endSec: 10, lastUpdate: 0},
-    visibleTraceTime: {startSec: 0, endSec: 10, lastUpdate: 0},
+    traceTime: {...defaultTraceTime},
+    visibleTraceTime: {...defaultTraceTime},
     tracks: {},
     pinnedTracks: [],
     scrollingTracks: [],

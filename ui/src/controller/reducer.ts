@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createEmptyState, State} from '../common/state';
+import {defaultTraceTime, State} from '../common/state';
 
 // TODO(hjd): Type check this better.
 // tslint:disable-next-line no-any
@@ -25,9 +25,15 @@ export function rootReducer(state: State, action: any): State {
     }
 
     case 'OPEN_TRACE_FROM_FILE': {
-      const nextState = createEmptyState();
-      nextState.engines[action.id] = {
-        id: action.id,
+      const nextState = {...state};
+      nextState.traceTime = {...defaultTraceTime};
+      nextState.visibleTraceTime = {...defaultTraceTime};
+      const id = `${nextState.nextId++}`;
+      // Reset displayed tracks.
+      nextState.pinnedTracks = [];
+      nextState.scrollingTracks = [];
+      nextState.engines[id] = {
+        id,
         ready: false,
         source: action.file,
       };
@@ -37,9 +43,15 @@ export function rootReducer(state: State, action: any): State {
     }
 
     case 'OPEN_TRACE_FROM_URL': {
-      const nextState = createEmptyState();
-      nextState.engines[action.id] = {
-        id: action.id,
+      const nextState = {...state};
+      nextState.traceTime = {...defaultTraceTime};
+      nextState.visibleTraceTime = {...defaultTraceTime};
+      const id = `${nextState.nextId++}`;
+      // Reset displayed tracks.
+      nextState.pinnedTracks = [];
+      nextState.scrollingTracks = [];
+      nextState.engines[id] = {
+        id,
         ready: false,
         source: action.url,
       };
