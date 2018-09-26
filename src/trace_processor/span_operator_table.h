@@ -74,23 +74,10 @@ class SpanOperatorTable : public Table {
 
   // Represents possible values of a SQLite joined table.
   struct Value {
-    enum Type {
-      kText = 0,
-      kULong = 1,
-      kUInt = 2,
-    };
-
-    Type type;
+    Table::ColumnType type;
     std::string text_value;
     uint64_t ulong_value;
     uint32_t uint_value;
-  };
-
-  // Stores the definition of a column
-  struct ColumnDefinition {
-    std::string name;
-    std::string type_name;
-    Value::Type type = Value::Type::kText;
   };
 
   SpanOperatorTable(sqlite3*, const TraceStorage*);
@@ -98,7 +85,7 @@ class SpanOperatorTable : public Table {
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
   // Table implementation.
-  std::string CreateTableStmt(int argc, const char* const* argv) override;
+  Table::Schema CreateSchema(int argc, const char* const* argv) override;
   std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;
 
@@ -108,7 +95,7 @@ class SpanOperatorTable : public Table {
   // Contains the definition of the child tables.
   struct TableDefinition {
     std::string name;
-    std::vector<ColumnDefinition> cols;
+    std::vector<Table::Column> cols;
     std::string join_col_name;
   };
 

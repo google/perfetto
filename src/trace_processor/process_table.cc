@@ -36,13 +36,14 @@ void ProcessTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<ProcessTable>(db, storage, "process");
 }
 
-std::string ProcessTable::CreateTableStmt(int, const char* const*) {
-  return "CREATE TABLE x("
-         "upid UNSIGNED INT, "
-         "name TEXT, "
-         "pid UNSIGNED INT, "
-         "PRIMARY KEY(upid)"
-         ") WITHOUT ROWID;";
+Table::Schema ProcessTable::CreateSchema(int, const char* const*) {
+  return Schema(
+      {
+          Table::Column(Column::kUpid, "upid", ColumnType::kInt),
+          Table::Column(Column::kName, "name", ColumnType::kString),
+          Table::Column(Column::kPid, "pid", ColumnType::kUint),
+      },
+      {Column::kUpid});
 }
 
 std::unique_ptr<Table::Cursor> ProcessTable::CreateCursor() {
