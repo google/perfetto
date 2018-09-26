@@ -770,3 +770,35 @@ source_set("linenoise") {
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":linenoise_config" ]
 }
+
+source_set("libfuzzer") {
+  configs -= [
+    "//gn/standalone:extra_warnings",
+    "//gn/standalone/sanitizers:sanitizers_cflags",
+  ]
+  sources = [
+    "libfuzzer/FuzzerCrossOver.cpp",
+    "libfuzzer/FuzzerDataFlowTrace.cpp",
+    "libfuzzer/FuzzerDriver.cpp",
+    "libfuzzer/FuzzerExtFunctionsDlsym.cpp",
+    "libfuzzer/FuzzerExtFunctionsWeak.cpp",
+    "libfuzzer/FuzzerExtFunctionsWeakAlias.cpp",
+    "libfuzzer/FuzzerExtraCounters.cpp",
+    "libfuzzer/FuzzerIO.cpp",
+    "libfuzzer/FuzzerIOPosix.cpp",
+    "libfuzzer/FuzzerIOWindows.cpp",
+    "libfuzzer/FuzzerLoop.cpp",
+    "libfuzzer/FuzzerMain.cpp",
+    "libfuzzer/FuzzerMerge.cpp",
+    "libfuzzer/FuzzerMutate.cpp",
+    "libfuzzer/FuzzerSHA1.cpp",
+    "libfuzzer/FuzzerShmemPosix.cpp",
+    "libfuzzer/FuzzerTracePC.cpp",
+    "libfuzzer/FuzzerUtil.cpp",
+    "libfuzzer/FuzzerUtilDarwin.cpp",
+    "libfuzzer/FuzzerUtilFuchsia.cpp",
+    "libfuzzer/FuzzerUtilLinux.cpp",
+    "libfuzzer/FuzzerUtilPosix.cpp",
+    "libfuzzer/FuzzerUtilWindows.cpp",
+  ]
+}

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
+import("../../gn/fuzzer.gni")
 import("../../gn/ipc_library.gni")
 import("../../gn/proto_library.gni")
 
@@ -49,18 +50,15 @@ source_set("ipc") {
   ]
 }
 
-if (use_libfuzzer && !build_with_chromium) {
-  executable("buffered_frame_deserializer_fuzzer") {
-    sources = [
-      "buffered_frame_deserializer_fuzzer.cc",
-    ]
-    deps = [
-      ":ipc",
-      ":wire_protocol",
-      "../../gn:default_deps",
-    ]
-    configs += [ "../../gn:fuzzer_config" ]
-  }
+perfetto_fuzzer_test("buffered_frame_deserializer_fuzzer") {
+  sources = [
+    "buffered_frame_deserializer_fuzzer.cc",
+  ]
+  deps = [
+    ":ipc",
+    ":wire_protocol",
+    "../../gn:default_deps",
+  ]
 }
 
 source_set("unittests") {

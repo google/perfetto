@@ -122,6 +122,7 @@ cache:
     - buildtools/linenoise
     - buildtools/libcxx
     - buildtools/libcxxabi
+    - buildtools/libfuzzer
     - buildtools/libunwind
 
 before_install:
