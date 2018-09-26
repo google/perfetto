@@ -262,11 +262,13 @@ if (build_with_chromium) {
   }
 }
 
-group("fuzzers") {
-  testonly = true
-  deps = [
-    "src/ipc:buffered_frame_deserializer_fuzzer",
-    "src/traced/probes/ftrace:cpu_reader_fuzzer",
-    "test:end_to_end_shared_memory_fuzzer",
-  ]
+if (!build_with_chromium) {
+  group("fuzzers") {
+    testonly = true
+    deps = [
+      "src/ipc:buffered_frame_deserializer_fuzzer",
+      "src/traced/probes/ftrace:cpu_reader_fuzzer",
+      "test:end_to_end_shared_memory_fuzzer",
+    ]
+  }
 }
