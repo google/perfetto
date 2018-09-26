@@ -194,3 +194,24 @@ test('set state', async () => {
   });
   expect(after).toBe(newState);
 });
+
+test('open second trace from file', () => {
+  const before = createEmptyState();
+  const afterFirst = rootReducer(before, {
+    type: 'OPEN_TRACE_FROM_URL',
+    url: 'https://example.com/bar',
+  });
+  afterFirst.scrollingTracks = ['track1', 'track2'];
+  afterFirst.pinnedTracks = ['track3', 'track4'];
+  const after = rootReducer(afterFirst, {
+    type: 'OPEN_TRACE_FROM_URL',
+    url: 'https://example.com/foo',
+  });
+  const engineKeys = Object.keys(after.engines);
+  expect(engineKeys.length).toBe(2);
+  expect(after.engines[engineKeys[0]].source).toBe('https://example.com/bar');
+  expect(after.engines[engineKeys[1]].source).toBe('https://example.com/foo');
+  expect(after.pinnedTracks.length).toBe(0);
+  expect(after.scrollingTracks.length).toBe(0);
+  expect(after.route).toBe('/viewer');
+});

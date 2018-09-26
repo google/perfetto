@@ -31,13 +31,11 @@ export class AppController extends Controller<'main'> {
   // - An internal promise of a nested controller being resolved and manually
   //   re-triggering the controllers.
   run() {
-    const engineKeys = Object.keys(globals.state.engines);
     const childControllers: ControllerInitializerAny[] = [
       Child('permalink', PermalinkController, {}),
     ];
-    if (engineKeys.length > 0) {
-      const cfg = globals.state.engines[engineKeys[0]];
-      childControllers.push(Child(cfg.id, TraceController, cfg.id));
+    for (const engineCfg of Object.values(globals.state.engines)) {
+      childControllers.push(Child(engineCfg.id, TraceController, engineCfg.id));
     }
     return childControllers;
   }
