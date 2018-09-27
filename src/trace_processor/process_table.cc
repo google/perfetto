@@ -46,8 +46,10 @@ Table::Schema ProcessTable::CreateSchema(int, const char* const*) {
       {Column::kUpid});
 }
 
-std::unique_ptr<Table::Cursor> ProcessTable::CreateCursor() {
-  return std::unique_ptr<Table::Cursor>(new Cursor(storage_));
+std::unique_ptr<Table::Cursor> ProcessTable::CreateCursor(
+    const QueryConstraints& qc,
+    sqlite3_value** argv) {
+  return std::unique_ptr<Table::Cursor>(new Cursor(storage_, qc, argv));
 }
 
 int ProcessTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
@@ -63,23 +65,55 @@ int ProcessTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
-ProcessTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {}
+ProcessTable::Cursor::Cursor(const TraceStorage* storage,
+                             const QueryConstraints& qc,
+                             sqlite3_value** argv)
+    : storage_(storage) {
+  min = 1;
+  max = static_cast<uint32_t>(storage_->process_count());
+  desc = false;
+  current = min;
+
+  for (size_t j = 0; j < qc.constraints().size(); j++) {
+    const auto& cs = qc.constraints()[j];
+    if (cs.iColumn == Column::kUpid) {
+      auto constraint_upid = static_cast<UniquePid>(sqlite3_value_int(argv[j]));
+      // Set the range of upids that we are interested in, based on the
+      // constraints in the query. Everything between min and max (inclusive)
+      // will be returned.
+      if (IsOpEq(cs.op)) {
+        min = constraint_upid;
+        max = constraint_upid;
+      } else if (IsOpGe(cs.op) || IsOpGt(cs.op)) {
+        min = IsOpGt(cs.op) ? constraint_upid + 1 : constraint_upid;
+      } else if (IsOpLe(cs.op) || IsOpLt(cs.op)) {
+        max = IsOpLt(cs.op) ? constraint_upid - 1 : constraint_upid;
+      }
+    }
+  }
+  for (const auto& ob : qc.order_by()) {
+    if (ob.iColumn == Column::kUpid) {
+      desc = ob.desc;
+      current = desc ? max : min;
+    }
+  }
+}
 
 int ProcessTable::Cursor::Column(sqlite3_context* context, int N) {
   switch (N) {
     case Column::kUpid: {
-      sqlite3_result_int64(context, upid_filter_.current);
+      sqlite3_result_int64(context, current);
       break;
     }
     case Column::kName: {
-      const auto& process = storage_->GetProcess(upid_filter_.current);
+      const auto& process = storage_->GetProcess(current);
       const auto& name = storage_->GetString(process.name_id);
       sqlite3_result_text(context, name.c_str(),
                           static_cast<int>(name.length()), nullptr);
       break;
     }
     case Column::kPid: {
-      const auto& process = storage_->GetProcess(upid_filter_.current);
+      const auto& process = storage_->GetProcess(current);
       sqlite3_result_int64(context, process.pid);
       break;
     }
@@ -90,55 +124,17 @@ int ProcessTable::Cursor::Column(sqlite3_context* context, int N) {
   return SQLITE_OK;
 }
 
-int ProcessTable::Cursor::Filter(const QueryConstraints& qc,
-                                 sqlite3_value** argv) {
-  upid_filter_.min = 1;
-  upid_filter_.max = static_cast<uint32_t>(storage_->process_count());
-  upid_filter_.desc = false;
-  upid_filter_.current = upid_filter_.min;
-
-  for (size_t j = 0; j < qc.constraints().size(); j++) {
-    const auto& cs = qc.constraints()[j];
-    if (cs.iColumn == Column::kUpid) {
-      auto constraint_upid = static_cast<UniquePid>(sqlite3_value_int(argv[j]));
-      // Set the range of upids that we are interested in, based on the
-      // constraints in the query. Everything between min and max (inclusive)
-      // will be returned.
-      if (IsOpEq(cs.op)) {
-        upid_filter_.min = constraint_upid;
-        upid_filter_.max = constraint_upid;
-      } else if (IsOpGe(cs.op) || IsOpGt(cs.op)) {
-        upid_filter_.min =
-            IsOpGt(cs.op) ? constraint_upid + 1 : constraint_upid;
-      } else if (IsOpLe(cs.op) || IsOpLt(cs.op)) {
-        upid_filter_.max =
-            IsOpLt(cs.op) ? constraint_upid - 1 : constraint_upid;
-      }
-    }
-  }
-  for (const auto& ob : qc.order_by()) {
-    if (ob.iColumn == Column::kUpid) {
-      upid_filter_.desc = ob.desc;
-      upid_filter_.current =
-          upid_filter_.desc ? upid_filter_.max : upid_filter_.min;
-    }
-  }
-
-  return SQLITE_OK;
-}
-
 int ProcessTable::Cursor::Next() {
-  if (upid_filter_.desc) {
-    --upid_filter_.current;
+  if (desc) {
+    --current;
   } else {
-    ++upid_filter_.current;
+    ++current;
   }
   return SQLITE_OK;
 }
 
 int ProcessTable::Cursor::Eof() {
-  return upid_filter_.desc ? upid_filter_.current < upid_filter_.min
-                           : upid_filter_.current > upid_filter_.max;
+  return desc ? current < min : current > max;
 }
 
 }  // namespace trace_processor

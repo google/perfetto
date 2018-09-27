@@ -86,7 +86,8 @@ class SpanOperatorTable : public Table {
 
   // Table implementation.
   Table::Schema CreateSchema(int argc, const char* const* argv) override;
-  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
+                                              sqlite3_value**) override;
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;
 
  private:
@@ -99,15 +100,16 @@ class SpanOperatorTable : public Table {
     std::string join_col_name;
   };
 
-  // State used when filtering on the span table.
-  class FilterState {
+  // Cursor on the span table.
+  class Cursor : public Table::Cursor {
    public:
-    FilterState(SpanOperatorTable*, ScopedStmt t1_stmt, ScopedStmt t2_stmt);
+    Cursor(SpanOperatorTable*, sqlite3* db);
+    ~Cursor() override;
 
-    int Initialize();
-    int Next();
-    int Eof();
-    int Column(sqlite3_context* context, int N);
+    int Initialize(const QueryConstraints& qc, sqlite3_value** argv);
+    int Next() override;
+    int Eof() override;
+    int Column(sqlite3_context* context, int N) override;
 
    private:
     // Details of a row of one of the child tables.
@@ -150,37 +152,20 @@ class SpanOperatorTable : public Table {
     void ReportSqliteResult(sqlite3_context* context,
                             SpanOperatorTable::Value value);
 
-    TableState t1_;
-    TableState t2_;
-
-    bool children_have_more_ = true;
-    std::deque<IntersectingSpan> intersecting_spans_;
-
-    SpanOperatorTable* const table_;
-  };
-
-  // Cursor on the span table.
-  class Cursor : public Table::Cursor {
-   public:
-    Cursor(SpanOperatorTable*, sqlite3* db);
-    ~Cursor() override;
-
-    // Methods to be implemented by derived table classes.
-    int Filter(const QueryConstraints& qc, sqlite3_value** argv) override;
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context* context, int N) override;
-
-   private:
     int PrepareRawStmt(const QueryConstraints& qc,
                        sqlite3_value** argv,
                        const TableDefinition& def,
                        bool is_t1,
                        sqlite3_stmt**);
 
+    TableState t1_;
+    TableState t2_;
+
+    bool children_have_more_ = true;
+    std::deque<IntersectingSpan> intersecting_spans_;
+
     sqlite3* const db_;
     SpanOperatorTable* const table_;
-    std::unique_ptr<FilterState> filter_state_;
   };
 
   // Converts a joined column index into an index on the columns of the child

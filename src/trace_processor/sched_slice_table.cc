@@ -107,8 +107,10 @@ Table::Schema SchedSliceTable::CreateSchema(int, const char* const*) {
       {Column::kCpu, Column::kTimestamp});
 }
 
-std::unique_ptr<Table::Cursor> SchedSliceTable::CreateCursor() {
-  return std::unique_ptr<Table::Cursor>(new Cursor(storage_));
+std::unique_ptr<Table::Cursor> SchedSliceTable::CreateCursor(
+    const QueryConstraints& qc,
+    sqlite3_value** argv) {
+  return std::unique_ptr<Table::Cursor>(new Cursor(storage_, qc, argv));
 }
 
 int SchedSliceTable::BestIndex(const QueryConstraints& qc,
@@ -126,56 +128,9 @@ int SchedSliceTable::BestIndex(const QueryConstraints& qc,
   return SQLITE_OK;
 }
 
-SchedSliceTable::Cursor::Cursor(const TraceStorage* storage)
-    : storage_(storage) {}
-
-int SchedSliceTable::Cursor::Filter(const QueryConstraints& qc,
-                                    sqlite3_value** argv) {
-  filter_state_.reset(new FilterState(storage_, qc, argv));
-  return SQLITE_OK;
-}
-
-int SchedSliceTable::Cursor::Next() {
-  filter_state_->FindNextSlice();
-  return SQLITE_OK;
-}
-
-int SchedSliceTable::Cursor::Eof() {
-  return !filter_state_->IsNextRowIdIndexValid();
-}
-
-int SchedSliceTable::Cursor::Column(sqlite3_context* context, int N) {
-  PERFETTO_DCHECK(filter_state_->IsNextRowIdIndexValid());
-
-  size_t row = filter_state_->next_row_id();
-  const auto& slices = storage_->slices();
-  switch (N) {
-    case Column::kTimestamp: {
-      uint64_t ts = slices.start_ns()[row];
-      sqlite3_result_int64(context, static_cast<sqlite3_int64>(ts));
-      break;
-    }
-    case Column::kCpu: {
-      sqlite3_result_int(context, static_cast<int>(slices.cpus()[row]));
-      break;
-    }
-    case Column::kDuration: {
-      uint64_t duration = slices.durations()[row];
-      sqlite3_result_int64(context, static_cast<sqlite3_int64>(duration));
-      break;
-    }
-    case Column::kUtid: {
-      sqlite3_result_int64(context, slices.utids()[row]);
-      break;
-    }
-  }
-  return SQLITE_OK;
-}
-
-SchedSliceTable::FilterState::FilterState(
-    const TraceStorage* storage,
-    const QueryConstraints& query_constraints,
-    sqlite3_value** argv)
+SchedSliceTable::Cursor::Cursor(const TraceStorage* storage,
+                                const QueryConstraints& query_constraints,
+                                sqlite3_value** argv)
     : order_by_(query_constraints.order_by()), storage_(storage) {
   // Remove ordering on timestamp if it is the only ordering as we are already
   // sorted on TS. This makes span joining significantly faster.
@@ -220,8 +175,46 @@ SchedSliceTable::FilterState::FilterState(
   FindNextRowAndTimestamp();
 }
 
-void SchedSliceTable::FilterState::SetupSortedRowIds(uint64_t min_ts,
-                                                     uint64_t max_ts) {
+int SchedSliceTable::Cursor::Next() {
+  next_row_id_index_++;
+  FindNextRowAndTimestamp();
+  return SQLITE_OK;
+}
+
+int SchedSliceTable::Cursor::Eof() {
+  return !IsNextRowIdIndexValid();
+}
+
+int SchedSliceTable::Cursor::Column(sqlite3_context* context, int N) {
+  PERFETTO_DCHECK(IsNextRowIdIndexValid());
+
+  size_t row = next_row_id();
+  const auto& slices = storage_->slices();
+  switch (N) {
+    case Column::kTimestamp: {
+      uint64_t ts = slices.start_ns()[row];
+      sqlite3_result_int64(context, static_cast<sqlite3_int64>(ts));
+      break;
+    }
+    case Column::kCpu: {
+      sqlite3_result_int(context, static_cast<int>(slices.cpus()[row]));
+      break;
+    }
+    case Column::kDuration: {
+      uint64_t duration = slices.durations()[row];
+      sqlite3_result_int64(context, static_cast<sqlite3_int64>(duration));
+      break;
+    }
+    case Column::kUtid: {
+      sqlite3_result_int64(context, slices.utids()[row]);
+      break;
+    }
+  }
+  return SQLITE_OK;
+}
+
+void SchedSliceTable::Cursor::SetupSortedRowIds(uint64_t min_ts,
+                                                uint64_t max_ts) {
   const auto& slices = storage_->slices();
   const auto& start_ns = slices.start_ns();
   PERFETTO_CHECK(slices.slice_count() <= std::numeric_limits<uint32_t>::max());
@@ -244,7 +237,7 @@ void SchedSliceTable::FilterState::SetupSortedRowIds(uint64_t min_ts,
   }
 }
 
-int SchedSliceTable::FilterState::CompareSlices(size_t f_idx, size_t s_idx) {
+int SchedSliceTable::Cursor::CompareSlices(size_t f_idx, size_t s_idx) {
   for (const auto& ob : order_by_) {
     int c = CompareSlicesOnColumn(f_idx, s_idx, ob);
     if (c != 0)
@@ -253,7 +246,7 @@ int SchedSliceTable::FilterState::CompareSlices(size_t f_idx, size_t s_idx) {
   return 0;
 }
 
-int SchedSliceTable::FilterState::CompareSlicesOnColumn(
+int SchedSliceTable::Cursor::CompareSlicesOnColumn(
     size_t f_idx,
     size_t s_idx,
     const QueryConstraints::OrderBy& ob) {
@@ -271,12 +264,7 @@ int SchedSliceTable::FilterState::CompareSlicesOnColumn(
   PERFETTO_FATAL("Unexpected column %d", ob.iColumn);
 }
 
-void SchedSliceTable::FilterState::FindNextSlice() {
-  next_row_id_index_++;
-  FindNextRowAndTimestamp();
-}
-
-void SchedSliceTable::FilterState::FindNextRowAndTimestamp() {
+void SchedSliceTable::Cursor::FindNextRowAndTimestamp() {
   auto start =
       row_filter_.begin() +
       static_cast<decltype(row_filter_)::difference_type>(next_row_id_index_);
