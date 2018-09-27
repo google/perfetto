@@ -22,22 +22,65 @@
 namespace perfetto {
 namespace {
 
-TEST(BookkeepingTest, Basic) {
-  std::vector<MemoryBookkeeping::CodeLocation> stack{
+std::vector<CodeLocation> stack() {
+  return {
       {"map1", "fun1"}, {"map2", "fun2"},
   };
+}
 
-  std::vector<MemoryBookkeeping::CodeLocation> stack2{
+std::vector<CodeLocation> stack2() {
+  return {
       {"map1", "fun1"}, {"map3", "fun3"},
   };
-  MemoryBookkeeping mb;
-  mb.RecordMalloc(stack, 1, 5);
-  mb.RecordMalloc(stack2, 2, 2);
-  ASSERT_EQ(mb.GetCumSizeForTesting({{"map1", "fun1"}}), 7);
-  mb.RecordFree(2);
-  ASSERT_EQ(mb.GetCumSizeForTesting({{"map1", "fun1"}}), 5);
-  mb.RecordFree(1);
-  ASSERT_EQ(mb.GetCumSizeForTesting({{"map1", "fun1"}}), 0);
+}
+
+TEST(BookkeepingTest, Basic) {
+  uint64_t sequence_number = 1;
+  GlobalCallstackTrie c;
+  HeapTracker hd(&c);
+
+  hd.RecordMalloc(stack(), 1, 5, sequence_number++);
+  hd.RecordMalloc(stack2(), 2, 2, sequence_number++);
+  ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 7);
+  hd.RecordFree(2, sequence_number++);
+  ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 5);
+  hd.RecordFree(1, sequence_number++);
+  ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 0);
+}
+
+TEST(BookkeepingTest, TwoHeapTrackers) {
+  uint64_t sequence_number = 1;
+  GlobalCallstackTrie c;
+  HeapTracker hd(&c);
+  {
+    HeapTracker hd2(&c);
+
+    hd.RecordMalloc(stack(), 1, 5, sequence_number++);
+    hd2.RecordMalloc(stack2(), 2, 2, sequence_number++);
+    ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 7);
+  }
+  ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 5);
+}
+
+TEST(BookkeepingTest, ReplaceAlloc) {
+  uint64_t sequence_number = 1;
+  GlobalCallstackTrie c;
+  HeapTracker hd(&c);
+
+  hd.RecordMalloc(stack(), 1, 5, sequence_number++);
+  hd.RecordMalloc(stack2(), 1, 2, sequence_number++);
+  EXPECT_EQ(c.GetCumSizeForTesting(stack()), 0);
+  EXPECT_EQ(c.GetCumSizeForTesting(stack2()), 2);
+}
+
+TEST(BookkeepingTest, OutOfOrder) {
+  GlobalCallstackTrie c;
+  HeapTracker hd(&c);
+
+  hd.RecordMalloc(stack(), 1, 5, 1);
+  hd.RecordMalloc(stack2(), 1, 2, 0);
+  EXPECT_EQ(c.GetCumSizeForTesting(stack()), 5);
+  EXPECT_EQ(c.GetCumSizeForTesting(stack2()), 0);
 }
 
 }  // namespace
