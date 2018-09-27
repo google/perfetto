@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// import {Action, navigate} from '../common/actions';
+import {dingus} from 'dingusjs';
 
 import {Action, navigate} from '../common/actions';
-import {dingus} from '../test/dingus';
 
 import {Router} from './router';
 
