@@ -46,16 +46,15 @@ TEST_F(SocketListenerTest, ReceiveRecord) {
   base::TestTaskRunner task_runner;
   auto callback_called = task_runner.CreateCheckpoint("callback.called");
   auto connected = task_runner.CreateCheckpoint("connected");
-  auto callback_fn = [&callback_called](
-                         size_t size, std::unique_ptr<uint8_t[]> buf,
-                         std::weak_ptr<ProcessMetadata> metadata) {
-    ASSERT_EQ(size, 1u);
-    ASSERT_EQ(buf[0], '1');
-    ASSERT_FALSE(metadata.expired());
+  auto callback_fn = [&callback_called](UnwindingRecord r) {
+    ASSERT_EQ(r.size, 1u);
+    ASSERT_EQ(r.data[0], '1');
+    ASSERT_FALSE(r.metadata.expired());
     callback_called();
   };
 
-  SocketListener listener(std::move(callback_fn));
+  GlobalCallstackTrie bookkeeping;
+  SocketListener listener(std::move(callback_fn), &bookkeeping);
   MockEventListener client_listener;
   EXPECT_CALL(client_listener, OnConnect(_, _))
       .WillOnce(InvokeWithoutArgs(connected));

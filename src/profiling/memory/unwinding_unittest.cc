@@ -16,7 +16,8 @@
 
 #include "src/profiling/memory/unwinding.h"
 #include "perfetto/base/scoped_file.h"
-#include "src/profiling/memory/transport_data.h"
+#include "src/profiling/memory/client.h"
+#include "src/profiling/memory/wire_protocol.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -70,20 +71,6 @@ TEST(UnwindingTest, FileDescriptorMapsParse) {
 #define MAYBE_DoUnwind DISABLED_DoUnwind
 #endif
 
-uint8_t* GetStackBase() {
-  pthread_t t = pthread_self();
-  pthread_attr_t attr;
-  if (pthread_getattr_np(t, &attr) != 0) {
-    return nullptr;
-  }
-  uint8_t* x;
-  size_t s;
-  if (pthread_attr_getstack(&attr, reinterpret_cast<void**>(&x), &s) != 0)
-    return nullptr;
-  pthread_attr_destroy(&attr);
-  return x + s;
-}
-
 // This is needed because ASAN thinks copying the whole stack is a buffer
 // underrun.
 void __attribute__((noinline))
@@ -95,50 +82,59 @@ UnsafeMemcpy(void* dst, const void* src, size_t n)
     to[i] = from[i];
 }
 
-std::pair<std::unique_ptr<uint8_t[]>, size_t> __attribute__((noinline))
-GetRecord() {
-  const uint8_t* stackbase = GetStackBase();
-  PERFETTO_CHECK(stackbase != nullptr);
-  const uint8_t* stacktop =
-      reinterpret_cast<uint8_t*>(__builtin_frame_address(0));
-  PERFETTO_CHECK(stacktop != nullptr);
-  PERFETTO_CHECK(stacktop < stackbase);
-  const size_t stack_size = static_cast<size_t>(stackbase - stacktop);
-  std::unique_ptr<unwindstack::Regs> regs(unwindstack::Regs::CreateFromLocal());
-  const unwindstack::ArchEnum arch = regs->CurrentArch();
-  const size_t reg_size = RegSize(arch);
-  const size_t total_size = sizeof(AllocMetadata) + reg_size + stack_size;
-  std::unique_ptr<uint8_t[]> buf(new uint8_t[total_size]);
-  AllocMetadata* metadata = reinterpret_cast<AllocMetadata*>(buf.get());
-  metadata->alloc_size = 0;
-  metadata->alloc_address = 0;
+struct RecordMemory {
+  std::unique_ptr<uint8_t[]> payload;
+  std::unique_ptr<AllocMetadata> metadata;
+};
+
+RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
+  std::unique_ptr<AllocMetadata> metadata(new AllocMetadata);
+
+  const char* stackbase = GetThreadStackBase();
+  const char* stacktop = reinterpret_cast<char*>(__builtin_frame_address(0));
+  unwindstack::AsmGetRegs(metadata->register_data);
+
+  if (stackbase < stacktop) {
+    PERFETTO_DCHECK(false);
+    return {nullptr, nullptr};
+  }
+  uint64_t stack_size = static_cast<uint64_t>(stackbase - stacktop);
+
+  metadata->alloc_size = 10;
+  metadata->alloc_address = 0x10;
   metadata->stack_pointer = reinterpret_cast<uint64_t>(stacktop);
-  metadata->stack_pointer_offset = sizeof(AllocMetadata) + reg_size;
-  metadata->arch = arch;
-  unwindstack::RegsGetLocal(regs.get());
-  // Make sure nothing above has changed the stack pointer, just for extra
-  // paranoia.
-  PERFETTO_CHECK(stacktop ==
-                 reinterpret_cast<uint8_t*>(__builtin_frame_address(0)));
-  memcpy(buf.get() + sizeof(AllocMetadata), regs->RawData(), reg_size);
-  UnsafeMemcpy(buf.get() + sizeof(AllocMetadata) + reg_size, stacktop,
-               stack_size);
-  return {std::move(buf), total_size};
+  metadata->stack_pointer_offset = sizeof(AllocMetadata);
+  metadata->arch = unwindstack::Regs::CurrentArch();
+  metadata->sequence_number = 1;
+
+  std::unique_ptr<uint8_t[]> payload(new uint8_t[stack_size]);
+  UnsafeMemcpy(&payload[0], stacktop, stack_size);
+
+  *msg = {};
+  msg->alloc_header = metadata.get();
+  msg->payload = reinterpret_cast<char*>(payload.get());
+  msg->payload_size = static_cast<size_t>(stack_size);
+  return {std::move(payload), std::move(metadata)};
 }
 
 // TODO(fmayer): Investigate why this fails out of tree.
 TEST(UnwindingTest, MAYBE_DoUnwind) {
   base::ScopedFile proc_maps(open("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(open("/proc/self/mem", O_RDONLY));
-  ProcessMetadata metadata(getpid(), std::move(proc_maps), std::move(proc_mem));
-  auto record = GetRecord();
-  std::vector<unwindstack::FrameData> out;
-  ASSERT_TRUE(DoUnwind(record.first.get(), record.second, &metadata, &out));
+  GlobalCallstackTrie callsites;
+  ProcessMetadata metadata(getpid(), std::move(proc_maps), std::move(proc_mem),
+                           &callsites);
+  WireMessage msg;
+  auto record = GetRecord(&msg);
+  AllocRecord out;
+  ASSERT_TRUE(DoUnwind(&msg, &metadata, &out));
   int st;
-  std::unique_ptr<char> demangled(
-      abi::__cxa_demangle(out[0].function_name.c_str(), nullptr, nullptr, &st));
+  std::unique_ptr<char> demangled(abi::__cxa_demangle(
+      out.frames[0].function_name.c_str(), nullptr, nullptr, &st));
   ASSERT_EQ(st, 0);
-  ASSERT_STREQ(demangled.get(), "perfetto::(anonymous namespace)::GetRecord()");
+  ASSERT_STREQ(
+      demangled.get(),
+      "perfetto::(anonymous namespace)::GetRecord(perfetto::WireMessage*)");
 }
 
 }  // namespace

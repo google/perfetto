@@ -16,37 +16,100 @@
 
 #include "src/profiling/memory/bookkeeping.h"
 
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 
-MemoryBookkeeping::Node* MemoryBookkeeping::Node::GetOrCreateChild(
-    const MemoryBookkeeping::InternedCodeLocation& loc) {
+GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
+    const InternedCodeLocation& loc) {
   Node* child = children_.Get(loc);
   if (!child)
     child = children_.Emplace(loc, this);
   return child;
 }
 
-void MemoryBookkeeping::RecordMalloc(const std::vector<CodeLocation>& locs,
-                                     uint64_t address,
-                                     uint64_t size) {
-  Node* node = &root_;
-  node->cum_size_ += size;
-  for (const MemoryBookkeeping::CodeLocation& loc : locs) {
-    node = node->GetOrCreateChild(InternCodeLocation(loc));
-    node->cum_size_ += size;
+void HeapTracker::RecordMalloc(const std::vector<CodeLocation>& callstack,
+                               uint64_t address,
+                               uint64_t size,
+                               uint64_t sequence_number) {
+  auto it = allocations_.find(address);
+  if (it != allocations_.end()) {
+    if (it->second.sequence_number > sequence_number) {
+      return;
+    } else {
+      // Clean up previous allocation by pretending a free happened just after
+      // it.
+      // CommitFree only uses the sequence number to check whether the
+      // currently active allocation is newer than the free, so we can make
+      // up a sequence_number here.
+      CommitFree(it->second.sequence_number + 1, address);
+    }
   }
 
-  allocations_.emplace(address, std::make_pair(size, node));
+  GlobalCallstackTrie::Node* node =
+      callsites_->IncrementCallsite(callstack, size);
+  allocations_.emplace(address, Allocation(size, sequence_number, node));
+
+  // Keep the sequence tracker consistent.
+  RecordFree(kNoopFree, sequence_number);
 }
 
-void MemoryBookkeeping::RecordFree(uint64_t address) {
+void HeapTracker::RecordFree(uint64_t address, uint64_t sequence_number) {
+  if (sequence_number != sequence_number_ + 1) {
+    pending_frees_.emplace(sequence_number, address);
+    return;
+  }
+
+  if (address != kNoopFree)
+    CommitFree(sequence_number, address);
+  sequence_number_++;
+
+  // At this point some other pending frees might be eligible to be committed.
+  auto it = pending_frees_.begin();
+  while (it != pending_frees_.end() && it->first == sequence_number_ + 1) {
+    if (it->second != kNoopFree)
+      CommitFree(it->first, it->second);
+    sequence_number_++;
+    it = pending_frees_.erase(it);
+  }
+}
+
+void HeapTracker::CommitFree(uint64_t sequence_number, uint64_t address) {
   auto leaf_it = allocations_.find(address);
   if (leaf_it == allocations_.end())
     return;
 
-  std::pair<uint64_t, Node*> value = leaf_it->second;
-  uint64_t size = value.first;
-  Node* node = value.second;
+  const Allocation& value = leaf_it->second;
+  if (value.sequence_number > sequence_number)
+    return;
+  allocations_.erase(leaf_it);
+}
+
+uint64_t GlobalCallstackTrie::GetCumSizeForTesting(
+    const std::vector<CodeLocation>& callstack) {
+  Node* node = &root_;
+  for (const CodeLocation& loc : callstack) {
+    node = node->children_.Get(InternCodeLocation(loc));
+    if (node == nullptr)
+      return 0;
+  }
+  return node->cum_size_;
+}
+
+GlobalCallstackTrie::Node* GlobalCallstackTrie::IncrementCallsite(
+    const std::vector<CodeLocation>& callstack,
+    uint64_t size) {
+  Node* node = &root_;
+  node->cum_size_ += size;
+  for (const CodeLocation& loc : callstack) {
+    node = node->GetOrCreateChild(InternCodeLocation(loc));
+    node->cum_size_ += size;
+  }
+  return node;
+}
+
+void GlobalCallstackTrie::DecrementNode(Node* node, uint64_t size) {
+  PERFETTO_DCHECK(node->cum_size_ >= size);
 
   bool delete_prev = false;
   Node* prev = nullptr;
@@ -58,19 +121,6 @@ void MemoryBookkeeping::RecordFree(uint64_t address) {
     prev = node;
     node = node->parent_;
   }
-
-  allocations_.erase(leaf_it);
-}
-
-uint64_t MemoryBookkeeping::GetCumSizeForTesting(
-    const std::vector<CodeLocation>& locs) {
-  Node* node = &root_;
-  for (const MemoryBookkeeping::CodeLocation& loc : locs) {
-    node = node->children_.Get(InternCodeLocation(loc));
-    if (node == nullptr)
-      return 0;
-  }
-  return node->cum_size_;
 }
 
 }  // namespace perfetto

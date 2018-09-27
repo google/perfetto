@@ -42,8 +42,8 @@
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
-#include "src/profiling/memory/transport_data.h"
 #include "src/profiling/memory/unwinding.h"
+#include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
 
@@ -155,34 +155,19 @@ void FileDescriptorMaps::Reset() {
   maps_.clear();
 }
 
-bool DoUnwind(void* mem,
-              size_t sz,
-              ProcessMetadata* metadata,
-              std::vector<unwindstack::FrameData>* out) {
-  if (sz < sizeof(AllocMetadata)) {
-    PERFETTO_ELOG("size");
-    return false;
-  }
-  AllocMetadata* alloc_metadata = reinterpret_cast<AllocMetadata*>(mem);
-  if (sizeof(AllocMetadata) + RegSize(alloc_metadata->arch) > sz)
-    return false;
-  void* reg_data = static_cast<uint8_t*>(mem) + sizeof(AllocMetadata);
+bool DoUnwind(WireMessage* msg, ProcessMetadata* metadata, AllocRecord* out) {
+  AllocMetadata* alloc_metadata = msg->alloc_header;
   std::unique_ptr<unwindstack::Regs> regs(
-      CreateFromRawData(alloc_metadata->arch, reg_data));
+      CreateFromRawData(alloc_metadata->arch, alloc_metadata->register_data));
   if (regs == nullptr) {
     PERFETTO_ELOG("regs");
     return false;
   }
-  if (alloc_metadata->stack_pointer_offset < sizeof(AllocMetadata) ||
-      alloc_metadata->stack_pointer_offset > sz) {
-    PERFETTO_ELOG("out-of-bound stack_pointer_offset");
-    return false;
-  }
-  uint8_t* stack =
-      reinterpret_cast<uint8_t*>(mem) + alloc_metadata->stack_pointer_offset;
+  out->alloc_metadata = *alloc_metadata;
+  uint8_t* stack = reinterpret_cast<uint8_t*>(msg->payload);
   std::shared_ptr<unwindstack::Memory> mems = std::make_shared<StackMemory>(
       *metadata->mem_fd, alloc_metadata->stack_pointer, stack,
-      sz - alloc_metadata->stack_pointer_offset);
+      msg->payload_size);
   unwindstack::Unwinder unwinder(kMaxFrames, &metadata->maps, regs.get(), mems);
   // Surpress incorrect "variable may be uninitialized" error for if condition
   // after this loop. error_code = LastErrorCode gets run at least once.
@@ -198,10 +183,83 @@ bool DoUnwind(void* mem,
       break;
   }
   if (error_code == 0)
-    *out = unwinder.frames();
+    out->frames = unwinder.frames();
   else
     PERFETTO_DLOG("unwinding failed %" PRIu8, error_code);
   return error_code == 0;
+}
+
+bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out) {
+  WireMessage msg;
+  if (!ReceiveWireMessage(reinterpret_cast<char*>(rec->data.get()), rec->size,
+                          &msg))
+    return false;
+  switch (msg.record_type) {
+    case RecordType::Malloc: {
+      std::shared_ptr<ProcessMetadata> metadata = rec->metadata.lock();
+      if (!metadata)
+        // Process has already gone away.
+        return false;
+
+      out->metadata = std::move(rec->metadata);
+      out->free_record = {};
+      return DoUnwind(&msg, metadata.get(), &out->alloc_record);
+    }
+    case RecordType::Free: {
+      // We need to keep this alive, because msg.free_header is a pointer into
+      // this.
+      out->metadata = std::move(rec->metadata);
+      out->free_record.free_data = std::move(rec->data);
+      out->free_record.metadata = msg.free_header;
+      out->alloc_record = {};
+      return true;
+    }
+  }
+}
+
+__attribute__((noreturn)) void UnwindingMainLoop(
+    BoundedQueue<UnwindingRecord>* input_queue,
+    BoundedQueue<BookkeepingRecord>* output_queue) {
+  for (;;) {
+    UnwindingRecord rec = input_queue->Get();
+    BookkeepingRecord out;
+    if (HandleUnwindingRecord(&rec, &out))
+      output_queue->Add(std::move(out));
+  }
+}
+
+void HandleBookkeepingRecord(BookkeepingRecord* rec) {
+  std::shared_ptr<ProcessMetadata> metadata = rec->metadata.lock();
+  if (!metadata)
+    // Process has already gone away.
+    return;
+
+  if (rec->free_record.free_data) {
+    FreeRecord& free_rec = rec->free_record;
+    FreePageEntry* entries = free_rec.metadata->entries;
+    uint64_t num_entries = free_rec.metadata->num_entries;
+    for (size_t i = 0; i < num_entries; ++i) {
+      const FreePageEntry& entry = entries[i];
+      metadata->heap_dump.RecordFree(entry.addr, entry.sequence_number);
+    }
+  } else {
+    AllocRecord& alloc_rec = rec->alloc_record;
+    std::vector<CodeLocation> code_locations;
+    for (unwindstack::FrameData& frame : alloc_rec.frames)
+      code_locations.emplace_back(frame.map_name, frame.function_name);
+    metadata->heap_dump.RecordMalloc(code_locations,
+                                     alloc_rec.alloc_metadata.alloc_address,
+                                     alloc_rec.alloc_metadata.alloc_size,
+                                     alloc_rec.alloc_metadata.sequence_number);
+  }
+}
+
+__attribute__((noreturn)) void BookkeepingMainLoop(
+    BoundedQueue<BookkeepingRecord>* input_queue) {
+  for (;;) {
+    BookkeepingRecord rec = input_queue->Get();
+    HandleBookkeepingRecord(&rec);
+  }
 }
 
 }  // namespace perfetto

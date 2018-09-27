@@ -131,5 +131,27 @@ ssize_t Receive(int fd,
 
 #pragma GCC diagnostic pop
 
+bool MakeSockAddr(const std::string& socket_name,
+                  sockaddr_un* addr,
+                  socklen_t* addr_size) {
+  memset(addr, 0, sizeof(*addr));
+  const size_t name_len = socket_name.size();
+  if (name_len >= sizeof(addr->sun_path)) {
+    errno = ENAMETOOLONG;
+    return false;
+  }
+  memcpy(addr->sun_path, socket_name.data(), name_len);
+  if (addr->sun_path[0] == '@')
+    addr->sun_path[0] = '\0';
+  addr->sun_family = AF_UNIX;
+  *addr_size = static_cast<socklen_t>(
+      __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
+  return true;
+}
+
+base::ScopedFile CreateSocket() {
+  return base::ScopedFile(socket(AF_UNIX, SOCK_STREAM, 0));
+}
+
 }  // namespace base
 }  // namespace perfetto
