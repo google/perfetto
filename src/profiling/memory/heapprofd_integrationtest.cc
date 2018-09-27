@@ -64,7 +64,7 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
       },
       &callsites);
 
-  auto sock = ipc::UnixSocket::Listen(kSocketName, &listener, &task_runner);
+  auto sock = base::UnixSocket::Listen(kSocketName, &listener, &task_runner);
   if (!sock->is_listening()) {
     PERFETTO_ELOG("Socket not listening.");
     PERFETTO_CHECK(false);

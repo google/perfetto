@@ -44,13 +44,14 @@ std::unique_ptr<Client> Client::CreateInstance(const char* socket_name,
 ClientImpl::ClientImpl(const char* socket_name, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
-  sock_ = UnixSocket::Connect(socket_name, this, task_runner);
+  sock_ = base::UnixSocket::Connect(socket_name, this, task_runner);
 }
 
 ClientImpl::~ClientImpl() {
   // Ensure we are not destroyed in the middle of invoking a reply.
   PERFETTO_DCHECK(!invoking_method_reply_);
-  OnDisconnect(nullptr);  // The UnixSocket* ptr is not used in OnDisconnect().
+  OnDisconnect(
+      nullptr);  // The base::UnixSocket* ptr is not used in OnDisconnect().
 }
 
 void ClientImpl::BindService(base::WeakPtr<ServiceProxy> service_proxy) {
@@ -122,12 +123,12 @@ bool ClientImpl::SendFrame(const Frame& frame, int fd) {
   // the send and PostTask the reply later? Right now we are making Send()
   // blocking as a workaround. Propagate bakpressure to the caller instead.
   bool res = sock_->Send(buf.data(), buf.size(), fd,
-                         UnixSocket::BlockingMode::kBlocking);
+                         base::UnixSocket::BlockingMode::kBlocking);
   PERFETTO_CHECK(res || !sock_->is_connected());
   return res;
 }
 
-void ClientImpl::OnConnect(UnixSocket*, bool connected) {
+void ClientImpl::OnConnect(base::UnixSocket*, bool connected) {
   // Drain the BindService() calls that were queued before establishig the
   // connection with the host.
   for (base::WeakPtr<ServiceProxy>& service_proxy : queued_bindings_) {
@@ -140,7 +141,7 @@ void ClientImpl::OnConnect(UnixSocket*, bool connected) {
   queued_bindings_.clear();
 }
 
-void ClientImpl::OnDisconnect(UnixSocket*) {
+void ClientImpl::OnDisconnect(base::UnixSocket*) {
   for (auto it : service_bindings_) {
     base::WeakPtr<ServiceProxy>& service_proxy = it.second;
     task_runner_->PostTask([service_proxy] {
@@ -152,7 +153,7 @@ void ClientImpl::OnDisconnect(UnixSocket*) {
   queued_bindings_.clear();
 }
 
-void ClientImpl::OnDataAvailable(UnixSocket*) {
+void ClientImpl::OnDataAvailable(base::UnixSocket*) {
   size_t rsize;
   do {
     auto buf = frame_deserializer_.BeginReceive();

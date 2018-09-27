@@ -22,13 +22,13 @@
 #include "gtest/gtest.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/temp_file.h"
+#include "perfetto/base/unix_socket.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/ipc/service.h"
 #include "perfetto/ipc/service_descriptor.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/buffered_frame_deserializer.h"
 #include "src/ipc/test/test_socket.h"
-#include "src/ipc/unix_socket.h"
 
 #include "src/ipc/test/client_unittest_messages.pb.h"
 #include "src/ipc/wire_protocol.pb.h"
@@ -78,7 +78,7 @@ class FakeService : public Service {
   ServiceDescriptor descriptor_;
 };
 
-class FakeClient : public UnixSocket::EventListener {
+class FakeClient : public base::UnixSocket::EventListener {
  public:
   MOCK_METHOD0(OnConnect, void());
   MOCK_METHOD0(OnDisconnect, void());
@@ -88,7 +88,7 @@ class FakeClient : public UnixSocket::EventListener {
   MOCK_METHOD0(OnRequestError, void());
 
   explicit FakeClient(base::TaskRunner* task_runner) {
-    sock_ = UnixSocket::Connect(kSockName, this, task_runner);
+    sock_ = base::UnixSocket::Connect(kSockName, this, task_runner);
   }
 
   ~FakeClient() override = default;
@@ -118,15 +118,15 @@ class FakeClient : public UnixSocket::EventListener {
     SendFrame(frame, fd);
   }
 
-  // UnixSocket::EventListener implementation.
-  void OnConnect(UnixSocket*, bool success) override {
+  // base::UnixSocket::EventListener implementation.
+  void OnConnect(base::UnixSocket*, bool success) override {
     ASSERT_TRUE(success);
     OnConnect();
   }
 
-  void OnDisconnect(UnixSocket*) override { OnDisconnect(); }
+  void OnDisconnect(base::UnixSocket*) override { OnDisconnect(); }
 
-  void OnDataAvailable(UnixSocket* sock) override {
+  void OnDataAvailable(base::UnixSocket* sock) override {
     ASSERT_EQ(sock_.get(), sock);
     auto buf = frame_deserializer_.BeginReceive();
     base::ScopedFile fd;
@@ -156,7 +156,7 @@ class FakeClient : public UnixSocket::EventListener {
   }
 
   BufferedFrameDeserializer frame_deserializer_;
-  std::unique_ptr<UnixSocket> sock_;
+  std::unique_ptr<base::UnixSocket> sock_;
   std::map<uint64_t /* request_id */, int /* num_replies_received */> requests_;
   ServiceID last_bound_service_id_;
 };
