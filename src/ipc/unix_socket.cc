@@ -44,41 +44,15 @@ namespace ipc {
 
 // TODO(primiano): Add ThreadChecker to methods of this class.
 
-namespace {
-
-bool MakeSockAddr(const std::string& socket_name,
-                  sockaddr_un* addr,
-                  socklen_t* addr_size) {
-  memset(addr, 0, sizeof(*addr));
-  const size_t name_len = socket_name.size();
-  if (name_len >= sizeof(addr->sun_path)) {
-    errno = ENAMETOOLONG;
-    return false;
-  }
-  memcpy(addr->sun_path, socket_name.data(), name_len);
-  if (addr->sun_path[0] == '@')
-    addr->sun_path[0] = '\0';
-  addr->sun_family = AF_UNIX;
-  *addr_size = static_cast<socklen_t>(
-      __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
-  return true;
-}
-
-base::ScopedFile CreateSocket() {
-  return base::ScopedFile(socket(AF_UNIX, SOCK_STREAM, 0));
-}
-
-}  // namespace
-
 // static
 base::ScopedFile UnixSocket::CreateAndBind(const std::string& socket_name) {
-  base::ScopedFile fd = CreateSocket();
+  base::ScopedFile fd = base::CreateSocket();
   if (!fd)
     return fd;
 
   sockaddr_un addr;
   socklen_t addr_size;
-  if (!MakeSockAddr(socket_name, &addr, &addr_size)) {
+  if (!base::MakeSockAddr(socket_name, &addr, &addr_size)) {
     return base::ScopedFile();
   }
 
@@ -134,7 +108,7 @@ UnixSocket::UnixSocket(EventListener* event_listener,
   if (adopt_state == State::kDisconnected) {
     // We get here from the default ctor().
     PERFETTO_DCHECK(!adopt_fd);
-    fd_ = CreateSocket();
+    fd_ = base::CreateSocket();
     if (!fd_) {
       last_error_ = errno;
       return;
@@ -201,7 +175,7 @@ void UnixSocket::DoConnect(const std::string& socket_name) {
 
   sockaddr_un addr;
   socklen_t addr_size;
-  if (!MakeSockAddr(socket_name, &addr, &addr_size)) {
+  if (!base::MakeSockAddr(socket_name, &addr, &addr_size)) {
     last_error_ = errno;
     return NotifyConnectionState(false);
   }

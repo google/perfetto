@@ -18,82 +18,90 @@
 
 #include <inttypes.h>
 #include <sys/socket.h>
+#include <sys/syscall.h>
+#include <sys/un.h>
+#include <unistd.h>
 
 #include <atomic>
+#include <new>
+
+#include <unwindstack/MachineArm.h>
+#include <unwindstack/MachineArm64.h>
+#include <unwindstack/MachineMips.h>
+#include <unwindstack/MachineMips64.h>
+#include <unwindstack/MachineX86.h>
+#include <unwindstack/MachineX86_64.h>
+#include <unwindstack/Regs.h>
+#include <unwindstack/RegsGetLocal.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/sock_utils.h"
 #include "perfetto/base/utils.h"
-#include "src/profiling/memory/transport_data.h"
+#include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
 namespace {
 
-std::atomic<uint64_t> global_sequence_number(0);
-constexpr size_t kFreePageBytes = base::kPageSize;
-constexpr size_t kFreePageSize = kFreePageBytes / sizeof(uint64_t);
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// glibc does not define a wrapper around gettid, bionic does.
+pid_t gettid() {
+  return static_cast<pid_t>(syscall(__NR_gettid));
+}
+#endif
+
+std::vector<base::ScopedFile> ConnectPool(const std::string& sock_name,
+                                          size_t n) {
+  sockaddr_un addr;
+  socklen_t addr_size;
+  if (!base::MakeSockAddr(sock_name, &addr, &addr_size))
+    return {};
+
+  std::vector<base::ScopedFile> res;
+  res.reserve(n);
+  for (size_t i = 0; i < n; ++i) {
+    auto sock = base::CreateSocket();
+    if (connect(*sock, reinterpret_cast<sockaddr*>(&addr), addr_size) == -1) {
+      PERFETTO_PLOG("Failed to connect to %s", sock_name.c_str());
+      continue;
+    }
+    res.emplace_back(std::move(sock));
+  }
+  return res;
+}
+
+inline bool IsMainThread() {
+  return getpid() == gettid();
+}
 
 }  // namespace
 
-FreePage::FreePage() : free_page_(kFreePageSize) {
-  free_page_[0] = static_cast<uint64_t>(kFreePageBytes);
-  free_page_[1] = static_cast<uint64_t>(RecordType::Free);
-  offset_ = 2;
-  // Code in Add assumes that offset is aligned to 2.
-  PERFETTO_DCHECK(offset_ % 2 == 0);
+void FreePage::Add(const uint64_t addr,
+                   const uint64_t sequence_number,
+                   SocketPool* pool) {
+  std::lock_guard<std::mutex> l(mutex_);
+  if (offset_ == kFreePageSize) {
+    FlushLocked(pool);
+    // Now that we have flushed, reset to after the header.
+    offset_ = 0;
+  }
+  FreePageEntry& current_entry = free_page_.entries[offset_++];
+  current_entry.sequence_number = sequence_number;
+  current_entry.addr = addr;
 }
 
-void FreePage::Add(const uint64_t addr, SocketPool* pool) {
-  std::lock_guard<std::mutex> l(mtx_);
-  if (offset_ == kFreePageSize)
-    Flush(pool);
-  static_assert(kFreePageSize % 2 == 0,
-                "free page size needs to be divisible by two");
-  free_page_[offset_++] = ++global_sequence_number;
-  free_page_[offset_++] = addr;
-  PERFETTO_DCHECK(offset_ % 2 == 0);
-}
-
-void FreePage::Flush(SocketPool* pool) {
+void FreePage::FlushLocked(SocketPool* pool) {
+  WireMessage msg = {};
+  msg.record_type = RecordType::Free;
+  msg.free_header = &free_page_;
   BorrowedSocket fd(pool->Borrow());
-  size_t written = 0;
-  do {
-    ssize_t wr = PERFETTO_EINTR(send(*fd, &free_page_[0] + written,
-                                     kFreePageBytes - written, MSG_NOSIGNAL));
-    if (wr == -1) {
-      fd.Close();
-      return;
-    }
-    written += static_cast<size_t>(wr);
-  } while (written < kFreePageBytes);
-  // Now that we have flushed, reset to after the header.
-  offset_ = 2;
-}
-
-BorrowedSocket::BorrowedSocket(base::ScopedFile fd, SocketPool* socket_pool)
-    : fd_(std::move(fd)), socket_pool_(socket_pool) {}
-
-int BorrowedSocket::operator*() {
-  return get();
-}
-
-int BorrowedSocket::get() {
-  return *fd_;
-}
-
-void BorrowedSocket::Close() {
-  fd_.reset();
-}
-
-BorrowedSocket::~BorrowedSocket() {
-  if (socket_pool_ != nullptr)
-    socket_pool_->Return(std::move(fd_));
+  SendWireMessage(*fd, msg);
 }
 
 SocketPool::SocketPool(std::vector<base::ScopedFile> sockets)
     : sockets_(std::move(sockets)), available_sockets_(sockets_.size()) {}
 
 BorrowedSocket SocketPool::Borrow() {
-  std::unique_lock<std::mutex> lck_(mtx_);
+  std::unique_lock<std::mutex> lck_(mutex_);
   if (available_sockets_ == 0)
     cv_.wait(lck_, [this] { return available_sockets_ > 0; });
   PERFETTO_CHECK(available_sockets_ > 0);
@@ -101,19 +109,103 @@ BorrowedSocket SocketPool::Borrow() {
 }
 
 void SocketPool::Return(base::ScopedFile sock) {
+  PERFETTO_CHECK(dead_sockets_ + available_sockets_ < sockets_.size());
   if (!sock) {
     // TODO(fmayer): Handle reconnect or similar.
     // This is just to prevent a deadlock.
     PERFETTO_CHECK(++dead_sockets_ != sockets_.size());
     return;
   }
-  std::unique_lock<std::mutex> lck_(mtx_);
+  std::unique_lock<std::mutex> lck_(mutex_);
   PERFETTO_CHECK(available_sockets_ < sockets_.size());
   sockets_[available_sockets_++] = std::move(sock);
   if (available_sockets_ == 1) {
     lck_.unlock();
     cv_.notify_one();
   }
+}
+
+const char* GetThreadStackBase() {
+  pthread_attr_t attr;
+  if (pthread_getattr_np(pthread_self(), &attr) != 0)
+    return nullptr;
+  base::ScopedResource<pthread_attr_t*, pthread_attr_destroy, nullptr> cleanup(
+      &attr);
+
+  char* stackaddr;
+  size_t stacksize;
+  if (pthread_attr_getstack(&attr, reinterpret_cast<void**>(&stackaddr),
+                            &stacksize) != 0)
+    return nullptr;
+  return stackaddr + stacksize;
+}
+
+Client::Client(std::vector<base::ScopedFile> socks)
+    : socket_pool_(std::move(socks)) {
+  uint64_t size = 0;
+  int fds[2];
+  fds[0] = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
+  fds[1] = open("/proc/self/mem", O_RDONLY | O_CLOEXEC);
+  base::Send(*socket_pool_.Borrow(), &size, sizeof(size), fds, 2);
+}
+
+Client::Client(const std::string& sock_name, size_t conns)
+    : Client(ConnectPool(sock_name, conns)) {}
+
+const char* Client::GetStackBase() {
+  if (IsMainThread()) {
+    if (!main_thread_stack_base_)
+      // Because pthread_attr_getstack reads and parses /proc/self/maps and
+      // /proc/self/stat, we have to cache the result here.
+      main_thread_stack_base_ = GetThreadStackBase();
+    return main_thread_stack_base_;
+  }
+  return GetThreadStackBase();
+}
+
+// The stack grows towards numerically smaller addresses, so the stack layout
+// of main calling malloc is as follows.
+//
+//               +------------+
+//               |SendWireMsg |
+// stacktop +--> +------------+ 0x1000
+//               |RecordMalloc|    +
+//               +------------+    |
+//               | malloc     |    |
+//               +------------+    |
+//               |  main      |    v
+// stackbase +-> +------------+ 0xffff
+void Client::RecordMalloc(uint64_t alloc_size, uint64_t alloc_address) {
+  AllocMetadata metadata;
+  const char* stackbase = GetStackBase();
+  const char* stacktop = reinterpret_cast<char*>(__builtin_frame_address(0));
+  unwindstack::AsmGetRegs(metadata.register_data);
+
+  if (stackbase < stacktop) {
+    PERFETTO_DCHECK(false);
+    return;
+  }
+
+  uint64_t stack_size = static_cast<uint64_t>(stackbase - stacktop);
+  metadata.alloc_size = alloc_size;
+  metadata.alloc_address = alloc_address;
+  metadata.stack_pointer = reinterpret_cast<uint64_t>(stacktop);
+  metadata.stack_pointer_offset = sizeof(AllocMetadata);
+  metadata.arch = unwindstack::Regs::CurrentArch();
+  metadata.sequence_number = ++sequence_number_;
+
+  WireMessage msg{};
+  msg.alloc_header = &metadata;
+  msg.payload = const_cast<char*>(stacktop);
+  msg.payload_size = static_cast<size_t>(stack_size);
+
+  BorrowedSocket sockfd = socket_pool_.Borrow();
+  // TODO(fmayer): Handle failure.
+  PERFETTO_CHECK(SendWireMessage(*sockfd, msg));
+}
+
+void Client::RecordFree(uint64_t alloc_address) {
+  free_page_.Add(alloc_address, ++sequence_number_, &socket_pool_);
 }
 
 }  // namespace perfetto
