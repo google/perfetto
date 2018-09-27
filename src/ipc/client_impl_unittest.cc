@@ -24,13 +24,13 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/temp_file.h"
+#include "perfetto/base/unix_socket.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/ipc/service_descriptor.h"
 #include "perfetto/ipc/service_proxy.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/buffered_frame_deserializer.h"
 #include "src/ipc/test/test_socket.h"
-#include "src/ipc/unix_socket.h"
 
 #include "src/ipc/test/client_unittest_messages.pb.h"
 
@@ -78,7 +78,7 @@ class MockEventListener : public ServiceProxy::EventListener {
 
 // A fake host implementation. Listens on |kSockName| and replies to IPC
 // metohds like a real one.
-class FakeHost : public UnixSocket::EventListener {
+class FakeHost : public base::UnixSocket::EventListener {
  public:
   struct FakeMethod {
     MethodID id;
@@ -103,7 +103,7 @@ class FakeHost : public UnixSocket::EventListener {
 
   explicit FakeHost(base::TaskRunner* task_runner) {
     DESTROY_TEST_SOCK(kSockName);
-    listening_sock = UnixSocket::Listen(kSockName, this, task_runner);
+    listening_sock = base::UnixSocket::Listen(kSockName, this, task_runner);
     EXPECT_TRUE(listening_sock->is_listening());
   }
   ~FakeHost() override { DESTROY_TEST_SOCK(kSockName); }
@@ -117,15 +117,15 @@ class FakeHost : public UnixSocket::EventListener {
     return svc;
   }
 
-  // UnixSocket::EventListener implementation.
+  // base::UnixSocket::EventListener implementation.
   void OnNewIncomingConnection(
-      UnixSocket*,
-      std::unique_ptr<UnixSocket> new_connection) override {
+      base::UnixSocket*,
+      std::unique_ptr<base::UnixSocket> new_connection) override {
     ASSERT_FALSE(client_sock);
     client_sock = std::move(new_connection);
   }
 
-  void OnDataAvailable(UnixSocket* sock) override {
+  void OnDataAvailable(base::UnixSocket* sock) override {
     if (sock != client_sock.get())
       return;
     auto buf = frame_deserializer.BeginReceive();
@@ -187,8 +187,8 @@ class FakeHost : public UnixSocket::EventListener {
   }
 
   BufferedFrameDeserializer frame_deserializer;
-  std::unique_ptr<UnixSocket> listening_sock;
-  std::unique_ptr<UnixSocket> client_sock;
+  std::unique_ptr<base::UnixSocket> listening_sock;
+  std::unique_ptr<base::UnixSocket> client_sock;
   std::map<std::string, std::unique_ptr<FakeService>> services;
   ServiceID last_service_id = 0;
   int next_reply_fd = -1;

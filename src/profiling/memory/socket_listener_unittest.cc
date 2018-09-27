@@ -37,9 +37,9 @@ class SocketListenerTest : public ::testing::Test {
   void TearDown() override { DESTROY_TEST_SOCK(kSocketName); }
 };
 
-class MockEventListener : public ipc::UnixSocket::EventListener {
+class MockEventListener : public base::UnixSocket::EventListener {
  public:
-  MOCK_METHOD2(OnConnect, void(ipc::UnixSocket*, bool));
+  MOCK_METHOD2(OnConnect, void(base::UnixSocket*, bool));
 };
 
 TEST_F(SocketListenerTest, ReceiveRecord) {
@@ -59,11 +59,11 @@ TEST_F(SocketListenerTest, ReceiveRecord) {
   EXPECT_CALL(client_listener, OnConnect(_, _))
       .WillOnce(InvokeWithoutArgs(connected));
 
-  std::unique_ptr<ipc::UnixSocket> recv_socket =
-      ipc::UnixSocket::Listen(kSocketName, &listener, &task_runner);
+  std::unique_ptr<base::UnixSocket> recv_socket =
+      base::UnixSocket::Listen(kSocketName, &listener, &task_runner);
 
-  std::unique_ptr<ipc::UnixSocket> client_socket =
-      ipc::UnixSocket::Connect(kSocketName, &client_listener, &task_runner);
+  std::unique_ptr<base::UnixSocket> client_socket =
+      base::UnixSocket::Connect(kSocketName, &client_listener, &task_runner);
 
   task_runner.RunUntilCheckpoint("connected");
   uint64_t size = 1;
