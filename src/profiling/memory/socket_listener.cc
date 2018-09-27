@@ -82,7 +82,7 @@ void SocketListener::InitProcess(Entry* entry,
   if (it == process_metadata_.end() || it->second.expired()) {
     // We have not seen the PID yet or the PID is being recycled.
     entry->process_metadata = std::make_shared<ProcessMetadata>(
-        peer_pid, std::move(maps_fd), std::move(mem_fd));
+        peer_pid, std::move(maps_fd), std::move(mem_fd), callsites_);
     process_metadata_[peer_pid] = entry->process_metadata;
   } else {
     // If the process already has metadata, this is an additional socket for
@@ -96,19 +96,30 @@ void SocketListener::RecordReceived(ipc::UnixSocket* self,
                                     size_t size,
                                     std::unique_ptr<uint8_t[]> buf) {
   auto it = sockets_.find(self);
-  if (it == sockets_.end())
+  if (it == sockets_.end()) {
     // This happens for zero-length records, because the callback gets called
     // in the first call to Read, before InitProcess is called. Because zero
     // length records are useless anyway, this is not a problem.
     return;
+  }
   Entry& entry = it->second;
+  if (!entry.process_metadata) {
+    PERFETTO_DLOG("Received record without process metadata.");
+    return;
+  }
+
+  if (size == 0) {
+    PERFETTO_DLOG("Dropping empty record.");
+    return;
+  }
   // This needs to be a weak_ptr for two reasons:
   // 1) most importantly, the weak_ptr in process_metadata_ should expire as
   // soon as the last socket for a process goes away. Otherwise, a recycled
   // PID might reuse incorrect metadata.
   // 2) it is a waste to unwind for a process that had already gone away.
   std::weak_ptr<ProcessMetadata> weak_metadata(entry.process_metadata);
-  callback_function_(size, std::move(buf), std::move(weak_metadata));
+  callback_function_({entry.process_metadata->pid, size, std::move(buf),
+                      std::move(weak_metadata)});
 }
 
 }  // namespace perfetto

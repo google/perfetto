@@ -19,6 +19,9 @@
 
 #include "perfetto/base/scoped_file.h"
 
+#include <sys/socket.h>
+#include <sys/un.h>
+
 namespace perfetto {
 namespace base {
 
@@ -33,6 +36,13 @@ ssize_t Receive(int fd,
                 size_t len,
                 base::ScopedFile* fd_vec,
                 size_t max_files);
+
+bool MakeSockAddr(const std::string& socket_name,
+                  sockaddr_un* addr,
+                  socklen_t* addr_size);
+
+base::ScopedFile CreateSocket();
+
 }  // namespace base
 }  // namespace perfetto
 
