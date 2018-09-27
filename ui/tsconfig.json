@@ -14,7 +14,6 @@
     "moduleResolution": "node",
     // Lints and checks.
     "allowJs": true,
-    "checkJs": false,                      // TODO(hjd): Enable after dingus moved out.t
     "declaration": false,                  // Generates corresponding '.d.ts' file.
     "sourceMap": true,                     // Generates corresponding '.map' file.
     "outDir": "./dist",                    // Redirect output structure to the directory.
