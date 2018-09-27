@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/ipc/unix_socket.h"
+#include "perfetto/base/unix_socket.h"
 
 #include <sys/mman.h>
 
@@ -31,7 +31,7 @@
 #include "src/ipc/test/test_socket.h"
 
 namespace perfetto {
-namespace ipc {
+namespace base {
 namespace {
 
 using ::testing::_;
@@ -74,7 +74,7 @@ class UnixSocketTest : public ::testing::Test {
   void SetUp() override { DESTROY_TEST_SOCK(kSocketName); }
   void TearDown() override { DESTROY_TEST_SOCK(kSocketName); }
 
-  base::TestTaskRunner task_runner_;
+  TestTaskRunner task_runner_;
   MockEventListener event_listener_;
 };
 
@@ -199,15 +199,15 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeFDs) {
   ASSERT_TRUE(srv_conn);
   ASSERT_TRUE(cli->is_connected());
 
-  base::ScopedFile null_fd(open("/dev/null", O_RDONLY));
-  base::ScopedFile zero_fd(open("/dev/zero", O_RDONLY));
+  ScopedFile null_fd(open("/dev/null", O_RDONLY));
+  ScopedFile zero_fd(open("/dev/zero", O_RDONLY));
 
   auto cli_did_recv = task_runner_.CreateCheckpoint("cli_did_recv");
   EXPECT_CALL(event_listener_, OnDataAvailable(cli.get()))
       .WillRepeatedly(Invoke([cli_did_recv](UnixSocket* s) {
-        base::ScopedFile fd_buf[3];
+        ScopedFile fd_buf[3];
         char buf[sizeof(cli_str)];
-        if (!s->Receive(buf, sizeof(buf), fd_buf, base::ArraySize(fd_buf)))
+        if (!s->Receive(buf, sizeof(buf), fd_buf, ArraySize(fd_buf)))
           return;
         ASSERT_STREQ(srv_str, buf);
         ASSERT_NE(*fd_buf[0], -1);
@@ -225,9 +225,9 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeFDs) {
   auto srv_did_recv = task_runner_.CreateCheckpoint("srv_did_recv");
   EXPECT_CALL(event_listener_, OnDataAvailable(srv_conn.get()))
       .WillRepeatedly(Invoke([srv_did_recv](UnixSocket* s) {
-        base::ScopedFile fd_buf[3];
+        ScopedFile fd_buf[3];
         char buf[sizeof(srv_str)];
-        if (!s->Receive(buf, sizeof(buf), fd_buf, base::ArraySize(fd_buf)))
+        if (!s->Receive(buf, sizeof(buf), fd_buf, ArraySize(fd_buf)))
           return;
         ASSERT_STREQ(cli_str, buf);
         ASSERT_NE(*fd_buf[0], -1);
@@ -339,7 +339,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
 
   if (pid == 0) {
     // Child process.
-    base::TempFile scoped_tmp = base::TempFile::CreateUnlinked();
+    TempFile scoped_tmp = TempFile::CreateUnlinked();
     int tmp_fd = scoped_tmp.fd();
     ASSERT_FALSE(ftruncate(tmp_fd, kTmpSize));
     char* mem = reinterpret_cast<char*>(
@@ -379,7 +379,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
     EXPECT_CALL(event_listener_, OnDataAvailable(cli.get()))
         .WillOnce(Invoke([checkpoint](UnixSocket* s) {
           char msg[32];
-          base::ScopedFile fd;
+          ScopedFile fd;
           ASSERT_EQ(5u, s->Receive(msg, sizeof(msg), &fd));
           ASSERT_STREQ("txfd", msg);
           ASSERT_TRUE(fd);
@@ -405,7 +405,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
 
 constexpr size_t kAtomicWrites_FrameSize = 1123;
 bool AtomicWrites_SendAttempt(UnixSocket* s,
-                              base::TaskRunner* task_runner,
+                              TaskRunner* task_runner,
                               int num_frame) {
   char buf[kAtomicWrites_FrameSize];
   memset(buf, static_cast<char>(num_frame), sizeof(buf));
@@ -547,7 +547,7 @@ TEST_F(UnixSocketTest, BlockingSend) {
 
   // Perform the blocking send form another thread.
   std::thread tx_thread([] {
-    base::TestTaskRunner tx_task_runner;
+    TestTaskRunner tx_task_runner;
     MockEventListener tx_events;
     auto cli = UnixSocket::Connect(kSocketName, &tx_events, &tx_task_runner);
 
@@ -594,7 +594,7 @@ TEST_F(UnixSocketTest, ReceiverDisconnectsDuringSend) {
 
   // Perform the blocking send form another thread.
   std::thread tx_thread([] {
-    base::TestTaskRunner tx_task_runner;
+    TestTaskRunner tx_task_runner;
     MockEventListener tx_events;
     auto cli = UnixSocket::Connect(kSocketName, &tx_events, &tx_task_runner);
 
@@ -634,5 +634,5 @@ TEST_F(UnixSocketTest, ReceiverDisconnectsDuringSend) {
 // verify that no spurious EventListener callback is received.
 
 }  // namespace
-}  // namespace ipc
+}  // namespace base
 }  // namespace perfetto

@@ -35,7 +35,7 @@
 #include <unwindstack/RegsGetLocal.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/sock_utils.h"
+#include "perfetto/base/unix_socket.h"
 #include "perfetto/base/utils.h"
 #include "src/profiling/memory/wire_protocol.h"
 
@@ -146,7 +146,7 @@ Client::Client(std::vector<base::ScopedFile> socks)
   int fds[2];
   fds[0] = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
   fds[1] = open("/proc/self/mem", O_RDONLY | O_CLOEXEC);
-  base::Send(*socket_pool_.Borrow(), &size, sizeof(size), fds, 2);
+  base::SockSend(*socket_pool_.Borrow(), &size, sizeof(size), fds, 2);
 }
 
 Client::Client(const std::string& sock_name, size_t conns)

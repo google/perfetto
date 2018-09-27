@@ -19,18 +19,18 @@
 
 namespace perfetto {
 
-void SocketListener::OnDisconnect(ipc::UnixSocket* self) {
+void SocketListener::OnDisconnect(base::UnixSocket* self) {
   sockets_.erase(self);
 }
 
 void SocketListener::OnNewIncomingConnection(
-    ipc::UnixSocket*,
-    std::unique_ptr<ipc::UnixSocket> new_connection) {
-  ipc::UnixSocket* new_connection_raw = new_connection.get();
+    base::UnixSocket*,
+    std::unique_ptr<base::UnixSocket> new_connection) {
+  base::UnixSocket* new_connection_raw = new_connection.get();
   sockets_.emplace(new_connection_raw, std::move(new_connection));
 }
 
-void SocketListener::OnDataAvailable(ipc::UnixSocket* self) {
+void SocketListener::OnDataAvailable(base::UnixSocket* self) {
   auto it = sockets_.find(self);
   if (it == sockets_.end())
     return;
@@ -92,7 +92,7 @@ void SocketListener::InitProcess(Entry* entry,
   }
 }
 
-void SocketListener::RecordReceived(ipc::UnixSocket* self,
+void SocketListener::RecordReceived(base::UnixSocket* self,
                                     size_t size,
                                     std::unique_ptr<uint8_t[]> buf) {
   auto it = sockets_.find(self);
