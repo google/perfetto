@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto.gni")
+
 source_set("base") {
   sources = [
     "build_config.h",
@@ -38,5 +40,8 @@ source_set("base") {
   ]
   if (is_android) {
     sources += [ "android_task_runner.h" ]
+  }
+  if (!build_with_chromium) {
+    sources += [ "unix_socket.h" ]
   }
 }

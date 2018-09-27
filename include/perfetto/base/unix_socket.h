@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_IPC_UNIX_SOCKET_H_
-#define SRC_IPC_UNIX_SOCKET_H_
+#ifndef INCLUDE_PERFETTO_BASE_UNIX_SOCKET_H_
+#define INCLUDE_PERFETTO_BASE_UNIX_SOCKET_H_
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -25,16 +25,34 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
+#include "perfetto/base/utils.h"
 #include "perfetto/base/weak_ptr.h"
-#include "perfetto/ipc/basic_types.h"
+
+#include <sys/socket.h>
+#include <sys/un.h>
 
 namespace perfetto {
-
 namespace base {
-class TaskRunner;
-}  // namespace base.
 
-namespace ipc {
+class TaskRunner;
+
+ssize_t SockSend(int fd,
+                 const void* msg,
+                 size_t len,
+                 const int* send_fds,
+                 size_t num_fds);
+
+ssize_t SockReceive(int fd,
+                    void* msg,
+                    size_t len,
+                    base::ScopedFile* fd_vec,
+                    size_t max_files);
+
+bool MakeSockAddr(const std::string& socket_name,
+                  sockaddr_un* addr,
+                  socklen_t* addr_size);
+
+base::ScopedFile CreateSocket();
 
 // A non-blocking UNIX domain socket in SOCK_STREAM mode. Allows also to
 // transfer file descriptors. None of the methods in this class are blocking.
@@ -234,7 +252,7 @@ class UnixSocket {
   base::WeakPtrFactory<UnixSocket> weak_ptr_factory_;
 };
 
-}  // namespace ipc
+}  // namespace base
 }  // namespace perfetto
 
-#endif  // SRC_IPC_UNIX_SOCKET_H_
+#endif  // INCLUDE_PERFETTO_BASE_UNIX_SOCKET_H_

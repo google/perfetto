@@ -56,14 +56,14 @@ HostImpl::HostImpl(base::ScopedFile socket_fd, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  sock_ = UnixSocket::Listen(std::move(socket_fd), this, task_runner_);
+  sock_ = base::UnixSocket::Listen(std::move(socket_fd), this, task_runner_);
 }
 
 HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  sock_ = UnixSocket::Listen(socket_name, this, task_runner_);
+  sock_ = base::UnixSocket::Listen(socket_name, this, task_runner_);
 }
 
 HostImpl::~HostImpl() = default;
@@ -81,8 +81,9 @@ bool HostImpl::ExposeService(std::unique_ptr<Service> service) {
   return true;
 }
 
-void HostImpl::OnNewIncomingConnection(UnixSocket*,
-                                       std::unique_ptr<UnixSocket> new_conn) {
+void HostImpl::OnNewIncomingConnection(
+    base::UnixSocket*,
+    std::unique_ptr<base::UnixSocket> new_conn) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   std::unique_ptr<ClientConnection> client(new ClientConnection());
   ClientID client_id = ++last_client_id_;
@@ -92,7 +93,7 @@ void HostImpl::OnNewIncomingConnection(UnixSocket*,
   clients_[client_id] = std::move(client);
 }
 
-void HostImpl::OnDataAvailable(UnixSocket* sock) {
+void HostImpl::OnDataAvailable(base::UnixSocket* sock) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto it = clients_by_socket_.find(sock);
   if (it == clients_by_socket_.end())
@@ -237,11 +238,11 @@ void HostImpl::SendFrame(ClientConnection* client, const Frame& frame, int fd) {
   // the send and PostTask the reply later? Right now we are making Send()
   // blocking as a workaround. Propagate bakpressure to the caller instead.
   bool res = client->sock->Send(buf.data(), buf.size(), fd,
-                                UnixSocket::BlockingMode::kBlocking);
+                                base::UnixSocket::BlockingMode::kBlocking);
   PERFETTO_CHECK(res || !client->sock->is_connected());
 }
 
-void HostImpl::OnDisconnect(UnixSocket* sock) {
+void HostImpl::OnDisconnect(base::UnixSocket* sock) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto it = clients_by_socket_.find(sock);
   if (it == clients_by_socket_.end())

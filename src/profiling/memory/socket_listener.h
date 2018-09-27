@@ -17,7 +17,7 @@
 #ifndef SRC_PROFILING_MEMORY_SOCKET_LISTENER_H_
 #define SRC_PROFILING_MEMORY_SOCKET_LISTENER_H_
 
-#include "src/ipc/unix_socket.h"
+#include "perfetto/base/unix_socket.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/record_reader.h"
 #include "src/profiling/memory/unwinding.h"
@@ -27,22 +27,22 @@
 
 namespace perfetto {
 
-class SocketListener : public ipc::UnixSocket::EventListener {
+class SocketListener : public base::UnixSocket::EventListener {
  public:
   SocketListener(std::function<void(UnwindingRecord)> fn,
                  GlobalCallstackTrie* callsites)
       : callback_function_(std::move(fn)), callsites_(callsites) {}
-  void OnDisconnect(ipc::UnixSocket* self) override;
+  void OnDisconnect(base::UnixSocket* self) override;
   void OnNewIncomingConnection(
-      ipc::UnixSocket* self,
-      std::unique_ptr<ipc::UnixSocket> new_connection) override;
-  void OnDataAvailable(ipc::UnixSocket* self) override;
+      base::UnixSocket* self,
+      std::unique_ptr<base::UnixSocket> new_connection) override;
+  void OnDataAvailable(base::UnixSocket* self) override;
 
  private:
   struct Entry {
-    Entry(std::unique_ptr<ipc::UnixSocket> s) : sock(std::move(s)) {}
+    Entry(std::unique_ptr<base::UnixSocket> s) : sock(std::move(s)) {}
     // Only here for ownership of the object.
-    const std::unique_ptr<ipc::UnixSocket> sock;
+    const std::unique_ptr<base::UnixSocket> sock;
     RecordReader record_reader;
     bool recv_fds = false;
     // The sockets own the metadata for a particular PID. When the last socket
@@ -55,13 +55,13 @@ class SocketListener : public ipc::UnixSocket::EventListener {
     std::shared_ptr<ProcessMetadata> process_metadata;
   };
 
-  void RecordReceived(ipc::UnixSocket*, size_t, std::unique_ptr<uint8_t[]>);
+  void RecordReceived(base::UnixSocket*, size_t, std::unique_ptr<uint8_t[]>);
   void InitProcess(Entry* entry,
                    pid_t peer_pid,
                    base::ScopedFile maps_fd,
                    base::ScopedFile mem_fd);
 
-  std::map<ipc::UnixSocket*, Entry> sockets_;
+  std::map<base::UnixSocket*, Entry> sockets_;
   std::map<pid_t, std::weak_ptr<ProcessMetadata>> process_metadata_;
   std::function<void(UnwindingRecord)> callback_function_;
   GlobalCallstackTrie* callsites_;

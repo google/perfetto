@@ -24,17 +24,17 @@
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_checker.h"
+#include "perfetto/base/unix_socket.h"
 #include "perfetto/ipc/deferred.h"
 #include "perfetto/ipc/host.h"
 #include "src/ipc/buffered_frame_deserializer.h"
-#include "src/ipc/unix_socket.h"
 
 namespace perfetto {
 namespace ipc {
 
 class Frame;
 
-class HostImpl : public Host, public UnixSocket::EventListener {
+class HostImpl : public Host, public base::UnixSocket::EventListener {
  public:
   HostImpl(const char* socket_name, base::TaskRunner*);
   HostImpl(base::ScopedFile socket_fd, base::TaskRunner*);
@@ -43,20 +43,20 @@ class HostImpl : public Host, public UnixSocket::EventListener {
   // Host implementation.
   bool ExposeService(std::unique_ptr<Service>) override;
 
-  // UnixSocket::EventListener implementation.
-  void OnNewIncomingConnection(UnixSocket*,
-                               std::unique_ptr<UnixSocket>) override;
-  void OnDisconnect(UnixSocket*) override;
-  void OnDataAvailable(UnixSocket*) override;
+  // base::UnixSocket::EventListener implementation.
+  void OnNewIncomingConnection(base::UnixSocket*,
+                               std::unique_ptr<base::UnixSocket>) override;
+  void OnDisconnect(base::UnixSocket*) override;
+  void OnDataAvailable(base::UnixSocket*) override;
 
-  const UnixSocket* sock() const { return sock_.get(); }
+  const base::UnixSocket* sock() const { return sock_.get(); }
 
  private:
   // Owns the per-client receive buffer (BufferedFrameDeserializer).
   struct ClientConnection {
     ~ClientConnection();
     ClientID id;
-    std::unique_ptr<UnixSocket> sock;
+    std::unique_ptr<base::UnixSocket> sock;
     BufferedFrameDeserializer frame_deserializer;
     base::ScopedFile received_fd;
   };
@@ -85,9 +85,9 @@ class HostImpl : public Host, public UnixSocket::EventListener {
 
   base::TaskRunner* const task_runner_;
   std::map<ServiceID, ExposedService> services_;
-  std::unique_ptr<UnixSocket> sock_;  // The listening socket.
+  std::unique_ptr<base::UnixSocket> sock_;  // The listening socket.
   std::map<ClientID, std::unique_ptr<ClientConnection>> clients_;
-  std::map<UnixSocket*, ClientConnection*> clients_by_socket_;
+  std::map<base::UnixSocket*, ClientConnection*> clients_by_socket_;
   ServiceID last_service_id_ = 0;
   ClientID last_client_id_ = 0;
   base::WeakPtrFactory<HostImpl> weak_ptr_factory_;
