@@ -38,30 +38,28 @@ class ThreadTable : public Table {
 
   // Table implementation.
   Table::Schema CreateSchema(int argc, const char* const* argv) override;
-  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
+                                              sqlite3_value**) override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
   class Cursor : public Table::Cursor {
    public:
-    Cursor(const TraceStorage*);
+    Cursor(const TraceStorage* storage,
+           const QueryConstraints&,
+           sqlite3_value**);
 
     // Implementation of Table::Cursor.
-    int Filter(const QueryConstraints&, sqlite3_value**) override;
     int Next() override;
     int Eof() override;
     int Column(sqlite3_context*, int N) override;
 
    private:
-    struct UtidFilter {
-      UniqueTid min;
-      UniqueTid max;
-      UniqueTid current;
-      bool desc;
-    };
-
     const TraceStorage* const storage_;
-    UtidFilter utid_filter_;
+    UniqueTid min;
+    UniqueTid max;
+    UniqueTid current;
+    bool desc;
   };
 
   const TraceStorage* const storage_;

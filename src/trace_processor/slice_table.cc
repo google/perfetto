@@ -51,7 +51,8 @@ Table::Schema SliceTable::CreateSchema(int, const char* const*) {
       {Column::kUtid, Column::kTimestamp, Column::kDepth});
 }
 
-std::unique_ptr<Table::Cursor> SliceTable::CreateCursor() {
+std::unique_ptr<Table::Cursor> SliceTable::CreateCursor(const QueryConstraints&,
+                                                        sqlite3_value**) {
   return std::unique_ptr<Table::Cursor>(new Cursor(storage_));
 }
 
@@ -67,11 +68,6 @@ SliceTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {
 }
 
 SliceTable::Cursor::~Cursor() = default;
-
-int SliceTable::Cursor::Filter(const QueryConstraints&,
-                               sqlite3_value** /*argv*/) {
-  return SQLITE_OK;
-}
 
 int SliceTable::Cursor::Next() {
   row_++;
