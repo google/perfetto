@@ -46,7 +46,8 @@ class WindowOperatorTable : public Table {
 
   // Table implementation.
   Table::Schema CreateSchema(int argc, const char* const* argv) override;
-  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
+                                              sqlite3_value**) override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
   int Update(int, sqlite3_value**, sqlite3_int64*) override;
 
@@ -56,10 +57,11 @@ class WindowOperatorTable : public Table {
     Cursor(const WindowOperatorTable*,
            uint64_t window_start,
            uint64_t window_end,
-           uint64_t step_size);
+           uint64_t step_size,
+           const QueryConstraints& qc,
+           sqlite3_value** argv);
 
     // Implementation of Table::Cursor.
-    int Filter(const QueryConstraints&, sqlite3_value**) override;
     int Next() override;
     int Eof() override;
     int Column(sqlite3_context*, int N) override;
