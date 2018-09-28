@@ -80,19 +80,27 @@ class Table : public sqlite3_vtab {
     virtual ~Cursor();
 
     // Methods to be implemented by derived table classes.
-    virtual int Filter(const QueryConstraints& qc, sqlite3_value** argv) = 0;
     virtual int Next() = 0;
     virtual int Eof() = 0;
     virtual int Column(sqlite3_context* context, int N) = 0;
 
     // Optional methods to implement.
     virtual int RowId(sqlite3_int64*);
+  };
+
+  // The raw cursor class which interfaces with SQLite to manage lifecycle.
+  class RawCursor : public sqlite3_vtab_cursor {
+   public:
+    explicit RawCursor(Table* table);
+
+    int Filter(int num, const char* idxStr, int argc, sqlite3_value**);
+    Cursor* cursor() { return cursor_.get(); }
 
    private:
     friend class Table;
 
-    // Overriden functions from sqlite3_vtab_cursor.
-    int FilterInternal(int num, const char* idxStr, int argc, sqlite3_value**);
+    Table* const table_;
+    std::unique_ptr<Cursor> cursor_;
   };
 
  protected:
@@ -141,7 +149,8 @@ class Table : public sqlite3_vtab {
 
   // Methods to be implemented by derived table classes.
   virtual Schema CreateSchema(int argc, const char* const* argv) = 0;
-  virtual std::unique_ptr<Cursor> CreateCursor() = 0;
+  virtual std::unique_ptr<Cursor> CreateCursor(const QueryConstraints& qc,
+                                               sqlite3_value** argv) = 0;
   virtual int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) = 0;
 
   // Optional metods to implement.

@@ -46,18 +46,22 @@ class SchedSliceTable : public Table {
 
   // Table implementation.
   Table::Schema CreateSchema(int argc, const char* const* argv) override;
-  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  std::unique_ptr<Table::Cursor> CreateCursor(
+      const QueryConstraints& query_constraints,
+      sqlite3_value** argv) override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-  // Transient state for a filter operation on a Cursor.
-  class FilterState {
+  // Implementation of the Table cursor interface.
+  class Cursor : public Table::Cursor {
    public:
-    FilterState(const TraceStorage* storage,
-                const QueryConstraints& query_constraints,
-                sqlite3_value** argv);
+    Cursor(const TraceStorage* storage,
+           const QueryConstraints& query_constraints,
+           sqlite3_value** argv);
 
-    void FindNextSlice();
+    int Next() override;
+    int Eof() override;
+    int Column(sqlite3_context*, int N) override;
 
     inline bool IsNextRowIdIndexValid() const {
       return next_row_id_index_ < sorted_row_ids_.size();
@@ -99,22 +103,6 @@ class SchedSliceTable : public Table {
     std::vector<QueryConstraints::OrderBy> order_by_;
 
     const TraceStorage* const storage_;
-  };
-
-  // Implementation of the SQLite cursor interface.
-  class Cursor : public Table::Cursor {
-   public:
-    Cursor(const TraceStorage* storage);
-
-    // Implementation of Table::Cursor.
-    int Filter(const QueryConstraints&, sqlite3_value**) override;
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
-
-   private:
-    const TraceStorage* const storage_;
-    std::unique_ptr<FilterState> filter_state_;
   };
 
   const TraceStorage* const storage_;
