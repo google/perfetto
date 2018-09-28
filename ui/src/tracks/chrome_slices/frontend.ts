@@ -14,6 +14,7 @@
 
 import {requestTrackData} from '../../common/actions';
 import {TrackState} from '../../common/state';
+import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -82,35 +83,12 @@ class ChromeSliceTrack extends Track<Config, Data> {
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
-    ctx.font = '12px Google Sans';
-    if (data.start > visibleWindowTime.start) {
-      const rectWidth =
-          timeScale.timeToPx(Math.min(data.start, visibleWindowTime.end));
-      ctx.fillStyle = '#eee';
-      ctx.fillRect(0, TRACK_PADDING, rectWidth, SLICE_HEIGHT);
-      ctx.fillStyle = '#666';
-      ctx.fillText(
-          'loading...',
-          rectWidth / 2,
-          TRACK_PADDING + SLICE_HEIGHT / 2,
-          rectWidth);
-    }
-    if (data.end < visibleWindowTime.end) {
-      const rectX =
-          timeScale.timeToPx(Math.max(data.end, visibleWindowTime.start));
-      const rectWidth = timeScale.timeToPx(visibleWindowTime.end) - rectX;
-      ctx.fillStyle = '#eee';
-      ctx.fillRect(rectX, TRACK_PADDING, rectWidth, SLICE_HEIGHT);
-      ctx.fillStyle = '#666';
-      ctx.fillText(
-          'loading...',
-          rectX + rectWidth / 2,
-          TRACK_PADDING + SLICE_HEIGHT / 2,
-          rectWidth);
-    }
-
-    ctx.font = '12px Google Sans';
-    ctx.textAlign = 'center';
+    checkerboardExcept(
+        ctx,
+        timeScale.timeToPx(visibleWindowTime.start),
+        timeScale.timeToPx(visibleWindowTime.end),
+        timeScale.timeToPx(data.start),
+        timeScale.timeToPx(data.end), );
 
     // measuretext is expensive so we only use it once.
     const charWidth = ctx.measureText('abcdefghij').width / 10;

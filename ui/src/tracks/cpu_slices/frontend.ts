@@ -15,6 +15,7 @@
 import {assertTrue} from '../../base/logging';
 import {requestTrackData} from '../../common/actions';
 import {TrackState} from '../../common/state';
+import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -98,29 +99,12 @@ class CpuSliceTrack extends Track<Config, Data> {
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
-    ctx.font = '12px Google Sans';
-    if (data.start > visibleWindowTime.start) {
-      const rectWidth =
-          timeScale.timeToPx(Math.min(data.start, visibleWindowTime.end));
-      ctx.fillStyle = '#eee';
-      ctx.fillRect(0, MARGIN_TOP, rectWidth, RECT_HEIGHT);
-      ctx.fillStyle = '#666';
-      ctx.fillText(
-          'loading...', rectWidth / 2, MARGIN_TOP + RECT_HEIGHT / 2, rectWidth);
-    }
-    if (data.end < visibleWindowTime.end) {
-      const rectX =
-          timeScale.timeToPx(Math.max(data.end, visibleWindowTime.start));
-      const rectWidth = timeScale.timeToPx(visibleWindowTime.end) - rectX;
-      ctx.fillStyle = '#eee';
-      ctx.fillRect(rectX, MARGIN_TOP, rectWidth, RECT_HEIGHT);
-      ctx.fillStyle = '#666';
-      ctx.fillText(
-          'loading...',
-          rectX + rectWidth / 2,
-          MARGIN_TOP + RECT_HEIGHT / 2,
-          rectWidth);
-    }
+    checkerboardExcept(
+        ctx,
+        timeScale.timeToPx(visibleWindowTime.start),
+        timeScale.timeToPx(visibleWindowTime.end),
+        timeScale.timeToPx(data.start),
+        timeScale.timeToPx(data.end), );
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
