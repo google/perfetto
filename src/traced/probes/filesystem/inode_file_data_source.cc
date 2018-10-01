@@ -131,6 +131,11 @@ InodeFileDataSource::InodeFileDataSource(
 
 InodeFileDataSource::~InodeFileDataSource() = default;
 
+void InodeFileDataSource::Start() {
+  // Nothing special to do, this data source is only reacting to on-demand
+  // events such as OnInodes().
+}
+
 void InodeFileDataSource::AddInodesFromStaticMap(
     BlockDeviceID block_device_id,
     std::set<Inode>* inode_numbers) {

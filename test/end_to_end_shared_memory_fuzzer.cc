@@ -76,6 +76,9 @@ class FakeProducer : public Producer {
 
   void OnDisconnect() override {}
 
+  void SetupDataSource(DataSourceInstanceID,
+                       const DataSourceConfig& source_config) override {}
+
   void StartDataSource(DataSourceInstanceID,
                        const DataSourceConfig& source_config) override {
     auto trace_writer = endpoint_->CreateTraceWriter(

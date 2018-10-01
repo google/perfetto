@@ -211,6 +211,24 @@ void ProducerIPCService::RemoteProducer::OnConnect() {}
 // |service_endpoint| (in the RemoteProducer dtor).
 void ProducerIPCService::RemoteProducer::OnDisconnect() {}
 
+// Invoked by the |core_service_| business logic when it wants to create a new
+// data source.
+void ProducerIPCService::RemoteProducer::SetupDataSource(
+    DataSourceInstanceID dsid,
+    const DataSourceConfig& cfg) {
+  if (!async_producer_commands.IsBound()) {
+    PERFETTO_DLOG(
+        "The Service tried to create a new data source but the remote Producer "
+        "has not yet initialized the connection");
+    return;
+  }
+  auto cmd = ipc::AsyncResult<protos::GetAsyncCommandResponse>::Create();
+  cmd.set_has_more(true);
+  cmd->mutable_setup_data_source()->set_new_instance_id(dsid);
+  cfg.ToProto(cmd->mutable_setup_data_source()->mutable_config());
+  async_producer_commands.Resolve(std::move(cmd));
+}
+
 // Invoked by the |core_service_| business logic when it wants to start a new
 // data source.
 void ProducerIPCService::RemoteProducer::StartDataSource(

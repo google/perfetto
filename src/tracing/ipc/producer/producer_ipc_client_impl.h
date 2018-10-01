@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include <set>
 #include <vector>
 
 #include "perfetto/base/thread_checker.h"
@@ -99,6 +100,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::unique_ptr<PosixSharedMemory> shared_memory_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
+  std::set<DataSourceInstanceID> data_sources_setup_;
   bool connected_ = false;
   std::string const name_;
   PERFETTO_THREAD_CHECKER(thread_checker_)

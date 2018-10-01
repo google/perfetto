@@ -52,6 +52,10 @@ void MockConsumer::EnableTracing(const TraceConfig& trace_config,
   service_endpoint_->EnableTracing(trace_config, std::move(write_into_file));
 }
 
+void MockConsumer::StartTracing() {
+  service_endpoint_->StartTracing();
+}
+
 void MockConsumer::DisableTracing() {
   service_endpoint_->DisableTracing();
 }
