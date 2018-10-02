@@ -3859,6 +3859,7 @@ cc_test {
     "src/profiling/memory/unwinding.cc",
     "src/profiling/memory/unwinding_unittest.cc",
     "src/profiling/memory/wire_protocol.cc",
+    "src/profiling/memory/wire_protocol_unittest.cc",
     "src/protozero/message.cc",
     "src/protozero/message_handle.cc",
     "src/protozero/message_handle_unittest.cc",
