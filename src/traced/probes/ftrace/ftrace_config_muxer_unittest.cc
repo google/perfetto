@@ -163,14 +163,16 @@ TEST(FtraceConfigMuxerTest, TurnFtraceOnOff) {
       .Times(AnyNumber());
 
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
-      .WillOnce(Return('0'));
+      .Times(2)
+      .WillRepeatedly(Return('0'));
   EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "512"));
   EXPECT_CALL(ftrace, WriteToFile("/root/trace_clock", "boot"));
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_switch/enable", "1"));
-  FtraceConfigId id = model.RequestConfig(config);
+  FtraceConfigId id = model.SetupConfig(config);
   ASSERT_TRUE(id);
+  ASSERT_TRUE(model.ActivateConfig(id));
 
   const FtraceConfig* actual_config = model.GetConfig(id);
   EXPECT_TRUE(actual_config);
@@ -198,7 +200,7 @@ TEST(FtraceConfigMuxerTest, FtraceIsAlreadyOn) {
   // If someone is using ftrace already don't stomp on what they are doing.
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .WillOnce(Return('1'));
-  FtraceConfigId id = model.RequestConfig(config);
+  FtraceConfigId id = model.SetupConfig(config);
   ASSERT_FALSE(id);
 }
 
@@ -219,7 +221,7 @@ TEST(FtraceConfigMuxerTest, Atrace) {
                   {"atrace", "--async_start", "--only_userspace", "sched"})))
       .WillOnce(Return(true));
 
-  FtraceConfigId id = model.RequestConfig(config);
+  FtraceConfigId id = model.SetupConfig(config);
   ASSERT_TRUE(id);
 
   const FtraceConfig* actual_config = model.GetConfig(id);
@@ -253,7 +255,7 @@ TEST(FtraceConfigMuxerTest, AtraceTwoApps) {
            "com.google.android.gms.persistent,com.google.android.gms"})))
       .WillOnce(Return(true));
 
-  FtraceConfigId id = model.RequestConfig(config);
+  FtraceConfigId id = model.SetupConfig(config);
   ASSERT_TRUE(id);
 
   const FtraceConfig* actual_config = model.GetConfig(id);

@@ -64,6 +64,7 @@ class FtraceController {
   void ClearTrace();
 
   bool AddDataSource(FtraceDataSource*) PERFETTO_WARN_UNUSED_RESULT;
+  bool StartDataSource(FtraceDataSource*);
   void RemoveDataSource(FtraceDataSource*);
 
   void DumpFtraceStats(FtraceStats*);
@@ -123,6 +124,7 @@ class FtraceController {
   bool atrace_running_ = false;
   std::map<size_t, std::unique_ptr<CpuReader>> cpu_readers_;
   std::set<FtraceDataSource*> data_sources_;
+  std::set<FtraceDataSource*> started_data_sources_;
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

@@ -145,6 +145,7 @@ FtraceController::~FtraceController() {
   for (const auto* data_source : data_sources_)
     ftrace_config_muxer_->RemoveConfig(data_source->config_id());
   data_sources_.clear();
+  started_data_sources_.clear();
   StopIfNeeded();
 }
 
@@ -180,7 +181,7 @@ void FtraceController::DrainCPUs(base::WeakPtr<FtraceController> weak_this,
       continue;
     // This method reads the pipe and converts the raw ftrace data into
     // protobufs using the |data_source|'s TraceWriter.
-    ctrl->cpu_readers_[cpu]->Drain(ctrl->data_sources_);
+    ctrl->cpu_readers_[cpu]->Drain(ctrl->started_data_sources_);
     ctrl->OnDrainCpuForTesting(cpu);
   }
 
@@ -206,9 +207,9 @@ void FtraceController::UnblockReaders(
 }
 
 void FtraceController::StartIfNeeded() {
-  if (data_sources_.size() > 1)
+  if (started_data_sources_.size() > 1)
     return;
-  PERFETTO_CHECK(!data_sources_.empty());
+  PERFETTO_DCHECK(!started_data_sources_.empty());
   {
     std::unique_lock<std::mutex> lock(lock_);
     PERFETTO_CHECK(!listening_for_raw_trace_data_);
@@ -249,14 +250,16 @@ void FtraceController::WriteTraceMarker(const std::string& s) {
 }
 
 void FtraceController::StopIfNeeded() {
-  if (!data_sources_.empty())
+  if (!started_data_sources_.empty())
     return;
+
   {
     // Unblock any readers that are waiting for us to drain data.
     std::unique_lock<std::mutex> lock(lock_);
     listening_for_raw_trace_data_ = false;
     cpus_to_drain_.reset();
   }
+
   data_drained_.notify_all();
   cpu_readers_.clear();
 }
@@ -297,7 +300,7 @@ bool FtraceController::AddDataSource(FtraceDataSource* data_source) {
   if (!ValidConfig(data_source->config()))
     return false;
 
-  auto config_id = ftrace_config_muxer_->RequestConfig(data_source->config());
+  auto config_id = ftrace_config_muxer_->SetupConfig(data_source->config());
   if (!config_id)
     return false;
 
@@ -305,13 +308,27 @@ bool FtraceController::AddDataSource(FtraceDataSource* data_source) {
       *table_, FtraceEventsAsSet(*ftrace_config_muxer_->GetConfig(config_id))));
   auto it_and_inserted = data_sources_.insert(data_source);
   PERFETTO_DCHECK(it_and_inserted.second);
-  StartIfNeeded();
   data_source->Initialize(config_id, std::move(filter));
+  return true;
+}
+
+bool FtraceController::StartDataSource(FtraceDataSource* data_source) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  FtraceConfigId config_id = data_source->config_id();
+  PERFETTO_CHECK(config_id);
+
+  if (!ftrace_config_muxer_->ActivateConfig(config_id))
+    return false;
+
+  started_data_sources_.insert(data_source);
+  StartIfNeeded();
   return true;
 }
 
 void FtraceController::RemoveDataSource(FtraceDataSource* data_source) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  started_data_sources_.erase(data_source);
   size_t removed = data_sources_.erase(data_source);
   if (!removed)
     return;  // Can happen if AddDataSource failed (e.g. too many sessions).
