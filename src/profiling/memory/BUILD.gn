@@ -62,6 +62,8 @@ source_set("client") {
   sources = [
     "client.cc",
     "client.h",
+    "sampler.cc",
+    "sampler.h",
   ]
 }
 
@@ -83,6 +85,7 @@ source_set("unittests") {
     "client_unittest.cc",
     "heapprofd_integrationtest.cc",
     "record_reader_unittest.cc",
+    "sampler_unittest.cc",
     "socket_listener_unittest.cc",
     "string_interner_unittest.cc",
     "unwinding_unittest.cc",
