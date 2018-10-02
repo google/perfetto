@@ -17,6 +17,7 @@
 #include "src/profiling/memory/wire_protocol.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/unix_socket.h"
 #include "perfetto/base/utils.h"
 
 #include <sys/socket.h>
@@ -68,7 +69,7 @@ bool SendWireMessage(int sock, const WireMessage& msg) {
     total_size = iovecs[1].iov_len + iovecs[2].iov_len;
   }
 
-  ssize_t sent = sendmsg(sock, &hdr, MSG_NOSIGNAL);
+  ssize_t sent = base::SendMsgAll(sock, &hdr, MSG_NOSIGNAL);
   return sent == static_cast<ssize_t>(total_size + sizeof(total_size));
 }
 

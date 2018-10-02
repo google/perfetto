@@ -54,6 +54,16 @@ bool MakeSockAddr(const std::string& socket_name,
 
 base::ScopedFile CreateSocket();
 
+// Update msghdr so subsequent sendmsg will send data that remains after n bytes
+// have already been sent.
+// This should not be used, it's exported for test use only.
+void ShiftMsgHdr(size_t n, struct msghdr* msg);
+
+// Re-enter sendmsg until all the data has been sent or an error occurs.
+//
+// TODO(fmayer): Figure out how to do timeouts here for heapprofd.
+ssize_t SendMsgAll(int sockfd, struct msghdr* msg, int flags);
+
 // A non-blocking UNIX domain socket in SOCK_STREAM mode. Allows also to
 // transfer file descriptors. None of the methods in this class are blocking.
 // The main design goal is API simplicity and strong guarantees on the
@@ -170,6 +180,8 @@ class UnixSocket {
   // EventListener::OnDisconnect() will be called.
   // If the socket is not connected, Send() will just return false.
   // Does not append a null string terminator to msg in any case.
+  //
+  // DO NOT PASS kNonBlocking, it is broken.
   bool Send(const void* msg,
             size_t len,
             int send_fd = -1,
@@ -179,7 +191,8 @@ class UnixSocket {
             const int* send_fds,
             size_t num_fds,
             BlockingMode blocking = BlockingMode::kNonBlocking);
-  bool Send(const std::string& msg);
+  bool Send(const std::string& msg,
+            BlockingMode blockimg = BlockingMode::kNonBlocking);
 
   // Returns the number of bytes (<= |len|) written in |msg| or 0 if there
   // is no data in the buffer to read or an error occurs (in which case a
