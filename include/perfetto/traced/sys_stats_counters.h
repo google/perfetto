@@ -30,6 +30,7 @@ struct KeyAndId {
 };
 
 constexpr KeyAndId kMeminfoKeys[] = {
+    {"MemUnspecified", protos::pbzero::MeminfoCounters::MEMINFO_UNSPECIFIED},
     {"MemTotal", protos::pbzero::MeminfoCounters::MEMINFO_MEM_TOTAL},
     {"MemFree", protos::pbzero::MeminfoCounters::MEMINFO_MEM_FREE},
     {"MemAvailable", protos::pbzero::MeminfoCounters::MEMINFO_MEM_AVAILABLE},
@@ -66,6 +67,7 @@ constexpr KeyAndId kMeminfoKeys[] = {
 };
 
 const KeyAndId kVmstatKeys[] = {
+    {"VmstatUnspecified", protos::pbzero::VmstatCounters::VMSTAT_UNSPECIFIED},
     {"nr_free_pages", protos::pbzero::VmstatCounters::VMSTAT_NR_FREE_PAGES},
     {"nr_alloc_batch", protos::pbzero::VmstatCounters::VMSTAT_NR_ALLOC_BATCH},
     {"nr_inactive_anon",
