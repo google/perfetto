@@ -302,11 +302,13 @@ TEST(FtraceControllerTest, OneSink) {
 
   FtraceConfig config = CreateFtraceConfig({"foo"});
 
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "1"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", _));
   auto data_source = controller->AddFakeDataSource(config);
   ASSERT_TRUE(data_source);
+
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
+  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
@@ -330,12 +332,16 @@ TEST(FtraceControllerTest, MultipleSinks) {
   FtraceConfig configA = CreateFtraceConfig({"foo"});
   FtraceConfig configB = CreateFtraceConfig({"foo", "bar"});
 
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "1"));
   auto data_sourceA = controller->AddFakeDataSource(configA);
   EXPECT_CALL(*controller->procfs(), WriteToFile(kBarEnablePath, "1"));
   auto data_sourceB = controller->AddFakeDataSource(configB);
+
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
+  ASSERT_TRUE(controller->StartDataSource(data_sourceA.get()));
+  ASSERT_TRUE(controller->StartDataSource(data_sourceB.get()));
+
   data_sourceA.reset();
 
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "0"));
@@ -356,9 +362,11 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   FtraceConfig config = CreateFtraceConfig({"foo"});
 
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", _));
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "1"));
   auto data_source = controller->AddFakeDataSource(config);
+
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
+  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
@@ -383,6 +391,7 @@ TEST(FtraceControllerTest, TaskScheduling) {
 
   FtraceConfig config = CreateFtraceConfig({"foo"});
   auto data_source = controller->AddFakeDataSource(config);
+  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
   // Only one call to drain should be scheduled for the next drain period.
   EXPECT_CALL(*controller->runner(), PostDelayedTask(_, 100));
@@ -427,6 +436,7 @@ TEST(FtraceControllerTest, DISABLED_DrainPeriodRespected) {
 
   FtraceConfig config = CreateFtraceConfig({"foo"});
   auto data_source = controller->AddFakeDataSource(config);
+  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
   // Test several cycles of a worker producing data and make sure the drain
   // delay is consistent with the drain period.
@@ -469,6 +479,7 @@ TEST(FtraceControllerTest, BackToBackEnableDisable) {
   EXPECT_CALL(*controller->runner(), PostDelayedTask(_, 100)).Times(2);
   FtraceConfig config = CreateFtraceConfig({"foo"});
   auto data_source = controller->AddFakeDataSource(config);
+  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
   auto on_data_available = controller->GetDataAvailableCallback(0u);
   std::thread worker([on_data_available] { on_data_available(); });
@@ -482,6 +493,7 @@ TEST(FtraceControllerTest, BackToBackEnableDisable) {
 
   // Register another data source and wait for it to generate data.
   data_source = controller->AddFakeDataSource(config);
+  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   std::thread worker2([on_data_available] { on_data_available(); });
   controller->WaitForData(0u);
 
@@ -506,6 +518,7 @@ TEST(FtraceControllerTest, BufferSize) {
                 WriteToFile("/root/buffer_size_kb", "512"));
     FtraceConfig config = CreateFtraceConfig({"foo"});
     auto data_source = controller->AddFakeDataSource(config);
+    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
 
   {
@@ -515,6 +528,7 @@ TEST(FtraceControllerTest, BufferSize) {
     FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_buffer_size_kb(10 * 1024 * 1024);
     auto data_source = controller->AddFakeDataSource(config);
+    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
 
   {
@@ -525,6 +539,7 @@ TEST(FtraceControllerTest, BufferSize) {
     ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
     config.set_buffer_size_kb(65 * 1024);
     auto data_source = controller->AddFakeDataSource(config);
+    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
 
   {
@@ -534,6 +549,7 @@ TEST(FtraceControllerTest, BufferSize) {
     FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_buffer_size_kb(1);
     auto data_source = controller->AddFakeDataSource(config);
+    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
 
   {
@@ -543,6 +559,7 @@ TEST(FtraceControllerTest, BufferSize) {
     FtraceConfig config = CreateFtraceConfig({"foo"});
     config.set_buffer_size_kb(42);
     auto data_source = controller->AddFakeDataSource(config);
+    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
 
   {
@@ -553,6 +570,7 @@ TEST(FtraceControllerTest, BufferSize) {
     ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
     config.set_buffer_size_kb(42);
     auto data_source = controller->AddFakeDataSource(config);
+    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
 }
 
