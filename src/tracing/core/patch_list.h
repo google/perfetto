@@ -53,7 +53,7 @@ class Patch {
   }
 
  private:
-  Patch& operator=(const Patch&) = default;
+  Patch& operator=(const Patch&) = delete;
   Patch(Patch&&) noexcept = delete;
   Patch& operator=(Patch&&) = delete;
 };
