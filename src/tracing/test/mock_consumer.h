@@ -48,6 +48,7 @@ class MockConsumer : public Consumer {
 
   void Connect(TracingService* svc);
   void EnableTracing(const TraceConfig&, base::ScopedFile = base::ScopedFile());
+  void StartTracing();
   void DisableTracing();
   void FreeBuffers();
   void WaitForTracingDisabled(uint32_t timeout_ms = 3000);

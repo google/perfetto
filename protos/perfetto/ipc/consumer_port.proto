@@ -33,7 +33,19 @@ service ConsumerPort {
   // Enables tracing for one or more data sources. At least one buffer must have
   // been previously created. The EnableTracingResponse is sent when tracing is
   // disabled (either explicitly or because of the |duration_ms| expired).
+  // The EnableTracingResponse is sent when tracing is disabled (either
+  // explicitly or because of the |duration_ms| expired).
+  // If |deferred_start| == true in the passed TraceConfig, all the tracing
+  // harness is brought up (creating buffers and data sources) without actually
+  // starting the data sources. Data sources will be started upon an explicit
+  // StartTracing() call.
+  // Note that |deferred_start| and StartTracing() have been introduced only
+  // in Android Q and are not supported in Android P.
   rpc EnableTracing(EnableTracingRequest) returns (EnableTracingResponse) {}
+
+  // Starts tracing. Only valid if EnableTracing() was called setting
+  // deferred_start = true in the TraceConfig passed to EnableTracing().
+  rpc StartTracing(StartTracingRequest) returns (StartTracingResponse) {}
 
   // Disables tracing for one or more data sources.
   rpc DisableTracing(DisableTracingRequest) returns (DisableTracingResponse) {}
@@ -69,6 +81,11 @@ message EnableTracingRequest {
 message EnableTracingResponse {
   oneof state { bool disabled = 1; }
 }
+
+// Arguments for rpc StartTracing().
+message StartTracingRequest {}
+
+message StartTracingResponse {}
 
 // Arguments for rpc DisableTracing().
 message DisableTracingRequest {

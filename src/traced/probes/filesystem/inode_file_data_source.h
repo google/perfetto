@@ -79,11 +79,13 @@ class InodeFileDataSource : public ProbesDataSource,
   void AddInodesFromLRUCache(BlockDeviceID block_device_id,
                              std::set<Inode>* inode_numbers);
 
-  void Flush() override;
-
   virtual void FillInodeEntry(InodeFileMap* destination,
                               Inode inode_number,
                               const InodeMapValue& inode_map_value);
+
+  // ProbesDataSource implementation.
+  void Start() override;
+  void Flush() override;
 
  protected:
   std::multimap<BlockDeviceID, std::string> mount_points_;

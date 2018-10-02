@@ -50,6 +50,7 @@ class MockProducer : public Producer {
   void RegisterDataSource(const std::string& name, bool ack_stop = false);
   void UnregisterDataSource(const std::string& name);
   void WaitForTracingSetup();
+  void WaitForDataSourceSetup(const std::string& name);
   void WaitForDataSourceStart(const std::string& name);
   void WaitForDataSourceStop(const std::string& name);
   DataSourceInstanceID GetDataSourceInstanceId(const std::string& name);
@@ -68,6 +69,8 @@ class MockProducer : public Producer {
   // Producer implementation.
   MOCK_METHOD0(OnConnect, void());
   MOCK_METHOD0(OnDisconnect, void());
+  MOCK_METHOD2(SetupDataSource,
+               void(DataSourceInstanceID, const DataSourceConfig&));
   MOCK_METHOD2(StartDataSource,
                void(DataSourceInstanceID, const DataSourceConfig&));
   MOCK_METHOD1(StopDataSource, void(DataSourceInstanceID));

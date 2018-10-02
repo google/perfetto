@@ -60,23 +60,39 @@ class PERFETTO_EXPORT Producer {
   // instance.
   virtual void OnDisconnect() = 0;
 
-  // Called by the Service to turn on one of the data source previously
+  // Called by the Service after OnConnect but before the first DataSource is
+  // created. Can be used for any setup required before tracing begins.
+  virtual void OnTracingSetup() = 0;
+
+  // The lifecycle methods below are always called in the following sequence:
+  // SetupDataSource  -> StartDataSource -> StopDataSource.
+  // Or, in the edge case where a trace is aborted immediately:
+  // SetupDataSource  -> StopDataSource.
+  // The Setup+Start call sequence is always guaranateed, regardless of the
+  // TraceConfig.deferred_start flags.
+  // Called by the Service to configure one of the data sources previously
   // registered through TracingService::ProducerEndpoint::RegisterDataSource().
+  // This method is always called before StartDataSource. There is always a
+  // SetupDataSource() call before each StartDataSource() call.
   // Args:
   // - DataSourceInstanceID is an identifier chosen by the Service that should
   //   be assigned to the newly created data source instance. It is used to
   //   match the StopDataSource() request below.
   // - DataSourceConfig is the configuration for the new data source (e.g.,
   //   tells which trace categories to enable).
+  virtual void SetupDataSource(DataSourceInstanceID,
+                               const DataSourceConfig&) = 0;
+
+  // Called by the Service to turn on one of the data sources previously
+  // registered through TracingService::ProducerEndpoint::RegisterDataSource()
+  // and initialized through SetupDataSource().
+  // Both arguments are guaranteed to be identical to the ones passed to the
+  // prior SetupDataSource() call.
   virtual void StartDataSource(DataSourceInstanceID,
                                const DataSourceConfig&) = 0;
 
   // Called by the Service to shut down an existing data source instance.
   virtual void StopDataSource(DataSourceInstanceID) = 0;
-
-  // Called by the Service after OnConnect but before the first DataSource is
-  // created. Can be used for any setup required before tracing begins.
-  virtual void OnTracingSetup() = 0;
 
   // Called by the service to request the Producer to commit the data of the
   // given data sources and return their chunks into the shared memory buffer.
