@@ -46,6 +46,8 @@ class ConsumerIPCService : public protos::ConsumerPort {
   // ConsumerPort implementation (from .proto IPC definition).
   void EnableTracing(const protos::EnableTracingRequest&,
                      DeferredEnableTracingResponse) override;
+  void StartTracing(const protos::StartTracingRequest&,
+                    DeferredStartTracingResponse) override;
   void DisableTracing(const protos::DisableTracingRequest&,
                       DeferredDisableTracingResponse) override;
   void ReadBuffers(const protos::ReadBuffersRequest&,

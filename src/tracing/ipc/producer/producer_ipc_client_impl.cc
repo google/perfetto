@@ -95,6 +95,7 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
   producer_->OnDisconnect();
+  data_sources_setup_.clear();
 }
 
 void ProducerIPCClientImpl::OnConnectionInitialized(bool connection_succeeded) {
@@ -109,11 +110,29 @@ void ProducerIPCClientImpl::OnConnectionInitialized(bool connection_succeeded) {
 void ProducerIPCClientImpl::OnServiceRequest(
     const protos::GetAsyncCommandResponse& cmd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  // This message is sent only when connecting to a service running Android Q+.
+  // See comment below in kStartDataSource.
+  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kSetupDataSource) {
+    const auto& req = cmd.setup_data_source();
+    const DataSourceInstanceID dsid = req.new_instance_id();
+    DataSourceConfig cfg;
+    cfg.FromProto(req.config());
+    data_sources_setup_.insert(dsid);
+    producer_->SetupDataSource(dsid, cfg);
+    return;
+  }
+
   if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kStartDataSource) {
     const auto& req = cmd.start_data_source();
     const DataSourceInstanceID dsid = req.new_instance_id();
     DataSourceConfig cfg;
     cfg.FromProto(req.config());
+    if (!data_sources_setup_.count(dsid)) {
+      // When connecting with an older (Android P) service, the service will not
+      // send a SetupDataSource message. We synthesize it here in that case.
+      producer_->SetupDataSource(dsid, cfg);
+    }
     producer_->StartDataSource(dsid, cfg);
     return;
   }
@@ -121,6 +140,7 @@ void ProducerIPCClientImpl::OnServiceRequest(
   if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kStopDataSource) {
     const DataSourceInstanceID dsid = cmd.stop_data_source().instance_id();
     producer_->StopDataSource(dsid);
+    data_sources_setup_.erase(dsid);
     return;
   }
 

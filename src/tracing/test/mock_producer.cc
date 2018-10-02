@@ -76,12 +76,12 @@ void MockProducer::WaitForTracingSetup() {
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
-void MockProducer::WaitForDataSourceStart(const std::string& name) {
+void MockProducer::WaitForDataSourceSetup(const std::string& name) {
   static int i = 0;
-  auto checkpoint_name = "on_ds_start_" + name + "_" + std::to_string(i++);
+  auto checkpoint_name = "on_ds_setup_" + name + "_" + std::to_string(i++);
   auto on_ds_start = task_runner_->CreateCheckpoint(checkpoint_name);
   EXPECT_CALL(*this,
-              StartDataSource(_, Property(&DataSourceConfig::name, Eq(name))))
+              SetupDataSource(_, Property(&DataSourceConfig::name, Eq(name))))
       .WillOnce(Invoke([on_ds_start, this](DataSourceInstanceID ds_id,
                                            const DataSourceConfig& cfg) {
         EXPECT_FALSE(data_source_instances_.count(cfg.name()));
@@ -90,6 +90,28 @@ void MockProducer::WaitForDataSourceStart(const std::string& name) {
             static_cast<TracingSessionID>(cfg.tracing_session_id());
         data_source_instances_.emplace(
             cfg.name(), EnabledDataSource{ds_id, target_buffer, session_id});
+        on_ds_start();
+      }));
+  task_runner_->RunUntilCheckpoint(checkpoint_name);
+}
+
+void MockProducer::WaitForDataSourceStart(const std::string& name) {
+  static int i = 0;
+  auto checkpoint_name = "on_ds_start_" + name + "_" + std::to_string(i++);
+  auto on_ds_start = task_runner_->CreateCheckpoint(checkpoint_name);
+  EXPECT_CALL(*this,
+              StartDataSource(_, Property(&DataSourceConfig::name, Eq(name))))
+      .WillOnce(Invoke([on_ds_start, this](DataSourceInstanceID ds_id,
+                                           const DataSourceConfig& cfg) {
+        // The data source might have been seen already through
+        // WaitForDataSourceSetup().
+        if (data_source_instances_.count(cfg.name()) == 0) {
+          auto target_buffer = static_cast<BufferID>(cfg.target_buffer());
+          auto session_id =
+              static_cast<TracingSessionID>(cfg.tracing_session_id());
+          data_source_instances_.emplace(
+              cfg.name(), EnabledDataSource{ds_id, target_buffer, session_id});
+        }
         on_ds_start();
       }));
   task_runner_->RunUntilCheckpoint(checkpoint_name);

@@ -125,6 +125,9 @@ SysStatsDataSource::SysStatsDataSource(base::TaskRunner* task_runner,
   meminfo_ticks_ = ticks[0];
   vmstat_ticks_ = ticks[1];
   stat_ticks_ = ticks[2];
+}
+
+void SysStatsDataSource::Start() {
   auto weak_this = GetWeakPtr();
   task_runner_->PostTask(std::bind(&SysStatsDataSource::Tick, weak_this));
 }

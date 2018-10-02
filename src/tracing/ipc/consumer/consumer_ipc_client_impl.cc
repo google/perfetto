@@ -87,6 +87,22 @@ void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config,
   consumer_port_.EnableTracing(req, std::move(async_response), *fd);
 }
 
+void ConsumerIPCClientImpl::StartTracing() {
+  if (!connected_) {
+    PERFETTO_DLOG("Cannot StartTracing(), not connected to tracing service");
+    return;
+  }
+
+  ipc::Deferred<protos::StartTracingResponse> async_response;
+  async_response.Bind(
+      [](ipc::AsyncResult<protos::StartTracingResponse> response) {
+        if (!response)
+          PERFETTO_DLOG("StartTracing() failed");
+      });
+  protos::StartTracingRequest req;
+  consumer_port_.StartTracing(req, std::move(async_response));
+}
+
 void ConsumerIPCClientImpl::DisableTracing() {
   if (!connected_) {
     PERFETTO_DLOG("Cannot DisableTracing(), not connected to tracing service");

@@ -44,15 +44,16 @@ class ProcessStatsDataSource : public ProbesDataSource {
                          const DataSourceConfig&);
   ~ProcessStatsDataSource() override;
 
-  const DataSourceConfig& config() const { return config_; }
-
   base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
   void WriteAllProcesses();
   void OnPids(const std::vector<int32_t>& pids);
-  void Flush() override;
 
   // Virtual for testing.
   virtual std::string ReadProcPidFile(int32_t pid, const std::string& file);
+
+  // ProbesDataSource implementation.
+  void Start() override;
+  void Flush() override;
 
  private:
   ProcessStatsDataSource(const ProcessStatsDataSource&) = delete;
@@ -67,11 +68,11 @@ class ProcessStatsDataSource : public ProbesDataSource {
   void FinalizeCurPsTree();
 
   std::unique_ptr<TraceWriter> writer_;
-  const DataSourceConfig config_;
   TraceWriter::TracePacketHandle cur_packet_;
   protos::pbzero::ProcessTree* cur_ps_tree_ = nullptr;
   bool record_thread_names_ = false;
   bool enable_on_demand_dumps_ = true;
+  bool dump_all_procs_on_start_ = false;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
