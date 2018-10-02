@@ -163,6 +163,7 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
                 config.name().c_str());
   auto it = data_sources_.find(instance_id);
   if (it == data_sources_.end()) {
+    // Can happen if SetupDataSource() failed (e.g. ftrace was busy).
     PERFETTO_ELOG("Data source id=%" PRIu64 " not found", instance_id);
     return;
   }
@@ -210,7 +211,7 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateFtraceDataSource(
       endpoint_->CreateTraceWriter(buffer_id)));
   if (!ftrace_->AddDataSource(data_source.get())) {
     PERFETTO_ELOG(
-        "Failed to start tracing (too many concurrent sessions or ftrace is "
+        "Failed to setup tracing (too many concurrent sessions or ftrace is "
         "already in use)");
     return nullptr;
   }
@@ -237,10 +238,8 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateProcessStatsDataSource(
     const DataSourceConfig& config) {
   base::ignore_result(id);
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  auto data_source =
-      std::unique_ptr<ProcessStatsDataSource>(new ProcessStatsDataSource(
-          session_id, endpoint_->CreateTraceWriter(buffer_id), config));
-  return std::move(data_source);
+  return std::unique_ptr<ProcessStatsDataSource>(new ProcessStatsDataSource(
+      session_id, endpoint_->CreateTraceWriter(buffer_id), config));
 }
 
 std::unique_ptr<SysStatsDataSource> ProbesProducer::CreateSysStatsDataSource(
@@ -249,16 +248,16 @@ std::unique_ptr<SysStatsDataSource> ProbesProducer::CreateSysStatsDataSource(
     const DataSourceConfig& config) {
   base::ignore_result(id);
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  auto data_source = std::unique_ptr<SysStatsDataSource>(
+  return std::unique_ptr<SysStatsDataSource>(
       new SysStatsDataSource(task_runner_, session_id,
                              endpoint_->CreateTraceWriter(buffer_id), config));
-  return data_source;
 }
 
 void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   PERFETTO_LOG("Producer stop (id=%" PRIu64 ")", id);
   auto it = data_sources_.find(id);
   if (it == data_sources_.end()) {
+    // Can happen if SetupDataSource() failed (e.g. ftrace was busy).
     PERFETTO_ELOG("Cannot stop data source id=%" PRIu64 ", not found", id);
     return;
   }
