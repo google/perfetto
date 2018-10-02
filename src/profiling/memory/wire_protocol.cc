@@ -30,8 +30,8 @@ template <typename T>
 bool ViewAndAdvance(char** ptr, T** out, const char* end) {
   if (end - sizeof(T) < *ptr)
     return false;
-  *out = reinterpret_cast<T*>(ptr);
-  ptr += sizeof(T);
+  *out = reinterpret_cast<T*>(*ptr);
+  *ptr += sizeof(T);
   return true;
 }
 }  // namespace
@@ -45,9 +45,11 @@ bool SendWireMessage(int sock, const WireMessage& msg) {
   iovecs[1].iov_base = const_cast<RecordType*>(&msg.record_type);
   iovecs[1].iov_len = sizeof(msg.record_type);
   if (msg.alloc_header) {
+    PERFETTO_DCHECK(msg.record_type == RecordType::Malloc);
     iovecs[2].iov_base = msg.alloc_header;
     iovecs[2].iov_len = sizeof(*msg.alloc_header);
   } else if (msg.free_header) {
+    PERFETTO_DCHECK(msg.record_type == RecordType::Free);
     iovecs[2].iov_base = msg.free_header;
     iovecs[2].iov_len = sizeof(*msg.free_header);
   } else {
@@ -78,23 +80,27 @@ bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
   char* end = buf + size;
   if (!ViewAndAdvance<RecordType>(&buf, &record_type, end))
     return false;
-  switch (*record_type) {
-    case RecordType::Malloc:
-      if (!ViewAndAdvance<AllocMetadata>(&buf, &out->alloc_header, end))
-        return false;
-      out->payload = buf;
-      if (buf > end) {
-        PERFETTO_DCHECK(false);
-        return false;
-      }
-      out->payload_size = static_cast<size_t>(end - buf);
-      break;
-    case RecordType::Free:
-      if (!ViewAndAdvance<FreeMetadata>(&buf, &out->free_header, end))
-        return false;
-      break;
-  }
+
+  out->payload = nullptr;
+  out->payload_size = 0;
   out->record_type = *record_type;
+
+  if (*record_type == RecordType::Malloc) {
+    if (!ViewAndAdvance<AllocMetadata>(&buf, &out->alloc_header, end))
+      return false;
+    out->payload = buf;
+    if (buf > end) {
+      PERFETTO_DCHECK(false);
+      return false;
+    }
+    out->payload_size = static_cast<size_t>(end - buf);
+  } else if (*record_type == RecordType::Free) {
+    if (!ViewAndAdvance<FreeMetadata>(&buf, &out->free_header, end))
+      return false;
+  } else {
+    PERFETTO_DCHECK(false);
+    return false;
+  }
   return true;
 }
 
