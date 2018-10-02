@@ -17,6 +17,9 @@
 #ifndef SRC_TRACED_PROBES_FTRACE_FTRACE_CONFIG_MUXER_H_
 #define SRC_TRACED_PROBES_FTRACE_FTRACE_CONFIG_MUXER_H_
 
+#include <map>
+#include <set>
+
 #include "src/traced/probes/ftrace/ftrace_config.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -29,7 +32,7 @@ namespace perfetto {
 // messing with the ftrace settings at the same time as us.
 
 // Specifically FtraceConfigMuxer takes in a *requested* FtraceConfig
-// (|RequestConfig|), makes a best effort attempt to modify the ftrace
+// (|SetupConfig|), makes a best effort attempt to modify the ftrace
 // debugfs files to honor those settings without interupting other perfetto
 // traces already in progress or other users of ftrace, then returns an
 // FtraceConfigId representing that config or zero on failure.
@@ -53,11 +56,14 @@ class FtraceConfigMuxer {
   // If someone else is tracing we won't touch atrace (since it resets the
   // buffer).
   // To see the config you ended up with use |GetConfig|.
-  FtraceConfigId RequestConfig(const FtraceConfig& request);
+  FtraceConfigId SetupConfig(const FtraceConfig& request);
+
+  // Activate ftrace for the given config (if not already active).
+  bool ActivateConfig(FtraceConfigId);
 
   // Undo changes for the given config. Returns false iff the id is 0
   // or already removed.
-  bool RemoveConfig(FtraceConfigId id);
+  bool RemoveConfig(FtraceConfigId);
 
   // public for testing
   void SetupClockForTesting(const FtraceConfig& request) {
@@ -91,7 +97,15 @@ class FtraceConfigMuxer {
   const ProtoTranslationTable* table_;
 
   FtraceState current_state_;
+
+  // Set of all configurations. Note that not all of them might be active.
+  // When a config is present but not active, we do setup buffer sizes and
+  // events, but don't enable ftrace (i.e. tracing_on).
   std::map<FtraceConfigId, FtraceConfig> configs_;
+
+  // Subset of |configs_| that are currently active. At any time ftrace is
+  // enabled iff |active_configs_| is not empty.
+  std::set<FtraceConfigId> active_configs_;
 };
 
 std::set<std::string> GetFtraceEvents(const FtraceConfig& request,

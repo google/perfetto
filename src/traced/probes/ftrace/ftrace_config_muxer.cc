@@ -228,23 +228,25 @@ FtraceConfigMuxer::FtraceConfigMuxer(FtraceProcfs* ftrace,
     : ftrace_(ftrace), table_(table), current_state_(), configs_() {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
-FtraceConfigId FtraceConfigMuxer::RequestConfig(const FtraceConfig& request) {
+FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
   FtraceConfig actual;
 
   bool is_ftrace_enabled = ftrace_->IsTracingEnabled();
   if (configs_.empty()) {
+    PERFETTO_DCHECK(active_configs_.empty());
     PERFETTO_DCHECK(!current_state_.tracing_on);
 
     // If someone outside of perfetto is using ftrace give up now.
     if (is_ftrace_enabled)
       return 0;
 
-    // If we're about to turn tracing on use this opportunity do some setup:
+    // Setup ftrace, without starting it. Setting buffers can be quite slow
+    // (up to hundreds of ms).
     SetupClock(request);
     SetupBufferSize(request);
   } else {
     // Did someone turn ftrace off behind our back? If so give up.
-    if (!is_ftrace_enabled)
+    if (!active_configs_.empty() && !is_ftrace_enabled)
       return 0;
   }
 
@@ -272,15 +274,32 @@ FtraceConfigId FtraceConfigMuxer::RequestConfig(const FtraceConfig& request) {
     }
   }
 
-  if (configs_.empty()) {
-    PERFETTO_DCHECK(!current_state_.tracing_on);
-    ftrace_->EnableTracing();
-    current_state_.tracing_on = true;
-  }
-
   FtraceConfigId id = ++last_id_;
   configs_.emplace(id, std::move(actual));
   return id;
+}
+
+bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
+  if (!id || configs_.count(id) == 0) {
+    PERFETTO_DCHECK(false);
+    return false;
+  }
+
+  active_configs_.insert(id);
+  if (active_configs_.size() > 1) {
+    PERFETTO_DCHECK(current_state_.tracing_on);
+    return true;  // We are not the first, ftrace is already enabled. All done.
+  }
+
+  PERFETTO_DCHECK(!current_state_.tracing_on);
+  if (ftrace_->IsTracingEnabled()) {
+    // If someone outside of perfetto is using ftrace give up now.
+    return false;
+  }
+
+  ftrace_->EnableTracing();
+  current_state_.tracing_on = true;
+  return true;
 }
 
 bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId id) {
@@ -305,13 +324,25 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId id) {
       current_state_.ftrace_events.erase(name);
   }
 
-  if (configs_.empty()) {
+  // If there aren't any more active configs, disable ftrace.
+  auto active_it = active_configs_.find(id);
+  if (active_it != active_configs_.end()) {
     PERFETTO_DCHECK(current_state_.tracing_on);
-    ftrace_->DisableTracing();
+    active_configs_.erase(active_it);
+    if (active_configs_.empty()) {
+      // This was the last active config, disable ftrace.
+      ftrace_->DisableTracing();
+      current_state_.tracing_on = false;
+    }
+  }
+
+  // Even if we don't have any other active configs, we might still have idle
+  // configs around. Tear down the rest of the ftrace config only if all
+  // configs are removed.
+  if (configs_.empty()) {
     ftrace_->SetCpuBufferSizeInPages(0);
     ftrace_->DisableAllEvents();
     ftrace_->ClearTrace();
-    current_state_.tracing_on = false;
     if (current_state_.atrace_on)
       DisableAtrace();
   }
