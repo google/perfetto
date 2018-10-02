@@ -118,8 +118,18 @@ message NotifyDataSourceStoppedResponse {}
 message GetAsyncCommandRequest {}
 
 message GetAsyncCommandResponse {
+  // Called after SetupTracing and before StartDataSource.
+  // This message was introduced in Android Q.
+  message SetupDataSource {
+    optional uint64 new_instance_id = 1;
+    optional protos.DataSourceConfig config = 2;
+  }
+
   message StartDataSource {
     optional uint64 new_instance_id = 1;
+
+    // For backwards compat reasons (with Android P), the config passed here
+    // is identical to the one passed to SetupDataSource.config.
     optional protos.DataSourceConfig config = 2;
   }
 
@@ -140,10 +150,12 @@ message GetAsyncCommandResponse {
     optional uint64 request_id = 2;
   }
 
+  // Next id: 7.
   oneof cmd {
+    SetupTracing setup_tracing = 3;
+    SetupDataSource setup_data_source = 6;
     StartDataSource start_data_source = 1;
     StopDataSource stop_data_source = 2;
-    SetupTracing setup_tracing = 3;
     // id == 4 was teardown_tracing, never implemented.
     Flush flush = 5;
   }

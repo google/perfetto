@@ -55,6 +55,7 @@ class SysStatsDataSource : public ProbesDataSource {
   ~SysStatsDataSource() override;
 
   // ProbesDataSource implementation.
+  void Start() override;
   void Flush() override;
 
   base::WeakPtr<SysStatsDataSource> GetWeakPtr() const;

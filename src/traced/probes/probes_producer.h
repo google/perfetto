@@ -49,6 +49,7 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   // Producer Impl:
   void OnConnect() override;
   void OnDisconnect() override;
+  void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&) override;
   void StartDataSource(DataSourceInstanceID, const DataSourceConfig&) override;
   void StopDataSource(DataSourceInstanceID) override;
   void OnTracingSetup() override;

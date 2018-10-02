@@ -56,6 +56,8 @@ class MockProducer : public Producer {
   // Producer implementation.
   MOCK_METHOD0(OnConnect, void());
   MOCK_METHOD0(OnDisconnect, void());
+  MOCK_METHOD2(SetupDataSource,
+               void(DataSourceInstanceID, const DataSourceConfig&));
   MOCK_METHOD2(StartDataSource,
                void(DataSourceInstanceID, const DataSourceConfig&));
   MOCK_METHOD1(StopDataSource, void(DataSourceInstanceID));
@@ -187,10 +189,31 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   auto on_create_ds_instance =
       task_runner_->CreateCheckpoint("on_create_ds_instance");
   EXPECT_CALL(producer_, OnTracingSetup());
+
+  // Store the arguments passed to SetupDataSource() and later check that they
+  // match the ones passed to StartDataSource().
+  DataSourceInstanceID setup_id;
+  perfetto::protos::DataSourceConfig setup_cfg_proto;
+  EXPECT_CALL(producer_, SetupDataSource(_, _))
+      .WillOnce(
+          Invoke([&setup_id, &setup_cfg_proto](DataSourceInstanceID id,
+                                               const DataSourceConfig& cfg) {
+
+            setup_id = id;
+            cfg.ToProto(&setup_cfg_proto);
+          }));
   EXPECT_CALL(producer_, StartDataSource(_, _))
       .WillOnce(
-          Invoke([on_create_ds_instance, &ds_iid, &global_buf_id](
-                     DataSourceInstanceID id, const DataSourceConfig& cfg) {
+          Invoke([on_create_ds_instance, &ds_iid, &global_buf_id, &setup_id,
+                  &setup_cfg_proto](DataSourceInstanceID id,
+                                    const DataSourceConfig& cfg) {
+            // id and config should match the ones passed to SetupDataSource.
+            ASSERT_EQ(id, setup_id);
+            perfetto::protos::DataSourceConfig cfg_proto;
+            cfg.ToProto(&cfg_proto);
+            ASSERT_EQ(cfg_proto.SerializeAsString(),
+                      setup_cfg_proto.SerializeAsString());
+
             ASSERT_NE(0u, id);
             ds_iid = id;
             ASSERT_EQ("perfetto.test", cfg.name());
@@ -309,6 +332,7 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   auto on_create_ds_instance =
       task_runner_->CreateCheckpoint("on_create_ds_instance");
   EXPECT_CALL(producer_, OnTracingSetup());
+  EXPECT_CALL(producer_, SetupDataSource(_, _));
   EXPECT_CALL(producer_, StartDataSource(_, _))
       .WillOnce(Invoke([on_create_ds_instance, &global_buf_id](
                            DataSourceInstanceID, const DataSourceConfig& cfg) {
