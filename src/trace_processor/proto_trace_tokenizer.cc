@@ -133,9 +133,28 @@ void ProtoTraceTokenizer::ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
 }
 
 void ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
+  constexpr auto kTimestampFieldNumber =
+      protos::TracePacket::kTimestampFieldNumber;
   ProtoDecoder decoder(packet.data(), packet.length());
+  uint64_t timestamp = 0;
+  bool timestamp_found = false;
 
-  // TODO(taylori): Add a timestamp to TracePacket and read it here.
+  // Speculate on the fact that the timestamp is often the 1st field of the
+  // packet.
+  constexpr auto timestampFieldTag = MakeTagVarInt(kTimestampFieldNumber);
+  if (PERFETTO_LIKELY(packet.length() > 10 &&
+                      packet.data()[0] == timestampFieldTag)) {
+    // Fastpath.
+    const uint8_t* next =
+        ParseVarInt(packet.data() + 1, packet.data() + 11, &timestamp);
+    timestamp_found = next != packet.data() + 1;
+    decoder.Reset(next);
+  } else {
+    // Slowpath.
+    timestamp_found = decoder.FindIntField<kTimestampFieldNumber>(&timestamp);
+  }
+  if (timestamp_found)
+    last_timestamp_ = timestamp;
 
   // TODO(primiano): this can be optimized for the ftrace case.
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {

@@ -43,7 +43,7 @@ using UniqueTid = uint32_t;
 // StringId is an offset into |string_pool_|.
 using StringId = size_t;
 
-enum RefType { kUTID = 0, kCPU_ID = 1 };
+enum RefType { kNoRef = 0, kUTID = 1, kCPU_ID = 2, kIrq = 3, kSoftIrq = 4 };
 
 // Stores a data inside a trace file in a columnar form. This makes it efficient
 // to read or search across a single field of the trace (e.g. all the thread

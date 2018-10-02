@@ -36,6 +36,7 @@ using ::testing::Args;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Pointwise;
+using ::testing::NiceMock;
 
 class MockSchedTracker : public SchedTracker {
  public:
@@ -79,7 +80,7 @@ class MockTraceStorage : public TraceStorage {
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
-    storage_ = new MockTraceStorage();
+    storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
     sched_ = new MockSchedTracker(&context_);
     context_.sched_tracker.reset(sched_);
@@ -102,7 +103,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   TraceProcessorContext context_;
   MockSchedTracker* sched_;
   MockProcessTracker* process_;
-  MockTraceStorage* storage_;
+  NiceMock<MockTraceStorage>* storage_;
 };
 
 TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
@@ -230,6 +231,36 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32,
                                        base::StringView(kProcName2), 10));
   Tokenize(trace_2);
+}
+
+TEST_F(ProtoTraceParserTest, LoadMemInfo) {
+  protos::Trace trace_1;
+  auto* packet = trace_1.add_packet();
+  uint64_t ts = 1000;
+  packet->set_timestamp(ts);
+  auto* bundle = packet->mutable_sys_stats();
+  auto* meminfo = bundle->add_meminfo();
+  meminfo->set_key(perfetto::protos::MEMINFO_MEM_TOTAL);
+  uint32_t value = 10;
+  meminfo->set_value(value);
+
+  EXPECT_CALL(*sched_, PushCounter(ts, value, 0, 0, RefType::kNoRef));
+  Tokenize(trace_1);
+}
+
+TEST_F(ProtoTraceParserTest, LoadVmStats) {
+  protos::Trace trace_1;
+  auto* packet = trace_1.add_packet();
+  uint64_t ts = 1000;
+  packet->set_timestamp(ts);
+  auto* bundle = packet->mutable_sys_stats();
+  auto* meminfo = bundle->add_vmstat();
+  meminfo->set_key(perfetto::protos::VMSTAT_COMPACT_SUCCESS);
+  uint32_t value = 10;
+  meminfo->set_value(value);
+
+  EXPECT_CALL(*sched_, PushCounter(ts, value, 0, 0, RefType::kNoRef));
+  Tokenize(trace_1);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
