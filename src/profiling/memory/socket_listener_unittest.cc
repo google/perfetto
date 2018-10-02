@@ -71,8 +71,10 @@ TEST_F(SocketListenerTest, ReceiveRecord) {
                              base::ScopedFile(open("/dev/null", O_RDONLY))};
   int raw_fds[2] = {*fds[0], *fds[1]};
   ASSERT_TRUE(client_socket->Send(&size, sizeof(size), raw_fds,
-                                  base::ArraySize(raw_fds)));
-  ASSERT_TRUE(client_socket->Send("1", 1));
+                                  base::ArraySize(raw_fds),
+                                  base::UnixSocket::BlockingMode::kBlocking));
+  ASSERT_TRUE(client_socket->Send("1", 1, -1,
+                                  base::UnixSocket::BlockingMode::kBlocking));
 
   task_runner.RunUntilCheckpoint("callback.called");
 }
