@@ -21,6 +21,7 @@
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/record_reader.h"
 #include "src/profiling/memory/unwinding.h"
+#include "src/profiling/memory/wire_protocol.h"
 
 #include <map>
 #include <memory>
@@ -29,9 +30,12 @@ namespace perfetto {
 
 class SocketListener : public base::UnixSocket::EventListener {
  public:
-  SocketListener(std::function<void(UnwindingRecord)> fn,
+  SocketListener(ClientConfiguration client_config,
+                 std::function<void(UnwindingRecord)> fn,
                  GlobalCallstackTrie* callsites)
-      : callback_function_(std::move(fn)), callsites_(callsites) {}
+      : client_config_(client_config),
+        callback_function_(std::move(fn)),
+        callsites_(callsites) {}
   void OnDisconnect(base::UnixSocket* self) override;
   void OnNewIncomingConnection(
       base::UnixSocket* self,
@@ -61,6 +65,7 @@ class SocketListener : public base::UnixSocket::EventListener {
                    base::ScopedFile maps_fd,
                    base::ScopedFile mem_fd);
 
+  ClientConfiguration client_config_;
   std::map<base::UnixSocket*, Entry> sockets_;
   std::map<pid_t, std::weak_ptr<ProcessMetadata>> process_metadata_;
   std::function<void(UnwindingRecord)> callback_function_;
