@@ -70,7 +70,7 @@ void TraceSorter::SortAndFlushEventsBeyondWindow(uint64_t window_size_ns) {
       next_stage->ParseFtracePacket(it->cpu, it->timestamp,
                                     std::move(it->blob_view));
     } else {
-      next_stage->ParseTracePacket(std::move(it->blob_view));
+      next_stage->ParseTracePacket(it->timestamp, std::move(it->blob_view));
     }
   }
 
