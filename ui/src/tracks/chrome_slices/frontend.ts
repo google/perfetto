@@ -90,6 +90,9 @@ class ChromeSliceTrack extends Track<Config, Data> {
         timeScale.timeToPx(data.start),
         timeScale.timeToPx(data.end), );
 
+    ctx.font = '12px Google Sans';
+    ctx.textAlign = 'center';
+
     // measuretext is expensive so we only use it once.
     const charWidth = ctx.measureText('abcdefghij').width / 10;
     const pxEnd = timeScale.timeToPx(visibleWindowTime.end);
