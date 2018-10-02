@@ -64,6 +64,55 @@ using CBufLenType = socklen_t;
 #pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 #endif
 
+void ShiftMsgHdr(size_t n, struct msghdr* msg) {
+  for (size_t i = 0; i < msg->msg_iovlen; ++i) {
+    struct iovec* vec = &msg->msg_iov[i];
+    if (n < vec->iov_len) {
+      // We sent a part of this iovec.
+      vec->iov_base = reinterpret_cast<char*>(vec->iov_base) + n;
+      vec->iov_len -= n;
+      msg->msg_iov = vec;
+      msg->msg_iovlen -= i;
+      return;
+    }
+    // We sent the whole iovec.
+    n -= vec->iov_len;
+  }
+  // We sent all the iovecs.
+  PERFETTO_CHECK(n == 0);
+  msg->msg_iovlen = 0;
+  msg->msg_iov = nullptr;
+}
+
+// For the interested reader, Linux kernel dive to verify this is not only a
+// theoretical possibility: sock_stream_sendmsg, if sock_alloc_send_pskb returns
+// NULL [1] (which it does when it gets interrupted [2]), returns early with the
+// amount of bytes already sent.
+//
+// [1]:
+// https://elixir.bootlin.com/linux/v4.18.10/source/net/unix/af_unix.c#L1872
+// [2]: https://elixir.bootlin.com/linux/v4.18.10/source/net/core/sock.c#L2101
+ssize_t SendMsgAll(int sockfd, struct msghdr* msg, int flags) {
+  // This does not make sense on non-blocking sockets.
+  PERFETTO_DCHECK((fcntl(sockfd, F_GETFL, 0) & O_NONBLOCK) == 0);
+
+  ssize_t total_sent = 0;
+  while (msg->msg_iov) {
+    ssize_t sent = PERFETTO_EINTR(sendmsg(sockfd, msg, flags));
+    if (sent <= 0) {
+      if (sent == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+        return total_sent;
+      return sent;
+    }
+    total_sent += sent;
+    ShiftMsgHdr(static_cast<size_t>(sent), msg);
+    // Only send the ancillary data with the first sendmsg call.
+    msg->msg_control = nullptr;
+    msg->msg_controllen = 0;
+  };
+  return total_sent;
+};
+
 ssize_t SockSend(int fd,
                  const void* msg,
                  size_t len,
@@ -90,7 +139,7 @@ ssize_t SockSend(int fd,
     msg_hdr.msg_controllen = cmsg->cmsg_len;
   }
 
-  return PERFETTO_EINTR(sendmsg(fd, &msg_hdr, kNoSigPipe));
+  return SendMsgAll(fd, &msg_hdr, kNoSigPipe);
 }
 
 ssize_t SockReceive(int fd,
@@ -396,8 +445,8 @@ void UnixSocket::OnEvent() {
   }
 }
 
-bool UnixSocket::Send(const std::string& msg) {
-  return Send(msg.c_str(), msg.size() + 1);
+bool UnixSocket::Send(const std::string& msg, BlockingMode blocking) {
+  return Send(msg.c_str(), msg.size() + 1, -1, blocking);
 }
 
 bool UnixSocket::Send(const void* msg,
@@ -414,6 +463,10 @@ bool UnixSocket::Send(const void* msg,
                       const int* send_fds,
                       size_t num_fds,
                       BlockingMode blocking_mode) {
+  // TODO(b/117139237): Non-blocking sends are broken because we do not
+  // properly handle partial sends.
+  PERFETTO_DCHECK(blocking_mode == BlockingMode::kBlocking);
+
   if (state_ != State::kConnected) {
     errno = last_error_ = ENOTCONN;
     return false;
