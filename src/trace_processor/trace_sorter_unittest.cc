@@ -28,6 +28,7 @@ namespace {
 
 using ::testing::_;
 using ::testing::InSequence;
+using ::testing::NiceMock;
 
 class MockTraceParser : public ProtoTraceParser {
  public:
@@ -45,10 +46,11 @@ class MockTraceParser : public ProtoTraceParser {
     MOCK_ParseFtracePacket(cpu, timestamp, tbv.data(), tbv.length());
   }
 
-  MOCK_METHOD2(MOCK_ParseTracePacket, void(const uint8_t* data, size_t length));
+  MOCK_METHOD3(MOCK_ParseTracePacket,
+               void(uint64_t ts, const uint8_t* data, size_t length));
 
-  void ParseTracePacket(TraceBlobView tbv) override {
-    MOCK_ParseTracePacket(tbv.data(), tbv.length());
+  void ParseTracePacket(uint64_t ts, TraceBlobView tbv) override {
+    MOCK_ParseTracePacket(ts, tbv.data(), tbv.length());
   }
 };
 
@@ -63,7 +65,7 @@ class TraceSorterTest : public ::testing::TestWithParam<OptimizationMode> {
  public:
   TraceSorterTest()
       : test_buffer_(std::unique_ptr<uint8_t[]>(new uint8_t[8]), 0, 8) {
-    storage_ = new MockTraceStorage();
+    storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
     context_.sorter.reset(
         new TraceSorter(&context_, GetParam(), 0 /*window_size*/));
@@ -74,7 +76,7 @@ class TraceSorterTest : public ::testing::TestWithParam<OptimizationMode> {
  protected:
   TraceProcessorContext context_;
   MockTraceParser* parser_;
-  MockTraceStorage* storage_;
+  NiceMock<MockTraceStorage>* storage_;
   TraceBlobView test_buffer_;
 };
 
@@ -93,7 +95,7 @@ TEST_P(TraceSorterTest, TestFtrace) {
 
 TEST_P(TraceSorterTest, TestTracePacket) {
   TraceBlobView view = test_buffer_.slice(0, 1);
-  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(view.data(), 1));
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1000, view.data(), 1));
   context_.sorter->PushTracePacket(1000, std::move(view));
   context_.sorter->FlushEventsForced();
 }
@@ -107,8 +109,8 @@ TEST_P(TraceSorterTest, Ordering) {
   InSequence s;
 
   EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(0, 1000, view_1.data(), 1));
-  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(view_2.data(), 2));
-  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(view_3.data(), 3));
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1001, view_2.data(), 2));
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1100, view_3.data(), 3));
   EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(2, 1200, view_4.data(), 4));
 
   context_.sorter->set_window_ns_for_testing(200);
