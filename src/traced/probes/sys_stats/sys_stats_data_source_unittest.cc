@@ -209,6 +209,7 @@ class SysStatsDataSourceTest : public ::testing::Test {
     auto instance = std::unique_ptr<SysStatsDataSource>(new SysStatsDataSource(
         &task_runner_, 0, std::move(writer), cfg, MockOpenReadOnly));
     instance->set_ns_per_user_hz_for_testing(1000000000ull / 100);  // 100 Hz.
+    instance->Start();
     return instance;
   }
 

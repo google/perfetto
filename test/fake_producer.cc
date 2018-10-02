@@ -57,6 +57,9 @@ void FakeProducer::OnDisconnect() {
   FAIL() << "Producer unexpectedly disconnected from the service";
 }
 
+void FakeProducer::SetupDataSource(DataSourceInstanceID,
+                                   const DataSourceConfig&) {}
+
 void FakeProducer::StartDataSource(DataSourceInstanceID,
                                    const DataSourceConfig& source_config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);

@@ -28,10 +28,12 @@ class ProbesDataSource {
   ProbesDataSource(TracingSessionID, int type_id);
   virtual ~ProbesDataSource();
 
+  virtual void Start() = 0;
   virtual void Flush() = 0;
 
   const TracingSessionID tracing_session_id;
   const int type_id;
+  bool started = false;  // Set by probes_producer.cc.
 
  private:
   ProbesDataSource(const ProbesDataSource&) = delete;
