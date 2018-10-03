@@ -171,9 +171,11 @@ Client::Client(std::vector<base::ScopedFile> socks)
   PERFETTO_DCHECK(pthread_key_.valid());
 
   uint64_t size = 0;
+  base::ScopedFile maps(base::OpenFile("/proc/self/maps", O_RDONLY));
+  base::ScopedFile mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   int fds[2];
-  fds[0] = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
-  fds[1] = open("/proc/self/mem", O_RDONLY | O_CLOEXEC);
+  fds[0] = *maps;
+  fds[1] = *mem;
   auto fd = socket_pool_.Borrow();
   // Send an empty record to transfer fds for /proc/self/maps and
   // /proc/self/mem.

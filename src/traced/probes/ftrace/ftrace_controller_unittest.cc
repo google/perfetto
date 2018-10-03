@@ -163,7 +163,7 @@ class MockFtraceProcfs : public FtraceProcfs {
   }
 
   base::ScopedFile OpenPipeForCpu(size_t /*cpu*/) override {
-    return base::ScopedFile(open("/dev/null", O_RDONLY));
+    return base::ScopedFile(base::OpenFile("/dev/null", O_RDONLY));
   }
 
   MOCK_METHOD2(WriteToFile,
