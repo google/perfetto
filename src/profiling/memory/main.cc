@@ -19,7 +19,7 @@
 #include <memory>
 #include <vector>
 
-#include "src/ipc/unix_socket.h"
+#include "perfetto/base/unix_socket.h"
 #include "src/profiling/memory/bounded_queue.h"
 #include "src/profiling/memory/socket_listener.h"
 
@@ -31,6 +31,7 @@ namespace {
 constexpr size_t kUnwinderQueueSize = 1000;
 constexpr size_t kBookkeepingQueueSize = 1000;
 constexpr size_t kUnwinderThreads = 5;
+constexpr double kSamplingRate = 1;
 
 // We create kUnwinderThreads unwinding threads and one bookeeping thread.
 // The bookkeeping thread is singleton in order to avoid expensive and
@@ -59,7 +60,7 @@ constexpr size_t kUnwinderThreads = 5;
 //           +------------------+
 int HeapprofdMain(int argc, char** argv) {
   GlobalCallstackTrie callsites;
-  std::unique_ptr<ipc::UnixSocket> sock;
+  std::unique_ptr<base::UnixSocket> sock;
 
   BoundedQueue<BookkeepingRecord> callsites_queue(kBookkeepingQueueSize);
   std::thread bookkeeping_thread(
@@ -67,7 +68,7 @@ int HeapprofdMain(int argc, char** argv) {
 
   std::array<BoundedQueue<UnwindingRecord>, kUnwinderThreads> unwinder_queues;
   for (size_t i = 0; i < kUnwinderThreads; ++i)
-    unwinder_queues[i].SetSize(kUnwinderQueueSize);
+    unwinder_queues[i].SetCapacity(kUnwinderQueueSize);
   std::vector<std::thread> unwinding_threads;
   unwinding_threads.reserve(kUnwinderThreads);
   for (size_t i = 0; i < kUnwinderThreads; ++i) {
@@ -80,13 +81,14 @@ int HeapprofdMain(int argc, char** argv) {
     unwinder_queues[static_cast<size_t>(r.pid) % kUnwinderThreads].Add(
         std::move(r));
   };
-  SocketListener listener(std::move(on_record_received), &callsites);
+  SocketListener listener({kSamplingRate}, std::move(on_record_received),
+                          &callsites);
 
   base::UnixTaskRunner read_task_runner;
   if (argc == 2) {
     // Allow to be able to manually specify the socket to listen on
     // for testing and sideloading purposes.
-    sock = ipc::UnixSocket::Listen(argv[1], &listener, &read_task_runner);
+    sock = base::UnixSocket::Listen(argv[1], &listener, &read_task_runner);
   } else if (argc == 1) {
     // When running as a service launched by init on Android, the socket
     // is created by init and passed to the application using an environment
@@ -101,8 +103,8 @@ int HeapprofdMain(int argc, char** argv) {
     if (*end != '\0')
       PERFETTO_FATAL(
           "Invalid ANDROID_SOCKET_heapprofd. Expected decimal integer.");
-    sock = ipc::UnixSocket::Listen(base::ScopedFile(raw_fd), &listener,
-                                   &read_task_runner);
+    sock = base::UnixSocket::Listen(base::ScopedFile(raw_fd), &listener,
+                                    &read_task_runner);
   } else {
     PERFETTO_FATAL("Invalid number of arguments. %s [SOCKET]", argv[0]);
   }

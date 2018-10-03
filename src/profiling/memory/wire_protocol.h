@@ -79,6 +79,13 @@ struct FreePageEntry {
   uint64_t addr;
 };
 
+struct ClientConfiguration {
+  // On average, sample one allocation every rate bytes,
+  // If rate == 1, sample every allocation.
+  // Must be >= 1.
+  double rate;
+};
+
 struct FreeMetadata {
   uint64_t num_entries;
   FreePageEntry entries[kFreePageSize];
