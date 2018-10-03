@@ -17,6 +17,7 @@
 #ifndef SRC_PROFILING_MEMORY_CLIENT_H_
 #define SRC_PROFILING_MEMORY_CLIENT_H_
 
+#include <pthread.h>
 #include <stddef.h>
 
 #include <mutex>
@@ -95,6 +96,30 @@ class FreePage {
 
 const char* GetThreadStackBase();
 
+// RAII wrapper around pthread_key_t. This is different from a ScopedResource
+// because it needs a separate boolean indicating validity.
+class PThreadKey {
+ public:
+  PThreadKey(const PThreadKey&) = delete;
+  PThreadKey& operator=(const PThreadKey&) = delete;
+
+  PThreadKey(void (*destructor)(void*)) noexcept
+      : valid_(pthread_key_create(&key_, destructor) == 0) {}
+  ~PThreadKey() noexcept {
+    if (valid_)
+      pthread_key_delete(key_);
+  }
+  bool valid() const { return valid_; }
+  pthread_key_t get() const {
+    PERFETTO_DCHECK(valid_);
+    return key_;
+  }
+
+ private:
+  pthread_key_t key_;
+  bool valid_;
+};
+
 // This is created and owned by the malloc hooks.
 class Client {
  public:
@@ -102,6 +127,9 @@ class Client {
   Client(const std::string& sock_name, size_t conns);
   void RecordMalloc(uint64_t alloc_size, uint64_t alloc_address);
   void RecordFree(uint64_t alloc_address);
+  bool ShouldSampleAlloc(uint64_t alloc_size,
+                         void* (*unhooked_malloc)(size_t),
+                         void (*unhooked_free)(void*));
 
   ClientConfiguration client_config_for_testing() { return client_config_; }
 
@@ -109,6 +137,7 @@ class Client {
   const char* GetStackBase();
 
   ClientConfiguration client_config_;
+  PThreadKey pthread_key_;
   SocketPool socket_pool_;
   FreePage free_page_;
   const char* main_thread_stack_base_ = nullptr;
