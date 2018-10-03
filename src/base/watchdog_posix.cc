@@ -127,7 +127,7 @@ void Watchdog::SetCpuLimit(uint32_t percentage, uint32_t window_ms) {
 }
 
 void Watchdog::ThreadMain() {
-  base::ScopedFile stat_fd(open("/proc/self/stat", O_RDONLY));
+  base::ScopedFile stat_fd(base::OpenFile("/proc/self/stat", O_RDONLY));
   if (!stat_fd) {
     PERFETTO_ELOG("Failed to open stat file to enforce resource limits.");
     return;

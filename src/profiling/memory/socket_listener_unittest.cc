@@ -68,8 +68,9 @@ TEST_F(SocketListenerTest, ReceiveRecord) {
 
   task_runner.RunUntilCheckpoint("connected");
   uint64_t size = 1;
-  base::ScopedFile fds[2] = {base::ScopedFile(open("/dev/null", O_RDONLY)),
-                             base::ScopedFile(open("/dev/null", O_RDONLY))};
+  base::ScopedFile fds[2] = {
+      base::ScopedFile(base::OpenFile("/dev/null", O_RDONLY)),
+      base::ScopedFile(base::OpenFile("/dev/null", O_RDONLY))};
   int raw_fds[2] = {*fds[0], *fds[1]};
   ASSERT_TRUE(client_socket->Send(&size, sizeof(size), raw_fds,
                                   base::ArraySize(raw_fds),

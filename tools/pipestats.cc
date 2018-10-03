@@ -47,7 +47,7 @@ __attribute__((__noreturn__)) void ReadLoop(int fd) {
 
 int PipestatsMain(int argc, char** argv) {
   PERFETTO_CHECK(argc == 2);
-  base::ScopedFile trace_fd(open(argv[1], O_RDONLY));
+  base::ScopedFile trace_fd(base::OpenFile(argv[1], O_RDONLY));
   PERFETTO_CHECK(trace_fd);
   std::thread reader(ReadLoop, trace_fd.get());
 

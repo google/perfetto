@@ -45,8 +45,7 @@ namespace {
 constexpr size_t kReadBufSize = 1024 * 16;
 
 base::ScopedFile OpenReadOnly(const char* path) {
-  base::ScopedFile fd;
-  fd.reset(open(path, O_RDONLY | O_CLOEXEC));
+  base::ScopedFile fd(base::OpenFile(path, O_RDONLY));
   if (!fd)
     PERFETTO_PLOG("Failed opening %s", path);
   return fd;
