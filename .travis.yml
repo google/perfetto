@@ -66,13 +66,13 @@ matrix:
       sudo: false
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-msan GN_ARGS="is_debug=false is_msan=true"
-# TODO(b/117093687): This always times out in Travis.
+# TODO(b/117093687): ubsan always times out in Travis.
 # Re-enable once that is fixed.
-#    - os: linux
-#      dist: trusty
-#      sudo: true
-#      compiler: clang
-#      env: CFG=linux_trusty-clang-x86_64-ubsan_asan_lsan GN_ARGS="is_debug=false is_ubsan=true is_asan=true is_lsan=true"
+    - os: linux
+      dist: trusty
+      sudo: true
+      compiler: clang
+      env: CFG=linux_trusty-clang-x86_64-asan_lsan GN_ARGS="is_debug=false is_asan=true is_lsan=true"
     - os: linux
       dist: trusty
       sudo: false
