@@ -54,7 +54,8 @@ TEST_F(SocketListenerTest, ReceiveRecord) {
   };
 
   GlobalCallstackTrie bookkeeping;
-  SocketListener listener(std::move(callback_fn), &bookkeeping);
+  SocketListener listener({},  // We do not care about the sampling rate.
+                          std::move(callback_fn), &bookkeeping);
   MockEventListener client_listener;
   EXPECT_CALL(client_listener, OnConnect(_, _))
       .WillOnce(InvokeWithoutArgs(connected));
