@@ -25,15 +25,15 @@ namespace {
 
 TEST(SocketPoolTest, Basic) {
   std::vector<base::ScopedFile> files;
-  files.emplace_back(open("/dev/null", O_RDONLY));
+  files.emplace_back(base::OpenFile("/dev/null", O_RDONLY));
   SocketPool pool(std::move(files));
   BorrowedSocket sock = pool.Borrow();
 }
 
 TEST(SocketPoolTest, Multiple) {
   std::vector<base::ScopedFile> files;
-  files.emplace_back(open("/dev/null", O_RDONLY));
-  files.emplace_back(open("/dev/null", O_RDONLY));
+  files.emplace_back(base::OpenFile("/dev/null", O_RDONLY));
+  files.emplace_back(base::OpenFile("/dev/null", O_RDONLY));
   SocketPool pool(std::move(files));
   BorrowedSocket sock = pool.Borrow();
   BorrowedSocket sock_2 = pool.Borrow();
@@ -41,7 +41,7 @@ TEST(SocketPoolTest, Multiple) {
 
 TEST(SocketPoolTest, Blocked) {
   std::vector<base::ScopedFile> files;
-  files.emplace_back(open("/dev/null", O_RDONLY));
+  files.emplace_back(base::OpenFile("/dev/null", O_RDONLY));
   SocketPool pool(std::move(files));
   BorrowedSocket sock = pool.Borrow();
   std::thread t([&pool] { pool.Borrow(); });
@@ -54,7 +54,7 @@ TEST(SocketPoolTest, Blocked) {
 
 TEST(SocketPoolTest, MultipleBlocked) {
   std::vector<base::ScopedFile> files;
-  files.emplace_back(open("/dev/null", O_RDONLY));
+  files.emplace_back(base::OpenFile("/dev/null", O_RDONLY));
   SocketPool pool(std::move(files));
   BorrowedSocket sock = pool.Borrow();
   std::thread t([&pool] { pool.Borrow(); });

@@ -33,7 +33,7 @@ namespace perfetto {
 namespace {
 
 TEST(UnwindingTest, StackMemoryOverlay) {
-  base::ScopedFile proc_mem(open("/proc/self/mem", O_RDONLY));
+  base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   ASSERT_TRUE(proc_mem);
   uint8_t fake_stack[1] = {120};
   StackMemory memory(*proc_mem, 0u, fake_stack, 1);
@@ -45,7 +45,7 @@ TEST(UnwindingTest, StackMemoryOverlay) {
 TEST(UnwindingTest, StackMemoryNonOverlay) {
   uint8_t value = 52;
 
-  base::ScopedFile proc_mem(open("/proc/self/mem", O_RDONLY));
+  base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   ASSERT_TRUE(proc_mem);
   uint8_t fake_stack[1] = {120};
   StackMemory memory(*proc_mem, 0u, fake_stack, 1);
@@ -55,7 +55,7 @@ TEST(UnwindingTest, StackMemoryNonOverlay) {
 }
 
 TEST(UnwindingTest, FileDescriptorMapsParse) {
-  base::ScopedFile proc_maps(open("/proc/self/maps", O_RDONLY));
+  base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   ASSERT_TRUE(proc_maps);
   FileDescriptorMaps maps(std::move(proc_maps));
   ASSERT_TRUE(maps.Parse());
@@ -119,8 +119,8 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
 
 // TODO(fmayer): Investigate why this fails out of tree.
 TEST(UnwindingTest, MAYBE_DoUnwind) {
-  base::ScopedFile proc_maps(open("/proc/self/maps", O_RDONLY));
-  base::ScopedFile proc_mem(open("/proc/self/mem", O_RDONLY));
+  base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
+  base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   GlobalCallstackTrie callsites;
   ProcessMetadata metadata(getpid(), std::move(proc_maps), std::move(proc_mem),
                            &callsites);

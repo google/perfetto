@@ -53,7 +53,7 @@ bool ReadFileDescriptor(int fd, std::string* out) {
 }
 
 bool ReadFile(const std::string& path, std::string* out) {
-  base::ScopedFile fd = base::OpenFile(path.c_str(), O_RDONLY);
+  base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
   if (!fd)
     return false;
 

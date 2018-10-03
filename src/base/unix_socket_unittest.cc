@@ -200,8 +200,8 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeFDs) {
   ASSERT_TRUE(srv_conn);
   ASSERT_TRUE(cli->is_connected());
 
-  ScopedFile null_fd(open("/dev/null", O_RDONLY));
-  ScopedFile zero_fd(open("/dev/zero", O_RDONLY));
+  ScopedFile null_fd(base::OpenFile("/dev/null", O_RDONLY));
+  ScopedFile zero_fd(base::OpenFile("/dev/zero", O_RDONLY));
 
   auto cli_did_recv = task_runner_.CreateCheckpoint("cli_did_recv");
   EXPECT_CALL(event_listener_, OnDataAvailable(cli.get()))

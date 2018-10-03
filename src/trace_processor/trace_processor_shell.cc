@@ -202,8 +202,7 @@ int main(int argc, char** argv) {
   TraceProcessor::Config config;
   config.optimization_mode = OptimizationMode::kMaxBandwidth;
   TraceProcessor tp(config);
-  base::ScopedFile fd;
-  fd.reset(open(trace_file_path, O_RDONLY));
+  base::ScopedFile fd(base::OpenFile(trace_file_path, O_RDONLY));
   PERFETTO_CHECK(fd);
 
   // Load the trace in chunks using async IO. We create a simple pipeline where,
