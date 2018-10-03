@@ -14,7 +14,20 @@
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 
-export interface Data {
+export interface SummaryData {
+  kind: 'summary';
+
+  start: number;
+  end: number;
+  resolution: number;
+
+  bucketSizeSeconds: number;
+  utilizations: Float64Array;
+}
+
+export interface SliceData {
+  kind: 'slice';
+
   start: number;
   end: number;
   resolution: number;
@@ -24,5 +37,8 @@ export interface Data {
   ends: Float64Array;
   utids: Uint32Array;
 }
+
+export type Data = SummaryData | SliceData;
+
 
 export interface Config { cpu: number; }
