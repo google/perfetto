@@ -53,7 +53,8 @@ void SocketListener::OnDataAvailable(base::UnixSocket* self) {
       InitProcess(&entry, self->peer_pid(), std::move(fds[0]),
                   std::move(fds[1]));
       entry.recv_fds = true;
-      self->Send(&client_config_, sizeof(client_config_));
+      self->Send(&client_config_, sizeof(client_config_), -1,
+                 base::UnixSocket::BlockingMode::kBlocking);
     } else if (fds[0] || fds[1]) {
       PERFETTO_DLOG("Received partial FDs.");
     } else {
