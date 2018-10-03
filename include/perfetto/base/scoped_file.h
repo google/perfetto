@@ -79,12 +79,15 @@ class ScopedResource {
 };
 
 using ScopedFile = ScopedResource<int, close, -1>;
-inline static ScopedFile OpenFile(const std::string& path, int flags) {
+inline static ScopedFile OpenFile(const std::string& path,
+                                  int flags,
+                                  mode_t mode = 0) {
+  PERFETTO_DCHECK((flags & O_CREAT) == 0 || mode != 0);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  ScopedFile fd(open(path.c_str(), flags));
+  ScopedFile fd(open(path.c_str(), flags, mode));
 #else
   // Always open a ScopedFile with O_CLOEXEC so we can safely fork and exec.
-  ScopedFile fd(open(path.c_str(), flags | O_CLOEXEC));
+  ScopedFile fd(open(path.c_str(), flags | O_CLOEXEC, mode));
 #endif
   return fd;
 }
