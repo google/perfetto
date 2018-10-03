@@ -103,9 +103,12 @@ class Client {
   void RecordMalloc(uint64_t alloc_size, uint64_t alloc_address);
   void RecordFree(uint64_t alloc_address);
 
+  ClientConfiguration client_config_for_testing() { return client_config_; }
+
  private:
   const char* GetStackBase();
 
+  ClientConfiguration client_config_;
   SocketPool socket_pool_;
   FreePage free_page_;
   const char* main_thread_stack_base_ = nullptr;
