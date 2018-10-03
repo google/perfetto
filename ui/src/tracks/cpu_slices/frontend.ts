@@ -20,9 +20,16 @@ import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
-import {Config, CPU_SLICE_TRACK_KIND, Data} from './common';
+import {
+  Config,
+  CPU_SLICE_TRACK_KIND,
+  Data,
+  SliceData,
+  SummaryData
+} from './common';
 
-const MARGIN_TOP = 5;
+// 0.5 Makes the horizontal lines sharp.
+const MARGIN_TOP = 5.5;
 const RECT_HEIGHT = 30;
 
 function cropText(str: string, charWidth: number, rectWidth: number) {
@@ -56,9 +63,13 @@ class CpuSliceTrack extends Track<Config, Data> {
   private hoveredUtid = -1;
   private mouseXpos?: number;
   private reqPending = false;
+  private hue: number;
 
   constructor(trackState: TrackState) {
     super(trackState);
+    // TODO: this needs to be kept in sync with the hue generation algorithm
+    // of overview_timeline_panel.ts
+    this.hue = (128 + (32 * this.config.cpu)) % 256;
   }
 
   reqDataDeferred() {
@@ -73,7 +84,6 @@ class CpuSliceTrack extends Track<Config, Data> {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     const data = this.data();
 
@@ -82,20 +92,13 @@ class CpuSliceTrack extends Track<Config, Data> {
     const inRange = data !== undefined &&
         (visibleWindowTime.start >= data.start &&
          visibleWindowTime.end <= data.end);
-    if (!inRange || data.resolution > getCurResolution()) {
+    if (!inRange || data.resolution !== getCurResolution()) {
       if (!this.reqPending) {
         this.reqPending = true;
         setTimeout(() => this.reqDataDeferred(), 50);
       }
-      if (data === undefined) return;  // Can't possibly draw anything.
     }
-    ctx.textAlign = 'center';
-    ctx.font = '12px Google Sans';
-    const charWidth = ctx.measureText('dbpqaouk').width / 8;
-
-    // TODO: this needs to be kept in sync with the hue generation algorithm
-    // of overview_timeline_panel.ts
-    const hue = (128 + (32 * this.config.cpu)) % 256;
+    if (data === undefined) return;  // Can't possibly draw anything.
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
@@ -104,10 +107,50 @@ class CpuSliceTrack extends Track<Config, Data> {
         timeScale.timeToPx(visibleWindowTime.start),
         timeScale.timeToPx(visibleWindowTime.end),
         timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end), );
+        timeScale.timeToPx(data.end));
 
+    if (data.kind === 'summary') {
+      this.renderSummary(ctx, data);
+    } else if (data.kind === 'slice') {
+      this.renderSlices(ctx, data);
+    }
+  }
+
+  renderSummary(ctx: CanvasRenderingContext2D, data: SummaryData): void {
+    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
+    const bottomY = MARGIN_TOP + RECT_HEIGHT;
+
+    let lastX = startPx;
+    let lastY = bottomY;
+
+    ctx.fillStyle = `hsl(${this.hue}, 50%, 60%)`;
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    for (let i = 0; i < data.utilizations.length; i++) {
+      const utilization = data.utilizations[i];
+      const startTime = i * data.bucketSizeSeconds + data.start;
+
+      lastX = Math.floor(timeScale.timeToPx(startTime));
+
+      ctx.lineTo(lastX, lastY);
+      lastY = MARGIN_TOP + Math.round(RECT_HEIGHT * (1 - utilization));
+      ctx.lineTo(lastX, lastY);
+    }
+    ctx.lineTo(lastX, bottomY);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  renderSlices(ctx: CanvasRenderingContext2D, data: SliceData): void {
+    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
+
+    ctx.textAlign = 'center';
+    ctx.font = '12px Google Sans';
+    const charWidth = ctx.measureText('dbpqaouk').width / 8;
+
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
@@ -121,7 +164,7 @@ class CpuSliceTrack extends Track<Config, Data> {
       if (rectWidth < 0.1) continue;
 
       const hovered = this.hoveredUtid === utid;
-      ctx.fillStyle = `hsl(${hue}, 50%, ${hovered ? 25 : 60}%`;
+      ctx.fillStyle = `hsl(${this.hue}, 50%, ${hovered ? 25 : 60}%)`;
       ctx.fillRect(rectStart, MARGIN_TOP, rectEnd - rectStart, RECT_HEIGHT);
 
       // TODO: consider de-duplicating this code with the copied one from
@@ -171,7 +214,7 @@ class CpuSliceTrack extends Track<Config, Data> {
   onMouseMove({x, y}: {x: number, y: number}) {
     const data = this.data();
     this.mouseXpos = x;
-    if (data === undefined) return;
+    if (data === undefined || data.kind === 'summary') return;
     const {timeScale} = globals.frontendLocalState;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.hoveredUtid = -1;
