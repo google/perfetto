@@ -20,43 +20,39 @@
 
 #include <thread>
 
+#include "src/profiling/memory/client.h"  // For PThreadKey.
+
 namespace perfetto {
 namespace {
 
 TEST(SamplerTest, TestLarge) {
-  pthread_key_t key;
-  ASSERT_EQ(pthread_key_create(&key, ThreadLocalSamplingData::KeyDestructor),
-            0);
-  EXPECT_EQ(ShouldSample(key, 1024, 512, malloc, free), 1);
-  pthread_key_delete(key);
+  PThreadKey key(ThreadLocalSamplingData::KeyDestructor);
+  ASSERT_TRUE(key.valid());
+  EXPECT_EQ(ShouldSample(key.get(), 1024, 512, malloc, free), 1);
 }
 
 TEST(SamplerTest, TestSmall) {
-  pthread_key_t key;
-  ASSERT_EQ(pthread_key_create(&key, ThreadLocalSamplingData::KeyDestructor),
-            0);
+  PThreadKey key(ThreadLocalSamplingData::KeyDestructor);
+  ASSERT_TRUE(key.valid());
   // As we initialize interval_to_next_sample_ with 0, the first sample
   // should always get sampled.
-  EXPECT_EQ(ShouldSample(key, 1, 512, malloc, free), 1);
-  pthread_key_delete(key);
+  EXPECT_EQ(ShouldSample(key.get(), 1, 512, malloc, free), 1);
 }
 
 TEST(SamplerTest, TestSmallFromThread) {
-  pthread_key_t key;
-  ASSERT_EQ(pthread_key_create(&key, ThreadLocalSamplingData::KeyDestructor),
-            0);
-  std::thread th([key] {
+  PThreadKey key(ThreadLocalSamplingData::KeyDestructor);
+  ASSERT_TRUE(key.valid());
+  std::thread th([&key] {
     // As we initialize interval_to_next_sample_ with 0, the first sample
     // should always get sampled.
-    EXPECT_EQ(ShouldSample(key, 1, 512, malloc, free), 1);
+    EXPECT_EQ(ShouldSample(key.get(), 1, 512, malloc, free), 1);
   });
-  std::thread th2([key] {
+  std::thread th2([&key] {
     // The threads should have separate state.
-    EXPECT_EQ(ShouldSample(key, 1, 512, malloc, free), 1);
+    EXPECT_EQ(ShouldSample(key.get(), 1, 512, malloc, free), 1);
   });
   th.join();
   th2.join();
-  pthread_key_delete(key);
 }
 
 }  // namespace
