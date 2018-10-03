@@ -32,10 +32,12 @@ import {
  */
 const SCROLLING_CANVAS_OVERDRAW_FACTOR = 2;
 
+// We need any here so we can accept vnodes with arbitrary attrs.
+// tslint:disable-next-line:no-any
+export type AnyAttrsVnode = m.Vnode<any, {}>;
+
 interface Attrs {
-  // Panels with non-empty attrs does not work without any.
-  // tslint:disable-next-line:no-any
-  panels: Array<m.Vnode<any, {}>>;
+  panels: AnyAttrsVnode[];
   doesScroll: boolean;
 }
 
