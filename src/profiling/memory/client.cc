@@ -146,7 +146,13 @@ Client::Client(std::vector<base::ScopedFile> socks)
   int fds[2];
   fds[0] = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
   fds[1] = open("/proc/self/mem", O_RDONLY | O_CLOEXEC);
-  base::SockSend(*socket_pool_.Borrow(), &size, sizeof(size), fds, 2);
+  auto fd = socket_pool_.Borrow();
+  // Send an empty record to transfer fds for /proc/self/maps and
+  // /proc/self/mem.
+  base::SockSend(*fd, &size, sizeof(size), fds, 2);
+  PERFETTO_DCHECK(recv(*fd, &client_config_, sizeof(client_config_), 0) ==
+                  sizeof(client_config_));
+  PERFETTO_DCHECK(client_config_.rate >= 1);
 }
 
 Client::Client(const std::string& sock_name, size_t conns)
