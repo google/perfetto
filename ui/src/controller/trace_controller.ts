@@ -16,8 +16,8 @@ import '../tracks/all_controller';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {
-  Action,
   addTrack,
+  DeferredAction,
   navigate,
   setEngineReady,
   setTraceTime,
@@ -180,7 +180,7 @@ export class TraceController extends Controller<States> {
   private async listTracks() {
     globals.dispatch(updateStatus('Loading tracks'));
     const engine = assertExists<Engine>(this.engine);
-    const addToTrackActions: Action[] = [];
+    const addToTrackActions: DeferredAction[] = [];
     const numCpus = await engine.getNumberOfCpus();
     for (let cpu = 0; cpu < numCpus; cpu++) {
       addToTrackActions.push(

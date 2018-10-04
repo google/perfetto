@@ -1,5 +1,6 @@
 import commonjs from 'rollup-plugin-commonjs';
 import nodeResolve from 'rollup-plugin-node-resolve';
+import replace from 'rollup-plugin-replace';
 
 export default {
   output: {name: 'perfetto'},
@@ -15,6 +16,11 @@ export default {
         'fs',
         'path',
       ]
+    }),
+
+    replace({
+      'immer_1.produce': 'immer_1',
     })
+
   ]
 }
