@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {Action} from '../common/actions';
+import {DeferredAction} from '../common/actions';
 import {createEmptyState, State} from '../common/state';
 
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
 
-type Dispatch = (action: Action) => void;
+type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}>;
 

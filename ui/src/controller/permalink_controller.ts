@@ -15,7 +15,7 @@
 import * as uuidv4 from 'uuid/v4';
 
 import {assertExists} from '../base/logging';
-import {setPermalink, setState} from '../common/actions';
+import {Actions} from '../common/actions';
 import {EngineConfig, State} from '../common/state';
 
 import {Controller} from './controller';
@@ -40,14 +40,14 @@ export class PermalinkController extends Controller<'main'> {
     // if the |link| is not set, this is a request to create a permalink.
     if (globals.state.permalink.hash === undefined) {
       PermalinkController.createPermalink().then(hash => {
-        globals.dispatch(setPermalink(requestId, hash));
+        globals.dispatch(Actions.setPermalink({requestId, hash}));
       });
       return;
     }
 
     // Otherwise, this is a request to load the permalink.
     PermalinkController.loadState(globals.state.permalink.hash).then(state => {
-      globals.dispatch(setState(state));
+      globals.dispatch(Actions.setState({newState: state}));
       this.lastRequestId = state.permalink.requestId;
     });
   }

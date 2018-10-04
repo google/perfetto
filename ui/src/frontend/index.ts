@@ -17,7 +17,7 @@ import '../tracks/all_frontend';
 import * as m from 'mithril';
 
 import {forwardRemoteCalls} from '../base/remote';
-import {loadPermalink} from '../common/actions';
+import {Actions} from '../common/actions';
 import {State} from '../common/state';
 import {TimeSpan} from '../common/time';
 import {globals, QuantizedLoad, ThreadDesc} from './globals';
@@ -120,7 +120,11 @@ function main() {
   // /?s=xxxx for permalinks.
   const stateHash = router.param('s');
   if (stateHash) {
-    globals.dispatch(loadPermalink(stateHash));
+    // TODO(hjd): Should requestId not be set to nextId++ in the controller?
+    globals.dispatch(Actions.loadPermalink({
+      requestId: new Date().toISOString(),
+      hash: stateHash,
+    }));
   }
 
   // Prevent pinch zoom.
