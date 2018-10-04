@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {requestTrackData} from '../../common/actions';
+import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
@@ -58,8 +58,12 @@ class ChromeSliceTrack extends Track<Config, Data> {
     const reqEnd = visibleWindowTime.end + visibleWindowTime.duration;
     const reqRes = getCurResolution();
     this.reqPending = false;
-    globals.dispatch(
-        requestTrackData(this.trackState.id, reqStart, reqEnd, reqRes));
+    globals.dispatch(Actions.reqTrackData({
+      trackId: this.trackState.id,
+      start: reqStart,
+      end: reqEnd,
+      resolution: reqRes
+    }));
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {

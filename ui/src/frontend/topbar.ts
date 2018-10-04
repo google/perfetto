@@ -14,7 +14,7 @@
 
 import * as m from 'mithril';
 
-import {Actions, deleteQuery} from '../common/actions';
+import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {EngineConfig} from '../common/state';
 
@@ -28,7 +28,7 @@ let mode: 'search'|'command' = 'search';
 
 function clearOmniboxResults() {
   globals.queryResults.delete(QUERY_ID);
-  globals.dispatch(deleteQuery(QUERY_ID));
+  globals.dispatch(Actions.deleteQuery({queryId: QUERY_ID}));
 }
 
 function onKeyDown(e: Event) {
