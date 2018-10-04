@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_BASE_UNIX_TASK_RUNNER_H_
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/event.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_checker.h"
@@ -29,13 +30,6 @@
 #include <map>
 #include <mutex>
 #include <vector>
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define PERFETTO_USE_EVENTFD() 1
-#else
-#define PERFETTO_USE_EVENTFD() 0
-#endif
 
 namespace perfetto {
 namespace base {
@@ -75,11 +69,7 @@ class UnixTaskRunner : public TaskRunner {
 
   // On Linux, an eventfd(2) used to waking up the task runner when a new task
   // is posted. Otherwise the read end of a pipe used for the same purpose.
-  ScopedFile event_;
-#if !PERFETTO_USE_EVENTFD()
-  // The write end of the wakeup pipe.
-  ScopedFile event_write_;
-#endif
+  Event event_;
 
   std::vector<struct pollfd> poll_fds_;
 
