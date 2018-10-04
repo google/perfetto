@@ -15,8 +15,8 @@
 import * as m from 'mithril';
 
 import {
+  Actions,
   createPermalink,
-  executeQuery,
   navigate,
   openTraceFromFile,
   openTraceFromUrl
@@ -60,7 +60,11 @@ limit 20;`;
 function createCannedQuery(query: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
-    globals.dispatch(executeQuery('0', 'command', query));
+    globals.dispatch(Actions.executeQuery({
+      engineId: '0',
+      queryId: 'command',
+      query,
+    }));
   };
 }
 

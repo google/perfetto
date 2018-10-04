@@ -14,7 +14,7 @@
 
 import * as m from 'mithril';
 
-import {deleteQuery, executeQuery} from '../common/actions';
+import {Actions, deleteQuery} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {EngineConfig} from '../common/state';
 
@@ -81,10 +81,12 @@ function onKeyUp(e: Event) {
   if (mode === 'search') {
     const name = txt.value.replace(/'/g, '\\\'').replace(/[*]/g, '%');
     const query = `select str from strings where str like '%${name}%' limit 10`;
-    globals.dispatch(executeQuery('0', QUERY_ID, query));
+    globals.dispatch(
+        Actions.executeQuery({engineId: '0', queryId: QUERY_ID, query}));
   }
   if (mode === 'command' && key === 'Enter') {
-    globals.dispatch(executeQuery('0', 'command', txt.value));
+    globals.dispatch(Actions.executeQuery(
+        {engineId: '0', queryId: 'command', query: txt.value}));
   }
 }
 
