@@ -46,7 +46,7 @@ namespace {
 void KernelLogWrite(const char* s) {
   PERFETTO_DCHECK(*s && s[strlen(s) - 1] == '\n');
   if (FtraceProcfs::g_kmesg_fd != -1)
-    base::ignore_result(write(FtraceProcfs::g_kmesg_fd, s, strlen(s)));
+    base::ignore_result(base::WriteAll(FtraceProcfs::g_kmesg_fd, s, strlen(s)));
 }
 
 }  // namespace
@@ -224,7 +224,7 @@ bool FtraceProcfs::WriteToFile(const std::string& path,
   base::ScopedFile fd = base::OpenFile(path, O_WRONLY);
   if (!fd)
     return false;
-  ssize_t written = PERFETTO_EINTR(write(fd.get(), str.c_str(), str.length()));
+  ssize_t written = base::WriteAll(fd.get(), str.c_str(), str.length());
   ssize_t length = static_cast<ssize_t>(str.length());
   // This should either fail or write fully.
   PERFETTO_CHECK(written == length || written == -1);

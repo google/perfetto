@@ -396,8 +396,8 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
   sa.sa_handler = [](int) {
     PERFETTO_LOG("SIGINT received: disabling tracing");
     char one = '1';
-    PERFETTO_CHECK(PERFETTO_EINTR(write(g_consumer_cmd->ctrl_c_pipe_wr(), &one,
-                                        sizeof(one))) == 1);
+    PERFETTO_CHECK(base::WriteAll(g_consumer_cmd->ctrl_c_pipe_wr(), &one,
+                                  sizeof(one)) == 1);
   };
   sa.sa_flags = static_cast<decltype(sa.sa_flags)>(SA_RESETHAND | SA_RESTART);
 #pragma GCC diagnostic pop

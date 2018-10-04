@@ -28,6 +28,7 @@
 #include <unwind.h>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/file_utils.h"
 
 // Some glibc headers hit this when using signals.
 #pragma GCC diagnostic push
@@ -66,7 +67,7 @@ SigHandler g_signals[] = {{SIGSEGV, {}}, {SIGILL, {}}, {SIGTRAP, {}},
 
 template <typename T>
 void Print(const T& str) {
-  write(STDERR_FILENO, str, sizeof(str));
+  perfetto::base::WriteAll(STDERR_FILENO, str, sizeof(str));
 }
 
 template <typename T>
@@ -74,7 +75,7 @@ void PrintHex(T n) {
   for (unsigned i = 0; i < sizeof(n) * 8; i += 4) {
     char nibble = static_cast<char>(n >> (sizeof(n) * 8 - i - 4)) & 0x0F;
     char c = (nibble < 10) ? '0' + nibble : 'A' + nibble - 10;
-    write(STDERR_FILENO, &c, 1);
+    perfetto::base::WriteAll(STDERR_FILENO, &c, 1);
   }
 }
 
@@ -198,14 +199,16 @@ void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
         // might be moved.
         g_demangled_name = demangled;
       }
-      write(STDERR_FILENO, sym.sym_name, strlen(sym.sym_name));
+      perfetto::base::WriteAll(STDERR_FILENO, sym.sym_name,
+                               strlen(sym.sym_name));
     } else {
       Print("0x");
       PrintHex(frames[i]);
     }
     if (sym.file_name[0]) {
       Print("\n     ");
-      write(STDERR_FILENO, sym.file_name, strlen(sym.file_name));
+      perfetto::base::WriteAll(STDERR_FILENO, sym.file_name,
+                               strlen(sym.file_name));
     }
     Print("\n");
   }
