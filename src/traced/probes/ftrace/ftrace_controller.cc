@@ -29,6 +29,7 @@
 #include <utility>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/tracing/core/trace_writer.h"
@@ -76,7 +77,7 @@ void WriteToFile(const char* path, const char* str) {
   auto fd = base::OpenFile(path, O_WRONLY);
   if (!fd)
     return;
-  perfetto::base::ignore_result(write(*fd, str, strlen(str)));
+  base::ignore_result(base::WriteAll(*fd, str, strlen(str)));
 }
 
 void ClearFile(const char* path) {
