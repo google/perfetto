@@ -14,20 +14,11 @@
 
 import * as m from 'mithril';
 
+import {copyToClipboard} from './clipboard';
 import {createPage} from './pages';
 
 const RECORD_COMMAND_LINE =
     'echo CgYIgKAGIAESIwohCgxsaW51eC5mdHJhY2UQAKIGDhIFc2NoZWQSBWlucHV0GJBOMh0KFnBlcmZldHRvLnRyYWNlZF9wcm9iZXMQgCAYBEAASAA= | base64 --decode | adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace" && adb pull /data/misc/perfetto-traces/trace /tmp/trace';
-
-async function copyToClipboard(text: string): Promise<void> {
-  try {
-    // TODO(hjd): Fix typescript type for navigator.
-    // tslint:disable-next-line no-any
-    await(navigator as any).clipboard.writeText(text);
-  } catch (err) {
-    console.error(`Failed to copy "${text}" to clipboard: ${err}`);
-  }
-}
 
 interface CodeSampleAttrs {
   text: string;

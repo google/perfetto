@@ -17,6 +17,7 @@ import * as m from 'mithril';
 import {QueryResponse} from '../common/queries';
 import {TimeSpan} from '../common/time';
 
+import {copyToClipboard} from './clipboard';
 import {FlameGraphPanel} from './flame_graph_panel';
 import {globals} from './globals';
 import {HeaderPanel} from './header_panel';
@@ -54,8 +55,27 @@ class QueryTable extends Panel {
     return m(
         'div',
         m('header.overview',
-          `Query result - ${Math.round(resp.durationMs)} ms`,
-          m('span.code', resp.query)),
+          m('span',
+            `Query result - ${Math.round(resp.durationMs)} ms`,
+            m('span.code', resp.query)),
+          resp.error ? null :
+                       m('button',
+                         {
+                           onclick: () => {
+                             const lines: string[][] = [];
+                             lines.push(resp.columns);
+                             for (const row of resp.rows) {
+                               const line = [];
+                               for (const col of resp.columns) {
+                                 line.push(row[col].toString());
+                               }
+                               lines.push(line);
+                             }
+                             copyToClipboard(
+                                 lines.map(line => line.join('\t')).join('\n'));
+                           },
+                         },
+                         'Copy as .tsv')),
         resp.error ?
             m('.query-error', `SQL error: ${resp.error}`) :
             m('table.query-table', m('thead', header), m('tbody', rows)));
