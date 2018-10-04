@@ -16,12 +16,15 @@
 
 #include <sys/stat.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/file_utils.h"
-
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
+#else
+#include <corecrt_io.h>
 #endif
 
 namespace perfetto {
@@ -63,8 +66,6 @@ bool ReadFile(const std::string& path, std::string* out) {
   return ReadFileDescriptor(*fd, out);
 }
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-
 ssize_t WriteAll(int fd, const void* buf, size_t count) {
   size_t written = 0;
   while (written < count) {
@@ -78,8 +79,6 @@ ssize_t WriteAll(int fd, const void* buf, size_t count) {
   }
   return static_cast<ssize_t>(written);
 }
-
-#endif
 
 }  // namespace base
 }  // namespace perfetto
