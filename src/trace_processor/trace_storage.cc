@@ -33,13 +33,6 @@ TraceStorage::TraceStorage() {
 
 TraceStorage::~TraceStorage() {}
 
-void TraceStorage::AddSliceToCpu(uint32_t cpu,
-                                 uint64_t start_ns,
-                                 uint64_t duration_ns,
-                                 UniqueTid utid) {
-  slices_.AddSlice(cpu, start_ns, duration_ns, utid);
-}
-
 StringId TraceStorage::InternString(base::StringView str) {
   auto hash = str.Hash();
   auto id_it = string_index_.find(hash);
