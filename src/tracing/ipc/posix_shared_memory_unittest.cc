@@ -25,6 +25,7 @@
 
 #include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/file_utils.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/temp_file.h"
 #include "perfetto/base/utils.h"
@@ -69,7 +70,7 @@ TEST(PosixSharedMemoryTest, AttachToFd) {
   base::TempFile tmp_file = base::TempFile::CreateUnlinked();
   const int fd_num = tmp_file.fd();
   ASSERT_EQ(0, ftruncate(fd_num, base::kPageSize));
-  ASSERT_EQ(7, PERFETTO_EINTR(write(fd_num, "foobar", 7)));
+  ASSERT_EQ(7, base::WriteAll(fd_num, "foobar", 7));
 
   std::unique_ptr<PosixSharedMemory> shm =
       PosixSharedMemory::AttachToFd(tmp_file.ReleaseFD());

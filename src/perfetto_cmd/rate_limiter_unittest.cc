@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 
+#include "perfetto/base/file_utils.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/temp_file.h"
 #include "perfetto/base/utils.h"
@@ -71,7 +72,7 @@ class MockRateLimiter : public RateLimiter {
 void WriteGarbageToFile(const std::string& path) {
   base::ScopedFile fd(base::OpenFile(path, O_WRONLY | O_CREAT, 0600));
   constexpr char data[] = "Some random bytes.";
-  if (write(fd.get(), data, sizeof(data)) != sizeof(data))
+  if (base::WriteAll(fd.get(), data, sizeof(data)) != sizeof(data))
     ADD_FAILURE() << "Could not write garbage";
 }
 

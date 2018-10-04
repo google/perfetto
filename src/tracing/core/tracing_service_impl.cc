@@ -31,6 +31,7 @@
 #include <algorithm>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/file_utils.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/consumer.h"
@@ -80,7 +81,7 @@ struct iovec {
 ssize_t writev(int fd, const struct iovec* iov, int iovcnt) {
   ssize_t total_size = 0;
   for (int i = 0; i < iovcnt; ++i) {
-    ssize_t current_size = write(fd, iov[i].iov_base, iov[i].iov_len);
+    ssize_t current_size = base::WriteAll(fd, iov[i].iov_base, iov[i].iov_len);
     if (current_size != static_cast<ssize_t>(iov[i].iov_len))
       return -1;
     total_size += current_size;
