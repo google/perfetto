@@ -14,8 +14,7 @@
 
 import * as m from 'mithril';
 
-import {moveTrack, toggleTrackPinned} from '../common/actions';
-import {Action} from '../common/actions';
+import {Actions, DeferredAction} from '../common/actions';
 import {TrackState} from '../common/state';
 
 import {globals} from './globals';
@@ -41,15 +40,17 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         '.track-shell',
         m('h1', attrs.trackState.name),
         m(TrackButton, {
-          action: moveTrack(attrs.trackState.id, 'up'),
+          action: Actions.moveTrack(
+              {trackId: attrs.trackState.id, direction: 'up'}),
           i: 'arrow_upward_alt',
         }),
         m(TrackButton, {
-          action: moveTrack(attrs.trackState.id, 'down'),
+          action: Actions.moveTrack(
+              {trackId: attrs.trackState.id, direction: 'down'}),
           i: 'arrow_downward_alt',
         }),
         m(TrackButton, {
-          action: toggleTrackPinned(attrs.trackState.id),
+          action: Actions.toggleTrackPinned({trackId: attrs.trackState.id}),
           i: isPinned(attrs.trackState.id) ? 'star' : 'star_border',
         }));
   }
@@ -87,7 +88,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
 }
 
 interface TrackButtonAttrs {
-  action: Action;
+  action: DeferredAction;
   i: string;
 }
 class TrackButton implements m.ClassComponent<TrackButtonAttrs> {

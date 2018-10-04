@@ -14,7 +14,7 @@
 
 import * as m from 'mithril';
 
-import {Action, navigate} from '../common/actions';
+import {Actions, DeferredAction} from '../common/actions';
 
 interface RouteMap {
   [route: string]: m.Component;
@@ -25,7 +25,7 @@ export const ROUTE_PREFIX = '#!';
 export class Router {
   constructor(
       private defaultRoute: string, private routes: RouteMap,
-      private dispatch: (a: Action) => void) {
+      private dispatch: (a: DeferredAction) => void) {
     if (!(defaultRoute in routes)) {
       throw Error('routes must define a component for defaultRoute.');
     }
@@ -57,7 +57,7 @@ export class Router {
     if (!(route in this.routes)) {
       console.info(
           `Route ${route} not known redirecting to ${this.defaultRoute}.`);
-      this.dispatch(navigate(this.defaultRoute));
+      this.dispatch(Actions.navigate({route: this.defaultRoute}));
     }
   }
 
@@ -68,7 +68,7 @@ export class Router {
   navigateToCurrentHash() {
     const hashRoute = this.getRouteFromHash();
     const newRoute = hashRoute in this.routes ? hashRoute : this.defaultRoute;
-    this.dispatch(navigate(newRoute));
+    this.dispatch(Actions.navigate({route: newRoute}));
     // TODO(dproy): Handle case when new route has a permalink.
   }
 

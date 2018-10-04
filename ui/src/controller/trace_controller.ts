@@ -16,13 +16,8 @@ import '../tracks/all_controller';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {
-  addTrack,
+  Actions,
   DeferredAction,
-  navigate,
-  setEngineReady,
-  setTraceTime,
-  setVisibleTraceTime,
-  updateStatus
 } from '../common/actions';
 import {TimeSpan} from '../common/time';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
@@ -64,11 +59,17 @@ export class TraceController extends Controller<States> {
     const engineCfg = assertExists(globals.state.engines[this.engineId]);
     switch (this.state) {
       case 'init':
-        globals.dispatch(setEngineReady(this.engineId, false));
+        globals.dispatch(Actions.setEngineReady({
+          engineId: this.engineId,
+          ready: false,
+        }));
         this.loadTrace().then(() => {
-          globals.dispatch(setEngineReady(this.engineId, true));
+          globals.dispatch(Actions.setEngineReady({
+            engineId: this.engineId,
+            ready: true,
+          }));
         });
-        globals.dispatch(updateStatus('Opening trace'));
+        this.updateStatus('Opening trace');
         this.setState('loading_trace');
         break;
 
@@ -110,7 +111,7 @@ export class TraceController extends Controller<States> {
   }
 
   private async loadTrace() {
-    globals.dispatch(updateStatus('Creating trace processor'));
+    this.updateStatus('Creating trace processor');
     const engineCfg = assertExists(globals.state.engines[this.engineId]);
     this.engine = globals.createEngine();
 
@@ -124,12 +125,12 @@ export class TraceController extends Controller<States> {
         const arrBuf = reader.readAsArrayBuffer(slice);
         await this.engine.parse(new Uint8Array(arrBuf));
         const progress = Math.round((off + slice.size) / blob.size * 100);
-        globals.dispatch(updateStatus(`${statusHeader} ${progress} %`));
+        this.updateStatus(`${statusHeader} ${progress} %`);
       }
     } else {
       const resp = await fetch(engineCfg.source);
       if (resp.status !== 200) {
-        globals.dispatch(updateStatus(`HTTP error ${resp.status}`));
+        this.updateStatus(`HTTP error ${resp.status}`);
         throw new Error(`fetch() failed with HTTP error ${resp.status}`);
       }
       // tslint:disable-next-line no-any
@@ -152,7 +153,7 @@ export class TraceController extends Controller<States> {
           const tElapsed = (nowMs - tStartMs) / 1e3;
           let status = `${statusHeader} ${mb.toFixed(1)} MB `;
           status += `(${(mb / tElapsed).toFixed(1)} MB/s)`;
-          globals.dispatch(updateStatus(status));
+          this.updateStatus(status);
         }
         if (readRes.done) break;
       }
@@ -161,13 +162,18 @@ export class TraceController extends Controller<States> {
     await this.engine.notifyEof();
 
     const traceTime = await this.engine.getTraceTimeBounds();
+    const traceTimeState = {
+      startSec: traceTime.start,
+      endSec: traceTime.end,
+      lastUpdate: Date.now() / 1000,
+    };
     const actions = [
-      setTraceTime(traceTime),
-      navigate('/viewer'),
+      Actions.setTraceTime(traceTimeState),
+      Actions.navigate({route: '/viewer'}),
     ];
 
     if (globals.state.visibleTraceTime.lastUpdate === 0) {
-      actions.push(setVisibleTraceTime(traceTime));
+      actions.push(Actions.setVisibleTraceTime(traceTimeState));
     }
 
     globals.dispatchMultiple(actions);
@@ -178,15 +184,19 @@ export class TraceController extends Controller<States> {
   }
 
   private async listTracks() {
-    globals.dispatch(updateStatus('Loading tracks'));
+    this.updateStatus('Loading tracks');
     const engine = assertExists<Engine>(this.engine);
     const addToTrackActions: DeferredAction[] = [];
     const numCpus = await engine.getNumberOfCpus();
     for (let cpu = 0; cpu < numCpus; cpu++) {
-      addToTrackActions.push(
-          addTrack(this.engineId, CPU_SLICE_TRACK_KIND, `Cpu ${cpu}`, {
-            cpu,
-          }));
+      addToTrackActions.push(Actions.addTrack({
+        engineId: this.engineId,
+        kind: CPU_SLICE_TRACK_KIND,
+        name: `Cpu ${cpu}`,
+        config: {
+          cpu,
+        }
+      }));
     }
 
     const threadQuery = await engine.query(
@@ -199,18 +209,22 @@ export class TraceController extends Controller<States> {
       let threadName = threadQuery.columns[3].stringValues![i];
       threadName += `[${threadId}]`;
       const maxDepth = threadQuery.columns[4].longValues![i];
-      addToTrackActions.push(
-          addTrack(this.engineId, SLICE_TRACK_KIND, threadName, {
-            upid: upid as number,
-            utid: utid as number,
-            maxDepth: maxDepth as number,
-          }));
+      addToTrackActions.push(Actions.addTrack({
+        engineId: this.engineId,
+        kind: SLICE_TRACK_KIND,
+        name: threadName,
+        config: {
+          upid: upid as number,
+          utid: utid as number,
+          maxDepth: maxDepth as number,
+        }
+      }));
     }
     globals.dispatchMultiple(addToTrackActions);
   }
 
   private async listThreads() {
-    globals.dispatch(updateStatus('Reading thread list'));
+    this.updateStatus('Reading thread list');
     const sqlQuery = 'select utid, tid, pid, thread.name, process.name ' +
         'from thread inner join process using(upid)';
     const threadRows = await assertExists(this.engine).query(sqlQuery);
@@ -231,9 +245,9 @@ export class TraceController extends Controller<States> {
     const numSteps = 100;
     const stepSec = traceTime.duration / numSteps;
     for (let step = 0; step < numSteps; step++) {
-      globals.dispatch(updateStatus(
+      this.updateStatus(
           'Loading overview ' +
-          `${Math.round((step + 1) / numSteps * 1000) / 10}%`));
+          `${Math.round((step + 1) / numSteps * 1000) / 10}%`);
       const startSec = traceTime.start + step * stepSec;
       const startNs = Math.floor(startSec * 1e9);
       const endSec = startSec + stepSec;
@@ -269,5 +283,12 @@ export class TraceController extends Controller<States> {
       }
       globals.publish('OverviewData', slicesData);
     }  // for (step ...)
+  }
+
+  private updateStatus(msg: string): void {
+    globals.dispatch(Actions.updateStatus({
+      msg,
+      timestamp: Date.now() / 1000,
+    }));
   }
 }

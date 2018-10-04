@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {setVisibleTraceTime} from '../common/actions';
+import {Actions} from '../common/actions';
 import {TimeSpan} from '../common/time';
 
 import {globals} from './globals';
@@ -44,8 +44,12 @@ export class FrontendLocalState {
     this.pendingGlobalTimeUpdate = this.visibleWindowTime;
     if (alreadyPosted) return;
     setTimeout(() => {
-      globals.dispatch(setVisibleTraceTime(this.pendingGlobalTimeUpdate!));
       this._visibleTimeLastUpdate = Date.now() / 1000;
+      globals.dispatch(Actions.setVisibleTraceTime({
+        startSec: this.pendingGlobalTimeUpdate!.start,
+        endSec: this.pendingGlobalTimeUpdate!.end,
+        lastUpdate: this._visibleTimeLastUpdate,
+      }));
       this.pendingGlobalTimeUpdate = undefined;
     }, 100);
   }
