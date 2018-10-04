@@ -65,7 +65,8 @@ using CBufLenType = socklen_t;
 #endif
 
 void ShiftMsgHdr(size_t n, struct msghdr* msg) {
-  for (size_t i = 0; i < msg->msg_iovlen; ++i) {
+  using LenType = decltype(msg->msg_iovlen);  // Mac and Linux don't agree.
+  for (LenType i = 0; i < msg->msg_iovlen; ++i) {
     struct iovec* vec = &msg->msg_iov[i];
     if (n < vec->iov_len) {
       // We sent a part of this iovec.
