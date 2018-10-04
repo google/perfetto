@@ -15,119 +15,6 @@
 import {DraftObject} from 'immer';
 
 import {defaultTraceTime, State, Status, TraceTime} from './state';
-import {TimeSpan} from './time';
-
-export interface Action { type: string; }
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function openTraceFromUrl(url: string) {
-  return Actions.openTraceFromUrl({
-    url,
-  });
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function openTraceFromFile(file: File) {
-  return Actions.openTraceFromFile({
-    file,
-  });
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function addTrack(
-    engineId: string, trackKind: string, name: string, config: {}) {
-  return Actions.addTrack({
-    engineId,
-    kind: trackKind,
-    name,
-    config,
-  });
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function requestTrackData(
-    trackId: string, start: number, end: number, resolution: number) {
-  return Actions.reqTrackData({trackId, start, end, resolution});
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function clearTrackDataRequest(trackId: string) {
-  return Actions.clearTrackDataReq({trackId});
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function deleteQuery(queryId: string) {
-  return Actions.deleteQuery({
-    queryId,
-  });
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function navigate(route: string) {
-  return Actions.navigate({
-    route,
-  });
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function moveTrack(trackId: string, direction: 'up'|'down') {
-  return Actions.moveTrack({
-    trackId,
-    direction,
-  });
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function toggleTrackPinned(trackId: string) {
-  return Actions.toggleTrackPinned({
-    trackId,
-  });
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function setEngineReady(engineId: string, ready = true) {
-  return Actions.setEngineReady({engineId, ready});
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function createPermalink() {
-  return Actions.createPermalink({requestId: new Date().toISOString()});
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function setPermalink(requestId: string, hash: string) {
-  return Actions.setPermalink({requestId, hash});
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function loadPermalink(hash: string) {
-  return Actions.loadPermalink({requestId: new Date().toISOString(), hash});
-}
-
-// TODO(hjd): Temporary until the reducer/action refactoring is done.
-export function setState(newState: State) {
-  return Actions.setState({newState});
-}
-
-export function setTraceTime(ts: TimeSpan) {
-  return Actions.setTraceTime({
-    startSec: ts.start,
-    endSec: ts.end,
-    lastUpdate: Date.now() / 1000,
-  });
-}
-
-export function setVisibleTraceTime(ts: TimeSpan) {
-  return Actions.setVisibleTraceTime({
-    startSec: ts.start,
-    endSec: ts.end,
-    lastUpdate: Date.now() / 1000,
-  });
-}
-
-export function updateStatus(msg: string) {
-  return Actions.updateStatus({msg, timestamp: Date.now() / 1000});
-}
 
 type StateDraft = DraftObject<State>;
 
@@ -137,6 +24,7 @@ export const StateActions = {
     state.route = args.route;
   },
 
+  // TODO(hjd): Factor common code from openTraceFromUrl.
   openTraceFromFile(state: StateDraft, args: {file: File}): void {
     state.traceTime = defaultTraceTime;
     state.visibleTraceTime = defaultTraceTime;
@@ -152,6 +40,7 @@ export const StateActions = {
     state.route = `/viewer`;
   },
 
+  // TODO(hjd): Factor common code from openTraceFromFile.
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
     state.traceTime = defaultTraceTime;
     state.visibleTraceTime = defaultTraceTime;
@@ -292,7 +181,15 @@ export const StateActions = {
   },
 };
 
-// A DeferredAction is a bundle of Args and a method name.
+
+// When we are on the frontend side, we don't really want to execute the
+// actions above, we just want to serialize them and marshal their
+// arguments, send them over to the controller side and have them being
+// executed there. The magic below takes care of turning each action into a
+// function that returns the marshaled args.
+
+// A DeferredAction is a bundle of Args and a method name. This is the marshaled
+// version of a StateActions method call.
 export interface DeferredAction<Args = {}> {
   type: string;
   args: Args;

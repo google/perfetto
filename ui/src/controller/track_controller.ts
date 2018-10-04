@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {clearTrackDataRequest} from '../common/actions';
+import {Actions} from '../common/actions';
 import {Registry} from '../common/registry';
 import {TrackState} from '../common/state';
 
@@ -55,7 +55,7 @@ export abstract class TrackController<Config = {}, Data = {}> extends
   run() {
     const dataReq = this.trackState.dataReq;
     if (dataReq === undefined) return;
-    globals.dispatch(clearTrackDataRequest(this.trackId));
+    globals.dispatch(Actions.clearTrackDataReq({trackId: this.trackId}));
     this.onBoundsChange(dataReq.start, dataReq.end, dataReq.resolution);
   }
 }

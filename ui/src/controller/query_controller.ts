@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {deleteQuery} from '../common/actions';
+import {Actions} from '../common/actions';
 import {rawQueryResultColumns, rawQueryResultIter, Row} from '../common/protos';
 import {QueryResponse} from '../common/queries';
 import {Controller} from './controller';
@@ -37,7 +37,7 @@ export class QueryController extends Controller<'init'|'querying'> {
         this.runQuery(config.query).then(result => {
           console.log(`Query ${config.query} took ${result.durationMs} ms`);
           globals.publish('QueryResult', {id: this.args.queryId, data: result});
-          globals.dispatch(deleteQuery(this.args.queryId));
+          globals.dispatch(Actions.deleteQuery({queryId: this.args.queryId}));
         });
         this.setState('querying');
         break;
