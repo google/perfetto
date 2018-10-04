@@ -18,20 +18,23 @@ import {defaultTraceTime, State, Status, TraceTime} from './state';
 
 type StateDraft = DraftObject<State>;
 
+
+function clearTraceState(state: StateDraft) {
+  state.traceTime = defaultTraceTime;
+  state.visibleTraceTime = defaultTraceTime;
+  state.pinnedTracks = [];
+  state.scrollingTracks = [];
+}
+
 export const StateActions = {
 
   navigate(state: StateDraft, args: {route: string}): void {
     state.route = args.route;
   },
 
-  // TODO(hjd): Factor common code from openTraceFromUrl.
   openTraceFromFile(state: StateDraft, args: {file: File}): void {
-    state.traceTime = defaultTraceTime;
-    state.visibleTraceTime = defaultTraceTime;
+    clearTraceState(state);
     const id = `${state.nextId++}`;
-    // Reset displayed tracks.
-    state.pinnedTracks = [];
-    state.scrollingTracks = [];
     state.engines[id] = {
       id,
       ready: false,
@@ -40,14 +43,9 @@ export const StateActions = {
     state.route = `/viewer`;
   },
 
-  // TODO(hjd): Factor common code from openTraceFromFile.
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
-    state.traceTime = defaultTraceTime;
-    state.visibleTraceTime = defaultTraceTime;
+    clearTraceState(state);
     const id = `${state.nextId++}`;
-    // Reset displayed tracks.
-    state.pinnedTracks = [];
-    state.scrollingTracks = [];
     state.engines[id] = {
       id,
       ready: false,
