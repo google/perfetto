@@ -199,9 +199,13 @@ export class TraceController extends Controller<States> {
       }));
     }
 
-    const threadQuery = await engine.query(
-        'select upid, utid, tid, thread.name, max(slices.depth) ' +
-        'from thread inner join slices using(utid) group by utid');
+    const threadQuery = await engine.query(`
+      select upid, utid, tid, thread.name, depth
+      from thread inner join (
+        select utid, max(slices.depth) as depth
+        from slices
+        group by utid
+      ) using(utid)`);
     for (let i = 0; i < threadQuery.numRecords; i++) {
       const upid = threadQuery.columns[0].longValues![i];
       const utid = threadQuery.columns[1].longValues![i];
