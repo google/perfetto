@@ -14,13 +14,7 @@
 
 import * as m from 'mithril';
 
-import {
-  Actions,
-  createPermalink,
-  navigate,
-  openTraceFromFile,
-  openTraceFromUrl
-} from '../common/actions';
+import {Actions} from '../common/actions';
 
 import {globals} from './globals';
 
@@ -152,7 +146,7 @@ function popupFileSelectionDialog(e: Event) {
 function openTraceUrl(url: string): (e: Event) => void {
   return e => {
     e.preventDefault();
-    globals.dispatch(openTraceFromUrl(url));
+    globals.dispatch(Actions.openTraceFromUrl({url}));
   };
 }
 
@@ -161,22 +155,25 @@ function onInputElementFileSelectionChanged(e: Event) {
     throw new Error('Not an input element');
   }
   if (!e.target.files) return;
-  globals.dispatch(openTraceFromFile(e.target.files[0]));
+  globals.dispatch(Actions.openTraceFromFile({file: e.target.files[0]}));
 }
 
 function navigateHome(e: Event) {
   e.preventDefault();
-  globals.dispatch(navigate('/'));
+  globals.dispatch(Actions.navigate({route: '/'}));
 }
 
 function navigateRecord(e: Event) {
   e.preventDefault();
-  globals.dispatch(navigate('/record'));
+  globals.dispatch(Actions.navigate({route: '/record'}));
 }
 
 function dispatchCreatePermalink(e: Event) {
   e.preventDefault();
-  globals.dispatch(createPermalink());
+  // TODO(hjd): Should requestId not be set to nextId++ in the controller?
+  globals.dispatch(Actions.createPermalink({
+    requestId: new Date().toISOString(),
+  }));
 }
 
 export class Sidebar implements m.ClassComponent {
