@@ -16,6 +16,7 @@
 
 #include "perfetto/base/unix_socket.h"
 
+#include <signal.h>
 #include <sys/mman.h>
 
 #include <list>
