@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/utils.h"
@@ -184,7 +185,7 @@ bool RateLimiter::SaveState(const PerfettoCmdState& state) {
   PERFETTO_CHECK(size < sizeof(buf));
   if (!state.SerializeToArray(&buf, static_cast<int>(size)))
     return false;
-  ssize_t written = PERFETTO_EINTR(write(out_fd.get(), &buf, size));
+  ssize_t written = base::WriteAll(out_fd.get(), &buf, size);
   return written >= 0 && static_cast<size_t>(written) == size;
 }
 

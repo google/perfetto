@@ -23,6 +23,8 @@
 
 #include "gtest/gtest.h"
 
+#include "perfetto/base/file_utils.h"
+
 namespace perfetto {
 namespace base {
 namespace {
@@ -79,7 +81,7 @@ TEST(UtilsTest, EintrWrapper) {
   if (pid == 0 /* child */) {
     usleep(5000);
     kill(parent_pid, SIGUSR2);
-    ignore_result(write(pipe_fd[1], "foo\0", 4));
+    ignore_result(WriteAll(pipe_fd[1], "foo\0", 4));
     _exit(0);
   }
 
