@@ -145,7 +145,7 @@ bool FileDescriptorMaps::Parse() {
           flags |= unwindstack::MAPS_FLAGS_DEVICE_MAP;
         }
         maps_.push_back(
-            new unwindstack::MapInfo(start, end, pgoff, flags, name));
+            new unwindstack::MapInfo(nullptr, start, end, pgoff, flags, name));
       });
 }
 
