@@ -19,11 +19,15 @@
 
 #include <string>
 
+#include "perfetto/base/build_config.h"
+
 namespace perfetto {
 namespace base {
 
 bool ReadFileDescriptor(int fd, std::string* out);
 bool ReadFile(const std::string& path, std::string* out);
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 // Call write until all data is written or an error is detected.
 //
@@ -33,6 +37,8 @@ bool ReadFile(const std::string& path, std::string* out);
 //   interrupted after at least one byte has been written, the call
 //   succeeds, and returns the number of bytes written.
 ssize_t WriteAll(int fd, const void* buf, size_t count);
+
+#endif
 
 }  // namespace base
 }  // namespace perfetto
