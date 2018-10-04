@@ -312,6 +312,19 @@ header {
   height: 25px;
 }
 
+header.overview {
+  display: flex;
+  justify-content: space-between;
+}
+
+.query-error {
+  user-select: text;
+}
+
+span.code {
+  user-select: text;
+}
+
 .text-column {
   font-size: 115%;
   // 2-3 alphabets per line is comfortable for reading.
