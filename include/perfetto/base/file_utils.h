@@ -21,6 +21,8 @@
 
 #include <string>
 
+#include "perfetto/base/utils.h"  // For ssize_t on Windows.
+
 namespace perfetto {
 namespace base {
 
