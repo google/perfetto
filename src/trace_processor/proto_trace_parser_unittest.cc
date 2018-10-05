@@ -48,8 +48,8 @@ class MockSchedTracker : public SchedTracker {
                     uint64_t timestamp,
                     uint32_t prev_pid,
                     uint32_t prev_state,
-                    base::StringView prev_comm,
-                    uint32_t next_pid));
+                    uint32_t next_pid,
+                    base::StringView next_comm));
 
   MOCK_METHOD5(PushCounter,
                void(uint64_t timestamp,
@@ -119,11 +119,11 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
   auto* sched_switch = event->mutable_sched_switch();
   sched_switch->set_prev_pid(10);
   sched_switch->set_prev_state(32);
-  sched_switch->set_prev_comm(kProcName);
+  sched_switch->set_next_comm(kProcName);
   sched_switch->set_next_pid(100);
 
-  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32,
-                                       base::StringView(kProcName), 100));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32, 100,
+                                       base::StringView(kProcName)));
   Tokenize(trace);
 }
 
@@ -140,7 +140,7 @@ TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
   auto* sched_switch = event->mutable_sched_switch();
   sched_switch->set_prev_pid(10);
   sched_switch->set_prev_state(32);
-  sched_switch->set_prev_comm(kProcName1);
+  sched_switch->set_next_comm(kProcName1);
   sched_switch->set_next_pid(100);
 
   event = bundle->add_event();
@@ -150,14 +150,14 @@ TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
   sched_switch = event->mutable_sched_switch();
   sched_switch->set_prev_pid(100);
   sched_switch->set_prev_state(32);
-  sched_switch->set_prev_comm(kProcName2);
+  sched_switch->set_next_comm(kProcName2);
   sched_switch->set_next_pid(10);
 
-  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32,
-                                       base::StringView(kProcName1), 100));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32, 100,
+                                       base::StringView(kProcName1)));
 
-  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32,
-                                       base::StringView(kProcName2), 10));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32, 10,
+                                       base::StringView(kProcName2)));
 
   Tokenize(trace);
 }
@@ -175,7 +175,7 @@ TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
   auto* sched_switch = event->mutable_sched_switch();
   sched_switch->set_prev_pid(10);
   sched_switch->set_prev_state(32);
-  sched_switch->set_prev_comm(kProcName1);
+  sched_switch->set_next_comm(kProcName1);
   sched_switch->set_next_pid(100);
 
   bundle = trace.add_packet()->mutable_ftrace_events();
@@ -188,14 +188,14 @@ TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
   sched_switch = event->mutable_sched_switch();
   sched_switch->set_prev_pid(100);
   sched_switch->set_prev_state(32);
-  sched_switch->set_prev_comm(kProcName2);
+  sched_switch->set_next_comm(kProcName2);
   sched_switch->set_next_pid(10);
 
-  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32,
-                                       base::StringView(kProcName1), 100));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32, 100,
+                                       base::StringView(kProcName1)));
 
-  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32,
-                                       base::StringView(kProcName2), 10));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32, 10,
+                                       base::StringView(kProcName2)));
   Tokenize(trace);
 }
 
@@ -209,7 +209,7 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   auto* sched_switch = event->mutable_sched_switch();
   sched_switch->set_prev_pid(10);
   sched_switch->set_prev_state(32);
-  sched_switch->set_prev_comm(kProcName1);
+  sched_switch->set_next_comm(kProcName1);
   sched_switch->set_next_pid(100);
 
   protos::Trace trace_2;
@@ -221,15 +221,15 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   sched_switch = event->mutable_sched_switch();
   sched_switch->set_prev_pid(100);
   sched_switch->set_prev_state(32);
-  sched_switch->set_prev_comm(kProcName2);
+  sched_switch->set_next_comm(kProcName2);
   sched_switch->set_next_pid(10);
 
-  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32,
-                                       base::StringView(kProcName1), 100));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1000, 10, 32, 100,
+                                       base::StringView(kProcName1)));
   Tokenize(trace_1);
 
-  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32,
-                                       base::StringView(kProcName2), 10));
+  EXPECT_CALL(*sched_, PushSchedSwitch(10, 1001, 100, 32, 10,
+                                       base::StringView(kProcName2)));
   Tokenize(trace_2);
 }
 
