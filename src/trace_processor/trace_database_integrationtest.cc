@@ -66,7 +66,10 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
 TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
   ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb"));
   protos::RawQueryResult res;
-  Query("select count(*), max(ts) - min(ts) from sched where utid != 0", &res);
+  Query(
+      "select count(*), max(ts) - min(ts) from sched "
+      "where dur != 0 and utid != 0",
+      &res);
   ASSERT_EQ(res.num_records(), 1);
   ASSERT_EQ(res.columns(0).long_values(0), 139789);
   ASSERT_EQ(res.columns(1).long_values(0), 19684308497);

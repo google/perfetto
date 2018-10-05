@@ -78,12 +78,9 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   static const char kCommProc2[] = "process2";
 
   context.sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, prev_state,
-                                         kCommProc1,
-                                         /*tid=*/4);
+                                         /*tid=*/4, kCommProc1);
   context.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
-                                         prev_state, kCommProc2,
-
-                                         /*tid=*/1);
+                                         prev_state, /*tid=*/1, kCommProc2);
 
   context.process_tracker->UpdateProcess(2, "test");
   context.process_tracker->UpdateThread(4, 2);

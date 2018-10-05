@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_SCHED_TRACKER_H_
 
 #include <array>
+#include <limits>
 
 #include "perfetto/base/string_view.h"
 #include "perfetto/base/utils.h"
@@ -37,23 +38,25 @@ class SchedTracker {
   SchedTracker& operator=(const SchedTracker&) = delete;
   virtual ~SchedTracker();
 
-  struct SchedSwitchEvent {
-    uint64_t timestamp = 0;
-    uint32_t prev_pid = 0;
-    uint32_t prev_state = 0;
-    uint32_t next_pid = 0;
+  StringId GetThreadNameId(uint32_t tid, base::StringView comm);
 
-    bool valid() const { return timestamp != 0; }
-  };
+  // This method is called when a sched switch event is seen in the trace.
+  virtual void PushSchedSwitch(uint32_t cpu,
+                               uint64_t timestamp,
+                               uint32_t prev_pid,
+                               uint32_t prev_state,
+                               uint32_t next_pid,
+                               base::StringView next_comm);
 
-  // A Counter is a trace event that has a value attached to a timestamp.
-  // These include CPU frequency ftrace events and systrace trace_marker
-  // counter events.
-  struct Counter {
-    uint64_t timestamp = 0;
-    double value = 0;
-  };
+  // This method is called when a cpu freq event is seen in the trace.
+  // TODO(taylori): Move to a more appropriate class or rename class.
+  virtual void PushCounter(uint64_t timestamp,
+                           double value,
+                           StringId name_id,
+                           uint64_t ref,
+                           RefType ref_type);
 
+ private:
   // Used as the key in |prev_counters_| to find the previous counter with the
   // same ref and name_id.
   struct CounterKey {
@@ -73,29 +76,18 @@ class SchedTracker {
     };
   };
 
-  // This method is called when a sched switch event is seen in the trace.
-  virtual void PushSchedSwitch(uint32_t cpu,
-                               uint64_t timestamp,
-                               uint32_t prev_pid,
-                               uint32_t prev_state,
-                               base::StringView prev_comm,
-                               uint32_t next_pid);
+  // Represents a slice which is currently pending.
+  struct PendingSchedSlice {
+    size_t storage_index = std::numeric_limits<size_t>::max();
+    uint32_t pid = 0;
+  };
 
-  // This method is called when a cpu freq event is seen in the trace.
-  // TODO(taylori): Move to a more appropriate class or rename class.
-  virtual void PushCounter(uint64_t timestamp,
-                           double value,
-                           StringId name_id,
-                           uint64_t ref,
-                           RefType ref_type);
+  // Store pending sched slices for each CPU.
+  std::array<PendingSchedSlice, base::kMaxCpus> pending_sched_per_cpu_{};
 
- private:
-  // Store the previous sched event to calculate the duration before storing it.
-  std::array<SchedSwitchEvent, base::kMaxCpus> last_sched_per_cpu_;
-
-  // Store the previous counter event to calculate the duration and value delta
-  // before storing it in trace storage.
-  std::unordered_map<CounterKey, Counter, CounterKey::Hasher> prev_counters_;
+  // Store pending counters for each counter key.
+  std::unordered_map<CounterKey, size_t, CounterKey::Hasher>
+      pending_counters_per_key_;
 
   // Timestamp of the previous event. Used to discard events arriving out
   // of order.
