@@ -80,14 +80,19 @@ class TraceStorage {
 
   class Slices {
    public:
-    inline void AddSlice(uint32_t cpu,
-                         uint64_t start_ns,
-                         uint64_t duration_ns,
-                         UniqueTid utid) {
+    inline size_t AddSlice(uint32_t cpu,
+                           uint64_t start_ns,
+                           uint64_t duration_ns,
+                           UniqueTid utid) {
       cpus_.emplace_back(cpu);
       start_ns_.emplace_back(start_ns);
       durations_.emplace_back(duration_ns);
       utids_.emplace_back(utid);
+      return slice_count() - 1;
+    }
+
+    void set_duration(size_t index, uint64_t duration_ns) {
+      durations_[index] = duration_ns;
     }
 
     size_t slice_count() const { return start_ns_.size(); }
@@ -154,13 +159,13 @@ class TraceStorage {
 
   class Counters {
    public:
-    inline void AddCounter(uint64_t timestamp,
-                           uint64_t duration,
-                           StringId name_id,
-                           double value,
-                           double value_delta,
-                           int64_t ref,
-                           RefType type) {
+    inline size_t AddCounter(uint64_t timestamp,
+                             uint64_t duration,
+                             StringId name_id,
+                             double value,
+                             double value_delta,
+                             int64_t ref,
+                             RefType type) {
       timestamps_.emplace_back(timestamp);
       durations_.emplace_back(duration);
       name_ids_.emplace_back(name_id);
@@ -168,7 +173,17 @@ class TraceStorage {
       value_deltas_.emplace_back(value_delta);
       refs_.emplace_back(ref);
       types_.emplace_back(type);
+      return counter_count() - 1;
     }
+
+    void set_duration(size_t index, uint64_t duration) {
+      durations_[index] = duration;
+    }
+
+    void set_value_delta(size_t index, double value_delta) {
+      value_deltas_[index] = value_delta;
+    }
+
     size_t counter_count() const { return timestamps_.size(); }
 
     const std::deque<uint64_t>& timestamps() const { return timestamps_; }
@@ -196,11 +211,6 @@ class TraceStorage {
   };
 
   void ResetStorage();
-
-  void AddSliceToCpu(uint32_t cpu,
-                     uint64_t start_ns,
-                     uint64_t duration_ns,
-                     UniqueTid utid);
 
   UniqueTid AddEmptyThread(uint32_t tid) {
     unique_threads_.emplace_back(tid);
@@ -247,6 +257,8 @@ class TraceStorage {
   }
 
   const Slices& slices() const { return slices_; }
+  Slices* mutable_slices() { return &slices_; }
+
   const NestableSlices& nestable_slices() const { return nestable_slices_; }
   NestableSlices* mutable_nestable_slices() { return &nestable_slices_; }
 

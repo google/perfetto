@@ -465,7 +465,7 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
 
   uint32_t prev_pid = 0;
   uint32_t prev_state = 0;
-  base::StringView prev_comm;
+  base::StringView next_comm;
   uint32_t next_pid = 0;
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
@@ -475,18 +475,18 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
       case protos::SchedSwitchFtraceEvent::kPrevStateFieldNumber:
         prev_state = fld.as_uint32();
         break;
-      case protos::SchedSwitchFtraceEvent::kPrevCommFieldNumber:
-        prev_comm = fld.as_string();
-        break;
       case protos::SchedSwitchFtraceEvent::kNextPidFieldNumber:
         next_pid = fld.as_uint32();
+        break;
+      case protos::SchedSwitchFtraceEvent::kNextCommFieldNumber:
+        next_comm = fld.as_string();
         break;
       default:
         break;
     }
   }
   context_->sched_tracker->PushSchedSwitch(cpu, timestamp, prev_pid, prev_state,
-                                           prev_comm, next_pid);
+                                           next_pid, next_comm);
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
