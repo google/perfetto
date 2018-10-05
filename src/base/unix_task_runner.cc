@@ -24,32 +24,11 @@
 
 #include <limits>
 
-#if PERFETTO_USE_EVENTFD()
-#include <sys/eventfd.h>
-#endif
-
 namespace perfetto {
 namespace base {
 
 UnixTaskRunner::UnixTaskRunner() {
-#if PERFETTO_USE_EVENTFD()
-  event_.reset(eventfd(/* start value */ 0, EFD_CLOEXEC | EFD_NONBLOCK));
-#else
-  int pipe_fds[2];
-  PERFETTO_CHECK(pipe(pipe_fds) == 0);
-
-  // Make the pipe non-blocking so that we never block the waking thread (either
-  // the main thread or another one) when scheduling a wake-up.
-  for (auto fd : pipe_fds) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    PERFETTO_CHECK(flags != -1);
-    PERFETTO_CHECK(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0);
-    PERFETTO_CHECK(fcntl(fd, F_SETFD, FD_CLOEXEC) == 0);
-  }
-  event_.reset(pipe_fds[0]);
-  event_write_.reset(pipe_fds[1]);
-#endif  // !PERFETTO_USE_EVENTFD()
-  AddFileDescriptorWatch(event_.get(), [] {
+  AddFileDescriptorWatch(event_.fd(), [] {
     // Not reached -- see PostFileDescriptorWatches().
     PERFETTO_DCHECK(false);
   });
@@ -58,14 +37,7 @@ UnixTaskRunner::UnixTaskRunner() {
 UnixTaskRunner::~UnixTaskRunner() = default;
 
 void UnixTaskRunner::WakeUp() {
-  const uint64_t value = 1;
-#if PERFETTO_USE_EVENTFD()
-  ssize_t ret = write(event_.get(), &value, sizeof(value));
-#else
-  ssize_t ret = write(event_write_.get(), &value, sizeof(uint8_t));
-#endif
-  if (ret <= 0 && errno != EAGAIN)
-    PERFETTO_DPLOG("write()");
+  event_.Notify();
 }
 
 void UnixTaskRunner::Run() {
@@ -153,18 +125,8 @@ void UnixTaskRunner::PostFileDescriptorWatches() {
 
     // The wake-up event is handled inline to avoid an infinite recursion of
     // posted tasks.
-    if (poll_fds_[i].fd == event_.get()) {
-#if PERFETTO_USE_EVENTFD()
-      uint64_t value;
-      ssize_t ret = read(event_.get(), &value, sizeof(value));
-#else
-      // Drain the byte(s) written to the wake-up pipe. We can potentially read
-      // more than one byte if several wake-ups have been scheduled.
-      char buffer[16];
-      ssize_t ret = read(event_.get(), &buffer[0], sizeof(buffer));
-#endif
-      if (ret <= 0 && errno != EAGAIN)
-        PERFETTO_DPLOG("read()");
+    if (poll_fds_[i].fd == event_.fd()) {
+      event_.Clear();
       continue;
     }
 

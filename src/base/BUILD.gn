@@ -37,6 +37,7 @@ source_set("base") {
   # TODO(brucedawson): Enable these for Windows when possible.
   if (!is_win) {
     sources += [
+      "event.cc",
       "temp_file.cc",
       "unix_task_runner.cc",
     ]

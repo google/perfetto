@@ -17,6 +17,7 @@ import("../../../gn/perfetto.gni")
 source_set("base") {
   sources = [
     "build_config.h",
+    "event.h",
     "export.h",
     "file_utils.h",
     "logging.h",
