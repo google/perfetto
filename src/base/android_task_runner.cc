@@ -17,7 +17,6 @@
 #include "perfetto/base/android_task_runner.h"
 
 #include <errno.h>
-#include <sys/eventfd.h>
 #include <sys/timerfd.h>
 
 namespace perfetto {
@@ -25,13 +24,11 @@ namespace base {
 
 AndroidTaskRunner::AndroidTaskRunner()
     : looper_(ALooper_prepare(0 /* require callbacks */)),
-      immediate_event_(eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)),
       delayed_timer_(
           timerfd_create(kWallTimeClockSource, TFD_NONBLOCK | TFD_CLOEXEC)) {
   ALooper_acquire(looper_);
-  PERFETTO_CHECK(immediate_event_);
   PERFETTO_CHECK(delayed_timer_);
-  AddFileDescriptorWatch(immediate_event_.get(),
+  AddFileDescriptorWatch(immediate_event_.fd(),
                          std::bind(&AndroidTaskRunner::RunImmediateTask, this));
   AddFileDescriptorWatch(delayed_timer_.get(),
                          std::bind(&AndroidTaskRunner::RunDelayedTask, this));
@@ -81,11 +78,7 @@ bool AndroidTaskRunner::IsIdleForTesting() {
 }
 
 void AndroidTaskRunner::RunImmediateTask() {
-  uint64_t unused = 0;
-  if (read(immediate_event_.get(), &unused, sizeof(unused)) != sizeof(unused) &&
-      errno != EAGAIN) {
-    PERFETTO_DPLOG("read");
-  }
+  immediate_event_.Clear();
 
   // If locking overhead becomes an issue, add a separate work queue.
   bool has_next;
@@ -133,11 +126,7 @@ void AndroidTaskRunner::RunDelayedTask() {
 }
 
 void AndroidTaskRunner::ScheduleImmediateWakeUp() {
-  uint64_t value = 1;
-  if (write(immediate_event_.get(), &value, sizeof(value)) == -1 &&
-      errno != EAGAIN) {
-    PERFETTO_DPLOG("write");
-  }
+  immediate_event_.Notify();
 }
 
 void AndroidTaskRunner::ScheduleDelayedWakeUp(TimeMillis time) {
