@@ -45,4 +45,5 @@ message RawQueryResult {
   optional uint64 num_records = 2;
   repeated ColumnValues columns = 3;
   optional string error = 4;
+  optional uint64 execution_time_ns = 5;
 }

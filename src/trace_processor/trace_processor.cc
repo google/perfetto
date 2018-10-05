@@ -19,6 +19,7 @@
 #include <sqlite3.h>
 #include <functional>
 
+#include "perfetto/base/time.h"
 #include "src/trace_processor/counters_table.h"
 #include "src/trace_processor/json_trace_parser.h"
 #include "src/trace_processor/process_table.h"
@@ -102,6 +103,8 @@ void TraceProcessor::ExecuteQuery(
   protos::RawQueryResult proto;
   query_interrupted_.store(false, std::memory_order_relaxed);
 
+  base::TimeNanos t_start = base::GetWallTimeNs();
+
   const auto& sql = args.sql_query();
   sqlite3_stmt* raw_stmt;
   int err = sqlite3_prepare_v2(*db_, sql.c_str(), static_cast<int>(sql.size()),
@@ -175,6 +178,8 @@ void TraceProcessor::ExecuteQuery(
     query_interrupted_ = false;
   }
 
+  base::TimeNanos t_end = base::GetWallTimeNs();
+  proto.set_execution_time_ns(static_cast<uint64_t>((t_end - t_start).count()));
   callback(proto);
 }
 
