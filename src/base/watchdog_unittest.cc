@@ -21,7 +21,9 @@
 #include "perfetto/base/page_allocator.h"
 
 #include <time.h>
+
 #include <map>
+#include <memory>
 
 namespace perfetto {
 namespace base {
@@ -35,11 +37,19 @@ class TestWatchdog : public Watchdog {
   TestWatchdog(TestWatchdog&& other) noexcept = default;
 };
 
+TEST(WatchdogTest, NoTimerCrashIfNotEnabled) {
+  // CreateFatalTimer should be a noop if the watchdog is not enabled.
+  TestWatchdog watchdog(100);
+  auto handle = watchdog.CreateFatalTimer(1);
+  usleep(100 * 1000);
+}
+
 TEST(WatchdogTest, TimerCrash) {
   // Create a timer for 20 ms and don't release wihin the time.
   EXPECT_DEATH(
       {
         TestWatchdog watchdog(100);
+        watchdog.Start();
         auto handle = watchdog.CreateFatalTimer(20);
         usleep(200 * 1000);
       },
@@ -51,6 +61,7 @@ TEST(WatchdogTest, CrashEvenWhenMove) {
   EXPECT_DEATH(
       {
         TestWatchdog watchdog(100);
+        watchdog.Start();
         timers.emplace(0, watchdog.CreateFatalTimer(20));
         usleep(200 * 1000);
       },

@@ -19,6 +19,7 @@
 
 #include "perfetto/base/thread_checker.h"
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -131,13 +132,13 @@ class Watchdog {
   uint32_t WindowTimeForRingBuffer(const WindowedInterval& window);
 
   const uint32_t polling_interval_ms_;
+  std::atomic<bool> enabled_{false};
   std::thread thread_;
   std::condition_variable exit_signal_;
 
   // --- Begin lock-protected members ---
 
   std::mutex mutex_;
-  bool quit_ = true;
 
   uint64_t memory_limit_bytes_ = 0;
   WindowedInterval memory_window_bytes_;
