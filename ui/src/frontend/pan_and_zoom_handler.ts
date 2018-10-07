@@ -26,7 +26,9 @@ const WHEEL_ZOOM_SPEED = -0.02;
 // event is not captured by the document, e.g. if it loses focus first, then
 // we want to stop the animation as soon as possible.
 const ANIMATION_AUTO_END_AFTER_INITIAL_KEYPRESS_MS = 700;
-const ANIMATION_AUTO_END_AFTER_KEYPRESS_MS = 80;
+// This value must be larger than the maximum delta between keydown repeat
+// events. Largest observed value so far: 86ms.
+const ANIMATION_AUTO_END_AFTER_KEYPRESS_MS = 100;
 
 // This defines the step size for an individual pan or zoom keyboard tap.
 const TAP_ANIMATION_TIME = 200;
