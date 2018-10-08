@@ -215,7 +215,7 @@ message DataSourceConfig {
 
   // This field is only used for testing.
   optional TestConfig for_testing =
-      536870911;  // 2^29 - 1, max field id for protos.
+      268435455;  // 2^28 - 1, max field id for protos supported by Java.
 }
 
 // End of protos/perfetto/config/data_source_config.proto
