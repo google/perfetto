@@ -199,7 +199,7 @@ message TracePacket {
     bytes synchronization_marker = 36;
 
     // This field is only used for testing.
-    // removed field with id 536870911  // 2^29 - 1, max field id for protos.
+    // removed field with id 268435455  // 2^28 - 1, max field id for protos.
   }
 
   // Trusted user id of the producer which generated this packet. Keep in sync
