@@ -53,3 +53,14 @@ cc_library_static {
     "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
 }
+
+java_library_static {
+  name: "perfetto_config-lite",
+  host_supported: true,
+  proto: {
+      type: "lite",
+  },
+  srcs: [
+    "protos/perfetto/config/perfetto_config.proto",
+  ],
+}
