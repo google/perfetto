@@ -163,12 +163,12 @@ if (!build_with_chromium) {
   }
 
   if (monolithic_binaries) {
-    libtraced_shared_target_type = "source_set"
+    libperfetto_target_type = "source_set"
   } else {
-    libtraced_shared_target_type = "shared_library"
+    libperfetto_target_type = "shared_library"
   }
 
-  target(libtraced_shared_target_type, "libtraced_shared") {
+  target(libperfetto_target_type, "libperfetto") {
     deps = [
       "gn:default_deps",
       "src/traced/probes",
@@ -181,7 +181,7 @@ if (!build_with_chromium) {
   # log buffers.
   executable("traced") {
     deps = [
-      ":libtraced_shared",
+      ":libperfetto",
       "gn:default_deps",
       "include/perfetto/traced",
     ]
@@ -194,7 +194,7 @@ if (!build_with_chromium) {
   # Registers as a Producer on the traced daemon.
   executable("traced_probes") {
     deps = [
-      ":libtraced_shared",
+      ":libperfetto",
       "gn:default_deps",
       "include/perfetto/traced",
     ]
