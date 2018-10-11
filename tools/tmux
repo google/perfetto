@@ -112,7 +112,7 @@ fi
 
 if ! is_monolithic $OUT; then
   PREFIX="$PREFIX LD_LIBRARY_PATH=$DIR"
-  push $OUT/libtraced_shared.so
+  push $OUT/libperfetto.so
 fi
 
 PREFIX="$PREFIX PERFETTO_METATRACE_FILE=$DIR/mtrace"
