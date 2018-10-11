@@ -3236,6 +3236,482 @@ std::vector<Event> GetStaticEventInfo() {
     event->fields.push_back(MakeField("copied", 5, kProtoUint32));
   }
 
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "alloc_pages_iommu_end";
+    event->group = "kmem";
+    event->proto_field_id = 274;
+    event->fields.push_back(MakeField("gfp_flags", 1, kProtoUint32));
+    event->fields.push_back(MakeField("order", 2, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "alloc_pages_iommu_fail";
+    event->group = "kmem";
+    event->proto_field_id = 275;
+    event->fields.push_back(MakeField("gfp_flags", 1, kProtoUint32));
+    event->fields.push_back(MakeField("order", 2, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "alloc_pages_iommu_start";
+    event->group = "kmem";
+    event->proto_field_id = 276;
+    event->fields.push_back(MakeField("gfp_flags", 1, kProtoUint32));
+    event->fields.push_back(MakeField("order", 2, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "alloc_pages_sys_end";
+    event->group = "kmem";
+    event->proto_field_id = 277;
+    event->fields.push_back(MakeField("gfp_flags", 1, kProtoUint32));
+    event->fields.push_back(MakeField("order", 2, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "alloc_pages_sys_fail";
+    event->group = "kmem";
+    event->proto_field_id = 278;
+    event->fields.push_back(MakeField("gfp_flags", 1, kProtoUint32));
+    event->fields.push_back(MakeField("order", 2, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "alloc_pages_sys_start";
+    event->group = "kmem";
+    event->proto_field_id = 279;
+    event->fields.push_back(MakeField("gfp_flags", 1, kProtoUint32));
+    event->fields.push_back(MakeField("order", 2, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "dma_alloc_contiguous_retry";
+    event->group = "kmem";
+    event->proto_field_id = 280;
+    event->fields.push_back(MakeField("tries", 1, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "iommu_map_range";
+    event->group = "kmem";
+    event->proto_field_id = 281;
+    event->fields.push_back(MakeField("chunk_size", 1, kProtoUint64));
+    event->fields.push_back(MakeField("len", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pa", 3, kProtoUint64));
+    event->fields.push_back(MakeField("va", 4, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "iommu_sec_ptbl_map_range_end";
+    event->group = "kmem";
+    event->proto_field_id = 282;
+    event->fields.push_back(MakeField("len", 1, kProtoUint64));
+    event->fields.push_back(MakeField("num", 2, kProtoInt32));
+    event->fields.push_back(MakeField("pa", 3, kProtoUint32));
+    event->fields.push_back(MakeField("sec_id", 4, kProtoInt32));
+    event->fields.push_back(MakeField("va", 5, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "iommu_sec_ptbl_map_range_start";
+    event->group = "kmem";
+    event->proto_field_id = 283;
+    event->fields.push_back(MakeField("len", 1, kProtoUint64));
+    event->fields.push_back(MakeField("num", 2, kProtoInt32));
+    event->fields.push_back(MakeField("pa", 3, kProtoUint32));
+    event->fields.push_back(MakeField("sec_id", 4, kProtoInt32));
+    event->fields.push_back(MakeField("va", 5, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_alloc_buffer_end";
+    event->group = "kmem";
+    event->proto_field_id = 284;
+    event->fields.push_back(MakeField("client_name", 1, kProtoString));
+    event->fields.push_back(MakeField("flags", 2, kProtoUint32));
+    event->fields.push_back(MakeField("heap_name", 3, kProtoString));
+    event->fields.push_back(MakeField("len", 4, kProtoUint64));
+    event->fields.push_back(MakeField("mask", 5, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_alloc_buffer_fail";
+    event->group = "kmem";
+    event->proto_field_id = 285;
+    event->fields.push_back(MakeField("client_name", 1, kProtoString));
+    event->fields.push_back(MakeField("error", 2, kProtoInt64));
+    event->fields.push_back(MakeField("flags", 3, kProtoUint32));
+    event->fields.push_back(MakeField("heap_name", 4, kProtoString));
+    event->fields.push_back(MakeField("len", 5, kProtoUint64));
+    event->fields.push_back(MakeField("mask", 6, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_alloc_buffer_fallback";
+    event->group = "kmem";
+    event->proto_field_id = 286;
+    event->fields.push_back(MakeField("client_name", 1, kProtoString));
+    event->fields.push_back(MakeField("error", 2, kProtoInt64));
+    event->fields.push_back(MakeField("flags", 3, kProtoUint32));
+    event->fields.push_back(MakeField("heap_name", 4, kProtoString));
+    event->fields.push_back(MakeField("len", 5, kProtoUint64));
+    event->fields.push_back(MakeField("mask", 6, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_alloc_buffer_start";
+    event->group = "kmem";
+    event->proto_field_id = 287;
+    event->fields.push_back(MakeField("client_name", 1, kProtoString));
+    event->fields.push_back(MakeField("flags", 2, kProtoUint32));
+    event->fields.push_back(MakeField("heap_name", 3, kProtoString));
+    event->fields.push_back(MakeField("len", 4, kProtoUint64));
+    event->fields.push_back(MakeField("mask", 5, kProtoUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_cp_alloc_retry";
+    event->group = "kmem";
+    event->proto_field_id = 288;
+    event->fields.push_back(MakeField("tries", 1, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_cp_secure_buffer_end";
+    event->group = "kmem";
+    event->proto_field_id = 289;
+    event->fields.push_back(MakeField("align", 1, kProtoUint64));
+    event->fields.push_back(MakeField("flags", 2, kProtoUint64));
+    event->fields.push_back(MakeField("heap_name", 3, kProtoString));
+    event->fields.push_back(MakeField("len", 4, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_cp_secure_buffer_start";
+    event->group = "kmem";
+    event->proto_field_id = 290;
+    event->fields.push_back(MakeField("align", 1, kProtoUint64));
+    event->fields.push_back(MakeField("flags", 2, kProtoUint64));
+    event->fields.push_back(MakeField("heap_name", 3, kProtoString));
+    event->fields.push_back(MakeField("len", 4, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_prefetching";
+    event->group = "kmem";
+    event->proto_field_id = 291;
+    event->fields.push_back(MakeField("len", 1, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_secure_cma_add_to_pool_end";
+    event->group = "kmem";
+    event->proto_field_id = 292;
+    event->fields.push_back(MakeField("is_prefetch", 1, kProtoUint32));
+    event->fields.push_back(MakeField("len", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pool_total", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_secure_cma_add_to_pool_start";
+    event->group = "kmem";
+    event->proto_field_id = 293;
+    event->fields.push_back(MakeField("is_prefetch", 1, kProtoUint32));
+    event->fields.push_back(MakeField("len", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pool_total", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_secure_cma_allocate_end";
+    event->group = "kmem";
+    event->proto_field_id = 294;
+    event->fields.push_back(MakeField("align", 1, kProtoUint64));
+    event->fields.push_back(MakeField("flags", 2, kProtoUint64));
+    event->fields.push_back(MakeField("heap_name", 3, kProtoString));
+    event->fields.push_back(MakeField("len", 4, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_secure_cma_allocate_start";
+    event->group = "kmem";
+    event->proto_field_id = 295;
+    event->fields.push_back(MakeField("align", 1, kProtoUint64));
+    event->fields.push_back(MakeField("flags", 2, kProtoUint64));
+    event->fields.push_back(MakeField("heap_name", 3, kProtoString));
+    event->fields.push_back(MakeField("len", 4, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_secure_cma_shrink_pool_end";
+    event->group = "kmem";
+    event->proto_field_id = 296;
+    event->fields.push_back(MakeField("drained_size", 1, kProtoUint64));
+    event->fields.push_back(MakeField("skipped_size", 2, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_secure_cma_shrink_pool_start";
+    event->group = "kmem";
+    event->proto_field_id = 297;
+    event->fields.push_back(MakeField("drained_size", 1, kProtoUint64));
+    event->fields.push_back(MakeField("skipped_size", 2, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "kfree";
+    event->group = "kmem";
+    event->proto_field_id = 298;
+    event->fields.push_back(MakeField("call_site", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ptr", 2, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "kmalloc";
+    event->group = "kmem";
+    event->proto_field_id = 299;
+    event->fields.push_back(MakeField("bytes_alloc", 1, kProtoUint64));
+    event->fields.push_back(MakeField("bytes_req", 2, kProtoUint64));
+    event->fields.push_back(MakeField("call_site", 3, kProtoUint64));
+    event->fields.push_back(MakeField("gfp_flags", 4, kProtoUint32));
+    event->fields.push_back(MakeField("ptr", 5, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "kmalloc_node";
+    event->group = "kmem";
+    event->proto_field_id = 300;
+    event->fields.push_back(MakeField("bytes_alloc", 1, kProtoUint64));
+    event->fields.push_back(MakeField("bytes_req", 2, kProtoUint64));
+    event->fields.push_back(MakeField("call_site", 3, kProtoUint64));
+    event->fields.push_back(MakeField("gfp_flags", 4, kProtoUint32));
+    event->fields.push_back(MakeField("node", 5, kProtoInt32));
+    event->fields.push_back(MakeField("ptr", 6, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "kmem_cache_alloc";
+    event->group = "kmem";
+    event->proto_field_id = 301;
+    event->fields.push_back(MakeField("bytes_alloc", 1, kProtoUint64));
+    event->fields.push_back(MakeField("bytes_req", 2, kProtoUint64));
+    event->fields.push_back(MakeField("call_site", 3, kProtoUint64));
+    event->fields.push_back(MakeField("gfp_flags", 4, kProtoUint32));
+    event->fields.push_back(MakeField("ptr", 5, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "kmem_cache_alloc_node";
+    event->group = "kmem";
+    event->proto_field_id = 302;
+    event->fields.push_back(MakeField("bytes_alloc", 1, kProtoUint64));
+    event->fields.push_back(MakeField("bytes_req", 2, kProtoUint64));
+    event->fields.push_back(MakeField("call_site", 3, kProtoUint64));
+    event->fields.push_back(MakeField("gfp_flags", 4, kProtoUint32));
+    event->fields.push_back(MakeField("node", 5, kProtoInt32));
+    event->fields.push_back(MakeField("ptr", 6, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "kmem_cache_free";
+    event->group = "kmem";
+    event->proto_field_id = 303;
+    event->fields.push_back(MakeField("call_site", 1, kProtoUint64));
+    event->fields.push_back(MakeField("ptr", 2, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "migrate_pages_end";
+    event->group = "kmem";
+    event->proto_field_id = 304;
+    event->fields.push_back(MakeField("mode", 1, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "migrate_pages_start";
+    event->group = "kmem";
+    event->proto_field_id = 305;
+    event->fields.push_back(MakeField("mode", 1, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "migrate_retry";
+    event->group = "kmem";
+    event->proto_field_id = 306;
+    event->fields.push_back(MakeField("tries", 1, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_page_alloc";
+    event->group = "kmem";
+    event->proto_field_id = 307;
+    event->fields.push_back(MakeField("gfp_flags", 1, kProtoUint32));
+    event->fields.push_back(MakeField("migratetype", 2, kProtoInt32));
+    event->fields.push_back(MakeField("order", 3, kProtoUint32));
+    event->fields.push_back(MakeField("page", 4, kProtoUint64));
+    event->fields.push_back(MakeField("pfn", 5, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_page_alloc_extfrag";
+    event->group = "kmem";
+    event->proto_field_id = 308;
+    event->fields.push_back(MakeField("alloc_migratetype", 1, kProtoInt32));
+    event->fields.push_back(MakeField("alloc_order", 2, kProtoInt32));
+    event->fields.push_back(MakeField("fallback_migratetype", 3, kProtoInt32));
+    event->fields.push_back(MakeField("fallback_order", 4, kProtoInt32));
+    event->fields.push_back(MakeField("page", 5, kProtoUint64));
+    event->fields.push_back(MakeField("change_ownership", 6, kProtoInt32));
+    event->fields.push_back(MakeField("pfn", 7, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_page_alloc_zone_locked";
+    event->group = "kmem";
+    event->proto_field_id = 309;
+    event->fields.push_back(MakeField("migratetype", 1, kProtoInt32));
+    event->fields.push_back(MakeField("order", 2, kProtoUint32));
+    event->fields.push_back(MakeField("page", 3, kProtoUint64));
+    event->fields.push_back(MakeField("pfn", 4, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_page_free";
+    event->group = "kmem";
+    event->proto_field_id = 310;
+    event->fields.push_back(MakeField("order", 1, kProtoUint32));
+    event->fields.push_back(MakeField("page", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pfn", 3, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_page_free_batched";
+    event->group = "kmem";
+    event->proto_field_id = 311;
+    event->fields.push_back(MakeField("cold", 1, kProtoInt32));
+    event->fields.push_back(MakeField("page", 2, kProtoUint64));
+    event->fields.push_back(MakeField("pfn", 3, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "mm_page_pcpu_drain";
+    event->group = "kmem";
+    event->proto_field_id = 312;
+    event->fields.push_back(MakeField("migratetype", 1, kProtoInt32));
+    event->fields.push_back(MakeField("order", 2, kProtoUint32));
+    event->fields.push_back(MakeField("page", 3, kProtoUint64));
+    event->fields.push_back(MakeField("pfn", 4, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "rss_stat";
+    event->group = "kmem";
+    event->proto_field_id = 313;
+    event->fields.push_back(MakeField("member", 1, kProtoInt32));
+    event->fields.push_back(MakeField("size", 2, kProtoInt64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_heap_shrink";
+    event->group = "kmem";
+    event->proto_field_id = 314;
+    event->fields.push_back(MakeField("heap_name", 1, kProtoString));
+    event->fields.push_back(MakeField("len", 2, kProtoUint64));
+    event->fields.push_back(MakeField("total_allocated", 3, kProtoInt64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "ion_heap_grow";
+    event->group = "kmem";
+    event->proto_field_id = 315;
+    event->fields.push_back(MakeField("heap_name", 1, kProtoString));
+    event->fields.push_back(MakeField("len", 2, kProtoUint64));
+    event->fields.push_back(MakeField("total_allocated", 3, kProtoInt64));
+  }
+
   return events;
 }
 
