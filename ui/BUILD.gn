@@ -250,18 +250,20 @@ node_bin("transpile_all_ts") {
 # | Build css.                                                                 |
 # +----------------------------------------------------------------------------+
 
+scss_root = "src/assets/perfetto.scss"
+scss_srcs = [
+  "src/assets/sidebar.scss",
+  "src/assets/topbar.scss",
+  "src/assets/record.scss",
+  "src/assets/common.scss",
+]
+
 # Build css.
 node_bin("scss") {
   deps = [
     ":dist_symlink",
   ]
-  main_css = "src/assets/perfetto.scss"
-  inputs = [
-    main_css,
-    "src/assets/sidebar.scss",
-    "src/assets/topbar.scss",
-    "src/assets/record.scss",
-  ]
+  inputs = [ scss_root ] + scss_srcs
   outputs = [
     "$ui_dir/perfetto.css",
   ]
@@ -269,7 +271,7 @@ node_bin("scss") {
   node_cmd = "node-sass"
   args = [
     "--quiet",
-    rebase_path(main_css, root_build_dir),
+    rebase_path(scss_root, root_build_dir),
     rebase_path(outputs[0], root_build_dir),
   ]
 }
@@ -288,13 +290,10 @@ copy("index_dist") {
 
 copy("assets_dist") {
   sources = [
-    "src/assets/flamegraph.svg",
-    "src/assets/logo-3d.png",
-    "src/assets/logo.png",
-    "src/assets/perfetto.scss",
-    "src/assets/sidebar.scss",
-    "src/assets/topbar.scss",
-  ]
+              "src/assets/flamegraph.svg",
+              "src/assets/logo-3d.png",
+              "src/assets/logo.png",
+            ] + [ scss_root ] + scss_srcs
   outputs = [
     "$ui_dir/assets/{{source_file_part}}",
   ]
