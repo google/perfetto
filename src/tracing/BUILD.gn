@@ -65,6 +65,32 @@ source_set("tracing") {
   ]
 }
 
+source_set("api") {
+  deps = [
+    ":ipc",
+    ":tracing",
+    "../../gn:default_deps",
+    "../../protos/perfetto/config:lite",
+    "../base",
+  ]
+  sources = [
+    "api_impl/consumer_api.cc",
+  ]
+}
+
+executable("consumer_api_test") {
+  deps = [
+    ":api",
+    "../../gn:default_deps",
+    "../../protos/perfetto/config:lite",
+    "../../protos/perfetto/trace:lite",
+    "../base",
+  ]
+  sources = [
+    "api_impl/consumer_api_test.cc",
+  ]
+}
+
 source_set("unittests") {
   testonly = true
   deps = [
