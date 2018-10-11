@@ -506,6 +506,48 @@ message FtraceEvent {
     F2fsWriteBeginFtraceEvent f2fs_write_begin = 271;
     // removed field with id 272
     F2fsWriteEndFtraceEvent f2fs_write_end = 273;
+    // removed field with id 274
+    // removed field with id 275
+    // removed field with id 276
+    // removed field with id 277
+    // removed field with id 278
+    // removed field with id 279
+    // removed field with id 280
+    // removed field with id 281
+    // removed field with id 282
+    // removed field with id 283
+    // removed field with id 284
+    // removed field with id 285
+    // removed field with id 286
+    // removed field with id 287
+    // removed field with id 288
+    // removed field with id 289
+    // removed field with id 290
+    // removed field with id 291
+    // removed field with id 292
+    // removed field with id 293
+    // removed field with id 294
+    // removed field with id 295
+    // removed field with id 296
+    // removed field with id 297
+    // removed field with id 298
+    // removed field with id 299
+    // removed field with id 300
+    // removed field with id 301
+    // removed field with id 302
+    // removed field with id 303
+    // removed field with id 304
+    // removed field with id 305
+    // removed field with id 306
+    // removed field with id 307
+    // removed field with id 308
+    // removed field with id 309
+    // removed field with id 310
+    // removed field with id 311
+    // removed field with id 312
+    // removed field with id 313
+    // removed field with id 314
+    // removed field with id 315
   }
 }
 
