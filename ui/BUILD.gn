@@ -292,6 +292,7 @@ copy("assets_dist") {
     "src/assets/logo-3d.png",
     "src/assets/logo.png",
     "src/assets/perfetto.scss",
+    "src/assets/record.scss",
     "src/assets/sidebar.scss",
     "src/assets/topbar.scss",
   ]

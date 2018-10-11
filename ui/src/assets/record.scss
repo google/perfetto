@@ -12,39 +12,186 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.example-code {
-  display: block;
-  padding: 1rem;
-  background-color: black;
-  color: white;
-  margin: 1rem 0;
-  margin-top: calc(20px + 1rem);
-  border-radius: 3px;
-  position: relative;
-  border-top-right-radius: 4px;
-  overflow: initial;
-  user-select: text;
+.record-page {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  grid-column-gap: 2rem;
+  padding: 2rem;
+  overflow-y: scroll;
 
-  ::before {
-    height: 20px;
-    content: "";
+  * {
+    overflow: initial;
+  }
+
+  .control-group {
+    margin-left: 2rem;
+  }
+
+  .text-column {
+    // 2-3 alphabets per line is comfortable for reading.
+    // https://practicaltypography.com/line-length.html
+    max-width: calc(26ch*2.34 + 1rem);
+    user-select: text;
+    word-break: break-word;
+  }
+
+  .example-code {
     display: block;
-    width: 100%;
-    background-color: rgb(87%, 87%, 87%);
-    left: 0;
-    position: absolute;
-    right: 0;
-    top: -18px;
-    border-top-left-radius: 4px;
+    padding: 1rem;
+    background-color: black;
+    color: white;
+    margin: 1rem 0;
+    margin-top: calc(20px + 1rem);
+    border-radius: 3px;
+    position: relative;
     border-top-right-radius: 4px;
+    overflow: initial;
+    user-select: text;
+
+    ::before {
+      height: 20px;
+      content: "";
+      display: block;
+      width: 100%;
+      background-color: rgb(87%, 87%, 87%);
+      left: 0;
+      position: absolute;
+      right: 0;
+      top: -18px;
+      border-top-left-radius: 4px;
+      border-top-right-radius: 4px;
+    }
+
+    button {
+      margin-left: auto;
+      display: block;
+      font-style: italic;
+      font-size: 75%;
+    }
   }
 
-  button {
-    margin-left: auto;
-    display: block;
-    font-style: italic;
-    font-size: 75%;
+
+  label * {
+    overflow: visible;
   }
+
+  input {
+    margin-right: 0.5rem;
+  }
+
+  label {
+    margin: 0.75rem 0;
+    overflow: visible;
+  }
+
+  label.range {
+    display: grid;
+    grid-template-areas: 'title control unit';
+    grid-template-columns: 1fr auto 2rem;
+    align-items: center;
+    .range-control {
+      display: flex;
+      align-items: center;
+
+      button {
+        font-size: smaller;
+        margin-right: 0.5rem;
+        padding: 3px;
+        border-radius: 4px;
+        background-color: #e3f2fd;
+      }
+      button.selected {
+        background-color: #90caf9;
+      }
+      input {
+        text-align: right;
+        font-size: 100%;
+        width: 10ch;
+        padding: 0;
+      }
+    }
+  }
+
+  label.multiselect {
+    display: grid;
+    grid-template-areas: 'label input' 'selected selected';
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    input {
+      text-align: right;
+      font-size: 100%;
+      padding: 0;
+    }
+    .multiselect-selected {
+      grid-area: selected;
+      button {
+        font-size: smaller;
+        margin-right: 0.5rem;
+        margin-top: 0.5rem;
+        padding: 3px;
+        border-radius: 4px;
+        background-color: #e3f2fd;
+      }
+    }
+  }
+
+  label.checkbox {
+    position: relative;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    input {
+      margin-left: 0px;
+      position: relative;
+      display: block;
+      height: 20px;
+      width: 44px;
+      background: #89898966;
+      border-radius: 100px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      -moz-appearance: none;
+      -webkit-appearance: none;
+
+      &:focus {
+        outline: none;
+      }
+
+      &::after {
+        position: absolute;
+        left: -2px;
+        top: -3px;
+        display: block;
+        width: 26px;
+        height: 26px;
+        border-radius: 100px;
+        background: #f5f5f5;
+        box-shadow: 0px 3px 3px rgba(0,0,0,0.15);
+        content: '';
+        transition: all 0.3s ease;
+      }
+      &:checked {
+        background: #8398b7;
+      }
+      &:checked::after {
+        left: 20px;
+        background: #27303d;
+      }
+    }
+
+    &.disabled input {
+      opacity: 0;
+    }
+  }
+
+  label.disabled {
+    color: grey;
+    filter: grayscale(1);
+  }
+
 }
-
 

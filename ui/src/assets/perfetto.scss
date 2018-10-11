@@ -76,7 +76,6 @@ h3 {
     padding: 0;
     margin: 0;
 }
-
 table {
     user-select: text;
 }
@@ -323,16 +322,6 @@ header.overview {
 
 span.code {
   user-select: text;
-}
-
-.text-column {
-  font-size: 115%;
-  // 2-3 alphabets per line is comfortable for reading.
-  // https://practicaltypography.com/line-length.html 
-  max-width: calc(26ch*2.34);
-  margin: 3rem auto;
-  user-select: text;
-  word-break: break-word;
 }
 
 .debug-panel-border {
