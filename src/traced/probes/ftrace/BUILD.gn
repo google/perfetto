@@ -44,6 +44,7 @@ source_set("test_support") {
 source_set("unittests") {
   testonly = true
   deps = [
+    ":format_parser",
     ":ftrace",
     ":test_messages_lite",
     ":test_messages_zero",
@@ -108,6 +109,7 @@ source_set("ftrace") {
     "../../../tracing",
   ]
   deps = [
+    ":format_parser",
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/traced",
@@ -125,8 +127,6 @@ source_set("ftrace") {
     "event_info.h",
     "event_info_constants.cc",
     "event_info_constants.h",
-    "format_parser.cc",
-    "format_parser.h",
     "ftrace_config.cc",
     "ftrace_config.h",
     "ftrace_config_muxer.cc",
@@ -143,6 +143,17 @@ source_set("ftrace") {
     "ftrace_stats.h",
     "proto_translation_table.cc",
     "proto_translation_table.h",
+  ]
+}
+
+source_set("format_parser") {
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+  ]
+  sources = [
+    "format_parser.cc",
+    "format_parser.h",
   ]
 }
 
