@@ -177,8 +177,35 @@ export const StateActions = {
     // so it appears on the proxy Actions class.
     throw new Error('Called setState on StateActions.');
   },
-};
 
+  // TODO(hjd): Parametrize this to increase type safety. See comments on
+  // aosp/778194
+  setConfigControl(
+      state: StateDraft,
+      args: {name: string; value: string | number | boolean;}): void {
+    const config = state.recordConfig;
+    config[args.name] = args.value;
+  },
+
+  addConfigControl(state: StateDraft, args: {name: string; option: string;}):
+      void {
+        // tslint:disable-next-line no-any
+        const config = state.recordConfig as any;
+        const options = config[args.name];
+        if (options.includes(args.option)) return;
+        options.push(args.option);
+      },
+
+  removeConfigControl(state: StateDraft, args: {name: string; option: string;}):
+      void {
+        // tslint:disable-next-line no-any
+        const config = state.recordConfig as any;
+        const options = config[args.name];
+        const index = options.indexOf(args.option);
+        if (index === -1) return;
+        options.splice(index, 1);
+      },
+};
 
 // When we are on the frontend side, we don't really want to execute the
 // actions above, we just want to serialize them and marshal their

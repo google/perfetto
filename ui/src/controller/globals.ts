@@ -27,10 +27,18 @@ import {
   destroyWasmEngine,
 } from './wasm_engine_proxy';
 
+
+export interface App {
+  state: State;
+  dispatch(action: DeferredAction): void;
+  publish(what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult', data: {}):
+      void;
+}
+
 /**
  * Global accessors for state/dispatch in the controller.
  */
-class Globals {
+class Globals implements App {
   private _state?: State;
   private _rootController?: ControllerAny;
   private _frontend?: Remote;
