@@ -51,6 +51,18 @@ export interface PermalinkConfig {
   hash?: string;       // Set by the controller when the link has been created.
 }
 
+export interface RecordConfig {
+  [key: string]: number|boolean|string|string[];
+  durationSeconds: number;
+  bufferSizeMb: number;
+  processMetadata: boolean;
+  scanAllProcessesOnStart: boolean;
+  ftrace: boolean;
+  ftraceEvents: string[];
+  atraceCategories: string[];
+  atraceApps: string[];
+}
+
 export interface TraceTime {
   startSec: number;
   endSec: number;
@@ -65,6 +77,11 @@ export interface Status {
 export interface State {
   route: string|null;
   nextId: number;
+
+  /**
+   * State of the ConfigEditor.
+   */
+  recordConfig: RecordConfig;
 
   /**
    * Open traces.
@@ -98,6 +115,20 @@ export function createEmptyState(): State {
     scrollingTracks: [],
     queries: {},
     permalink: {},
+    recordConfig: createEmptyRecordConfig(),
     status: {msg: '', timestamp: 0},
+  };
+}
+
+export function createEmptyRecordConfig(): RecordConfig {
+  return {
+    durationSeconds: 10.0,
+    bufferSizeMb: 10.0,
+    processMetadata: false,
+    scanAllProcessesOnStart: false,
+    ftrace: false,
+    ftraceEvents: [],
+    atraceApps: [],
+    atraceCategories: [],
   };
 }
