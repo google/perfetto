@@ -83,6 +83,7 @@ cc_library_shared {
     "src/traced/probes/ps/process_stats_data_source.cc",
     "src/traced/probes/sys_stats/sys_stats_data_source.cc",
     "src/traced/service/service.cc",
+    "src/tracing/api_impl/consumer_api.cc",
     "src/tracing/core/chrome_config.cc",
     "src/tracing/core/commit_data_request.cc",
     "src/tracing/core/data_source_config.cc",
