@@ -16,7 +16,8 @@ else
   fi
 fi
 
-"$DIR/ninja" -C "$BUILDDIR" ftrace_proto_gen
+DESCRIPTOR='gen/protos/perfetto/trace/ftrace.descriptor'
+"$DIR/ninja" -C "$BUILDDIR" ftrace_proto_gen $DESCRIPTOR
 
 # FIXME(fmayer): make ftrace_proto_gen independent of cwd.
 cd "$DIR/.."
@@ -24,7 +25,7 @@ cd "$DIR/.."
 "$BUILDDIR/ftrace_proto_gen" \
   --whitelist_path "$DIR/ftrace_proto_gen/event_whitelist" \
   --output_dir "$DIR/../protos/perfetto/trace/ftrace/" \
-  --proto_descriptor "$BUILDDIR/gen/protos/perfetto/trace/ftrace.descriptor" \
+  --proto_descriptor "$BUILDDIR/$DESCRIPTOR" \
   --update_build_files \
   "$@" \
   "$DIR"/../src/traced/probes/ftrace/test/data/*/events/

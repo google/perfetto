@@ -31,15 +31,16 @@
 #include "src/traced/probes/ftrace/format_parser.h"
 #include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
-std::unique_ptr<std::ostream> MakeOFStream(const std::string& filename);
-std::unique_ptr<std::ostream> MakeOFStream(const std::string& filename) {
+namespace {
+inline std::unique_ptr<std::ostream> MakeOFStream(const std::string& filename) {
   return std::unique_ptr<std::ostream>(new std::ofstream(filename));
 }
 
-std::unique_ptr<std::ostream> MakeVerifyStream(const std::string& filename);
-std::unique_ptr<std::ostream> MakeVerifyStream(const std::string& filename) {
+inline std::unique_ptr<std::ostream> MakeVerifyStream(
+    const std::string& filename) {
   return std::unique_ptr<std::ostream>(new perfetto::VerifyStream(filename));
 }
+}  // namespace
 
 int main(int argc, char** argv) {
   static struct option long_options[] = {
@@ -167,7 +168,6 @@ int main(int argc, char** argv) {
 
       std::string contents;
       if (!perfetto::base::ReadFile(input_path, &contents)) {
-        fprintf(stderr, "Failed to open %s\n", input_path.c_str());
         continue;
       }
 
