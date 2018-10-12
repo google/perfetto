@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  TrackController,
-  trackControllerRegistry
-} from '../../controller/track_controller';
+export const KIND = 'VsyncTrack';
 
-import {CPU_COUNTER_TRACK_KIND} from './common';
-
-class CpuCounterTrackController extends TrackController {
-  static readonly kind = CPU_COUNTER_TRACK_KIND;
-  onBoundsChange(): void {}
+export interface Data {
+  start: number;
+  end: number;
+  resolution: number;
+  vsyncs: Float64Array;
 }
 
-trackControllerRegistry.register(CpuCounterTrackController);
+export interface Config { counterName: string; }
