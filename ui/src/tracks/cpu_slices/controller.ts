@@ -135,8 +135,8 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       utids: new Uint32Array(numRows),
     };
 
+    const cols = rawResult.columns;
     for (let row = 0; row < numRows; row++) {
-      const cols = rawResult.columns;
       const startSec = fromNs(+cols[0].longValues![row]);
       slices.starts[row] = startSec;
       slices.ends[row] = startSec + fromNs(+cols[1].longValues![row]);
