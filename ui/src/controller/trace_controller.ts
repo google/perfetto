@@ -188,6 +188,26 @@ export class TraceController extends Controller<States> {
     const engine = assertExists<Engine>(this.engine);
     const addToTrackActions: DeferredAction[] = [];
     const numCpus = await engine.getNumberOfCpus();
+
+    // TODO(hjd): Move this code out of TraceController.
+    for (const counterName of ['VSYNC-sf', 'VSYNC-app']) {
+      const hasVsync =
+          !!(await engine.query(
+                 `select ts from counters where name like "${
+                                                             counterName
+                                                           }" limit 1`))
+                .numRecords;
+      if (!hasVsync) continue;
+      addToTrackActions.push(Actions.addTrack({
+        engineId: this.engineId,
+        kind: 'VsyncTrack',
+        name: `${counterName}`,
+        config: {
+          counterName,
+        }
+      }));
+    }
+
     for (let cpu = 0; cpu < numCpus; cpu++) {
       addToTrackActions.push(Actions.addTrack({
         engineId: this.engineId,
