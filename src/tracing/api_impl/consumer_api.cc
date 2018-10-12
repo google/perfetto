@@ -187,7 +187,8 @@ void TracingSession::StartTracing() {
 
   auto state = state_.load();
   if (state != State::kConfigured) {
-    PERFETTO_ELOG("StartTracing(): invalid state (%d)", state);
+    PERFETTO_ELOG("StartTracing(): invalid state (%d)",
+                  static_cast<int>(state));
     return;
   }
   state_ = State::kTracing;
@@ -357,7 +358,8 @@ TraceBuffer TracingController::ReadTrace(Handle handle) {
     return buf;
   }
 
-  PERFETTO_DLOG("ReadTrace(): called in an unexpected state (%d)", state);
+  PERFETTO_DLOG("ReadTrace(): called in an unexpected state (%d)",
+                static_cast<int>(state));
   return buf;
 }
 

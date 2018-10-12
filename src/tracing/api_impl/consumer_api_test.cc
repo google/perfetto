@@ -82,7 +82,8 @@ void DumpTrace(TraceBuffer buf) {
 }
 
 void OnStateChanged(Handle handle, State state, void* ptr) {
-  PERFETTO_LOG("Callback: handle=%" PRId64 " state=%d", handle, state);
+  PERFETTO_LOG("Callback: handle=%" PRId64 " state=%d", handle,
+               static_cast<int>(state));
   PERFETTO_CHECK(ptr == &g_pointer);
 }
 
@@ -90,7 +91,7 @@ void TestSingle() {
   std::string cfg = GetConfig(1000);
   auto handle = Create(cfg.data(), cfg.size(), &OnStateChanged, &g_pointer);
   PERFETTO_ILOG("Starting, handle=%" PRId64 " state=%d", handle,
-                PollState(handle));
+                static_cast<int>(PollState(handle)));
   usleep(100000);
   StartTracing(handle);
   // Wait for either completion or error.
@@ -118,7 +119,7 @@ void TestMany() {
     auto handle = Create(cfg.data(), cfg.size(), &OnStateChanged, &g_pointer);
     handles[i] = handle;
     PERFETTO_ILOG("Creating handle=%" PRId64 " state=%d", handle,
-                  PollState(handle));
+                  static_cast<int>(PollState(handle)));
   }
 
   // Wait that all sessions are connected.
