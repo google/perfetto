@@ -65,19 +65,6 @@ source_set("tracing") {
   ]
 }
 
-source_set("api") {
-  deps = [
-    ":ipc",
-    ":tracing",
-    "../../gn:default_deps",
-    "../../protos/perfetto/config:lite",
-    "../base",
-  ]
-  sources = [
-    "api_impl/consumer_api.cc",
-  ]
-}
-
 executable("consumer_api_test") {
   deps = [
     ":api",
@@ -223,6 +210,21 @@ if (!build_with_chromium) {
     ]
     sources = [
       "test/hello_world_benchmark.cc",
+    ]
+  }
+
+  # Imlementation of the public-facing consumer API in libperfetto.so (only for
+  # Android builds).
+  source_set("api") {
+    deps = [
+      ":ipc",
+      ":tracing",
+      "../../gn:default_deps",
+      "../../protos/perfetto/config:lite",
+      "../base",
+    ]
+    sources = [
+      "api_impl/consumer_api.cc",
     ]
   }
 }
