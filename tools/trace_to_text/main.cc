@@ -30,6 +30,7 @@
 #include <memory>
 #include <ostream>
 #include <sstream>
+#include <unordered_map>
 #include <utility>
 
 #include <google/protobuf/compiler/importer.h>
@@ -46,10 +47,13 @@
 #include "perfetto/traced/sys_stats_counters.h"
 #include "tools/trace_to_text/ftrace_event_formatter.h"
 #include "tools/trace_to_text/ftrace_inode_handler.h"
+#include "tools/trace_to_text/process_formatter.h"
 
 namespace perfetto {
 namespace {
 
+// Having an empty traceEvents object is necessary for trace viewer to
+// load the json properly.
 const char kTraceHeader[] = R"({
   "traceEvents": [],
 )";
@@ -57,6 +61,14 @@ const char kTraceHeader[] = R"({
 const char kTraceFooter[] = R"(\n",
   "controllerTraceDataKey": "systraceController"
 })";
+
+const char kProcessDumpHeader[] =
+    ""
+    "\"androidProcessDump\": "
+    "\"PROCESS DUMP\\nUSER           PID  PPID     VSZ    RSS WCHAN  "
+    "PC S NAME                        COMM                       \\n";
+
+const char kThreadHeader[] = "USER           PID   TID CMD \\n";
 
 const char kFtraceHeader[] =
     ""
@@ -176,21 +188,49 @@ void ForEachPacketInTrace(
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
                     bool wrap_in_json) {
-  std::multimap<uint64_t, std::string> sorted;
+  std::multimap<uint64_t, std::string> ftrace_sorted;
+  std::vector<std::string> proc_dump;
+  std::vector<std::string> thread_dump;
+  std::unordered_map<uint32_t /*tid*/, uint32_t /*tgid*/> thread_map;
 
   std::vector<const char*> meminfo_strs = BuildMeminfoCounterNames();
   std::vector<const char*> vmstat_strs = BuildVmstatCounterNames();
 
-  ForEachPacketInTrace(input, [&sorted, &meminfo_strs, &vmstat_strs](
-                                  const protos::TracePacket& packet) {
+  std::vector<const protos::TracePacket> packets_to_process;
+
+  ForEachPacketInTrace(
+      input, [&thread_map, &packets_to_process, &proc_dump,
+              &thread_dump](const protos::TracePacket& packet) {
+        if (!packet.has_process_tree()) {
+          packets_to_process.emplace_back(std::move(packet));
+          return;
+        }
+        const ProcessTree& process_tree = packet.process_tree();
+        for (const auto& process : process_tree.processes()) {
+          // Main threads will have the same pid as tgid.
+          thread_map[static_cast<uint32_t>(process.pid())] =
+              static_cast<uint32_t>(process.pid());
+          std::string p = FormatProcess(process);
+          proc_dump.emplace_back(p);
+        }
+        for (const auto& thread : process_tree.threads()) {
+          // Populate thread map for matching tids to tgids.
+          thread_map[static_cast<uint32_t>(thread.tid())] =
+              static_cast<uint32_t>(thread.tgid());
+          std::string t = FormatThread(thread);
+          thread_dump.emplace_back(t);
+        }
+      });
+
+  for (const auto& packet : packets_to_process) {
     if (packet.has_ftrace_events()) {
       const FtraceEventBundle& bundle = packet.ftrace_events();
       for (const FtraceEvent& event : bundle.event()) {
-        std::string line =
-            FormatFtraceEvent(event.timestamp(), bundle.cpu(), event);
+        std::string line = FormatFtraceEvent(event.timestamp(), bundle.cpu(),
+                                             event, thread_map);
         if (line == "")
           continue;
-        sorted.emplace(event.timestamp(), line);
+        ftrace_sorted.emplace(event.timestamp(), line);
       }
     }  // packet.has_ftrace_events
 
@@ -205,7 +245,7 @@ int TraceToSystrace(std::istream* input,
         sprintf(str, "C|1|%s|%" PRIu64, meminfo_strs[meminfo.key()],
                 static_cast<uint64_t>(meminfo.value()));
         event.mutable_print()->set_buf(str);
-        sorted.emplace(ts, FormatFtraceEvent(ts, 0, event));
+        ftrace_sorted.emplace(ts, FormatFtraceEvent(ts, 0, event, thread_map));
       }
       for (const auto& vmstat : sys_stats.vmstat()) {
         FtraceEvent event;
@@ -216,20 +256,29 @@ int TraceToSystrace(std::istream* input,
         sprintf(str, "C|1|%s|%" PRIu64, vmstat_strs[vmstat.key()],
                 static_cast<uint64_t>(vmstat.value()));
         event.mutable_print()->set_buf(str);
-        sorted.emplace(ts, FormatFtraceEvent(ts, 0, event));
+        ftrace_sorted.emplace(ts, FormatFtraceEvent(ts, 0, event, thread_map));
       }
     }
-  });
+  }
 
   if (wrap_in_json) {
     *output << kTraceHeader;
+    *output << kProcessDumpHeader;
+    for (const auto& process : proc_dump) {
+      *output << process << "\\n";
+    }
+    *output << kThreadHeader;
+    for (const auto& thread : thread_dump) {
+      *output << thread << "\\n";
+    }
+    *output << "\",";
     *output << kFtraceHeader;
   }
 
   fprintf(stderr, "\n");
-  size_t total_events = sorted.size();
+  size_t total_events = ftrace_sorted.size();
   size_t written_events = 0;
-  for (auto it = sorted.begin(); it != sorted.end(); it++) {
+  for (auto it = ftrace_sorted.begin(); it != ftrace_sorted.end(); it++) {
     *output << it->second << (wrap_in_json ? "\\n" : "\n");
     if (written_events++ % 100 == 0 && !isatty(STDOUT_FILENO)) {
       fprintf(stderr, "Writing trace: %.2f %%\r",
