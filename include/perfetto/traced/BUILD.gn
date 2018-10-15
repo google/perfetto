@@ -24,7 +24,7 @@ source_set("sys_stats_counters") {
     "../../../gn:default_deps",
   ]
   public_deps = [
-    "../../../protos/perfetto/common:zero",
+    "../../../protos/perfetto/common:lite",
     "../base",
   ]
   sources = [
