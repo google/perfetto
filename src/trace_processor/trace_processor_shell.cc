@@ -46,8 +46,8 @@
 #include <signal.h>
 #endif
 
-using namespace perfetto;
-using namespace perfetto::trace_processor;
+namespace perfetto {
+namespace trace_processor {
 
 namespace {
 TraceProcessor* g_tp;
@@ -182,9 +182,7 @@ void OnQueryResult(base::TimeNanos t_start, const protos::RawQueryResult& res) {
   printf("\nQuery executed in %.3f ms\n\n", (t_end - t_start).count() / 1E6);
 }
 
-}  // namespace
-
-int main(int argc, char** argv) {
+int TraceProcessorMain(int argc, char** argv) {
   if (argc < 2) {
     PERFETTO_ELOG("Usage: %s [-d] trace_file.proto", argv[0]);
     return 1;
@@ -274,4 +272,13 @@ int main(int argc, char** argv) {
   }
 
   return 0;
+}
+
+}  // namespace
+
+}  // namespace trace_processor
+}  // namespace perfetto
+
+int main(int argc, char** argv) {
+  return perfetto::trace_processor::TraceProcessorMain(argc, argv);
 }

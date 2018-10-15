@@ -120,7 +120,7 @@ class Table : public sqlite3_vtab {
     Schema(std::vector<Column>, std::vector<size_t> primary_keys);
 
     // This class is explicitly copiable.
-    Schema(const Schema&) noexcept;
+    Schema(const Schema&);
     Schema& operator=(const Schema& t);
 
     std::string ToCreateTableStmt();
