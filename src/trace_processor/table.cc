@@ -269,7 +269,7 @@ Table::Schema::Schema(std::vector<Column> columns,
 }
 
 Table::Schema::Schema() = default;
-Table::Schema::Schema(const Schema&) = default;
+Table::Schema::Schema(const Schema&) noexcept = default;
 Table::Schema& Table::Schema::operator=(const Schema&) = default;
 
 std::string Table::Schema::ToCreateTableStmt() {
