@@ -68,10 +68,10 @@ struct AllocMetadata {
   uint64_t stack_pointer;
   // Offset of the data at stack_pointer from the start of this record.
   uint64_t stack_pointer_offset;
+  alignas(uint64_t) char register_data[kMaxRegisterDataSize];
   // CPU architecture of the client. This determines the size of the
   // register data that follows this struct.
   unwindstack::ArchEnum arch;
-  char register_data[kMaxRegisterDataSize];
 };
 
 struct FreePageEntry {
