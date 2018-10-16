@@ -334,6 +334,7 @@ PERFETTO_ALWAYS_INLINE int SpanOperatorTable::Cursor::ExtractNext(
         value->text_value =
             reinterpret_cast<const char*>(sqlite3_column_text(stmt, i));
         break;
+      case Table::ColumnType::kDouble:
       case Table::ColumnType::kInt:
         PERFETTO_CHECK(false);
     }
@@ -427,6 +428,7 @@ PERFETTO_ALWAYS_INLINE void SpanOperatorTable::Cursor::ReportSqliteResult(
                           kSqliteTransient);
       break;
     }
+    case Table::ColumnType::kDouble:
     case Table::ColumnType::kInt:
       PERFETTO_CHECK(false);
   }
