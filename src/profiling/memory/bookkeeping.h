@@ -18,6 +18,8 @@
 #define SRC_PROFILING_MEMORY_BOOKKEEPING_H_
 
 #include "perfetto/base/lookup_set.h"
+#include "src/profiling/memory/bounded_queue.h"
+#include "src/profiling/memory/queue_messages.h"
 #include "src/profiling/memory/string_interner.h"
 
 #include <map>
@@ -82,6 +84,8 @@ class GlobalCallstackTrie {
     Node(InternedCodeLocation location, Node* parent)
         : parent_(parent), location_(std::move(location)) {}
 
+    std::vector<InternedCodeLocation> BuildCallstack() const;
+
    private:
     Node* GetOrCreateChild(const InternedCodeLocation& loc);
 
@@ -123,6 +127,7 @@ class HeapTracker {
                     uint64_t size,
                     uint64_t sequence_number);
   void RecordFree(uint64_t address, uint64_t sequence_number);
+  void Dump(int fd);
 
  private:
   static constexpr uint64_t kNoopFree = 0;
@@ -186,6 +191,49 @@ class HeapTracker {
   // The sequence number all mallocs and frees have been handled up to.
   uint64_t sequence_number_ = 0;
   GlobalCallstackTrie* const callsites_;
+};
+
+struct BookkeepingData {
+  // Ownership of callsites remains with caller and has to outlive this object.
+  explicit BookkeepingData(GlobalCallstackTrie* callsites)
+      : heap_tracker(callsites) {}
+
+  HeapTracker heap_tracker;
+
+  // This is different to a shared_ptr to HeapTracker, because we want to keep
+  // it around until the first dump after the last socket for the PID has
+  // disconnected.
+  uint64_t ref_count = 0;
+};
+
+// BookkeepingThread owns the BookkeepingData for all processes. The Run()
+// method receives messages on the input_queue and does the bookkeeping.
+class BookkeepingThread {
+ public:
+  BookkeepingThread(std::string file_name) : file_name_(file_name) {}
+
+  void Run(BoundedQueue<BookkeepingRecord>* input_queue);
+
+  // Inform the bookkeeping thread that a socket for this pid connected.
+  //
+  // This can be called from arbitrary threads.
+  void NotifyClientConnected(pid_t pid);
+
+  // Inform the bookkeeping thread that a socket for this pid disconnected.
+  // After the last client for a PID disconnects, the BookkeepingData is
+  // retained until the next dump, upon which it gets garbage collected.
+  //
+  // This can be called from arbitrary threads.
+  void NotifyClientDisconnected(pid_t pid);
+
+  void HandleBookkeepingRecord(BookkeepingRecord* rec);
+
+ private:
+  GlobalCallstackTrie callsites_;
+
+  std::map<pid_t, BookkeepingData> bookkeeping_data_;
+  std::mutex bookkeeping_mutex_;
+  std::string file_name_;
 };
 
 }  // namespace perfetto

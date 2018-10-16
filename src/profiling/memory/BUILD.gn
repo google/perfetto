@@ -40,6 +40,7 @@ source_set("daemon") {
   sources = [
     "bookkeeping.cc",
     "bookkeeping.h",
+    "queue_messages.h",
     "record_reader.cc",
     "record_reader.h",
     "socket_listener.cc",

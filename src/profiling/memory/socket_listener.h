@@ -19,6 +19,7 @@
 
 #include "perfetto/base/unix_socket.h"
 #include "src/profiling/memory/bookkeeping.h"
+#include "src/profiling/memory/queue_messages.h"
 #include "src/profiling/memory/record_reader.h"
 #include "src/profiling/memory/unwinding.h"
 #include "src/profiling/memory/wire_protocol.h"
@@ -32,10 +33,10 @@ class SocketListener : public base::UnixSocket::EventListener {
  public:
   SocketListener(ClientConfiguration client_config,
                  std::function<void(UnwindingRecord)> fn,
-                 GlobalCallstackTrie* callsites)
+                 BookkeepingThread* bookkeeping_thread)
       : client_config_(client_config),
         callback_function_(std::move(fn)),
-        callsites_(callsites) {}
+        bookkeeping_thread_(bookkeeping_thread) {}
   void OnDisconnect(base::UnixSocket* self) override;
   void OnNewIncomingConnection(
       base::UnixSocket* self,
@@ -69,7 +70,7 @@ class SocketListener : public base::UnixSocket::EventListener {
   std::map<base::UnixSocket*, Entry> sockets_;
   std::map<pid_t, std::weak_ptr<ProcessMetadata>> process_metadata_;
   std::function<void(UnwindingRecord)> callback_function_;
-  GlobalCallstackTrie* callsites_;
+  BookkeepingThread* const bookkeeping_thread_;
 };
 
 }  // namespace perfetto
