@@ -34,16 +34,6 @@ using namespace sqlite_utils;
 
 constexpr uint64_t kUint64Max = std::numeric_limits<uint64_t>::max();
 
-template <class T>
-inline int Compare(T first, T second, bool desc) {
-  if (first < second) {
-    return desc ? 1 : -1;
-  } else if (first > second) {
-    return desc ? -1 : 1;
-  }
-  return 0;
-}
-
 // Compares the slice at index |f| with the slice at index |s| on the
 // criteria in |order_by|.
 // Returns -1 if the first slice is before the second in the ordering, 1 if
@@ -56,13 +46,13 @@ PERFETTO_ALWAYS_INLINE int CompareSlicesOnColumn(
   const auto& sl = storage->slices();
   switch (ob.iColumn) {
     case SchedSliceTable::Column::kTimestamp:
-      return Compare(sl.start_ns()[f_idx], sl.start_ns()[s_idx], ob.desc);
+      return CompareValues(sl.start_ns(), f_idx, s_idx, ob.desc);
     case SchedSliceTable::Column::kDuration:
-      return Compare(sl.durations()[f_idx], sl.durations()[s_idx], ob.desc);
+      return CompareValues(sl.durations(), f_idx, s_idx, ob.desc);
     case SchedSliceTable::Column::kCpu:
-      return Compare(sl.cpus()[f_idx], sl.cpus()[s_idx], ob.desc);
+      return CompareValues(sl.cpus(), f_idx, s_idx, ob.desc);
     case SchedSliceTable::Column::kUtid:
-      return Compare(sl.utids()[f_idx], sl.utids()[s_idx], ob.desc);
+      return CompareValues(sl.utids(), f_idx, s_idx, ob.desc);
     default:
       PERFETTO_FATAL("Unexpected column %d", ob.iColumn);
   }
@@ -133,8 +123,6 @@ std::vector<bool> FilterNonTsColumns(const TraceStorage* storage,
                                      uint32_t min_idx,
                                      uint32_t max_idx) {
   const auto& slices = storage->slices();
-  ptrdiff_t min_idx_ptr = static_cast<ptrdiff_t>(min_idx);
-  ptrdiff_t max_idx_ptr = static_cast<ptrdiff_t>(max_idx);
 
   auto dist = static_cast<size_t>(max_idx - min_idx);
   std::vector<bool> filter(dist, true);
@@ -142,21 +130,15 @@ std::vector<bool> FilterNonTsColumns(const TraceStorage* storage,
     const auto& cs = qc.constraints()[i];
     auto* v = argv[i];
     switch (cs.iColumn) {
-      case SchedSliceTable::Column::kCpu: {
-        auto it = slices.cpus().begin();
-        FilterColumn(it + min_idx_ptr, it + max_idx_ptr, cs, v, &filter);
+      case SchedSliceTable::Column::kCpu:
+        FilterColumn(slices.cpus(), min_idx, cs, v, &filter);
         break;
-      }
-      case SchedSliceTable::Column::kDuration: {
-        auto it = slices.durations().begin();
-        FilterColumn(it + min_idx_ptr, it + max_idx_ptr, cs, v, &filter);
+      case SchedSliceTable::Column::kDuration:
+        FilterColumn(slices.durations(), min_idx, cs, v, &filter);
         break;
-      }
-      case SchedSliceTable::Column::kUtid: {
-        auto it = slices.utids().begin();
-        FilterColumn(it + min_idx_ptr, it + max_idx_ptr, cs, v, &filter);
+      case SchedSliceTable::Column::kUtid:
+        FilterColumn(slices.utids(), min_idx, cs, v, &filter);
         break;
-      }
     }
   }
   return filter;
@@ -219,8 +201,8 @@ std::unique_ptr<Table::Cursor> SchedSliceTable::CreateCursor(
     return std::unique_ptr<Table::Cursor>(
         new FilterCursor(storage_, min_idx, max_idx, std::move(filter), desc));
   }
-  return std::unique_ptr<Table::Cursor>(new SortedCursor(
-      storage_, min_idx, max_idx, qc.order_by(), std::move(filter)));
+  return std::unique_ptr<Table::Cursor>(
+      new SortedCursor(storage_, min_idx, qc.order_by(), std::move(filter)));
 }
 
 int SchedSliceTable::BestIndex(const QueryConstraints& qc,
@@ -342,27 +324,14 @@ SchedSliceTable::SortedCursor::SortedCursor(
 
 SchedSliceTable::SortedCursor::SortedCursor(
     const TraceStorage* storage,
-    uint32_t min_idx,
-    uint32_t max_idx,
+    uint32_t offset,
     const std::vector<QueryConstraints::OrderBy>& ob,
     const std::vector<bool>& filter)
     : BaseCursor(storage) {
-  auto diff = static_cast<size_t>(max_idx - min_idx);
-  PERFETTO_CHECK(diff == filter.size());
-
-  auto set_bits = std::count(filter.begin(), filter.end(), true);
-  sorted_rows_.resize(static_cast<size_t>(set_bits));
-
-  auto it = std::find(filter.begin(), filter.end(), true);
-  for (size_t i = 0; it != filter.end(); i++) {
-    auto index = static_cast<uint32_t>(std::distance(filter.begin(), it));
-    sorted_rows_[i] = min_idx + index;
-    it = std::find(it + 1, filter.end(), true);
-  }
-  std::sort(sorted_rows_.begin(), sorted_rows_.end(),
-            [this, &ob](uint32_t f, uint32_t s) {
-              return CompareSlices(storage_, f, s, ob) < 0;
-            });
+  sorted_rows_ = CreateSortedIndexFromFilter(
+      offset, filter, [this, &ob](uint32_t f, uint32_t s) {
+        return CompareSlices(storage_, f, s, ob) < 0;
+      });
 }
 
 int SchedSliceTable::SortedCursor::Next() {

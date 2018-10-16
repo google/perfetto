@@ -51,6 +51,8 @@ std::string TypeToString(Table::ColumnType type) {
       return "UNSIGNED BIG INT";
     case Table::ColumnType::kInt:
       return "INT";
+    case Table::ColumnType::kDouble:
+      return "DOUBLE";
   }
   PERFETTO_CHECK(false);
 }
