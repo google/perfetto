@@ -22,6 +22,7 @@
 #include "perfetto/base/scoped_file.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/bounded_queue.h"
+#include "src/profiling/memory/queue_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -39,20 +40,13 @@ class FileDescriptorMaps : public unwindstack::Maps {
 };
 
 struct ProcessMetadata {
-  ProcessMetadata(pid_t p,
-                  base::ScopedFile maps_fd,
-                  base::ScopedFile mem,
-                  GlobalCallstackTrie* callsites)
-      : pid(p),
-        maps(std::move(maps_fd)),
-        mem_fd(std::move(mem)),
-        heap_dump(callsites) {
+  ProcessMetadata(pid_t p, base::ScopedFile maps_fd, base::ScopedFile mem)
+      : pid(p), maps(std::move(maps_fd)), mem_fd(std::move(mem)) {
     PERFETTO_CHECK(maps.Parse());
   }
   pid_t pid;
   FileDescriptorMaps maps;
   base::ScopedFile mem_fd;
-  HeapTracker heap_dump;
 };
 
 // Overlays size bytes pointed to by stack for addresses in [sp, sp + size).
@@ -72,39 +66,14 @@ class StackMemory : public unwindstack::Memory {
 
 size_t RegSize(unwindstack::ArchEnum arch);
 
-struct UnwindingRecord {
-  pid_t pid;
-  size_t size;
-  std::unique_ptr<uint8_t[]> data;
-  std::weak_ptr<ProcessMetadata> metadata;
-};
 
-struct FreeRecord {
-  std::unique_ptr<uint8_t[]> free_data;
-  FreeMetadata* metadata;
-};
-
-struct AllocRecord {
-  AllocMetadata alloc_metadata;
-  std::vector<unwindstack::FrameData> frames;
-};
-
-struct BookkeepingRecord {
-  // TODO(fmayer): Use a union.
-  std::weak_ptr<ProcessMetadata> metadata;
-  AllocRecord alloc_record;
-  FreeRecord free_record;
-};
 
 bool DoUnwind(WireMessage*, ProcessMetadata* metadata, AllocRecord* out);
 
 bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out);
-void HandleBookkeepingRecord(BookkeepingRecord* rec);
 
 void UnwindingMainLoop(BoundedQueue<UnwindingRecord>* input_queue,
                        BoundedQueue<BookkeepingRecord>* output_queue);
-
-void BookkeepingMainLoop(BoundedQueue<BookkeepingRecord>* input_queue);
 
 }  // namespace perfetto
 
