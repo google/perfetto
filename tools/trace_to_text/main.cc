@@ -196,7 +196,7 @@ int TraceToSystrace(std::istream* input,
   std::vector<const char*> meminfo_strs = BuildMeminfoCounterNames();
   std::vector<const char*> vmstat_strs = BuildVmstatCounterNames();
 
-  std::vector<const protos::TracePacket> packets_to_process;
+  std::vector<protos::TracePacket> packets_to_process;
 
   ForEachPacketInTrace(
       input, [&thread_map, &packets_to_process, &proc_dump,
