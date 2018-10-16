@@ -68,55 +68,97 @@ inline std::string OpToString(int op) {
   }
 }
 
+template <class D>
+int CompareValues(const D& deque, size_t a, size_t b, bool desc) {
+  const auto& first = deque[a];
+  const auto& second = deque[b];
+  if (first < second) {
+    return desc ? 1 : -1;
+  } else if (first > second) {
+    return desc ? -1 : 1;
+  }
+  return 0;
+}
+
 template <typename F>
-bool Compare(uint32_t actual, sqlite3_value* value) {
+bool CompareToSqliteValue(uint32_t actual, sqlite3_value* value) {
   PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
   return F()(actual, static_cast<uint32_t>(sqlite3_value_int64(value)));
 }
 
 template <typename F>
-bool Compare(uint64_t actual, sqlite3_value* value) {
-  PERFETTO_CHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
+bool CompareToSqliteValue(uint64_t actual, sqlite3_value* value) {
+  PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
   return F()(actual, static_cast<uint64_t>(sqlite3_value_int64(value)));
 }
 
-template <class RandomAccessIterator>
-void FilterColumn(RandomAccessIterator begin,
-                  RandomAccessIterator end,
+template <typename F>
+bool CompareToSqliteValue(int64_t actual, sqlite3_value* value) {
+  PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
+  return F()(actual, static_cast<int64_t>(sqlite3_value_int64(value)));
+}
+
+template <typename F>
+bool CompareToSqliteValue(double actual, sqlite3_value* value) {
+  auto type = sqlite3_value_type(value);
+  PERFETTO_DCHECK(type == SQLITE_FLOAT || type == SQLITE_INTEGER);
+  return F()(actual, sqlite3_value_double(value));
+}
+
+template <class D>
+void FilterColumn(const D& deque,
+                  size_t offset,
                   const QueryConstraints::Constraint& constraint,
                   sqlite3_value* argv,
-                  std::vector<bool>* row_filter) {
-  using T = typename RandomAccessIterator::value_type;
-  PERFETTO_DCHECK(static_cast<size_t>(std::distance(begin, end)) ==
-                  row_filter->size());
+                  std::vector<bool>* filter) {
+  using T = typename D::value_type;
 
-  auto it = std::find(row_filter->begin(), row_filter->end(), true);
-  while (it != row_filter->end()) {
-    auto index = std::distance(row_filter->begin(), it);
+  auto it = std::find(filter->begin(), filter->end(), true);
+  while (it != filter->end()) {
+    auto filter_idx = static_cast<size_t>(std::distance(filter->begin(), it));
+    T actual = deque[offset + filter_idx];
     switch (constraint.op) {
       case SQLITE_INDEX_CONSTRAINT_EQ:
-        *it = Compare<std::equal_to<T>>(begin[index], argv);
+        *it = CompareToSqliteValue<std::equal_to<T>>(actual, argv);
         break;
       case SQLITE_INDEX_CONSTRAINT_GE:
-        *it = Compare<std::greater_equal<T>>(begin[index], argv);
+        *it = CompareToSqliteValue<std::greater_equal<T>>(actual, argv);
         break;
       case SQLITE_INDEX_CONSTRAINT_GT:
-        *it = Compare<std::greater<T>>(begin[index], argv);
+        *it = CompareToSqliteValue<std::greater<T>>(actual, argv);
         break;
       case SQLITE_INDEX_CONSTRAINT_LE:
-        *it = Compare<std::less_equal<T>>(begin[index], argv);
+        *it = CompareToSqliteValue<std::less_equal<T>>(actual, argv);
         break;
       case SQLITE_INDEX_CONSTRAINT_LT:
-        *it = Compare<std::less<T>>(begin[index], argv);
+        *it = CompareToSqliteValue<std::less<T>>(actual, argv);
         break;
       case SQLITE_INDEX_CONSTRAINT_NE:
-        *it = Compare<std::not_equal_to<T>>(begin[index], argv);
+        *it = CompareToSqliteValue<std::not_equal_to<T>>(actual, argv);
         break;
       default:
         PERFETTO_CHECK(false);
     }
-    it = std::find(it + 1, row_filter->end(), true);
+    it = std::find(it + 1, filter->end(), true);
   }
+}
+
+template <class Comparator>
+std::vector<uint32_t> CreateSortedIndexFromFilter(
+    uint32_t offset,
+    const std::vector<bool>& filter,
+    Comparator comparator) {
+  auto set_bits = std::count(filter.begin(), filter.end(), true);
+
+  std::vector<uint32_t> sorted_rows(static_cast<size_t>(set_bits));
+  auto it = std::find(filter.begin(), filter.end(), true);
+  for (size_t i = 0; it != filter.end(); i++) {
+    auto filter_idx = static_cast<uint32_t>(std::distance(filter.begin(), it));
+    sorted_rows[i] = offset + filter_idx;
+    it = std::find(it + 1, filter.end(), true);
+  }
+  std::sort(sorted_rows.begin(), sorted_rows.end(), comparator);
+  return sorted_rows;
 }
 
 }  // namespace sqlite_utils
