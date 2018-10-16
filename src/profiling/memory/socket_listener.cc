@@ -20,6 +20,7 @@
 namespace perfetto {
 
 void SocketListener::OnDisconnect(base::UnixSocket* self) {
+  bookkeeping_thread_->NotifyClientDisconnected(self->peer_pid());
   sockets_.erase(self);
 }
 
@@ -28,6 +29,7 @@ void SocketListener::OnNewIncomingConnection(
     std::unique_ptr<base::UnixSocket> new_connection) {
   base::UnixSocket* new_connection_raw = new_connection.get();
   sockets_.emplace(new_connection_raw, std::move(new_connection));
+  bookkeeping_thread_->NotifyClientConnected(new_connection_raw->peer_pid());
 }
 
 void SocketListener::OnDataAvailable(base::UnixSocket* self) {
@@ -84,7 +86,7 @@ void SocketListener::InitProcess(Entry* entry,
   if (it == process_metadata_.end() || it->second.expired()) {
     // We have not seen the PID yet or the PID is being recycled.
     entry->process_metadata = std::make_shared<ProcessMetadata>(
-        peer_pid, std::move(maps_fd), std::move(mem_fd), callsites_);
+        peer_pid, std::move(maps_fd), std::move(mem_fd));
     process_metadata_[peer_pid] = entry->process_metadata;
   } else {
     // If the process already has metadata, this is an additional socket for

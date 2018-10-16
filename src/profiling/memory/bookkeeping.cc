@@ -16,7 +16,14 @@
 
 #include "src/profiling/memory/bookkeeping.h"
 
+#include <fcntl.h>
+#include <inttypes.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/scoped_file.h"
 
 namespace perfetto {
 
@@ -26,6 +33,17 @@ GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
   if (!child)
     child = children_.Emplace(loc, this);
   return child;
+}
+
+std::vector<InternedCodeLocation> GlobalCallstackTrie::Node::BuildCallstack()
+    const {
+  const Node* node = this;
+  std::vector<InternedCodeLocation> res;
+  while (node) {
+    res.emplace_back(node->location_);
+    node = node->parent_;
+  }
+  return res;
 }
 
 void HeapTracker::RecordMalloc(const std::vector<CodeLocation>& callstack,
@@ -85,6 +103,24 @@ void HeapTracker::CommitFree(uint64_t sequence_number, uint64_t address) {
   allocations_.erase(leaf_it);
 }
 
+void HeapTracker::Dump(int fd) {
+  // TODO(fmayer): This should dump protocol buffers into the perfetto service.
+  // For now, output a text file compatible with flamegraph.pl.
+  for (const auto& p : allocations_) {
+    std::string data;
+    const Allocation& alloc = p.second;
+    const std::vector<InternedCodeLocation> callstack =
+        alloc.node->BuildCallstack();
+    for (auto it = callstack.begin(); it != callstack.end(); ++it) {
+      if (it != callstack.begin())
+        data += ";";
+      data += it->function_name.str();
+    }
+    data += " " + std::to_string(alloc.alloc_size) + "\n";
+    base::WriteAll(fd, data.c_str(), data.size());
+  }
+}
+
 uint64_t GlobalCallstackTrie::GetCumSizeForTesting(
     const std::vector<CodeLocation>& callstack) {
   Node* node = &root_;
@@ -120,6 +156,91 @@ void GlobalCallstackTrie::DecrementNode(Node* node, uint64_t size) {
     delete_prev = node->cum_size_ == 0;
     prev = node;
     node = node->parent_;
+  }
+}
+
+void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
+  BookkeepingData* bookkeeping_data = nullptr;
+  if (rec->pid != 0) {
+    std::lock_guard<std::mutex> l(bookkeeping_mutex_);
+    auto it = bookkeeping_data_.find(rec->pid);
+    if (it == bookkeeping_data_.end()) {
+      PERFETTO_LOG("Invalid pid: %d", rec->pid);
+      PERFETTO_DCHECK(false);
+      return;
+    }
+    bookkeeping_data = &it->second;
+  }
+
+  if (rec->record_type == BookkeepingRecord::Type::Dump) {
+    PERFETTO_LOG("Dumping heaps");
+    auto it = bookkeeping_data_.begin();
+    while (it != bookkeeping_data_.end()) {
+      std::string dump_file_name = file_name_ + "." + std::to_string(it->first);
+      PERFETTO_LOG("Dumping %d to %s", it->first, dump_file_name.c_str());
+      base::ScopedFile fd =
+          base::OpenFile(dump_file_name, O_WRONLY | O_CREAT, 0755);
+      if (fd)
+        it->second.heap_tracker.Dump(fd.get());
+      else
+        PERFETTO_PLOG("Failed to open %s", dump_file_name.c_str());
+      // Garbage collect for processes that already went away.
+      if (it->second.ref_count == 0) {
+        std::lock_guard<std::mutex> l(bookkeeping_mutex_);
+        it = bookkeeping_data_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  } else if (rec->record_type == BookkeepingRecord::Type::Free) {
+    FreeRecord& free_rec = rec->free_record;
+    FreePageEntry* entries = free_rec.metadata->entries;
+    uint64_t num_entries = free_rec.metadata->num_entries;
+    if (num_entries > kFreePageSize)
+      return;
+    for (size_t i = 0; i < num_entries; ++i) {
+      const FreePageEntry& entry = entries[i];
+      bookkeeping_data->heap_tracker.RecordFree(entry.addr,
+                                                entry.sequence_number);
+    }
+  } else if (rec->record_type == BookkeepingRecord::Type::Malloc) {
+    AllocRecord& alloc_rec = rec->alloc_record;
+    std::vector<CodeLocation> code_locations;
+    for (unwindstack::FrameData& frame : alloc_rec.frames)
+      code_locations.emplace_back(frame.map_name, frame.function_name);
+    bookkeeping_data->heap_tracker.RecordMalloc(
+        code_locations, alloc_rec.alloc_metadata.alloc_address,
+        alloc_rec.alloc_metadata.alloc_size,
+        alloc_rec.alloc_metadata.sequence_number);
+  } else {
+    PERFETTO_DCHECK(false);
+  }
+}
+
+void BookkeepingThread::NotifyClientConnected(pid_t pid) {
+  std::lock_guard<std::mutex> l(bookkeeping_mutex_);
+  // emplace gives the existing BookkeepingData for pid if it already exists
+  // or creates a new one.
+  auto it_and_inserted = bookkeeping_data_.emplace(pid, &callsites_);
+  BookkeepingData& bk = it_and_inserted.first->second;
+  bk.ref_count++;
+}
+
+void BookkeepingThread::NotifyClientDisconnected(pid_t pid) {
+  std::lock_guard<std::mutex> l(bookkeeping_mutex_);
+  auto it = bookkeeping_data_.find(pid);
+  if (it == bookkeeping_data_.end()) {
+    PERFETTO_DCHECK(false);
+    return;
+  }
+  it->second.ref_count--;
+}
+
+__attribute__((noreturn)) void BookkeepingThread::Run(
+    BoundedQueue<BookkeepingRecord>* input_queue) {
+  for (;;) {
+    BookkeepingRecord rec = input_queue->Get();
+    HandleBookkeepingRecord(&rec);
   }
 }
 
