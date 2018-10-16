@@ -30,6 +30,7 @@ source_set("lib") {
     "ftrace_inode_handler.cc",
     "ftrace_inode_handler.h",
     "main.cc",
+    "process_formatter.h",
   ]
 }
 
