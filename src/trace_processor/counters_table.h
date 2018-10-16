@@ -51,7 +51,7 @@ class CountersTable : public Table {
  private:
   class Cursor : public Table::Cursor {
    public:
-    Cursor(const TraceStorage*);
+    Cursor(const TraceStorage*, const QueryConstraints&, sqlite3_value**);
 
     // Implementation of Table::Cursor.
     int Next() override;
@@ -59,8 +59,11 @@ class CountersTable : public Table {
     int Column(sqlite3_context*, int N) override;
 
    private:
-    size_t num_rows_;
-    size_t row_ = 0;
+    // Vector of row ids sorted by some order by constraints.
+    std::vector<uint32_t> sorted_rows_;
+
+    // An offset into |sorted_row_ids_| indicating the next row to return.
+    uint32_t next_row_idx_ = 0;
 
     const TraceStorage* const storage_;
   };
