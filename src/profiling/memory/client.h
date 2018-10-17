@@ -71,6 +71,8 @@ class BorrowedSocket {
 
   void Close() { fd_.reset(); }
 
+  operator bool() const { return !!fd_; }
+
  private:
   base::ScopedFile fd_;
   SocketPool* socket_pool_ = nullptr;
@@ -136,6 +138,7 @@ class Client {
  private:
   const char* GetStackBase();
 
+  bool inited_ = false;
   ClientConfiguration client_config_;
   PThreadKey pthread_key_;
   SocketPool socket_pool_;
