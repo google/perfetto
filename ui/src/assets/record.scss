@@ -13,15 +13,47 @@
 // limitations under the License.
 
 .record-page {
+  &.three {
+    @media (min-width: 2000px) {
+      grid-template: "config command pbtxt" auto / auto auto auto;
+    }
+    grid-template: "config command" min-content "config pbtxt" auto / auto auto;
+  }
+
+  &.two {
+    grid-template: "config command" auto / auto auto;
+  }
+
+  .config {
+    grid-area: config;
+  }
+
+  .command {
+    grid-area: command;
+  }
+
+  .pbtxt {
+    grid-area: pbtxt;
+  }
+
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: auto 1fr;
+  justify-content: space-evenly;
   grid-column-gap: 2rem;
   padding: 2rem;
   overflow-y: scroll;
 
   * {
     overflow: initial;
+  }
+
+  i {
+    display: block;
+    padding: 0.5rem 0;
+    font-size: smaller;
+  }
+
+  .heading {
+    padding-top: 0.75rem;
   }
 
   .control-group {
@@ -71,7 +103,6 @@
     }
   }
 
-
   label * {
     overflow: visible;
   }
@@ -81,7 +112,7 @@
   }
 
   label {
-    margin: 0.75rem 0;
+    margin-bottom: 0.75rem;
     overflow: visible;
   }
 
@@ -111,14 +142,27 @@
         padding: 0;
       }
     }
+    & * {
+      @include transition(0.3s);
+    }
+    &.disabled * {
+      opacity: 0;
+    }
   }
 
   label.multiselect {
     display: grid;
-    grid-template-areas: 'label input' 'selected selected';
-    grid-template-columns: 1fr auto;
+    grid-template-areas: 'label quick input' 'selected selected selected';
+    grid-template-columns: 1fr auto auto;
     grid-template-rows: auto auto;
     align-items: center;
+    button {
+      font-size: smaller;
+      margin-right: 0.5rem;
+      padding: 3px;
+      border-radius: 4px;
+      background-color: #e3f2fd;
+    }
     input {
       text-align: right;
       font-size: 100%;
@@ -132,8 +176,17 @@
         margin-top: 0.5rem;
         padding: 3px;
         border-radius: 4px;
-        background-color: #e3f2fd;
+        background-color: #fde3e3;
       }
+    }
+    & * {
+      @include transition(0.3s);
+    }
+    &.disabled * {
+      opacity: 0;
+    }
+    &.disabled .multiselect-selected button {
+      display: none;
     }
   }
 
@@ -188,7 +241,7 @@
     }
   }
 
-  label.disabled {
+  .disabled {
     color: grey;
     filter: grayscale(1);
   }
