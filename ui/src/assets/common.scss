@@ -264,6 +264,7 @@ button.close {
   // Override top level overflow: hidden so height of this flex item can be
   // its content height.
   overflow: visible;
+  border-bottom: 1px solid #262f3c;
 }
 
 // In the scrolling case, since the canvas is overdrawn and continuously
