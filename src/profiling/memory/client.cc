@@ -44,6 +44,8 @@
 namespace perfetto {
 namespace {
 
+constexpr struct timeval kSendTimeout = {1 /* s */, 0 /* us */};
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 // glibc does not define a wrapper around gettid, bionic does.
 pid_t gettid() {
@@ -64,6 +66,12 @@ std::vector<base::ScopedFile> ConnectPool(const std::string& sock_name,
     auto sock = base::CreateSocket();
     if (connect(*sock, reinterpret_cast<sockaddr*>(&addr), addr_size) == -1) {
       PERFETTO_PLOG("Failed to connect to %s", sock_name.c_str());
+      continue;
+    }
+    if (setsockopt(*sock, SOL_SOCKET, SO_SNDTIMEO,
+                   reinterpret_cast<const char*>(&kSendTimeout),
+                   sizeof(kSendTimeout)) != 0) {
+      PERFETTO_PLOG("Failed to set timeout for %s", sock_name.c_str());
       continue;
     }
     res.emplace_back(std::move(sock));
