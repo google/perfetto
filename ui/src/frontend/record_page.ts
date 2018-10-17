@@ -156,7 +156,6 @@ const FTRACE_EVENTS = [
   'block_rq_abort',
   'block_rq_complete',
   'block_rq_insert',
-  '  removed',
   'block_rq_remap',
   'block_rq_requeue',
   'block_sleeprq',
@@ -517,7 +516,6 @@ function isTruthy(x: undefined|null|number|'') {
 
 export const RecordPage = createPage({
   view() {
-    console.log(MeminfoCounters);
     const state = globals.state.recordConfig;
     const data = globals.trackDataStore.get('config') as {
       commandline: string,
