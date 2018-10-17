@@ -290,7 +290,6 @@ copy("index_dist") {
 
 copy("assets_dist") {
   sources = [
-              "src/assets/flamegraph.svg",
               "src/assets/logo-3d.png",
               "src/assets/logo.png",
             ] + [ scss_root ] + scss_srcs
