@@ -179,7 +179,7 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
       std::string dump_file_name = file_name_ + "." + std::to_string(it->first);
       PERFETTO_LOG("Dumping %d to %s", it->first, dump_file_name.c_str());
       base::ScopedFile fd =
-          base::OpenFile(dump_file_name, O_WRONLY | O_CREAT, 0755);
+          base::OpenFile(dump_file_name, O_WRONLY | O_CREAT, 0644);
       if (fd)
         it->second.heap_tracker.Dump(fd.get());
       else

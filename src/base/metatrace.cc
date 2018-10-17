@@ -35,7 +35,7 @@ int MaybeOpenTraceFile() {
   static const char* tracing_path = getenv("PERFETTO_METATRACE_FILE");
   if (tracing_path == nullptr)
     return -1;
-  static int fd = open(tracing_path, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  static int fd = open(tracing_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
   return fd;
 }
 }  // namespace
