@@ -5,6 +5,7 @@ benchmark/
 bionic/
 clang/
 clang_format/
+d8/
 emulator/
 googletest/
 jsoncpp/
