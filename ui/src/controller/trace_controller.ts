@@ -181,7 +181,7 @@ export class TraceController extends Controller<States> {
     {
       // When we reload from a permalink don't create extra tracks:
       const {pinnedTracks, scrollingTracks} = globals.state;
-      if (pinnedTracks.length || scrollingTracks.length) {
+      if (!pinnedTracks.length && !scrollingTracks.length) {
         await this.listTracks();
       }
     }
