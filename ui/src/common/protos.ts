@@ -16,11 +16,16 @@ import * as protos from '../gen/protos';
 
 // Aliases protos to avoid the super nested namespaces.
 // See https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
-import TraceConfig = protos.perfetto.protos.TraceConfig;
-import TraceProcessor = protos.perfetto.protos.TraceProcessor;
 import IRawQueryArgs = protos.perfetto.protos.IRawQueryArgs;
+import ISysStatsConfig = protos.perfetto.protos.ISysStatsConfig;
+import ITraceConfig = protos.perfetto.protos.ITraceConfig;
+import MeminfoCounters = protos.perfetto.protos.MeminfoCounters;
 import RawQueryArgs = protos.perfetto.protos.RawQueryArgs;
 import RawQueryResult = protos.perfetto.protos.RawQueryResult;
+import StatCounters = protos.perfetto.protos.SysStatsConfig.StatCounters;
+import TraceConfig = protos.perfetto.protos.TraceConfig;
+import TraceProcessor = protos.perfetto.protos.TraceProcessor;
+import VmstatCounters = protos.perfetto.protos.VmstatCounters;
 
 // TODO(hjd): Maybe these should go in their own file.
 export interface Row { [key: string]: number|string; }
@@ -58,8 +63,13 @@ export function* rawQueryResultIter(result: RawQueryResult) {
 
 export {
   TraceConfig,
+  ITraceConfig,
   TraceProcessor,
   IRawQueryArgs,
+  ISysStatsConfig,
   RawQueryArgs,
   RawQueryResult,
+  MeminfoCounters,
+  VmstatCounters,
+  StatCounters,
 };

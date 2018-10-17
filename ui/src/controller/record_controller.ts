@@ -13,7 +13,15 @@
 // limitations under the License.
 
 import {TraceConfig} from '../common/protos';
+import {
+  ISysStatsConfig,
+  ITraceConfig,
+  MeminfoCounters,
+  StatCounters,
+  VmstatCounters
+} from '../common/protos';
 import {RecordConfig} from '../common/state';
+
 import {Controller} from './controller';
 import {App} from './globals';
 
@@ -27,6 +35,10 @@ export function encodeConfig(config: RecordConfig): Uint8Array {
 
   const dataSources = [];
   if (config.ftrace) {
+    const drainPeriodMs =
+        config.ftraceDrainPeriodMs ? config.ftraceDrainPeriodMs : null;
+    const bufferSizeKb =
+        config.ftraceBufferSizeKb ? config.ftraceBufferSizeKb : null;
     dataSources.push({
       config: {
         name: 'linux.ftrace',
@@ -35,6 +47,8 @@ export function encodeConfig(config: RecordConfig): Uint8Array {
           ftraceEvents: config.ftraceEvents,
           atraceApps: config.atraceApps,
           atraceCategories: config.atraceCategories,
+          drainPeriodMs,
+          bufferSizeKb,
         },
       },
     });
@@ -52,24 +66,71 @@ export function encodeConfig(config: RecordConfig): Uint8Array {
     });
   }
 
-  const buffer = TraceConfig
-                     .encode({
-                       buffers: [
-                         {
-                           sizeKb,
-                         },
-                       ],
-                       dataSources,
-                       durationMs,
-                     })
-                     .finish();
+  if (config.sysStats) {
+    const sysStatsConfig: ISysStatsConfig = {};
+
+    if (config.meminfoPeriodMs) {
+      sysStatsConfig.meminfoPeriodMs = config.meminfoPeriodMs;
+      sysStatsConfig.meminfoCounters = config.meminfoCounters.map(name => {
+        // tslint:disable-next-line no-any
+        return MeminfoCounters[name as any as number] as any as number;
+      });
+    }
+    if (config.vmstatPeriodMs) {
+      sysStatsConfig.vmstatPeriodMs = config.vmstatPeriodMs;
+      sysStatsConfig.vmstatCounters = config.vmstatCounters.map(name => {
+        // tslint:disable-next-line no-any
+        return VmstatCounters[name as any as number] as any as number;
+      });
+    }
+    if (config.statPeriodMs) {
+      sysStatsConfig.statPeriodMs = config.statPeriodMs;
+      sysStatsConfig.statCounters = config.statCounters.map(name => {
+        // tslint:disable-next-line no-any
+        return StatCounters[name as any as number] as any as number;
+      });
+    }
+
+    dataSources.push({
+      config: {
+        name: 'linux.sys_stats',
+        sysStatsConfig,
+      },
+    });
+  }
+
+  const proto: ITraceConfig = {
+    durationMs,
+    buffers: [
+      {
+        sizeKb,
+      },
+    ],
+    dataSources,
+  };
+
+  if (config.writeIntoFile) {
+    proto.writeIntoFile = true;
+    if (config.fileWritePeriodMs) {
+      proto.fileWritePeriodMs = config.fileWritePeriodMs;
+    }
+  }
+
+  const buffer = TraceConfig.encode(proto).finish();
   return buffer;
 }
 
 export function toPbtxt(configBuffer: Uint8Array): string {
-  const json = TraceConfig.decode(configBuffer).toJSON();
+  const msg = TraceConfig.decode(configBuffer);
+  const json = msg.toJSON();
   function snakeCase(s: string): string {
     return s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
+  }
+  // With the ahead of time compiled protos we can't seem to tell which
+  // fields are enums.
+  function looksLikeEnum(value: string): boolean {
+    return value.startsWith('MEMINFO_') || value.startsWith('VMSTAT_') ||
+        value.startsWith('STAT_');
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {
     for (const [key, value] of Object.entries(msg)) {
@@ -78,7 +139,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
       for (const entry of (isRepeated ? value as Array<{}>: [value])) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
         if (typeof entry === 'string') {
-          yield`"${entry}"`;
+          yield looksLikeEnum(entry) ? entry : `"${entry}"`;
         } else if (typeof entry === 'number') {
           yield entry.toString();
         } else if (typeof entry === 'boolean') {
