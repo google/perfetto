@@ -111,7 +111,9 @@ class Omnibox implements m.ClassComponent {
           () => globals.rafScheduler.scheduleFullRedraw(), msgTTL * 1000);
       return m(
           `.omnibox.message-mode`,
-          m(`input[placeholder=${globals.state.status.msg}][readonly]`));
+          m(`input[placeholder=${globals.state.status.msg}][readonly]`, {
+            value: '',
+          }));
     }
 
     // TODO(primiano): handle query results here.
