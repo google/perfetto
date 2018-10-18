@@ -61,7 +61,7 @@ bool DeferredBase::IsBound() const {
 
 void DeferredBase::Resolve(AsyncResult<ProtoMessage> async_result) {
   if (!callback_) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("No callback set.");
     return;
   }
   bool has_more = async_result.has_more();

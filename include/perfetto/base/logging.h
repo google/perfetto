@@ -129,11 +129,18 @@ constexpr const char* kLogFmt[] = {"\x1b[2m", "\x1b[39m", "\x1b[32m\x1b[1m",
     }                                                 \
   } while (0)
 
+#define PERFETTO_DFATAL(fmt, ...)      \
+  do {                                 \
+    PERFETTO_PLOG(fmt, ##__VA_ARGS__); \
+    PERFETTO_IMMEDIATE_CRASH();        \
+  } while (0)
+
 #else
 
 #define PERFETTO_DLOG(...) ::perfetto::base::ignore_result(__VA_ARGS__)
 #define PERFETTO_DPLOG(...) ::perfetto::base::ignore_result(__VA_ARGS__)
 #define PERFETTO_DCHECK(x) ::perfetto::base::ignore_result(x)
+#define PERFETTO_DFATAL(...) ::perfetto::base::ignore_result(__VA_ARGS__)
 
 #endif  // PERFETTO_DCHECK_IS_ON()
 

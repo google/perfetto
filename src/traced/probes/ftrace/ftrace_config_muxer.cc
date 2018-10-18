@@ -281,7 +281,7 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
 
 bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
   if (!id || configs_.count(id) == 0) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Config not found");
     return false;
   }
 

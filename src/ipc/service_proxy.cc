@@ -50,7 +50,7 @@ void ServiceProxy::BeginInvoke(const std::string& method_name,
                                int fd) {
   // |reply| will auto-resolve if it gets out of scope early.
   if (!connected()) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Not connected.");
     return;
   }
   if (!client_)
@@ -86,7 +86,7 @@ void ServiceProxy::EndInvoke(RequestID request_id,
     // Either we are getting a reply for a method we never invoked, or we are
     // getting a reply to a method marked drop_reply (that has been invoked
     // without binding any callback in the Defererd response object).
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Unexpected reply received.");
     return;
   }
   DeferredBase& reply_callback = callback_it->second;
