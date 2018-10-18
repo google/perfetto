@@ -70,9 +70,11 @@ const char kProcessDumpHeader[] =
 
 const char kThreadHeader[] = "USER           PID   TID CMD \\n";
 
-const char kFtraceHeader[] =
+const char kSystemTraceEvents[] =
     ""
-    "  \"systemTraceEvents\": \""
+    "  \"systemTraceEvents\": \"";
+
+const char kFtraceHeader[] =
     "# tracer: nop\\n"
     "#\\n"
     "# entries-in-buffer/entries-written: 30624/30624   #P:4\\n"
@@ -272,6 +274,10 @@ int TraceToSystrace(std::istream* input,
       *output << thread << "\\n";
     }
     *output << "\",";
+    *output << kSystemTraceEvents;
+    *output << kFtraceHeader;
+  } else {
+    *output << "TRACE:\n";
     *output << kFtraceHeader;
   }
 
