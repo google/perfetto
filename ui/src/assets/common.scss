@@ -385,3 +385,56 @@ span.code {
   }
 }
 
+.track-group-panel {
+  --collapsed-background: hsla(190, 49%, 97%, 1);
+  --collapsed-transparent: hsla(190, 49%, 97%, 0);
+  --expanded-background: hsl(215, 22%, 19%);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 1fr;
+  border-top: 1px solid #c7d0db;
+  transition: background-color .4s, color .4s;
+  &[collapsed=true] {
+    height: 40px;
+    background-color: var(--collapsed-background-transparent);
+    .shell {
+      border-right: 1px solid #c7d0db;
+      background-color: var(--collapsed-background);
+    }
+  }
+  &[collapsed=false] {
+    height: 25px;
+    background-color: var(--expanded-background);
+    color: white;
+    font-weight: bold;
+    .shell {
+      background-color: var(--expanded-background);
+      h1 {
+        font-size: 15px;
+      }
+    }
+  }
+  .shell {
+    padding: 0 20px;
+    display: grid;
+    grid-template-areas: "title fold-button";
+    grid-template-columns: 1fr 24px;
+    align-items: center;
+    line-height: 1;
+    width: 300px;
+    transition: background-color .4s;
+    h1 {
+      grid-area: title;
+      font-size: 1em;
+      text-overflow: ellipsis;
+      font-family: 'Google Sans';
+    }
+    .fold-button {
+      grid-area: fold-button;
+      cursor: pointer;
+      &:hover {
+        color: hsl(45, 100%, 48%);
+      }
+    }
+  }
+}
