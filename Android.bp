@@ -45,6 +45,9 @@ cc_binary {
     "libprocinfo",
     "libunwindstack",
   ],
+  init_rc: [
+    "heapprofd.rc",
+  ],
   defaults: [
     "perfetto_defaults",
   ],

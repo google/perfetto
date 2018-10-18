@@ -52,6 +52,7 @@ default_targets = [
 # blueprint target.
 target_initrc = {
     '//:traced': 'perfetto.rc',
+    '//:heapprofd': 'heapprofd.rc',
 }
 
 target_host_supported = [
