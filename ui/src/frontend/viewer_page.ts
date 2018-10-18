@@ -131,6 +131,7 @@ class TraceViewer implements m.ClassComponent {
           tStart = tEnd - origDelta;
         }
         frontendLocalState.updateVisibleTime(new TimeSpan(tStart, tEnd));
+        globals.rafScheduler.scheduleRedraw();
       },
       onZoomed: (_: number, zoomRatio: number) => {
         const vizTime = frontendLocalState.visibleWindowTime;
