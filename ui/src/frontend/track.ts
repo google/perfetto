@@ -34,9 +34,6 @@ export interface TrackCreator {
  * The abstract class that needs to be implemented by all tracks.
  */
 export abstract class Track<Config = {}, Data = {}> {
-  /**
-   * Receive data published by the TrackController of this track.
-   */
   constructor(protected trackState: TrackState) {}
   abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
 
@@ -44,7 +41,7 @@ export abstract class Track<Config = {}, Data = {}> {
     return this.trackState.config as Config;
   }
 
-  data(): Data {
+  data(): Data|undefined {
     return globals.trackDataStore.get(this.trackState.id) as Data;
   }
 
