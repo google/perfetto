@@ -11,10 +11,8 @@ To start profiling the process `${PID}`, run the following sequence of commands.
 ```
 adb root
 adb shell setenforce 0
-
-adb shell rm /dev/socket/heapprofd
-adb shell 'heapprofd -r 128000 /dev/socket/heapprofd' &
-adb shell kill -36 ${PID}
+adb shell 'heapprofd -s -r 128000' & # Start standalone with 128kB sampling.
+adb shell kill -36 ${PID} # Start profiling the process.
 ```
 
 To obtain heap dumps for all profiled processes, send `SIGUSR1` to heapprofd
