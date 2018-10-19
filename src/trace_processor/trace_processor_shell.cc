@@ -61,7 +61,7 @@ bool EnsureDir(const std::string& path) {
 }
 
 bool EnsureFile(const std::string& path) {
-  return base::OpenFile(path, O_RDONLY | O_CREAT, 0755).get() != -1;
+  return base::OpenFile(path, O_RDONLY | O_CREAT, 0644).get() != -1;
 }
 
 std::string GetConfigPath() {
