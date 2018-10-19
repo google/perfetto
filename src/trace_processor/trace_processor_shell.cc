@@ -334,8 +334,8 @@ int TraceProcessorMain(int argc, char** argv) {
   cb.aio_nbytes = kChunkSize;
   cb.aio_fildes = *fd;
 
-  // The control block has ownership of the buffer while the read is in-flight.
-  cb.aio_buf = new uint8_t[kChunkSize];
+  std::unique_ptr<uint8_t[]> aio_buf(new uint8_t[kChunkSize]);
+  cb.aio_buf = aio_buf.get();
 
   PERFETTO_CHECK(aio_read(&cb) == 0);
   struct aiocb* aio_list[1] = {&cb};
@@ -355,9 +355,9 @@ int TraceProcessorMain(int argc, char** argv) {
 
     // Take ownership of the completed buffer and enqueue a new async read
     // with a fresh buffer.
-    std::unique_ptr<uint8_t[]> buf(
-        reinterpret_cast<uint8_t*>(const_cast<void*>(cb.aio_buf)));
-    cb.aio_buf = new uint8_t[kChunkSize];
+    std::unique_ptr<uint8_t[]> buf(std::move(aio_buf));
+    aio_buf.reset(new uint8_t[kChunkSize]);
+    cb.aio_buf = aio_buf.get();
     cb.aio_offset += rsize;
     PERFETTO_CHECK(aio_read(&cb) == 0);
 
