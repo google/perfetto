@@ -50,7 +50,7 @@ void SlicedProtobufInputStream::BackUp(int count) {
       if (cur_slice_ == slices_->begin()) {
         // The protobuf library is violating its contract and backing up more
         // bytes than available.
-        PERFETTO_DCHECK(false);
+        PERFETTO_DFATAL("Protobuf library backed up too many bytes.");
         return;
       }
       cur_slice_--;

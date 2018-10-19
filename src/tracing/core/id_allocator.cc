@@ -50,7 +50,7 @@ uint32_t IdAllocatorGeneric::AllocateGeneric() {
 
 void IdAllocatorGeneric::FreeGeneric(uint32_t id) {
   if (id == 0 || id >= ids_.size() || !ids_[id]) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Invalid id.");
     return;
   }
   ids_[id] = false;

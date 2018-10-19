@@ -30,7 +30,7 @@ namespace base {
 UnixTaskRunner::UnixTaskRunner() {
   AddFileDescriptorWatch(event_.fd(), [] {
     // Not reached -- see PostFileDescriptorWatches().
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Should be unreachable.");
   });
 }
 
