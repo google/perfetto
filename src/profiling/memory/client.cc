@@ -237,7 +237,9 @@ const char* Client::GetStackBase() {
 //               +------------+    |
 //               |  main      |    v
 // stackbase +-> +------------+ 0xffff
-void Client::RecordMalloc(uint64_t alloc_size, uint64_t alloc_address) {
+void Client::RecordMalloc(uint64_t alloc_size,
+                          uint64_t total_size,
+                          uint64_t alloc_address) {
   if (!inited_)
     return;
   AllocMetadata metadata;
@@ -251,6 +253,7 @@ void Client::RecordMalloc(uint64_t alloc_size, uint64_t alloc_address) {
   }
 
   uint64_t stack_size = static_cast<uint64_t>(stackbase - stacktop);
+  metadata.total_size = total_size;
   metadata.alloc_size = alloc_size;
   metadata.alloc_address = alloc_address;
   metadata.stack_pointer = reinterpret_cast<uint64_t>(stacktop);
@@ -277,13 +280,23 @@ void Client::RecordFree(uint64_t alloc_address) {
   free_page_.Add(alloc_address, ++sequence_number_, &socket_pool_);
 }
 
-bool Client::ShouldSampleAlloc(uint64_t alloc_size,
-                               void* (*unhooked_malloc)(size_t),
-                               void (*unhooked_free)(void*)) {
+size_t Client::ShouldSampleAlloc(uint64_t alloc_size,
+                                 void* (*unhooked_malloc)(size_t),
+                                 void (*unhooked_free)(void*)) {
   if (!inited_)
     return false;
-  return ShouldSample(pthread_key_.get(), alloc_size, client_config_.rate,
-                      unhooked_malloc, unhooked_free);
+  return SampleSize(pthread_key_.get(), alloc_size, client_config_.rate,
+                    unhooked_malloc, unhooked_free);
+}
+
+void Client::MaybeSampleAlloc(uint64_t alloc_size,
+                              uint64_t alloc_address,
+                              void* (*unhooked_malloc)(size_t),
+                              void (*unhooked_free)(void*)) {
+  size_t total_size =
+      ShouldSampleAlloc(alloc_size, unhooked_malloc, unhooked_free);
+  if (total_size > 0)
+    RecordMalloc(alloc_size, total_size, alloc_address);
 }
 
 }  // namespace perfetto

@@ -44,7 +44,7 @@ int64_t ThreadLocalSamplingData::NextSampleInterval(double rate) {
   return next < 1 ? 1 : next;
 }
 
-size_t ThreadLocalSamplingData::ShouldSample(size_t sz, double rate) {
+size_t ThreadLocalSamplingData::NumberOfSamples(size_t sz, double rate) {
   interval_to_next_sample_ -= sz;
   size_t sz_multiplier = 0;
   while (PERFETTO_UNLIKELY(interval_to_next_sample_ <= 0)) {
@@ -54,15 +54,15 @@ size_t ThreadLocalSamplingData::ShouldSample(size_t sz, double rate) {
   return sz_multiplier;
 }
 
-size_t ShouldSample(pthread_key_t key,
-                    size_t sz,
-                    double rate,
-                    void* (*unhooked_malloc)(size_t),
-                    void (*unhooked_free)(void*)) {
+size_t SampleSize(pthread_key_t key,
+                  size_t sz,
+                  uint64_t rate,
+                  void* (*unhooked_malloc)(size_t),
+                  void (*unhooked_free)(void*)) {
   if (PERFETTO_UNLIKELY(sz >= rate))
-    return 1;
-  return GetSpecific(key, unhooked_malloc, unhooked_free)
-      ->ShouldSample(sz, rate);
+    return sz;
+  return rate * GetSpecific(key, unhooked_malloc, unhooked_free)
+                    ->NumberOfSamples(sz, rate);
 }
 
 void ThreadLocalSamplingData::KeyDestructor(void* ptr) {
