@@ -52,12 +52,16 @@ class FrontendApi {
   // want to keep in the global state. Figure out a more generic and type-safe
   // mechanism to achieve this.
 
-  publishOverviewData(data: {[key: string]: QuantizedLoad}) {
-    for (const key of Object.keys(data)) {
+  publishOverviewData(data: {[key: string]: QuantizedLoad | QuantizedLoad[]}) {
+    for (const [key, value] of Object.entries(data)) {
       if (!globals.overviewStore.has(key)) {
         globals.overviewStore.set(key, []);
       }
-      globals.overviewStore.get(key)!.push(data[key]);
+      if (value instanceof Array) {
+        globals.overviewStore.get(key)!.push(...value);
+      } else {
+        globals.overviewStore.get(key)!.push(value);
+      }
     }
     globals.rafScheduler.scheduleRedraw();
   }
