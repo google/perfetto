@@ -172,9 +172,8 @@ void ProducerIPCClientImpl::OnServiceRequest(
     return;
   }
 
-  PERFETTO_DLOG("Unknown async request %d received from tracing service",
-                cmd.cmd_case());
-  PERFETTO_DCHECK(false);
+  PERFETTO_DFATAL("Unknown async request %d received from tracing service",
+                  cmd.cmd_case());
 }
 
 void ProducerIPCClientImpl::RegisterDataSource(

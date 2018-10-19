@@ -53,7 +53,7 @@ bool SendWireMessage(int sock, const WireMessage& msg) {
     iovecs[2].iov_base = msg.free_header;
     iovecs[2].iov_len = sizeof(*msg.free_header);
   } else {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Neither alloc_header nor free_header set.");
     return false;
   }
 
@@ -90,7 +90,7 @@ bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
       return false;
     out->payload = buf;
     if (buf > end) {
-      PERFETTO_DCHECK(false);
+      PERFETTO_DFATAL("Buffer overflowed");
       return false;
     }
     out->payload_size = static_cast<size_t>(end - buf);
@@ -98,7 +98,7 @@ bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
     if (!ViewAndAdvance<FreeMetadata>(&buf, &out->free_header, end))
       return false;
   } else {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Invalid record type.");
     return false;
   }
   return true;

@@ -271,7 +271,7 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
   }
   // Too much contention on this page. Give up. This page will be left pending
   // forever but there isn't much more we can do at this point.
-  PERFETTO_DCHECK(false);
+  PERFETTO_DFATAL("Too much contention on page.");
   return kInvalidPageIdx;
 }
 

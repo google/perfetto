@@ -235,7 +235,7 @@ void TracingSession::DestroyConnection() {
 void TracingSession::OnTraceData(std::vector<TracePacket>, bool) {
   // This should be never called because we are using |write_into_file| and
   // asking the traced service to directly write into the |buf_fd_|.
-  PERFETTO_DCHECK(false);
+  PERFETTO_DFATAL("Should be unreachable.");
 }
 
 void TracingSession::NotifyCallback() {

@@ -98,7 +98,7 @@ size_t RegSize(unwindstack::ArchEnum arch) {
     case unwindstack::ARCH_MIPS64:
       return unwindstack::MIPS64_REG_LAST * sizeof(uint64_t);
     case unwindstack::ARCH_UNKNOWN:
-      PERFETTO_DCHECK(false);
+      PERFETTO_DFATAL("Invalid architecture");
       return 0;
   }
 }
@@ -216,7 +216,7 @@ bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out) {
     out->free_record.metadata = msg.free_header;
     return true;
   } else {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Invalid record type.");
     return false;
   }
 }

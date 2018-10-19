@@ -127,7 +127,7 @@ void FreePage::FlushLocked(SocketPool* pool) {
   msg.free_header = &free_page_;
   BorrowedSocket fd(pool->Borrow());
   if (!fd || !SendWireMessage(*fd, msg)) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Failed to send wire message");
     fd.Close();
   }
 }
@@ -199,12 +199,12 @@ Client::Client(std::vector<base::ScopedFile> socks)
   // Send an empty record to transfer fds for /proc/self/maps and
   // /proc/self/mem.
   if (base::SockSend(*fd, &size, sizeof(size), fds, 2) != sizeof(size)) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Failed to send file descriptors.");
     return;
   }
   if (recv(*fd, &client_config_, sizeof(client_config_), 0) !=
       sizeof(client_config_)) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Failed to receive client config.");
     return;
   }
   PERFETTO_DCHECK(client_config_.rate >= 1);
@@ -248,7 +248,7 @@ void Client::RecordMalloc(uint64_t alloc_size,
   unwindstack::AsmGetRegs(metadata.register_data);
 
   if (stackbase < stacktop) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Stackbase >= stacktop.");
     return;
   }
 
@@ -269,7 +269,7 @@ void Client::RecordMalloc(uint64_t alloc_size,
 
   BorrowedSocket fd = socket_pool_.Borrow();
   if (!fd || !SendWireMessage(*fd, msg)) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Failed to send wire message.");
     fd.Close();
   }
 }

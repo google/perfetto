@@ -335,7 +335,7 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
       case SysStatsDataSource::kTypeId:
         break;
       default:
-        PERFETTO_DCHECK(false);
+        PERFETTO_DFATAL("Invalid data source.");
     }  // switch (type_id)
   }    // for (session_data_sources_)
 }
