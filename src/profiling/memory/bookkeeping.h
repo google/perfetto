@@ -133,12 +133,12 @@ class HeapTracker {
   static constexpr uint64_t kNoopFree = 0;
   struct Allocation {
     Allocation(uint64_t size, uint64_t seq, GlobalCallstackTrie::Node* n)
-        : alloc_size(size), sequence_number(seq), node(n) {}
+        : total_size(size), sequence_number(seq), node(n) {}
 
     Allocation() = default;
     Allocation(const Allocation&) = delete;
     Allocation(Allocation&& other) noexcept {
-      alloc_size = other.alloc_size;
+      total_size = other.total_size;
       sequence_number = other.sequence_number;
       node = other.node;
       other.node = nullptr;
@@ -146,10 +146,10 @@ class HeapTracker {
 
     ~Allocation() {
       if (node)
-        GlobalCallstackTrie::DecrementNode(node, alloc_size);
+        GlobalCallstackTrie::DecrementNode(node, total_size);
     }
 
-    uint64_t alloc_size;
+    uint64_t total_size;
     uint64_t sequence_number;
     GlobalCallstackTrie::Node* node;
   };
