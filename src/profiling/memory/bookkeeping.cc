@@ -116,7 +116,7 @@ void HeapTracker::Dump(int fd) {
         data += ";";
       data += it->function_name.str();
     }
-    data += " " + std::to_string(alloc.alloc_size) + "\n";
+    data += " " + std::to_string(alloc.total_size) + "\n";
     base::WriteAll(fd, data.c_str(), data.size());
   }
 }
@@ -209,7 +209,7 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
       code_locations.emplace_back(frame.map_name, frame.function_name);
     bookkeeping_data->heap_tracker.RecordMalloc(
         code_locations, alloc_rec.alloc_metadata.alloc_address,
-        alloc_rec.alloc_metadata.alloc_size,
+        alloc_rec.alloc_metadata.total_size,
         alloc_rec.alloc_metadata.sequence_number);
   } else {
     PERFETTO_DFATAL("Invalid record type");
