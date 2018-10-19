@@ -62,6 +62,8 @@ struct AllocMetadata {
   uint64_t sequence_number;
   // Size of the allocation that was made.
   uint64_t alloc_size;
+  // Total number of bytes attributed to this allocation.
+  uint64_t total_size;
   // Pointer returned by malloc(2) for this allocation.
   uint64_t alloc_address;
   // Current value of the stack pointer.
@@ -83,7 +85,7 @@ struct ClientConfiguration {
   // On average, sample one allocation every rate bytes,
   // If rate == 1, sample every allocation.
   // Must be >= 1.
-  double rate;
+  uint64_t rate;
 };
 
 struct FreeMetadata {
