@@ -44,6 +44,8 @@ default_targets = [
     '//:traced',
     '//:traced_probes',
     '//:trace_to_text',
+    '//:heapprofd_client',
+    '//:heapprofd',
 ]
 
 # Defines a custom init_rc argument to be applied to the corresponding output
@@ -92,6 +94,13 @@ define_whitelist = r'^GOOGLE_PROTO.*$'
 library_not_in_pdk = {
     'libandroid',
     'libservices',
+}
+
+# Additional arguments to apply to Android.bp rules.
+additional_args = {
+    "heapprofd_client": [
+        ("include_dirs", ["bionic/libc"]),
+    ],
 }
 
 
@@ -201,6 +210,8 @@ class Module(object):
         self._output_field(output, 'defaults')
         self._output_field(output, 'cflags')
         self._output_field(output, 'local_include_dirs')
+        for key, value in additional_args.get(self.name, []):
+          self._write_value(output, key, value)
 
         disable_pdk = any(name in library_not_in_pdk for name in self.shared_libs)
         if self.user_debug_flag or disable_pdk:
@@ -219,6 +230,9 @@ class Module(object):
 
     def _output_field(self, output, name, sort=True):
         value = getattr(self, name)
+        return self._write_value(output, name, value, sort)
+
+    def _write_value(self, output, name, value, sort=True):
         if not value:
             return
         if isinstance(value, set):
