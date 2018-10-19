@@ -51,7 +51,7 @@ class PERFETTO_EXPORT Message {
   friend class ::perfetto::shm_fuzz::FakeProducer;
   // Adjust the |nested_messages_arena_| size when changing this, or the
   // static_assert in the .cc file will bark.
-  static constexpr uint32_t kMaxNestingDepth = 8;
+  static constexpr uint32_t kMaxNestingDepth = 10;
 
   // Ctor and Dtor of Message are never called, with the exeception
   // of root (non-nested) messages. Nested messages are allocated via placement
