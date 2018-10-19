@@ -42,14 +42,13 @@ select ref as cpu, value as freq, sum(dur * value)/1e6 as mcycles
 from counters group by cpu, freq order by mcycles desc limit 20;`;
 
 const CPU_TIME_BY_CLUSTER_BY_PROCESS = `
-select
-thread.name as comm,
-case when cpug = 0 then 'big' else 'little' end as core,
-cpu_sec from
-  (select cpu/4 cpug, utid, sum(dur)/1e9 as cpu_sec
-  from sched group by utid, cpug order by cpu_sec desc)
-left join thread using(utid)
-limit 20;`;
+select process.name as process, thread, core, cpu_sec from (
+  select thread.name as thread, upid,
+    case when cpug = 0 then 'big' else 'little' end as core,
+    cpu_sec from (select cpu/4 as cpug, utid, sum(dur)/1e9 as cpu_sec
+    from sched group by utid, cpug order by cpu_sec desc
+  ) inner join thread using(utid)
+) inner join process using(upid) limit 30;`;
 
 function createCannedQuery(query: string): (_: Event) => void {
   return (e: Event) => {
