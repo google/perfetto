@@ -60,8 +60,7 @@ void Event::Notify() {
 #endif
 
   if (ret <= 0 && errno != EAGAIN) {
-    PERFETTO_DPLOG("write()");
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("write()");
   }
 }
 

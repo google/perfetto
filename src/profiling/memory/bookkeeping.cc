@@ -165,8 +165,7 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
     std::lock_guard<std::mutex> l(bookkeeping_mutex_);
     auto it = bookkeeping_data_.find(rec->pid);
     if (it == bookkeeping_data_.end()) {
-      PERFETTO_LOG("Invalid pid: %d", rec->pid);
-      PERFETTO_DCHECK(false);
+      PERFETTO_DFATAL("Invalid pid: %d", rec->pid);
       return;
     }
     bookkeeping_data = &it->second;
@@ -213,7 +212,7 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
         alloc_rec.alloc_metadata.alloc_size,
         alloc_rec.alloc_metadata.sequence_number);
   } else {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Invalid record type");
   }
 }
 
@@ -230,7 +229,7 @@ void BookkeepingThread::NotifyClientDisconnected(pid_t pid) {
   std::lock_guard<std::mutex> l(bookkeeping_mutex_);
   auto it = bookkeeping_data_.find(pid);
   if (it == bookkeeping_data_.end()) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Client for %d not found", pid);
     return;
   }
   it->second.ref_count--;

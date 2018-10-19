@@ -42,7 +42,7 @@ ProtoTranslationTable::FtracePageHeaderSpec MakeFtracePageHeaderSpec(
     else if (name == "overwrite")
       spec.overwrite = field;
     else if (name != "data")
-      PERFETTO_DCHECK(false);
+      PERFETTO_DFATAL("Invalid field in header spec: %s", name.c_str());
   }
   return spec;
 }
@@ -77,13 +77,12 @@ bool MergeFieldInfo(const FtraceEvent::Field& ftrace_field,
 
   if (!InferFtraceType(ftrace_field.type_and_name, ftrace_field.size,
                        ftrace_field.is_signed, &field->ftrace_type)) {
-    PERFETTO_DLOG(
+    PERFETTO_FATAL(
         "Failed to infer ftrace field type for \"%s.%s\" (type:\"%s\" size:%d "
         "signed:%d)",
         event_name_for_debug, field->ftrace_name,
         ftrace_field.type_and_name.c_str(), ftrace_field.size,
         ftrace_field.is_signed);
-    PERFETTO_DCHECK(false);
     return false;
   }
 

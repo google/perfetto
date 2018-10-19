@@ -64,7 +64,7 @@ bool ReadDataLoc(const uint8_t* start,
   uint32_t data = 0;
   const uint8_t* ptr = field_start;
   if (!CpuReader::ReadAndAdvance(&ptr, end, &data)) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Buffer overflowed.");
     return false;
   }
 
@@ -73,7 +73,7 @@ bool ReadDataLoc(const uint8_t* start,
   const uint8_t* const string_start = start + offset;
   const uint8_t* const string_end = string_start + len;
   if (string_start <= start || string_end > end) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Buffer overflowed.");
     return false;
   }
   ReadIntoString(string_start, string_end, field.proto_field_id, message);
@@ -363,7 +363,7 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
         // Left over page padding or discarded event.
         if (event_header.time_delta == 0) {
           // Not clear what the correct behaviour is in this case.
-          PERFETTO_DCHECK(false);
+          PERFETTO_DFATAL("Empty padding event.");
           return 0;
         }
         uint32_t length;
@@ -387,7 +387,7 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
         if (!ReadAndAdvance<TimeStamp>(&ptr, end, &time_stamp))
           return 0;
         // Not implemented in the kernel, nothing should generate this.
-        PERFETTO_DCHECK(false);
+        PERFETTO_DFATAL("Unimplemented in kernel. Should be unreachable.");
         break;
       }
       // Data record:
@@ -449,7 +449,7 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
   // TODO(hjd): Test truncated events.
   // If the end of the buffer is before the end of the event give up.
   if (info.size > length) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Buffer overflowed.");
     return false;
   }
 

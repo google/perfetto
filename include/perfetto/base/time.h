@@ -86,7 +86,7 @@ inline TimeNanos GetThreadCPUTimeNs() {
   mach_port_deallocate(mach_task_self(), this_thread);
 
   if (kr != KERN_SUCCESS) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Failed to get CPU time.");
     return TimeNanos(0);
   }
   return TimeNanos(info.user_time.seconds * 1000000000LL +
