@@ -274,3 +274,25 @@ if (!build_with_chromium) {
     ]
   }
 }
+
+if (!build_with_chromium) {
+  # TODO(fmayer): Investigate shared library for common pieces.
+  shared_library("heapprofd_client") {
+    deps = [
+      "src/profiling/memory:malloc_hooks",
+    ]
+  }
+
+  executable("heapprofd") {
+    deps = [
+      "gn:default_deps",
+      "src/base",
+      "src/base:unix_socket",
+      "src/profiling/memory:daemon",
+      "src/profiling/memory:wire_protocol",
+    ]
+    sources = [
+      "src/profiling/memory/main.cc",
+    ]
+  }
+}
