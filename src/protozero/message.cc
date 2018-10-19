@@ -86,6 +86,31 @@ void Message::AppendBytes(uint32_t field_id, const void* src, size_t size) {
   WriteToStream(src_u8, src_u8 + size);
 }
 
+size_t Message::AppendScatteredBytes(uint32_t field_id,
+                                     ContiguousMemoryRange* ranges,
+                                     size_t num_ranges) {
+  size_t size = 0;
+  for (size_t i = 0; i < num_ranges; ++i) {
+    size += ranges[i].size();
+  }
+
+  PERFETTO_DCHECK(size < proto_utils::kMaxMessageLength);
+
+  uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
+  uint8_t* pos = buffer;
+  pos = proto_utils::WriteVarInt(proto_utils::MakeTagLengthDelimited(field_id),
+                                 pos);
+  pos = proto_utils::WriteVarInt(static_cast<uint32_t>(size), pos);
+  WriteToStream(buffer, pos);
+
+  for (size_t i = 0; i < num_ranges; ++i) {
+    auto& range = ranges[i];
+    WriteToStream(range.begin, range.end);
+  }
+
+  return size;
+}
+
 uint32_t Message::Finalize() {
   if (finalized_)
     return size_;
