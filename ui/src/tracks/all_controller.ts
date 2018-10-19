@@ -17,3 +17,4 @@
 import './cpu_slices/controller';
 import './chrome_slices/controller';
 import './vsync/controller';
+import './process_summary/controller';

@@ -71,8 +71,7 @@ export abstract class Engine {
   // TODO: This should live in code that's more specific to chrome, instead of
   // in engine.
   async getNumberOfProcesses(): Promise<number> {
-    const result =
-        await this.query('select count(distinct(upid)) from thread;');
+    const result = await this.query('select count(*) from process;');
     return +result.columns[0].longValues![0];
   }
 
