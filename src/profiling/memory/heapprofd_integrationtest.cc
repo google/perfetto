@@ -29,7 +29,7 @@ namespace {
 constexpr char kSocketName[] = TEST_SOCK_NAME("heapprofd_integrationtest");
 
 void __attribute__((noinline)) OtherFunction(Client* client) {
-  client->RecordMalloc(10, 0xf00);
+  client->RecordMalloc(10, 10, 0xf00);
 }
 
 void __attribute__((noinline)) SomeFunction(Client* client) {
@@ -56,7 +56,7 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
 
   base::TestTaskRunner task_runner;
   auto done = task_runner.CreateCheckpoint("done");
-  constexpr double kSamplingRate = 123;
+  constexpr uint64_t kSamplingRate = 123;
   SocketListener listener(
       {kSamplingRate},
       [&done, &bookkeeping_thread](UnwindingRecord r) {
