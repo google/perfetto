@@ -343,23 +343,35 @@ export class TraceController extends Controller<States> {
       }  // for (record ...)
       globals.publish('OverviewData', schedData);
 
-      // Slices overview.
-      const slicesRows = await engine.query(
-          `select sum(dur)/${stepSec}/1e9, process.name, process.pid, upid ` +
-          'from slices inner join thread using(utid) ' +
-          'inner join process using(upid) where depth = 0 ' +
-          `and ts >= ${startNs} and ts < ${endNs} ` +
-          'group by upid');
-      const slicesData: {[key: string]: QuantizedLoad} = {};
-      for (let i = 0; i < slicesRows.numRecords; i++) {
-        const load = slicesRows.columns[0].doubleValues![i];
-        let procName = slicesRows.columns[1].stringValues![i];
-        const pid = slicesRows.columns[2].longValues![i];
-        procName += ` [${pid}]`;
-        slicesData[procName] = {startSec, endSec, load};
-      }
-      globals.publish('OverviewData', slicesData);
     }  // for (step ...)
+
+    // Slices overview.
+    const traceStartNs = traceTime.start * 1e9;
+    const stepSecNs = stepSec * 1e9;
+    const sliceSummaryQuery = await engine.query(
+        `select bucket, upid, sum(utid_sum) / cast(${stepSecNs} as float) ` +
+        `as upid_sum from thread inner join ` +
+        `(select cast((ts - ${traceStartNs})/${stepSecNs} as int) as bucket, ` +
+        `sum(dur) as utid_sum, utid from slices group by bucket, utid) ` +
+        `using(utid) group by bucket, upid`);
+
+    const slicesData: {[key: string]: QuantizedLoad[]} = {};
+    for (let i = 0; i < sliceSummaryQuery.numRecords; i++) {
+      const bucket = sliceSummaryQuery.columns[0].longValues![i] as number;
+      const upid = sliceSummaryQuery.columns[1].longValues![i] as number;
+      const load = sliceSummaryQuery.columns[2].doubleValues![i];
+
+      const startSec = traceTime.start + stepSec * bucket;
+      const endSec = startSec + stepSec;
+
+      const upidStr = upid.toString();
+      let loadArray = slicesData[upidStr];
+      if (loadArray === undefined) {
+        loadArray = slicesData[upidStr] = [];
+      }
+      loadArray.push({startSec, endSec, load});
+    }
+    globals.publish('OverviewData', slicesData);
   }
 
   private updateStatus(msg: string): void {
