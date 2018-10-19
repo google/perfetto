@@ -19,10 +19,14 @@ import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
-import {Config, Data, KIND} from './common';
+import {
+  Config,
+  Data,
+  PROCESS_SUMMARY_TRACK,
+} from './common';
 
-// TODO(hjd): De-dupe this from ChromeSliceTrack, CpuSliceTrack and VsyncTrack.
-const MARGIN_TOP = 5.5;
+// 0.5 Makes the horizontal lines sharp.
+const MARGIN_TOP = 7.5;
 const RECT_HEIGHT = 30;
 
 function getCurResolution() {
@@ -31,18 +35,21 @@ function getCurResolution() {
   return Math.pow(10, Math.floor(Math.log10(resolution)));
 }
 
-class VsyncTrack extends Track<Config, Data> {
-  static readonly kind = KIND;
-  static create(trackState: TrackState): VsyncTrack {
-    return new VsyncTrack(trackState);
+class ProcessSummaryTrack extends Track<Config, Data> {
+  static readonly kind = PROCESS_SUMMARY_TRACK;
+  static create(trackState: TrackState): ProcessSummaryTrack {
+    return new ProcessSummaryTrack(trackState);
   }
 
   private reqPending = false;
+  private hue: number;
 
   constructor(trackState: TrackState) {
     super(trackState);
+    this.hue = (128 + (32 * this.config.upid)) % 256;
   }
 
+  // TODO(dproy): This code should be factored out.
   reqDataDeferred() {
     const {visibleWindowTime} = globals.frontendLocalState;
     const reqStart = visibleWindowTime.start - visibleWindowTime.duration;
@@ -59,8 +66,10 @@ class VsyncTrack extends Track<Config, Data> {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
-
     const data = this.data();
+
+    // If there aren't enough cached slices data in |data| request more to
+    // the controller.
     const inRange = data !== undefined &&
         (visibleWindowTime.start >= data.start &&
          visibleWindowTime.end <= data.end);
@@ -73,34 +82,43 @@ class VsyncTrack extends Track<Config, Data> {
     }
     if (data === undefined) return;  // Can't possibly draw anything.
 
-    const dataStartPx = timeScale.timeToPx(data.start);
-    const dataEndPx = timeScale.timeToPx(data.end);
-    const visibleStartPx = timeScale.timeToPx(visibleWindowTime.start);
-    const visibleEndPx = timeScale.timeToPx(visibleWindowTime.end);
-
     checkerboardExcept(
-        ctx, visibleStartPx, visibleEndPx, dataStartPx, dataEndPx);
+        ctx,
+        timeScale.timeToPx(visibleWindowTime.start),
+        timeScale.timeToPx(visibleWindowTime.end),
+        timeScale.timeToPx(data.start),
+        timeScale.timeToPx(data.end));
 
-    const bgColor = '#5E909B';
-    const fgColor = '#323D48';
+    this.renderSummary(ctx, data);
+  }
 
-    const startPx = Math.floor(Math.max(dataStartPx, visibleStartPx));
-    const endPx = Math.floor(Math.min(dataEndPx, visibleEndPx));
+  // TODO(dproy): Dedup with CPU slices.
+  renderSummary(ctx: CanvasRenderingContext2D, data: Data): void {
+    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
+    const bottomY = MARGIN_TOP + RECT_HEIGHT;
 
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(startPx, MARGIN_TOP, endPx - startPx, RECT_HEIGHT);
+    let lastX = startPx;
+    let lastY = bottomY;
 
-    ctx.fillStyle = fgColor;
-    for (let i = 0; i < data.vsyncs.length; i += 2) {
-      const leftPx = Math.floor(timeScale.timeToPx(data.vsyncs[i]));
-      const rightPx = Math.floor(timeScale.timeToPx(data.vsyncs[i + 1]));
-      if (rightPx < startPx) continue;
-      // TODO(hjd): Do some thing better when very zoomed out.
-      if ((rightPx - leftPx) <= 1) continue;
-      if (leftPx > endPx) break;
-      ctx.fillRect(leftPx, MARGIN_TOP, rightPx - leftPx, RECT_HEIGHT);
+    ctx.fillStyle = `hsl(${this.hue}, 50%, 60%)`;
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    for (let i = 0; i < data.utilizations.length; i++) {
+      // TODO(dproy): Investigate why utilization is > 1 sometimes.
+      const utilization = Math.min(data.utilizations[i], 1);
+      const startTime = i * data.bucketSizeSeconds + data.start;
+
+      lastX = Math.floor(timeScale.timeToPx(startTime));
+
+      ctx.lineTo(lastX, lastY);
+      lastY = MARGIN_TOP + Math.round(RECT_HEIGHT * (1 - utilization));
+      ctx.lineTo(lastX, lastY);
     }
+    ctx.lineTo(lastX, bottomY);
+    ctx.closePath();
+    ctx.fill();
   }
 }
 
-trackRegistry.register(VsyncTrack);
+trackRegistry.register(ProcessSummaryTrack);

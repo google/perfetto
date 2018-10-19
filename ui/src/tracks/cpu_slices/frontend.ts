@@ -96,7 +96,8 @@ class CpuSliceTrack extends Track<Config, Data> {
     const inRange = data !== undefined &&
         (visibleWindowTime.start >= data.start &&
          visibleWindowTime.end <= data.end);
-    if (!inRange || data.resolution !== getCurResolution()) {
+    if (!inRange || data === undefined ||
+        data.resolution !== getCurResolution()) {
       if (!this.reqPending) {
         this.reqPending = true;
         setTimeout(() => this.reqDataDeferred(), 50);

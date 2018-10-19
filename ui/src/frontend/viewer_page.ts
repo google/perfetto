@@ -26,8 +26,10 @@ import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {Panel} from './panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
 import {TimeAxisPanel} from './time_axis_panel';
+import {TrackGroupPanel} from './track_group_panel';
 import {TRACK_SHELL_WIDTH} from './track_panel';
 import {TrackPanel} from './track_panel';
+
 
 const MAX_ZOOM_SPAN_SEC = 1e-4;  // 0.1 ms.
 
@@ -161,6 +163,20 @@ class TraceViewer implements m.ClassComponent {
               id => m(TrackPanel, {key: id, id})),
         ] :
         [];
+
+    for (const group of Object.values(globals.state.trackGroups)) {
+      scrollingPanels.push(m(TrackGroupPanel, {
+        trackGroupId: group.id,
+        key: `trackgroup-${group.id}`,
+      }));
+      if (group.collapsed) continue;
+      for (const trackId of group.tracks) {
+        scrollingPanels.push(m(TrackPanel, {
+          key: `track-${group.id}-${trackId}`,
+          id: trackId,
+        }));
+      }
+    }
     scrollingPanels.unshift(m(QueryTable));
 
     return m(

@@ -14,7 +14,15 @@
 
 import {DraftObject} from 'immer';
 
-import {defaultTraceTime, State, Status, TraceTime} from './state';
+import {assertExists} from '../base/logging';
+
+import {
+  defaultTraceTime,
+  SCROLLING_TRACK_GROUP,
+  State,
+  Status,
+  TraceTime
+} from './state';
 
 type StateDraft = DraftObject<State>;
 
@@ -54,18 +62,39 @@ export const StateActions = {
     state.route = `/viewer`;
   },
 
-  addTrack(
-      state: StateDraft,
-      args: {engineId: string; kind: string; name: string; config: {};}): void {
-    const id = `${state.nextId++}`;
+  addTrack(state: StateDraft, args: {
+    id?: string; engineId: string; kind: string; name: string;
+    trackGroup?: string;
+    config: {};
+  }): void {
+    const id = args.id !== undefined ? args.id : `${state.nextId++}`;
     state.tracks[id] = {
       id,
       engineId: args.engineId,
       kind: args.kind,
       name: args.name,
+      trackGroup: args.trackGroup,
       config: args.config,
     };
-    state.scrollingTracks.push(id);
+    if (args.trackGroup === SCROLLING_TRACK_GROUP) {
+      state.scrollingTracks.push(id);
+    } else if (args.trackGroup !== undefined) {
+      assertExists(state.trackGroups[args.trackGroup]).tracks.push(id);
+    }
+  },
+
+  addTrackGroup(
+      state: StateDraft,
+      // Define ID in action so a track group can be referred to without running
+      // the reducer.
+      args: {
+        engineId: string; name: string; id: string; summaryTrackId: string;
+        collapsed: boolean;
+      }): void {
+    state.trackGroups[args.id] = {
+      ...args,
+      tracks: [],
+    };
   },
 
   reqTrackData(state: StateDraft, args: {
@@ -105,7 +134,8 @@ export const StateActions = {
         const isPinned = state.pinnedTracks.includes(id);
         const isScrolling = state.scrollingTracks.includes(id);
         if (!isScrolling && !isPinned) {
-          throw new Error(`No track with id ${id}`);
+          // TODO(dproy): Handle track moving within track groups.
+          return;
         }
         const tracks = isPinned ? state.pinnedTracks : state.scrollingTracks;
 
@@ -127,15 +157,27 @@ export const StateActions = {
   toggleTrackPinned(state: StateDraft, args: {trackId: string}): void {
     const id = args.trackId;
     const isPinned = state.pinnedTracks.includes(id);
+    const trackGroup = assertExists(state.tracks[id]).trackGroup;
 
     if (isPinned) {
       state.pinnedTracks.splice(state.pinnedTracks.indexOf(id), 1);
-      state.scrollingTracks.unshift(id);
+      if (trackGroup === undefined) {
+        state.scrollingTracks.unshift(id);
+      }
     } else {
-      state.scrollingTracks.splice(state.scrollingTracks.indexOf(id), 1);
+      if (trackGroup === undefined) {
+        state.scrollingTracks.splice(state.scrollingTracks.indexOf(id), 1);
+      }
       state.pinnedTracks.push(id);
     }
   },
+
+  toggleTrackGroupCollapsed(state: StateDraft, args: {trackGroupId: string}):
+      void {
+        const id = args.trackGroupId;
+        const trackGroup = assertExists(state.trackGroups[id]);
+        trackGroup.collapsed = !trackGroup.collapsed;
+      },
 
   setEngineReady(state: StateDraft, args: {engineId: string; ready: boolean}):
       void {
