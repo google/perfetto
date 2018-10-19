@@ -110,6 +110,9 @@ bool SendWireMessage(int sock, const WireMessage& msg);
 // If buf is not a valid message, return false.
 bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out);
 
+constexpr const char* kHeapprofdSocketEnvVar = "ANDROID_SOCKET_heapprofd";
+constexpr const char* kHeapprofdSocketFile = "/dev/socket/heapprofd";
+
 }  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_WIRE_PROTOCOL_H_

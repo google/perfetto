@@ -97,6 +97,7 @@ source_set("unittests") {
 executable("heapprofd") {
   deps = [
     ":daemon",
+    ":wire_protocol",
     "../../../gn:default_deps",
     "../../base",
     "../../ipc",

@@ -26,6 +26,7 @@
 #include "perfetto/base/unix_socket.h"
 #include "src/profiling/memory/bounded_queue.h"
 #include "src/profiling/memory/socket_listener.h"
+#include "src/profiling/memory/wire_protocol.h"
 
 #include "perfetto/base/unix_task_runner.h"
 
@@ -35,7 +36,7 @@ namespace {
 constexpr size_t kUnwinderQueueSize = 1000;
 constexpr size_t kBookkeepingQueueSize = 1000;
 constexpr size_t kUnwinderThreads = 5;
-constexpr double kDefaultSamplingRate = 1;
+constexpr uint64_t kDefaultSamplingRate = 1;
 
 base::Event* g_dump_evt = nullptr;
 
@@ -71,17 +72,25 @@ void DumpSignalHandler(int) {
 int HeapprofdMain(int argc, char** argv) {
   // TODO(fmayer): This is temporary until heapprofd is integrated with Perfetto
   // and receives its configuration via that.
-  double sampling_rate = kDefaultSamplingRate;
+  uint64_t sampling_rate = kDefaultSamplingRate;
+  bool standalone = false;
   int opt;
-  while ((opt = getopt(argc, argv, "r:")) != -1) {
+  while ((opt = getopt(argc, argv, "r:s")) != -1) {
     switch (opt) {
       case 'r': {
         char* end;
-        sampling_rate = strtol(optarg, &end, 10);
+        long long sampling_rate_arg = strtoll(optarg, &end, 10);
         if (*end != '\0' || *optarg == '\0')
           PERFETTO_FATAL("Invalid sampling rate: %s", optarg);
+        PERFETTO_CHECK(sampling_rate > 0);
+        sampling_rate = static_cast<uint64_t>(sampling_rate_arg);
         break;
       }
+      case 's':
+        standalone = true;
+        break;
+      default:
+        PERFETTO_FATAL("%s [-r rate] [-s]", argv[0]);
     }
   }
 
@@ -127,29 +136,30 @@ int HeapprofdMain(int argc, char** argv) {
   SocketListener listener({sampling_rate}, std::move(on_record_received),
                           &bookkeeping_thread);
 
-  if (optind == argc - 1) {
+  if (optind != argc)
+    PERFETTO_FATAL("%s [-r rate] [-s]", argv[0]);
+
+  if (standalone) {
     // Allow to be able to manually specify the socket to listen on
     // for testing and sideloading purposes.
-    sock = base::UnixSocket::Listen(argv[argc - 1], &listener, &task_runner);
-  } else if (optind == argc) {
+    unlink(kHeapprofdSocketFile);
+    sock =
+        base::UnixSocket::Listen(kHeapprofdSocketFile, &listener, &task_runner);
+  } else {
     // When running as a service launched by init on Android, the socket
     // is created by init and passed to the application using an environment
     // variable.
-    const char* sock_fd = getenv("ANDROID_SOCKET_heapprofd");
+    const char* sock_fd = getenv(kHeapprofdSocketEnvVar);
     if (sock_fd == nullptr)
-      PERFETTO_FATAL(
-          "No argument given and environment variable ANDROID_SOCKET_heapprof "
-          "is unset.");
+      PERFETTO_FATAL("No argument given and environment variable %s is unset.",
+                     kHeapprofdSocketEnvVar);
     char* end;
     int raw_fd = static_cast<int>(strtol(sock_fd, &end, 10));
     if (*end != '\0')
-      PERFETTO_FATAL(
-          "Invalid ANDROID_SOCKET_heapprofd. Expected decimal integer.");
+      PERFETTO_FATAL("Invalid %s. Expected decimal integer.",
+                     kHeapprofdSocketEnvVar);
     sock = base::UnixSocket::Listen(base::ScopedFile(raw_fd), &listener,
                                     &task_runner);
-  } else {
-    PERFETTO_FATAL("Invalid number of arguments. %s [-r rate] [SOCKET]",
-                   argv[0]);
   }
 
   if (sock->last_error() != 0)
