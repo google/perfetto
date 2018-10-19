@@ -18,7 +18,6 @@ import {QueryResponse} from '../common/queries';
 import {TimeSpan} from '../common/time';
 
 import {copyToClipboard} from './clipboard';
-import {FlameGraphPanel} from './flame_graph_panel';
 import {globals} from './globals';
 import {HeaderPanel} from './header_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
@@ -159,7 +158,6 @@ class TraceViewer implements m.ClassComponent {
           m(HeaderPanel, {title: 'Tracks', key: 'tracksheader'}),
           ...globals.state.scrollingTracks.map(
               id => m(TrackPanel, {key: id, id})),
-          m(FlameGraphPanel, {key: 'flamegraph'}),
         ] :
         [];
     scrollingPanels.unshift(m(QueryTable));
