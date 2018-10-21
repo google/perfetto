@@ -21,7 +21,7 @@ Running from a standalone checkout (Linux, Mac or Android)
 -------------------------------------------------------------
 A convenience script allows to run Perfetto daemons (`traced`, `traced_probes`)
 and the command line client (`perfetto`) in a tmux-based terminal:
-```
+```bash
 CONFIG=ftrace.cfg OUT=out/default ./tools/tmux
 ```
 
@@ -34,12 +34,12 @@ Running from an Android P+ in-tree build
 Make sure that Perfetto daemons (`traced` / `traced_probes`) are running.
 They are enabled by default on Pixel and Pixel 2 (walleye, taimen, marlin,
 sailfish). On other devices start them manually by doing:
-```
+```bash
 adb shell setprop persist.traced.enable 1
 ```
 
 If this works you will see something like this in the logs:
-```
+```bash
 $ adb logcat -s perfetto
 perfetto: service.cc:45 Started traced, listening on /dev/socket/traced_producer /dev/socket/traced_consumer
 perfetto: probes.cc:25 Starting /system/bin/traced_probes service
@@ -48,7 +48,7 @@ perfetto: probes_producer.cc:32 Connected to the service
 
 At which point you can grab a trace by doing:
 
-```
+```bash
 $ adb shell perfetto --config :test --out /data/misc/perfetto-traces/trace
 ```
 

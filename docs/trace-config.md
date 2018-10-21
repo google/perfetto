@@ -31,7 +31,7 @@ sub-message definitions are squashed together is available in
 
 Specifying a custom trace config
 --------------------------------
-```
+```bash
 cat > /tmp/config.txpb <<EOF
 # This is a text-encoded protobuf for /protos/perfetto/config/trace_config.proto
 duration_ms: 10000
