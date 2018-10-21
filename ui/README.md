@@ -4,7 +4,7 @@ Quick Start
 -----------
 Run:
 
-```
+```bash
 $ git clone https://android.googlesource.com/platform/external/perfetto/
 $ cd perfetto
 $ tools/install-build-deps --no-android --ui
@@ -16,19 +16,19 @@ For more details on `gn` configs see
 [Build Instructions](../docs/build-instructions.md).
 
 To run the tests:
-```
+```bash
 $ out/debug/ui_unittests
 $ out/debug/ui_tests
 ```
 
 To run the tests in watch mode:
-```
+```bash
 $ out/debug/ui_unittests --watch
 ```
 
 Finally run:
 
-```
+```bash
 $ ./ui/run-dev-server out/debug
 ```
 

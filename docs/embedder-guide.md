@@ -1,4 +1,4 @@
-# Embedding Perfetto in your own project
+# Embedding Perfetto in another project
 
 *** note
 **This doc is WIP**, stay tuned
