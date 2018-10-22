@@ -82,10 +82,10 @@ struct FreePageEntry {
 };
 
 struct ClientConfiguration {
-  // On average, sample one allocation every rate bytes,
-  // If rate == 1, sample every allocation.
+  // On average, sample one allocation every interval bytes,
+  // If interval == 1, sample every allocation.
   // Must be >= 1.
-  uint64_t rate;
+  uint64_t interval;
 };
 
 struct FreeMetadata {
