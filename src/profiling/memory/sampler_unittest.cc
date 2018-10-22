@@ -34,22 +34,18 @@ TEST(SamplerTest, TestLarge) {
 TEST(SamplerTest, TestSmall) {
   PThreadKey key(ThreadLocalSamplingData::KeyDestructor);
   ASSERT_TRUE(key.valid());
-  // As we initialize interval_to_next_sample_ with 0, the first sample
-  // should always get sampled.
-  EXPECT_EQ(SampleSize(key.get(), 1, 512, malloc, free), 512);
+  EXPECT_EQ(SampleSize(key.get(), 511, 512, malloc, free), 512);
 }
 
 TEST(SamplerTest, TestSmallFromThread) {
   PThreadKey key(ThreadLocalSamplingData::KeyDestructor);
   ASSERT_TRUE(key.valid());
   std::thread th([&key] {
-    // As we initialize interval_to_next_sample_ with 0, the first sample
-    // should always get sampled.
-    EXPECT_EQ(SampleSize(key.get(), 1, 512, malloc, free), 512);
+    EXPECT_EQ(SampleSize(key.get(), 511, 512, malloc, free), 512);
   });
   std::thread th2([&key] {
     // The threads should have separate state.
-    EXPECT_EQ(SampleSize(key.get(), 1, 512, malloc, free), 512);
+    EXPECT_EQ(SampleSize(key.get(), 511, 512, malloc, free), 512);
   });
   th.join();
   th2.join();
