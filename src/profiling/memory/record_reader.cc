@@ -23,6 +23,7 @@
 #include <limits>
 
 namespace perfetto {
+namespace profiling {
 
 namespace {
 constexpr size_t kMaxRecordSize = 8 * 1024 * 1024;  // 8 MiB
@@ -72,4 +73,5 @@ void RecordReader::Reset() {
   record_.size = 0;
 }
 
+}  // namespace profiling
 }  // namespace perfetto

@@ -24,6 +24,7 @@
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
+namespace profiling {
 
 struct ProcessMetadata;
 
@@ -58,6 +59,7 @@ struct BookkeepingRecord {
   FreeRecord free_record;
 };
 
+}  // namespace profiling
 }  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_QUEUE_MESSAGES_H_

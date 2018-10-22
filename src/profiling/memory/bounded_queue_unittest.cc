@@ -21,6 +21,7 @@
 #include <thread>
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 TEST(BoundedQueueTest, IsFIFO) {
@@ -54,4 +55,5 @@ TEST(BoundedQueueTest, Resize) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto

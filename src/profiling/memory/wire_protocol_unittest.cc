@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 
 namespace perfetto {
+namespace profiling {
 
 bool operator==(const AllocMetadata& one, const AllocMetadata& other);
 bool operator==(const AllocMetadata& one, const AllocMetadata& other) {
@@ -137,4 +138,5 @@ TEST(WireProtocolTest, FreeMessage) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto
