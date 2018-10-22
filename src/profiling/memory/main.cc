@@ -76,13 +76,13 @@ int HeapprofdMain(int argc, char** argv) {
   uint64_t sampling_interval = kDefaultSamplingInterval;
   bool standalone = false;
   int opt;
-  while ((opt = getopt(argc, argv, "r:s")) != -1) {
+  while ((opt = getopt(argc, argv, "i:s")) != -1) {
     switch (opt) {
-      case 'r': {
+      case 'i': {
         char* end;
         long long sampling_interval_arg = strtoll(optarg, &end, 10);
         if (*end != '\0' || *optarg == '\0')
-          PERFETTO_FATAL("Invalid sampling rate: %s", optarg);
+          PERFETTO_FATAL("Invalid sampling interval: %s", optarg);
         PERFETTO_CHECK(sampling_interval > 0);
         sampling_interval = static_cast<uint64_t>(sampling_interval_arg);
         break;
@@ -91,7 +91,7 @@ int HeapprofdMain(int argc, char** argv) {
         standalone = true;
         break;
       default:
-        PERFETTO_FATAL("%s [-r rate] [-s]", argv[0]);
+        PERFETTO_FATAL("%s [-i interval] [-s]", argv[0]);
     }
   }
 
@@ -138,7 +138,7 @@ int HeapprofdMain(int argc, char** argv) {
                           &bookkeeping_thread);
 
   if (optind != argc)
-    PERFETTO_FATAL("%s [-r rate] [-s]", argv[0]);
+    PERFETTO_FATAL("%s [-i interval] [-s]", argv[0]);
 
   if (standalone) {
     // Allow to be able to manually specify the socket to listen on
