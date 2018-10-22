@@ -30,6 +30,7 @@
 #include <unwindstack/RegsGetLocal.h>
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 TEST(UnwindingTest, StackMemoryOverlay) {
@@ -137,4 +138,5 @@ TEST(UnwindingTest, MAYBE_DoUnwind) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto

@@ -17,6 +17,7 @@
 #include "src/profiling/memory/string_interner.h"
 
 namespace perfetto {
+namespace profiling {
 
 StringInterner::Entry::Entry(std::string s, StringInterner* in)
     : string(s), interner(in) {}
@@ -73,4 +74,5 @@ void StringInterner::Return(Entry* entry) {
     entries_.erase(*entry);
 }
 
+}  // namespace profiling
 }  // namespace perfetto

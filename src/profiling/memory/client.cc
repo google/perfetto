@@ -42,6 +42,7 @@
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 constexpr struct timeval kSendTimeout = {1 /* s */, 0 /* us */};
@@ -299,4 +300,5 @@ void Client::MaybeSampleAlloc(uint64_t alloc_size,
     RecordMalloc(alloc_size, total_size, alloc_address);
 }
 
+}  // namespace profiling
 }  // namespace perfetto

@@ -46,7 +46,7 @@
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
-
+namespace profiling {
 namespace {
 
 size_t kMaxFrames = 1000;
@@ -231,4 +231,6 @@ __attribute__((noreturn)) void UnwindingMainLoop(
       output_queue->Add(std::move(out));
   }
 }
+
+}  // namespace profiling
 }  // namespace perfetto

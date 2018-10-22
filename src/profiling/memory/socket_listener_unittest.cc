@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 using ::testing::_;
@@ -82,4 +83,5 @@ TEST_F(SocketListenerTest, ReceiveRecord) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto

@@ -24,6 +24,7 @@
 #include <sys/types.h>
 
 namespace perfetto {
+namespace profiling {
 
 namespace {
 template <typename T>
@@ -104,4 +105,5 @@ bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
   return true;
 }
 
+}  // namespace profiling
 }  // namespace perfetto

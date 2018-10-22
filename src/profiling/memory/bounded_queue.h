@@ -23,6 +23,9 @@
 
 #include "perfetto/base/logging.h"
 
+namespace perfetto {
+namespace profiling {
+
 // Transport messages between threads. Multiple-producer / single-consumer.
 //
 // This has to outlive both the consumer and the producer who have to
@@ -76,5 +79,8 @@ class BoundedQueue {
   std::condition_variable empty_cv_;
   std::mutex mutex_;
 };
+
+}  // namespace profiling
+}  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_BOUNDED_QUEUE_H_
