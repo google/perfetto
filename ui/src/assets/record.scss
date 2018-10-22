@@ -36,6 +36,19 @@
     grid-area: pbtxt;
   }
 
+  .config-presets {
+    button {
+      font-size: smaller;
+      margin-right: 0.5rem;
+      padding: 3px;
+      border-radius: 4px;
+      background-color: #e3f2fd;
+    }
+    button.selected {
+      background-color: #90caf9;
+    }
+  }
+
   display: grid;
   justify-content: space-evenly;
   grid-column-gap: 2rem;
