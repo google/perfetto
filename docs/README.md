@@ -46,7 +46,7 @@ Privilege isolation is a key design goal:
 * Perfetto daemons are designed following to the principle of least privilege,
   in order to allow strong sandboxing (via SELinux on Android).
 
-See [docs/security-model.md](docs/security-model.md) for more details.
+See [security-model.md](security-model.md) for more details.
 
 **Long traces**  
 Pefetto aims at supporting hours-long / O(100GB) traces, both in terms of
@@ -56,7 +56,7 @@ recording backend and UI frontend.
 Perfetto traces (output) and configuration (input) consists of protobuf
 messages, in order to allow interoperability with several languages.
 
-See [docs/trace-format.md](docs/trace-format.md) for more details.
+See [trace-format.md](trace-format.md) for more details.
 
 **Composability**  
 As Perfetto is designed both for OS-level tracing and app-level tracing, its
@@ -64,7 +64,7 @@ design allows to compose several instances of the Perfetto tracing library,
 allowing to nest multiple layers of tracing and drive then with the same
 frontend. This allows powerful blending of app-specific and OS-wide trace
 events.
-See [docs/multi-layer-tracing.md](docs/multi-layer-tracing.md) for more details.
+See [multi-layer-tracing.md](multi-layer-tracing.md) for more details.
 
 **Portability**  
 The only dependencies of Perfetto's tracing libraries are C++11 and [Protobuf lite][protobuf] (plus google-test, google-benchmark, libprotobuf-full for testing).
@@ -75,29 +75,7 @@ Perfetto allows third parties to defined their own protobufs for:
 * [(output) Trace packets](/protos/perfetto/trace/trace_packet.proto#36)
 
 Allowing apps to define their own strongly-typed input and output schema.
-See [docs/trace-format.md](docs/trace-format.md) for more details.
-
-
-Docs
-----
-* [Contributing](docs/contributing.md)
-* [Build instructions](docs/build-instructions.md)
-* [Running tests](docs/testing.md)
-* [Running Perfetto](docs/running.md)
-* [Capturing long traces](docs/long-traces.md)
-* [Trace processor](docs/trace-processor.md)
-* [Key concepts and architecture](docs/architecture.md)
-* [Life of a tracing session](docs/life-of-a-tracing-session.md)
-* [Ftrace interop](docs/ftrace.md)
-* [Performance benchmarks](docs/benchmarks.md)
-* [Trace config](docs/trace-config.md)
-* [Trace format](docs/trace-format.md)
-* [Multi-layer tracing](docs/multi-layer-tracing.md)
-* [Security model](docs/security-model.md)
-* [Embedding Perfetto in your own project](docs/embedder-guide.md)
-* [ProtoZero internals](docs/protozero.md)
-* [IPC internals](docs/ipc.md)
-
+See [trace-format.md](trace-format.md) for more details.
 
 Bugs
 ----
