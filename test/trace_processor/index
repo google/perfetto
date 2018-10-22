@@ -1,1 +1,3 @@
 ../data/android_sched_and_ps.pb smoke.sql android_sched_and_ps_smoke.out
+../data/sfgate.json smoke.sql sfgate_smoke.out
+../data/sfgate.json smoke_slices.sql sfgate_smoke_slices.out
