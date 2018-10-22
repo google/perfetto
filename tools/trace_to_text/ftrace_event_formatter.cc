@@ -3228,9 +3228,6 @@ std::string FormatEventText(const protos::FtraceEvent& event) {
   } else if (event.has_alloc_pages_iommu_end()) {
     const auto& inner = event.alloc_pages_iommu_end();
     return FormatAllocPagesIommuEnd(inner);
-  } else if (event.has_alloc_pages_iommu_end()) {
-    const auto& inner = event.alloc_pages_iommu_end();
-    return FormatAllocPagesIommuEnd(inner);
   } else if (event.has_alloc_pages_iommu_fail()) {
     const auto& inner = event.alloc_pages_iommu_fail();
     return FormatAllocPagesIommuFail(inner);
