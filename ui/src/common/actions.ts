@@ -22,6 +22,7 @@ import {
   State,
   Status,
   TraceTime
+  RecordConfig,
 } from './state';
 
 type StateDraft = DraftObject<State>;
@@ -218,6 +219,10 @@ export const StateActions = {
     // replace the whole tree here however we still need a method here
     // so it appears on the proxy Actions class.
     throw new Error('Called setState on StateActions.');
+  },
+
+  setConfig(state: StateDraft, args: {config: RecordConfig;}): void {
+    state.recordConfig = args.config;
   },
 
   // TODO(hjd): Parametrize this to increase type safety. See comments on
