@@ -28,6 +28,7 @@
 #include <memory>
 
 namespace perfetto {
+namespace profiling {
 
 class SocketListener : public base::UnixSocket::EventListener {
  public:
@@ -73,6 +74,7 @@ class SocketListener : public base::UnixSocket::EventListener {
   BookkeepingThread* const bookkeeping_thread_;
 };
 
+}  // namespace profiling
 }  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_SOCKET_LISTENER_H_

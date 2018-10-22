@@ -18,6 +18,7 @@
 #include "perfetto/base/utils.h"
 
 namespace perfetto {
+namespace profiling {
 
 void SocketListener::OnDisconnect(base::UnixSocket* self) {
   bookkeeping_thread_->NotifyClientDisconnected(self->peer_pid());
@@ -126,4 +127,5 @@ void SocketListener::RecordReceived(base::UnixSocket* self,
                       std::move(weak_metadata)});
 }
 
+}  // namespace profiling
 }  // namespace perfetto

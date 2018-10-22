@@ -19,6 +19,7 @@
 #include "gtest/gtest.h"
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 TEST(RecordReaderTest, ZeroLengthRecord) {
@@ -110,4 +111,5 @@ TEST(RecordReaderTest, TwoRecords) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto

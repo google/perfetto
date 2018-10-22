@@ -25,6 +25,7 @@
 #include <random>
 
 namespace perfetto {
+namespace profiling {
 
 // This is the thread-local state needed to apply poission sampling to malloc
 // samples.
@@ -76,6 +77,7 @@ size_t SampleSize(pthread_key_t key,
                   void* (*unhooked_malloc)(size_t),
                   void (*unhooked_free)(void*));
 
+}  // namespace profiling
 }  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_SAMPLER_H_

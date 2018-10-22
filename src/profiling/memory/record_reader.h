@@ -25,6 +25,7 @@
 #include "perfetto/base/utils.h"
 
 namespace perfetto {
+namespace profiling {
 
 class RecordReader {
  public:
@@ -63,5 +64,6 @@ class RecordReader {
                 "sizes mismatch");
 };
 
+}  // namespace profiling
 }  // namespace perfetto
 #endif  // SRC_PROFILING_MEMORY_RECORD_READER_H_

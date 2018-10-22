@@ -26,6 +26,7 @@
 #include "perfetto/base/scoped_file.h"
 
 namespace perfetto {
+namespace profiling {
 
 GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
     const InternedCodeLocation& loc) {
@@ -243,4 +244,5 @@ __attribute__((noreturn)) void BookkeepingThread::Run(
   }
 }
 
+}  // namespace profiling
 }  // namespace perfetto

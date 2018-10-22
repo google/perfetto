@@ -19,6 +19,7 @@
 #include "perfetto/base/utils.h"
 
 namespace perfetto {
+namespace profiling {
 namespace {
 ThreadLocalSamplingData* GetSpecific(pthread_key_t key,
                                      uint64_t interval,
@@ -36,7 +37,7 @@ ThreadLocalSamplingData* GetSpecific(pthread_key_t key,
 }
 }  // namespace
 
-// The algorithm below is a inspired by the Chromium sampling algorithm at
+// The algorithm below is inspired by the Chromium sampling algorithm at
 // https://cs.chromium.org/search/?q=f:cc+symbol:AllocatorShimLogAlloc+package:%5Echromium$&type=cs
 
 int64_t ThreadLocalSamplingData::NextSampleInterval() {
@@ -78,4 +79,5 @@ void ThreadLocalSamplingData::KeyDestructor(void* ptr) {
   unhooked_free(ptr);
 }
 
+}  // namespace profiling
 }  // namespace perfetto
