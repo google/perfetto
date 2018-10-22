@@ -207,7 +207,7 @@ Client::Client(std::vector<base::ScopedFile> socks)
     PERFETTO_DFATAL("Failed to receive client config.");
     return;
   }
-  PERFETTO_DCHECK(client_config_.rate >= 1);
+  PERFETTO_DCHECK(client_config_.interval >= 1);
   inited_ = true;
 }
 
@@ -285,7 +285,7 @@ size_t Client::ShouldSampleAlloc(uint64_t alloc_size,
                                  void (*unhooked_free)(void*)) {
   if (!inited_)
     return false;
-  return SampleSize(pthread_key_.get(), alloc_size, client_config_.rate,
+  return SampleSize(pthread_key_.get(), alloc_size, client_config_.interval,
                     unhooked_malloc, unhooked_free);
 }
 
