@@ -56,9 +56,9 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
 
   base::TestTaskRunner task_runner;
   auto done = task_runner.CreateCheckpoint("done");
-  constexpr uint64_t kSamplingRate = 123;
+  constexpr uint64_t kSamplingInterval = 123;
   SocketListener listener(
-      {kSamplingRate},
+      {kSamplingInterval},
       [&done, &bookkeeping_thread](UnwindingRecord r) {
         // TODO(fmayer): Test symbolization and result of unwinding.
         // This check will only work on in-tree builds as out-of-tree
@@ -75,10 +75,10 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
     PERFETTO_ELOG("Socket not listening.");
     PERFETTO_CHECK(false);
   }
-  std::thread th([kSamplingRate] {
+  std::thread th([kSamplingInterval] {
     Client client(kSocketName, 1);
     SomeFunction(&client);
-    EXPECT_EQ(client.client_config_for_testing().rate, kSamplingRate);
+    EXPECT_EQ(client.client_config_for_testing().interval, kSamplingInterval);
   });
 
   task_runner.RunUntilCheckpoint("done");
