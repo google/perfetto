@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Perfetto - Docs</title>
@@ -11,12 +12,13 @@
   <style>
     :root {
       --base-font-size: 18px;
-      --base-font-family:  'Exo', sans-serif;
+      --base-font-family: 'Exo', sans-serif;
       --theme-hue: 210;
       --cover-max-width: 90vw;
     }
   </style>
 </head>
+
 <body>
   <div id="app"></div>
   <script>
@@ -25,7 +27,22 @@
       repo: 'https://android.googlesource.com/platform/external/perfetto/',
       coverpage: true,
       loadSidebar: 'toc.md',
-      themeable: {
+      markdown: {
+        renderer: {
+          link: function (href, title, text) {
+            console.log(href);
+            title = title || '';
+            if (href.startsWith('/') && !href.startsWith('/docs')) {
+              href = `https://android.googlesource.com/platform/external/perfetto/+/master${href}`;
+            } else if(href.startsWith('http') || href.startsWith('//')) {
+              // Leave it as it is.
+            } else {
+              href = href.replace(/^[/]docs/, '');
+              href = `#/${href}`;
+            }
+            return `<a href="${href}" title="${title}">${text}</a>`;
+          }
+        }
       }
     }
   </script>
@@ -35,4 +52,5 @@
   <script src="//unpkg.com/prismjs/components/prism-bash.min.js"></script>
 
 </body>
+
 </html>
