@@ -267,6 +267,16 @@ UI_DEPS = [
    '478501b9b7a14884e546c84efe209a90052cbb07',
    'linux2'
   ),
+  ('buildtools/d8.tgz',
+   'https://storage.googleapis.com/perfetto/d8-linux2-5.7.492.65.tar.gz',
+   '95e82ad7faf0a6f74d950c2aa65e3858b7bdb6c6',
+   'linux2'
+  ),
+  ('buildtools/d8.tgz',
+   'https://storage.googleapis.com/perfetto/d8-darwin-6.6.346.32.tar.gz',
+   '1abd630619bb1977ab62095570a113d782a1545d',
+   'darwin'
+  ),
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -358,9 +368,11 @@ def Main():
       logging.info('Downloading %s from %s', local_path, url)
       urllib.urlretrieve(url, download_path)
       os.chmod(download_path, 0o755)
-      if (HashLocalFile(download_path) != expected_sha1):
+      actual_sha1 = HashLocalFile(download_path)
+      if (actual_sha1 != expected_sha1):
         os.remove(download_path)
-        logging.fatal('SHA1 mismatch for %s', download_path)
+        logging.fatal('SHA1 mismatch for {} expected {} was {}'.format(
+            download_path, expected_sha1, actual_sha1))
         return 1
       os.rename(download_path, local_path)
     assert(HashLocalFile(local_path) == expected_sha1)
