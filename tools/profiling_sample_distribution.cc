@@ -45,25 +45,26 @@
 #include "perfetto/base/logging.h"
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
-constexpr uint64_t kDefaultSamplingRate = 128000;
+constexpr uint64_t kDefaultSamplingInterval = 128000;
 
 int ProfilingSampleDistributionMain(int argc, char** argv) {
   int opt;
-  uint64_t sampling_rate = kDefaultSamplingRate;
+  uint64_t sampling_interval = kDefaultSamplingInterval;
   uint64_t times = 1;
   uint64_t init_seed = 1;
 
-  while ((opt = getopt(argc, argv, "t:r:s:")) != -1) {
+  while ((opt = getopt(argc, argv, "t:i:s:")) != -1) {
     switch (opt) {
-      case 'r': {
+      case 'i': {
         char* end;
-        long long sampling_rate_arg = strtoll(optarg, &end, 10);
+        long long sampling_interval_arg = strtoll(optarg, &end, 10);
         if (*end != '\0' || *optarg == '\0')
-          PERFETTO_FATAL("Invalid sampling rate: %s", optarg);
-        PERFETTO_CHECK(sampling_rate > 0);
-        sampling_rate = static_cast<uint64_t>(sampling_rate_arg);
+          PERFETTO_FATAL("Invalid sampling interval: %s", optarg);
+        PERFETTO_CHECK(sampling_interval_arg > 0);
+        sampling_interval = static_cast<uint64_t>(sampling_interval_arg);
         break;
       }
       case 't': {
@@ -84,7 +85,7 @@ int ProfilingSampleDistributionMain(int argc, char** argv) {
       }
 
       default:
-        PERFETTO_FATAL("%s [-t times] [-r rate] [-s seed]", argv[0]);
+        PERFETTO_FATAL("%s [-t times] [-i interval] [-s seed]", argv[0]);
     }
   }
 
@@ -130,7 +131,7 @@ int ProfilingSampleDistributionMain(int argc, char** argv) {
       std::map<std::string, uint64_t> totals;
       for (const auto& pair : allocations) {
         size_t sample_size =
-            SampleSize(key.get(), pair.second, sampling_rate, malloc, free);
+            SampleSize(key.get(), pair.second, sampling_interval, malloc, free);
         // We also want to add 0 to make downstream processing easier, making
         // sure every iteration has an entry for every key, even if it is
         // zero.
@@ -148,8 +149,9 @@ int ProfilingSampleDistributionMain(int argc, char** argv) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto
 
 int main(int argc, char** argv) {
-  return perfetto::ProfilingSampleDistributionMain(argc, argv);
+  return perfetto::profiling::ProfilingSampleDistributionMain(argc, argv);
 }

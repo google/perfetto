@@ -7,11 +7,16 @@ into Perfetto._
 Currently heapprofd only works with SELinux disabled and when run as root.
 
 To start profiling the process `${PID}`, run the following sequence of commands.
+Adjust the `INTERVAL` to trade-off runtime impact for higher accuracy of the
+results. If `INTERVAL=1`, every allocation is sampled for maximum accuracy.
+Otherwise, a sample is taken every `INTERVAL` bytes on average.
 
 ```bash
+INTERVAL=128000
+
 adb root
 adb shell setenforce 0
-adb shell 'heapprofd -s -r 128000' & # Start standalone with 128kB sampling.
+adb shell heapprofd -s -i ${INTERVAL} &
 adb shell kill -36 ${PID} # Start profiling the process.
 ```
 
