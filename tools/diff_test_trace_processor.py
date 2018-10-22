@@ -52,12 +52,14 @@ def main():
       print("Expected file not found {}".format(expected_path))
       return 1
 
-    actual_raw = subprocess.check_output([
+    cmd = [
       args.trace_processor,
       '-q',
       query_path,
       trace_path
-    ])
+    ]
+
+    actual_raw = subprocess.check_output(cmd)
     actual = actual_raw.decode("utf-8")
     actual_lines = actual_raw.splitlines(True)
 
@@ -65,8 +67,9 @@ def main():
       expected = expected_file.read()
       if expected != actual:
         sys.stderr.write(
-          "Expected did not match actual for trace {} and query {}"
+          "Expected did not match actual for trace {} and query {}\n"
           .format(trace_path, query_path))
+        sys.stderr.write("Commandline: {}\n".format(' '.join(cmd)))
 
         expected_lines = expected.splitlines(True)
         diff = difflib.unified_diff(expected_lines, actual_lines,
