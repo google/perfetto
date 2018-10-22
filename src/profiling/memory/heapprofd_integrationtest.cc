@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 constexpr char kSocketName[] = TEST_SOCK_NAME("heapprofd_integrationtest");
@@ -86,4 +87,5 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto

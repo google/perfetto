@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 TEST(StringInternerTest, Basic) {
@@ -109,4 +110,5 @@ TEST(StringInternerTest, CopyAssign) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto

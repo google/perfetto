@@ -22,6 +22,7 @@
 #include <string>
 
 namespace perfetto {
+namespace profiling {
 
 class StringInterner {
  private:
@@ -62,6 +63,7 @@ class StringInterner {
 static_assert(sizeof(StringInterner::InternedString) == sizeof(void*),
               "interned strings should be small");
 
+}  // namespace profiling
 }  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_STRING_INTERNER_H_

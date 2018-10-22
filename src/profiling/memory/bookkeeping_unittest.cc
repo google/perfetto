@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 std::vector<CodeLocation> stack() {
@@ -84,4 +85,5 @@ TEST(BookkeepingTest, OutOfOrder) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto

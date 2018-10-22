@@ -21,6 +21,7 @@
 #include <thread>
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 TEST(SocketPoolTest, Basic) {
@@ -117,4 +118,5 @@ TEST(ClientTest, GetThreadStackBase) {
 }
 
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto

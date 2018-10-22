@@ -27,6 +27,7 @@
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
+namespace profiling {
 
 class BorrowedSocket;
 
@@ -153,6 +154,7 @@ class Client {
   std::atomic<uint64_t> sequence_number_{0};
 };
 
+}  // namespace profiling
 }  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_CLIENT_H_

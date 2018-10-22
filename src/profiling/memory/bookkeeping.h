@@ -27,6 +27,7 @@
 #include <vector>
 
 namespace perfetto {
+namespace profiling {
 
 class HeapTracker;
 
@@ -236,6 +237,7 @@ class BookkeepingThread {
   std::string file_name_;
 };
 
+}  // namespace profiling
 }  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_BOOKKEEPING_H_

@@ -31,6 +31,7 @@
 #include "perfetto/base/unix_task_runner.h"
 
 namespace perfetto {
+namespace profiling {
 namespace {
 
 constexpr size_t kUnwinderQueueSize = 1000;
@@ -169,9 +170,11 @@ int HeapprofdMain(int argc, char** argv) {
   task_runner.Run();
   return 0;
 }
+
 }  // namespace
+}  // namespace profiling
 }  // namespace perfetto
 
 int main(int argc, char** argv) {
-  return perfetto::HeapprofdMain(argc, argv);
+  return perfetto::profiling::HeapprofdMain(argc, argv);
 }
