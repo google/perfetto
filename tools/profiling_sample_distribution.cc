@@ -1,0 +1,155 @@
+/*
+ * Copyright (C) 2018 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Tool that takes in a stream of allocations from stdin and outputs samples
+//
+// Input format is code_location size tuples, output format is iteration number
+// code_location sample_size tuples. The sum of all allocations in the input is
+// echoed back in the special iteration 'g'
+//
+// Example input:
+// foo 1
+// bar 10
+// foo 1000
+// baz 1
+//
+// Example output;
+// g foo 1001
+// g bar 10
+// g baz 1
+// 1 foo 1000
+// 1 bar 100
+
+#include <iostream>
+#include <string>
+#include <thread>
+
+#include <unistd.h>
+
+#include "src/profiling/memory/client.h"
+#include "src/profiling/memory/sampler.h"
+
+#include "perfetto/base/logging.h"
+
+namespace perfetto {
+namespace {
+
+constexpr uint64_t kDefaultSamplingRate = 128000;
+
+int ProfilingSampleDistributionMain(int argc, char** argv) {
+  int opt;
+  uint64_t sampling_rate = kDefaultSamplingRate;
+  uint64_t times = 1;
+  uint64_t init_seed = 1;
+
+  while ((opt = getopt(argc, argv, "t:r:s:")) != -1) {
+    switch (opt) {
+      case 'r': {
+        char* end;
+        long long sampling_rate_arg = strtoll(optarg, &end, 10);
+        if (*end != '\0' || *optarg == '\0')
+          PERFETTO_FATAL("Invalid sampling rate: %s", optarg);
+        PERFETTO_CHECK(sampling_rate > 0);
+        sampling_rate = static_cast<uint64_t>(sampling_rate_arg);
+        break;
+      }
+      case 't': {
+        char* end;
+        long long times_arg = strtoll(optarg, &end, 10);
+        if (*end != '\0' || *optarg == '\0')
+          PERFETTO_FATAL("Invalid times: %s", optarg);
+        PERFETTO_CHECK(times_arg > 0);
+        times = static_cast<uint64_t>(times_arg);
+        break;
+      }
+      case 's': {
+        char* end;
+        init_seed = static_cast<uint64_t>(strtoll(optarg, &end, 10));
+        if (*end != '\0' || *optarg == '\0')
+          PERFETTO_FATAL("Invalid seed: %s", optarg);
+        break;
+      }
+
+      default:
+        PERFETTO_FATAL("%s [-t times] [-r rate] [-s seed]", argv[0]);
+    }
+  }
+
+  std::vector<std::pair<std::string, uint64_t>> allocations;
+
+  while (std::cin) {
+    std::string callsite;
+    uint64_t size;
+    std::cin >> callsite;
+    if (std::cin.fail()) {
+      // Skip trailing newline.
+      if (std::cin.eof())
+        break;
+      PERFETTO_FATAL("Could not read callsite");
+    }
+    std::cin >> size;
+    if (std::cin.fail())
+      PERFETTO_FATAL("Could not read size");
+    allocations.emplace_back(std::move(callsite), size);
+  }
+  std::map<std::string, uint64_t> total_ground_truth;
+  for (const auto& pair : allocations)
+    total_ground_truth[pair.first] += pair.second;
+
+  for (const auto& pair : total_ground_truth)
+    std::cout << "g " << pair.first << " " << pair.second << std::endl;
+
+  std::default_random_engine seed_engine(init_seed);
+
+  while (times-- > 0) {
+    PThreadKey key(ThreadLocalSamplingData::KeyDestructor);
+    ThreadLocalSamplingData::seed = seed_engine();
+    // We want to use the same API here that the client uses, which involves
+    // TLS. In order to destruct that TLS, we need to spawn a thread because
+    // pthread_key_delete does not delete any associated data, but rather it
+    // gets deleted when the owning thread terminates.
+    //
+    // Sad times.
+    std::thread th([&] {
+      if (!key.valid())
+        PERFETTO_FATAL("Failed to initialize TLS.");
+
+      std::map<std::string, uint64_t> totals;
+      for (const auto& pair : allocations) {
+        size_t sample_size =
+            SampleSize(key.get(), pair.second, sampling_rate, malloc, free);
+        // We also want to add 0 to make downstream processing easier, making
+        // sure every iteration has an entry for every key, even if it is
+        // zero.
+        totals[pair.first] += sample_size;
+      }
+
+      for (const auto& pair : totals)
+        std::cout << times << " " << pair.first << " " << pair.second
+                  << std::endl;
+    });
+    th.join();
+  }
+
+  return 0;
+}
+
+}  // namespace
+}  // namespace perfetto
+
+int main(int argc, char** argv) {
+  return perfetto::ProfilingSampleDistributionMain(argc, argv);
+}
