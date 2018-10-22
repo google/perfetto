@@ -67,5 +67,5 @@ to perform offline attestation of the contents of the trace.
 
 Internal docs
 -------------
-* [Android security review doc](go/perfetto-asec)
-* [Chromium security review doc](go/perfetto-csec)
+* [Android security review doc](http://go/perfetto-asec)
+* [Chromium security review doc](http://go/perfetto-csec)
