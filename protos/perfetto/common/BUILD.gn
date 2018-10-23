@@ -14,7 +14,7 @@
 
 import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
-import("../../../src/protozero/protozero_library.gni")
+import("../../../gn/protozero_library.gni")
 
 common_sources = [
   "commit_data_request.proto",

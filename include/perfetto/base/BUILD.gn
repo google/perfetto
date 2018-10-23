@@ -42,7 +42,7 @@ source_set("base") {
   if (is_android) {
     sources += [ "android_task_runner.h" ]
   }
-  if (!build_with_chromium) {
+  if (perfetto_build_standalone || perfetto_build_with_android) {
     sources += [ "unix_socket.h" ]
   }
 }

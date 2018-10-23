@@ -64,7 +64,7 @@ target_host_only = [
 ]
 
 # Arguments for the GN output directory.
-gn_args = 'target_os="android" target_cpu="arm" is_debug=false build_with_android=true'
+gn_args = 'target_os="android" target_cpu="arm" is_debug=false perfetto_build_with_android=true'
 
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'perfetto_'

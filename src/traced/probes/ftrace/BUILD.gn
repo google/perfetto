@@ -15,10 +15,10 @@
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
 import("../../../../gn/fuzzer.gni")
-import("../../../protozero/protozero_library.gni")
+import("../../../../gn/protozero_library.gni")
 
 # For use_libfuzzer.
-if (!build_with_chromium) {
+if (perfetto_build_standalone || perfetto_build_with_android) {
   import("//gn/standalone/sanitizers/vars.gni")
 } else {
   import("//build/config/sanitizers/sanitizers.gni")
@@ -157,7 +157,7 @@ source_set("format_parser") {
   ]
 }
 
-if (!build_with_chromium) {
+if (perfetto_build_standalone) {
   source_set("benchmarks") {
     testonly = true
     deps = [

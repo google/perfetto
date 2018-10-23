@@ -12,13 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build_overrides/build.gni")
-
-if (!build_with_chromium) {
-  import("//gn/standalone/proto_library.gni")
-} else {
-  import("//third_party/protobuf/proto_library.gni")
-}
+import("perfetto.gni")
+import("proto_library.gni")
 
 # Equivalent to proto_library (generation of .h/.cc from .proto files) but
 # enables also generation using the protozero plugin.

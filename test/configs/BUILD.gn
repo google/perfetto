@@ -14,7 +14,7 @@
 
 import("../../gn/perfetto.gni")
 
-if (!build_with_chromium) {
+if (perfetto_build_standalone) {
   action_foreach("configs") {
     testonly = true
     script = "$root_out_dir/protoc_helper"
