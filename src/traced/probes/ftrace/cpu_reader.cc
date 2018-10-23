@@ -299,9 +299,9 @@ bool CpuReader::Drain(const std::set<FtraceDataSource*>& data_sources) {
 
 uint8_t* CpuReader::GetBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!buffer_)
-    buffer_ = base::PageAllocator::Allocate(base::kPageSize);
-  return reinterpret_cast<uint8_t*>(buffer_.get());
+  if (!buffer_.IsValid())
+    buffer_ = base::PagedMemory::Allocate(base::kPageSize);
+  return reinterpret_cast<uint8_t*>(buffer_.Get());
 }
 
 // The structure of a raw trace buffer page is as follows:

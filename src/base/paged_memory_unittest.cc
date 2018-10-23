@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/page_allocator.h"
+#include "perfetto/base/paged_memory.h"
 
 #include <stdint.h>
 
@@ -31,23 +31,23 @@ namespace perfetto {
 namespace base {
 namespace {
 
-TEST(PageAllocatorTest, Basic) {
+TEST(PagedMemoryTest, Basic) {
   const size_t kNumPages = 10;
   const size_t kSize = 4096 * kNumPages;
   void* ptr_raw = nullptr;
   {
-    PageAllocator::UniquePtr ptr = PageAllocator::Allocate(kSize);
-    ASSERT_TRUE(ptr);
-    ASSERT_EQ(0u, reinterpret_cast<uintptr_t>(ptr.get()) % 4096);
-    ptr_raw = ptr.get();
+    PagedMemory mem = PagedMemory::Allocate(kSize);
+    ASSERT_TRUE(mem.IsValid());
+    ASSERT_EQ(0u, reinterpret_cast<uintptr_t>(mem.Get()) % 4096);
+    ptr_raw = mem.Get();
     for (size_t i = 0; i < kSize / sizeof(uint64_t); i++)
-      ASSERT_EQ(0u, *(reinterpret_cast<uint64_t*>(ptr.get()) + i));
+      ASSERT_EQ(0u, *(reinterpret_cast<uint64_t*>(mem.Get()) + i));
 
     ASSERT_TRUE(vm_test_utils::IsMapped(ptr_raw, kSize));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    ASSERT_TRUE(PageAllocator::AdviseDontNeed(ptr_raw, kSize));
+    ASSERT_TRUE(mem.AdviseDontNeed(ptr_raw, kSize));
 
     // Make sure the pages were removed from the working set.
     ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, kSize));
@@ -58,11 +58,60 @@ TEST(PageAllocatorTest, Basic) {
   ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, kSize));
 }
 
-TEST(PageAllocatorTest, GuardRegions) {
+TEST(PagedMemoryTest, Uncommitted) {
+  constexpr size_t kNumPages = 1024;
+  constexpr size_t kSize = 4096 * kNumPages;
+  char* ptr_raw = nullptr;
+  {
+    PagedMemory mem = PagedMemory::Allocate(kSize, PagedMemory::kDontCommit);
+    ASSERT_TRUE(mem.IsValid());
+    ptr_raw = reinterpret_cast<char*>(mem.Get());
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    // Windows only commits the first 128 pages.
+    constexpr size_t kMappedSize = 4096 * 128;
+
+    for (size_t i = 0; i < kMappedSize / sizeof(uint64_t); i++)
+      ASSERT_EQ(0u, *(reinterpret_cast<uint64_t*>(mem.Get()) + i));
+
+    ASSERT_TRUE(vm_test_utils::IsMapped(ptr_raw, kMappedSize));
+
+    // Next page shouldn't be mapped.
+    ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw + kMappedSize, 4096));
+    EXPECT_DEATH({ ptr_raw[kMappedSize] = 'x'; }, ".*");
+
+    // Commit the remaining pages.
+    mem.EnsureCommitted(kSize);
+
+    for (size_t i = kMappedSize / sizeof(uint64_t);
+         i < kSize / sizeof(uint64_t); i++) {
+      ASSERT_EQ(0u, *(reinterpret_cast<uint64_t*>(mem.Get()) + i));
+    }
+
+    ASSERT_TRUE(vm_test_utils::IsMapped(ptr_raw, kSize));
+#else
+    // Linux only maps on access.
+    ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, kSize));
+
+    // This should not have any effect.
+    mem.EnsureCommitted(kSize);
+    ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, kSize));
+
+    for (size_t i = 0; i < kSize / sizeof(uint64_t); i++)
+      ASSERT_EQ(0u, *(reinterpret_cast<uint64_t*>(mem.Get()) + i));
+    ASSERT_TRUE(vm_test_utils::IsMapped(ptr_raw, kSize));
+#endif
+  }
+
+  // Freed memory is necessarily not mapped in to the process.
+  ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, kSize));
+}
+
+TEST(PagedMemoryTest, GuardRegions) {
   const size_t kSize = 4096;
-  PageAllocator::UniquePtr ptr = PageAllocator::Allocate(kSize);
-  ASSERT_TRUE(ptr);
-  volatile char* raw = reinterpret_cast<char*>(ptr.get());
+  PagedMemory mem = PagedMemory::Allocate(kSize);
+  ASSERT_TRUE(mem.IsValid());
+  volatile char* raw = reinterpret_cast<char*>(mem.Get());
   EXPECT_DEATH({ raw[-1] = 'x'; }, ".*");
   EXPECT_DEATH({ raw[kSize] = 'x'; }, ".*");
 }
@@ -79,7 +128,7 @@ TEST(PageAllocatorTest, GuardRegions) {
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Wdisabled-macro-expansion"
 #endif
-TEST(PageAllocatorTest, Unchecked) {
+TEST(PagedMemoryTest, Unchecked) {
   const size_t kMemLimit = 256 * 1024 * 1024l;
   struct rlimit limit {
     kMemLimit, kMemLimit
@@ -89,8 +138,8 @@ TEST(PageAllocatorTest, Unchecked) {
   ASSERT_EXIT(
       {
         ASSERT_EQ(0, setrlimit(RLIMIT_AS, &limit));
-        auto ptr = PageAllocator::AllocateMayFail(kMemLimit * 2);
-        ASSERT_FALSE(ptr);
+        auto mem = PagedMemory::Allocate(kMemLimit * 2, PagedMemory::kMayFail);
+        ASSERT_FALSE(mem.IsValid());
         exit(0);
       },
       ::testing::ExitedWithCode(0), "");

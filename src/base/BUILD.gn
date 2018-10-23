@@ -26,7 +26,7 @@ source_set("base") {
   sources = [
     "file_utils.cc",
     "metatrace.cc",
-    "page_allocator.cc",
+    "paged_memory.cc",
     "string_splitter.cc",
     "string_utils.cc",
     "thread_checker.cc",
@@ -137,7 +137,7 @@ source_set("unittests") {
     deps += [ ":android_task_runner" ]
   }
   sources = [
-    "page_allocator_unittest.cc",
+    "paged_memory_unittest.cc",
     "scoped_file_unittest.cc",
     "string_splitter_unittest.cc",
     "string_utils_unittest.cc",
