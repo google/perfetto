@@ -233,7 +233,7 @@ if (!build_with_chromium) {
       testonly = true
       deps = [
         "gn:default_deps",
-        "tools/trace_to_text:lib",
+        "tools/trace_to_text:full",
       ]
     }
 

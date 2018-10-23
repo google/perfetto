@@ -15,10 +15,11 @@
 import("../../gn/perfetto.gni")
 import("../../gn/wasm.gni")
 
-source_set("lib") {
-  deps = [
+# The core source files that are used both by the "full" version (the host
+# executable) and by the "lite" version (the WASM module for the UI).
+source_set("common") {
+  public_deps = [
     "../../gn:default_deps",
-    "../../gn:protobuf_full_deps",
     "../../include/perfetto/base",
     "../../include/perfetto/traced:sys_stats_counters",
     "../../protos/perfetto/trace:lite",
@@ -31,13 +32,47 @@ source_set("lib") {
     "ftrace_inode_handler.h",
     "main.cc",
     "process_formatter.h",
+    "trace_to_summary.h",
+    "trace_to_systrace.cc",
+    "trace_to_systrace.h",
+    "trace_to_text.h",
+    "utils.cc",
+    "utils.h",
+  ]
+}
+
+# Lite target for the WASM UI. Doesn't have any dependency on libprotobuf-full.
+source_set("lite") {
+  deps = [
+    ":common",
+    "../../gn:default_deps",
+  ]
+  sources = [
+    "lite_fallbacks.cc",
+  ]
+}
+
+# Full traget for the host. Depends on libprotobuf-full.
+source_set("full") {
+  testonly = true
+  deps = [
+    ":common",
+    "../../gn:default_deps",
+    "../../gn:protobuf_full_deps",
+  ]
+  sources = [
+    "proto_full_utils.cc",
+    "proto_full_utils.h",
+    "trace_to_summary.cc",
+    "trace_to_text.cc",
   ]
 }
 
 if (current_toolchain == host_toolchain) {
   executable("trace_to_text_host") {
+    testonly = true
     deps = [
-      ":lib",
+      ":full",
       "../../gn:default_deps",
     ]
   }
@@ -46,7 +81,7 @@ if (current_toolchain == host_toolchain) {
 wasm_lib("trace_to_text_wasm") {
   name = "trace_to_text"
   deps = [
-    ":lib",
+    ":lite",
     "../../gn:default_deps",
   ]
 }
