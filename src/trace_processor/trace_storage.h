@@ -43,7 +43,13 @@ using UniqueTid = uint32_t;
 // StringId is an offset into |string_pool_|.
 using StringId = size_t;
 
-enum RefType { kNoRef = 0, kUTID = 1, kCPU_ID = 2, kIrq = 3, kSoftIrq = 4 };
+enum RefType {
+  kNoRef = 0,
+  kUtid = 1,
+  kCpuId = 2,
+  kIrq = 3,
+  kSoftIrq = 4,
+};
 
 // Stores a data inside a trace file in a columnar form. This makes it efficient
 // to read or search across a single field of the trace (e.g. all the thread
@@ -163,14 +169,12 @@ class TraceStorage {
                              uint64_t duration,
                              StringId name_id,
                              double value,
-                             double value_delta,
                              int64_t ref,
                              RefType type) {
       timestamps_.emplace_back(timestamp);
       durations_.emplace_back(duration);
       name_ids_.emplace_back(name_id);
       values_.emplace_back(value);
-      value_deltas_.emplace_back(value_delta);
       refs_.emplace_back(ref);
       types_.emplace_back(type);
       return counter_count() - 1;
@@ -178,10 +182,6 @@ class TraceStorage {
 
     void set_duration(size_t index, uint64_t duration) {
       durations_[index] = duration;
-    }
-
-    void set_value_delta(size_t index, double value_delta) {
-      value_deltas_[index] = value_delta;
     }
 
     size_t counter_count() const { return timestamps_.size(); }
@@ -194,8 +194,6 @@ class TraceStorage {
 
     const std::deque<double>& values() const { return values_; }
 
-    const std::deque<double>& value_deltas() const { return value_deltas_; }
-
     const std::deque<int64_t>& refs() const { return refs_; }
 
     const std::deque<RefType>& types() const { return types_; }
@@ -205,7 +203,6 @@ class TraceStorage {
     std::deque<uint64_t> durations_;
     std::deque<StringId> name_ids_;
     std::deque<double> values_;
-    std::deque<double> value_deltas_;
     std::deque<int64_t> refs_;
     std::deque<RefType> types_;
   };

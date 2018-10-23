@@ -25,7 +25,7 @@ namespace trace_processor {
 class SliceTracker;
 class ProcessTracker;
 class TraceStorage;
-class SchedTracker;
+class EventTracker;
 class TraceParser;
 class TraceSorter;
 class ProtoTraceParser;
@@ -38,7 +38,7 @@ class TraceProcessorContext {
 
   std::unique_ptr<SliceTracker> slice_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
-  std::unique_ptr<SchedTracker> sched_tracker;
+  std::unique_ptr<EventTracker> event_tracker;
   std::unique_ptr<TraceStorage> storage;
   std::unique_ptr<ProtoTraceParser> proto_parser;
   std::unique_ptr<TraceSorter> sorter;
