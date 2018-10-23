@@ -23,7 +23,7 @@
 #include <memory>
 #include <string>
 
-#include "perfetto/base/page_allocator.h"
+#include "perfetto/base/paged_memory.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
@@ -85,7 +85,7 @@ class SysStatsDataSource : public ProbesDataSource {
   base::ScopedFile meminfo_fd_;
   base::ScopedFile vmstat_fd_;
   base::ScopedFile stat_fd_;
-  base::PageAllocator::UniquePtr read_buf_;
+  base::PagedMemory read_buf_;
   TraceWriter::TracePacketHandle cur_packet_;
   std::map<const char*, int, CStrCmp> meminfo_counters_;
   std::map<const char*, int, CStrCmp> vmstat_counters_;

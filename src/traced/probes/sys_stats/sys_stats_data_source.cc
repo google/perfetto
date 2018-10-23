@@ -74,7 +74,7 @@ SysStatsDataSource::SysStatsDataSource(base::TaskRunner* task_runner,
   vmstat_fd_ = open_fn("/proc/vmstat");
   stat_fd_ = open_fn("/proc/stat");
 
-  read_buf_ = base::PageAllocator::Allocate(kReadBufSize);
+  read_buf_ = base::PagedMemory::Allocate(kReadBufSize);
 
   // Build a lookup map that allows to quickly translate strings like "MemTotal"
   // into the corresponding enum value, only for the counters enabled in the
@@ -169,7 +169,7 @@ void SysStatsDataSource::ReadMeminfo(protos::pbzero::SysStats* sys_stats) {
   size_t rsize = ReadFile(&meminfo_fd_, "/proc/meminfo");
   if (!rsize)
     return;
-  char* buf = static_cast<char*>(read_buf_.get());
+  char* buf = static_cast<char*>(read_buf_.Get());
   for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
     base::StringSplitter words(&lines, ' ');
     if (!words.Next())
@@ -193,7 +193,7 @@ void SysStatsDataSource::ReadVmstat(protos::pbzero::SysStats* sys_stats) {
   size_t rsize = ReadFile(&vmstat_fd_, "/proc/vmstat");
   if (!rsize)
     return;
-  char* buf = static_cast<char*>(read_buf_.get());
+  char* buf = static_cast<char*>(read_buf_.Get());
   for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
     base::StringSplitter words(&lines, ' ');
     if (!words.Next())
@@ -215,7 +215,7 @@ void SysStatsDataSource::ReadStat(protos::pbzero::SysStats* sys_stats) {
   size_t rsize = ReadFile(&stat_fd_, "/proc/stat");
   if (!rsize)
     return;
-  char* buf = static_cast<char*>(read_buf_.get());
+  char* buf = static_cast<char*>(read_buf_.Get());
   for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
     base::StringSplitter words(&lines, ' ');
     if (!words.Next())
@@ -292,14 +292,14 @@ void SysStatsDataSource::Flush() {
 size_t SysStatsDataSource::ReadFile(base::ScopedFile* fd, const char* path) {
   if (!*fd)
     return 0;
-  ssize_t res = pread(**fd, read_buf_.get(), kReadBufSize - 1, 0);
+  ssize_t res = pread(**fd, read_buf_.Get(), kReadBufSize - 1, 0);
   if (res <= 0) {
     PERFETTO_PLOG("Failed reading %s", path);
     fd->reset();
     return 0;
   }
   size_t rsize = static_cast<size_t>(res);
-  static_cast<char*>(read_buf_.get())[rsize] = '\0';
+  static_cast<char*>(read_buf_.Get())[rsize] = '\0';
   return rsize + 1;  // Include null terminator in the count.
 }
 
