@@ -28,7 +28,7 @@ namespace perfetto {
 
 std::string FormatFtraceEvent(
     uint64_t timestamp,
-    size_t cpu,
+    uint32_t cpu,
     const protos::FtraceEvent&,
     const std::unordered_map<uint32_t /*tid*/, uint32_t /*tgid*/>& thread_map);
 

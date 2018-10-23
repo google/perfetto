@@ -15,13 +15,14 @@
 import {DraftObject} from 'immer';
 
 import {assertExists} from '../base/logging';
+import {ConvertTrace} from '../controller/trace_converter';
 
 import {
   defaultTraceTime,
   SCROLLING_TRACK_GROUP,
   State,
   Status,
-  TraceTime
+  TraceTime,
   RecordConfig,
 } from './state';
 
@@ -50,6 +51,10 @@ export const StateActions = {
       source: args.file,
     };
     state.route = `/viewer`;
+  },
+
+  convertTraceToJson(_: StateDraft, args: {file: File}): void {
+    ConvertTrace(args.file);
   },
 
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {

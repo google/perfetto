@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Module, ModuleArgs} from '../gen/trace_processor';
+import {FileSystem, Module, ModuleArgs} from '../gen/trace_processor';
 
 import {WasmBridge} from './wasm_bridge';
 
@@ -47,6 +47,12 @@ class MockModule implements Module {
     heap.set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 0);
     return heap;
   }
+
+  get FS(): FileSystem {
+    return ({} as FileSystem);
+  }
+
+  callMain() {}
 }
 
 test('wasm bridge should locate files', async () => {

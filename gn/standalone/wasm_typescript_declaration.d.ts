@@ -22,7 +22,30 @@ declare namespace Wasm {
     (_: ModuleArgs): Module;
   }
 
+  export interface FileSystemType {}
+
+  export interface FileSystemTypes {
+    MEMFS: FileSystemType;
+    IDBFS: FileSystemType;
+    WORKERFS: FileSystemType;
+  }
+
+  export interface FileSystemNode {
+    contents: Uint8Array;
+    usedBytes: number;
+  }
+
+  export interface FileSystem {
+    mkdir(path: string, mode?: number): any;
+    mount(type: Wasm.FileSystemType, opts: any, mountpoint: string): any;
+    unmount(mountpoint: string): void;
+    unlink(mountpoint: string): void;
+    lookupPath(path: string): {path: string, node: Wasm.FileSystemNode};
+    filesystems: Wasm.FileSystemTypes;
+  }
+
   export interface Module {
+    callMain(args: string[]): void;
     addFunction(f: any, argTypes: string): void;
     ccall(
         ident: string,
@@ -31,9 +54,11 @@ declare namespace Wasm {
         args: any[],
     ): void;
     HEAPU8: Uint8Array;
+    FS: FileSystem;
   }
 
   export interface ModuleArgs {
+    noInitialRun?: boolean;
     locateFile(s: string): string;
     print(s: string): void;
     printErr(s: string): void;
