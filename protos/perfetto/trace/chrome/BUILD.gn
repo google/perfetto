@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
-import("../../../../src/protozero/protozero_library.gni")
+import("../../../../gn/protozero_library.gni")
 
 chrome_proto_names = [ "chrome_trace_event.proto" ]
 minimal_chrome_proto_names = [ "chrome_trace_packet.proto" ]

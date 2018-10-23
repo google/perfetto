@@ -87,7 +87,7 @@ wasm_lib("trace_to_text_wasm") {
 }
 
 # The one for the android tree is defined in the top-level BUILD.gn.
-if (!build_with_android) {
+if (!perfetto_build_with_android) {
   copy("trace_to_text") {
     testonly = true
     host_out_dir_ =

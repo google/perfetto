@@ -95,7 +95,7 @@ source_set("unittests") {
     "test/test_shared_memory.h",
   ]
 
-  if (!build_with_chromium) {
+  if (perfetto_build_standalone || perfetto_build_with_android) {
     deps += [ ":ipc" ]
     sources += [
       "ipc/posix_shared_memory_unittest.cc",
@@ -132,7 +132,7 @@ source_set("test_support") {
   ]
 }
 
-if (!build_with_chromium) {
+if (perfetto_build_standalone || perfetto_build_with_android) {
   executable("consumer_api_test") {
     deps = [
       ":api",

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
-import("../../../../src/protozero/protozero_library.gni")
+import("../../../../gn/protozero_library.gni")
 
 inode_proto_names = [ "inode_file_map.proto" ]
 
