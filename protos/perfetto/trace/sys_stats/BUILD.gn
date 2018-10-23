@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
-import("../../../../src/protozero/protozero_library.gni")
+import("../../../../gn/protozero_library.gni")
 
 sys_stats_proto_names = [ "sys_stats.proto" ]
 

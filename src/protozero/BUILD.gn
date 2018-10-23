@@ -14,7 +14,7 @@
 
 import("../../gn/perfetto.gni")
 import("../../gn/proto_library.gni")
-import("protozero_library.gni")
+import("../../gn/protozero_library.gni")
 
 source_set("protozero") {
   public_configs = [ "../../gn:default_config" ]
