@@ -17,7 +17,7 @@
 #include "src/trace_processor/process_tracker.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "src/trace_processor/sched_tracker.h"
+#include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/trace_processor.h"
 
 namespace perfetto {
@@ -33,7 +33,7 @@ class ProcessTrackerTest : public ::testing::Test {
   ProcessTrackerTest() {
     context.storage.reset(new TraceStorage());
     context.process_tracker.reset(new ProcessTracker(&context));
-    context.sched_tracker.reset(new SchedTracker(&context));
+    context.event_tracker.reset(new EventTracker(&context));
   }
 
  protected:
@@ -77,9 +77,9 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   static const char kCommProc1[] = "process1";
   static const char kCommProc2[] = "process2";
 
-  context.sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, prev_state,
+  context.event_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, prev_state,
                                          /*tid=*/4, kCommProc1);
-  context.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
+  context.event_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
                                          prev_state, /*tid=*/1, kCommProc2);
 
   context.process_tracker->UpdateProcess(2, "test");

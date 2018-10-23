@@ -33,9 +33,8 @@ class CountersTable : public Table {
     kName = 1,
     kValue = 2,
     kDuration = 3,
-    kValueDelta = 4,
-    kRef = 5,
-    kRefType = 6,
+    kRef = 4,
+    kRefType = 5,
   };
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);

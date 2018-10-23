@@ -44,8 +44,6 @@ PERFETTO_ALWAYS_INLINE int CompareCountersOnColumn(
       return CompareValues(co.refs(), f_idx, s_idx, ob.desc);
     case CountersTable::Column::kDuration:
       return CompareValues(co.durations(), f_idx, s_idx, ob.desc);
-    case CountersTable::Column::kValueDelta:
-      return CompareValues(co.value_deltas(), f_idx, s_idx, ob.desc);
     case CountersTable::Column::kRefType:
       return CompareValues(co.types(), f_idx, s_idx, ob.desc);
     default:
@@ -82,7 +80,6 @@ Table::Schema CountersTable::CreateSchema(int, const char* const*) {
           Table::Column(Column::kName, "name", ColumnType::kString),
           Table::Column(Column::kValue, "value", ColumnType::kUlong),
           Table::Column(Column::kDuration, "dur", ColumnType::kUlong),
-          Table::Column(Column::kValueDelta, "value_delta", ColumnType::kUlong),
           Table::Column(Column::kRef, "ref", ColumnType::kUint),
           Table::Column(Column::kRefType, "ref_type", ColumnType::kString),
       },
@@ -130,9 +127,6 @@ CountersTable::Cursor::Cursor(const TraceStorage* storage,
       case CountersTable::Column::kDuration:
         FilterColumn(counters.durations(), 0, cs, v, &filter);
         break;
-      case CountersTable::Column::kValueDelta:
-        FilterColumn(counters.value_deltas(), 0, cs, v, &filter);
-        break;
       case CountersTable::Column::kRefType: {
         // TODO(lalitm): add support for filtering here.
       }
@@ -173,11 +167,11 @@ int CountersTable::Cursor::Column(sqlite3_context* context, int N) {
     }
     case Column::kRefType: {
       switch (storage_->counters().types()[row]) {
-        case RefType::kCPU_ID: {
+        case RefType::kCpuId: {
           sqlite3_result_text(context, "cpu", -1, nullptr);
           break;
         }
-        case RefType::kUTID: {
+        case RefType::kUtid: {
           sqlite3_result_text(context, "utid", -1, nullptr);
           break;
         }
@@ -199,12 +193,6 @@ int CountersTable::Cursor::Column(sqlite3_context* context, int N) {
     case Column::kDuration: {
       sqlite3_result_int64(
           context, static_cast<int64_t>(storage_->counters().durations()[row]));
-      break;
-    }
-    case Column::kValueDelta: {
-      sqlite3_result_int64(
-          context,
-          static_cast<int64_t>(storage_->counters().value_deltas()[row]));
       break;
     }
     default:

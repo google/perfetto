@@ -21,13 +21,13 @@
 
 #include "perfetto/base/time.h"
 #include "src/trace_processor/counters_table.h"
+#include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/json_trace_parser.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/proto_trace_tokenizer.h"
 #include "src/trace_processor/sched_slice_table.h"
-#include "src/trace_processor/sched_tracker.h"
 #include "src/trace_processor/slice_table.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/span_operator_table.h"
@@ -49,7 +49,7 @@ TraceProcessor::TraceProcessor(const Config& cfg) {
 
   context_.storage.reset(new TraceStorage());
   context_.slice_tracker.reset(new SliceTracker(&context_));
-  context_.sched_tracker.reset(new SchedTracker(&context_));
+  context_.event_tracker.reset(new EventTracker(&context_));
   context_.proto_parser.reset(new ProtoTraceParser(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.sorter.reset(
