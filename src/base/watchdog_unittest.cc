@@ -18,7 +18,7 @@
 
 #include "gtest/gtest.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/page_allocator.h"
+#include "perfetto/base/paged_memory.h"
 
 #include <time.h>
 
@@ -73,8 +73,8 @@ TEST(WatchdogTest, CrashMemory) {
       {
         // Allocate 8MB of data and use it to increase RSS.
         const size_t kSize = 8 * 1024 * 1024;
-        auto void_ptr = PageAllocator::Allocate(kSize);
-        volatile uint8_t* ptr = static_cast<volatile uint8_t*>(void_ptr.get());
+        auto void_ptr = PagedMemory::Allocate(kSize);
+        volatile uint8_t* ptr = static_cast<volatile uint8_t*>(void_ptr.Get());
         for (size_t i = 0; i < kSize; i += sizeof(size_t)) {
           *reinterpret_cast<volatile size_t*>(&ptr[i]) = i;
         }
