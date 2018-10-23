@@ -699,6 +699,7 @@ source_set("libunwindstack") {
     "android-core/libunwindstack/Elf.cpp",
     "android-core/libunwindstack/ElfInterface.cpp",
     "android-core/libunwindstack/ElfInterfaceArm.cpp",
+    "android-core/libunwindstack/Global.cpp",
     "android-core/libunwindstack/JitDebug.cpp",
     "android-core/libunwindstack/LocalUnwinder.cpp",
     "android-core/libunwindstack/Log.cpp",
