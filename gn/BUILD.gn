@@ -78,12 +78,12 @@ if (current_toolchain == host_toolchain) {
 }
 
 group("protobuf_full_deps") {
+  testonly = true
   if (!build_with_chromium) {
     public_deps = [
       "//buildtools:protobuf_full",
     ]
   } else {
-    testonly = true
     public_deps = [
       "//third_party/protobuf:protobuf_full",
     ]
