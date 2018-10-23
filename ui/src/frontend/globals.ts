@@ -44,6 +44,7 @@ type ThreadMap = Map<number, ThreadDesc>;
  */
 class Globals {
   private _dispatch?: Dispatch = undefined;
+  private _controllerWorker?: Worker = undefined;
   private _state?: State = undefined;
   private _frontendLocalState?: FrontendLocalState = undefined;
   private _rafScheduler?: RafScheduler = undefined;
@@ -54,8 +55,9 @@ class Globals {
   private _overviewStore?: OverviewStore = undefined;
   private _threadMap?: ThreadMap = undefined;
 
-  initialize(dispatch?: Dispatch) {
+  initialize(dispatch: Dispatch, controllerWorker: Worker) {
     this._dispatch = dispatch;
+    this._controllerWorker = controllerWorker;
     this._state = createEmptyState();
     this._frontendLocalState = new FrontendLocalState();
     this._rafScheduler = new RafScheduler();
@@ -115,6 +117,15 @@ class Globals {
     this._queryResults = undefined;
     this._overviewStore = undefined;
     this._threadMap = undefined;
+  }
+
+  // Used when switching to the legacy TraceViewer UI.
+  // Most resources are cleaned up by replacing the current |window| object,
+  // however pending RAFs and workers seem to outlive the |window| and need to
+  // be cleaned up explicitly.
+  shutdown() {
+    this._controllerWorker!.terminate();
+    this._rafScheduler!.shutdown();
   }
 }
 

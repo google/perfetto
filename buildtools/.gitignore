@@ -3,6 +3,7 @@ android_sdk/
 aosp-*/
 benchmark/
 bionic/
+catapult_trace_viewer/
 clang/
 clang_format/
 d8/

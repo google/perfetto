@@ -20,8 +20,10 @@ import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
 import {State} from '../common/state';
 import {TimeSpan} from '../common/time';
+
 import {globals, QuantizedLoad, ThreadDesc} from './globals';
 import {HomePage} from './home_page';
+import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
 import {RecordPage} from './record_page';
 import {Router} from './router';
 import {ViewerPage} from './viewer_page';
@@ -44,7 +46,6 @@ class FrontendApi {
       globals.frontendLocalState.updateVisibleTime(
           new TimeSpan(vizTraceTime.startSec, vizTraceTime.endSec));
     }
-
     this.redraw();
   }
 
@@ -84,6 +85,13 @@ class FrontendApi {
     this.redraw();
   }
 
+  // For opening JSON/HTML traces with the legacy catapult viewer.
+  publishLegacyTrace(args: {data: ArrayBuffer, size: number}) {
+    const arr = new Uint8Array(args.data, 0, args.size);
+    const str = (new TextDecoder('utf-8')).decode(arr);
+    openBufferWithLegacyTraceViewer('trace.json', str, 0);
+  }
+
   private redraw(): void {
     if (globals.state.route &&
         globals.state.route !== this.router.getRouteFromHash()) {
@@ -111,7 +119,7 @@ function main() {
       },
       dispatch);
   forwardRemoteCalls(channel.port2, new FrontendApi(router));
-  globals.initialize(dispatch);
+  globals.initialize(dispatch, controller);
 
   globals.rafScheduler.domRedraw = () =>
       m.render(document.body, m(router.resolve(globals.state.route)));

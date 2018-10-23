@@ -31,8 +31,9 @@ import {
 export interface App {
   state: State;
   dispatch(action: DeferredAction): void;
-  publish(what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult', data: {}):
-      void;
+  publish(
+      what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace',
+      data: {}, transferList?: Array<{}>): void;
 }
 
 /**
@@ -104,8 +105,11 @@ class Globals implements App {
   }
 
   // TODO: this needs to be cleaned up.
-  publish(what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult', data: {}) {
-    assertExists(this._frontend).send<void>(`publish${what}`, [data]);
+  publish(
+      what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace',
+      data: {}, transferList?: Array<{}>) {
+    assertExists(this._frontend)
+        .send<void>(`publish${what}`, [data], transferList);
   }
 
   get state(): State {
