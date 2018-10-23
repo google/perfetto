@@ -15,12 +15,21 @@
 
 set -ex
 
-# Trivial placeholder script while wiring up the CI.
-
 SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 ROOT_DIR="$(realpath ${SCRIPT_DIR}/../..)"
 
 cd ${ROOT_DIR}
 
-echo Kokoro CI configuration and ACLs look ok
-ls
+# Make space for docker image by symlinking the hardcoded /var/lib/docker path
+# to a tmpfs mount. Cargo culted from other projects' scripts.
+sudo -n /etc/init.d/docker stop
+sudo -n mv /var/lib/docker /tmpfs/
+sudo -n ln -s /tmpfs/docker /var/lib/docker
+sudo -n /etc/init.d/docker start
+
+# Run a prebaked build+test configuration in a container.
+# TODO(rsavitski): pass configuration via environment variables.
+docker run --rm -t --user=perfetto:perfetto \
+  -v ${ROOT_DIR}:/perfetto:ro \
+  asia.gcr.io/perfetto-ci/perfetto-ci:latest \
+  /bin/bash run_tests.sh
