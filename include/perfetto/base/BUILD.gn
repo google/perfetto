@@ -22,7 +22,7 @@ source_set("base") {
     "file_utils.h",
     "logging.h",
     "metatrace.h",
-    "page_allocator.h",
+    "paged_memory.h",
     "scoped_file.h",
     "small_set.h",
     "string_splitter.h",

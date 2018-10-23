@@ -17,3 +17,4 @@ TAGS
 /node_modules/
 /compile_commands.json
 .vscode
+*.code-workspace
