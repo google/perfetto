@@ -96,7 +96,7 @@ source_set("lib") {
     "../base",
     "../protozero",
   ]
-  if (build_standalone) {
+  if (perfetto_build_standalone) {
     sources += [
       "json_trace_parser.cc",
       "json_trace_parser.h",
@@ -113,7 +113,7 @@ if (current_toolchain == host_toolchain) {
       "../../protos/perfetto/trace_processor:lite",
       "../base",
     ]
-    if (build_standalone) {
+    if (perfetto_build_standalone) {
       deps += [ "../../buildtools:linenoise" ]
     }
     sources = [

@@ -13,14 +13,15 @@
 # limitations under the License.
 
 import("gn/perfetto.gni")
-if (!build_with_chromium) {
+
+if (perfetto_build_standalone || perfetto_build_with_android) {
   import("//gn/standalone/android.gni")
 } else {
   import("//build/config/android/config.gni")
 }
 
 # For use_libfuzzer.
-if (!build_with_chromium) {
+if (perfetto_build_standalone || perfetto_build_with_android) {
   import("//gn/standalone/sanitizers/vars.gni")
 } else {
   import("//build/config/sanitizers/sanitizers.gni")
@@ -34,10 +35,11 @@ declare_args() {
 
   # libunwindstack requires API level 26 or newer.
   should_build_heapprofd =
-      !build_with_chromium && is_clang && (is_linux || is_android) &&
-      (!is_android || android_api_level >= 26 || build_with_android)
+      (perfetto_build_standalone || perfetto_build_with_android) && is_clang &&
+      (is_linux || is_android) &&
+      (!is_android || android_api_level >= 26 || perfetto_build_with_android)
 }
-assert(!monolithic_binaries || !build_with_android)
+assert(!monolithic_binaries || !perfetto_build_with_android)
 
 group("all") {
   testonly = true  # allow to build also test targets
@@ -45,35 +47,35 @@ group("all") {
     ":perfetto_unittests",
     "src/protozero/protoc_plugin($host_toolchain)",
   ]
-  if (!build_with_chromium) {
+  if (perfetto_build_standalone || perfetto_build_with_android) {
     deps += [
       ":perfetto",
-      ":perfetto_benchmarks",
       ":perfetto_integrationtests",
       ":traced",
       ":traced_probes",
       "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
       "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
-      "test/configs",
       "tools:protoc_helper",
-      "tools/ftrace_proto_gen:ftrace_proto_gen",
-      "tools/proto_to_cpp",
     ]
-    if (!build_with_android) {
+    if (perfetto_build_standalone) {
       deps += [
+        ":perfetto_benchmarks",
         ":trace_processor",
         "src/tracing:consumer_api_test",
+        "test/configs",
+        "tools/ftrace_proto_gen:ftrace_proto_gen",
+        "tools/proto_to_cpp",
         "tools/trace_to_text",
       ]
-    }
-    if (is_linux || is_android) {
-      deps += [ "tools/skippy" ]
-    }
-    if (is_linux) {
-      deps += [ "tools:pipestats" ]
-    }
-    if (use_libfuzzer) {
-      deps += [ ":fuzzers" ]
+      if (is_linux || is_android) {
+        deps += [ "tools/skippy" ]
+      }
+      if (is_linux) {
+        deps += [ "tools:pipestats" ]
+      }
+      if (use_libfuzzer) {
+        deps += [ ":fuzzers" ]
+      }
     }
   }
 }
@@ -88,7 +90,7 @@ group("default") {
   ]
 }
 
-if (build_standalone) {
+if (perfetto_build_standalone) {
   group("ui") {
     deps = [
       "ui",
@@ -114,7 +116,7 @@ executable("perfetto_unittests") {
     "src/tracing:unittests",
   ]
 
-  if (!build_with_chromium) {
+  if (perfetto_build_standalone || perfetto_build_with_android) {
     deps += [
       "src/ipc:unittests",
       "src/perfetto_cmd:unittests",
@@ -130,23 +132,12 @@ executable("perfetto_unittests") {
     # built using GCC in the Android tree.
     deps += [ "src/profiling/memory:unittests" ]
   }
-  if (build_standalone && !is_android) {
+  if (perfetto_build_standalone && !is_android) {
     deps += [ "src/trace_processor:unittests" ]
   }
 }
 
-if (!build_with_chromium) {
-  executable("perfetto_benchmarks") {
-    testonly = true
-    deps = [
-      "gn:default_deps",
-      "src/traced/probes/ftrace:benchmarks",
-      "src/tracing:tracing_benchmarks",
-      "test:benchmark_main",
-      "test:end_to_end_benchmarks",
-    ]
-  }
-
+if (perfetto_build_standalone || perfetto_build_with_android) {
   executable("perfetto_integrationtests") {
     testonly = true
     deps = [
@@ -155,10 +146,10 @@ if (!build_with_chromium) {
       "src/traced/probes/ftrace:integrationtests",
       "test:end_to_end_integrationtests",
     ]
-    if (build_standalone && !is_android) {
+    if (perfetto_build_standalone && !is_android) {
       deps += [ "src/trace_processor:integrationtests" ]
     }
-    if (build_with_android) {
+    if (perfetto_build_with_android) {
       cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
     }
   }
@@ -218,7 +209,7 @@ if (!build_with_chromium) {
     if (is_android) {
       deps += [ "src/base:android_task_runner" ]
     }
-    if (build_with_android) {
+    if (perfetto_build_with_android) {
       cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
       libs = [
         "binder",
@@ -228,7 +219,7 @@ if (!build_with_chromium) {
     }
   }
 
-  if (build_with_android) {
+  if (perfetto_build_with_android) {
     executable("trace_to_text") {
       testonly = true
       deps = [
@@ -246,10 +237,15 @@ if (!build_with_chromium) {
       ]
     }
   }
-}
+}  # if (perfetto_build_standalone || perfetto_build_with_android)
 
-if (build_with_chromium) {
-  component("libperfetto") {
+if (perfetto_build_with_embedder) {
+  if (build_with_chromium) {
+    libperfetto_target_type = "component"
+  } else {
+    libperfetto_target_type = "source_set"
+  }
+  target(libperfetto_target_type, "libperfetto") {
     public_configs = [ "gn:public_config" ]
     deps = [
       "src/tracing",
@@ -264,7 +260,18 @@ if (build_with_chromium) {
   }
 }
 
-if (!build_with_chromium) {
+if (perfetto_build_standalone) {
+  executable("perfetto_benchmarks") {
+    testonly = true
+    deps = [
+      "gn:default_deps",
+      "src/traced/probes/ftrace:benchmarks",
+      "src/tracing:tracing_benchmarks",
+      "test:benchmark_main",
+      "test:end_to_end_benchmarks",
+    ]
+  }
+
   group("fuzzers") {
     testonly = true
     deps = [
@@ -275,7 +282,7 @@ if (!build_with_chromium) {
   }
 }
 
-if (!build_with_chromium) {
+if (perfetto_build_with_android) {
   # TODO(fmayer): Investigate shared library for common pieces.
   shared_library("heapprofd_client") {
     deps = [
