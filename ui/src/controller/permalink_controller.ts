@@ -112,7 +112,6 @@ export class PermalinkController extends Controller<'main'> {
     return `https://storage.googleapis.com/${BUCKET_NAME}/${name}`;
   }
 
-
   private static async loadState(id: string): Promise<State> {
     const url = `https://storage.googleapis.com/${BUCKET_NAME}/${id}`;
     const response = await fetch(url);

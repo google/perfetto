@@ -131,6 +131,23 @@ const SECTIONS = [
       },
     ],
   },
+  {
+    title: 'Support',
+    summary: 'Documentation & Bugs',
+    items: [
+      {
+        t: 'Documentation',
+        a: 'https://perfetto.dev',
+        i: 'help',
+      },
+      {
+        t: 'Report a bug',
+        a: 'https://goto.google.com/perfetto-ui-bug',
+        i: 'bug_report',
+      },
+    ],
+  },
+
 ];
 
 function getFileElement(): HTMLInputElement {
@@ -188,10 +205,7 @@ function navigateViewer(e: Event) {
 
 function dispatchCreatePermalink(e: Event) {
   e.preventDefault();
-  // TODO(hjd): Should requestId not be set to nextId++ in the controller?
-  globals.dispatch(Actions.createPermalink({
-    requestId: new Date().toISOString(),
-  }));
+  globals.dispatch(Actions.createPermalink({}));
 }
 
 export class Sidebar implements m.ClassComponent {
@@ -202,8 +216,11 @@ export class Sidebar implements m.ClassComponent {
       for (const item of section.items) {
         vdomItems.push(
             m('li',
-              m(`a[href=#]`,
-                {onclick: item.a},
+              m(`a`,
+                {
+                  onclick: typeof item.a === 'function' ? item.a : null,
+                  href: typeof item.a === 'string' ? item.a : '#',
+                },
                 m('i.material-icons', item.i),
                 item.t)));
       }
