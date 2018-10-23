@@ -41,14 +41,9 @@ template("wasm_lib") {
   _lib_name = invoker.name
 
   if (is_wasm) {
-    assert(defined(invoker.sources))
     _target_ldflags = [
       "-s",
-      "MODULARIZE=1",
-      "-s",
       "WASM=1",
-      "-s",
-      "NO_FILESYSTEM=1",
       "-s",
       "DISABLE_EXCEPTION_CATCHING=1",
       "-s",
@@ -64,7 +59,22 @@ template("wasm_lib") {
       "-s",
       "EXPORT_FUNCTION_TABLES=1",
       "-s",
-      "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'addFunction']",
+      "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'addFunction', 'FS']",
+
+      # This forces the MEMFS filesystem library to always use typed arrays
+      # instead of building strings/arrays when appending to a file. This allows
+      # to deal with pseudo-files larger than 128 MB when calling trace_to_text.
+      "-s",
+      "MEMFS_APPEND_TO_TYPED_ARRAYS=1",
+
+      # Reduces global namespace pollution.
+      "-s",
+      "MODULARIZE=1",
+
+      # This is to prevent that two different wasm modules end up generating
+      # JS that overrides the same global variable (var Module = ...)
+      "-s",
+      "EXPORT_NAME=${target_name}",
     ]
     if (is_debug) {
       _target_ldflags += [ "-g4" ]

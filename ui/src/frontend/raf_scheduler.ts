@@ -61,6 +61,7 @@ export class RafScheduler {
   private hasScheduledNextFrame = false;
   private requestedFullRedraw = false;
   private isRedrawing = false;
+  private _shutdown = false;
 
   private perfStats = {
     rafActions: new RunningStatistics(),
@@ -89,6 +90,10 @@ export class RafScheduler {
 
   scheduleRedraw() {
     this.maybeScheduleAnimationFrame(true);
+  }
+
+  shutdown() {
+    this._shutdown = true;
   }
 
   set domRedraw(cb: RedrawCallback|null) {
@@ -128,6 +133,7 @@ export class RafScheduler {
   }
 
   private onAnimationFrame(nowMs: number) {
+    if (this._shutdown) return;
     const rafStart = debugNow();
     this.hasScheduledNextFrame = false;
 

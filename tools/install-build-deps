@@ -241,6 +241,9 @@ TEST_DEPS_ANDROID = [
   ),
 ]
 
+# This variable is updated by tools/roll-catapult-trace-viewer.
+CATAPULT_SHA1 = 'ff5d8fd7244680b4d4456c25d5fdc04c76f9ef66'
+
 UI_DEPS = [
   ('buildtools/nodejs.tgz',
    'https://storage.googleapis.com/perfetto/node-v10.3.0-darwin-x64.tar.gz',
@@ -276,6 +279,11 @@ UI_DEPS = [
    'https://storage.googleapis.com/perfetto/d8-darwin-6.6.346.32.tar.gz',
    '1abd630619bb1977ab62095570a113d782a1545d',
    'darwin'
+  ),
+  ('buildtools/catapult_trace_viewer.tgz',
+   'https://storage.googleapis.com/perfetto/catapult_trace_viewer-%s.tar.gz' % CATAPULT_SHA1,
+    CATAPULT_SHA1,
+   'all'
   ),
 ]
 

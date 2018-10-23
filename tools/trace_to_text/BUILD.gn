@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
+import("../../gn/wasm.gni")
 
 source_set("lib") {
-  testonly = true
   deps = [
     "../../gn:default_deps",
     "../../gn:protobuf_full_deps",
@@ -36,12 +36,19 @@ source_set("lib") {
 
 if (current_toolchain == host_toolchain) {
   executable("trace_to_text_host") {
-    testonly = true
     deps = [
       ":lib",
       "../../gn:default_deps",
     ]
   }
+}
+
+wasm_lib("trace_to_text_wasm") {
+  name = "trace_to_text"
+  deps = [
+    ":lib",
+    "../../gn:default_deps",
+  ]
 }
 
 # The one for the android tree is defined in the top-level BUILD.gn.

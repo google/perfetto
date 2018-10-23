@@ -1,0 +1,64 @@
+#!/bin/bash
+# Copyright (C) 2018 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Builds the current version of catapult, uploads it to GCS and updates the
+# pinned SHA1 in install-build-deps.
+
+set -e
+
+PROJECT_ROOT="$(cd -P ${BASH_SOURCE[0]%/*}/..; pwd)"
+
+if [ "$1" == "" ]; then
+  echo "Usage: $0 /path/to/catapult/repo"
+  exit 1
+fi
+
+CATAPULT="$1"
+if [ ! -d "$CATAPULT/.git" ]; then
+  echo "$CATAPULT must point to a valid catapult repo"
+  exit 1
+fi
+
+REVISION=$(git -C "$CATAPULT" rev-parse --short HEAD)
+OUTDIR="$(mktemp -d)"
+echo "Building vulcanized Trace Viewer @ $REVISION into $OUTDIR"
+git -C "$CATAPULT" log -1 | cat
+echo
+set -x
+"$CATAPULT/tracing/bin/generate_about_tracing_contents" --outdir "$OUTDIR"
+ARCHIVE="$OUTDIR/catapult_trace_viewer.tar.gz"
+
+(
+  cd "$OUTDIR"
+  mv about_tracing.html catapult_trace_viewer.html
+  mv about_tracing.js catapult_trace_viewer.js
+  sed -i '' -e \
+      's|src="tracing.js"|src="/assets/catapult_trace_viewer.js"|g' \
+      catapult_trace_viewer.html
+  tar -zcf "$ARCHIVE" catapult_trace_viewer.{js,html}
+)
+
+SHA1CMD='import hashlib; import sys; sha1=hashlib.sha1(); sha1.update(sys.stdin.read()); print(sha1.hexdigest())'
+SHA1=$(python -c "$SHA1CMD" < "$ARCHIVE")
+GCS_TARGET="gs://perfetto/catapult_trace_viewer-$SHA1.tar.gz"
+gsutil cp -n -a public-read "$ARCHIVE" "$GCS_TARGET"
+rm -rf "$OUTDIR"
+
+# Update the reference to the new prebuilt in tools/install-build-deps.
+sed -i '' -e \
+    "s/^CATAPULT_SHA1 =.*/CATAPULT_SHA1 = '"$SHA1"'/g" \
+     "$PROJECT_ROOT/tools/install-build-deps"
+
+"$PROJECT_ROOT/tools/install-build-deps" --ui --no-android

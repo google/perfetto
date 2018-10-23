@@ -37,3 +37,6 @@ function main(port: MessagePort) {
 }
 
 main(self as {} as MessagePort);
+
+// For devtools-based debugging.
+(self as {} as {globals: {}}).globals = globals;
