@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sched_tracker.h"
+#include "src/trace_processor/event_tracker.h"
 #include "perfetto/base/utils.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -24,17 +24,17 @@
 namespace perfetto {
 namespace trace_processor {
 
-SchedTracker::SchedTracker(TraceProcessorContext* context)
+EventTracker::EventTracker(TraceProcessorContext* context)
     : idle_string_id_(context->storage->InternString("idle")),
       context_(context) {}
 
-SchedTracker::~SchedTracker() = default;
+EventTracker::~EventTracker() = default;
 
-StringId SchedTracker::GetThreadNameId(uint32_t tid, base::StringView comm) {
+StringId EventTracker::GetThreadNameId(uint32_t tid, base::StringView comm) {
   return tid == 0 ? idle_string_id_ : context_->storage->InternString(comm);
 }
 
-void SchedTracker::PushSchedSwitch(uint32_t cpu,
+void EventTracker::PushSchedSwitch(uint32_t cpu,
                                    uint64_t timestamp,
                                    uint32_t prev_pid,
                                    uint32_t,
@@ -72,7 +72,7 @@ void SchedTracker::PushSchedSwitch(uint32_t cpu,
   pending_slice->pid = next_pid;
 }
 
-void SchedTracker::PushCounter(uint64_t timestamp,
+void EventTracker::PushCounter(uint64_t timestamp,
                                double value,
                                StringId name_id,
                                uint64_t ref,
@@ -89,16 +89,15 @@ void SchedTracker::PushCounter(uint64_t timestamp,
   auto counter_it = pending_counters_per_key_.find(key);
   if (counter_it != pending_counters_per_key_.end()) {
     size_t idx = counter_it->second;
-
     uint64_t duration = timestamp - counters->timestamps()[idx];
-    double value_delta = value - counters->values()[idx];
+    // Update duration of previously stored event.
     counters->set_duration(idx, duration);
-    counters->set_value_delta(idx, value_delta);
   }
 
-  pending_counters_per_key_[key] = counters->AddCounter(
-      timestamp, 0 /* duration */, name_id, value, 0 /* value_delta */,
-      static_cast<int64_t>(ref), ref_type);
+  // At this point we don't know the duration so just store 0.
+  pending_counters_per_key_[key] =
+      counters->AddCounter(timestamp, 0 /* duration */, name_id, value,
+                           static_cast<int64_t>(ref), ref_type);
 }
 
 }  // namespace trace_processor
