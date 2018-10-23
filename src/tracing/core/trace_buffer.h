@@ -459,8 +459,11 @@ class TraceBuffer {
         (reinterpret_cast<uintptr_t>(ptr) & (alignof(ChunkRecord) - 1)) == 0);
   }
 
-  ChunkRecord* GetChunkRecordAt(uint8_t* ptr) const {
+  ChunkRecord* GetChunkRecordAt(uint8_t* ptr) {
     DcheckIsAlignedAndWithinBounds(ptr);
+    // We may be accessing a new (empty) record.
+    data_.EnsureCommitted(
+        static_cast<size_t>(ptr + sizeof(ChunkRecord) - begin()));
     return reinterpret_cast<ChunkRecord*>(ptr);
   }
 
@@ -480,6 +483,9 @@ class TraceBuffer {
     PERFETTO_DCHECK(record.size >= size + sizeof(record));
     PERFETTO_CHECK(record.size <= size_to_end());
     DcheckIsAlignedAndWithinBounds(wptr_);
+
+    // We may be writing to this area for the first time.
+    data_.EnsureCommitted(static_cast<size_t>(wptr_ + record.size - begin()));
 
     // Deliberately not a *D*CHECK.
     PERFETTO_CHECK(wptr_ + sizeof(record) + size <= end());
