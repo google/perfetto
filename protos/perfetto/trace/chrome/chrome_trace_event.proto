@@ -18,6 +18,22 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
+message ChromeTracedValue {
+  enum NestedType {
+    DICT = 0;
+    ARRAY = 1;
+  }
+  optional NestedType nested_type = 1;
+
+  repeated string dict_keys = 2;
+  repeated ChromeTracedValue dict_values = 3;
+  repeated ChromeTracedValue array_values = 4;
+  optional int32 int_value = 5;
+  optional double double_value = 6;
+  optional bool bool_value = 7;
+  optional string string_value = 8;
+}
+
 message ChromeStringTableEntry {
   optional string value = 1;
   optional int32 index = 2;
@@ -37,6 +53,7 @@ message ChromeTraceEvent {
       // differently from other uint64 values.
       uint64 pointer_value = 7;
       string json_value = 8;
+      ChromeTracedValue traced_value = 10;
     }
 
     // Takes precedence over |name| if set,
