@@ -54,11 +54,10 @@ cc_library_static {
   ],
 }
 
-java_library_static {
-  name: "perfetto_config-lite",
-  host_supported: true,
+java_library_host {
+  name: "perfetto_config-full",
   proto: {
-      type: "lite",
+      type: "full",
   },
   srcs: [
     "protos/perfetto/config/perfetto_config.proto",
