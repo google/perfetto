@@ -9,4 +9,4 @@ format:
 	field:int member;	offset:8;	size:4;	signed:1;
 	field:long size;	offset:16;	size:8;	signed:1;
 
-print fmt: "member=%d size=%ldKB", REC->member, REC->size
+print fmt: "member=%d size=%ldB", REC->member, REC->size

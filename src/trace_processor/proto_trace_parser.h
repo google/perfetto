@@ -69,6 +69,9 @@ class ProtoTraceParser {
   void ParseVmStat(uint64_t ts, TraceBlobView);
   void ParseCpuTimes(uint64_t ts, TraceBlobView);
   void ParseIrqCount(uint64_t ts, TraceBlobView, bool is_soft);
+  void ParseRssStat(uint64_t ts, uint32_t pid, TraceBlobView);
+  void ParseIonHeapGrow(uint64_t ts, uint32_t pid, TraceBlobView);
+  void ParseIonHeapShrink(uint64_t ts, uint32_t pid, TraceBlobView);
 
  private:
   TraceProcessorContext* context_;
@@ -85,8 +88,11 @@ class ProtoTraceParser {
   const StringId cpu_times_io_wait_ns_id_;
   const StringId cpu_times_irq_ns_id_;
   const StringId cpu_times_softirq_ns_id_;
+  const StringId ion_heap_grow_id_;
+  const StringId ion_heap_shrink_id_;
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
+  std::vector<StringId> rss_members_;
 };
 
 }  // namespace trace_processor

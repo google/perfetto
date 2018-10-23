@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SCHED_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_SCHED_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_EVENT_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_EVENT_TRACKER_H_
 
 #include <array>
 #include <limits>
@@ -31,12 +31,12 @@ class TraceProcessorContext;
 
 // This class takes sched events from the trace and processes them to store
 // as sched slices.
-class SchedTracker {
+class EventTracker {
  public:
-  explicit SchedTracker(TraceProcessorContext*);
-  SchedTracker(const SchedTracker&) = delete;
-  SchedTracker& operator=(const SchedTracker&) = delete;
-  virtual ~SchedTracker();
+  explicit EventTracker(TraceProcessorContext*);
+  EventTracker(const EventTracker&) = delete;
+  EventTracker& operator=(const EventTracker&) = delete;
+  virtual ~EventTracker();
 
   StringId GetThreadNameId(uint32_t tid, base::StringView comm);
 
@@ -100,4 +100,4 @@ class SchedTracker {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SCHED_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_EVENT_TRACKER_H_
