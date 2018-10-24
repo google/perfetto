@@ -21,7 +21,9 @@ namespace perfetto {
 FtraceMetadata::FtraceMetadata() {
   // A lot of the time there will only be a small number of inodes.
   inode_and_device.reserve(10);
-  pids.reserve(10);
+  // A sched_switch is 64 bytes, a page is 4096 bytes and we expect
+  // 2 pid's per sched_switch. 4096/64*2=128
+  pids.reserve(128);
 }
 
 void FtraceMetadata::AddDevice(BlockDeviceID device_id) {
@@ -50,6 +52,7 @@ void FtraceMetadata::AddInode(Inode inode_number) {
 
 void FtraceMetadata::AddCommonPid(int32_t pid) {
   last_seen_common_pid = pid;
+  AddPid(pid);
 }
 
 void FtraceMetadata::AddPid(int32_t pid) {
