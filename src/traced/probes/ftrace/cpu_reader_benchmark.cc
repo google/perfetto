@@ -316,6 +316,7 @@ static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   while (state.KeepRunning()) {
     writer.Reset(&stream);
     CpuReader::ParsePage(page.get(), &filter, &writer, table, &metadata);
+    metadata.Clear();
   }
 }
 BENCHMARK(BM_ParsePageFullOfSchedSwitch);
