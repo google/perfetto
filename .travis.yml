@@ -179,6 +179,7 @@ script:
         # Run a single iteration each to make sure they are not crashing.
         out/dist/end_to_end_shared_memory_fuzzer -runs=1
         out/dist/buffered_frame_deserializer_fuzzer -runs=1
+        out/dist/unwinding_fuzzer -runs=1
       fi
     fi
 
