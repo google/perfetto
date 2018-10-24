@@ -35,9 +35,9 @@ namespace {
 
 constexpr size_t kGuardSize = kPageSize;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-constexpr size_t kCommitChunkSize = kPageSize * 128;
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if TRACK_COMMITTED_SIZE()
+constexpr size_t kCommitChunkSize = kPageSize * 1024;  // 4mB
+#endif  // TRACK_COMMITTED_SIZE()
 
 }  // namespace
 
@@ -64,18 +64,20 @@ PagedMemory PagedMemory::Allocate(size_t size, int flags) {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
   auto memory = PagedMemory(usable_region, size);
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if TRACK_COMMITTED_SIZE()
   size_t initial_commit = size;
   if (flags & kDontCommit)
     initial_commit = std::min(initial_commit, kCommitChunkSize);
   memory.EnsureCommitted(initial_commit);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#endif  // TRACK_COMMITTED_SIZE()
   return memory;
 }
 
 PagedMemory::PagedMemory() {}
 
-PagedMemory::PagedMemory(char* p, size_t size) : p_(p), size_(size) {}
+PagedMemory::PagedMemory(char* p, size_t size) : p_(p), size_(size) {
+  ANNOTATE_NEW_BUFFER(p_, size_, committed_size_);
+}
 
 PagedMemory::PagedMemory(PagedMemory&& other) {
   *this = other;
@@ -119,6 +121,7 @@ bool PagedMemory::AdviseDontNeed(void* p, size_t size) {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }
 
+#if TRACK_COMMITTED_SIZE()
 void PagedMemory::EnsureCommitted(size_t committed_size) {
   PERFETTO_DCHECK(committed_size > 0u);
   PERFETTO_DCHECK(committed_size <= size_);
@@ -138,9 +141,13 @@ void PagedMemory::EnsureCommitted(size_t committed_size) {
   PERFETTO_CHECK(res);
   committed_size_ += commit_size;
 #else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-// mmap commits automatically as needed, no need for us to do anything.
+  // mmap commits automatically as needed, so we only track here for ASAN.
+  committed_size = std::max(committed_size_, committed_size);
+  ANNOTATE_CHANGE_SIZE(p_, size_, committed_size_, committed_size);
+  committed_size_ = committed_size;
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }
+#endif  // TRACK_COMMITTED_SIZE()
 
 void* PagedMemory::Get() const noexcept {
   return p_;
