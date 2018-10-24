@@ -13,7 +13,15 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/fuzzer.gni")
 import("//build_overrides/build.gni")
+
+# For use_libfuzzer.
+if (!build_with_chromium) {
+  import("//gn/standalone/sanitizers/vars.gni")
+} else {
+  import("//build/config/sanitizers/sanitizers.gni")
+}
 
 source_set("wire_protocol") {
   public_configs = [ "../../../buildtools:libunwindstack_config" ]
@@ -111,5 +119,17 @@ source_set("malloc_hooks") {
   ]
   sources = [
     "malloc_hooks.cc",
+  ]
+}
+
+perfetto_fuzzer_test("unwinding_fuzzer") {
+  sources = [
+    "unwinding_fuzzer.cc",
+  ]
+  deps = [
+    ":daemon",
+    ":wire_protocol",
+    "../../../gn:default_deps",
+    "../../../src/base",
   ]
 }
