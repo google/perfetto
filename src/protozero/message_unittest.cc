@@ -287,7 +287,7 @@ TEST_F(MessageTest, StressTest) {
   // here on the full buffer hash.
   std::string full_buf = GetNextSerializedBytes(GetNumSerializedBytes());
   size_t buf_hash = SimpleHash(full_buf);
-  EXPECT_EQ(0xfd19cc0a, buf_hash);
+  EXPECT_EQ(0xf9e32b65, buf_hash);
 }
 
 TEST_F(MessageTest, DestructInvalidMessageHandle) {
