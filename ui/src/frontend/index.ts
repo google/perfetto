@@ -132,9 +132,7 @@ function main() {
   // /?s=xxxx for permalinks.
   const stateHash = router.param('s');
   if (stateHash) {
-    // TODO(hjd): Should requestId not be set to nextId++ in the controller?
     globals.dispatch(Actions.loadPermalink({
-      requestId: new Date().toISOString(),
       hash: stateHash,
     }));
   }
