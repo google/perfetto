@@ -140,7 +140,7 @@ bool DoUnwind(WireMessage* msg, ProcessMetadata* metadata, AllocRecord* out) {
   std::unique_ptr<unwindstack::Regs> regs(
       CreateFromRawData(alloc_metadata->arch, alloc_metadata->register_data));
   if (regs == nullptr) {
-    PERFETTO_ELOG("regs");
+    PERFETTO_DLOG("regs");
     return false;
   }
   out->alloc_metadata = *alloc_metadata;
