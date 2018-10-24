@@ -22,12 +22,12 @@
 
 #include <inttypes.h>
 #include <unwindstack/Elf.h>
-#include <unwindstack/MachineArm.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineMips.h>
-#include <unwindstack/MachineMips64.h>
-#include <unwindstack/MachineX86.h>
-#include <unwindstack/MachineX86_64.h>
+#include <unwindstack/UserArm.h>
+#include <unwindstack/UserArm64.h>
+#include <unwindstack/UserMips.h>
+#include <unwindstack/UserMips64.h>
+#include <unwindstack/UserX86.h>
+#include <unwindstack/UserX86_64.h>
 
 namespace perfetto {
 namespace profiling {
@@ -46,11 +46,22 @@ constexpr size_t constexpr_max(size_t x, size_t y) {
   return x > y ? x : y;
 }
 
-constexpr size_t kMaxRegisterDataSize = constexpr_max(
-    constexpr_max(constexpr_max(unwindstack::ARM_REG_LAST * sizeof(uint32_t),
-                                unwindstack::ARM64_REG_LAST * sizeof(uint64_t)),
-                  unwindstack::X86_REG_LAST * sizeof(uint32_t)),
-    unwindstack::X86_64_REG_LAST * sizeof(uint64_t));
+// clang-format makes this unreadable. Turning it off for this block.
+// clang-format off
+constexpr size_t kMaxRegisterDataSize =
+  constexpr_max(
+    constexpr_max(
+      constexpr_max(
+        constexpr_max(
+            constexpr_max(
+              sizeof(unwindstack::arm_user_regs),
+              sizeof(unwindstack::arm64_user_regs)),
+            sizeof(unwindstack::x86_user_regs)),
+          sizeof(unwindstack::x86_64_user_regs)),
+        sizeof(unwindstack::mips_user_regs)),
+      sizeof(unwindstack::mips64_user_regs)
+  );
+// clang-format on
 
 constexpr size_t kFreePageSize = 1024;
 

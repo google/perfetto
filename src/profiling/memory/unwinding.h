@@ -65,10 +65,6 @@ class StackMemory : public unwindstack::Memory {
   uint8_t* stack_;
 };
 
-size_t RegSize(unwindstack::ArchEnum arch);
-
-
-
 bool DoUnwind(WireMessage*, ProcessMetadata* metadata, AllocRecord* out);
 
 bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out);
