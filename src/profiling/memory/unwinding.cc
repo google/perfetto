@@ -83,26 +83,6 @@ std::unique_ptr<unwindstack::Regs> CreateFromRawData(unwindstack::ArchEnum arch,
 
 }  // namespace
 
-size_t RegSize(unwindstack::ArchEnum arch) {
-  switch (arch) {
-    case unwindstack::ARCH_X86:
-      return unwindstack::X86_REG_LAST * sizeof(uint32_t);
-    case unwindstack::ARCH_X86_64:
-      return unwindstack::X86_64_REG_LAST * sizeof(uint64_t);
-    case unwindstack::ARCH_ARM:
-      return unwindstack::ARM_REG_LAST * sizeof(uint32_t);
-    case unwindstack::ARCH_ARM64:
-      return unwindstack::ARM64_REG_LAST * sizeof(uint64_t);
-    case unwindstack::ARCH_MIPS:
-      return unwindstack::MIPS_REG_LAST * sizeof(uint32_t);
-    case unwindstack::ARCH_MIPS64:
-      return unwindstack::MIPS64_REG_LAST * sizeof(uint64_t);
-    case unwindstack::ARCH_UNKNOWN:
-      PERFETTO_DFATAL("Invalid architecture");
-      return 0;
-  }
-}
-
 StackMemory::StackMemory(int mem_fd, uint64_t sp, uint8_t* stack, size_t size)
     : mem_fd_(mem_fd), sp_(sp), stack_end_(sp + size), stack_(stack) {}
 
