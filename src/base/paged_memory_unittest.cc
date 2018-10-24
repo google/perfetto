@@ -59,7 +59,7 @@ TEST(PagedMemoryTest, Basic) {
 }
 
 TEST(PagedMemoryTest, Uncommitted) {
-  constexpr size_t kNumPages = 1024;
+  constexpr size_t kNumPages = 4096;
   constexpr size_t kSize = 4096 * kNumPages;
   char* ptr_raw = nullptr;
   {
@@ -68,8 +68,8 @@ TEST(PagedMemoryTest, Uncommitted) {
     ptr_raw = reinterpret_cast<char*>(mem.Get());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    // Windows only commits the first 128 pages.
-    constexpr size_t kMappedSize = 4096 * 128;
+    // Windows only commits the first 1024 pages.
+    constexpr size_t kMappedSize = 4096 * 1024;
 
     for (size_t i = 0; i < kMappedSize / sizeof(uint64_t); i++)
       ASSERT_EQ(0u, *(reinterpret_cast<uint64_t*>(mem.Get()) + i));
@@ -106,6 +106,25 @@ TEST(PagedMemoryTest, Uncommitted) {
   // Freed memory is necessarily not mapped in to the process.
   ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, kSize));
 }
+
+#if defined(ADDRESS_SANITIZER)
+TEST(PagedMemoryTest, AccessUncommittedMemoryTriggersASAN) {
+  EXPECT_DEATH(
+      {
+        constexpr size_t kNumPages = 4096;
+        constexpr size_t kSize = 4096 * kNumPages;
+        PagedMemory mem =
+            PagedMemory::Allocate(kSize, PagedMemory::kDontCommit);
+        ASSERT_TRUE(mem.IsValid());
+        char* ptr_raw = reinterpret_cast<char*>(mem.Get());
+        // Only the first 1024 pages are mapped.
+        constexpr size_t kMappedSize = 4096 * 1024;
+        ptr_raw[kMappedSize] = 'x';
+        abort();
+      },
+      "AddressSanitizer: container-overflow.*");
+}
+#endif  // ADDRESS_SANITIZER
 
 TEST(PagedMemoryTest, GuardRegions) {
   const size_t kSize = 4096;
