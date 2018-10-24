@@ -20,6 +20,14 @@
 #include <memory>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/container_annotations.h"
+
+// We need to track the committed size on windows and when ASAN is enabled.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || defined(ADDRESS_SANITIZER)
+#define TRACK_COMMITTED_SIZE() 1
+#else
+#define TRACK_COMMITTED_SIZE() 0
+#endif
 
 namespace perfetto {
 namespace base {
@@ -62,7 +70,11 @@ class PagedMemory {
   // Ensures that at least the first |committed_size| bytes of the allocated
   // memory region are committed. The implementation may commit memory in larger
   // chunks above |committed_size|. Crashes if the memory couldn't be committed.
+#if TRACK_COMMITTED_SIZE()
   void EnsureCommitted(size_t committed_size);
+#else  // TRACK_COMMITTED_SIZE()
+  void EnsureCommitted(size_t /*committed_size*/) {}
+#endif  // TRACK_COMMITTED_SIZE()
 
   void* Get() const noexcept;
   bool IsValid() const noexcept;
@@ -77,9 +89,9 @@ class PagedMemory {
   char* p_ = nullptr;
   size_t size_ = 0;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if TRACK_COMMITTED_SIZE()
   size_t committed_size_ = 0u;
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#endif  // TRACK_COMMITTED_SIZE()
 };
 
 }  // namespace base
