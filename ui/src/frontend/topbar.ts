@@ -25,6 +25,7 @@ const QUERY_ID = 'quicksearch';
 let selResult = 0;
 let numResults = 0;
 let mode: 'search'|'command' = 'search';
+let omniboxValue = '';
 
 function clearOmniboxResults() {
   globals.queryResults.delete(QUERY_ID);
@@ -42,6 +43,7 @@ function onKeyDown(e: Event) {
     return;
   }
   const txt = (e.target as HTMLInputElement);
+  omniboxValue = txt.value;
   if (key === ':' && txt.value === '') {
     mode = 'command';
     globals.rafScheduler.scheduleFullRedraw();
@@ -65,6 +67,7 @@ function onKeyUp(e: Event) {
   e.stopPropagation();
   const key = (e as KeyboardEvent).key;
   const txt = e.target as HTMLInputElement;
+  omniboxValue = txt.value;
   if (key === 'ArrowUp' || key === 'ArrowDown') {
     selResult += (key === 'ArrowUp') ? -1 : 1;
     selResult = Math.max(selResult, 0);
@@ -100,7 +103,7 @@ class Omnibox implements m.ClassComponent {
   }
 
   view() {
-    const msgTTL = globals.state.status.timestamp + 3 - Date.now() / 1e3;
+    const msgTTL = globals.state.status.timestamp + 1 - Date.now() / 1e3;
     let enginesAreBusy = false;
     for (const engine of Object.values(globals.state.engines)) {
       enginesAreBusy = enginesAreBusy || !engine.ready;
@@ -134,7 +137,10 @@ class Omnibox implements m.ClassComponent {
     const commandMode = mode === 'command';
     return m(
         `.omnibox${commandMode ? '.command-mode' : ''}`,
-        m(`input[placeholder=${placeholder[mode]}]`),
+        m(`input[placeholder=${placeholder[mode]}]`, {
+          onchange: m.withAttr('value', v => omniboxValue = v),
+          value: omniboxValue,
+        }),
         m('.omnibox-results', results));
   }
 }

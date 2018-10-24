@@ -230,16 +230,21 @@ test('unpin', () => {
 });
 
 test('open trace', () => {
-  const after = produce(createEmptyState(), draft => {
+  const state = createEmptyState();
+  state.nextId = 100;
+  const recordConfig = state.recordConfig;
+  const after = produce(state, draft => {
     StateActions.openTraceFromUrl(draft, {
       url: 'https://example.com/bar',
     });
   });
 
   const engineKeys = Object.keys(after.engines);
+  expect(after.nextId).toBe(101);
   expect(engineKeys.length).toBe(1);
   expect(after.engines[engineKeys[0]].source).toBe('https://example.com/bar');
   expect(after.route).toBe('/viewer');
+  expect(after.recordConfig).toBe(recordConfig);
 });
 
 test('open second trace from file', () => {
@@ -265,9 +270,8 @@ test('open second trace from file', () => {
   });
 
   const engineKeys = Object.keys(thrice.engines);
-  expect(engineKeys.length).toBe(2);
-  expect(thrice.engines[engineKeys[0]].source).toBe('https://example.com/bar');
-  expect(thrice.engines[engineKeys[1]].source).toBe('https://example.com/foo');
+  expect(engineKeys.length).toBe(1);
+  expect(thrice.engines[engineKeys[0]].source).toBe('https://example.com/foo');
   expect(thrice.pinnedTracks.length).toBe(0);
   expect(thrice.scrollingTracks.length).toBe(0);
   expect(thrice.route).toBe('/viewer');
