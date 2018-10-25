@@ -80,6 +80,15 @@ int CompareValues(const D& deque, size_t a, size_t b, bool desc) {
   return 0;
 }
 
+// On MacOS size_t !== uint64_t
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+template <typename F>
+bool CompareToSqliteValue(size_t actual, sqlite3_value* value) {
+  PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
+  return F()(actual, static_cast<size_t>(sqlite3_value_int64(value)));
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+
 template <typename F>
 bool CompareToSqliteValue(uint32_t actual, sqlite3_value* value) {
   PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
