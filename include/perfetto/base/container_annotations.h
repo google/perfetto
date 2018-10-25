@@ -19,7 +19,8 @@
 
 #include "perfetto/base/build_config.h"
 
-#if defined(ADDRESS_SANITIZER)
+// Windows ASAN doesn't currently support these annotations.
+#if defined(ADDRESS_SANITIZER) && !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #define ANNOTATE_NEW_BUFFER(buffer, capacity, new_size)                      \
   if (buffer) {                                                              \
     __sanitizer_annotate_contiguous_container(buffer, (buffer) + (capacity), \
