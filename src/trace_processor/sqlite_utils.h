@@ -81,12 +81,6 @@ int CompareValues(const D& deque, size_t a, size_t b, bool desc) {
 }
 
 template <typename F>
-bool CompareToSqliteValue(unsigned long actual, sqlite3_value* value) {
-  PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
-  return F()(actual, static_cast<unsigned long>(sqlite3_value_int64(value)));
-}
-
-template <typename F>
 bool CompareToSqliteValue(uint32_t actual, sqlite3_value* value) {
   PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
   return F()(actual, static_cast<uint32_t>(sqlite3_value_int64(value)));
