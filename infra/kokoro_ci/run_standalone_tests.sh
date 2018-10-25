@@ -13,23 +13,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -ex
+set -eux
 
 SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 ROOT_DIR="$(realpath ${SCRIPT_DIR}/../..)"
 
 cd ${ROOT_DIR}
 
-# Make space for docker image by symlinking the hardcoded /var/lib/docker path
-# to a tmpfs mount. Cargo culted from other projects' scripts.
-sudo -n /etc/init.d/docker stop
-sudo -n mv /var/lib/docker /tmpfs/
-sudo -n ln -s /tmpfs/docker /var/lib/docker
-sudo -n /etc/init.d/docker start
+# Check that the expected environment variables are present (due to set -u).
+echo PERFETTO_TEST_GN_ARGS: ${PERFETTO_TEST_GN_ARGS}
 
-# Run a prebaked build+test configuration in a container.
-# TODO(rsavitski): pass configuration via environment variables.
-docker run --rm -t --user=perfetto:perfetto \
-  -v ${ROOT_DIR}:/perfetto:ro \
-  asia.gcr.io/perfetto-ci/perfetto-ci:latest \
-  /bin/bash run_tests.sh
+tools/install-build-deps --no-android
+
+if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
+  export ASAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
+fi
+
+tools/gn gen out/dist --args="${PERFETTO_TEST_GN_ARGS}" --check
+tools/ninja -C out/dist
+
+# Run the tests
+out/dist/perfetto_unittests
+out/dist/perfetto_integrationtests
+
+BENCHMARK_FUNCTIONAL_TEST_ONLY=true out/dist/perfetto_benchmarks
+tools/diff_test_trace_processor.py out/dist/trace_processor_shell
