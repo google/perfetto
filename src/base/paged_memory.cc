@@ -79,7 +79,7 @@ PagedMemory::PagedMemory(char* p, size_t size) : p_(p), size_(size) {
   ANNOTATE_NEW_BUFFER(p_, size_, committed_size_);
 }
 
-PagedMemory::PagedMemory(PagedMemory&& other) {
+PagedMemory::PagedMemory(PagedMemory&& other) noexcept {
   *this = other;
   other.p_ = nullptr;
 }
