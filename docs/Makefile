@@ -16,6 +16,8 @@ test: static
 	docsify serve
 
 static:
+	rm -f static
+	ln -s ../infra/perfetto-site.appspot.com/static static
 	make -C ../infra/perfetto-site.appspot.com/ static
 
 .PHONY: test static

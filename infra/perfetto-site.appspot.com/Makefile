@@ -16,7 +16,8 @@ test: static
 	dev_appserver.py .
 
 static: node_modules/.stamp
-	rm -f static/*
+	rm -rf static
+	mkdir -p static
 	cp node_modules/docsify/lib/docsify.min.js static/
 	cp node_modules/docsify-themeable/dist/js/docsify-themeable.min.js static/
 	cp node_modules/docsify-themeable/dist/css/theme-simple.css static/
