@@ -43,7 +43,7 @@ namespace protozero {
 // ContiguousMemoryRange and defers the chunk-chaining logic to the Delegate.
 class PERFETTO_EXPORT ScatteredStreamWriter {
  public:
-  class Delegate {
+  class PERFETTO_EXPORT Delegate {
    public:
     virtual ~Delegate();
     virtual ContiguousMemoryRange GetNewBuffer() = 0;
