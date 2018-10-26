@@ -15,6 +15,8 @@
 runtime: python27
 api_version: 1
 threadsafe: yes
+skip_files:
+ - ^node_modules.*
 handlers:
 - url: /static/
   static_dir: static/
