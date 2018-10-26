@@ -1,6 +1,6 @@
 # Perfetto
 
-![logo](https://ui.perfetto.dev/assets/logo-3d.png ':size=350')
+![logo](logo.png ':size=300')
 
 > Performance instrumentation and tracing for Android, Linux and Chrome
 
