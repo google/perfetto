@@ -83,8 +83,9 @@ void SliceTracker::CompleteSlice(UniqueTid utid) {
 
   Slice& slice = stack.back();
   auto* slices = context_->storage->mutable_nestable_slices();
-  slices->AddSlice(slice.start_ts, slice.end_ts - slice.start_ts, utid, 0,
-                   slice.name_id, depth, stack_id, parent_stack_id);
+  slices->AddSlice(slice.start_ts, slice.end_ts - slice.start_ts, utid,
+                   slice.cat_id, slice.name_id, depth, stack_id,
+                   parent_stack_id);
 
   stack.pop_back();
 }
