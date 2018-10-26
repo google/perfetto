@@ -104,7 +104,6 @@ source_set("integrationtests") {
 
 source_set("ftrace") {
   public_deps = [
-    "../../../../gn:gtest_prod_config",
     "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../tracing",
   ]

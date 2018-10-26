@@ -45,6 +45,9 @@ cc_binary {
     "libprocinfo",
     "libunwindstack",
   ],
+  static_libs: [
+    "libgtest_prod",
+  ],
   init_rc: [
     "heapprofd.rc",
   ],
@@ -80,6 +83,9 @@ cc_library_shared {
     "liblog",
     "libprocinfo",
     "libunwindstack",
+  ],
+  static_libs: [
+    "libgtest_prod",
   ],
   defaults: [
     "perfetto_defaults",
@@ -4462,6 +4468,9 @@ cc_binary_host {
     "liblog",
     "libprotobuf-cpp-full",
     "libprotobuf-cpp-lite",
+  ],
+  static_libs: [
+    "libgtest_prod",
   ],
   generated_headers: [
     "perfetto_protos_perfetto_common_lite_gen_headers",
