@@ -102,7 +102,8 @@ def CheckWhitelist(input_api, output_api):
   for f in input_api.AffectedFiles():
     if f.LocalPath() != 'tools/ftrace_proto_gen/event_whitelist':
       continue
-    if any(new_line != 'removed' and new_line != old_line for old_line, new_line
+    if any((not new_line.startswith('removed')) 
+            and new_line != old_line for old_line, new_line
            in itertools.izip(f.OldContents(), f.NewContents())):
       return [
         output_api.PresubmitError(

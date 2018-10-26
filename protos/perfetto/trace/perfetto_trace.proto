@@ -237,12 +237,12 @@ message FtraceEvent {
   oneof event {
     PrintFtraceEvent print = 3;
     SchedSwitchFtraceEvent sched_switch = 4;
-    CpufreqInteractiveAlreadyFtraceEvent cpufreq_interactive_already = 5;
-    CpufreqInteractiveBoostFtraceEvent cpufreq_interactive_boost = 6;
-    CpufreqInteractiveNotyetFtraceEvent cpufreq_interactive_notyet = 7;
-    CpufreqInteractiveSetspeedFtraceEvent cpufreq_interactive_setspeed = 8;
-    CpufreqInteractiveTargetFtraceEvent cpufreq_interactive_target = 9;
-    CpufreqInteractiveUnboostFtraceEvent cpufreq_interactive_unboost = 10;
+    // removed field with id 5;
+    // removed field with id 6;
+    // removed field with id 7;
+    // removed field with id 8;
+    // removed field with id 9;
+    // removed field with id 10;
     CpuFrequencyFtraceEvent cpu_frequency = 11;
     CpuFrequencyLimitsFtraceEvent cpu_frequency_limits = 12;
     CpuIdleFtraceEvent cpu_idle = 13;
@@ -548,6 +548,14 @@ message FtraceEvent {
     // removed field with id 313
     // removed field with id 314
     // removed field with id 315
+    // removed field with id 316
+    // removed field with id 317
+    // removed field with id 318
+    // removed field with id 319
+    // removed field with id 320
+    // removed field with id 321
+    // removed field with id 322
+    // removed field with id 323
   }
 }
 

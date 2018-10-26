@@ -130,7 +130,7 @@ VerifyStream::~VerifyStream() {
 }
 
 FtraceEventName::FtraceEventName(const std::string& full_name) {
-  if (full_name == "removed") {
+  if (full_name.rfind("removed", 0) != std::string::npos) {
     valid_ = false;
     return;
   }
@@ -311,7 +311,7 @@ void PrintEventFormatterMain(const std::set<std::string>& events) {
       "tools/ftrace_proto_gen/ftrace_event_formatter.cc\n");
   for (auto event : events) {
     printf(
-        "else if (event.has_%s()) {\nconst auto& inner = event.%s();\nline = "
+        "else if (event.has_%s()) {\nconst auto& inner = event.%s();\nreturn "
         "Format%s(inner);\n} ",
         event.c_str(), event.c_str(), ToCamelCase(event).c_str());
   }

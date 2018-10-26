@@ -132,15 +132,6 @@ TEST(TranslationTableTest, Seed) {
   }
 
   {
-    auto event = table->GetEventByName("cpufreq_interactive_target");
-    EXPECT_EQ(std::string(event->name), "cpufreq_interactive_target");
-    EXPECT_EQ(std::string(event->group), "cpufreq_interactive");
-    EXPECT_EQ(event->ftrace_event_id, 509ul);
-    EXPECT_EQ(event->fields.at(0).ftrace_offset, 8u);
-    EXPECT_EQ(event->fields.at(0).ftrace_size, 4u);
-  }
-
-  {
     auto event = table->GetEventByName("ext4_da_write_begin");
     EXPECT_EQ(std::string(event->name), "ext4_da_write_begin");
     EXPECT_EQ(std::string(event->group), "ext4");
