@@ -4,11 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <title>Perfetto - Docs</title>
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
-  <meta name="description" content="Description">
   <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
   <link href="//fonts.googleapis.com/css?family=Exo" rel="stylesheet">
-  <link rel="stylesheet" href="//unpkg.com/docsify-themeable/dist/css/theme-simple.css">
+  <link rel="stylesheet" href="/static/theme-simple.css">
   <style>
     :root {
       --base-font-size: 18px;
@@ -30,7 +28,6 @@
       markdown: {
         renderer: {
           link: function (href, title, text) {
-            console.log(href);
             title = title || '';
             if (href.startsWith('/') && !href.startsWith('/docs')) {
               href = `https://android.googlesource.com/platform/external/perfetto/+/master${href}`;
@@ -46,11 +43,11 @@
       }
     }
   </script>
-  <script src="//unpkg.com/docsify/lib/docsify.min.js"></script>
-  <script src="//unpkg.com/docsify-themeable"></script>
-  <script src="//unpkg.com/docsify-copy-code"></script>
-  <script src="//unpkg.com/prismjs/components/prism-bash.min.js"></script>
-
+  <!-- see infra/perfetto-site.appspot.com -->
+  <script src="/static/docsify.min.js"></script>
+  <script src="/static/docsify-themeable.min.js"></script>
+  <script src="/static/docsify-copy-code.min.js"></script>
+  <script src="/static/prism-bash.min.js"></script>
 </body>
 
 </html>
