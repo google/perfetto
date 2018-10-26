@@ -21,6 +21,7 @@ source_set("base") {
     "event.h",
     "export.h",
     "file_utils.h",
+    "gtest_prod_util.h",
     "logging.h",
     "metatrace.h",
     "paged_memory.h",
@@ -46,4 +47,7 @@ source_set("base") {
   if (perfetto_build_standalone || perfetto_build_with_android) {
     sources += [ "unix_socket.h" ]
   }
+  public_deps = [
+    "../../../gn:gtest_prod_config",
+  ]
 }
