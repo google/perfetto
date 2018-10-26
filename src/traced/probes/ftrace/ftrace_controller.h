@@ -28,7 +28,7 @@
 #include <set>
 #include <string>
 
-#include "gtest/gtest_prod.h"
+#include "perfetto/base/gtest_prod_util.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/base/weak_ptr.h"
