@@ -72,14 +72,6 @@ class SpanOperatorTable : public Table {
     // All other columns are dynamic depending on the joined tables.
   };
 
-  // Represents possible values of a SQLite joined table.
-  struct Value {
-    Table::ColumnType type;
-    std::string text_value;
-    uint64_t ulong_value;
-    uint32_t uint_value;
-  };
-
   SpanOperatorTable(sqlite3*, const TraceStorage*);
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
@@ -92,6 +84,11 @@ class SpanOperatorTable : public Table {
 
  private:
   static constexpr uint8_t kReservedColumns = Column::kJoinValue + 1;
+
+  enum ChildTable {
+    kFirst = 0,
+    kSecond = 1,
+  };
 
   // Contains the definition of the child tables.
   struct TableDefinition {
@@ -112,45 +109,21 @@ class SpanOperatorTable : public Table {
     int Column(sqlite3_context* context, int N) override;
 
    private:
-    // Details of a row of one of the child tables.
-    struct Span {
-      uint64_t ts = 0;
-      uint64_t dur = 0;
-      std::vector<Value> values;  // One for each column.
-    };
-
     // Details of the state of retrieval from a table across all join values.
     struct TableState {
-      uint64_t latest_ts = std::numeric_limits<uint64_t>::max();
-      size_t col_count = 0;
       ScopedStmt stmt;
-
-      // The rows of the table indexed by the values of join column.
-      // TODO(lalitm): see how we can expand this past int64_t.
-      std::map<int64_t, Span> spans;
+      uint64_t ts_start = std::numeric_limits<uint64_t>::max();
+      uint64_t ts_end = std::numeric_limits<uint64_t>::max();
+      int64_t join_val = std::numeric_limits<int64_t>::max();
     };
 
-    // A span which has data from both tables associated with it.
-    struct IntersectingSpan {
-      uint64_t ts = 0;
-      uint64_t dur = 0;
-      int64_t join_val = 0;
-      Span t1_span;
-      Span t2_span;
-    };
+    // Steps the cursor forward for the given table and updates the state
+    // for that table.
+    int StepForTable(ChildTable table);
 
-    // Computes the next value from the child tables.
-    int ExtractNext(bool pull_t1);
-
-    // Add an intersecting span to the queue if the two child spans intersect
-    // at any point in time.
-    bool MaybeAddIntersectingSpan(int64_t join_value,
-                                  Span t1_span,
-                                  Span t2_span);
-
-    // Reports to SQLite the value given by |value| based on its type.
     void ReportSqliteResult(sqlite3_context* context,
-                            SpanOperatorTable::Value value);
+                            sqlite3_stmt* stmt,
+                            size_t index);
 
     int PrepareRawStmt(const QueryConstraints& qc,
                        sqlite3_value** argv,
@@ -160,9 +133,7 @@ class SpanOperatorTable : public Table {
 
     TableState t1_;
     TableState t2_;
-
-    bool children_have_more_ = true;
-    std::deque<IntersectingSpan> intersecting_spans_;
+    ChildTable next_stepped_table_ = ChildTable::kFirst;
 
     sqlite3* const db_;
     SpanOperatorTable* const table_;
