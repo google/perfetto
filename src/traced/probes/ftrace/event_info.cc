@@ -37,74 +37,6 @@ std::vector<Event> GetStaticEventInfo() {
   {
     events.emplace_back(Event{});
     Event* event = &events.back();
-    event->name = "cpufreq_interactive_already";
-    event->group = "cpufreq_interactive";
-    event->proto_field_id = 5;
-    event->fields.push_back(MakeField("cpu_id", 1, kProtoUint64));
-    event->fields.push_back(MakeField("load", 2, kProtoUint64));
-    event->fields.push_back(MakeField("curtarg", 3, kProtoUint64));
-    event->fields.push_back(MakeField("curactual", 4, kProtoUint64));
-    event->fields.push_back(MakeField("newtarg", 5, kProtoUint64));
-  }
-
-  {
-    events.emplace_back(Event{});
-    Event* event = &events.back();
-    event->name = "cpufreq_interactive_boost";
-    event->group = "cpufreq_interactive";
-    event->proto_field_id = 6;
-    event->fields.push_back(MakeField("s", 1, kProtoString));
-  }
-
-  {
-    events.emplace_back(Event{});
-    Event* event = &events.back();
-    event->name = "cpufreq_interactive_notyet";
-    event->group = "cpufreq_interactive";
-    event->proto_field_id = 7;
-    event->fields.push_back(MakeField("cpu_id", 1, kProtoUint64));
-    event->fields.push_back(MakeField("load", 2, kProtoUint64));
-    event->fields.push_back(MakeField("curtarg", 3, kProtoUint64));
-    event->fields.push_back(MakeField("curactual", 4, kProtoUint64));
-    event->fields.push_back(MakeField("newtarg", 5, kProtoUint64));
-  }
-
-  {
-    events.emplace_back(Event{});
-    Event* event = &events.back();
-    event->name = "cpufreq_interactive_setspeed";
-    event->group = "cpufreq_interactive";
-    event->proto_field_id = 8;
-    event->fields.push_back(MakeField("cpu_id", 1, kProtoUint32));
-    event->fields.push_back(MakeField("targfreq", 2, kProtoUint64));
-    event->fields.push_back(MakeField("actualfreq", 3, kProtoUint64));
-  }
-
-  {
-    events.emplace_back(Event{});
-    Event* event = &events.back();
-    event->name = "cpufreq_interactive_target";
-    event->group = "cpufreq_interactive";
-    event->proto_field_id = 9;
-    event->fields.push_back(MakeField("cpu_id", 1, kProtoUint64));
-    event->fields.push_back(MakeField("load", 2, kProtoUint64));
-    event->fields.push_back(MakeField("curtarg", 3, kProtoUint64));
-    event->fields.push_back(MakeField("curactual", 4, kProtoUint64));
-    event->fields.push_back(MakeField("newtarg", 5, kProtoUint64));
-  }
-
-  {
-    events.emplace_back(Event{});
-    Event* event = &events.back();
-    event->name = "cpufreq_interactive_unboost";
-    event->group = "cpufreq_interactive";
-    event->proto_field_id = 10;
-    event->fields.push_back(MakeField("s", 1, kProtoString));
-  }
-
-  {
-    events.emplace_back(Event{});
-    Event* event = &events.back();
     event->name = "cpu_frequency";
     event->group = "power";
     event->proto_field_id = 11;
@@ -3710,6 +3642,93 @@ std::vector<Event> GetStaticEventInfo() {
     event->fields.push_back(MakeField("heap_name", 1, kProtoString));
     event->fields.push_back(MakeField("len", 2, kProtoUint64));
     event->fields.push_back(MakeField("total_allocated", 3, kProtoInt64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "fence_init";
+    event->group = "fence";
+    event->proto_field_id = 316;
+    event->fields.push_back(MakeField("context", 1, kProtoUint32));
+    event->fields.push_back(MakeField("driver", 2, kProtoString));
+    event->fields.push_back(MakeField("seqno", 3, kProtoUint32));
+    event->fields.push_back(MakeField("timeline", 4, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "fence_destroy";
+    event->group = "fence";
+    event->proto_field_id = 317;
+    event->fields.push_back(MakeField("context", 1, kProtoUint32));
+    event->fields.push_back(MakeField("driver", 2, kProtoString));
+    event->fields.push_back(MakeField("seqno", 3, kProtoUint32));
+    event->fields.push_back(MakeField("timeline", 4, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "fence_enable_signal";
+    event->group = "fence";
+    event->proto_field_id = 318;
+    event->fields.push_back(MakeField("context", 1, kProtoUint32));
+    event->fields.push_back(MakeField("driver", 2, kProtoString));
+    event->fields.push_back(MakeField("seqno", 3, kProtoUint32));
+    event->fields.push_back(MakeField("timeline", 4, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "fence_signaled";
+    event->group = "fence";
+    event->proto_field_id = 319;
+    event->fields.push_back(MakeField("context", 1, kProtoUint32));
+    event->fields.push_back(MakeField("driver", 2, kProtoString));
+    event->fields.push_back(MakeField("seqno", 3, kProtoUint32));
+    event->fields.push_back(MakeField("timeline", 4, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "clk_enable";
+    event->group = "clk";
+    event->proto_field_id = 320;
+    event->fields.push_back(MakeField("name", 1, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "clk_disable";
+    event->group = "clk";
+    event->proto_field_id = 321;
+    event->fields.push_back(MakeField("name", 1, kProtoString));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "clk_set_rate";
+    event->group = "clk";
+    event->proto_field_id = 322;
+    event->fields.push_back(MakeField("name", 1, kProtoString));
+    event->fields.push_back(MakeField("rate", 2, kProtoUint64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "binder_transaction_alloc_buf";
+    event->group = "binder";
+    event->proto_field_id = 323;
+    event->fields.push_back(MakeField("data_size", 1, kProtoUint64));
+    event->fields.push_back(MakeField("debug_id", 2, kProtoInt32));
+    event->fields.push_back(MakeField("offsets_size", 3, kProtoUint64));
   }
 
   return events;

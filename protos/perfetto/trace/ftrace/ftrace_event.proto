@@ -7,12 +7,6 @@ option optimize_for = LITE_RUNTIME;
 
 import "perfetto/trace/ftrace/print.proto";
 import "perfetto/trace/ftrace/sched_switch.proto";
-import "perfetto/trace/ftrace/cpufreq_interactive_already.proto";
-import "perfetto/trace/ftrace/cpufreq_interactive_boost.proto";
-import "perfetto/trace/ftrace/cpufreq_interactive_notyet.proto";
-import "perfetto/trace/ftrace/cpufreq_interactive_setspeed.proto";
-import "perfetto/trace/ftrace/cpufreq_interactive_target.proto";
-import "perfetto/trace/ftrace/cpufreq_interactive_unboost.proto";
 import "perfetto/trace/ftrace/cpu_frequency.proto";
 import "perfetto/trace/ftrace/cpu_frequency_limits.proto";
 import "perfetto/trace/ftrace/cpu_idle.proto";
@@ -307,6 +301,14 @@ import "perfetto/trace/ftrace/mm_page_pcpu_drain.proto";
 import "perfetto/trace/ftrace/rss_stat.proto";
 import "perfetto/trace/ftrace/ion_heap_shrink.proto";
 import "perfetto/trace/ftrace/ion_heap_grow.proto";
+import "perfetto/trace/ftrace/fence_init.proto";
+import "perfetto/trace/ftrace/fence_destroy.proto";
+import "perfetto/trace/ftrace/fence_enable_signal.proto";
+import "perfetto/trace/ftrace/fence_signaled.proto";
+import "perfetto/trace/ftrace/clk_enable.proto";
+import "perfetto/trace/ftrace/clk_disable.proto";
+import "perfetto/trace/ftrace/clk_set_rate.proto";
+import "perfetto/trace/ftrace/binder_transaction_alloc_buf.proto";
 
 package perfetto.protos;
 
@@ -322,12 +324,12 @@ message FtraceEvent {
   oneof event {
     PrintFtraceEvent print = 3;
     SchedSwitchFtraceEvent sched_switch = 4;
-    CpufreqInteractiveAlreadyFtraceEvent cpufreq_interactive_already = 5;
-    CpufreqInteractiveBoostFtraceEvent cpufreq_interactive_boost = 6;
-    CpufreqInteractiveNotyetFtraceEvent cpufreq_interactive_notyet = 7;
-    CpufreqInteractiveSetspeedFtraceEvent cpufreq_interactive_setspeed = 8;
-    CpufreqInteractiveTargetFtraceEvent cpufreq_interactive_target = 9;
-    CpufreqInteractiveUnboostFtraceEvent cpufreq_interactive_unboost = 10;
+    // removed field with id 5;
+    // removed field with id 6;
+    // removed field with id 7;
+    // removed field with id 8;
+    // removed field with id 9;
+    // removed field with id 10;
     CpuFrequencyFtraceEvent cpu_frequency = 11;
     CpuFrequencyLimitsFtraceEvent cpu_frequency_limits = 12;
     CpuIdleFtraceEvent cpu_idle = 13;
@@ -650,5 +652,13 @@ message FtraceEvent {
     RssStatFtraceEvent rss_stat = 313;
     IonHeapShrinkFtraceEvent ion_heap_shrink = 314;
     IonHeapGrowFtraceEvent ion_heap_grow = 315;
+    FenceInitFtraceEvent fence_init = 316;
+    FenceDestroyFtraceEvent fence_destroy = 317;
+    FenceEnableSignalFtraceEvent fence_enable_signal = 318;
+    FenceSignaledFtraceEvent fence_signaled = 319;
+    ClkEnableFtraceEvent clk_enable = 320;
+    ClkDisableFtraceEvent clk_disable = 321;
+    ClkSetRateFtraceEvent clk_set_rate = 322;
+    BinderTransactionAllocBufFtraceEvent binder_transaction_alloc_buf = 323;
   }
 }
