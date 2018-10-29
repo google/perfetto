@@ -44,17 +44,15 @@ class Table : public sqlite3_vtab {
     kString = 1,
     kUlong = 2,
     kUint = 3,
-    kInt = 4,
-    kDouble = 5,
+    kLong = 4,
+    kInt = 5,
+    kDouble = 6,
   };
 
   // Describes a column of this table.
   class Column {
    public:
-    Column(size_t index,
-           std::string name,
-           ColumnType type,
-           bool hidden = false);
+    Column(size_t idx, std::string name, ColumnType type, bool hidden = false);
 
     size_t index() const { return index_; }
     const std::string& name() const { return name_; }
@@ -104,15 +102,6 @@ class Table : public sqlite3_vtab {
     std::unique_ptr<Cursor> cursor_;
   };
 
- protected:
-  // Populated by a BestIndex call to allow subclasses to tweak SQLite's
-  // handling of sets of constraints.
-  struct BestIndexInfo {
-    bool order_by_consumed = false;
-    uint32_t estimated_cost = 0;
-    std::vector<bool> omit;
-  };
-
   // The schema of the table. Created by subclasses to allow the table class to
   // do filtering and inform SQLite about the CREATE table statement.
   class Schema {
@@ -126,7 +115,7 @@ class Table : public sqlite3_vtab {
 
     std::string ToCreateTableStmt();
 
-    const std::vector<Column>& columns() { return columns_; }
+    const std::vector<Column>& columns() const { return columns_; }
     const std::vector<size_t> primary_keys() { return primary_keys_; }
 
    private:
@@ -135,6 +124,15 @@ class Table : public sqlite3_vtab {
 
     // The primary keys of the table given by an offset into |columns|.
     std::vector<size_t> primary_keys_;
+  };
+
+ protected:
+  // Populated by a BestIndex call to allow subclasses to tweak SQLite's
+  // handling of sets of constraints.
+  struct BestIndexInfo {
+    bool order_by_consumed = false;
+    uint32_t estimated_cost = 0;
+    std::vector<bool> omit;
   };
 
   Table();
@@ -160,6 +158,8 @@ class Table : public sqlite3_vtab {
 
   // At registration time, the function should also pass true for |read_write|.
   virtual int Update(int, sqlite3_value**, sqlite3_int64*);
+
+  const Schema& schema() { return schema_; }
 
  private:
   template <typename TableType>
