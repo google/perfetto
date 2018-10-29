@@ -17,9 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_COUNTERS_TABLE_H_
 #define SRC_TRACE_PROCESSOR_COUNTERS_TABLE_H_
 
-#include <limits>
-#include <memory>
-
+#include "src/trace_processor/storage_schema.h"
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -28,15 +26,6 @@ namespace trace_processor {
 
 class CountersTable : public Table {
  public:
-  enum Column {
-    kTimestamp = 0,
-    kName = 1,
-    kValue = 2,
-    kDuration = 3,
-    kRef = 4,
-    kRefType = 5,
-  };
-
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
   CountersTable(sqlite3*, const TraceStorage*);
@@ -48,25 +37,8 @@ class CountersTable : public Table {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-  class Cursor : public Table::Cursor {
-   public:
-    Cursor(const TraceStorage*, const QueryConstraints&, sqlite3_value**);
-
-    // Implementation of Table::Cursor.
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
-
-   private:
-    // Vector of row ids sorted by some order by constraints.
-    std::vector<uint32_t> sorted_rows_;
-
-    // An offset into |sorted_row_ids_| indicating the next row to return.
-    uint32_t next_row_idx_ = 0;
-
-    const TraceStorage* const storage_;
-  };
-
+  std::deque<std::string> ref_types_;
+  StorageSchema schema_;
   const TraceStorage* const storage_;
 };
 }  // namespace trace_processor

@@ -49,6 +49,8 @@ std::string TypeToString(Table::ColumnType type) {
       return "UNSIGNED INT";
     case Table::ColumnType::kUlong:
       return "UNSIGNED BIG INT";
+    case Table::ColumnType::kLong:
+      return "BIG INT";
     case Table::ColumnType::kInt:
       return "INT";
     case Table::ColumnType::kDouble:
