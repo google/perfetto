@@ -82,12 +82,6 @@ using protos::MmCompactionMigratepagesFtraceEvent;
 using protos::MmCompactionSuitableFtraceEvent;
 using protos::MmCompactionTryToCompactPagesFtraceEvent;
 using protos::MmCompactionWakeupKcompactdFtraceEvent;
-using protos::CpufreqInteractiveAlreadyFtraceEvent;
-using protos::CpufreqInteractiveBoostFtraceEvent;
-using protos::CpufreqInteractiveNotyetFtraceEvent;
-using protos::CpufreqInteractiveSetspeedFtraceEvent;
-using protos::CpufreqInteractiveTargetFtraceEvent;
-using protos::CpufreqInteractiveUnboostFtraceEvent;
 using protos::Ext4AllocDaBlocksFtraceEvent;
 using protos::Ext4AllocateBlocksFtraceEvent;
 using protos::Ext4AllocateInodeFtraceEvent;
@@ -336,6 +330,14 @@ using protos::MmPageFreeFtraceEvent;
 using protos::MmPageFreeBatchedFtraceEvent;
 using protos::MmPagePcpuDrainFtraceEvent;
 using protos::RssStatFtraceEvent;
+using protos::BinderTransactionAllocBufFtraceEvent;
+using protos::FenceDestroyFtraceEvent;
+using protos::FenceEnableSignalFtraceEvent;
+using protos::FenceInitFtraceEvent;
+using protos::FenceSignaledFtraceEvent;
+using protos::ClkDisableFtraceEvent;
+using protos::ClkEnableFtraceEvent;
+using protos::ClkSetRateFtraceEvent;
 
 const char* GetSchedSwitchFlag(int64_t state) {
   state &= 511;
@@ -596,6 +598,16 @@ std::string FormatBinderTransactionReceived(
   char line[2048];
   sprintf(line, "binder_transaction_received: transaction=%d",
           event.debug_id());
+  return std::string(line);
+}
+
+std::string FormatBinderTransactionAllocBuf(
+    const BinderTransactionAllocBufFtraceEvent& event) {
+  char line[2048];
+  sprintf(line,
+          "binder_transaction_alloc_buf: transaction=%d data_size=%zd "
+          "offsets_size=%zd",
+          event.debug_id(), event.data_size(), event.offsets_size());
   return std::string(line);
 }
 
@@ -2151,12 +2163,25 @@ std::string FormatF2fsSubmitWritePage(
 }
 std::string FormatF2fsSyncFileEnter(const F2fsSyncFileEnterFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "f2fs_sync_file_enter: TODO(fmayer): add format");
+  sprintf(line,
+          "f2fs_sync_file_enter: dev = (%d,%d), ino = %lu, pino = %lu, i_mode "
+          "= 0x%hx, i_size = %lld, i_nlink = %u, i_blocks = %llu, i_advise = "
+          "0x%x",
+          static_cast<int>(event.dev() >> 20),
+          static_cast<int>(event.dev() & ((1U << 20) - 1)), event.ino(),
+          event.pino(), event.mode(), event.size(), event.nlink(),
+          event.blocks(), static_cast<unsigned char>(event.advise()));
   return std::string(line);
 }
 std::string FormatF2fsSyncFileExit(const F2fsSyncFileExitFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "f2fs_sync_file_exit: TODO(fmayer): add format");
+  std::string cp = event.need_cp() ? "needed" : "not needed";
+  sprintf(line,
+          "f2fs_sync_file_exit: dev = (%d,%d), ino = %lu, checkpoint is %s, "
+          "datasync = %d, ret = %d",
+          static_cast<int>(event.dev() >> 20),
+          static_cast<int>(event.dev() & ((1U << 20) - 1)), event.ino(),
+          cp.c_str(), event.datasync(), event.ret());
   return std::string(line);
 }
 std::string FormatF2fsSyncFs(const F2fsSyncFsFtraceEvent& event) {
@@ -2239,7 +2264,12 @@ std::string FormatF2fsVmPageMkwrite(const F2fsVmPageMkwriteFtraceEvent& event) {
 }
 std::string FormatF2fsWriteBegin(const F2fsWriteBeginFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "f2fs_write_begin: TODO(fmayer): add format");
+  sprintf(
+      line,
+      "f2fs_write_begin: dev = (%d,%d), ino %lu, pos %lld, len %u, flags %u",
+      static_cast<int>(event.dev() >> 20),
+      static_cast<int>(event.dev() & ((1U << 20) - 1)), event.ino(),
+      event.pos(), event.len(), event.flags());
   return std::string(line);
 }
 std::string FormatF2fsWriteCheckpoint(
@@ -2250,7 +2280,65 @@ std::string FormatF2fsWriteCheckpoint(
 }
 std::string FormatF2fsWriteEnd(const F2fsWriteEndFtraceEvent& event) {
   char line[2048];
-  sprintf(line, "f2fs_write_end: TODO(fmayer): add format");
+  sprintf(line,
+          "f2fs_write_end: dev = (%d,%d), ino %lu, pos %lld, len %u, copied %u",
+          static_cast<int>(event.dev() >> 20),
+          static_cast<int>(event.dev() & ((1U << 20) - 1)), event.ino(),
+          event.pos(), event.len(), event.copied());
+  return std::string(line);
+}
+std::string FormatFenceDestroy(const FenceDestroyFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "fence_destroy: driver=%s timeline=%s context=%u seqno=%u",
+          event.driver().c_str(), event.timeline().c_str(), event.context(),
+          event.seqno());
+  return std::string(line);
+}
+std::string FormatFenceEnableSignal(const FenceEnableSignalFtraceEvent& event) {
+  char line[2048];
+  sprintf(line,
+          "fence_enable_signal: driver=%s timeline=%s context=%u seqno=%u",
+          event.driver().c_str(), event.timeline().c_str(), event.context(),
+          event.seqno());
+  return std::string(line);
+}
+std::string FormatFenceInit(const FenceInitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "fence_init: driver=%s timeline=%s context=%u seqno=%u",
+          event.driver().c_str(), event.timeline().c_str(), event.context(),
+          event.seqno());
+  return std::string(line);
+}
+std::string FormatFenceSignaled(const FenceSignaledFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "fence_signaled: driver=%s timeline=%s context=%u seqno=%u",
+          event.driver().c_str(), event.timeline().c_str(), event.context(),
+          event.seqno());
+  return std::string(line);
+}
+std::string FormatClkDisable(const ClkDisableFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "clk_disable: %s", event.name().c_str());
+  return std::string(line);
+}
+std::string FormatClkEnable(const ClkEnableFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "clk_enable: %s", event.name().c_str());
+  return std::string(line);
+}
+std::string FormatClkSetRate(const ClkSetRateFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "clk_set_rate: %s %lu", event.name().c_str(), event.rate());
+  return std::string(line);
+}
+std::string FormatIpiEntry(const IpiEntryFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "ipi_entry: (%s)", event.reason().c_str());
+  return std::string(line);
+}
+std::string FormatIpiExit(const IpiExitFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "ipi_exit: (%s)", event.reason().c_str());
   return std::string(line);
 }
 std::string FormatAllocPagesIommuEnd(
@@ -3351,6 +3439,36 @@ std::string FormatEventText(const protos::FtraceEvent& event) {
   } else if (event.has_rss_stat()) {
     const auto& inner = event.rss_stat();
     return FormatRssStat(inner);
+  } else if (event.has_binder_transaction_alloc_buf()) {
+    const auto& inner = event.binder_transaction_alloc_buf();
+    return FormatBinderTransactionAllocBuf(inner);
+  } else if (event.has_fence_destroy()) {
+    const auto& inner = event.fence_destroy();
+    return FormatFenceDestroy(inner);
+  } else if (event.has_fence_enable_signal()) {
+    const auto& inner = event.fence_enable_signal();
+    return FormatFenceEnableSignal(inner);
+  } else if (event.has_fence_init()) {
+    const auto& inner = event.fence_init();
+    return FormatFenceInit(inner);
+  } else if (event.has_fence_signaled()) {
+    const auto& inner = event.fence_signaled();
+    return FormatFenceSignaled(inner);
+  } else if (event.has_clk_disable()) {
+    const auto& inner = event.clk_disable();
+    return FormatClkDisable(inner);
+  } else if (event.has_clk_enable()) {
+    const auto& inner = event.clk_enable();
+    return FormatClkEnable(inner);
+  } else if (event.has_clk_set_rate()) {
+    const auto& inner = event.clk_set_rate();
+    return FormatClkSetRate(inner);
+  } else if (event.has_ipi_entry()) {
+    const auto& inner = event.ipi_entry();
+    return FormatIpiEntry(inner);
+  } else if (event.has_ipi_exit()) {
+    const auto& inner = event.ipi_exit();
+    return FormatIpiExit(inner);
   }
 
   return "";

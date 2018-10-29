@@ -1,11 +1,11 @@
 ftrace/print
 sched/sched_switch
-cpufreq_interactive/cpufreq_interactive_already
-cpufreq_interactive/cpufreq_interactive_boost
-cpufreq_interactive/cpufreq_interactive_notyet
-cpufreq_interactive/cpufreq_interactive_setspeed
-cpufreq_interactive/cpufreq_interactive_target
-cpufreq_interactive/cpufreq_interactive_unboost
+removed cpufreq_interactive/cpufreq_interactive_already
+removed cpufreq_interactive/cpufreq_interactive_boost
+removed cpufreq_interactive/cpufreq_interactive_notyet
+removed cpufreq_interactive/cpufreq_interactive_setspeed
+removed cpufreq_interactive/cpufreq_interactive_target
+removed cpufreq_interactive/cpufreq_interactive_unboost
 power/cpu_frequency
 power/cpu_frequency_limits
 power/cpu_idle
@@ -311,3 +311,11 @@ kmem/mm_page_pcpu_drain
 kmem/rss_stat
 kmem/ion_heap_shrink
 kmem/ion_heap_grow
+fence/fence_init
+fence/fence_destroy
+fence/fence_enable_signal
+fence/fence_signaled
+clk/clk_enable
+clk/clk_disable
+clk/clk_set_rate
+binder/binder_transaction_alloc_buf
