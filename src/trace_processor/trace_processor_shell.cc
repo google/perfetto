@@ -25,8 +25,9 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/scoped_file.h"
 #include "perfetto/base/time.h"
-#include "src/trace_processor/trace_processor.h"
+#include "perfetto/trace_processor/trace_processor.h"
 
 #include "perfetto/trace_processor/raw_query.pb.h"
 
@@ -318,7 +319,7 @@ int TraceProcessorMain(int argc, char** argv) {
   }
 
   // Load the trace file into the trace processor.
-  TraceProcessor::Config config;
+  Config config;
   config.optimization_mode = OptimizationMode::kMaxBandwidth;
   TraceProcessor tp(config);
   base::ScopedFile fd(base::OpenFile(trace_file_path, O_RDONLY));

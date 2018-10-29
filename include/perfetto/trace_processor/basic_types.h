@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_BASIC_TYPES_H_
-#define SRC_TRACE_PROCESSOR_BASIC_TYPES_H_
-
-#include <memory>
+#ifndef INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
+#define INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
 
 namespace perfetto {
 namespace trace_processor {
 
 enum class OptimizationMode { kMaxBandwidth = 0, kMinLatency };
 
+struct Config {
+  OptimizationMode optimization_mode = OptimizationMode::kMaxBandwidth;
+  uint64_t window_size_ns = 60 * 1000 * 1000 * 1000ULL;  // 60 seconds.
+};
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_BASIC_TYPES_H_
+#endif  // INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
