@@ -21,9 +21,9 @@
 #include "gtest/gtest.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/base/test/utils.h"
 #include "src/trace_processor/json_trace_parser.h"
-#include "src/trace_processor/trace_processor.h"
 
 #include "perfetto/trace_processor/raw_query.pb.h"
 
@@ -33,7 +33,7 @@ namespace {
 
 class TraceProcessorIntegrationTest : public ::testing::Test {
  public:
-  TraceProcessorIntegrationTest() : processor(TraceProcessor::Config()) {}
+  TraceProcessorIntegrationTest() : processor(Config()) {}
 
   TraceProcessor processor;
 

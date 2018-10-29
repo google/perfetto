@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
-#define SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
+#ifndef SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_IMPL_H_
+#define SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_IMPL_H_
 
 #include <atomic>
 #include <functional>
 #include <memory>
 
-#include "src/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
 
@@ -36,20 +36,16 @@ namespace trace_processor {
 
 // Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
-class TraceProcessor {
+class TraceProcessorImpl {
  public:
-  struct Config {
-    OptimizationMode optimization_mode = OptimizationMode::kMaxBandwidth;
-    uint64_t window_size_ns = 60 * 1000 * 1000 * 1000ULL;  // 60 seconds.
-  };
-  explicit TraceProcessor(const Config&);
-  ~TraceProcessor();
+  explicit TraceProcessorImpl(const Config&);
+  ~TraceProcessorImpl();
 
   // The entry point to push trace data into the processor. The trace format
   // will be automatically discovered on the first push call. It is possible
   // to make queries between two pushes.
   // Returns true if parsing has been succeeding so far, false if some
-  // unrecoverable error happened. If this happens, the TraceProcessor will
+  // unrecoverable error happened. If this happens, the TraceProcessorImpl will
   // ignore the following Parse() requests and drop data on the floor.
   bool Parse(std::unique_ptr<uint8_t[]>, size_t);
 
@@ -76,11 +72,7 @@ class TraceProcessor {
   // to prevent single-flow compiler optimizations in ExecuteQuery().
   std::atomic<bool> query_interrupted_{false};
 };
-
-// When set, logs SQLite actions on the console.
-void EnableSQLiteVtableDebugging();
-
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
+#endif  // SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_IMPL_H_
