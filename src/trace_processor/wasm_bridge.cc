@@ -19,7 +19,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/trace_processor.h"
+#include "perfetto/trace_processor/trace_processor.h"
 
 #include "perfetto/trace_processor/raw_query.pb.h"
 #include "perfetto/trace_processor/sched.pb.h"
@@ -54,7 +54,7 @@ extern "C" {
 void EMSCRIPTEN_KEEPALIVE Initialize(ReplyFunction);
 void Initialize(ReplyFunction reply_function) {
   PERFETTO_ILOG("Initializing WASM bridge");
-  TraceProcessor::Config config;
+  Config config;
   config.optimization_mode = OptimizationMode::kMaxBandwidth;
   g_trace_processor = new TraceProcessor(config);
   g_reply = reply_function;
