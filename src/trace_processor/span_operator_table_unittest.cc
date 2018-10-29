@@ -86,6 +86,16 @@ TEST_F(SpanOperatorTableTest, JoinTwoSpanTables) {
   PrepareValidStatement("SELECT * FROM sp");
 
   ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 120);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 40);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 2);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 160);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 60);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 2);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
   ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 100);
   ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 5);
   ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 5);
@@ -99,16 +109,6 @@ TEST_F(SpanOperatorTableTest, JoinTwoSpanTables) {
   ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 110);
   ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 50);
   ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 5);
-
-  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 120);
-  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 40);
-  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 2);
-
-  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 160);
-  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 60);
-  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 2);
 
   ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
   ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 160);
