@@ -49,6 +49,7 @@ enum RefType {
   kCpuId = 2,
   kIrq = 3,
   kSoftIrq = 4,
+  kMax = kSoftIrq + 1
 };
 
 // Stores a data inside a trace file in a columnar form. This makes it efficient
@@ -261,6 +262,8 @@ class TraceStorage {
 
   const Counters& counters() const { return counters_; }
   Counters* mutable_counters() { return &counters_; }
+
+  const std::deque<std::string>& string_pool() const { return string_pool_; }
 
   // |unique_processes_| always contains at least 1 element becuase the 0th ID
   // is reserved to indicate an invalid process.
