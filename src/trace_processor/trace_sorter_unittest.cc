@@ -18,7 +18,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "src/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_sorter.h"
 
