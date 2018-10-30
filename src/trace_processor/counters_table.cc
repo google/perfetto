@@ -45,6 +45,8 @@ Table::Schema CountersTable::CreateSchema(int, const char* const*) {
                                      &storage_->string_pool()),
       StorageSchema::NumericColumnPtr("value", &counters.values()),
       StorageSchema::NumericColumnPtr("dur", &counters.durations()),
+      StorageSchema::TsEndPtr("ts_end", &counters.timestamps(),
+                              &counters.durations()),
       StorageSchema::NumericColumnPtr("ref", &counters.refs()),
       StorageSchema::StringColumnPtr("ref_type", &counters.types(),
                                      &ref_types_)};

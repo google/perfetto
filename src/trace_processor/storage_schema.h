@@ -229,6 +229,44 @@ class StorageSchema {
     const std::deque<std::string>* string_map_ = nullptr;
   };
 
+  // Column which represents the "ts_end" column present in all time based
+  // tables. It is computed by adding together the values in two deques.
+  class TsEndColumn final : public Column {
+   public:
+    TsEndColumn(std::string col_name,
+                const std::deque<uint64_t>* ts_start,
+                const std::deque<uint64_t>* dur);
+    virtual ~TsEndColumn() override;
+
+    // Implements StorageCursor::ColumnReporter.
+    void ReportResult(sqlite3_context*, uint32_t) const override;
+
+    // Bounds a filter on this column between a minimum and maximum index.
+    // Generally this is only possible if the column is sorted.
+    Bounds BoundFilter(int op, sqlite3_value* value) const override;
+
+    // Given a SQLite operator and value for the comparision, returns a
+    // predicate which takes in a row index and returns whether the row should
+    // be returned.
+    Predicate Filter(int op, sqlite3_value* value) const override;
+
+    // Given a order by constraint for this column, returns a comparator
+    // function which compares data in this column at two indices.
+    Comparator Sort(const QueryConstraints::OrderBy& ob) const override;
+
+    // Returns the type of this column.
+    Table::ColumnType GetType() const override {
+      return Table::ColumnType::kUlong;
+    }
+
+    // Returns whether this column is sorted in the storage.
+    bool IsNaturallyOrdered() const override { return false; }
+
+   private:
+    const std::deque<uint64_t>* ts_start_;
+    const std::deque<uint64_t>* dur_;
+  };
+
   StorageSchema();
   StorageSchema(std::vector<std::unique_ptr<Column>> columns);
 
@@ -244,6 +282,14 @@ class StorageSchema {
   }
 
   const Column& GetColumn(size_t idx) const { return *(columns_[idx]); }
+
+  template <typename T>
+  static std::unique_ptr<TsEndColumn> TsEndPtr(std::string column_name,
+                                               const std::deque<T>* ts_start,
+                                               const std::deque<T>* ts_end) {
+    return std::unique_ptr<TsEndColumn>(
+        new TsEndColumn(column_name, ts_start, ts_end));
+  }
 
   template <typename T>
   static std::unique_ptr<NumericColumn<T>> NumericColumnPtr(

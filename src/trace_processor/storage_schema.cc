@@ -49,5 +49,52 @@ StorageSchema::Column::Column(std::string col_name, bool hidden)
     : col_name_(col_name), hidden_(hidden) {}
 StorageSchema::Column::~Column() = default;
 
+StorageSchema::TsEndColumn::TsEndColumn(std::string col_name,
+                                        const std::deque<uint64_t>* ts_start,
+                                        const std::deque<uint64_t>* dur)
+    : Column(col_name, false), ts_start_(ts_start), dur_(dur) {}
+StorageSchema::TsEndColumn::~TsEndColumn() = default;
+
+void StorageSchema::TsEndColumn::ReportResult(sqlite3_context* ctx,
+                                              uint32_t row) const {
+  uint64_t add = (*ts_start_)[row] + (*dur_)[row];
+  sqlite3_result_int64(ctx, static_cast<sqlite3_int64>(add));
+}
+
+StorageSchema::Column::Bounds StorageSchema::TsEndColumn::BoundFilter(
+    int,
+    sqlite3_value*) const {
+  Bounds bounds;
+  bounds.max_idx = static_cast<uint32_t>(ts_start_->size());
+  return bounds;
+}
+
+StorageSchema::Column::Predicate StorageSchema::TsEndColumn::Filter(
+    int op,
+    sqlite3_value* value) const {
+  auto bipredicate = sqlite_utils::GetPredicateForOp<uint64_t>(op);
+  uint64_t extracted = sqlite_utils::ExtractSqliteValue<uint64_t>(value);
+  return [this, bipredicate, extracted](uint32_t idx) {
+    uint64_t add = (*ts_start_)[idx] + (*dur_)[idx];
+    return bipredicate(add, extracted);
+  };
+}
+
+StorageSchema::Column::Comparator StorageSchema::TsEndColumn::Sort(
+    const QueryConstraints::OrderBy& ob) const {
+  if (ob.desc) {
+    return [this](uint32_t f, uint32_t s) {
+      uint64_t a = (*ts_start_)[f] + (*dur_)[f];
+      uint64_t b = (*ts_start_)[s] + (*dur_)[s];
+      return a > b ? -1 : (a < b ? 1 : 0);
+    };
+  }
+  return [this](uint32_t f, uint32_t s) {
+    uint64_t a = (*ts_start_)[f] + (*dur_)[f];
+    uint64_t b = (*ts_start_)[s] + (*dur_)[s];
+    return a < b ? -1 : (a > b ? 1 : 0);
+  };
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
