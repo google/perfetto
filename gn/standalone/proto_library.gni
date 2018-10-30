@@ -126,6 +126,7 @@ template("proto_library") {
     }
     if (generate_descriptor != "") {
       args += [
+        "--include_imports",
         "--descriptor_set_out",
         rebase_path("$root_gen_dir/" + generate_descriptor, root_build_dir),
       ]
