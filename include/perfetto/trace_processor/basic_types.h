@@ -17,6 +17,8 @@
 #ifndef INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
 
+#include <stdint.h>
+
 namespace perfetto {
 namespace trace_processor {
 
