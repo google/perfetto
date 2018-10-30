@@ -37,8 +37,11 @@ class SocketPool {
   SocketPool(std::vector<base::ScopedFile> sockets);
 
   BorrowedSocket Borrow();
+  void Shutdown();
 
  private:
+  bool shutdown_ = false;
+
   void Return(base::ScopedFile fd);
   std::mutex mutex_;
   std::condition_variable cv_;
@@ -136,6 +139,7 @@ class Client {
                         uint64_t alloc_address,
                         void* (*unhooked_malloc)(size_t),
                         void (*unhooked_free)(void*));
+  void Shutdown();
 
   ClientConfiguration client_config_for_testing() { return client_config_; }
 

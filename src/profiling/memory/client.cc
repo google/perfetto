@@ -139,10 +139,11 @@ SocketPool::SocketPool(std::vector<base::ScopedFile> sockets)
 BorrowedSocket SocketPool::Borrow() {
   std::unique_lock<std::mutex> lck_(mutex_);
   cv_.wait(lck_, [this] {
-    return available_sockets_ > 0 || dead_sockets_ == sockets_.size();
+    return available_sockets_ > 0 || dead_sockets_ == sockets_.size() ||
+           shutdown_;
   });
 
-  if (dead_sockets_ == sockets_.size()) {
+  if (dead_sockets_ == sockets_.size() || shutdown_) {
     return {base::ScopedFile(), nullptr};
   }
 
@@ -153,7 +154,7 @@ BorrowedSocket SocketPool::Borrow() {
 void SocketPool::Return(base::ScopedFile sock) {
   std::unique_lock<std::mutex> lck_(mutex_);
   PERFETTO_CHECK(dead_sockets_ + available_sockets_ < sockets_.size());
-  if (sock) {
+  if (sock && !shutdown_) {
     PERFETTO_CHECK(available_sockets_ < sockets_.size());
     sockets_[available_sockets_++] = std::move(sock);
     lck_.unlock();
@@ -165,6 +166,18 @@ void SocketPool::Return(base::ScopedFile sock) {
       cv_.notify_all();
     }
   }
+}
+
+void SocketPool::Shutdown() {
+  {
+    std::lock_guard<std::mutex> l(mutex_);
+    for (size_t i = 0; i < available_sockets_; ++i)
+      sockets_[i].reset();
+    dead_sockets_ += available_sockets_;
+    available_sockets_ = 0;
+    shutdown_ = true;
+  }
+  cv_.notify_all();
 }
 
 const char* GetThreadStackBase() {
@@ -298,6 +311,11 @@ void Client::MaybeSampleAlloc(uint64_t alloc_size,
       ShouldSampleAlloc(alloc_size, unhooked_malloc, unhooked_free);
   if (total_size > 0)
     RecordMalloc(alloc_size, total_size, alloc_address);
+}
+
+void Client::Shutdown() {
+  socket_pool_.Shutdown();
+  inited_ = false;
 }
 
 }  // namespace profiling
