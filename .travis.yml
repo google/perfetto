@@ -132,6 +132,7 @@ before_install:
   - echo "$CFG" && echo "$GN_ARGS"
   - export ASAN_SYMBOLIZER_PATH="$(which llvm-symbolizer
       || echo /usr/bin/llvm-symbolizer-*)"
+  - pip install --user protobuf
 
 install:
   - |
