@@ -28,7 +28,6 @@ TraceStorage::TraceStorage() {
 
   // Reserve string ID 0 for the empty string.
   InternString("");
-
 }
 
 TraceStorage::~TraceStorage() {}
