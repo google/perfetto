@@ -24,17 +24,24 @@ cd ${ROOT_DIR}
 echo PERFETTO_TEST_GN_ARGS: ${PERFETTO_TEST_GN_ARGS}
 echo PERFETTO_TEST_ENTRYPT: ${PERFETTO_TEST_ENTRYPT}
 
-# TODO(rsavitski): figure out how to copy files into the container without
-# requiring o= permissions on the ${ROOT_DIR} subtree.
-# TODO(rsavitski): switch from :experimental to :latest image
-# Note: SYS_PTRACE capability is added for [at least] the leak sanitizer.
+
+# Run PERFETTO_TEST_ENTRYPOINT inside the container with the following setup:
+# Mount (readonly) the current source directory inside the container. Enter the
+# container as root, make a mutable copy the source tree, change it to be owned
+# by the user "perfetto" (pre-created inside the docker image), and then invoke
+# the test script as that user. The copying is run as root to not require the
+# source tree to have the read permissions for the "other" users.
+#
+# SYS_PTRACE capability is added for [at least] the leak sanitizer.
 sudo docker run --rm -t \
-  --cap-add SYS_PTRACE \
+  --user=root:root \
+  --cap-add=SYS_PTRACE \
   -e PERFETTO_TEST_GN_ARGS="${PERFETTO_TEST_GN_ARGS}" \
   -v ${ROOT_DIR}:/perfetto:ro \
-  asia.gcr.io/perfetto-ci/perfetto-ci:experimental \
+  asia.gcr.io/perfetto-ci/perfetto-ci:latest \
   /bin/bash \
   "-c" \
   "cp -r /perfetto /home/perfetto/src && \
-  cd /home/perfetto/src && \
-  ${PERFETTO_TEST_ENTRYPT}"
+  chown -hR perfetto:perfetto /home/perfetto/src && \
+  su perfetto -c \" cd /home/perfetto/src && ${PERFETTO_TEST_ENTRYPT}\""
+
