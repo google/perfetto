@@ -188,10 +188,9 @@ std::vector<std::string> SpanOperatorTable::ComputeSqlConstraintVector(
     }
 
     if (!col_name.empty()) {
-      const auto& value =
-          reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
+      auto value = sqlite_utils::SqliteValueAsString(argv[i]);
       constraints.emplace_back("`" + col_name + "`" +
-                               OpToString(constraint.op) + "'" + value + "'");
+                               OpToString(constraint.op) + value);
     }
   }
   return constraints;
