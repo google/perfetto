@@ -16,23 +16,37 @@
 import argparse
 import difflib
 import glob
+import importlib
 import os
 import subprocess
 import sys
+import tempfile
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEST_DATA_DIR = os.path.join(ROOT_DIR, "test", "trace_processor")
+
+def trace_processor_command(trace_processor_path, trace_path, query_path):
+  return [trace_processor_path, '-q', query_path, trace_path]
 
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--index', type=str, help='location of index file',
                       default=os.path.join(TEST_DATA_DIR, "index"))
+  parser.add_argument('--trace-descriptor', type=str,
+                      help='$(dirname trace_processor)/gen/protos/trace/trace.descriptor')
   parser.add_argument('trace_processor', type=str,
                       help='location of trace processor binary')
   args = parser.parse_args()
 
   with open(args.index, 'r') as file:
     index_lines = file.readlines()
+
+  if args.trace_descriptor:
+    trace_descriptor_path = args.trace_descriptor
+  else:
+    out_path = os.path.dirname(args.trace_processor)
+    trace_protos_path = os.path.join(out_path, "gen", "protos", "trace")
+    trace_descriptor_path = os.path.join(trace_protos_path, "trace.descriptor")
 
   test_failure = 0
   index_dir = os.path.dirname(args.index)
@@ -52,14 +66,25 @@ def main():
       print("Expected file not found {}".format(expected_path))
       return 1
 
-    cmd = [
-      args.trace_processor,
-      '-q',
-      query_path,
-      trace_path
-    ]
+    if trace_path.endswith(".py"):
+      with tempfile.NamedTemporaryFile() as out:
+        python_cmd = [
+          "python",
+          trace_path,
+          trace_descriptor_path
+        ]
+        subprocess.check_call(
+          python_cmd,
+          stdout=out
+        )
+        cmd = trace_processor_command(
+            args.trace_processor, out.name, query_path)
+        actual_raw = subprocess.check_output(cmd)
+    else:
+      cmd = trace_processor_command(
+          args.trace_processor, trace_path, query_path)
+      actual_raw = subprocess.check_output(cmd)
 
-    actual_raw = subprocess.check_output(cmd)
     actual = actual_raw.decode("utf-8")
     actual_lines = actual_raw.splitlines(True)
 
