@@ -23,18 +23,23 @@ cd ${ROOT_DIR}
 # Check that the expected environment variables are present (due to set -u).
 echo PERFETTO_TEST_GN_ARGS: ${PERFETTO_TEST_GN_ARGS}
 
+OUT_PATH="out/dist"
+
 tools/install-build-deps --no-android
+
+pip install --user protobuf
 
 if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
   export ASAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
+  export MSAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
 fi
 
-tools/gn gen out/dist --args="${PERFETTO_TEST_GN_ARGS}" --check
-tools/ninja -C out/dist
+tools/gn gen ${OUT_PATH} --args="${PERFETTO_TEST_GN_ARGS}" --check
+tools/ninja -C ${OUT_PATH}
 
 # Run the tests
-out/dist/perfetto_unittests
-out/dist/perfetto_integrationtests
+${OUT_PATH}/perfetto_unittests
+${OUT_PATH}/perfetto_integrationtests
 
-BENCHMARK_FUNCTIONAL_TEST_ONLY=true out/dist/perfetto_benchmarks
-tools/diff_test_trace_processor.py out/dist/trace_processor_shell
+BENCHMARK_FUNCTIONAL_TEST_ONLY=true ${OUT_PATH}/perfetto_benchmarks
+tools/diff_test_trace_processor.py ${OUT_PATH}/trace_processor_shell
