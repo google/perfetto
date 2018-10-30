@@ -36,6 +36,8 @@ Table::Schema SchedSliceTable::CreateSchema(int, const char* const*) {
                                       false /* hidden */, true /* ordered */),
       StorageSchema::NumericColumnPtr("cpu", &slices.cpus()),
       StorageSchema::NumericColumnPtr("dur", &slices.durations()),
+      StorageSchema::TsEndPtr("ts_end", &slices.start_ns(),
+                              &slices.durations()),
       StorageSchema::NumericColumnPtr("utid", &slices.utids())};
   schema_ = StorageSchema({
       std::make_move_iterator(std::begin(cols)),
