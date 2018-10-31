@@ -35,6 +35,9 @@ const CONFIG_PROTO_URL =
 const FTRACE_EVENTS = [
   'print',
   'sched_switch',
+  'rss_stat',
+  'ion_heap_shrink',
+  'ion_heap_grow',
   'cpufreq_interactive_already',
   'cpufreq_interactive_boost',
   'cpufreq_interactive_notyet',
@@ -297,7 +300,7 @@ const FTRACE_EVENTS = [
 
 const CONFIG_PRESETS = [
   {
-    label: 'cpu',
+    label: 'Investigate CPU usage',
     config: {
       durationSeconds: 10.0,
       writeIntoFile: false,
@@ -306,6 +309,7 @@ const CONFIG_PRESETS = [
 
       processMetadata: true,
       scanAllProcessesOnStart: false,
+      procStatusPeriodMs: null,
 
       ftrace: true,
       ftraceEvents: [
@@ -329,6 +333,47 @@ const CONFIG_PRESETS = [
     },
   },
   {
+    label: 'Investigate memory',
+    config: {
+      durationSeconds: 10.0,
+      writeIntoFile: false,
+      fileWritePeriodMs: null,
+      bufferSizeMb: 10.0,
+
+      processMetadata: true,
+      scanAllProcessesOnStart: false,
+      procStatusPeriodMs: 50,
+
+      ftrace: true,
+      ftraceEvents: [
+        'print',
+        'sched_switch',
+        'rss_stat',
+        'ion_heap_shrink',
+        'ion_heap_grow',
+      ],
+      atraceApps: [],
+      atraceCategories: ['am', 'dalvik'],
+      ftraceDrainPeriodMs: null,
+      ftraceBufferSizeKb: null,
+
+      sysStats: true,
+      meminfoPeriodMs: 50,
+      meminfoCounters: [
+        'MEMINFO_MEM_AVAILABLE',
+        'MEMINFO_SWAP_CACHED',
+        'MEMINFO_ACTIVE',
+        'MEMINFO_INACTIVE'
+      ],
+      vmstatPeriodMs: null,
+      vmstatCounters: [],
+      statPeriodMs: null,
+      statCounters: [],
+
+      displayConfigAsPbtxt: false,
+    },
+  },
+  {
     label: 'empty',
     config: {
       durationSeconds: 10.0,
@@ -338,6 +383,7 @@ const CONFIG_PRESETS = [
 
       processMetadata: false,
       scanAllProcessesOnStart: false,
+      procStatusPeriodMs: null,
 
       ftrace: false,
       ftraceEvents: [],
@@ -421,12 +467,12 @@ class Toggle implements m.ClassComponent<ToggleAttrs> {
         {
           title: attrs.help,
           class: attrs.enabled ? '' : 'disabled',
-
         },
         attrs.label,
         m('input[type="checkbox"]', {
           onchange: m.withAttr('checked', attrs.onchange),
           disabled: !attrs.enabled,
+          class: attrs.enabled ? '' : 'disabled',
           checked: attrs.value,
         }));
   }
@@ -657,14 +703,6 @@ export const RecordPage = createPage({
             ]
           }),
 
-          m('.heading', m(Toggle, {
-            label: 'Record process/thread associations',
-            help: PROCESS_METADATA_HELP,
-            value: state.processMetadata,
-            enabled: true,
-            onchange: onChange<boolean|null>('processMetadata'),
-          })),
-
           // TODO(hjd): Re-add when multi-buffer support comes.
           //m('.control-group', m(Toggle, {
           //    label: 'Scan all processes on start',
@@ -747,7 +785,28 @@ export const RecordPage = createPage({
             ),
 
           m('.heading', m(Toggle, {
-            label: '/proc poller',
+            label: 'Per-process stats and thread associations',
+            help: PROCESS_METADATA_HELP,
+            value: state.processMetadata,
+            enabled: true,
+            onchange: onChange<boolean|null>('processMetadata'),
+          })),
+
+          m('.control-group',
+            m(Numeric, {
+              label: 'Poll /proc/[pid]/status',
+              sublabel: 'ms',
+              enabled: state.processMetadata,
+              help: '',
+              placeholder: 'never',
+              value: state.procStatusPeriodMs,
+              onchange: onChange<null|number>('procStatusPeriodMs'),
+              presets: COUNTER_PRESETS,
+            }),
+          ),
+
+          m('.heading', m(Toggle, {
+            label: 'System-wide stats (/proc poller)',
             value: state.sysStats,
             enabled: true,
             help: SYS_STATS_HELP,
@@ -755,29 +814,9 @@ export const RecordPage = createPage({
           })),
 
           m('.control-group',
-            m(Numeric, {
-              label: 'Poll /proc/stat every',
-              sublabel: 'ms',
-              enabled: state.sysStats,
-              help: '',
-              placeholder: 'never',
-              value: state.statPeriodMs,
-              onchange: onChange<null|number>('statPeriodMs'),
-              presets: COUNTER_PRESETS,
-            }),
-
-            m(MultiSelect, {
-              label: 'Stat Counters',
-              enabled: state.sysStats && isTruthy(state.statPeriodMs),
-              selected: state.statCounters,
-              options: Object.keys(StatCounters)
-                           .filter(c => c !== 'STAT_UNSPECIFIED'),
-              onadd: onAdd('statCounters'),
-              onsubtract: onSubtract('statCounters'),
-            }),
 
             m(Numeric, {
-              label: 'Poll /proc/meminfo every',
+              label: 'Poll /proc/meminfo',
               sublabel: 'ms',
               enabled: state.sysStats,
               help: '',
@@ -798,7 +837,7 @@ export const RecordPage = createPage({
             }),
 
             m(Numeric, {
-              label: 'Poll /proc/vmstat every',
+              label: 'Poll /proc/vmstat',
               sublabel: 'ms',
               enabled: state.sysStats,
               help: '',
@@ -816,6 +855,27 @@ export const RecordPage = createPage({
                            .filter(c => c !== 'VMSTAT_UNSPECIFIED'),
               onadd: onAdd('vmstatCounters'),
               onsubtract: onSubtract('vmstatCounters'),
+            }),
+
+            m(Numeric, {
+              label: 'Poll /proc/stat',
+              sublabel: 'ms',
+              enabled: state.sysStats,
+              help: '',
+              placeholder: 'never',
+              value: state.statPeriodMs,
+              onchange: onChange<null|number>('statPeriodMs'),
+              presets: COUNTER_PRESETS,
+            }),
+
+            m(MultiSelect, {
+              label: 'Stat Counters',
+              enabled: state.sysStats && isTruthy(state.statPeriodMs),
+              selected: state.statCounters,
+              options: Object.keys(StatCounters)
+                           .filter(c => c !== 'STAT_UNSPECIFIED'),
+              onadd: onAdd('statCounters'),
+              onsubtract: onSubtract('statCounters'),
             }),
 
             ),
