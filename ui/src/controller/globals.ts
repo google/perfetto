@@ -74,13 +74,11 @@ class Globals implements App {
     let runAgain = false;
     let summary = this._queuedActions.map(action => action.type).join(', ');
     summary = `Controllers loop (${summary})`;
-    console.time(summary);
     for (let iter = 0; runAgain || this._queuedActions.length > 0; iter++) {
       if (iter > 100) throw new Error('Controllers are stuck in a livelock');
       const actions = this._queuedActions;
       this._queuedActions = new Array<DeferredAction>();
       for (const action of actions) {
-        console.debug('Applying action', action);
         this.applyAction(action);
       }
       this._runningControllers = true;
@@ -91,7 +89,6 @@ class Globals implements App {
       }
     }
     assertExists(this._frontend).send<void>('updateState', [this.state]);
-    console.timeEnd(summary);
   }
 
   createEngine(): Engine {

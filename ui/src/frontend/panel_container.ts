@@ -221,7 +221,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const redrawStart = debugNow();
     if (!this.ctx) return;
     this.ctx.clearRect(0, 0, this.parentWidth, this.canvasHeight);
-    const canvasYStart = this.scrollTop - this.getCanvasOverdrawHeightPerSide();
+    const canvasYStart =
+        Math.ceil(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
 
     let panelYStart = 0;
     const panels = assertExists(this.attrs).panels;
