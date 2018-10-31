@@ -79,10 +79,14 @@ class PERFETTO_EXPORT ProcessStatsConfig {
   bool record_thread_names() const { return record_thread_names_; }
   void set_record_thread_names(bool value) { record_thread_names_ = value; }
 
+  uint32_t proc_stats_poll_ms() const { return proc_stats_poll_ms_; }
+  void set_proc_stats_poll_ms(uint32_t value) { proc_stats_poll_ms_ = value; }
+
  private:
   std::vector<Quirks> quirks_;
   bool scan_all_processes_on_start_ = {};
   bool record_thread_names_ = {};
+  uint32_t proc_stats_poll_ms_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
