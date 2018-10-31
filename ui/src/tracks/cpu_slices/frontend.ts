@@ -28,8 +28,7 @@ import {
   SummaryData
 } from './common';
 
-// 0.5 Makes the horizontal lines sharp.
-const MARGIN_TOP = 5.5;
+const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 
 function cropText(str: string, charWidth: number, rectWidth: number) {

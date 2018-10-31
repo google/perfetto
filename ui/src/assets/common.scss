@@ -84,9 +84,9 @@ body {
     display: grid;
     grid-template-areas:
       "sidebar topbar"
-      "sidebar page"
-      "sidebar alerts";
-    grid-template-rows: var(--topbar-height) 1fr auto;
+      "sidebar alerts"
+      "sidebar page";
+    grid-template-rows: var(--topbar-height) auto 1fr;
     grid-template-columns: var(--sidebar-width) auto;
     color: #121212;
 }
@@ -126,17 +126,23 @@ button.close {
 }
 
 .alerts {
+  * {
+    user-select: text;
+  }
   grid-area: alerts;
-  background-color: #262f3c;
-  div {
+  background-color: #f2f2f2;
+  >div {
     font-family: 'Raleway';
     font-weight: 400;
     letter-spacing: 0.25px;
-    color: white;
-    padding: 25px;
-    a {
-      color: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    button {
+      width: 24px;
+      height: 24px;
     }
+
   }
 }
 

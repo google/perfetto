@@ -171,11 +171,11 @@ export const StateActions = {
 
     if (isPinned) {
       state.pinnedTracks.splice(state.pinnedTracks.indexOf(id), 1);
-      if (trackGroup === undefined) {
+      if (trackGroup === SCROLLING_TRACK_GROUP) {
         state.scrollingTracks.unshift(id);
       }
     } else {
-      if (trackGroup === undefined) {
+      if (trackGroup === SCROLLING_TRACK_GROUP) {
         state.scrollingTracks.splice(state.scrollingTracks.indexOf(id), 1);
       }
       state.pinnedTracks.push(id);
@@ -210,6 +210,10 @@ export const StateActions = {
       requestId: `${state.nextId++}`,
       hash: args.hash,
     };
+  },
+
+  clearPermalink(state: StateDraft, _: {}): void {
+    state.permalink = {};
   },
 
   setTraceTime(state: StateDraft, args: TraceTime): void {
@@ -268,6 +272,10 @@ export const StateActions = {
           options.splice(index, 1);
         }
       },
+
+  toggleDisplayConfigAsPbtxt(state: StateDraft, _: {}): void {
+    state.displayConfigAsPbtxt = !state.displayConfigAsPbtxt;
+  },
 };
 
 // When we are on the frontend side, we don't really want to execute the
