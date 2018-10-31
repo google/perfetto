@@ -360,7 +360,12 @@ bool GenerateProto(const FtraceEvent& format, Proto* proto_out) {
   for (const FtraceEvent::Field& field : format.fields) {
     std::string name = GetNameFromTypeAndName(field.type_and_name);
     // TODO(hjd): Handle dup names.
-    if (name == "" || seen.count(name))
+    // sa_handler is problematic because glib headers redefine it at the
+    // preprocessor level. It's impossible to have a variable or a function
+    // called sa_handler. On the good side, we realistically don't care about
+    // this field, it's just easier to skip it.
+    if (name == "" || seen.count(name) || name == "sa_handler" ||
+        name == "errno")
       continue;
     seen.insert(name);
     ProtoType type = InferProtoType(field);
