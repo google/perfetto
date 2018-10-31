@@ -14,17 +14,23 @@
 
 import * as m from 'mithril';
 
+import {Actions} from '../common/actions';
 import {globals} from './globals';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 
 function renderPermalink(): m.Children {
-  if (!globals.state.permalink.requestId) return null;
-  const hash = globals.state.permalink.hash;
-  const url = `${self.location.origin}#!/?s=${hash}`;
-  return m(
-      '.alert-permalink',
-      hash ? ['Permalink: ', m(`a[href=${url}]`, url)] : 'Uploading...');
+  const permalink = globals.state.permalink;
+  if (!permalink.requestId || !permalink.hash) return null;
+  const url = `${self.location.origin}#!/?s=${permalink.hash}`;
+  return m('.alert-permalink', [
+    m('div', 'Permalink: ', m(`a[href=${url}]`, url)),
+    m('button',
+      {
+        onclick: () => globals.dispatch(Actions.clearPermalink({})),
+      },
+      m('i.material-icons', 'close')),
+  ]);
 }
 
 class Alerts implements m.ClassComponent {
@@ -69,8 +75,8 @@ export function createPage(component: m.Component): m.Component {
       return [
         m(Sidebar),
         m(Topbar),
-        m(component),
         m(Alerts),
+        m(component),
         m(PerfStats),
       ];
     },

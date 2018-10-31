@@ -25,8 +25,7 @@ import {
   PROCESS_SUMMARY_TRACK,
 } from './common';
 
-// 0.5 Makes the horizontal lines sharp.
-const MARGIN_TOP = 7.5;
+const MARGIN_TOP = 7;
 const RECT_HEIGHT = 30;
 
 function getCurResolution() {

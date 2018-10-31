@@ -66,8 +66,6 @@ export interface PermalinkConfig {
 export interface RecordConfig {
   [key: string]: null|number|boolean|string|string[];
 
-  displayConfigAsPbtxt: boolean;
-
   // Global settings
   durationSeconds: number;
   writeIntoFile: boolean;
@@ -118,6 +116,7 @@ export interface State {
    * State of the ConfigEditor.
    */
   recordConfig: RecordConfig;
+  displayConfigAsPbtxt: boolean;
 
   /**
    * Open traces.
@@ -153,7 +152,10 @@ export function createEmptyState(): State {
     scrollingTracks: [],
     queries: {},
     permalink: {},
+
     recordConfig: createEmptyRecordConfig(),
+    displayConfigAsPbtxt: false,
+
     status: {msg: '', timestamp: 0},
   };
 }
@@ -183,7 +185,5 @@ export function createEmptyRecordConfig(): RecordConfig {
     vmstatCounters: [],
     statPeriodMs: null,
     statCounters: [],
-
-    displayConfigAsPbtxt: false,
   };
 }
