@@ -16,6 +16,7 @@ import * as protos from '../gen/protos';
 
 // Aliases protos to avoid the super nested namespaces.
 // See https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
+import IProcessStatsConfig = protos.perfetto.protos.IProcessStatsConfig;
 import IRawQueryArgs = protos.perfetto.protos.IRawQueryArgs;
 import ISysStatsConfig = protos.perfetto.protos.ISysStatsConfig;
 import ITraceConfig = protos.perfetto.protos.ITraceConfig;
@@ -62,14 +63,15 @@ export function* rawQueryResultIter(result: RawQueryResult) {
 }
 
 export {
-  TraceConfig,
-  ITraceConfig,
-  TraceProcessor,
+  IProcessStatsConfig,
   IRawQueryArgs,
   ISysStatsConfig,
+  ITraceConfig,
+  MeminfoCounters,
   RawQueryArgs,
   RawQueryResult,
-  MeminfoCounters,
-  VmstatCounters,
   StatCounters,
+  TraceConfig,
+  TraceProcessor,
+  VmstatCounters,
 };

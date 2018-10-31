@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+:root {
+  --record-button-color: hsl(213, 50%, 95%);
+  --record-button-active-color: hsl(213, 70%, 78%);
+}
+
 .record-page {
   &.three {
     @media (min-width: 2000px) {
@@ -42,10 +47,10 @@
       margin-right: 0.5rem;
       padding: 3px;
       border-radius: 4px;
-      background-color: #e3f2fd;
+      background-color: var(--record-button-color);
     }
     button.selected {
-      background-color: #90caf9;
+      background-color: var(--record-button-active-color);
     }
   }
 
@@ -99,7 +104,7 @@
       content: "";
       display: block;
       width: 100%;
-      background-color: rgb(87%, 87%, 87%);
+      background-color: var(--record-button-color);
       left: 0;
       position: absolute;
       right: 0;
@@ -143,10 +148,10 @@
         margin-right: 0.5rem;
         padding: 3px;
         border-radius: 4px;
-        background-color: #e3f2fd;
+        background-color: var(--record-button-color);
       }
       button.selected {
-        background-color: #90caf9;
+        background-color: var(--record-button-active-color);
       }
       input {
         text-align: right;
@@ -174,7 +179,7 @@
       margin-right: 0.5rem;
       padding: 3px;
       border-radius: 4px;
-      background-color: #e3f2fd;
+      background-color: var(--record-button-color);
     }
     input {
       text-align: right;
@@ -255,7 +260,7 @@
   }
 
   .disabled {
-    color: grey;
+    color: #ddd;
     filter: grayscale(1);
   }
 
