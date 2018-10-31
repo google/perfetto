@@ -239,7 +239,8 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateProcessStatsDataSource(
   base::ignore_result(id);
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
   return std::unique_ptr<ProcessStatsDataSource>(new ProcessStatsDataSource(
-      session_id, endpoint_->CreateTraceWriter(buffer_id), config));
+      task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id),
+      config));
 }
 
 std::unique_ptr<SysStatsDataSource> ProbesProducer::CreateSysStatsDataSource(
@@ -329,9 +330,17 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
       case InodeFileDataSource::kTypeId:
         inode_data_source = static_cast<InodeFileDataSource*>(ds);
         break;
-      case ProcessStatsDataSource::kTypeId:
-        ps_data_source = static_cast<ProcessStatsDataSource*>(ds);
+      case ProcessStatsDataSource::kTypeId: {
+        // A trace session might have declared more than one ps data source.
+        // In those cases we often use one for a full dump on startup (
+        // targeting a dedicated buffer) and another one for on-demand dumps
+        // targeting the main buffer.
+        // Only use the one that has on-demand dumps enabled, if any.
+        auto ps = static_cast<ProcessStatsDataSource*>(ds);
+        if (ps->on_demand_dumps_enabled())
+          ps_data_source = ps;
         break;
+      }
       case SysStatsDataSource::kTypeId:
         break;
       default:

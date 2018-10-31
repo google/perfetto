@@ -15,27 +15,36 @@
  */
 
 #include "src/traced/probes/ps/process_stats_data_source.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+
+#include <dirent.h>
+
+#include "perfetto/base/temp_file.h"
+#include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+
+#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
+
 using ::testing::_;
+using ::testing::ElementsAreArray;
 using ::testing::Invoke;
 using ::testing::Return;
-using ::testing::ElementsAreArray;
 
 namespace perfetto {
 namespace {
 
 class TestProcessStatsDataSource : public ProcessStatsDataSource {
  public:
-  TestProcessStatsDataSource(TracingSessionID id,
+  TestProcessStatsDataSource(base::TaskRunner* task_runner,
+                             TracingSessionID id,
                              std::unique_ptr<TraceWriter> writer,
                              const DataSourceConfig& config)
-      : ProcessStatsDataSource(id, std::move(writer), config) {}
+      : ProcessStatsDataSource(task_runner, id, std::move(writer), config) {}
 
+  MOCK_METHOD0(OpenProcDir, base::ScopedDir());
   MOCK_METHOD2(ReadProcPidFile, std::string(int32_t pid, const std::string&));
 };
 
@@ -43,16 +52,18 @@ class ProcessStatsDataSourceTest : public ::testing::Test {
  protected:
   ProcessStatsDataSourceTest() {}
 
-  TraceWriterForTesting* writer_raw_;
-
   std::unique_ptr<TestProcessStatsDataSource> GetProcessStatsDataSource(
       const DataSourceConfig& cfg) {
     auto writer =
         std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
     writer_raw_ = writer.get();
     return std::unique_ptr<TestProcessStatsDataSource>(
-        new TestProcessStatsDataSource(0, std::move(writer), cfg));
+        new TestProcessStatsDataSource(&task_runner_, 0, std::move(writer),
+                                       cfg));
   }
+
+  base::TestTaskRunner task_runner_;
+  TraceWriterForTesting* writer_raw_;
 };
 
 TEST_F(ProcessStatsDataSourceTest, WriteOnceProcess) {
@@ -113,6 +124,71 @@ TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
       ASSERT_EQ(threads.Get(tid_idx).name(), "thread_" + std::to_string(tid));
     }
   }
+}
+
+TEST_F(ProcessStatsDataSourceTest, MemCounters) {
+  DataSourceConfig cfg;
+  cfg.mutable_process_stats_config()->set_proc_stats_poll_ms(1);
+  *(cfg.mutable_process_stats_config()->add_quirks()) =
+      perfetto::ProcessStatsConfig::DISABLE_ON_DEMAND;
+  auto data_source = GetProcessStatsDataSource(cfg);
+
+  // Populate a fake /proc/ directory.
+  auto fake_proc = base::TempDir::Create();
+  const int kPids[] = {1, 2};
+  std::vector<std::string> dirs_to_delete;
+  for (int pid : kPids) {
+    char path[256];
+    sprintf(path, "%s/%d", fake_proc.path().c_str(), pid);
+    dirs_to_delete.push_back(path);
+    mkdir(path, 0755);
+  }
+
+  auto checkpoint = task_runner_.CreateCheckpoint("all_done");
+
+  EXPECT_CALL(*data_source, OpenProcDir()).WillRepeatedly(Invoke([&fake_proc] {
+    return base::ScopedDir(opendir(fake_proc.path().c_str()));
+  }));
+
+  const int kNumIters = 4;
+  int iter = 0;
+  for (int pid : kPids) {
+    EXPECT_CALL(*data_source, ReadProcPidFile(pid, "status"))
+        .WillRepeatedly(Invoke([checkpoint, kPids, &iter](int32_t p,
+                                                          const std::string&) {
+          char ret[1024];
+          sprintf(ret, "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
+                  p * 100 + iter * 10 + 1, p * 100 + iter * 10 + 2);
+          if (p == kPids[base::ArraySize(kPids) - 1]) {
+            if (++iter == kNumIters)
+              checkpoint();
+          }
+          return std::string(ret);
+        }));
+  }
+
+  data_source->Start();
+  task_runner_.RunUntilCheckpoint("all_done");
+  data_source->Flush();
+
+  // |packet| will contain the merge of all kNumIter packets written.
+  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
+  ASSERT_TRUE(packet);
+  ASSERT_TRUE(packet->has_process_stats());
+  const auto& ps_stats = packet->process_stats();
+  ASSERT_EQ(ps_stats.mem_counters_size(), kNumIters * base::ArraySize(kPids));
+  iter = 0;
+  for (const auto& proc_counters : ps_stats.mem_counters()) {
+    int32_t pid = proc_counters.pid();
+    ASSERT_EQ(proc_counters.vm_size_kb(), pid * 100 + iter * 10 + 1);
+    ASSERT_EQ(proc_counters.vm_rss_kb(), pid * 100 + iter * 10 + 2);
+    if (pid == kPids[base::ArraySize(kPids) - 1])
+      iter++;
+  }
+
+  // Cleanup |fake_proc|. TempDir checks that the directory is empty.
+  for (std::string& path : dirs_to_delete)
+    rmdir(path.c_str());
 }
 
 }  // namespace

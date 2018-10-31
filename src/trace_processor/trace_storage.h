@@ -49,7 +49,8 @@ enum RefType {
   kCpuId = 2,
   kIrq = 3,
   kSoftIrq = 4,
-  kMax = kSoftIrq + 1
+  kUpid = 5,
+  kMax = kUpid + 1
 };
 
 // Stores a data inside a trace file in a columnar form. This makes it efficient
