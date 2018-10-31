@@ -201,24 +201,25 @@ export class TraceController extends Controller<States> {
     const addToTrackActions: DeferredAction[] = [];
     const numCpus = await engine.getNumberOfCpus();
 
-    // TODO(hjd): Move this code out of TraceController.
-    for (const counterName of ['VSYNC-sf', 'VSYNC-app']) {
-      const hasVsync =
-          !!(await engine.query(
-                 `select ts from counters where name like "${
-                                                             counterName
-                                                           }" limit 1`))
-                .numRecords;
-      if (!hasVsync) continue;
-      addToTrackActions.push(Actions.addTrack({
-        engineId: this.engineId,
-        kind: 'VsyncTrack',
-        name: `${counterName}`,
-        config: {
-          counterName,
-        }
-      }));
-    }
+    // TODO(hjd): Renable Vsync tracks when fixed.
+    //// TODO(hjd): Move this code out of TraceController.
+    // for (const counterName of ['VSYNC-sf', 'VSYNC-app']) {
+    //  const hasVsync =
+    //      !!(await engine.query(
+    //             `select ts from counters where name like "${
+    //                                                         counterName
+    //                                                       }" limit 1`))
+    //            .numRecords;
+    //  if (!hasVsync) continue;
+    //  addToTrackActions.push(Actions.addTrack({
+    //    engineId: this.engineId,
+    //    kind: 'VsyncTrack',
+    //    name: `${counterName}`,
+    //    config: {
+    //      counterName,
+    //    }
+    //  }));
+    //}
 
     for (let cpu = 0; cpu < numCpus; cpu++) {
       addToTrackActions.push(Actions.addTrack({
@@ -230,6 +231,42 @@ export class TraceController extends Controller<States> {
           cpu,
         }
       }));
+    }
+
+    {
+      const result = await engine.query(`
+         select distinct(name), ref_type from counters;
+      `);
+      for (let i = 0; i < result.columns[0].stringValues!.length; i++) {
+        const name = result.columns[0].stringValues![i];
+        const refType = result.columns[1].stringValues![i];
+        if (refType === '[NULL]') {
+          addToTrackActions.push(Actions.addTrack({
+            engineId: this.engineId,
+            kind: 'CounterTrack',
+            name,
+            trackGroup: SCROLLING_TRACK_GROUP,
+            config: {
+              name,
+              ref: 0,
+            }
+          }));
+        } else if (refType === 'cpu') {
+          // TODO(hjd): Find a way to show per CPU tracks.
+          // for (let cpu=0; cpu < numCpus; cpu++) {
+          //  addToTrackActions.push(Actions.addTrack({
+          //    engineId: this.engineId,
+          //    kind: 'CounterTrack',
+          //    name: `${name} (cpu: ${cpu})`,
+          //    trackGroup: SCROLLING_TRACK_GROUP,
+          //    config: {
+          //      name,
+          //      ref: cpu,
+          //    }
+          //  }));
+          //}
+        }
+      }
     }
 
     // Local experiments shows getting maxDepth separately is ~2x faster than
