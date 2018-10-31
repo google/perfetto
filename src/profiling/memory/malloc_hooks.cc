@@ -104,6 +104,10 @@ void* HEAPPROFD_ADD_PREFIX(_valloc)(size_t size);
 bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
                                        int*,
                                        const char*) {
+  perfetto::profiling::Client* old_client = GetClient();
+  if (old_client)
+    old_client->Shutdown();
+
   g_dispatch.store(malloc_dispatch, write_order);
   // This can store a nullptr, so we have to check in the hooks below to avoid
   // segfaulting in that case.
@@ -115,8 +119,10 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
 }
 
 void HEAPPROFD_ADD_PREFIX(_finalize)() {
-  // TODO(fmayer): Shut down client.
-  // Allow to re-enable existing client on subsequent initialize call.
+  // TODO(fmayer): This should not leak.
+  perfetto::profiling::Client* client = GetClient();
+  if (client)
+    client->Shutdown();
 }
 
 void HEAPPROFD_ADD_PREFIX(_dump_heap)(const char*) {}
