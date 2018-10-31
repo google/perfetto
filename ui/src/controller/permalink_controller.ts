@@ -60,21 +60,25 @@ export class PermalinkController extends Controller<'main'> {
     const fileToUrl = new Map<File, string>();
     for (const engine of Object.values<EngineConfig>(state.engines)) {
       if (!(engine.source instanceof File)) continue;
+      PermalinkController.updateStatus(`Uploading ${engine.source.name}`);
       const url = await this.saveTrace(engine.source);
       fileToUrl.set(engine.source, url);
     }
 
-    // Convert state to use URLs.
+    // Convert state to use URLs and remove permalink.
     const uploadState = produce(state, draft => {
       for (const engine of Object.values<DraftObject<EngineConfig>>(
                draft.engines)) {
         if (!(engine.source instanceof File)) continue;
         engine.source = fileToUrl.get(engine.source)!;
       }
+      draft.permalink = {};
     });
 
     // Upload state.
+    PermalinkController.updateStatus(`Creating permalink...`);
     const hash = await this.saveState(uploadState);
+    PermalinkController.updateStatus(`Permalink ready`);
     return hash;
   }
 
@@ -130,5 +134,13 @@ export class PermalinkController extends Controller<'main'> {
     const buffer = new (TextEncoder as any)('utf-8').encode(str);
     const digest = await crypto.subtle.digest('SHA-256', buffer);
     return Array.from(new Uint8Array(digest)).map(x => x.toString(16)).join('');
+  }
+
+  private static updateStatus(msg: string): void {
+    // TODO(hjd): Unify loading updates.
+    globals.dispatch(Actions.updateStatus({
+      msg,
+      timestamp: Date.now() / 1000,
+    }));
   }
 }

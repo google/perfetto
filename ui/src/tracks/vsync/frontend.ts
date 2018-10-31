@@ -22,7 +22,7 @@ import {trackRegistry} from '../../frontend/track_registry';
 import {Config, Data, KIND} from './common';
 
 // TODO(hjd): De-dupe this from ChromeSliceTrack, CpuSliceTrack and VsyncTrack.
-const MARGIN_TOP = 5.5;
+const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 
 function getCurResolution() {
