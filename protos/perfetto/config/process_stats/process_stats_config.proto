@@ -42,4 +42,14 @@ message ProcessStatsConfig {
   // If enabled thread names are also recoded (this is redundant if sched_switch
   // is enabled).
   optional bool record_thread_names = 3;
+
+  // If > 0 samples counters (see process_stats.proto) from
+  // /proc/pid/status every X ms.
+  optional uint32 proc_stats_poll_ms = 4;
+
+  // If empty samples stats for all processes. If non empty samples stats only
+  // for processes matching the given string in their argv0 (i.e. the first
+  // entry of of /proc/pid/cmdline).
+  // TODO(primiano): implement this feature.
+  // repeated string proc_stats_filter = 5;
 }
