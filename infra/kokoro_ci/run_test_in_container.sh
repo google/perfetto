@@ -24,15 +24,14 @@ cd ${ROOT_DIR}
 echo PERFETTO_TEST_GN_ARGS: ${PERFETTO_TEST_GN_ARGS}
 echo PERFETTO_TEST_ENTRYPT: ${PERFETTO_TEST_ENTRYPT}
 
-
 # Run PERFETTO_TEST_ENTRYPOINT inside the container with the following setup:
 # Mount (readonly) the current source directory inside the container. Enter the
-# container as root, make a mutable copy the source tree, change it to be owned
-# by the user "perfetto" (pre-created inside the docker image), and then invoke
-# the test script as that user. The copying is run as root to not require the
-# source tree to have the read permissions for the "other" users.
+# container as root, make a mutable copy the source tree, and then invoke
+# the test script as that user.
 #
 # SYS_PTRACE capability is added for [at least] the leak sanitizer.
+# TODO(rsavitski): figure out why "su perfetto -c" was messing with the test
+# scripts (at least the output truncation).
 sudo docker run --rm -t \
   --user=root:root \
   --cap-add=SYS_PTRACE \
@@ -42,6 +41,5 @@ sudo docker run --rm -t \
   /bin/bash \
   "-c" \
   "cp -r /perfetto /home/perfetto/src && \
-  chown -hR perfetto:perfetto /home/perfetto/src && \
-  su perfetto -c \" cd /home/perfetto/src && ${PERFETTO_TEST_ENTRYPT}\""
-
+  cd /home/perfetto/src && \
+  ${PERFETTO_TEST_ENTRYPT}"
