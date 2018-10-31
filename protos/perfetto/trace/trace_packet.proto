@@ -23,6 +23,7 @@ import "perfetto/trace/clock_snapshot.proto";
 import "perfetto/trace/filesystem/inode_file_map.proto";
 import "perfetto/trace/ftrace/ftrace_event_bundle.proto";
 import "perfetto/trace/ftrace/ftrace_stats.proto";
+import "perfetto/trace/ps/process_stats.proto";
 import "perfetto/trace/ps/process_tree.proto";
 import "perfetto/trace/sys_stats/sys_stats.proto";
 import "perfetto/trace/test_event.proto";
@@ -33,7 +34,7 @@ package perfetto.protos;
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
 //
-// Next id: 9.
+// Next id: 10.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -42,6 +43,7 @@ message TracePacket {
   oneof data {
     FtraceEventBundle ftrace_events = 1;
     ProcessTree process_tree = 2;
+    ProcessStats process_stats = 9;
     InodeFileMap inode_file_map = 4;
     ChromeEventBundle chrome_events = 5;
     ClockSnapshot clock_snapshot = 6;

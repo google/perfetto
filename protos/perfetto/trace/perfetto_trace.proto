@@ -171,7 +171,7 @@ message Trace {
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
 //
-// Next id: 9.
+// Next id: 10.
 message TracePacket {
   // TODO: in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -180,6 +180,7 @@ message TracePacket {
   oneof data {
     FtraceEventBundle ftrace_events = 1;
     ProcessTree process_tree = 2;
+    ProcessStats process_stats = 9;
     InodeFileMap inode_file_map = 4;
     // removed field with id 5
     ClockSnapshot clock_snapshot = 6;
@@ -593,6 +594,31 @@ message InodeFileMap {
 }
 
 // End of protos/perfetto/trace/filesystem/inode_file_map.proto
+
+// Begin of protos/perfetto/trace/ps/process_stats.proto
+
+// Per-process periodically sampled stats. These samples are wrapped in a
+// dedicated message (as opposite to be fields in process_tree.proto) because
+// they are dumped at a different rate than cmdline and thread list.
+message ProcessStats {
+  // See /proc/[pid]/stats in `man 5 proc` for a description of these fields.
+  message MemCounters {
+    optional int32 pid = 1;
+    optional uint64 vm_size_kb = 2;
+    optional uint64 vm_rss_kb = 3;
+    optional uint64 rss_anon_kb = 4;
+    optional uint64 rss_file_kb = 5;
+    optional uint64 rss_shmem_kb = 6;
+    optional uint64 vm_swap_kb = 7;
+    optional uint64 vm_locked_kb = 8;
+    optional uint64 vm_hwm_kb = 9;
+    // When adding a new field remember to update kProcMemCounterSize in
+    // the trace processor.
+  }
+  repeated MemCounters mem_counters = 1;
+}
+
+// End of protos/perfetto/trace/ps/process_stats.proto
 
 // Begin of protos/perfetto/trace/ps/process_tree.proto
 

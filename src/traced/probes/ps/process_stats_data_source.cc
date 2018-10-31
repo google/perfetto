@@ -22,9 +22,13 @@
 #include <utility>
 
 #include "perfetto/base/file_utils.h"
+#include "perfetto/base/metatrace.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/string_splitter.h"
+#include "perfetto/base/task_runner.h"
+#include "perfetto/base/time.h"
 
+#include "perfetto/trace/ps/process_stats.pbzero.h"
 #include "perfetto/trace/ps/process_tree.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
@@ -64,25 +68,33 @@ inline int ToInt(const std::string& str) {
   return atoi(str.c_str());
 }
 
+inline uint32_t ToU32(const char* str) {
+  return static_cast<uint32_t>(strtol(str, nullptr, 10));
+}
+
 }  // namespace
 
 // static
 constexpr int ProcessStatsDataSource::kTypeId;
 
 ProcessStatsDataSource::ProcessStatsDataSource(
+    base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer,
     const DataSourceConfig& config)
     : ProbesDataSource(session_id, kTypeId),
+      task_runner_(task_runner),
       writer_(std::move(writer)),
       record_thread_names_(config.process_stats_config().record_thread_names()),
       dump_all_procs_on_start_(
           config.process_stats_config().scan_all_processes_on_start()),
       weak_factory_(this) {
-  const auto& quirks = config.process_stats_config().quirks();
+  const auto& ps_config = config.process_stats_config();
+  const auto& quirks = ps_config.quirks();
   enable_on_demand_dumps_ =
       (std::find(quirks.begin(), quirks.end(),
                  ProcessStatsConfig::DISABLE_ON_DEMAND) == quirks.end());
+  poll_period_ms_ = ps_config.proc_stats_poll_ms();
 }
 
 ProcessStatsDataSource::~ProcessStatsDataSource() = default;
@@ -90,6 +102,11 @@ ProcessStatsDataSource::~ProcessStatsDataSource() = default;
 void ProcessStatsDataSource::Start() {
   if (dump_all_procs_on_start_)
     WriteAllProcesses();
+
+  if (poll_period_ms_) {
+    auto weak_this = GetWeakPtr();
+    task_runner_->PostTask(std::bind(&ProcessStatsDataSource::Tick, weak_this));
+  }
 }
 
 base::WeakPtr<ProcessStatsDataSource> ProcessStatsDataSource::GetWeakPtr()
@@ -99,11 +116,9 @@ base::WeakPtr<ProcessStatsDataSource> ProcessStatsDataSource::GetWeakPtr()
 
 void ProcessStatsDataSource::WriteAllProcesses() {
   PERFETTO_DCHECK(!cur_ps_tree_);
-  base::ScopedDir proc_dir(opendir("/proc"));
-  if (!proc_dir) {
-    PERFETTO_PLOG("Failed to opendir(/proc)");
+  base::ScopedDir proc_dir = OpenProcDir();
+  if (!proc_dir)
     return;
-  }
   while (int32_t pid = ReadNextNumericDir(*proc_dir)) {
     WriteProcessOrThread(pid);
     char task_path[255];
@@ -117,10 +132,12 @@ void ProcessStatsDataSource::WriteAllProcesses() {
       WriteProcessOrThread(tid);
     }
   }
-  FinalizeCurPsTree();
+  FinalizeCurPacket();
 }
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
+  PERFETTO_METATRACE("OnPids", 0);
+
   if (!enable_on_demand_dumps_)
     return;
   PERFETTO_DCHECK(!cur_ps_tree_);
@@ -129,13 +146,13 @@ void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
       continue;
     WriteProcessOrThread(pid);
   }
-  FinalizeCurPsTree();
+  FinalizeCurPacket();
 }
 
 void ProcessStatsDataSource::Flush() {
   // We shouldn't get this in the middle of WriteAllProcesses() or OnPids().
   PERFETTO_DCHECK(!cur_ps_tree_);
-
+  PERFETTO_DCHECK(!cur_ps_stats_);
   writer_->Flush();
 }
 
@@ -184,6 +201,13 @@ void ProcessStatsDataSource::WriteThread(int32_t tid,
   seen_pids_.emplace(tid);
 }
 
+base::ScopedDir ProcessStatsDataSource::OpenProcDir() {
+  base::ScopedDir proc_dir(opendir("/proc"));
+  if (!proc_dir)
+    PERFETTO_PLOG("Failed to opendir(/proc)");
+  return proc_dir;
+}
+
 std::string ProcessStatsDataSource::ReadProcPidFile(int32_t pid,
                                                     const std::string& file) {
   std::string contents;
@@ -207,21 +231,163 @@ std::string ProcessStatsDataSource::ReadProcStatusEntry(const std::string& buf,
   return buf.substr(begin, end - begin);
 }
 
+void ProcessStatsDataSource::StartNewPacketIfNeeded() {
+  if (cur_packet_)
+    return;
+  cur_packet_ = writer_->NewTracePacket();
+  uint64_t now = static_cast<uint64_t>(base::GetBootTimeNs().count());
+  cur_packet_->set_timestamp(now);
+}
+
 protos::pbzero::ProcessTree* ProcessStatsDataSource::GetOrCreatePsTree() {
-  if (!cur_ps_tree_) {
-    cur_packet_ = writer_->NewTracePacket();
+  StartNewPacketIfNeeded();
+  if (!cur_ps_tree_)
     cur_ps_tree_ = cur_packet_->set_process_tree();
-  }
+  cur_ps_stats_ = nullptr;
   return cur_ps_tree_;
 }
 
-void ProcessStatsDataSource::FinalizeCurPsTree() {
-  if (!cur_ps_tree_) {
-    PERFETTO_DCHECK(!cur_packet_);
-    return;
-  }
+protos::pbzero::ProcessStats* ProcessStatsDataSource::GetOrCreateStats() {
+  StartNewPacketIfNeeded();
+  if (!cur_ps_stats_)
+    cur_ps_stats_ = cur_packet_->set_process_stats();
   cur_ps_tree_ = nullptr;
+  return cur_ps_stats_;
+}
+
+void ProcessStatsDataSource::FinalizeCurPacket() {
+  PERFETTO_DCHECK(!cur_ps_tree_ || cur_packet_);
+  PERFETTO_DCHECK(!cur_ps_stats_ || cur_packet_);
+  cur_ps_tree_ = nullptr;
+  cur_ps_stats_ = nullptr;
   cur_packet_ = TraceWriter::TracePacketHandle{};
+}
+
+// static
+void ProcessStatsDataSource::Tick(
+    base::WeakPtr<ProcessStatsDataSource> weak_this) {
+  if (!weak_this)
+    return;
+  ProcessStatsDataSource& thiz = *weak_this;
+  uint32_t period_ms = thiz.poll_period_ms_;
+  uint32_t delay_ms = period_ms - (base::GetWallTimeMs().count() % period_ms);
+  thiz.task_runner_->PostDelayedTask(
+      std::bind(&ProcessStatsDataSource::Tick, weak_this), delay_ms);
+  thiz.WriteAllProcessStats();
+}
+
+void ProcessStatsDataSource::WriteAllProcessStats() {
+  // TODO(primiano): implement whitelisting of processes by names.
+  // TODO(primiano): Have a pid cache to avoid wasting cycles reading kthreads
+  // proc files over and over. Same for non-whitelist processes (see above).
+
+  PERFETTO_METATRACE("WriteAllProcessStats", 0);
+  base::ScopedDir proc_dir = OpenProcDir();
+  if (!proc_dir)
+    return;
+  std::vector<int32_t> pids;
+  while (int32_t pid = ReadNextNumericDir(*proc_dir)) {
+    std::string proc_status = ReadProcPidFile(pid, "status");
+    if (proc_status.empty())
+      continue;
+    if (!WriteProcessStats(pid, proc_status))
+      continue;
+    pids.push_back(pid);
+  }
+  FinalizeCurPacket();
+
+  // Ensure that we write once long-term process info (e.g., name) for new pids
+  // that we haven't seen before.
+  OnPids(pids);
+}
+
+// Returns true if the stats for the given |pid| have been written, false it
+// it failed (e.g., |pid| was a kernel thread and, as such, didn't report any
+// memory counters).
+bool ProcessStatsDataSource::WriteProcessStats(int32_t pid,
+                                               const std::string& proc_status) {
+  // The MemCounters entry for a process is created lazily on the first call.
+  // This is to prevent creating empty entries that have only a pid for
+  // kernel threads and other /proc/[pid] entries that have no counters
+  // associated.
+  bool proc_status_has_mem_counters = false;
+  protos::pbzero::ProcessStats::MemCounters* mem_counters = nullptr;
+  auto get_counters_lazy = [this, &mem_counters, pid] {
+    if (!mem_counters) {
+      mem_counters = GetOrCreateStats()->add_mem_counters();
+      mem_counters->set_pid(pid);
+    }
+    return mem_counters;
+  };
+
+  // Parse /proc/[pid]/status, which looks like this:
+  // Name:   cat
+  // Umask:  0027
+  // State:  R (running)
+  // FDSize: 256
+  // Groups: 4 20 24 46 997
+  // VmPeak:     5992 kB
+  // VmSize:     5992 kB
+  // VmLck:         0 kB
+  // ...
+  std::vector<char> key;
+  std::vector<char> value;
+  enum { kKey, kSeparator, kValue } state = kKey;
+  for (char c : proc_status) {
+    if (c == '\n') {
+      key.push_back('\0');
+      value.push_back('\0');
+
+      // |value| will contain "1234 KB". We rely on strtol() (in ToU32()) to
+      // stop parsing at the first non-numeric character.
+      if (strcmp(key.data(), "VmSize") == 0) {
+        // Assume that if we see VmSize we'll see also the others.
+        proc_status_has_mem_counters = true;
+        get_counters_lazy()->set_vm_size_kb(ToU32(value.data()));
+      } else if (strcmp(key.data(), "VmLck") == 0) {
+        get_counters_lazy()->set_vm_locked_kb(ToU32(value.data()));
+      } else if (strcmp(key.data(), "VmHWM") == 0) {
+        get_counters_lazy()->set_vm_hwm_kb(ToU32(value.data()));
+      } else if (strcmp(key.data(), "VmRSS") == 0) {
+        get_counters_lazy()->set_vm_rss_kb(ToU32(value.data()));
+      } else if (strcmp(key.data(), "RssAnon") == 0) {
+        get_counters_lazy()->set_rss_anon_kb(ToU32(value.data()));
+      } else if (strcmp(key.data(), "RssFile") == 0) {
+        get_counters_lazy()->set_rss_file_kb(ToU32(value.data()));
+      } else if (strcmp(key.data(), "RssShmem") == 0) {
+        get_counters_lazy()->set_rss_shmem_kb(ToU32(value.data()));
+      } else if (strcmp(key.data(), "VmSwap") == 0) {
+        get_counters_lazy()->set_vm_swap_kb(ToU32(value.data()));
+      }
+
+      key.clear();
+      state = kKey;
+      continue;
+    }
+
+    if (state == kKey) {
+      if (c == ':') {
+        state = kSeparator;
+        continue;
+      }
+      key.push_back(c);
+      continue;
+    }
+
+    if (state == kSeparator) {
+      if (isspace(c))
+        continue;
+      value.clear();
+      value.push_back(c);
+      state = kValue;
+      continue;
+    }
+
+    if (state == kValue) {
+      value.push_back(c);
+    }
+  }
+  return proc_status_has_mem_counters;
 }
 
 }  // namespace perfetto

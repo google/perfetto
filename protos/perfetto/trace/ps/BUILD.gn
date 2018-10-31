@@ -15,7 +15,10 @@
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/protozero_library.gni")
 
-ps_proto_names = [ "process_tree.proto" ]
+ps_proto_names = [
+  "process_stats.proto",
+  "process_tree.proto",
+]
 
 proto_library("lite") {
   generate_python = false

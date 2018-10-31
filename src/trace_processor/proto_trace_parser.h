@@ -18,6 +18,8 @@
 #define SRC_TRACE_PROCESSOR_PROTO_TRACE_PARSER_H_
 
 #include <stdint.h>
+
+#include <array>
 #include <memory>
 
 #include "perfetto/base/string_view.h"
@@ -59,6 +61,8 @@ class ProtoTraceParser {
                                  uint64_t timestamp,
                                  TraceBlobView);
   void ParseProcessTree(TraceBlobView);
+  void ParseProcessStats(uint64_t timestamp, TraceBlobView);
+  void ParseProcMemCounters(uint64_t timestamp, TraceBlobView);
   void ParseSchedSwitch(uint32_t cpu, uint64_t timestamp, TraceBlobView);
   void ParseCpuFreq(uint64_t timestamp, TraceBlobView);
   void ParsePrint(uint32_t cpu, uint64_t timestamp, TraceBlobView);
@@ -93,6 +97,11 @@ class ProtoTraceParser {
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
+
+  // Maps a proto field number from ProcessStats::MemCounters to its StringId.
+  // Keep kProcMemCounterSize equal to 1 + max proto field id of MemCounters.
+  static constexpr size_t kProcMemCounterSize = 10;
+  std::array<StringId, kProcMemCounterSize> proc_mem_counter_names_{};
 };
 
 }  // namespace trace_processor
