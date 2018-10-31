@@ -14,6 +14,7 @@
 
 import {TraceConfig} from '../common/protos';
 import {
+  IProcessStatsConfig,
   ISysStatsConfig,
   ITraceConfig,
   MeminfoCounters,
@@ -55,12 +56,18 @@ export function encodeConfig(config: RecordConfig): Uint8Array {
   }
 
   if (config.processMetadata) {
+    const processStatsConfig: IProcessStatsConfig = {
+      scanAllProcessesOnStart: config.scanAllProcessesOnStart
+    };
+
+    if (config.procStatusPeriodMs) {
+      processStatsConfig.procStatsPollMs = config.procStatusPeriodMs;
+    }
+
     dataSources.push({
       config: {
         name: 'linux.process_stats',
-        processStatsConfig: {
-          scanAllProcessesOnStart: config.scanAllProcessesOnStart,
-        },
+        processStatsConfig,
         targetBuffer: 0,
       },
     });

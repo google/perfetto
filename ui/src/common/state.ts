@@ -76,10 +76,6 @@ export interface RecordConfig {
   // Buffer setup
   bufferSizeMb: number;
 
-  // Ps
-  processMetadata: boolean;
-  scanAllProcessesOnStart: boolean;
-
   // Ftrace
   ftrace: boolean;
   ftraceEvents: string[];
@@ -88,6 +84,10 @@ export interface RecordConfig {
   ftraceDrainPeriodMs: number|null;
   ftraceBufferSizeKb: number|null;
 
+  // Ps
+  processMetadata: boolean;
+  scanAllProcessesOnStart: boolean;
+  procStatusPeriodMs: number|null;
 
   // SysStats
   sysStats: boolean;
@@ -164,8 +164,6 @@ export function createEmptyRecordConfig(): RecordConfig {
     writeIntoFile: false,
     fileWritePeriodMs: null,
     bufferSizeMb: 10.0,
-    processMetadata: false,
-    scanAllProcessesOnStart: false,
 
     ftrace: false,
     ftraceEvents: [],
@@ -173,6 +171,10 @@ export function createEmptyRecordConfig(): RecordConfig {
     atraceCategories: [],
     ftraceDrainPeriodMs: null,
     ftraceBufferSizeKb: null,
+
+    processMetadata: false,
+    scanAllProcessesOnStart: false,
+    procStatusPeriodMs: null,
 
     sysStats: false,
     meminfoPeriodMs: null,
