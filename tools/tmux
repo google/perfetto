@@ -115,8 +115,6 @@ if ! is_monolithic $OUT; then
   push $OUT/libperfetto.so
 fi
 
-PREFIX="$PREFIX PERFETTO_METATRACE_FILE=$DIR/mtrace"
-
 CONFIG_DEVICE_PATH=$CONFIG
 if [[ "$CONFIG" != ":test" ]]; then
   CONFIG_DEVICE_PATH=$DIR/$CONFIG.protobuf
@@ -178,7 +176,7 @@ tmux select-pane -t 1
 tmux send-keys "$PREFIX $DIR/traced $POSTFIX" Enter
 
 tmux select-pane -t 0
-tmux send-keys "$PREFIX $DIR/traced_probes $POSTFIX" Enter
+tmux send-keys "$PREFIX PERFETTO_METATRACE_FILE=$DIR/mtrace $DIR/traced_probes $POSTFIX" Enter
 
 tmux select-pane -t 2
 tmux send-keys "$PREFIX $DIR/perfetto -c $CONFIG_DEVICE_PATH -o $DIR/trace $POSTFIX"

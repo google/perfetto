@@ -139,6 +139,24 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       context->storage->InternString("rss_stat.mm_swapents"));
   rss_members_.emplace_back(
       context->storage->InternString("rss_stat.nr_mm_counters"));
+
+  using MemCounters = protos::ProcessStats::MemCounters;
+  proc_mem_counter_names_[MemCounters::kVmSizeKbFieldNumber] =
+      context->storage->InternString("mem.virt");
+  proc_mem_counter_names_[MemCounters::kVmRssKbFieldNumber] =
+      context->storage->InternString("mem.rss");
+  proc_mem_counter_names_[MemCounters::kRssAnonKbFieldNumber] =
+      context->storage->InternString("mem.rss.anon");
+  proc_mem_counter_names_[MemCounters::kRssFileKbFieldNumber] =
+      context->storage->InternString("mem.rss.file");
+  proc_mem_counter_names_[MemCounters::kRssShmemKbFieldNumber] =
+      context->storage->InternString("mem.rss.shmem");
+  proc_mem_counter_names_[MemCounters::kVmSwapKbFieldNumber] =
+      context->storage->InternString("mem.swap");
+  proc_mem_counter_names_[MemCounters::kVmLockedKbFieldNumber] =
+      context->storage->InternString("mem.locked");
+  proc_mem_counter_names_[MemCounters::kVmHwmKbFieldNumber] =
+      context->storage->InternString("mem.rss.watermark");
 }
 
 ProtoTraceParser::~ProtoTraceParser() = default;
@@ -151,6 +169,11 @@ void ProtoTraceParser::ParseTracePacket(uint64_t ts, TraceBlobView packet) {
       case protos::TracePacket::kProcessTreeFieldNumber: {
         const size_t fld_off = packet.offset_of(fld.data());
         ParseProcessTree(packet.slice(fld_off, fld.size()));
+        break;
+      }
+      case protos::TracePacket::kProcessStatsFieldNumber: {
+        const size_t fld_off = packet.offset_of(fld.data());
+        ParseProcessStats(ts, packet.slice(fld_off, fld.size()));
         break;
       }
       case protos::TracePacket::kSysStatsFieldNumber: {
@@ -372,6 +395,66 @@ void ProtoTraceParser::ParseProcessTree(TraceBlobView pstree) {
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
+void ProtoTraceParser::ParseProcessStats(uint64_t ts, TraceBlobView stats) {
+  ProtoDecoder decoder(stats.data(), stats.length());
+
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    const size_t fld_off = stats.offset_of(fld.data());
+    switch (fld.id) {
+      case protos::ProcessStats::kMemCountersFieldNumber: {
+        ParseProcMemCounters(ts, stats.slice(fld_off, fld.size()));
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+}
+
+void ProtoTraceParser::ParseProcMemCounters(uint64_t ts,
+                                            TraceBlobView proc_stat) {
+  ProtoDecoder decoder(proc_stat.data(), proc_stat.length());
+  uint32_t pid = 0;
+  // Maps a process counter field it to its value.
+  // E.g., 4 := 1024 -> "mem.rss.anon" := 1024.
+  std::array<uint64_t, kProcMemCounterSize> counter_values{};
+  std::array<uint8_t, kProcMemCounterSize> has_counter{};
+
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::ProcessStats::MemCounters::kPidFieldNumber:
+        pid = fld.as_uint32();
+        break;
+      default:
+        if (fld.id < counter_values.size()) {
+          // Memory counters are in KB, keep values in bytes in the trace
+          // processor.
+          counter_values[fld.id] = fld.as_uint64() * 1024;
+          has_counter[fld.id] = 1;
+        } else {
+          PERFETTO_ELOG("Skipping unknown process counters %" PRIu32, fld.id);
+        }
+    }
+  }
+
+  UniquePid upid = context_->process_tracker->UpdateProcess(pid);
+
+  // Skip field_id 0 (invalid) and 1 (pid).
+  for (size_t field_id = 2; field_id < counter_values.size(); field_id++) {
+    if (!has_counter[field_id])
+      continue;
+
+    // Lookup the interned string id from the field name using the
+    // pre-cached |proc_mem_counter_names_| map.
+    StringId name = proc_mem_counter_names_[field_id];
+    uint64_t value = counter_values[field_id];
+    context_->event_tracker->PushCounter(ts, value, name, upid, RefType::kUpid);
+  }
+
+  PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+}
+
 void ProtoTraceParser::ParseThread(TraceBlobView thread) {
   ProtoDecoder decoder(thread.data(), thread.length());
   uint32_t tid = 0;
@@ -486,6 +569,10 @@ void ProtoTraceParser::ParseRssStat(uint64_t timestamp,
         size = fld.as_uint32();
         break;
     }
+  }
+  if (member >= rss_members_.size()) {
+    PERFETTO_ELOG("Unknown member field %" PRIu32 " in rss_stat event", member);
+    return;
   }
   UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
   context_->event_tracker->PushCounter(timestamp, size, rss_members_[member],

@@ -21,6 +21,7 @@
 #include <set>
 #include <vector>
 
+#include "perfetto/base/scoped_file.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -29,9 +30,14 @@
 
 namespace perfetto {
 
+namespace base {
+class TaskRunner;
+}
+
 namespace protos {
 namespace pbzero {
 class ProcessTree;
+class ProcessStats;
 }  // namespace pbzero
 }  // namespace protos
 
@@ -39,7 +45,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
  public:
   static constexpr int kTypeId = 3;
 
-  ProcessStatsDataSource(TracingSessionID,
+  ProcessStatsDataSource(base::TaskRunner*,
+                         TracingSessionID,
                          std::unique_ptr<TraceWriter> writer,
                          const DataSourceConfig&);
   ~ProcessStatsDataSource() override;
@@ -48,27 +55,43 @@ class ProcessStatsDataSource : public ProbesDataSource {
   void WriteAllProcesses();
   void OnPids(const std::vector<int32_t>& pids);
 
-  // Virtual for testing.
-  virtual std::string ReadProcPidFile(int32_t pid, const std::string& file);
-
   // ProbesDataSource implementation.
   void Start() override;
   void Flush() override;
 
+  bool on_demand_dumps_enabled() const { return enable_on_demand_dumps_; }
+
+  // Virtual for testing.
+  virtual base::ScopedDir OpenProcDir();
+  virtual std::string ReadProcPidFile(int32_t pid, const std::string& file);
+
  private:
+  // Common functions.
   ProcessStatsDataSource(const ProcessStatsDataSource&) = delete;
   ProcessStatsDataSource& operator=(const ProcessStatsDataSource&) = delete;
 
+  void StartNewPacketIfNeeded();
+  void FinalizeCurPacket();
+  protos::pbzero::ProcessTree* GetOrCreatePsTree();
+  protos::pbzero::ProcessStats* GetOrCreateStats();
+
+  // Functions for snapshotting process/thread long-term info and relationships.
   void WriteProcess(int32_t pid, const std::string& proc_status);
   void WriteThread(int32_t tid, int32_t tgid, const std::string& proc_status);
   void WriteProcessOrThread(int32_t pid);
   std::string ReadProcStatusEntry(const std::string& buf, const char* key);
 
-  protos::pbzero::ProcessTree* GetOrCreatePsTree();
-  void FinalizeCurPsTree();
+  // Functions for periodically sampling process stats/counters.
+  static void Tick(base::WeakPtr<ProcessStatsDataSource>);
+  void WriteAllProcessStats();
+  bool WriteProcessStats(int32_t pid, const std::string& proc_status);
 
+  // Common fields used for both process/tree relationships and stats/counters.
+  base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
   TraceWriter::TracePacketHandle cur_packet_;
+
+  // Fields for keeping track of the state of process/tree relationships.
   protos::pbzero::ProcessTree* cur_ps_tree_ = nullptr;
   bool record_thread_names_ = false;
   bool enable_on_demand_dumps_ = true;
@@ -77,8 +100,11 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
   // seen, not just the main thread id (aka thread group ID).
-  // TODO(b/76663469): Optimization: use a bitmap.
   std::set<int32_t> seen_pids_;
+
+  // Fields for keeping track of the periodic stats/counters.
+  uint32_t poll_period_ms_ = 0;
+  protos::pbzero::ProcessStats* cur_ps_stats_ = nullptr;
 
   base::WeakPtrFactory<ProcessStatsDataSource> weak_factory_;  // Keep last.
 };
