@@ -297,6 +297,7 @@ const FTRACE_EVENTS = [
   'f2fs_write_checkpoint',
   'f2fs_write_end',
 ];
+FTRACE_EVENTS.sort();
 
 const CONFIG_PRESETS = [
   {
@@ -305,7 +306,7 @@ const CONFIG_PRESETS = [
       durationSeconds: 10.0,
       writeIntoFile: false,
       fileWritePeriodMs: null,
-      bufferSizeMb: 10.0,
+      bufferSizeMb: 32.0,
 
       processMetadata: true,
       scanAllProcessesOnStart: false,
@@ -336,7 +337,7 @@ const CONFIG_PRESETS = [
       durationSeconds: 10.0,
       writeIntoFile: false,
       fileWritePeriodMs: null,
-      bufferSizeMb: 10.0,
+      bufferSizeMb: 32.0,
 
       processMetadata: true,
       scanAllProcessesOnStart: false,
@@ -400,16 +401,16 @@ const CONFIG_PRESETS = [
 ];
 
 const ATRACE_CATERGORIES = [
-  'gfx',         'input',     'view',       'webview',    'wm',
-  'am',          'sm',        'audio',      'video',      'camera',
-  'hal',         'res',       'dalvik',     'rs',         'bionic',
-  'power',       'pm',        'ss',         'database',   'network',
-  'adb',         'vibrator',  'aidl',       'nnapi',      'sched',
-  'irq',         'irqoff',    'preemptoff', 'i2c',        'freq',
-  'membus',      'idle',      'disk',       'mmc',        'load',
-  'sync',        'workq',     'memreclaim', 'regulators', 'binder_driver',
-  'binder_lock', 'pagecache',
+  'gfx',         'input',    'view',       'webview',    'wm',
+  'am',          'sm',       'audio',      'video',      'camera',
+  'hal',         'res',      'dalvik',     'rs',         'bionic',
+  'power',       'pm',       'ss',         'database',   'network',
+  'adb',         'vibrator', 'aidl',       'nnapi',      'sched',
+  'irq',         'i2c',      'freq',       'idle',       'disk',
+  'sync',        'workq',    'memreclaim', 'regulators', 'binder_driver',
+  'binder_lock', 'pagecache'
 ];
+ATRACE_CATERGORIES.sort();
 
 const DURATION_HELP = `Duration to trace for`;
 const BUFFER_SIZE_HELP = `Size of the ring buffer which stores the trace`;
@@ -692,9 +693,9 @@ export const RecordPage = createPage({
             value: config.bufferSizeMb,
             onchange: onChange<number|null>('bufferSizeMb'),
             presets: [
-              {label: '1mb', value: 1},
-              {label: '10mb', value: 10},
-              {label: '20mb', value: 20},
+              {label: '8mb', value: 8},
+              {label: '32mb', value: 32},
+              {label: '128mb', value: 128},
             ]
           }),
 
