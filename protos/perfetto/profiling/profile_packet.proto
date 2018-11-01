@@ -1,0 +1,72 @@
+/*
+ * Copyright (C) 2018 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package perfetto.proto;
+
+message ProfilePacket {
+  // either a function or library name.
+  repeated InternedString strings = 1;
+  message InternedString {
+    optional uint64 id = 1;
+    optional string str = 2;
+  }
+
+  repeated Frame frames = 2;
+  message Frame {
+    optional uint64 id = 1;  // Interning key
+    // E.g. "fopen"
+    optional uint64 function_name_id = 2;  // id of string.
+    optional uint64 mapping_id = 3;
+    optional uint64 rel_pc = 4;
+  }
+
+  repeated Callstack callstacks = 3;
+  message Callstack {
+    optional uint64 id = 1;
+    // Frames of this callstack. Bottom frame first.
+    repeated Frame frames = 2;
+  }
+
+  repeated Mapping mappings = 4;
+  message Mapping {
+    optional uint64 id = 1;  // Interning key.
+    optional uint64 build_id = 2;
+    optional uint64 offset = 3;
+    optional uint64 start = 4;
+    optional uint64 end = 5;
+    optional uint64 load_bias = 6;
+    // E.g. ["system", "lib64", "libc.so"]
+    repeated uint64 path_string_ids = 7;  // id of string.
+  }
+
+  message HeapSample {
+    optional uint64 callstack_id = 1;
+    // bytes allocated at this frame and in functions called by it.
+    optional uint64 cumulative_allocated = 2;
+    // bytes freed at this frame and in functions called by it.
+    optional uint64 cumulative_freed = 3;
+    optional uint64 timestamp = 4;  // timestamp [opt]
+  }
+
+  repeated ProcessHeapSamples process_dumps = 5;
+  message ProcessHeapSamples {
+    optional uint64 pid = 1;
+    repeated HeapSample samples = 2;
+  }
+}
