@@ -54,6 +54,16 @@ select process.name as process, thread, core, cpu_sec from (
   ) inner join thread using(utid)
 ) inner join process using(upid) limit 30;`;
 
+
+const SQL_STATS = `
+with first as (select started as ts from sqlstats limit 1)
+select query,
+    round((max(ended - started, 0))/1e6) as runtime_ms,
+    round((max(started - queued, 0))/1e6) as latency_ms,
+    round((started - first.ts)/1e6) as t_start_ms
+from sqlstats, first
+order by started desc`;
+
 function createCannedQuery(query: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
@@ -128,6 +138,11 @@ const SECTIONS = [
         t: 'CPU Time by cluster by process',
         a: createCannedQuery(CPU_TIME_BY_CLUSTER_BY_PROCESS),
         i: 'search',
+      },
+      {
+        t: 'Debug SQL performance',
+        a: createCannedQuery(SQL_STATS),
+        i: 'bug_report',
       },
     ],
   },
