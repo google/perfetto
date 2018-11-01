@@ -25,6 +25,7 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -189,9 +190,24 @@ int TraceToSystrace(std::istream* input,
   fprintf(stderr, "\n");
   size_t total_events = ftrace_sorted.size();
   size_t written_events = 0;
+  std::vector<char> escaped_str;
   for (auto it = ftrace_sorted.begin(); it != ftrace_sorted.end(); it++) {
-    *output << it->second;
-    *output << (wrap_in_json ? "\\n" : "\n");
+    if (wrap_in_json) {
+      escaped_str.clear();
+      escaped_str.reserve(it->second.size() * 101 / 100);
+      for (char c : it->second) {
+        if (c == '\\' || c == '"')
+          escaped_str.push_back('\\');
+        escaped_str.push_back(c);
+      }
+      escaped_str.push_back('\\');
+      escaped_str.push_back('n');
+      escaped_str.push_back('\0');
+      *output << escaped_str.data();
+    } else {
+      *output << it->second;
+      *output << "\n";
+    }
     if (!StdoutIsTty() && (written_events++ % 1000 == 0 ||
                            written_events == ftrace_sorted.size())) {
       fprintf(stderr, "Writing trace: %.2f %%" PROGRESS_CHAR,
