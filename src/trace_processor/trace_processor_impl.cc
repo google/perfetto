@@ -31,6 +31,7 @@
 #include "src/trace_processor/slice_table.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/span_operator_table.h"
+#include "src/trace_processor/sql_stats_table.h"
 #include "src/trace_processor/string_table.h"
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/thread_table.h"
@@ -58,6 +59,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   ProcessTable::RegisterTable(*db_, context_.storage.get());
   SchedSliceTable::RegisterTable(*db_, context_.storage.get());
   SliceTable::RegisterTable(*db_, context_.storage.get());
+  SqlStatsTable::RegisterTable(*db_, context_.storage.get());
   StringTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
   CountersTable::RegisterTable(*db_, context_.storage.get());
@@ -104,8 +106,9 @@ void TraceProcessorImpl::ExecuteQuery(
   query_interrupted_.store(false, std::memory_order_relaxed);
 
   base::TimeNanos t_start = base::GetWallTimeNs();
-
-  const auto& sql = args.sql_query();
+  const std::string& sql = args.sql_query();
+  context_.storage->mutable_sql_stats()->RecordQueryBegin(
+      sql, args.time_queued_ns(), static_cast<uint64_t>(t_start.count()));
   sqlite3_stmt* raw_stmt;
   int err = sqlite3_prepare_v2(*db_, sql.c_str(), static_cast<int>(sql.size()),
                                &raw_stmt, nullptr);
@@ -176,6 +179,8 @@ void TraceProcessorImpl::ExecuteQuery(
   }
 
   base::TimeNanos t_end = base::GetWallTimeNs();
+  context_.storage->mutable_sql_stats()->RecordQueryEnd(
+      static_cast<uint64_t>(t_end.count()));
   proto.set_execution_time_ns(static_cast<uint64_t>((t_end - t_start).count()));
   callback(proto);
 }
