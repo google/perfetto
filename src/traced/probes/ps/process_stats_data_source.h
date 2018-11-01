@@ -105,6 +105,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // Fields for keeping track of the periodic stats/counters.
   uint32_t poll_period_ms_ = 0;
   protos::pbzero::ProcessStats* cur_ps_stats_ = nullptr;
+  std::vector<bool> pids_to_skip_;
 
   base::WeakPtrFactory<ProcessStatsDataSource> weak_factory_;  // Keep last.
 };
