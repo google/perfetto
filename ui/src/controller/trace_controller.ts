@@ -386,8 +386,9 @@ export class TraceController extends Controller<States> {
 
   private async listThreads() {
     this.updateStatus('Reading thread list');
-    const sqlQuery = 'select utid, tid, pid, thread.name, process.name ' +
-        'from thread inner join process using(upid)';
+    const sqlQuery = `select utid, tid, pid, thread.name,
+        ifnull(process.name, thread.name)
+        from thread left join process using(upid)`;
     const threadRows = await assertExists(this.engine).query(sqlQuery);
     const threads: ThreadDesc[] = [];
     for (let i = 0; i < threadRows.numRecords; i++) {
@@ -405,6 +406,7 @@ export class TraceController extends Controller<States> {
     const engine = assertExists<Engine>(this.engine);
     const numSteps = 100;
     const stepSec = traceTime.duration / numSteps;
+    let hasSchedOverview = false;
     for (let step = 0; step < numSteps; step++) {
       this.updateStatus(
           'Loading overview ' +
@@ -424,10 +426,14 @@ export class TraceController extends Controller<States> {
         const load = schedRows.columns[0].doubleValues![i];
         const cpu = schedRows.columns[1].longValues![i] as number;
         schedData[cpu] = {startSec, endSec, load};
+        hasSchedOverview = true;
       }  // for (record ...)
       globals.publish('OverviewData', schedData);
-
     }  // for (step ...)
+
+    if (hasSchedOverview) {
+      return;
+    }
 
     // Slices overview.
     const traceStartNs = traceTime.start * 1e9;
