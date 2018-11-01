@@ -21,6 +21,9 @@ package perfetto.protos;
 
 message RawQueryArgs {
   optional string sql_query = 1;
+
+  // Wall time when the query was queued. Used only for query stats.
+  optional uint64 time_queued_ns = 2;
 }
 
 message RawQueryResult {
