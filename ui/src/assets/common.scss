@@ -171,7 +171,7 @@ button.close {
     border: 0;
     thead td {
         background-color: hsl(214, 22%, 90%);
-        color: #262f3b;
+        color: #262f3c;
         text-align: center;
         padding: 1px 3px;
         border-style: solid;
@@ -323,6 +323,17 @@ header.overview {
   user-select: text;
 }
 
+button.query-copy {
+  background: #262f3c;
+  color: white;
+  border-radius: 10px;
+  font-size: 10px;
+  height: 18px;
+  line-height: 18px;
+  min-width: 7em;
+  margin: auto 0;
+}
+
 span.code {
   user-select: text;
 }
@@ -400,8 +411,8 @@ span.code {
   grid-template-rows: 1fr;
   border-top: 1px solid #c7d0db;
   transition: background-color .4s, color .4s;
+  height: 40px;
   &[collapsed=true] {
-    height: 40px;
     background-color: var(--collapsed-background-transparent);
     .shell {
       border-right: 1px solid #c7d0db;
@@ -409,12 +420,10 @@ span.code {
     }
   }
   &[collapsed=false] {
-    height: 25px;
     background-color: var(--expanded-background);
     color: white;
     font-weight: bold;
     .shell {
-      background-color: var(--expanded-background);
       h1 {
         font-size: 15px;
       }

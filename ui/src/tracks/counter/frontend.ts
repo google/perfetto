@@ -36,15 +36,6 @@ function getCurResolution() {
   return Math.pow(10, Math.floor(Math.log10(resolution)));
 }
 
-function computeHue(name: string, ref: number) {
-  let hue = 128;
-  for (let i = 0; i < name.length; i++) {
-    hue += name.charCodeAt(i);
-  }
-  hue += ref;
-  return hue % 256;
-}
-
 class CounterTrack extends Track<Config, Data> {
   static readonly kind = COUNTER_TRACK_KIND;
   static create(trackState: TrackState): CounterTrack {
@@ -54,11 +45,9 @@ class CounterTrack extends Track<Config, Data> {
   private reqPending = false;
   private mouseXpos = 0;
   private hoveredValue: number|undefined = undefined;
-  private hue: number;
 
   constructor(trackState: TrackState) {
     super(trackState);
-    this.hue = computeHue(this.config.name, this.config.ref);
   }
 
   reqDataDeferred() {
@@ -112,7 +101,27 @@ class CounterTrack extends Track<Config, Data> {
     let lastX = startPx;
     let lastY = bottomY;
 
-    ctx.fillStyle = `hsl(${this.hue}, 50%, 60%)`;
+    // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
+    let yMax = data.maximumValue;
+    const kUnits = ['', 'K', 'M', 'G', 'T', 'E'];
+    const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
+    const pow10 = Math.pow(10, exp);
+    yMax = Math.ceil(yMax / (pow10 / 4)) * (pow10 / 4);
+    const unitGroup = Math.floor(exp / 3);
+    const yLabel = `${yMax / Math.pow(10, unitGroup * 3)} ${kUnits[unitGroup]}`;
+    // There are 360deg of hue. We want a scale that starts at green with
+    // exp <= 3 (<= 1KB), goes orange around exp = 6 (~1MB) and red/violet
+    // around exp >= 9 (1GB).
+    // The hue scale looks like this:
+    // 0                              180                                 360
+    // Red        orange         green | blue         purple          magenta
+    // So we want to start @ 180deg with pow=0, go down to 0deg and then wrap
+    // back from 360deg back to 180deg.
+    const expCapped = Math.min(Math.max(exp - 3), 9);
+    const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
+
+    ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
+    ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
     for (let i = 0; i < data.values.length; i++) {
@@ -121,7 +130,7 @@ class CounterTrack extends Track<Config, Data> {
 
       lastX = Math.floor(timeScale.timeToPx(startTime));
 
-      const height = Math.round(RECT_HEIGHT * (1 - value / data.maximumValue));
+      const height = Math.round(RECT_HEIGHT * (1 - value / yMax));
       ctx.lineTo(lastX, lastY);
       lastY = MARGIN_TOP + height;
       ctx.lineTo(lastX, lastY);
@@ -130,20 +139,35 @@ class CounterTrack extends Track<Config, Data> {
     ctx.lineTo(endPx, bottomY);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '10px Google Sans';
 
     if (this.hoveredValue) {
+      // Draw a vertical bar to highlight the mouse cursor.
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      const height = Math.round(RECT_HEIGHT * this.hoveredValue / yMax);
+      ctx.fillRect(
+          this.mouseXpos, MARGIN_TOP + RECT_HEIGHT - height, 2, height);
+
       // TODO(hjd): Add units.
       const text = `value: ${this.hoveredValue.toLocaleString()}`;
-
-      ctx.font = '10px Google Sans';
       const width = ctx.measureText(text).width;
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.fillRect(this.mouseXpos, MARGIN_TOP, width + 16, RECT_HEIGHT);
+      // Draw the tooltip.
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillRect(this.mouseXpos + 5, MARGIN_TOP, width + 16, RECT_HEIGHT);
       ctx.fillStyle = 'hsl(200, 50%, 40%)';
       ctx.textAlign = 'left';
       ctx.fillText(text, this.mouseXpos + 8, 18);
     }
+
+    // Write the Y scale on the top left corner.
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillRect(0, 0, 40, 16);
+    ctx.fillStyle = '#666';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${yLabel}`, 5, 14);
   }
 
   onMouseMove({x}: {x: number, y: number}) {
