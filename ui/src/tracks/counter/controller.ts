@@ -56,7 +56,7 @@ class CounterTrackController extends TrackController<Config, Data> {
 
     // TODO(hjd): Implement window clipping.
     const query = `select ts, value from counters
-        where ${startNs} <= ts and ts <= ${endNs}
+        where ${startNs} <= ts_end and ts <= ${endNs}
         and name = '${this.config.name}' and ref = ${this.config.ref};`;
     const rawResult = await this.query(query);
 
