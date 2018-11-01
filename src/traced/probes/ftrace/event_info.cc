@@ -3731,6 +3731,31 @@ std::vector<Event> GetStaticEventInfo() {
     event->fields.push_back(MakeField("offsets_size", 3, kProtoUint64));
   }
 
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "signal_deliver";
+    event->group = "signal";
+    event->proto_field_id = 324;
+    event->fields.push_back(MakeField("code", 1, kProtoInt32));
+    event->fields.push_back(MakeField("sa_flags", 2, kProtoUint64));
+    event->fields.push_back(MakeField("sig", 3, kProtoInt32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "signal_generate";
+    event->group = "signal";
+    event->proto_field_id = 325;
+    event->fields.push_back(MakeField("code", 1, kProtoInt32));
+    event->fields.push_back(MakeField("comm", 2, kProtoString));
+    event->fields.push_back(MakeField("group", 3, kProtoInt32));
+    event->fields.push_back(MakeField("pid", 4, kProtoInt32));
+    event->fields.push_back(MakeField("result", 5, kProtoInt32));
+    event->fields.push_back(MakeField("sig", 6, kProtoInt32));
+  }
+
   return events;
 }
 

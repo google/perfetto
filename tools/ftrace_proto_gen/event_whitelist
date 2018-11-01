@@ -319,3 +319,5 @@ clk/clk_enable
 clk/clk_disable
 clk/clk_set_rate
 binder/binder_transaction_alloc_buf
+signal/signal_deliver
+signal/signal_generate

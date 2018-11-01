@@ -309,6 +309,8 @@ import "perfetto/trace/ftrace/clk_enable.proto";
 import "perfetto/trace/ftrace/clk_disable.proto";
 import "perfetto/trace/ftrace/clk_set_rate.proto";
 import "perfetto/trace/ftrace/binder_transaction_alloc_buf.proto";
+import "perfetto/trace/ftrace/signal_deliver.proto";
+import "perfetto/trace/ftrace/signal_generate.proto";
 
 package perfetto.protos;
 
@@ -660,5 +662,7 @@ message FtraceEvent {
     ClkDisableFtraceEvent clk_disable = 321;
     ClkSetRateFtraceEvent clk_set_rate = 322;
     BinderTransactionAllocBufFtraceEvent binder_transaction_alloc_buf = 323;
+    SignalDeliverFtraceEvent signal_deliver = 324;
+    SignalGenerateFtraceEvent signal_generate = 325;
   }
 }
