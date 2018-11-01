@@ -323,4 +323,6 @@ ftrace_proto_names = [
   "clk_disable.proto",
   "clk_set_rate.proto",
   "binder_transaction_alloc_buf.proto",
+  "signal_deliver.proto",
+  "signal_generate.proto",
 ]
