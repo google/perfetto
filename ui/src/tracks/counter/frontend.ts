@@ -106,6 +106,7 @@ class CounterTrack extends Track<Config, Data> {
     assertTrue(data.timestamps.length === data.values.length);
 
     const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
+    const endPx = Math.floor(timeScale.timeToPx(visibleWindowTime.end));
     const bottomY = MARGIN_TOP + RECT_HEIGHT;
 
     let lastX = startPx;
@@ -125,7 +126,8 @@ class CounterTrack extends Track<Config, Data> {
       lastY = MARGIN_TOP + height;
       ctx.lineTo(lastX, lastY);
     }
-    ctx.lineTo(lastX, bottomY);
+    ctx.lineTo(endPx, lastY);
+    ctx.lineTo(endPx, bottomY);
     ctx.closePath();
     ctx.fill();
 
@@ -151,7 +153,6 @@ class CounterTrack extends Track<Config, Data> {
     const {timeScale} = globals.frontendLocalState;
     const time = timeScale.pxToTime(x);
     this.hoveredValue = undefined;
-
     for (let i = 0; i < data.values.length; i++) {
       if (data.timestamps[i] > time) break;
       this.hoveredValue = data.values[i];
