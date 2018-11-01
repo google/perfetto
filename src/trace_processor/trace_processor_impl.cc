@@ -130,16 +130,13 @@ void TraceProcessorImpl::ExecuteQuery(
           case SQLITE_INTEGER:
             descriptor->set_type(protos::RawQueryResult_ColumnDesc_Type_LONG);
             break;
-          case SQLITE_TEXT:
-            descriptor->set_type(protos::RawQueryResult_ColumnDesc_Type_STRING);
-            break;
           case SQLITE_FLOAT:
             descriptor->set_type(protos::RawQueryResult_ColumnDesc_Type_DOUBLE);
             break;
           case SQLITE_NULL:
-            proto.set_error("Query yields to NULL column, can't handle that");
-            callback(std::move(proto));
-            return;
+          case SQLITE_TEXT:
+            descriptor->set_type(protos::RawQueryResult_ColumnDesc_Type_STRING);
+            break;
         }
 
         // Add an empty column.
