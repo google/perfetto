@@ -77,10 +77,10 @@ function createCannedQuery(query: string): (_: Event) => void {
 }
 
 const EXAMPLE_ANDROID_TRACE_URL =
-    'https://storage.googleapis.com/perfetto-misc/example_trace_30s';
+    'https://storage.googleapis.com/perfetto-misc/example_android_trace_30s_1';
 
 const EXAMPLE_CHROME_TRACE_URL =
-    'https://storage.googleapis.com/perfetto-misc/example_chrome_trace_10s.json';
+    'https://storage.googleapis.com/perfetto-misc/example_chrome_trace_4s_1.json';
 
 const SECTIONS = [
   {
