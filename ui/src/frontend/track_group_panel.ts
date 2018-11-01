@@ -56,7 +56,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
         m('.shell',
-          m('h1', `${this.trackGroupState.name}`),
+          m('h1', `${StripPathFromExecutable(this.trackGroupState.name)}`),
           m('.fold-button',
             {
               onclick: () =>
@@ -104,4 +104,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     }
     ctx.restore();
   }
+}
+
+function StripPathFromExecutable(path: string) {
+  return path.split('/').slice(-1)[0];
 }

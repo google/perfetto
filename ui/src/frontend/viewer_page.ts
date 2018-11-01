@@ -60,7 +60,7 @@ class QueryTable extends Panel {
             `Query result - ${Math.round(resp.durationMs)} ms`,
             m('span.code', resp.query)),
           resp.error ? null :
-                       m('button',
+                       m('button.query-copy',
                          {
                            onclick: () => {
                              const lines: string[][] = [];
