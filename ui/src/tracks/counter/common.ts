@@ -27,5 +27,7 @@ export interface Data {
 
 export interface Config {
   name: string;
+  maximumValue?: number;
+  minimumValue?: number;
   ref: number;
 }

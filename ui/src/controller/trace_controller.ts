@@ -233,41 +233,51 @@ export class TraceController extends Controller<States> {
       }));
     }
 
-    {
-      const result = await engine.query(`
-         select distinct(name), ref_type from counters;
-      `);
-      for (let i = 0; i < result.columns[0].stringValues!.length; i++) {
-        const name = result.columns[0].stringValues![i];
-        const refType = result.columns[1].stringValues![i];
-        if (refType === '[NULL]') {
-          addToTrackActions.push(Actions.addTrack({
-            engineId: this.engineId,
-            kind: 'CounterTrack',
-            name,
-            trackGroup: SCROLLING_TRACK_GROUP,
-            config: {
-              name,
-              ref: 0,
-            }
-          }));
-        } else if (refType === 'cpu') {
-          // TODO(hjd): Find a way to show per CPU tracks.
-          // for (let cpu=0; cpu < numCpus; cpu++) {
-          //  addToTrackActions.push(Actions.addTrack({
-          //    engineId: this.engineId,
-          //    kind: 'CounterTrack',
-          //    name: `${name} (cpu: ${cpu})`,
-          //    trackGroup: SCROLLING_TRACK_GROUP,
-          //    config: {
-          //      name,
-          //      ref: cpu,
-          //    }
-          //  }));
-          //}
-        }
-      }
+    const counters = await engine.query(`
+      select name, ref, ref_type, count(ref_type)
+      from counters group by name, ref, ref_type
+      order by ref_type desc
+    `);
+    const counterUpids = new Set<number>();
+    const counterUtids = new Set<number>();
+    for (let i = 0; i < counters.numRecords; i++) {
+      const ref = +counters.columns[1].longValues![i];
+      const refType = counters.columns[2].stringValues![i];
+      if (refType === 'upid') counterUpids.add(ref);
+      if (refType === 'utid') counterUtids.add(ref);
     }
+
+    // Add all the global counter tracks that are not bound to any pid/tid,
+    // the ones for which refType == NULL.
+    for (let i = 0; i < counters.numRecords; i++) {
+      const name = counters.columns[0].stringValues![i];
+      const refType = counters.columns[2].stringValues![i];
+      if (refType !== '[NULL]') continue;
+      addToTrackActions.push(Actions.addTrack({
+        engineId: this.engineId,
+        kind: 'CounterTrack',
+        name,
+        trackGroup: SCROLLING_TRACK_GROUP,
+        config: {
+          name,
+          ref: 0,
+        }
+      }));
+    }
+
+    // TODO(hjd): Find a way to show per CPU tracks.
+    // for (let cpu=0; cpu < numCpus; cpu++) {
+    //  addToTrackActions.push(Actions.addTrack({
+    //    engineId: this.engineId,
+    //    kind: 'CounterTrack',
+    //    name: `${name} (cpu: ${cpu})`,
+    //    trackGroup: SCROLLING_TRACK_GROUP,
+    //    config: {
+    //      name,
+    //      ref: cpu,
+    //    }
+    //  }));
+    //}
 
     // Local experiments shows getting maxDepth separately is ~2x faster than
     // joining with threads and processes.
@@ -290,18 +300,17 @@ export class TraceController extends Controller<States> {
     const addTrackGroupActions: DeferredAction[] = [];
     for (let i = 0; i < threadQuery.numRecords; i++) {
       const utid = threadQuery.columns[0].longValues![i] as number;
-
-      const maxDepth = utidToMaxDepth.get(utid);
-      if (maxDepth === undefined) {
-        // This thread does not have stackable slices.
-        continue;
-      }
-
       const tid = threadQuery.columns[1].longValues![i] as number;
       const upid = threadQuery.columns[2].longValues![i] as number;
       const pid = threadQuery.columns[3].longValues![i] as number;
       const threadName = threadQuery.columns[4].stringValues![i];
       const processName = threadQuery.columns[5].stringValues![i];
+
+      const maxDepth = utidToMaxDepth.get(utid);
+      if (maxDepth === undefined && !counterUpids.has(upid) &&
+          !counterUtids.has(utid)) {
+        continue;
+      }
 
       let pUuid = upidToUuid.get(upid);
       if (pUuid === undefined) {
@@ -315,6 +324,7 @@ export class TraceController extends Controller<States> {
           name: `${pid} summary`,
           config: {upid, pid, maxDepth, utid},
         }));
+
         addTrackGroupActions.push(Actions.addTrackGroup({
           engineId: this.engineId,
           summaryTrackId,
@@ -322,15 +332,52 @@ export class TraceController extends Controller<States> {
           id: pUuid,
           collapsed: true,
         }));
+
+        for (let i = 0; i < counters.numRecords; i++) {
+          const name = counters.columns[0].stringValues![i];
+          const ref = counters.columns[1].longValues![i];
+          const refType = counters.columns[2].stringValues![i];
+          if (refType !== 'upid' || ref !== upid) continue;
+          addTrackGroupActions.push(Actions.addTrack({
+            engineId: this.engineId,
+            kind: 'CounterTrack',
+            name,
+            trackGroup: pUuid,
+            config: {
+              name,
+              ref,
+            }
+          }));
+        }
       }
 
-      addToTrackActions.push(Actions.addTrack({
-        engineId: this.engineId,
-        kind: SLICE_TRACK_KIND,
-        name: threadName + `[${tid}]`,
-        trackGroup: pUuid,
-        config: {upid, utid, maxDepth},
-      }));
+      for (let i = 0; i < counters.numRecords; i++) {
+        const name = counters.columns[0].stringValues![i];
+        const ref = counters.columns[1].longValues![i];
+        const refType = counters.columns[2].stringValues![i];
+
+        if (refType !== 'utid' || ref !== utid) continue;
+        addTrackGroupActions.push(Actions.addTrack({
+          engineId: this.engineId,
+          kind: 'CounterTrack',
+          name,
+          trackGroup: pUuid,
+          config: {
+            name,
+            ref,
+          }
+        }));
+      }
+
+      if (maxDepth !== undefined) {
+        addToTrackActions.push(Actions.addTrack({
+          engineId: this.engineId,
+          kind: SLICE_TRACK_KIND,
+          name: threadName + `[${tid}]`,
+          trackGroup: pUuid,
+          config: {upid, utid, maxDepth},
+        }));
+      }
     }
     const allActions =
         addSummaryTrackActions.concat(addTrackGroupActions, addToTrackActions);

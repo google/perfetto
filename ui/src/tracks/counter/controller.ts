@@ -28,8 +28,8 @@ class CounterTrackController extends TrackController<Config, Data> {
   static readonly kind = COUNTER_TRACK_KIND;
   private busy = false;
   private setup = false;
-  private maximumValue = 0;
-  private minimumValue = 0;
+  private maximumValueSeen = 0;
+  private minimumValueSeen = 0;
 
   onBoundsChange(start: number, end: number, resolution: number): void {
     this.update(start, end, resolution);
@@ -49,8 +49,8 @@ class CounterTrackController extends TrackController<Config, Data> {
       select max(value), min(value) from
         counters where name = '${this.config.name}'
         and ref = ${this.config.ref}`);
-      this.maximumValue = +result.columns[0].doubleValues![0];
-      this.minimumValue = +result.columns[1].doubleValues![0];
+      this.maximumValueSeen = +result.columns[0].doubleValues![0];
+      this.minimumValueSeen = +result.columns[1].doubleValues![0];
       this.setup = true;
     }
 
@@ -65,12 +65,13 @@ class CounterTrackController extends TrackController<Config, Data> {
     const data: Data = {
       start,
       end,
-      maximumValue: this.maximumValue,
-      minimumValue: this.minimumValue,
+      maximumValue: this.maximumValue(),
+      minimumValue: this.minimumValue(),
       resolution,
       timestamps: new Float64Array(numRows),
       values: new Float64Array(numRows),
     };
+
     const cols = rawResult.columns;
     for (let row = 0; row < numRows; row++) {
       const startSec = fromNs(+cols[0].longValues![row]);
@@ -81,6 +82,14 @@ class CounterTrackController extends TrackController<Config, Data> {
 
     this.publish(data);
     this.busy = false;
+  }
+
+  private maximumValue() {
+    return Math.max(this.config.maximumValue || 0, this.maximumValueSeen);
+  }
+
+  private minimumValue() {
+    return Math.min(this.config.minimumValue || 0, this.minimumValueSeen);
   }
 
   private async query(query: string) {
