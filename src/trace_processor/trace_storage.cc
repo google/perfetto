@@ -49,5 +49,26 @@ void TraceStorage::ResetStorage() {
   *this = TraceStorage();
 }
 
+void TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,
+                                              uint64_t time_queued,
+                                              uint64_t time_started) {
+  if (queries_.size() >= kMaxLogEntries) {
+    queries_.pop_front();
+    times_queued_.pop_front();
+    times_started_.pop_front();
+    times_ended_.pop_front();
+  }
+  queries_.push_back(query);
+  times_queued_.push_back(time_queued);
+  times_started_.push_back(time_started);
+  times_ended_.push_back(0);
+}
+
+void TraceStorage::SqlStats::RecordQueryEnd(uint64_t time_ended) {
+  PERFETTO_DCHECK(!times_ended_.empty());
+  PERFETTO_DCHECK(times_ended_.back() == 0);
+  times_ended_.back() = time_ended;
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto

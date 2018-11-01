@@ -209,6 +209,26 @@ class TraceStorage {
     std::deque<RefType> types_;
   };
 
+  class SqlStats {
+   public:
+    static constexpr size_t kMaxLogEntries = 100;
+    void RecordQueryBegin(const std::string& query,
+                          uint64_t time_queued,
+                          uint64_t time_started);
+    void RecordQueryEnd(uint64_t time_ended);
+    size_t size() const { return queries_.size(); }
+    const std::deque<std::string>& queries() const { return queries_; }
+    const std::deque<uint64_t>& times_queued() const { return times_queued_; }
+    const std::deque<uint64_t>& times_started() const { return times_started_; }
+    const std::deque<uint64_t>& times_ended() const { return times_ended_; }
+
+   private:
+    std::deque<std::string> queries_;
+    std::deque<uint64_t> times_queued_;
+    std::deque<uint64_t> times_started_;
+    std::deque<uint64_t> times_ended_;
+  };
+
   void ResetStorage();
 
   UniqueTid AddEmptyThread(uint32_t tid) {
@@ -264,6 +284,9 @@ class TraceStorage {
   const Counters& counters() const { return counters_; }
   Counters* mutable_counters() { return &counters_; }
 
+  const SqlStats& sql_stats() const { return sql_stats_; }
+  SqlStats* mutable_sql_stats() { return &sql_stats_; }
+
   const std::deque<std::string>& string_pool() const { return string_pool_; }
 
   // |unique_processes_| always contains at least 1 element becuase the 0th ID
@@ -306,6 +329,8 @@ class TraceStorage {
   // Counter events from the trace. This includes CPU frequency events as well
   // systrace trace_marker counter events.
   Counters counters_;
+
+  SqlStats sql_stats_;
 };
 
 }  // namespace trace_processor

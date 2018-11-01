@@ -68,6 +68,8 @@ source_set("lib") {
     "slice_tracker.h",
     "span_operator_table.cc",
     "span_operator_table.h",
+    "sql_stats_table.cc",
+    "sql_stats_table.h",
     "sqlite_utils.h",
     "storage_cursor.cc",
     "storage_cursor.h",

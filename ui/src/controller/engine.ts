@@ -50,7 +50,8 @@ export abstract class Engine {
    * Exactly the same as engine.rpc.rawQuery({rawQuery});
    */
   query(sqlQuery: string): Promise<RawQueryResult> {
-    return this.rpc.rawQuery({sqlQuery});
+    const timeQueuedNs = Math.floor(performance.now() * 1e6);
+    return this.rpc.rawQuery({sqlQuery, timeQueuedNs});
   }
 
   async queryOneRow(query: string): Promise<number[]> {
