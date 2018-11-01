@@ -43,10 +43,12 @@ class MetaTrace {
   const size_t cpu_;
 };
 
+#define PERFETTO_METATRACE_UID2(a, b) a##b
+#define PERFETTO_METATRACE_UID(x) PERFETTO_METATRACE_UID2(metatrace_, x)
 #if PERFETTO_DCHECK_IS_ON() && !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 
 #define PERFETTO_METATRACE(...) \
-  ::perfetto::base::MetaTrace metatrace_##__COUNTER__(__VA_ARGS__)
+  ::perfetto::base::MetaTrace PERFETTO_METATRACE_UID(__COUNTER__)(__VA_ARGS__)
 #else
 #define PERFETTO_METATRACE(...) ::perfetto::base::ignore_result(__VA_ARGS__)
 #endif

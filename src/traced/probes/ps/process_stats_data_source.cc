@@ -46,20 +46,27 @@ namespace perfetto {
 
 namespace {
 
-bool IsNumeric(const char* str) {
-  if (!str || !*str)
-    return false;
-  for (const char* c = str; *c; c++) {
-    if (!isdigit(*c))
-      return false;
+inline int32_t ParseIntValue(const char* str) {
+  int32_t ret = 0;
+  for (;;) {
+    char c = *(str++);
+    if (!c)
+      break;
+    if (c < '0' || c > '9')
+      return 0;
+    ret *= 10;
+    ret += static_cast<int32_t>(c - '0');
   }
-  return true;
+  return ret;
 }
 
 int32_t ReadNextNumericDir(DIR* dirp) {
   while (struct dirent* dir_ent = readdir(dirp)) {
-    if (dir_ent->d_type == DT_DIR && IsNumeric(dir_ent->d_name))
-      return atoi(dir_ent->d_name);
+    if (dir_ent->d_type != DT_DIR)
+      continue;
+    int32_t int_value = ParseIntValue(dir_ent->d_name);
+    if (int_value)
+      return int_value;
   }
   return 0;
 }
@@ -137,7 +144,6 @@ void ProcessStatsDataSource::WriteAllProcesses() {
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
   PERFETTO_METATRACE("OnPids", 0);
-
   if (!enable_on_demand_dumps_)
     return;
   PERFETTO_DCHECK(!cur_ps_tree_);
@@ -287,11 +293,21 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
     return;
   std::vector<int32_t> pids;
   while (int32_t pid = ReadNextNumericDir(*proc_dir)) {
+    uint32_t pid_u = static_cast<uint32_t>(pid);
+    if (pids_to_skip_.size() > pid_u && pids_to_skip_[pid_u])
+      continue;
     std::string proc_status = ReadProcPidFile(pid, "status");
     if (proc_status.empty())
       continue;
-    if (!WriteProcessStats(pid, proc_status))
+    if (!WriteProcessStats(pid, proc_status)) {
+      // If WriteProcessStats() fails the pid is very likely a kernel thread
+      // that has a valid /proc/[pid]/status but no memory values. In this
+      // case avoid keep polling it over and over.
+      if (pids_to_skip_.size() <= pid_u)
+        pids_to_skip_.resize(pid_u + 1);
+      pids_to_skip_[pid_u] = true;
       continue;
+    }
     pids.push_back(pid);
   }
   FinalizeCurPacket();
