@@ -201,5 +201,5 @@ $OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE.json
 pull mtrace /tmp/mtrace.json
 # Add [ to beginning of file and replace trailing , with ] to turn into valid
 # JSON array.
-sed -i '$ s/.$/]/' /tmp/mtrace.json
-sed -i '1s/^/[/' /tmp/mtrace.json
+sed -i -e '$ s/.$/]/' /tmp/mtrace.json
+sed -i -e '1s/^/[/' /tmp/mtrace.json
