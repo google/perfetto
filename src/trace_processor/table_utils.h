@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_TABLE_UTILS_H_
 
 #include <memory>
+#include <set>
 
 #include "src/trace_processor/row_iterators.h"
 #include "src/trace_processor/storage_schema.h"
@@ -91,6 +92,23 @@ inline std::pair<bool, bool> IsOrdered(
   return std::make_pair(schema.GetColumn(col).IsNaturallyOrdered(), ob.desc);
 }
 
+inline std::vector<QueryConstraints::OrderBy> RemoveRedundantOrderBy(
+    const std::vector<QueryConstraints::Constraint>& cs,
+    const std::vector<QueryConstraints::OrderBy>& obs) {
+  std::vector<QueryConstraints::OrderBy> filtered;
+  std::set<int> equality_cols;
+  for (const auto& c : cs) {
+    if (sqlite_utils::IsOpEq(c.op))
+      equality_cols.emplace(c.iColumn);
+  }
+  for (const auto& o : obs) {
+    if (equality_cols.count(o.iColumn) > 0)
+      continue;
+    filtered.emplace_back(o);
+  }
+  return filtered;
+}
+
 inline std::vector<uint32_t> CreateSortedIndexVector(
     const StorageSchema& schema,
     RangeRowIterator it,
@@ -130,7 +148,7 @@ CreateBestRowIteratorForGenericSchema(const StorageSchema& schema,
                                       const QueryConstraints& qc,
                                       sqlite3_value** argv) {
   const auto& cs = qc.constraints();
-  const auto& obs = qc.order_by();
+  auto obs = internal::RemoveRedundantOrderBy(cs, qc.order_by());
 
   // Figure out whether the data is already ordered and which order we should
   // traverse the data.
