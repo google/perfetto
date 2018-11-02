@@ -28,6 +28,7 @@ export class FrontendLocalState {
   private _visibleTimeLastUpdate = 0;
   private pendingGlobalTimeUpdate?: TimeSpan;
   perfDebug = false;
+  highlightedUtid = -1;
 
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
@@ -61,5 +62,10 @@ export class FrontendLocalState {
   togglePerfDebug() {
     this.perfDebug = !this.perfDebug;
     globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  setHighlightedUtid(utid: number) {
+    this.highlightedUtid = utid;
+    globals.rafScheduler.scheduleRedraw();
   }
 }
