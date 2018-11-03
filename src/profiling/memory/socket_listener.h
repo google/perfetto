@@ -62,10 +62,6 @@ class SocketListener : public base::UnixSocket::EventListener {
   };
 
   void RecordReceived(base::UnixSocket*, size_t, std::unique_ptr<uint8_t[]>);
-  void InitProcess(Entry* entry,
-                   pid_t peer_pid,
-                   base::ScopedFile maps_fd,
-                   base::ScopedFile mem_fd);
 
   ClientConfiguration client_config_;
   std::map<base::UnixSocket*, Entry> sockets_;
