@@ -24,4 +24,5 @@ ndk/
 nodejs/
 protobuf/
 sqlite/
+sqlite_src/
 test_data/
