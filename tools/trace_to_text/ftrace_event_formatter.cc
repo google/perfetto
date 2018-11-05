@@ -338,6 +338,8 @@ using protos::FenceSignaledFtraceEvent;
 using protos::ClkDisableFtraceEvent;
 using protos::ClkEnableFtraceEvent;
 using protos::ClkSetRateFtraceEvent;
+using protos::SignalDeliverFtraceEvent;
+using protos::SignalGenerateFtraceEvent;
 
 const char* GetSchedSwitchFlag(int64_t state) {
   state &= 511;
@@ -2675,6 +2677,19 @@ std::string FormatRssStat(const RssStatFtraceEvent& event) {
   sprintf(line, "rss_stat: member=%d size=%ldKB", event.member(), event.size());
   return std::string(line);
 }
+std::string FormatSignalDeliver(const SignalDeliverFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "signal_deliver: sig=%d code=%d sa_flags=%lx", event.sig(),
+          event.code(), event.sa_flags());
+  return std::string(line);
+}
+std::string FormatSignalGenerate(const SignalGenerateFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "signal_generate: sig=%d code=%d comm=%s pid=%d grp=%d res=%d",
+          event.sig(), event.code(), event.comm().c_str(), event.pid(),
+          event.group(), event.result());
+  return std::string(line);
+}
 
 std::string FormatEventText(const protos::FtraceEvent& event) {
   if (event.has_binder_lock()) {
@@ -3469,6 +3484,12 @@ std::string FormatEventText(const protos::FtraceEvent& event) {
   } else if (event.has_ipi_exit()) {
     const auto& inner = event.ipi_exit();
     return FormatIpiExit(inner);
+  } else if (event.has_signal_deliver()) {
+    const auto& inner = event.signal_deliver();
+    return FormatSignalDeliver(inner);
+  } else if (event.has_signal_generate()) {
+    const auto& inner = event.signal_generate();
+    return FormatSignalGenerate(inner);
   }
 
   return "";

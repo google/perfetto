@@ -124,7 +124,9 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       cpu_times_softirq_ns_id_(
           context->storage->InternString("cpu.times.softirq_ns")),
       ion_heap_grow_id_(context->storage->InternString("ion_heap_grow")),
-      ion_heap_shrink_id_(context->storage->InternString("ion_heap_shrink")) {
+      ion_heap_shrink_id_(context->storage->InternString("ion_heap_shrink")),
+      signal_deliver_id_(context->storage->InternString("signal_deliver")),
+      signal_generate_id_(context->storage->InternString("signal_generate")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
     meminfo_strs_id_.emplace_back(context->storage->InternString(name));
   }
@@ -546,12 +548,63 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
         ParseIonHeapShrink(timestamp, pid, ftrace.slice(fld_off, fld.size()));
         break;
       }
+      case protos::FtraceEvent::kSignalGenerate: {
+        PERFETTO_DCHECK(timestamp > 0);
+        const size_t fld_off = ftrace.offset_of(fld.data());
+        ParseSignalGenerate(timestamp, ftrace.slice(fld_off, fld.size()));
+        break;
+      }
+      case protos::FtraceEvent::kSignalDeliver: {
+        PERFETTO_DCHECK(timestamp > 0);
+        const size_t fld_off = ftrace.offset_of(fld.data());
+        ParseSignalDeliver(timestamp, pid, ftrace.slice(fld_off, fld.size()));
+        break;
+      }
 
       default:
         break;
     }
   }
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+}
+
+void ProtoTraceParser::ParseSignalDeliver(uint64_t timestamp,
+                                          uint32_t pid,
+                                          TraceBlobView view) {
+  ProtoDecoder decoder(view.data(), view.length());
+  uint32_t sig = 0;
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::SignalDeliverFtraceEvent::kSigFieldNumber:
+        sig = fld.as_uint32();
+        break;
+    }
+  }
+  auto* instants = context_->storage->mutable_instants();
+  UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
+  instants->AddInstantEvent(timestamp, signal_deliver_id_, sig, utid,
+                            RefType::kUtid);
+}
+
+void ProtoTraceParser::ParseSignalGenerate(uint64_t timestamp,
+                                           TraceBlobView view) {
+  ProtoDecoder decoder(view.data(), view.length());
+  uint32_t pid = 0;
+  uint32_t sig = 0;
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::SignalGenerateFtraceEvent::kPidFieldNumber:
+        pid = fld.as_uint32();
+        break;
+      case protos::SignalGenerateFtraceEvent::kSigFieldNumber:
+        sig = fld.as_uint32();
+        break;
+    }
+  }
+  auto* instants = context_->storage->mutable_instants();
+  UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
+  instants->AddInstantEvent(timestamp, signal_generate_id_, sig, utid,
+                            RefType::kUtid);
 }
 
 void ProtoTraceParser::ParseRssStat(uint64_t timestamp,
