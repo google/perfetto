@@ -19,6 +19,7 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
+import "perfetto/config/profiling/heapprofd_config.proto";
 import "perfetto/config/chrome/chrome_config.proto";
 import "perfetto/config/ftrace/ftrace_config.proto";
 import "perfetto/config/inode_file/inode_file_config.proto";
@@ -63,6 +64,7 @@ message DataSourceConfig {
   optional InodeFileConfig inode_file_config = 102;
   optional ProcessStatsConfig process_stats_config = 103;
   optional SysStatsConfig sys_stats_config = 104;
+  optional HeapprofdConfig heapprofd_config = 105;
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that

@@ -27,6 +27,7 @@ if (perfetto_build_standalone) {
       "atrace.cfg",
       "ftrace.cfg",
       "ftrace_largebuffer.cfg",
+      "heapprofd.cfg",
       "long_trace.cfg",
       "processes.cfg",
       "summary.cfg",

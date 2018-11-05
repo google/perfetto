@@ -1,0 +1,48 @@
+/*
+ * Copyright (C) 2018 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package perfetto.protos;
+
+// Configuration for go/heapprofd.
+message HeapprofdConfig {
+  message ContinousDumpConfig {
+    // ms to wait before first dump.
+    optional uint32 dump_phase_ms = 5;
+    // ms to wait between following dumps.
+    optional uint32 dump_interval_ms = 6;
+  };
+
+  // Set to 1 for perfect accuracy.
+  // Otherwise, sample every sample_interval_bytes on average.
+  // TODO(fmayer): Add link to docs elaborating on this.
+  optional uint64 sampling_interval_bytes = 1;
+
+  // E.g. /system/bin/surfaceflinger
+  repeated string native_binary_name = 2;
+  // repeated string android_app = 3;  // TODO(fmayer): Implement
+  // For watermark based triggering or local debugging.
+  repeated uint64 pid = 4;
+
+  // Dump once at the end of the trace, emitting the heap dump at maximum
+  // memory usage.
+  // optional bool retain_max = 5;  // TODO(fmayer): Implement
+
+  // Dump at a predefined interval.
+  optional ContinousDumpConfig continuous_dump_config = 6;
+}

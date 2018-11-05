@@ -37,6 +37,7 @@ source_set("tracing") {
     "core/data_source_config.cc",
     "core/data_source_descriptor.cc",
     "core/ftrace_config.cc",
+    "core/heapprofd_config.cc",
     "core/id_allocator.cc",
     "core/id_allocator.h",
     "core/inode_file_config.cc",
