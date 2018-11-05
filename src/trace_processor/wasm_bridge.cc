@@ -56,7 +56,7 @@ void Initialize(ReplyFunction reply_function) {
   PERFETTO_ILOG("Initializing WASM bridge");
   Config config;
   config.optimization_mode = OptimizationMode::kMaxBandwidth;
-  g_trace_processor = new TraceProcessor(config);
+  g_trace_processor = TraceProcessor::CreateInstance(config).release();
   g_reply = reply_function;
 }
 

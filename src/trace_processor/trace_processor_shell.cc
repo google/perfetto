@@ -321,7 +321,7 @@ int TraceProcessorMain(int argc, char** argv) {
   // Load the trace file into the trace processor.
   Config config;
   config.optimization_mode = OptimizationMode::kMaxBandwidth;
-  TraceProcessor tp(config);
+  std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   base::ScopedFile fd(base::OpenFile(trace_file_path, O_RDONLY));
   PERFETTO_CHECK(fd);
 
@@ -363,13 +363,13 @@ int TraceProcessorMain(int argc, char** argv) {
     PERFETTO_CHECK(aio_read(&cb) == 0);
 
     // Parse the completed buffer while the async read is in-flight.
-    tp.Parse(std::move(buf), static_cast<size_t>(rsize));
+    tp->Parse(std::move(buf), static_cast<size_t>(rsize));
   }
-  tp.NotifyEndOfFile();
+  tp->NotifyEndOfFile();
   double t_load = (base::GetWallTimeMs() - t_load_start).count() / 1E3;
   double size_mb = file_size / 1E6;
   PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb, size_mb / t_load);
-  g_tp = &tp;
+  g_tp = tp.get();
 
 #if PERFETTO_HAS_SIGNAL_H()
   signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
