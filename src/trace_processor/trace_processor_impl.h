@@ -22,6 +22,7 @@
 #include <memory>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
 
@@ -36,32 +37,21 @@ namespace trace_processor {
 
 // Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
-class TraceProcessorImpl {
+class TraceProcessorImpl : public TraceProcessor {
  public:
   explicit TraceProcessorImpl(const Config&);
-  ~TraceProcessorImpl();
 
-  // The entry point to push trace data into the processor. The trace format
-  // will be automatically discovered on the first push call. It is possible
-  // to make queries between two pushes.
-  // Returns true if parsing has been succeeding so far, false if some
-  // unrecoverable error happened. If this happens, the TraceProcessorImpl will
-  // ignore the following Parse() requests and drop data on the floor.
-  bool Parse(std::unique_ptr<uint8_t[]>, size_t);
+  ~TraceProcessorImpl() override;
 
-  // When parsing a bounded file (as opposite to streaming from a device) this
-  // function should be called when the last chunk of the file has been passed
-  // into Parse(). This allows to flush the events queued in the ordering stage,
-  // without having to wait for their time window to expire.
-  void NotifyEndOfFile();
+  bool Parse(std::unique_ptr<uint8_t[]>, size_t) override;
 
-  // Executes a SQLite query on the loaded portion of the trace. |result| will
-  // be invoked once after the result of the query is available.
-  void ExecuteQuery(const protos::RawQueryArgs&,
-                    std::function<void(const protos::RawQueryResult&)>);
+  void NotifyEndOfFile() override;
 
-  // Interrupts the current query. Typically used by Ctrl-C handler.
-  void InterruptQuery();
+  void ExecuteQuery(
+      const protos::RawQueryArgs&,
+      std::function<void(const protos::RawQueryResult&)>) override;
+
+  void InterruptQuery() override;
 
  private:
   ScopedDb db_;  // Keep first.
