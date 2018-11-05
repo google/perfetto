@@ -23,6 +23,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <unordered_map>
 
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/table.h"
@@ -68,7 +69,7 @@ class SpanOperatorTable : public Table {
   enum Column {
     kTimestamp = 0,
     kDuration = 1,
-    kJoinValue = 2,
+    kPartition = 2,
     // All other columns are dynamic depending on the joined tables.
   };
 
@@ -83,18 +84,33 @@ class SpanOperatorTable : public Table {
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;
 
  private:
-  static constexpr uint8_t kReservedColumns = Column::kJoinValue + 1;
+  // Parsed version of a table descriptor.
+  struct TableDescriptor {
+    static TableDescriptor Parse(const std::string& raw_descriptor);
 
-  enum ChildTable {
-    kFirst = 0,
-    kSecond = 1,
+    std::string name;
+    std::string partition_col;
   };
 
   // Contains the definition of the child tables.
-  struct TableDefinition {
-    std::string name;
-    std::vector<Table::Column> cols;
-    std::string join_col_name;
+  class TableDefinition {
+   public:
+    TableDefinition() = default;
+
+    TableDefinition(std::string name,
+                    std::string partition_col,
+                    std::vector<Table::Column> cols);
+
+    const std::string& name() const { return name_; }
+    const std::string& partition_col() const { return partition_col_; }
+    const std::vector<Table::Column>& columns() const { return cols_; }
+
+    bool is_parititioned() const { return partition_col_ != ""; }
+
+   private:
+    std::string name_;
+    std::string partition_col_;
+    std::vector<Table::Column> cols_;
   };
 
   // Cursor on the span table.
@@ -109,52 +125,61 @@ class SpanOperatorTable : public Table {
     int Column(sqlite3_context* context, int N) override;
 
    private:
-    // Details of the state of retrieval from a table across all join values.
-    struct TableState {
-      ScopedStmt stmt;
-      uint64_t ts_start = std::numeric_limits<uint64_t>::max();
-      uint64_t ts_end = std::numeric_limits<uint64_t>::max();
-      int64_t join_val = std::numeric_limits<int64_t>::max();
+    // State of a query on a particular table.
+    class TableQueryState {
+     public:
+      TableQueryState(SpanOperatorTable*, const TableDefinition*, sqlite3* db);
+
+      int Initialize(const QueryConstraints& qc, sqlite3_value** argv);
+      int StepAndCacheValues();
+      void ReportSqliteResult(sqlite3_context* context, size_t index);
+
+      const TableDefinition* definition() const { return defn_; }
+
+      uint64_t ts_start() const { return ts_start_; }
+      uint64_t ts_end() const { return ts_end_; }
+      int64_t partition() const { return partition_; }
+
+     private:
+      std::string CreateSqlQuery(const std::vector<std::string>& cs);
+      int PrepareRawStmt(const std::string& sql);
+
+      ScopedStmt stmt_;
+
+      uint64_t ts_start_ = std::numeric_limits<uint64_t>::max();
+      uint64_t ts_end_ = std::numeric_limits<uint64_t>::max();
+      int64_t partition_ = std::numeric_limits<int64_t>::max();
+
+      const TableDefinition* const defn_;
+      sqlite3* const db_;
+      SpanOperatorTable* const table_;
     };
 
-    // Steps the cursor forward for the given table and updates the state
-    // for that table.
-    int StepForTable(ChildTable table);
+    TableQueryState t1_;
+    TableQueryState t2_;
+    TableQueryState* next_stepped_table_ = nullptr;
 
-    void ReportSqliteResult(sqlite3_context* context,
-                            sqlite3_stmt* stmt,
-                            size_t index);
-
-    int PrepareRawStmt(const QueryConstraints& qc,
-                       sqlite3_value** argv,
-                       const TableDefinition& def,
-                       ChildTable table,
-                       sqlite3_stmt**);
-
-    TableState t1_;
-    TableState t2_;
-    ChildTable next_stepped_table_ = ChildTable::kFirst;
-
-    sqlite3* const db_;
     SpanOperatorTable* const table_;
   };
 
-  std::vector<std::string> ComputeSqlConstraintVector(
-      const QueryConstraints& qc,
-      sqlite3_value** argv,
-      ChildTable table);
+  // Identifier for a column by index in a given table.
+  struct ColumnLocator {
+    const TableDefinition* defn;
+    size_t col_index;
+  };
 
-  // Converts a joined column index into an index on the columns of the child
-  // tables.
-  // Returns a (table, index) pair with the table indicating whether the index
-  // is into table 1 or 2 and the index being the offset into the relevant
-  // table's columns.
-  std::pair<SpanOperatorTable::ChildTable, size_t> GetTableAndColumnIndex(
-      int joined_column_idx);
+  std::vector<std::string> ComputeSqlConstraintsForDefinition(
+      const TableDefinition& defn,
+      const QueryConstraints& qc,
+      sqlite3_value** argv);
+
+  void CreateSchemaColsForDefn(const TableDefinition& defn,
+                               bool is_same_partition,
+                               std::vector<Table::Column>* cols);
 
   TableDefinition t1_defn_;
   TableDefinition t2_defn_;
-  std::string join_col_;
+  std::unordered_map<size_t, ColumnLocator> global_index_to_column_locator_;
 
   sqlite3* const db_;
 };
