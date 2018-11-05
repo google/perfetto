@@ -86,6 +86,7 @@ void Table::RegisterInternal(sqlite3* db,
 
     auto schema = table->CreateSchema(argc, argv);
     auto create_stmt = schema.ToCreateTableStmt();
+    PERFETTO_DLOG("Create table statment: %s", create_stmt.c_str());
 
     int res = sqlite3_declare_vtab(xdb, create_stmt.c_str());
     if (res != SQLITE_OK)

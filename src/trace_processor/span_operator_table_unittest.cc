@@ -71,7 +71,9 @@ TEST_F(SpanOperatorTableTest, JoinTwoSpanTables) {
       "dur UNSIGNED BIG INT, "
       "cpu UNSIGNED INT"
       ");");
-  RunStatement("CREATE VIRTUAL TABLE sp USING span(f, s, cpu);");
+  RunStatement(
+      "CREATE VIRTUAL TABLE sp USING span(f PARTITIONED cpu, s PARTITIONED "
+      "cpu);");
 
   RunStatement("INSERT INTO f VALUES(100, 10, 5);");
   RunStatement("INSERT INTO f VALUES(110, 50, 5);");
