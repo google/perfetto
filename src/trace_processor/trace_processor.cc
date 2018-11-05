@@ -21,30 +21,13 @@
 namespace perfetto {
 namespace trace_processor {
 
-TraceProcessor::TraceProcessor(const Config& config)
-    : impl_(
-          std::unique_ptr<TraceProcessorImpl>(new TraceProcessorImpl(config))) {
+// static
+std::unique_ptr<TraceProcessor> TraceProcessor::CreateInstance(
+    const Config& config) {
+  return std::unique_ptr<TraceProcessor>(new TraceProcessorImpl(config));
 }
 
 TraceProcessor::~TraceProcessor() = default;
-
-bool TraceProcessor::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
-  return impl_->Parse(std::move(data), size);
-}
-
-void TraceProcessor::NotifyEndOfFile() {
-  impl_->NotifyEndOfFile();
-}
-
-void TraceProcessor::ExecuteQuery(
-    const protos::RawQueryArgs& args,
-    std::function<void(const protos::RawQueryResult&)> callback) {
-  impl_->ExecuteQuery(args, callback);
-}
-
-void TraceProcessor::InterruptQuery() {
-  impl_->InterruptQuery();
-}
 
 // static
 void EnableSQLiteVtableDebugging() {
