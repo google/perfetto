@@ -50,6 +50,8 @@ class InodeFileConfig;
 class InodeFileConfig_MountPointMappingEntry;
 class ProcessStatsConfig;
 class SysStatsConfig;
+class HeapprofdConfig;
+class HeapprofdConfig_ContinousDumpConfig;
 class TestConfig;
 class TraceConfig_ProducerConfig;
 class TraceConfig_StatsdMetadata;
