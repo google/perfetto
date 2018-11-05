@@ -40,7 +40,7 @@ export class TimeAxisPanel extends Panel {
     for (let s = start; s < range.end; s += step) {
       let xPos = TRACK_SHELL_WIDTH;
       xPos += Math.floor(timeScale.timeToPx(s));
-      if (xPos < 0) continue;
+      if (xPos < TRACK_SHELL_WIDTH) continue;
       if (xPos > size.width) break;
       ctx.fillRect(xPos, 0, 1, size.height);
       ctx.fillText(timeToString(s - range.start), xPos + 5, 10);

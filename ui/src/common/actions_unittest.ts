@@ -28,6 +28,7 @@ function fakeTrack(state: State, id: string): TrackState {
     engineId: '1',
     kind: 'SOME_TRACK_KIND',
     name: 'A track',
+    trackGroup: SCROLLING_TRACK_GROUP,
     config: {},
   };
   state.tracks[id] = track;
@@ -114,8 +115,9 @@ test('reorder tracks', () => {
 
   const twice = produce(once, draft => {
     StateActions.moveTrack(draft, {
-      trackId: `${firstTrackId}`,
-      direction: 'down',
+      srcId: `${firstTrackId}`,
+      op: 'after',
+      dstId: `${secondTrackId}`,
     });
   });
 
@@ -133,8 +135,9 @@ test('reorder pinned to scrolling', () => {
 
   const after = produce(state, draft => {
     StateActions.moveTrack(draft, {
-      trackId: 'b',
-      direction: 'down',
+      srcId: 'b',
+      op: 'before',
+      dstId: 'c',
     });
   });
 
@@ -152,8 +155,9 @@ test('reorder scrolling to pinned', () => {
 
   const after = produce(state, draft => {
     StateActions.moveTrack(draft, {
-      trackId: 'b',
-      direction: 'up',
+      srcId: 'b',
+      op: 'after',
+      dstId: 'a',
     });
   });
 
@@ -171,8 +175,9 @@ test('reorder clamp bottom', () => {
 
   const after = produce(state, draft => {
     StateActions.moveTrack(draft, {
-      trackId: 'a',
-      direction: 'up',
+      srcId: 'a',
+      op: 'before',
+      dstId: 'a',
     });
   });
   expect(after).toEqual(state);
@@ -188,8 +193,9 @@ test('reorder clamp top', () => {
 
   const after = produce(state, draft => {
     StateActions.moveTrack(draft, {
-      trackId: 'c',
-      direction: 'down',
+      srcId: 'c',
+      op: 'after',
+      dstId: 'c',
     });
   });
   expect(after).toEqual(state);

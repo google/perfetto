@@ -25,7 +25,7 @@ import {trackRegistry} from './track_registry';
 
 // TODO(hjd): We should remove the constant where possible.
 // If any uses can't be removed we should read this constant from CSS.
-export const TRACK_SHELL_WIDTH = 300;
+export const TRACK_SHELL_WIDTH = 250;
 
 function isPinned(id: string) {
   return globals.state.pinnedTracks.indexOf(id) !== -1;
@@ -34,25 +34,85 @@ function isPinned(id: string) {
 interface TrackShellAttrs {
   trackState: TrackState;
 }
+
 class TrackShell implements m.ClassComponent<TrackShellAttrs> {
+  // Set to true when we click down and drag the
+  private dragging = false;
+  private dropping: 'before'|'after'|undefined = undefined;
+  private attrs?: TrackShellAttrs;
+
+  oninit(vnode: m.Vnode<TrackShellAttrs>) {
+    this.attrs = vnode.attrs;
+  }
+
   view({attrs}: m.CVnode<TrackShellAttrs>) {
+    const dragClass = this.dragging ? `.drag` : '';
+    const dropClass = this.dropping ? `.drop-${this.dropping}` : '';
     return m(
-        '.track-shell',
+        `.track-shell${dragClass}${dropClass}[draggable=true]`,
+        {
+          onmousedown: this.onmousedown.bind(this),
+          ondragstart: this.ondragstart.bind(this),
+          ondragend: this.ondragend.bind(this),
+          ondragover: this.ondragover.bind(this),
+          ondragleave: this.ondragleave.bind(this),
+          ondrop: this.ondrop.bind(this),
+        },
         m('h1', attrs.trackState.name),
-        m(TrackButton, {
-          action: Actions.moveTrack(
-              {trackId: attrs.trackState.id, direction: 'up'}),
-          i: 'arrow_upward_alt',
-        }),
-        m(TrackButton, {
-          action: Actions.moveTrack(
-              {trackId: attrs.trackState.id, direction: 'down'}),
-          i: 'arrow_downward_alt',
-        }),
         m(TrackButton, {
           action: Actions.toggleTrackPinned({trackId: attrs.trackState.id}),
           i: isPinned(attrs.trackState.id) ? 'star' : 'star_border',
         }));
+  }
+
+  onmousedown(e: MouseEvent) {
+    // Prevent that the click is intercepted by the PanAndZoomHandler and that
+    // we start panning while dragging.
+    e.stopPropagation();
+  }
+
+  ondragstart(e: DragEvent) {
+    this.dragging = true;
+    globals.rafScheduler.scheduleFullRedraw();
+    e.dataTransfer.setData('perfetto/track', `${this.attrs!.trackState.id}`);
+    e.dataTransfer.setDragImage(new Image(), 0, 0);
+    e.stopImmediatePropagation();
+  }
+
+  ondragend() {
+    this.dragging = false;
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  ondragover(e: DragEvent) {
+    if (this.dragging) return;
+    if (!(e.target instanceof HTMLElement)) return;
+    if (!e.dataTransfer.types.includes('perfetto/track')) return;
+    e.dataTransfer.dropEffect = 'move';
+    e.preventDefault();
+
+    // Apply some hysteresis to the drop logic so that the lightened border
+    // changes only when we get close enough to the border.
+    if (e.offsetY < e.target.scrollHeight / 3) {
+      this.dropping = 'before';
+    } else if (e.offsetY > e.target.scrollHeight / 3 * 2) {
+      this.dropping = 'after';
+    }
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  ondragleave() {
+    this.dropping = undefined;
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  ondrop(e: DragEvent) {
+    if (this.dropping === undefined) return;
+    globals.rafScheduler.scheduleFullRedraw();
+    const srcId = e.dataTransfer.getData('perfetto/track');
+    const dstId = this.attrs!.trackState.id;
+    globals.dispatch(Actions.moveTrack({srcId, op: this.dropping, dstId}));
+    this.dropping = undefined;
   }
 }
 
