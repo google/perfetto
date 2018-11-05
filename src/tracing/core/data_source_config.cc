@@ -32,6 +32,7 @@
 #include "perfetto/config/ftrace/ftrace_config.pb.h"
 #include "perfetto/config/inode_file/inode_file_config.pb.h"
 #include "perfetto/config/process_stats/process_stats_config.pb.h"
+#include "perfetto/config/profiling/heapprofd_config.pb.h"
 #include "perfetto/config/sys_stats/sys_stats_config.pb.h"
 #include "perfetto/config/test_config.pb.h"
 
@@ -75,6 +76,8 @@ void DataSourceConfig::FromProto(
 
   sys_stats_config_.FromProto(proto.sys_stats_config());
 
+  heapprofd_config_.FromProto(proto.heapprofd_config());
+
   static_assert(sizeof(legacy_config_) == sizeof(proto.legacy_config()),
                 "size mismatch");
   legacy_config_ = static_cast<decltype(legacy_config_)>(proto.legacy_config());
@@ -116,6 +119,8 @@ void DataSourceConfig::ToProto(
   process_stats_config_.ToProto(proto->mutable_process_stats_config());
 
   sys_stats_config_.ToProto(proto->mutable_sys_stats_config());
+
+  heapprofd_config_.ToProto(proto->mutable_heapprofd_config());
 
   static_assert(sizeof(legacy_config_) == sizeof(proto->legacy_config()),
                 "size mismatch");

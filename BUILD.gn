@@ -292,7 +292,9 @@ if (perfetto_build_with_android) {
       "src/profiling/memory:malloc_hooks",
     ]
   }
+}
 
+if (should_build_heapprofd) {
   executable("heapprofd") {
     deps = [
       "gn:default_deps",
@@ -300,6 +302,7 @@ if (perfetto_build_with_android) {
       "src/base:unix_socket",
       "src/profiling/memory:daemon",
       "src/profiling/memory:wire_protocol",
+      "src/tracing:ipc",
     ]
     sources = [
       "src/profiling/memory/main.cc",
