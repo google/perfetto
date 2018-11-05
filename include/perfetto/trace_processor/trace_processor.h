@@ -31,14 +31,14 @@ class RawQueryResult;
 
 namespace trace_processor {
 
-class TraceProcessorImpl;
-
 // Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
 class TraceProcessor {
  public:
-  explicit TraceProcessor(const Config&);
-  ~TraceProcessor();
+  // Creates a new instance of TraceProcessor.
+  static std::unique_ptr<TraceProcessor> CreateInstance(const Config&);
+
+  virtual ~TraceProcessor();
 
   // The entry point to push trace data into the processor. The trace format
   // will be automatically discovered on the first push call. It is possible
@@ -46,24 +46,22 @@ class TraceProcessor {
   // Returns true if parsing has been succeeding so far, false if some
   // unrecoverable error happened. If this happens, the TraceProcessor will
   // ignore the following Parse() requests and drop data on the floor.
-  bool Parse(std::unique_ptr<uint8_t[]>, size_t);
+  virtual bool Parse(std::unique_ptr<uint8_t[]>, size_t) = 0;
 
   // When parsing a bounded file (as opposite to streaming from a device) this
   // function should be called when the last chunk of the file has been passed
   // into Parse(). This allows to flush the events queued in the ordering stage,
   // without having to wait for their time window to expire.
-  void NotifyEndOfFile();
+  virtual void NotifyEndOfFile() = 0;
 
   // Executes a SQLite query on the loaded portion of the trace. |result| will
   // be invoked once after the result of the query is available.
-  void ExecuteQuery(const protos::RawQueryArgs&,
-                    std::function<void(const protos::RawQueryResult&)>);
+  virtual void ExecuteQuery(
+      const protos::RawQueryArgs&,
+      std::function<void(const protos::RawQueryResult&)>) = 0;
 
   // Interrupts the current query. Typically used by Ctrl-C handler.
-  void InterruptQuery();
-
- private:
-  std::unique_ptr<TraceProcessorImpl> impl_;
+  virtual void InterruptQuery() = 0;
 };
 
 // When set, logs SQLite actions on the console.
