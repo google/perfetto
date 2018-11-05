@@ -146,9 +146,16 @@ BUILD_DEPS_HOST = [
   ),
 
   # Sqlite for the trace processing library.
+  # This is the amalgamated source whose compiled output is meant to be faster.
+  # We still pull the full source for the extensions (not amalgamated).
   ('buildtools/sqlite.zip',
    'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3230100.zip',
    '98729f2c2d57d166e3d6d9862744c1d66388e286',
+   'all'
+  ),
+  ('buildtools/sqlite_src.zip',
+   'https://storage.googleapis.com/perfetto/sqlite-src-3230100.zip',
+   '90bea4e46a01e9c27356b19c3150a8bf146c09fc',
    'all'
   ),
 

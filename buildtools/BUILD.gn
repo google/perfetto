@@ -606,6 +606,7 @@ source_set("sqlite") {
     "sqlite/sqlite3.c",
     "sqlite/sqlite3.h",
     "sqlite/sqlite3ext.h",
+    "sqlite_src/ext/misc/percentile.c",
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":sqlite_config" ]
