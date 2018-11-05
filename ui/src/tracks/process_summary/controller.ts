@@ -58,9 +58,9 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
           // TODO(dproy): This query is faster if we write it as x < utid < y.
           `(${utids.join(',')})`);
       await this.query(`create virtual table ${this.tableName('span')}
-                     using span(${processSliceView}, ${
+                     using span(${processSliceView} PARTITIONED cpu, ${
                                                        this.tableName('window')
-                                                     }, cpu);`);
+                                                     }  PARTITIONED cpu);`);
       this.setup = true;
     }
 

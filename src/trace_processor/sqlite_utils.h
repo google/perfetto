@@ -23,6 +23,8 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/scoped_db.h"
+#include "src/trace_processor/table.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -166,6 +168,57 @@ inline std::string SqliteValueAsString(sqlite3_value* value) {
     default:
       PERFETTO_FATAL("Unknown value type %d", sqlite3_value_type(value));
   }
+}
+
+inline std::vector<Table::Column> GetColumnsForTable(
+    sqlite3* db,
+    const std::string& raw_table_name) {
+  char sql[1024];
+  const char kRawSql[] = "SELECT name, type from pragma_table_info(\"%s\")";
+
+  // Support names which are table valued functions with arguments.
+  std::string table_name = raw_table_name.substr(0, raw_table_name.find('('));
+  int n = snprintf(sql, sizeof(sql), kRawSql, table_name.c_str());
+  PERFETTO_DCHECK(n >= 0 || static_cast<size_t>(n) < sizeof(sql));
+
+  sqlite3_stmt* raw_stmt = nullptr;
+  int err = sqlite3_prepare_v2(db, sql, n, &raw_stmt, nullptr);
+
+  ScopedStmt stmt(raw_stmt);
+  PERFETTO_DCHECK(sqlite3_column_count(*stmt) == 2);
+
+  std::vector<Table::Column> columns;
+  while (true) {
+    err = sqlite3_step(raw_stmt);
+    if (err == SQLITE_DONE)
+      break;
+    if (err != SQLITE_ROW) {
+      PERFETTO_ELOG("Querying schema of table failed");
+      return {};
+    }
+
+    const char* name =
+        reinterpret_cast<const char*>(sqlite3_column_text(*stmt, 0));
+    const char* raw_type =
+        reinterpret_cast<const char*>(sqlite3_column_text(*stmt, 1));
+    if (!name || !raw_type || !*name || !*raw_type) {
+      PERFETTO_ELOG("Schema has invalid column values");
+      return {};
+    }
+
+    Table::ColumnType type;
+    if (strcmp(raw_type, "UNSIGNED BIG INT") == 0) {
+      type = Table::ColumnType::kUlong;
+    } else if (strcmp(raw_type, "UNSIGNED INT") == 0) {
+      type = Table::ColumnType::kUint;
+    } else if (strcmp(raw_type, "STRING") == 0) {
+      type = Table::ColumnType::kString;
+    } else {
+      PERFETTO_FATAL("Unknown column type on table %s", raw_table_name.c_str());
+    }
+    columns.emplace_back(columns.size(), name, type);
+  }
+  return columns;
 }
 
 }  // namespace sqlite_utils
