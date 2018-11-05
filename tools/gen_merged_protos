@@ -31,6 +31,7 @@ CONFIG_PROTOS = (
   'protos/perfetto/config/sys_stats/sys_stats_config.proto',
   'protos/perfetto/config/test_config.proto',
   'protos/perfetto/config/trace_config.proto',
+  'protos/perfetto/config/profiling/heapprofd_config.proto',
 )
 
 MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'

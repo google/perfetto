@@ -18,6 +18,7 @@ import subprocess
 import sys
 
 PROTOS = (
+  'perfetto/config/profiling/heapprofd_config.proto',
   'perfetto/config/chrome/chrome_config.proto',
   'perfetto/config/data_source_config.proto',
   'perfetto/config/inode_file/inode_file_config.proto',
