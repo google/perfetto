@@ -47,6 +47,8 @@ source_set("lib") {
     "counters_table.h",
     "event_tracker.cc",
     "event_tracker.h",
+    "instants_table.cc",
+    "instants_table.h",
     "process_table.cc",
     "process_table.h",
     "process_tracker.cc",
