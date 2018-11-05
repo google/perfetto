@@ -125,6 +125,7 @@ class StorageSchema {
       auto max_it = std::upper_bound(min_it, deque_->end(), max);
       bounds.max_idx =
           static_cast<uint32_t>(std::distance(deque_->begin(), max_it));
+      bounds.consumed = true;
 
       return bounds;
     }
