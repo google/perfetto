@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/span_operator_table.h"
+#include "src/trace_processor/span_join_operator_table.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -25,16 +25,16 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-class SpanOperatorTableTest : public ::testing::Test {
+class SpanJoinOperatorTableTest : public ::testing::Test {
  public:
-  SpanOperatorTableTest() {
+  SpanJoinOperatorTableTest() {
     sqlite3* db = nullptr;
     PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
     db_.reset(db);
 
     context_.storage.reset(new TraceStorage());
 
-    SpanOperatorTable::RegisterTable(db_.get(), context_.storage.get());
+    SpanJoinOperatorTable::RegisterTable(db_.get(), context_.storage.get());
   }
 
   void PrepareValidStatement(const std::string& sql) {
@@ -50,7 +50,7 @@ class SpanOperatorTableTest : public ::testing::Test {
     ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_DONE);
   }
 
-  ~SpanOperatorTableTest() override { context_.storage->ResetStorage(); }
+  ~SpanJoinOperatorTableTest() override { context_.storage->ResetStorage(); }
 
  protected:
   TraceProcessorContext context_;
@@ -58,7 +58,7 @@ class SpanOperatorTableTest : public ::testing::Test {
   ScopedStmt stmt_;
 };
 
-TEST_F(SpanOperatorTableTest, JoinTwoSpanTables) {
+TEST_F(SpanJoinOperatorTableTest, JoinTwoSpanTables) {
   RunStatement(
       "CREATE TEMP TABLE f("
       "ts UNSIGNED BIG INT PRIMARY KEY, "
@@ -72,8 +72,8 @@ TEST_F(SpanOperatorTableTest, JoinTwoSpanTables) {
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
-      "CREATE VIRTUAL TABLE sp USING span(f PARTITIONED cpu, s PARTITIONED "
-      "cpu);");
+      "CREATE VIRTUAL TABLE sp USING span_join(f PARTITIONED cpu, "
+      "s PARTITIONED cpu);");
 
   RunStatement("INSERT INTO f VALUES(100, 10, 5);");
   RunStatement("INSERT INTO f VALUES(110, 50, 5);");

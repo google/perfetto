@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SPAN_OPERATOR_TABLE_H_
-#define SRC_TRACE_PROCESSOR_SPAN_OPERATOR_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_SPAN_JOIN_OPERATOR_TABLE_H_
+#define SRC_TRACE_PROCESSOR_SPAN_JOIN_OPERATOR_TABLE_H_
 
 #include <sqlite3.h>
 #include <array>
@@ -63,7 +63,7 @@ namespace trace_processor {
 //
 // All other columns apart from timestamp (ts), duration (dur) and the join key
 // are passed through unchanged.
-class SpanOperatorTable : public Table {
+class SpanJoinOperatorTable : public Table {
  public:
   // Columns of the span operator table.
   enum Column {
@@ -73,7 +73,7 @@ class SpanOperatorTable : public Table {
     // All other columns are dynamic depending on the joined tables.
   };
 
-  SpanOperatorTable(sqlite3*, const TraceStorage*);
+  SpanJoinOperatorTable(sqlite3*, const TraceStorage*);
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
@@ -116,7 +116,7 @@ class SpanOperatorTable : public Table {
   // Cursor on the span table.
   class Cursor : public Table::Cursor {
    public:
-    Cursor(SpanOperatorTable*, sqlite3* db);
+    Cursor(SpanJoinOperatorTable*, sqlite3* db);
     ~Cursor() override;
 
     int Initialize(const QueryConstraints& qc, sqlite3_value** argv);
@@ -128,7 +128,9 @@ class SpanOperatorTable : public Table {
     // State of a query on a particular table.
     class TableQueryState {
      public:
-      TableQueryState(SpanOperatorTable*, const TableDefinition*, sqlite3* db);
+      TableQueryState(SpanJoinOperatorTable*,
+                      const TableDefinition*,
+                      sqlite3* db);
 
       int Initialize(const QueryConstraints& qc, sqlite3_value** argv);
       int StepAndCacheValues();
@@ -152,14 +154,14 @@ class SpanOperatorTable : public Table {
 
       const TableDefinition* const defn_;
       sqlite3* const db_;
-      SpanOperatorTable* const table_;
+      SpanJoinOperatorTable* const table_;
     };
 
     TableQueryState t1_;
     TableQueryState t2_;
     TableQueryState* next_stepped_table_ = nullptr;
 
-    SpanOperatorTable* const table_;
+    SpanJoinOperatorTable* const table_;
   };
 
   // Identifier for a column by index in a given table.
@@ -187,4 +189,4 @@ class SpanOperatorTable : public Table {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SPAN_OPERATOR_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_SPAN_JOIN_OPERATOR_TABLE_H_
