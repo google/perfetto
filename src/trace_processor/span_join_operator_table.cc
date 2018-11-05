@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/span_operator_table.h"
+#include "src/trace_processor/span_join_operator_table.h"
 
 #include <sqlite3.h>
 #include <string.h>
@@ -36,16 +36,16 @@ constexpr uint64_t kU64Max = std::numeric_limits<uint64_t>::max();
 
 }  // namespace
 
-SpanOperatorTable::SpanOperatorTable(sqlite3* db, const TraceStorage*)
+SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
     : db_(db) {}
 
-void SpanOperatorTable::RegisterTable(sqlite3* db,
-                                      const TraceStorage* storage) {
-  Table::Register<SpanOperatorTable>(db, storage, "span");
+void SpanJoinOperatorTable::RegisterTable(sqlite3* db,
+                                          const TraceStorage* storage) {
+  Table::Register<SpanJoinOperatorTable>(db, storage, "span_join");
 }
 
-Table::Schema SpanOperatorTable::CreateSchema(int argc,
-                                              const char* const* argv) {
+Table::Schema SpanJoinOperatorTable::CreateSchema(int argc,
+                                                  const char* const* argv) {
   // argv[0] - argv[2] are SQLite populated fields which are always present.
   if (argc < 5) {
     PERFETTO_ELOG("SPAN JOIN expected at least 2 args, received %d", argc - 3);
@@ -86,7 +86,7 @@ Table::Schema SpanOperatorTable::CreateSchema(int argc,
   return Schema(cols, {Column::kTimestamp, Column::kPartition});
 }
 
-void SpanOperatorTable::CreateSchemaColsForDefn(
+void SpanJoinOperatorTable::CreateSchemaColsForDefn(
     const TableDefinition& defn,
     bool is_same_partition,
     std::vector<Table::Column>* cols) {
@@ -105,21 +105,22 @@ void SpanOperatorTable::CreateSchemaColsForDefn(
   }
 }
 
-std::unique_ptr<Table::Cursor> SpanOperatorTable::CreateCursor(
+std::unique_ptr<Table::Cursor> SpanJoinOperatorTable::CreateCursor(
     const QueryConstraints& qc,
     sqlite3_value** argv) {
-  auto cursor = std::unique_ptr<SpanOperatorTable::Cursor>(
-      new SpanOperatorTable::Cursor(this, db_));
+  auto cursor = std::unique_ptr<SpanJoinOperatorTable::Cursor>(
+      new SpanJoinOperatorTable::Cursor(this, db_));
   int value = cursor->Initialize(qc, argv);
   return value != SQLITE_OK ? nullptr : std::move(cursor);
 }
 
-int SpanOperatorTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
+int SpanJoinOperatorTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
   // TODO(lalitm): figure out cost estimation.
   return SQLITE_OK;
 }
 
-std::vector<std::string> SpanOperatorTable::ComputeSqlConstraintsForDefinition(
+std::vector<std::string>
+SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
     const TableDefinition& defn,
     const QueryConstraints& qc,
     sqlite3_value** argv) {
@@ -146,13 +147,13 @@ std::vector<std::string> SpanOperatorTable::ComputeSqlConstraintsForDefinition(
   return constraints;
 }
 
-SpanOperatorTable::Cursor::Cursor(SpanOperatorTable* table, sqlite3* db)
+SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
     : t1_(table, &table->t1_defn_, db),
       t2_(table, &table->t2_defn_, db),
       table_(table) {}
 
-int SpanOperatorTable::Cursor::Initialize(const QueryConstraints& qc,
-                                          sqlite3_value** argv) {
+int SpanJoinOperatorTable::Cursor::Initialize(const QueryConstraints& qc,
+                                              sqlite3_value** argv) {
   int err = t1_.Initialize(qc, argv);
   if (err != SQLITE_OK)
     return err;
@@ -174,9 +175,9 @@ int SpanOperatorTable::Cursor::Initialize(const QueryConstraints& qc,
   return Next();
 }
 
-SpanOperatorTable::Cursor::~Cursor() {}
+SpanJoinOperatorTable::Cursor::~Cursor() {}
 
-int SpanOperatorTable::Cursor::Next() {
+int SpanJoinOperatorTable::Cursor::Next() {
   int err = next_stepped_table_->StepAndCacheValues();
   for (; err == SQLITE_ROW; err = next_stepped_table_->StepAndCacheValues()) {
     // Get both tables on the same parition.
@@ -206,11 +207,11 @@ int SpanOperatorTable::Cursor::Next() {
   return err == SQLITE_DONE ? SQLITE_OK : err;
 }
 
-int SpanOperatorTable::Cursor::Eof() {
+int SpanJoinOperatorTable::Cursor::Eof() {
   return t1_.ts_start() == kU64Max || t2_.ts_start() == kU64Max;
 }
 
-int SpanOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
+int SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
   switch (N) {
     case Column::kTimestamp: {
       auto max_ts = std::max(t1_.ts_start(), t2_.ts_start());
@@ -245,20 +246,20 @@ int SpanOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
   return SQLITE_OK;
 }
 
-SpanOperatorTable::Cursor::TableQueryState::TableQueryState(
-    SpanOperatorTable* table,
+SpanJoinOperatorTable::Cursor::TableQueryState::TableQueryState(
+    SpanJoinOperatorTable* table,
     const TableDefinition* definition,
     sqlite3* db)
     : defn_(definition), db_(db), table_(table) {}
 
-int SpanOperatorTable::Cursor::TableQueryState::Initialize(
+int SpanJoinOperatorTable::Cursor::TableQueryState::Initialize(
     const QueryConstraints& qc,
     sqlite3_value** argv) {
   auto cs = table_->ComputeSqlConstraintsForDefinition(*defn_, qc, argv);
   return PrepareRawStmt(CreateSqlQuery(cs));
 }
 
-int SpanOperatorTable::Cursor::TableQueryState::StepAndCacheValues() {
+int SpanJoinOperatorTable::Cursor::TableQueryState::StepAndCacheValues() {
   sqlite3_stmt* stmt = stmt_.get();
   int res = sqlite3_step(stmt);
   if (res == SQLITE_ROW) {
@@ -276,7 +277,7 @@ int SpanOperatorTable::Cursor::TableQueryState::StepAndCacheValues() {
   return res;
 }
 
-std::string SpanOperatorTable::Cursor::TableQueryState::CreateSqlQuery(
+std::string SpanJoinOperatorTable::Cursor::TableQueryState::CreateSqlQuery(
     const std::vector<std::string>& cs) {
   // TODO(lalitm): pass through constraints on other tables to those tables.
   std::string sql;
@@ -296,7 +297,7 @@ std::string SpanOperatorTable::Cursor::TableQueryState::CreateSqlQuery(
   return sql;
 }
 
-int SpanOperatorTable::Cursor::TableQueryState::PrepareRawStmt(
+int SpanJoinOperatorTable::Cursor::TableQueryState::PrepareRawStmt(
     const std::string& sql) {
   PERFETTO_DLOG("%s", sql.c_str());
   int size = static_cast<int>(sql.size());
@@ -307,7 +308,7 @@ int SpanOperatorTable::Cursor::TableQueryState::PrepareRawStmt(
   return err;
 }
 
-void SpanOperatorTable::Cursor::TableQueryState::ReportSqliteResult(
+void SpanJoinOperatorTable::Cursor::TableQueryState::ReportSqliteResult(
     sqlite3_context* context,
     size_t index) {
   sqlite3_stmt* stmt = stmt_.get();
@@ -332,7 +333,7 @@ void SpanOperatorTable::Cursor::TableQueryState::ReportSqliteResult(
   }
 }
 
-SpanOperatorTable::TableDefinition::TableDefinition(
+SpanJoinOperatorTable::TableDefinition::TableDefinition(
     std::string name,
     std::string partition_col,
     std::vector<Table::Column> cols)
@@ -340,7 +341,8 @@ SpanOperatorTable::TableDefinition::TableDefinition(
       partition_col_(std::move(partition_col)),
       cols_(std::move(cols)) {}
 
-SpanOperatorTable::TableDescriptor SpanOperatorTable::TableDescriptor::Parse(
+SpanJoinOperatorTable::TableDescriptor
+SpanJoinOperatorTable::TableDescriptor::Parse(
     const std::string& raw_descriptor) {
   // Descriptors have one of the following forms:
   // table_name PARTITIONED column_name

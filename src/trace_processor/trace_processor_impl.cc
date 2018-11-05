@@ -31,7 +31,7 @@
 #include "src/trace_processor/sched_slice_table.h"
 #include "src/trace_processor/slice_table.h"
 #include "src/trace_processor/slice_tracker.h"
-#include "src/trace_processor/span_operator_table.h"
+#include "src/trace_processor/span_join_operator_table.h"
 #include "src/trace_processor/sql_stats_table.h"
 #include "src/trace_processor/string_table.h"
 #include "src/trace_processor/table.h"
@@ -64,7 +64,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   StringTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
   CountersTable::RegisterTable(*db_, context_.storage.get());
-  SpanOperatorTable::RegisterTable(*db_, context_.storage.get());
+  SpanJoinOperatorTable::RegisterTable(*db_, context_.storage.get());
   WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
   InstantsTable::RegisterTable(*db_, context_.storage.get());
 }
