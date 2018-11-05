@@ -41,12 +41,28 @@
 
 #include "perfetto/trace_processor/raw_query.pb.h"
 
+// defined in sqlite_src/ext/misc/percentile.c
+extern "C" int sqlite3_percentile_init(sqlite3* db,
+                                       char** error,
+                                       const sqlite3_api_routines* api);
+
+namespace {
+void InitializeSqliteModules(sqlite3* db) {
+  char* error = nullptr;
+  sqlite3_percentile_init(db, &error, nullptr);
+  if (error != nullptr) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+  }
+}
+}  // namespace
+
 namespace perfetto {
 namespace trace_processor {
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   sqlite3* db = nullptr;
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
+  InitializeSqliteModules(db);
   db_.reset(std::move(db));
 
   context_.storage.reset(new TraceStorage());
