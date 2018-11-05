@@ -93,6 +93,12 @@ template <typename T>
 T ExtractSqliteValue(sqlite3_value* value);
 
 template <>
+inline uint8_t ExtractSqliteValue(sqlite3_value* value) {
+  PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
+  return static_cast<uint8_t>(sqlite3_value_int(value));
+}
+
+template <>
 inline uint32_t ExtractSqliteValue(sqlite3_value* value) {
   PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
   return static_cast<uint32_t>(sqlite3_value_int64(value));
@@ -137,6 +143,11 @@ inline void ReportSqliteResult(sqlite3_context* ctx, int32_t value) {
 template <>
 inline void ReportSqliteResult(sqlite3_context* ctx, int64_t value) {
   sqlite3_result_int64(ctx, value);
+}
+
+template <>
+inline void ReportSqliteResult(sqlite3_context* ctx, uint8_t value) {
+  sqlite3_result_int(ctx, value);
 }
 
 template <>
