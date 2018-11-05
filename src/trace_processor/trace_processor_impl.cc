@@ -22,6 +22,7 @@
 #include "perfetto/base/time.h"
 #include "src/trace_processor/counters_table.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/instants_table.h"
 #include "src/trace_processor/json_trace_parser.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/process_tracker.h"
@@ -65,6 +66,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   CountersTable::RegisterTable(*db_, context_.storage.get());
   SpanOperatorTable::RegisterTable(*db_, context_.storage.get());
   WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
+  InstantsTable::RegisterTable(*db_, context_.storage.get());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
