@@ -83,15 +83,6 @@ class CounterTrack extends Track<Config, Data> {
     }
     if (data === undefined) return;  // Can't possibly draw anything.
 
-    // If the cached trace slices don't fully cover the visible time range,
-    // show a gray rectangle with a "Loading..." label.
-    checkerboardExcept(
-        ctx,
-        timeScale.timeToPx(visibleWindowTime.start),
-        timeScale.timeToPx(visibleWindowTime.end),
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end));
-
     assertTrue(data.timestamps.length === data.values.length);
 
     const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
@@ -168,6 +159,15 @@ class CounterTrack extends Track<Config, Data> {
     ctx.fillStyle = '#666';
     ctx.textAlign = 'left';
     ctx.fillText(`${yLabel}`, 5, 14);
+
+    // If the cached trace slices don't fully cover the visible time range,
+    // show a gray rectangle with a "Loading..." label.
+    checkerboardExcept(
+        ctx,
+        timeScale.timeToPx(visibleWindowTime.start),
+        timeScale.timeToPx(visibleWindowTime.end),
+        timeScale.timeToPx(data.start),
+        timeScale.timeToPx(data.end));
   }
 
   onMouseMove({x}: {x: number, y: number}) {

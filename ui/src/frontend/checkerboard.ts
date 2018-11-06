@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // TODO(hjd): Dedupe these.
-const SLICE_HEIGHT = 30;
+const SLICE_HEIGHT = 32;
 const TRACK_PADDING = 5;
 
 /**
