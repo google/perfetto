@@ -27,7 +27,7 @@ OUT_PATH="out/dist"
 
 tools/install-build-deps --no-android
 
-pip install --user protobuf
+pip install --quiet --user protobuf
 
 if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
   export ASAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
