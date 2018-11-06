@@ -75,26 +75,25 @@ Table::Schema SpanJoinOperatorTable::CreateSchema(int argc,
   cols.emplace_back(Column::kTimestamp, "ts", ColumnType::kUlong);
   cols.emplace_back(Column::kDuration, "dur", ColumnType::kUlong);
 
-  bool is_same_partition = t1_desc.partition_col == t2_desc.partition_col;
+  is_same_partition_ = t1_desc.partition_col == t2_desc.partition_col;
   const auto& partition_col = t1_desc.partition_col;
-  if (is_same_partition)
+  if (is_same_partition_)
     cols.emplace_back(Column::kPartition, partition_col, ColumnType::kLong);
 
-  CreateSchemaColsForDefn(t1_defn_, is_same_partition, &cols);
-  CreateSchemaColsForDefn(t2_defn_, is_same_partition, &cols);
+  CreateSchemaColsForDefn(t1_defn_, &cols);
+  CreateSchemaColsForDefn(t2_defn_, &cols);
 
   return Schema(cols, {Column::kTimestamp, Column::kPartition});
 }
 
 void SpanJoinOperatorTable::CreateSchemaColsForDefn(
     const TableDefinition& defn,
-    bool is_same_partition,
     std::vector<Table::Column>* cols) {
   for (size_t i = 0; i < defn.columns().size(); i++) {
     const auto& n = defn.columns()[i].name();
     if (n == "ts" || n == "dur")
       continue;
-    else if (n == defn.partition_col() && is_same_partition)
+    else if (n == defn.partition_col() && is_same_partition_)
       continue;
 
     ColumnLocator* locator = &global_index_to_column_locator_[cols->size()];
@@ -127,24 +126,38 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
   std::vector<std::string> constraints;
   for (size_t i = 0; i < qc.constraints().size(); i++) {
     const auto& cs = qc.constraints()[i];
-    if (cs.iColumn == Column::kTimestamp || cs.iColumn == Column::kDuration) {
+    auto col_name = GetNameForGlobalColumnIndex(defn, cs.iColumn);
+    if (col_name == "")
+      continue;
+
+    if (col_name == "ts" || col_name == "dur") {
       // We don't support constraints on ts or duration in the child tables.
       PERFETTO_DCHECK(false);
       continue;
     }
-
-    size_t col_idx = static_cast<size_t>(cs.iColumn);
-    const auto& locator = global_index_to_column_locator_[col_idx];
-    if (locator.defn != &defn)
-      continue;
-
-    const auto& col_name = defn.columns()[locator.col_index].name();
     auto op = sqlite_utils::OpToString(cs.op);
     auto value = sqlite_utils::SqliteValueAsString(argv[i]);
 
     constraints.emplace_back("`" + col_name + "`" + op + value);
   }
   return constraints;
+}
+
+std::string SpanJoinOperatorTable::GetNameForGlobalColumnIndex(
+    const TableDefinition& defn,
+    int global_column) {
+  size_t col_idx = static_cast<size_t>(global_column);
+  if (col_idx == Column::kTimestamp)
+    return "ts";
+  else if (col_idx == Column::kDuration)
+    return "dur";
+  else if (is_same_partition_ && col_idx == Column::kPartition)
+    return defn.partition_col().c_str();
+
+  const auto& locator = global_index_to_column_locator_[col_idx];
+  if (locator.defn != &defn)
+    return "";
+  return defn.columns()[locator.col_index].name().c_str();
 }
 
 SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
