@@ -15,6 +15,9 @@
     --sidebar-width: 256px;
     --topbar-height: 48px;
     --monospace-font: 'Roboto Mono', monospace;
+
+    // Keep in sync with TRACK_SHELL_WIDTH in track_panel.ts .
+    --track-shell-width: 250px;
 }
 
 @mixin transition($time:0.1s) {
@@ -152,7 +155,7 @@ button.close {
 }
 
 .home-page .logo {
-    width: 250px;
+    width: var(--track-shell-width);
 }
 
 .home-page-title {
@@ -229,30 +232,57 @@ button.close {
 .track {
     display: grid;
     grid-template-columns: auto 1fr;
-    grid-template-rows: 1fr;
-    border-top: 1px solid #c7d0db;
+    grid-template-rows: 1fr 0;
+
+    &:after {
+      display: block;
+      content: '';
+      grid-column: 1 / span 2;
+      border-top: 1px solid #c7d0db;
+      margin-top: -1px;
+    }
+
     .track-shell {
-        padding: 0 20px;
+        @include transition();
+        padding: 0 10px;
         display: grid;
-        grid-template-areas: "title pin up down";
+        grid-template-areas: "title pin";
         grid-template-columns: 1fr auto auto;
         align-items: center;
-        width: 300px;
+        width: var(--track-shell-width);
         background: #fff;
         border-right: 1px solid #c7d0db;
+
+        &.drag {
+          background-color: #eee;
+          box-shadow: 0 4px 12px -4px #999 inset;
+        }
+        &.drop-before {
+          box-shadow: 0 4px 2px -1px hsl(213, 40%, 50%) inset;
+        }
+        &.drop-after {
+          box-shadow: 0 -4px 2px -1px hsl(213, 40%, 50%) inset;
+        }
+
         h1 {
             grid-area: title;
             margin: 0;
-            font-size: 1em;
+            font-size: 14px;
             text-overflow: ellipsis;
             font-family: 'Google Sans';
             color: hsl(213, 22%, 30%);
         }
         .track-button {
-            margin: 0 5px;
-            color: #495767;
-            cursor: pointer;
-            width: 24px;
+          @include transition();
+          margin: 0 5px;
+          color: #495767;
+          cursor: pointer;
+          width: 24px;
+          opacity: 0;
+        }
+
+        &:hover .track-button{
+          opacity: 1;
         }
     }
 }
@@ -270,7 +300,12 @@ button.close {
   // Override top level overflow: hidden so height of this flex item can be
   // its content height.
   overflow: visible;
-  border-bottom: 1px solid #262f3c;
+
+  // If there are 3 or more panels pinned (there are pinned tracks), make the
+  // border thicker.
+  .panel:nth-child(3) ~ .panel:last-of-type {
+    border-bottom: 4px solid hsla(213, 55%, 60%, 1);
+  }
 }
 
 // In the scrolling case, since the canvas is overdrawn and continuously
@@ -304,6 +339,7 @@ canvas.main-canvas {
 
 .time-axis-panel {
   height: 30px;
+  border-bottom: 1px solid #c7d0db;
 }
 
 .flame-graph-panel {
@@ -423,24 +459,19 @@ span.code {
     background-color: var(--expanded-background);
     color: white;
     font-weight: bold;
-    .shell {
-      h1 {
-        font-size: 15px;
-      }
-    }
   }
   .shell {
-    padding: 0 20px;
+    padding: 0 10px;
     display: grid;
     grid-template-areas: "title fold-button";
     grid-template-columns: 1fr 24px;
     align-items: center;
     line-height: 1;
-    width: 300px;
+    width: 250px;
     transition: background-color .4s;
     h1 {
       grid-area: title;
-      font-size: 1em;
+      font-size: 14px;
       text-overflow: ellipsis;
       font-family: 'Google Sans';
     }
