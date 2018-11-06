@@ -138,31 +138,31 @@ export const StateActions = {
   },
 
   moveTrack(
-      state: StateDraft, args: {trackId: string; direction: 'up' | 'down';}):
-      void {
-        const id = args.trackId;
-        const isPinned = state.pinnedTracks.includes(id);
-        const isScrolling = state.scrollingTracks.includes(id);
-        if (!isScrolling && !isPinned) {
-          // TODO(dproy): Handle track moving within track groups.
-          return;
+      state: StateDraft,
+      args: {srcId: string; op: 'before' | 'after', dstId: string}): void {
+    const moveWithinTrackList = (trackList: string[]) => {
+      const newList: string[] = [];
+      for (let i = 0; i < trackList.length; i++) {
+        const curTrackId = trackList[i];
+        if (curTrackId === args.dstId && args.op === 'before') {
+          newList.push(args.srcId);
         }
-        const tracks = isPinned ? state.pinnedTracks : state.scrollingTracks;
+        if (curTrackId !== args.srcId) {
+          newList.push(curTrackId);
+        }
+        if (curTrackId === args.dstId && args.op === 'after') {
+          newList.push(args.srcId);
+        }
+      }
+      trackList.splice(0);
+      newList.forEach(x => {
+        trackList.push(x);
+      });
+    };
 
-        const oldIndex: number = tracks.indexOf(id);
-        const newIndex = args.direction === 'up' ? oldIndex - 1 : oldIndex + 1;
-        const swappedTrackId = tracks[newIndex];
-        if (isPinned && newIndex === state.pinnedTracks.length) {
-          // Move from last element of pinned to first element of scrolling.
-          state.scrollingTracks.unshift(state.pinnedTracks.pop()!);
-        } else if (isScrolling && newIndex === -1) {
-          // Move first element of scrolling to last element of pinned.
-          state.pinnedTracks.push(state.scrollingTracks.shift()!);
-        } else if (swappedTrackId) {
-          tracks[newIndex] = id;
-          tracks[oldIndex] = swappedTrackId;
-        }
-      },
+    moveWithinTrackList(state.pinnedTracks);
+    moveWithinTrackList(state.scrollingTracks);
+  },
 
   toggleTrackPinned(state: StateDraft, args: {trackId: string}): void {
     const id = args.trackId;
