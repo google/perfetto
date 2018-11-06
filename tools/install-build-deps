@@ -342,7 +342,7 @@ def CheckoutGitRepo(path, git_url, revision):
   logging.info('Fetching %s @ %s into %s', git_url, revision, path)
   subprocess.check_call(['git', 'init', path], cwd=path)
   subprocess.check_call(
-    ['git', 'fetch', '--depth', '1', git_url, revision], cwd=path)
+    ['git', 'fetch', '--quiet', '--depth', '1', git_url, revision], cwd=path)
   subprocess.check_call(['git', 'checkout', revision, '--quiet'], cwd=path)
   assert(IsGitRepoCheckoutOutAtRevision(path, revision))
 
