@@ -175,12 +175,15 @@ class SpanJoinOperatorTable : public Table {
       const QueryConstraints& qc,
       sqlite3_value** argv);
 
+  std::string GetNameForGlobalColumnIndex(const TableDefinition& defn,
+                                          int global_column);
+
   void CreateSchemaColsForDefn(const TableDefinition& defn,
-                               bool is_same_partition,
                                std::vector<Table::Column>* cols);
 
   TableDefinition t1_defn_;
   TableDefinition t2_defn_;
+  bool is_same_partition_;
   std::unordered_map<size_t, ColumnLocator> global_index_to_column_locator_;
 
   sqlite3* const db_;
