@@ -201,11 +201,12 @@ bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out) {
   }
 }
 
-__attribute__((noreturn)) void UnwindingMainLoop(
-    BoundedQueue<UnwindingRecord>* input_queue,
-    BoundedQueue<BookkeepingRecord>* output_queue) {
+void UnwindingMainLoop(BoundedQueue<UnwindingRecord>* input_queue,
+                       BoundedQueue<BookkeepingRecord>* output_queue) {
   for (;;) {
-    UnwindingRecord rec = input_queue->Get();
+    UnwindingRecord rec;
+    if (!input_queue->Get(&rec))
+      return;
     BookkeepingRecord out;
     if (HandleUnwindingRecord(&rec, &out))
       output_queue->Add(std::move(out));
