@@ -236,10 +236,11 @@ void BookkeepingThread::NotifyClientDisconnected(pid_t pid) {
   it->second.ref_count--;
 }
 
-__attribute__((noreturn)) void BookkeepingThread::Run(
-    BoundedQueue<BookkeepingRecord>* input_queue) {
+void BookkeepingThread::Run(BoundedQueue<BookkeepingRecord>* input_queue) {
   for (;;) {
-    BookkeepingRecord rec = input_queue->Get();
+    BookkeepingRecord rec;
+    if (!input_queue->Get(&rec))
+      return;
     HandleBookkeepingRecord(&rec);
   }
 }
