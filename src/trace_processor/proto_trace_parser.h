@@ -78,6 +78,7 @@ class ProtoTraceParser {
   void ParseIonHeapShrink(uint64_t ts, uint32_t pid, TraceBlobView);
   void ParseSignalDeliver(uint64_t ts, uint32_t pid, TraceBlobView);
   void ParseSignalGenerate(uint64_t ts, TraceBlobView);
+  void ParseLowmemoryKill(uint64_t ts, TraceBlobView);
 
  private:
   TraceProcessorContext* context_;
