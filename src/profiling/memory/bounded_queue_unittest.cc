@@ -28,18 +28,36 @@ TEST(BoundedQueueTest, IsFIFO) {
   BoundedQueue<int> q(2);
   q.Add(1);
   q.Add(2);
-  EXPECT_EQ(q.Get(), 1);
-  EXPECT_EQ(q.Get(), 2);
+  int out;
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 1);
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 2);
 }
 
-TEST(BoundedQueueTest, Blocking) {
+TEST(BoundedQueueTest, BlockingAdd) {
   BoundedQueue<int> q(2);
   q.Add(1);
   q.Add(2);
   std::thread th([&q] { q.Add(3); });
-  EXPECT_EQ(q.Get(), 1);
-  EXPECT_EQ(q.Get(), 2);
-  EXPECT_EQ(q.Get(), 3);
+  int out;
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 1);
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 2);
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 3);
+  th.join();
+}
+
+TEST(BoundedQueueTest, BlockingGet) {
+  BoundedQueue<int> q(2);
+  std::thread th([&q] {
+    int out;
+    EXPECT_TRUE(q.Get(&out));
+    EXPECT_EQ(out, 1);
+  });
+  q.Add(1);
   th.join();
 }
 
@@ -49,9 +67,52 @@ TEST(BoundedQueueTest, Resize) {
   q.Add(2);
   q.SetCapacity(3);
   q.Add(3);
-  EXPECT_EQ(q.Get(), 1);
-  EXPECT_EQ(q.Get(), 2);
-  EXPECT_EQ(q.Get(), 3);
+  int out;
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 1);
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 2);
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 3);
+}
+
+TEST(BoundedQueueTest, Shutdown) {
+  BoundedQueue<int> q(3);
+  q.Add(1);
+  q.Add(2);
+  q.Add(3);
+  int out;
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 1);
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 2);
+  q.Shutdown();
+  EXPECT_FALSE(q.Get(&out));
+}
+
+TEST(BoundedQueueTest, ShutdownBlockingAdd) {
+  BoundedQueue<int> q(2);
+  q.Add(1);
+  q.Add(2);
+  std::thread th([&q] { EXPECT_FALSE(q.Add(3)); });
+  int out;
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 1);
+  EXPECT_TRUE(q.Get(&out));
+  EXPECT_EQ(out, 2);
+  q.Shutdown();
+  th.join();
+}
+
+TEST(BoundedQueueTest, ShutdownBlockingGet) {
+  BoundedQueue<int> q(1);
+  std::thread th([&q] {
+    int out;
+    EXPECT_FALSE(q.Get(&out));
+  });
+
+  q.Shutdown();
+  th.join();
 }
 
 }  // namespace
