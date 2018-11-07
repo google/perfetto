@@ -173,9 +173,16 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
   }
 
   if (rec->record_type == BookkeepingRecord::Type::Dump) {
+    DumpRecord& dump_rec = rec->dump_record;
+    std::shared_ptr<TraceWriter> trace_writer = dump_rec.trace_writer.lock();
+    if (!trace_writer)
+      return;
     PERFETTO_LOG("Dumping heaps");
-    auto it = bookkeeping_data_.begin();
-    while (it != bookkeeping_data_.end()) {
+    for (const pid_t pid : dump_rec.pids) {
+      auto it = bookkeeping_data_.find(pid);
+      if (it == bookkeeping_data_.end())
+        continue;
+
       std::string dump_file_name = file_name_ + "." + std::to_string(it->first);
       PERFETTO_LOG("Dumping %d to %s", it->first, dump_file_name.c_str());
       base::ScopedFile fd =
@@ -188,10 +195,9 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
       if (it->second.ref_count == 0) {
         std::lock_guard<std::mutex> l(bookkeeping_mutex_);
         it = bookkeeping_data_.erase(it);
-      } else {
-        ++it;
       }
     }
+    dump_rec.callback();
   } else if (rec->record_type == BookkeepingRecord::Type::Free) {
     FreeRecord& free_rec = rec->free_record;
     FreePageEntry* entries = free_rec.metadata->entries;

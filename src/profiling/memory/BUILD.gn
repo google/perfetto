@@ -45,10 +45,14 @@ source_set("daemon") {
     "../../../gn:default_deps",
     "../../base",
     "../../base:unix_socket",
+    "../../tracing",
+    "../../tracing:ipc",
   ]
   sources = [
     "bookkeeping.cc",
     "bookkeeping.h",
+    "heapprofd_producer.cc",
+    "heapprofd_producer.h",
     "queue_messages.h",
     "record_reader.cc",
     "record_reader.h",

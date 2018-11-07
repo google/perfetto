@@ -40,8 +40,8 @@ class FileDescriptorMaps : public unwindstack::Maps {
   base::ScopedFile fd_;
 };
 
-struct ProcessMetadata {
-  ProcessMetadata(pid_t p, base::ScopedFile maps_fd, base::ScopedFile mem)
+struct UnwindingMetadata {
+  UnwindingMetadata(pid_t p, base::ScopedFile maps_fd, base::ScopedFile mem)
       : pid(p), maps(std::move(maps_fd)), mem_fd(std::move(mem)) {
     PERFETTO_CHECK(maps.Parse());
   }
@@ -65,7 +65,7 @@ class StackMemory : public unwindstack::Memory {
   uint8_t* stack_;
 };
 
-bool DoUnwind(WireMessage*, ProcessMetadata* metadata, AllocRecord* out);
+bool DoUnwind(WireMessage*, UnwindingMetadata* metadata, AllocRecord* out);
 
 bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out);
 

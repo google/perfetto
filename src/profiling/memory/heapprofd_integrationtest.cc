@@ -59,7 +59,6 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
   auto done = task_runner.CreateCheckpoint("done");
   constexpr uint64_t kSamplingInterval = 123;
   SocketListener listener(
-      {kSamplingInterval},
       [&done, &bookkeeping_thread](UnwindingRecord r) {
         // TODO(fmayer): Test symbolization and result of unwinding.
         // This check will only work on in-tree builds as out-of-tree
@@ -71,6 +70,7 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
       },
       &bookkeeping_thread);
 
+  listener.ExpectPID(getpid(), {kSamplingInterval});
   auto sock = base::UnixSocket::Listen(kSocketName, &listener, &task_runner);
   if (!sock->is_listening()) {
     PERFETTO_ELOG("Socket not listening.");
