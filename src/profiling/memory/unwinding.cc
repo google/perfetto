@@ -135,7 +135,7 @@ void FileDescriptorMaps::Reset() {
   maps_.clear();
 }
 
-bool DoUnwind(WireMessage* msg, ProcessMetadata* metadata, AllocRecord* out) {
+bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   AllocMetadata* alloc_metadata = msg->alloc_header;
   std::unique_ptr<unwindstack::Regs> regs(
       CreateFromRawData(alloc_metadata->arch, alloc_metadata->register_data));
@@ -175,7 +175,7 @@ bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out) {
                           &msg))
     return false;
   if (msg.record_type == RecordType::Malloc) {
-    std::shared_ptr<ProcessMetadata> metadata = rec->metadata.lock();
+    std::shared_ptr<UnwindingMetadata> metadata = rec->metadata.lock();
     if (!metadata) {
       // Process has already gone away.
       return false;

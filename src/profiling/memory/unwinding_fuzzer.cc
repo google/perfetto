@@ -27,7 +27,7 @@ namespace {
 
 int FuzzUnwinding(const uint8_t* data, size_t size) {
   UnwindingRecord record;
-  auto process_metadata = std::make_shared<ProcessMetadata>(
+  auto unwinding_metadata = std::make_shared<UnwindingMetadata>(
       getpid(), base::OpenFile("/proc/self/maps", O_RDONLY),
       base::OpenFile("/proc/self/mem", O_RDONLY));
 
@@ -35,7 +35,7 @@ int FuzzUnwinding(const uint8_t* data, size_t size) {
   record.size = size;
   record.data.reset(new uint8_t[size]);
   memcpy(record.data.get(), data, size);
-  record.metadata = process_metadata;
+  record.metadata = unwinding_metadata;
 
   BookkeepingRecord out;
   HandleUnwindingRecord(&record, &out);
