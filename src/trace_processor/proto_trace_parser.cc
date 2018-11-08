@@ -48,14 +48,12 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
 
   // If str matches '[BEC]\|[0-9]+[\|\n]' set tid_length to the length of
   // the number. Otherwise return false.
-  if (len < 3 || s[1] != '|')
+  if (s[1] != '|' && s[1] != '\n')
     return false;
   if (s[0] != 'B' && s[0] != 'E' && s[0] != 'C')
     return false;
-  size_t tid_length;
-  for (size_t i = 2;; i++) {
-    if (i >= len)
-      return false;
+  size_t tid_length = 0;
+  for (size_t i = 2; i < len; i++) {
     if (s[i] == '|' || s[i] == '\n') {
       tid_length = i - 2;
       break;
@@ -64,8 +62,12 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
       return false;
   }
 
-  std::string tid_str(s + 2, tid_length);
-  out->tid = static_cast<uint32_t>(std::stoi(tid_str.c_str()));
+  if (tid_length == 0) {
+    out->tid = 0;
+  } else {
+    std::string tid_str(s + 2, tid_length);
+    out->tid = static_cast<uint32_t>(std::stoi(tid_str.c_str()));
+  }
 
   out->phase = s[0];
   switch (s[0]) {
@@ -527,7 +529,7 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
       case protos::FtraceEvent::kPrintFieldNumber: {
         PERFETTO_DCHECK(timestamp > 0);
         const size_t fld_off = ftrace.offset_of(fld.data());
-        ParsePrint(cpu, timestamp, ftrace.slice(fld_off, fld.size()));
+        ParsePrint(cpu, timestamp, pid, ftrace.slice(fld_off, fld.size()));
         break;
       }
       case protos::FtraceEvent::kRssStatFieldNumber: {
@@ -755,6 +757,7 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
 
 void ProtoTraceParser::ParsePrint(uint32_t,
                                   uint64_t timestamp,
+                                  uint32_t pid,
                                   TraceBlobView print) {
   ProtoDecoder decoder(print.data(), print.length());
 
@@ -770,22 +773,22 @@ void ProtoTraceParser::ParsePrint(uint32_t,
   if (!ParseSystraceTracePoint(buf, &point))
     return;
 
-  UniqueTid utid =
-      context_->process_tracker->UpdateThread(timestamp, point.tid, 0);
-
   switch (point.phase) {
     case 'B': {
       StringId name_id = context_->storage->InternString(point.name);
-      context_->slice_tracker->Begin(timestamp, utid, 0 /*cat_id*/, name_id);
+      context_->slice_tracker->BeginAndroid(timestamp, pid, point.tid,
+                                            0 /*cat_id*/, name_id);
       break;
     }
 
     case 'E': {
-      context_->slice_tracker->End(timestamp, utid);
+      context_->slice_tracker->EndAndroid(timestamp, pid, point.tid);
       break;
     }
 
     case 'C': {
+      UniqueTid utid =
+          context_->process_tracker->UpdateThread(timestamp, point.tid, 0);
       StringId name_id = context_->storage->InternString(point.name);
       context_->event_tracker->PushCounter(timestamp, point.value, name_id,
                                            utid, RefType::kUtid);
