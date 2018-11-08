@@ -35,8 +35,6 @@ class TraceProcessorContext;
 // and supports only explicit TRACE_EVENT_BEGIN/END events.
 class JsonTraceParser : public ChunkedTraceReader {
  public:
-  static constexpr char kPreamble[] = "{\"traceEvents\":[";
-
   explicit JsonTraceParser(TraceProcessorContext*);
   ~JsonTraceParser() override;
 
