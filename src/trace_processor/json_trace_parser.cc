@@ -82,9 +82,6 @@ ReadDictRes ReadOneJsonDict(const char* start,
 
 }  // namespace
 
-// static
-constexpr char JsonTraceParser::kPreamble[];
-
 JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
     : context_(context) {}
 
@@ -97,12 +94,19 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
   const char* end = &buffer_[buffer_.size()];
 
   if (offset_ == 0) {
-    if (strncmp(buf, kPreamble, strlen(kPreamble))) {
-      buf[strlen(kPreamble)] = '\0';
-      PERFETTO_FATAL("Invalid trace preamble, expecting '%s' got '%s'",
-                     kPreamble, buf);
+    // Trace could begin in any of these ways:
+    // {"traceEvents":[{
+    // { "traceEvents": [{
+    // [{
+    // Skip up to the first '['
+    while (next != end && *next != '[') {
+      next++;
     }
-    next += strlen(kPreamble);
+    if (next == end) {
+      PERFETTO_ELOG("Failed to parse: first chunk missing opening [");
+      return false;
+    }
+    next++;
   }
 
   ProcessTracker* procs = context_->process_tracker.get();
@@ -123,8 +127,8 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
     uint32_t tid = value["tid"].asUInt();
     uint32_t pid = value["pid"].asUInt();
     uint64_t ts = value["ts"].asLargestUInt() * 1000;
-    const char* cat = value["cat"].asCString();
-    const char* name = value["name"].asCString();
+    const char* cat = value.isMember("cat") ? value["cat"].asCString() : "";
+    const char* name = value.isMember("name") ? value["name"].asCString() : "";
     StringId cat_id = storage->InternString(cat);
     StringId name_id = storage->InternString(name);
     UniqueTid utid = procs->UpdateThread(tid, pid);
