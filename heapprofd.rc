@@ -18,3 +18,4 @@ service heapprofd /system/bin/heapprofd
     user nobody
     group nobody
     writepid /dev/cpuset/system-background/tasks
+    capabilities KILL

@@ -55,8 +55,8 @@ TEST_F(SocketListenerTest, ReceiveRecord) {
   };
 
   BookkeepingThread actor("");
-  SocketListener listener({},  // We do not care about the sampling rate.
-                          std::move(callback_fn), &actor);
+  SocketListener listener(std::move(callback_fn), &actor);
+  auto handle = listener.ExpectPID(getpid(), {});
   MockEventListener client_listener;
   EXPECT_CALL(client_listener, OnConnect(_, _))
       .WillOnce(InvokeWithoutArgs(connected));
