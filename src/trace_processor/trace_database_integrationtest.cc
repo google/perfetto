@@ -78,12 +78,17 @@ TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
-  ASSERT_TRUE(LoadTrace("sfgate.json", strlen(JsonTraceParser::kPreamble)));
+  ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")));
   protos::RawQueryResult res;
   Query("select count(*), max(ts) - min(ts) from slices where utid != 0", &res);
   ASSERT_EQ(res.num_records(), 1);
   ASSERT_EQ(res.columns(0).long_values(0), 39830);
   ASSERT_EQ(res.columns(1).long_values(0), 40532506000);
+}
+
+// TODO(hjd): Add trace to test_data.
+TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
+  ASSERT_TRUE(LoadTrace("android_build_trace.json", strlen("[\n{")));
 }
 
 }  // namespace
