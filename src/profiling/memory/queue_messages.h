@@ -21,18 +21,20 @@
 
 #include <unwindstack/Maps.h>
 #include <unwindstack/Unwinder.h>
+
+#include "perfetto/tracing/core/trace_writer.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
 namespace profiling {
 
-struct ProcessMetadata;
+struct UnwindingMetadata;
 
 struct UnwindingRecord {
   pid_t pid;
   size_t size;
   std::unique_ptr<uint8_t[]> data;
-  std::weak_ptr<ProcessMetadata> metadata;
+  std::weak_ptr<UnwindingMetadata> metadata;
 };
 
 struct FreeRecord {
@@ -46,6 +48,12 @@ struct AllocRecord {
   std::vector<unwindstack::FrameData> frames;
 };
 
+struct DumpRecord {
+  std::vector<pid_t> pids;
+  std::weak_ptr<TraceWriter> trace_writer;
+  std::function<void()> callback;
+};
+
 struct BookkeepingRecord {
   enum class Type {
     Dump = 0,
@@ -57,6 +65,7 @@ struct BookkeepingRecord {
   Type record_type;
   AllocRecord alloc_record;
   FreeRecord free_record;
+  DumpRecord dump_record;
 };
 
 }  // namespace profiling

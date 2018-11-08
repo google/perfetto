@@ -123,7 +123,8 @@ TEST(UnwindingTest, MAYBE_DoUnwind) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   GlobalCallstackTrie callsites;
-  ProcessMetadata metadata(getpid(), std::move(proc_maps), std::move(proc_mem));
+  UnwindingMetadata metadata(getpid(), std::move(proc_maps),
+                             std::move(proc_mem));
   WireMessage msg;
   auto record = GetRecord(&msg);
   AllocRecord out;
