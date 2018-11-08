@@ -35,6 +35,14 @@ class RawQueryResult;
 
 namespace trace_processor {
 
+enum TraceType {
+  kUnknownTraceType,
+  kProtoTraceType,
+  kJsonTraceType,
+};
+
+TraceType GuessTraceType(const uint8_t* data, size_t size);
+
 // Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
 class TraceProcessorImpl : public TraceProcessor {
