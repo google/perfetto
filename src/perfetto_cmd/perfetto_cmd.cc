@@ -321,8 +321,15 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   if (dropbox_tag_.empty()) {
     trace_out_stream_.reset();
     did_process_full_trace_ = true;
-    PERFETTO_ILOG("Wrote %" PRIu64 " bytes into %s", bytes_written_,
-                  trace_out_path_ == "-" ? "stdout" : trace_out_path_.c_str());
+    if (trace_config_->write_into_file()) {
+      PERFETTO_ILOG("Streamed output to %s", trace_out_path_ == "-"
+                                                 ? "stdout"
+                                                 : trace_out_path_.c_str());
+    } else {
+      PERFETTO_ILOG(
+          "Wrote %" PRIu64 " bytes into %s", bytes_written_,
+          trace_out_path_ == "-" ? "stdout" : trace_out_path_.c_str());
+    }
   } else {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     android::sp<android::os::DropBoxManager> dropbox =
