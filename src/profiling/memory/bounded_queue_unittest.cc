@@ -33,6 +33,7 @@ TEST(BoundedQueueTest, IsFIFO) {
   EXPECT_EQ(out, 1);
   EXPECT_TRUE(q.Get(&out));
   EXPECT_EQ(out, 2);
+  q.Shutdown();
 }
 
 TEST(BoundedQueueTest, BlockingAdd) {
@@ -48,6 +49,7 @@ TEST(BoundedQueueTest, BlockingAdd) {
   EXPECT_TRUE(q.Get(&out));
   EXPECT_EQ(out, 3);
   th.join();
+  q.Shutdown();
 }
 
 TEST(BoundedQueueTest, BlockingGet) {
@@ -59,6 +61,7 @@ TEST(BoundedQueueTest, BlockingGet) {
   });
   q.Add(1);
   th.join();
+  q.Shutdown();
 }
 
 TEST(BoundedQueueTest, Resize) {
@@ -74,6 +77,7 @@ TEST(BoundedQueueTest, Resize) {
   EXPECT_EQ(out, 2);
   EXPECT_TRUE(q.Get(&out));
   EXPECT_EQ(out, 3);
+  q.Shutdown();
 }
 
 TEST(BoundedQueueTest, Shutdown) {
@@ -95,11 +99,6 @@ TEST(BoundedQueueTest, ShutdownBlockingAdd) {
   q.Add(1);
   q.Add(2);
   std::thread th([&q] { EXPECT_FALSE(q.Add(3)); });
-  int out;
-  EXPECT_TRUE(q.Get(&out));
-  EXPECT_EQ(out, 1);
-  EXPECT_TRUE(q.Get(&out));
-  EXPECT_EQ(out, 2);
   q.Shutdown();
   th.join();
 }
