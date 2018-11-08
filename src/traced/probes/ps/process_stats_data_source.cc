@@ -102,6 +102,12 @@ ProcessStatsDataSource::ProcessStatsDataSource(
       (std::find(quirks.begin(), quirks.end(),
                  ProcessStatsConfig::DISABLE_ON_DEMAND) == quirks.end());
   poll_period_ms_ = ps_config.proc_stats_poll_ms();
+  if (poll_period_ms_ > 0 && poll_period_ms_ < 100) {
+    PERFETTO_ILOG("proc_stats_poll_ms %" PRIu32
+                  " is less than minimum of 100ms. Increasing to 100ms.",
+                  poll_period_ms_);
+    poll_period_ms_ = 100;
+  }
 }
 
 ProcessStatsDataSource::~ProcessStatsDataSource() = default;

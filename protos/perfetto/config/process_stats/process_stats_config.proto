@@ -45,6 +45,8 @@ message ProcessStatsConfig {
 
   // If > 0 samples counters (see process_stats.proto) from
   // /proc/pid/status every X ms.
+  // This is required to be > 100ms to avoid excessive CPU usage.
+  // TODO(primiano): add CPU cost for change this value.
   optional uint32 proc_stats_poll_ms = 4;
 
   // If empty samples stats for all processes. If non empty samples stats only

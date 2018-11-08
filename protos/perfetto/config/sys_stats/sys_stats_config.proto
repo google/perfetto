@@ -35,16 +35,22 @@ import "perfetto/common/sys_stats_counters.proto";
 // Not OK: [10ms, 10ms, 11ms],  [10ms, 15ms, 20ms]
 message SysStatsConfig {
   // Polls /proc/meminfo every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  // Cost: 0.3 ms [read] + 0.07 ms [parse + trace injection]
   optional uint32 meminfo_period_ms = 1;
 
   // Only the counters specified below are reported.
   repeated MeminfoCounters meminfo_counters = 2;
 
   // Polls /proc/vmstat every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  // Cost: 0.2 ms [read] + 0.3 ms [parse + trace injection]
   optional uint32 vmstat_period_ms = 3;
   repeated VmstatCounters vmstat_counters = 4;
 
   // Pols /proc/stat every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  // Cost: 4.1 ms [read] + 1.9 ms [parse + trace injection]
   optional uint32 stat_period_ms = 5;
   enum StatCounters {
     STAT_UNSPECIFIED = 0;
