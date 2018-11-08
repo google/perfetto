@@ -22,6 +22,13 @@ import {copyToClipboard} from './clipboard';
 import {globals} from './globals';
 import {createPage} from './pages';
 
+const PROC_STATS_PRESETS = [
+  {label: 'never', value: null},
+  {label: '100ms', value: 100},
+  {label: '250ms', value: 250},
+  {label: '500ms', value: 500},
+];
+
 const COUNTER_PRESETS = [
   {label: 'never', value: null},
   {label: '10ms', value: 10},
@@ -797,7 +804,7 @@ export const RecordPage = createPage({
               placeholder: 'never',
               value: config.procStatusPeriodMs,
               onchange: onChange<null|number>('procStatusPeriodMs'),
-              presets: COUNTER_PRESETS,
+              presets: PROC_STATS_PRESETS,
             }),
           ),
 
