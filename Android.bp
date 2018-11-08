@@ -63,6 +63,7 @@ cc_binary {
     "src/protozero/message_handle.cc",
     "src/protozero/proto_decoder.cc",
     "src/protozero/proto_field_descriptor.cc",
+    "src/protozero/scattered_stream_memory_delegate.cc",
     "src/protozero/scattered_stream_null_delegate.cc",
     "src/protozero/scattered_stream_writer.cc",
     "src/tracing/core/chrome_config.cc",
@@ -207,6 +208,7 @@ cc_library_shared {
     "src/protozero/message_handle.cc",
     "src/protozero/proto_decoder.cc",
     "src/protozero/proto_field_descriptor.cc",
+    "src/protozero/scattered_stream_memory_delegate.cc",
     "src/protozero/scattered_stream_null_delegate.cc",
     "src/protozero/scattered_stream_writer.cc",
     "src/traced/probes/filesystem/file_scanner.cc",
@@ -332,12 +334,14 @@ cc_binary {
     "src/ipc/service_proxy.cc",
     "src/ipc/virtual_destructors.cc",
     "src/perfetto_cmd/main.cc",
+    "src/perfetto_cmd/pbtxt_to_pb.cc",
     "src/perfetto_cmd/perfetto_cmd.cc",
     "src/perfetto_cmd/rate_limiter.cc",
     "src/protozero/message.cc",
     "src/protozero/message_handle.cc",
     "src/protozero/proto_decoder.cc",
     "src/protozero/proto_field_descriptor.cc",
+    "src/protozero/scattered_stream_memory_delegate.cc",
     "src/protozero/scattered_stream_null_delegate.cc",
     "src/protozero/scattered_stream_writer.cc",
     "src/tracing/core/chrome_config.cc",
@@ -480,7 +484,7 @@ cc_test {
     "src/protozero/message_handle.cc",
     "src/protozero/proto_decoder.cc",
     "src/protozero/proto_field_descriptor.cc",
-    "src/protozero/scattered_stream_delegate_for_testing.cc",
+    "src/protozero/scattered_stream_memory_delegate.cc",
     "src/protozero/scattered_stream_null_delegate.cc",
     "src/protozero/scattered_stream_writer.cc",
     "src/traced/probes/filesystem/file_scanner.cc",
@@ -3929,6 +3933,7 @@ genrule {
 genrule {
   name: "perfetto_src_perfetto_cmd_protos_gen",
   srcs: [
+    "src/perfetto_cmd/descriptor.proto",
     "src/perfetto_cmd/perfetto_cmd_state.proto",
   ],
   tools: [
@@ -3936,6 +3941,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto/ $(in)",
   out: [
+    "external/perfetto/src/perfetto_cmd/descriptor.pb.cc",
     "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.pb.cc",
   ],
 }
@@ -3944,6 +3950,7 @@ genrule {
 genrule {
   name: "perfetto_src_perfetto_cmd_protos_gen_headers",
   srcs: [
+    "src/perfetto_cmd/descriptor.proto",
     "src/perfetto_cmd/perfetto_cmd_state.proto",
   ],
   tools: [
@@ -3951,6 +3958,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto/ $(in)",
   out: [
+    "external/perfetto/src/perfetto_cmd/descriptor.pb.h",
     "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.pb.h",
   ],
   export_include_dirs: [
@@ -4178,6 +4186,7 @@ cc_library_static {
     "src/protozero/message_handle.cc",
     "src/protozero/proto_decoder.cc",
     "src/protozero/proto_field_descriptor.cc",
+    "src/protozero/scattered_stream_memory_delegate.cc",
     "src/protozero/scattered_stream_null_delegate.cc",
     "src/protozero/scattered_stream_writer.cc",
     "src/tracing/core/chrome_config.cc",
@@ -4385,6 +4394,8 @@ cc_test {
     "src/ipc/service_proxy.cc",
     "src/ipc/test/ipc_integrationtest.cc",
     "src/ipc/virtual_destructors.cc",
+    "src/perfetto_cmd/pbtxt_to_pb.cc",
+    "src/perfetto_cmd/pbtxt_to_pb_unittest.cc",
     "src/perfetto_cmd/perfetto_cmd.cc",
     "src/perfetto_cmd/rate_limiter.cc",
     "src/perfetto_cmd/rate_limiter_unittest.cc",
@@ -4415,7 +4426,7 @@ cc_test {
     "src/protozero/proto_decoder_unittest.cc",
     "src/protozero/proto_field_descriptor.cc",
     "src/protozero/proto_utils_unittest.cc",
-    "src/protozero/scattered_stream_delegate_for_testing.cc",
+    "src/protozero/scattered_stream_memory_delegate.cc",
     "src/protozero/scattered_stream_null_delegate.cc",
     "src/protozero/scattered_stream_writer.cc",
     "src/protozero/scattered_stream_writer_unittest.cc",

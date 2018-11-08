@@ -116,13 +116,23 @@ if ! is_monolithic $OUT; then
 fi
 
 CONFIG_DEVICE_PATH=$CONFIG
-if [[ "$CONFIG" != ":test" ]]; then
+CMD_OPTS=""
+if [[ "$CONFIG" == *.protobuf ]]; then
   CONFIG_DEVICE_PATH=$DIR/$CONFIG.protobuf
   CONFIG_PATH=$OUT/$CONFIG.protobuf;
   if [[ ! -f $CONFIG_PATH ]]; then
     echo 'Config "'$CONFIG_PATH'" not known.'
     exit 1
   fi
+  push $CONFIG_PATH
+elif [[ "$CONFIG" != ":test" ]]; then
+  CONFIG_DEVICE_PATH=$DIR/$CONFIG
+  CONFIG_PATH=test/configs/$CONFIG;
+  if [[ ! -f $CONFIG_PATH ]]; then
+    echo 'Config "'$CONFIG_PATH'" not known.'
+    exit 1
+  fi
+  CMD_OPTS="--txt $CMD_OPTS"
   push $CONFIG_PATH
 fi
 
@@ -179,7 +189,7 @@ tmux select-pane -t 0
 tmux send-keys "$PREFIX PERFETTO_METATRACE_FILE=$DIR/mtrace $DIR/traced_probes $POSTFIX" Enter
 
 tmux select-pane -t 2
-tmux send-keys "$PREFIX $DIR/perfetto -c $CONFIG_DEVICE_PATH -o $DIR/trace $POSTFIX"
+tmux send-keys "$PREFIX $DIR/perfetto $CMD_OPTS -c $CONFIG_DEVICE_PATH -o $DIR/trace $POSTFIX"
 
 # Select consumer pane.
 tmux select-pane -t 2
