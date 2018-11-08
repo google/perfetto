@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 
+#include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
@@ -29,6 +30,17 @@ SliceTracker::SliceTracker(TraceProcessorContext* context)
     : context_(context) {}
 
 SliceTracker::~SliceTracker() = default;
+
+void SliceTracker::BeginAndroid(uint64_t timestamp,
+                                uint32_t ftrace_tid,
+                                uint32_t atrace_tid,
+                                StringId cat,
+                                StringId name) {
+  UniqueTid utid =
+      context_->process_tracker->UpdateThread(timestamp, atrace_tid, 0);
+  ftrace_to_atrace_pid_[ftrace_tid] = atrace_tid;
+  Begin(timestamp, utid, cat, name);
+}
 
 void SliceTracker::Begin(uint64_t timestamp,
                          UniqueTid utid,
@@ -48,6 +60,21 @@ void SliceTracker::Scoped(uint64_t timestamp,
   MaybeCloseStack(timestamp, stack);
   stack.emplace_back(Slice{cat, name, timestamp, timestamp + duration});
   CompleteSlice(utid);
+}
+
+void SliceTracker::EndAndroid(uint64_t timestamp,
+                              uint32_t ftrace_tid,
+                              uint32_t atrace_tid) {
+  uint32_t actual_tid = ftrace_to_atrace_pid_[ftrace_tid];
+  if (atrace_tid != 0 && atrace_tid != actual_tid) {
+    PERFETTO_DLOG("Mismatched atrace pid %u and looked up pid %u", , atrace_tid,
+                  actual_tid);
+  }
+  if (actual_tid == 0)
+    return;
+  UniqueTid utid =
+      context_->process_tracker->UpdateThread(timestamp, actual_tid, 0);
+  End(timestamp, utid);
 }
 
 void SliceTracker::End(uint64_t timestamp,
