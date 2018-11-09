@@ -83,23 +83,24 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
 
   EXPECT_EQ(slices.slice_count(), 2);
 
-  EXPECT_EQ(slices.start_ns()[0], 3);
-  EXPECT_EQ(slices.durations()[0], 2);
-  EXPECT_EQ(slices.cats()[0], 0);
-  EXPECT_EQ(slices.names()[0], 2);
-  EXPECT_EQ(slices.utids()[0], 42);
-  EXPECT_EQ(slices.depths()[0], 1);
+  size_t idx = 0;
+  EXPECT_EQ(slices.start_ns()[idx], 2);
+  EXPECT_EQ(slices.durations()[idx], 8);
+  EXPECT_EQ(slices.cats()[idx], 0);
+  EXPECT_EQ(slices.names()[idx], 1);
+  EXPECT_EQ(slices.utids()[idx], 42);
+  EXPECT_EQ(slices.depths()[idx++], 0);
 
-  EXPECT_EQ(slices.start_ns()[1], 2);
-  EXPECT_EQ(slices.durations()[1], 8);
-  EXPECT_EQ(slices.cats()[1], 0);
-  EXPECT_EQ(slices.names()[1], 1);
-  EXPECT_EQ(slices.utids()[1], 42);
-  EXPECT_EQ(slices.depths()[1], 0);
+  EXPECT_EQ(slices.start_ns()[idx], 3);
+  EXPECT_EQ(slices.durations()[idx], 2);
+  EXPECT_EQ(slices.cats()[idx], 0);
+  EXPECT_EQ(slices.names()[idx], 2);
+  EXPECT_EQ(slices.utids()[idx], 42);
+  EXPECT_EQ(slices.depths()[idx], 1);
 
-  EXPECT_EQ(slices.parent_stack_ids()[1], 0);
-  EXPECT_EQ(slices.stack_ids()[1], slices.parent_stack_ids()[0]);
-  EXPECT_NE(slices.stack_ids()[0], 0);
+  EXPECT_EQ(slices.parent_stack_ids()[0], 0);
+  EXPECT_EQ(slices.stack_ids()[0], slices.parent_stack_ids()[1]);
+  EXPECT_NE(slices.stack_ids()[1], 0);
 }
 
 TEST(SliceTrackerTest, Scoped) {
@@ -115,7 +116,7 @@ TEST(SliceTrackerTest, Scoped) {
 
   auto slices = ToSliceInfo(context.storage->nestable_slices());
   EXPECT_THAT(slices,
-              ElementsAre(SliceInfo{2, 6}, SliceInfo{1, 8}, SliceInfo{0, 10}));
+              ElementsAre(SliceInfo{0, 10}, SliceInfo{1, 8}, SliceInfo{2, 6}));
 }
 
 }  // namespace
