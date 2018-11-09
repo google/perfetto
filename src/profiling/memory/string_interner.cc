@@ -20,7 +20,7 @@ namespace perfetto {
 namespace profiling {
 
 StringInterner::Entry::Entry(std::string s, StringInterner* in)
-    : string(s), interner(in) {}
+    : string(std::move(s)), interner(in) {}
 
 bool StringInterner::Entry::operator<(const Entry& other) const {
   return string < other.string;
@@ -54,7 +54,7 @@ StringInterner::InternedString::InternedString(const InternedString& other)
     entry_->ref_count++;
 }
 
-StringInterner::InternedString::InternedString(InternedString&& other)
+StringInterner::InternedString::InternedString(InternedString&& other) noexcept
     : entry_(other.entry_) {
   other.entry_ = nullptr;
 }
