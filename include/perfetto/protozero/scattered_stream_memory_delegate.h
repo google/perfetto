@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROTOZERO_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
-#define SRC_PROTOZERO_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
+#ifndef INCLUDE_PERFETTO_PROTOZERO_SCATTERED_STREAM_MEMORY_DELEGATE_H_
+#define INCLUDE_PERFETTO_PROTOZERO_SCATTERED_STREAM_MEMORY_DELEGATE_H_
 
 #include <memory>
 #include <vector>
@@ -25,11 +25,11 @@
 
 namespace perfetto {
 
-class ScatteredStreamDelegateForTesting
+class ScatteredStreamMemoryDelegate
     : public protozero::ScatteredStreamWriter::Delegate {
  public:
-  explicit ScatteredStreamDelegateForTesting(size_t chunk_size);
-  ~ScatteredStreamDelegateForTesting() override;
+  explicit ScatteredStreamMemoryDelegate(size_t chunk_size);
+  ~ScatteredStreamMemoryDelegate() override;
 
   // protozero::ScatteredStreamWriter::Delegate implementation.
   protozero::ContiguousMemoryRange GetNewBuffer() override;
@@ -54,4 +54,4 @@ class ScatteredStreamDelegateForTesting
 
 }  // namespace perfetto
 
-#endif  // SRC_PROTOZERO_SCATTERED_STREAM_DELEGATE_FOR_TESTING_H_
+#endif  // INCLUDE_PERFETTO_PROTOZERO_SCATTERED_STREAM_MEMORY_DELEGATE_H_

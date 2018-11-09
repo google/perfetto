@@ -21,7 +21,6 @@
 #include <iosfwd>
 #include <iostream>
 #include <memory>
-#include <regex>
 #include <string>
 #include <vector>
 

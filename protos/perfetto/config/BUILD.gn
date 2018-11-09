@@ -20,6 +20,10 @@ proto_library("lite") {
   generate_python = false
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
+  if (!build_with_chromium) {
+    generate_descriptor =
+        "$perfetto_root_path/protos/perfetto/trace/config.descriptor"
+  }
   deps = [
     "../common:lite",
   ]
