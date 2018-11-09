@@ -24,6 +24,23 @@ package perfetto.protos;
 
 // The configuration for a fake producer used in tests.
 message TestConfig {
+  message DummyFields {
+    optional uint32 field_uint32 = 1;
+    optional int32 field_int32 = 2;
+    optional uint64 field_uint64 = 3;
+    optional int64 field_int64 = 4;
+    optional fixed64 field_fixed64 = 5;
+    optional sfixed64 field_sfixed64 = 6;
+    optional fixed32 field_fixed32 = 7;
+    optional sfixed32 field_sfixed32 = 8;
+    optional double field_double = 9;
+    optional float field_float = 10;
+    optional sint64 field_sint64 = 11;
+    optional sint32 field_sint32 = 12;
+    optional string field_string = 13;
+    optional bytes field_bytes = 14;
+  }
+
   // The number of messages the fake producer should send.
   optional uint32 message_count = 1;
 
@@ -45,4 +62,6 @@ message TestConfig {
   // Whether the producer should send a event batch when the data source is
   // is initially registered.
   optional bool send_batch_on_register = 5;
+
+  optional DummyFields dummy_fields = 6;
 }

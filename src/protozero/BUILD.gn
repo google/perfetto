@@ -31,22 +31,9 @@ source_set("protozero") {
     "message_handle.cc",
     "proto_decoder.cc",
     "proto_field_descriptor.cc",
+    "scattered_stream_memory_delegate.cc",
     "scattered_stream_null_delegate.cc",
     "scattered_stream_writer.cc",
-  ]
-}
-
-source_set("test_support") {
-  testonly = true
-  deps = [
-    "../../gn:default_deps",
-  ]
-  public_deps = [
-    ":protozero",
-  ]
-  sources = [
-    "scattered_stream_delegate_for_testing.cc",
-    "scattered_stream_delegate_for_testing.h",
   ]
 }
 
@@ -54,7 +41,6 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":protozero",
-    ":test_support",
     ":testing_messages_lite",
     ":testing_messages_zero",
     "../../gn:default_deps",

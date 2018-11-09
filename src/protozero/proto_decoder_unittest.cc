@@ -21,7 +21,7 @@
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/protozero/scattered_stream_delegate_for_testing.h"
+#include "perfetto/protozero/scattered_stream_memory_delegate.h"
 
 namespace protozero {
 namespace {
@@ -33,7 +33,7 @@ using namespace protozero::proto_utils;
 
 TEST(ProtoDecoder, ReadString) {
   Message message;
-  perfetto::ScatteredStreamDelegateForTesting delegate(512);
+  perfetto::ScatteredStreamMemoryDelegate delegate(512);
   ScatteredStreamWriter writer(&delegate);
   delegate.set_writer(&writer);
   message.Reset(&writer);
