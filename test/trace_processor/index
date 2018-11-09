@@ -1,8 +1,9 @@
-../data/android_sched_and_ps.pb smoke.sql android_sched_and_ps_smoke.out
 ../data/sfgate.json smoke.sql sfgate_smoke.out
 ../data/sfgate.json smoke_slices.sql sfgate_smoke_slices.out
+../data/android_sched_and_ps.pb smoke.sql android_sched_and_ps_smoke.out
 ../data/android_sched_and_ps.pb smoke_window.sql android_sched_and_ps_smoke_window.out
 ../data/android_sched_and_ps.pb slice_span_join_b118665515.sql android_sched_and_ps_slice_span_join_b118665515.out
+../data/android_sched_and_ps.pb b119301023.sql android_sched_and_ps_b119301023.out
 synth_1.py smoke.sql synth_1_smoke.out
 synth_1.py filter_sched.sql synth_1_filter_sched.out
 synth_1.py filter_counters.sql synth_1_filter_counters.out
