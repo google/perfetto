@@ -18,7 +18,6 @@ from __future__ import division
 from __future__ import print_function
 import os
 import re
-import subprocess
 import sys
 
 CONFIG_PROTOS = (
@@ -155,7 +154,6 @@ def merge_protos(proto_paths, output_path):
     used_type = use.group(2)
     field_number = use.group(3)
     if used_type not in types:
-      # replacement = '{}reserved {};'.format(indentation, field_number)
       replacement = '{}// removed field with id {}'.format(
           indentation, field_number)
       substitutions.append((everything, replacement))

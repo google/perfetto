@@ -32,7 +32,7 @@ source_set("test_support") {
     "../../../protozero",
   ]
   public_deps = [
-    "../../../protozero:test_support",
+    "../../../protozero",
   ]
 
   sources = [

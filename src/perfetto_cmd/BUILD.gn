@@ -21,6 +21,7 @@ source_set("perfetto_cmd") {
     "../../include/perfetto/traced",
   ]
   deps = [
+    "../../buildtools:protobuf_lite",
     "../../gn:default_deps",
     "../../protos/perfetto/config:lite",
     "../base",
@@ -28,8 +29,11 @@ source_set("perfetto_cmd") {
     "../tracing:ipc_consumer",
   ]
   sources = [
+    "pbtxt_to_pb.cc",
+    "pbtxt_to_pb.h",
     "perfetto_cmd.cc",
     "perfetto_cmd.h",
+    "perfetto_config.descriptor.h",
     "rate_limiter.cc",
     "rate_limiter.h",
   ]
@@ -39,6 +43,7 @@ proto_library("protos") {
   generate_python = false
   deps = []
   sources = [
+    "descriptor.proto",
     "perfetto_cmd_state.proto",
   ]
   proto_in_dir = perfetto_root_path
@@ -53,8 +58,10 @@ source_set("unittests") {
     "../../gn:default_deps",
     "../../gn:gtest_deps",
     "../../include/perfetto/base",
+    "../../protos/perfetto/config:lite",
   ]
   sources = [
+    "pbtxt_to_pb_unittest.cc",
     "rate_limiter_unittest.cc",
   ]
 }

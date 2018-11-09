@@ -31,6 +31,7 @@
 
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/string_view.h"
 #include "perfetto/base/time.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -39,6 +40,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
+#include "src/perfetto_cmd/pbtxt_to_pb.h"
 
 #include "perfetto/config/trace_config.pb.h"
 
@@ -59,6 +61,64 @@ constexpr char kDefaultDropBoxTag[] = "perfetto";
 
 perfetto::PerfettoCmd* g_consumer_cmd;
 
+class LoggingErrorReporter : public ErrorReporter {
+ public:
+  LoggingErrorReporter(std::string file_name, const char* config)
+      : file_name_(file_name), config_(config) {}
+
+  void AddError(size_t row,
+                size_t column,
+                size_t length,
+                const std::string& message) override {
+    parsed_successfully_ = false;
+    std::string line = ExtractLine(row - 1).ToStdString();
+    if (!line.empty() && line[line.length() - 1] == '\n') {
+      line.erase(line.length() - 1);
+    }
+
+    std::string guide(column + length, ' ');
+    for (size_t i = column; i < column + length; i++) {
+      guide[i - 1] = i == column ? '^' : '~';
+    }
+    fprintf(stderr, "%s:%zu:%zu error: %s\n", file_name_.c_str(), row, column,
+            message.c_str());
+    fprintf(stderr, "%s\n", line.c_str());
+    fprintf(stderr, "%s\n", guide.c_str());
+  }
+
+  bool Success() const { return parsed_successfully_; }
+
+ private:
+  base::StringView ExtractLine(size_t line) {
+    const char* start = config_;
+    const char* end = config_;
+
+    for (size_t i = 0; i < line + 1; i++) {
+      start = end;
+      char c;
+      while ((c = *end++) && c != '\n')
+        ;
+    }
+    return base::StringView(start, static_cast<size_t>(end - start));
+  }
+
+  bool parsed_successfully_ = true;
+  std::string file_name_;
+  const char* config_;
+};
+
+bool ParseTraceConfigPbtxt(const std::string& file_name,
+                           const std::string& pbtxt,
+                           protos::TraceConfig* config) {
+  LoggingErrorReporter reporter(file_name, pbtxt.c_str());
+  std::vector<uint8_t> buf = PbtxtToPb(pbtxt, &reporter);
+  if (!reporter.Success())
+    return false;
+  if (!config->ParseFromArray(buf.data(), static_cast<int>(buf.size())))
+    return false;
+  return true;
+}
+
 }  // namespace
 
 // Temporary directory for DropBox traces. Note that this is automatically
@@ -77,6 +137,7 @@ Usage: %s
   --dropbox        -d TAG : Upload trace into DropBox using tag TAG (default: %s)
   --no-guardrails  -n     : Ignore guardrails triggered when using --dropbox (for testing).
   --reset-guardrails      : Resets the state of the guardails and exits (for testing).
+  --txt            -t     : Parse config as pbtxt. Not a stable API. Not for production use.
   --help           -h
 
 statsd-specific flags:
@@ -103,6 +164,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"background", no_argument, nullptr, 'b'},
       {"dropbox", optional_argument, nullptr, 'd'},
       {"no-guardrails", optional_argument, nullptr, 'n'},
+      {"txt", optional_argument, nullptr, 't'},
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
       {"config-id", required_argument, nullptr, OPT_CONFIG_ID},
       {"config-uid", required_argument, nullptr, OPT_CONFIG_UID},
@@ -110,20 +172,23 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {nullptr, 0, nullptr, 0}};
 
   int option_index = 0;
+  std::string config_file_name;
   std::string trace_config_raw;
   bool background = false;
   bool ignore_guardrails = false;
+  bool parse_as_pbtxt = false;
   perfetto::protos::TraceConfig::StatsdMetadata statsd_metadata;
   RateLimiter limiter;
 
   for (;;) {
     int option =
-        getopt_long(argc, argv, "c:o:bd::n", long_options, &option_index);
+        getopt_long(argc, argv, "c:o:bd::nt", long_options, &option_index);
 
     if (option == -1)
       break;  // EOF.
 
     if (option == 'c') {
+      config_file_name = std::string(optarg);
       if (strcmp(optarg, "-") == 0) {
         std::istreambuf_iterator<char> begin(std::cin), end;
         trace_config_raw.assign(begin, end);
@@ -173,6 +238,11 @@ int PerfettoCmd::Main(int argc, char** argv) {
       continue;
     }
 
+    if (option == 't') {
+      parse_as_pbtxt = true;
+      continue;
+    }
+
     if (option == OPT_RESET_GUARDRAILS) {
       PERFETTO_CHECK(limiter.ClearState());
       PERFETTO_ILOG("Guardrail state cleared");
@@ -215,7 +285,14 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
   perfetto::protos::TraceConfig trace_config_proto;
   PERFETTO_DLOG("Parsing TraceConfig, %zu bytes", trace_config_raw.size());
-  bool parsed = trace_config_proto.ParseFromString(trace_config_raw);
+  bool parsed;
+  if (parse_as_pbtxt) {
+    parsed = ParseTraceConfigPbtxt(config_file_name, trace_config_raw,
+                                   &trace_config_proto);
+  } else {
+    parsed = trace_config_proto.ParseFromString(trace_config_raw);
+  }
+
   if (!parsed) {
     PERFETTO_ELOG("Could not parse TraceConfig proto");
     return 1;
