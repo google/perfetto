@@ -53,18 +53,17 @@ class SliceTracker {
            StringId opt_name = {});
 
  private:
-  struct Slice {
-    StringId cat_id;
-    StringId name_id;
-    uint64_t start_ts;
-    uint64_t end_ts;  // Only for complete events (scoped TRACE_EVENT macros).
-  };
-  using SlicesStack = std::vector<Slice>;
+  using SlicesStack = std::vector<size_t>;
 
-  static inline void MaybeCloseStack(uint64_t end_ts, SlicesStack&);
-  static inline std::tuple<uint64_t, uint64_t> GetStackHashes(
-      const SlicesStack&);
+  void StartSlice(uint64_t timestamp,
+                  uint64_t duration,
+                  UniqueTid utid,
+                  StringId cat,
+                  StringId name);
   void CompleteSlice(UniqueTid tid);
+
+  void MaybeCloseStack(uint64_t end_ts, SlicesStack*);
+  uint64_t GetStackHash(const SlicesStack&);
 
   TraceProcessorContext* const context_;
   std::unordered_map<UniqueTid, SlicesStack> threads_;
