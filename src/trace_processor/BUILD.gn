@@ -73,6 +73,8 @@ source_set("lib") {
     "sql_stats_table.cc",
     "sql_stats_table.h",
     "sqlite_utils.h",
+    "stats_table.cc",
+    "stats_table.h",
     "storage_cursor.cc",
     "storage_cursor.h",
     "storage_schema.cc",
