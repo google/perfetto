@@ -94,26 +94,30 @@ T ExtractSqliteValue(sqlite3_value* value);
 
 template <>
 inline uint8_t ExtractSqliteValue(sqlite3_value* value) {
-  PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
+  auto type = sqlite3_value_type(value);
+  PERFETTO_DCHECK(type == SQLITE_INTEGER || type == SQLITE_FLOAT);
   return static_cast<uint8_t>(sqlite3_value_int(value));
 }
 
 template <>
 inline uint32_t ExtractSqliteValue(sqlite3_value* value) {
-  PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
-  return static_cast<uint32_t>(sqlite3_value_int64(value));
+  auto type = sqlite3_value_type(value);
+  PERFETTO_DCHECK(type == SQLITE_INTEGER || type == SQLITE_FLOAT);
+  return static_cast<uint32_t>(sqlite3_value_int(value));
 }
 
 template <>
 inline uint64_t ExtractSqliteValue(sqlite3_value* value) {
-  PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
-  return static_cast<uint64_t>(sqlite3_value_int64(value));
+  auto type = sqlite3_value_type(value);
+  PERFETTO_DCHECK(type == SQLITE_INTEGER || type == SQLITE_FLOAT);
+  return static_cast<uint64_t>(sqlite3_value_int(value));
 }
 
 template <>
 inline int64_t ExtractSqliteValue(sqlite3_value* value) {
-  PERFETTO_DCHECK(sqlite3_value_type(value) == SQLITE_INTEGER);
-  return static_cast<int64_t>(sqlite3_value_int64(value));
+  auto type = sqlite3_value_type(value);
+  PERFETTO_DCHECK(type == SQLITE_INTEGER || type == SQLITE_FLOAT);
+  return static_cast<int64_t>(sqlite3_value_int(value));
 }
 
 template <>
