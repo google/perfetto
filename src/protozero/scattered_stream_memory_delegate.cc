@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-#include "src/protozero/scattered_stream_delegate_for_testing.h"
+#include "perfetto/protozero/scattered_stream_memory_delegate.h"
 
 namespace perfetto {
 
-ScatteredStreamDelegateForTesting::ScatteredStreamDelegateForTesting(
-    size_t chunk_size)
+ScatteredStreamMemoryDelegate::ScatteredStreamMemoryDelegate(size_t chunk_size)
     : chunk_size_(chunk_size) {}
 
-ScatteredStreamDelegateForTesting::~ScatteredStreamDelegateForTesting() {}
+ScatteredStreamMemoryDelegate::~ScatteredStreamMemoryDelegate() {}
 
-protozero::ContiguousMemoryRange
-ScatteredStreamDelegateForTesting::GetNewBuffer() {
+protozero::ContiguousMemoryRange ScatteredStreamMemoryDelegate::GetNewBuffer() {
   PERFETTO_CHECK(writer_);
   if (!chunks_.empty()) {
     size_t used = chunk_size_ - writer_->bytes_available();
@@ -38,7 +36,7 @@ ScatteredStreamDelegateForTesting::GetNewBuffer() {
   return {begin, begin + chunk_size_};
 }
 
-std::vector<uint8_t> ScatteredStreamDelegateForTesting::StitchChunks() {
+std::vector<uint8_t> ScatteredStreamMemoryDelegate::StitchChunks() {
   std::vector<uint8_t> buffer;
   size_t i = 0;
   for (const auto& chunk : chunks_) {

@@ -125,7 +125,7 @@ source_set("test_support") {
     "../../include/perfetto/tracing/core",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace:zero",
-    "../protozero:test_support",
+    "../protozero",
   ]
   sources = [
     "core/trace_writer_for_testing.cc",
