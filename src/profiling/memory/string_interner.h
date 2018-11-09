@@ -41,7 +41,7 @@ class StringInterner {
     friend class StringInterner;
     InternedString(StringInterner::Entry* str);
     InternedString(const InternedString& other);
-    InternedString(InternedString&& other);
+    InternedString(InternedString&& other) noexcept;
     InternedString& operator=(InternedString other);
 
     const std::string& str() const;

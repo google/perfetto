@@ -44,7 +44,7 @@ ClientConfiguration MakeClientConfiguration(const DataSourceConfig& cfg) {
   return client_config;
 }
 
-void FindPidsForBinaries(std::vector<std::string> binaries,
+void FindPidsForBinaries(const std::vector<std::string>& binaries,
                          std::vector<pid_t>* pids) {
   base::ScopedDir proc_dir(opendir("/proc"));
   if (!proc_dir) {
