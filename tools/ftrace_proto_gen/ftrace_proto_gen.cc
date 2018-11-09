@@ -406,6 +406,7 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
   // TODO: Figure out a story for reconciling the various clocks.
   optional uint64 timestamp = 1;
 
+  // Kernel pid (do not confuse with userspace pid aka tgid)
   optional uint32 pid = 2;
 
   oneof event {
