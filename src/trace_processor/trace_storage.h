@@ -124,14 +124,14 @@ class TraceStorage {
 
   class NestableSlices {
    public:
-    inline void AddSlice(uint64_t start_ns,
-                         uint64_t duration_ns,
-                         UniqueTid utid,
-                         StringId cat,
-                         StringId name,
-                         uint8_t depth,
-                         uint64_t stack_id,
-                         uint64_t parent_stack_id) {
+    inline size_t AddSlice(uint64_t start_ns,
+                           uint64_t duration_ns,
+                           UniqueTid utid,
+                           StringId cat,
+                           StringId name,
+                           uint8_t depth,
+                           uint64_t stack_id,
+                           uint64_t parent_stack_id) {
       start_ns_.emplace_back(start_ns);
       durations_.emplace_back(duration_ns);
       utids_.emplace_back(utid);
@@ -140,6 +140,15 @@ class TraceStorage {
       depths_.emplace_back(depth);
       stack_ids_.emplace_back(stack_id);
       parent_stack_ids_.emplace_back(parent_stack_id);
+      return slice_count() - 1;
+    }
+
+    void set_duration(size_t index, uint64_t duration_ns) {
+      durations_[index] = duration_ns;
+    }
+
+    void set_stack_id(size_t index, uint64_t stack_id) {
+      stack_ids_[index] = stack_id;
     }
 
     size_t slice_count() const { return start_ns_.size(); }
