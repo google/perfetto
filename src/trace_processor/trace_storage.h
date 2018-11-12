@@ -64,7 +64,9 @@ class TraceStorage {
   virtual ~TraceStorage();
 
   struct Stats {
-    uint64_t mismatched_sched_switch_tids_ = 0;
+    uint64_t mismatched_sched_switch_tids = 0;
+    uint64_t rss_stat_no_process = 0;
+    uint64_t mem_counter_no_process = 0;
   };
 
   // Information about a unique process seen in a trace.
