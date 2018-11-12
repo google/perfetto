@@ -63,7 +63,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     if (isQuantized) {
       windowStartNs = Math.floor(windowStartNs / bucketSizeNs) * bucketSizeNs;
     }
-    const windowDurNs = endNs - windowStartNs;
+    const windowDurNs = Math.max(1, endNs - windowStartNs);
 
     this.query(`update window_${this.trackState.id} set
       window_start=${windowStartNs},
