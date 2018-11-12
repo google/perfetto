@@ -448,6 +448,7 @@ void ProtoTraceParser::ParseProcMemCounters(uint64_t ts,
     PERFETTO_DLOG("Could not find process associated with utid %" PRIu32
                   " when parsing mem counters.",
                   utid);
+    context_->storage->mutable_stats()->mem_counter_no_process++;
     return;
   }
 
@@ -670,6 +671,7 @@ void ProtoTraceParser::ParseRssStat(uint64_t timestamp,
     PERFETTO_DLOG("Could not find process associated with utid %" PRIu32
                   " when parsing rss stat.",
                   utid);
+    context_->storage->mutable_stats()->rss_stat_no_process++;
     return;
   }
 
