@@ -66,7 +66,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
     // |resolution| is in s/px we want # ns for 10px window:
     const bucketSizeNs = Math.round(resolution * 10 * 1e9);
     const windowStartNs = Math.floor(startNs / bucketSizeNs) * bucketSizeNs;
-    const windowDurNs = endNs - windowStartNs;
+    const windowDurNs = Math.max(1, endNs - windowStartNs);
 
     this.query(`update ${this.tableName('window')} set
       window_start=${windowStartNs},
