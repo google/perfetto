@@ -55,7 +55,7 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
     // If the this events previous pid does not match the previous event's next
     // pid, make a note of this.
     if (prev_pid != pending_slice->pid) {
-      context_->storage->mutable_stats()->mismatched_sched_switch_tids_++;
+      context_->storage->mutable_stats()->mismatched_sched_switch_tids++;
     }
 
     size_t idx = pending_slice->storage_index;

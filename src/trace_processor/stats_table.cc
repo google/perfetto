@@ -74,6 +74,10 @@ const char* StatsTable::Cursor::KeyForRow(uint8_t row) {
   switch (row) {
     case StatsTable::Row::kMismatchedSchedSwitch:
       return "mismatched_ss";
+    case StatsTable::Row::kRssStatNoProcess:
+      return "rss_stat_no_process";
+    case StatsTable::Row::kMemCounterNoProcess:
+      return "mem_count_no_process";
     default:
       PERFETTO_FATAL("Unknown row %u", row);
   }
@@ -82,7 +86,15 @@ const char* StatsTable::Cursor::KeyForRow(uint8_t row) {
 int StatsTable::Cursor::ValueForRow(uint8_t row) {
   switch (row) {
     case StatsTable::Row::kMismatchedSchedSwitch: {
-      auto val = storage_->stats().mismatched_sched_switch_tids_;
+      auto val = storage_->stats().mismatched_sched_switch_tids;
+      return static_cast<int>(val);
+    }
+    case StatsTable::Row::kRssStatNoProcess: {
+      auto val = storage_->stats().rss_stat_no_process;
+      return static_cast<int>(val);
+    }
+    case StatsTable::Row::kMemCounterNoProcess: {
+      auto val = storage_->stats().mem_counter_no_process;
       return static_cast<int>(val);
     }
     default:
