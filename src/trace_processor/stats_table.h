@@ -28,7 +28,12 @@ namespace trace_processor {
 
 class StatsTable : public Table {
  public:
-  enum Row { kMismatchedSchedSwitch = 0, kMax = kMismatchedSchedSwitch + 1 };
+  enum Row {
+    kMismatchedSchedSwitch = 0,
+    kRssStatNoProcess = 1,
+    kMemCounterNoProcess = 2,
+    kMax = kMemCounterNoProcess + 1
+  };
   enum Column { kKey = 0, kValue = 1 };
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
