@@ -405,8 +405,8 @@ void Parse(const std::string& input, ParserDelegate* delegate) {
   bool saw_colon_for_this_key = false;
   bool saw_semicolon_for_this_value = true;
   bool comment_till_eol = false;
-  Token key;
-  Token value;
+  Token key{};
+  Token value{};
 
   for (size_t i = 0; i < input.size(); i++, column++) {
     bool last_character = i + 1 == input.size();
