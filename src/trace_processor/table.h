@@ -159,6 +159,11 @@ class Table : public sqlite3_vtab {
   // At registration time, the function should also pass true for |read_write|.
   virtual int Update(int, sqlite3_value**, sqlite3_int64*);
 
+  void SetErrorMessage(char* error) {
+    sqlite3_free(zErrMsg);
+    zErrMsg = error;
+  }
+
   const Schema& schema() { return schema_; }
 
  private:
