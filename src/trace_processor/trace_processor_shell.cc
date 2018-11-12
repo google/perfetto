@@ -175,7 +175,7 @@ void PrintQueryResultInteractively(base::TimeNanos t_start,
           break;
         case protos::RawQueryResult_ColumnDesc_Type_LONG: {
           auto value = res.columns(c).long_values(r);
-          printf((value < 0xffffffll) ? "%20lld" : "%20llx", value);
+          printf("%20lld", value);
           break;
         }
       }
