@@ -3534,13 +3534,21 @@ std::string FormatFtraceEvent(
     uint64_t timestamp,
     uint32_t cpu,
     const protos::FtraceEvent& event,
-    const std::unordered_map<uint32_t /*tid*/, uint32_t /*tgid*/>& thread_map) {
+    const std::unordered_map<uint32_t /*tid*/, uint32_t /*tgid*/>& thread_map,
+    std::unordered_map<uint32_t /*tid*/, std::string>& thread_names) {
   // Sched_switch events contain the thread name so use that in the prefix.
   std::string name;
   if (event.has_sched_switch()) {
     name = event.sched_switch().prev_comm();
+    thread_names[event.pid()] = event.sched_switch().prev_comm();
   } else {
-    name = "<...>";
+    // For non sched switch events use name stored from a sched switch event.
+    auto it = thread_names.find(event.pid());
+    if (it != thread_names.end()) {
+      name = it->second;
+    } else {
+      name = "<...>";
+    }
   }
 
   std::string line = FormatEventText(event);
