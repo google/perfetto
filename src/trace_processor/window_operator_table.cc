@@ -81,9 +81,18 @@ int WindowOperatorTable::Update(int argc,
   if (argc < 2 || sqlite3_value_type(argv[0]) == SQLITE_NULL)
     return SQLITE_READONLY;
 
-  quantum_ = static_cast<uint64_t>(sqlite3_value_int64(argv[3]));
-  window_start_ = static_cast<uint64_t>(sqlite3_value_int64(argv[4]));
-  window_dur_ = static_cast<uint64_t>(sqlite3_value_int64(argv[5]));
+  uint64_t new_quantum = static_cast<uint64_t>(sqlite3_value_int64(argv[3]));
+  uint64_t new_start = static_cast<uint64_t>(sqlite3_value_int64(argv[4]));
+  uint64_t new_dur = static_cast<uint64_t>(sqlite3_value_int64(argv[5]));
+  if (new_dur == 0) {
+    auto* err = sqlite3_mprintf("Cannot set duration of window table to zero.");
+    SetErrorMessage(err);
+    return SQLITE_ERROR;
+  }
+
+  quantum_ = new_quantum;
+  window_start_ = new_start;
+  window_dur_ = new_dur;
 
   return SQLITE_OK;
 }
