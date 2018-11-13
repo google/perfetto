@@ -92,15 +92,15 @@ class PERFETTO_EXPORT HeapprofdConfig {
     sampling_interval_bytes_ = value;
   }
 
-  int native_binary_name_size() const {
-    return static_cast<int>(native_binary_name_.size());
+  int process_cmdline_size() const {
+    return static_cast<int>(process_cmdline_.size());
   }
-  const std::vector<std::string>& native_binary_name() const {
-    return native_binary_name_;
+  const std::vector<std::string>& process_cmdline() const {
+    return process_cmdline_;
   }
-  std::string* add_native_binary_name() {
-    native_binary_name_.emplace_back();
-    return &native_binary_name_.back();
+  std::string* add_process_cmdline() {
+    process_cmdline_.emplace_back();
+    return &process_cmdline_.back();
   }
 
   int pid_size() const { return static_cast<int>(pid_.size()); }
@@ -119,7 +119,7 @@ class PERFETTO_EXPORT HeapprofdConfig {
 
  private:
   uint64_t sampling_interval_bytes_ = {};
-  std::vector<std::string> native_binary_name_;
+  std::vector<std::string> process_cmdline_;
   std::vector<uint64_t> pid_;
   ContinousDumpConfig continuous_dump_config_ = {};
 

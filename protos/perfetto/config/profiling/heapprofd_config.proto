@@ -33,8 +33,8 @@ message HeapprofdConfig {
   // TODO(fmayer): Add link to docs elaborating on this.
   optional uint64 sampling_interval_bytes = 1;
 
-  // E.g. /system/bin/surfaceflinger
-  repeated string native_binary_name = 2;
+  // E.g. surfaceflinger, com.android.phone
+  repeated string process_cmdline = 2;
   // repeated string android_app = 3;  // TODO(fmayer): Implement
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
