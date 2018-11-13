@@ -16,6 +16,6 @@ service heapprofd /system/bin/heapprofd
     disabled
     socket heapprofd stream 0666 root root
     user nobody
-    group nobody
+    group nobody readproc
     writepid /dev/cpuset/system-background/tasks
     capabilities KILL
