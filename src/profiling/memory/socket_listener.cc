@@ -26,6 +26,8 @@ void SocketListener::OnDisconnect(base::UnixSocket* self) {
   if (it != process_info_.end()) {
     ProcessInfo& process_info = it->second;
     process_info.sockets.erase(self);
+    if (process_info.sockets.empty())
+      process_info_.erase(it);
   } else {
     PERFETTO_DFATAL("Disconnect from socket without ProcessInfo.");
   }
