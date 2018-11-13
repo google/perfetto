@@ -17,7 +17,7 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-package perfetto.proto;
+package perfetto.protos;
 
 message ProfilePacket {
   // either a function or library name.
@@ -40,7 +40,7 @@ message ProfilePacket {
   message Callstack {
     optional uint64 id = 1;
     // Frames of this callstack. Bottom frame first.
-    repeated Frame frames = 2;
+    repeated uint64 frame_ids = 2;
   }
 
   repeated Mapping mappings = 4;
