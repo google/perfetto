@@ -292,6 +292,10 @@ TEST_F(TracingServiceImplTest, ProducerIDWrapping) {
   ASSERT_EQ(6u, connect_producer_and_get_id("6"));
 }
 
+// Note: file_write_period_ms is set to a large enough to have exactly one flush
+// of the tracing buffers (and therefore at most one synchronization section),
+// unless the test runs unrealistically slowly, or the implementation of the
+// tracing snapshot packets changes.
 TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -306,8 +310,8 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   ds_config->set_name("data_source");
   ds_config->set_target_buffer(0);
   trace_config.set_write_into_file(true);
-  trace_config.set_file_write_period_ms(1);
-  const uint64_t kMaxFileSize = 512;
+  trace_config.set_file_write_period_ms(100000);  // 100s
+  const uint64_t kMaxFileSize = 1024;
   trace_config.set_max_file_size_bytes(kMaxFileSize);
   base::TempFile tmp_file = base::TempFile::Create();
   consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
@@ -316,13 +320,16 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
 
+  static const int kNumPreamblePackets = 4;
+  static const int kNumTestPackets = 10;
   static const char kPayload[] = "1234567890abcdef-";
-  static const int kNumPackets = 10;
 
   std::unique_ptr<TraceWriter> writer =
       producer->CreateTraceWriter("data_source");
-  // All these packets should fit within kMaxFileSize.
-  for (int i = 0; i < kNumPackets; i++) {
+  // Tracing service will emit a preamble of packets (a synchronization section,
+  // followed by a tracing config packet). The preamble and these test packets
+  // should fit within kMaxFileSize.
+  for (int i = 0; i < kNumTestPackets; i++) {
     auto tp = writer->NewTracePacket();
     std::string payload(kPayload);
     payload.append(std::to_string(i));
@@ -348,14 +355,11 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   ASSERT_TRUE(base::ReadFile(tmp_file.path().c_str(), &trace_raw));
   protos::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_raw));
-  ASSERT_GE(trace.packet_size(), kNumPackets);
-  int num_testing_packet = 0;
-  for (int i = 0; i < trace.packet_size(); i++) {
-    const protos::TracePacket& tp = trace.packet(i);
-    if (!tp.has_for_testing())
-      continue;
-    ASSERT_EQ(kPayload + std::to_string(num_testing_packet++),
-              tp.for_testing().str());
+
+  ASSERT_EQ(trace.packet_size(), kNumPreamblePackets + kNumTestPackets);
+  for (int i = 0; i < kNumTestPackets; i++) {
+    const protos::TracePacket& tp = trace.packet(kNumPreamblePackets + i);
+    ASSERT_EQ(kPayload + std::to_string(i++), tp.for_testing().str());
   }
 }
 
