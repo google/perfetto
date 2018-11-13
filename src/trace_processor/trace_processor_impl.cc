@@ -52,8 +52,18 @@ namespace {
 void InitializeSqliteModules(sqlite3* db) {
   char* error = nullptr;
   sqlite3_percentile_init(db, &error, nullptr);
-  if (error != nullptr) {
+  if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
+}
+
+void CreateBuiltinTables(sqlite3* db) {
+  char* error = nullptr;
+  sqlite3_exec(db, "CREATE TABLE perfetto_tables(name STRING)", 0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
   }
 }
 }  // namespace
@@ -91,6 +101,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   sqlite3* db = nullptr;
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   InitializeSqliteModules(db);
+  CreateBuiltinTables(db);
   db_.reset(std::move(db));
 
   context_.storage.reset(new TraceStorage());
