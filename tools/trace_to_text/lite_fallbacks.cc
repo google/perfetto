@@ -15,20 +15,14 @@
  */
 
 // This file is used when targeting the protobuf-lite only target. It provides
-// fallback implementations for TraceToText and TraceToSummary which simply
-// return an error message.
+// fallback implementations for TraceToText which simply return an error
+// message.
 
 #include "perfetto/base/logging.h"
-#include "tools/trace_to_text/trace_to_summary.h"
 #include "tools/trace_to_text/trace_to_text.h"
 
 namespace perfetto {
 namespace trace_to_text {
-
-int TraceToSummary(std::istream*, std::ostream*, bool) {
-  PERFETTO_FATAL(
-      "The 'summary' command is not available in lite builds of trace_to_text");
-}
 
 int TraceToText(std::istream*, std::ostream*) {
   PERFETTO_FATAL(
