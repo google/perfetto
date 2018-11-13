@@ -56,6 +56,7 @@ class SysStatsConfig;
 class HeapprofdConfig;
 class HeapprofdConfig_ContinousDumpConfig;
 class TestConfig;
+class TestConfig_DummyFields;
 }  // namespace protos
 }  // namespace perfetto
 
