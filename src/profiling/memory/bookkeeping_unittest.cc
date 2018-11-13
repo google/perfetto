@@ -23,16 +23,39 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-std::vector<CodeLocation> stack() {
-  return {
-      {"map1", "fun1"}, {"map2", "fun2"},
-  };
+std::vector<unwindstack::FrameData> stack() {
+  std::vector<unwindstack::FrameData> res;
+  unwindstack::FrameData data{};
+  data.function_name = "fun1";
+  data.map_name = "map1";
+  res.emplace_back(std::move(data));
+  data = {};
+  data.function_name = "fun2";
+  data.map_name = "map2";
+  res.emplace_back(std::move(data));
+  return res;
 }
 
-std::vector<CodeLocation> stack2() {
-  return {
-      {"map1", "fun1"}, {"map3", "fun3"},
-  };
+std::vector<unwindstack::FrameData> stack2() {
+  std::vector<unwindstack::FrameData> res;
+  unwindstack::FrameData data{};
+  data.function_name = "fun1";
+  data.map_name = "map1";
+  res.emplace_back(std::move(data));
+  data = {};
+  data.function_name = "fun3";
+  data.map_name = "map3";
+  res.emplace_back(std::move(data));
+  return res;
+}
+
+std::vector<unwindstack::FrameData> topframe() {
+  std::vector<unwindstack::FrameData> res;
+  unwindstack::FrameData data{};
+  data.function_name = "fun1";
+  data.map_name = "map1";
+  res.emplace_back(std::move(data));
+  return res;
 }
 
 TEST(BookkeepingTest, Basic) {
@@ -42,11 +65,11 @@ TEST(BookkeepingTest, Basic) {
 
   hd.RecordMalloc(stack(), 1, 5, sequence_number++);
   hd.RecordMalloc(stack2(), 2, 2, sequence_number++);
-  ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 7);
+  ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 7);
   hd.RecordFree(2, sequence_number++);
-  ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 5);
+  ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 5);
   hd.RecordFree(1, sequence_number++);
-  ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 0);
+  ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 0);
 }
 
 TEST(BookkeepingTest, TwoHeapTrackers) {
@@ -58,9 +81,9 @@ TEST(BookkeepingTest, TwoHeapTrackers) {
 
     hd.RecordMalloc(stack(), 1, 5, sequence_number++);
     hd2.RecordMalloc(stack2(), 2, 2, sequence_number++);
-    ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 7);
+    ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 7);
   }
-  ASSERT_EQ(c.GetCumSizeForTesting({{"map1", "fun1"}}), 5);
+  ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 5);
 }
 
 TEST(BookkeepingTest, ReplaceAlloc) {

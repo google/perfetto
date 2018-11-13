@@ -192,6 +192,7 @@ message TracePacket {
     // removed field with id 33
     // removed field with id 34
     // removed field with id 35
+    // removed field with id 37
 
     // This field is emitted at periodic intervals (~10s) and
     // contains always the binary representation of the UUID
