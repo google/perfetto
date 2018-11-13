@@ -61,6 +61,8 @@ void TestConfig::FromProto(const perfetto::protos::TestConfig& proto) {
       "size mismatch");
   send_batch_on_register_ = static_cast<decltype(send_batch_on_register_)>(
       proto.send_batch_on_register());
+
+  dummy_fields_.FromProto(proto.dummy_fields());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -93,6 +95,156 @@ void TestConfig::ToProto(perfetto::protos::TestConfig* proto) const {
   proto->set_send_batch_on_register(
       static_cast<decltype(proto->send_batch_on_register())>(
           send_batch_on_register_));
+
+  dummy_fields_.ToProto(proto->mutable_dummy_fields());
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+TestConfig::DummyFields::DummyFields() = default;
+TestConfig::DummyFields::~DummyFields() = default;
+TestConfig::DummyFields::DummyFields(const TestConfig::DummyFields&) = default;
+TestConfig::DummyFields& TestConfig::DummyFields::operator=(
+    const TestConfig::DummyFields&) = default;
+TestConfig::DummyFields::DummyFields(TestConfig::DummyFields&&) noexcept =
+    default;
+TestConfig::DummyFields& TestConfig::DummyFields::operator=(
+    TestConfig::DummyFields&&) = default;
+
+void TestConfig::DummyFields::FromProto(
+    const perfetto::protos::TestConfig_DummyFields& proto) {
+  static_assert(sizeof(field_uint32_) == sizeof(proto.field_uint32()),
+                "size mismatch");
+  field_uint32_ = static_cast<decltype(field_uint32_)>(proto.field_uint32());
+
+  static_assert(sizeof(field_int32_) == sizeof(proto.field_int32()),
+                "size mismatch");
+  field_int32_ = static_cast<decltype(field_int32_)>(proto.field_int32());
+
+  static_assert(sizeof(field_uint64_) == sizeof(proto.field_uint64()),
+                "size mismatch");
+  field_uint64_ = static_cast<decltype(field_uint64_)>(proto.field_uint64());
+
+  static_assert(sizeof(field_int64_) == sizeof(proto.field_int64()),
+                "size mismatch");
+  field_int64_ = static_cast<decltype(field_int64_)>(proto.field_int64());
+
+  static_assert(sizeof(field_fixed64_) == sizeof(proto.field_fixed64()),
+                "size mismatch");
+  field_fixed64_ = static_cast<decltype(field_fixed64_)>(proto.field_fixed64());
+
+  static_assert(sizeof(field_sfixed64_) == sizeof(proto.field_sfixed64()),
+                "size mismatch");
+  field_sfixed64_ =
+      static_cast<decltype(field_sfixed64_)>(proto.field_sfixed64());
+
+  static_assert(sizeof(field_fixed32_) == sizeof(proto.field_fixed32()),
+                "size mismatch");
+  field_fixed32_ = static_cast<decltype(field_fixed32_)>(proto.field_fixed32());
+
+  static_assert(sizeof(field_sfixed32_) == sizeof(proto.field_sfixed32()),
+                "size mismatch");
+  field_sfixed32_ =
+      static_cast<decltype(field_sfixed32_)>(proto.field_sfixed32());
+
+  static_assert(sizeof(field_double_) == sizeof(proto.field_double()),
+                "size mismatch");
+  field_double_ = static_cast<decltype(field_double_)>(proto.field_double());
+
+  static_assert(sizeof(field_float_) == sizeof(proto.field_float()),
+                "size mismatch");
+  field_float_ = static_cast<decltype(field_float_)>(proto.field_float());
+
+  static_assert(sizeof(field_sint64_) == sizeof(proto.field_sint64()),
+                "size mismatch");
+  field_sint64_ = static_cast<decltype(field_sint64_)>(proto.field_sint64());
+
+  static_assert(sizeof(field_sint32_) == sizeof(proto.field_sint32()),
+                "size mismatch");
+  field_sint32_ = static_cast<decltype(field_sint32_)>(proto.field_sint32());
+
+  static_assert(sizeof(field_string_) == sizeof(proto.field_string()),
+                "size mismatch");
+  field_string_ = static_cast<decltype(field_string_)>(proto.field_string());
+
+  static_assert(sizeof(field_bytes_) == sizeof(proto.field_bytes()),
+                "size mismatch");
+  field_bytes_ = static_cast<decltype(field_bytes_)>(proto.field_bytes());
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void TestConfig::DummyFields::ToProto(
+    perfetto::protos::TestConfig_DummyFields* proto) const {
+  proto->Clear();
+
+  static_assert(sizeof(field_uint32_) == sizeof(proto->field_uint32()),
+                "size mismatch");
+  proto->set_field_uint32(
+      static_cast<decltype(proto->field_uint32())>(field_uint32_));
+
+  static_assert(sizeof(field_int32_) == sizeof(proto->field_int32()),
+                "size mismatch");
+  proto->set_field_int32(
+      static_cast<decltype(proto->field_int32())>(field_int32_));
+
+  static_assert(sizeof(field_uint64_) == sizeof(proto->field_uint64()),
+                "size mismatch");
+  proto->set_field_uint64(
+      static_cast<decltype(proto->field_uint64())>(field_uint64_));
+
+  static_assert(sizeof(field_int64_) == sizeof(proto->field_int64()),
+                "size mismatch");
+  proto->set_field_int64(
+      static_cast<decltype(proto->field_int64())>(field_int64_));
+
+  static_assert(sizeof(field_fixed64_) == sizeof(proto->field_fixed64()),
+                "size mismatch");
+  proto->set_field_fixed64(
+      static_cast<decltype(proto->field_fixed64())>(field_fixed64_));
+
+  static_assert(sizeof(field_sfixed64_) == sizeof(proto->field_sfixed64()),
+                "size mismatch");
+  proto->set_field_sfixed64(
+      static_cast<decltype(proto->field_sfixed64())>(field_sfixed64_));
+
+  static_assert(sizeof(field_fixed32_) == sizeof(proto->field_fixed32()),
+                "size mismatch");
+  proto->set_field_fixed32(
+      static_cast<decltype(proto->field_fixed32())>(field_fixed32_));
+
+  static_assert(sizeof(field_sfixed32_) == sizeof(proto->field_sfixed32()),
+                "size mismatch");
+  proto->set_field_sfixed32(
+      static_cast<decltype(proto->field_sfixed32())>(field_sfixed32_));
+
+  static_assert(sizeof(field_double_) == sizeof(proto->field_double()),
+                "size mismatch");
+  proto->set_field_double(
+      static_cast<decltype(proto->field_double())>(field_double_));
+
+  static_assert(sizeof(field_float_) == sizeof(proto->field_float()),
+                "size mismatch");
+  proto->set_field_float(
+      static_cast<decltype(proto->field_float())>(field_float_));
+
+  static_assert(sizeof(field_sint64_) == sizeof(proto->field_sint64()),
+                "size mismatch");
+  proto->set_field_sint64(
+      static_cast<decltype(proto->field_sint64())>(field_sint64_));
+
+  static_assert(sizeof(field_sint32_) == sizeof(proto->field_sint32()),
+                "size mismatch");
+  proto->set_field_sint32(
+      static_cast<decltype(proto->field_sint32())>(field_sint32_));
+
+  static_assert(sizeof(field_string_) == sizeof(proto->field_string()),
+                "size mismatch");
+  proto->set_field_string(
+      static_cast<decltype(proto->field_string())>(field_string_));
+
+  static_assert(sizeof(field_bytes_) == sizeof(proto->field_bytes()),
+                "size mismatch");
+  proto->set_field_bytes(
+      static_cast<decltype(proto->field_bytes())>(field_bytes_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
