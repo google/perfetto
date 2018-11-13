@@ -17,47 +17,59 @@
 #ifndef SRC_PROFILING_MEMORY_BOOKKEEPING_H_
 #define SRC_PROFILING_MEMORY_BOOKKEEPING_H_
 
-#include "perfetto/base/lookup_set.h"
-#include "src/profiling/memory/bounded_queue.h"
-#include "src/profiling/memory/queue_messages.h"
-#include "src/profiling/memory/string_interner.h"
-
 #include <map>
 #include <string>
 #include <vector>
+
+#include "perfetto/base/lookup_set.h"
+#include "perfetto/base/string_splitter.h"
+#include "perfetto/trace/profiling/profile_packet.pbzero.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
+#include "src/profiling/memory/bounded_queue.h"
+#include "src/profiling/memory/interner.h"
+#include "src/profiling/memory/queue_messages.h"
 
 namespace perfetto {
 namespace profiling {
 
 class HeapTracker;
 
-struct CodeLocation {
-  CodeLocation(std::string map_n, std::string function_n)
-      : map_name(std::move(map_n)), function_name(std::move(function_n)) {}
+struct Mapping {
+  uint64_t build_id;
+  uint64_t offset;
+  uint64_t start;
+  uint64_t end;
+  uint64_t load_bias;
+  std::vector<Interner<std::string>::Interned> path_components;
 
-  std::string map_name;
-  std::string function_name;
+  bool operator<(const Mapping& other) const {
+    return std::tie(build_id, offset, start, end, load_bias, path_components) <
+           std::tie(other.build_id, other.offset, other.start, other.end,
+                    other.load_bias, other.path_components);
+  }
 };
 
-// Internal data-structure for GlobalCallstackTrie to save memory if the same
-// function is named multiple times.
-struct InternedCodeLocation {
-  StringInterner::InternedString map_name;
-  StringInterner::InternedString function_name;
+struct Frame {
+  Frame(Interner<Mapping>::Interned m,
+        Interner<std::string>::Interned fn_name,
+        uint64_t pc)
+      : mapping(m), function_name(fn_name), rel_pc(pc) {}
+  Interner<Mapping>::Interned mapping;
+  Interner<std::string>::Interned function_name;
+  uint64_t rel_pc;
 
-  bool operator<(const InternedCodeLocation& other) const {
-    if (map_name.id() == other.map_name.id())
-      return function_name.id() < other.function_name.id();
-    return map_name.id() < other.map_name.id();
+  bool operator<(const Frame& other) const {
+    return std::tie(mapping, function_name, rel_pc) <
+           std::tie(other.mapping, other.function_name, other.rel_pc);
   }
 };
 
 // Graph of function callsites. This is shared between heap dumps for
 // different processes. Each call site is represented by a
 // GlobalCallstackTrie::Node that is owned by the parent (i.e. calling)
-// callsite. It has a pointer to its parent, which means the function call-graph
-// can be reconstructed from a GlobalCallstackTrie::Node by walking down the
-// pointers to the parents.
+// callsite. It has a pointer to its parent, which means the function
+// call-graph can be reconstructed from a GlobalCallstackTrie::Node by walking
+// down the pointers to the parents.
 class GlobalCallstackTrie {
  public:
   // Node in a tree of function traces that resulted in an allocation. For
@@ -81,19 +93,20 @@ class GlobalCallstackTrie {
     // This is opaque except to GlobalCallstackTrie.
     friend class GlobalCallstackTrie;
 
-    Node(InternedCodeLocation location) : Node(std::move(location), nullptr) {}
-    Node(InternedCodeLocation location, Node* parent)
-        : parent_(parent), location_(std::move(location)) {}
+    Node(Interner<Frame>::Interned frame) : Node(std::move(frame), nullptr) {}
+    Node(Interner<Frame>::Interned frame, Node* parent)
+        : parent_(parent), location_(std::move(frame)) {}
 
-    std::vector<InternedCodeLocation> BuildCallstack() const;
+    std::vector<Interner<Frame>::Interned> BuildCallstack() const;
+    uintptr_t id() const { return reinterpret_cast<uintptr_t>(this); }
 
    private:
-    Node* GetOrCreateChild(const InternedCodeLocation& loc);
+    Node* GetOrCreateChild(const Interner<Frame>::Interned& loc);
 
     uint64_t cum_size_ = 0;
     Node* const parent_;
-    const InternedCodeLocation location_;
-    base::LookupSet<Node, const InternedCodeLocation, &Node::location_>
+    const Interner<Frame>::Interned location_;
+    base::LookupSet<Node, const Interner<Frame>::Interned, &Node::location_>
         children_;
   };
 
@@ -101,18 +114,35 @@ class GlobalCallstackTrie {
   GlobalCallstackTrie(const GlobalCallstackTrie&) = delete;
   GlobalCallstackTrie& operator=(const GlobalCallstackTrie&) = delete;
 
-  uint64_t GetCumSizeForTesting(const std::vector<CodeLocation>& stack);
-  Node* IncrementCallsite(const std::vector<CodeLocation>& locs, uint64_t size);
+  uint64_t GetCumSizeForTesting(
+      const std::vector<unwindstack::FrameData>& stack);
+  Node* IncrementCallsite(const std::vector<unwindstack::FrameData>& locs,
+                          uint64_t size);
   static void DecrementNode(Node* node, uint64_t size);
 
  private:
-  InternedCodeLocation InternCodeLocation(const CodeLocation& loc) {
-    return {interner_.Intern(loc.map_name),
-            interner_.Intern(loc.function_name)};
-  }
+  Interner<Frame>::Interned InternCodeLocation(
+      const unwindstack::FrameData& loc);
+  Interner<Frame>::Interned MakeRootFrame();
 
-  StringInterner interner_;
-  Node root_{{interner_.Intern(""), interner_.Intern("")}};
+  Interner<std::string> string_interner_;
+  Interner<Mapping> mapping_interner_;
+  Interner<Frame> frame_interner_;
+
+  Node root_{MakeRootFrame()};
+};
+
+struct DumpState {
+  void WriteMap(protos::pbzero::ProfilePacket* packet,
+                const Interner<Mapping>::Interned map);
+  void WriteFrame(protos::pbzero::ProfilePacket* packet,
+                  const Interner<Frame>::Interned frame);
+  void WriteString(protos::pbzero::ProfilePacket* packet,
+                   const Interner<std::string>::Interned& str);
+
+  std::set<InternID> dumped_strings;
+  std::set<InternID> dumped_frames;
+  std::set<InternID> dumped_mappings;
 };
 
 // Snapshot for memory allocations of a particular process. Shares callsites
@@ -123,12 +153,13 @@ class HeapTracker {
   explicit HeapTracker(GlobalCallstackTrie* callsites)
       : callsites_(callsites) {}
 
-  void RecordMalloc(const std::vector<CodeLocation>& stack,
+  void RecordMalloc(const std::vector<unwindstack::FrameData>& stack,
                     uint64_t address,
                     uint64_t size,
                     uint64_t sequence_number);
   void RecordFree(uint64_t address, uint64_t sequence_number);
-  void Dump(int fd);
+  void Dump(protos::pbzero::ProfilePacket::ProcessHeapSamples* proto,
+            std::set<GlobalCallstackTrie::Node*>* callstacks_to_dump);
 
  private:
   static constexpr uint64_t kNoopFree = 0;
@@ -195,7 +226,8 @@ class HeapTracker {
 };
 
 struct BookkeepingData {
-  // Ownership of callsites remains with caller and has to outlive this object.
+  // Ownership of callsites remains with caller and has to outlive this
+  // object.
   explicit BookkeepingData(GlobalCallstackTrie* callsites)
       : heap_tracker(callsites) {}
 

@@ -48,18 +48,21 @@ source_set("daemon") {
     "../../tracing",
     "../../tracing:ipc",
   ]
+  public_deps = [
+    "../../../protos/perfetto/trace:zero",
+    "../../../protos/perfetto/trace/profiling:zero",
+  ]
   sources = [
     "bookkeeping.cc",
     "bookkeeping.h",
     "heapprofd_producer.cc",
     "heapprofd_producer.h",
+    "interner.h",
     "queue_messages.h",
     "record_reader.cc",
     "record_reader.h",
     "socket_listener.cc",
     "socket_listener.h",
-    "string_interner.cc",
-    "string_interner.h",
     "unwinding.cc",
     "unwinding.h",
   ]
@@ -99,10 +102,10 @@ source_set("unittests") {
     "bounded_queue_unittest.cc",
     "client_unittest.cc",
     "heapprofd_integrationtest.cc",
+    "interner_unittest.cc",
     "record_reader_unittest.cc",
     "sampler_unittest.cc",
     "socket_listener_unittest.cc",
-    "string_interner_unittest.cc",
     "unwinding_unittest.cc",
     "wire_protocol_unittest.cc",
   ]

@@ -28,6 +28,7 @@ import "perfetto/trace/ps/process_tree.proto";
 import "perfetto/trace/sys_stats/sys_stats.proto";
 import "perfetto/trace/test_event.proto";
 import "perfetto/trace/trace_stats.proto";
+import "perfetto/trace/profiling/profile_packet.proto";
 
 package perfetto.protos;
 
@@ -55,6 +56,7 @@ message TracePacket {
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
     TraceStats trace_stats = 35;
+    ProfilePacket profile_packet = 37;
 
     // This field is emitted at periodic intervals (~10s) and
     // contains always the binary representation of the UUID

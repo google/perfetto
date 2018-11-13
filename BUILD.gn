@@ -54,8 +54,6 @@ group("all") {
       ":traced",
       ":traced_probes",
       "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
-      "protos/perfetto/profiling:lite",  # For syntax-checking the proto.
-                                         # TODO(fmayer): Remove once used.
       "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
       "tools:protoc_helper",
     ]
@@ -298,6 +296,7 @@ if (should_build_heapprofd) {
   executable("heapprofd") {
     deps = [
       "gn:default_deps",
+      "protos/perfetto/trace:zero",
       "src/base",
       "src/base:unix_socket",
       "src/profiling/memory:daemon",
