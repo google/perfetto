@@ -39,13 +39,93 @@
 namespace perfetto {
 namespace protos {
 class TestConfig;
-}
+class TestConfig_DummyFields;
+}  // namespace protos
 }  // namespace perfetto
 
 namespace perfetto {
 
 class PERFETTO_EXPORT TestConfig {
  public:
+  class PERFETTO_EXPORT DummyFields {
+   public:
+    DummyFields();
+    ~DummyFields();
+    DummyFields(DummyFields&&) noexcept;
+    DummyFields& operator=(DummyFields&&);
+    DummyFields(const DummyFields&);
+    DummyFields& operator=(const DummyFields&);
+
+    // Conversion methods from/to the corresponding protobuf types.
+    void FromProto(const perfetto::protos::TestConfig_DummyFields&);
+    void ToProto(perfetto::protos::TestConfig_DummyFields*) const;
+
+    uint32_t field_uint32() const { return field_uint32_; }
+    void set_field_uint32(uint32_t value) { field_uint32_ = value; }
+
+    int32_t field_int32() const { return field_int32_; }
+    void set_field_int32(int32_t value) { field_int32_ = value; }
+
+    uint64_t field_uint64() const { return field_uint64_; }
+    void set_field_uint64(uint64_t value) { field_uint64_ = value; }
+
+    int64_t field_int64() const { return field_int64_; }
+    void set_field_int64(int64_t value) { field_int64_ = value; }
+
+    uint64_t field_fixed64() const { return field_fixed64_; }
+    void set_field_fixed64(uint64_t value) { field_fixed64_ = value; }
+
+    int64_t field_sfixed64() const { return field_sfixed64_; }
+    void set_field_sfixed64(int64_t value) { field_sfixed64_ = value; }
+
+    uint32_t field_fixed32() const { return field_fixed32_; }
+    void set_field_fixed32(uint32_t value) { field_fixed32_ = value; }
+
+    int32_t field_sfixed32() const { return field_sfixed32_; }
+    void set_field_sfixed32(int32_t value) { field_sfixed32_ = value; }
+
+    double field_double() const { return field_double_; }
+    void set_field_double(double value) { field_double_ = value; }
+
+    float field_float() const { return field_float_; }
+    void set_field_float(float value) { field_float_ = value; }
+
+    int64_t field_sint64() const { return field_sint64_; }
+    void set_field_sint64(int64_t value) { field_sint64_ = value; }
+
+    int32_t field_sint32() const { return field_sint32_; }
+    void set_field_sint32(int32_t value) { field_sint32_ = value; }
+
+    const std::string& field_string() const { return field_string_; }
+    void set_field_string(const std::string& value) { field_string_ = value; }
+
+    const std::string& field_bytes() const { return field_bytes_; }
+    void set_field_bytes(const std::string& value) { field_bytes_ = value; }
+    void set_field_bytes(const void* p, size_t s) {
+      field_bytes_.assign(reinterpret_cast<const char*>(p), s);
+    }
+
+   private:
+    uint32_t field_uint32_ = {};
+    int32_t field_int32_ = {};
+    uint64_t field_uint64_ = {};
+    int64_t field_int64_ = {};
+    uint64_t field_fixed64_ = {};
+    int64_t field_sfixed64_ = {};
+    uint32_t field_fixed32_ = {};
+    int32_t field_sfixed32_ = {};
+    double field_double_ = {};
+    float field_float_ = {};
+    int64_t field_sint64_ = {};
+    int32_t field_sint32_ = {};
+    std::string field_string_ = {};
+    std::string field_bytes_ = {};
+
+    // Allows to preserve unknown protobuf fields for compatibility
+    // with future versions of .proto files.
+    std::string unknown_fields_;
+  };
+
   TestConfig();
   ~TestConfig();
   TestConfig(TestConfig&&) noexcept;
@@ -76,12 +156,16 @@ class PERFETTO_EXPORT TestConfig {
     send_batch_on_register_ = value;
   }
 
+  const DummyFields& dummy_fields() const { return dummy_fields_; }
+  DummyFields* mutable_dummy_fields() { return &dummy_fields_; }
+
  private:
   uint32_t message_count_ = {};
   uint32_t max_messages_per_second_ = {};
   uint32_t seed_ = {};
   uint32_t message_size_ = {};
   bool send_batch_on_register_ = {};
+  DummyFields dummy_fields_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
