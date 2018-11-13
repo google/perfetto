@@ -20,6 +20,7 @@
 #include <signal.h>
 #include <sys/types.h>
 
+#include "perfetto/base/file_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_writer.h"
@@ -44,7 +45,7 @@ ClientConfiguration MakeClientConfiguration(const DataSourceConfig& cfg) {
   return client_config;
 }
 
-void FindPidsForBinaries(const std::vector<std::string>& binaries,
+void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
                          std::vector<pid_t>* pids) {
   base::ScopedDir proc_dir(opendir("/proc"));
   if (!proc_dir) {
@@ -59,24 +60,31 @@ void FindPidsForBinaries(const std::vector<std::string>& binaries,
       continue;
     }
 
-    char link_buf[128];
-    char binary_buf[128];
+    char filename_buf[128];
 
-    if (snprintf(link_buf, sizeof(link_buf), "/proc/%lu/exe", pid) < 0) {
-      PERFETTO_DFATAL("Failed to create exe filename for %lu", pid);
+    if (snprintf(filename_buf, sizeof(filename_buf), "/proc/%lu/cmdline", pid) <
+        0) {
+      PERFETTO_DFATAL("Failed to create comm filename for %lu", pid);
       continue;
     }
-    ssize_t link_size = readlink(link_buf, binary_buf, sizeof(binary_buf));
-    if (link_size < 0) {
+    std::string process_cmdline;
+    process_cmdline.reserve(128);
+    if (!base::ReadFile(filename_buf, &process_cmdline))
       continue;
-    }
-    if (link_size == sizeof(binary_buf)) {
-      PERFETTO_DFATAL("Potential overflow in binary name.");
+    if (process_cmdline.empty())
       continue;
-    }
-    binary_buf[link_size] = '\0';
-    for (const std::string& binary : binaries) {
-      if (binary == binary_buf)
+
+    // Strip everything after @ for Java processes.
+    // Otherwise, strip newline at EOF.
+    size_t endpos = process_cmdline.find('\0');
+    if (endpos == std::string::npos)
+      continue;
+    if (endpos < 1)
+      continue;
+    process_cmdline.resize(endpos);
+
+    for (const std::string& cmdline : cmdlines) {
+      if (process_cmdline == cmdline)
         pids->emplace_back(static_cast<pid_t>(pid));
     }
   }
@@ -179,7 +187,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   for (uint64_t pid : cfg.heapprofd_config().pid())
     data_source.pids.emplace_back(static_cast<pid_t>(pid));
 
-  FindPidsForBinaries(cfg.heapprofd_config().native_binary_name(),
+  FindPidsForCmdlines(cfg.heapprofd_config().process_cmdline(),
                       &data_source.pids);
 
   auto pid_it = data_source.pids.begin();
