@@ -204,6 +204,10 @@ Client::Client(std::vector<base::ScopedFile> socks)
   uint64_t size = 0;
   base::ScopedFile maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile mem(base::OpenFile("/proc/self/mem", O_RDONLY));
+  if (!maps || !mem) {
+    PERFETTO_DFATAL("Failed to open /proc/self/{maps,mem}");
+    return;
+  }
   int fds[2];
   fds[0] = *maps;
   fds[1] = *mem;
@@ -222,6 +226,7 @@ Client::Client(std::vector<base::ScopedFile> socks)
     return;
   }
   PERFETTO_DCHECK(client_config_.interval >= 1);
+  PERFETTO_DLOG("Initialized client.");
   inited_ = true;
 }
 
