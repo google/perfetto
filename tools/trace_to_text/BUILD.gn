@@ -32,7 +32,6 @@ source_set("common") {
     "ftrace_inode_handler.h",
     "main.cc",
     "process_formatter.h",
-    "trace_to_summary.h",
     "trace_to_systrace.cc",
     "trace_to_systrace.h",
     "trace_to_text.h",
@@ -63,7 +62,6 @@ source_set("full") {
   sources = [
     "proto_full_utils.cc",
     "proto_full_utils.h",
-    "trace_to_summary.cc",
     "trace_to_text.cc",
   ]
 }
