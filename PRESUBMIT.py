@@ -30,6 +30,7 @@ def CheckChange(input, output):
     results += input.canned_checks.CheckGNFormatted(input, output)
     results += CheckIncludeGuards(input, output)
     results += CheckAndroidBlueprint(input, output)
+    results += CheckBinaryDescriptors(input, output)
     results += CheckMergedTraceConfigProto(input, output)
     results += CheckWhitelist(input, output)
     return results
@@ -85,7 +86,7 @@ def CheckBinaryDescriptors(input_api, output_api):
     tool = 'tools/gen_binary_descriptors'
     file_filter = lambda x: input_api.FilterSourceFile(
           x,
-          white_list=('.*[.]h$', '.*[.]proto$', tool))
+          white_list=('protos/perfetto/.*[.]proto$', '.*[.]h', tool))
     if not input_api.AffectedSourceFiles(file_filter):
         return []
     if subprocess.call([tool, '--check-only']):
