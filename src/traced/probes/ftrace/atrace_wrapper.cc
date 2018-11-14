@@ -44,19 +44,61 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
     argv.push_back(const_cast<char*>(arg.c_str()));
   argv.push_back(nullptr);
 
+  // Create the pipe for the child process to return stderr.
+  int filedes[2];
+  if (pipe(filedes) == -1)
+    return false;
+
   pid_t pid = fork();
   PERFETTO_CHECK(pid >= 0);
   if (pid == 0) {
-    // Close stdin/out/err + any file descriptor that we might have mistakenly
+    // Duplicate the write end of the pipe into stderr.
+    if ((dup2(filedes[1], STDERR_FILENO) == -1)) {
+      const char kError[] = "Unable to duplicate stderr fd";
+      write(filedes[1], kError, sizeof(kError));
+      _exit(1);
+    }
+
+    // Close stdin/out + any file descriptor that we might have mistakenly
     // not marked as FD_CLOEXEC.
-    for (int i = 0; i < 128; i++)
-      close(i);
+    for (int i = 0; i < 128; i++) {
+      if (i != STDERR_FILENO)
+        close(i);
+    }
+
+    // Close the read and write end of the pipe fds.
+    close(filedes[1]);
+    close(filedes[0]);
+
     execv("/system/bin/atrace", &argv[0]);
     // Reached only if execv fails.
     _exit(1);
   }
+
+  // Close the write end of the pipe.
+  close(filedes[1]);
+
+  // Collect the output from child process.
+  std::string error;
+  char buffer[4096];
+  while (true) {
+    ssize_t count = PERFETTO_EINTR(read(filedes[0], buffer, sizeof(buffer)));
+    if (count == 0 || count == -1)
+      break;
+    error.append(buffer, static_cast<size_t>(count));
+  }
+  // Close the read end of the pipe.
+  close(filedes[0]);
+
+  // Wait until the child process exits fully.
   PERFETTO_EINTR(waitpid(pid, &status, 0));
-  return status == 0;
+
+  bool ok = WIFEXITED(status) && WEXITSTATUS(status) == 0;
+  if (!ok) {
+    // TODO(lalitm): use the stderr result from atrace.
+    base::ignore_result(error);
+  }
+  return ok;
 }
 #endif
 
