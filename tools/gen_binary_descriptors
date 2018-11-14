@@ -34,6 +34,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 SCRIPT_PATH = 'tools/gen_binary_descriptors'
 
+
 def hash_path(path):
   hash = hashlib.sha1()
   with open(os.path.join(ROOT_DIR, path)) as f:
@@ -41,8 +42,19 @@ def hash_path(path):
   return hash.hexdigest()
 
 
+def find_protoc():
+  for root, dirs, files in os.walk(ROOT_DIR):
+    if 'protoc' in files:
+      return os.path.join(root, 'protoc')
+    for name in ('src', 'buildtools'):
+      if name in dirs:
+        dirs.remove(name)
+  return None
+
+
 def check(source, target):
-  assert os.path.exists(os.path.join(ROOT_DIR, target))
+  assert os.path.exists(os.path.join(ROOT_DIR, target)), \
+      'Output file {} does not exist and so cannot be checked'.format(target)
 
   with open(target, 'rb') as f:
     s = f.read()
@@ -52,7 +64,7 @@ def check(source, target):
   for path, expected_sha1 in hashes:
     actual_sha1 = hash_path(os.path.join(ROOT_DIR, path))
     assert actual_sha1 == expected_sha1, \
-        'Hash for path {} did not match'.format(path)
+        'In {} hash given for {} did not match'.format(target, path)
 
 
 def generate(source, target, protoc_path):
@@ -123,13 +135,21 @@ def main():
   parser.add_argument('--protoc')
   args = parser.parse_args()
 
-  for source, target in SOURCE_TARGET.iteritems():
-    if args.check_only:
-        check(source, target)
-    else:
-      protoc = args.protoc
-      assert os.path.exists(protoc)
-      generate(source, target, args.protoc)
+  try:
+    for source, target in SOURCE_TARGET.iteritems():
+      if args.check_only:
+          check(source, target)
+      else:
+        protoc = args.protoc or find_protoc()
+        assert protoc, 'protoc not found specific (--protoc PROTOC_PATH)'
+        assert os.path.exists(protoc), '{} does not exist'.format(protoc)
+        if protoc is not args.protoc:
+          print('Using protoc: {}'.format(protoc))
+        generate(source, target, protoc)
+  except AssertionError as e:
+    if not str(e):
+      raise
+    print('Error: {}'.format(e))
 
 if __name__ == '__main__':
   exit(main())
