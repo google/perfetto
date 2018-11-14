@@ -41,7 +41,9 @@ SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
 
 void SpanJoinOperatorTable::RegisterTable(sqlite3* db,
                                           const TraceStorage* storage) {
-  Table::Register<SpanJoinOperatorTable>(db, storage, "span_join");
+  Table::Register<SpanJoinOperatorTable>(db, storage, "span_join",
+                                         /* read_write */ false,
+                                         /* requires_args */ true);
 }
 
 Table::Schema SpanJoinOperatorTable::CreateSchema(int argc,

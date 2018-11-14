@@ -135,6 +135,68 @@ char* GetLine(const char* prompt) {
 
 #endif
 
+int ExportTraceToDatabase(const std::string& output_name) {
+  PERFETTO_CHECK(output_name.find("'") == std::string::npos);
+  {
+    base::ScopedFile fd(base::OpenFile(output_name, O_CREAT | O_RDWR, 0600));
+    if (!fd) {
+      PERFETTO_PLOG("Failed to create file: %s", output_name.c_str());
+      return 1;
+    }
+    int res = ftruncate(fd.get(), 0);
+    PERFETTO_CHECK(res == 0);
+  }
+
+  // TODO(skyostil): Use synchronous queries.
+  std::string attach_sql =
+      "ATTACH DATABASE '" + output_name + "' AS perfetto_export";
+  protos::RawQueryArgs attach_query;
+  attach_query.set_sql_query(attach_sql);
+  g_tp->ExecuteQuery(
+      attach_query, [](const protos::RawQueryResult& attach_res) {
+        if (attach_res.has_error()) {
+          PERFETTO_ELOG("SQLite error: %s", attach_res.error().c_str());
+          return;
+        }
+        protos::RawQueryArgs list_query;
+        // Find all the virtual tables we have created internally as well as
+        // actual tables registered through SQL.
+        list_query.set_sql_query(
+            "SELECT name FROM perfetto_tables UNION "
+            "SELECT name FROM sqlite_master WHERE type='table'");
+        g_tp->ExecuteQuery(list_query, [](const protos::RawQueryResult& res) {
+          if (res.has_error()) {
+            PERFETTO_ELOG("SQLite error: %s", res.error().c_str());
+            return;
+          }
+          PERFETTO_CHECK(res.columns_size() == 1);
+          for (int r = 0; r < static_cast<int>(res.num_records()); r++) {
+            std::string table_name = res.columns(0).string_values(r);
+            PERFETTO_CHECK(table_name.find("'") == std::string::npos);
+            std::string export_sql = "CREATE TABLE perfetto_export." +
+                                     table_name + " AS SELECT * FROM " +
+                                     table_name;
+            protos::RawQueryArgs export_query;
+            export_query.set_sql_query(export_sql);
+            g_tp->ExecuteQuery(export_query,
+                               [](const protos::RawQueryResult& export_res) {
+                                 if (export_res.has_error())
+                                   PERFETTO_ELOG("SQLite error: %s",
+                                                 export_res.error().c_str());
+                               });
+          }
+        });
+      });
+
+  protos::RawQueryArgs detach_query;
+  detach_query.set_sql_query("DETACH DATABASE perfetto_export");
+  g_tp->ExecuteQuery(detach_query, [](const protos::RawQueryResult& res) {
+    if (res.has_error())
+      PERFETTO_ELOG("SQLite error: %s", res.error().c_str());
+  });
+  return 0;
+}
+
 void PrintQueryResultInteractively(base::TimeNanos t_start,
                                    const protos::RawQueryResult& res) {
   if (res.has_error()) {
@@ -185,15 +247,40 @@ void PrintQueryResultInteractively(base::TimeNanos t_start,
   }
   printf("\nQuery executed in %.3f ms\n\n", (t_end - t_start).count() / 1E6);
 }
+
+void PrintShellUsage() {
+  PERFETTO_ELOG(
+      "Available commands:\n"
+      ".quit, .q    Exit the shell.\n"
+      ".help        This text.\n"
+      ".dump FILE   Export the trace as a sqlite database.\n");
+}
+
 int StartInteractiveShell() {
   SetupLineEditor();
 
   for (;;) {
     char* line = GetLine("> ");
-    if (!line || strcmp(line, "q\n") == 0)
+    if (!line)
       break;
     if (strcmp(line, "") == 0)
       continue;
+    if (line[0] == '.') {
+      char command[32] = {};
+      char arg[1024] = {};
+      sscanf(line + 1, "%31s %1023s", command, arg);
+      if (strcmp(command, "quit") == 0 || strcmp(command, "q") == 0) {
+        break;
+      } else if (strcmp(command, "help") == 0) {
+        PrintShellUsage();
+      } else if (strcmp(command, "dump") == 0 && strlen(arg)) {
+        if (ExportTraceToDatabase(arg) != 0)
+          PERFETTO_ELOG("Database export failed");
+      } else {
+        PrintShellUsage();
+      }
+      continue;
+    }
     protos::RawQueryArgs query;
     query.set_sql_query(line);
     base::TimeNanos t_start = base::GetWallTimeNs();
@@ -287,7 +374,14 @@ int RunQueryAndPrintResult(FILE* input, FILE* output) {
 }
 
 void PrintUsage(char** argv) {
-  PERFETTO_ELOG("Usage: %s [-d] [-q query.sql] trace_file.pb", argv[0]);
+  PERFETTO_ELOG(
+      "Interactive trace processor shell.\n"
+      "Usage: %s [OPTIONS] trace_file.pb\n\n"
+      "Options:\n"
+      " -d        Enable virtual table debugging.\n"
+      " -q FILE   Read and execute an SQL query from a file.\n"
+      " -e FILE   Export the trace into a SQLite database.\n",
+      argv[0]);
 }
 
 int TraceProcessorMain(int argc, char** argv) {
@@ -297,6 +391,7 @@ int TraceProcessorMain(int argc, char** argv) {
   }
   const char* trace_file_path = nullptr;
   const char* query_file_path = nullptr;
+  const char* sqlite_file_path = nullptr;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-d") == 0) {
       EnableSQLiteVtableDebugging();
@@ -309,6 +404,19 @@ int TraceProcessorMain(int argc, char** argv) {
       }
       query_file_path = argv[i];
       continue;
+    } else if (strcmp(argv[i], "-e") == 0) {
+      if (++i == argc) {
+        PrintUsage(argv);
+        return 1;
+      }
+      sqlite_file_path = argv[i];
+      continue;
+    } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+      PrintUsage(argv);
+      return 0;
+    } else if (argv[i][0] == '-') {
+      PERFETTO_ELOG("Unknown option: %s", argv[i]);
+      return 1;
     }
     trace_file_path = argv[i];
   }
@@ -375,14 +483,26 @@ int TraceProcessorMain(int argc, char** argv) {
   signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
 #endif
 
-  // If there is no query file, start a shell.
-  if (query_file_path == nullptr) {
-    return StartInteractiveShell();
+  int ret = 0;
+
+  // If we were given a query file, first load and execute it.
+  if (query_file_path) {
+    base::ScopedFstream file(fopen(query_file_path, "r"));
+    ret = RunQueryAndPrintResult(file.get(), stdout);
   }
 
-  // Otherwise run the queries and print the results.
-  base::ScopedFstream file(fopen(query_file_path, "r"));
-  return RunQueryAndPrintResult(file.get(), stdout);
+  // After this we can dump the database and exit if needed.
+  if (ret == 0 && sqlite_file_path) {
+    return ExportTraceToDatabase(sqlite_file_path);
+  }
+
+  // If we ran an automated query, exit.
+  if (query_file_path) {
+    return ret;
+  }
+
+  // Otherwise start an interactive shell.
+  return StartInteractiveShell();
 }
 
 }  // namespace
