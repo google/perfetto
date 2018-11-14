@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/json_trace_parser.h"
 
+#include <inttypes.h>
 #include <json/reader.h>
 #include <json/value.h>
 
@@ -36,7 +37,6 @@
 
 namespace perfetto {
 namespace trace_processor {
-
 namespace {
 
 enum ReadDictRes { kFoundDict, kNeedsMoreData, kEndOfTrace, kFatalError };
@@ -82,6 +82,31 @@ ReadDictRes ReadOneJsonDict(const char* start,
 
 }  // namespace
 
+bool CoerceToUint64(const Json::Value& value, uint64_t* integer_ptr) {
+  switch (static_cast<size_t>(value.type())) {
+    case Json::uintValue:
+    case Json::intValue:
+      *integer_ptr = value.asUInt64();
+      return true;
+    case Json::stringValue: {
+      std::string s = value.asString();
+      char* end;
+      *integer_ptr = strtoull(s.c_str(), &end, 10);
+      return end == s.data() + s.size();
+    }
+    default:
+      return false;
+  }
+}
+
+bool CoerceToUint32(const Json::Value& value, uint32_t* integer_ptr) {
+  uint64_t n = 0;
+  if (!CoerceToUint64(value, &n))
+    return false;
+  *integer_ptr = static_cast<uint32_t>(n);
+  return true;
+}
+
 JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
     : context_(context) {}
 
@@ -124,9 +149,13 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
     if (!ph.isString())
       continue;
     char phase = *ph.asCString();
-    uint32_t tid = value["tid"].asUInt();
-    uint32_t pid = value["pid"].asUInt();
-    uint64_t ts = value["ts"].asLargestUInt() * 1000;
+    uint32_t tid = 0;
+    PERFETTO_CHECK(CoerceToUint32(value["tid"], &tid));
+    uint32_t pid = 0;
+    PERFETTO_CHECK(CoerceToUint32(value["pid"], &pid));
+    uint64_t ts = 0;
+    PERFETTO_CHECK(CoerceToUint64(value["ts"], &ts));
+    ts *= 1000;
     const char* cat = value.isMember("cat") ? value["cat"].asCString() : "";
     const char* name = value.isMember("name") ? value["name"].asCString() : "";
     StringId cat_id = storage->InternString(cat);
@@ -143,7 +172,9 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
         break;
       }
       case 'X': {  // TRACE_EVENT (scoped event).
-        uint64_t duration = value["dur"].asUInt() * 1000;
+        uint64_t duration = 0;
+        PERFETTO_CHECK(CoerceToUint64(value["ts"], &duration));
+        duration *= 1000;
         slice_tracker->Scoped(ts, utid, cat_id, name_id, duration);
         break;
       }

@@ -23,27 +23,27 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-TEST(TraceProcessorImpl, GuessTraceType_Empty) {
+TEST(TraceProcessorImplTest, GuessTraceType_Empty) {
   const uint8_t prefix[] = "";
   EXPECT_EQ(kUnknownTraceType, GuessTraceType(prefix, 0));
 }
 
-TEST(TraceProcessorImpl, GuessTraceType_Json) {
+TEST(TraceProcessorImplTest, GuessTraceType_Json) {
   const uint8_t prefix[] = "{\"traceEvents\":[";
   EXPECT_EQ(kJsonTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
 
-TEST(TraceProcessorImpl, GuessTraceType_JsonWithSpaces) {
+TEST(TraceProcessorImplTest, GuessTraceType_JsonWithSpaces) {
   const uint8_t prefix[] = "\n{ \"traceEvents\": [";
   EXPECT_EQ(kJsonTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
 
-TEST(TraceProcessorImpl, GuessTraceType_JsonMissingTraceEvents) {
+TEST(TraceProcessorImplTest, GuessTraceType_JsonMissingTraceEvents) {
   const uint8_t prefix[] = "[{";
   EXPECT_EQ(kJsonTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
 
-TEST(TraceProcessorImpl, GuessTraceType_Proto) {
+TEST(TraceProcessorImplTest, GuessTraceType_Proto) {
   const uint8_t prefix[] = {0x0a, 0x65, 0x18, 0x8f, 0x4e, 0x32, 0x60, 0x0a};
   EXPECT_EQ(kProtoTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
