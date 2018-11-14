@@ -131,11 +131,14 @@ class StorageSchema {
     }
 
     Predicate Filter(int op, sqlite3_value* value) const override {
-      auto binary_op = sqlite_utils::GetPredicateForOp<T>(op);
-      T extracted = sqlite_utils::ExtractSqliteValue<T>(value);
-      return [this, binary_op, extracted](uint32_t idx) {
-        return binary_op((*deque_)[idx], extracted);
-      };
+      auto type = sqlite3_value_type(value);
+      if (type == SQLITE_INTEGER && std::is_integral<T>::value) {
+        return FilterWithCast<int64_t>(op, value);
+      } else if (type == SQLITE_INTEGER || type == SQLITE_FLOAT) {
+        return FilterWithCast<double>(op, value);
+      } else {
+        PERFETTO_FATAL("Unexpected sqlite value to compare against");
+      }
     }
 
     Comparator Sort(const QueryConstraints::OrderBy& ob) const override {
@@ -172,6 +175,16 @@ class StorageSchema {
     }
 
    private:
+    template <typename C>
+    Predicate FilterWithCast(int op, sqlite3_value* value) const {
+      auto binary_op = sqlite_utils::GetPredicateForOp<C>(op);
+      C extracted = sqlite_utils::ExtractSqliteValue<C>(value);
+      return [this, binary_op, extracted](uint32_t idx) {
+        auto val = static_cast<C>((*deque_)[idx]);
+        return binary_op(val, extracted);
+      };
+    }
+
     const std::deque<T>* deque_ = nullptr;
     bool is_naturally_ordered_ = false;
   };
