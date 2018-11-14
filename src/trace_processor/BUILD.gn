@@ -176,6 +176,10 @@ source_set("unittests") {
     "../../protos/perfetto/trace:lite",
     "../base",
   ]
+  if (perfetto_build_standalone) {
+    sources += [ "json_trace_parser_unittest.cc" ]
+    deps += [ "../../gn:jsoncpp_deps" ]
+  }
 }
 
 source_set("integrationtests") {
