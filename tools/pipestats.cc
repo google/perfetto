@@ -40,7 +40,7 @@ void SetBlocking(int fd, bool is_blocking) {
 
 __attribute__((__noreturn__)) void ReadLoop(int fd) {
   char buf[4096];
-  while (true) {
+  for (;;) {
     base::ignore_result(read(fd, &buf, sizeof(buf)));
   }
 }
@@ -67,7 +67,7 @@ int PipestatsMain(int argc, char** argv) {
   // SPLICE_F_NONBLOCK flag passed to splice().
   SetBlocking(*staging_write_fd, false);
 
-  while (true) {
+  for (;;) {
     ssize_t splice_res = splice(*trace_fd, nullptr, *staging_write_fd, nullptr,
                                 base::kPageSize, SPLICE_F_MOVE);
     if (splice_res > 0) {
