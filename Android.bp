@@ -3905,6 +3905,39 @@ genrule {
   ],
 }
 
+// GN target: //protos/third_party/pprof:lite_gen
+genrule {
+  name: "perfetto_protos_third_party_pprof_lite_gen",
+  srcs: [
+    "protos/third_party/pprof/profile.proto",
+  ],
+  tools: [
+    "aprotoc",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
+  out: [
+    "external/perfetto/protos/third_party/pprof/profile.pb.cc",
+  ],
+}
+
+// GN target: //protos/third_party/pprof:lite_gen
+genrule {
+  name: "perfetto_protos_third_party_pprof_lite_gen_headers",
+  srcs: [
+    "protos/third_party/pprof/profile.proto",
+  ],
+  tools: [
+    "aprotoc",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
+  out: [
+    "external/perfetto/protos/third_party/pprof/profile.pb.h",
+  ],
+  export_include_dirs: [
+    "protos",
+  ],
+}
+
 // GN target: //src/ipc/protoc_plugin:ipc_plugin(//gn/standalone/toolchain:gcc_like_host)
 cc_binary_host {
   name: "perfetto_src_ipc_protoc_plugin_ipc_plugin___gn_standalone_toolchain_gcc_like_host_",
@@ -4678,10 +4711,24 @@ cc_binary_host {
     ":perfetto_protos_perfetto_trace_profiling_lite_gen",
     ":perfetto_protos_perfetto_trace_ps_lite_gen",
     ":perfetto_protos_perfetto_trace_sys_stats_lite_gen",
+    ":perfetto_protos_third_party_pprof_lite_gen",
+    "src/base/event.cc",
+    "src/base/file_utils.cc",
+    "src/base/metatrace.cc",
+    "src/base/paged_memory.cc",
+    "src/base/string_splitter.cc",
+    "src/base/string_utils.cc",
+    "src/base/temp_file.cc",
+    "src/base/thread_checker.cc",
+    "src/base/time.cc",
+    "src/base/unix_task_runner.cc",
+    "src/base/virtual_destructors.cc",
+    "src/base/watchdog_posix.cc",
     "tools/trace_to_text/ftrace_event_formatter.cc",
     "tools/trace_to_text/ftrace_inode_handler.cc",
     "tools/trace_to_text/main.cc",
     "tools/trace_to_text/proto_full_utils.cc",
+    "tools/trace_to_text/trace_to_profile.cc",
     "tools/trace_to_text/trace_to_systrace.cc",
     "tools/trace_to_text/trace_to_text.cc",
     "tools/trace_to_text/utils.cc",
@@ -4705,6 +4752,7 @@ cc_binary_host {
     "perfetto_protos_perfetto_trace_profiling_lite_gen_headers",
     "perfetto_protos_perfetto_trace_ps_lite_gen_headers",
     "perfetto_protos_perfetto_trace_sys_stats_lite_gen_headers",
+    "perfetto_protos_third_party_pprof_lite_gen_headers",
   ],
   defaults: [
     "perfetto_defaults",
