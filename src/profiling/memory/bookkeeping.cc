@@ -253,6 +253,7 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
     for (const pid_t pid : dump_rec.pids) {
       ProfilePacket::ProcessHeapSamples* sample =
           profile_packet->add_process_dumps();
+      sample->set_pid(static_cast<uint64_t>(pid));
       auto it = bookkeeping_data_.find(pid);
       if (it == bookkeeping_data_.end())
         continue;
