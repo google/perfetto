@@ -110,6 +110,9 @@ class PERFETTO_EXPORT HeapprofdConfig {
     return &pid_.back();
   }
 
+  bool all() const { return all_; }
+  void set_all(bool value) { all_ = value; }
+
   const ContinousDumpConfig& continuous_dump_config() const {
     return continuous_dump_config_;
   }
@@ -121,6 +124,7 @@ class PERFETTO_EXPORT HeapprofdConfig {
   uint64_t sampling_interval_bytes_ = {};
   std::vector<std::string> process_cmdline_;
   std::vector<uint64_t> pid_;
+  bool all_ = {};
   ContinousDumpConfig continuous_dump_config_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility

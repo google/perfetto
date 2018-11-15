@@ -63,6 +63,9 @@ void HeapprofdConfig::FromProto(
     pid_.back() = static_cast<decltype(pid_)::value_type>(field);
   }
 
+  static_assert(sizeof(all_) == sizeof(proto.all()), "size mismatch");
+  all_ = static_cast<decltype(all_)>(proto.all());
+
   continuous_dump_config_.FromProto(proto.continuous_dump_config());
   unknown_fields_ = proto.unknown_fields();
 }
@@ -88,6 +91,9 @@ void HeapprofdConfig::ToProto(perfetto::protos::HeapprofdConfig* proto) const {
     proto->add_pid(static_cast<decltype(proto->pid(0))>(it));
     static_assert(sizeof(it) == sizeof(proto->pid(0)), "size mismatch");
   }
+
+  static_assert(sizeof(all_) == sizeof(proto->all()), "size mismatch");
+  proto->set_all(static_cast<decltype(proto->all())>(all_));
 
   continuous_dump_config_.ToProto(proto->mutable_continuous_dump_config());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
