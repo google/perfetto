@@ -43,4 +43,18 @@ duration_ms: 20000
 adb pull /data/misc/perfetto-traces/trace /tmp/trace
 ```
 
-TODO(fmayer): Add instructions how to visualize the trace.
+While we work on UI support, you can convert the trace into pprof compatible
+heap dumps. To do so, run
+
+```
+trace_to_text profile /tmp/trace
+```
+
+This will create a directory in `/tmp/` containing the heap dumps. Run
+
+```
+gzip /tmp/heap_profile-XXXXXX/*.pb
+```
+
+to get gzipped protos, which tools handling pprof profile protos expect.
+Head to http://pprof/ and upload the gzipped protos to get a visualization.
