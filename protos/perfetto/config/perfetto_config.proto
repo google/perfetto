@@ -558,6 +558,7 @@ message HeapprofdConfig {
   // repeated string android_app = 3;  // TODO: Implement
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
+  optional bool all = 5;
 
   // Dump once at the end of the trace, emitting the heap dump at maximum
   // memory usage.

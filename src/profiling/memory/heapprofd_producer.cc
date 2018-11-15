@@ -18,7 +18,9 @@
 
 #include <inttypes.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include "perfetto/base/file_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -43,6 +45,38 @@ ClientConfiguration MakeClientConfiguration(const DataSourceConfig& cfg) {
   ClientConfiguration client_config;
   client_config.interval = cfg.heapprofd_config().sampling_interval_bytes();
   return client_config;
+}
+
+void FindAllProfilablePids(std::vector<pid_t>* pids) {
+  base::ScopedDir proc_dir(opendir("/proc"));
+  if (!proc_dir) {
+    PERFETTO_DFATAL("Failed to open /proc");
+    return;
+  }
+  struct dirent* entry;
+  while ((entry = readdir(*proc_dir))) {
+    char filename_buf[128];
+    ssize_t written = snprintf(filename_buf, sizeof(filename_buf),
+                               "/proc/%s/cmdline", entry->d_name);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(filename_buf)) {
+      if (written < 0)
+        PERFETTO_DFATAL("Failed to concatenate cmdline file.");
+      else
+        PERFETTO_DFATAL("Overflow when concatenating cmdline file.");
+      continue;
+    }
+
+    struct stat statbuf;
+    // Check if we have permission to the process.
+    if (stat(filename_buf, &statbuf) == 0) {
+      char* end;
+      long int pid = strtol(entry->d_name, &end, 10);
+      if (*end != '\0')
+        continue;
+      if (pid != getpid())
+        pids->emplace_back(pid);
+    }
+  }
 }
 
 void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
@@ -184,11 +218,19 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
 
   ClientConfiguration client_config = MakeClientConfiguration(cfg);
 
-  for (uint64_t pid : cfg.heapprofd_config().pid())
-    data_source.pids.emplace_back(static_cast<pid_t>(pid));
+  if (cfg.heapprofd_config().all()) {
+    FindAllProfilablePids(&data_source.pids);
+    if (!cfg.heapprofd_config().pid().empty())
+      PERFETTO_ELOG("Got all and pid. Ignoring pid.");
+    if (!cfg.heapprofd_config().process_cmdline().empty())
+      PERFETTO_ELOG("Got all and process_cmdline. Ignoring process_cmdline.");
+  } else {
+    for (uint64_t pid : cfg.heapprofd_config().pid())
+      data_source.pids.emplace_back(static_cast<pid_t>(pid));
 
-  FindPidsForCmdlines(cfg.heapprofd_config().process_cmdline(),
-                      &data_source.pids);
+    FindPidsForCmdlines(cfg.heapprofd_config().process_cmdline(),
+                        &data_source.pids);
+  }
 
   auto pid_it = data_source.pids.begin();
   while (pid_it != data_source.pids.end()) {
