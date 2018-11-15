@@ -96,7 +96,7 @@ TEST(WatchdogTest, CrashCpu) {
         watchdog.SetCpuLimit(10, 25);
         watchdog.Start();
         volatile int x = 0;
-        while (true) {
+        for (;;) {
           x++;
         }
       },

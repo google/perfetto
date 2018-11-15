@@ -206,7 +206,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
   snprintf(thread_name, sizeof(thread_name), "traced_probes%zu", cpu);
   pthread_setname_np(pthread_self(), thread_name);
 
-  while (true) {
+  for (;;) {
     // First do a blocking splice which sleeps until there is at least one
     // page of data available and enough space to write it into the staging
     // pipe.
@@ -238,7 +238,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
     // Then do as many non-blocking splices as we can. This moves any full
     // pages from the trace pipe into the staging pipe as long as there is
     // data in the former and space in the latter.
-    while (true) {
+    for (;;) {
       {
         PERFETTO_METATRACE("splice_nonblocking", cpu);
         splice_res = splice(trace_fd, nullptr, staging_write_fd, nullptr,
@@ -268,7 +268,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
 
 bool CpuReader::Drain(const std::set<FtraceDataSource*>& data_sources) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  while (true) {
+  for (;;) {
     uint8_t* buffer = GetBuffer();
     long bytes =
         PERFETTO_EINTR(read(*staging_read_fd_, buffer, base::kPageSize));
