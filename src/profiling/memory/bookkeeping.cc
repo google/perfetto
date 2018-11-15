@@ -192,6 +192,7 @@ void DumpState::WriteMap(ProfilePacket* packet,
       WriteString(packet, str);
 
     auto mapping = packet->add_mappings();
+    mapping->set_id(map.id());
     mapping->set_offset(map->offset);
     mapping->set_start(map->start);
     mapping->set_end(map->end);
