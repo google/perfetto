@@ -203,7 +203,7 @@ inline std::vector<Table::Column> GetColumnsForTable(
   PERFETTO_DCHECK(sqlite3_column_count(*stmt) == 2);
 
   std::vector<Table::Column> columns;
-  while (true) {
+  for (;;) {
     err = sqlite3_step(raw_stmt);
     if (err == SQLITE_DONE)
       break;

@@ -43,7 +43,7 @@ void UnixTaskRunner::WakeUp() {
 void UnixTaskRunner::Run() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   quit_ = false;
-  while (true) {
+  for (;;) {
     int poll_timeout_ms;
     {
       std::lock_guard<std::mutex> lock(lock_);

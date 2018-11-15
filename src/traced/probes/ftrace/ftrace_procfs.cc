@@ -185,7 +185,7 @@ std::set<std::string> FtraceProcfs::AvailableClocks() {
   size_t start = 0;
   size_t end = 0;
 
-  while (true) {
+  for (;;) {
     end = s.find(' ', start);
     if (end == std::string::npos)
       end = s.size();
