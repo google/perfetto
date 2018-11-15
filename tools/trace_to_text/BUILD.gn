@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
+import("../../gn/proto_library.gni")
 import("../../gn/wasm.gni")
 
 # The core source files that are used both by the "full" version (the host
@@ -24,6 +25,9 @@ source_set("common") {
     "../../include/perfetto/traced:sys_stats_counters",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/ftrace:lite",
+    "../../protos/perfetto/trace/profiling:lite",
+    "../../protos/third_party/pprof:lite",
+    "../../src/base",
   ]
   sources = [
     "ftrace_event_formatter.cc",
@@ -32,6 +36,8 @@ source_set("common") {
     "ftrace_inode_handler.h",
     "main.cc",
     "process_formatter.h",
+    "trace_to_profile.cc",
+    "trace_to_profile.h",
     "trace_to_systrace.cc",
     "trace_to_systrace.h",
     "trace_to_text.h",
