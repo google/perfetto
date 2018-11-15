@@ -55,7 +55,7 @@ AndroidTaskRunner::~AndroidTaskRunner() {
 
 void AndroidTaskRunner::Run() {
   quit_ = false;
-  while (true) {
+  for (;;) {
     {
       std::lock_guard<std::mutex> lock(lock_);
       if (quit_)
