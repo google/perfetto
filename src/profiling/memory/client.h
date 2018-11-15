@@ -142,6 +142,7 @@ class Client {
   void Shutdown();
 
   ClientConfiguration client_config_for_testing() { return client_config_; }
+  bool inited() { return inited_; }
 
  private:
   size_t ShouldSampleAlloc(uint64_t alloc_size,
