@@ -54,8 +54,8 @@ TEST_F(SocketListenerTest, ReceiveRecord) {
     callback_called();
   };
 
-  BookkeepingThread actor("");
-  SocketListener listener(std::move(callback_fn), &actor);
+  BookkeepingThread bookkeeping_thread;
+  SocketListener listener(std::move(callback_fn), &bookkeeping_thread);
   auto handle = listener.ExpectPID(getpid(), {});
   MockEventListener client_listener;
   EXPECT_CALL(client_listener, OnConnect(_, _))

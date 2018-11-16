@@ -56,7 +56,7 @@ class HeapprofdIntegrationTest : public ::testing::Test {
 TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
   GlobalCallstackTrie callsites;
   // TODO(fmayer): Actually test the dump.
-  BookkeepingThread bookkeeping_thread("");
+  BookkeepingThread bookkeeping_thread;
 
   base::TestTaskRunner task_runner;
   auto done = task_runner.CreateCheckpoint("done");
@@ -97,7 +97,7 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
 TEST_F(HeapprofdIntegrationTest, MAYBE_MultiSession) {
   GlobalCallstackTrie callsites;
   // TODO(fmayer): Actually test the dump.
-  BookkeepingThread bookkeeping_thread("");
+  BookkeepingThread bookkeeping_thread;
 
   base::TestTaskRunner task_runner;
   auto done = task_runner.CreateCheckpoint("done");
