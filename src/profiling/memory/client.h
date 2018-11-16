@@ -150,7 +150,7 @@ class Client {
                            void (*unhooked_free)(void*));
   const char* GetStackBase();
 
-  bool inited_ = false;
+  std::atomic<bool> inited_{false};
   ClientConfiguration client_config_;
   PThreadKey pthread_key_;
   SocketPool socket_pool_;
