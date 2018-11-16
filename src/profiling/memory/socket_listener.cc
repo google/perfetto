@@ -121,24 +121,12 @@ SocketListener::ProfilingSession SocketListener::ExpectPID(
     pid_t pid,
     ClientConfiguration cfg) {
   PERFETTO_DLOG("Expecting connection from %d", pid);
-  bool inserted;
-  std::tie(std::ignore, inserted) = process_info_.emplace(pid, std::move(cfg));
-  if (!inserted)
-    return ProfilingSession(0, nullptr);
-  return ProfilingSession(pid, this);
-}
-
-void SocketListener::ShutdownPID(pid_t pid) {
-  PERFETTO_DLOG("Shutting down connecting from %d", pid);
-  auto it = process_info_.find(pid);
-  if (it == process_info_.end()) {
-    PERFETTO_DFATAL("Shutting down nonexistant pid.");
-    return;
-  }
-  ProcessInfo& process_info = it->second;
-  // Disconnect all sockets for process.
-  for (base::UnixSocket* socket : process_info.sockets)
-    socket->Shutdown(true);
+  decltype(process_info_)::iterator it;
+  std::tie(it, std::ignore) =
+      process_info_.emplace(pid, ProcessInfo{pid, std::move(cfg)});
+  ProcessInfo* process_info = &(it->second);
+  AddProfilingSession(process_info);
+  return ProfilingSession(process_info, this);
 }
 
 void SocketListener::RecordReceived(base::UnixSocket* self,
@@ -169,6 +157,18 @@ void SocketListener::RecordReceived(base::UnixSocket* self,
   std::weak_ptr<UnwindingMetadata> weak_metadata(entry.unwinding_metadata);
   callback_function_({entry.unwinding_metadata->pid, size, std::move(buf),
                       std::move(weak_metadata)});
+}
+
+void SocketListener::AddProfilingSession(ProcessInfo* process_info) {
+  ++process_info->active_profile_sessions;
+}
+
+void SocketListener::RemoveProfilingSession(ProcessInfo* process_info) {
+  if (--process_info->active_profile_sessions == 0) {
+    for (base::UnixSocket* socket : process_info->sockets)
+      socket->Shutdown(true);
+    process_info_.erase(process_info->pid);
+  }
 }
 
 }  // namespace profiling
