@@ -69,7 +69,7 @@ ProcessTable::Cursor::Cursor(const TraceStorage* storage,
                              const QueryConstraints& qc,
                              sqlite3_value** argv)
     : storage_(storage) {
-  min = 1;
+  min = 0;
   max = static_cast<uint32_t>(storage_->process_count());
   desc = false;
   current = min;

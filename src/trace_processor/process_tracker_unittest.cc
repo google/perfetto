@@ -88,7 +88,7 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   TraceStorage::Process process = context.storage->GetProcess(/*utid=*/1);
 
   ASSERT_EQ(thread.tid, 4);
-  ASSERT_EQ(thread.upid, 1);
+  ASSERT_EQ(thread.upid.value(), 1);
   ASSERT_EQ(process.pid, 2);
   ASSERT_EQ(process.start_ns, timestamp);
 }
@@ -101,7 +101,7 @@ TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
   ASSERT_EQ(context.storage->thread_count(), 1);
   auto tid_it = context.process_tracker->UtidsForTid(12);
   ASSERT_NE(tid_it.first, tid_it.second);
-  ASSERT_EQ(thread.upid, 1);
+  ASSERT_EQ(thread.upid.value(), 1);
   auto pid_it = context.process_tracker->UpidsForPid(2);
   ASSERT_NE(pid_it.first, pid_it.second);
   ASSERT_EQ(context.storage->process_count(), 1);

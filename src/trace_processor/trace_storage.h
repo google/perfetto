@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/optional.h"
 #include "perfetto/base/string_view.h"
 #include "perfetto/base/utils.h"
 
@@ -84,7 +85,7 @@ class TraceStorage {
     uint64_t start_ns = 0;
     uint64_t end_ns = 0;
     StringId name_id = 0;
-    UniquePid upid = 0;
+    base::Optional<UniquePid> upid;
     uint32_t tid = 0;
   };
 
