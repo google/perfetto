@@ -243,8 +243,6 @@ struct BookkeepingData {
 // method receives messages on the input_queue and does the bookkeeping.
 class BookkeepingThread {
  public:
-  BookkeepingThread(std::string file_name) : file_name_(file_name) {}
-
   void Run(BoundedQueue<BookkeepingRecord>* input_queue);
 
   // Inform the bookkeeping thread that a socket for this pid connected.
@@ -266,7 +264,6 @@ class BookkeepingThread {
 
   std::map<pid_t, BookkeepingData> bookkeeping_data_;
   std::mutex bookkeeping_mutex_;
-  std::string file_name_;
 };
 
 }  // namespace profiling

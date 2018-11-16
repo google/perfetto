@@ -35,7 +35,6 @@ constexpr char kHeapprofdDataSource[] = "android.heapprofd";
 constexpr size_t kUnwinderQueueSize = 1000;
 constexpr size_t kBookkeepingQueueSize = 1000;
 constexpr size_t kUnwinderThreads = 5;
-constexpr const char* kDumpOutput = "/data/misc/perfetto-traces/heap_dump";
 constexpr int kHeapprofdSignal = 36;
 
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
@@ -155,7 +154,6 @@ void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
 HeapprofdProducer::HeapprofdProducer(base::TaskRunner* task_runner)
     : task_runner_(task_runner),
       bookkeeping_queue_(kBookkeepingQueueSize),
-      bookkeeping_thread_(kDumpOutput),
       bookkeeping_th_([this] { bookkeeping_thread_.Run(&bookkeeping_queue_); }),
       unwinder_queues_(MakeUnwinderQueues(kUnwinderThreads)),
       unwinding_threads_(MakeUnwindingThreads(kUnwinderThreads)),
