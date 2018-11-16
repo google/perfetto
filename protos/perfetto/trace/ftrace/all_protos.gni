@@ -325,4 +325,5 @@ ftrace_proto_names = [
   "binder_transaction_alloc_buf.proto",
   "signal_deliver.proto",
   "signal_generate.proto",
+  "oom_score_adj_update.proto",
 ]
