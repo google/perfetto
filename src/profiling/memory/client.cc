@@ -278,7 +278,8 @@ void Client::RecordMalloc(uint64_t alloc_size,
   metadata.stack_pointer = reinterpret_cast<uint64_t>(stacktop);
   metadata.stack_pointer_offset = sizeof(AllocMetadata);
   metadata.arch = unwindstack::Regs::CurrentArch();
-  metadata.sequence_number = ++sequence_number_;
+  metadata.sequence_number =
+      1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel);
 
   WireMessage msg{};
   msg.record_type = RecordType::Malloc;
@@ -296,7 +297,9 @@ void Client::RecordMalloc(uint64_t alloc_size,
 void Client::RecordFree(uint64_t alloc_address) {
   if (!inited_.load(std::memory_order_acquire))
     return;
-  free_page_.Add(alloc_address, ++sequence_number_, &socket_pool_);
+  free_page_.Add(alloc_address,
+                 1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel),
+                 &socket_pool_);
 }
 
 size_t Client::ShouldSampleAlloc(uint64_t alloc_size,
