@@ -340,6 +340,7 @@ using protos::ClkEnableFtraceEvent;
 using protos::ClkSetRateFtraceEvent;
 using protos::SignalDeliverFtraceEvent;
 using protos::SignalGenerateFtraceEvent;
+using protos::OomScoreAdjUpdateFtraceEvent;
 
 const char* GetSchedSwitchFlag(int64_t state) {
   state &= 511;
@@ -2691,6 +2692,13 @@ std::string FormatSignalGenerate(const SignalGenerateFtraceEvent& event) {
   return std::string(line);
 }
 
+std::string FormatOomScoreAdjUpdate(const OomScoreAdjUpdateFtraceEvent& event) {
+  char line[2048];
+  sprintf(line, "oom_score_adj_update: pid=%d comm=%s oom_score_adj=%hd",
+          event.pid(), event.comm().c_str(), event.oom_score_adj());
+  return std::string(line);
+}
+
 std::string FormatEventText(const protos::FtraceEvent& event) {
   if (event.has_binder_lock()) {
     const auto& inner = event.binder_lock();
@@ -3490,6 +3498,9 @@ std::string FormatEventText(const protos::FtraceEvent& event) {
   } else if (event.has_signal_generate()) {
     const auto& inner = event.signal_generate();
     return FormatSignalGenerate(inner);
+  } else if (event.has_oom_score_adj_update()) {
+    const auto& inner = event.oom_score_adj_update();
+    return FormatOomScoreAdjUpdate(inner);
   }
 
   return "";
