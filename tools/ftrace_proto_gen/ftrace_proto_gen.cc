@@ -308,7 +308,7 @@ ProtoType InferProtoType(const FtraceEvent::Field& field) {
 void PrintEventFormatterMain(const std::set<std::string>& events) {
   printf(
       "\nAdd output to FormatEventText in "
-      "tools/ftrace_proto_gen/ftrace_event_formatter.cc\n");
+      "tools/trace_to_text/ftrace_event_formatter.cc\n");
   for (auto event : events) {
     printf(
         "else if (event.has_%s()) {\nconst auto& inner = event.%s();\nreturn "
@@ -332,7 +332,7 @@ void PrintInodeHandlerMain(const std::string& event_name,
 }
 
 void PrintEventFormatterUsingStatements(const std::set<std::string>& events) {
-  printf("\nAdd output to tools/ftrace_proto_gen/ftrace_event_formatter.cc\n");
+  printf("\nAdd output to tools/trace_to_text/ftrace_event_formatter.cc\n");
   for (auto event : events) {
     printf("using protos::%sFtraceEvent;\n", ToCamelCase(event).c_str());
   }
@@ -340,7 +340,7 @@ void PrintEventFormatterUsingStatements(const std::set<std::string>& events) {
 
 void PrintEventFormatterFunctions(const std::set<std::string>& events) {
   printf(
-      "\nAdd output to tools/ftrace_proto_gen/ftrace_event_formatter.cc and "
+      "\nAdd output to tools/trace_to_text/ftrace_event_formatter.cc and "
       "then manually go through format files to match fields\n");
   for (auto event : events) {
     printf(

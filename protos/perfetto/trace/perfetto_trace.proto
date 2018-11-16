@@ -561,6 +561,7 @@ message FtraceEvent {
     // removed field with id 323
     // removed field with id 324
     // removed field with id 325
+    // removed field with id 326
   }
 }
 

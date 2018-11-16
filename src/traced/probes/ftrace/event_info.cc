@@ -3756,6 +3756,17 @@ std::vector<Event> GetStaticEventInfo() {
     event->fields.push_back(MakeField("sig", 6, kProtoInt32));
   }
 
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "oom_score_adj_update";
+    event->group = "oom";
+    event->proto_field_id = 326;
+    event->fields.push_back(MakeField("comm", 1, kProtoString));
+    event->fields.push_back(MakeField("oom_score_adj", 2, kProtoInt32));
+    event->fields.push_back(MakeField("pid", 3, kProtoInt32));
+  }
+
   return events;
 }
 
