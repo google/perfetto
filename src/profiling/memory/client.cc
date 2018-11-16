@@ -227,7 +227,7 @@ Client::Client(std::vector<base::ScopedFile> socks)
   }
   PERFETTO_DCHECK(client_config_.interval >= 1);
   PERFETTO_DLOG("Initialized client.");
-  inited_ = true;
+  inited_.store(true, std::memory_order_release);
 }
 
 Client::Client(const std::string& sock_name, size_t conns)
@@ -259,7 +259,7 @@ const char* Client::GetStackBase() {
 void Client::RecordMalloc(uint64_t alloc_size,
                           uint64_t total_size,
                           uint64_t alloc_address) {
-  if (!inited_)
+  if (!inited_.load(std::memory_order_acquire))
     return;
   AllocMetadata metadata;
   const char* stackbase = GetStackBase();
@@ -294,7 +294,7 @@ void Client::RecordMalloc(uint64_t alloc_size,
 }
 
 void Client::RecordFree(uint64_t alloc_address) {
-  if (!inited_)
+  if (!inited_.load(std::memory_order_acquire))
     return;
   free_page_.Add(alloc_address, ++sequence_number_, &socket_pool_);
 }
@@ -302,7 +302,7 @@ void Client::RecordFree(uint64_t alloc_address) {
 size_t Client::ShouldSampleAlloc(uint64_t alloc_size,
                                  void* (*unhooked_malloc)(size_t),
                                  void (*unhooked_free)(void*)) {
-  if (!inited_)
+  if (!inited_.load(std::memory_order_acquire))
     return false;
   return SampleSize(pthread_key_.get(), alloc_size, client_config_.interval,
                     unhooked_malloc, unhooked_free);
@@ -320,7 +320,7 @@ void Client::MaybeSampleAlloc(uint64_t alloc_size,
 
 void Client::Shutdown() {
   socket_pool_.Shutdown();
-  inited_ = false;
+  inited_.store(false, std::memory_order_release);
 }
 
 }  // namespace profiling
