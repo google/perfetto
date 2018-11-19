@@ -24,6 +24,7 @@ source_set("base") {
     "gtest_prod_util.h",
     "logging.h",
     "metatrace.h",
+    "optional.h",
     "paged_memory.h",
     "scoped_file.h",
     "small_set.h",
