@@ -34,8 +34,8 @@ export interface ThreadDesc {
   utid: number;
   tid: number;
   threadName: string;
-  pid: number;
-  procName: string;
+  pid?: number;
+  procName?: string;
 }
 type ThreadMap = Map<number, ThreadDesc>;
 
