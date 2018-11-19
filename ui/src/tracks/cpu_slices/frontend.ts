@@ -213,10 +213,17 @@ class CpuSliceTrack extends Track<Config, Data> {
 
       const threadInfo = globals.threads.get(utid);
       if (threadInfo !== undefined) {
-        const procName = threadInfo.procName.split('/').slice(-1);
-        title = `${procName} [${threadInfo.pid}]`;
-        subTitle = `${threadInfo.threadName} [${threadInfo.tid}]`;
-        const colorIdx = hash(threadInfo.pid.toString(), 16);
+        const hasProc = !!threadInfo.pid;
+        const procName = threadInfo.procName || '';
+        let hashKey = threadInfo.tid;
+        if (hasProc) {
+          title = `${procName} [${threadInfo.pid}]`;
+          subTitle = `${threadInfo.threadName} [${threadInfo.tid}]`;
+          hashKey = threadInfo.pid!;
+        } else {
+          title = `${threadInfo.threadName} [${threadInfo.tid}]`;
+        }
+        const colorIdx = hash(hashKey.toString(), 16);
         Object.assign(color, MD_PALETTE[colorIdx]);
       }
 
@@ -243,21 +250,26 @@ class CpuSliceTrack extends Track<Config, Data> {
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
     if (hoveredThread !== undefined) {
-      const procTitle = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-      const threadTitle =
-          `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+      let line1 = '';
+      let line2 = '';
+      if (hoveredThread.pid) {
+        line1 = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
+        line2 = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+      } else {
+        line1 = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+      }
 
       ctx.font = '10px Google Sans';
-      const procTitleWidth = ctx.measureText(procTitle).width;
-      const threadTitleWidth = ctx.measureText(threadTitle).width;
-      const width = Math.max(procTitleWidth, threadTitleWidth);
+      const line1Width = ctx.measureText(line1).width;
+      const line2Width = ctx.measureText(line2).width;
+      const width = Math.max(line1Width, line2Width);
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.fillRect(this.mouseXpos!, MARGIN_TOP, width + 16, RECT_HEIGHT);
       ctx.fillStyle = 'hsl(200, 50%, 40%)';
       ctx.textAlign = 'left';
-      ctx.fillText(procTitle, this.mouseXpos! + 8, 18);
-      ctx.fillText(threadTitle, this.mouseXpos! + 8, 28);
+      ctx.fillText(line1, this.mouseXpos! + 8, 18);
+      ctx.fillText(line2, this.mouseXpos! + 8, 28);
     }
   }
 
