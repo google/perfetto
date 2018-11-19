@@ -46,7 +46,8 @@ ClientConfiguration MakeClientConfiguration(const DataSourceConfig& cfg) {
   return client_config;
 }
 
-void FindAllProfilablePids(std::vector<pid_t>* pids) {
+template <typename Fn>
+void ForEachPid(const char* file, Fn callback) {
   base::ScopedDir proc_dir(opendir("/proc"));
   if (!proc_dir) {
     PERFETTO_DFATAL("Failed to open /proc");
@@ -56,7 +57,7 @@ void FindAllProfilablePids(std::vector<pid_t>* pids) {
   while ((entry = readdir(*proc_dir))) {
     char filename_buf[128];
     ssize_t written = snprintf(filename_buf, sizeof(filename_buf),
-                               "/proc/%s/cmdline", entry->d_name);
+                               "/proc/%s/%s", entry->d_name, file);
     if (written < 0 || static_cast<size_t>(written) >= sizeof(filename_buf)) {
       if (written < 0)
         PERFETTO_DFATAL("Failed to concatenate cmdline file.");
@@ -64,63 +65,51 @@ void FindAllProfilablePids(std::vector<pid_t>* pids) {
         PERFETTO_DFATAL("Overflow when concatenating cmdline file.");
       continue;
     }
+    char* end;
+    long int pid = strtol(entry->d_name, &end, 10);
+    if (*end != '\0')
+      continue;
+    callback(static_cast<pid_t>(pid), filename_buf);
+  }
+}
 
+void FindAllProfilablePids(std::vector<pid_t>* pids) {
+  ForEachPid("cmdline", [pids](pid_t pid, const char* filename_buf) {
+    if (pid == getpid())
+      return;
     struct stat statbuf;
     // Check if we have permission to the process.
-    if (stat(filename_buf, &statbuf) == 0) {
-      char* end;
-      long int pid = strtol(entry->d_name, &end, 10);
-      if (*end != '\0')
-        continue;
-      if (pid != getpid())
-        pids->emplace_back(pid);
-    }
-  }
+    if (stat(filename_buf, &statbuf) == 0)
+      pids->emplace_back(pid);
+  });
 }
 
 void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
                          std::vector<pid_t>* pids) {
-  base::ScopedDir proc_dir(opendir("/proc"));
-  if (!proc_dir) {
-    PERFETTO_DFATAL("Failed to open /proc");
-    return;
-  }
-  struct dirent* entry;
-  while ((entry = readdir(*proc_dir))) {
-    char* end;
-    long int pid = strtol(entry->d_name, &end, 10);
-    if (*end != '\0') {
-      continue;
-    }
-
-    char filename_buf[128];
-
-    if (snprintf(filename_buf, sizeof(filename_buf), "/proc/%lu/cmdline", pid) <
-        0) {
-      PERFETTO_DFATAL("Failed to create comm filename for %lu", pid);
-      continue;
-    }
+  ForEachPid("cmdline", [&cmdlines, pids](pid_t pid, const char* filename_buf) {
+    if (pid == getpid())
+      return;
     std::string process_cmdline;
     process_cmdline.reserve(128);
     if (!base::ReadFile(filename_buf, &process_cmdline))
-      continue;
+      return;
     if (process_cmdline.empty())
-      continue;
+      return;
 
     // Strip everything after @ for Java processes.
     // Otherwise, strip newline at EOF.
-    size_t endpos = process_cmdline.find('\0');
+    size_t endpos = process_cmdline.find('@');
     if (endpos == std::string::npos)
-      continue;
+      endpos = process_cmdline.size();
     if (endpos < 1)
-      continue;
+      return;
     process_cmdline.resize(endpos);
 
     for (const std::string& cmdline : cmdlines) {
       if (process_cmdline == cmdline)
         pids->emplace_back(static_cast<pid_t>(pid));
     }
-  }
+  });
 }
 
 }  // namespace
