@@ -47,7 +47,9 @@ While we work on UI support, you can convert the trace into pprof compatible
 heap dumps. To do so, run
 
 ```
-trace_to_text profile /tmp/trace
+prodaccess
+/google/bin/users/fmayer/third_party/perfetto:trace_to_text_sig/trace_to_text \
+profile /tmp/trace
 ```
 
 This will create a directory in `/tmp/` containing the heap dumps. Run
