@@ -31,6 +31,7 @@ CountersTable::CountersTable(sqlite3*, const TraceStorage* storage)
   ref_types_[RefType::kIrq] = "irq";
   ref_types_[RefType::kSoftIrq] = "softirq";
   ref_types_[RefType::kUpid] = "upid";
+  ref_types_[RefType::kUtidLookupUpid] = "upid";
 }
 
 void CountersTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
@@ -39,6 +40,7 @@ void CountersTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 
 Table::Schema CountersTable::CreateSchema(int, const char* const*) {
   const auto& counters = storage_->counters();
+
   std::unique_ptr<StorageSchema::Column> cols[] = {
       StorageSchema::NumericColumnPtr("ts", &counters.timestamps(),
                                       false /* hidden */, true /* ordered */),
@@ -48,7 +50,7 @@ Table::Schema CountersTable::CreateSchema(int, const char* const*) {
       StorageSchema::NumericColumnPtr("dur", &counters.durations()),
       StorageSchema::TsEndPtr("ts_end", &counters.timestamps(),
                               &counters.durations()),
-      StorageSchema::NumericColumnPtr("ref", &counters.refs()),
+      std::unique_ptr<RefColumn>(new RefColumn("ref", storage_)),
       StorageSchema::StringColumnPtr("ref_type", &counters.types(),
                                      &ref_types_)};
   schema_ = StorageSchema({
@@ -83,6 +85,84 @@ int CountersTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   }
 
   return SQLITE_OK;
+}
+
+CountersTable::RefColumn::RefColumn(std::string col_name,
+                                    const TraceStorage* storage)
+    : Column(col_name, false), storage_(storage) {}
+
+void CountersTable::RefColumn::ReportResult(sqlite3_context* ctx,
+                                            uint32_t row) const {
+  auto ref = storage_->counters().refs()[row];
+  auto type = storage_->counters().types()[row];
+  if (type == RefType::kUtidLookupUpid) {
+    auto upid = storage_->GetThread(static_cast<uint32_t>(ref)).upid;
+    if (upid.has_value()) {
+      sqlite_utils::ReportSqliteResult(ctx, upid.value());
+    } else {
+      sqlite3_result_null(ctx);
+    }
+  } else {
+    sqlite_utils::ReportSqliteResult(ctx, ref);
+  }
+}
+
+CountersTable::RefColumn::Bounds CountersTable::RefColumn::BoundFilter(
+    int,
+    sqlite3_value*) const {
+  return Bounds{};
+}
+
+CountersTable::RefColumn::Predicate CountersTable::RefColumn::Filter(
+    int op,
+    sqlite3_value* value) const {
+  auto binary_op = sqlite_utils::GetPredicateForOp<int64_t>(op);
+  int64_t extracted = sqlite_utils::ExtractSqliteValue<int64_t>(value);
+  return [this, binary_op, extracted](uint32_t idx) {
+    auto ref = storage_->counters().refs()[idx];
+    auto type = storage_->counters().types()[idx];
+    if (type == RefType::kUtidLookupUpid) {
+      auto upid = storage_->GetThread(static_cast<uint32_t>(ref)).upid;
+      // Trying to filter null with any operation we currently handle
+      // should return false.
+      return upid.has_value() && binary_op(upid.value(), extracted);
+    }
+    return binary_op(ref, extracted);
+  };
+}
+
+CountersTable::RefColumn::Comparator CountersTable::RefColumn::Sort(
+    const QueryConstraints::OrderBy& ob) const {
+  if (ob.desc) {
+    return [this](uint32_t f, uint32_t s) { return -CompareRefsAsc(f, s); };
+  }
+  return [this](uint32_t f, uint32_t s) { return CompareRefsAsc(f, s); };
+}
+
+int CountersTable::RefColumn::CompareRefsAsc(uint32_t f, uint32_t s) const {
+  auto ref_f = storage_->counters().refs()[f];
+  auto ref_s = storage_->counters().refs()[s];
+
+  auto type_f = storage_->counters().types()[f];
+  auto type_s = storage_->counters().types()[s];
+
+  if (type_f == RefType::kUtidLookupUpid) {
+    auto upid_f = storage_->GetThread(static_cast<uint32_t>(ref_f)).upid;
+    if (type_s == RefType::kUtidLookupUpid) {
+      auto upid_s = storage_->GetThread(static_cast<uint32_t>(ref_s)).upid;
+      if (!upid_f.has_value() && !upid_s.has_value()) {
+        return 0;
+      } else if (!upid_f.has_value()) {
+        return -1;
+      } else if (!upid_s.has_value()) {
+        return 1;
+      }
+      return sqlite_utils::CompareValuesAsc(upid_f.value(), upid_s.value());
+    }
+    if (!upid_f.has_value())
+      return -1;
+  }
+  return sqlite_utils::CompareValuesAsc(ref_f, ref_s);
 }
 
 }  // namespace trace_processor

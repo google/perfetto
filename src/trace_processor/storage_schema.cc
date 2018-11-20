@@ -86,13 +86,13 @@ StorageSchema::Column::Comparator StorageSchema::TsEndColumn::Sort(
     return [this](uint32_t f, uint32_t s) {
       uint64_t a = (*ts_start_)[f] + (*dur_)[f];
       uint64_t b = (*ts_start_)[s] + (*dur_)[s];
-      return a > b ? -1 : (a < b ? 1 : 0);
+      return sqlite_utils::CompareValuesDesc(a, b);
     };
   }
   return [this](uint32_t f, uint32_t s) {
     uint64_t a = (*ts_start_)[f] + (*dur_)[f];
     uint64_t b = (*ts_start_)[s] + (*dur_)[s];
-    return a < b ? -1 : (a > b ? 1 : 0);
+    return sqlite_utils::CompareValuesAsc(a, b);
   };
 }
 
