@@ -69,6 +69,9 @@ TEST_F(ProcessTableUnittest, SelectUpidAndName) {
   PrepareValidStatement("SELECT upid, name FROM process");
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 0 /* upid */);
+
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
   ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1 /* upid */);
   ASSERT_STREQ(GetColumnAsText(1), kCommProc1);
 
@@ -109,6 +112,9 @@ TEST_F(ProcessTableUnittest, SelectUpidAndNameWithOrder) {
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
   ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1 /* upid */);
   ASSERT_STREQ(GetColumnAsText(1), kCommProc1);
+
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 0 /* upid */);
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
