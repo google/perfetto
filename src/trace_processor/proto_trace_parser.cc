@@ -443,14 +443,6 @@ void ProtoTraceParser::ParseProcMemCounters(uint64_t ts,
   }
 
   UniqueTid utid = context_->process_tracker->UpdateThread(ts, pid, 0);
-  auto opt_upid = context_->storage->GetThread(utid).upid;
-  if (!opt_upid.has_value()) {
-    PERFETTO_DLOG("Could not find process associated with utid %" PRIu32
-                  " when parsing mem counters.",
-                  utid);
-    context_->storage->mutable_stats()->mem_counter_no_process++;
-    return;
-  }
 
   // Skip field_id 0 (invalid) and 1 (pid).
   for (size_t field_id = 2; field_id < counter_values.size(); field_id++) {
@@ -461,8 +453,8 @@ void ProtoTraceParser::ParseProcMemCounters(uint64_t ts,
     // pre-cached |proc_mem_counter_names_| map.
     StringId name = proc_mem_counter_names_[field_id];
     uint64_t value = counter_values[field_id];
-    context_->event_tracker->PushCounter(ts, value, name, opt_upid.value(),
-                                         RefType::kUpid);
+    context_->event_tracker->PushCounter(ts, value, name, utid,
+                                         RefType::kUtidLookupUpid);
   }
 
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
@@ -667,17 +659,9 @@ void ProtoTraceParser::ParseRssStat(uint64_t timestamp,
     return;
   }
   UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
-  auto opt_upid = context_->storage->GetThread(utid).upid;
-  if (!opt_upid.has_value()) {
-    PERFETTO_DLOG("Could not find process associated with utid %" PRIu32
-                  " when parsing rss stat.",
-                  utid);
-    context_->storage->mutable_stats()->rss_stat_no_process++;
-    return;
-  }
 
   context_->event_tracker->PushCounter(timestamp, size, rss_members_[member],
-                                       opt_upid.value(), RefType::kUpid);
+                                       utid, RefType::kUtidLookupUpid);
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
