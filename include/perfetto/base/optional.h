@@ -160,7 +160,7 @@ struct OptionalStorage : OptionalStorageBase<T> {
   // Define it explicitly.
   OptionalStorage() = default;
 
-  OptionalStorage(const OptionalStorage& other) {
+  OptionalStorage(const OptionalStorage& other) : OptionalStorageBase<T>() {
     if (other.is_populated_)
       Init(other.value_);
   }
