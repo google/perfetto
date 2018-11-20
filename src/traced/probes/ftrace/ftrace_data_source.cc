@@ -65,7 +65,7 @@ void FtraceDataSource::DumpFtraceStats(FtraceStats* stats) {
     controller_weak_->DumpFtraceStats(stats);
 }
 
-void FtraceDataSource::Flush() {
+void FtraceDataSource::Flush(FlushRequestID, std::function<void()> callback) {
   // TODO(primiano): this still doesn't flush data from the kernel ftrace
   // buffers (see b/73886018). We should do that and delay the
   // NotifyFlushComplete() until the ftrace data has been drained from the
@@ -73,7 +73,7 @@ void FtraceDataSource::Flush() {
   if (!writer_)
     return;
   WriteStats();
-  writer_->Flush();
+  writer_->Flush(callback);
 }
 
 void FtraceDataSource::WriteStats() {

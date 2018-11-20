@@ -57,7 +57,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
 
   // ProbesDataSource implementation.
   void Start() override;
-  void Flush() override;
+  void Flush(FlushRequestID, std::function<void()> callback) override;
 
   bool on_demand_dumps_enabled() const { return enable_on_demand_dumps_; }
 
