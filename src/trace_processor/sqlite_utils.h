@@ -330,6 +330,16 @@ inline std::vector<Table::Column> GetColumnsForTable(
   return columns;
 }
 
+template <typename T>
+int CompareValuesAsc(const T& f, const T& s) {
+  return f < s ? -1 : (f > s ? 1 : 0);
+}
+
+template <typename T>
+int CompareValuesDesc(const T& f, const T& s) {
+  return -CompareValuesAsc(f, s);
+}
+
 }  // namespace sqlite_utils
 }  // namespace trace_processor
 }  // namespace perfetto
