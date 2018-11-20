@@ -80,6 +80,15 @@ if (current_toolchain == host_toolchain) {
       "../../gn:default_deps",
     ]
   }
+
+  # WASM is too permissive, build a normal version of the binary to test for
+  # missing symbols.
+  executable("trace_to_text_lite_host") {
+    deps = [
+      ":lite",
+      "../../gn:default_deps",
+    ]
+  }
 }
 
 wasm_lib("trace_to_text_wasm") {

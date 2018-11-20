@@ -43,6 +43,11 @@ package perftools.profiles;
 option java_package = "com.google.perftools.profiles";
 option java_outer_classname = "ProfileProto";
 
+// Perfetto Changes ===========================================================
+// 1. Add optimize_for = LITE_RUNTIME
+option optimize_for = LITE_RUNTIME;
+// ============================================================================
+
 message Profile {
   // A description of the samples associated with each Sample.value.
   // For a cpu profile this might be:
