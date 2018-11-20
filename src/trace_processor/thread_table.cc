@@ -70,7 +70,7 @@ ThreadTable::Cursor::Cursor(const TraceStorage* storage,
                             const QueryConstraints& qc,
                             sqlite3_value** argv)
     : storage_(storage) {
-  min = 1;
+  min = 0;
   max = static_cast<uint32_t>(storage_->thread_count());
   desc = false;
   current = min;
@@ -108,7 +108,7 @@ int ThreadTable::Cursor::Column(sqlite3_context* context, int N) {
       break;
     }
     case Column::kUpid: {
-      sqlite3_result_int64(context, thread.upid);
+      sqlite3_result_int64(context, thread.upid.value_or(0));
       break;
     }
     case Column::kName: {
