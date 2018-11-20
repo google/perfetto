@@ -17,6 +17,7 @@
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 
 #include <fcntl.h>
+#include <poll.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -25,6 +26,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 
 namespace perfetto {
 
@@ -46,8 +48,10 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
 
   // Create the pipe for the child process to return stderr.
   int filedes[2];
-  if (pipe(filedes) == -1)
-    return false;
+  PERFETTO_CHECK(pipe(filedes) == 0);
+
+  int err = fcntl(filedes[0], F_SETFL, fcntl(filedes[0], F_GETFL) | O_NONBLOCK);
+  PERFETTO_CHECK(err == 0);
 
   pid_t pid = fork();
   PERFETTO_CHECK(pid >= 0);
@@ -55,7 +59,7 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
     // Duplicate the write end of the pipe into stderr.
     if ((dup2(filedes[1], STDERR_FILENO) == -1)) {
       const char kError[] = "Unable to duplicate stderr fd";
-      write(filedes[1], kError, sizeof(kError));
+      base::ignore_result(write(filedes[1], kError, sizeof(kError)));
       _exit(1);
     }
 
@@ -79,14 +83,62 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
   close(filedes[1]);
 
   // Collect the output from child process.
-  std::string error;
   char buffer[4096];
-  while (true) {
-    ssize_t count = PERFETTO_EINTR(read(filedes[0], buffer, sizeof(buffer)));
-    if (count == 0 || count == -1)
+  std::string error;
+
+  // Get the read end of the pipe.
+  constexpr uint8_t kFdCount = 1;
+  struct pollfd fds[kFdCount]{};
+  fds[0].fd = filedes[0];
+  fds[0].events = POLLIN;
+
+  // Store the start time of atrace and setup the timeout.
+  constexpr auto timeout = base::TimeMillis(7500);
+  auto start = base::GetWallTimeMs();
+  for (;;) {
+    // Check if we are below the timeout and update the select timeout to
+    // the time remaining.
+    auto now = base::GetWallTimeMs();
+    auto remaining = timeout - (now - start);
+    auto timeout_ms = static_cast<int>(remaining.count());
+    if (timeout_ms <= 0) {
+      // Kill atrace.
+      kill(pid, SIGKILL);
+
+      std::string cmdline = "/system/bin/atrace";
+      for (const auto& arg : args) {
+        cmdline += " " + arg;
+      }
+      error.append("Timed out waiting for atrace (cmdline: " + cmdline + ")");
       break;
+    }
+
+    // Wait for the value of the timeout.
+    auto ret = poll(fds, kFdCount, timeout_ms);
+    if (ret == 0 || (ret < 0 && errno == EINTR)) {
+      // Either timeout occured in poll (in which case continue so that this
+      // will be picked up by our own timeout logic) or we received an EINTR and
+      // we should try again.
+      continue;
+    } else if (ret < 0) {
+      error.append("Error while polling atrace stderr");
+      break;
+    }
+
+    // Data is available to be read from the fd.
+    int64_t count = PERFETTO_EINTR(read(filedes[0], buffer, sizeof(buffer)));
+    if (ret < 0 && errno == EAGAIN) {
+      continue;
+    } else if (count < 0) {
+      error.append("Error while reading atrace stderr");
+      break;
+    } else if (count == 0) {
+      // EOF so we can exit this loop.
+      break;
+    }
     error.append(buffer, static_cast<size_t>(count));
   }
+
   // Close the read end of the pipe.
   close(filedes[0]);
 
@@ -96,7 +148,7 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
   bool ok = WIFEXITED(status) && WEXITSTATUS(status) == 0;
   if (!ok) {
     // TODO(lalitm): use the stderr result from atrace.
-    base::ignore_result(error);
+    PERFETTO_ELOG("%s", error.c_str());
   }
   return ok;
 }
