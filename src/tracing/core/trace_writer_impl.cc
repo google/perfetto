@@ -68,10 +68,12 @@ void TraceWriterImpl::Flush(std::function<void()> callback) {
   if (cur_chunk_.is_valid()) {
     shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_,
                                          &patch_list_);
-    shmem_arbiter_->FlushPendingCommitDataRequests(callback);
   } else {
     PERFETTO_DCHECK(patch_list_.empty());
   }
+  // Always issue the Flush request, even if there is nothing to flush, just
+  // for the sake of getting the callback posted back.
+  shmem_arbiter_->FlushPendingCommitDataRequests(callback);
   protobuf_stream_writer_.Reset({nullptr, nullptr});
 }
 

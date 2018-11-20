@@ -17,6 +17,8 @@
 #ifndef SRC_TRACED_PROBES_PROBES_DATA_SOURCE_H_
 #define SRC_TRACED_PROBES_PROBES_DATA_SOURCE_H_
 
+#include <functional>
+
 #include "perfetto/tracing/core/basic_types.h"
 
 namespace perfetto {
@@ -29,7 +31,7 @@ class ProbesDataSource {
   virtual ~ProbesDataSource();
 
   virtual void Start() = 0;
-  virtual void Flush() = 0;
+  virtual void Flush(FlushRequestID, std::function<void()> callback) = 0;
 
   const TracingSessionID tracing_session_id;
   const int type_id;

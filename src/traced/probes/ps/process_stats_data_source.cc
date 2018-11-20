@@ -161,11 +161,12 @@ void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
   FinalizeCurPacket();
 }
 
-void ProcessStatsDataSource::Flush() {
+void ProcessStatsDataSource::Flush(FlushRequestID,
+                                   std::function<void()> callback) {
   // We shouldn't get this in the middle of WriteAllProcesses() or OnPids().
   PERFETTO_DCHECK(!cur_ps_tree_);
   PERFETTO_DCHECK(!cur_ps_stats_);
-  writer_->Flush();
+  writer_->Flush(callback);
 }
 
 void ProcessStatsDataSource::WriteProcessOrThread(int32_t pid) {
