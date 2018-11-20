@@ -20,6 +20,8 @@
 #include <stddef.h>
 #include <set>
 
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 namespace profiling {
 
@@ -29,7 +31,10 @@ template <typename T>
 class Interner {
  private:
   struct Entry {
-    Entry(T d, Interner<T>* in) : data(std::move(d)), interner(in) {}
+    template <typename... U>
+    Entry(Interner<T>* in, U... args)
+        : data(std::forward<U...>(args...)), interner(in) {}
+
     bool operator<(const Entry& other) const { return data < other.data; }
 
     const T data;
@@ -85,12 +90,16 @@ class Interner {
     Interner::Entry* entry_;
   };
 
-  Interned Intern(const T& data) {
-    auto itr = entries_.emplace(data, this);
+  template <typename... U>
+  Interned Intern(U... args) {
+    auto itr = entries_.emplace(this, std::forward<U...>(args...));
     Entry& entry = const_cast<Entry&>(*itr.first);
     entry.ref_count++;
     return Interned(&entry);
   }
+
+  ~Interner() { PERFETTO_DCHECK(entries_.empty()); }
+
   size_t entry_count_for_testing() { return entries_.size(); }
 
  private:

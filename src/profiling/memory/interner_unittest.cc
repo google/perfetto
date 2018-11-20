@@ -109,6 +109,25 @@ TEST(InternerStringTest, CopyAssign) {
   }
 }
 
+class NoCopyOrMove {
+ public:
+  NoCopyOrMove(const NoCopyOrMove&) = delete;
+  NoCopyOrMove& operator=(const NoCopyOrMove&) = delete;
+  NoCopyOrMove(const NoCopyOrMove&&) = delete;
+  NoCopyOrMove& operator=(const NoCopyOrMove&&) = delete;
+  NoCopyOrMove(int d) : data(d) {}
+  ~NoCopyOrMove() {}
+  bool operator<(const NoCopyOrMove& other) const { return data < other.data; }
+
+ private:
+  int data;
+};
+
+TEST(InternerStringTest, NoCopyOrMove) {
+  Interner<NoCopyOrMove> interner;
+  Interner<NoCopyOrMove>::Interned interned_str = interner.Intern(1);
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
