@@ -297,8 +297,8 @@ base::WeakPtr<SysStatsDataSource> SysStatsDataSource::GetWeakPtr() const {
   return weak_factory_.GetWeakPtr();
 }
 
-void SysStatsDataSource::Flush() {
-  writer_->Flush();
+void SysStatsDataSource::Flush(FlushRequestID, std::function<void()> callback) {
+  writer_->Flush(callback);
 }
 
 size_t SysStatsDataSource::ReadFile(base::ScopedFile* fd, const char* path) {
