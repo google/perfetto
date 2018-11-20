@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_UTILS_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_UTILS_H_
 
+#include <math.h>
 #include <sqlite3.h>
 
 #include <functional>
@@ -135,6 +136,99 @@ inline size_t ExtractSqliteValue(sqlite3_value* value) {
   return static_cast<size_t>(sqlite3_value_int64(value));
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+
+template <typename T>
+using is_float =
+    typename std::enable_if<std::is_floating_point<T>::value, T>::type;
+
+template <typename T>
+using is_int = typename std::enable_if<std::is_integral<T>::value, T>::type;
+
+// Greater bound for floating point numbers.
+template <typename T, typename sqlite_utils::is_float<T>* = nullptr>
+T FindGtBound(bool is_eq, sqlite3_value* sqlite_val) {
+  constexpr auto kMax = static_cast<long double>(std::numeric_limits<T>::max());
+  auto type = sqlite3_value_type(sqlite_val);
+  if (type != SQLITE_INTEGER && type != SQLITE_FLOAT) {
+    return kMax;
+  }
+
+  // If this is a strict gt bound then just get the next highest float
+  // after value.
+  auto value = ExtractSqliteValue<T>(sqlite_val);
+  return is_eq ? value : nexttoward(value, kMax);
+}
+
+template <typename T, typename sqlite_utils::is_int<T>* = nullptr>
+T FindGtBound(bool is_eq, sqlite3_value* sqlite_val) {
+  auto type = sqlite3_value_type(sqlite_val);
+  if (type == SQLITE_INTEGER) {
+    auto value = ExtractSqliteValue<T>(sqlite_val);
+    return is_eq ? value : value + 1;
+  } else if (type == SQLITE_FLOAT) {
+    auto value = ExtractSqliteValue<double>(sqlite_val);
+    auto above = ceil(value);
+    auto cast = static_cast<T>(above);
+    return value < above ? cast : (is_eq ? cast : cast + 1);
+  } else {
+    return std::numeric_limits<T>::max();
+  }
+}
+
+template <typename T, typename sqlite_utils::is_float<T>* = nullptr>
+T FindLtBound(bool is_eq, sqlite3_value* sqlite_val) {
+  constexpr auto kMin =
+      static_cast<long double>(std::numeric_limits<T>::lowest());
+  auto type = sqlite3_value_type(sqlite_val);
+  if (type != SQLITE_INTEGER && type != SQLITE_FLOAT) {
+    return kMin;
+  }
+
+  // If this is a strict lt bound then just get the next lowest float
+  // before value.
+  auto value = ExtractSqliteValue<T>(sqlite_val);
+  return is_eq ? value : nexttoward(value, kMin);
+}
+
+template <typename T, typename sqlite_utils::is_int<T>* = nullptr>
+T FindLtBound(bool is_eq, sqlite3_value* sqlite_val) {
+  auto type = sqlite3_value_type(sqlite_val);
+  if (type == SQLITE_INTEGER) {
+    auto value = ExtractSqliteValue<T>(sqlite_val);
+    return is_eq ? value : value - 1;
+  } else if (type == SQLITE_FLOAT) {
+    auto value = ExtractSqliteValue<double>(sqlite_val);
+    auto below = floor(value);
+    auto cast = static_cast<T>(below);
+    return value > below ? cast : (is_eq ? cast : cast - 1);
+  } else {
+    return std::numeric_limits<T>::max();
+  }
+}
+
+template <typename T, typename sqlite_utils::is_float<T>* = nullptr>
+T FindEqBound(sqlite3_value* sqlite_val) {
+  auto type = sqlite3_value_type(sqlite_val);
+  if (type != SQLITE_INTEGER && type != SQLITE_FLOAT) {
+    return std::numeric_limits<T>::max();
+  }
+  return ExtractSqliteValue<T>(sqlite_val);
+}
+
+template <typename T, typename sqlite_utils::is_int<T>* = nullptr>
+T FindEqBound(sqlite3_value* sqlite_val) {
+  auto type = sqlite3_value_type(sqlite_val);
+  if (type == SQLITE_INTEGER) {
+    return ExtractSqliteValue<T>(sqlite_val);
+  } else if (type == SQLITE_FLOAT) {
+    auto value = ExtractSqliteValue<double>(sqlite_val);
+    auto below = floor(value);
+    auto cast = static_cast<T>(below);
+    return value > below ? std::numeric_limits<T>::max() : cast;
+  } else {
+    return std::numeric_limits<T>::max();
+  }
+}
 
 template <typename T>
 void ReportSqliteResult(sqlite3_context*, T value);
