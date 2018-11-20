@@ -137,6 +137,7 @@ source_set("unittests") {
     deps += [ ":android_task_runner" ]
   }
   sources = [
+    "optional_unittest.cc",
     "paged_memory_unittest.cc",
     "scoped_file_unittest.cc",
     "string_splitter_unittest.cc",
