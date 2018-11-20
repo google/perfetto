@@ -295,7 +295,7 @@ class TraceStorage {
   virtual StringId InternString(base::StringView);
 
   Process* GetMutableProcess(UniquePid upid) {
-    PERFETTO_DCHECK(upid > 0 && upid < unique_processes_.size());
+    PERFETTO_DCHECK(upid < unique_processes_.size());
     return &unique_processes_[upid];
   }
 
@@ -311,7 +311,7 @@ class TraceStorage {
   }
 
   const Process& GetProcess(UniquePid upid) const {
-    PERFETTO_DCHECK(upid > 0 && upid < unique_processes_.size());
+    PERFETTO_DCHECK(upid < unique_processes_.size());
     return unique_processes_[upid];
   }
 
