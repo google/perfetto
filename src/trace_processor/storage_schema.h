@@ -142,15 +142,11 @@ class StorageSchema {
     Comparator Sort(const QueryConstraints::OrderBy& ob) const override {
       if (ob.desc) {
         return [this](uint32_t f, uint32_t s) {
-          T a = (*deque_)[f];
-          T b = (*deque_)[s];
-          return a > b ? -1 : (a < b ? 1 : 0);
+          return sqlite_utils::CompareValuesDesc((*deque_)[f], (*deque_)[s]);
         };
       }
       return [this](uint32_t f, uint32_t s) {
-        T a = (*deque_)[f];
-        T b = (*deque_)[s];
-        return a < b ? -1 : (a > b ? 1 : 0);
+        return sqlite_utils::CompareValuesAsc((*deque_)[f], (*deque_)[s]);
       };
     }
 
@@ -224,13 +220,13 @@ class StorageSchema {
         return [this](uint32_t f, uint32_t s) {
           const std::string& a = (*string_map_)[(*deque_)[f]];
           const std::string& b = (*string_map_)[(*deque_)[s]];
-          return a > b ? -1 : (a < b ? 1 : 0);
+          return sqlite_utils::CompareValuesDesc(a, b);
         };
       }
       return [this](uint32_t f, uint32_t s) {
         const std::string& a = (*string_map_)[(*deque_)[f]];
         const std::string& b = (*string_map_)[(*deque_)[s]];
-        return a < b ? -1 : (a > b ? 1 : 0);
+        return sqlite_utils::CompareValuesAsc(a, b);
       };
     }
 

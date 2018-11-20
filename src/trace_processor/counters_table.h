@@ -37,6 +37,30 @@ class CountersTable : public Table {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
+  class RefColumn final : public StorageSchema::Column {
+   public:
+    RefColumn(std::string col_name, const TraceStorage* storage);
+
+    void ReportResult(sqlite3_context* ctx, uint32_t row) const override;
+
+    Bounds BoundFilter(int op, sqlite3_value* sqlite_val) const override;
+
+    Predicate Filter(int op, sqlite3_value* value) const override;
+
+    Comparator Sort(const QueryConstraints::OrderBy& ob) const override;
+
+    bool IsNaturallyOrdered() const override { return false; }
+
+    Table::ColumnType GetType() const override {
+      return Table::ColumnType::kLong;
+    }
+
+   private:
+    int CompareRefsAsc(uint32_t f, uint32_t s) const;
+
+    const TraceStorage* storage_ = nullptr;
+  };
+
   std::deque<std::string> ref_types_;
   StorageSchema schema_;
   const TraceStorage* const storage_;
