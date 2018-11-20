@@ -98,25 +98,23 @@ class StorageSchema {
       if (!is_naturally_ordered_)
         return bounds;
 
-      auto min = std::numeric_limits<T>::min();
-      auto max = std::numeric_limits<T>::max();
-
       // Makes the below code much more readable.
       using namespace sqlite_utils;
 
-      // Try and bound the min and max value based on the constraints.
-      auto value = sqlite_utils::ExtractSqliteValue<T>(sqlite_val);
+      T min = kTMin;
+      T max = kTMax;
       if (IsOpGe(op) || IsOpGt(op)) {
-        min = IsOpGe(op) ? value : value + 1;
+        min = FindGtBound<T>(IsOpGe(op), sqlite_val);
       } else if (IsOpLe(op) || IsOpLt(op)) {
-        max = IsOpLe(op) ? value : value - 1;
+        max = FindLtBound<T>(IsOpLe(op), sqlite_val);
       } else if (IsOpEq(op)) {
-        min = value;
-        max = value;
-      } else {
-        // We cannot bound on this constraint.
-        return bounds;
+        auto val = FindEqBound<T>(sqlite_val);
+        min = val;
+        max = val;
       }
+
+      if (min <= kTMin && max >= kTMax)
+        return bounds;
 
       // Convert the values into indices into the deque.
       auto min_it = std::lower_bound(deque_->begin(), deque_->end(), min);
@@ -175,6 +173,9 @@ class StorageSchema {
     }
 
    private:
+    T kTMin = std::numeric_limits<T>::lowest();
+    T kTMax = std::numeric_limits<T>::max();
+
     template <typename C>
     Predicate FilterWithCast(int op, sqlite3_value* value) const {
       auto binary_op = sqlite_utils::GetPredicateForOp<C>(op);
