@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <map>
+#include <set>
 #include <vector>
 
 #include "tools/trace_to_text/utils.h"
