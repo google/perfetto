@@ -17,6 +17,7 @@
 #include <getopt.h>
 #include <sys/stat.h>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <regex>
 #include <set>
@@ -113,22 +114,26 @@ int main(int argc, char** argv) {
     }
   }
 
-  {
-    std::unique_ptr<std::ostream> out =
-        ostream_factory(output_dir + "/ftrace_event.proto");
-    perfetto::GenerateFtraceEventProto(whitelist, out.get());
-  }
-
+  std::set<std::string> groups;
+  std::multimap<std::string, const perfetto::FtraceEventName*> group_to_event;
   std::set<std::string> new_events;
   for (const auto& event : whitelist) {
     if (!event.valid())
       continue;
+    groups.emplace(event.group());
+    group_to_event.emplace(event.group(), &event);
     struct stat buf;
     if (stat(
             ("protos/perfetto/trace/ftrace/" + event.name() + ".proto").c_str(),
             &buf) == -1) {
       new_events.insert(event.name());
     }
+  }
+
+  {
+    std::unique_ptr<std::ostream> out =
+        ostream_factory(output_dir + "/ftrace_event.proto");
+    perfetto::GenerateFtraceEventProto(whitelist, groups, out.get());
   }
 
   if (!new_events.empty()) {
@@ -140,66 +145,72 @@ int main(int argc, char** argv) {
         "tools/ftrace_proto_gen/ftrace_inode_handler.cc\n");
   }
 
-  // The first id used for events in FtraceEvent proto is 3.
-  // Because we increment before the loop, this is 2.
-  uint32_t proto_field_id = 2;
-  for (auto event : whitelist) {
-    ++proto_field_id;
-    if (!event.valid())
-      continue;
-    std::string proto_file_name = event.name() + ".proto";
+  for (const std::string& group : groups) {
+    std::string proto_file_name = group + ".proto";
     std::string output_path = output_dir + std::string("/") + proto_file_name;
-
-    std::string proto_name =
-        perfetto::ToCamelCase(event.name()) + "FtraceEvent";
-    perfetto::Proto proto;
-    proto.name = proto_name;
-    proto.event_name = event.name();
-    const google::protobuf::Descriptor* d =
-        descriptor_pool.FindMessageTypeByName("perfetto.protos." + proto_name);
-    if (d)
-      proto = perfetto::Proto(event.name(), *d);
-    else
-      PERFETTO_LOG("Did not find %s", proto_name.c_str());
-    for (int i = optind; i < argc; ++i) {
-      std::string input_dir = argv[i];
-      std::string input_path = input_dir + event.group() + "/" + event.name() +
-                               std::string("/format");
-
-      std::string contents;
-      if (!perfetto::base::ReadFile(input_path, &contents)) {
-        continue;
-      }
-
-      perfetto::FtraceEvent format;
-      if (!perfetto::ParseFtraceEvent(contents, &format)) {
-        fprintf(stderr, "Could not parse file %s.\n", input_path.c_str());
-        return 1;
-      }
-
-      perfetto::Proto event_proto;
-      if (!perfetto::GenerateProto(format, &event_proto)) {
-        fprintf(stderr, "Could not generate proto for file %s\n",
-                input_path.c_str());
-        return 1;
-      }
-      proto.MergeFrom(event_proto);
-    }
-
-    if (!new_events.empty())
-      PrintInodeHandlerMain(proto.name, proto);
-
-    events_info.push_back(
-        perfetto::SingleEventInfo(proto, event.group(), proto_field_id));
-
     std::unique_ptr<std::ostream> fout = ostream_factory(output_path);
     if (!fout) {
       fprintf(stderr, "Failed to open %s\n", output_path.c_str());
       return 1;
     }
+    *fout << perfetto::ProtoHeader();
 
-    *fout << proto.ToString();
-    PERFETTO_CHECK(!fout->fail());
+    auto range = group_to_event.equal_range(group);
+    for (auto it = range.first; it != range.second; ++it) {
+      const auto& event = *it->second;
+      if (!event.valid())
+        continue;
+
+      std::string proto_name =
+          perfetto::ToCamelCase(event.name()) + "FtraceEvent";
+      perfetto::Proto proto;
+      proto.name = proto_name;
+      proto.event_name = event.name();
+      const google::protobuf::Descriptor* d =
+          descriptor_pool.FindMessageTypeByName("perfetto.protos." +
+                                                proto_name);
+      if (d)
+        proto = perfetto::Proto(event.name(), *d);
+      else
+        PERFETTO_LOG("Did not find %s", proto_name.c_str());
+      for (int i = optind; i < argc; ++i) {
+        std::string input_dir = argv[i];
+        std::string input_path = input_dir + event.group() + "/" +
+                                 event.name() + std::string("/format");
+
+        std::string contents;
+        if (!perfetto::base::ReadFile(input_path, &contents)) {
+          continue;
+        }
+
+        perfetto::FtraceEvent format;
+        if (!perfetto::ParseFtraceEvent(contents, &format)) {
+          fprintf(stderr, "Could not parse file %s.\n", input_path.c_str());
+          return 1;
+        }
+
+        perfetto::Proto event_proto;
+        if (!perfetto::GenerateProto(format, &event_proto)) {
+          fprintf(stderr, "Could not generate proto for file %s\n",
+                  input_path.c_str());
+          return 1;
+        }
+        proto.MergeFrom(event_proto);
+      }
+
+      if (!new_events.empty())
+        PrintInodeHandlerMain(proto.name, proto);
+
+      uint32_t i = 0;
+      for (; it->second != &whitelist[i]; i++)
+        ;
+      // The first id used for events in FtraceEvent proto is 3.
+      events_info.push_back(
+          perfetto::SingleEventInfo(proto, event.group(), i + 3));
+
+      *fout << proto.ToString();
+      PERFETTO_CHECK(!fout->fail());
+    }
   }
 
   {
@@ -235,10 +246,8 @@ ftrace_proto_names = [
   "ftrace_stats.proto",
   "test_bundle_wrapper.proto",
 )";
-    for (const perfetto::FtraceEventName& event : whitelist) {
-      if (!event.valid())
-        continue;
-      *f << "  \"" << event.name() << ".proto\",\n";
+    for (const std::string& group : groups) {
+      *f << "  \"" << group << ".proto\",\n";
     }
     *f << "]\n";
     PERFETTO_CHECK(!f->fail());
