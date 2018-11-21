@@ -100,12 +100,14 @@ ProtoType InferProtoType(const FtraceEvent::Field& field);
 
 std::vector<FtraceEventName> ReadWhitelist(const std::string& filename);
 void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
+                              const std::set<std::string>& groups,
                               std::ostream* fout);
 std::string SingleEventInfo(perfetto::Proto proto,
                             const std::string& group,
                             const uint32_t proto_field_id);
 void GenerateEventInfo(const std::vector<std::string>& events_info,
                        std::ostream* fout);
+std::string ProtoHeader();
 
 }  // namespace perfetto
 
