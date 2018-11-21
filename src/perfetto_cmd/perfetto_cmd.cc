@@ -306,14 +306,28 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
 
   if (background) {
-    PERFETTO_CHECK(daemon(0 /*nochdir*/, 1 /*noclose*/) == 0);
-    PERFETTO_DLOG("Continuing in background");
-    printf("pid: %d\n", getpid());
-    base::ScopedFile null = base::OpenFile("/dev/null", O_RDONLY);
-    PERFETTO_CHECK(null);
-    PERFETTO_CHECK(dup2(*null, STDIN_FILENO) != -1);
-    PERFETTO_CHECK(dup2(*null, STDOUT_FILENO) != -1);
-    PERFETTO_CHECK(dup2(*null, STDERR_FILENO) != -1);
+    pid_t pid;
+    switch (pid = fork()) {
+      case -1:
+        PERFETTO_FATAL("fork");
+      case 0: {
+        PERFETTO_CHECK(setsid() != -1);
+        // daemon also ignores chdir errors.
+        chdir("/");
+        base::ScopedFile null = base::OpenFile("/dev/null", O_RDONLY);
+        PERFETTO_CHECK(null);
+        PERFETTO_CHECK(dup2(*null, STDIN_FILENO) != -1);
+        PERFETTO_CHECK(dup2(*null, STDOUT_FILENO) != -1);
+        PERFETTO_CHECK(dup2(*null, STDERR_FILENO) != -1);
+        // Do not accidentally close stdin/stdout/stderr.
+        if (*null <= 2)
+          null.release();
+        break;
+      }
+      default:
+        printf("%d\n", pid);
+        exit(0);
+    }
   }
 
   RateLimiter::Args args{};
