@@ -19,6 +19,7 @@
 
 #include "perfetto/base/event.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/pipe.h"
 
 #if PERFETTO_USE_EVENTFD()
 #include <sys/eventfd.h>
@@ -32,19 +33,11 @@ Event::Event() {
   fd_.reset(eventfd(/* start value */ 0, EFD_CLOEXEC | EFD_NONBLOCK));
   PERFETTO_CHECK(fd_);
 #else
-  int pipe_fds[2];
-  PERFETTO_CHECK(pipe(pipe_fds) == 0);
-
   // Make the pipe non-blocking so that we never block the waking thread (either
   // the main thread or another one) when scheduling a wake-up.
-  for (auto fd : pipe_fds) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    PERFETTO_CHECK(flags != -1);
-    PERFETTO_CHECK(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0);
-    PERFETTO_CHECK(fcntl(fd, F_SETFD, FD_CLOEXEC) == 0);
-  }
-  fd_.reset(pipe_fds[0]);
-  write_fd_.reset(pipe_fds[1]);
+  Pipe pipe = Pipe::Create(Pipe::kBothNonBlock);
+  fd_ = std::move(pipe.rd);
+  write_fd_ = std::move(pipe.wr);
 #endif  // !PERFETTO_USE_EVENTFD()
 }
 

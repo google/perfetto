@@ -470,10 +470,7 @@ bool PerfettoCmd::OpenOutputFile() {
 
 void PerfettoCmd::SetupCtrlCSignalHandler() {
   // Setup the pipe used to deliver the CTRL-C notification from signal handler.
-  int pipe_fds[2];
-  PERFETTO_CHECK(pipe(pipe_fds) == 0);
-  ctrl_c_pipe_rd_.reset(pipe_fds[0]);
-  ctrl_c_pipe_wr_.reset(pipe_fds[1]);
+  ctrl_c_pipe_ = base::Pipe::Create();
 
   // Setup signal handler.
   struct sigaction sa {};
@@ -494,7 +491,7 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
   sigaction(SIGINT, &sa, nullptr);
 
   task_runner_.AddFileDescriptorWatch(
-      *ctrl_c_pipe_rd_, [this] { consumer_endpoint_->DisableTracing(); });
+      *ctrl_c_pipe_.rd, [this] { consumer_endpoint_->DisableTracing(); });
 }
 
 int __attribute__((visibility("default")))

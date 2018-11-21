@@ -28,6 +28,7 @@
 
 #include "perfetto/base/gtest_prod_util.h"
 #include "perfetto/base/paged_memory.h"
+#include "perfetto/base/pipe.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/thread_checker.h"
 #include "perfetto/protozero/message.h"
@@ -193,8 +194,7 @@ class CpuReader {
   const ProtoTranslationTable* const table_;
   const size_t cpu_;
   base::ScopedFile trace_fd_;
-  base::ScopedFile staging_read_fd_;
-  base::ScopedFile staging_write_fd_;
+  base::Pipe staging_pipe_;
   base::PagedMemory buffer_;
   std::thread worker_thread_;
   std::atomic<ThreadCtl> cmd_{kRun};

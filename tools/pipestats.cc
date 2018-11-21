@@ -25,6 +25,7 @@
 #include <unistd.h>  // pipe
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/pipe.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/time.h"
 #include "perfetto/base/utils.h"
@@ -51,24 +52,17 @@ int PipestatsMain(int argc, char** argv) {
   PERFETTO_CHECK(trace_fd);
   std::thread reader(ReadLoop, trace_fd.get());
 
-  int pipe_fds[2];
-  PERFETTO_CHECK(pipe(&pipe_fds[0]) == 0);
-  base::ScopedFile staging_read_fd(pipe_fds[0]);
-  base::ScopedFile staging_write_fd(pipe_fds[1]);
+  // Reads from the staging pipe are always non-blocking.
+  // Note: O_NONBLOCK seems to be ignored by splice() on the target pipe. The
+  // blocking vs non-blocking behavior is controlled solely by the
+  // SPLICE_F_NONBLOCK flag passed to splice().
+  base::Pipe pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
 
   // Make reads from the raw pipe blocking so that splice() can sleep.
   SetBlocking(*trace_fd, true);
 
-  // Reads from the staging pipe are always non-blocking.
-  SetBlocking(*staging_read_fd, false);
-
-  // Note: O_NONBLOCK seems to be ignored by splice() on the target pipe. The
-  // blocking vs non-blocking behavior is controlled solely by the
-  // SPLICE_F_NONBLOCK flag passed to splice().
-  SetBlocking(*staging_write_fd, false);
-
   for (;;) {
-    ssize_t splice_res = splice(*trace_fd, nullptr, *staging_write_fd, nullptr,
+    ssize_t splice_res = splice(*trace_fd, nullptr, *pipe.wr, nullptr,
                                 base::kPageSize, SPLICE_F_MOVE);
     if (splice_res > 0) {
       auto cur = base::GetWallTimeNs();
