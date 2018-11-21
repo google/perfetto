@@ -136,22 +136,15 @@ CpuReader::CpuReader(const ProtoTranslationTable* table,
                      base::ScopedFile fd,
                      std::function<void()> on_data_available)
     : table_(table), cpu_(cpu), trace_fd_(std::move(fd)) {
-  int pipe_fds[2];
-  PERFETTO_CHECK(pipe(&pipe_fds[0]) == 0);
-  staging_read_fd_.reset(pipe_fds[0]);
-  staging_write_fd_.reset(pipe_fds[1]);
+  // Both reads and writes from/to the staging pipe are always non-blocking.
+  // Note: O_NONBLOCK seems to be ignored by splice() on the target pipe. The
+  // blocking vs non-blocking behavior is controlled solely by the
+  // SPLICE_F_NONBLOCK flag passed to splice().
+  staging_pipe_ = base::Pipe::Create(base::Pipe::kBothNonBlock);
 
   // Make reads from the raw pipe blocking so that splice() can sleep.
   PERFETTO_CHECK(trace_fd_);
   SetBlocking(*trace_fd_, true);
-
-  // Reads from the staging pipe are always non-blocking.
-  SetBlocking(*staging_read_fd_, false);
-
-  // Note: O_NONBLOCK seems to be ignored by splice() on the target pipe. The
-  // blocking vs non-blocking behavior is controlled solely by the
-  // SPLICE_F_NONBLOCK flag passed to splice().
-  SetBlocking(*staging_write_fd_, false);
 
   // We need a non-default SIGPIPE handler to make it so that the blocking
   // splice() is woken up when the ~CpuReader() dtor destroys the pipes.
@@ -172,7 +165,7 @@ CpuReader::CpuReader(const ProtoTranslationTable* table,
 
   worker_thread_ =
       std::thread(std::bind(&RunWorkerThread, cpu_, *trace_fd_,
-                            *staging_write_fd_, on_data_available, &cmd_));
+                            *staging_pipe_.wr, on_data_available, &cmd_));
 }
 
 CpuReader::~CpuReader() {
@@ -271,7 +264,7 @@ bool CpuReader::Drain(const std::set<FtraceDataSource*>& data_sources) {
   for (;;) {
     uint8_t* buffer = GetBuffer();
     long bytes =
-        PERFETTO_EINTR(read(*staging_read_fd_, buffer, base::kPageSize));
+        PERFETTO_EINTR(read(*staging_pipe_.rd, buffer, base::kPageSize));
     if (bytes == -1 && errno == EAGAIN)
       break;
     PERFETTO_CHECK(static_cast<size_t>(bytes) == base::kPageSize);

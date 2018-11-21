@@ -27,6 +27,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/pipe.h"
 #include "perfetto/base/temp_file.h"
 #include "perfetto/base/utils.h"
 #include "src/base/test/test_task_runner.h"
@@ -333,9 +334,7 @@ TEST_F(UnixSocketTest, SeveralClients) {
 // the socket to the client. Both processes mmap the file in shared mode and
 // check that they see the same contents.
 TEST_F(UnixSocketTest, SharedMemory) {
-  int pipes[2];
-  ASSERT_EQ(0, pipe(pipes));
-
+  Pipe pipe = Pipe::Create();
   pid_t pid = fork();
   ASSERT_GE(pid, 0);
   constexpr size_t kTmpSize = 4096;
@@ -353,7 +352,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
     auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_);
     ASSERT_TRUE(srv->is_listening());
     // Signal the other process that it can connect.
-    ASSERT_EQ(1, base::WriteAll(pipes[1], ".", 1));
+    ASSERT_EQ(1, base::WriteAll(*pipe.wr, ".", 1));
     auto checkpoint = task_runner_.CreateCheckpoint("change_seen_by_server");
     EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
         .WillOnce(Invoke(
@@ -373,7 +372,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
     _exit(0);
   } else {
     char sync_cmd = '\0';
-    ASSERT_EQ(1, PERFETTO_EINTR(read(pipes[0], &sync_cmd, 1)));
+    ASSERT_EQ(1, PERFETTO_EINTR(read(*pipe.rd, &sync_cmd, 1)));
     ASSERT_EQ('.', sync_cmd);
     auto cli =
         UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_);

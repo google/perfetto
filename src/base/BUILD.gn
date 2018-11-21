@@ -38,6 +38,7 @@ source_set("base") {
   if (!is_win) {
     sources += [
       "event.cc",
+      "pipe.cc",
       "temp_file.cc",
       "unix_task_runner.cc",
     ]

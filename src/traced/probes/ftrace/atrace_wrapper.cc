@@ -26,6 +26,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/pipe.h"
 #include "perfetto/base/time.h"
 
 namespace perfetto {
@@ -47,40 +48,34 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
   argv.push_back(nullptr);
 
   // Create the pipe for the child process to return stderr.
-  int filedes[2];
-  PERFETTO_CHECK(pipe(filedes) == 0);
-
-  int err = fcntl(filedes[0], F_SETFL, fcntl(filedes[0], F_GETFL) | O_NONBLOCK);
-  PERFETTO_CHECK(err == 0);
+  base::Pipe err_pipe = base::Pipe::Create(base::Pipe::kRdNonBlock);
 
   pid_t pid = fork();
   PERFETTO_CHECK(pid >= 0);
   if (pid == 0) {
     // Duplicate the write end of the pipe into stderr.
-    if ((dup2(filedes[1], STDERR_FILENO) == -1)) {
+    if ((dup2(*err_pipe.wr, STDERR_FILENO) == -1)) {
       const char kError[] = "Unable to duplicate stderr fd";
-      base::ignore_result(write(filedes[1], kError, sizeof(kError)));
+      base::ignore_result(write(*err_pipe.wr, kError, sizeof(kError)));
       _exit(1);
     }
 
     // Close stdin/out + any file descriptor that we might have mistakenly
-    // not marked as FD_CLOEXEC.
+    // not marked as FD_CLOEXEC. |err_pipe| is FD_CLOEXEC and will be
+    // automatically closed on exec.
     for (int i = 0; i < 128; i++) {
       if (i != STDERR_FILENO)
         close(i);
     }
 
-    // Close the read and write end of the pipe fds.
-    close(filedes[1]);
-    close(filedes[0]);
-
     execv("/system/bin/atrace", &argv[0]);
+
     // Reached only if execv fails.
     _exit(1);
   }
 
   // Close the write end of the pipe.
-  close(filedes[1]);
+  err_pipe.wr.reset();
 
   // Collect the output from child process.
   char buffer[4096];
@@ -89,7 +84,7 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
   // Get the read end of the pipe.
   constexpr uint8_t kFdCount = 1;
   struct pollfd fds[kFdCount]{};
-  fds[0].fd = filedes[0];
+  fds[0].fd = *err_pipe.rd;
   fds[0].events = POLLIN;
 
   // Store the start time of atrace and setup the timeout.
@@ -126,7 +121,7 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
     }
 
     // Data is available to be read from the fd.
-    int64_t count = PERFETTO_EINTR(read(filedes[0], buffer, sizeof(buffer)));
+    int64_t count = PERFETTO_EINTR(read(*err_pipe.rd, buffer, sizeof(buffer)));
     if (ret < 0 && errno == EAGAIN) {
       continue;
     } else if (count < 0) {
@@ -138,9 +133,6 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
     }
     error.append(buffer, static_cast<size_t>(count));
   }
-
-  // Close the read end of the pipe.
-  close(filedes[0]);
 
   // Wait until the child process exits fully.
   PERFETTO_EINTR(waitpid(pid, &status, 0));
