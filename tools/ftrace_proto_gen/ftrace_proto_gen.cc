@@ -382,7 +382,7 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
     *fout << R"(import "perfetto/trace/ftrace/)" << group << R"(.proto";)"
           << "\n";
   }
-
+  *fout << "import \"perfetto/trace/ftrace/generic.proto\";\n";
   *fout << "\n";
   *fout << "package perfetto.protos;\n\n";
   *fout << R"(message FtraceEvent {
@@ -409,6 +409,13 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
     *fout << "    " << ToCamelCase(event.name()) << "FtraceEvent "
           << event.name() << " = " << i << ";\n";
     ++i;
+    // We cannot depend on the proto file to get this number because
+    // it would cause a dependency cycle between this generator and the
+    // generated code.
+    if (i == 327) {
+      *fout << "    GenericFtraceEvent generic = " << i << ";\n";
+      ++i;
+    }
   }
   *fout << "  }\n";
   *fout << "}\n";
