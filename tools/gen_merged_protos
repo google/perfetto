@@ -37,21 +37,8 @@ MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'
 
 TRACE_PROTOS = (
   'protos/perfetto/common/sys_stats_counters.proto',
-  'protos/perfetto/trace/trace.proto',
-  'protos/perfetto/trace/trace_packet.proto',
-  'protos/perfetto/trace/ftrace/ftrace_event_bundle.proto',
-  'protos/perfetto/trace/ftrace/ftrace_event.proto',
-  'protos/perfetto/trace/filesystem/inode_file_map.proto',
-  'protos/perfetto/trace/ps/process_stats.proto',
-  'protos/perfetto/trace/ps/process_tree.proto',
   'protos/perfetto/trace/clock_snapshot.proto',
-  'protos/perfetto/trace/sys_stats/sys_stats.proto',
-
-  # Print proto is special: it doesn't have a enable file so is
-  # not present in genfs_contexts.
-  'protos/perfetto/trace/ftrace/print.proto',
-
-  # FTrace events
+  'protos/perfetto/trace/filesystem/inode_file_map.proto',
   'protos/perfetto/trace/ftrace/binder.proto',
   'protos/perfetto/trace/ftrace/block.proto',
   'protos/perfetto/trace/ftrace/clk.proto',
@@ -62,15 +49,19 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/ftrace/ftrace_event.proto',
   'protos/perfetto/trace/ftrace/ftrace_event_bundle.proto',
   'protos/perfetto/trace/ftrace/ftrace_stats.proto',
+  'protos/perfetto/trace/ftrace/generic.proto',
   'protos/perfetto/trace/ftrace/kmem.proto',
   'protos/perfetto/trace/ftrace/lowmemorykiller.proto',
   'protos/perfetto/trace/ftrace/power.proto',
-  'protos/perfetto/trace/ftrace/print.proto',
   'protos/perfetto/trace/ftrace/sched.proto',
   'protos/perfetto/trace/ftrace/signal.proto',
   'protos/perfetto/trace/ftrace/task.proto',
   'protos/perfetto/trace/ftrace/vmscan.proto',
-  'protos/perfetto/trace/ftrace/generic.proto',
+  'protos/perfetto/trace/ps/process_stats.proto',
+  'protos/perfetto/trace/ps/process_tree.proto',
+  'protos/perfetto/trace/sys_stats/sys_stats.proto',
+  'protos/perfetto/trace/trace.proto',
+  'protos/perfetto/trace/trace_packet.proto',
 )
 
 MERGED_TRACE_PROTO = 'protos/perfetto/trace/perfetto_trace.proto'
