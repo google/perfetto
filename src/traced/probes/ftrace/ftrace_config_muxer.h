@@ -44,7 +44,7 @@ class FtraceConfigMuxer {
  public:
   // The FtraceConfigMuxer and ProtoTranslationTable
   // should outlive this instance.
-  FtraceConfigMuxer(FtraceProcfs* ftrace, const ProtoTranslationTable* table);
+  FtraceConfigMuxer(FtraceProcfs* ftrace, ProtoTranslationTable* table);
   virtual ~FtraceConfigMuxer();
 
   // Ask FtraceConfigMuxer to adjust ftrace procfs settings to
@@ -94,7 +94,7 @@ class FtraceConfigMuxer {
 
   FtraceConfigId last_id_ = 1;
   FtraceProcfs* ftrace_;
-  const ProtoTranslationTable* table_;
+  ProtoTranslationTable* table_;
 
   FtraceState current_state_;
 

@@ -70,6 +70,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/ftrace/signal.proto',
   'protos/perfetto/trace/ftrace/task.proto',
   'protos/perfetto/trace/ftrace/vmscan.proto',
+  'protos/perfetto/trace/ftrace/generic.proto',
 )
 
 MERGED_TRACE_PROTO = 'protos/perfetto/trace/perfetto_trace.proto'
