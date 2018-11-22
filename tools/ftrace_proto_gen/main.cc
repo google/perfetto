@@ -245,6 +245,7 @@ ftrace_proto_names = [
   "ftrace_event_bundle.proto",
   "ftrace_stats.proto",
   "test_bundle_wrapper.proto",
+  "generic.proto",
 )";
     for (const std::string& group : groups) {
       *f << "  \"" << group << ".proto\",\n";

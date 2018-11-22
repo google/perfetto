@@ -30,6 +30,7 @@ import "perfetto/trace/ftrace/sync.proto";
 import "perfetto/trace/ftrace/task.proto";
 import "perfetto/trace/ftrace/vmscan.proto";
 import "perfetto/trace/ftrace/workqueue.proto";
+import "perfetto/trace/ftrace/generic.proto";
 
 package perfetto.protos;
 
@@ -385,5 +386,6 @@ message FtraceEvent {
     SignalDeliverFtraceEvent signal_deliver = 324;
     SignalGenerateFtraceEvent signal_generate = 325;
     OomScoreAdjUpdateFtraceEvent oom_score_adj_update = 326;
+    GenericFtraceEvent generic = 327;
   }
 }

@@ -55,6 +55,15 @@ void AddEventGroup(const ProtoTranslationTable* table,
     to->insert(event->name);
 }
 
+std::pair<std::string, std::string> EventToGroupAndName(
+    const std::string& event) {
+  auto slash_pos = event.find("/");
+  if (slash_pos == std::string::npos)
+    return std::make_pair("", event);
+  return std::make_pair(event.substr(0, slash_pos),
+                        event.substr(slash_pos + 1));
+}
+
 }  // namespace
 
 std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
@@ -224,13 +233,12 @@ size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb) {
 }
 
 FtraceConfigMuxer::FtraceConfigMuxer(FtraceProcfs* ftrace,
-                                     const ProtoTranslationTable* table)
+                                     ProtoTranslationTable* table)
     : ftrace_(ftrace), table_(table), current_state_(), configs_() {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
 FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
   FtraceConfig actual;
-
   bool is_ftrace_enabled = ftrace_->IsTracingEnabled();
   if (configs_.empty()) {
     PERFETTO_DCHECK(active_configs_.empty());
@@ -256,19 +264,23 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
     UpdateAtrace(request);
 
   for (auto& name : events) {
-    const Event* event = table_->GetEventByName(name);
+    std::string group;
+    std::string event_name;
+    std::tie(group, event_name) = EventToGroupAndName(name);
+    // TODO(taylori): Add all events for group if name is * e.g sched/*
+    const Event* event = table_->GetOrCreateEvent(group, event_name);
     if (!event) {
       PERFETTO_DLOG("Can't enable %s, event not known", name.c_str());
       continue;
     }
-    if (current_state_.ftrace_events.count(name) ||
+    if (current_state_.ftrace_events.count(event->name) ||
         std::string("ftrace") == event->group) {
       *actual.add_ftrace_events() = name;
       continue;
     }
     if (ftrace_->EnableEvent(event->group, event->name)) {
-      current_state_.ftrace_events.insert(name);
-      *actual.add_ftrace_events() = name;
+      current_state_.ftrace_events.insert(event->name);
+      *actual.add_ftrace_events() = event->name;
     } else {
       PERFETTO_DPLOG("Failed to enable %s.", name.c_str());
     }
