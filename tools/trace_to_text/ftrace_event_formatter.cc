@@ -341,6 +341,7 @@ using protos::ClkSetRateFtraceEvent;
 using protos::SignalDeliverFtraceEvent;
 using protos::SignalGenerateFtraceEvent;
 using protos::OomScoreAdjUpdateFtraceEvent;
+using protos::GenericFtraceEvent;
 
 const char* GetSchedSwitchFlag(int64_t state) {
   state &= 511;
@@ -2691,6 +2692,23 @@ std::string FormatSignalGenerate(const SignalGenerateFtraceEvent& event) {
           event.group(), event.result());
   return std::string(line);
 }
+std::string FormatGeneric(const GenericFtraceEvent& event) {
+  std::string result = "generic (" + event.event_name() + "): ";
+  for (const auto& field : event.field()) {
+    char line[2048];
+    sprintf(line, "name=%s ", field.name().c_str());
+    result.append(line);
+    char value[2048];
+    if (field.has_str_value())
+      sprintf(value, "value=%s ", field.str_value().c_str());
+    else if (field.has_int_value())
+      sprintf(value, "value=%ld ", field.int_value());
+    else if (field.has_uint_value())
+      sprintf(value, "value=%lu ", field.uint_value());
+    result.append(value);
+  }
+  return result;
+}
 
 std::string FormatOomScoreAdjUpdate(const OomScoreAdjUpdateFtraceEvent& event) {
   char line[2048];
@@ -3501,6 +3519,9 @@ std::string FormatEventText(const protos::FtraceEvent& event) {
   } else if (event.has_oom_score_adj_update()) {
     const auto& inner = event.oom_score_adj_update();
     return FormatOomScoreAdjUpdate(inner);
+  } else if (event.has_generic()) {
+    const auto& inner = event.generic();
+    return FormatGeneric(inner);
   }
 
   return "";

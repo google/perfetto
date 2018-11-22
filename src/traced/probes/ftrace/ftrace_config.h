@@ -36,9 +36,6 @@ std::set<std::string> FtraceEventsAsSet(const FtraceConfig&);
 // Returns true iff the config has any atrace categories or apps.
 bool RequiresAtrace(const FtraceConfig&);
 
-// Returns true iff the config is 'valid'. Spesfically all the
-// event/categories/app names should not look like:
-// "../../some/kind/of/directory/escape".
 bool ValidConfig(const FtraceConfig& config);
 
 }  // namespace perfetto
