@@ -36,9 +36,25 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+base::Event* g_dump_evt = nullptr;
+
 int HeapprofdMain(int, char**) {
+  // We set this up before launching any threads, so we do not have to use a
+  // std::atomic for g_dump_evt.
+  g_dump_evt = new base::Event();
+
   base::UnixTaskRunner task_runner;
   HeapprofdProducer producer(&task_runner);
+
+  struct sigaction action = {};
+  action.sa_handler = [](int) { g_dump_evt->Notify(); };
+  // Allow to trigger a full dump by sending SIGUSR1 to heapprofd.
+  // This will allow manually deciding when to dump on userdebug.
+  PERFETTO_CHECK(sigaction(SIGUSR1, &action, nullptr) == 0);
+  task_runner.AddFileDescriptorWatch(g_dump_evt->fd(), [&producer] {
+    g_dump_evt->Clear();
+    producer.DumpAll();
+  });
   producer.ConnectWithRetries(GetProducerSocket());
   task_runner.Run();
   return 0;
