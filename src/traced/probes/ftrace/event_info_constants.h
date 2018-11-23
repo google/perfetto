@@ -220,19 +220,6 @@ struct Event {
   uint16_t size;
 };
 
-// The compile time information needed to read the raw ftrace buffer.
-// Specifically for each event we have a proto we fill:
-//  The event name (e.g. sched_switch)
-//  The event group  (e.g. sched)
-//  The the proto field ID of this event in the FtraceEvent proto.
-//  For each field in the proto:
-//    The field name (e.g. prev_comm)
-//    The proto field id for this field
-//    The proto field type for this field (e.g. kProtoString or kProtoUint32)
-// The other fields: ftrace_event_id, ftrace_size, ftrace_offset, ftrace_type
-// are zeroed.
-std::vector<Event> GetStaticEventInfo();
-
 // The compile time information needed to read the common fields from
 // the raw ftrace buffer.
 std::vector<Field> GetStaticCommonFieldsInfo();
