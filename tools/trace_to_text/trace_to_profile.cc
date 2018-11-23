@@ -40,6 +40,15 @@ namespace trace_to_text {
 
 namespace {
 
+constexpr const char* kDefaultTmp = "/tmp";
+
+std::string GetTemp() {
+  const char* tmp = getenv("TMPDIR");
+  if (tmp == nullptr)
+    tmp = kDefaultTmp;
+  return tmp;
+}
+
 using ::perfetto::protos::ProfilePacket;
 
 using GLine = ::perftools::profiles::Line;
@@ -167,7 +176,7 @@ void DumpProfilePacket(const ProfilePacket& packet,
 }  // namespace
 
 int TraceToProfile(std::istream* input, std::ostream* output) {
-  std::string temp_dir = "/tmp/heap_profile-XXXXXXX";
+  std::string temp_dir = GetTemp() + "/heap_profile-XXXXXXX";
   size_t itr = 0;
   PERFETTO_CHECK(mkdtemp(&temp_dir[0]));
   ForEachPacketInTrace(input, [&temp_dir,
