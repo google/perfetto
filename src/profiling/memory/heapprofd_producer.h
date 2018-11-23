@@ -47,6 +47,7 @@ class HeapprofdProducer : public Producer {
 
   // TODO(fmayer): Delete once we have generic reconnect logic.
   void ConnectWithRetries(const char* socket_name);
+  void DumpAll();
 
  private:
   // TODO(fmayer): Delete once we have generic reconnect logic.
