@@ -312,8 +312,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         PERFETTO_FATAL("fork");
       case 0: {
         PERFETTO_CHECK(setsid() != -1);
-        // daemon also ignores chdir errors.
-        chdir("/");
+        base::ignore_result(chdir("/"));
         base::ScopedFile null = base::OpenFile("/dev/null", O_RDONLY);
         PERFETTO_CHECK(null);
         PERFETTO_CHECK(dup2(*null, STDIN_FILENO) != -1);
