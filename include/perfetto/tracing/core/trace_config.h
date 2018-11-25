@@ -307,6 +307,9 @@ class PERFETTO_EXPORT TraceConfig {
   bool deferred_start() const { return deferred_start_; }
   void set_deferred_start(bool value) { deferred_start_ = value; }
 
+  uint32_t flush_period_ms() const { return flush_period_ms_; }
+  void set_flush_period_ms(uint32_t value) { flush_period_ms_ = value; }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -320,6 +323,7 @@ class PERFETTO_EXPORT TraceConfig {
   uint64_t max_file_size_bytes_ = {};
   GuardrailOverrides guardrail_overrides_ = {};
   bool deferred_start_ = {};
+  uint32_t flush_period_ms_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
