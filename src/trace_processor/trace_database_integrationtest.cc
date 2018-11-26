@@ -82,7 +82,7 @@ TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   protos::RawQueryResult res;
   Query("select count(*), max(ts) - min(ts) from slices where utid != 0", &res);
   ASSERT_EQ(res.num_records(), 1);
-  ASSERT_EQ(res.columns(0).long_values(0), 39830);
+  ASSERT_EQ(res.columns(0).long_values(0), 39828);
   ASSERT_EQ(res.columns(1).long_values(0), 40532506000);
 }
 
