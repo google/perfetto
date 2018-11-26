@@ -173,7 +173,9 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
       }
       case 'X': {  // TRACE_EVENT (scoped event).
         uint64_t duration = 0;
-        PERFETTO_CHECK(CoerceToUint64(value["ts"], &duration));
+        // Ignore this event if invalid.
+        if (!CoerceToUint64(value["dur"], &duration))
+          continue;
         duration *= 1000;
         slice_tracker->Scoped(ts, utid, cat_id, name_id, duration);
         break;
