@@ -63,6 +63,8 @@ source_set("daemon") {
     "record_reader.h",
     "socket_listener.cc",
     "socket_listener.h",
+    "system_property.cc",
+    "system_property.h",
     "unwinding.cc",
     "unwinding.h",
   ]
@@ -106,6 +108,7 @@ source_set("unittests") {
     "record_reader_unittest.cc",
     "sampler_unittest.cc",
     "socket_listener_unittest.cc",
+    "system_property_unittest.cc",
     "unwinding_unittest.cc",
     "wire_protocol_unittest.cc",
   ]
