@@ -22,7 +22,7 @@ namespace perfetto {
 namespace {
 
 bool IsGoodFtracePunctuation(char c) {
-  return c == '_' || c == '/';
+  return c == '_' || c == '/' || c == '*';
 }
 
 bool IsGoodAtracePunctuation(char c) {
@@ -48,18 +48,13 @@ bool IsValidFtraceEventName(const std::string& str) {
       if (slash_count > 1 || i == 0 || i == str.size() - 1)
         return false;
     }
+    if (str[i] == '*' && i != str.size() - 1)
+      return false;
   }
   return true;
 }
 
 }  // namespace
-
-std::set<std::string> FtraceEventsAsSet(const FtraceConfig& config) {
-  std::set<std::string> events;
-  for (const std::string& event : config.ftrace_events())
-    events.insert(event);
-  return events;
-}
 
 FtraceConfig CreateFtraceConfig(std::set<std::string> names) {
   FtraceConfig config;

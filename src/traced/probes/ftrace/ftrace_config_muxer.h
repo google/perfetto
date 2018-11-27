@@ -23,6 +23,7 @@
 #include "src/traced/probes/ftrace/ftrace_config.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto {
 
@@ -65,16 +66,24 @@ class FtraceConfigMuxer {
   // or already removed.
   bool RemoveConfig(FtraceConfigId);
 
+  const EventFilter* GetEventFilter(FtraceConfigId id);
+
   // public for testing
   void SetupClockForTesting(const FtraceConfig& request) {
     SetupClock(request);
   }
 
-  const FtraceConfig* GetConfig(FtraceConfigId id);
+  const FtraceConfig* GetConfigForTesting(FtraceConfigId id);
+
+  std::set<GroupAndName> GetFtraceEventsForTesting(
+      const FtraceConfig& request,
+      const ProtoTranslationTable* table) {
+    return GetFtraceEvents(request, table);
+  }
 
  private:
   struct FtraceState {
-    std::set<std::string> ftrace_events;
+    EventFilter ftrace_events;
     std::set<std::string> atrace_categories;
     std::set<std::string> atrace_apps;
     bool tracing_on = false;
@@ -90,6 +99,13 @@ class FtraceConfigMuxer {
   void UpdateAtrace(const FtraceConfig& request);
   void DisableAtrace();
 
+  // This processes the config to get the exact events.
+  // group/* -> Will read the fs and add all events in group.
+  // event -> Will look up the event to find the group.
+  // atrace category -> Will add events in that category.
+  std::set<GroupAndName> GetFtraceEvents(const FtraceConfig& request,
+                                         const ProtoTranslationTable*);
+
   FtraceConfigId GetNextId();
 
   FtraceConfigId last_id_ = 1;
@@ -97,6 +113,10 @@ class FtraceConfigMuxer {
   ProtoTranslationTable* table_;
 
   FtraceState current_state_;
+
+  // There is a filter per config. These filters allow a quick way
+  // to check if a certain ftrace event with id x is enabled.
+  std::map<FtraceConfigId, EventFilter> filters_;
 
   // Set of all configurations. Note that not all of them might be active.
   // When a config is present but not active, we do setup buffer sizes and
@@ -108,8 +128,6 @@ class FtraceConfigMuxer {
   std::set<FtraceConfigId> active_configs_;
 };
 
-std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
-                                      const ProtoTranslationTable*);
 size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb);
 
 }  // namespace perfetto
