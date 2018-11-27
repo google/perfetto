@@ -57,7 +57,6 @@ void SliceTracker::Scoped(uint64_t timestamp,
                           uint64_t duration) {
   MaybeCloseStack(timestamp, &threads_[utid]);
   StartSlice(timestamp, duration, utid, cat, name);
-  CompleteSlice(utid);
 }
 
 void SliceTracker::StartSlice(uint64_t timestamp,
@@ -73,7 +72,8 @@ void SliceTracker::StartSlice(uint64_t timestamp,
     PERFETTO_DFATAL("Slices with too large depth found.");
     return;
   }
-  uint64_t parent_stack_id = depth == 0 ? 0 : slices->stack_ids().back();
+  uint64_t parent_stack_id =
+      depth == 0 ? 0 : slices->stack_ids()[stack->back()];
   size_t slice_idx = slices->AddSlice(timestamp, duration, utid, cat, name,
                                       depth, 0, parent_stack_id);
   stack->emplace_back(slice_idx);
