@@ -1054,11 +1054,12 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
 
   DataSourceInstanceID inst_id = ++last_data_source_instance_id_;
   auto insert_iter = tracing_session->data_source_instances.emplace(
-      producer->id_,
-      DataSourceInstance{inst_id,
-                         cfg_data_source.config(),  //  Deliberate copy.
-                         data_source.descriptor.name(),
-                         data_source.descriptor.will_notify_on_stop()});
+      std::piecewise_construct,  //
+      std::forward_as_tuple(producer->id_),
+      std::forward_as_tuple(inst_id,
+                            cfg_data_source.config(),  //  Deliberate copy.
+                            data_source.descriptor.name(),
+                            data_source.descriptor.will_notify_on_stop()));
   DataSourceInstance* ds_instance = &insert_iter->second;
   DataSourceConfig& ds_config = ds_instance->config;
   ds_config.set_trace_duration_ms(tracing_session->config.duration_ms());

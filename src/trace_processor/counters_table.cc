@@ -24,14 +24,14 @@ namespace trace_processor {
 
 CountersTable::CountersTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {
-  ref_types_.resize(RefType::kMax);
-  ref_types_[RefType::kNoRef] = "";
-  ref_types_[RefType::kUtid] = "utid";
-  ref_types_[RefType::kCpuId] = "cpu";
-  ref_types_[RefType::kIrq] = "irq";
-  ref_types_[RefType::kSoftIrq] = "softirq";
-  ref_types_[RefType::kUpid] = "upid";
-  ref_types_[RefType::kUtidLookupUpid] = "upid";
+  ref_types_.resize(RefType::kRefMax);
+  ref_types_[RefType::kRefNoRef] = "";
+  ref_types_[RefType::kRefUtid] = "utid";
+  ref_types_[RefType::kRefCpuId] = "cpu";
+  ref_types_[RefType::kRefIrq] = "irq";
+  ref_types_[RefType::kRefSoftIrq] = "softirq";
+  ref_types_[RefType::kRefUpid] = "upid";
+  ref_types_[RefType::kRefUtidLookupUpid] = "upid";
 }
 
 void CountersTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
@@ -95,7 +95,7 @@ void CountersTable::RefColumn::ReportResult(sqlite3_context* ctx,
                                             uint32_t row) const {
   auto ref = storage_->counters().refs()[row];
   auto type = storage_->counters().types()[row];
-  if (type == RefType::kUtidLookupUpid) {
+  if (type == RefType::kRefUtidLookupUpid) {
     auto upid = storage_->GetThread(static_cast<uint32_t>(ref)).upid;
     if (upid.has_value()) {
       sqlite_utils::ReportSqliteResult(ctx, upid.value());
@@ -121,7 +121,7 @@ CountersTable::RefColumn::Predicate CountersTable::RefColumn::Filter(
   return [this, binary_op, extracted](uint32_t idx) {
     auto ref = storage_->counters().refs()[idx];
     auto type = storage_->counters().types()[idx];
-    if (type == RefType::kUtidLookupUpid) {
+    if (type == RefType::kRefUtidLookupUpid) {
       auto upid = storage_->GetThread(static_cast<uint32_t>(ref)).upid;
       // Trying to filter null with any operation we currently handle
       // should return false.
@@ -146,9 +146,9 @@ int CountersTable::RefColumn::CompareRefsAsc(uint32_t f, uint32_t s) const {
   auto type_f = storage_->counters().types()[f];
   auto type_s = storage_->counters().types()[s];
 
-  if (type_f == RefType::kUtidLookupUpid) {
+  if (type_f == RefType::kRefUtidLookupUpid) {
     auto upid_f = storage_->GetThread(static_cast<uint32_t>(ref_f)).upid;
-    if (type_s == RefType::kUtidLookupUpid) {
+    if (type_s == RefType::kRefUtidLookupUpid) {
       auto upid_s = storage_->GetThread(static_cast<uint32_t>(ref_s)).upid;
       if (!upid_f.has_value() && !upid_s.has_value()) {
         return 0;

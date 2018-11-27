@@ -66,11 +66,13 @@ TEST_F(CountersTableUnittest, SelectWhereCpu) {
   uint32_t freq = 3000;
 
   context_.storage->mutable_counters()->AddCounter(
-      timestamp, 0 /* dur */, 1, freq, 1 /* cpu */, RefType::kCpuId);
-  context_.storage->mutable_counters()->AddCounter(
-      timestamp + 1, 1 /* dur */, 1, freq + 1000, 1 /* cpu */, RefType::kCpuId);
-  context_.storage->mutable_counters()->AddCounter(
-      timestamp + 2, 1 /* dur */, 1, freq + 2000, 2 /* cpu */, RefType::kCpuId);
+      timestamp, 0 /* dur */, 1, freq, 1 /* cpu */, RefType::kRefCpuId);
+  context_.storage->mutable_counters()->AddCounter(timestamp + 1, 1 /* dur */,
+                                                   1, freq + 1000, 1 /* cpu */,
+                                                   RefType::kRefCpuId);
+  context_.storage->mutable_counters()->AddCounter(timestamp + 2, 1 /* dur */,
+                                                   1, freq + 2000, 2 /* cpu */,
+                                                   RefType::kRefCpuId);
 
   PrepareValidStatement("SELECT ts, dur, value FROM counters where ref = 1");
 
@@ -93,12 +95,13 @@ TEST_F(CountersTableUnittest, GroupByFreq) {
   uint32_t name_id = 1;
 
   context_.storage->mutable_counters()->AddCounter(
-      timestamp, 1 /* dur */, name_id, freq, 1 /* cpu */, RefType::kCpuId);
+      timestamp, 1 /* dur */, name_id, freq, 1 /* cpu */, RefType::kRefCpuId);
   context_.storage->mutable_counters()->AddCounter(
       timestamp + 1, 2 /* dur */, name_id, freq + 1000, 1 /* cpu */,
-      RefType::kCpuId);
-  context_.storage->mutable_counters()->AddCounter(
-      timestamp + 3, 0 /* dur */, name_id, freq, 1 /* cpu */, RefType::kCpuId);
+      RefType::kRefCpuId);
+  context_.storage->mutable_counters()->AddCounter(timestamp + 3, 0 /* dur */,
+                                                   name_id, freq, 1 /* cpu */,
+                                                   RefType::kRefCpuId);
 
   PrepareValidStatement(
       "SELECT value, sum(dur) as dur_sum FROM counters where value > 0 group "
@@ -122,8 +125,9 @@ TEST_F(CountersTableUnittest, UtidLookupUpid) {
 
   uint32_t utid = context_.process_tracker->UpdateThread(timestamp, 1, 0);
 
-  context_.storage->mutable_counters()->AddCounter(
-      timestamp, 0 /* dur */, name_id, value, utid, RefType::kUtidLookupUpid);
+  context_.storage->mutable_counters()->AddCounter(timestamp, 0 /* dur */,
+                                                   name_id, value, utid,
+                                                   RefType::kRefUtidLookupUpid);
 
   PrepareValidStatement("SELECT value, ref, ref_type FROM counters");
 
@@ -166,11 +170,12 @@ TEST_F(CountersTableUnittest, UtidLookupUpidSort) {
   auto* thread_a = context_.storage->GetMutableThread(utid_a);
   thread_a->upid = context_.process_tracker->UpdateProcess(100);
 
-  context_.storage->mutable_counters()->AddCounter(
-      timestamp, 0 /* dur */, name_id, value, utid_a, RefType::kUtidLookupUpid);
+  context_.storage->mutable_counters()->AddCounter(timestamp, 0 /* dur */,
+                                                   name_id, value, utid_a,
+                                                   RefType::kRefUtidLookupUpid);
   context_.storage->mutable_counters()->AddCounter(timestamp + 1, 0 /* dur */,
                                                    name_id, value, utid_b,
-                                                   RefType::kUtidLookupUpid);
+                                                   RefType::kRefUtidLookupUpid);
 
   PrepareValidStatement("SELECT ts, ref, ref_type FROM counters ORDER BY ref");
 
