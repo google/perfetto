@@ -563,6 +563,60 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
                         Property(&protos::TestEvent::str, Eq("payload")))));
 }
 
+TEST_F(TracingServiceImplTest, PeriodicFlush) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.set_flush_period_ms(1);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+
+  const int kNumFlushes = 3;
+  auto checkpoint = task_runner.CreateCheckpoint("all_flushes_done");
+  int flushes_seen = 0;
+  EXPECT_CALL(*producer, Flush(_, _, _))
+      .WillRepeatedly(Invoke([&producer, &writer, &flushes_seen, checkpoint](
+                                 FlushRequestID flush_req_id,
+                                 const DataSourceInstanceID*, size_t) {
+        {
+          auto tp = writer->NewTracePacket();
+          char payload[32];
+          sprintf(payload, "f_%d", flushes_seen);
+          tp->set_for_testing()->set_str(payload);
+        }
+        writer->Flush();
+        producer->endpoint()->NotifyFlushComplete(flush_req_id);
+        if (++flushes_seen == kNumFlushes)
+          checkpoint();
+      }));
+  task_runner.RunUntilCheckpoint("all_flushes_done");
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+  auto trace_packets = consumer->ReadBuffers();
+  for (int i = 0; i < kNumFlushes; i++) {
+    EXPECT_THAT(trace_packets,
+                Contains(Property(&protos::TracePacket::for_testing,
+                                  Property(&protos::TestEvent::str,
+                                           Eq("f_" + std::to_string(i))))));
+  }
+}
+
 // Creates a tracing session where some of the data sources set the
 // |will_notify_on_stop| flag and checks that the OnTracingDisabled notification
 // to the consumer is delayed until the acks are received.
