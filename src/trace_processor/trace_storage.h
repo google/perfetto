@@ -45,14 +45,14 @@ using UniqueTid = uint32_t;
 using StringId = size_t;
 
 enum RefType {
-  kNoRef = 0,
-  kUtid = 1,
-  kCpuId = 2,
-  kIrq = 3,
-  kSoftIrq = 4,
-  kUpid = 5,
-  kUtidLookupUpid = 6,
-  kMax = kUtidLookupUpid + 1
+  kRefNoRef = 0,
+  kRefUtid = 1,
+  kRefCpuId = 2,
+  kRefIrq = 3,
+  kRefSoftIrq = 4,
+  kRefUpid = 5,
+  kRefUtidLookupUpid = 6,
+  kRefMax
 };
 
 // Stores a data inside a trace file in a columnar form. This makes it efficient

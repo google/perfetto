@@ -244,7 +244,7 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(ts, value, 0, 0, RefType::kNoRef));
+  EXPECT_CALL(*event_, PushCounter(ts, value, 0, 0, RefType::kRefNoRef));
   Tokenize(trace_1);
 }
 
@@ -259,7 +259,7 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(ts, value, 0, 0, RefType::kNoRef));
+  EXPECT_CALL(*event_, PushCounter(ts, value, 0, 0, RefType::kRefNoRef));
   Tokenize(trace_1);
 }
 
@@ -273,7 +273,7 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   cpu_freq->set_cpu_id(10);
   cpu_freq->set_state(2000);
 
-  EXPECT_CALL(*event_, PushCounter(1000, 2000, 0, 10, RefType::kCpuId));
+  EXPECT_CALL(*event_, PushCounter(1000, 2000, 0, 10, RefType::kRefCpuId));
   Tokenize(trace_1);
 }
 
