@@ -97,7 +97,7 @@ bool MergeFieldInfo(const FtraceEvent::Field& ftrace_field,
   if (!SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
                               &field->strategy)) {
     PERFETTO_DLOG(
-        "Failed to find translation stratagy for ftrace field \"%s.%s\" (%s -> "
+        "Failed to find translation strategy for ftrace field \"%s.%s\" (%s -> "
         "%s)",
         event_name_for_debug, field->ftrace_name, ToString(field->ftrace_type),
         ToString(field->proto_field_type));
@@ -399,23 +399,22 @@ ProtoTranslationTable::ProtoTranslationTable(
       common_fields_(std::move(common_fields)),
       ftrace_page_header_spec_(ftrace_page_header_spec) {
   for (const Event& event : events) {
-    name_to_event_[event.name] = &events_.at(event.ftrace_event_id);
+    group_and_name_to_event_[GroupAndName(event.group, event.name)] =
+        &events_.at(event.ftrace_event_id);
+    name_to_events_[event.name].push_back(&events_.at(event.ftrace_event_id));
     group_to_events_[event.group].push_back(&events_.at(event.ftrace_event_id));
   }
 }
 
 const Event* ProtoTranslationTable::GetOrCreateEvent(
-    const std::string& group,
-    const std::string& event_name) {
-  // TODO(taylori): Index events by group and name to avoid future conflicts.
-  const Event* event = GetEventByName(event_name);
+    const GroupAndName& group_and_name) {
+  const Event* event = GetEvent(group_and_name);
   if (event)
     return event;
   // The ftrace event does not already exist so a new one will be created
   // by parsing the format file.
-  if (group.empty() || event_name.empty())
-    return nullptr;
-  std::string contents = ftrace_procfs_->ReadEventFormat(group, event_name);
+  std::string contents = ftrace_procfs_->ReadEventFormat(group_and_name.group(),
+                                                         group_and_name.name());
   if (contents.empty())
     return nullptr;
   FtraceEvent ftrace_event = {};
@@ -431,8 +430,8 @@ const Event* ProtoTranslationTable::GetOrCreateEvent(
   Event* e = &events_.at(ftrace_event.id);
   e->ftrace_event_id = ftrace_event.id;
   e->proto_field_id = protos::pbzero::FtraceEvent::kGenericFieldNumber;
-  e->name = InternString(event_name);
-  e->group = InternString(group);
+  e->name = InternString(group_and_name.name());
+  e->group = InternString(group_and_name.group());
 
   // Calculate size of common fields.
   for (const FtraceEvent::Field& ftrace_field : ftrace_event.common_fields) {
@@ -444,7 +443,8 @@ const Event* ProtoTranslationTable::GetOrCreateEvent(
   for (const FtraceEvent::Field& ftrace_field : ftrace_event.fields)
     e->size = std::max(CreateGenericEventField(ftrace_field, *e), e->size);
 
-  name_to_event_[e->name] = &events_.at(e->ftrace_event_id);
+  group_and_name_to_event_[group_and_name] = &events_.at(e->ftrace_event_id);
+  name_to_events_[e->name].push_back(&events_.at(e->ftrace_event_id));
   group_to_events_[e->group].push_back(&events_.at(e->ftrace_event_id));
 
   return e;
@@ -488,6 +488,46 @@ uint16_t ProtoTranslationTable::CreateGenericEventField(
   PERFETTO_DCHECK(SetTranslationStrategy(
       field->ftrace_type, field->proto_field_type, &field->strategy));
   return field_end;
+}
+
+EventFilter::EventFilter() = default;
+EventFilter::~EventFilter() = default;
+
+void EventFilter::AddEnabledEvent(size_t ftrace_event_id) {
+  if (ftrace_event_id >= enabled_ids_.size())
+    enabled_ids_.resize(ftrace_event_id + 1);
+  enabled_ids_[ftrace_event_id] = true;
+}
+
+void EventFilter::DisableEvent(size_t ftrace_event_id) {
+  if (ftrace_event_id >= enabled_ids_.size())
+    return;
+  enabled_ids_[ftrace_event_id] = false;
+}
+
+bool EventFilter::IsEventEnabled(size_t ftrace_event_id) const {
+  if (ftrace_event_id == 0 || ftrace_event_id > enabled_ids_.size())
+    return false;
+  return enabled_ids_[ftrace_event_id];
+}
+
+std::set<size_t> EventFilter::GetEnabledEvents() const {
+  std::set<size_t> enabled;
+  for (size_t i = 0; i < enabled_ids_.size(); i++) {
+    if (enabled_ids_[i]) {
+      enabled.insert(i);
+    }
+  }
+  return enabled;
+}
+
+void EventFilter::EnableEventsFrom(const EventFilter& other) {
+  size_t max_length = std::max(enabled_ids_.size(), other.enabled_ids_.size());
+  enabled_ids_.resize(max_length);
+  for (size_t i = 0; i < other.enabled_ids_.size(); i++) {
+    if (other.enabled_ids_[i])
+      enabled_ids_[i] = true;
+  }
 }
 
 ProtoTranslationTable::~ProtoTranslationTable() = default;

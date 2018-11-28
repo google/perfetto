@@ -49,7 +49,6 @@ class FtraceEventBundle;
 }  // namespace pbzero
 }  // namespace protos
 
-class EventFilter;  // Declared down below.
 
 // Reads raw ftrace data for a cpu and writes that into the perfetto userspace
 // buffer.
@@ -201,30 +200,6 @@ class CpuReader {
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 
-// Class for efficient 'is event with id x enabled?' tests.
-// Mirrors the data in a FtraceConfig but in a format better suited
-// to be consumed by CpuReader.
-class EventFilter {
- public:
-  EventFilter(const ProtoTranslationTable&, std::set<std::string>);
-  ~EventFilter();
-
-  bool IsEventEnabled(size_t ftrace_event_id) const {
-    if (ftrace_event_id == 0 || ftrace_event_id > enabled_ids_.size()) {
-      return false;
-    }
-    return enabled_ids_[ftrace_event_id];
-  }
-
-  const std::set<std::string>& enabled_names() const { return enabled_names_; }
-
- private:
-  EventFilter(const EventFilter&) = delete;
-  EventFilter& operator=(const EventFilter&) = delete;
-
-  const std::vector<bool> enabled_ids_;
-  std::set<std::string> enabled_names_;
-};
 
 }  // namespace perfetto
 

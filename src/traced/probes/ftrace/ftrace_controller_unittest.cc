@@ -341,8 +341,8 @@ TEST(FtraceControllerTest, MultipleSinks) {
   auto controller =
       CreateTestController(false /* nice runner */, false /* nice procfs */);
 
-  FtraceConfig configA = CreateFtraceConfig({"foo"});
-  FtraceConfig configB = CreateFtraceConfig({"foo", "bar"});
+  FtraceConfig configA = CreateFtraceConfig({"group/foo"});
+  FtraceConfig configB = CreateFtraceConfig({"group/foo", "group/bar"});
 
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "1"));
@@ -371,7 +371,7 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   auto controller =
       CreateTestController(false /* nice runner */, false /* nice procfs */);
 
-  FtraceConfig config = CreateFtraceConfig({"foo"});
+  FtraceConfig config = CreateFtraceConfig({"group/foo"});
 
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "1"));
@@ -401,7 +401,7 @@ TEST(FtraceControllerTest, TaskScheduling) {
   EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(AnyNumber());
   EXPECT_CALL(*controller->procfs(), ClearFile(_)).Times(AnyNumber());
 
-  FtraceConfig config = CreateFtraceConfig({"foo"});
+  FtraceConfig config = CreateFtraceConfig({"group/foo"});
   auto data_source = controller->AddFakeDataSource(config);
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
@@ -446,7 +446,7 @@ TEST(FtraceControllerTest, DISABLED_DrainPeriodRespected) {
   EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(AnyNumber());
   EXPECT_CALL(*controller->procfs(), ClearFile(_)).Times(AnyNumber());
 
-  FtraceConfig config = CreateFtraceConfig({"foo"});
+  FtraceConfig config = CreateFtraceConfig({"group/foo"});
   auto data_source = controller->AddFakeDataSource(config);
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
@@ -489,7 +489,7 @@ TEST(FtraceControllerTest, BackToBackEnableDisable) {
       .Times(AnyNumber());
 
   EXPECT_CALL(*controller->runner(), PostDelayedTask(_, 100)).Times(2);
-  FtraceConfig config = CreateFtraceConfig({"foo"});
+  FtraceConfig config = CreateFtraceConfig({"group/foo"});
   auto data_source = controller->AddFakeDataSource(config);
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
@@ -528,7 +528,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // 8192kb = 8mb
     EXPECT_CALL(*controller->procfs(),
                 WriteToFile("/root/buffer_size_kb", "512"));
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
@@ -537,7 +537,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // Way too big buffer size -> max size.
     EXPECT_CALL(*controller->procfs(),
                 WriteToFile("/root/buffer_size_kb", "65536"));
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_buffer_size_kb(10 * 1024 * 1024);
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
@@ -547,7 +547,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // The limit is 64mb, 65mb is too much.
     EXPECT_CALL(*controller->procfs(),
                 WriteToFile("/root/buffer_size_kb", "65536"));
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
     config.set_buffer_size_kb(65 * 1024);
     auto data_source = controller->AddFakeDataSource(config);
@@ -558,7 +558,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // Your size ends up with less than 1 page per cpu -> 1 page.
     EXPECT_CALL(*controller->procfs(),
                 WriteToFile("/root/buffer_size_kb", "4"));
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_buffer_size_kb(1);
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
@@ -568,7 +568,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // You picked a good size -> your size rounded to nearest page.
     EXPECT_CALL(*controller->procfs(),
                 WriteToFile("/root/buffer_size_kb", "40"));
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_buffer_size_kb(42);
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
@@ -578,7 +578,7 @@ TEST(FtraceControllerTest, BufferSize) {
     // You picked a good size -> your size rounded to nearest page.
     EXPECT_CALL(*controller->procfs(),
                 WriteToFile("/root/buffer_size_kb", "40"));
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
     config.set_buffer_size_kb(42);
     auto data_source = controller->AddFakeDataSource(config);
@@ -596,14 +596,14 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
 
   {
     // No period -> good default.
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     auto data_source = controller->AddFakeDataSource(config);
     EXPECT_EQ(100u, controller->drain_period_ms());
   }
 
   {
     // Pick a tiny value -> good default.
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(0);
     auto data_source = controller->AddFakeDataSource(config);
     EXPECT_EQ(100u, controller->drain_period_ms());
@@ -611,7 +611,7 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
 
   {
     // Pick a huge value -> good default.
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(1000 * 60 * 60);
     auto data_source = controller->AddFakeDataSource(config);
     EXPECT_EQ(100u, controller->drain_period_ms());
@@ -619,7 +619,7 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
 
   {
     // Pick a resonable value -> get that value.
-    FtraceConfig config = CreateFtraceConfig({"foo"});
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(200);
     auto data_source = controller->AddFakeDataSource(config);
     EXPECT_EQ(200u, controller->drain_period_ms());
