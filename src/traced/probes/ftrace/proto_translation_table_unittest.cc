@@ -69,10 +69,10 @@ const char* kDevices[] = {
 
 TEST_P(AllTranslationTableTest, Create) {
   EXPECT_TRUE(table_);
-  EXPECT_TRUE(table_->GetEventByName("print"));
-  EXPECT_TRUE(table_->GetEventByName("sched_switch"));
-  EXPECT_TRUE(table_->GetEventByName("sched_wakeup"));
-  EXPECT_TRUE(table_->GetEventByName("ext4_da_write_begin"));
+  EXPECT_TRUE(table_->GetEvent(GroupAndName("ftrace", "print")));
+  EXPECT_TRUE(table_->GetEvent(GroupAndName("sched", "sched_switch")));
+  EXPECT_TRUE(table_->GetEvent(GroupAndName("sched", "sched_wakeup")));
+  EXPECT_TRUE(table_->GetEvent(GroupAndName("ext4", "ext4_da_write_begin")));
   for (const Event& event : table_->events()) {
     if (!event.ftrace_event_id)
       continue;
@@ -91,7 +91,7 @@ TEST_P(AllTranslationTableTest, Create) {
   EXPECT_EQ(pid_field.proto_field_id, 2u);
 
   {
-    auto event = table_->GetEventByName("print");
+    auto event = table_->GetEvent(GroupAndName("ftrace", "print"));
     EXPECT_TRUE(event);
     EXPECT_EQ(std::string(event->name), "print");
     EXPECT_EQ(std::string(event->group), "ftrace");
@@ -116,7 +116,7 @@ TEST(TranslationTableTest, Seed) {
   EXPECT_EQ(pid_field.ftrace_size, 4u);
 
   {
-    auto event = table->GetEventByName("sched_switch");
+    auto event = table->GetEvent(GroupAndName("sched", "sched_switch"));
     EXPECT_EQ(std::string(event->name), "sched_switch");
     EXPECT_EQ(std::string(event->group), "sched");
     EXPECT_EQ(event->ftrace_event_id, 68ul);
@@ -125,7 +125,7 @@ TEST(TranslationTableTest, Seed) {
   }
 
   {
-    auto event = table->GetEventByName("sched_wakeup");
+    auto event = table->GetEvent(GroupAndName("sched", "sched_wakeup"));
     EXPECT_EQ(std::string(event->name), "sched_wakeup");
     EXPECT_EQ(std::string(event->group), "sched");
     EXPECT_EQ(event->ftrace_event_id, 70ul);
@@ -134,7 +134,7 @@ TEST(TranslationTableTest, Seed) {
   }
 
   {
-    auto event = table->GetEventByName("ext4_da_write_begin");
+    auto event = table->GetEvent(GroupAndName("ext4", "ext4_da_write_begin"));
     EXPECT_EQ(std::string(event->name), "ext4_da_write_begin");
     EXPECT_EQ(std::string(event->group), "ext4");
     EXPECT_EQ(event->ftrace_event_id, 303ul);
@@ -229,9 +229,8 @@ print fmt: "some format")"));
   auto table = ProtoTranslationTable::Create(&ftrace, std::move(events),
                                              std::move(common_fields));
   EXPECT_EQ(table->largest_id(), 42ul);
-  EXPECT_EQ(table->EventNameToFtraceId("foo"), 42ul);
-  EXPECT_EQ(table->EventNameToFtraceId("bar"), 0ul);
-  EXPECT_EQ(table->EventNameToFtraceId("bar"), 0ul);
+  EXPECT_EQ(table->EventToFtraceId(GroupAndName("group", "foo")), 42ul);
+  EXPECT_EQ(table->EventToFtraceId(GroupAndName("group", "bar")), 0ul);
   EXPECT_FALSE(table->GetEventById(43ul));
   ASSERT_TRUE(table->GetEventById(42ul));
   EXPECT_EQ(table->ftrace_page_header_spec().timestamp.size, 8);
@@ -341,14 +340,16 @@ TEST(TranslationTableTest, Getters) {
       &ftrace, events, std::move(common_fields),
       ProtoTranslationTable::DefaultPageHeaderSpecForTesting());
   EXPECT_EQ(table.largest_id(), 100ul);
-  EXPECT_EQ(table.EventNameToFtraceId("foo"), 1ul);
-  EXPECT_EQ(table.EventNameToFtraceId("baz"), 100ul);
-  EXPECT_EQ(table.EventNameToFtraceId("no_such_event"), 0ul);
+  EXPECT_EQ(table.EventToFtraceId(GroupAndName("group_one", "foo")), 1ul);
+  EXPECT_EQ(table.EventToFtraceId(GroupAndName("group_two", "baz")), 100ul);
+  EXPECT_EQ(table.EventToFtraceId(GroupAndName("group_one", "no_such_event")),
+            0ul);
   EXPECT_EQ(table.GetEventById(1)->name, "foo");
   EXPECT_EQ(table.GetEventById(3), nullptr);
   EXPECT_EQ(table.GetEventById(200), nullptr);
   EXPECT_EQ(table.GetEventById(0), nullptr);
-  EXPECT_EQ(table.GetEventByName("foo")->ftrace_event_id, 1u);
+  EXPECT_EQ(table.GetEvent(GroupAndName("group_one", "foo"))->ftrace_event_id,
+            1u);
   EXPECT_THAT(*table.GetEventsByGroup("group_one"),
               Contains(testing::Field(&Event::name, "foo")));
   EXPECT_THAT(*table.GetEventsByGroup("group_one"),
@@ -390,17 +391,18 @@ print fmt: "some format")"));
   auto table = ProtoTranslationTable::Create(&ftrace, std::move(events),
                                              std::move(common_fields));
   EXPECT_EQ(table->largest_id(), 0ul);
-  std::string event_name = "foo";
-  const Event* e = table->GetOrCreateEvent("group", event_name);
+  GroupAndName group_and_name("group", "foo");
+  const Event* e = table->GetOrCreateEvent(group_and_name);
   EXPECT_EQ(table->largest_id(), 42ul);
-  EXPECT_EQ(table->EventNameToFtraceId(event_name), 42ul);
+  EXPECT_EQ(table->EventToFtraceId(group_and_name), 42ul);
 
   // Check getters
   EXPECT_EQ(table->GetEventById(42)->proto_field_id,
             protos::pbzero::FtraceEvent::kGenericFieldNumber);
-  EXPECT_EQ(table->GetEventByName(event_name)->proto_field_id,
+  EXPECT_EQ(table->GetEvent(group_and_name)->proto_field_id,
             protos::pbzero::FtraceEvent::kGenericFieldNumber);
-  EXPECT_EQ(table->GetEventsByGroup("group")->front()->name, event_name);
+  EXPECT_EQ(table->GetEventsByGroup("group")->front()->name,
+            group_and_name.name());
 
   EXPECT_EQ(e->fields.size(), 4ul);
   const std::vector<Field>& fields = e->fields;
@@ -443,6 +445,33 @@ print fmt: "some format")"));
   EXPECT_EQ(uint_field.ftrace_type, kFtraceUint32);
   EXPECT_EQ(uint_field.ftrace_size, 4);
   EXPECT_EQ(uint_field.ftrace_offset, 33);
+}
+
+TEST(EventFilterTest, EnableEventsFrom) {
+  EventFilter filter;
+  filter.AddEnabledEvent(1);
+  filter.AddEnabledEvent(17);
+
+  EventFilter or_filter;
+  or_filter.AddEnabledEvent(4);
+  or_filter.AddEnabledEvent(17);
+
+  filter.EnableEventsFrom(or_filter);
+  EXPECT_TRUE(filter.IsEventEnabled(4));
+  EXPECT_TRUE(filter.IsEventEnabled(17));
+  EXPECT_TRUE(filter.IsEventEnabled(1));
+  EXPECT_FALSE(filter.IsEventEnabled(2));
+
+  EventFilter empty_filter;
+  filter.EnableEventsFrom(empty_filter);
+  EXPECT_TRUE(filter.IsEventEnabled(4));
+  EXPECT_TRUE(filter.IsEventEnabled(17));
+  EXPECT_TRUE(filter.IsEventEnabled(1));
+
+  empty_filter.EnableEventsFrom(filter);
+  EXPECT_TRUE(empty_filter.IsEventEnabled(4));
+  EXPECT_TRUE(empty_filter.IsEventEnabled(17));
+  EXPECT_TRUE(empty_filter.IsEventEnabled(1));
 }
 
 }  // namespace

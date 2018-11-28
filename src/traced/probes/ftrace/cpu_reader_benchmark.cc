@@ -15,6 +15,7 @@
 #include "benchmark/benchmark.h"
 
 #include "src/traced/probes/ftrace/cpu_reader.h"
+#include "src/traced/probes/ftrace/proto_translation_table.h"
 
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/scattered_stream_null_delegate.h"
@@ -299,6 +300,7 @@ using perfetto::PageFromXxd;
 using perfetto::protos::pbzero::FtraceEventBundle;
 using perfetto::CpuReader;
 using perfetto::FtraceMetadata;
+using perfetto::GroupAndName;
 
 static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   const ExamplePage* test_case = &g_full_page_sched_switch;
@@ -310,7 +312,9 @@ static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter(*table, std::set<std::string>({"sched_switch"}));
+  EventFilter filter;
+  filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
   while (state.KeepRunning()) {

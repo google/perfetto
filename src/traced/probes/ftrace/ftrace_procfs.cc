@@ -261,6 +261,33 @@ std::string FtraceProcfs::ReadFileIntoString(const std::string& path) const {
   return str;
 }
 
+const std::set<std::string> FtraceProcfs::GetEventNamesForGroup(
+    const std::string& path) const {
+  std::set<std::string> names;
+  std::string full_path = root_ + path;
+  base::ScopedDir dir(opendir(full_path.c_str()));
+  if (!dir) {
+    PERFETTO_DLOG("Unable to read events from %s", full_path.c_str());
+    return names;
+  }
+  struct dirent* ent;
+  while ((ent = readdir(*dir)) != nullptr) {
+    if (strncmp(ent->d_name, ".", 1) == 0 ||
+        strncmp(ent->d_name, "..", 2) == 0) {
+      continue;
+    }
+    // Check ent is a directory.
+    struct stat statbuf;
+    std::string dir_path = full_path + "/" + ent->d_name;
+    if (stat(dir_path.c_str(), &statbuf) == 0) {
+      if (S_ISDIR(statbuf.st_mode)) {
+        names.insert(ent->d_name);
+      }
+    }
+  }
+  return names;
+}
+
 // static
 bool FtraceProcfs::CheckRootPath(const std::string& root) {
   base::ScopedFile fd = base::OpenFile(root + "trace", O_RDONLY);

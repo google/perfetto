@@ -30,9 +30,6 @@ using FtraceConfigId = uint64_t;
 // Utility method for the common case where we don't care about atrace events.
 FtraceConfig CreateFtraceConfig(std::set<std::string> names);
 
-// Get the ftrace events for a config as a set.
-std::set<std::string> FtraceEventsAsSet(const FtraceConfig&);
-
 // Returns true iff the config has any atrace categories or apps.
 bool RequiresAtrace(const FtraceConfig&);
 
