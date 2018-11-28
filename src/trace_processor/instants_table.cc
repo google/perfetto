@@ -24,13 +24,13 @@ namespace trace_processor {
 
 InstantsTable::InstantsTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {
-  ref_types_.resize(RefType::kMax);
-  ref_types_[RefType::kNoRef] = "";
-  ref_types_[RefType::kUtid] = "utid";
-  ref_types_[RefType::kCpuId] = "cpu";
-  ref_types_[RefType::kIrq] = "irq";
-  ref_types_[RefType::kSoftIrq] = "softirq";
-  ref_types_[RefType::kUpid] = "upid";
+  ref_types_.resize(RefType::kRefMax);
+  ref_types_[RefType::kRefNoRef] = "";
+  ref_types_[RefType::kRefUtid] = "utid";
+  ref_types_[RefType::kRefCpuId] = "cpu";
+  ref_types_[RefType::kRefIrq] = "irq";
+  ref_types_[RefType::kRefSoftIrq] = "softirq";
+  ref_types_[RefType::kRefUpid] = "upid";
 };
 
 void InstantsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {

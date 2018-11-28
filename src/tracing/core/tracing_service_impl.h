@@ -203,9 +203,16 @@ class TracingServiceImpl : public TracingService {
 
   // Represents an active data source for a tracing session.
   struct DataSourceInstance {
+    DataSourceInstance(DataSourceInstanceID id,
+                       const DataSourceConfig& cfg,
+                       const std::string& ds_name,
+                       bool notify)
+        : instance_id(id),
+          config(cfg),
+          data_source_name(ds_name),
+          will_notify_on_stop(notify) {}
     DataSourceInstance(const DataSourceInstance&) = delete;
     DataSourceInstance& operator=(const DataSourceInstance&) = delete;
-    DataSourceInstance(DataSourceInstance&&) noexcept = default;
 
     DataSourceInstanceID instance_id;
     DataSourceConfig config;
