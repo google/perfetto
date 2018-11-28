@@ -60,7 +60,7 @@ class FtraceDataSource : public ProbesDataSource {
 
   // Called by FtraceController soon after ProbesProducer creates the data
   // source, to inject ftrace dependencies.
-  void Initialize(FtraceConfigId, std::unique_ptr<EventFilter>);
+  void Initialize(FtraceConfigId, const EventFilter* event_filter);
 
   // ProbesDataSource implementation.
   void Start() override;
@@ -71,7 +71,7 @@ class FtraceDataSource : public ProbesDataSource {
 
   FtraceConfigId config_id() const { return config_id_; }
   const FtraceConfig& config() const { return config_; }
-  EventFilter* event_filter() { return event_filter_.get(); }
+  const EventFilter* event_filter() { return event_filter_; }
   FtraceMetadata* mutable_metadata() { return &metadata_; }
   TraceWriter* trace_writer() { return writer_.get(); }
 
@@ -90,7 +90,7 @@ class FtraceDataSource : public ProbesDataSource {
   FtraceConfigId config_id_ = 0;
   std::unique_ptr<TraceWriter> writer_;
   base::WeakPtr<FtraceController> controller_weak_;
-  std::unique_ptr<EventFilter> event_filter_;
+  const EventFilter* event_filter_;
 };
 
 }  // namespace perfetto

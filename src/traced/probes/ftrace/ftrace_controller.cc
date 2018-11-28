@@ -301,11 +301,10 @@ bool FtraceController::AddDataSource(FtraceDataSource* data_source) {
   if (!config_id)
     return false;
 
-  std::unique_ptr<EventFilter> filter(new EventFilter(
-      *table_, FtraceEventsAsSet(*ftrace_config_muxer_->GetConfig(config_id))));
+  const EventFilter* filter = ftrace_config_muxer_->GetEventFilter(config_id);
   auto it_and_inserted = data_sources_.insert(data_source);
   PERFETTO_DCHECK(it_and_inserted.second);
-  data_source->Initialize(config_id, std::move(filter));
+  data_source->Initialize(config_id, filter);
   return true;
 }
 

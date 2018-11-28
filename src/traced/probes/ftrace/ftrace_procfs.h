@@ -94,6 +94,9 @@ class FtraceProcfs {
   // Open the raw pipe for |cpu|.
   virtual base::ScopedFile OpenPipeForCpu(size_t cpu);
 
+  virtual const std::set<std::string> GetEventNamesForGroup(
+      const std::string& path) const;
+
  protected:
   // virtual and public for testing.
   virtual bool WriteToFile(const std::string& path, const std::string& str);

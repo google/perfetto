@@ -44,10 +44,10 @@ FtraceDataSource::~FtraceDataSource() {
 };
 
 void FtraceDataSource::Initialize(FtraceConfigId config_id,
-                                  std::unique_ptr<EventFilter> event_filter) {
+                                  const EventFilter* event_filter) {
   PERFETTO_CHECK(config_id);
   config_id_ = config_id;
-  event_filter_ = std::move(event_filter);
+  event_filter_ = event_filter;
 }
 
 void FtraceDataSource::Start() {
