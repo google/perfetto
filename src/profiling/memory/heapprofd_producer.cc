@@ -98,9 +98,14 @@ void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
 
     // Strip everything after @ for Java processes.
     // Otherwise, strip newline at EOF.
-    size_t endpos = process_cmdline.find('@');
-    if (endpos == std::string::npos)
-      endpos = process_cmdline.size();
+    size_t endpos = process_cmdline.find('\0');
+    if (endpos == std::string::npos) {
+      PERFETTO_DFATAL("No nullbyte in cmdline.");
+      return;
+    }
+    size_t atpos = process_cmdline.find('@');
+    if (atpos != std::string::npos && atpos < endpos)
+      endpos = atpos;
     if (endpos < 1)
       return;
     process_cmdline.resize(endpos);
