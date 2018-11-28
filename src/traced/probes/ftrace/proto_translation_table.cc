@@ -506,7 +506,7 @@ void EventFilter::DisableEvent(size_t ftrace_event_id) {
 }
 
 bool EventFilter::IsEventEnabled(size_t ftrace_event_id) const {
-  if (ftrace_event_id == 0 || ftrace_event_id > enabled_ids_.size())
+  if (ftrace_event_id == 0 || ftrace_event_id >= enabled_ids_.size())
     return false;
   return enabled_ids_[ftrace_event_id];
 }
