@@ -311,6 +311,7 @@ class TracingServiceImpl : public TracingService {
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
+  void PeriodicFlushTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
 
   base::TaskRunner* const task_runner_;
