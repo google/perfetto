@@ -102,32 +102,32 @@ BUILD_DEPS_HOST = [
   # lib from sources. Keep the SHA1s in sync with Chrome's src/buildtools/DEPS.
   ('buildtools/libcxx',
    'https://chromium.googlesource.com/chromium/llvm-project/libcxx.git',
-   'ece1de8658d749e19c12cacd4458cc330eca94e3',
+   '2199647acb904b91eea0a5e045f5b227c87d6e85',
    'all'
   ),
   ('buildtools/libcxxabi',
    'https://chromium.googlesource.com/chromium/llvm-project/libcxxabi.git',
-   '05a73941f3fb177c4a891d4ff2a4ed5785e3b80c',
+   'c3f4753f7139c73063304235781e4f7788a94c06',
    'all'
   ),
   ('buildtools/libunwind',
    'https://chromium.googlesource.com/external/llvm.org/libunwind.git',
-   '0f3cbe4123f8afacd646bd4f5414aa6528ef8129',
+   '94edd59b16d2084a62699290f9cfdf120d74eedf',
    'all'
   ),
 
   # Keep the revision in sync with Chrome's CLANG_REVISION in
   # tools/clang/scripts/update.py.
   ('buildtools/clang.tgz',
-   'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-342523-1.tgz',
-   '8ca5cdf045582073386cc227dda82eaf2a3bc2ef',
+   'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-346388-1.tgz',
+   'c2998d67a9c623fe12e01a33e8b7cf437b396099',
    'linux2'
   ),
 
   # Keep in sync with chromium DEPS.
   ('buildtools/libfuzzer',
    'https://chromium.googlesource.com/chromium/llvm-project/compiler-rt/lib/fuzzer.git',
-   'a305a5eb85ed42edc5c965c14f308f576cb245ca',
+   '2a53098584c48af50aec3fb51febe5e651489774',
    'linux2'
   ),
 

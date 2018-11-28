@@ -34,7 +34,6 @@ class TestWatchdog : public Watchdog {
   explicit TestWatchdog(uint32_t polling_interval_ms)
       : Watchdog(polling_interval_ms) {}
   ~TestWatchdog() override {}
-  TestWatchdog(TestWatchdog&& other) noexcept = default;
 };
 
 TEST(WatchdogTest, NoTimerCrashIfNotEnabled) {
