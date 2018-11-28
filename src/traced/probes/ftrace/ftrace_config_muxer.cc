@@ -25,7 +25,6 @@
 
 #include "perfetto/base/utils.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
-#include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto {
 namespace {
@@ -36,26 +35,28 @@ constexpr const char* kClocks[] = {"boot", "global", "local"};
 constexpr int kDefaultPerCpuBufferSizeKb = 512;    // 512kb
 constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;  // 64mb
 
-std::vector<std::string> difference(const std::set<std::string>& a,
-                                    const std::set<std::string>& b) {
-  std::vector<std::string> result;
-  result.reserve(std::max(b.size(), a.size()));
-  std::set_difference(a.begin(), a.end(), b.begin(), b.end(),
-                      std::inserter(result, result.begin()));
-  return result;
-}
-
 void AddEventGroup(const ProtoTranslationTable* table,
                    const std::string& group,
-                   std::set<std::string>* to) {
+                   std::set<GroupAndName>* to) {
   const std::vector<const Event*>* events = table->GetEventsByGroup(group);
   if (!events)
     return;
   for (const Event* event : *events)
-    to->insert(event->name);
+    to->insert(GroupAndName(group, event->name));
 }
 
-std::pair<std::string, std::string> EventToGroupAndName(
+std::set<GroupAndName> ReadEventsInGroupFromFs(
+    const FtraceProcfs& ftrace_procfs,
+    const std::string& group) {
+  std::set<std::string> names =
+      ftrace_procfs.GetEventNamesForGroup("events/" + group);
+  std::set<GroupAndName> events;
+  for (const auto& name : names)
+    events.insert(GroupAndName(group, name));
+  return events;
+}
+
+std::pair<std::string, std::string> EventToStringGroupAndName(
     const std::string& event) {
   auto slash_pos = event.find("/");
   if (slash_pos == std::string::npos)
@@ -66,12 +67,34 @@ std::pair<std::string, std::string> EventToGroupAndName(
 
 }  // namespace
 
-std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
-                                      const ProtoTranslationTable* table) {
-  std::set<std::string> events;
-  events.insert(request.ftrace_events().begin(), request.ftrace_events().end());
+std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
+    const FtraceConfig& request,
+    const ProtoTranslationTable* table) {
+  std::set<GroupAndName> events;
+  for (const auto& config_value : request.ftrace_events()) {
+    std::string group;
+    std::string name;
+    std::tie(group, name) = EventToStringGroupAndName(config_value);
+    if (name == "*") {
+      events = ReadEventsInGroupFromFs(*ftrace_, group);
+    } else if (group.empty()) {
+      // If there is no group specified, find an event with that name and
+      // use it's group.
+      const Event* e = table->GetEventByName(name);
+      if (!e) {
+        PERFETTO_DLOG(
+            "Event doesn't exist: %s. Include the group in the config to allow "
+            "the event to be output as a generic event.",
+            name.c_str());
+        continue;
+      }
+      events.insert(GroupAndName(e->group, e->name));
+    } else {
+      events.insert(GroupAndName(group, name));
+    }
+  }
   if (RequiresAtrace(request)) {
-    events.insert("print");
+    events.insert(GroupAndName("ftrace", "print"));
 
     // Ideally we should keep this code in sync with:
     // platform/frameworks/native/cmds/atrace/atrace.cpp
@@ -86,11 +109,11 @@ std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
       }
 
       if (category == "sched") {
-        events.insert("sched_switch");
-        events.insert("sched_wakeup");
-        events.insert("sched_waking");
-        events.insert("sched_blocked_reason");
-        events.insert("sched_cpu_hotplug");
+        events.insert(GroupAndName(category, "sched_switch"));
+        events.insert(GroupAndName(category, "sched_wakeup"));
+        events.insert(GroupAndName(category, "sched_waking"));
+        events.insert(GroupAndName(category, "sched_blocked_reason"));
+        events.insert(GroupAndName(category, "sched_cpu_hotplug"));
         AddEventGroup(table, "cgroup", &events);
         continue;
       }
@@ -102,14 +125,14 @@ std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
       }
 
       if (category == "irqoff") {
-        events.insert("irq_enable");
-        events.insert("irq_disable");
+        events.insert(GroupAndName(category, "irq_enable"));
+        events.insert(GroupAndName(category, "irq_disable"));
         continue;
       }
 
       if (category == "preemptoff") {
-        events.insert("preempt_enable");
-        events.insert("preempt_disable");
+        events.insert(GroupAndName(category, "preempt_enable"));
+        events.insert(GroupAndName(category, "preempt_disable"));
         continue;
       }
 
@@ -119,14 +142,14 @@ std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
       }
 
       if (category == "freq") {
-        events.insert("cpu_frequency");
-        events.insert("clock_set_rate");
-        events.insert("clock_disable");
-        events.insert("clock_enable");
-        events.insert("clk_set_rate");
-        events.insert("clk_disable");
-        events.insert("clk_enable");
-        events.insert("cpu_frequency_limits");
+        events.insert(GroupAndName("power", "cpu_frequency"));
+        events.insert(GroupAndName("power", "clock_set_rate"));
+        events.insert(GroupAndName("power", "clock_disable"));
+        events.insert(GroupAndName("power", "clock_enable"));
+        events.insert(GroupAndName("clk", "clk_set_rate"));
+        events.insert(GroupAndName("clk", "clk_disable"));
+        events.insert(GroupAndName("clk", "clk_enable"));
+        events.insert(GroupAndName("power", "cpu_frequency_limits"));
         continue;
       }
 
@@ -136,21 +159,21 @@ std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
       }
 
       if (category == "idle") {
-        events.insert("cpu_idle");
+        events.insert(GroupAndName("power", "cpu_idle"));
         continue;
       }
 
       if (category == "disk") {
-        events.insert("f2fs_sync_file_enter");
-        events.insert("f2fs_sync_file_exit");
-        events.insert("f2fs_write_begin");
-        events.insert("f2fs_write_end");
-        events.insert("ext4_da_write_begin");
-        events.insert("ext4_da_write_end");
-        events.insert("ext4_sync_file_enter");
-        events.insert("ext4_sync_file_exit");
-        events.insert("block_rq_issue");
-        events.insert("block_rq_complete");
+        events.insert(GroupAndName("f2fs", "f2fs_sync_file_enter"));
+        events.insert(GroupAndName("f2fs", "f2fs_sync_file_exit"));
+        events.insert(GroupAndName("f2fs", "f2fs_write_begin"));
+        events.insert(GroupAndName("f2fs", "f2fs_write_end"));
+        events.insert(GroupAndName("ext4", "ext4_da_write_begin"));
+        events.insert(GroupAndName("ext4", "ext4_da_write_end"));
+        events.insert(GroupAndName("ext4", "ext4_sync_file_enter"));
+        events.insert(GroupAndName("ext4", "ext4_sync_file_exit"));
+        events.insert(GroupAndName("block", "block_rq_issue"));
+        events.insert(GroupAndName("block", "block_rq_complete"));
         continue;
       }
 
@@ -175,10 +198,10 @@ std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
       }
 
       if (category == "memreclaim") {
-        events.insert("mm_vmscan_direct_reclaim_begin");
-        events.insert("mm_vmscan_direct_reclaim_end");
-        events.insert("mm_vmscan_kswapd_wake");
-        events.insert("mm_vmscan_kswapd_sleep");
+        events.insert(GroupAndName("vmscan", "mm_vmscan_direct_reclaim_begin"));
+        events.insert(GroupAndName("vmscan", "mm_vmscan_direct_reclaim_end"));
+        events.insert(GroupAndName("vmscan", "mm_vmscan_kswapd_wake"));
+        events.insert(GroupAndName("vmscan", "mm_vmscan_kswapd_sleep"));
         AddEventGroup(table, "lowmemorykiller", &events);
         continue;
       }
@@ -189,16 +212,16 @@ std::set<std::string> GetFtraceEvents(const FtraceConfig& request,
       }
 
       if (category == "binder_driver") {
-        events.insert("binder_transaction");
-        events.insert("binder_transaction_received");
-        events.insert("binder_set_priority");
+        events.insert(GroupAndName("binder", "binder_transaction"));
+        events.insert(GroupAndName("binder", "binder_transaction_received"));
+        events.insert(GroupAndName("binder", "binder_set_priority"));
         continue;
       }
 
       if (category == "binder_lock") {
-        events.insert("binder_lock");
-        events.insert("binder_locked");
-        events.insert("binder_unlock");
+        events.insert(GroupAndName("binder", "binder_lock"));
+        events.insert(GroupAndName("binder", "binder_locked"));
+        events.insert(GroupAndName("binder", "binder_unlock"));
         continue;
       }
 
@@ -234,10 +257,15 @@ size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb) {
 
 FtraceConfigMuxer::FtraceConfigMuxer(FtraceProcfs* ftrace,
                                      ProtoTranslationTable* table)
-    : ftrace_(ftrace), table_(table), current_state_(), configs_() {}
+    : ftrace_(ftrace),
+      table_(table),
+      current_state_(),
+      filters_(),
+      configs_() {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
 FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
+  EventFilter filter;
   FtraceConfig actual;
   bool is_ftrace_enabled = ftrace_->IsTracingEnabled();
   if (configs_.empty()) {
@@ -258,36 +286,36 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
       return 0;
   }
 
-  std::set<std::string> events = GetFtraceEvents(request, table_);
+  std::set<GroupAndName> events = GetFtraceEvents(request, table_);
 
   if (RequiresAtrace(request))
     UpdateAtrace(request);
 
-  for (auto& name : events) {
-    std::string group;
-    std::string event_name;
-    std::tie(group, event_name) = EventToGroupAndName(name);
-    // TODO(taylori): Add all events for group if name is * e.g sched/*
-    const Event* event = table_->GetOrCreateEvent(group, event_name);
+  for (const auto& group_and_name : events) {
+    const Event* event = table_->GetOrCreateEvent(group_and_name);
     if (!event) {
-      PERFETTO_DLOG("Can't enable %s, event not known", name.c_str());
+      PERFETTO_DLOG("Can't enable %s, event not known",
+                    group_and_name.ToString().c_str());
       continue;
     }
-    if (current_state_.ftrace_events.count(event->name) ||
+    if (current_state_.ftrace_events.IsEventEnabled(event->ftrace_event_id) ||
         std::string("ftrace") == event->group) {
-      *actual.add_ftrace_events() = name;
+      filter.AddEnabledEvent(event->ftrace_event_id);
+      *actual.add_ftrace_events() = group_and_name.ToString();
       continue;
     }
     if (ftrace_->EnableEvent(event->group, event->name)) {
-      current_state_.ftrace_events.insert(event->name);
-      *actual.add_ftrace_events() = event->name;
+      current_state_.ftrace_events.AddEnabledEvent(event->ftrace_event_id);
+      filter.AddEnabledEvent(event->ftrace_event_id);
+      *actual.add_ftrace_events() = group_and_name.ToString();
     } else {
-      PERFETTO_DPLOG("Failed to enable %s.", name.c_str());
+      PERFETTO_DPLOG("Failed to enable %s.", group_and_name.ToString().c_str());
     }
   }
 
   FtraceConfigId id = ++last_id_;
   configs_.emplace(id, std::move(actual));
+  filters_.emplace(id, std::move(filter));
   return id;
 }
 
@@ -314,30 +342,29 @@ bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
   return true;
 }
 
-bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId id) {
-  if (!id || !configs_.erase(id))
+bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
+  if (!config_id || !filters_.erase(config_id) || !configs_.erase(config_id))
     return false;
-
-  std::set<std::string> expected_ftrace_events;
-  for (const auto& id_config : configs_) {
-    const FtraceConfig& config = id_config.second;
-    expected_ftrace_events.insert(config.ftrace_events().begin(),
-                                  config.ftrace_events().end());
+  EventFilter expected_ftrace_events;
+  for (const auto& id_filter : filters_) {
+    expected_ftrace_events.EnableEventsFrom(id_filter.second);
   }
 
-  std::vector<std::string> events_to_disable =
-      difference(current_state_.ftrace_events, expected_ftrace_events);
-
-  for (auto& name : events_to_disable) {
-    const Event* event = table_->GetEventByName(name);
-    if (!event)
+  // Disable any events that are currently enabled, but are not in any configs
+  // anymore.
+  std::set<size_t> event_ids = current_state_.ftrace_events.GetEnabledEvents();
+  for (size_t id : event_ids) {
+    if (expected_ftrace_events.IsEventEnabled(id))
       continue;
+    const Event* event = table_->GetEventById(id);
+    // Any event that was enabled must exist.
+    PERFETTO_DCHECK(event);
     if (ftrace_->DisableEvent(event->group, event->name))
-      current_state_.ftrace_events.erase(name);
+      current_state_.ftrace_events.DisableEvent(event->ftrace_event_id);
   }
 
   // If there aren't any more active configs, disable ftrace.
-  auto active_it = active_configs_.find(id);
+  auto active_it = active_configs_.find(config_id);
   if (active_it != active_configs_.end()) {
     PERFETTO_DCHECK(current_state_.tracing_on);
     active_configs_.erase(active_it);
@@ -362,10 +389,16 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId id) {
   return true;
 }
 
-const FtraceConfig* FtraceConfigMuxer::GetConfig(FtraceConfigId id) {
+const FtraceConfig* FtraceConfigMuxer::GetConfigForTesting(FtraceConfigId id) {
   if (!configs_.count(id))
     return nullptr;
   return &configs_.at(id);
+}
+
+const EventFilter* FtraceConfigMuxer::GetEventFilter(FtraceConfigId id) {
+  if (!filters_.count(id))
+    return nullptr;
+  return &filters_.at(id);
 }
 
 void FtraceConfigMuxer::SetupClock(const FtraceConfig&) {

@@ -24,17 +24,6 @@ using testing::Contains;
 namespace perfetto {
 namespace {
 
-TEST(ConfigTest, FtraceEventsAsSet) {
-  FtraceConfig config;
-  *config.add_ftrace_events() = "aaa";
-  *config.add_ftrace_events() = "bbb";
-  *config.add_ftrace_events() = "aaa";
-
-  EXPECT_EQ(FtraceEventsAsSet(config), std::set<std::string>({
-                                           "aaa", "bbb",
-                                       }));
-}
-
 TEST(ConfigTest, CreateFtraceConfig) {
   FtraceConfig config = CreateFtraceConfig({
       "aaa", "bbb",
