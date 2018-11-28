@@ -206,6 +206,7 @@ TEST_F(FtraceConfigMuxerTest, AddGenericEvent) {
   Event event_to_return;
   event_to_return.name = "cpu_frequency";
   event_to_return.group = "power";
+  event_to_return.ftrace_event_id = 1;
   ON_CALL(*mock_table, GetOrCreateEvent(GroupAndName("power", "cpu_frequency")))
       .WillByDefault(Return(&event_to_return));
   EXPECT_CALL(*mock_table,
