@@ -85,6 +85,12 @@ SystemProperties::Handle SystemProperties::SetAll() {
   return Handle(this);
 }
 
+// This is conditionally noreturn, so disable the warning.
+#pragma GCC diagnostic push
+#if PERFETTO_DCHECK_IS_ON()
+#pragma GCC diagnostic ignored "-Wmissing-noreturn"
+#endif
+
 // static
 void SystemProperties::ResetProperties() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -106,6 +112,8 @@ void SystemProperties::ResetProperties() {
   PERFETTO_DFATAL("Cannot ResetProperties on out-of-tree builds.");
 #endif
 }
+
+#pragma GCC diagnostic pop
 
 SystemProperties::~SystemProperties() {
   PERFETTO_DCHECK(alls_ == 0 && properties_.empty());
