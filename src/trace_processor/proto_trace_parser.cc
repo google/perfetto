@@ -105,6 +105,7 @@ using protozero::proto_utils::kFieldTypeLengthDelimited;
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     : context_(context),
+      utid_name_id_(context->storage->InternString("utid")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       num_forks_name_id_(context->storage->InternString("num_forks")),
       num_irq_total_name_id_(context->storage->InternString("num_irq_total")),
@@ -453,8 +454,9 @@ void ProtoTraceParser::ParseProcMemCounters(uint64_t ts,
     // pre-cached |proc_mem_counter_names_| map.
     StringId name = proc_mem_counter_names_[field_id];
     uint64_t value = counter_values[field_id];
-    context_->event_tracker->PushCounter(ts, value, name, utid,
-                                         RefType::kRefUtidLookupUpid);
+    auto inserter = context_->event_tracker->PushCounter(
+        ts, value, name, utid, RefType::kRefUtidLookupUpid);
+    inserter.AddInt64Arg(utid_name_id_, utid_name_id_, utid);
   }
 
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());

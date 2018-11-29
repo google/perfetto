@@ -96,5 +96,10 @@ StorageSchema::Column::Comparator StorageSchema::TsEndColumn::Sort(
   };
 }
 
+StorageSchema::ArgIdColumn::ArgIdColumn(std::string column_name,
+                                        const std::deque<uint64_t>* ids)
+    : Column(std::move(column_name), false), ids_(std::move(ids)) {}
+StorageSchema::ArgIdColumn::~ArgIdColumn() = default;
+
 }  // namespace trace_processor
 }  // namespace perfetto
