@@ -67,7 +67,8 @@ class CpuReader {
   // Drains all available data from the staging pipe into the buffer of the
   // passed data sources.
   // Should be called in response to the |on_data_available| callback.
-  bool Drain(const std::set<FtraceDataSource*>&);
+  void Drain(const std::set<FtraceDataSource*>&);
+  void InterruptWorkerThreadWithSignal();
 
   template <typename T>
   static bool ReadAndAdvance(const uint8_t** ptr, const uint8_t* end, T* out) {
