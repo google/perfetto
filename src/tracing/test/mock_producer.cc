@@ -67,6 +67,15 @@ void MockProducer::UnregisterDataSource(const std::string& name) {
   service_endpoint_->UnregisterDataSource(name);
 }
 
+void MockProducer::RegisterTraceWriter(uint32_t writer_id,
+                                       uint32_t target_buffer) {
+  service_endpoint_->RegisterTraceWriter(writer_id, target_buffer);
+}
+
+void MockProducer::UnregisterTraceWriter(uint32_t writer_id) {
+  service_endpoint_->UnregisterTraceWriter(writer_id);
+}
+
 void MockProducer::WaitForTracingSetup() {
   static int i = 0;
   auto checkpoint_name =
