@@ -38,6 +38,15 @@ service ProducerPort {
   rpc UnregisterDataSource(UnregisterDataSourceRequest)
       returns (UnregisterDataSourceResponse) {}
 
+  // Associates a trace writer with its target buffer.
+  rpc RegisterTraceWriter(RegisterTraceWriterRequest)
+      returns (RegisterTraceWriterResponse) {}
+
+  // Removes a trace writer association previously added by
+  // RegisterTraceWriter.
+  rpc UnregisterTraceWriter(UnregisterTraceWriterRequest)
+      returns (UnregisterTraceWriterResponse) {}
+
   // Sent by the client to request the service to:
   // 1) Move some chunks from the shmem buffer into the logging buffer.
   // 2) Patch the content of some chunks previously moved.
@@ -96,6 +105,27 @@ message UnregisterDataSourceRequest {
 }
 
 message UnregisterDataSourceResponse {}
+
+// Arguments for rpc RegisterTraceWriter().
+
+message RegisterTraceWriterRequest {
+  // The ID of a producer's trace writer.
+  optional uint32 trace_writer_id = 1;
+
+  // The ID of the target buffer that the trace writer commits its chunks to.
+  optional uint32 target_buffer = 2;
+}
+
+message RegisterTraceWriterResponse {}
+
+// Arguments for rpc UnregisterTraceWriter().
+
+message UnregisterTraceWriterRequest {
+  // The ID of a producer's trace writer.
+  optional uint32 trace_writer_id = 1;
+}
+
+message UnregisterTraceWriterResponse {}
 
 // Arguments for rpc CommitData().
 // See commit_data_request.proto for CommitDataRequest. That has its own file
