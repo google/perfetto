@@ -279,6 +279,53 @@ class StorageSchema {
     const std::deque<uint64_t>* dur_;
   };
 
+  // Column which is used to reference the args table in other tables. That is,
+  // it acts as a "foreign key" into the args table.
+  class ArgIdColumn final : public Column {
+   public:
+    ArgIdColumn(std::string column_name, const std::deque<uint64_t>* ids);
+    virtual ~ArgIdColumn() override;
+
+    void ReportResult(sqlite3_context* ctx, uint32_t row) const override {
+      auto id = (*ids_)[row];
+      if (id == TraceStorage::Args::kInvalidId)
+        sqlite3_result_null(ctx);
+      else
+        sqlite_utils::ReportSqliteResult(ctx, id);
+    }
+
+    Bounds BoundFilter(int, sqlite3_value*) const override { return Bounds{}; }
+
+    Predicate Filter(int op, sqlite3_value* value) const override {
+      auto binary_op = sqlite_utils::GetPredicateForOp<uint64_t>(op);
+      uint64_t extracted = sqlite_utils::ExtractSqliteValue<uint64_t>(value);
+      return [this, binary_op, extracted](uint32_t idx) {
+        auto val = static_cast<uint64_t>((*ids_)[idx]);
+        return binary_op(val, extracted);
+      };
+    }
+
+    Comparator Sort(const QueryConstraints::OrderBy& ob) const override {
+      if (ob.desc) {
+        return [this](uint32_t f, uint32_t s) {
+          return sqlite_utils::CompareValuesDesc((*ids_)[f], (*ids_)[s]);
+        };
+      }
+      return [this](uint32_t f, uint32_t s) {
+        return sqlite_utils::CompareValuesAsc((*ids_)[f], (*ids_)[s]);
+      };
+    }
+
+    Table::ColumnType GetType() const override {
+      return Table::ColumnType::kUlong;
+    }
+
+    bool IsNaturallyOrdered() const override { return false; }
+
+   private:
+    const std::deque<uint64_t>* ids_;
+  };
+
   StorageSchema();
   StorageSchema(std::vector<std::unique_ptr<Column>> columns);
 
@@ -321,6 +368,12 @@ class StorageSchema {
       bool hidden = false) {
     return std::unique_ptr<StringColumn<Id>>(
         new StringColumn<Id>(column_name, deque, lookup_map, hidden));
+  }
+
+  static std::unique_ptr<ArgIdColumn> ArgIdColumnPtr(
+      std::string column_name,
+      const std::deque<TraceStorage::Args::Id>* deque) {
+    return std::unique_ptr<ArgIdColumn>(new ArgIdColumn(column_name, deque));
   }
 
  private:
