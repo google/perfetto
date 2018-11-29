@@ -1,0 +1,207 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import argparse
+import atexit
+import hashlib
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import urllib
+
+TRACE_TO_TEXT_SHAS = {
+  'linux': 'c704cf765b9c5445c16a8e7ec5757cad364a8d92',
+  'mac': 'aed4ad02da526a3f1e4f9df47d4989ae9305b30e',
+}
+TRACE_TO_TEXT_PATH = tempfile.gettempdir()
+TRACE_TO_TEXT_BASE_URL = (
+    'https://storage.googleapis.com/perfetto/')
+
+def check_hash(file_name, sha_value):
+  with open(file_name, 'rb') as fd:
+    # TODO(fmayer): Chunking.
+    file_hash = hashlib.sha1(fd.read()).hexdigest()
+    return file_hash == sha_value
+
+
+def load_trace_to_text(platform):
+  sha_value = TRACE_TO_TEXT_SHAS[platform]
+  file_name = 'trace_to_text-' + platform + '-' + sha_value
+  local_file = os.path.join(TRACE_TO_TEXT_PATH, file_name)
+
+  if os.path.exists(local_file):
+    if not check_hash(local_file, sha_value):
+      os.remove(local_file)
+    else:
+      return local_file
+
+  url = TRACE_TO_TEXT_BASE_URL + file_name
+  urllib.urlretrieve(url, local_file)
+  if not check_hash(local_file, sha_value):
+    os.remove(local_file)
+    raise ValueError("Invalid signature.")
+  os.chmod(local_file, 0o755)
+  return local_file
+
+
+NULL = open('/dev/null', 'r')
+
+CFG_IDENT = '      '
+CFG='''buffers {{
+  size_kb: 32768
+}}
+
+data_sources {{
+  config {{
+    name: "android.heapprofd"
+    heapprofd_config {{
+
+      all: {all}
+      sampling_interval_bytes: {interval}
+{target_cfg}
+      continuous_dump_config {{
+        dump_phase_ms: 0
+        dump_interval_ms: 1000
+      }}
+    }}
+  }}
+}}
+
+duration_ms: {duration}
+'''
+
+PERFETTO_CMD=('CFG=\'{}\'; echo ${{CFG}} | '
+              'perfetto -t -c - -o /data/misc/perfetto-traces/profile -b')
+IS_INTERRUPTED = False
+def sigint_handler(sig, frame):
+  global IS_INTERRUPTED
+  IS_INTERRUPTED = True
+
+
+def on_exit(enforcing):
+  subprocess.check_output(['adb', 'shell', 'su root stop heapprofd'])
+  subprocess.check_output(
+      ['adb', 'shell', 'su root setenforce %s' % enforcing])
+
+
+def main(argv):
+  parser = argparse.ArgumentParser()
+  parser.add_argument("-i", "--interval", help="Sampling interval. "
+                      "Default 128000 (128kB)", type=int, default=128000)
+  parser.add_argument("-d", "--duration", help="Duration of profile (ms). "
+                      "Default 1 minute", type=int, default=60000)
+  parser.add_argument("-a", "--all", help="Profile the whole system",
+                      action='store_true')
+  parser.add_argument("-p", "--pid", help="PIDs to profile", nargs='+',
+                      type=int)
+  parser.add_argument("-n", "--name", help="Process names to profile",
+                      nargs='+')
+  parser.add_argument("-t", "--trace-to-text-binary",
+                      help="Path to local trace to text. For debugging.")
+
+  args = parser.parse_args()
+
+  fail = False
+  if args.all is None and args.pid is None and args.name is None:
+    print("FATAL: Neither --all nor PID nor NAME given.", file=sys.stderr)
+    fail = True
+  if args.duration is None:
+    print("FATAL: No duration given.", file=sys.stderr)
+    fail = True
+  if args.interval is None:
+    print("FATAL: No interval given.", file=sys.stderr)
+    fail = True
+  if fail:
+    parser.print_help()
+    return 1
+  target_cfg = ""
+  if args.pid:
+    for pid in args.pid:
+      target_cfg += '{}pid: {}\n'.format(CFG_IDENT, pid)
+  if args.name:
+    for name in args.name:
+      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_IDENT, name)
+
+  trace_to_text_binary = args.trace_to_text_binary
+  if trace_to_text_binary is None:
+    platform = None
+    if sys.platform.startswith('linux'):
+      platform = 'linux'
+    elif sys.platform.startswith('darwin'):
+      platform = 'mac'
+    else:
+      print("Invalid platform: {}".format(sys.platform), file=sys.stderr)
+
+    trace_to_text_binary = load_trace_to_text(platform)
+
+  cfg = CFG.format(all=str(args.all == True).lower(), interval=args.interval,
+                   duration=args.duration, target_cfg=target_cfg)
+
+  enforcing = subprocess.check_output(['adb', 'shell', 'getenforce'])
+  atexit.register(on_exit, enforcing)
+
+  subprocess.check_call(['adb', 'shell', 'su root setenforce 0'])
+  subprocess.check_call(['adb', 'shell', 'su root start heapprofd'])
+
+  perfetto_pid = subprocess.check_output(
+      ['adb', 'exec-out', PERFETTO_CMD.format(cfg)]).strip()
+
+  old_handler = signal.signal(signal.SIGINT, sigint_handler)
+  print("Profiling active. Press Ctrl+C to terminate.")
+  exists = True
+  while exists and not IS_INTERRUPTED:
+    exists = subprocess.call(
+        ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
+    time.sleep(1)
+  signal.signal(signal.SIGINT, old_handler)
+  if IS_INTERRUPTED:
+    # Not check_call because it could have existed in the meantime.
+    subprocess.call(['adb', 'shell', 'kill', '-INT', perfetto_pid])
+
+  subprocess.check_call(['adb', 'pull', '/data/misc/perfetto-traces/profile',
+                         '/tmp/profile'], stdout=NULL)
+  trace_to_text_output = subprocess.check_output(
+      [trace_to_text_binary, 'profile', '/tmp/profile'],
+      stderr=NULL)
+  profile_path = None
+  for word in trace_to_text_output.split():
+    if 'heap_profile-' in word:
+      profile_path = word
+  if profile_path is None:
+    print("Could not find trace_to_text output path.", file=sys.stderr)
+    return 1
+
+  profile_files = os.listdir(profile_path)
+  if not profile_files:
+    print("No profiles generated", file=sys.stderr)
+    return 1
+
+  subprocess.check_call(['gzip'] + [os.path.join(profile_path, x) for x in
+                                    os.listdir(profile_path)])
+  print("Wrote profiles to {}".format(profile_path))
+  print("These can be viewed using pprof. Googlers: head to pprof/ and "
+        "upload them.")
+
+
+if __name__ == '__main__':
+  sys.exit(main(sys.argv))
