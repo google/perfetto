@@ -130,6 +130,14 @@ class ProtoTranslationTable {
     return ftrace_page_header_spec_;
   }
 
+  // Returns the size in bytes of the "size" field in the ftrace header. This
+  // usually matches sizeof(void*) in the kernel (which can be != sizeof(void*)
+  // of user space on 32bit-user + 64-bit-kernel configurations).
+  inline uint16_t page_header_size_len() const {
+    // TODO(fmayer): Do kernel deepdive to double check this.
+    return ftrace_page_header_spec_.size.size;
+  }
+
   // Retrieves the ftrace event from the proto translation
   // table. If it does not exist, reads the format file and creates a
   // new event with the proto id set to generic. Virtual for testing.
