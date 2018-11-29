@@ -152,13 +152,5 @@ void PagedMemory::EnsureCommitted(size_t committed_size) {
 }
 #endif  // TRACK_COMMITTED_SIZE()
 
-void* PagedMemory::Get() const noexcept {
-  return p_;
-}
-
-bool PagedMemory::IsValid() const noexcept {
-  return p_;
-}
-
 }  // namespace base
 }  // namespace perfetto
