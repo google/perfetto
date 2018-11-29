@@ -1492,6 +1492,20 @@ void TracingServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
   service_->UnregisterDataSource(id_, name);
 }
 
+void TracingServiceImpl::ProducerEndpointImpl::RegisterTraceWriter(
+    uint32_t /*writer_id*/,
+    uint32_t /*target_buffer*/) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // TODO(eseckler): Store association into a map. Make sure to verify that the
+  // target buffer is "allowed" when using this association later.
+}
+
+void TracingServiceImpl::ProducerEndpointImpl::UnregisterTraceWriter(
+    uint32_t /*writer_id*/) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // TODO(eseckler): Remove association from the map.
+}
+
 void TracingServiceImpl::ProducerEndpointImpl::CommitData(
     const CommitDataRequest& req_untrusted,
     CommitDataCallback callback) {
