@@ -37,6 +37,8 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
  public:
   void RegisterDataSource(const DataSourceDescriptor&) override {}
   void UnregisterDataSource(const std::string&) override {}
+  void RegisterTraceWriter(uint32_t, uint32_t) override {}
+  void UnregisterTraceWriter(uint32_t) override {}
   void NotifyFlushComplete(FlushRequestID) override {}
   void NotifyDataSourceStopped(DataSourceInstanceID) override {}
   SharedMemory* shared_memory() const override { return nullptr; }
