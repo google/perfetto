@@ -151,6 +151,7 @@ def main(argv):
       platform = 'mac'
     else:
       print("Invalid platform: {}".format(sys.platform), file=sys.stderr)
+      return 1
 
     trace_to_text_binary = load_trace_to_text(platform)
 
