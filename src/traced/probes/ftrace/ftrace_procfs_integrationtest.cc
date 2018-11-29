@@ -32,7 +32,13 @@ using testing::Contains;
 namespace perfetto {
 namespace {
 
-constexpr char kTracingPath[] = "/sys/kernel/debug/tracing/";
+std::string GetFtracePath() {
+  size_t i = 0;
+  while (!FtraceProcfs::Create(FtraceController::kTracingPaths[i])) {
+    i++;
+  }
+  return std::string(FtraceController::kTracingPaths[i]);
+}
 
 void ResetFtrace(FtraceProcfs* ftrace) {
   ftrace->DisableAllEvents();
@@ -42,7 +48,7 @@ void ResetFtrace(FtraceProcfs* ftrace) {
 
 std::string ReadFile(const std::string& name) {
   std::string result;
-  PERFETTO_CHECK(base::ReadFile(kTracingPath + name, &result));
+  PERFETTO_CHECK(base::ReadFile(GetFtracePath() + name, &result));
   return result;
 }
 
@@ -63,7 +69,7 @@ std::string GetTraceOutput() {
 #define MAYBE_CreateWithGoodPath DISABLED_CreateWithGoodPath
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_CreateWithGoodPath) {
-  EXPECT_TRUE(FtraceProcfs::Create(kTracingPath));
+  EXPECT_TRUE(FtraceProcfs::Create(GetFtracePath()));
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -72,7 +78,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_CreateWithGoodPath) {
 #define MAYBE_CreateWithBadPath DISABLED_CreateWithBadath
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_CreateWithBadPath) {
-  EXPECT_FALSE(FtraceProcfs::Create(kTracingPath + std::string("bad_path")));
+  EXPECT_FALSE(FtraceProcfs::Create(GetFtracePath() + std::string("bad_path")));
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -81,7 +87,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_CreateWithBadPath) {
 #define MAYBE_ClearTrace DISABLED_ClearTrace
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_ClearTrace) {
-  FtraceProcfs ftrace(kTracingPath);
+  FtraceProcfs ftrace(GetFtracePath());
   ResetFtrace(&ftrace);
   ftrace.WriteTraceMarker("Hello, World!");
   ftrace.ClearTrace();
@@ -94,7 +100,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_ClearTrace) {
 #define MAYBE_TraceMarker DISABLED_TraceMarker
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_TraceMarker) {
-  FtraceProcfs ftrace(kTracingPath);
+  FtraceProcfs ftrace(GetFtracePath());
   ResetFtrace(&ftrace);
   ftrace.WriteTraceMarker("Hello, World!");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello, World!"));
@@ -106,7 +112,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_TraceMarker) {
 #define MAYBE_EnableDisableEvent DISABLED_EnableDisableEvent
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_EnableDisableEvent) {
-  FtraceProcfs ftrace(kTracingPath);
+  FtraceProcfs ftrace(GetFtracePath());
   ResetFtrace(&ftrace);
   ftrace.EnableEvent("sched", "sched_switch");
   sleep(1);
@@ -124,7 +130,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_EnableDisableEvent) {
 #define MAYBE_EnableDisableTracing DISABLED_EnableDisableTracing
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_EnableDisableTracing) {
-  FtraceProcfs ftrace(kTracingPath);
+  FtraceProcfs ftrace(GetFtracePath());
   ResetFtrace(&ftrace);
   EXPECT_TRUE(ftrace.IsTracingEnabled());
   ftrace.WriteTraceMarker("Before");
@@ -145,7 +151,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_EnableDisableTracing) {
 #define MAYBE_ReadFormatFile DISABLED_ReadFormatFile
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_ReadFormatFile) {
-  FtraceProcfs ftrace(kTracingPath);
+  FtraceProcfs ftrace(GetFtracePath());
   std::string format = ftrace.ReadEventFormat("ftrace", "print");
   EXPECT_THAT(format, HasSubstr("name: print"));
   EXPECT_THAT(format, HasSubstr("field:char buf"));
@@ -157,7 +163,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_ReadFormatFile) {
 #define MAYBE_CanOpenTracePipeRaw DISABLED_CanOpenTracePipeRaw
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_CanOpenTracePipeRaw) {
-  FtraceProcfs ftrace(kTracingPath);
+  FtraceProcfs ftrace(GetFtracePath());
   EXPECT_TRUE(ftrace.OpenPipeForCpu(0));
 }
 
@@ -167,7 +173,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_CanOpenTracePipeRaw) {
 #define MAYBE_Clock DISABLED_Clock
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_Clock) {
-  FtraceProcfs ftrace(kTracingPath);
+  FtraceProcfs ftrace(GetFtracePath());
   std::set<std::string> clocks = ftrace.AvailableClocks();
   EXPECT_THAT(clocks, Contains("local"));
   EXPECT_THAT(clocks, Contains("global"));
@@ -184,7 +190,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_Clock) {
 #define MAYBE_CanSetBufferSize DISABLED_CanSetBufferSize
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_CanSetBufferSize) {
-  FtraceProcfs ftrace(kTracingPath);
+  FtraceProcfs ftrace(GetFtracePath());
   EXPECT_TRUE(ftrace.SetCpuBufferSizeInPages(4ul));
   EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");  // (4096 * 4) / 1024
   EXPECT_TRUE(ftrace.SetCpuBufferSizeInPages(5ul));
@@ -197,7 +203,7 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_CanSetBufferSize) {
 #define MAYBE_FtraceControllerHardReset DISABLED_FtraceControllerHardReset
 #endif
 TEST(FtraceProcfsIntegrationTest, MAYBE_FtraceControllerHardReset) {
-  FtraceProcfs ftrace(kTracingPath);
+  FtraceProcfs ftrace(GetFtracePath());
   ResetFtrace(&ftrace);
 
   ftrace.SetCpuBufferSizeInPages(4ul);

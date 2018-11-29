@@ -437,47 +437,6 @@ TEST(FtraceControllerTest, TaskScheduling) {
   data_source.reset();
 }
 
-// TODO(b/73452932): Fix and reenable this test.
-TEST(FtraceControllerTest, DISABLED_DrainPeriodRespected) {
-  auto controller =
-      CreateTestController(false /* nice runner */, false /* nice procfs */);
-
-  // For this test we don't care about calls to WriteToFile/ClearFile.
-  EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(AnyNumber());
-  EXPECT_CALL(*controller->procfs(), ClearFile(_)).Times(AnyNumber());
-
-  FtraceConfig config = CreateFtraceConfig({"group/foo"});
-  auto data_source = controller->AddFakeDataSource(config);
-  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
-
-  // Test several cycles of a worker producing data and make sure the drain
-  // delay is consistent with the drain period.
-  const int kCycles = 50;
-  EXPECT_CALL(*controller->runner(),
-              PostDelayedTask(_, controller->drain_period_ms()))
-      .Times(kCycles);
-  EXPECT_CALL(*controller, OnDrainCpuForTesting(_)).Times(kCycles);
-  EXPECT_CALL(*controller->runner(), PostTask(_)).Times(kCycles);
-
-  // Simulate a worker thread continually reporting pages of available data.
-  auto on_data_available = controller->GetDataAvailableCallback(0u);
-  std::thread worker([on_data_available] {
-    for (int i = 0; i < kCycles; i++)
-      on_data_available();
-  });
-
-  for (int i = 0; i < kCycles; i++) {
-    controller->WaitForData(0u);
-    // Run two tasks: one to drain each CPU and another to unblock the worker.
-    controller->runner()->RunLastTask();
-    controller->runner()->RunLastTask();
-    controller->now_ms += controller->drain_period_ms();
-  }
-
-  worker.join();
-  data_source.reset();
-}
-
 TEST(FtraceControllerTest, BackToBackEnableDisable) {
   auto controller =
       CreateTestController(false /* nice runner */, false /* nice procfs */);
