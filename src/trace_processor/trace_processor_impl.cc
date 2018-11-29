@@ -21,6 +21,7 @@
 #include <functional>
 
 #include "perfetto/base/time.h"
+#include "src/trace_processor/args_table.h"
 #include "src/trace_processor/counters_table.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/instants_table.h"
@@ -112,6 +113,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.sorter.reset(
       new TraceSorter(&context_, cfg.optimization_mode, cfg.window_size_ns));
 
+  ArgsTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
   SchedSliceTable::RegisterTable(*db_, context_.storage.get());
   SliceTable::RegisterTable(*db_, context_.storage.get());
