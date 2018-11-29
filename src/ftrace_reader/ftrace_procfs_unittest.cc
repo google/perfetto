@@ -56,7 +56,43 @@ TEST(FtraceProcfsTest, ParseAvailableClocks) {
   EXPECT_THAT(ftrace.GetClock(), "global");
 
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .WillOnce(Return("local global [boot]"));
+  EXPECT_THAT(ftrace.GetClock(), "boot");
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillOnce(Return(""));
+  EXPECT_THAT(ftrace.AvailableClocks(), IsEmpty());
+
+  // trace_clock text may end in a new line:
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .WillOnce(Return("[local] global boot\n"));
+  EXPECT_THAT(ftrace.AvailableClocks(),
+              UnorderedElementsAre("local", "global", "boot"));
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .WillOnce(Return("local global [boot]\n"));
+  EXPECT_THAT(ftrace.AvailableClocks(),
+              UnorderedElementsAre("local", "global", "boot"));
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .WillOnce(Return("local global [boot]\n"));
+  EXPECT_THAT(ftrace.GetClock(), "boot");
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .WillOnce(Return("\n"));
+  EXPECT_THAT(ftrace.AvailableClocks(), IsEmpty());
+
+  // We should handle many newlines (just in case):
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .WillOnce(Return("local global [boot]\n\n\n"));
+  EXPECT_THAT(ftrace.GetClock(), "boot");
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .WillOnce(Return("local global [boot]\n\n"));
+  EXPECT_THAT(ftrace.GetClock(), "boot");
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .WillOnce(Return("\n\n\n\n"));
   EXPECT_THAT(ftrace.AvailableClocks(), IsEmpty());
 }
 
