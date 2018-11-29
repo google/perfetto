@@ -45,7 +45,7 @@ class HeapprofdIntegrationTest : public ::testing::Test {
 
 // ASAN does not like sendmsg of the stack.
 // TODO(fmayer): Try to fix this more properly.
-#ifndef ADDRESS_SANITIZER
+#if !defined(ADDRESS_SANITIZER) && !defined(MEMORY_SANITIZER)
 #define MAYBE_EndToEnd EndToEnd
 #define MAYBE_MultiSession MultiSession
 #else
