@@ -52,7 +52,8 @@ Table::Schema CountersTable::CreateSchema(int, const char* const*) {
                               &counters.durations()),
       std::unique_ptr<RefColumn>(new RefColumn("ref", storage_)),
       StorageSchema::StringColumnPtr("ref_type", &counters.types(),
-                                     &ref_types_)};
+                                     &ref_types_),
+      StorageSchema::ArgIdColumnPtr("arg_id", &counters.arg_ids())};
   schema_ = StorageSchema({
       std::make_move_iterator(std::begin(cols)),
       std::make_move_iterator(std::end(cols)),

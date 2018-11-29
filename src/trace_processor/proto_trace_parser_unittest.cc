@@ -52,11 +52,11 @@ class MockEventTracker : public EventTracker {
                     base::StringView next_comm));
 
   MOCK_METHOD5(PushCounter,
-               void(uint64_t timestamp,
-                    double value,
-                    StringId name_id,
-                    uint64_t ref,
-                    RefType ref_type));
+               TraceStorage::Args::Inserter(uint64_t timestamp,
+                                            double value,
+                                            StringId name_id,
+                                            uint64_t ref,
+                                            RefType ref_type));
 };
 
 class MockProcessTracker : public ProcessTracker {
