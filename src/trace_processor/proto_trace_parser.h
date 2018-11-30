@@ -65,6 +65,7 @@ class ProtoTraceParser {
   void ParseProcMemCounters(uint64_t timestamp, TraceBlobView);
   void ParseSchedSwitch(uint32_t cpu, uint64_t timestamp, TraceBlobView);
   void ParseCpuFreq(uint64_t timestamp, TraceBlobView);
+  void ParseCpuIdle(uint64_t timestamp, TraceBlobView);
   void ParsePrint(uint32_t cpu,
                   uint64_t timestamp,
                   uint32_t pid,
@@ -87,6 +88,7 @@ class ProtoTraceParser {
   TraceProcessorContext* context_;
   const StringId utid_name_id_;
   const StringId cpu_freq_name_id_;
+  const StringId cpu_idle_name_id_;
   const StringId num_forks_name_id_;
   const StringId num_irq_total_name_id_;
   const StringId num_softirq_total_name_id_;
