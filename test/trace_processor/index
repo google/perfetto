@@ -6,6 +6,8 @@
 ../data/android_sched_and_ps.pb b119301023.sql android_sched_and_ps_b119301023.out
 ../data/android_sched_and_ps.pb stats.sql android_sched_and_ps_stats.out
 ../data/android_sched_and_ps.pb b119496959.sql android_sched_and_ps_b119496959.out
+../data/memory_counters.pb smoke_args.sql memory_counters_smoke_args.out
+../data/memory_counters.pb counter_args_join.sql memory_counters_counter_args_join.out
 synth_1.py smoke.sql synth_1_smoke.out
 synth_1.py filter_sched.sql synth_1_filter_sched.out
 synth_1.py filter_counters.sql synth_1_filter_counters.out
