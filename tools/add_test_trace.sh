@@ -21,7 +21,10 @@ echo ""
 echo "Zipping file back up"
 echo ""
 NEW_TEST_DATA="test-data-$(date +%Y%m%d).zip"
-zip -r /tmp/$NEW_TEST_DATA /tmp/latest-test-data
+CWD="$(pwd)"
+cd /tmp/latest-test-data
+zip -r /tmp/$NEW_TEST_DATA *
+cd $CWD
 
 echo ""
 echo "Uploading file to Google Cloud"
