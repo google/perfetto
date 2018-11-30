@@ -179,6 +179,12 @@ def main(argv):
     # Not check_call because it could have existed in the meantime.
     subprocess.call(['adb', 'shell', 'kill', '-INT', perfetto_pid])
 
+  # Wait for perfetto cmd to return.
+  while exists:
+    exists = subprocess.call(
+        ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
+    time.sleep(1)
+
   subprocess.check_call(['adb', 'pull', '/data/misc/perfetto-traces/profile',
                          '/tmp/profile'], stdout=NULL)
   trace_to_text_output = subprocess.check_output(
