@@ -454,9 +454,10 @@ void ProtoTraceParser::ParseProcMemCounters(uint64_t ts,
     // pre-cached |proc_mem_counter_names_| map.
     StringId name = proc_mem_counter_names_[field_id];
     uint64_t value = counter_values[field_id];
-    auto inserter = context_->event_tracker->PushCounter(
+    auto row_id = context_->event_tracker->PushCounter(
         ts, value, name, utid, RefType::kRefUtidLookupUpid);
-    inserter.AddInt64Arg(utid_name_id_, utid_name_id_, utid);
+    context_->storage->mutable_args()->AddArg(row_id, utid_name_id_,
+                                              utid_name_id_, utid);
   }
 
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
