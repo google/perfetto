@@ -91,6 +91,10 @@ class TracingServiceImplTest : public testing::Test {
     return session;
   }
 
+  const std::set<BufferID>& GetAllowedTargetBuffers(ProducerID producer_id) {
+    return svc->GetProducer(producer_id)->allowed_target_buffers_;
+  }
+
   size_t GetNumPendingFlushes() {
     return tracing_session()->pending_flushes.size();
   }
@@ -899,6 +903,85 @@ TEST_F(TracingServiceImplTest, DeferredStart) {
 
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, AllowedBuffers) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer1");
+  ProducerID producer1_id = *last_producer_id();
+  producer1->RegisterDataSource("data_source1");
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer2");
+  ProducerID producer2_id = *last_producer_id();
+  producer2->RegisterDataSource("data_source2.1");
+  producer2->RegisterDataSource("data_source2.2");
+  producer2->RegisterDataSource("data_source2.3");
+
+  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer1_id));
+  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer2_id));
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config1 = trace_config.add_data_sources()->mutable_config();
+  ds_config1->set_name("data_source1");
+  ds_config1->set_target_buffer(0);
+  auto* ds_config21 = trace_config.add_data_sources()->mutable_config();
+  ds_config21->set_name("data_source2.1");
+  ds_config21->set_target_buffer(1);
+  auto* ds_config22 = trace_config.add_data_sources()->mutable_config();
+  ds_config22->set_name("data_source2.2");
+  ds_config22->set_target_buffer(2);
+  auto* ds_config23 = trace_config.add_data_sources()->mutable_config();
+  ds_config23->set_name("data_source2.3");
+  ds_config23->set_target_buffer(2);  // same buffer as data_source2.2.
+  consumer->EnableTracing(trace_config);
+
+  ASSERT_EQ(3, tracing_session()->num_buffers());
+  std::set<BufferID> expected_buffers_producer1 = {
+      tracing_session()->buffers_index[0]};
+  std::set<BufferID> expected_buffers_producer2 = {
+      tracing_session()->buffers_index[1], tracing_session()->buffers_index[2]};
+  EXPECT_EQ(expected_buffers_producer1, GetAllowedTargetBuffers(producer1_id));
+  EXPECT_EQ(expected_buffers_producer2, GetAllowedTargetBuffers(producer2_id));
+
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("data_source1");
+
+  producer2->WaitForTracingSetup();
+  producer2->WaitForDataSourceSetup("data_source2.1");
+  producer2->WaitForDataSourceSetup("data_source2.2");
+  producer2->WaitForDataSourceSetup("data_source2.3");
+
+  producer1->WaitForDataSourceStart("data_source1");
+  producer2->WaitForDataSourceStart("data_source2.1");
+  producer2->WaitForDataSourceStart("data_source2.2");
+  producer2->WaitForDataSourceStart("data_source2.3");
+
+  producer2->UnregisterDataSource("data_source2.3");
+  producer2->WaitForDataSourceStop("data_source2.3");
+
+  // Should still be allowed to write to buffers 1 (data_source2.1) and 2
+  // (data_source2.2).
+  EXPECT_EQ(expected_buffers_producer2, GetAllowedTargetBuffers(producer2_id));
+
+  // Calling StartTracing() should be a noop (% a DLOG statement) because the
+  // trace config didn't have the |deferred_start| flag set.
+  consumer->StartTracing();
+
+  consumer->DisableTracing();
+  producer1->WaitForDataSourceStop("data_source1");
+  producer2->WaitForDataSourceStop("data_source2.1");
+  producer2->WaitForDataSourceStop("data_source2.2");
+  consumer->WaitForTracingDisabled();
+
+  consumer->FreeBuffers();
+  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer1_id));
+  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer2_id));
 }
 
 }  // namespace perfetto
