@@ -320,10 +320,17 @@ inline std::vector<Table::Column> GetColumnsForTable(
       type = Table::ColumnType::kUlong;
     } else if (strcmp(raw_type, "UNSIGNED INT") == 0) {
       type = Table::ColumnType::kUint;
+    } else if (strcmp(raw_type, "BIG INT") == 0) {
+      type = Table::ColumnType::kLong;
+    } else if (strcmp(raw_type, "INT") == 0) {
+      type = Table::ColumnType::kInt;
     } else if (strcmp(raw_type, "STRING") == 0) {
       type = Table::ColumnType::kString;
+    } else if (strcmp(raw_type, "DOUBLE") == 0) {
+      type = Table::ColumnType::kDouble;
     } else {
-      PERFETTO_FATAL("Unknown column type on table %s", raw_table_name.c_str());
+      PERFETTO_FATAL("Unknown column type '%s' on table %s", raw_type,
+                     raw_table_name.c_str());
     }
     columns.emplace_back(columns.size(), name, type);
   }
