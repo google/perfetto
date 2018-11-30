@@ -162,11 +162,16 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     if (error_code != unwindstack::ERROR_INVALID_MAP)
       break;
   }
-  if (error_code == 0)
-    out->frames = unwinder.frames();
-  else
+  out->frames = unwinder.frames();
+  if (error_code != 0) {
+    unwindstack::FrameData frame_data{};
+    frame_data.function_name = "ERROR " + std::to_string(error_code);
+    frame_data.map_name = "ERROR";
+
+    out->frames.emplace_back(frame_data);
     PERFETTO_DLOG("unwinding failed %" PRIu8, error_code);
-  return error_code == 0;
+  }
+  return true;
 }
 
 bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out) {
@@ -183,10 +188,7 @@ bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out) {
 
     out->pid = rec->pid;
     out->record_type = BookkeepingRecord::Type::Malloc;
-    if (!DoUnwind(&msg, metadata.get(), &out->alloc_record)) {
-      return false;
-    }
-    return true;
+    return DoUnwind(&msg, metadata.get(), &out->alloc_record);
   } else if (msg.record_type == RecordType::Free) {
     out->record_type = BookkeepingRecord::Type::Free;
     out->pid = rec->pid;
