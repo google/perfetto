@@ -21,8 +21,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-const uint64_t TraceStorage::Args::kInvalidId = 0;
-
 TraceStorage::TraceStorage() {
   // Upid/utid 0 is reserved for idle processes/threads.
   unique_processes_.emplace_back(0);
