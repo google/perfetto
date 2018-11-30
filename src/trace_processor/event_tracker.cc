@@ -72,15 +72,15 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
   pending_slice->pid = next_pid;
 }
 
-TraceStorage::Args::Inserter EventTracker::PushCounter(uint64_t timestamp,
-                                                       double value,
-                                                       StringId name_id,
-                                                       uint64_t ref,
-                                                       RefType ref_type) {
+RowId EventTracker::PushCounter(uint64_t timestamp,
+                                double value,
+                                StringId name_id,
+                                uint64_t ref,
+                                RefType ref_type) {
   if (timestamp < prev_timestamp_) {
     PERFETTO_ELOG("counter event out of order by %.4f ms, skipping",
                   (prev_timestamp_ - timestamp) / 1e6);
-    return TraceStorage::Args::Inserter();
+    return kInvalidRowId;
   }
   prev_timestamp_ = timestamp;
 
@@ -98,9 +98,8 @@ TraceStorage::Args::Inserter EventTracker::PushCounter(uint64_t timestamp,
   size_t idx = counters->AddCounter(timestamp, 0 /* duration */, name_id, value,
                                     static_cast<int64_t>(ref), ref_type);
   pending_counters_per_key_[key] = idx;
-  return TraceStorage::Args::Inserter(context_->storage.get(),
-                                      TraceStorage::Args::TableId::kCounters,
-                                      static_cast<uint32_t>(idx));
+  return TraceStorage::CreateRowId(TableId::kCounters,
+                                   static_cast<uint32_t>(idx));
 }
 
 }  // namespace trace_processor

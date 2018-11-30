@@ -49,11 +49,11 @@ class EventTracker {
                                base::StringView next_comm);
 
   // This method is called when a cpu freq event is seen in the trace.
-  virtual TraceStorage::Args::Inserter PushCounter(uint64_t timestamp,
-                                                   double value,
-                                                   StringId name_id,
-                                                   uint64_t ref,
-                                                   RefType ref_type);
+  virtual RowId PushCounter(uint64_t timestamp,
+                            double value,
+                            StringId name_id,
+                            uint64_t ref,
+                            RefType ref_type);
 
  private:
   // Used as the key in |prev_counters_| to find the previous counter with the

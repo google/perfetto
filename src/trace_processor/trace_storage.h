@@ -44,6 +44,19 @@ using UniqueTid = uint32_t;
 // StringId is an offset into |string_pool_|.
 using StringId = size_t;
 
+// Identifiers for all the tables in the database.
+enum TableId : uint8_t {
+  // Intentionally don't have TableId == 0 so that RowId == 0 can refer to an
+  // invalid row id.
+  kCounters = 1,
+};
+
+// The top 8 bits are set to the TableId and the bottom 32 to the row of the
+// table.
+using RowId = uint64_t;
+
+static const RowId kInvalidRowId = 0;
+
 enum RefType {
   kRefNoRef = 0,
   kRefUtid = 1,
@@ -93,8 +106,6 @@ class TraceStorage {
   // Generic key value storage which can be referenced by other tables.
   class Args {
    public:
-    using Id = uint64_t;
-
     // Varardic type representing the possible values for the args table.
     struct Varardic {
       enum Type { kInt, kString, kReal };
@@ -111,81 +122,29 @@ class TraceStorage {
       };
     };
 
-    // Identifiers for all the tables in the database.
-    enum TableId : uint8_t {
-      // Intentionally don't have Table == 0 so that Id == 0 can refer to an
-      // invalid id.
-      kCounters = 1,
-    };
-
-    // Allows insertion of data into the args table.
-    class Inserter {
-     public:
-      Inserter() : storage_(nullptr) {}
-
-      Inserter(TraceStorage* storage, TableId table_id, uint32_t row)
-          : storage_(storage), table_and_row_(std::make_pair(table_id, row)) {}
-
-      // Allow std::move().
-      Inserter(Inserter&&) noexcept = default;
-      Inserter& operator=(Inserter&&) = default;
-
-      // Disable implicit copy.
-      Inserter(const Inserter&) = delete;
-      Inserter& operator=(const Inserter&) = delete;
-
-      void AddInt64Arg(StringId key_without_index,
-                       StringId key_with_index,
-                       int64_t value) {
-        if (!table_and_row_.has_value())
-          return;
-
-        const auto& table_and_row = table_and_row_.value();
-        TableId table_id = table_and_row.first;
-        uint32_t row = table_and_row.second;
-
-        Id id = CreateId(table_id, row);
-        auto* args = storage_->mutable_args();
-        args->ids_.emplace_back(id);
-        args->keys_without_index_.emplace_back(key_without_index);
-        args->keys_with_index_.emplace_back(key_with_index);
-        args->arg_values_.emplace_back(value);
-        args->args_for_id_.emplace(id, args->args_count() - 1);
-
-        switch (table_id) {
-          case TableId::kCounters:
-            storage_->mutable_counters()->set_arg_id(row, id);
-        }
-      }
-
-     private:
-      TraceStorage* storage_;
-      base::Optional<std::pair<TableId, uint32_t>> table_and_row_;
-    };
-
-    static const Id kInvalidId;
-
-    const std::deque<Id>& ids() const { return ids_; }
-    const std::deque<StringId>& keys_without_index() const {
-      return keys_without_index_;
-    }
-    const std::deque<StringId>& keys_with_index() const {
-      return keys_with_index_;
-    }
+    const std::deque<RowId>& ids() const { return ids_; }
+    const std::deque<StringId>& flat_keys() const { return flat_keys_; }
+    const std::deque<StringId>& keys() const { return keys_; }
     const std::deque<Varardic>& arg_values() const { return arg_values_; }
     size_t args_count() const { return ids_.size(); }
 
-   private:
-    static Id CreateId(TableId table, uint32_t row) {
-      static constexpr uint64_t kRowIdTableShift = 32ul;
-      return (static_cast<uint64_t>(table) << kRowIdTableShift) | row;
+    void AddArg(RowId id, StringId flat_key, StringId key, int64_t value) {
+      if (id == kInvalidRowId)
+        return;
+
+      ids_.emplace_back(id);
+      flat_keys_.emplace_back(flat_key);
+      keys_.emplace_back(key);
+      arg_values_.emplace_back(value);
+      args_for_id_.emplace(id, args_count() - 1);
     }
 
-    std::deque<Id> ids_;
-    std::deque<StringId> keys_without_index_;
-    std::deque<StringId> keys_with_index_;
+   private:
+    std::deque<RowId> ids_;
+    std::deque<StringId> flat_keys_;
+    std::deque<StringId> keys_;
     std::deque<Varardic> arg_values_;
-    std::multimap<Id, size_t> args_for_id_;
+    std::multimap<RowId, size_t> args_for_id_;
   };
 
   class Slices {
@@ -290,15 +249,12 @@ class TraceStorage {
       values_.emplace_back(value);
       refs_.emplace_back(ref);
       types_.emplace_back(type);
-      arg_ids_.emplace_back(Args::kInvalidId);
       return counter_count() - 1;
     }
 
     void set_duration(size_t index, uint64_t duration) {
       durations_[index] = duration;
     }
-
-    void set_arg_id(size_t index, Args::Id arg_id) { arg_ids_[index] = arg_id; }
 
     size_t counter_count() const { return timestamps_.size(); }
 
@@ -314,8 +270,6 @@ class TraceStorage {
 
     const std::deque<RefType>& types() const { return types_; }
 
-    const std::deque<Args::Id>& arg_ids() const { return arg_ids_; }
-
    private:
     std::deque<uint64_t> timestamps_;
     std::deque<uint64_t> durations_;
@@ -323,7 +277,6 @@ class TraceStorage {
     std::deque<double> values_;
     std::deque<int64_t> refs_;
     std::deque<RefType> types_;
-    std::deque<Args::Id> arg_ids_;
   };
 
   class SqlStats {
@@ -423,6 +376,11 @@ class TraceStorage {
     // Allow utid == 0 for idle thread retrieval.
     PERFETTO_DCHECK(utid < unique_threads_.size());
     return unique_threads_[utid];
+  }
+
+  static RowId CreateRowId(TableId table, uint32_t row) {
+    static constexpr uint8_t kRowIdTableShift = 32;
+    return (static_cast<uint64_t>(table) << kRowIdTableShift) | row;
   }
 
   const Slices& slices() const { return slices_; }
