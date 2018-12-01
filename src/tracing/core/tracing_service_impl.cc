@@ -916,6 +916,11 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
   }
   DisableTracing(tsid, /*disable_immediately=*/true);
 
+  for (auto& producer_entry : producers_) {
+    ProducerEndpointImpl* producer = producer_entry.second;
+    producer->OnFreeBuffers(tracing_session->buffers_index);
+  }
+
   for (BufferID buffer_id : tracing_session->buffers_index) {
     buffer_ids_.Free(buffer_id);
     PERFETTO_DCHECK(buffers_.count(buffer_id) == 1);
@@ -1638,6 +1643,7 @@ void TracingServiceImpl::ProducerEndpointImpl::SetupDataSource(
     DataSourceInstanceID ds_id,
     const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  allowed_target_buffers_.insert(static_cast<BufferID>(config.target_buffer()));
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this, ds_id, config] {
     if (weak_this)
@@ -1666,6 +1672,14 @@ void TracingServiceImpl::ProducerEndpointImpl::NotifyDataSourceStopped(
     DataSourceInstanceID data_source_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   service_->NotifyDataSourceStopped(id_, data_source_id);
+}
+
+void TracingServiceImpl::ProducerEndpointImpl::OnFreeBuffers(
+    const std::vector<BufferID>& target_buffers) {
+  if (allowed_target_buffers_.empty())
+    return;
+  for (BufferID buffer : target_buffers)
+    allowed_target_buffers_.erase(buffer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
