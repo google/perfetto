@@ -47,6 +47,7 @@ class Table : public sqlite3_vtab {
     kLong = 4,
     kInt = 5,
     kDouble = 6,
+    kUnknown = 7,
   };
 
   // Describes a column of this table.
