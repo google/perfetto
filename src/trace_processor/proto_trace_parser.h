@@ -83,6 +83,7 @@ class ProtoTraceParser {
   void ParseSignalDeliver(uint64_t ts, uint32_t pid, TraceBlobView);
   void ParseSignalGenerate(uint64_t ts, TraceBlobView);
   void ParseLowmemoryKill(uint64_t ts, TraceBlobView);
+  void ParseBatteryCounters(uint64_t ts, TraceBlobView);
 
  private:
   TraceProcessorContext* context_;
@@ -105,6 +106,10 @@ class ProtoTraceParser {
   const StringId ion_heap_shrink_id_;
   const StringId signal_deliver_id_;
   const StringId signal_generate_id_;
+  const StringId batt_charge_id_;
+  const StringId batt_capacity_id_;
+  const StringId batt_current_id_;
+  const StringId batt_current_avg_id_;
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
