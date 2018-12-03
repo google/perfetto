@@ -941,7 +941,7 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   ds_config23->set_target_buffer(2);  // same buffer as data_source2.2.
   consumer->EnableTracing(trace_config);
 
-  ASSERT_EQ(3, tracing_session()->num_buffers());
+  ASSERT_EQ(3u, tracing_session()->num_buffers());
   std::set<BufferID> expected_buffers_producer1 = {
       tracing_session()->buffers_index[0]};
   std::set<BufferID> expected_buffers_producer2 = {
