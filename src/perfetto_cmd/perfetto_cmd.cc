@@ -40,6 +40,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
+#include "src/perfetto_cmd/config.h"
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
 
 #include "perfetto/config/trace_config.pb.h"
@@ -132,14 +133,24 @@ using protozero::proto_utils::MakeTagLengthDelimited;
 int PerfettoCmd::PrintUsage(const char* argv0) {
   PERFETTO_ELOG(R"(
 Usage: %s
-  --background     -b     : Exits immediately and continues tracing in background
+  --background     -d     : Exits immediately and continues tracing in background
   --config         -c     : /path/to/trace/config/file or - for stdin
   --out            -o     : /path/to/out/trace/file or - for stdout
-  --dropbox        -d TAG : Upload trace into DropBox using tag TAG (default: %s)
-  --no-guardrails  -n     : Ignore guardrails triggered when using --dropbox (for testing).
+  --dropbox           TAG : Upload trace into DropBox using tag TAG (default: %s)
+  --no-guardrails         : Ignore guardrails triggered when using --dropbox (for testing).
+  --txt                   : Parse config as pbtxt. Not a stable API. Not for production use.
   --reset-guardrails      : Resets the state of the guardails and exits (for testing).
-  --txt            -t     : Parse config as pbtxt. Not a stable API. Not for production use.
   --help           -h
+
+
+light configuration flags: (only when NOT using -c/--config)
+  --time           -t      : Trace duration N[s,m,h] (default: 10s)
+  --buffer         -b      : Ring buffer size N[mb,gb] (default: 32mb)
+  --size           -s      : Maximum trace size N[mb,gb] (default: 100mb)
+  ATRACE_CAT               : Record ATRACE_CAT (e.g. wm)
+  FTRACE_GROUP/FTRACE_NAME : Record ftrace event (e.g. sched/sched_switch)
+  FTRACE_GROUP/*           : Record all events in group (e.g. sched/*)
+
 
 statsd-specific flags:
   --alert-id           : ID of the alert that triggered this trace.
@@ -156,20 +167,28 @@ int PerfettoCmd::Main(int argc, char** argv) {
     OPT_CONFIG_ID,
     OPT_CONFIG_UID,
     OPT_RESET_GUARDRAILS,
+    OPT_PBTXT_CONFIG,
+    OPT_DROPBOX,
+    OPT_ATRACE_APP,
+    OPT_IGNORE_GUARDRAILS,
   };
   static const struct option long_options[] = {
       // |option_index| relies on the order of options, don't reshuffle them.
       {"help", required_argument, nullptr, 'h'},
       {"config", required_argument, nullptr, 'c'},
       {"out", required_argument, nullptr, 'o'},
-      {"background", no_argument, nullptr, 'b'},
-      {"dropbox", optional_argument, nullptr, 'd'},
-      {"no-guardrails", optional_argument, nullptr, 'n'},
-      {"txt", optional_argument, nullptr, 't'},
+      {"background", no_argument, nullptr, 'd'},
+      {"time", required_argument, nullptr, 't'},
+      {"buffer", required_argument, nullptr, 'b'},
+      {"size", required_argument, nullptr, 's'},
+      {"no-guardrails", optional_argument, nullptr, OPT_IGNORE_GUARDRAILS},
+      {"txt", optional_argument, nullptr, OPT_PBTXT_CONFIG},
+      {"dropbox", optional_argument, nullptr, OPT_DROPBOX},
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
       {"config-id", required_argument, nullptr, OPT_CONFIG_ID},
       {"config-uid", required_argument, nullptr, OPT_CONFIG_UID},
       {"reset-guardrails", no_argument, nullptr, OPT_RESET_GUARDRAILS},
+      {"app", required_argument, nullptr, OPT_ATRACE_APP},
       {nullptr, 0, nullptr, 0}};
 
   int option_index = 0;
@@ -181,9 +200,12 @@ int PerfettoCmd::Main(int argc, char** argv) {
   perfetto::protos::TraceConfig::StatsdMetadata statsd_metadata;
   RateLimiter limiter;
 
+  ConfigOptions config_options;
+  bool has_config_options = false;
+
   for (;;) {
     int option =
-        getopt_long(argc, argv, "c:o:bd::nt", long_options, &option_index);
+        getopt_long(argc, argv, "c:o:dt:b:s:", long_options, &option_index);
 
     if (option == -1)
       break;  // EOF.
@@ -220,6 +242,28 @@ int PerfettoCmd::Main(int argc, char** argv) {
     }
 
     if (option == 'd') {
+      background = true;
+      continue;
+    }
+    if (option == 't') {
+      has_config_options = true;
+      config_options.time = std::string(optarg);
+      continue;
+    }
+
+    if (option == 'b') {
+      has_config_options = true;
+      config_options.buffer_size = std::string(optarg);
+      continue;
+    }
+
+    if (option == 's') {
+      has_config_options = true;
+      config_options.max_file_size = std::string(optarg);
+      continue;
+    }
+
+    if (option == OPT_DROPBOX) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
       dropbox_tag_ = optarg ? optarg : kDefaultDropBoxTag;
       continue;
@@ -229,18 +273,13 @@ int PerfettoCmd::Main(int argc, char** argv) {
 #endif
     }
 
-    if (option == 'b') {
-      background = true;
-      continue;
-    }
-
-    if (option == 'n') {
-      ignore_guardrails = true;
-      continue;
-    }
-
-    if (option == 't') {
+    if (option == OPT_PBTXT_CONFIG) {
       parse_as_pbtxt = true;
+      continue;
+    }
+
+    if (option == OPT_IGNORE_GUARDRAILS) {
+      ignore_guardrails = true;
       continue;
     }
 
@@ -265,7 +304,18 @@ int PerfettoCmd::Main(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_ATRACE_APP) {
+      config_options.atrace_apps.push_back(std::string(optarg));
+      has_config_options = true;
+      continue;
+    }
+
     return PrintUsage(argv[0]);
+  }
+
+  for (ssize_t i = optind; i < argc; i++) {
+    has_config_options = true;
+    config_options.categories.push_back(argv[i]);
   }
 
   if (!trace_out_path_.empty() && !dropbox_tag_.empty()) {
@@ -279,25 +329,37 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return PrintUsage(argv[0]);
   }
 
-  if (trace_config_raw.empty()) {
-    PERFETTO_ELOG("The TraceConfig is empty");
-    return 1;
-  }
-
   perfetto::protos::TraceConfig trace_config_proto;
-  PERFETTO_DLOG("Parsing TraceConfig, %zu bytes", trace_config_raw.size());
+
   bool parsed;
-  if (parse_as_pbtxt) {
-    parsed = ParseTraceConfigPbtxt(config_file_name, trace_config_raw,
-                                   &trace_config_proto);
+  if (has_config_options) {
+    if (!trace_config_raw.empty()) {
+      PERFETTO_ELOG(
+          "Cannot specify both -c/--config and any of --time, --size, "
+          "--buffer, --app, ATRACE_CAT, FTRACE_EVENT");
+      return 1;
+    }
+    parsed = CreateConfigFromOptions(config_options, &trace_config_proto);
   } else {
-    parsed = trace_config_proto.ParseFromString(trace_config_raw);
+    if (trace_config_raw.empty()) {
+      PERFETTO_ELOG("The TraceConfig is empty");
+      return 1;
+    }
+
+    PERFETTO_DLOG("Parsing TraceConfig, %zu bytes", trace_config_raw.size());
+    if (parse_as_pbtxt) {
+      parsed = ParseTraceConfigPbtxt(config_file_name, trace_config_raw,
+                                     &trace_config_proto);
+    } else {
+      parsed = trace_config_proto.ParseFromString(trace_config_raw);
+    }
+
+    if (!parsed) {
+      PERFETTO_ELOG("Could not parse TraceConfig proto");
+      return 1;
+    }
   }
 
-  if (!parsed) {
-    PERFETTO_ELOG("Could not parse TraceConfig proto");
-    return 1;
-  }
   *trace_config_proto.mutable_statsd_metadata() = std::move(statsd_metadata);
   trace_config_.reset(new TraceConfig());
   trace_config_->FromProto(trace_config_proto);
