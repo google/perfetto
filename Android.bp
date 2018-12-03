@@ -302,6 +302,29 @@ cc_library_shared {
   ],
 }
 
+// GN target: //:libperfetto_android_internal
+cc_library_shared {
+  name: "libperfetto_android_internal",
+  srcs: [
+    "src/android_internal/health_hal.cc",
+  ],
+  shared_libs: [
+    "android.hardware.health@2.0",
+    "libbase",
+    "libhidlbase",
+    "libhidltransport",
+    "libhwbinder",
+    "liblog",
+    "libutils",
+  ],
+  defaults: [
+    "perfetto_defaults",
+  ],
+  static_libs: [
+    "libhealthhalutils",
+  ],
+}
+
 // GN target: //:perfetto
 cc_binary {
   name: "perfetto",
@@ -2572,6 +2595,9 @@ cc_binary {
   ],
   defaults: [
     "perfetto_defaults",
+  ],
+  required: [
+    "libperfetto_android_internal",
   ],
 }
 
