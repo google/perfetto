@@ -97,6 +97,64 @@ TEST(PerfettoTest, MAYBE_TestFtraceProducer) {
   }
 }
 
+// TODO(b/73453011): reenable this on more platforms (including standalone
+// Android).
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#define MAYBE_TestBatteryTracing TestBatteryTracing
+#else
+#define MAYBE_TestBatteryTracing DISABLED_TestBatteryTracing
+#endif
+TEST(PerfettoTest, MAYBE_TestBatteryTracing) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+  TaskRunnerThread producer_thread("perfetto.prd");
+  producer_thread.Start(std::unique_ptr<ProbesProducerDelegate>(
+      new ProbesProducerDelegate(TEST_PRODUCER_SOCK_NAME)));
+#endif
+
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.set_duration_ms(3000);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.power");
+  ds_config->set_target_buffer(0);
+  auto* power_config = ds_config->mutable_android_power_config();
+  power_config->set_battery_poll_ms(250);
+  *power_config->add_battery_counters() =
+      AndroidPowerConfig::BATTERY_COUNTER_CHARGE;
+  *power_config->add_battery_counters() =
+      AndroidPowerConfig::BATTERY_COUNTER_CAPACITY_PERCENT;
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled();
+
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  const auto& packets = helper.trace();
+  ASSERT_GT(packets.size(), 0u);
+
+  bool has_battery_packet = false;
+  for (const auto& packet : packets) {
+    if (!packet.has_battery())
+      continue;
+    has_battery_packet = true;
+    EXPECT_NE(packet.battery().charge_counter_uah(), 0);
+    EXPECT_GE(packet.battery().capacity_percent(), 0);
+    EXPECT_LE(packet.battery().capacity_percent(), 100);
+  }
+
+  ASSERT_TRUE(has_battery_packet);
+}
+
 TEST(PerfettoTest, TestFakeProducer) {
   base::TestTaskRunner task_runner;
 
