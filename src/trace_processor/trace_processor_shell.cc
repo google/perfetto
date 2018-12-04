@@ -347,6 +347,13 @@ int RunQueryAndPrintResult(FILE* input, FILE* output) {
     }
     if (sql_query.back() == '\n')
       sql_query.resize(sql_query.size() - 1);
+
+    // If we have a new line at the end of the file or an extra new line
+    // somewhere in the file, we'll end up with an empty query which we should
+    // just ignore.
+    if (sql_query.empty())
+      continue;
+
     PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
 
     protos::RawQueryArgs query;
