@@ -126,6 +126,9 @@ class TraceStorage {
     const std::deque<StringId>& flat_keys() const { return flat_keys_; }
     const std::deque<StringId>& keys() const { return keys_; }
     const std::deque<Varardic>& arg_values() const { return arg_values_; }
+    const std::multimap<RowId, uint32_t>& args_for_id() const {
+      return args_for_id_;
+    }
     size_t args_count() const { return ids_.size(); }
 
     void AddArg(RowId id, StringId flat_key, StringId key, int64_t value) {
@@ -136,7 +139,7 @@ class TraceStorage {
       flat_keys_.emplace_back(flat_key);
       keys_.emplace_back(key);
       arg_values_.emplace_back(value);
-      args_for_id_.emplace(id, args_count() - 1);
+      args_for_id_.emplace(id, static_cast<uint32_t>(args_count() - 1));
     }
 
    private:
@@ -144,7 +147,7 @@ class TraceStorage {
     std::deque<StringId> flat_keys_;
     std::deque<StringId> keys_;
     std::deque<Varardic> arg_values_;
-    std::multimap<RowId, size_t> args_for_id_;
+    std::multimap<RowId, uint32_t> args_for_id_;
   };
 
   class Slices {

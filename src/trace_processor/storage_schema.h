@@ -78,7 +78,7 @@ class StorageSchema {
 
   // A column of numeric data backed by a deque.
   template <typename T>
-  class NumericColumn final : public Column {
+  class NumericColumn : public Column {
    public:
     NumericColumn(std::string col_name,
                   const std::deque<T>* deque,
@@ -171,6 +171,9 @@ class StorageSchema {
       PERFETTO_CHECK(false);
     }
 
+   protected:
+    const std::deque<T>* deque_ = nullptr;
+
    private:
     T kTMin = std::numeric_limits<T>::lowest();
     T kTMax = std::numeric_limits<T>::max();
@@ -187,7 +190,6 @@ class StorageSchema {
       });
     }
 
-    const std::deque<T>* deque_ = nullptr;
     bool is_naturally_ordered_ = false;
   };
 
