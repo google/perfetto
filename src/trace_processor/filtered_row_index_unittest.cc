@@ -67,6 +67,35 @@ TEST(FilteredRowIndexUnittest, FilterBitvectorTwice) {
   ASSERT_FALSE(f[3]);
 }
 
+TEST(FilteredRowUnittest, SetAllRows) {
+  FilteredRowIndex index(1, 5);
+  index.IntersectRows({2, 3});
+
+  ASSERT_FALSE(index.all_set());
+
+  auto f = index.TakeBitvector();
+  ASSERT_EQ(f.size(), 4);
+  ASSERT_FALSE(f[0]);
+  ASSERT_TRUE(f[1]);
+  ASSERT_TRUE(f[2]);
+  ASSERT_FALSE(f[3]);
+}
+
+TEST(FilteredRowUnittest, SetBitvectorRows) {
+  FilteredRowIndex index(1, 5);
+  index.FilterRows([](uint32_t row) { return row == 2 || row == 3; });
+  index.IntersectRows({0, 2, 4, 5, 10});
+
+  ASSERT_FALSE(index.all_set());
+
+  auto f = index.TakeBitvector();
+  ASSERT_EQ(f.size(), 4);
+  ASSERT_FALSE(f[0]);
+  ASSERT_TRUE(f[1]);
+  ASSERT_FALSE(f[2]);
+  ASSERT_FALSE(f[3]);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
