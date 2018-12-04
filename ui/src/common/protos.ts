@@ -16,10 +16,13 @@ import * as protos from '../gen/protos';
 
 // Aliases protos to avoid the super nested namespaces.
 // See https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
+import IAndroidPowerConfig = protos.perfetto.protos.IAndroidPowerConfig;
 import IProcessStatsConfig = protos.perfetto.protos.IProcessStatsConfig;
 import IRawQueryArgs = protos.perfetto.protos.IRawQueryArgs;
 import ISysStatsConfig = protos.perfetto.protos.ISysStatsConfig;
 import ITraceConfig = protos.perfetto.protos.ITraceConfig;
+import BatteryCounters =
+    protos.perfetto.protos.AndroidPowerConfig.BatteryCounters;
 import MeminfoCounters = protos.perfetto.protos.MeminfoCounters;
 import RawQueryArgs = protos.perfetto.protos.RawQueryArgs;
 import RawQueryResult = protos.perfetto.protos.RawQueryResult;
@@ -84,10 +87,12 @@ export function* rawQueryResultIter(result: RawQueryResult) {
 }
 
 export {
+  IAndroidPowerConfig,
   IProcessStatsConfig,
   IRawQueryArgs,
   ISysStatsConfig,
   ITraceConfig,
+  BatteryCounters,
   MeminfoCounters,
   RawQueryArgs,
   RawQueryResult,
