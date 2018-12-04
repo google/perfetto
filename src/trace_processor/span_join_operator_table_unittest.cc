@@ -120,6 +120,70 @@ TEST_F(SpanJoinOperatorTableTest, JoinTwoSpanTables) {
   ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_DONE);
 }
 
+TEST_F(SpanJoinOperatorTableTest, NullPartitionKey) {
+  RunStatement(
+      "CREATE TEMP TABLE f("
+      "ts UNSIGNED BIG INT PRIMARY KEY, "
+      "dur UNSIGNED BIG INT, "
+      "cpu UNSIGNED INT"
+      ");");
+  RunStatement(
+      "CREATE TEMP TABLE s("
+      "ts UNSIGNED BIG INT PRIMARY KEY, "
+      "dur UNSIGNED BIG INT, "
+      "cpu UNSIGNED INT"
+      ");");
+  RunStatement(
+      "CREATE VIRTUAL TABLE sp USING span_join(f PARTITIONED cpu, "
+      "s PARTITIONED cpu);");
+
+  RunStatement("INSERT INTO f VALUES(30, 20, NULL);");
+  RunStatement("INSERT INTO f VALUES(100, 10, 5);");
+  RunStatement("INSERT INTO f VALUES(110, 50, 5);");
+  RunStatement("INSERT INTO f VALUES(120, 100, 2);");
+  RunStatement("INSERT INTO f VALUES(160, 10, 5);");
+
+  RunStatement("INSERT INTO s VALUES(40, 10, NULL);");
+  RunStatement("INSERT INTO s VALUES(100, 5, 5);");
+  RunStatement("INSERT INTO s VALUES(105, 100, 5);");
+  RunStatement("INSERT INTO s VALUES(110, 50, 2);");
+  RunStatement("INSERT INTO s VALUES(160, 100, 2);");
+
+  PrepareValidStatement("SELECT * FROM sp");
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 120);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 40);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 2);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 160);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 60);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 2);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 100);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 5);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 5);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 105);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 5);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 5);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 110);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 50);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 5);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 160);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 10);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 5);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_DONE);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

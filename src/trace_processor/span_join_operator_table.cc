@@ -300,7 +300,14 @@ int SpanJoinOperatorTable::Cursor::TableQueryState::Initialize(
 
 int SpanJoinOperatorTable::Cursor::TableQueryState::StepAndCacheValues() {
   sqlite3_stmt* stmt = stmt_.get();
-  int res = sqlite3_step(stmt);
+
+  // Fastforward through any rows with null partition keys.
+  int res, row_type;
+  do {
+    res = sqlite3_step(stmt);
+    row_type = sqlite3_column_type(stmt, Column::kPartition);
+  } while (res == SQLITE_ROW && row_type == SQLITE_NULL);
+
   if (res == SQLITE_ROW) {
     int64_t ts = sqlite3_column_int64(stmt, Column::kTimestamp);
     int64_t dur = sqlite3_column_int64(stmt, Column::kDuration);
