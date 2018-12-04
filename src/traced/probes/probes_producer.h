@@ -30,6 +30,7 @@
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
+#include "src/traced/probes/power/android_power_data_source.h"
 #include "src/traced/probes/ps/process_stats_data_source.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 
@@ -76,6 +77,10 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
       DataSourceInstanceID id,
       DataSourceConfig config);
   std::unique_ptr<SysStatsDataSource> CreateSysStatsDataSource(
+      TracingSessionID session_id,
+      DataSourceInstanceID id,
+      const DataSourceConfig& config);
+  std::unique_ptr<AndroidPowerDataSource> CreateAndroidPowerDataSource(
       TracingSessionID session_id,
       DataSourceInstanceID id,
       const DataSourceConfig& config);
