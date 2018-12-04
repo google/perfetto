@@ -4,6 +4,7 @@ _These are temporary instructions while heapprofd is under development. They are
 subject to frequent change and will be obsoleted once heapprofd is integrated
 into Perfetto._
 
+Googlers, for design doc see: http://go/heapprofd-design
 
 ## Using convenience script
 
