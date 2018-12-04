@@ -130,7 +130,12 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       ion_heap_grow_id_(context->storage->InternString("ion_heap_grow")),
       ion_heap_shrink_id_(context->storage->InternString("ion_heap_shrink")),
       signal_deliver_id_(context->storage->InternString("signal_deliver")),
-      signal_generate_id_(context->storage->InternString("signal_generate")) {
+      signal_generate_id_(context->storage->InternString("signal_generate")),
+      batt_charge_id_(context->storage->InternString("batt.charge_uah")),
+      batt_capacity_id_(context->storage->InternString("batt.capacity_pct")),
+      batt_current_id_(context->storage->InternString("batt.current_ua")),
+      batt_current_avg_id_(
+          context->storage->InternString("batt.current.avg_ua")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
     meminfo_strs_id_.emplace_back(context->storage->InternString(name));
   }
@@ -185,6 +190,11 @@ void ProtoTraceParser::ParseTracePacket(uint64_t ts, TraceBlobView packet) {
       case protos::TracePacket::kSysStatsFieldNumber: {
         const size_t fld_off = packet.offset_of(fld.data());
         ParseSysStats(ts, packet.slice(fld_off, fld.size()));
+        break;
+      }
+      case protos::TracePacket::kBatteryFieldNumber: {
+        const size_t fld_off = packet.offset_of(fld.data());
+        ParseBatteryCounters(ts, packet.slice(fld_off, fld.size()));
         break;
       }
       default:
@@ -824,6 +834,35 @@ void ProtoTraceParser::ParsePrint(uint32_t,
       StringId name_id = context_->storage->InternString(point.name);
       context_->event_tracker->PushCounter(timestamp, point.value, name_id,
                                            utid, RefType::kRefUtid);
+    }
+  }
+  PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+}
+
+void ProtoTraceParser::ParseBatteryCounters(uint64_t ts,
+                                            TraceBlobView battery) {
+  ProtoDecoder decoder(battery.data(), battery.length());
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::BatteryCounters::kChargeCounterUahFieldNumber:
+        context_->event_tracker->PushCounter(
+            ts, fld.as_int64(), batt_charge_id_, 0, RefType::kRefNoRef);
+        break;
+      case protos::BatteryCounters::kCapacityPercentFieldNumber:
+        context_->event_tracker->PushCounter(
+            ts, static_cast<double>(fld.as_float()), batt_capacity_id_, 0,
+            RefType::kRefNoRef);
+        break;
+      case protos::BatteryCounters::kCurrentUaFieldNumber:
+        context_->event_tracker->PushCounter(
+            ts, fld.as_int64(), batt_current_id_, 0, RefType::kRefNoRef);
+        break;
+      case protos::BatteryCounters::kCurrentAvgUaFieldNumber:
+        context_->event_tracker->PushCounter(
+            ts, fld.as_int64(), batt_current_avg_id_, 0, RefType::kRefNoRef);
+        break;
+      default:
+        break;
     }
   }
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());

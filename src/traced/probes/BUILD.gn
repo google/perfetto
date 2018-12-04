@@ -39,6 +39,7 @@ source_set("probes_src") {
     "../../tracing:ipc",
     "../../tracing:tracing",
     "filesystem",
+    "power",
     "ps",
     "sys_stats",
   ]
