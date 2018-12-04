@@ -21,6 +21,7 @@
 #include <sqlite3.h>
 
 #include <functional>
+#include <limits>
 #include <string>
 
 #include "perfetto/base/logging.h"
