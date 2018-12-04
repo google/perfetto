@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <deque>
 
+#include "src/trace_processor/filtered_row_index.h"
 #include "src/trace_processor/sqlite_utils.h"
 #include "src/trace_processor/storage_cursor.h"
 #include "src/trace_processor/table.h"
@@ -55,7 +56,7 @@ class StorageSchema {
     // Given a SQLite operator and value for the comparision, returns a
     // predicate which takes in a row index and returns whether the row should
     // be returned.
-    virtual Predicate Filter(int op, sqlite3_value* value) const = 0;
+    virtual void Filter(int op, sqlite3_value*, FilteredRowIndex*) const = 0;
 
     // Given a order by constraint for this column, returns a comparator
     // function which compares data in this column at two indices.
@@ -128,12 +129,14 @@ class StorageSchema {
       return bounds;
     }
 
-    Predicate Filter(int op, sqlite3_value* value) const override {
+    void Filter(int op,
+                sqlite3_value* value,
+                FilteredRowIndex* index) const override {
       auto type = sqlite3_value_type(value);
       if (type == SQLITE_INTEGER && std::is_integral<T>::value) {
-        return FilterWithCast<int64_t>(op, value);
+        FilterWithCast<int64_t>(op, value, index);
       } else if (type == SQLITE_INTEGER || type == SQLITE_FLOAT) {
-        return FilterWithCast<double>(op, value);
+        FilterWithCast<double>(op, value, index);
       } else {
         PERFETTO_FATAL("Unexpected sqlite value to compare against");
       }
@@ -173,13 +176,15 @@ class StorageSchema {
     T kTMax = std::numeric_limits<T>::max();
 
     template <typename C>
-    Predicate FilterWithCast(int op, sqlite3_value* value) const {
+    void FilterWithCast(int op,
+                        sqlite3_value* value,
+                        FilteredRowIndex* index) const {
       auto binary_op = sqlite_utils::GetPredicateForOp<C>(op);
       C extracted = sqlite_utils::ExtractSqliteValue<C>(value);
-      return [this, binary_op, extracted](uint32_t idx) {
-        auto val = static_cast<C>((*deque_)[idx]);
+      index->FilterRows([this, binary_op, extracted](uint32_t row) {
+        auto val = static_cast<C>((*deque_)[row]);
         return binary_op(val, extracted);
-      };
+      });
     }
 
     const std::deque<T>* deque_ = nullptr;
@@ -211,9 +216,7 @@ class StorageSchema {
       return bounds;
     }
 
-    Predicate Filter(int, sqlite3_value*) const override {
-      return [](uint32_t) { return true; };
-    }
+    void Filter(int, sqlite3_value*, FilteredRowIndex*) const override {}
 
     Comparator Sort(const QueryConstraints::OrderBy& ob) const override {
       if (ob.desc) {
@@ -250,20 +253,12 @@ class StorageSchema {
                 const std::deque<uint64_t>* dur);
     virtual ~TsEndColumn() override;
 
-    // Implements StorageCursor::ColumnReporter.
     void ReportResult(sqlite3_context*, uint32_t) const override;
 
-    // Bounds a filter on this column between a minimum and maximum index.
-    // Generally this is only possible if the column is sorted.
     Bounds BoundFilter(int op, sqlite3_value* value) const override;
 
-    // Given a SQLite operator and value for the comparision, returns a
-    // predicate which takes in a row index and returns whether the row should
-    // be returned.
-    Predicate Filter(int op, sqlite3_value* value) const override;
+    void Filter(int op, sqlite3_value* value, FilteredRowIndex*) const override;
 
-    // Given a order by constraint for this column, returns a comparator
-    // function which compares data in this column at two indices.
     Comparator Sort(const QueryConstraints::OrderBy& ob) const override;
 
     // Returns the type of this column.
@@ -271,7 +266,6 @@ class StorageSchema {
       return Table::ColumnType::kUlong;
     }
 
-    // Returns whether this column is sorted in the storage.
     bool IsNaturallyOrdered() const override { return false; }
 
    private:
@@ -293,13 +287,15 @@ class StorageSchema {
 
     Bounds BoundFilter(int, sqlite3_value*) const override { return Bounds{}; }
 
-    Predicate Filter(int op, sqlite3_value* value) const override {
+    void Filter(int op,
+                sqlite3_value* value,
+                FilteredRowIndex* index) const override {
       auto binary_op = sqlite_utils::GetPredicateForOp<RowId>(op);
       RowId extracted = sqlite_utils::ExtractSqliteValue<RowId>(value);
-      return [this, binary_op, extracted](uint32_t idx) {
-        auto val = TraceStorage::CreateRowId(table_id_, idx);
+      index->FilterRows([this, &binary_op, extracted](uint32_t row) {
+        auto val = TraceStorage::CreateRowId(table_id_, row);
         return binary_op(val, extracted);
-      };
+      });
     }
 
     Comparator Sort(const QueryConstraints::OrderBy& ob) const override {

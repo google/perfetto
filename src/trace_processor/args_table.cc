@@ -100,38 +100,40 @@ ArgsTable::ValueColumn::Bounds ArgsTable::ValueColumn::BoundFilter(
   return Bounds{};
 }
 
-ArgsTable::ValueColumn::Predicate ArgsTable::ValueColumn::Filter(
-    int op,
-    sqlite3_value* value) const {
+void ArgsTable::ValueColumn::Filter(int op,
+                                    sqlite3_value* value,
+                                    FilteredRowIndex* index) const {
   switch (type_) {
     case VarardicType::kInt: {
       auto binary_op = sqlite_utils::GetPredicateForOp<int64_t>(op);
       int64_t extracted = sqlite_utils::ExtractSqliteValue<int64_t>(value);
-      return [this, binary_op, extracted](uint32_t idx) {
-        const auto& arg = storage_->args().arg_values()[idx];
+      index->FilterRows([this, &binary_op, extracted](uint32_t row) {
+        const auto& arg = storage_->args().arg_values()[row];
         return arg.type == type_ && binary_op(arg.int_value, extracted);
-      };
+      });
+      break;
     }
     case VarardicType::kReal: {
       auto binary_op = sqlite_utils::GetPredicateForOp<double>(op);
       double extracted = sqlite_utils::ExtractSqliteValue<double>(value);
-      return [this, binary_op, extracted](uint32_t idx) {
-        const auto& arg = storage_->args().arg_values()[idx];
+      index->FilterRows([this, &binary_op, extracted](uint32_t row) {
+        const auto& arg = storage_->args().arg_values()[row];
         return arg.type == type_ && binary_op(arg.real_value, extracted);
-      };
+      });
+      break;
     }
     case VarardicType::kString: {
       auto binary_op = sqlite_utils::GetPredicateForOp<std::string>(op);
       const auto* extracted =
           reinterpret_cast<const char*>(sqlite3_value_text(value));
-      return [this, binary_op, extracted](uint32_t idx) {
-        const auto& arg = storage_->args().arg_values()[idx];
-        const char* str = storage_->GetString(arg.string_value).c_str();
+      index->FilterRows([this, &binary_op, extracted](uint32_t row) {
+        const auto& arg = storage_->args().arg_values()[row];
+        const auto& str = storage_->GetString(arg.string_value);
         return arg.type == type_ && binary_op(str, extracted);
-      };
+      });
+      break;
     }
   }
-  PERFETTO_CHECK(false);
 }
 
 ArgsTable::ValueColumn::Comparator ArgsTable::ValueColumn::Sort(
