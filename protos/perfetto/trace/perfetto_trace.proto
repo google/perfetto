@@ -2191,6 +2191,26 @@ message MmVmscanKswapdSleepFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/vmscan.proto
 
+// Begin of protos/perfetto/trace/power/battery_counters.proto
+
+message BatteryCounters {
+  // Battery capacity in microampere-hours(µAh). Also known as Coulomb counter.
+  optional int64 charge_counter_uah = 1;
+
+  // Remaining battery capacity percentage of total capacity
+  optional float capacity_percent = 2;
+
+  // Instantaneous battery current in microamperes(µA).
+  // Positive values indicate net current entering the battery from a charge
+  // source, negative values indicate net current discharging from the battery.
+  optional int64 current_ua = 3;
+
+  // Instantaneous battery current in microamperes(µA).
+  optional int64 current_avg_ua = 4;
+}
+
+// End of protos/perfetto/trace/power/battery_counters.proto
+
 // Begin of protos/perfetto/trace/ps/process_stats.proto
 
 // Per-process periodically sampled stats. These samples are wrapped in a
@@ -2336,7 +2356,7 @@ message Trace {
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
 //
-// Next id: 10.
+// Next id: 39.
 message TracePacket {
   // TODO: in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -2358,6 +2378,7 @@ message TracePacket {
     FtraceStats ftrace_stats = 34;
     // removed field with id 35
     // removed field with id 37
+    BatteryCounters battery = 38;
 
     // This field is emitted at periodic intervals (~10s) and
     // contains always the binary representation of the UUID
