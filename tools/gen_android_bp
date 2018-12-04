@@ -37,6 +37,7 @@ import sys
 # Default targets to translate to the blueprint file.
 default_targets = [
     '//:libperfetto',
+    '//:libperfetto_android_internal',
     '//:perfetto_integrationtests',
     '//:perfetto_trace_protos',
     '//:perfetto_unittests',
@@ -71,8 +72,13 @@ module_prefix = 'perfetto_'
 
 # Shared libraries which are directly translated to Android system equivalents.
 library_whitelist = [
+    'android.hardware.health@2.0',
     'android',
+    'base',
     'binder',
+    'hidlbase',
+    'hidltransport',
+    'hwbinder',
     'log',
     'services',
     'utils',
@@ -99,8 +105,14 @@ library_not_in_pdk = {
 
 # Additional arguments to apply to Android.bp rules.
 additional_args = {
-    "heapprofd_client": [
-        ("include_dirs", ["bionic/libc"]),
+    'heapprofd_client': [
+        ('include_dirs', ['bionic/libc']),
+    ],
+    'traced_probes': [
+      ('required', ['libperfetto_android_internal']),
+    ],
+    'libperfetto_android_internal': [
+      ('static_libs', ['libhealthhalutils']),
     ],
 }
 
@@ -335,7 +347,9 @@ def apply_module_dependency(blueprint, desc, module, dep_name):
     # equivalents.
     target = desc[dep_name]
     for lib in target.get('libs', []):
-        android_lib = 'lib' + lib
+        # Generally library names sould be mangled as 'libXXX', unless they are
+        # HAL libraries (e.g., android.hardware.health@2.0).
+        android_lib = lib if '@' in lib else 'lib' + lib
         if lib in library_whitelist and not android_lib in module.shared_libs:
             module.shared_libs.append(android_lib)
 
