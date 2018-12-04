@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_BASE_OPTIONAL_H_
 #define INCLUDE_PERFETTO_BASE_OPTIONAL_H_
 
+#include <functional>
 #include <type_traits>
 #include <utility>
 
