@@ -69,15 +69,15 @@ StorageSchema::Column::Bounds StorageSchema::TsEndColumn::BoundFilter(
   return bounds;
 }
 
-StorageSchema::Column::Predicate StorageSchema::TsEndColumn::Filter(
-    int op,
-    sqlite3_value* value) const {
-  auto bipredicate = sqlite_utils::GetPredicateForOp<uint64_t>(op);
+void StorageSchema::TsEndColumn::Filter(int op,
+                                        sqlite3_value* value,
+                                        FilteredRowIndex* index) const {
+  auto binary_op = sqlite_utils::GetPredicateForOp<uint64_t>(op);
   uint64_t extracted = sqlite_utils::ExtractSqliteValue<uint64_t>(value);
-  return [this, bipredicate, extracted](uint32_t idx) {
-    uint64_t add = (*ts_start_)[idx] + (*dur_)[idx];
-    return bipredicate(add, extracted);
-  };
+  index->FilterRows([this, &binary_op, extracted](uint32_t row) {
+    uint64_t val = (*ts_start_)[row] + (*dur_)[row];
+    return binary_op(val, extracted);
+  });
 }
 
 StorageSchema::Column::Comparator StorageSchema::TsEndColumn::Sort(
