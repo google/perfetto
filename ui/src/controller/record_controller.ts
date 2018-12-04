@@ -14,6 +14,8 @@
 
 import {TraceConfig} from '../common/protos';
 import {
+  BatteryCounters,
+  IAndroidPowerConfig,
   IProcessStatsConfig,
   ISysStatsConfig,
   ITraceConfig,
@@ -106,6 +108,22 @@ export function encodeConfig(config: RecordConfig): Uint8Array {
     });
   }
 
+  if (config.power) {
+    const androidPowerConfig: IAndroidPowerConfig = {};
+    androidPowerConfig.batteryPollMs = config.batteryPeriodMs;
+    androidPowerConfig.batteryCounters = config.batteryCounters.map(name => {
+      // tslint:disable-next-line no-any
+      return BatteryCounters[name as any as number] as any as number;
+    });
+
+    dataSources.push({
+      config: {
+        name: 'android.power',
+        androidPowerConfig,
+      },
+    });
+  }
+
   const proto: ITraceConfig = {
     durationMs,
     buffers: [
@@ -137,7 +155,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
   // fields are enums.
   function looksLikeEnum(value: string): boolean {
     return value.startsWith('MEMINFO_') || value.startsWith('VMSTAT_') ||
-        value.startsWith('STAT_');
+        value.startsWith('STAT_') || value.startsWith('BATTERY_COUNTER_');
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {
     for (const [key, value] of Object.entries(msg)) {

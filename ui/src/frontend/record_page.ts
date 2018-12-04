@@ -382,6 +382,10 @@ const CONFIG_PRESETS = [
       vmstatCounters: [],
       statPeriodMs: null,
       statCounters: [],
+
+      power: true,
+      batteryPeriodMs: 1000,
+      batteryCounters: ['BATTERY_COUNTER_CHARGE', 'BATTERY_COUNTER_CURRENT'],
     },
   },
   {
@@ -421,6 +425,10 @@ const CONFIG_PRESETS = [
       vmstatCounters: [],
       statPeriodMs: null,
       statCounters: [],
+
+      power: false,
+      batteryPeriodMs: null,
+      batteryCounters: [],
     },
   },
   {
@@ -449,6 +457,10 @@ const CONFIG_PRESETS = [
       vmstatCounters: [],
       statPeriodMs: null,
       statCounters: [],
+
+      power: false,
+      batteryPeriodMs: null,
+      batteryCounters: [],
     },
   },
 ];
@@ -465,11 +477,21 @@ const ATRACE_CATERGORIES = [
 ];
 ATRACE_CATERGORIES.sort();
 
+
+const BATTERY_COUNTERS = [
+  'BATTERY_COUNTER_CHARGE',
+  'BATTERY_COUNTER_CAPACITY_PERCENT',
+  'BATTERY_COUNTER_CURRENT',
+  'BATTERY_COUNTER_CURRENT_AVG'
+];
+BATTERY_COUNTERS.sort();
+
 const DURATION_HELP = `Duration to trace for`;
 const BUFFER_SIZE_HELP = `Size of the ring buffer which stores the trace`;
 const PROCESS_METADATA_HELP =
     `Record process names and parent child relationships`;
 const FTRACE_AND_ATRACE_HELP = `Record ftrace & atrace events`;
+const POWER_HELP = `Poll battery counters from the Power Management Unit`;
 const SYS_STATS_HELP = ``;
 
 function toId(label: string): string {
@@ -927,6 +949,39 @@ export const RecordPage = createPage({
               onsubtract: onSubtract('statCounters'),
             }),
 
+            ),
+
+            m('.heading', m(Toggle, {
+              label: 'Battery and power',
+              help: POWER_HELP,
+              value: config.power,
+              enabled: true,
+              onchange: onChange<boolean|null>('power'),
+            })),
+
+            m('.control-group',
+              m(Numeric, {
+                enabled: config.power,
+                label: 'Polling rate',
+                sublabel: 'ms',
+                help: '',
+                placeholder: 'never',
+                value: config.batteryPeriodMs,
+                onchange: onChange<number|null>('batteryPeriodMs'),
+                presets: [
+                  {label: '1000ms', value: 1000},
+                  {label: '5000ms', value: 5000},
+                  {label: '10000ms', value: 10000},
+                ]
+              }),
+              m(MultiSelect, {
+                label: 'Battery counters',
+                enabled: config.power && isTruthy(config.batteryPeriodMs),
+                selected: config.batteryCounters,
+                options: BATTERY_COUNTERS,
+                onadd: onAdd('batteryCounters'),
+                onsubtract: onSubtract('batteryCounters'),
+              }),
             ),
 
           m('hr'),
