@@ -95,6 +95,11 @@ export interface RecordConfig {
   vmstatCounters: string[];
   statPeriodMs: number|null;
   statCounters: string[];
+
+  // Battery and power
+  power: boolean;
+  batteryPeriodMs: number|null;
+  batteryCounters: string[];
 }
 
 export interface TraceTime {
@@ -185,5 +190,9 @@ export function createEmptyRecordConfig(): RecordConfig {
     vmstatCounters: [],
     statPeriodMs: null,
     statCounters: [],
+
+    power: false,
+    batteryPeriodMs: 1000,
+    batteryCounters: [],
   };
 }
