@@ -146,7 +146,7 @@ Usage: %s
 light configuration flags: (only when NOT using -c/--config)
   --time           -t      : Trace duration N[s,m,h] (default: 10s)
   --buffer         -b      : Ring buffer size N[mb,gb] (default: 32mb)
-  --size           -s      : Maximum trace size N[mb,gb] (default: 100mb)
+  --size           -s      : Max file size N[mb,gb] (default: in-memory ring-buffer only)
   ATRACE_CAT               : Record ATRACE_CAT (e.g. wm)
   FTRACE_GROUP/FTRACE_NAME : Record ftrace event (e.g. sched/sched_switch)
   FTRACE_GROUP/*           : Record all events in group (e.g. sched/*)
@@ -353,11 +353,11 @@ int PerfettoCmd::Main(int argc, char** argv) {
     } else {
       parsed = trace_config_proto.ParseFromString(trace_config_raw);
     }
+  }
 
-    if (!parsed) {
-      PERFETTO_ELOG("Could not parse TraceConfig proto");
-      return 1;
-    }
+  if (!parsed) {
+    PERFETTO_ELOG("The trace config is invalid, bailing out.");
+    return 1;
   }
 
   *trace_config_proto.mutable_statsd_metadata() = std::move(statsd_metadata);
