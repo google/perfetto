@@ -140,9 +140,7 @@ struct OptionalStorageBase<T, true /* trivially destructible */> {
 // the condition of constexpr-ness is satisfied because the base class also has
 // compiler generated constexpr {copy,move} constructors). Note that
 // placement-new is prohibited in constexpr.
-template <typename T,
-          bool = std::is_trivially_copy_constructible<T>::value,
-          bool = std::is_trivially_move_constructible<T>::value>
+template <typename T, bool = std::is_trivially_copy_constructible<T>::value>
 struct OptionalStorage : OptionalStorageBase<T> {
   // This is no trivially {copy,move} constructible case. Other cases are
   // defined below as specializations.
@@ -173,9 +171,7 @@ struct OptionalStorage : OptionalStorageBase<T> {
 };
 
 template <typename T>
-struct OptionalStorage<T,
-                       true /* trivially copy constructible */,
-                       false /* trivially move constructible */>
+struct OptionalStorage<T, true /* trivially copy constructible */>
     : OptionalStorageBase<T> {
   using OptionalStorageBase<T>::is_populated_;
   using OptionalStorageBase<T>::value_;
@@ -190,36 +186,6 @@ struct OptionalStorage<T,
     if (other.is_populated_)
       Init(std::move(other.value_));
   }
-};
-
-template <typename T>
-struct OptionalStorage<T,
-                       false /* trivially copy constructible */,
-                       true /* trivially move constructible */>
-    : OptionalStorageBase<T> {
-  using OptionalStorageBase<T>::is_populated_;
-  using OptionalStorageBase<T>::value_;
-  using OptionalStorageBase<T>::Init;
-  using OptionalStorageBase<T>::OptionalStorageBase;
-
-  OptionalStorage() = default;
-  OptionalStorage(OptionalStorage&& other) = default;
-
-  OptionalStorage(const OptionalStorage& other) {
-    if (other.is_populated_)
-      Init(other.value_);
-  }
-};
-
-template <typename T>
-struct OptionalStorage<T,
-                       true /* trivially copy constructible */,
-                       true /* trivially move constructible */>
-    : OptionalStorageBase<T> {
-  // If both trivially {copy,move} constructible are true, it is not necessary
-  // to use user-defined constructors. So, just inheriting constructors
-  // from the base class works.
-  using OptionalStorageBase<T>::OptionalStorageBase;
 };
 
 // Base class to support conditionally usable copy-/move- constructors
