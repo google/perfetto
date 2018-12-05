@@ -17,20 +17,26 @@
 #ifndef SRC_TRACE_PROCESSOR_ROW_ITERATORS_H_
 #define SRC_TRACE_PROCESSOR_ROW_ITERATORS_H_
 
-#include <stddef.h>
-
-#include <algorithm>
+#include <stdint.h>
 #include <vector>
-
-#include "src/trace_processor/sqlite_utils.h"
-#include "src/trace_processor/storage_cursor.h"
 
 namespace perfetto {
 namespace trace_processor {
 
+// Implements a strategy of yielding indices into a storage system to fulfil
+// a query.
+class RowIterator {
+ public:
+  virtual ~RowIterator();
+
+  virtual void NextRow() = 0;
+  virtual uint32_t Row() = 0;
+  virtual bool IsEnd() = 0;
+};
+
 // A row iterator which iterates through a range of indicies in either ascending
 // or descending order and optionally skips rows depending on a bitvector.
-class RangeRowIterator : public StorageCursor::RowIterator {
+class RangeRowIterator : public RowIterator {
  public:
   RangeRowIterator(uint32_t start_row, uint32_t end_row, bool desc);
   RangeRowIterator(uint32_t start_row, bool desc, std::vector<bool> row_filter);
@@ -53,7 +59,7 @@ class RangeRowIterator : public StorageCursor::RowIterator {
 };
 
 // A row iterator which yields row indices from a provided vector.
-class VectorRowIterator : public StorageCursor::RowIterator {
+class VectorRowIterator : public RowIterator {
  public:
   explicit VectorRowIterator(std::vector<uint32_t> row_indices);
   ~VectorRowIterator() override;
