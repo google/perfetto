@@ -22,7 +22,8 @@ namespace perfetto {
 namespace trace_processor {
 
 StorageSchema::StorageSchema() = default;
-StorageSchema::StorageSchema(std::vector<std::unique_ptr<Column>> columns)
+StorageSchema::StorageSchema(
+    std::vector<std::unique_ptr<StorageColumn>> columns)
     : columns_(std::move(columns)) {}
 
 Table::Schema StorageSchema::ToTableSchema(std::vector<std::string> pkeys) {
@@ -38,16 +39,12 @@ Table::Schema StorageSchema::ToTableSchema(std::vector<std::string> pkeys) {
 }
 
 size_t StorageSchema::ColumnIndexFromName(const std::string& name) {
-  auto p = [name](const std::unique_ptr<Column>& col) {
+  auto p = [name](const std::unique_ptr<StorageColumn>& col) {
     return name == col->name();
   };
   auto it = std::find_if(columns_.begin(), columns_.end(), p);
   return static_cast<size_t>(std::distance(columns_.begin(), it));
 }
-
-StorageSchema::Column::Column(std::string col_name, bool hidden)
-    : col_name_(col_name), hidden_(hidden) {}
-StorageSchema::Column::~Column() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

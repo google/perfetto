@@ -31,7 +31,7 @@ void ArgsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 
 Table::Schema ArgsTable::CreateSchema(int, const char* const*) {
   const auto& args = storage_->args();
-  std::unique_ptr<StorageSchema::Column> cols[] = {
+  std::unique_ptr<StorageColumn> cols[] = {
       std::unique_ptr<IdColumn>(new IdColumn("id", storage_, &args.ids())),
       StringColumnPtr("flat_key", &args.flat_keys(), &storage_->string_pool()),
       StringColumnPtr("key", &args.keys(), &storage_->string_pool()),
@@ -55,7 +55,7 @@ std::unique_ptr<Table::Cursor> ArgsTable::CreateCursor(
   auto it = table_utils::CreateBestRowIteratorForGenericSchema(schema_, count,
                                                                qc, argv);
   return std::unique_ptr<Table::Cursor>(
-      new StorageCursor(std::move(it), schema_.ToColumnReporters()));
+      new StorageCursor(std::move(it), schema_.mutable_columns()));
 }
 
 int ArgsTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
@@ -102,7 +102,9 @@ void ArgsTable::IdColumn::Filter(int op,
 ArgsTable::ValueColumn::ValueColumn(std::string col_name,
                                     VarardicType type,
                                     const TraceStorage* storage)
-    : Column(col_name, false), type_(type), storage_(storage) {}
+    : StorageColumn(col_name, false /* hidden */),
+      type_(type),
+      storage_(storage) {}
 
 void ArgsTable::ValueColumn::ReportResult(sqlite3_context* ctx,
                                           uint32_t row) const {

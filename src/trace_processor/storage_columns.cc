@@ -19,10 +19,16 @@
 namespace perfetto {
 namespace trace_processor {
 
+StorageColumn::StorageColumn(std::string col_name, bool hidden)
+    : col_name_(col_name), hidden_(hidden) {}
+StorageColumn::~StorageColumn() = default;
+
 TsEndColumn::TsEndColumn(std::string col_name,
                          const std::deque<uint64_t>* ts_start,
                          const std::deque<uint64_t>* dur)
-    : Column(col_name, false), ts_start_(ts_start), dur_(dur) {}
+    : StorageColumn(col_name, false /* hidden */),
+      ts_start_(ts_start),
+      dur_(dur) {}
 TsEndColumn::~TsEndColumn() = default;
 
 void TsEndColumn::ReportResult(sqlite3_context* ctx, uint32_t row) const {
@@ -64,7 +70,7 @@ TsEndColumn::Comparator TsEndColumn::Sort(
 }
 
 IdColumn::IdColumn(std::string column_name, TableId table_id)
-    : Column(std::move(column_name), false), table_id_(table_id) {}
+    : StorageColumn(std::move(column_name), false), table_id_(table_id) {}
 IdColumn::~IdColumn() = default;
 
 }  // namespace trace_processor

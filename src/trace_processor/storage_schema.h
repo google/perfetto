@@ -19,6 +19,7 @@
 
 #include "src/trace_processor/filtered_row_index.h"
 #include "src/trace_processor/sqlite_utils.h"
+#include "src/trace_processor/storage_columns.h"
 #include "src/trace_processor/storage_cursor.h"
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/trace_storage.h"
@@ -31,68 +32,21 @@ namespace trace_processor {
 // Used by all tables which are backed by data in TraceStorage.
 class StorageSchema {
  public:
-  // A column of data backed by data storage.
-  class Column : public StorageCursor::ColumnReporter {
-   public:
-    struct Bounds {
-      uint32_t min_idx = 0;
-      uint32_t max_idx = std::numeric_limits<uint32_t>::max();
-      bool consumed = false;
-    };
-    using Predicate = std::function<bool(uint32_t)>;
-    using Comparator = std::function<int(uint32_t, uint32_t)>;
-
-    Column(std::string col_name, bool hidden);
-    virtual ~Column() override;
-
-    // Implements StorageCursor::ColumnReporter.
-    virtual void ReportResult(sqlite3_context*, uint32_t) const override = 0;
-
-    // Bounds a filter on this column between a minimum and maximum index.
-    // Generally this is only possible if the column is sorted.
-    virtual Bounds BoundFilter(int op, sqlite3_value* value) const = 0;
-
-    // Given a SQLite operator and value for the comparision, returns a
-    // predicate which takes in a row index and returns whether the row should
-    // be returned.
-    virtual void Filter(int op, sqlite3_value*, FilteredRowIndex*) const = 0;
-
-    // Given a order by constraint for this column, returns a comparator
-    // function which compares data in this column at two indices.
-    virtual Comparator Sort(const QueryConstraints::OrderBy& ob) const = 0;
-
-    // Returns the type of this column.
-    virtual Table::ColumnType GetType() const = 0;
-
-    // Returns whether this column is sorted in the storage.
-    virtual bool IsNaturallyOrdered() const = 0;
-
-    const std::string& name() const { return col_name_; }
-    bool hidden() const { return hidden_; }
-
-   private:
-    std::string col_name_;
-    bool hidden_ = false;
-  };
-
   StorageSchema();
-  StorageSchema(std::vector<std::unique_ptr<Column>> columns);
+  StorageSchema(std::vector<std::unique_ptr<StorageColumn>> columns);
 
   Table::Schema ToTableSchema(std::vector<std::string> primary_keys);
 
   size_t ColumnIndexFromName(const std::string& name);
 
-  std::vector<const StorageCursor::ColumnReporter*> ToColumnReporters() const {
-    std::vector<const StorageCursor::ColumnReporter*> defns;
-    for (const auto& col : columns_)
-      defns.emplace_back(col.get());
-    return defns;
+  const StorageColumn& GetColumn(size_t idx) const { return *(columns_[idx]); }
+
+  std::vector<std::unique_ptr<StorageColumn>>* mutable_columns() {
+    return &columns_;
   }
 
-  const Column& GetColumn(size_t idx) const { return *(columns_[idx]); }
-
  private:
-  std::vector<std::unique_ptr<Column>> columns_;
+  std::vector<std::unique_ptr<StorageColumn>> columns_;
 };
 
 }  // namespace trace_processor

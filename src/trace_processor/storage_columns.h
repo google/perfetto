@@ -19,21 +19,66 @@
 #include <memory>
 #include <string>
 
+#include "src/trace_processor/filtered_row_index.h"
 #include "src/trace_processor/sqlite_utils.h"
-#include "src/trace_processor/storage_schema.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
+// A column of data backed by data storage.
+class StorageColumn {
+ public:
+  struct Bounds {
+    uint32_t min_idx = 0;
+    uint32_t max_idx = std::numeric_limits<uint32_t>::max();
+    bool consumed = false;
+  };
+  using Predicate = std::function<bool(uint32_t)>;
+  using Comparator = std::function<int(uint32_t, uint32_t)>;
+
+  StorageColumn(std::string col_name, bool hidden);
+  virtual ~StorageColumn();
+
+  // Implements StorageCursor::ColumnReporter.
+  virtual void ReportResult(sqlite3_context*, uint32_t) const = 0;
+
+  // Bounds a filter on this column between a minimum and maximum index.
+  // Generally this is only possible if the column is sorted.
+  virtual Bounds BoundFilter(int op, sqlite3_value* value) const = 0;
+
+  // Given a SQLite operator and value for the comparision, returns a
+  // predicate which takes in a row index and returns whether the row should
+  // be returned.
+  virtual void Filter(int op, sqlite3_value*, FilteredRowIndex*) const = 0;
+
+  // Given a order by constraint for this column, returns a comparator
+  // function which compares data in this column at two indices.
+  virtual Comparator Sort(const QueryConstraints::OrderBy& ob) const = 0;
+
+  // Returns the type of this column.
+  virtual Table::ColumnType GetType() const = 0;
+
+  // Returns whether this column is sorted in the storage.
+  virtual bool IsNaturallyOrdered() const = 0;
+
+  const std::string& name() const { return col_name_; }
+  bool hidden() const { return hidden_; }
+
+ private:
+  std::string col_name_;
+  bool hidden_ = false;
+};
+
 // A column of numeric data backed by a deque.
 template <typename T>
-class NumericColumn : public StorageSchema::Column {
+class NumericColumn : public StorageColumn {
  public:
   NumericColumn(std::string col_name,
                 const std::deque<T>* deque,
                 bool hidden,
                 bool is_naturally_ordered)
-      : Column(col_name, hidden),
+      : StorageColumn(col_name, hidden),
         deque_(deque),
         is_naturally_ordered_(is_naturally_ordered) {}
 
@@ -143,13 +188,15 @@ class NumericColumn : public StorageSchema::Column {
 };
 
 template <typename Id>
-class StringColumn final : public StorageSchema::Column {
+class StringColumn final : public StorageColumn {
  public:
   StringColumn(std::string col_name,
                const std::deque<Id>* deque,
                const std::deque<std::string>* string_map,
                bool hidden = false)
-      : Column(col_name, hidden), deque_(deque), string_map_(string_map) {}
+      : StorageColumn(col_name, hidden),
+        deque_(deque),
+        string_map_(string_map) {}
 
   void ReportResult(sqlite3_context* ctx, uint32_t row) const override {
     const auto& str = (*string_map_)[(*deque_)[row]];
@@ -197,7 +244,7 @@ class StringColumn final : public StorageSchema::Column {
 
 // Column which represents the "ts_end" column present in all time based
 // tables. It is computed by adding together the values in two deques.
-class TsEndColumn final : public StorageSchema::Column {
+class TsEndColumn final : public StorageColumn {
  public:
   TsEndColumn(std::string col_name,
               const std::deque<uint64_t>* ts_start,
@@ -226,7 +273,7 @@ class TsEndColumn final : public StorageSchema::Column {
 
 // Column which is used to reference the args table in other tables. That is,
 // it acts as a "foreign key" into the args table.
-class IdColumn final : public StorageSchema::Column {
+class IdColumn final : public StorageColumn {
  public:
   IdColumn(std::string column_name, TableId table_id);
   virtual ~IdColumn() override;

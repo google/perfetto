@@ -52,7 +52,7 @@ class ArgsTable : public Table {
     const TraceStorage* storage_ = nullptr;
   };
 
-  class ValueColumn final : public StorageSchema::Column {
+  class ValueColumn final : public StorageColumn {
    public:
     ValueColumn(std::string col_name,
                 VarardicType type,

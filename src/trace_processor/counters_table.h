@@ -37,7 +37,7 @@ class CountersTable : public Table {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-  class RefColumn final : public StorageSchema::Column {
+  class RefColumn final : public StorageColumn {
    public:
     RefColumn(std::string col_name, const TraceStorage* storage);
 
