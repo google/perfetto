@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/slice_table.h"
 
+#include "src/trace_processor/storage_columns.h"
 #include "src/trace_processor/storage_cursor.h"
 #include "src/trace_processor/table_utils.h"
 
@@ -32,18 +33,15 @@ void SliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 Table::Schema SliceTable::CreateSchema(int, const char* const*) {
   const auto& slices = storage_->nestable_slices();
   std::unique_ptr<StorageSchema::Column> cols[] = {
-      StorageSchema::NumericColumnPtr("ts", &slices.start_ns(),
-                                      false /* hidden */, true /* ordered */),
-      StorageSchema::NumericColumnPtr("dur", &slices.durations()),
-      StorageSchema::NumericColumnPtr("utid", &slices.utids()),
-      StorageSchema::StringColumnPtr("cat", &slices.cats(),
-                                     &storage_->string_pool()),
-      StorageSchema::StringColumnPtr("name", &slices.names(),
-                                     &storage_->string_pool()),
-      StorageSchema::NumericColumnPtr("depth", &slices.depths()),
-      StorageSchema::NumericColumnPtr("stack_id", &slices.stack_ids()),
-      StorageSchema::NumericColumnPtr("parent_stack_id",
-                                      &slices.parent_stack_ids())};
+      NumericColumnPtr("ts", &slices.start_ns(), false /* hidden */,
+                       true /* ordered */),
+      NumericColumnPtr("dur", &slices.durations()),
+      NumericColumnPtr("utid", &slices.utids()),
+      StringColumnPtr("cat", &slices.cats(), &storage_->string_pool()),
+      StringColumnPtr("name", &slices.names(), &storage_->string_pool()),
+      NumericColumnPtr("depth", &slices.depths()),
+      NumericColumnPtr("stack_id", &slices.stack_ids()),
+      NumericColumnPtr("parent_stack_id", &slices.parent_stack_ids())};
   schema_ = StorageSchema({
       std::make_move_iterator(std::begin(cols)),
       std::make_move_iterator(std::end(cols)),
