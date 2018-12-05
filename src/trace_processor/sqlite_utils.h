@@ -32,6 +32,8 @@ namespace perfetto {
 namespace trace_processor {
 namespace sqlite_utils {
 
+const auto kSqliteStatic = reinterpret_cast<sqlite3_destructor_type>(0);
+
 inline bool IsOpEq(int op) {
   return op == SQLITE_INDEX_CONSTRAINT_EQ;
 }
