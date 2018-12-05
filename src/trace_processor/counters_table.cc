@@ -159,6 +159,10 @@ int CountersTable::RefColumn::CompareRefsAsc(uint32_t f, uint32_t s) const {
     }
     if (!upid_f.has_value())
       return -1;
+  } else if (type_s == RefType::kRefUtidLookupUpid) {
+    auto upid_s = storage_->GetThread(static_cast<uint32_t>(ref_s)).upid;
+    if (!upid_s.has_value())
+      return 1;
   }
   return sqlite_utils::CompareValuesAsc(ref_f, ref_s);
 }
