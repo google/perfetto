@@ -33,10 +33,8 @@ Table::Schema ArgsTable::CreateSchema(int, const char* const*) {
   const auto& args = storage_->args();
   std::unique_ptr<StorageSchema::Column> cols[] = {
       std::unique_ptr<IdColumn>(new IdColumn("id", storage_, &args.ids())),
-      StorageSchema::StringColumnPtr("flat_key", &args.flat_keys(),
-                                     &storage_->string_pool()),
-      StorageSchema::StringColumnPtr("key", &args.keys(),
-                                     &storage_->string_pool()),
+      StringColumnPtr("flat_key", &args.flat_keys(), &storage_->string_pool()),
+      StringColumnPtr("key", &args.keys(), &storage_->string_pool()),
       std::unique_ptr<ValueColumn>(
           new ValueColumn("int_value", VarardicType::kInt, storage_)),
       std::unique_ptr<ValueColumn>(

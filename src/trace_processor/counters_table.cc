@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/counters_table.h"
 
+#include "src/trace_processor/storage_columns.h"
 #include "src/trace_processor/storage_cursor.h"
 #include "src/trace_processor/table_utils.h"
 
@@ -42,18 +43,15 @@ Table::Schema CountersTable::CreateSchema(int, const char* const*) {
   const auto& counters = storage_->counters();
 
   std::unique_ptr<StorageSchema::Column> cols[] = {
-      StorageSchema::IdColumnPtr("id", TableId::kCounters),
-      StorageSchema::NumericColumnPtr("ts", &counters.timestamps(),
-                                      false /* hidden */, true /* ordered */),
-      StorageSchema::StringColumnPtr("name", &counters.name_ids(),
-                                     &storage_->string_pool()),
-      StorageSchema::NumericColumnPtr("value", &counters.values()),
-      StorageSchema::NumericColumnPtr("dur", &counters.durations()),
-      StorageSchema::TsEndPtr("ts_end", &counters.timestamps(),
-                              &counters.durations()),
+      IdColumnPtr("id", TableId::kCounters),
+      NumericColumnPtr("ts", &counters.timestamps(), false /* hidden */,
+                       true /* ordered */),
+      StringColumnPtr("name", &counters.name_ids(), &storage_->string_pool()),
+      NumericColumnPtr("value", &counters.values()),
+      NumericColumnPtr("dur", &counters.durations()),
+      TsEndPtr("ts_end", &counters.timestamps(), &counters.durations()),
       std::unique_ptr<RefColumn>(new RefColumn("ref", storage_)),
-      StorageSchema::StringColumnPtr("ref_type", &counters.types(),
-                                     &ref_types_)};
+      StringColumnPtr("ref_type", &counters.types(), &ref_types_)};
   schema_ = StorageSchema({
       std::make_move_iterator(std::begin(cols)),
       std::make_move_iterator(std::end(cols)),
