@@ -98,7 +98,6 @@ def merge_protos(proto_paths, output_path):
     if merged_content == '':
       merged_content += REPLACEMENT_HEADER.lstrip() % __file__
     content = re.sub(r'^import.*?\n', '', content, flags=re.MULTILINE)
-    content = re.sub(r'TODO\([^)]*\):', 'TODO:', content)
     merged_content += '\n// Begin of %s\n' % proto
     merged_content += content
     merged_content += '\n// End of %s\n' % proto
