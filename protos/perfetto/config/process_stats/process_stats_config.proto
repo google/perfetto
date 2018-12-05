@@ -51,7 +51,7 @@ message ProcessStatsConfig {
 
   // If empty samples stats for all processes. If non empty samples stats only
   // for processes matching the given string in their argv0 (i.e. the first
-  // entry of of /proc/pid/cmdline).
+  // entry of /proc/pid/cmdline).
   // TODO(primiano): implement this feature.
   // repeated string proc_stats_filter = 5;
 }
