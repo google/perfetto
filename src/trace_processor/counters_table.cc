@@ -114,7 +114,7 @@ CountersTable::RefColumn::Bounds CountersTable::RefColumn::BoundFilter(
 void CountersTable::RefColumn::Filter(int op,
                                       sqlite3_value* value,
                                       FilteredRowIndex* index) const {
-  auto binary_op = sqlite_utils::GetPredicateForOp<int64_t>(op);
+  auto binary_op = sqlite_utils::GetOptionalPredicateForOp<int64_t>(op);
   int64_t extracted = sqlite_utils::ExtractSqliteValue<int64_t>(value);
   index->FilterRows([this, &binary_op, extracted](uint32_t row) {
     auto ref = storage_->counters().refs()[row];
@@ -123,7 +123,7 @@ void CountersTable::RefColumn::Filter(int op,
       auto upid = storage_->GetThread(static_cast<uint32_t>(ref)).upid;
       // Trying to filter null with any operation we currently handle
       // should return false.
-      return upid.has_value() && binary_op(upid.value(), extracted);
+      return binary_op(upid, extracted);
     }
     return binary_op(ref, extracted);
   });
