@@ -2358,7 +2358,7 @@ message Trace {
 //
 // Next id: 39.
 message TracePacket {
-  // TODO: in future we should add a timestamp_clock_domain field to
+  // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
   optional uint64 timestamp = 8;  // Timestamp [ns].
 
