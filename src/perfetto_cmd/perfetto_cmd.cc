@@ -58,7 +58,6 @@
 namespace perfetto {
 namespace {
 
-constexpr char kDefaultDropBoxTag[] = "perfetto";
 constexpr uint32_t kFlushTimeoutMs = 1000;
 
 perfetto::PerfettoCmd* g_consumer_cmd;
@@ -136,7 +135,7 @@ Usage: %s
   --background     -d     : Exits immediately and continues tracing in background
   --config         -c     : /path/to/trace/config/file or - for stdin
   --out            -o     : /path/to/out/trace/file or - for stdout
-  --dropbox           TAG : Upload trace into DropBox using tag TAG (default: %s)
+  --dropbox           TAG : Upload trace into DropBox using tag TAG
   --no-guardrails         : Ignore guardrails triggered when using --dropbox (for testing).
   --txt                   : Parse config as pbtxt. Not a stable API. Not for production use.
   --reset-guardrails      : Resets the state of the guardails and exits (for testing).
@@ -157,7 +156,7 @@ statsd-specific flags:
   --config-id          : ID of the triggering config.
   --config-uid         : UID of app which registered the config.
 )",
-                argv0, kDefaultDropBoxTag);
+                argv0);
   return 1;
 }
 
@@ -181,9 +180,9 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"time", required_argument, nullptr, 't'},
       {"buffer", required_argument, nullptr, 'b'},
       {"size", required_argument, nullptr, 's'},
-      {"no-guardrails", optional_argument, nullptr, OPT_IGNORE_GUARDRAILS},
-      {"txt", optional_argument, nullptr, OPT_PBTXT_CONFIG},
-      {"dropbox", optional_argument, nullptr, OPT_DROPBOX},
+      {"no-guardrails", no_argument, nullptr, OPT_IGNORE_GUARDRAILS},
+      {"txt", no_argument, nullptr, OPT_PBTXT_CONFIG},
+      {"dropbox", required_argument, nullptr, OPT_DROPBOX},
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
       {"config-id", required_argument, nullptr, OPT_CONFIG_ID},
       {"config-uid", required_argument, nullptr, OPT_CONFIG_UID},
@@ -265,7 +264,9 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
     if (option == OPT_DROPBOX) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-      dropbox_tag_ = optarg ? optarg : kDefaultDropBoxTag;
+      if (!optarg)
+        PERFETTO_FATAL("optarg is null");
+      dropbox_tag_ = optarg;
       continue;
 #else
       PERFETTO_ELOG("DropBox is only supported with Android tree builds");
