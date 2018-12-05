@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/instants_table.h"
 
+#include "src/trace_processor/storage_columns.h"
 #include "src/trace_processor/storage_cursor.h"
 #include "src/trace_processor/table_utils.h"
 
@@ -40,14 +41,12 @@ void InstantsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 Table::Schema InstantsTable::CreateSchema(int, const char* const*) {
   const auto& instants = storage_->instants();
   std::unique_ptr<StorageSchema::Column> cols[] = {
-      StorageSchema::NumericColumnPtr("ts", &instants.timestamps(),
-                                      false /* hidden */, true /* ordered */),
-      StorageSchema::StringColumnPtr("name", &instants.name_ids(),
-                                     &storage_->string_pool()),
-      StorageSchema::NumericColumnPtr("value", &instants.values()),
-      StorageSchema::NumericColumnPtr("ref", &instants.refs()),
-      StorageSchema::StringColumnPtr("ref_type", &instants.types(),
-                                     &ref_types_)};
+      NumericColumnPtr("ts", &instants.timestamps(), false /* hidden */,
+                       true /* ordered */),
+      StringColumnPtr("name", &instants.name_ids(), &storage_->string_pool()),
+      NumericColumnPtr("value", &instants.values()),
+      NumericColumnPtr("ref", &instants.refs()),
+      StringColumnPtr("ref_type", &instants.types(), &ref_types_)};
   schema_ = StorageSchema({
       std::make_move_iterator(std::begin(cols)),
       std::make_move_iterator(std::end(cols)),
