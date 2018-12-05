@@ -86,16 +86,22 @@ bool ConvertSizeToKb(const std::string& arg, uint64_t* out) {
 bool CreateConfigFromOptions(const ConfigOptions& options,
                              TraceConfig* config) {
   uint64_t duration_ms = 0;
-  if (!ConvertTimeToMs(options.time, &duration_ms))
+  if (!ConvertTimeToMs(options.time, &duration_ms)) {
+    PERFETTO_ELOG("--time argument is invalid");
     return false;
+  }
 
   uint64_t buffer_size_kb = 0;
-  if (!ConvertSizeToKb(options.buffer_size, &buffer_size_kb))
+  if (!ConvertSizeToKb(options.buffer_size, &buffer_size_kb)) {
+    PERFETTO_ELOG("--buffer argument is invalid");
     return false;
+  }
 
   uint64_t max_file_size_kb = 0;
-  if (!ConvertSizeToKb(options.max_file_size, &max_file_size_kb))
+  if (!ConvertSizeToKb(options.max_file_size, &max_file_size_kb)) {
+    PERFETTO_ELOG("--size argument is invalid");
     return false;
+  }
 
   std::vector<std::string> ftrace_events;
   std::vector<std::string> atrace_categories;
@@ -110,7 +116,7 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
   }
 
   config->set_duration_ms(static_cast<unsigned int>(duration_ms));
-  config->set_max_file_size_bytes(static_cast<unsigned int>(max_file_size_kb));
+  config->set_max_file_size_bytes(max_file_size_kb * 1024);
   if (max_file_size_kb)
     config->set_write_into_file(true);
   config->add_buffers()->set_size_kb(static_cast<unsigned int>(buffer_size_kb));
