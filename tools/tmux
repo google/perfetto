@@ -120,9 +120,6 @@ fi
 if ! is_monolithic $OUT; then
   PREFIX="$PREFIX LD_LIBRARY_PATH=$DIR"
   push $OUT/libperfetto.so
-  if is_android $OUT; then
-    push $OUT/libperfetto_android_internal.so
-  fi
 fi
 
 CONFIG_DEVICE_PATH=$CONFIG
