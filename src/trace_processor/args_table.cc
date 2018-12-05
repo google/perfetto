@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/args_table.h"
 
+#include "src/trace_processor/sqlite_utils.h"
 #include "src/trace_processor/storage_cursor.h"
 #include "src/trace_processor/table_utils.h"
 
@@ -122,9 +123,8 @@ void ArgsTable::ValueColumn::ReportResult(sqlite3_context* ctx,
       sqlite_utils::ReportSqliteResult(ctx, value.real_value);
       break;
     case VarardicType::kString: {
-      const auto kSqliteStatic = reinterpret_cast<sqlite3_destructor_type>(0);
       const char* str = storage_->GetString(value.string_value).c_str();
-      sqlite3_result_text(ctx, str, -1, kSqliteStatic);
+      sqlite3_result_text(ctx, str, -1, sqlite_utils::kSqliteStatic);
       break;
     }
   }
