@@ -15,6 +15,7 @@
 #ifndef SRC_TRACE_PROCESSOR_STORAGE_CURSOR_H_
 #define SRC_TRACE_PROCESSOR_STORAGE_CURSOR_H_
 
+#include "src/trace_processor/row_iterators.h"
 #include "src/trace_processor/storage_columns.h"
 #include "src/trace_processor/table.h"
 
@@ -26,17 +27,6 @@ namespace trace_processor {
 // column to implement the Cursor interface.
 class StorageCursor final : public Table::Cursor {
  public:
-  // Implements a strategy of yielding indices into a storage system to fulfil
-  // a query.
-  class RowIterator {
-   public:
-    virtual ~RowIterator();
-
-    virtual void NextRow() = 0;
-    virtual uint32_t Row() = 0;
-    virtual bool IsEnd() = 0;
-  };
-
   StorageCursor(std::unique_ptr<RowIterator>,
                 std::vector<std::unique_ptr<StorageColumn>>*);
 
