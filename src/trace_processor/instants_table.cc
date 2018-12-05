@@ -40,7 +40,7 @@ void InstantsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 
 Table::Schema InstantsTable::CreateSchema(int, const char* const*) {
   const auto& instants = storage_->instants();
-  std::unique_ptr<StorageSchema::Column> cols[] = {
+  std::unique_ptr<StorageColumn> cols[] = {
       NumericColumnPtr("ts", &instants.timestamps(), false /* hidden */,
                        true /* ordered */),
       StringColumnPtr("name", &instants.name_ids(), &storage_->string_pool()),
@@ -61,7 +61,7 @@ std::unique_ptr<Table::Cursor> InstantsTable::CreateCursor(
   auto it = table_utils::CreateBestRowIteratorForGenericSchema(schema_, count,
                                                                qc, argv);
   return std::unique_ptr<Table::Cursor>(
-      new StorageCursor(std::move(it), schema_.ToColumnReporters()));
+      new StorageCursor(std::move(it), schema_.mutable_columns()));
 }
 
 int InstantsTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
