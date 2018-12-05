@@ -39,7 +39,7 @@
 namespace perfetto {
 namespace protos {
 class HeapprofdConfig;
-class HeapprofdConfig_ContinousDumpConfig;
+class HeapprofdConfig_ContinuousDumpConfig;
 }  // namespace protos
 }  // namespace perfetto
 
@@ -47,19 +47,19 @@ namespace perfetto {
 
 class PERFETTO_EXPORT HeapprofdConfig {
  public:
-  class PERFETTO_EXPORT ContinousDumpConfig {
+  class PERFETTO_EXPORT ContinuousDumpConfig {
    public:
-    ContinousDumpConfig();
-    ~ContinousDumpConfig();
-    ContinousDumpConfig(ContinousDumpConfig&&) noexcept;
-    ContinousDumpConfig& operator=(ContinousDumpConfig&&);
-    ContinousDumpConfig(const ContinousDumpConfig&);
-    ContinousDumpConfig& operator=(const ContinousDumpConfig&);
+    ContinuousDumpConfig();
+    ~ContinuousDumpConfig();
+    ContinuousDumpConfig(ContinuousDumpConfig&&) noexcept;
+    ContinuousDumpConfig& operator=(ContinuousDumpConfig&&);
+    ContinuousDumpConfig(const ContinuousDumpConfig&);
+    ContinuousDumpConfig& operator=(const ContinuousDumpConfig&);
 
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(
-        const perfetto::protos::HeapprofdConfig_ContinousDumpConfig&);
-    void ToProto(perfetto::protos::HeapprofdConfig_ContinousDumpConfig*) const;
+        const perfetto::protos::HeapprofdConfig_ContinuousDumpConfig&);
+    void ToProto(perfetto::protos::HeapprofdConfig_ContinuousDumpConfig*) const;
 
     uint32_t dump_phase_ms() const { return dump_phase_ms_; }
     void set_dump_phase_ms(uint32_t value) { dump_phase_ms_ = value; }
@@ -113,10 +113,10 @@ class PERFETTO_EXPORT HeapprofdConfig {
   bool all() const { return all_; }
   void set_all(bool value) { all_ = value; }
 
-  const ContinousDumpConfig& continuous_dump_config() const {
+  const ContinuousDumpConfig& continuous_dump_config() const {
     return continuous_dump_config_;
   }
-  ContinousDumpConfig* mutable_continuous_dump_config() {
+  ContinuousDumpConfig* mutable_continuous_dump_config() {
     return &continuous_dump_config_;
   }
 
@@ -125,7 +125,7 @@ class PERFETTO_EXPORT HeapprofdConfig {
   std::vector<std::string> process_cmdline_;
   std::vector<uint64_t> pid_;
   bool all_ = {};
-  ContinousDumpConfig continuous_dump_config_ = {};
+  ContinuousDumpConfig continuous_dump_config_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

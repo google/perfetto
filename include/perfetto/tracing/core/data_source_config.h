@@ -55,7 +55,7 @@ class InodeFileConfig_MountPointMappingEntry;
 class ProcessStatsConfig;
 class SysStatsConfig;
 class HeapprofdConfig;
-class HeapprofdConfig_ContinousDumpConfig;
+class HeapprofdConfig_ContinuousDumpConfig;
 class AndroidPowerConfig;
 class TestConfig;
 class TestConfig_DummyFields;

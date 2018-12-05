@@ -99,19 +99,19 @@ void HeapprofdConfig::ToProto(perfetto::protos::HeapprofdConfig* proto) const {
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
-HeapprofdConfig::ContinousDumpConfig::ContinousDumpConfig() = default;
-HeapprofdConfig::ContinousDumpConfig::~ContinousDumpConfig() = default;
-HeapprofdConfig::ContinousDumpConfig::ContinousDumpConfig(
-    const HeapprofdConfig::ContinousDumpConfig&) = default;
-HeapprofdConfig::ContinousDumpConfig& HeapprofdConfig::ContinousDumpConfig::
-operator=(const HeapprofdConfig::ContinousDumpConfig&) = default;
-HeapprofdConfig::ContinousDumpConfig::ContinousDumpConfig(
-    HeapprofdConfig::ContinousDumpConfig&&) noexcept = default;
-HeapprofdConfig::ContinousDumpConfig& HeapprofdConfig::ContinousDumpConfig::
-operator=(HeapprofdConfig::ContinousDumpConfig&&) = default;
+HeapprofdConfig::ContinuousDumpConfig::ContinuousDumpConfig() = default;
+HeapprofdConfig::ContinuousDumpConfig::~ContinuousDumpConfig() = default;
+HeapprofdConfig::ContinuousDumpConfig::ContinuousDumpConfig(
+    const HeapprofdConfig::ContinuousDumpConfig&) = default;
+HeapprofdConfig::ContinuousDumpConfig& HeapprofdConfig::ContinuousDumpConfig::
+operator=(const HeapprofdConfig::ContinuousDumpConfig&) = default;
+HeapprofdConfig::ContinuousDumpConfig::ContinuousDumpConfig(
+    HeapprofdConfig::ContinuousDumpConfig&&) noexcept = default;
+HeapprofdConfig::ContinuousDumpConfig& HeapprofdConfig::ContinuousDumpConfig::
+operator=(HeapprofdConfig::ContinuousDumpConfig&&) = default;
 
-void HeapprofdConfig::ContinousDumpConfig::FromProto(
-    const perfetto::protos::HeapprofdConfig_ContinousDumpConfig& proto) {
+void HeapprofdConfig::ContinuousDumpConfig::FromProto(
+    const perfetto::protos::HeapprofdConfig_ContinuousDumpConfig& proto) {
   static_assert(sizeof(dump_phase_ms_) == sizeof(proto.dump_phase_ms()),
                 "size mismatch");
   dump_phase_ms_ = static_cast<decltype(dump_phase_ms_)>(proto.dump_phase_ms());
@@ -123,8 +123,8 @@ void HeapprofdConfig::ContinousDumpConfig::FromProto(
   unknown_fields_ = proto.unknown_fields();
 }
 
-void HeapprofdConfig::ContinousDumpConfig::ToProto(
-    perfetto::protos::HeapprofdConfig_ContinousDumpConfig* proto) const {
+void HeapprofdConfig::ContinuousDumpConfig::ToProto(
+    perfetto::protos::HeapprofdConfig_ContinuousDumpConfig* proto) const {
   proto->Clear();
 
   static_assert(sizeof(dump_phase_ms_) == sizeof(proto->dump_phase_ms()),
