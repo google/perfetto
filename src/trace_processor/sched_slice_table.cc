@@ -32,7 +32,7 @@ void SchedSliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 
 Table::Schema SchedSliceTable::CreateSchema(int, const char* const*) {
   const auto& slices = storage_->slices();
-  std::unique_ptr<StorageSchema::Column> cols[] = {
+  std::unique_ptr<StorageColumn> cols[] = {
       NumericColumnPtr("ts", &slices.start_ns(), false /* hidden */,
                        true /* ordered */),
       NumericColumnPtr("cpu", &slices.cpus()),
@@ -53,7 +53,7 @@ std::unique_ptr<Table::Cursor> SchedSliceTable::CreateCursor(
   auto it = table_utils::CreateBestRowIteratorForGenericSchema(schema_, count,
                                                                qc, argv);
   return std::unique_ptr<Table::Cursor>(
-      new StorageCursor(std::move(it), schema_.ToColumnReporters()));
+      new StorageCursor(std::move(it), schema_.mutable_columns()));
 }
 
 int SchedSliceTable::BestIndex(const QueryConstraints& qc,
