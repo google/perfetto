@@ -147,7 +147,7 @@ TEST(PerfettoTest, MAYBE_TestBatteryTracing) {
     if (!packet.has_battery())
       continue;
     has_battery_packet = true;
-    EXPECT_NE(packet.battery().charge_counter_uah(), 0);
+    EXPECT_GE(packet.battery().charge_counter_uah(), 0);
     EXPECT_GE(packet.battery().capacity_percent(), 0);
     EXPECT_LE(packet.battery().capacity_percent(), 100);
   }
