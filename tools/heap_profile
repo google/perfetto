@@ -91,7 +91,7 @@ duration_ms: {duration}
 '''
 
 PERFETTO_CMD=('CFG=\'{}\'; echo ${{CFG}} | '
-              'perfetto -t -c - -o /data/misc/perfetto-traces/profile -b')
+              'perfetto --txt -c - -o /data/misc/perfetto-traces/profile -d')
 IS_INTERRUPTED = False
 def sigint_handler(sig, frame):
   global IS_INTERRUPTED
