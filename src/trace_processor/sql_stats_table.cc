@@ -22,6 +22,7 @@
 #include <bitset>
 #include <numeric>
 
+#include "src/trace_processor/sqlite_utils.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -75,7 +76,8 @@ int SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
   const TraceStorage::SqlStats& stats = storage_->sql_stats();
   switch (col) {
     case Column::kQuery:
-      sqlite3_result_text(context, stats.queries()[row_].c_str(), -1, nullptr);
+      sqlite3_result_text(context, stats.queries()[row_].c_str(), -1,
+                          sqlite_utils::kSqliteStatic);
       break;
     case Column::kTimeQueued:
       sqlite3_result_int64(context,

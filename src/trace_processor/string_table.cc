@@ -23,6 +23,7 @@
 #include <bitset>
 #include <numeric>
 
+#include "src/trace_processor/sqlite_utils.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -79,7 +80,7 @@ int StringTable::Cursor::Column(sqlite3_context* context, int col) {
       break;
     case Column::kString:
       sqlite3_result_text(context, storage_->GetString(string_id).c_str(), -1,
-                          nullptr);
+                          sqlite_utils::kSqliteStatic);
       break;
   }
   return SQLITE_OK;
