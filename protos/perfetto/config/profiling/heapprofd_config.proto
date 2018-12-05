@@ -21,7 +21,7 @@ package perfetto.protos;
 
 // Configuration for go/heapprofd.
 message HeapprofdConfig {
-  message ContinousDumpConfig {
+  message ContinuousDumpConfig {
     // ms to wait before first dump.
     optional uint32 dump_phase_ms = 5;
     // ms to wait between following dumps.
@@ -45,5 +45,5 @@ message HeapprofdConfig {
   // optional bool retain_max = 5;  // TODO(fmayer): Implement
 
   // Dump at a predefined interval.
-  optional ContinousDumpConfig continuous_dump_config = 6;
+  optional ContinuousDumpConfig continuous_dump_config = 6;
 }
