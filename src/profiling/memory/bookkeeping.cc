@@ -69,9 +69,19 @@ void HeapTracker::RecordMalloc(
     }
   }
 
-  GlobalCallstackTrie::Node* node =
-      callsites_->IncrementCallsite(callstack, size);
-  allocations_.emplace(address, Allocation(size, sequence_number, node));
+  GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(callstack);
+
+  auto callstack_allocations_it = callstack_allocations_.find(node);
+  if (callstack_allocations_it == callstack_allocations_.end()) {
+    GlobalCallstackTrie::IncrementNode(node);
+    bool inserted;
+    std::tie(callstack_allocations_it, inserted) =
+        callstack_allocations_.emplace(node, node);
+    PERFETTO_DCHECK(inserted);
+  }
+  allocations_.emplace(
+      address,
+      Allocation(size, sequence_number, &(callstack_allocations_it->second)));
 
   // Keep the sequence tracker consistent.
   RecordFree(kNoopFree, sequence_number);
@@ -111,48 +121,77 @@ void HeapTracker::CommitFree(uint64_t sequence_number, uint64_t address) {
 void HeapTracker::Dump(
     ProfilePacket::ProcessHeapSamples* proto,
     std::set<GlobalCallstackTrie::Node*>* callstacks_to_dump) {
-  for (const auto& p : allocations_) {
-    const Allocation& alloc = p.second;
+  // There are two reasons we remove the unused callstack allocations on the
+  // next iteration of Dump:
+  // * We need to remove them after the callstacks were dumped, which currently
+  //   happens after the allocations are dumped.
+  // * This way, we do not destroy and recreate callstacks as frequently.
+  for (auto it_and_alloc : dead_callstack_allocations_) {
+    auto& it = it_and_alloc.first;
+    uint64_t allocated = it_and_alloc.second;
+    const CallstackAllocations& alloc = it->second;
+    if (alloc.allocation_count == allocated && alloc.free_count == allocated)
+      callstack_allocations_.erase(it);
+  }
+  dead_callstack_allocations_.clear();
+
+  for (auto it = callstack_allocations_.begin();
+       it != callstack_allocations_.end(); ++it) {
+    const CallstackAllocations& alloc = it->second;
     callstacks_to_dump->emplace(alloc.node);
     ProfilePacket::HeapSample* sample = proto->add_samples();
     sample->set_callstack_id(alloc.node->id());
-    sample->set_cumulative_allocated(alloc.total_size);
+    sample->set_cumulative_allocated(alloc.allocated);
+    sample->set_cumulative_freed(alloc.freed);
+    sample->set_alloc_count(alloc.allocation_count);
+    sample->set_free_count(alloc.free_count);
+
+    if (alloc.allocation_count == alloc.free_count)
+      dead_callstack_allocations_.emplace_back(it, alloc.allocation_count);
   }
 }
 
-uint64_t GlobalCallstackTrie::GetCumSizeForTesting(
+uint64_t HeapTracker::GetSizeForTesting(
+    const std::vector<unwindstack::FrameData>& stack) {
+  GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(stack);
+  // Hack to make it go away again if it wasn't used before.
+  // This is only good because this is used for testing only.
+  GlobalCallstackTrie::IncrementNode(node);
+  GlobalCallstackTrie::DecrementNode(node);
+  auto it = callstack_allocations_.find(node);
+  if (it == callstack_allocations_.end()) {
+    return 0;
+  }
+  const CallstackAllocations& alloc = it->second;
+  return alloc.allocated - alloc.freed;
+}
+
+GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
     const std::vector<unwindstack::FrameData>& callstack) {
   Node* node = &root_;
   for (const unwindstack::FrameData& loc : callstack) {
-    node = node->children_.Get(InternCodeLocation(loc));
-    if (node == nullptr)
-      return 0;
-  }
-  return node->cum_size_;
-}
-
-GlobalCallstackTrie::Node* GlobalCallstackTrie::IncrementCallsite(
-    const std::vector<unwindstack::FrameData>& callstack,
-    uint64_t size) {
-  Node* node = &root_;
-  node->cum_size_ += size;
-  for (const unwindstack::FrameData& loc : callstack) {
     node = node->GetOrCreateChild(InternCodeLocation(loc));
-    node->cum_size_ += size;
   }
   return node;
 }
 
-void GlobalCallstackTrie::DecrementNode(Node* node, uint64_t size) {
-  PERFETTO_DCHECK(node->cum_size_ >= size);
+void GlobalCallstackTrie::IncrementNode(Node* node) {
+  while (node != nullptr) {
+    node->ref_count_ += 1;
+    node = node->parent_;
+  }
+}
+
+void GlobalCallstackTrie::DecrementNode(Node* node) {
+  PERFETTO_DCHECK(node->ref_count_ >= 1);
 
   bool delete_prev = false;
   Node* prev = nullptr;
   while (node != nullptr) {
     if (delete_prev)
       node->children_.Remove(*prev);
-    node->cum_size_ -= size;
-    delete_prev = node->cum_size_ == 0;
+    node->ref_count_ -= 1;
+    delete_prev = node->ref_count_ == 0;
     prev = node;
     node = node->parent_;
   }
