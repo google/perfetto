@@ -14,10 +14,11 @@
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
+import {Engine} from '../common/engine';
 import {rawQueryResultColumns, rawQueryResultIter, Row} from '../common/protos';
 import {QueryResponse} from '../common/queries';
+
 import {Controller} from './controller';
-import {Engine} from './engine';
 import {globals} from './globals';
 
 export interface QueryControllerArgs {
