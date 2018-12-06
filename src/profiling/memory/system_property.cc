@@ -33,10 +33,11 @@ SystemProperties::Handle::Handle(Handle&& other) {
 }
 
 SystemProperties::Handle& SystemProperties::Handle::operator=(Handle&& other) {
-  system_properties_ = other.system_properties_;
-  property_ = std::move(other.property_);
-  all_ = other.all_;
-  other.system_properties_ = nullptr;
+  // Construct this temporary because the RHS could be an lvalue cast to an
+  // rvalue reference whose lifetime we do not know.
+  Handle tmp(std::move(other));
+  using std::swap;
+  swap(*this, tmp);
   return *this;
 }
 
@@ -152,6 +153,13 @@ void SystemProperties::UnsetAll() {
     else
       SetAndroidProperty("heapprofd.enable", "1");
   }
+}
+
+void swap(SystemProperties::Handle& a, SystemProperties::Handle& b) {
+  using std::swap;
+  swap(a.system_properties_, b.system_properties_);
+  swap(a.property_, b.property_);
+  swap(a.all_, b.all_);
 }
 
 }  // namespace profiling
