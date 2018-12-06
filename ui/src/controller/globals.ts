@@ -17,15 +17,15 @@ import {produce} from 'immer';
 import {assertExists} from '../base/logging';
 import {Remote} from '../base/remote';
 import {DeferredAction, StateActions} from '../common/actions';
+import {Engine} from '../common/engine';
 import {createEmptyState, State} from '../common/state';
-
-import {ControllerAny} from './controller';
-import {Engine} from './engine';
-import {WasmEngineProxy} from './wasm_engine_proxy';
 import {
   createWasmEngine,
   destroyWasmEngine,
-} from './wasm_engine_proxy';
+  WasmEngineProxy
+} from '../common/wasm_engine_proxy';
+
+import {ControllerAny} from './controller';
 
 
 export interface App {

@@ -21,6 +21,7 @@ import {
   Actions,
   DeferredAction,
 } from '../common/actions';
+import {Engine} from '../common/engine';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
 import {TimeSpan} from '../common/time';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
@@ -29,7 +30,6 @@ import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 
 import {Child, Children, Controller} from './controller';
-import {Engine} from './engine';
 import {globals} from './globals';
 import {QueryController, QueryControllerArgs} from './query_controller';
 import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
