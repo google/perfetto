@@ -48,6 +48,7 @@ using ::testing::InSequence;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::Mock;
+using ::testing::Not;
 using ::testing::Property;
 using ::testing::StrictMock;
 
@@ -982,6 +983,77 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   consumer->FreeBuffers();
   EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer1_id));
   EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer2_id));
+}
+
+TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  ProducerID producer_id = *last_producer_id();
+  producer->RegisterDataSource("data_source");
+
+  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer_id));
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  consumer->EnableTracing(trace_config);
+
+  ASSERT_EQ(2u, tracing_session()->num_buffers());
+  std::set<BufferID> expected_buffers = {tracing_session()->buffers_index[0]};
+  EXPECT_EQ(expected_buffers, GetAllowedTargetBuffers(producer_id));
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  // Calling StartTracing() should be a noop (% a DLOG statement) because the
+  // trace config didn't have the |deferred_start| flag set.
+  consumer->StartTracing();
+
+  // Try to write to the correct buffer.
+  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
+      tracing_session()->buffers_index[0]);
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("good_payload");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->WaitForFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  // Try to write to the wrong buffer.
+  writer = producer->endpoint()->CreateTraceWriter(
+      tracing_session()->buffers_index[1]);
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("bad_payload");
+  }
+
+  flush_request = consumer->Flush();
+  producer->WaitForFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::TracePacket::for_testing,
+                                         Property(&protos::TestEvent::str,
+                                                  Eq("good_payload")))));
+  EXPECT_THAT(packets, Not(Contains(Property(&protos::TracePacket::for_testing,
+                                             Property(&protos::TestEvent::str,
+                                                      Eq("bad_payload"))))));
+
+  consumer->FreeBuffers();
+  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer_id));
 }
 
 }  // namespace perfetto
