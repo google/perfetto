@@ -108,6 +108,37 @@ TEST_P(TraceWriterImplTest, SingleWriter) {
   // TODO(primiano): check also the content of the packets decoding the protos.
 }
 
+TEST_P(TraceWriterImplTest, FragmentingPacket) {
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+
+  // Write a packet that's guaranteed to span more than a single chunk.
+  auto packet = writer->NewTracePacket();
+  size_t chunk_size = page_size() / 4;
+  std::stringstream large_string_writer;
+  for (size_t pos = 0; pos < chunk_size; pos++)
+    large_string_writer << "x";
+  std::string large_string = large_string_writer.str();
+  packet->set_for_testing()->set_str(large_string.data(), large_string.size());
+
+  SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
+
+  // The first allocated chunk should be complete but need patching, since the
+  // packet extended past the chunk and no patches for the packet size or string
+  // field size were applied yet.
+  ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi->GetChunkState(0, 0));
+  auto chunk = abi->TryAcquireChunkForReading(0, 0);
+  ASSERT_TRUE(chunk.is_valid());
+  ASSERT_EQ(1, chunk.header()->packets.load().count);
+  ASSERT_TRUE(chunk.header()->packets.load().flags &
+              SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
+  ASSERT_TRUE(chunk.header()->packets.load().flags &
+              SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk);
+
+  // TODO(eseckler): Also verify that the next commit contains patch entries for
+  // the packet size and string field size.
+}
+
 // TODO(primiano): add multi-writer test.
 // TODO(primiano): add Flush() test.
 
