@@ -149,7 +149,9 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
   rss_members_.emplace_back(
       context->storage->InternString("rss_stat.mm_swapents"));
   rss_members_.emplace_back(
-      context->storage->InternString("rss_stat.nr_mm_counters"));
+      context->storage->InternString("rss_stat.mm_shmempages"));
+  rss_members_.emplace_back(
+      context->storage->InternString("rss_stat.unknown"));  // Keep this last.
 
   using MemCounters = protos::ProcessStats::MemCounters;
   proc_mem_counter_names_[MemCounters::kVmSizeKbFieldNumber] =
@@ -662,7 +664,8 @@ void ProtoTraceParser::ParseRssStat(uint64_t timestamp,
                                     uint32_t pid,
                                     TraceBlobView view) {
   ProtoDecoder decoder(view.data(), view.length());
-  uint32_t member = 0;
+  const auto kRssStatUnknown = static_cast<uint32_t>(rss_members_.size()) - 1;
+  uint32_t member = kRssStatUnknown;
   uint32_t size = 0;
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
@@ -675,8 +678,8 @@ void ProtoTraceParser::ParseRssStat(uint64_t timestamp,
     }
   }
   if (member >= rss_members_.size()) {
-    PERFETTO_ELOG("Unknown member field %" PRIu32 " in rss_stat event", member);
-    return;
+    // TODO(lalitm): this import error should be exposed in the stats.
+    member = kRssStatUnknown;
   }
   UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
 
