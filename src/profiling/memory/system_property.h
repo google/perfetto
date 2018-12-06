@@ -40,6 +40,8 @@ class SystemProperties {
  public:
   class Handle {
    public:
+    friend void swap(SystemProperties::Handle&, SystemProperties::Handle&);
+
     Handle(const Handle&) = delete;
     Handle& operator=(const Handle&) = delete;
 
@@ -78,6 +80,8 @@ class SystemProperties {
   size_t alls_ = 0;
   std::map<std::string, size_t> properties_;
 };
+
+void swap(SystemProperties::Handle& a, SystemProperties::Handle& b);
 
 }  // namespace profiling
 }  // namespace perfetto
