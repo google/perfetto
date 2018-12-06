@@ -76,7 +76,11 @@ class MockTaskRunner : public base::TaskRunner {
     task_ = std::move(task);
   }
 
-  void RunLastTask() { TakeTask()(); }
+  void RunLastTask() {
+    auto task = TakeTask();
+    if (task)
+      task();
+  }
 
   std::function<void()> TakeTask() {
     std::unique_lock<std::mutex> lock(lock_);
@@ -216,18 +220,18 @@ class TestFtraceController : public FtraceController,
   uint32_t drain_period_ms() { return GetDrainPeriodMs(); }
 
   std::function<void()> GetDataAvailableCallback(size_t cpu) {
-    base::WeakPtr<FtraceController> weak_this = weak_factory_.GetWeakPtr();
-    size_t generation = generation_;
-    return [this, weak_this, generation, cpu] {
-      OnDataAvailable(weak_this, generation, cpu, GetDrainPeriodMs());
+    int generation = generation_;
+    auto* thread_sync = &thread_sync_;
+    return [cpu, generation, thread_sync] {
+      FtraceController::OnCpuReaderRead(cpu, generation, thread_sync);
     };
   }
 
   void WaitForData(size_t cpu) {
     for (;;) {
       {
-        std::unique_lock<std::mutex> lock(lock_);
-        if (cpus_to_drain_[cpu])
+        std::unique_lock<std::mutex> lock(thread_sync_.mutex);
+        if (thread_sync_.cpus_to_drain[cpu])
           return;
       }
       usleep(5000);
@@ -393,50 +397,6 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   data_source.reset();
 }
 
-TEST(FtraceControllerTest, TaskScheduling) {
-  auto controller = CreateTestController(
-      false /* nice runner */, false /* nice procfs */, 2 /* num cpus */);
-
-  // For this test we don't care about calls to WriteToFile/ClearFile.
-  EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(AnyNumber());
-  EXPECT_CALL(*controller->procfs(), ClearFile(_)).Times(AnyNumber());
-
-  FtraceConfig config = CreateFtraceConfig({"group/foo"});
-  auto data_source = controller->AddFakeDataSource(config);
-  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
-
-  // Only one call to drain should be scheduled for the next drain period.
-  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, 100));
-
-  // However both CPUs should be drained.
-  EXPECT_CALL(*controller, OnDrainCpuForTesting(_)).Times(2);
-
-  // Finally, another task should be posted to unblock the workers.
-  EXPECT_CALL(*controller->runner(), PostTask(_));
-
-  // Simulate two worker threads reporting available data.
-  auto on_data_available0 = controller->GetDataAvailableCallback(0u);
-  std::thread worker0([on_data_available0] { on_data_available0(); });
-
-  auto on_data_available1 = controller->GetDataAvailableCallback(1u);
-  std::thread worker1([on_data_available1] { on_data_available1(); });
-
-  // Poll until both worker threads have reported available data.
-  controller->WaitForData(0u);
-  controller->WaitForData(1u);
-
-  // Run the task to drain all CPUs.
-  controller->runner()->RunLastTask();
-
-  // Run the task to unblock all workers.
-  controller->runner()->RunLastTask();
-
-  worker0.join();
-  worker1.join();
-
-  data_source.reset();
-}
-
 TEST(FtraceControllerTest, BackToBackEnableDisable) {
   auto controller =
       CreateTestController(false /* nice runner */, false /* nice procfs */);
@@ -447,7 +407,8 @@ TEST(FtraceControllerTest, BackToBackEnableDisable) {
   EXPECT_CALL(*controller->procfs(), ReadOneCharFromFile("/root/tracing_on"))
       .Times(AnyNumber());
 
-  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, 100)).Times(2);
+  EXPECT_CALL(*controller->runner(), PostTask(_)).Times(1);
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, 100)).Times(1);
   FtraceConfig config = CreateFtraceConfig({"group/foo"});
   auto data_source = controller->AddFakeDataSource(config);
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));

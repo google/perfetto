@@ -17,9 +17,12 @@
 #ifndef SRC_TRACED_PROBES_FTRACE_FTRACE_DATA_SOURCE_H_
 #define SRC_TRACED_PROBES_FTRACE_FTRACE_DATA_SOURCE_H_
 
+#include <functional>
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/weak_ptr.h"
@@ -68,6 +71,7 @@ class FtraceDataSource : public ProbesDataSource {
   // Flushes the ftrace buffers into the userspace trace buffers and writes
   // also ftrace stats.
   void Flush(FlushRequestID, std::function<void()> callback) override;
+  void OnFtraceFlushComplete(FlushRequestID);
 
   FtraceConfigId config_id() const { return config_id_; }
   const FtraceConfig& config() const { return config_; }
@@ -85,6 +89,7 @@ class FtraceDataSource : public ProbesDataSource {
   const FtraceConfig config_;
   FtraceMetadata metadata_;
   FtraceStats stats_before_ = {};
+  std::map<FlushRequestID, std::function<void()>> pending_flushes_;
 
   // Initialized by the Initialize() call.
   FtraceConfigId config_id_ = 0;
