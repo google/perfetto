@@ -1121,19 +1121,33 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     const uint8_t* src,
     size_t size) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  TraceBuffer* buf = GetBufferByID(buffer_id);
-  if (!buf) {
-    PERFETTO_DLOG("Could not find target buffer %" PRIu16
-                  " for producer %" PRIu16,
-                  buffer_id, producer_id_trusted);
+
+  ProducerEndpointImpl* producer = GetProducer(producer_id_trusted);
+  if (!producer) {
+    PERFETTO_DFATAL("Producer not found.");
     return;
   }
 
-  // TODO(primiano): we should have a set<BufferID> |allowed_target_buffers| in
-  // ProducerEndpointImpl to perform ACL checks and prevent that the Producer
-  // passes a |target_buffer| which is valid, but that we never asked it to use.
-  // Essentially we want to prevent a malicious producer to inject data into a
-  // log buffer that has nothing to do with it.
+  // Verify that the producer is actually allowed to write into the target
+  // buffer specified in the request. This prevents a malicious producer from
+  // injecting data into a log buffer that belongs to a tracing session the
+  // producer is not part of.
+  if (!producer->is_allowed_target_buffer(buffer_id)) {
+    PERFETTO_ELOG("Producer %" PRIu16
+                  " tried to write into forbidden target buffer %" PRIu16,
+                  producer_id_trusted, buffer_id);
+    PERFETTO_DCHECK(false);
+    return;
+  }
+
+  TraceBuffer* buf = GetBufferByID(buffer_id);
+  if (!buf) {
+    // This should have been caught by the is_allowed_target_buffer check.
+    PERFETTO_DFATAL("Could not find target buffer %" PRIu16
+                    " for producer %" PRIu16,
+                    buffer_id, producer_id_trusted);
+    return;
+  }
 
   buf->CopyChunkUntrusted(producer_id_trusted, producer_uid_trusted, writer_id,
                           chunk_id, num_fragments, chunk_flags, src, size);
