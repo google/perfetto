@@ -985,6 +985,7 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer2_id));
 }
 
+#if !PERFETTO_DCHECK_IS_ON()
 TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -1055,5 +1056,6 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   consumer->FreeBuffers();
   EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer_id));
 }
+#endif  // !PERFETTO_DCHECK_IS_ON()
 
 }  // namespace perfetto
