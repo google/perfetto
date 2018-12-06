@@ -15,10 +15,10 @@
 import '../tracks/all_controller';
 
 import {Remote} from '../base/remote';
+import {warmupWasmEngine} from '../common/wasm_engine_proxy';
 
 import {AppController} from './app_controller';
 import {globals} from './globals';
-import {warmupWasmEngine} from './wasm_engine_proxy';
 
 function main(port: MessagePort) {
   warmupWasmEngine();
