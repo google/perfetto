@@ -132,6 +132,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     // detour their |size_field| into the |patch_list_|. At this point we have
     // to release the chunk and they cannot write anymore into that.
     // TODO(primiano): add tests to cover this logic.
+    bool chunk_needs_patching = false;
     for (auto* nested_msg = cur_packet_->nested_message(); nested_msg;
          nested_msg = nested_msg->nested_message()) {
       uint8_t* const cur_hdr = nested_msg->size_field();
@@ -149,6 +150,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
             cur_chunk_.header()->chunk_id.load(std::memory_order_relaxed);
         Patch* patch = patch_list_.emplace_back(cur_chunk_id, offset);
         nested_msg->set_size_field(&patch->size_field[0]);
+        chunk_needs_patching = true;
       } else {
 #if PERFETTO_DCHECK_IS_ON()
         // Ensure that the size field of the message points to an element of the
@@ -160,7 +162,10 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
 #endif
       }
     }  // for(nested_msg
-  }    // if(fragmenting_packet)
+
+    if (chunk_needs_patching)
+      cur_chunk_.SetFlag(ChunkHeader::kChunkNeedsPatching);
+  }  // if(fragmenting_packet)
 
   if (cur_chunk_.is_valid()) {
     // ReturnCompletedChunk will consume the first patched entries from
