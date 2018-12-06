@@ -65,15 +65,37 @@ void FtraceDataSource::DumpFtraceStats(FtraceStats* stats) {
     controller_weak_->DumpFtraceStats(stats);
 }
 
-void FtraceDataSource::Flush(FlushRequestID, std::function<void()> callback) {
-  // TODO(primiano): this still doesn't flush data from the kernel ftrace
-  // buffers (see b/73886018). We should do that and delay the
-  // NotifyFlushComplete() until the ftrace data has been drained from the
-  // kernel ftrace buffer and written in the SMB.
-  if (!writer_)
+void FtraceDataSource::Flush(FlushRequestID flush_request_id,
+                             std::function<void()> callback) {
+  if (!controller_weak_)
     return;
-  WriteStats();
-  writer_->Flush(callback);
+
+  pending_flushes_[flush_request_id] = std::move(callback);
+
+  // FtraceController will call OnFtraceFlushComplete() once the data has been
+  // drained from the ftrace buffer and written into the various writers of
+  // all its active data sources.
+  controller_weak_->Flush(flush_request_id);
+}
+
+// Called by FtraceController after all CPUs have acked the flush or timed out.
+void FtraceDataSource::OnFtraceFlushComplete(FlushRequestID flush_request_id) {
+  auto it = pending_flushes_.find(flush_request_id);
+  if (it == pending_flushes_.end()) {
+    // This can genuinely happen in case of concurrent ftrace sessions. When a
+    // FtraceDataSource issues a flush, the controller has to drain ftrace data
+    // for everybody (there is only one kernel ftrace buffer for all sessions).
+    // FtraceController doesn't bother to remember which FtraceDataSource did or
+    // did not request a flush. Instead just boradcasts the
+    // OnFtraceFlushComplete() to all of them.
+    return;
+  }
+  auto callback = std::move(it->second);
+  pending_flushes_.erase(it);
+  if (writer_) {
+    WriteStats();
+    writer_->Flush(std::move(callback));
+  }
 }
 
 void FtraceDataSource::WriteStats() {

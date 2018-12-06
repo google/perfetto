@@ -102,6 +102,18 @@ void TestHelper::StartTracing(const TraceConfig& config) {
   endpoint_->EnableTracing(config);
 }
 
+void TestHelper::DisableTracing() {
+  endpoint_->DisableTracing();
+}
+
+void TestHelper::FlushAndWait(uint32_t timeout_ms) {
+  static int flush_num = 0;
+  std::string checkpoint_name = "flush." + std::to_string(flush_num++);
+  auto checkpoint = task_runner_->CreateCheckpoint(checkpoint_name);
+  endpoint_->Flush(timeout_ms, [checkpoint](bool) { checkpoint(); });
+  task_runner_->RunUntilCheckpoint(checkpoint_name, timeout_ms + 1000);
+}
+
 void TestHelper::ReadData(uint32_t read_count) {
   on_packets_finished_callback_ = task_runner_->CreateCheckpoint(
       "readback.complete." + std::to_string(read_count));
@@ -116,8 +128,8 @@ void TestHelper::WaitForProducerEnabled() {
   task_runner_->RunUntilCheckpoint("producer.enabled");
 }
 
-void TestHelper::WaitForTracingDisabled() {
-  task_runner_->RunUntilCheckpoint("stop.tracing");
+void TestHelper::WaitForTracingDisabled(uint32_t timeout_ms) {
+  task_runner_->RunUntilCheckpoint("stop.tracing", timeout_ms);
 }
 
 void TestHelper::WaitForReadData(uint32_t read_count) {
