@@ -31,9 +31,11 @@ ProcessMatcher::ProcessHandle::ProcessHandle(ProcessHandle&& other) noexcept
 
 ProcessMatcher::ProcessHandle& ProcessMatcher::ProcessHandle::operator=(
     ProcessHandle&& other) noexcept {
-  matcher_ = other.matcher_;
-  pid_ = other.pid_;
-  other.matcher_ = nullptr;
+  // Construct this temporary because the RHS could be an lvalue cast to an
+  // rvalue reference whose lifetime we do not know.
+  ProcessHandle tmp(std::move(other));
+  using std::swap;
+  swap(*this, tmp);
   return *this;
 }
 
@@ -55,9 +57,11 @@ ProcessMatcher::ProcessSetSpecHandle::ProcessSetSpecHandle(
 
 ProcessMatcher::ProcessSetSpecHandle& ProcessMatcher::ProcessSetSpecHandle::
 operator=(ProcessSetSpecHandle&& other) noexcept {
-  matcher_ = other.matcher_;
-  iterator_ = other.iterator_;
-  other.matcher_ = nullptr;
+  // Construct this temporary because the RHS could be an lvalue cast to an
+  // rvalue reference whose lifetime we do not know.
+  ProcessSetSpecHandle tmp(std::move(other));
+  using std::swap;
+  swap(*this, tmp);
   return *this;
 }
 
@@ -245,6 +249,19 @@ void ProcessMatcher::RunMatchFn(ProcessItem* process_item) {
   for (ProcessSetSpecItem* process_set_item : process_item->references)
     process_sets.emplace_back(&(process_set_item->process_set));
   match_fn_(process_item->process, process_sets);
+}
+
+void swap(ProcessMatcher::ProcessHandle& a, ProcessMatcher::ProcessHandle& b) {
+  using std::swap;
+  swap(a.matcher_, b.matcher_);
+  swap(a.pid_, b.pid_);
+}
+
+void swap(ProcessMatcher::ProcessSetSpecHandle& a,
+          ProcessMatcher::ProcessSetSpecHandle& b) {
+  using std::swap;
+  swap(a.matcher_, b.matcher_);
+  swap(a.iterator_, b.iterator_);
 }
 
 }  // namespace profiling
