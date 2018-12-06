@@ -14,12 +14,12 @@
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
+import {Engine} from '../common/engine';
 import {Registry} from '../common/registry';
 import {TrackState} from '../common/state';
 
 import {Controller} from './controller';
 import {ControllerFactory} from './controller';
-import {Engine} from './engine';
 import {globals} from './globals';
 
 // TrackController is a base class overridden by track implementations (e.g.,

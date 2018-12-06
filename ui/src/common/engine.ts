@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RawQueryResult, TraceProcessor} from '../common/protos';
-import {TimeSpan} from '../common/time';
+import {RawQueryResult, TraceProcessor} from './protos';
+import {TimeSpan} from './time';
 
 /**
  * Abstract interface of a trace proccessor.

@@ -15,10 +15,10 @@
 import * as protobufjs from 'protobufjs/light';
 
 import {defer} from '../base/deferred';
-import {TraceProcessor} from '../common/protos';
 import {WasmBridgeRequest, WasmBridgeResponse} from '../engine/wasm_bridge';
 
 import {Engine} from './engine';
+import {TraceProcessor} from './protos';
 
 const activeWorkers = new Map<string, Worker>();
 let warmWorker: null|Worker = null;
