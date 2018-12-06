@@ -37,8 +37,6 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
  public:
   void RegisterDataSource(const DataSourceDescriptor&) override {}
   void UnregisterDataSource(const std::string&) override {}
-  void RegisterTraceWriter(uint32_t, uint32_t) override {}
-  void UnregisterTraceWriter(uint32_t) override {}
   void NotifyFlushComplete(FlushRequestID) override {}
   void NotifyDataSourceStopped(DataSourceInstanceID) override {}
   SharedMemory* shared_memory() const override { return nullptr; }
@@ -48,6 +46,8 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
   }
 
   MOCK_METHOD2(CommitData, void(const CommitDataRequest&, CommitDataCallback));
+  MOCK_METHOD2(RegisterTraceWriter, void(uint32_t, uint32_t));
+  MOCK_METHOD1(UnregisterTraceWriter, void(uint32_t));
 };
 
 class SharedMemoryArbiterImplTest : public AlignedBufferTest {
@@ -132,17 +132,34 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
 
 // Check that we can actually create up to kMaxWriterID TraceWriter(s).
 TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
-  std::map<WriterID, std::unique_ptr<TraceWriter>> writers;
-  for (size_t i = 0; i < kMaxWriterID; i++) {
-    std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(0);
-    ASSERT_TRUE(writer);
-    WriterID writer_id = writer->writer_id();
-    ASSERT_TRUE(writers.emplace(writer_id, std::move(writer)).second);
+  auto checkpoint = task_runner_->CreateCheckpoint("last_unregistered");
+  int num_unregistered = 0;
+  {
+    std::map<WriterID, std::unique_ptr<TraceWriter>> writers;
+    for (size_t i = 0; i < kMaxWriterID; i++) {
+      EXPECT_CALL(mock_producer_endpoint_,
+                  RegisterTraceWriter(static_cast<uint32_t>(i + 1), 0));
+      EXPECT_CALL(mock_producer_endpoint_,
+                  UnregisterTraceWriter(static_cast<uint32_t>(i + 1)))
+          .WillOnce(Invoke([checkpoint, &num_unregistered](uint32_t) {
+            num_unregistered++;
+            if (num_unregistered == kMaxWriterID)
+              checkpoint();
+          }));
+
+      std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(0);
+      ASSERT_TRUE(writer);
+      WriterID writer_id = writer->writer_id();
+      ASSERT_TRUE(writers.emplace(writer_id, std::move(writer)).second);
+    }
+
+    // A further call should return a null impl of trace writer as we exhausted
+    // writer IDs.
+    ASSERT_EQ(arbiter_->CreateTraceWriter(0)->writer_id(), 0);
   }
 
-  // A further call should return a null impl of trace writer as we exhausted
-  // writer IDs.
-  ASSERT_EQ(arbiter_->CreateTraceWriter(0)->writer_id(), 0);
+  // This should run the Register/UnregisterTraceWriter calls expected above.
+  task_runner_->RunUntilCheckpoint("last_unregistered");
 }
 
 // TODO(primiano): add multi-threaded tests.
