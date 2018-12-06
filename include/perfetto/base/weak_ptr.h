@@ -78,24 +78,26 @@ class WeakPtr {
 template <typename T>
 class WeakPtrFactory {
  public:
-  explicit WeakPtrFactory(T* owner) : handle_(new T* {owner}) {
+  explicit WeakPtrFactory(T* owner)
+      : weak_ptr_(std::shared_ptr<T*>(new T* {owner})) {
     PERFETTO_DCHECK_THREAD(thread_checker);
-  }
-  ~WeakPtrFactory() {
-    PERFETTO_DCHECK_THREAD(thread_checker);
-    *(handle_.get()) = nullptr;
   }
 
-  WeakPtr<T> GetWeakPtr() const {
+  ~WeakPtrFactory() {
     PERFETTO_DCHECK_THREAD(thread_checker);
-    return WeakPtr<T>(handle_);
+    *(weak_ptr_.handle_.get()) = nullptr;
   }
+
+  // Can be safely called on any thread, since it simply copies |weak_ptr_|.
+  // Note that any accesses to the returned pointer need to be made on the
+  // thread that created the factory.
+  WeakPtr<T> GetWeakPtr() const { return weak_ptr_; }
 
  private:
   WeakPtrFactory(const WeakPtrFactory&) = delete;
   WeakPtrFactory& operator=(const WeakPtrFactory&) = delete;
 
-  std::shared_ptr<T*> handle_;
+  WeakPtr<T> weak_ptr_;
   PERFETTO_THREAD_CHECKER(thread_checker)
 };
 
