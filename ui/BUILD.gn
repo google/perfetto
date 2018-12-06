@@ -38,6 +38,14 @@ group("ui") {
   ]
 }
 
+group("query") {
+  deps = [
+    ":query_bundle_dist",
+    ":query_dist",
+    ":ui",
+  ]
+}
+
 # +----------------------------------------------------------------------------+
 # | Template used to run node binaries using the hermetic node toolchain.      |
 # +----------------------------------------------------------------------------+
@@ -159,6 +167,14 @@ bundle("engine_bundle") {
   output = "$target_out_dir/engine_bundle.js"
 }
 
+bundle("query_bundle") {
+  deps = [
+    ":transpile_all_ts",
+  ]
+  input = "$target_out_dir/query/index.js"
+  output = "$target_out_dir/query_bundle.js"
+}
+
 # +----------------------------------------------------------------------------+
 # | Protobuf: gen rules to create .js and .d.ts files from protos.             |
 # +----------------------------------------------------------------------------+
@@ -224,6 +240,7 @@ node_bin("transpile_all_ts") {
     "$target_out_dir/frontend/index.js",
     "$target_out_dir/engine/index.js",
     "$target_out_dir/controller/index.js",
+    "$target_out_dir/query/index.js",
   ]
 
   depfile = root_out_dir + "/tsc.d"
@@ -289,6 +306,15 @@ copy("index_dist") {
   ]
 }
 
+copy("query_dist") {
+  sources = [
+    "query.html",
+  ]
+  outputs = [
+    "$ui_dir/query.html",
+  ]
+}
+
 copy("assets_dist") {
   sources = [
               "src/assets/logo-3d.png",
@@ -321,6 +347,14 @@ sorcery("engine_bundle_dist") {
   ]
   input = "$target_out_dir/engine_bundle.js"
   output = "$ui_dir/engine_bundle.js"
+}
+
+sorcery("query_bundle_dist") {
+  deps = [
+    ":query_bundle",
+  ]
+  input = "$target_out_dir/query_bundle.js"
+  output = "$ui_dir/query_bundle.js"
 }
 
 copy("wasm_dist") {
