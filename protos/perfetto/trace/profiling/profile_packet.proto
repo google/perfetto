@@ -62,6 +62,8 @@ message ProfilePacket {
     // bytes freed at this frame and in functions called by it.
     optional uint64 cumulative_freed = 3;
     optional uint64 timestamp = 4;  // timestamp [opt]
+    optional uint64 alloc_count = 5;
+    optional uint64 free_count = 6;
   }
 
   repeated ProcessHeapSamples process_dumps = 5;
