@@ -49,15 +49,6 @@ std::vector<unwindstack::FrameData> stack2() {
   return res;
 }
 
-std::vector<unwindstack::FrameData> topframe() {
-  std::vector<unwindstack::FrameData> res;
-  unwindstack::FrameData data{};
-  data.function_name = "fun1";
-  data.map_name = "map1";
-  res.emplace_back(std::move(data));
-  return res;
-}
-
 TEST(BookkeepingTest, Basic) {
   uint64_t sequence_number = 1;
   GlobalCallstackTrie c;
@@ -65,11 +56,14 @@ TEST(BookkeepingTest, Basic) {
 
   hd.RecordMalloc(stack(), 1, 5, sequence_number++);
   hd.RecordMalloc(stack2(), 2, 2, sequence_number++);
-  ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 7);
+  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5);
+  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 2);
   hd.RecordFree(2, sequence_number++);
-  ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 5);
+  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5);
+  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0);
   hd.RecordFree(1, sequence_number++);
-  ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 0);
+  ASSERT_EQ(hd.GetSizeForTesting(stack()), 0);
+  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0);
 }
 
 TEST(BookkeepingTest, TwoHeapTrackers) {
@@ -80,10 +74,11 @@ TEST(BookkeepingTest, TwoHeapTrackers) {
     HeapTracker hd2(&c);
 
     hd.RecordMalloc(stack(), 1, 5, sequence_number++);
-    hd2.RecordMalloc(stack2(), 2, 2, sequence_number++);
-    ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 7);
+    hd2.RecordMalloc(stack(), 2, 2, sequence_number++);
+    ASSERT_EQ(hd2.GetSizeForTesting(stack()), 2);
+    ASSERT_EQ(hd.GetSizeForTesting(stack()), 5);
   }
-  ASSERT_EQ(c.GetCumSizeForTesting(topframe()), 5);
+  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5);
 }
 
 TEST(BookkeepingTest, ReplaceAlloc) {
@@ -93,8 +88,8 @@ TEST(BookkeepingTest, ReplaceAlloc) {
 
   hd.RecordMalloc(stack(), 1, 5, sequence_number++);
   hd.RecordMalloc(stack2(), 1, 2, sequence_number++);
-  EXPECT_EQ(c.GetCumSizeForTesting(stack()), 0);
-  EXPECT_EQ(c.GetCumSizeForTesting(stack2()), 2);
+  EXPECT_EQ(hd.GetSizeForTesting(stack()), 0);
+  EXPECT_EQ(hd.GetSizeForTesting(stack2()), 2);
 }
 
 TEST(BookkeepingTest, OutOfOrder) {
@@ -103,8 +98,8 @@ TEST(BookkeepingTest, OutOfOrder) {
 
   hd.RecordMalloc(stack(), 1, 5, 1);
   hd.RecordMalloc(stack2(), 1, 2, 0);
-  EXPECT_EQ(c.GetCumSizeForTesting(stack()), 5);
-  EXPECT_EQ(c.GetCumSizeForTesting(stack2()), 0);
+  EXPECT_EQ(hd.GetSizeForTesting(stack()), 5);
+  EXPECT_EQ(hd.GetSizeForTesting(stack2()), 0);
 }
 
 }  // namespace
