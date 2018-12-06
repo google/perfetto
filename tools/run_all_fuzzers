@@ -18,12 +18,12 @@ set -euo pipefail
 
 OUTDIR=out/linux_fuzzer_run
 
-gn gen "$OUTDIR"
-EDITOR=true gn args "$OUTDIR" \
+tools/gn gen "$OUTDIR"
+EDITOR=true tools/gn args "$OUTDIR" \
   --args="is_clang=true is_debug=false use_libfuzzer=true is_asan=true" \
   --check
 
-ninja -C $OUTDIR
+tools/ninja -C $OUTDIR
 
 FUZZERS=$(cd $OUTDIR && ls *fuzzer)
 
