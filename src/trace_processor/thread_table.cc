@@ -36,7 +36,7 @@ void ThreadTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<ThreadTable>(db, storage, "thread");
 }
 
-Table::Schema ThreadTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> ThreadTable::Init(int, const char* const*) {
   return Schema(
       {
           Table::Column(Column::kUtid, "utid", ColumnType::kInt),

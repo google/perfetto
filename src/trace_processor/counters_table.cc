@@ -35,7 +35,7 @@ void CountersTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<CountersTable>(db, storage, "counters");
 }
 
-Table::Schema CountersTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> CountersTable::Init(int, const char* const*) {
   const auto& counters = storage_->counters();
   std::unique_ptr<StorageColumn> cols[] = {
       IdColumnPtr("id", TableId::kCounters),

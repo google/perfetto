@@ -28,7 +28,7 @@ void ArgsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<ArgsTable>(db, storage, "args");
 }
 
-Table::Schema ArgsTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> ArgsTable::Init(int, const char* const*) {
   const auto& args = storage_->args();
   std::unique_ptr<StorageColumn> cols[] = {
       std::unique_ptr<IdColumn>(new IdColumn("id", storage_, &args.ids())),
