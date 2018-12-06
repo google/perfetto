@@ -17,14 +17,13 @@
 #ifndef SRC_TRACED_PROBES_FTRACE_FTRACE_CONTROLLER_H_
 #define SRC_TRACED_PROBES_FTRACE_FTRACE_CONTROLLER_H_
 
+#include <stdint.h>
 #include <unistd.h>
 
 #include <bitset>
-#include <condition_variable>
 #include <functional>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <set>
 #include <string>
 
@@ -32,7 +31,9 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/base/weak_ptr.h"
+#include "perfetto/tracing/core/basic_types.h"
 #include "src/traced/probes/ftrace/ftrace_config.h"
+#include "src/traced/probes/ftrace/ftrace_thread_sync.h"
 
 namespace perfetto {
 
@@ -61,6 +62,10 @@ class FtraceController {
   static std::unique_ptr<FtraceController> Create(base::TaskRunner*, Observer*);
   virtual ~FtraceController();
 
+  // These two methods are called by CpuReader(s) from their worker threads.
+  static void OnCpuReaderRead(size_t cpu, int generation, FtraceThreadSync*);
+  static void OnCpuReaderFlush(size_t cpu, int generation, FtraceThreadSync*);
+
   void DisableAllEvents();
   void WriteTraceMarker(const std::string& s);
   void ClearTrace();
@@ -68,6 +73,11 @@ class FtraceController {
   bool AddDataSource(FtraceDataSource*) PERFETTO_WARN_UNUSED_RESULT;
   bool StartDataSource(FtraceDataSource*);
   void RemoveDataSource(FtraceDataSource*);
+
+  // Force a read of the ftrace buffers, including kernel buffer pages that
+  // are not full. Will call OnFtraceFlushComplete() on all
+  // |started_data_sources_| once all workers have flushed (or timed out).
+  void Flush(FlushRequestID);
 
   void DumpFtraceStats(FtraceStats*);
 
@@ -95,36 +105,28 @@ class FtraceController {
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
 
-  // Called on a worker thread when |cpu| has at least one page of data
-  // available for reading.
-  void OnDataAvailable(base::WeakPtr<FtraceController>,
-                       size_t generation,
-                       size_t cpu,
-                       uint32_t drain_period_ms);
-
-  static void DrainCPUs(base::WeakPtr<FtraceController>, size_t generation);
-  static void UnblockReaders(const base::WeakPtr<FtraceController>&);
+  void OnFlushTimeout(FlushRequestID);
+  void DrainCPUs(int generation);
+  void UnblockReaders();
+  void NotifyFlushCompleteToStartedDataSources(FlushRequestID);
+  void IssueThreadSyncCmd(FtraceThreadSync::Cmd,
+                          std::unique_lock<std::mutex> = {});
 
   uint32_t GetDrainPeriodMs();
 
   void StartIfNeeded();
   void StopIfNeeded();
 
-  // Begin lock-protected members.
-  std::mutex lock_;
-  std::condition_variable data_drained_;
-  std::bitset<base::kMaxCpus> cpus_to_drain_;
-  bool listening_for_raw_trace_data_ = false;
-  // End lock-protected members.
-
   base::TaskRunner* const task_runner_;
   Observer* const observer_;
+  FtraceThreadSync thread_sync_;
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
   std::unique_ptr<ProtoTranslationTable> table_;
   std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer_;
-  size_t generation_ = 0;
+  int generation_ = 0;
+  FlushRequestID cur_flush_request_id_ = 0;
   bool atrace_running_ = false;
-  std::map<size_t, std::unique_ptr<CpuReader>> cpu_readers_;
+  std::vector<std::unique_ptr<CpuReader>> cpu_readers_;
   std::set<FtraceDataSource*> data_sources_;
   std::set<FtraceDataSource*> started_data_sources_;
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
