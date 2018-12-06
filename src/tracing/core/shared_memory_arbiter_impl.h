@@ -56,6 +56,8 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // |OnPagesCompleteCallback|: a callback that will be posted on the passed
   // |TaskRunner| when one or more pages are complete (and hence the Producer
   // should send a CommitData request to the Service).
+  // |TaskRunner|: Task runner for perfetto's main thread, which executes the
+  // OnPagesCompleteCallback and IPC calls to the |ProducerEndpoint|.
   SharedMemoryArbiterImpl(void* start,
                           size_t size,
                           size_t page_size,
