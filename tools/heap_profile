@@ -98,12 +98,6 @@ def sigint_handler(sig, frame):
   IS_INTERRUPTED = True
 
 
-def on_exit(enforcing):
-  subprocess.check_output(['adb', 'shell', 'su root stop heapprofd'])
-  subprocess.check_output(
-      ['adb', 'shell', 'su root setenforce %s' % enforcing])
-
-
 def main(argv):
   parser = argparse.ArgumentParser()
   parser.add_argument("-i", "--interval", help="Sampling interval. "
@@ -118,6 +112,9 @@ def main(argv):
                       nargs='+')
   parser.add_argument("-t", "--trace-to-text-binary",
                       help="Path to local trace to text. For debugging.")
+  parser.add_argument("--disable-selinux", action="store_true",
+                      help="Disable SELinux enforcement for duration of "
+                      "profile")
 
   args = parser.parse_args()
 
@@ -158,10 +155,14 @@ def main(argv):
   cfg = CFG.format(all=str(args.all == True).lower(), interval=args.interval,
                    duration=args.duration, target_cfg=target_cfg)
 
-  enforcing = subprocess.check_output(['adb', 'shell', 'getenforce'])
-  atexit.register(on_exit, enforcing)
+  if args.disable_selinux:
+    enforcing = subprocess.check_output(['adb', 'shell', 'getenforce'])
+    atexit.register(subprocess.check_call,
+        ['adb', 'shell', 'su root setenforce %s' % enforcing])
+    subprocess.check_call(['adb', 'shell', 'su root setenforce 0'])
 
-  subprocess.check_call(['adb', 'shell', 'su root setenforce 0'])
+  atexit.register(subprocess.check_call,
+                  ['adb', 'shell', 'su root stop heapprofd'])
   subprocess.check_call(['adb', 'shell', 'su root start heapprofd'])
 
   perfetto_pid = subprocess.check_output(
@@ -177,7 +178,8 @@ def main(argv):
   signal.signal(signal.SIGINT, old_handler)
   if IS_INTERRUPTED:
     # Not check_call because it could have existed in the meantime.
-    subprocess.call(['adb', 'shell', 'kill', '-INT', perfetto_pid])
+    subprocess.call(['adb', 'shell', 'su', 'root', 'kill', '-INT',
+                     perfetto_pid])
 
   # Wait for perfetto cmd to return.
   while exists:
