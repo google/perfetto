@@ -109,6 +109,15 @@ TEST(InternerStringTest, CopyAssign) {
   }
 }
 
+TEST(InternerStringTest, IDsUnique) {
+  Interner<std::string> interner;
+  Interner<std::string>::Interned interned_str = interner.Intern("foo");
+  Interner<std::string>::Interned same_interned_str = interner.Intern("foo");
+  Interner<std::string>::Interned other_interned_str = interner.Intern("bar");
+  EXPECT_EQ(interned_str.id(), same_interned_str.id());
+  EXPECT_NE(interned_str.id(), other_interned_str.id());
+}
+
 class NoCopyOrMove {
  public:
   NoCopyOrMove(const NoCopyOrMove&) = delete;
