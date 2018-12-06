@@ -25,20 +25,21 @@
 namespace perfetto {
 namespace profiling {
 
-using InternID = uintptr_t;
+using InternID = uint64_t;
 
 template <typename T>
 class Interner {
  private:
   struct Entry {
     template <typename... U>
-    Entry(Interner<T>* in, U... args)
-        : data(std::forward<U...>(args...)), interner(in) {}
+    Entry(Interner<T>* in, uint64_t i, U... args)
+        : data(std::forward<U...>(args...)), id(i), interner(in) {}
 
     bool operator<(const Entry& other) const { return data < other.data; }
 
     const T data;
     size_t ref_count = 0;
+    uint64_t id;
     Interner<T>* interner;
   };
 
@@ -71,7 +72,7 @@ class Interner {
 
     const T& data() const { return entry_->data; }
 
-    InternID id() const { return reinterpret_cast<InternID>(entry_); }
+    InternID id() const { return entry_->id; }
 
     ~Interned() {
       if (entry_ != nullptr)
@@ -92,7 +93,7 @@ class Interner {
 
   template <typename... U>
   Interned Intern(U... args) {
-    auto itr = entries_.emplace(this, std::forward<U...>(args...));
+    auto itr = entries_.emplace(this, next_id++, std::forward<U...>(args...));
     Entry& entry = const_cast<Entry&>(*itr.first);
     entry.ref_count++;
     return Interned(&entry);
@@ -107,6 +108,7 @@ class Interner {
     if (--entry->ref_count == 0)
       entries_.erase(*entry);
   }
+  uint64_t next_id = 0;
   std::set<Entry> entries_;
   static_assert(sizeof(Interned) == sizeof(void*),
                 "interned things should be small");
