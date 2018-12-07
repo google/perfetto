@@ -87,7 +87,7 @@ config("sanitizers_cflags") {
     ]
     defines += [ "UNDEFINED_SANITIZER" ]
   }
-  if (use_libfuzzer) {
+  if (is_fuzzer) {
     cflags += [ "-fsanitize=fuzzer-no-link" ]
     if (is_asan) {
       cflags += [

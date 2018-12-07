@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# No op for now. Will allow us to install further system packages without
+# having to touch the oss-fuzz repo.
