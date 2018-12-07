@@ -339,28 +339,49 @@ struct BookkeepingData {
 // method receives messages on the input_queue and does the bookkeeping.
 class BookkeepingThread {
  public:
+  friend class ProcessHandle;
+  class ProcessHandle {
+   public:
+    friend class BookkeepingThread;
+    friend void swap(ProcessHandle&, ProcessHandle&);
+
+    ProcessHandle() = default;
+
+    ~ProcessHandle();
+    ProcessHandle(const ProcessHandle&) = delete;
+    ProcessHandle& operator=(const ProcessHandle&) = delete;
+    ProcessHandle(ProcessHandle&&) noexcept;
+    ProcessHandle& operator=(ProcessHandle&&) noexcept;
+
+   private:
+    ProcessHandle(BookkeepingThread* matcher, pid_t pid);
+
+    BookkeepingThread* bookkeeping_thread_ = nullptr;
+    pid_t pid_;
+  };
   void Run(BoundedQueue<BookkeepingRecord>* input_queue);
 
   // Inform the bookkeeping thread that a socket for this pid connected.
   //
   // This can be called from arbitrary threads.
-  void NotifyClientConnected(pid_t pid);
+  ProcessHandle NotifyProcessConnected(pid_t pid);
+  void HandleBookkeepingRecord(BookkeepingRecord* rec);
 
+ private:
   // Inform the bookkeeping thread that a socket for this pid disconnected.
   // After the last client for a PID disconnects, the BookkeepingData is
   // retained until the next dump, upon which it gets garbage collected.
   //
   // This can be called from arbitrary threads.
-  void NotifyClientDisconnected(pid_t pid);
+  void NotifyProcessDisconnected(pid_t pid);
 
-  void HandleBookkeepingRecord(BookkeepingRecord* rec);
-
- private:
   GlobalCallstackTrie callsites_;
 
   std::map<pid_t, BookkeepingData> bookkeeping_data_;
   std::mutex bookkeeping_mutex_;
 };
+
+void swap(BookkeepingThread::ProcessHandle&, BookkeepingThread::ProcessHandle&);
 
 }  // namespace profiling
 }  // namespace perfetto
