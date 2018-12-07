@@ -15,7 +15,12 @@
 declare_args() {
   is_debug = true
   is_clang = true
+  is_system_compiler = false
   is_lto = false
+
+  extra_cflags = ""
+  extra_cxxflags = ""
+  extra_ldflags = ""
 }
 
 declare_args() {

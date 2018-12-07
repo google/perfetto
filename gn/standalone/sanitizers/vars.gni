@@ -28,8 +28,17 @@ declare_args() {
   # Undefined Behaviour Sanitizer.
   is_ubsan = false
 
-  # # Compile for fuzzing with LLVM LibFuzzer.
-  use_libfuzzer = false
+  # Compile for fuzzing.
+  is_fuzzer = false
+}
+
+declare_args() {
+  # Link in LLVM LibFuzzer.
+  use_libfuzzer = is_fuzzer
+
+  # If is_fuzzer=true and use_libfuzzer=false, add this flag to ldflags when
+  # linking fuzzer executables.
+  link_fuzzer = ""
 }
 
 declare_args() {
@@ -37,6 +46,8 @@ declare_args() {
       is_asan || is_lsan || is_tsan || is_msan || is_ubsan || use_libfuzzer
 }
 
-assert(!using_sanitizer || is_clang, "is_*san requires is_clang=true'")
+assert(!using_sanitizer || is_clang || is_system_compiler,
+       "is_*san requires is_clang=true'")
 assert(!is_msan || is_linux, "msan only supported on linux")
 assert(!is_tsan || (is_linux || is_mac), "tsan only supported on linux and mac")
+assert(!is_fuzzer || use_libfuzzer || link_fuzzer != "")
