@@ -54,6 +54,12 @@ class ProtoDecoder {
       return static_cast<uint32_t>(int_value);
     }
 
+    inline int32_t as_int32() const {
+      PERFETTO_DCHECK(type == proto_utils::FieldType::kFieldTypeVarInt ||
+                      type == proto_utils::FieldType::kFieldTypeFixed32);
+      return static_cast<int32_t>(int_value);
+    }
+
     inline uint64_t as_uint64() const {
       PERFETTO_DCHECK(type == proto_utils::FieldType::kFieldTypeVarInt ||
                       type == proto_utils::FieldType::kFieldTypeFixed64);
