@@ -116,16 +116,19 @@ matrix:
 cache:
   timeout: 1800  # 30 mins
   directories:
+    - buildtools/android-core
     - buildtools/benchmark
+    - buildtools/bionic
     - buildtools/emulator
     - buildtools/googletest
     - buildtools/jsoncpp
     - buildtools/libbacktrace
-    - buildtools/linenoise
     - buildtools/libcxx
     - buildtools/libcxxabi
     - buildtools/libfuzzer
     - buildtools/libunwind
+    - buildtools/linenoise
+    - buildtools/lzma
 
 before_install:
   - set -e
