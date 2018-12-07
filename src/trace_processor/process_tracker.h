@@ -50,7 +50,7 @@ class ProcessTracker {
   // Called when a sched switch event is seen in the trace. Retrieves the
   // UniqueTid that matches the tid or assigns a new UniqueTid and stores
   // the thread_name_id.
-  UniqueTid UpdateThread(uint64_t timestamp,
+  UniqueTid UpdateThread(int64_t timestamp,
                          uint32_t tid,
                          StringId thread_name_id);
 
@@ -86,7 +86,7 @@ class ProcessTracker {
 
   std::tuple<UniquePid, TraceStorage::Process*> GetOrCreateProcess(
       uint32_t pid,
-      uint64_t start_ns);
+      int64_t start_ns);
 
  private:
   TraceProcessorContext* const context_;
