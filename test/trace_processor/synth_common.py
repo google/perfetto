@@ -29,9 +29,29 @@ class Trace(object):
         self.packet = self.trace.packet.add()
         self.packet.ftrace_events.cpu = cpu
 
-    def add_sched(self, ts, prev_pid, next_pid):
+    def __add_ftrace_event(self, ts, tid):
         ftrace = self.packet.ftrace_events.event.add()
         ftrace.timestamp = ts
+        ftrace.pid = tid
+        return ftrace
+
+    def add_rss_stat(self, ts, tid, member, size):
+        ftrace = self.__add_ftrace_event(ts, tid)
+
+        rss_stat = ftrace.rss_stat
+        rss_stat.member = member
+        rss_stat.size = size
+
+    def add_oom_score_update(self, ts, oom_score_adj, pid):
+        ftrace = self.__add_ftrace_event(ts, pid)
+
+        oom_score = ftrace.oom_score_adj_update
+        oom_score.comm = self.proc_map[pid]
+        oom_score.oom_score_adj = oom_score_adj
+        oom_score.pid = pid
+
+    def add_sched(self, ts, prev_pid, next_pid):
+        ftrace = self.__add_ftrace_event(ts, 0)
 
         ss = ftrace.sched_switch
         ss.prev_comm = self.proc_map[prev_pid]
@@ -40,8 +60,7 @@ class Trace(object):
         ss.next_comm = self.proc_map[next_pid]
 
     def add_cpufreq(self, ts, freq, cpu):
-        ftrace = self.packet.ftrace_events.event.add()
-        ftrace.timestamp = ts
+        ftrace = self.__add_ftrace_event(ts, 0)
 
         cpufreq = ftrace.cpu_frequency
         cpufreq.state = freq
