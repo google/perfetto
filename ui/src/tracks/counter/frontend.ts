@@ -27,7 +27,7 @@ import {
 } from './common';
 
 // 0.5 Makes the horizontal lines sharp.
-const MARGIN_TOP = 5.5;
+const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30;
 
 function getCurResolution() {
@@ -87,17 +87,20 @@ class CounterTrack extends Track<Config, Data> {
 
     const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
     const endPx = Math.floor(timeScale.timeToPx(visibleWindowTime.end));
-    const bottomY = MARGIN_TOP + RECT_HEIGHT;
+    const zeroY = MARGIN_TOP + RECT_HEIGHT / (data.minimumValue < 0 ? 2 : 1);
 
     let lastX = startPx;
-    let lastY = bottomY;
+    let lastY = zeroY;
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
-    let yMax = data.maximumValue;
+    const maxValue = Math.max(data.maximumValue, 0);
+
+    let yMax = Math.max(Math.abs(data.minimumValue), maxValue);
     const kUnits = ['', 'K', 'M', 'G', 'T', 'E'];
     const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
     const pow10 = Math.pow(10, exp);
     yMax = Math.ceil(yMax / (pow10 / 4)) * (pow10 / 4);
+    const yRange = data.minimumValue < 0 ? yMax * 2 : yMax;
     const unitGroup = Math.floor(exp / 3);
     const yLabel = `${yMax / Math.pow(10, unitGroup * 3)} ${kUnits[unitGroup]}`;
     // There are 360deg of hue. We want a scale that starts at green with
@@ -120,21 +123,30 @@ class CounterTrack extends Track<Config, Data> {
       const startTime = data.timestamps[i];
 
       lastX = Math.floor(timeScale.timeToPx(startTime));
-
-      const height = Math.round(RECT_HEIGHT * (1 - value / yMax));
       ctx.lineTo(lastX, lastY);
-      lastY = MARGIN_TOP + height;
+
+      const height = Math.round((value / yRange) * RECT_HEIGHT);
+      lastY = zeroY - height;
       ctx.lineTo(lastX, lastY);
     }
     ctx.lineTo(endPx, lastY);
-    ctx.lineTo(endPx, bottomY);
+    ctx.lineTo(endPx, zeroY);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
+    // Draw the Y=0 dashed line.
+    ctx.strokeStyle = `hsl(${hue}, 10%, 15%)`;
+    ctx.beginPath();
+    ctx.setLineDash([2, 4]);
+    ctx.moveTo(0, zeroY);
+    ctx.lineTo(endPx, zeroY);
+    ctx.closePath();
+    ctx.stroke();
+
     ctx.font = '10px Google Sans';
 
-    if (this.hoveredValue) {
+    if (this.hoveredValue !== undefined) {
       // Draw a vertical bar to highlight the mouse cursor.
       ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
       const height = Math.round(RECT_HEIGHT * this.hoveredValue / yMax);
