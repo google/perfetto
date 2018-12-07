@@ -1128,6 +1128,14 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     return;
   }
 
+  TraceBuffer* buf = GetBufferByID(buffer_id);
+  if (!buf) {
+    PERFETTO_DLOG("Could not find target buffer %" PRIu16
+                  " for producer %" PRIu16,
+                  buffer_id, producer_id_trusted);
+    return;
+  }
+
   // Verify that the producer is actually allowed to write into the target
   // buffer specified in the request. This prevents a malicious producer from
   // injecting data into a log buffer that belongs to a tracing session the
@@ -1137,15 +1145,6 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
                   " tried to write into forbidden target buffer %" PRIu16,
                   producer_id_trusted, buffer_id);
     PERFETTO_DCHECK(false);
-    return;
-  }
-
-  TraceBuffer* buf = GetBufferByID(buffer_id);
-  if (!buf) {
-    // This should have been caught by the is_allowed_target_buffer check.
-    PERFETTO_DFATAL("Could not find target buffer %" PRIu16
-                    " for producer %" PRIu16,
-                    buffer_id, producer_id_trusted);
     return;
   }
 
