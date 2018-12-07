@@ -22,129 +22,100 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-TEST(MatcherTest, MatchPIDProcessSetSpecFirst) {
-  bool match = false;
-  auto match_fn = [&match](const Process&,
-                           const std::vector<const ProcessSetSpec*>&) {
+class DummyDelegate : public ProcessMatcher::Delegate {
+ public:
+  void Match(const Process&,
+             const std::vector<const ProcessSetSpec*>&) override {
     match = true;
-  };
-  bool shutdown = false;
-  auto shutdown_fn = [&shutdown](pid_t) { shutdown = true; };
+  }
 
-  ProcessMatcher m(std::move(shutdown_fn), std::move(match_fn));
+  void Disconnect(pid_t) override { shutdown = true; }
+
+  bool match = false;
+  bool shutdown = false;
+};
+
+TEST(MatcherTest, MatchPIDProcessSetSpecFirst) {
+  DummyDelegate delegate;
+
+  ProcessMatcher m(&delegate);
   ProcessSetSpec ps;
   ps.pids.emplace(1);
 
   auto ps_handle = m.AwaitProcessSetSpec(std::move(ps));
   auto handle = m.ProcessConnected({1, "init"});
-  EXPECT_TRUE(match);
-  EXPECT_FALSE(shutdown);
+  EXPECT_TRUE(delegate.match);
+  EXPECT_FALSE(delegate.shutdown);
 }
 
 TEST(MatcherTest, MatchPIDProcessSetSpecSecond) {
-  bool match = false;
-  auto match_fn = [&match](const Process&,
-                           const std::vector<const ProcessSetSpec*>&) {
-    match = true;
-  };
-  bool shutdown = false;
-  auto shutdown_fn = [&shutdown](pid_t) { shutdown = true; };
+  DummyDelegate delegate;
 
-  ProcessMatcher m(std::move(shutdown_fn), std::move(match_fn));
+  ProcessMatcher m(&delegate);
   ProcessSetSpec ps;
   ps.pids.emplace(1);
 
   auto handle = m.ProcessConnected({1, "init"});
   auto ps_handle = m.AwaitProcessSetSpec(std::move(ps));
-  EXPECT_TRUE(match);
-  EXPECT_FALSE(shutdown);
+  EXPECT_TRUE(delegate.match);
+  EXPECT_FALSE(delegate.shutdown);
 }
 
 TEST(MatcherTest, MatchCmdlineProcessSetSpecFirst) {
-  bool match = false;
-  auto match_fn = [&match](const Process&,
-                           const std::vector<const ProcessSetSpec*>&) {
-    match = true;
-  };
-  bool shutdown = false;
-  auto shutdown_fn = [&shutdown](pid_t) { shutdown = true; };
+  DummyDelegate delegate;
 
-  ProcessMatcher m(std::move(shutdown_fn), std::move(match_fn));
+  ProcessMatcher m(&delegate);
   ProcessSetSpec ps;
   ps.process_cmdline.emplace("init");
 
   auto ps_handle = m.AwaitProcessSetSpec(std::move(ps));
   auto handle = m.ProcessConnected({1, "init"});
-  EXPECT_TRUE(match);
-  EXPECT_FALSE(shutdown);
+  EXPECT_TRUE(delegate.match);
+  EXPECT_FALSE(delegate.shutdown);
 }
 
 TEST(MatcherTest, MatchCmdlineProcessSetSpecSecond) {
-  bool match = false;
-  auto match_fn = [&match](const Process&,
-                           const std::vector<const ProcessSetSpec*>&) {
-    match = true;
-  };
-  bool shutdown = false;
-  auto shutdown_fn = [&shutdown](pid_t) { shutdown = true; };
+  DummyDelegate delegate;
 
-  ProcessMatcher m(std::move(shutdown_fn), std::move(match_fn));
+  ProcessMatcher m(&delegate);
   ProcessSetSpec ps;
   ps.process_cmdline.emplace("init");
 
   auto handle = m.ProcessConnected({1, "init"});
   auto ps_handle = m.AwaitProcessSetSpec(std::move(ps));
-  EXPECT_TRUE(match);
-  EXPECT_FALSE(shutdown);
+  EXPECT_TRUE(delegate.match);
+  EXPECT_FALSE(delegate.shutdown);
 }
 
 TEST(MatcherTest, ExpiredProcessSetSpecHandle) {
-  bool match = false;
-  auto match_fn = [&match](const Process&,
-                           const std::vector<const ProcessSetSpec*>&) {
-    match = true;
-  };
-  bool shutdown = false;
-  auto shutdown_fn = [&shutdown](pid_t) { shutdown = true; };
+  DummyDelegate delegate;
 
-  ProcessMatcher m(std::move(shutdown_fn), std::move(match_fn));
+  ProcessMatcher m(&delegate);
   ProcessSetSpec ps;
   ps.pids.emplace(1);
 
   { auto ps_handle = m.AwaitProcessSetSpec(std::move(ps)); }
   auto handle = m.ProcessConnected({1, "init"});
-  EXPECT_FALSE(match);
+  EXPECT_FALSE(delegate.match);
 }
 
 TEST(MatcherTest, ExpiredProcessHandle) {
-  bool match = false;
-  auto match_fn = [&match](const Process&,
-                           const std::vector<const ProcessSetSpec*>&) {
-    match = true;
-  };
-  bool shutdown = false;
-  auto shutdown_fn = [&shutdown](pid_t) { shutdown = true; };
+  DummyDelegate delegate;
 
-  ProcessMatcher m(std::move(shutdown_fn), std::move(match_fn));
+  ProcessMatcher m(&delegate);
   ProcessSetSpec ps;
   ps.pids.emplace(1);
 
   { auto handle = m.ProcessConnected({1, "init"}); }
-  EXPECT_FALSE(shutdown);
+  EXPECT_FALSE(delegate.shutdown);
   auto ps_handle = m.AwaitProcessSetSpec(std::move(ps));
-  EXPECT_FALSE(match);
+  EXPECT_FALSE(delegate.match);
 }
 
 TEST(MatcherTest, MatchCmdlineProcessSetSpecFirstMultiple) {
-  bool match = false;
-  auto match_fn = [&match](const Process&,
-                           const std::vector<const ProcessSetSpec*>&) {
-    match = true;
-  };
-  bool shutdown = false;
-  auto shutdown_fn = [&shutdown](pid_t) { shutdown = true; };
+  DummyDelegate delegate;
 
-  ProcessMatcher m(std::move(shutdown_fn), std::move(match_fn));
+  ProcessMatcher m(&delegate);
   ProcessSetSpec ps;
   ps.process_cmdline.emplace("init");
   ProcessSetSpec ps2;
@@ -153,24 +124,18 @@ TEST(MatcherTest, MatchCmdlineProcessSetSpecFirstMultiple) {
   auto ps_handle = m.AwaitProcessSetSpec(std::move(ps));
   auto ps2_handle = m.AwaitProcessSetSpec(std::move(ps2));
   auto handle = m.ProcessConnected({1, "init"});
-  EXPECT_TRUE(match);
-  EXPECT_FALSE(shutdown);
+  EXPECT_TRUE(delegate.match);
+  EXPECT_FALSE(delegate.shutdown);
   { auto destroy = std::move(ps2_handle); }
-  EXPECT_FALSE(shutdown);
+  EXPECT_FALSE(delegate.shutdown);
   { auto destroy = std::move(ps_handle); }
-  EXPECT_TRUE(shutdown);
+  EXPECT_TRUE(delegate.shutdown);
 }
 
 TEST(MatcherTest, GetPIDs) {
-  bool match = false;
-  auto match_fn = [&match](const Process&,
-                           const std::vector<const ProcessSetSpec*>&) {
-    match = true;
-  };
-  bool shutdown = false;
-  auto shutdown_fn = [&shutdown](pid_t) { shutdown = true; };
+  DummyDelegate delegate;
 
-  ProcessMatcher m(std::move(shutdown_fn), std::move(match_fn));
+  ProcessMatcher m(&delegate);
   ProcessSetSpec ps;
   ps.process_cmdline.emplace("init");
 
@@ -179,8 +144,8 @@ TEST(MatcherTest, GetPIDs) {
   auto ps_handle = m.AwaitProcessSetSpec(std::move(ps));
   std::set<pid_t> expected_pids{1, 2};
   EXPECT_EQ(ps_handle.GetPIDs(), expected_pids);
-  EXPECT_TRUE(match);
-  EXPECT_FALSE(shutdown);
+  EXPECT_TRUE(delegate.match);
+  EXPECT_FALSE(delegate.shutdown);
 }
 
 }  // namespace
