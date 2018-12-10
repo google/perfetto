@@ -56,8 +56,8 @@ Table::Schema WindowOperatorTable::CreateSchema(int, const char* const*) {
 std::unique_ptr<Table::Cursor> WindowOperatorTable::CreateCursor(
     const QueryConstraints& qc,
     sqlite3_value** argv) {
-  uint64_t window_end = window_start_ + window_dur_;
-  uint64_t step_size = quantum_ == 0 ? window_dur_ : quantum_;
+  int64_t window_end = window_start_ + window_dur_;
+  int64_t step_size = quantum_ == 0 ? window_dur_ : quantum_;
   return std::unique_ptr<Table::Cursor>(
       new Cursor(this, window_start_, window_end, step_size, qc, argv));
 }
@@ -81,9 +81,9 @@ int WindowOperatorTable::Update(int argc,
   if (argc < 2 || sqlite3_value_type(argv[0]) == SQLITE_NULL)
     return SQLITE_READONLY;
 
-  uint64_t new_quantum = static_cast<uint64_t>(sqlite3_value_int64(argv[3]));
-  uint64_t new_start = static_cast<uint64_t>(sqlite3_value_int64(argv[4]));
-  uint64_t new_dur = static_cast<uint64_t>(sqlite3_value_int64(argv[5]));
+  int64_t new_quantum = sqlite3_value_int64(argv[3]);
+  int64_t new_start = sqlite3_value_int64(argv[4]);
+  int64_t new_dur = sqlite3_value_int64(argv[5]);
   if (new_dur == 0) {
     auto* err = sqlite3_mprintf("Cannot set duration of window table to zero.");
     SetErrorMessage(err);
@@ -98,9 +98,9 @@ int WindowOperatorTable::Update(int argc,
 }
 
 WindowOperatorTable::Cursor::Cursor(const WindowOperatorTable* table,
-                                    uint64_t window_start,
-                                    uint64_t window_end,
-                                    uint64_t step_size,
+                                    int64_t window_start,
+                                    int64_t window_end,
+                                    int64_t step_size,
                                     const QueryConstraints& qc,
                                     sqlite3_value** argv)
     : window_start_(window_start),

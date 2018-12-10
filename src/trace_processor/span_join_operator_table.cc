@@ -32,7 +32,6 @@ namespace trace_processor {
 namespace {
 
 constexpr int64_t kI64Max = std::numeric_limits<int64_t>::max();
-constexpr uint64_t kU64Max = std::numeric_limits<uint64_t>::max();
 
 constexpr char kTsColumnName[] = "ts";
 constexpr char kDurColumnName[] = "dur";
@@ -247,7 +246,7 @@ int SpanJoinOperatorTable::Cursor::Next() {
 }
 
 int SpanJoinOperatorTable::Cursor::Eof() {
-  return t1_.ts_start() == kU64Max || t2_.ts_start() == kU64Max;
+  return t1_.ts_start() == kI64Max || t2_.ts_start() == kI64Max;
 }
 
 int SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
@@ -312,12 +311,12 @@ int SpanJoinOperatorTable::Cursor::TableQueryState::StepAndCacheValues() {
     int64_t ts = sqlite3_column_int64(stmt, Column::kTimestamp);
     int64_t dur = sqlite3_column_int64(stmt, Column::kDuration);
     int64_t partition = sqlite3_column_int64(stmt, Column::kPartition);
-    ts_start_ = static_cast<uint64_t>(ts);
-    ts_end_ = ts_start_ + static_cast<uint64_t>(dur);
+    ts_start_ = ts;
+    ts_end_ = ts_start_ + dur;
     partition_ = partition;
   } else if (res == SQLITE_DONE) {
-    ts_start_ = kU64Max;
-    ts_end_ = kU64Max;
+    ts_start_ = kI64Max;
+    ts_end_ = kI64Max;
     partition_ = kI64Max;
   }
   return res;

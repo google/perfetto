@@ -63,14 +63,14 @@ class TraceSorter {
   struct TimestampedTracePiece {
     static constexpr uint32_t kNoCpu = std::numeric_limits<uint32_t>::max();
 
-    TimestampedTracePiece(uint64_t a, TraceBlobView b, uint32_t c)
+    TimestampedTracePiece(int64_t a, TraceBlobView b, uint32_t c)
         : timestamp(a), blob_view(std::move(b)), cpu(c) {}
 
     TimestampedTracePiece(TimestampedTracePiece&&) noexcept = default;
     TimestampedTracePiece& operator=(TimestampedTracePiece&&) = default;
 
     // For std::lower_bound().
-    static inline bool Compare(const TimestampedTracePiece& x, uint64_t ts) {
+    static inline bool Compare(const TimestampedTracePiece& x, int64_t ts) {
       return x.timestamp < ts;
     }
 
@@ -81,22 +81,20 @@ class TraceSorter {
 
     bool is_ftrace() const { return cpu != kNoCpu; }
 
-    uint64_t timestamp;
+    int64_t timestamp;
     TraceBlobView blob_view;
     uint32_t cpu;
   };
 
-  TraceSorter(TraceProcessorContext*,
-              OptimizationMode,
-              uint64_t window_size_ns);
+  TraceSorter(TraceProcessorContext*, OptimizationMode, int64_t window_size_ns);
 
-  inline void PushTracePacket(uint64_t timestamp, TraceBlobView packet) {
+  inline void PushTracePacket(int64_t timestamp, TraceBlobView packet) {
     AppendAndMaybeFlushEvents(TimestampedTracePiece(
         timestamp, std::move(packet), TimestampedTracePiece::kNoCpu));
   }
 
   inline void PushFtracePacket(uint32_t cpu,
-                               uint64_t timestamp,
+                               int64_t timestamp,
                                TraceBlobView packet) {
     AppendAndMaybeFlushEvents(
         TimestampedTracePiece(timestamp, std::move(packet), cpu));
@@ -104,20 +102,20 @@ class TraceSorter {
 
   // This method passes any events older than window_size_ns to the
   // parser to be parsed and then stored.
-  void SortAndFlushEventsBeyondWindow(uint64_t windows_size_ns);
+  void SortAndFlushEventsBeyondWindow(int64_t windows_size_ns);
 
   // Flush all events ignorinig the window.
   void FlushEventsForced() {
     SortAndFlushEventsBeyondWindow(/*window_size_ns=*/0);
   }
 
-  void set_window_ns_for_testing(uint64_t window_size_ns) {
+  void set_window_ns_for_testing(int64_t window_size_ns) {
     window_size_ns_ = window_size_ns;
   }
 
  private:
   inline void AppendAndMaybeFlushEvents(TimestampedTracePiece ttp) {
-    const uint64_t timestamp = ttp.timestamp;
+    const int64_t timestamp = ttp.timestamp;
     events_.emplace_back(std::move(ttp));
     earliest_timestamp_ = std::min(earliest_timestamp_, timestamp);
 
@@ -170,13 +168,13 @@ class TraceSorter {
 
   // Events are propagated to the next stage only after (max - min) timestamp
   // is larger than this value.
-  uint64_t window_size_ns_;
+  int64_t window_size_ns_;
 
   // max(e.timestamp for e in events_).
-  uint64_t latest_timestamp_ = 0;
+  int64_t latest_timestamp_ = 0;
 
   // min(e.timestamp for e in events_).
-  uint64_t earliest_timestamp_ = std::numeric_limits<uint64_t>::max();
+  int64_t earliest_timestamp_ = std::numeric_limits<int64_t>::max();
 
   // Contains the index (< events_.size()) of the last sorted event. In essence,
   // events_[0..sort_start_idx_] are guaranteed to be in-order, while
@@ -187,7 +185,7 @@ class TraceSorter {
   // events_[0..sort_start_idx_]. In order to re-establish a total order within
   // |events_| we need to sort entries from (the index corresponding to) that
   // timestamp.
-  uint64_t sort_min_ts_ = 0;
+  int64_t sort_min_ts_ = 0;
 };
 
 }  // namespace trace_processor

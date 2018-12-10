@@ -138,8 +138,8 @@ class SpanJoinOperatorTable : public Table {
 
       const TableDefinition* definition() const { return defn_; }
 
-      uint64_t ts_start() const { return ts_start_; }
-      uint64_t ts_end() const { return ts_end_; }
+      int64_t ts_start() const { return ts_start_; }
+      int64_t ts_end() const { return ts_end_; }
       int64_t partition() const { return partition_; }
 
      private:
@@ -148,8 +148,8 @@ class SpanJoinOperatorTable : public Table {
 
       ScopedStmt stmt_;
 
-      uint64_t ts_start_ = std::numeric_limits<uint64_t>::max();
-      uint64_t ts_end_ = std::numeric_limits<uint64_t>::max();
+      int64_t ts_start_ = std::numeric_limits<int64_t>::max();
+      int64_t ts_end_ = std::numeric_limits<int64_t>::max();
       int64_t partition_ = std::numeric_limits<int64_t>::max();
 
       const TableDefinition* const defn_;

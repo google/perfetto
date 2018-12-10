@@ -36,16 +36,16 @@ TEST(JsonTraceParserTest, CoerceToUint32) {
 }
 
 TEST(JsonTraceParserTest, CoerceToUint64) {
-  uint64_t n = 0;
+  int64_t n = 0;
 
-  ASSERT_TRUE(CoerceToUint64(Json::Value(42), &n));
+  ASSERT_TRUE(CoerceToInt64(Json::Value(42), &n));
   EXPECT_EQ(n, 42);
 
-  ASSERT_TRUE(CoerceToUint64(Json::Value("42"), &n));
+  ASSERT_TRUE(CoerceToInt64(Json::Value("42"), &n));
   EXPECT_EQ(n, 42);
 
-  ASSERT_FALSE(CoerceToUint64(Json::Value("foo"), &n));
-  ASSERT_FALSE(CoerceToUint64(Json::Value("1234!"), &n));
+  ASSERT_FALSE(CoerceToInt64(Json::Value("foo"), &n));
+  ASSERT_FALSE(CoerceToInt64(Json::Value("1234!"), &n));
 }
 
 }  // namespace

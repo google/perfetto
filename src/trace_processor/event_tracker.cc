@@ -35,7 +35,7 @@ StringId EventTracker::GetThreadNameId(uint32_t tid, base::StringView comm) {
 }
 
 void EventTracker::PushSchedSwitch(uint32_t cpu,
-                                   uint64_t timestamp,
+                                   int64_t timestamp,
                                    uint32_t prev_pid,
                                    uint32_t,
                                    uint32_t next_pid,
@@ -59,7 +59,7 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
     }
 
     size_t idx = pending_slice->storage_index;
-    uint64_t duration = timestamp - slices->start_ns()[idx];
+    int64_t duration = timestamp - slices->start_ns()[idx];
     slices->set_duration(idx, duration);
   }
 
@@ -72,10 +72,10 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
   pending_slice->pid = next_pid;
 }
 
-RowId EventTracker::PushCounter(uint64_t timestamp,
+RowId EventTracker::PushCounter(int64_t timestamp,
                                 double value,
                                 StringId name_id,
-                                uint64_t ref,
+                                int64_t ref,
                                 RefType ref_type) {
   if (timestamp < prev_timestamp_) {
     PERFETTO_ELOG("counter event out of order by %.4f ms, skipping",
@@ -89,14 +89,14 @@ RowId EventTracker::PushCounter(uint64_t timestamp,
   auto counter_it = pending_counters_per_key_.find(key);
   if (counter_it != pending_counters_per_key_.end()) {
     size_t idx = counter_it->second;
-    uint64_t duration = timestamp - counters->timestamps()[idx];
+    int64_t duration = timestamp - counters->timestamps()[idx];
     // Update duration of previously stored event.
     counters->set_duration(idx, duration);
   }
 
   // At this point we don't know the duration so just store 0.
   size_t idx = counters->AddCounter(timestamp, 0 /* duration */, name_id, value,
-                                    static_cast<int64_t>(ref), ref_type);
+                                    ref, ref_type);
   pending_counters_per_key_[key] = idx;
   return TraceStorage::CreateRowId(TableId::kCounters,
                                    static_cast<uint32_t>(idx));

@@ -65,7 +65,7 @@ class ThreadTableUnittest : public ::testing::Test {
 
 TEST_F(ThreadTableUnittest, Select) {
   uint32_t cpu = 3;
-  uint64_t timestamp = 100;
+  int64_t timestamp = 100;
   uint32_t prev_state = 32;
   static const char kThreadName1[] = "thread1";
   static const char kThreadName2[] = "thread2";
@@ -90,7 +90,7 @@ TEST_F(ThreadTableUnittest, Select) {
 
 TEST_F(ThreadTableUnittest, SelectWhere) {
   uint32_t cpu = 3;
-  uint64_t timestamp = 100;
+  int64_t timestamp = 100;
   uint32_t prev_state = 32;
   static const char kThreadName1[] = "thread1";
   static const char kThreadName2[] = "thread2";
@@ -120,7 +120,7 @@ TEST_F(ThreadTableUnittest, SelectWhere) {
 
 TEST_F(ThreadTableUnittest, JoinWithProcess) {
   uint32_t cpu = 3;
-  uint64_t timestamp = 100;
+  int64_t timestamp = 100;
   uint32_t prev_state = 32;
   static const char kThreadName1[] = "thread1";
   static const char kThreadName2[] = "thread2";
