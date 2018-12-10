@@ -119,6 +119,9 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   auto table = ProtoTranslationTable::Create(
       ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
 
+  if (!table)
+    return nullptr;
+
   std::unique_ptr<FtraceConfigMuxer> model = std::unique_ptr<FtraceConfigMuxer>(
       new FtraceConfigMuxer(ftrace_procfs.get(), table.get()));
   return std::unique_ptr<FtraceController>(
