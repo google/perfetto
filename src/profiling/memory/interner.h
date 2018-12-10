@@ -18,6 +18,7 @@
 #define SRC_PROFILING_MEMORY_INTERNER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 #include <set>
 
 #include "perfetto/base/logging.h"

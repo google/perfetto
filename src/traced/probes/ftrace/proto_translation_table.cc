@@ -346,7 +346,7 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
   }
   if (!ParseFtraceEventBody(std::move(page_header), nullptr,
                             &page_header_fields)) {
-    PERFETTO_DCHECK("Failed to parse page header.");
+    PERFETTO_DFATAL("Failed to parse page header.");
     return nullptr;
   }
 
