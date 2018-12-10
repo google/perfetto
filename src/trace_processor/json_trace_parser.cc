@@ -82,16 +82,16 @@ ReadDictRes ReadOneJsonDict(const char* start,
 
 }  // namespace
 
-bool CoerceToUint64(const Json::Value& value, uint64_t* integer_ptr) {
+bool CoerceToInt64(const Json::Value& value, int64_t* integer_ptr) {
   switch (static_cast<size_t>(value.type())) {
     case Json::uintValue:
     case Json::intValue:
-      *integer_ptr = value.asUInt64();
+      *integer_ptr = value.asInt64();
       return true;
     case Json::stringValue: {
       std::string s = value.asString();
       char* end;
-      *integer_ptr = strtoull(s.c_str(), &end, 10);
+      *integer_ptr = strtoll(s.c_str(), &end, 10);
       return end == s.data() + s.size();
     }
     default:
@@ -100,8 +100,10 @@ bool CoerceToUint64(const Json::Value& value, uint64_t* integer_ptr) {
 }
 
 bool CoerceToUint32(const Json::Value& value, uint32_t* integer_ptr) {
-  uint64_t n = 0;
-  if (!CoerceToUint64(value, &n))
+  int64_t n = 0;
+  if (!CoerceToInt64(value, &n))
+    return false;
+  if (n < 0 || n > std::numeric_limits<uint32_t>::max())
     return false;
   *integer_ptr = static_cast<uint32_t>(n);
   return true;
@@ -153,8 +155,8 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
     PERFETTO_CHECK(CoerceToUint32(value["tid"], &tid));
     uint32_t pid = 0;
     PERFETTO_CHECK(CoerceToUint32(value["pid"], &pid));
-    uint64_t ts = 0;
-    PERFETTO_CHECK(CoerceToUint64(value["ts"], &ts));
+    int64_t ts = 0;
+    PERFETTO_CHECK(CoerceToInt64(value["ts"], &ts));
     ts *= 1000;
     const char* cat = value.isMember("cat") ? value["cat"].asCString() : "";
     const char* name = value.isMember("name") ? value["name"].asCString() : "";
@@ -172,9 +174,9 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
         break;
       }
       case 'X': {  // TRACE_EVENT (scoped event).
-        uint64_t duration = 0;
+        int64_t duration = 0;
         // Ignore this event if invalid.
-        if (!CoerceToUint64(value["dur"], &duration))
+        if (!CoerceToInt64(value["dur"], &duration))
           continue;
         duration *= 1000;
         slice_tracker->Scoped(ts, utid, cat_id, name_id, duration);

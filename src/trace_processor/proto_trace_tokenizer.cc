@@ -154,7 +154,7 @@ void ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     timestamp_found = decoder.FindIntField<kTimestampFieldNumber>(&timestamp);
   }
   if (timestamp_found)
-    last_timestamp_ = timestamp;
+    last_timestamp_ = static_cast<int64_t>(timestamp);
 
   // TODO(primiano): this can be optimized for the ftrace case.
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
@@ -241,11 +241,12 @@ void ProtoTraceTokenizer::ParseFtraceEvent(uint32_t cpu, TraceBlobView event) {
     return;
   }
 
-  last_timestamp_ = timestamp;
+  last_timestamp_ = static_cast<int64_t>(timestamp);
 
   // We don't need to parse this packet, just push it to be sorted with
   // the timestamp.
-  trace_sorter_->PushFtracePacket(cpu, timestamp, std::move(event));
+  trace_sorter_->PushFtracePacket(cpu, static_cast<int64_t>(timestamp),
+                                  std::move(event));
 }
 
 }  // namespace trace_processor
