@@ -3,4 +3,4 @@
 # No op for now. Will allow us to install further system packages without
 # having to touch the oss-fuzz repo.
 
-find $SRC/perfetto/buildtools -type d -name '.git' -exec rm -rf "{}"  \;
+set -euo pipefail
