@@ -340,9 +340,15 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
 
   std::vector<FtraceEvent::Field> page_header_fields;
   std::string page_header = ftrace_procfs->ReadPageHeaderFormat();
-  PERFETTO_CHECK(!page_header.empty());
-  PERFETTO_CHECK(ParseFtraceEventBody(std::move(page_header), nullptr,
-                                      &page_header_fields));
+  if (page_header.empty()) {
+    PERFETTO_DFATAL("Empty page header.");
+    return nullptr;
+  }
+  if (!ParseFtraceEventBody(std::move(page_header), nullptr,
+                            &page_header_fields)) {
+    PERFETTO_DCHECK("Failed to parse page header.");
+    return nullptr;
+  }
 
   for (Event& event : events) {
     if (event.proto_field_id ==
