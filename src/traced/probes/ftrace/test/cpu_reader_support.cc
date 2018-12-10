@@ -37,6 +37,8 @@ ProtoTranslationTable* GetTable(const std::string& name) {
     FtraceProcfs ftrace(path);
     auto table = ProtoTranslationTable::Create(&ftrace, GetStaticEventInfo(),
                                                GetStaticCommonFieldsInfo());
+    if (!table)
+      return nullptr;
     g_tables->emplace(name, std::move(table));
   }
   return g_tables->at(name).get();
