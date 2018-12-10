@@ -26,7 +26,7 @@ bool IsGoodFtracePunctuation(char c) {
 }
 
 bool IsGoodAtracePunctuation(char c) {
-  return c == '_' || c == '.';
+  return c == '_' || c == '.' || c == '*';
 }
 
 bool IsValidAtraceEventName(const std::string& str) {
