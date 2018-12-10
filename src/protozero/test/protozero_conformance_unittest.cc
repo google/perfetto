@@ -99,13 +99,13 @@ TEST_F(ProtoZeroConformanceTest, SimpleFieldsNoNesting) {
   msg->add_repeated_int32(2000000);
 
   size_t msg_size = GetNumSerializedBytes();
-  EXPECT_EQ(126u, msg_size);
 
   std::unique_ptr<uint8_t[]> msg_binary(new uint8_t[msg_size]);
   GetSerializedBytes(0, msg_size, msg_binary.get());
 
   pbgold::EveryField gold_msg;
   gold_msg.ParseFromArray(msg_binary.get(), static_cast<int>(msg_size));
+
   EXPECT_EQ(-1, gold_msg.field_int32());
   EXPECT_EQ(-333123456789ll, gold_msg.field_int64());
   EXPECT_EQ(600u, gold_msg.field_uint32());
@@ -129,6 +129,7 @@ TEST_F(ProtoZeroConformanceTest, SimpleFieldsNoNesting) {
   EXPECT_EQ(-1, gold_msg.repeated_int32(1));
   EXPECT_EQ(100, gold_msg.repeated_int32(2));
   EXPECT_EQ(2000000, gold_msg.repeated_int32(3));
+  EXPECT_EQ(msg_size, gold_msg.ByteSize());
 }
 
 TEST_F(ProtoZeroConformanceTest, NestedMessages) {
