@@ -141,40 +141,29 @@ void ArgsTable::ValueColumn::Filter(int op,
                                     FilteredRowIndex* index) const {
   switch (type_) {
     case VarardicType::kInt: {
-      auto binary_op = sqlite_utils::GetOptionalPredicateForOp<int64_t>(op);
-      int64_t extracted = sqlite_utils::ExtractSqliteValue<int64_t>(value);
-      index->FilterRows([this, &binary_op, extracted](uint32_t row) {
+      auto predicate = sqlite_utils::CreatePredicate<int64_t>(op, value);
+      index->FilterRows([this, &predicate](uint32_t row) {
         const auto& arg = storage_->args().arg_values()[row];
-        if (arg.type == type_) {
-          return binary_op(arg.int_value, extracted);
-        }
-        return binary_op(base::nullopt, extracted);
+        return arg.type == type_ ? predicate(arg.int_value)
+                                 : predicate(base::nullopt);
       });
       break;
     }
     case VarardicType::kReal: {
-      auto binary_op = sqlite_utils::GetOptionalPredicateForOp<double>(op);
-      double extracted = sqlite_utils::ExtractSqliteValue<double>(value);
-      index->FilterRows([this, &binary_op, extracted](uint32_t row) {
+      auto predicate = sqlite_utils::CreatePredicate<double>(op, value);
+      index->FilterRows([this, &predicate](uint32_t row) {
         const auto& arg = storage_->args().arg_values()[row];
-        if (arg.type == type_) {
-          return binary_op(arg.real_value, extracted);
-        }
-        return binary_op(base::nullopt, extracted);
+        return arg.type == type_ ? predicate(arg.real_value)
+                                 : predicate(base::nullopt);
       });
       break;
     }
     case VarardicType::kString: {
-      auto binary_op = sqlite_utils::GetOptionalPredicateForOp<std::string>(op);
-      const auto* extracted =
-          reinterpret_cast<const char*>(sqlite3_value_text(value));
-      index->FilterRows([this, &binary_op, extracted](uint32_t row) {
+      auto predicate = sqlite_utils::CreatePredicate<std::string>(op, value);
+      index->FilterRows([this, &predicate](uint32_t row) {
         const auto& arg = storage_->args().arg_values()[row];
         const auto& str = storage_->GetString(arg.string_value);
-        if (arg.type == type_) {
-          return binary_op(str, extracted);
-        }
-        return binary_op(base::nullopt, extracted);
+        return arg.type == type_ ? predicate(str) : predicate(base::nullopt);
       });
       break;
     }
