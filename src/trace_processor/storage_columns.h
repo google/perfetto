@@ -127,9 +127,10 @@ class NumericColumn : public StorageColumn {
               sqlite3_value* value,
               FilteredRowIndex* index) const override {
     auto type = sqlite3_value_type(value);
-    if (type == SQLITE_INTEGER && std::is_integral<T>::value) {
+    bool is_null = type == SQLITE_NULL;
+    if (std::is_integral<T>::value && (type == SQLITE_INTEGER || is_null)) {
       FilterWithCast<int64_t>(op, value, index);
-    } else if (type == SQLITE_INTEGER || type == SQLITE_FLOAT) {
+    } else if (type == SQLITE_INTEGER || type == SQLITE_FLOAT || is_null) {
       FilterWithCast<double>(op, value, index);
     } else {
       PERFETTO_FATAL("Unexpected sqlite value to compare against");
@@ -174,11 +175,9 @@ class NumericColumn : public StorageColumn {
   void FilterWithCast(int op,
                       sqlite3_value* value,
                       FilteredRowIndex* index) const {
-    auto binary_op = sqlite_utils::GetPredicateForOp<C>(op);
-    C extracted = sqlite_utils::ExtractSqliteValue<C>(value);
-    index->FilterRows([this, binary_op, extracted](uint32_t row) {
-      auto val = static_cast<C>((*deque_)[row]);
-      return binary_op(val, extracted);
+    auto predicate = sqlite_utils::CreatePredicate<C>(op, value);
+    index->FilterRows([this, &predicate](uint32_t row) {
+      return predicate(static_cast<C>((*deque_)[row]));
     });
   }
 
@@ -285,11 +284,9 @@ class IdColumn final : public StorageColumn {
   void Filter(int op,
               sqlite3_value* value,
               FilteredRowIndex* index) const override {
-    auto binary_op = sqlite_utils::GetPredicateForOp<RowId>(op);
-    RowId extracted = sqlite_utils::ExtractSqliteValue<RowId>(value);
-    index->FilterRows([this, &binary_op, extracted](uint32_t row) {
-      auto val = TraceStorage::CreateRowId(table_id_, row);
-      return binary_op(val, extracted);
+    auto predicate = sqlite_utils::CreatePredicate<RowId>(op, value);
+    index->FilterRows([this, &predicate](uint32_t row) {
+      return predicate(TraceStorage::CreateRowId(table_id_, row));
     });
   }
 
