@@ -129,7 +129,7 @@ TEST_F(ProtoZeroConformanceTest, SimpleFieldsNoNesting) {
   EXPECT_EQ(-1, gold_msg.repeated_int32(1));
   EXPECT_EQ(100, gold_msg.repeated_int32(2));
   EXPECT_EQ(2000000, gold_msg.repeated_int32(3));
-  EXPECT_EQ(msg_size, gold_msg.ByteSize());
+  EXPECT_EQ(msg_size, static_cast<size_t>(gold_msg.ByteSize()));
 }
 
 TEST_F(ProtoZeroConformanceTest, NestedMessages) {
