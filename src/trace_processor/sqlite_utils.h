@@ -74,43 +74,6 @@ inline std::string OpToString(int op) {
   }
 }
 
-template <class T>
-std::function<bool(T, T)> GetPredicateForOp(int op) {
-  switch (op) {
-    case SQLITE_INDEX_CONSTRAINT_EQ:
-    case SQLITE_INDEX_CONSTRAINT_IS:
-      return std::equal_to<T>();
-    case SQLITE_INDEX_CONSTRAINT_GE:
-      return std::greater_equal<T>();
-    case SQLITE_INDEX_CONSTRAINT_GT:
-      return std::greater<T>();
-    case SQLITE_INDEX_CONSTRAINT_LE:
-      return std::less_equal<T>();
-    case SQLITE_INDEX_CONSTRAINT_LT:
-      return std::less<T>();
-    case SQLITE_INDEX_CONSTRAINT_NE:
-    case SQLITE_INDEX_CONSTRAINT_ISNOT:
-      return std::not_equal_to<T>();
-    default:
-      PERFETTO_CHECK(false);
-  }
-}
-
-template <class T>
-std::function<bool(base::Optional<T>, T)> GetOptionalPredicateForOp(int op) {
-  switch (op) {
-    case SQLITE_INDEX_CONSTRAINT_ISNULL:
-      return [](base::Optional<T> f, T) { return !f.has_value(); };
-    case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
-      return [](base::Optional<T> f, T) { return f.has_value(); };
-    default:
-      auto fn = GetPredicateForOp<T>(op);
-      return [fn](base::Optional<T> f, T s) {
-        return f.has_value() && fn(f.value(), s);
-      };
-  }
-}
-
 template <typename T>
 T ExtractSqliteValue(sqlite3_value* value);
 
@@ -144,6 +107,50 @@ inline double ExtractSqliteValue(sqlite3_value* value) {
 
 // Do not add a uint64_t version of ExtractSqliteValue. You should not be using
 // uint64_t at all given that SQLite doesn't support it.
+
+template <>
+inline std::string ExtractSqliteValue(sqlite3_value* value) {
+  auto type = sqlite3_value_type(value);
+  PERFETTO_DCHECK(type == SQLITE_TEXT);
+  const auto* extracted =
+      reinterpret_cast<const char*>(sqlite3_value_text(value));
+  return std::string(extracted);
+}
+
+template <class T>
+std::function<bool(base::Optional<T>)> CreatePredicate(int op,
+                                                       sqlite3_value* value) {
+  switch (op) {
+    case SQLITE_INDEX_CONSTRAINT_ISNULL:
+      return [](base::Optional<T> f) { return !f.has_value(); };
+    case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
+      return [](base::Optional<T> f) { return f.has_value(); };
+  }
+
+  T val = ExtractSqliteValue<T>(value);
+  switch (op) {
+    case SQLITE_INDEX_CONSTRAINT_EQ:
+    case SQLITE_INDEX_CONSTRAINT_IS:
+      return [val](base::Optional<T> f) {
+        return f.has_value() && std::equal_to<T>()(*f, val);
+      };
+    case SQLITE_INDEX_CONSTRAINT_NE:
+    case SQLITE_INDEX_CONSTRAINT_ISNOT:
+      return [val](base::Optional<T> f) {
+        return f.has_value() && std::not_equal_to<T>()(*f, val);
+      };
+    case SQLITE_INDEX_CONSTRAINT_GE:
+      return [val](base::Optional<T> f) { return f.has_value() && *f >= val; };
+    case SQLITE_INDEX_CONSTRAINT_GT:
+      return [val](base::Optional<T> f) { return f.has_value() && *f > val; };
+    case SQLITE_INDEX_CONSTRAINT_LE:
+      return [val](base::Optional<T> f) { return f.has_value() && *f <= val; };
+    case SQLITE_INDEX_CONSTRAINT_LT:
+      return [val](base::Optional<T> f) { return f.has_value() && *f < val; };
+    default:
+      PERFETTO_FATAL("For GCC");
+  }
+}
 
 template <typename T>
 using is_float =
