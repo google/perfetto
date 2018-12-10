@@ -17,3 +17,4 @@ cp $WORK/build/*fuzzer $OUT
 mkdir -p $OUT/src/traced/probes/ftrace/test/
 cp -a $SRC/perfetto/src/traced/probes/ftrace/test/data \
   $OUT/src/traced/probes/ftrace/test/
+find $SRC/perfetto/buildtools -type d -name '.git' -exec rm -rf "{}"  \;
