@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+$SRC/perfetto/tools/install-build-deps --no-android
+
 mkdir -p $WORK/build
 
 GN_ARGS="is_clang=true is_debug=false is_fuzzer=true use_libfuzzer=false \
