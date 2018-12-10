@@ -122,6 +122,36 @@ TEST(ProtoUtilsTest, VarIntEncoding) {
   }
 }
 
+TEST(ProtoUtilsTest, VarIntEncodingNegative) {
+  uint8_t buf[32];
+  size_t expected_size = 10;
+  uint8_t expected[] = "\x9c\xff\xff\xff\xff\xff\xff\xff\xff\x01";
+
+  {
+    uint8_t* res = WriteVarInt<int8_t>(-100, buf);
+    ASSERT_EQ(expected_size, static_cast<size_t>(res - buf));
+    ASSERT_EQ(0, memcmp(buf, expected, expected_size));
+  }
+
+  {
+    uint8_t* res = WriteVarInt<int16_t>(-100, buf);
+    ASSERT_EQ(expected_size, static_cast<size_t>(res - buf));
+    ASSERT_EQ(0, memcmp(buf, expected, expected_size));
+  }
+
+  {
+    uint8_t* res = WriteVarInt<int32_t>(-100, buf);
+    ASSERT_EQ(expected_size, static_cast<size_t>(res - buf));
+    ASSERT_EQ(0, memcmp(buf, expected, expected_size));
+  }
+
+  {
+    uint8_t* res = WriteVarInt<int64_t>(-100, buf);
+    ASSERT_EQ(expected_size, static_cast<size_t>(res - buf));
+    ASSERT_EQ(0, memcmp(buf, expected, expected_size));
+  }
+}
+
 TEST(ProtoUtilsTest, RedundantVarIntEncoding) {
   uint8_t buf[kMessageLengthFieldSize];
 
