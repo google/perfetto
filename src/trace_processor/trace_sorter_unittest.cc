@@ -36,20 +36,20 @@ class MockTraceParser : public ProtoTraceParser {
 
   MOCK_METHOD4(MOCK_ParseFtracePacket,
                void(uint32_t cpu,
-                    uint64_t timestamp,
+                    int64_t timestamp,
                     const uint8_t* data,
                     size_t length));
 
   void ParseFtracePacket(uint32_t cpu,
-                         uint64_t timestamp,
+                         int64_t timestamp,
                          TraceBlobView tbv) override {
     MOCK_ParseFtracePacket(cpu, timestamp, tbv.data(), tbv.length());
   }
 
   MOCK_METHOD3(MOCK_ParseTracePacket,
-               void(uint64_t ts, const uint8_t* data, size_t length));
+               void(int64_t ts, const uint8_t* data, size_t length));
 
-  void ParseTracePacket(uint64_t ts, TraceBlobView tbv) override {
+  void ParseTracePacket(int64_t ts, TraceBlobView tbv) override {
     MOCK_ParseTracePacket(ts, tbv.data(), tbv.length());
   }
 };

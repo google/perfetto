@@ -71,7 +71,7 @@ TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
 
 TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   uint32_t cpu = 3;
-  uint64_t timestamp = 100;
+  int64_t timestamp = 100;
   uint32_t prev_state = 32;
   static const char kCommProc1[] = "process1";
   static const char kCommProc2[] = "process2";

@@ -62,7 +62,7 @@ class CountersTableUnittest : public ::testing::Test {
 };
 
 TEST_F(CountersTableUnittest, SelectWhereCpu) {
-  uint64_t timestamp = 1000;
+  int64_t timestamp = 1000;
   uint32_t freq = 3000;
 
   context_.storage->mutable_counters()->AddCounter(
@@ -90,7 +90,7 @@ TEST_F(CountersTableUnittest, SelectWhereCpu) {
 }
 
 TEST_F(CountersTableUnittest, GroupByFreq) {
-  uint64_t timestamp = 1000;
+  int64_t timestamp = 1000;
   uint32_t freq = 3000;
   uint32_t name_id = 1;
 
@@ -119,7 +119,7 @@ TEST_F(CountersTableUnittest, GroupByFreq) {
 }
 
 TEST_F(CountersTableUnittest, UtidLookupUpid) {
-  uint64_t timestamp = 1000;
+  int64_t timestamp = 1000;
   uint32_t value = 3000;
   uint32_t name_id = 1;
 
@@ -160,7 +160,7 @@ TEST_F(CountersTableUnittest, UtidLookupUpid) {
 }
 
 TEST_F(CountersTableUnittest, UtidLookupUpidSort) {
-  uint64_t timestamp = 1000;
+  int64_t timestamp = 1000;
   uint32_t value = 3000;
   uint32_t name_id = 1;
 

@@ -157,8 +157,6 @@ class NumericColumn : public StorageColumn {
       return Table::ColumnType::kUint;
     } else if (std::is_same<T, int64_t>::value) {
       return Table::ColumnType::kLong;
-    } else if (std::is_same<T, uint64_t>::value) {
-      return Table::ColumnType::kUlong;
     } else if (std::is_same<T, double>::value) {
       return Table::ColumnType::kDouble;
     }
@@ -246,8 +244,8 @@ class StringColumn final : public StorageColumn {
 class TsEndColumn final : public StorageColumn {
  public:
   TsEndColumn(std::string col_name,
-              const std::deque<uint64_t>* ts_start,
-              const std::deque<uint64_t>* dur);
+              const std::deque<int64_t>* ts_start,
+              const std::deque<int64_t>* dur);
   virtual ~TsEndColumn() override;
 
   void ReportResult(sqlite3_context*, uint32_t) const override;
@@ -266,8 +264,8 @@ class TsEndColumn final : public StorageColumn {
   bool IsNaturallyOrdered() const override { return false; }
 
  private:
-  const std::deque<uint64_t>* ts_start_;
-  const std::deque<uint64_t>* dur_;
+  const std::deque<int64_t>* ts_start_;
+  const std::deque<int64_t>* dur_;
 };
 
 // Column which is used to reference the args table in other tables. That is,
