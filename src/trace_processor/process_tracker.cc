@@ -32,7 +32,7 @@ ProcessTracker::ProcessTracker(TraceProcessorContext* context)
 
 ProcessTracker::~ProcessTracker() = default;
 
-UniqueTid ProcessTracker::UpdateThread(uint64_t timestamp,
+UniqueTid ProcessTracker::UpdateThread(int64_t timestamp,
                                        uint32_t tid,
                                        StringId thread_name_id) {
   auto pair_it = tids_.equal_range(tid);
@@ -127,7 +127,7 @@ UniquePid ProcessTracker::UpdateProcess(uint32_t pid) {
 }
 
 std::tuple<UniquePid, TraceStorage::Process*>
-ProcessTracker::GetOrCreateProcess(uint32_t pid, uint64_t start_ns) {
+ProcessTracker::GetOrCreateProcess(uint32_t pid, int64_t start_ns) {
   auto pids_pair = pids_.equal_range(pid);
 
   base::Optional<UniquePid> found_upid;

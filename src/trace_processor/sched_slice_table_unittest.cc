@@ -63,7 +63,7 @@ class SchedSliceTableTest : public ::testing::Test {
 
 TEST_F(SchedSliceTableTest, RowsReturnedInCorrectOrderWithinCpu) {
   uint32_t cpu = 3;
-  uint64_t timestamp = 100;
+  int64_t timestamp = 100;
   uint32_t pid_1 = 2;
   uint32_t prev_state = 32;
   static const char kCommProc1[] = "process1";
@@ -103,7 +103,7 @@ TEST_F(SchedSliceTableTest, RowsReturnedInCorrectOrderBetweenCpu) {
   uint32_t cpu_1 = 3;
   uint32_t cpu_2 = 8;
   uint32_t cpu_3 = 4;
-  uint64_t timestamp = 100;
+  int64_t timestamp = 100;
   uint32_t pid_1 = 2;
   uint32_t prev_state = 32;
   static const char kCommProc1[] = "process1";
@@ -146,7 +146,7 @@ TEST_F(SchedSliceTableTest, RowsReturnedInCorrectOrderBetweenCpu) {
 TEST_F(SchedSliceTableTest, FilterCpus) {
   uint32_t cpu_1 = 3;
   uint32_t cpu_2 = 8;
-  uint64_t timestamp = 100;
+  int64_t timestamp = 100;
   uint32_t pid_1 = 2;
   uint32_t prev_state = 32;
   static const char kCommProc1[] = "process1";
@@ -174,7 +174,7 @@ TEST_F(SchedSliceTableTest, FilterCpus) {
 
 TEST_F(SchedSliceTableTest, UtidTest) {
   uint32_t cpu = 3;
-  uint64_t timestamp = 100;
+  int64_t timestamp = 100;
   uint32_t pid_1 = 2;
   uint32_t prev_state = 32;
   static const char kCommProc1[] = "process1";
@@ -212,11 +212,11 @@ TEST_F(SchedSliceTableTest, TimestampFiltering) {
 
   // Fill |cpu_5| and |cpu_7) with one sched switch per time unit starting,
   // respectively, @ T=50 and T=70.
-  for (uint64_t i = 0; i <= 11; i++) {
+  for (int64_t i = 0; i <= 11; i++) {
     context_.event_tracker->PushSchedSwitch(cpu_5, 50 + i, pid_1, prev_state,
                                             pid_1, "pid_1");
   }
-  for (uint64_t i = 0; i <= 11; i++) {
+  for (int64_t i = 0; i <= 11; i++) {
     context_.event_tracker->PushSchedSwitch(cpu_7, 70 + i, pid_2, prev_state,
                                             pid_2, "pid_2");
   }

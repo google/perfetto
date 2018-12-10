@@ -31,8 +31,8 @@ using ::testing::ElementsAre;
 using ::testing::Eq;
 
 struct SliceInfo {
-  uint64_t start;
-  uint64_t duration;
+  int64_t start;
+  int64_t duration;
 
   bool operator==(const SliceInfo& other) const {
     return std::tie(start, duration) == std::tie(other.start, other.duration);

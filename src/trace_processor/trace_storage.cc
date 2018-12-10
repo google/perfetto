@@ -40,7 +40,7 @@ StringId TraceStorage::InternString(base::StringView str) {
     return id_it->second;
   }
   string_pool_.emplace_back(str.ToStdString());
-  StringId string_id = string_pool_.size() - 1;
+  StringId string_id = static_cast<uint32_t>(string_pool_.size() - 1);
   string_index_.emplace(hash, string_id);
   return string_id;
 }
@@ -50,8 +50,8 @@ void TraceStorage::ResetStorage() {
 }
 
 void TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,
-                                              uint64_t time_queued,
-                                              uint64_t time_started) {
+                                              int64_t time_queued,
+                                              int64_t time_started) {
   if (queries_.size() >= kMaxLogEntries) {
     queries_.pop_front();
     times_queued_.pop_front();
@@ -64,7 +64,7 @@ void TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,
   times_ended_.push_back(0);
 }
 
-void TraceStorage::SqlStats::RecordQueryEnd(uint64_t time_ended) {
+void TraceStorage::SqlStats::RecordQueryEnd(int64_t time_ended) {
   PERFETTO_DCHECK(!times_ended_.empty());
   PERFETTO_DCHECK(times_ended_.back() == 0);
   times_ended_.back() = time_ended;

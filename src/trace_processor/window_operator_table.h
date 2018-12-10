@@ -55,9 +55,9 @@ class WindowOperatorTable : public Table {
   class Cursor : public Table::Cursor {
    public:
     Cursor(const WindowOperatorTable*,
-           uint64_t window_start,
-           uint64_t window_end,
-           uint64_t step_size,
+           int64_t window_start,
+           int64_t window_end,
+           int64_t step_size,
            const QueryConstraints& qc,
            sqlite3_value** argv);
 
@@ -77,25 +77,25 @@ class WindowOperatorTable : public Table {
       kReturnCpu = 2,
     };
 
-    uint64_t const window_start_;
-    uint64_t const window_end_;
-    uint64_t const step_size_;
+    int64_t const window_start_;
+    int64_t const window_end_;
+    int64_t const step_size_;
     const WindowOperatorTable* const table_;
 
-    uint64_t current_ts_ = 0;
+    int64_t current_ts_ = 0;
     uint32_t current_cpu_ = 0;
-    uint64_t quantum_ts_ = 0;
-    uint64_t row_id_ = 0;
+    int64_t quantum_ts_ = 0;
+    int64_t row_id_ = 0;
 
     FilterType filter_type_ = FilterType::kReturnAll;
   };
 
-  uint64_t quantum_ = 0;
-  uint64_t window_start_ = 0;
+  int64_t quantum_ = 0;
+  int64_t window_start_ = 0;
 
   // max of int64_t because SQLite technically only supports int64s and not
   // uint64s.
-  uint64_t window_dur_ = std::numeric_limits<int64_t>::max();
+  int64_t window_dur_ = std::numeric_limits<int64_t>::max();
 };
 }  // namespace trace_processor
 }  // namespace perfetto

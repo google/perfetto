@@ -45,17 +45,17 @@ class MockEventTracker : public EventTracker {
 
   MOCK_METHOD6(PushSchedSwitch,
                void(uint32_t cpu,
-                    uint64_t timestamp,
+                    int64_t timestamp,
                     uint32_t prev_pid,
                     uint32_t prev_state,
                     uint32_t next_pid,
                     base::StringView next_comm));
 
   MOCK_METHOD5(PushCounter,
-               RowId(uint64_t timestamp,
+               RowId(int64_t timestamp,
                      double value,
                      StringId name_id,
-                     uint64_t ref,
+                     int64_t ref,
                      RefType ref_type));
 };
 
@@ -244,7 +244,8 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(ts, value, 0, 0, RefType::kRefNoRef));
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value, 0, 0,
+                                   RefType::kRefNoRef));
   Tokenize(trace_1);
 }
 
@@ -259,7 +260,8 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(ts, value, 0, 0, RefType::kRefNoRef));
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value, 0, 0,
+                                   RefType::kRefNoRef));
   Tokenize(trace_1);
 }
 
