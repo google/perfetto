@@ -16,6 +16,6 @@ $SRC/perfetto/tools/gn gen "$OUTDIR" --args="${GN_ARGS}" --check
 
 $SRC/perfetto/tools/ninja -C $WORK/build fuzzers -v
 cp $WORK/build/*fuzzer $OUT
-mkdir -p $OUT/src/traced/probes/ftrace/test/
-cp -a $SRC/perfetto/src/traced/probes/ftrace/test/data \
-  $OUT/src/traced/probes/ftrace/test/
+mkdir -p $OUT/src/traced/probes/ftrace/test/data
+cp -a $SRC/perfetto/src/traced/probes/ftrace/test/data/synthetic \
+  $OUT/src/traced/probes/ftrace/test/data
