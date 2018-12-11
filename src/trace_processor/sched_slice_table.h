@@ -17,16 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_SCHED_SLICE_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SCHED_SLICE_TABLE_H_
 
-#include "src/trace_processor/storage_schema.h"
-#include "src/trace_processor/table.h"
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage_table.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 // The implementation of the SQLite table containing slices of CPU time with the
 // metadata for those slices.
-class SchedSliceTable : public Table {
+class SchedSliceTable : public StorageTable {
  public:
   SchedSliceTable(sqlite3*, const TraceStorage* storage);
 
@@ -40,7 +38,6 @@ class SchedSliceTable : public Table {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-  StorageSchema schema_;
   const TraceStorage* const storage_;
 };
 
