@@ -17,15 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_ARGS_TABLE_H_
 #define SRC_TRACE_PROCESSOR_ARGS_TABLE_H_
 
-#include "src/trace_processor/storage_columns.h"
-#include "src/trace_processor/storage_schema.h"
-#include "src/trace_processor/table.h"
+#include "src/trace_processor/storage_table.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class ArgsTable : public Table {
+class ArgsTable : public StorageTable {
  public:
   using VarardicType = TraceStorage::Args::Varardic::Type;
 
@@ -87,7 +85,6 @@ class ArgsTable : public Table {
     const TraceStorage* storage_ = nullptr;
   };
 
-  StorageSchema schema_;
   const TraceStorage* const storage_;
 };
 
