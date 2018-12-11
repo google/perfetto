@@ -476,10 +476,56 @@ TEST_F(TraceBufferTest, Fragments_EdgeCases) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-// Receive packet fragments for the sequence {1,1} in the chunk order {0,2,1}
-// and verify that they still get realigned properly, without breaking other
-// sequences.
-TEST_F(TraceBufferTest, Fragments_OutOfOrder) {
+// The following tests verify that chunks received out-of-order are read in the
+// correct order.
+//
+// Fragment order {0,2,1} for sequence {1,1}, without fragmenting packets.
+TEST_F(TraceBufferTest, Fragments_OutOfOrderLastChunkIsMiddle) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(10, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(30, 'c')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(20, 'b')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'b')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'c')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Fragment order {0,2,1} for sequence {1,1}, with fragmenting packets.
+TEST_F(TraceBufferTest, Fragments_OutOfOrderLastChunkIsMiddleFragmentation) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(10, 'a', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(30, 'c', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(20, 'b', kContFromPrevChunk | kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a'),
+                                        FakePacketFragment(20, 'b'),
+                                        FakePacketFragment(30, 'c')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Fragment order {0,2,1,3} for sequence {1,1}, with fragmenting packets. Also
+// verifies that another sequence isn't broken.
+TEST_F(TraceBufferTest, Fragments_OutOfOrderLastChunkIsMaxFragmentation) {
   ResetBuffer(4096);
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(10, 'a', kContOnNextChunk)
@@ -504,6 +550,64 @@ TEST_F(TraceBufferTest, Fragments_OutOfOrder) {
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a'),
                                         FakePacketFragment(20, 'b'),
                                         FakePacketFragment(30, 'c')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(40, 'd')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Fragment order {-2,1,-1,0} for sequence {1,1}, without fragmenting packets.
+TEST_F(TraceBufferTest, Fragments_OutOfOrderWithIdOverflowADCB) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(kMaxChunkID - 1))
+      .AddPacket(10, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(40, 'd')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(30, 'c')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(kMaxChunkID))
+      .AddPacket(20, 'b')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'b')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'c')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(40, 'd')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Fragment order {-2,0,-1,1} for sequence {1,1}, without fragmenting packets.
+TEST_F(TraceBufferTest, Fragments_OutOfOrderWithIdOverflowACBD) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(kMaxChunkID - 1))
+      .AddPacket(10, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(30, 'c')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(kMaxChunkID))
+      .AddPacket(20, 'b')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'b')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'c')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(40, 'd')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(40, 'd')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
@@ -986,7 +1090,7 @@ TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderAtEndOfChunk) {
       .AddPacket(4, 'c', kContFromPrevChunk)
       .AddPacket(4, 'd')
       .CopyIntoTraceBuffer();
-  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
       .AddPacket(4, 'e')
       .CopyIntoTraceBuffer();
   CreateChunk(ProducerID(2), WriterID(1), ChunkID(3))
@@ -1033,22 +1137,24 @@ TEST_F(TraceBufferTest, Iterator_OneStreamOrdered) {
   });
   ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(2), {}));
   ASSERT_TRUE(IteratorSeqEq(ProducerID(-1), WriterID(-1), {}));
-  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(1), {0, 1, 2, 5, 6, 7}));
+  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(1), {0, 1, 2}));
 }
 
 TEST_F(TraceBufferTest, Iterator_OneStreamWrapping) {
   ResetBuffer(64 * 1024);
   AppendChunks({
-      {ProducerID(1), WriterID(1), ChunkID(5)},
-      {ProducerID(1), WriterID(1), ChunkID(6)},
-      {ProducerID(1), WriterID(1), ChunkID(7)},
+      {ProducerID(1), WriterID(1), ChunkID(kMaxChunkID - 2)},
+      {ProducerID(1), WriterID(1), ChunkID(kMaxChunkID - 1)},
+      {ProducerID(1), WriterID(1), ChunkID(kMaxChunkID)},
       {ProducerID(1), WriterID(1), ChunkID(0)},
       {ProducerID(1), WriterID(1), ChunkID(1)},
       {ProducerID(1), WriterID(1), ChunkID(2)},
   });
   ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(2), {}));
   ASSERT_TRUE(IteratorSeqEq(ProducerID(-1), WriterID(-1), {}));
-  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(1), {5, 6, 7, 0, 1, 2}));
+  ASSERT_TRUE(
+      IteratorSeqEq(ProducerID(1), WriterID(1),
+                    {kMaxChunkID - 2, kMaxChunkID - 1, kMaxChunkID, 0, 1, 2}));
 }
 
 TEST_F(TraceBufferTest, Iterator_ManyStreamsOrdered) {
@@ -1058,36 +1164,36 @@ TEST_F(TraceBufferTest, Iterator_ManyStreamsOrdered) {
       {ProducerID(1), WriterID(1), ChunkID(1)},
       {ProducerID(1), WriterID(2), ChunkID(0)},
       {ProducerID(3), WriterID(1), ChunkID(0)},
-      {ProducerID(1), WriterID(2), ChunkID(3)},
-      {ProducerID(1), WriterID(2), ChunkID(5)},
-      {ProducerID(3), WriterID(1), ChunkID(7)},
-      {ProducerID(1), WriterID(1), ChunkID(6)},
-      {ProducerID(3), WriterID(1), ChunkID(8)},
+      {ProducerID(1), WriterID(2), ChunkID(1)},
+      {ProducerID(1), WriterID(2), ChunkID(2)},
+      {ProducerID(3), WriterID(1), ChunkID(1)},
+      {ProducerID(1), WriterID(1), ChunkID(2)},
+      {ProducerID(3), WriterID(1), ChunkID(2)},
   });
-  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(1), {0, 1, 6}));
-  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(2), {0, 3, 5}));
-  ASSERT_TRUE(IteratorSeqEq(ProducerID(3), WriterID(1), {0, 7, 8}));
+  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(1), {0, 1, 2}));
+  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(2), {0, 1, 2}));
+  ASSERT_TRUE(IteratorSeqEq(ProducerID(3), WriterID(1), {0, 1, 2}));
 }
 
 TEST_F(TraceBufferTest, Iterator_ManyStreamsWrapping) {
   ResetBuffer(64 * 1024);
   auto Neg = [](int x) -> ChunkID {
-    return kMaxChunkID + static_cast<ChunkID>(x);
+    return kMaxChunkID + static_cast<ChunkID>(x) + 1;
   };
   AppendChunks({
-      {ProducerID(1), WriterID(1), ChunkID(Neg(-4))},
-      {ProducerID(1), WriterID(1), ChunkID(Neg(-3))},
-      {ProducerID(1), WriterID(2), ChunkID(Neg(-2))},
+      {ProducerID(1), WriterID(1), ChunkID(Neg(-2))},
+      {ProducerID(1), WriterID(1), ChunkID(Neg(-1))},
+      {ProducerID(1), WriterID(2), ChunkID(Neg(-1))},
       {ProducerID(3), WriterID(1), ChunkID(Neg(-1))},
       {ProducerID(1), WriterID(2), ChunkID(0)},
       {ProducerID(1), WriterID(2), ChunkID(1)},
-      {ProducerID(3), WriterID(1), ChunkID(2)},
-      {ProducerID(1), WriterID(1), ChunkID(3)},
-      {ProducerID(3), WriterID(1), ChunkID(4)},
+      {ProducerID(3), WriterID(1), ChunkID(0)},
+      {ProducerID(1), WriterID(1), ChunkID(0)},
+      {ProducerID(3), WriterID(1), ChunkID(1)},
   });
-  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(1), {Neg(-4), Neg(-3), 3}));
-  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(2), {Neg(-2), 0, 1}));
-  ASSERT_TRUE(IteratorSeqEq(ProducerID(3), WriterID(1), {Neg(-1), 2, 4}));
+  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(1), {Neg(-2), Neg(-1), 0}));
+  ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(2), {Neg(-1), 0, 1}));
+  ASSERT_TRUE(IteratorSeqEq(ProducerID(3), WriterID(1), {Neg(-1), 0, 1}));
 }
 
 // TODO(primiano): test stats().
