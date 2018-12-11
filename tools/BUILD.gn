@@ -33,17 +33,6 @@ group("protoc_helper") {
 }
 
 if (is_linux) {
-  executable("pipestats") {
-    testonly = true
-    sources = [
-      "pipestats.cc",
-    ]
-    deps = [
-      "../gn:default_deps",
-      "../src/base",
-    ]
-  }
-
   executable("profiling_sample_distribution") {
     sources = [
       "profiling_sample_distribution.cc",

@@ -72,9 +72,6 @@ group("all") {
       if (is_linux || is_android) {
         deps += [ "tools/skippy" ]
       }
-      if (is_linux) {
-        deps += [ "tools:pipestats" ]
-      }
       if (is_fuzzer) {
         deps += [ ":fuzzers" ]
       }
