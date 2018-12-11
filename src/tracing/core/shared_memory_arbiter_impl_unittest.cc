@@ -159,7 +159,7 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
   }
 
   // This should run the Register/UnregisterTraceWriter calls expected above.
-  task_runner_->RunUntilCheckpoint("last_unregistered");
+  task_runner_->RunUntilCheckpoint("last_unregistered", 15000);
 }
 
 // TODO(primiano): add multi-threaded tests.
