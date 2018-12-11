@@ -93,7 +93,7 @@ bool TraceBuffer::Initialize(size_t size) {
   max_chunk_size_ = std::min(size, ChunkRecord::kMaxSize);
   wptr_ = begin();
   index_.clear();
-  last_chunk_id_.clear();
+  last_chunk_id_written_.clear();
   read_iter_ = GetReadIterForSequence(index_.end());
   return true;
 }
@@ -193,7 +193,27 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   }
   DcheckIsAlignedAndWithinBounds(wptr_);
 
-  last_chunk_id_[std::make_pair(producer_id_trusted, writer_id)] = chunk_id;
+  // Chunks may be received out of order, so only update last_chunk_id if the
+  // new chunk_id is larger. But take into account overflows by only selecting
+  // the new ID if its distance to the latest ID is smaller than half the number
+  // space.
+  //
+  // This accounts for both the case where the new ID has just overflown and
+  // last_chunk_id be updated even though it's smaller (e.g. |chunk_id| = 1 and
+  // |last_chunk_id| = kMaxChunkId; chunk_id - last_chunk_id = 0) and the case
+  // where the new ID is an out-of-order ID right after an overflow and
+  // last_chunk_id shouldn't be updated even though it's larger (e.g. |chunk_id|
+  // = kMaxChunkId and |last_chunk_id| = 1; chunk_id - last_chunk_id =
+  // kMaxChunkId - 1).
+  //
+  // TODO(eseckler): Add a stat for out-of-order commits of chunks.
+  auto producer_and_writer_id = std::make_pair(producer_id_trusted, writer_id);
+  ChunkID& last_chunk_id = last_chunk_id_written_[producer_and_writer_id];
+  static_assert(std::numeric_limits<ChunkID>::max() == kMaxChunkID,
+                "This code assumes that ChunkID wraps at kMaxChunkID");
+  if (chunk_id - last_chunk_id < kMaxChunkID / 2) {
+    last_chunk_id = chunk_id;
+  }
 
   if (padding_size)
     AddPaddingRecord(padding_size);
@@ -369,11 +389,11 @@ TraceBuffer::SequenceIterator TraceBuffer::GetReadIterForSequence(
   PERFETTO_DCHECK(iter.seq_begin != iter.seq_end);
 
   // Now find the first entry between [seq_begin, seq_end) that is
-  // > last_chunk_id_. This is where we the sequence will start (see notes about
-  // wrapping in the header).
+  // > last_chunk_id_written_. This is where we the sequence will start (see
+  // notes about wrapping of IDs in the header).
   auto producer_and_writer_id = std::make_pair(key.producer_id, key.writer_id);
-  PERFETTO_DCHECK(last_chunk_id_.count(producer_and_writer_id));
-  iter.wrapping_id = last_chunk_id_[producer_and_writer_id];
+  PERFETTO_DCHECK(last_chunk_id_written_.count(producer_and_writer_id));
+  iter.wrapping_id = last_chunk_id_written_[producer_and_writer_id];
   key.chunk_id = iter.wrapping_id;
   iter.cur = index_.upper_bound(key);
   if (iter.cur == iter.seq_end)
@@ -387,8 +407,16 @@ void TraceBuffer::SequenceIterator::MoveNext() {
     cur = seq_end;
     return;
   }
+
+  ChunkID last_chunk_id = cur->first.chunk_id;
   if (++cur == seq_end)
     cur = seq_begin;
+
+  // There may be a missing chunk in the sequence of chunks, in which case the
+  // next chunk's ID won't follow the last one's. If so, skip the rest of the
+  // sequence. We'll return to it later once the hole is filled.
+  if (last_chunk_id + 1 != cur->first.chunk_id)
+    cur = seq_end;
 }
 
 bool TraceBuffer::ReadNextTracePacket(TracePacket* packet,

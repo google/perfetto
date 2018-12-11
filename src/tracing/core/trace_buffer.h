@@ -325,8 +325,14 @@ class TraceBuffer {
 
     ChunkRecord* const chunk_record;   // Addr of ChunkRecord within |data_|.
     const uid_t trusted_uid;           // uid of the producer.
+
+    // Correspond to |chunk_record->flags| and |chunk_record->num_fragments|.
+    // Copied here for performance reasons (avoids having to dereference
+    // |chunk_record| while iterating over ChunkMeta) and to aid debugging in
+    // case the buffer gets corrupted.
     uint8_t flags = 0;                 // See SharedMemoryABI::flags.
     const uint16_t num_fragments = 0;  // Total number of packet fragments.
+
     uint16_t num_fragments_read = 0;   // Number of fragments already read.
 
     // The start offset of the next fragment (the |num_fragments_read|-th) to be
@@ -516,11 +522,14 @@ class TraceBuffer {
   // It becomes invalid after any call to methods that alters the |index_|.
   SequenceIterator read_iter_;
 
-  // Keeps track of the last ChunkID written for a given writer.
-  // TODO(primiano): should clean up keys from this map. Right now this map
-  // grows without bounds (although realistically is not a problem unless we
-  // have too many producers/writers within the same trace session).
-  std::map<std::pair<ProducerID, WriterID>, ChunkID> last_chunk_id_;
+  // Keeps track of the highest ChunkID written for a given sequence, taking
+  // into account a potential overflow of ChunkIDs. In the case of overflow,
+  // stores the highest ChunkID written since the overflow.
+  //
+  // TODO(primiano): should clean up keys from this map. Right now it grows
+  // without bounds (although realistically is not a problem unless we have too
+  // many producers/writers within the same trace session).
+  std::map<std::pair<ProducerID, WriterID>, ChunkID> last_chunk_id_written_;
 
   // Statistics about buffer usage.
   Stats stats_;
