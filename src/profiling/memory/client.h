@@ -20,6 +20,7 @@
 #include <pthread.h>
 #include <stddef.h>
 
+#include <condition_variable>
 #include <mutex>
 #include <vector>
 
