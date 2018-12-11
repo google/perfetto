@@ -130,7 +130,7 @@ class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         attrs.track.onMouseOut();
         globals.rafScheduler.scheduleRedraw();
       },
-    }, );
+    });
   }
 }
 
