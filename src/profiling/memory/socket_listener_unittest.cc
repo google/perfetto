@@ -58,6 +58,7 @@ TEST_F(SocketListenerTest, ReceiveRecord) {
   SocketListener listener(std::move(callback_fn), &bookkeeping_thread);
   ProcessSetSpec spec{};
   spec.pids.emplace(getpid());
+  spec.client_configuration.interval = 1;
   auto handle = listener.process_matcher().AwaitProcessSetSpec(std::move(spec));
   MockEventListener client_listener;
   EXPECT_CALL(client_listener, OnConnect(_, _))
