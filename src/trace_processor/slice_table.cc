@@ -28,7 +28,7 @@ void SliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<SliceTable>(db, storage, "slices");
 }
 
-Table::Schema SliceTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> SliceTable::Init(int, const char* const*) {
   const auto& slices = storage_->nestable_slices();
   std::unique_ptr<StorageColumn> cols[] = {
       NumericColumnPtr("ts", &slices.start_ns(), false /* hidden */,

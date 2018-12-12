@@ -28,7 +28,7 @@ void StatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<StatsTable>(db, storage, "stats");
 }
 
-Table::Schema StatsTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> StatsTable::Init(int, const char* const*) {
   return Schema(
       {
           Table::Column(Column::kKey, "key", ColumnType::kString),

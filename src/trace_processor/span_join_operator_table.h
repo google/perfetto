@@ -78,7 +78,7 @@ class SpanJoinOperatorTable : public Table {
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
   // Table implementation.
-  Table::Schema CreateSchema(int argc, const char* const* argv) override;
+  base::Optional<Table::Schema> Init(int, const char* const*) override;
   std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
                                               sqlite3_value**) override;
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;

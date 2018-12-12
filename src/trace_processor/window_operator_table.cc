@@ -32,7 +32,8 @@ void WindowOperatorTable::RegisterTable(sqlite3* db,
   Table::Register<WindowOperatorTable>(db, storage, "window", true);
 }
 
-Table::Schema WindowOperatorTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> WindowOperatorTable::Init(int,
+                                                        const char* const*) {
   const bool kHidden = true;
   return Schema(
       {
