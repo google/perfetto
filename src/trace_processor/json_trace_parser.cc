@@ -82,31 +82,32 @@ ReadDictRes ReadOneJsonDict(const char* start,
 
 }  // namespace
 
-bool CoerceToInt64(const Json::Value& value, int64_t* integer_ptr) {
+base::Optional<int64_t> CoerceToInt64(const Json::Value& value) {
   switch (static_cast<size_t>(value.type())) {
     case Json::uintValue:
     case Json::intValue:
-      *integer_ptr = value.asInt64();
-      return true;
+      return value.asInt64();
     case Json::stringValue: {
       std::string s = value.asString();
       char* end;
-      *integer_ptr = strtoll(s.c_str(), &end, 10);
-      return end == s.data() + s.size();
+      int64_t n = strtoll(s.c_str(), &end, 10);
+      if (end != s.data() + s.size())
+        return base::nullopt;
+      return n;
     }
     default:
-      return false;
+      return base::nullopt;
   }
 }
 
-bool CoerceToUint32(const Json::Value& value, uint32_t* integer_ptr) {
-  int64_t n = 0;
-  if (!CoerceToInt64(value, &n))
-    return false;
+base::Optional<uint32_t> CoerceToUint32(const Json::Value& value) {
+  base::Optional<int64_t> result = CoerceToInt64(value);
+  if (!result.has_value())
+    return base::nullopt;
+  int64_t n = result.value();
   if (n < 0 || n > std::numeric_limits<uint32_t>::max())
-    return false;
-  *integer_ptr = static_cast<uint32_t>(n);
-  return true;
+    return base::nullopt;
+  return static_cast<uint32_t>(n);
 }
 
 JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
@@ -151,13 +152,17 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
     if (!ph.isString())
       continue;
     char phase = *ph.asCString();
-    uint32_t tid = 0;
-    PERFETTO_CHECK(CoerceToUint32(value["tid"], &tid));
-    uint32_t pid = 0;
-    PERFETTO_CHECK(CoerceToUint32(value["pid"], &pid));
-    int64_t ts = 0;
-    PERFETTO_CHECK(CoerceToInt64(value["ts"], &ts));
+    base::Optional<uint32_t> opt_tid = CoerceToUint32(value["tid"]);
+    base::Optional<uint32_t> opt_pid = CoerceToUint32(value["pid"]);
+    base::Optional<int64_t> opt_ts = CoerceToInt64(value["ts"]);
+    PERFETTO_CHECK(opt_tid.has_value());
+    PERFETTO_CHECK(opt_pid.has_value());
+    PERFETTO_CHECK(opt_ts.has_value());
+    uint32_t tid = opt_tid.value();
+    uint32_t pid = opt_pid.value();
+    int64_t ts = opt_ts.value();
     ts *= 1000;
+
     const char* cat = value.isMember("cat") ? value["cat"].asCString() : "";
     const char* name = value.isMember("name") ? value["name"].asCString() : "";
     StringId cat_id = storage->InternString(cat);
@@ -174,11 +179,10 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
         break;
       }
       case 'X': {  // TRACE_EVENT (scoped event).
-        int64_t duration = 0;
-        // Ignore this event if invalid.
-        if (!CoerceToInt64(value["dur"], &duration))
+        base::Optional<int64_t> opt_dur = CoerceToInt64(value["dur"]);
+        if (!opt_dur.has_value())
           continue;
-        duration *= 1000;
+        int64_t duration = opt_dur.value() * 1000;
         slice_tracker->Scoped(ts, utid, cat_id, name_id, duration);
         break;
       }
