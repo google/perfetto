@@ -38,6 +38,9 @@ export class DragGestureHandler {
   }
 
   private onMouseMove(e: MouseEvent) {
+    if (e.buttons === 0) {
+      return this.onMouseUp(e);
+    }
     this.onDrag(
         e.clientX - this.clientRect!.left, e.clientY - this.clientRect!.top);
     e.stopPropagation();
