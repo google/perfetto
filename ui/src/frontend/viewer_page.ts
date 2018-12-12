@@ -18,6 +18,7 @@ import {QueryResponse} from '../common/queries';
 import {TimeSpan} from '../common/time';
 
 import {copyToClipboard} from './clipboard';
+import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {HeaderPanel} from './header_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
@@ -30,8 +31,8 @@ import {TrackGroupPanel} from './track_group_panel';
 import {TRACK_SHELL_WIDTH} from './track_panel';
 import {TrackPanel} from './track_panel';
 
-
 const MAX_ZOOM_SPAN_SEC = 1e-4;  // 0.1 ms.
+const DRAG_HANDLE_HEIGHT_PX = 12;
 
 class QueryTable extends Panel {
   view() {
@@ -85,6 +86,51 @@ class QueryTable extends Panel {
   renderCanvas() {}
 }
 
+interface DragHandleAttrs {
+  height: number;
+  resize: (height: number) => void;
+}
+
+class DragHandle implements m.ClassComponent<DragHandleAttrs> {
+  private dragStartHeight = 0;
+  private height = 0;
+  private resize: undefined|((height: number) => void);
+
+  oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
+    this.resize = attrs.resize;
+    this.height = attrs.height;
+    const elem = dom as HTMLElement;
+    new DragGestureHandler(
+        elem,
+        this.onDrag.bind(this),
+        this.onDragStart.bind(this),
+        this.onDragEnd.bind(this));
+  }
+
+  onupdate({attrs}: m.CVnodeDOM<DragHandleAttrs>) {
+    this.resize = attrs.resize;
+    this.height = attrs.height;
+  }
+
+  onDrag(_x: number, y: number) {
+    if (this.resize) {
+      const newHeight = this.dragStartHeight + (DRAG_HANDLE_HEIGHT_PX / 2) - y;
+      this.resize(Math.floor(newHeight));
+    }
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  onDragStart(_x: number, _y: number) {
+    this.dragStartHeight = this.height;
+  }
+
+  onDragEnd() {}
+
+  view() {
+    return m('.handle');
+  }
+}
+
 /**
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
  * panels, and everything else that's part of the main trace viewer page.
@@ -92,6 +138,7 @@ class QueryTable extends Panel {
 class TraceViewer implements m.ClassComponent {
   private onResize: () => void = () => {};
   private zoomContent?: PanAndZoomHandler;
+  private detailsHeight = 100;
 
   oncreate(vnode: m.CVnodeDOM) {
     const frontendLocalState = globals.frontendLocalState;
@@ -194,7 +241,15 @@ class TraceViewer implements m.ClassComponent {
           m('.scrolling-panel-container', m(PanelContainer, {
               doesScroll: true,
               panels: scrollingPanels,
-            }))));
+            }))),
+        m('.details-content',
+          {style: {height: `${this.detailsHeight}px`}},
+          m(DragHandle, {
+            resize: (height: number) => {
+              this.detailsHeight = Math.max(height, DRAG_HANDLE_HEIGHT_PX);
+            },
+            height: this.detailsHeight,
+          })));
   }
 }
 

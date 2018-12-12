@@ -162,9 +162,9 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   }
 
   private updateCanvasDimensions() {
-    this.canvasHeight = this.attrs.doesScroll ?
-        this.parentHeight * this.canvasOverdrawFactor :
-        this.totalPanelHeight;
+    this.canvasHeight = Math.floor(
+        this.attrs.doesScroll ? this.parentHeight * this.canvasOverdrawFactor :
+                                this.totalPanelHeight);
     const ctx = assertExists(this.ctx);
     const canvas = assertExists(ctx.canvas);
     canvas.style.height = `${this.canvasHeight}px`;
@@ -176,7 +176,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
 
   private repositionCanvas() {
     const canvas = assertExists(assertExists(this.ctx).canvas);
-    const canvasYStart = this.scrollTop - this.getCanvasOverdrawHeightPerSide();
+    const canvasYStart =
+        Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
     canvas.style.transform = `translateY(${canvasYStart}px)`;
   }
 
@@ -222,7 +223,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     if (!this.ctx) return;
     this.ctx.clearRect(0, 0, this.parentWidth, this.canvasHeight);
     const canvasYStart =
-        Math.ceil(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
+        Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
 
     let panelYStart = 0;
     const panels = assertExists(this.attrs).panels;
