@@ -330,9 +330,7 @@ inline std::vector<Table::Column> GetColumnsForTable(
     }
 
     Table::ColumnType type;
-    if (strcmp(raw_type, "UNSIGNED BIG INT") == 0) {
-      type = Table::ColumnType::kUlong;
-    } else if (strcmp(raw_type, "UNSIGNED INT") == 0) {
+    if (strcmp(raw_type, "UNSIGNED INT") == 0) {
       type = Table::ColumnType::kUint;
     } else if (strcmp(raw_type, "BIG INT") == 0) {
       type = Table::ColumnType::kLong;
