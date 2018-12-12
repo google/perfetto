@@ -36,7 +36,7 @@ void StringTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<StringTable>(db, storage, "strings");
 }
 
-Table::Schema StringTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> StringTable::Init(int, const char* const*) {
   return Schema(
       {
           Table::Column(Column::kStringId, "id", ColumnType::kUlong),

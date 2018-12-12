@@ -26,7 +26,7 @@ void SchedSliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<SchedSliceTable>(db, storage, "sched");
 }
 
-Table::Schema SchedSliceTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> SchedSliceTable::Init(int, const char* const*) {
   const auto& slices = storage_->slices();
   std::unique_ptr<StorageColumn> cols[] = {
       NumericColumnPtr("ts", &slices.start_ns(), false /* hidden */,
