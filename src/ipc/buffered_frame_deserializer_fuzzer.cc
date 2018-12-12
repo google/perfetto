@@ -25,12 +25,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   perfetto::ipc::BufferedFrameDeserializer bfd;
-  auto rbuf = bfd.BeginReceive();
-  memcpy(rbuf.data, data, std::min(rbuf.size, size));
-  ::perfetto::base::ignore_result(bfd.EndReceive(size));
-  // TODO(fmayer): Determine if this has value.
-  // This slows down fuzzing from 190k / s to 140k / sec.
-  while (bfd.PopNextFrame() != nullptr) {
+  size_t write_offset = 0;
+  while (write_offset < size) {
+    size_t available_size = size - write_offset;
+    auto rbuf = bfd.BeginReceive();
+    size_t chunk_size = std::min(available_size, rbuf.size);
+    memcpy(rbuf.data, data, chunk_size);
+    if (!bfd.EndReceive(chunk_size))
+      break;
+    write_offset += chunk_size;
   }
   return 0;
 }
