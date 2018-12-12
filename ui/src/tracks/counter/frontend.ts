@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
@@ -45,6 +46,8 @@ class CounterTrack extends Track<Config, Data> {
   private reqPending = false;
   private mouseXpos = 0;
   private hoveredValue: number|undefined = undefined;
+  private hoveredTs: number|undefined = undefined;
+  private hoveredTsEnd: number|undefined = undefined;
 
   constructor(trackState: TrackState) {
     super(trackState);
@@ -121,13 +124,13 @@ class CounterTrack extends Track<Config, Data> {
     for (let i = 0; i < data.values.length; i++) {
       const value = data.values[i];
       const startTime = data.timestamps[i];
+      const nextY = zeroY - Math.round((value / yRange) * RECT_HEIGHT);
+      if (nextY === lastY) continue;
 
       lastX = Math.floor(timeScale.timeToPx(startTime));
       ctx.lineTo(lastX, lastY);
-
-      const height = Math.round((value / yRange) * RECT_HEIGHT);
-      lastY = zeroY - height;
-      ctx.lineTo(lastX, lastY);
+      ctx.lineTo(lastX, nextY);
+      lastY = nextY;
     }
     ctx.lineTo(endPx, lastY);
     ctx.lineTo(endPx, zeroY);
@@ -143,19 +146,37 @@ class CounterTrack extends Track<Config, Data> {
     ctx.lineTo(endPx, zeroY);
     ctx.closePath();
     ctx.stroke();
+    ctx.setLineDash([]);
 
     ctx.font = '10px Google Sans';
 
-    if (this.hoveredValue !== undefined) {
-      // Draw a vertical bar to highlight the mouse cursor.
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      const height = Math.round(RECT_HEIGHT * this.hoveredValue / yMax);
-      ctx.fillRect(
-          this.mouseXpos, MARGIN_TOP + RECT_HEIGHT - height, 2, height);
-
+    if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       // TODO(hjd): Add units.
       const text = `value: ${this.hoveredValue.toLocaleString()}`;
       const width = ctx.measureText(text).width;
+
+      ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
+      ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
+
+      const xStart = Math.floor(timeScale.timeToPx(this.hoveredTs));
+      const xEnd = this.hoveredTsEnd === undefined ?
+          endPx :
+          Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
+      const y = zeroY - Math.round((this.hoveredValue / yRange) * RECT_HEIGHT);
+
+      // Highlight line.
+      ctx.beginPath();
+      ctx.moveTo(xStart, y);
+      ctx.lineTo(xEnd, y);
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+
+      // Draw change marker.
+      ctx.beginPath();
+      ctx.arc(xStart, y, 3 /*r*/, 0 /*start angle*/, 2 * Math.PI /*end angle*/);
+      ctx.fill();
+      ctx.stroke();
 
       // Draw the tooltip.
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
@@ -188,15 +209,22 @@ class CounterTrack extends Track<Config, Data> {
     this.mouseXpos = x;
     const {timeScale} = globals.frontendLocalState;
     const time = timeScale.pxToTime(x);
-    this.hoveredValue = undefined;
-    for (let i = 0; i < data.values.length; i++) {
-      if (data.timestamps[i] > time) break;
-      this.hoveredValue = data.values[i];
-    }
+
+    const [left, right] = searchSegment(data.timestamps, time);
+    this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
+    this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
+    this.hoveredValue = left === -1 ? undefined : data.values[left];
+
+    // for (let i = 0; i < data.values.length; i++) {
+    //  if (data.timestamps[i] > time) break;
+    //  this.hoveredTs = data.timestamps[i];
+    //  this.hoveredValue = data.values[i];
+    //}
   }
 
   onMouseOut() {
     this.hoveredValue = undefined;
+    this.hoveredTs = undefined;
   }
 }
 
