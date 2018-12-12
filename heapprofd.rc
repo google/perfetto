@@ -20,3 +20,9 @@ service heapprofd /system/bin/heapprofd
     writepid /dev/cpuset/system-background/tasks
     onrestart exec_background - nobody shell -- /system/bin/heapprofd --cleanup-after-crash
     capabilities KILL
+
+on property:persist.heapprofd.enable=1
+    start heapprofd
+
+on property:persist.heapprofd.enable=0
+    stop heapprofd
