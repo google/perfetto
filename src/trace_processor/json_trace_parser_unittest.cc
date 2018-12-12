@@ -26,26 +26,15 @@ namespace trace_processor {
 namespace {
 
 TEST(JsonTraceParserTest, CoerceToUint32) {
-  uint32_t n = 0;
-
-  ASSERT_TRUE(CoerceToUint32(Json::Value(42), &n));
-  EXPECT_EQ(n, 42);
-
-  ASSERT_TRUE(CoerceToUint32(Json::Value("42"), &n));
-  EXPECT_EQ(n, 42);
+  ASSERT_EQ(CoerceToUint32(Json::Value(42)).value_or(0), 42);
+  ASSERT_EQ(CoerceToUint32(Json::Value("42")).value_or(0), 42);
 }
 
 TEST(JsonTraceParserTest, CoerceToUint64) {
-  int64_t n = 0;
-
-  ASSERT_TRUE(CoerceToInt64(Json::Value(42), &n));
-  EXPECT_EQ(n, 42);
-
-  ASSERT_TRUE(CoerceToInt64(Json::Value("42"), &n));
-  EXPECT_EQ(n, 42);
-
-  ASSERT_FALSE(CoerceToInt64(Json::Value("foo"), &n));
-  ASSERT_FALSE(CoerceToInt64(Json::Value("1234!"), &n));
+  ASSERT_EQ(CoerceToInt64(Json::Value(42)).value_or(-1), 42);
+  ASSERT_EQ(CoerceToInt64(Json::Value("42")).value_or(-1), 42);
+  ASSERT_FALSE(CoerceToInt64(Json::Value("foo")).has_value());
+  ASSERT_FALSE(CoerceToInt64(Json::Value("1234!")).has_value());
 }
 
 }  // namespace
