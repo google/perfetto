@@ -126,6 +126,8 @@ button.close {
 .page {
     grid-area: page;
     position: relative;
+    display: flex;
+    flex-direction: column
 }
 
 .alerts {
@@ -152,6 +154,7 @@ button.close {
 .home-page {
     text-align: center;
     padding-top: 20vh;
+    align-items: center;
 }
 
 .home-page .logo {
@@ -327,10 +330,22 @@ canvas.main-canvas {
 }
 
 .pan-and-zoom-content {
-  height: 100%;
+  flex: 1;
   position: relative;
   display: flex;
   flex-flow: column nowrap;
+}
+
+.details-content {
+  .handle {
+    background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAAFCAYAAACeuGYRAAAAFUlEQVR42mPYvXv3f1IxA1lgcNsEAEynfFEloq9lAAAAAElFTkSuQmCC) 0 0 no-repeat; // http://
+    background-color: #fafafa;
+    background-position: center center;
+    border: 1px solid rgba(0,0,0,0.1);
+    cursor: row-resize;
+    height: 12px;
+    min-height: 12px;
+  }
 }
 
 .overview-timeline {
