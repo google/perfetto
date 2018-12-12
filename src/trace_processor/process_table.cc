@@ -36,7 +36,7 @@ void ProcessTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<ProcessTable>(db, storage, "process");
 }
 
-Table::Schema ProcessTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> ProcessTable::Init(int, const char* const*) {
   return Schema(
       {
           Table::Column(Column::kUpid, "upid", ColumnType::kInt),
