@@ -77,7 +77,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
 
   // Functions for snapshotting process/thread long-term info and relationships.
   void WriteProcess(int32_t pid, const std::string& proc_status);
-  void WriteThread(int32_t tid, int32_t tgid, const std::string& proc_status);
+  void WriteThread(int32_t tid, int32_t tgid, const char* optional_name);
   void WriteProcessOrThread(int32_t pid);
   std::string ReadProcStatusEntry(const std::string& buf, const char* key);
 
