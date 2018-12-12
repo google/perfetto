@@ -38,18 +38,18 @@ base::Optional<Table::Schema> WindowOperatorTable::Init(int,
   return Schema(
       {
           // These are the operator columns:
-          Table::Column(Column::kRowId, "rowid", ColumnType::kUlong, kHidden),
-          Table::Column(Column::kQuantum, "quantum", ColumnType::kUlong,
+          Table::Column(Column::kRowId, "rowid", ColumnType::kLong, kHidden),
+          Table::Column(Column::kQuantum, "quantum", ColumnType::kLong,
                         kHidden),
-          Table::Column(Column::kWindowStart, "window_start",
-                        ColumnType::kUlong, kHidden),
-          Table::Column(Column::kWindowDur, "window_dur", ColumnType::kUlong,
+          Table::Column(Column::kWindowStart, "window_start", ColumnType::kLong,
+                        kHidden),
+          Table::Column(Column::kWindowDur, "window_dur", ColumnType::kLong,
                         kHidden),
           // These are the ouput columns:
-          Table::Column(Column::kTs, "ts", ColumnType::kUlong),
-          Table::Column(Column::kDuration, "dur", ColumnType::kUlong),
+          Table::Column(Column::kTs, "ts", ColumnType::kLong),
+          Table::Column(Column::kDuration, "dur", ColumnType::kLong),
           Table::Column(Column::kCpu, "cpu", ColumnType::kUint),
-          Table::Column(Column::kQuantumTs, "quantum_ts", ColumnType::kUlong),
+          Table::Column(Column::kQuantumTs, "quantum_ts", ColumnType::kLong),
       },
       {Column::kRowId});
 }

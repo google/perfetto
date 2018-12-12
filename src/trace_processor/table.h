@@ -43,12 +43,11 @@ class Table : public sqlite3_vtab {
   // Allowed types for columns in a table.
   enum ColumnType {
     kString = 1,
-    kUlong = 2,
-    kUint = 3,
-    kLong = 4,
-    kInt = 5,
-    kDouble = 6,
-    kUnknown = 7,
+    kUint = 2,
+    kLong = 3,
+    kInt = 4,
+    kDouble = 5,
+    kUnknown = 6,
   };
 
   // Describes a column of this table.
