@@ -19,11 +19,18 @@
 #include "gtest/gtest.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/paged_memory.h"
+#include "perfetto/base/scoped_file.h"
+#include "perfetto/base/thread_utils.h"
 
+#include <signal.h>
 #include <time.h>
 
+#include <condition_variable>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <thread>
+#include <vector>
 
 namespace perfetto {
 namespace base {
@@ -100,6 +107,64 @@ TEST(WatchdogTest, CrashCpu) {
         }
       },
       "");
+}
+
+// The test below tests that the fatal timer signal is sent to the thread that
+// created the timer and not a random one.
+
+int RestoreSIGABRT(const struct sigaction* act) {
+  return sigaction(SIGABRT, act, nullptr);
+}
+
+pid_t g_aborted_thread = 0;
+void SIGABRTHandler(int) {
+  g_aborted_thread = GetThreadId();
+}
+
+TEST(WatchdogTest, TimerCrashDeliveredToCallerThread) {
+  // Setup a signal handler so that SIGABRT doesn't cause a crash but just
+  // records the current thread id.
+  struct sigaction oldact;
+  struct sigaction newact = {};
+  newact.sa_handler = SIGABRTHandler;
+  ASSERT_EQ(sigaction(SIGABRT, &newact, &oldact), 0);
+  base::ScopedResource<const struct sigaction*, RestoreSIGABRT, nullptr>
+      auto_restore(&oldact);
+
+  // Create 8 threads. All of them but one will just sleep. The selected one
+  // will register a watchdog and fail.
+  const size_t kKillThreadNum = 3;
+  std::mutex mutex;
+  std::condition_variable cv;
+  bool quit = false;
+  g_aborted_thread = 0;
+  pid_t expected_tid = 0;
+
+  auto thread_fn = [&mutex, &cv, &quit, &expected_tid](size_t thread_num) {
+    if (thread_num == kKillThreadNum) {
+      expected_tid = GetThreadId();
+      TestWatchdog watchdog(100);
+      watchdog.Start();
+      auto handle = watchdog.CreateFatalTimer(2);
+      usleep(200 * 1000);  // This will be interrupted by the fatal timer.
+      std::unique_lock<std::mutex> lock(mutex);
+      quit = true;
+      cv.notify_all();
+    } else {
+      std::unique_lock<std::mutex> lock(mutex);
+      cv.wait(lock, [&quit] { return quit; });
+    }
+  };
+
+  std::vector<std::thread> threads;
+  for (size_t i = 0; i < 8; i++)
+    threads.emplace_back(thread_fn, i);
+
+  // Join them all.
+  for (auto& thread : threads)
+    thread.join();
+
+  EXPECT_EQ(g_aborted_thread, expected_tid);
 }
 
 }  // namespace
