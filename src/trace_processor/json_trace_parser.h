@@ -35,6 +35,7 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
+base::Optional<int64_t> CoerceToNs(const Json::Value& value);
 base::Optional<int64_t> CoerceToInt64(const Json::Value& value);
 base::Optional<uint32_t> CoerceToUint32(const Json::Value& value);
 
