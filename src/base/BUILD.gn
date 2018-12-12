@@ -45,7 +45,7 @@ source_set("base") {
   }
 
   if ((perfetto_build_standalone || perfetto_build_with_android) &&
-      (is_linux || is_android)) {
+      (is_linux || is_android) && !is_wasm) {
     sources += [ "watchdog_posix.cc" ]
   }
   if (is_debug && perfetto_build_standalone && !is_wasm) {

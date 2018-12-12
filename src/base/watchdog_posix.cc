@@ -25,15 +25,18 @@
 
 #include "perfetto/base/watchdog_posix.h"
 
-#include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
-
 #include <fcntl.h>
 #include <inttypes.h>
 #include <signal.h>
 #include <stdint.h>
+
 #include <fstream>
 #include <thread>
+
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/scoped_file.h"
+#include "perfetto/base/thread_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 #error perfetto::base::Watchdog should not be used in Chromium
@@ -243,7 +246,8 @@ Watchdog::Timer::Timer(uint32_t ms) {
     return;  // No-op timer created when the watchdog is disabled.
 
   struct sigevent sev = {};
-  sev.sigev_notify = SIGEV_SIGNAL;
+  sev.sigev_notify = SIGEV_THREAD_ID;
+  sev._sigev_un._tid = base::GetThreadId();
   sev.sigev_signo = SIGABRT;
   PERFETTO_CHECK(timer_create(CLOCK_MONOTONIC, &sev, &timerid_) != -1);
   struct itimerspec its = {};
