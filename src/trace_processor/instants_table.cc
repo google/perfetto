@@ -34,7 +34,7 @@ void InstantsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<InstantsTable>(db, storage, "instants");
 }
 
-Table::Schema InstantsTable::CreateSchema(int, const char* const*) {
+base::Optional<Table::Schema> InstantsTable::Init(int, const char* const*) {
   const auto& instants = storage_->instants();
   std::unique_ptr<StorageColumn> cols[] = {
       NumericColumnPtr("ts", &instants.timestamps(), false /* hidden */,
