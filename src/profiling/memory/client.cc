@@ -122,7 +122,7 @@ void FreePage::FlushLocked(SocketPool* pool) {
   msg.free_header = &free_page_;
   BorrowedSocket fd(pool->Borrow());
   if (!fd || !SendWireMessage(*fd, msg)) {
-    PERFETTO_DFATAL("Failed to send wire message");
+    PERFETTO_ELOG("Failed to send wire message");
     fd.Close();
   }
 }
