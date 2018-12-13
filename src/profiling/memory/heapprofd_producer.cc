@@ -330,7 +330,7 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
   if (has_flush_id) {
     dump_record.callback = [task_runner, weak_producer, flush_id] {
       task_runner->PostTask([weak_producer, flush_id] {
-        if (!weak_producer)
+        if (weak_producer)
           return weak_producer->FinishDataSourceFlush(flush_id);
       });
     };
