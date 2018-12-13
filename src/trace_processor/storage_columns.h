@@ -257,7 +257,7 @@ class TsEndColumn final : public StorageColumn {
 
   // Returns the type of this column.
   Table::ColumnType GetType() const override {
-    return Table::ColumnType::kUlong;
+    return Table::ColumnType::kLong;
   }
 
   bool IsNaturallyOrdered() const override { return false; }
@@ -306,7 +306,7 @@ class IdColumn final : public StorageColumn {
   }
 
   Table::ColumnType GetType() const override {
-    return Table::ColumnType::kUlong;
+    return Table::ColumnType::kLong;
   }
 
   bool IsNaturallyOrdered() const override { return false; }
