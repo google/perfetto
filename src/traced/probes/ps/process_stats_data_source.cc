@@ -128,6 +128,7 @@ base::WeakPtr<ProcessStatsDataSource> ProcessStatsDataSource::GetWeakPtr()
 }
 
 void ProcessStatsDataSource::WriteAllProcesses() {
+  PERFETTO_METATRACE("WriteAllProcesses", 0);
   PERFETTO_DCHECK(!cur_ps_tree_);
   base::ScopedDir proc_dir = OpenProcDir();
   if (!proc_dir)
@@ -139,10 +140,18 @@ void ProcessStatsDataSource::WriteAllProcesses() {
     base::ScopedDir task_dir(opendir(task_path));
     if (!task_dir)
       continue;
+
     while (int32_t tid = ReadNextNumericDir(*task_dir)) {
       if (tid == pid)
         continue;
-      WriteProcessOrThread(tid);
+      if (record_thread_names_) {
+        WriteProcessOrThread(tid);
+      } else {
+        // If we are not interested in thread names, there is no need to open
+        // a proc file for each thread. We can save time and directly write the
+        // thread record.
+        WriteThread(tid, pid, /*optional_name=*/nullptr);
+      }
     }
   }
   FinalizeCurPacket();
@@ -180,7 +189,10 @@ void ProcessStatsDataSource::WriteProcessOrThread(int32_t pid) {
     WriteProcess(tgid, proc_status);
   if (pid != tgid) {
     PERFETTO_DCHECK(!seen_pids_.count(pid));
-    WriteThread(pid, tgid, proc_status);
+    std::string thread_name;
+    if (record_thread_names_)
+      thread_name = ReadProcStatusEntry(proc_status, "Name:");
+    WriteThread(pid, tgid, thread_name.empty() ? nullptr : thread_name.c_str());
   }
 }
 
@@ -205,12 +217,12 @@ void ProcessStatsDataSource::WriteProcess(int32_t pid,
 
 void ProcessStatsDataSource::WriteThread(int32_t tid,
                                          int32_t tgid,
-                                         const std::string& proc_status) {
+                                         const char* optional_name) {
   auto* thread = GetOrCreatePsTree()->add_threads();
   thread->set_tid(tid);
   thread->set_tgid(tgid);
-  if (record_thread_names_)
-    thread->set_name(ReadProcStatusEntry(proc_status, "Name:").c_str());
+  if (optional_name)
+    thread->set_name(optional_name);
   seen_pids_.emplace(tid);
 }
 
