@@ -15,60 +15,13 @@
  */
 
 #include "src/profiling/memory/socket_listener.h"
+
 #include "perfetto/base/utils.h"
+#include "src/profiling/memory/proc_utils.h"
 
 namespace perfetto {
 namespace profiling {
 namespace {
-
-// This is mostly the same as GetHeapprofdProgramProperty in
-// https://android.googlesource.com/platform/bionic/+/master/libc/bionic/malloc_common.cpp
-// This should give the same result as GetHeapprofdProgramProperty.
-// TODO(fmayer): Move all the /proc parsing functions to separate file.
-bool GetCmdlineForPID(pid_t pid, std::string* name) {
-  std::string filename = "/proc/" + std::to_string(pid) + "/cmdline";
-  base::ScopedFile fd(base::OpenFile(filename, O_RDONLY | O_CLOEXEC));
-  if (!fd) {
-    PERFETTO_DLOG("Failed to open %s", filename.c_str());
-    return false;
-  }
-  char cmdline[128];
-  ssize_t rd = read(*fd, cmdline, sizeof(cmdline) - 1);
-  if (rd == -1) {
-    PERFETTO_DLOG("Failed to read %s", filename.c_str());
-    return false;
-  }
-  cmdline[rd] = '\0';
-  char* first_arg =
-      static_cast<char*>(memchr(cmdline, '\0', static_cast<size_t>(rd)));
-  if (first_arg == nullptr || first_arg == cmdline + sizeof(cmdline) - 1) {
-    PERFETTO_DLOG("Overflow reading cmdline");
-    return false;
-  }
-  // For consistency with what we do with Java app cmdlines, trim everything
-  // after the @ sign of the first arg.
-  char* first_at =
-      static_cast<char*>(memchr(cmdline, '@', static_cast<size_t>(rd)));
-  if (first_at != nullptr && first_at < first_arg) {
-    *first_at = '\0';
-    first_arg = first_at;
-  }
-  char* start = static_cast<char*>(
-      memrchr(cmdline, '/', static_cast<size_t>(first_arg - cmdline)));
-  if (start == first_arg) {
-    // The first argument ended in a slash.
-    PERFETTO_DLOG("cmdline ends in /");
-    return false;
-  } else if (start == nullptr) {
-    start = cmdline;
-  } else {
-    // Skip the /.
-    start++;
-  }
-  size_t name_size = static_cast<size_t>(first_arg - start);
-  name->assign(start, name_size);
-  return true;
-}
 
 ClientConfiguration MergeProcessSetSpecs(
     const std::vector<const ProcessSetSpec*>& process_sets) {

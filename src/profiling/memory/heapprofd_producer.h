@@ -26,6 +26,7 @@
 #include "perfetto/tracing/core/tracing_service.h"
 
 #include "src/profiling/memory/bounded_queue.h"
+#include "src/profiling/memory/proc_utils.h"
 #include "src/profiling/memory/process_matcher.h"
 #include "src/profiling/memory/socket_listener.h"
 #include "src/profiling/memory/system_property.h"
