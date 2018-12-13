@@ -15,3 +15,4 @@ synth_1.py smoke.sql synth_1_smoke.out
 synth_1.py filter_sched.sql synth_1_filter_sched.out
 synth_1.py filter_counters.sql synth_1_filter_counters.out
 synth_oom.py oom_query.sql synth_oom_oom_query.out
+synth_1.py nulls.sql nulls.out
