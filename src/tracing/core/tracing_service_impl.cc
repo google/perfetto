@@ -1148,6 +1148,20 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     return;
   }
 
+  // If the writer was registered by the producer, it should only write into the
+  // buffer it was registered with.
+  base::Optional<BufferID> associated_buffer =
+      producer->buffer_id_for_writer(writer_id);
+  if (associated_buffer && *associated_buffer != buffer_id) {
+    PERFETTO_ELOG("Writer %" PRIu16 " of producer %" PRIu16
+                  " was registered to write into target buffer %" PRIu16
+                  ", but tried to write into buffer %" PRIu16,
+                  writer_id, producer_id_trusted, *associated_buffer,
+                  buffer_id);
+    PERFETTO_DCHECK(false);
+    return;
+  }
+
   buf->CopyChunkUntrusted(producer_id_trusted, producer_uid_trusted, writer_id,
                           chunk_id, num_fragments, chunk_flags, src, size);
 }
@@ -1511,17 +1525,19 @@ void TracingServiceImpl::ProducerEndpointImpl::UnregisterDataSource(
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::RegisterTraceWriter(
-    uint32_t /*writer_id*/,
-    uint32_t /*target_buffer*/) {
+    uint32_t writer_id,
+    uint32_t target_buffer) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // TODO(eseckler): Store association into a map. Make sure to verify that the
-  // target buffer is "allowed" when using this association later.
+  PERFETTO_DCHECK(!buffer_id_for_writer(static_cast<WriterID>(writer_id)));
+  writers_[static_cast<WriterID>(writer_id)] =
+      static_cast<BufferID>(target_buffer);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::UnregisterTraceWriter(
-    uint32_t /*writer_id*/) {
+    uint32_t writer_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // TODO(eseckler): Remove association from the map.
+  PERFETTO_DCHECK(buffer_id_for_writer(static_cast<WriterID>(writer_id)));
+  writers_.erase(static_cast<WriterID>(writer_id));
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::CommitData(
