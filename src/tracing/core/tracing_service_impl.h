@@ -24,6 +24,7 @@
 
 #include "perfetto/base/gtest_prod_util.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/optional.h"
 #include "perfetto/base/time.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
@@ -95,6 +96,13 @@ class TracingServiceImpl : public TracingService {
       return allowed_target_buffers_.count(buffer_id);
     }
 
+    base::Optional<BufferID> buffer_id_for_writer(WriterID writer_id) const {
+      const auto it = writers_.find(writer_id);
+      if (it != writers_.end())
+        return it->second;
+      return base::nullopt;
+    }
+
    private:
     friend class TracingServiceImpl;
     friend class TracingServiceImplTest;
@@ -116,6 +124,16 @@ class TracingServiceImpl : public TracingService {
     // Set of the global target_buffer IDs that the producer is configured to
     // write into in any active tracing session.
     std::set<BufferID> allowed_target_buffers_;
+
+    // Maps registered TraceWriter IDs to their target buffers as registered by
+    // the producer. Note that producers aren't required to register their
+    // writers, so we may see commits of chunks with WriterIDs that aren't
+    // contained in this map. However, if a producer does register a writer, the
+    // service will prevent the writer from writing into any other buffer than
+    // the one associated with it here. The BufferIDs stored in this map are
+    // untrusted, so need to be verified against |allowed_target_buffers_|
+    // before use.
+    std::map<WriterID, BufferID> writers_;
 
     // This is used only in in-process configurations (mostly tests).
     std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
