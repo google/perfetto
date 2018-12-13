@@ -133,9 +133,7 @@ inline const char* ToString(ProtoFieldType v) {
     case kProtoBytes:
       return "bytes";
   }
-  // For gcc:
-  PERFETTO_CHECK(false);
-  return "";
+  PERFETTO_FATAL("Not reached");  // for gcc
 }
 
 inline const char* ToString(FtraceFieldType v) {
@@ -180,7 +178,7 @@ inline const char* ToString(FtraceFieldType v) {
       return "__data_loc";
   }
   // For gcc:
-  PERFETTO_CHECK(false);
+  PERFETTO_FATAL("Not reached");
   return "";
 }
 

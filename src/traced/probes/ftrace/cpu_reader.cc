@@ -671,9 +671,7 @@ bool CpuReader::ParseField(const Field& field,
       ReadDevId<uint64_t>(field_start, field_id, message, metadata);
       return true;
   }
-  // Not reached, for gcc.
-  PERFETTO_CHECK(false);
-  return false;
+  PERFETTO_FATAL("Not reached");  // For gcc
 }
 
 }  // namespace perfetto
