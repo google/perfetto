@@ -84,6 +84,11 @@ class TraceWriterImpl : public TraceWriter,
   // starting the TracePacket header.
   bool fragmenting_packet_ = false;
 
+  // Set to |true| when the current chunk contains the maximum number of packets
+  // a chunk can contain. When this is |true|, the next packet requires starting
+  // a new chunk.
+  bool reached_max_packets_per_chunk_ = false;
+
   // When a packet is fragmented across different chunks, the |size_field| of
   // the outstanding nested protobuf messages is redirected onto Patch entries
   // in this list at the time the Chunk is returned (because at that point we
