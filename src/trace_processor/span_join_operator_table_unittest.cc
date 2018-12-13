@@ -61,14 +61,14 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
 TEST_F(SpanJoinOperatorTableTest, JoinTwoSpanTables) {
   RunStatement(
       "CREATE TEMP TABLE f("
-      "ts UNSIGNED BIG INT PRIMARY KEY, "
-      "dur UNSIGNED BIG INT, "
+      "ts BIG INT PRIMARY KEY, "
+      "dur BIG INT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
       "CREATE TEMP TABLE s("
-      "ts UNSIGNED BIG INT PRIMARY KEY, "
-      "dur UNSIGNED BIG INT, "
+      "ts BIG INT PRIMARY KEY, "
+      "dur BIG INT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
@@ -123,14 +123,14 @@ TEST_F(SpanJoinOperatorTableTest, JoinTwoSpanTables) {
 TEST_F(SpanJoinOperatorTableTest, NullPartitionKey) {
   RunStatement(
       "CREATE TEMP TABLE f("
-      "ts UNSIGNED BIG INT PRIMARY KEY, "
-      "dur UNSIGNED BIG INT, "
+      "ts BIG INT PRIMARY KEY, "
+      "dur BIG INT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
       "CREATE TEMP TABLE s("
-      "ts UNSIGNED BIG INT PRIMARY KEY, "
-      "dur UNSIGNED BIG INT, "
+      "ts BIG INT PRIMARY KEY, "
+      "dur BIG INT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(

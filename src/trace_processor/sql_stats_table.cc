@@ -39,9 +39,9 @@ base::Optional<Table::Schema> SqlStatsTable::Init(int, const char* const*) {
   return Schema(
       {
           Table::Column(Column::kQuery, "query", ColumnType::kString),
-          Table::Column(Column::kTimeQueued, "queued", ColumnType::kUlong),
-          Table::Column(Column::kTimeStarted, "started", ColumnType::kUlong),
-          Table::Column(Column::kTimeEnded, "ended", ColumnType::kUlong),
+          Table::Column(Column::kTimeQueued, "queued", ColumnType::kLong),
+          Table::Column(Column::kTimeStarted, "started", ColumnType::kLong),
+          Table::Column(Column::kTimeEnded, "ended", ColumnType::kLong),
       },
       {Column::kTimeQueued});
 }
