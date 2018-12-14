@@ -84,9 +84,9 @@ def main():
     out_dir = os.path.join(ROOT_DIR, 'out', config_name)
     if not os.path.isdir(out_dir):
       os.mkdir(out_dir)
-    gn_cmd = [gn, 'args', out_dir, '--args=%s' % (' '.join(gn_args)), '--check']
+    gn_cmd = [gn, 'gen', out_dir, '--args=%s' % (' '.join(gn_args)), '--check']
     print ' '.join(gn_cmd)
-    subprocess.check_call(gn_cmd, cwd=ROOT_DIR, env={'EDITOR':'true'})
+    subprocess.check_call(gn_cmd, cwd=ROOT_DIR)
     if args.build:
       ninja = os.path.join(ROOT_DIR, 'tools', 'ninja')
       ninja_cmd = [ninja, '-C', '.', args.build]
