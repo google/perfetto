@@ -119,6 +119,27 @@ source_set("unittests") {
   ]
 }
 
+source_set("end_to_end_tests") {
+  public_configs = [ "../../../buildtools:libunwindstack_config" ]
+  testonly = true
+  deps = [
+    ":client",
+    ":daemon",
+    ":wire_protocol",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_deps",
+    "../../../test:test_helper",
+    "../../base",
+    "../../base:test_support",
+  ]
+  sources = [
+    "heapprofd_end_to_end_test.cc",
+  ]
+  if (start_daemons_for_testing) {
+    defines = [ "PERFETTO_START_DAEMONS_FOR_TESTING" ]
+  }
+}
+
 # This will export publicly visibile symbols for the malloc_hooks.
 source_set("malloc_hooks") {
   deps = [
