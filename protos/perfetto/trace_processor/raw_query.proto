@@ -30,6 +30,7 @@ message RawQueryResult {
   message ColumnDesc {
     optional string name = 1;
     enum Type {
+      UNKNOWN = 0;
       LONG = 1;
       DOUBLE = 2;
       STRING = 3;
@@ -43,6 +44,10 @@ message RawQueryResult {
     repeated int64 long_values = 1;
     repeated double double_values = 2;
     repeated string string_values = 3;
+
+    // This will be set to true or false depending on whether the data at the
+    // given index is NULL.
+    repeated bool is_nulls = 4;
   }
   repeated ColumnDesc column_descriptors = 1;
   optional uint64 num_records = 2;

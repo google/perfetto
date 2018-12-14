@@ -227,18 +227,26 @@ void PrintQueryResultInteractively(base::TimeNanos t_start,
       printf("\n");
     }
 
+    using ColumnDesc = protos::RawQueryResult::ColumnDesc;
     for (int c = 0; c < res.columns_size(); c++) {
-      switch (res.column_descriptors(c).type()) {
-        case protos::RawQueryResult_ColumnDesc_Type_STRING:
-          printf("%-20.20s", res.columns(c).string_values(r).c_str());
-          break;
-        case protos::RawQueryResult_ColumnDesc_Type_DOUBLE:
-          printf("%20f", res.columns(c).double_values(r));
-          break;
-        case protos::RawQueryResult_ColumnDesc_Type_LONG: {
-          auto value = res.columns(c).long_values(r);
-          printf("%20lld", value);
-          break;
+      if (res.columns(c).is_nulls(r)) {
+        printf("%-20.20s", "[NULL]");
+      } else {
+        switch (res.column_descriptors(c).type()) {
+          case ColumnDesc::STRING:
+            printf("%-20.20s", res.columns(c).string_values(r).c_str());
+            break;
+          case ColumnDesc::DOUBLE:
+            printf("%20f", res.columns(c).double_values(r));
+            break;
+          case ColumnDesc::LONG: {
+            auto value = res.columns(c).long_values(r);
+            printf("%20lld", value);
+            break;
+          }
+          case ColumnDesc::UNKNOWN:
+            PERFETTO_FATAL("Row should be null so handled above");
+            break;
         }
       }
       printf(" ");
@@ -310,21 +318,30 @@ void PrintQueryResultAsCsv(const protos::RawQueryResult& res, FILE* output) {
     for (int c = 0; c < res.columns_size(); c++) {
       if (c > 0)
         fprintf(output, ",");
-      switch (res.column_descriptors(c).type()) {
-        case protos::RawQueryResult_ColumnDesc_Type_STRING:
-          fprintf(output, "\"%s\"", res.columns(c).string_values(r).c_str());
-          break;
-        case protos::RawQueryResult_ColumnDesc_Type_DOUBLE:
-          fprintf(output, "%f", res.columns(c).double_values(r));
-          break;
-        case protos::RawQueryResult_ColumnDesc_Type_LONG: {
-          auto value = res.columns(c).long_values(r);
-          fprintf(output, "%lld", value);
-          break;
+
+      using ColumnDesc = protos::RawQueryResult::ColumnDesc;
+      if (res.columns(c).is_nulls(r)) {
+        fprintf(output, "\"%s\"", "[NULL]");
+      } else {
+        switch (res.column_descriptors(c).type()) {
+          case ColumnDesc::STRING:
+            fprintf(output, "\"%s\"", res.columns(c).string_values(r).c_str());
+            break;
+          case ColumnDesc::DOUBLE:
+            fprintf(output, "%f", res.columns(c).double_values(r));
+            break;
+          case ColumnDesc::LONG: {
+            auto value = res.columns(c).long_values(r);
+            fprintf(output, "%lld", value);
+            break;
+          }
+          case ColumnDesc::UNKNOWN:
+            PERFETTO_FATAL("Row should be null so handled above");
+            break;
         }
       }
     }
-    printf("\n");
+    fprintf(output, "\n");
   }
 }
 
