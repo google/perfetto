@@ -151,6 +151,11 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     if (perfetto_build_with_android) {
       cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
     }
+
+    # TODO(fmayer): Fix in process daemons.
+    if (should_build_heapprofd && is_android && !start_daemons_for_testing) {
+      deps += [ "src/profiling/memory:end_to_end_tests" ]
+    }
   }
 
   if (monolithic_binaries) {

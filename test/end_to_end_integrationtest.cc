@@ -193,6 +193,8 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestBatteryTracing)) {
   TaskRunnerThread producer_thread("perfetto.prd");
   producer_thread.Start(std::unique_ptr<ProbesProducerDelegate>(
       new ProbesProducerDelegate(TEST_PRODUCER_SOCK_NAME)));
+#else
+  base::ignore_result(TEST_PRODUCER_SOCK_NAME);
 #endif
 
   helper.ConnectConsumer();
