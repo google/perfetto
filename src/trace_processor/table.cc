@@ -56,7 +56,7 @@ std::string TypeToString(Table::ColumnType type) {
     case Table::ColumnType::kUnknown:
       PERFETTO_FATAL("Cannot map unknown column type");
   }
-  PERFETTO_CHECK(false);
+  PERFETTO_FATAL("Not reached");  // For gcc
 }
 
 }  // namespace
