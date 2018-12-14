@@ -29,6 +29,8 @@ MAC_BUILD_CONFIGS = {
 ANDROID_BUILD_CONFIGS = {
   'android_debug': ['target_os="android"', 'is_clang=true', 'is_debug=true'],
   'android_release': ['target_os="android"', 'is_clang=true', 'is_debug=false'],
+  'android_release_incl_heapprofd':
+    ['target_os="android"', 'is_clang=true', 'is_debug=false', 'android_api_level=26'],
   'android_asan': ['target_os="android"', 'is_clang=true', 'is_debug=false', 'is_asan=true'],
   'android_lsan': ['target_os="android"', 'is_clang=true', 'is_debug=false', 'is_lsan=true'],
 }
