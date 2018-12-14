@@ -146,7 +146,7 @@ void AndroidPowerDataSource::Tick() {
 
     switch (counter) {
       case android_internal::BatteryCounter::kUnspecified:
-        PERFETTO_DCHECK(false);
+        PERFETTO_DFATAL("Unspecified counter");
         break;
 
       case android_internal::BatteryCounter::kCharge:

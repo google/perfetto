@@ -318,7 +318,7 @@ UnixSocket::UnixSocket(EventListener* event_listener,
     }
     state_ = State::kListening;
   } else {
-    PERFETTO_CHECK(false);  // Unfeasible.
+    PERFETTO_FATAL("Unexpected adopt_state");  // Unfeasible.
   }
 
   PERFETTO_DCHECK(fd_);
