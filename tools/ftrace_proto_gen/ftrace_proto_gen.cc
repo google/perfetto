@@ -175,7 +175,7 @@ ProtoType ProtoType::GetSigned() const {
 std::string ProtoType::ToString() const {
   switch (type) {
     case INVALID:
-      PERFETTO_CHECK(false);
+      PERFETTO_FATAL("Invalid proto type");
     case STRING:
       return "string";
     case NUMERIC: {
@@ -187,7 +187,7 @@ std::string ProtoType::ToString() const {
       return s;
     }
   }
-  PERFETTO_CHECK(false);  // for GCC.
+  PERFETTO_FATAL("Not reached");  // for GCC.
 }
 
 // static

@@ -69,7 +69,7 @@ RecordReader::Record ReceiveAll(int sock) {
         received = true;
         break;
       case (RecordReader::Result::KillConnection):
-        PERFETTO_CHECK(false);
+        PERFETTO_FATAL("Unexpected KillConnection");
         break;
     }
   }
