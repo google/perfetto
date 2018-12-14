@@ -84,10 +84,8 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_EndToEnd) {
   spec.client_configuration.interval = kSamplingInterval;
   auto session = listener.process_matcher().AwaitProcessSetSpec(spec);
   auto sock = base::UnixSocket::Listen(kSocketName, &listener, &task_runner);
-  if (!sock->is_listening()) {
-    PERFETTO_ELOG("Socket not listening.");
-    PERFETTO_CHECK(false);
-  }
+  if (!sock->is_listening())
+    PERFETTO_FATAL("Socket not listening");
   std::thread th([kSamplingInterval] {
     Client client(kSocketName, 1);
     SomeFunction(&client);
@@ -118,10 +116,8 @@ TEST_F(HeapprofdIntegrationTest, MAYBE_MultiSession) {
   spec.client_configuration.interval = kSamplingInterval + 1;
   auto session2 = listener.process_matcher().AwaitProcessSetSpec(spec);
   auto sock = base::UnixSocket::Listen(kSocketName, &listener, &task_runner);
-  if (!sock->is_listening()) {
-    PERFETTO_ELOG("Socket not listening.");
-    PERFETTO_CHECK(false);
-  }
+  if (!sock->is_listening())
+    PERFETTO_FATAL("Socket not listening");
   std::thread th([kSamplingInterval] {
     Client client(kSocketName, 1);
     SomeFunction(&client);

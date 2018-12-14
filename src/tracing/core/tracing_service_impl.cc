@@ -1144,7 +1144,7 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     PERFETTO_ELOG("Producer %" PRIu16
                   " tried to write into forbidden target buffer %" PRIu16,
                   producer_id_trusted, buffer_id);
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Forbidden target buffer");
     return;
   }
 
