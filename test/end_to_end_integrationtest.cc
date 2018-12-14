@@ -228,7 +228,8 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestBatteryTracing)) {
     if (!packet.has_battery())
       continue;
     has_battery_packet = true;
-    EXPECT_GE(packet.battery().charge_counter_uah(), 0);
+    // Unfortunately we cannot make any assertions on the charge counter.
+    // On some devices it can reach negative values (b/64685329).
     EXPECT_GE(packet.battery().capacity_percent(), 0);
     EXPECT_LE(packet.battery().capacity_percent(), 100);
   }
