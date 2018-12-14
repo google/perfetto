@@ -49,7 +49,7 @@ order by mcycles desc limit 32;`;
 const CPU_TIME_BY_CLUSTER_BY_PROCESS = `
 select process.name as process, thread, core, cpu_sec from (
   select thread.name as thread, upid,
-    case when cpug = 0 then 'big' else 'little' end as core,
+    case when cpug = 0 then 'little' else 'big' end as core,
     cpu_sec from (select cpu/4 as cpug, utid, sum(dur)/1e9 as cpu_sec
     from sched group by utid, cpug order by cpu_sec desc
   ) inner join thread using(utid)
