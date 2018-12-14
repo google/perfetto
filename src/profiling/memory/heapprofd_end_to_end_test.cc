@@ -42,6 +42,16 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+void WaitForHeapprofd(uint64_t timeout_ms) {
+  constexpr uint64_t kSleepMs = 10;
+  std::vector<std::string> cmdlines{"heapprofd"};
+  std::set<pid_t> pids;
+  for (size_t i = 0; i < timeout_ms / kSleepMs && pids.empty(); ++i) {
+    FindPidsForCmdlines(cmdlines, &pids);
+    usleep(kSleepMs * 1000);
+  }
+}
+
 class HeapprofdDelegate : public ThreadDelegate {
  public:
   HeapprofdDelegate(const std::string& producer_socket)
@@ -60,22 +70,16 @@ class HeapprofdDelegate : public ThreadDelegate {
 
 constexpr const char* kEnableHeapprofdProperty = "persist.heapprofd.enable";
 
-int __attribute__((unused)) SetProperty(const char* value) {
-  __system_property_set(kEnableHeapprofdProperty, value);
+int __attribute__((unused)) SetProperty(std::string* value) {
+  if (value) {
+    __system_property_set(kEnableHeapprofdProperty, value->c_str());
+    delete value;
+  }
   return 0;
 }
 
-TEST(HeapprofdEndToEnd, Smoke) {
-  base::TestTaskRunner task_runner;
-
-  TestHelper helper(&task_runner);
-  helper.StartServiceIfRequired();
-
-#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-  TaskRunnerThread producer_thread("perfetto.prd");
-  producer_thread.Start(std::unique_ptr<HeapprofdDelegate>(
-      new HeapprofdDelegate(TEST_PRODUCER_SOCK_NAME)));
-#else
+base::ScopedResource<std::string*, SetProperty, nullptr>
+StartSystemHeapprofdIfRequired() {
   base::ignore_result(TEST_PRODUCER_SOCK_NAME);
   std::string prev_property_value = "0";
   const prop_info* pi = __system_property_find(kEnableHeapprofdProperty);
@@ -88,19 +92,12 @@ TEST(HeapprofdEndToEnd, Smoke) {
         &prev_property_value);
   }
   __system_property_set(kEnableHeapprofdProperty, "1");
-  base::ScopedResource<const char*, SetProperty, nullptr> unset_property(
-      prev_property_value.c_str());
-#endif
+  WaitForHeapprofd(5000);
+  return base::ScopedResource<std::string*, SetProperty, nullptr>(
+      new std::string(prev_property_value));
+}
 
-  helper.ConnectConsumer();
-  helper.WaitForConsumerConnect();
-
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(1000);
-
-  constexpr size_t kAllocSize = 1024;
-
+pid_t ForkContinousMalloc(size_t bytes) {
   pid_t pid = fork();
   switch (pid) {
     case -1:
@@ -109,7 +106,7 @@ TEST(HeapprofdEndToEnd, Smoke) {
       for (;;) {
         // This volatile is needed to prevent the compiler from trying to be
         // helpful and compiling a "useless" malloc + free into a noop.
-        volatile char* x = static_cast<char*>(malloc(kAllocSize));
+        volatile char* x = static_cast<char*>(malloc(bytes));
         if (x) {
           x[1] = 'x';
           free(const_cast<char*>(x));
@@ -118,6 +115,46 @@ TEST(HeapprofdEndToEnd, Smoke) {
     default:
       break;
   }
+  return pid;
+}
+
+class HeapprofdEndToEnd : public ::testing::Test {
+ public:
+  HeapprofdEndToEnd() {
+    // This is not needed for correctness, but works around a init behavior that
+    // makes this test take much longer. If persist.heapprofd.enable is set to 0
+    // and then set to 1 again too quickly, init decides that the service is
+    // "restarting" and waits before restarting it.
+    usleep(50000);
+    helper.StartServiceIfRequired();
+    unset_property = StartSystemHeapprofdIfRequired();
+
+    helper.ConnectConsumer();
+    helper.WaitForConsumerConnect();
+  }
+
+ protected:
+  base::TestTaskRunner task_runner;
+  TestHelper helper{&task_runner};
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+  TaskRunnerThread producer_thread("perfetto.prd");
+  producer_thread.Start(std::unique_ptr<HeapprofdDelegate>(
+      new HeapprofdDelegate(TEST_PRODUCER_SOCK_NAME)));
+#else
+  base::ScopedResource<std::string*, SetProperty, nullptr> unset_property;
+#endif
+};
+
+TEST_F(HeapprofdEndToEnd, Smoke) {
+  constexpr size_t kAllocSize = 1024;
+
+  pid_t pid = ForkContinousMalloc(kAllocSize);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.set_duration_ms(1000);
+
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.heapprofd");
   ds_config->set_target_buffer(0);
@@ -156,6 +193,54 @@ TEST(HeapprofdEndToEnd, Smoke) {
     }
   }
   EXPECT_GT(profile_packets, 0);
+  EXPECT_GT(samples, 0);
+}
+
+TEST_F(HeapprofdEndToEnd, FinalFlush) {
+  constexpr size_t kAllocSize = 1024;
+
+  pid_t pid = ForkContinousMalloc(kAllocSize);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.set_duration_ms(1000);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.heapprofd");
+  ds_config->set_target_buffer(0);
+
+  auto* heapprofd_config = ds_config->mutable_heapprofd_config();
+  heapprofd_config->set_sampling_interval_bytes(1);
+  *heapprofd_config->add_pid() = static_cast<uint64_t>(pid);
+  heapprofd_config->set_all(false);
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled(5000);
+
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
+
+  const auto& packets = helper.trace();
+  ASSERT_GT(packets.size(), 0u);
+  size_t profile_packets = 0;
+  size_t samples = 0;
+  for (const protos::TracePacket& packet : packets) {
+    if (packet.has_profile_packet() &&
+        packet.profile_packet().process_dumps().size() > 0) {
+      const auto& dumps = packet.profile_packet().process_dumps();
+      ASSERT_EQ(dumps.size(), 1);
+      const protos::ProfilePacket_ProcessHeapSamples& dump = dumps.Get(0);
+      EXPECT_EQ(dump.pid(), pid);
+      for (const auto& sample : dump.samples()) {
+        samples++;
+        EXPECT_EQ(sample.cumulative_allocated() % kAllocSize, 0);
+      }
+      profile_packets++;
+    }
+  }
+  EXPECT_EQ(profile_packets, 1);
   EXPECT_GT(samples, 0);
 }
 
