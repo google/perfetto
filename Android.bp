@@ -536,6 +536,7 @@ cc_test {
     "src/profiling/memory/client.cc",
     "src/profiling/memory/heapprofd_end_to_end_test.cc",
     "src/profiling/memory/heapprofd_producer.cc",
+    "src/profiling/memory/proc_utils.cc",
     "src/profiling/memory/process_matcher.cc",
     "src/profiling/memory/record_reader.cc",
     "src/profiling/memory/sampler.cc",
