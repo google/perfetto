@@ -99,6 +99,8 @@ TEST(HeapprofdEndToEnd, Smoke) {
   trace_config.add_buffers()->set_size_kb(10 * 1024);
   trace_config.set_duration_ms(1000);
 
+  constexpr size_t kAllocSize = 1024;
+
   pid_t pid = fork();
   switch (pid) {
     case -1:
@@ -107,7 +109,7 @@ TEST(HeapprofdEndToEnd, Smoke) {
       for (;;) {
         // This volatile is needed to prevent the compiler from trying to be
         // helpful and compiling a "useless" malloc + free into a noop.
-        volatile char* x = static_cast<char*>(malloc(1024));
+        volatile char* x = static_cast<char*>(malloc(kAllocSize));
         if (x) {
           x[1] = 'x';
           free(const_cast<char*>(x));
@@ -138,13 +140,23 @@ TEST(HeapprofdEndToEnd, Smoke) {
   const auto& packets = helper.trace();
   ASSERT_GT(packets.size(), 0u);
   size_t profile_packets = 0;
+  size_t samples = 0;
   for (const protos::TracePacket& packet : packets) {
     if (packet.has_profile_packet() &&
         packet.profile_packet().process_dumps().size() > 0) {
+      const auto& dumps = packet.profile_packet().process_dumps();
+      ASSERT_EQ(dumps.size(), 1);
+      const protos::ProfilePacket_ProcessHeapSamples& dump = dumps.Get(0);
+      EXPECT_EQ(dump.pid(), pid);
+      for (const auto& sample : dump.samples()) {
+        samples++;
+        EXPECT_EQ(sample.cumulative_allocated() % kAllocSize, 0);
+      }
       profile_packets++;
     }
   }
   EXPECT_GT(profile_packets, 0);
+  EXPECT_GT(samples, 0);
 }
 
 }  // namespace
