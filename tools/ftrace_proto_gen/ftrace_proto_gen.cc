@@ -27,219 +27,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/pipe.h"
 #include "perfetto/base/string_splitter.h"
+#include "perfetto/base/string_utils.h"
 
 namespace perfetto {
 
-namespace {
-
-bool StartsWith(const std::string& str, const std::string& prefix) {
-  return str.compare(0, prefix.length(), prefix) == 0;
-}
-
-bool EndsWith(const std::string& str, const std::string& pattern) {
-  return str.rfind(pattern) == str.size() - pattern.size();
-}
-
-bool Contains(const std::string& haystack, const std::string& needle) {
-  return haystack.find(needle) != std::string::npos;
-}
-
-std::string RunClangFmt(const std::string& input) {
-  std::string output;
-  pid_t pid;
-  base::Pipe input_pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
-  base::Pipe output_pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
-  if ((pid = fork()) == 0) {
-    // Child
-    PERFETTO_CHECK(dup2(*input_pipe.rd, STDIN_FILENO) != -1);
-    PERFETTO_CHECK(dup2(*output_pipe.wr, STDOUT_FILENO) != -1);
-    input_pipe.wr.reset();
-    output_pipe.rd.reset();
-    PERFETTO_CHECK(execl("buildtools/linux64/clang-format", "clang-format",
-                         nullptr) != -1);
-  }
-  PERFETTO_CHECK(pid > 0);
-  // Parent
-  size_t written = 0;
-  size_t bytes_read = 0;
-  input_pipe.rd.reset();
-  output_pipe.wr.reset();
-  // This cannot be left uninitialized because there's as continue statement
-  // before the first assignment to this in the loop.
-  ssize_t r = -1;
-  do {
-    if (written < input.size()) {
-      ssize_t w =
-          write(*input_pipe.wr, &(input[written]), input.size() - written);
-      if (w == -1) {
-        if (errno == EAGAIN || errno == EINTR)
-          continue;
-        PERFETTO_FATAL("write failed");
-      }
-      written += static_cast<size_t>(w);
-      if (written == input.size())
-        input_pipe.wr.reset();
-    }
-
-    if (bytes_read + base::kPageSize > output.size())
-      output.resize(output.size() + base::kPageSize);
-    r = read(*output_pipe.rd, &(output[bytes_read]), base::kPageSize);
-    if (r == -1) {
-      if (errno == EAGAIN || errno == EINTR)
-        continue;
-      PERFETTO_FATAL("read failed");
-    }
-    if (r > 0)
-      bytes_read += static_cast<size_t>(r);
-  } while (r != 0);
-  output.resize(bytes_read);
-
-  int wstatus;
-  waitpid(pid, &wstatus, 0);
-  PERFETTO_CHECK(WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0);
-  return output;
-}
-
-}  // namespace
-
-VerifyStream::VerifyStream(std::string filename)
-    : filename_(std::move(filename)) {
-  PERFETTO_CHECK(base::ReadFile(filename_, &expected_));
-}
-
-VerifyStream::~VerifyStream() {
-  std::string tidied = str();
-  if (EndsWith(filename_, "cc") || EndsWith(filename_, "proto"))
-    tidied = RunClangFmt(str());
-  if (expected_ != tidied) {
-    PERFETTO_FATAL("%s is out of date. Please run tools/run_ftrace_proto_gen.",
-                   filename_.c_str());
-  }
-}
-
-FtraceEventName::FtraceEventName(const std::string& full_name) {
-  if (full_name.rfind("removed", 0) != std::string::npos) {
-    valid_ = false;
-    return;
-  }
-  name_ = full_name.substr(full_name.find('/') + 1, std::string::npos);
-  group_ = full_name.substr(0, full_name.find('/'));
-  valid_ = true;
-}
-
-bool FtraceEventName::valid() const {
-  return valid_;
-}
-
-const std::string& FtraceEventName::name() const {
-  PERFETTO_CHECK(valid_);
-  return name_;
-}
-
-const std::string& FtraceEventName::group() const {
-  PERFETTO_CHECK(valid_);
-  return group_;
-}
-
-std::string ToCamelCase(const std::string& s) {
-  std::string result;
-  result.reserve(s.size());
-  bool upperCaseNextChar = true;
-  for (size_t i = 0; i < s.size(); i++) {
-    char c = s[i];
-    if (c == '_') {
-      upperCaseNextChar = true;
-      continue;
-    }
-    if (upperCaseNextChar) {
-      upperCaseNextChar = false;
-      c = static_cast<char>(toupper(c));
-    }
-    result.push_back(c);
-  }
-  return result;
-}
-
-ProtoType ProtoType::GetSigned() const {
-  PERFETTO_CHECK(type == NUMERIC);
-  if (is_signed)
-    return *this;
-
-  if (size == 64) {
-    return Numeric(64, true);
-  }
-
-  return Numeric(2 * size, true);
-}
-
-std::string ProtoType::ToString() const {
-  switch (type) {
-    case INVALID:
-      PERFETTO_FATAL("Invalid proto type");
-    case STRING:
-      return "string";
-    case NUMERIC: {
-      std::string s;
-      if (!is_signed)
-        s += "u";
-      s += "int";
-      s += std::to_string(size);
-      return s;
-    }
-  }
-  PERFETTO_FATAL("Not reached");  // for GCC.
-}
-
-// static
-ProtoType ProtoType::String() {
-  return {STRING, 0, false};
-}
-
-// static
-ProtoType ProtoType::Invalid() {
-  return {INVALID, 0, false};
-}
-
-// static
-ProtoType ProtoType::Numeric(uint16_t size, bool is_signed) {
-  PERFETTO_CHECK(size == 32 || size == 64);
-  return {NUMERIC, size, is_signed};
-}
-
-// static
-ProtoType ProtoType::FromDescriptor(
-    google::protobuf::FieldDescriptor::Type type) {
-  if (type == google::protobuf::FieldDescriptor::Type::TYPE_UINT64)
-    return Numeric(64, false);
-
-  if (type == google::protobuf::FieldDescriptor::Type::TYPE_INT64)
-    return Numeric(64, true);
-
-  if (type == google::protobuf::FieldDescriptor::Type::TYPE_UINT32)
-    return Numeric(32, false);
-
-  if (type == google::protobuf::FieldDescriptor::Type::TYPE_INT32)
-    return Numeric(32, true);
-
-  if (type == google::protobuf::FieldDescriptor::Type::TYPE_STRING)
-    return String();
-
-  return Invalid();
-}
-
-ProtoType GetCommon(ProtoType one, ProtoType other) {
-  // Always need to prefer the LHS as it is the one already present
-  // in the proto.
-  if (one.type == ProtoType::STRING)
-    return ProtoType::String();
-
-  if (one.is_signed || other.is_signed) {
-    one = one.GetSigned();
-    other = other.GetSigned();
-  }
-
-  return ProtoType::Numeric(std::max(one.size, other.size), one.is_signed);
-}
+using base::StartsWith;
+using base::Contains;
 
 std::vector<FtraceEventName> ReadWhitelist(const std::string& filename) {
   std::string line;
@@ -255,42 +48,6 @@ std::vector<FtraceEventName> ReadWhitelist(const std::string& filename) {
       lines.emplace_back(FtraceEventName(line));
   }
   return lines;
-}
-
-ProtoType InferProtoType(const FtraceEvent::Field& field) {
-  // Fixed length strings: "char foo[16]"
-  if (std::regex_match(field.type_and_name, std::regex(R"(char \w+\[\d+\])")))
-    return ProtoType::String();
-
-  // String pointers: "__data_loc char[] foo" (as in
-  // 'cpufreq_interactive_boost').
-  if (Contains(field.type_and_name, "char[] "))
-    return ProtoType::String();
-  if (Contains(field.type_and_name, "char * "))
-    return ProtoType::String();
-
-  // Variable length strings: "char* foo"
-  if (StartsWith(field.type_and_name, "char *"))
-    return ProtoType::String();
-
-  // Variable length strings: "char foo" + size: 0 (as in 'print').
-  if (StartsWith(field.type_and_name, "char ") && field.size == 0)
-    return ProtoType::String();
-
-  // ino_t, i_ino and dev_t are 32bit on some devices 64bit on others. For the
-  // protos we need to choose the largest possible size.
-  if (StartsWith(field.type_and_name, "ino_t ") ||
-      StartsWith(field.type_and_name, "i_ino ") ||
-      StartsWith(field.type_and_name, "dev_t ")) {
-    return ProtoType::Numeric(64, /* is_signed= */ false);
-  }
-
-  // Ints of various sizes:
-  if (field.size <= 4)
-    return ProtoType::Numeric(32, field.is_signed);
-  if (field.size <= 8)
-    return ProtoType::Numeric(64, field.is_signed);
-  return ProtoType::Invalid();
 }
 
 void PrintEventFormatterMain(const std::set<std::string>& events) {
@@ -445,7 +202,7 @@ std::string SingleEventInfo(perfetto::Proto proto,
 
   for (const auto& field : proto.SortedFields()) {
     s += "    event->fields.push_back(MakeField(\"" + field->name + "\", " +
-         std::to_string(field->number) + ", kProto" +
+         std::to_string(field->number) + ", ProtoSchemaType::k" +
          ToCamelCase(field->type.ToString()) + "));\n";
   }
   return s;
@@ -458,9 +215,12 @@ void GenerateEventInfo(const std::vector<std::string>& events_info,
   s += std::string("// ") + __FILE__ + "\n";
   s += "// Do not edit.\n";
   s += R"(
+#include "perfetto/protozero/proto_utils.h"
 #include "src/traced/probes/ftrace/event_info.h"
 
 namespace perfetto {
+
+using protozero::proto_utils::ProtoSchemaType;
 
 std::vector<Event> GetStaticEventInfo() {
   std::vector<Event> events;
@@ -483,60 +243,6 @@ std::vector<Event> GetStaticEventInfo() {
 )";
 
   *fout << s;
-}
-
-Proto::Proto(std::string evt_name, const google::protobuf::Descriptor& desc)
-    : name(desc.name()), event_name(evt_name) {
-  for (int i = 0; i < desc.field_count(); ++i) {
-    const google::protobuf::FieldDescriptor* field = desc.field(i);
-    PERFETTO_CHECK(field);
-    AddField(Field{ProtoType::FromDescriptor(field->type()), field->name(),
-                   uint32_t(field->number())});
-  }
-}
-
-std::vector<const Proto::Field*> Proto::SortedFields() {
-  std::vector<const Proto::Field*> sorted_fields;
-
-  for (const auto& p : fields) {
-    sorted_fields.emplace_back(&p.second);
-  }
-  std::sort(sorted_fields.begin(), sorted_fields.end(),
-            [](const Proto::Field* a, const Proto::Field* b) {
-              return a->number < b->number;
-            });
-  return sorted_fields;
-}
-
-std::string Proto::ToString() {
-  std::string s;
-  s += "message " + name + " {\n";
-  for (const auto field : SortedFields()) {
-    s += "  optional " + field->type.ToString() + " " + field->name + " = " +
-         std::to_string(field->number) + ";\n";
-  }
-  s += "}\n";
-  return s;
-}
-
-void Proto::MergeFrom(const Proto& other) {
-  // Always keep number from the left hand side.
-  PERFETTO_CHECK(name == other.name);
-  for (const auto& p : other.fields) {
-    auto it = fields.find(p.first);
-    if (it == fields.end()) {
-      Proto::Field field = p.second;
-      field.number = ++max_id;
-      AddField(std::move(field));
-    } else {
-      it->second.type = GetCommon(it->second.type, p.second.type);
-    }
-  }
-}
-
-void Proto::AddField(Proto::Field other) {
-  max_id = std::max(max_id, other.number);
-  fields.emplace(other.name, std::move(other));
 }
 
 std::string ProtoHeader() {

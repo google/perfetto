@@ -2561,6 +2561,7 @@ cc_test {
     "src/tracing/test/tracing_integration_test.cc",
     "tools/ftrace_proto_gen/ftrace_proto_gen.cc",
     "tools/ftrace_proto_gen/ftrace_proto_gen_unittest.cc",
+    "tools/ftrace_proto_gen/proto_gen_utils.cc",
     "tools/sanitizers_unittests/sanitizers_unittest.cc",
   ],
   shared_libs: [

@@ -23,26 +23,9 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/protozero/proto_utils.h"
 
 namespace perfetto {
-
-enum ProtoFieldType {
-  kProtoDouble = 1,
-  kProtoFloat,
-  kProtoInt32,
-  kProtoInt64,
-  kProtoUint32,
-  kProtoUint64,
-  kProtoSint32,
-  kProtoSint64,
-  kProtoFixed32,
-  kProtoFixed64,
-  kProtoSfixed32,
-  kProtoSfixed64,
-  kProtoBool,
-  kProtoString,
-  kProtoBytes,
-};
 
 enum FtraceFieldType {
   kFtraceUint8 = 1,
@@ -99,42 +82,6 @@ enum TranslationStrategy {
   kDevId64ToUint64,
   kDataLocToString,
 };
-
-inline const char* ToString(ProtoFieldType v) {
-  switch (v) {
-    case kProtoDouble:
-      return "double";
-    case kProtoFloat:
-      return "float";
-    case kProtoInt32:
-      return "int32";
-    case kProtoInt64:
-      return "int64";
-    case kProtoUint32:
-      return "uint32";
-    case kProtoUint64:
-      return "uint64";
-    case kProtoSint32:
-      return "sint32";
-    case kProtoSint64:
-      return "sint64";
-    case kProtoFixed32:
-      return "fixed32";
-    case kProtoFixed64:
-      return "fixed64";
-    case kProtoSfixed32:
-      return "sfixed32";
-    case kProtoSfixed64:
-      return "sfixed64";
-    case kProtoBool:
-      return "bool";
-    case kProtoString:
-      return "string";
-    case kProtoBytes:
-      return "bytes";
-  }
-  PERFETTO_FATAL("Not reached");  // for gcc
-}
 
 inline const char* ToString(FtraceFieldType v) {
   switch (v) {
@@ -193,7 +140,7 @@ struct Field {
   const char* ftrace_name;
 
   uint32_t proto_field_id;
-  ProtoFieldType proto_field_type;
+  protozero::proto_utils::ProtoSchemaType proto_field_type;
 
   TranslationStrategy strategy;
 };
@@ -223,10 +170,12 @@ struct Event {
 std::vector<Field> GetStaticCommonFieldsInfo();
 
 bool SetTranslationStrategy(FtraceFieldType ftrace,
-                            ProtoFieldType proto,
+                            protozero::proto_utils::ProtoSchemaType proto,
                             TranslationStrategy* out);
 
-Field MakeField(const char* name, uint32_t id, ProtoFieldType type);
+Field MakeField(const char* name,
+                uint32_t id,
+                protozero::proto_utils::ProtoSchemaType type);
 
 }  // namespace perfetto
 

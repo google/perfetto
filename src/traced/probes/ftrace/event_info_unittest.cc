@@ -15,11 +15,13 @@
  */
 
 #include "src/traced/probes/ftrace/event_info.h"
+#include "perfetto/protozero/proto_utils.h"
 
 #include "gtest/gtest.h"
 
 namespace perfetto {
 namespace {
+using protozero::proto_utils::ProtoSchemaType;
 
 TEST(EventInfoTest, GetStaticEventInfoSanityCheck) {
   std::vector<Event> events = GetStaticEventInfo();
@@ -40,7 +42,7 @@ TEST(EventInfoTest, GetStaticEventInfoSanityCheck) {
       // Non-empty name, proto field id, and proto field type.
       ASSERT_TRUE(field.ftrace_name);
       ASSERT_TRUE(field.proto_field_id);
-      ASSERT_TRUE(field.proto_field_type);
+      ASSERT_TRUE(static_cast<int>(field.proto_field_type));
 
       // Other fields should be zeroed.
       ASSERT_FALSE(field.ftrace_offset);
@@ -57,7 +59,7 @@ TEST(EventInfoTest, GetStaticCommonFieldsInfoSanityCheck) {
     // Non-empty name, group, and proto field id.
     ASSERT_TRUE(field.ftrace_name);
     ASSERT_TRUE(field.proto_field_id);
-    ASSERT_TRUE(field.proto_field_type);
+    ASSERT_TRUE(static_cast<int>(field.proto_field_type));
 
     // Other fields should be zeroed.
     ASSERT_FALSE(field.ftrace_offset);
@@ -69,22 +71,29 @@ TEST(EventInfoTest, GetStaticCommonFieldsInfoSanityCheck) {
 
 TEST(EventInfoTest, SetTranslationStrategySanityCheck) {
   TranslationStrategy strategy = kUint32ToUint32;
-  ASSERT_FALSE(SetTranslationStrategy(kFtraceCString, kProtoUint64, &strategy));
+  ASSERT_FALSE(SetTranslationStrategy(kFtraceCString, ProtoSchemaType::kUint64,
+                                      &strategy));
   ASSERT_EQ(strategy, kUint32ToUint32);
-  ASSERT_TRUE(SetTranslationStrategy(kFtraceCString, kProtoString, &strategy));
+  ASSERT_TRUE(SetTranslationStrategy(kFtraceCString, ProtoSchemaType::kString,
+                                     &strategy));
   ASSERT_EQ(strategy, kCStringToString);
-  ASSERT_TRUE(SetTranslationStrategy(kFtracePid32, kProtoInt32, &strategy));
-  ASSERT_EQ(strategy, kPid32ToInt32);
-  ASSERT_TRUE(SetTranslationStrategy(kFtraceInode32, kProtoUint64, &strategy));
-  ASSERT_EQ(strategy, kInode32ToUint64);
-  ASSERT_TRUE(SetTranslationStrategy(kFtraceInode64, kProtoUint64, &strategy));
-  ASSERT_EQ(strategy, kInode64ToUint64);
-  ASSERT_TRUE(SetTranslationStrategy(kFtraceDevId32, kProtoUint64, &strategy));
-  ASSERT_EQ(strategy, kDevId32ToUint64);
-  ASSERT_TRUE(SetTranslationStrategy(kFtraceDevId64, kProtoUint64, &strategy));
-  ASSERT_EQ(strategy, kDevId64ToUint64);
   ASSERT_TRUE(
-      SetTranslationStrategy(kFtraceCommonPid32, kProtoInt32, &strategy));
+      SetTranslationStrategy(kFtracePid32, ProtoSchemaType::kInt32, &strategy));
+  ASSERT_EQ(strategy, kPid32ToInt32);
+  ASSERT_TRUE(SetTranslationStrategy(kFtraceInode32, ProtoSchemaType::kUint64,
+                                     &strategy));
+  ASSERT_EQ(strategy, kInode32ToUint64);
+  ASSERT_TRUE(SetTranslationStrategy(kFtraceInode64, ProtoSchemaType::kUint64,
+                                     &strategy));
+  ASSERT_EQ(strategy, kInode64ToUint64);
+  ASSERT_TRUE(SetTranslationStrategy(kFtraceDevId32, ProtoSchemaType::kUint64,
+                                     &strategy));
+  ASSERT_EQ(strategy, kDevId32ToUint64);
+  ASSERT_TRUE(SetTranslationStrategy(kFtraceDevId64, ProtoSchemaType::kUint64,
+                                     &strategy));
+  ASSERT_EQ(strategy, kDevId64ToUint64);
+  ASSERT_TRUE(SetTranslationStrategy(kFtraceCommonPid32,
+                                     ProtoSchemaType::kInt32, &strategy));
   ASSERT_EQ(strategy, kCommonPid32ToInt32);
 }
 

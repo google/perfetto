@@ -34,7 +34,6 @@ namespace perfetto {
 namespace trace_processor {
 
 using protozero::ProtoDecoder;
-using protozero::proto_utils::kFieldTypeLengthDelimited;
 using protozero::proto_utils::MakeTagLengthDelimited;
 using protozero::proto_utils::MakeTagVarInt;
 using protozero::proto_utils::ParseVarInt;
