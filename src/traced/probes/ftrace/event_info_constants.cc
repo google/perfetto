@@ -17,8 +17,9 @@
 #include "src/traced/probes/ftrace/event_info_constants.h"
 
 namespace perfetto {
+using protozero::proto_utils::ProtoSchemaType;
 
-Field MakeField(const char* name, uint32_t id, ProtoFieldType type) {
+Field MakeField(const char* name, uint32_t id, ProtoSchemaType type) {
   Field field{};
   field.ftrace_name = name;
   field.proto_field_id = id;
@@ -29,73 +30,74 @@ Field MakeField(const char* name, uint32_t id, ProtoFieldType type) {
 std::vector<Field> GetStaticCommonFieldsInfo() {
   std::vector<Field> fields;
 
-  fields.push_back(MakeField("common_pid", 2, kProtoInt32));
+  fields.push_back(MakeField("common_pid", 2, ProtoSchemaType::kInt32));
 
   return fields;
 }
 
 bool SetTranslationStrategy(FtraceFieldType ftrace,
-                            ProtoFieldType proto,
+                            ProtoSchemaType proto,
                             TranslationStrategy* out) {
-  if (ftrace == kFtraceCommonPid32 && proto == kProtoInt32) {
+  if (ftrace == kFtraceCommonPid32 && proto == ProtoSchemaType::kInt32) {
     *out = kCommonPid32ToInt32;
-  } else if (ftrace == kFtraceCommonPid32 && proto == kProtoInt64) {
+  } else if (ftrace == kFtraceCommonPid32 && proto == ProtoSchemaType::kInt64) {
     *out = kCommonPid32ToInt64;
-  } else if (ftrace == kFtraceInode32 && proto == kProtoUint64) {
+  } else if (ftrace == kFtraceInode32 && proto == ProtoSchemaType::kUint64) {
     *out = kInode32ToUint64;
-  } else if (ftrace == kFtraceInode64 && proto == kProtoUint64) {
+  } else if (ftrace == kFtraceInode64 && proto == ProtoSchemaType::kUint64) {
     *out = kInode64ToUint64;
-  } else if (ftrace == kFtracePid32 && proto == kProtoInt32) {
+  } else if (ftrace == kFtracePid32 && proto == ProtoSchemaType::kInt32) {
     *out = kPid32ToInt32;
-  } else if (ftrace == kFtracePid32 && proto == kProtoInt64) {
+  } else if (ftrace == kFtracePid32 && proto == ProtoSchemaType::kInt64) {
     *out = kPid32ToInt64;
-  } else if (ftrace == kFtraceDevId32 && proto == kProtoUint64) {
+  } else if (ftrace == kFtraceDevId32 && proto == ProtoSchemaType::kUint64) {
     *out = kDevId32ToUint64;
-  } else if (ftrace == kFtraceDevId64 && proto == kProtoUint64) {
+  } else if (ftrace == kFtraceDevId64 && proto == ProtoSchemaType::kUint64) {
     *out = kDevId64ToUint64;
-  } else if (ftrace == kFtraceUint8 && proto == kProtoUint32) {
+  } else if (ftrace == kFtraceUint8 && proto == ProtoSchemaType::kUint32) {
     *out = kUint8ToUint32;
-  } else if (ftrace == kFtraceUint8 && proto == kProtoUint64) {
+  } else if (ftrace == kFtraceUint8 && proto == ProtoSchemaType::kUint64) {
     *out = kUint8ToUint64;
-  } else if (ftrace == kFtraceUint16 && proto == kProtoUint32) {
+  } else if (ftrace == kFtraceUint16 && proto == ProtoSchemaType::kUint32) {
     *out = kUint16ToUint32;
-  } else if (ftrace == kFtraceUint16 && proto == kProtoUint64) {
+  } else if (ftrace == kFtraceUint16 && proto == ProtoSchemaType::kUint64) {
     *out = kUint16ToUint64;
-  } else if (ftrace == kFtraceUint32 && proto == kProtoUint32) {
+  } else if (ftrace == kFtraceUint32 && proto == ProtoSchemaType::kUint32) {
     *out = kUint32ToUint32;
-  } else if (ftrace == kFtraceUint32 && proto == kProtoUint64) {
+  } else if (ftrace == kFtraceUint32 && proto == ProtoSchemaType::kUint64) {
     *out = kUint32ToUint64;
-  } else if (ftrace == kFtraceUint64 && proto == kProtoUint64) {
+  } else if (ftrace == kFtraceUint64 && proto == ProtoSchemaType::kUint64) {
     *out = kUint64ToUint64;
-  } else if (ftrace == kFtraceInt8 && proto == kProtoInt32) {
+  } else if (ftrace == kFtraceInt8 && proto == ProtoSchemaType::kInt32) {
     *out = kInt8ToInt32;
-  } else if (ftrace == kFtraceInt8 && proto == kProtoInt64) {
+  } else if (ftrace == kFtraceInt8 && proto == ProtoSchemaType::kInt64) {
     *out = kInt8ToInt64;
-  } else if (ftrace == kFtraceInt16 && proto == kProtoInt32) {
+  } else if (ftrace == kFtraceInt16 && proto == ProtoSchemaType::kInt32) {
     *out = kInt16ToInt32;
-  } else if (ftrace == kFtraceInt16 && proto == kProtoInt64) {
+  } else if (ftrace == kFtraceInt16 && proto == ProtoSchemaType::kInt64) {
     *out = kInt16ToInt64;
-  } else if (ftrace == kFtraceInt32 && proto == kProtoInt32) {
+  } else if (ftrace == kFtraceInt32 && proto == ProtoSchemaType::kInt32) {
     *out = kInt32ToInt32;
-  } else if (ftrace == kFtraceInt32 && proto == kProtoInt64) {
+  } else if (ftrace == kFtraceInt32 && proto == ProtoSchemaType::kInt64) {
     *out = kInt32ToInt64;
-  } else if (ftrace == kFtraceInt64 && proto == kProtoInt64) {
+  } else if (ftrace == kFtraceInt64 && proto == ProtoSchemaType::kInt64) {
     *out = kInt64ToInt64;
-  } else if (ftrace == kFtraceFixedCString && proto == kProtoString) {
+  } else if (ftrace == kFtraceFixedCString &&
+             proto == ProtoSchemaType::kString) {
     *out = kFixedCStringToString;
-  } else if (ftrace == kFtraceCString && proto == kProtoString) {
+  } else if (ftrace == kFtraceCString && proto == ProtoSchemaType::kString) {
     *out = kCStringToString;
-  } else if (ftrace == kFtraceStringPtr && proto == kProtoString) {
+  } else if (ftrace == kFtraceStringPtr && proto == ProtoSchemaType::kString) {
     *out = kStringPtrToString;
-  } else if (ftrace == kFtraceBool && proto == kProtoUint32) {
+  } else if (ftrace == kFtraceBool && proto == ProtoSchemaType::kUint32) {
     *out = kBoolToUint32;
-  } else if (ftrace == kFtraceBool && proto == kProtoUint64) {
+  } else if (ftrace == kFtraceBool && proto == ProtoSchemaType::kUint64) {
     *out = kBoolToUint64;
-  } else if (ftrace == kFtraceDataLoc && proto == kProtoString) {
+  } else if (ftrace == kFtraceDataLoc && proto == ProtoSchemaType::kString) {
     *out = kDataLocToString;
   } else {
     PERFETTO_DLOG("No translation strategy for '%s' -> '%s'", ToString(ftrace),
-                  ToString(proto));
+                  ProtoSchemaToString(proto));
     return false;
   }
   return true;

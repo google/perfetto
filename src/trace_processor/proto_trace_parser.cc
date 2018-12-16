@@ -101,7 +101,6 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
 }
 
 using protozero::ProtoDecoder;
-using protozero::proto_utils::kFieldTypeLengthDelimited;
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     : context_(context),
