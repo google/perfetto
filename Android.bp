@@ -2559,6 +2559,7 @@ cc_test {
     "src/tracing/test/mock_producer.cc",
     "src/tracing/test/test_shared_memory.cc",
     "src/tracing/test/tracing_integration_test.cc",
+    "tools/ftrace_proto_gen/ftrace_descriptor_gen.cc",
     "tools/ftrace_proto_gen/ftrace_proto_gen.cc",
     "tools/ftrace_proto_gen/ftrace_proto_gen_unittest.cc",
     "tools/ftrace_proto_gen/proto_gen_utils.cc",
