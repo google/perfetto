@@ -51,6 +51,8 @@ source_set("lib") {
     "event_tracker.h",
     "filtered_row_index.cc",
     "filtered_row_index.h",
+    "ftrace_descriptors.cc",
+    "ftrace_descriptors.h",
     "instants_table.cc",
     "instants_table.h",
     "process_table.cc",

@@ -30,6 +30,7 @@
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
 #include "src/traced/probes/ftrace/format_parser.h"
+#include "tools/ftrace_proto_gen/ftrace_descriptor_gen.h"
 #include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
 namespace {
@@ -211,6 +212,13 @@ int main(int argc, char** argv) {
       *fout << proto.ToString();
       PERFETTO_CHECK(!fout->fail());
     }
+  }
+
+  {
+    std::unique_ptr<std::ostream> out =
+        ostream_factory("src/trace_processor/ftrace_descriptors.cc");
+    perfetto::GenerateFtraceDescriptors(descriptor_pool, out.get());
+    PERFETTO_CHECK(!out->fail());
   }
 
   {
