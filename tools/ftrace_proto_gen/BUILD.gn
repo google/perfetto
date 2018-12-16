@@ -28,6 +28,8 @@ source_set("unittests") {
 source_set("ftrace_proto_gen_src") {
   testonly = true
   sources = [
+    "ftrace_descriptor_gen.cc",
+    "ftrace_descriptor_gen.h",
     "ftrace_proto_gen.cc",
     "ftrace_proto_gen.h",
     "proto_gen_utils.cc",
