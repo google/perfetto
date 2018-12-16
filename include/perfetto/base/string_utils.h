@@ -23,6 +23,8 @@ namespace perfetto {
 namespace base {
 
 bool StartsWith(const std::string& str, const std::string& prefix);
+bool EndsWith(const std::string& str, const std::string& suffix);
+bool Contains(const std::string& haystack, const std::string& needle);
 
 }  // namespace base
 }  // namespace perfetto

@@ -34,6 +34,17 @@ TEST(StringUtilsTest, StartsWith) {
   EXPECT_FALSE(StartsWith("", "ab"));
 }
 
+TEST(StringUtilsTest, EndsWith) {
+  EXPECT_TRUE(EndsWith("", ""));
+  EXPECT_TRUE(EndsWith("abc", ""));
+  EXPECT_TRUE(EndsWith("abc", "c"));
+  EXPECT_TRUE(EndsWith("abc", "bc"));
+  EXPECT_TRUE(EndsWith("abc", "abc"));
+  EXPECT_FALSE(EndsWith("bcd", "abcd"));
+  EXPECT_FALSE(EndsWith("abc", "abd"));
+  EXPECT_FALSE(EndsWith("", "c"));
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

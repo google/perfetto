@@ -30,6 +30,8 @@ source_set("ftrace_proto_gen_src") {
   sources = [
     "ftrace_proto_gen.cc",
     "ftrace_proto_gen.h",
+    "proto_gen_utils.cc",
+    "proto_gen_utils.h",
   ]
   deps = [
     "../../gn:default_deps",

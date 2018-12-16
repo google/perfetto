@@ -25,6 +25,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/utils.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_stream_memory_delegate.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 
@@ -49,6 +50,7 @@ using testing::_;
 using testing::Return;
 using testing::AnyNumber;
 using testing::NiceMock;
+using protozero::proto_utils::ProtoSchemaType;
 
 namespace perfetto {
 
@@ -702,7 +704,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
     field->ftrace_size = 4;
     field->ftrace_type = kFtraceUint32;
     field->proto_field_id = 1;
-    field->proto_field_type = kProtoUint32;
+    field->proto_field_type = ProtoSchemaType::kUint32;
     SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
                            &field->strategy);
   }
@@ -714,7 +716,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
     field->ftrace_size = 4;
     field->ftrace_type = kFtraceCommonPid32;
     field->proto_field_id = 2;
-    field->proto_field_type = kProtoInt32;
+    field->proto_field_type = ProtoSchemaType::kInt32;
     SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
                            &field->strategy);
   }
@@ -736,7 +738,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       field->ftrace_size = 4;
       field->ftrace_type = kFtraceUint32;
       field->proto_field_id = 1;
-      field->proto_field_type = kProtoUint32;
+      field->proto_field_type = ProtoSchemaType::kUint32;
     }
 
     {
@@ -747,7 +749,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       field->ftrace_size = 4;
       field->ftrace_type = kFtracePid32;
       field->proto_field_id = 2;
-      field->proto_field_type = kProtoInt32;
+      field->proto_field_type = ProtoSchemaType::kInt32;
     }
 
     {
@@ -758,7 +760,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       field->ftrace_size = 4;
       field->ftrace_type = kFtraceDevId32;
       field->proto_field_id = 3;
-      field->proto_field_type = kProtoUint64;
+      field->proto_field_type = ProtoSchemaType::kUint64;
     }
 
     {
@@ -769,7 +771,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       field->ftrace_size = 4;
       field->ftrace_type = kFtraceInode32;
       field->proto_field_id = 4;
-      field->proto_field_type = kProtoUint64;
+      field->proto_field_type = ProtoSchemaType::kUint64;
     }
 
     {
@@ -780,7 +782,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       field->ftrace_size = 8;
       field->ftrace_type = kFtraceDevId64;
       field->proto_field_id = 5;
-      field->proto_field_type = kProtoUint64;
+      field->proto_field_type = ProtoSchemaType::kUint64;
     }
 
     {
@@ -791,7 +793,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       field->ftrace_size = 8;
       field->ftrace_type = kFtraceInode64;
       field->proto_field_id = 6;
-      field->proto_field_type = kProtoUint64;
+      field->proto_field_type = ProtoSchemaType::kUint64;
     }
 
     {
@@ -802,7 +804,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       field->ftrace_size = 16;
       field->ftrace_type = kFtraceFixedCString;
       field->proto_field_id = 500;
-      field->proto_field_type = kProtoString;
+      field->proto_field_type = ProtoSchemaType::kString;
     }
 
     {
@@ -813,7 +815,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       field->ftrace_size = 4;
       field->ftrace_type = kFtraceDataLoc;
       field->proto_field_id = 502;
-      field->proto_field_type = kProtoString;
+      field->proto_field_type = ProtoSchemaType::kString;
     }
 
     {
@@ -824,7 +826,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       field->ftrace_size = 0;
       field->ftrace_type = kFtraceCString;
       field->proto_field_id = 501;
-      field->proto_field_type = kProtoString;
+      field->proto_field_type = ProtoSchemaType::kString;
     }
 
     for (Field& field : event->fields) {
