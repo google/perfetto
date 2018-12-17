@@ -39,6 +39,8 @@ const COUNTER_PRESETS = [
 const CONFIG_PROTO_URL =
     `https://android.googlesource.com/platform/external/perfetto/+/master/protos/perfetto/config/perfetto_config.proto`;
 
+const DEFAULT_FTRACE_BUFFER_KB = 2 * 1024;
+
 const FTRACE_EVENTS = [
   'binder/binder_lock',
   'binder/binder_locked',
@@ -373,7 +375,7 @@ const CONFIG_PRESETS = [
       atraceApps: [],
       atraceCategories: ['sched', 'freq', 'idle'],
       ftraceDrainPeriodMs: null,
-      ftraceBufferSizeKb: null,
+      ftraceBufferSizeKb: DEFAULT_FTRACE_BUFFER_KB,
 
       sysStats: false,
       meminfoPeriodMs: null,
@@ -411,7 +413,7 @@ const CONFIG_PRESETS = [
       atraceApps: [],
       atraceCategories: ['am', 'dalvik'],
       ftraceDrainPeriodMs: null,
-      ftraceBufferSizeKb: null,
+      ftraceBufferSizeKb: DEFAULT_FTRACE_BUFFER_KB,
 
       sysStats: true,
       meminfoPeriodMs: 50,
@@ -448,7 +450,7 @@ const CONFIG_PRESETS = [
       atraceApps: [],
       atraceCategories: [],
       ftraceDrainPeriodMs: null,
-      ftraceBufferSizeKb: null,
+      ftraceBufferSizeKb: DEFAULT_FTRACE_BUFFER_KB,
 
       sysStats: false,
       meminfoPeriodMs: null,
@@ -848,6 +850,7 @@ export const RecordPage = createPage({
               onchange: onChange<number|null>('ftraceBufferSizeKb'),
               presets: [
                 {label: '1mb', value: 1 * 1024},
+                {label: '2mb', value: 2 * 1024},
                 {label: '4mb', value: 4 * 1024},
                 {label: '8mb', value: 8 * 1024},
               ]
