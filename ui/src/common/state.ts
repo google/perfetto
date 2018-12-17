@@ -177,7 +177,7 @@ export function createEmptyRecordConfig(): RecordConfig {
     atraceApps: [],
     atraceCategories: [],
     ftraceDrainPeriodMs: null,
-    ftraceBufferSizeKb: null,
+    ftraceBufferSizeKb: 2 * 1024,
 
     processMetadata: false,
     scanAllProcessesOnStart: false,
