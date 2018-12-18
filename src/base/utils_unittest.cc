@@ -59,6 +59,9 @@ TEST(UtilsTest, ArraySize) {
   EXPECT_EQ(4u, ArraySize(bar_4));
 }
 
+// Fuchsia doesn't currently support sigaction(), see
+// fuchsia.atlassian.net/browse/ZX-560.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 TEST(UtilsTest, EintrWrapper) {
   Pipe pipe = Pipe::Create();
 
@@ -99,6 +102,7 @@ TEST(UtilsTest, EintrWrapper) {
   // Restore the old handler.
   sigaction(SIGUSR2, &old_sa, nullptr);
 }
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 
 TEST(UtilsTest, Align) {
   EXPECT_EQ(0u, AlignUp<4>(0));
