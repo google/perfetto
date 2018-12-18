@@ -69,8 +69,11 @@ class FakeChunk {
 
   FakeChunk& SetUID(uid_t);
 
+  // Extends the size of the FakeChunk to |chunk_size| by 0-filling.
+  FakeChunk& PadTo(size_t chunk_size);
+
   // Returns the full size of the chunk including the ChunkRecord header.
-  size_t CopyIntoTraceBuffer();
+  size_t CopyIntoTraceBuffer(bool chunk_complete = true);
 
  private:
   TraceBuffer* trace_buffer_;
