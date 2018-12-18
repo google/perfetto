@@ -1118,6 +1118,7 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     BufferID buffer_id,
     uint16_t num_fragments,
     uint8_t chunk_flags,
+    bool chunk_complete,
     const uint8_t* src,
     size_t size) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -1163,7 +1164,8 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
   }
 
   buf->CopyChunkUntrusted(producer_id_trusted, producer_uid_trusted, writer_id,
-                          chunk_id, num_fragments, chunk_flags, src, size);
+                          chunk_id, num_fragments, chunk_flags, chunk_complete,
+                          src, size);
 }
 
 void TracingServiceImpl::ApplyChunkPatches(
@@ -1579,7 +1581,7 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
 
     service_->CopyProducerPageIntoLogBuffer(
         id_, uid_, writer_id, chunk_id, buffer_id, num_fragments, chunk_flags,
-        chunk.payload_begin(), chunk.payload_size());
+        /*chunk_complete=*/true, chunk.payload_begin(), chunk.payload_size());
 
     // This one has release-store semantics.
     shmem_abi_.ReleaseChunkAsFree(std::move(chunk));

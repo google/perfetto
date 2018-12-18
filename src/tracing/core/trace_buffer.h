@@ -157,18 +157,31 @@ class TraceBuffer {
   ~TraceBuffer();
 
   // Copies a Chunk from a producer Shared Memory Buffer into the trace buffer.
-  // |src| points to the first packet in the SharedMemoryABI's chunk shared
-  // with an untrusted producer. "untrusted" here means: the producer might be
+  // |src| points to the first packet in the SharedMemoryABI's chunk shared with
+  // an untrusted producer. "untrusted" here means: the producer might be
   // malicious and might change |src| concurrently while we read it (internally
-  // this method memcpy()-s first the chunk before processing it).
-  // None of the arguments should be trusted, unless otherwise stated. We can
-  // trust that |src| points to a valid memory area, but not its contents.
+  // this method memcpy()-s first the chunk before processing it). None of the
+  // arguments should be trusted, unless otherwise stated. We can trust that
+  // |src| points to a valid memory area, but not its contents.
+  //
+  // This method may be called multiple times for the same chunk. In this case,
+  // the original chunk's payload will be overridden and its number of fragments
+  // and flags adjusted to match |num_fragments| and |chunk_flags|. The service
+  // may use this to insert partial chunks (|chunk_complete = false|) before the
+  // producer has committed them.
+  //
+  // If |chunk_complete| is |false|, the TraceBuffer will only consider the
+  // first |num_fragments - 1| packets to be complete, since the producer may
+  // not have finished writing the latest packet. Reading from a sequence will
+  // also not progress past any incomplete chunks until they were rewritten with
+  // |chunk_complete = true|, e.g. after a producer's commit.
   void CopyChunkUntrusted(ProducerID producer_id_trusted,
                           uid_t producer_uid_trusted,
                           WriterID writer_id,
                           ChunkID chunk_id,
                           uint16_t num_fragments,
                           uint8_t chunk_flags,
+                          bool chunk_complete,
                           const uint8_t* src,
                           size_t size);
   // Applies a batch of |patches| to the given chunk, if the given chunk is
@@ -312,6 +325,8 @@ class TraceBuffer {
                std::tie(other.producer_id, other.writer_id, other.chunk_id);
       }
 
+      bool operator!=(const Key& other) const { return !(*this == other); }
+
       // These fields should match at all times the corresponding fields in
       // the |chunk_record|. They are copied here purely for efficiency to avoid
       // dereferencing the buffer all the time.
@@ -320,18 +335,27 @@ class TraceBuffer {
       ChunkID chunk_id;
     };
 
-    ChunkMeta(ChunkRecord* c, uint16_t p, uint8_t f, uid_t u)
-        : chunk_record{c}, trusted_uid{u}, flags{f}, num_fragments{p} {}
+    ChunkMeta(ChunkRecord* r, uint16_t p, bool c, uint8_t f, uid_t u)
+        : chunk_record{r},
+          trusted_uid{u},
+          is_complete{c},
+          flags{f},
+          num_fragments{p} {}
 
     ChunkRecord* const chunk_record;   // Addr of ChunkRecord within |data_|.
     const uid_t trusted_uid;           // uid of the producer.
+
+    // If true, the chunk state was kChunkComplete at the time it was copied. If
+    // false, the chunk was still kChunkBeingWritten while copied. |is_complete|
+    // == false prevents the sequence to read past this chunk.
+    bool is_complete = false;
 
     // Correspond to |chunk_record->flags| and |chunk_record->num_fragments|.
     // Copied here for performance reasons (avoids having to dereference
     // |chunk_record| while iterating over ChunkMeta) and to aid debugging in
     // case the buffer gets corrupted.
     uint8_t flags = 0;                 // See SharedMemoryABI::flags.
-    const uint16_t num_fragments = 0;  // Total number of packet fragments.
+    uint16_t num_fragments = 0;        // Total number of packet fragments.
 
     uint16_t num_fragments_read = 0;   // Number of fragments already read.
 
@@ -476,7 +500,8 @@ class TraceBuffer {
   // |src| can be nullptr (in which case |size| must be ==
   // record.size - sizeof(ChunkRecord)), for the case of writing a padding
   // record. |wptr_| is NOT advanced by this function, the caller must do that.
-  void WriteChunkRecord(const ChunkRecord& record,
+  void WriteChunkRecord(uint8_t* wptr,
+                        const ChunkRecord& record,
                         const uint8_t* src,
                         size_t size) {
     // Note: |record.size| will be slightly bigger than |size| because of the
@@ -488,21 +513,21 @@ class TraceBuffer {
     PERFETTO_DCHECK(record.size % sizeof(record) == 0);
     PERFETTO_DCHECK(record.size >= size + sizeof(record));
     PERFETTO_CHECK(record.size <= size_to_end());
-    DcheckIsAlignedAndWithinBounds(wptr_);
+    DcheckIsAlignedAndWithinBounds(wptr);
 
     // We may be writing to this area for the first time.
-    data_.EnsureCommitted(static_cast<size_t>(wptr_ + record.size - begin()));
+    data_.EnsureCommitted(static_cast<size_t>(wptr + record.size - begin()));
 
     // Deliberately not a *D*CHECK.
-    PERFETTO_CHECK(wptr_ + sizeof(record) + size <= end());
-    memcpy(wptr_, &record, sizeof(record));
+    PERFETTO_CHECK(wptr + sizeof(record) + size <= end());
+    memcpy(wptr, &record, sizeof(record));
     if (PERFETTO_LIKELY(src)) {
-      memcpy(wptr_ + sizeof(record), src, size);
+      memcpy(wptr + sizeof(record), src, size);
     } else {
       PERFETTO_DCHECK(size == record.size - sizeof(record));
     }
     const size_t rounding_size = record.size - sizeof(record) - size;
-    memset(wptr_ + sizeof(record) + size, 0, rounding_size);
+    memset(wptr + sizeof(record) + size, 0, rounding_size);
   }
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }

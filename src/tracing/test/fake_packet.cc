@@ -142,10 +142,20 @@ FakeChunk& FakeChunk::SetUID(uid_t u) {
   return *this;
 }
 
-size_t FakeChunk::CopyIntoTraceBuffer() {
+FakeChunk& FakeChunk::PadTo(size_t chunk_size) {
+  PERFETTO_CHECK(chunk_size >=
+                 data.size() + TraceBuffer::InlineChunkHeaderSize);
+  size_t padding_size =
+      chunk_size - (data.size() + TraceBuffer::InlineChunkHeaderSize);
+  std::string padding_data(padding_size, 0);
+  data.insert(data.end(), padding_data.begin(), padding_data.end());
+  return *this;
+}
+
+size_t FakeChunk::CopyIntoTraceBuffer(bool chunk_complete) {
   trace_buffer_->CopyChunkUntrusted(producer_id, uid, writer_id, chunk_id,
-                                    num_packets, flags, data.data(),
-                                    data.size());
+                                    num_packets, flags, chunk_complete,
+                                    data.data(), data.size());
   return data.size() + TraceBuffer::InlineChunkHeaderSize;
 }
 
