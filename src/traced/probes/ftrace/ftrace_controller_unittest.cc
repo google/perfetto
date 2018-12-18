@@ -445,9 +445,8 @@ TEST(FtraceControllerTest, BufferSize) {
 
   {
     // No buffer size -> good default.
-    // 8192kb = 8mb
     EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "512"));
+                WriteToFile("/root/buffer_size_kb", "2048"));
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));

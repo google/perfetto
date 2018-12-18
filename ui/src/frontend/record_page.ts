@@ -39,6 +39,8 @@ const COUNTER_PRESETS = [
 const CONFIG_PROTO_URL =
     `https://android.googlesource.com/platform/external/perfetto/+/master/protos/perfetto/config/perfetto_config.proto`;
 
+const SET_PROP_CMD = 'adb shell setprop persist.traced.enable 1';
+
 const DEFAULT_FTRACE_BUFFER_KB = 2 * 1024;
 
 const FTRACE_EVENTS = [
@@ -1008,8 +1010,12 @@ export const RecordPage = createPage({
                 `To collect a ${config.durationSeconds}
                 second Perfetto trace from an Android phone run this command:`,
                 m(CodeSample, {text: data.commandline}),
-                'Then click "Open trace file" in the menu to the left and select',
-                ' "/tmp/trace".'),
+                'Then click "Open trace file" in the menu to the left and',
+                ' select "/tmp/trace".',
+                m('p', 'On non-Pixel devices you may need to first enable Perfetto',
+                 ' with:'),
+                m(CodeSample, {text: SET_PROP_CMD}),
+              ),
 
               state.displayConfigAsPbtxt ?
                 m('.pbtxt.text-column',
