@@ -93,6 +93,9 @@ bool IsMapped(void* start, size_t size) {
   if (pages_found * kPageSize == size)
     return true;
   return false;
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+  // Fuchsia doesn't yet support paging (b/119503290).
+  return true;
 #else
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   using PageState = char;

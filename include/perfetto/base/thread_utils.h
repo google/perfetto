@@ -23,6 +23,9 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <processthreadsapi.h>
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+#include <zircon/process.h>
+#include <zircon/types.h>
 #else
 #include <pthread.h>
 #include <sys/syscall.h>
@@ -40,6 +43,10 @@ inline pid_t GetThreadId() {
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
 inline pid_t GetThreadId() {
   return static_cast<pid_t>(syscall(__NR_gettid));
+}
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+inline zx_handle_t GetThreadId() {
+  return static_cast<pid_t>(zx_thread_self());
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 inline uint64_t GetThreadId() {
