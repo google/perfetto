@@ -44,8 +44,8 @@ class SocketPool {
   bool shutdown_ = false;
 
   void Return(base::ScopedFile fd);
-  std::mutex mutex_;
-  std::condition_variable cv_;
+  std::timed_mutex mutex_;
+  std::condition_variable_any cv_;
   std::vector<base::ScopedFile> sockets_;
   size_t available_sockets_;
   size_t dead_sockets_ = 0;
@@ -90,14 +90,14 @@ class FreePage {
   // Add address to buffer. Flush if necessary using a socket borrowed from
   // pool.
   // Can be called from any thread. Must not hold mutex_.`
-  void Add(const uint64_t addr, uint64_t sequence_number, SocketPool* pool);
+  bool Add(const uint64_t addr, uint64_t sequence_number, SocketPool* pool);
 
  private:
   // Needs to be called holding mutex_.
-  void FlushLocked(SocketPool* pool);
+  bool FlushLocked(SocketPool* pool);
 
   FreeMetadata free_page_;
-  std::mutex mutex_;
+  std::timed_mutex mutex_;
   size_t offset_ = 0;
 };
 
