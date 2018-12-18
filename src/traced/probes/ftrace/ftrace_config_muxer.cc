@@ -32,7 +32,7 @@ namespace {
 // trace_clocks in preference order.
 constexpr const char* kClocks[] = {"boot", "global", "local"};
 
-constexpr int kDefaultPerCpuBufferSizeKb = 512;    // 512kb
+constexpr int kDefaultPerCpuBufferSizeKb = 2 * 1024;  // 2mb
 constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;  // 64mb
 
 void AddEventGroup(const ProtoTranslationTable* table,

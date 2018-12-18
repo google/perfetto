@@ -35,8 +35,9 @@ import VmstatCounters = protos.perfetto.protos.VmstatCounters;
 export interface Row { [key: string]: number|string; }
 
 function getCell(result: RawQueryResult, column: number, row: number): number|
-    string {
+    string|null {
   const values = result.columns[column];
+  if (values.isNulls![row]) return null;
   switch (result.columnDescriptors[column].type) {
     case RawQueryResult.ColumnDesc.Type.LONG:
       return +values.longValues![row];
@@ -80,7 +81,8 @@ export function* rawQueryResultIter(result: RawQueryResult) {
   for (let rowNum = 0; rowNum < result.numRecords; rowNum++) {
     const row: Row = {};
     for (const [name, colNum] of columns) {
-      row[name] = getCell(result, colNum, rowNum);
+      const cell = getCell(result, colNum, rowNum);
+      row[name] = cell === null ? '[NULL]' : cell;
     }
     yield row;
   }
