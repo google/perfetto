@@ -672,14 +672,14 @@ void ProtoTraceParser::ParseRssStat(int64_t timestamp,
   ProtoDecoder decoder(view.data(), view.length());
   const auto kRssStatUnknown = static_cast<uint32_t>(rss_members_.size()) - 1;
   uint32_t member = kRssStatUnknown;
-  uint32_t size = 0;
+  int64_t size = 0;
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
       case protos::RssStatFtraceEvent::kMemberFieldNumber:
         member = fld.as_uint32();
         break;
       case protos::RssStatFtraceEvent::kSizeFieldNumber:
-        size = fld.as_uint32();
+        size = fld.as_int64();
         break;
     }
   }
@@ -698,13 +698,13 @@ void ProtoTraceParser::ParseIonHeapGrow(int64_t timestamp,
                                         uint32_t pid,
                                         TraceBlobView view) {
   ProtoDecoder decoder(view.data(), view.length());
-  uint32_t value = 0;
+  int64_t value = 0;
   // TODO(b/118300811): The heap name pointer cannot be read. Read once it
   // has been fixed.
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
       case protos::IonHeapGrowFtraceEvent::kTotalAllocatedFieldNumber:
-        value = fld.as_uint32();
+        value = fld.as_int64();
         break;
     }
   }
@@ -718,13 +718,13 @@ void ProtoTraceParser::ParseIonHeapShrink(int64_t timestamp,
                                           uint32_t pid,
                                           TraceBlobView view) {
   ProtoDecoder decoder(view.data(), view.length());
-  uint32_t value = 0;
+  int64_t value = 0;
   // TODO(b/118300811): The heap name pointer cannot be read. Read once it
   // has been fixed.
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
       case protos::IonHeapShrinkFtraceEvent::kTotalAllocatedFieldNumber:
-        value = fld.as_uint32();
+        value = fld.as_int64();
         break;
     }
   }
