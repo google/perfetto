@@ -107,6 +107,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
                                      ChunkID chunk_id,
                                      uint16_t num_fragments,
                                      uint8_t chunk_flags,
+                                     bool chunk_complete,
                                      const uint8_t* src,
                                      size_t size) {
   // |record_size| = |size| + sizeof(ChunkRecord), rounded up to avoid to end
@@ -125,6 +126,102 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   changed_since_last_read_ = true;
 #endif
 
+  // If the chunk hasn't been completed, we should only consider the first
+  // |num_fragments - 1| packets complete. For simplicity, we simply disregard
+  // the last one when we copy the chunk.
+  if (PERFETTO_UNLIKELY(!chunk_complete)) {
+    if (num_fragments > 0) {
+      num_fragments--;
+      chunk_flags &= ~kLastPacketContinuesOnNextChunk;
+    }
+  }
+
+  ChunkRecord record(record_size);
+  record.producer_id = producer_id_trusted;
+  record.chunk_id = chunk_id;
+  record.writer_id = writer_id;
+  record.num_fragments = num_fragments;
+  record.flags = chunk_flags;
+  ChunkMeta::Key key(record);
+
+  // Check whether we have already copied the same chunk previously. This may
+  // happen if the service scrapes chunks in a potentially incomplete state
+  // before receiving commit requests for them from the producer. Note that the
+  // service may scrape and thus override chunks in arbitrary order since the
+  // chunks aren't ordered in the SMB.
+  const auto it = index_.find(key);
+  if (PERFETTO_UNLIKELY(it != index_.end())) {
+    ChunkMeta* record_meta = &it->second;
+    ChunkRecord* prev = record_meta->chunk_record;
+
+    // Verify that the old chunk's metadata corresponds to the new one.
+    // Overridden chunks should never change size, since the page layout is
+    // fixed per writer. The number of fragments should also never decrease and
+    // flags should not be removed.
+    if (PERFETTO_UNLIKELY(ChunkMeta::Key(*prev) != key ||
+                          prev->size != record_size ||
+                          prev->num_fragments > num_fragments ||
+                          (prev->flags & chunk_flags) != prev->flags)) {
+      stats_.abi_violations++;
+      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+      return;
+    }
+
+    // If we've already started reading from chunk N+1 following this chunk N,
+    // don't override chunk N. Otherwise we may end up reading a packet from
+    // chunk N after having read from chunk N+1, thereby violating sequential
+    // read of packets. This shouldn't happen if the producer is well-behaved,
+    // because it shouldn't start chunk N+1 before completing chunk N.
+    ChunkMeta::Key subsequent_key = key;
+    static_assert(std::numeric_limits<ChunkID>::max() == kMaxChunkID,
+                  "ChunkID wraps");
+    subsequent_key.chunk_id++;
+    const auto subsequent_it = index_.find(subsequent_key);
+    if (subsequent_it != index_.end() &&
+        subsequent_it->second.num_fragments_read > 0) {
+      stats_.abi_violations++;
+      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+      return;
+    }
+
+    // If this chunk was previously copied with the same number of fragments and
+    // the number didn't change, there's no need to copy it again. If the
+    // previous chunk was complete already, this should always be the case.
+    PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_ ||
+                    !record_meta->is_complete ||
+                    (chunk_complete && prev->num_fragments == num_fragments));
+    if (prev->num_fragments == num_fragments) {
+      TRACE_BUFFER_DLOG("  skipping recommit of identical chunk");
+      return;
+    }
+
+    // We should not have read past the last packet.
+    if (record_meta->num_fragments_read > prev->num_fragments) {
+      PERFETTO_ELOG(
+          "TraceBuffer read too many fragments from an incomplete chunk");
+      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+      return;
+    }
+
+    uint8_t* wptr = reinterpret_cast<uint8_t*>(prev);
+    TRACE_BUFFER_DLOG("  overriding chunk @ %lu, size=%zu", wptr - begin(),
+                      record_size);
+
+    // Update chunk meta data stored in the index, as it may have changed.
+    record_meta->num_fragments = num_fragments;
+    record_meta->flags = chunk_flags;
+    record_meta->is_complete = chunk_complete;
+
+    // Override the ChunkRecord contents at the original |wptr|.
+    TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr - begin(),
+                      wptr - begin() + record_size, record_size);
+    WriteChunkRecord(wptr, record, src, size);
+    TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr, record_size).c_str());
+
+    // TODO(eseckler): Add a stat for rewritten chunks.
+    return;
+  }
+
   // If there isn't enough room from the given write position. Write a padding
   // record to clear the end of the buffer and wrap back.
   const size_t cached_size_to_end = size_to_end();
@@ -136,13 +233,6 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     stats_.write_wrap_count++;
     PERFETTO_DCHECK(size_to_end() >= record_size);
   }
-
-  ChunkRecord record(record_size);
-  record.producer_id = producer_id_trusted;
-  record.chunk_id = chunk_id;
-  record.writer_id = writer_id;
-  record.num_fragments = num_fragments;
-  record.flags = chunk_flags;
 
   // At this point either |wptr_| points to an untouched part of the buffer
   // (i.e. *wptr_ == 0) or we are about to overwrite one or more ChunkRecord(s).
@@ -167,23 +257,15 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   size_t padding_size = DeleteNextChunksFor(record_size);
 
   // Now first insert the new chunk. At the end, if necessary, add the padding.
-  ChunkMeta::Key key(record);
   stats_.chunks_written++;
   stats_.bytes_written += size;
-  auto it_and_inserted =
-      index_.emplace(key, ChunkMeta(GetChunkRecordAt(wptr_), num_fragments,
-                                    chunk_flags, producer_uid_trusted));
-  if (PERFETTO_UNLIKELY(!it_and_inserted.second)) {
-    // More likely a producer bug, but could also be a malicious producer.
-    stats_.abi_violations++;
-    PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
-    index_.erase(it_and_inserted.first);
-    index_.emplace(key, ChunkMeta(GetChunkRecordAt(wptr_), num_fragments,
-                                  chunk_flags, producer_uid_trusted));
-  }
+  auto it_and_inserted = index_.emplace(
+      key, ChunkMeta(GetChunkRecordAt(wptr_), num_fragments, chunk_complete,
+                     chunk_flags, producer_uid_trusted));
+  PERFETTO_DCHECK(it_and_inserted.second);
   TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr_ - begin(),
                     wptr_ - begin() + record_size, record_size);
-  WriteChunkRecord(record, src, size);
+  WriteChunkRecord(wptr_, record, src, size);
   TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr_, record_size).c_str());
   wptr_ += record_size;
   if (wptr_ >= end()) {
@@ -285,7 +367,7 @@ void TraceBuffer::AddPaddingRecord(size_t size) {
   record.is_padding = 1;
   TRACE_BUFFER_DLOG("AddPaddingRecord @ [%lu - %lu] %zu", wptr_ - begin(),
                     wptr_ - begin() + size, size);
-  WriteChunkRecord(record, nullptr, size - sizeof(ChunkRecord));
+  WriteChunkRecord(wptr_, record, nullptr, size - sizeof(ChunkRecord));
   // |wptr_| is deliberately not advanced when writing a padding record.
 }
 
@@ -402,8 +484,16 @@ TraceBuffer::SequenceIterator TraceBuffer::GetReadIterForSequence(
 }
 
 void TraceBuffer::SequenceIterator::MoveNext() {
+  // Stop iterating when we reach the end of the sequence.
   // Note: |seq_begin| might be == |seq_end|.
   if (cur == seq_end || cur->first.chunk_id == wrapping_id) {
+    cur = seq_end;
+    return;
+  }
+
+  // If the current chunk wasn't completed yet, we shouldn't advance past it as
+  // it may be rewritten with additional packets.
+  if (!cur->second.is_complete) {
     cur = seq_end;
     return;
   }
