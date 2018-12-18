@@ -167,8 +167,8 @@ class FtraceConfigMuxerTest : public ::testing::Test {
 
 TEST_F(FtraceConfigMuxerTest, ComputeCpuBufferSizeInPages) {
   static constexpr size_t kMaxBufSizeInPages = 16 * 1024u;
-  // No buffer size given: good default (128 pages = 512kb).
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(0), 128u);
+  // No buffer size given: good default (128 pages = 2mb).
+  EXPECT_EQ(ComputeCpuBufferSizeInPages(0), 512u);
   // Buffer size given way too big: good default.
   EXPECT_EQ(ComputeCpuBufferSizeInPages(10 * 1024 * 1024), kMaxBufSizeInPages);
   // The limit is 64mb per CPU, 512mb is too much.
@@ -195,7 +195,7 @@ TEST_F(FtraceConfigMuxerTest, AddGenericEvent) {
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .Times(2)
       .WillRepeatedly(Return('0'));
-  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "512"));
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(ftrace, WriteToFile("/root/trace_clock", "boot"));
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(ftrace,
@@ -265,7 +265,7 @@ TEST_F(FtraceConfigMuxerTest, AddAllEvents) {
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .Times(2)
       .WillRepeatedly(Return('0'));
-  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "512"));
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(ftrace, WriteToFile("/root/trace_clock", "boot"));
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(ftrace,
@@ -325,7 +325,7 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .Times(2)
       .WillRepeatedly(Return('0'));
-  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "512"));
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(ftrace, WriteToFile("/root/trace_clock", "boot"));
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(ftrace,
