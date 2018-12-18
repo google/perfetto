@@ -378,6 +378,13 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+  // On Fuchsia, writing to the file seems to happen concurrently to the read
+  // below, which can cause flakiness. Flush forcefully to ensure all data was
+  // written.
+  fsync(*tmp_file);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+
   // Verify the contents of the file.
   std::string trace_raw;
   ASSERT_TRUE(base::ReadFile(tmp_file.path().c_str(), &trace_raw));

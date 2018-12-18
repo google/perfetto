@@ -23,7 +23,8 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+    PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) ||  \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 #include <limits.h>
 #include <unistd.h>
 #endif
@@ -37,8 +38,9 @@ std::string GetTestDataPath(const std::string& path) {
     return std::string(test_data_root) + path;
   }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   char buf[PATH_MAX];
   ssize_t bytes = readlink("/proc/self/exe", buf, sizeof(buf));
   PERFETTO_CHECK(bytes != -1);
