@@ -105,6 +105,15 @@ TEST(SocketPoolTest, MultipleBlockedClose) {
   t2.join();
 }
 
+TEST(FreePageTest, ShutdownSocketPool) {
+  std::vector<base::ScopedFile> files;
+  files.emplace_back(base::OpenFile("/dev/null", O_RDONLY));
+  SocketPool pool(std::move(files));
+  pool.Shutdown();
+  FreePage p;
+  p.Add(0, 1, &pool);
+}
+
 TEST(ClientTest, GetThreadStackBase) {
   std::thread th([] {
     const char* stackbase = GetThreadStackBase();
