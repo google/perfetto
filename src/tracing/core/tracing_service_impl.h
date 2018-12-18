@@ -186,6 +186,7 @@ class TracingServiceImpl : public TracingService {
                                      BufferID,
                                      uint16_t num_fragments,
                                      uint8_t chunk_flags,
+                                     bool chunk_complete,
                                      const uint8_t* src,
                                      size_t size);
   void ApplyChunkPatches(ProducerID,
