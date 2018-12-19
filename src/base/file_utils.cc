@@ -25,6 +25,7 @@
 #include <unistd.h>
 #else
 #include <corecrt_io.h>
+#include <io.h>
 #endif
 
 namespace perfetto {
@@ -78,6 +79,17 @@ ssize_t WriteAll(int fd, const void* buf, size_t count) {
     written += static_cast<size_t>(wr);
   }
   return static_cast<ssize_t>(written);
+}
+
+bool FlushFile(int fd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  return !PERFETTO_EINTR(fdatasync(fd));
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return !PERFETTO_EINTR(_commit(fd));
+#else
+  return !PERFETTO_EINTR(fsync(fd));
+#endif
 }
 
 }  // namespace base
