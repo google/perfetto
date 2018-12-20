@@ -17,6 +17,7 @@
 #ifndef TEST_TEST_HELPER_H_
 #define TEST_TEST_HELPER_H_
 
+#include "perfetto/base/scoped_file.h"
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
@@ -38,14 +39,19 @@ class TestHelper : public Consumer {
   void OnDisconnect() override;
   void OnTracingDisabled() override;
   void OnTraceData(std::vector<TracePacket> packets, bool has_more) override;
+  void OnDetach(bool) override;
+  void OnAttach(bool, const TraceConfig&) override;
 
   void StartServiceIfRequired();
   FakeProducer* ConnectFakeProducer();
   void ConnectConsumer();
-  void StartTracing(const TraceConfig& config);
+  void StartTracing(const TraceConfig& config,
+                    base::ScopedFile = base::ScopedFile());
   void DisableTracing();
   void FlushAndWait(uint32_t timeout_ms);
   void ReadData(uint32_t read_count = 0);
+  void DetachConsumer(const std::string& key);
+  bool AttachConsumer(const std::string& key);
 
   void WaitForConsumerConnect();
   void WaitForProducerEnabled();
@@ -60,10 +66,13 @@ class TestHelper : public Consumer {
 
  private:
   base::TestTaskRunner* task_runner_ = nullptr;
+  int cur_consumer_num_ = 0;
 
   std::function<void()> on_connect_callback_;
   std::function<void()> on_packets_finished_callback_;
   std::function<void()> on_stop_tracing_callback_;
+  std::function<void()> on_detach_callback_;
+  std::function<void(bool)> on_attach_callback_;
 
   std::vector<protos::TracePacket> trace_;
 
