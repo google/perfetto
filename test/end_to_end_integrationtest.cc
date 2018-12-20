@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/pipe.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
@@ -321,6 +322,87 @@ TEST_F(PerfettoTest, VeryLargePackets) {
     for (size_t i = 0; i < msg_size; i++)
       ASSERT_EQ(i < msg_size - 1 ? '.' : 0, packet.for_testing().str()[i]);
   }
+}
+
+TEST_F(PerfettoTest, DetachAndReattach) {
+  base::TestTaskRunner task_runner;
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_duration_ms(2000);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  static constexpr size_t kNumPackets = 10;
+  ds_config->mutable_for_testing()->set_message_count(kNumPackets);
+  ds_config->mutable_for_testing()->set_message_size(32);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+
+  // Enable tracing and detach as soon as it gets started.
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+  helper.StartTracing(trace_config);
+
+  // Detach.
+  helper.DetachConsumer("key");
+
+  // And then immediately reconnect.
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+  helper.AttachConsumer("key");
+  helper.DisableTracing();
+  helper.WaitForTracingDisabled();
+
+  helper.ReadData();
+  helper.WaitForReadData();
+  const auto& packets = helper.trace();
+  ASSERT_EQ(packets.size(), kNumPackets);
+}
+
+// Tests that a detached trace session is automatically cleaned up if the
+// consumer doesn't re-attach before its expiration time.
+TEST_F(PerfettoTest, ReattachFailsAfterTimeout) {
+  base::TestTaskRunner task_runner;
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_duration_ms(250);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(100000);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_message_count(1);
+  ds_config->mutable_for_testing()->set_message_size(32);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+
+  // Enable tracing and detach as soon as it gets started.
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  auto pipe_pair = base::Pipe::Create();
+  helper.StartTracing(trace_config, std::move(pipe_pair.wr));
+
+  // Detach.
+  helper.DetachConsumer("key");
+
+  // Use the file EOF (write end closed) as a way to detect when the trace
+  // session is ended.
+  char buf[1024];
+  while (PERFETTO_EINTR(read(*pipe_pair.rd, buf, sizeof(buf))) > 0) {
+  }
+
+  // Give some margin for the tracing service to destroy the session.
+  usleep(250000);
+
+  // Reconnect and find out that it's too late and the session is gone.
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+  EXPECT_FALSE(helper.AttachConsumer("key"));
 }
 
 }  // namespace perfetto

@@ -144,7 +144,10 @@ class TracingServiceImpl : public TracingService {
   // The implementation behind the service endpoint exposed to each consumer.
   class ConsumerEndpointImpl : public TracingService::ConsumerEndpoint {
    public:
-    ConsumerEndpointImpl(TracingServiceImpl*, base::TaskRunner*, Consumer*);
+    ConsumerEndpointImpl(TracingServiceImpl*,
+                         base::TaskRunner*,
+                         Consumer*,
+                         uid_t uid);
     ~ConsumerEndpointImpl() override;
 
     void NotifyOnTracingDisabled();
@@ -157,6 +160,8 @@ class TracingServiceImpl : public TracingService {
     void ReadBuffers() override;
     void FreeBuffers() override;
     void Flush(uint32_t timeout_ms, FlushCallback) override;
+    void Detach(const std::string& key) override;
+    void Attach(const std::string& key) override;
 
    private:
     friend class TracingServiceImpl;
@@ -166,6 +171,7 @@ class TracingServiceImpl : public TracingService {
     base::TaskRunner* const task_runner_;
     TracingServiceImpl* const service_;
     Consumer* const consumer_;
+    uid_t const uid_;
     TracingSessionID tracing_session_id_ = 0;
     PERFETTO_THREAD_CHECKER(thread_checker_)
     base::WeakPtrFactory<ConsumerEndpointImpl> weak_ptr_factory_;  // Keep last.
@@ -195,6 +201,8 @@ class TracingServiceImpl : public TracingService {
   void NotifyDataSourceStopped(ProducerID, const DataSourceInstanceID);
 
   // Called by ConsumerEndpointImpl.
+  bool DetachConsumer(ConsumerEndpointImpl*, const std::string& key);
+  bool AttachConsumer(ConsumerEndpointImpl*, const std::string& key);
   void DisconnectConsumer(ConsumerEndpointImpl*);
   bool EnableTracing(ConsumerEndpointImpl*,
                      const TraceConfig&,
@@ -216,7 +224,8 @@ class TracingServiceImpl : public TracingService {
       size_t shared_memory_size_hint_bytes = 0) override;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
-      Consumer*) override;
+      Consumer*,
+      uid_t) override;
 
   // Exposed mainly for testing.
   size_t num_producers() const { return producers_.size(); }
@@ -280,7 +289,13 @@ class TracingServiceImpl : public TracingService {
     const TracingSessionID id;
 
     // The consumer that started the session.
-    ConsumerEndpointImpl* const consumer;
+    // Can be nullptr if the consumer detached from the session.
+    ConsumerEndpointImpl* consumer_maybe_null;
+
+    // Unix uid of the consumer. This is valid even after the consumer detaches
+    // and does not change for the entire duration of the session. It is used to
+    // prevent that a consumer re-attaches to a session from a different uid.
+    uid_t const consumer_uid;
 
     // The original trace config provided by the Consumer when calling
     // EnableTracing().
@@ -313,6 +328,10 @@ class TracingServiceImpl : public TracingService {
 
     State state = DISABLED;
 
+    // If the consumer detached the session, this variable defines the key used
+    // for identifying the session later when reattaching.
+    std::string detach_key;
+
     // This is set when the Consumer calls sets |write_into_file| == true in the
     // TraceConfig. In this case this represents the file we should stream the
     // trace packets into, rather than returning it to the consumer via
@@ -337,6 +356,10 @@ class TracingServiceImpl : public TracingService {
   // Returns a pointer to the |tracing_sessions_| entry or nullptr if the
   // session doesn't exists.
   TracingSession* GetTracingSession(TracingSessionID);
+
+  // Returns a pointer to the |tracing_sessions_| entry, matching the given
+  // uid and detach key, or nullptr if no such session exists.
+  TracingSession* GetDetachedSession(uid_t, const std::string& key);
 
   // Update the memory guard rail by using the latest information from the
   // shared memory and trace buffers.

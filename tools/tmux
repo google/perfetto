@@ -122,10 +122,10 @@ if ! is_monolithic $OUT; then
   push $OUT/libperfetto.so
 fi
 
-CONFIG_DEVICE_PATH=$CONFIG
+CONFIG_DEVICE_PATH="$CONFIG"
 CMD_OPTS=""
 if [[ "$CONFIG" == *.protobuf ]]; then
-  CONFIG_DEVICE_PATH=$DIR/$CONFIG.protobuf
+  CONFIG_DEVICE_PATH="$CONFIG.protobuf"
   CONFIG_PATH=$OUT/$CONFIG.protobuf;
   if [[ ! -f $CONFIG_PATH ]]; then
     echo 'Config "'$CONFIG_PATH'" not known.'
@@ -133,7 +133,7 @@ if [[ "$CONFIG" == *.protobuf ]]; then
   fi
   push $CONFIG_PATH
 elif [[ "$CONFIG" != ":test" ]]; then
-  CONFIG_DEVICE_PATH=$DIR/$CONFIG
+  CONFIG_DEVICE_PATH="$CONFIG"
   CONFIG_PATH=test/configs/$CONFIG;
   if [[ ! -f $CONFIG_PATH ]]; then
     echo 'Config "'$CONFIG_PATH'" not known.'
@@ -190,13 +190,19 @@ fi
 sleep 2
 
 tmux select-pane -t 1
-tmux send-keys "$PREFIX $DIR/traced $POSTFIX" Enter
+tmux send-keys "PS1='[traced_probes]$ '" Enter
+tmux send-keys "cd $DIR" Enter
+tmux send-keys "$PREFIX ./traced $POSTFIX" Enter
 
 tmux select-pane -t 0
-tmux send-keys "$PREFIX PERFETTO_METATRACE_FILE=$DIR/mtrace $DIR/traced_probes $POSTFIX" Enter
+tmux send-keys "PS1='[traced]$ '" Enter
+tmux send-keys "cd $DIR" Enter
+tmux send-keys "$PREFIX PERFETTO_METATRACE_FILE=mtrace ./traced_probes $POSTFIX" Enter
 
 tmux select-pane -t 2
-tmux send-keys "$PREFIX $DIR/perfetto $CMD_OPTS -c $CONFIG_DEVICE_PATH -o $DIR/trace $POSTFIX"
+tmux send-keys "PS1='[consumer]$ '" Enter
+tmux send-keys "cd $DIR" Enter
+tmux send-keys "$PREFIX ./perfetto $CMD_OPTS -c $CONFIG_DEVICE_PATH -o trace $POSTFIX"
 
 # Select consumer pane.
 tmux select-pane -t 2
