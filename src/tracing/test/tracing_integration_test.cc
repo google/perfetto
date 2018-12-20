@@ -76,6 +76,8 @@ class MockConsumer : public Consumer {
   MOCK_METHOD0(OnDisconnect, void());
   MOCK_METHOD0(OnTracingDisabled, void());
   MOCK_METHOD2(OnTracePackets, void(std::vector<TracePacket>*, bool));
+  MOCK_METHOD1(OnDetach, void(bool));
+  MOCK_METHOD2(OnAttach, void(bool, const TraceConfig&));
 
   // Workaround, gmock doesn't support yet move-only types, passing a pointer.
   void OnTraceData(std::vector<TracePacket> packets, bool has_more) {

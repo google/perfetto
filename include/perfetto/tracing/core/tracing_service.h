@@ -159,6 +159,12 @@ class PERFETTO_EXPORT TracingService {
     virtual void ReadBuffers() = 0;
 
     virtual void FreeBuffers() = 0;
+
+    // Will call OnDetach().
+    virtual void Detach(const std::string& key) = 0;
+
+    // Will call OnAttach().
+    virtual void Attach(const std::string& key) = 0;
   };  // class ConsumerEndpoint.
 
   // Implemented in src/core/tracing_service_impl.cc .
@@ -193,7 +199,8 @@ class PERFETTO_EXPORT TracingService {
   // as the returned ConsumerEndpoint is alive.
   // To disconnect just destroy the returned ConsumerEndpoint object. It is safe
   // to destroy the Consumer once the Consumer::OnDisconnect() has been invoked.
-  virtual std::unique_ptr<ConsumerEndpoint> ConnectConsumer(Consumer*) = 0;
+  virtual std::unique_ptr<ConsumerEndpoint> ConnectConsumer(Consumer*,
+                                                            uid_t) = 0;
 };
 
 }  // namespace perfetto

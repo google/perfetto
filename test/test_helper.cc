@@ -92,14 +92,36 @@ FakeProducer* TestHelper::ConnectFakeProducer() {
 }
 
 void TestHelper::ConnectConsumer() {
-  on_connect_callback_ = task_runner_->CreateCheckpoint("consumer.connected");
+  cur_consumer_num_++;
+  on_connect_callback_ = task_runner_->CreateCheckpoint(
+      "consumer.connected." + std::to_string(cur_consumer_num_));
   endpoint_ =
       ConsumerIPCClient::Connect(TEST_CONSUMER_SOCK_NAME, this, task_runner_);
 }
 
-void TestHelper::StartTracing(const TraceConfig& config) {
+void TestHelper::DetachConsumer(const std::string& key) {
+  on_detach_callback_ = task_runner_->CreateCheckpoint("detach." + key);
+  endpoint_->Detach(key);
+  task_runner_->RunUntilCheckpoint("detach." + key);
+  endpoint_.reset();
+}
+
+bool TestHelper::AttachConsumer(const std::string& key) {
+  bool success = false;
+  auto checkpoint = task_runner_->CreateCheckpoint("attach." + key);
+  on_attach_callback_ = [&success, checkpoint](bool s) {
+    success = s;
+    checkpoint();
+  };
+  endpoint_->Attach(key);
+  task_runner_->RunUntilCheckpoint("attach." + key);
+  return success;
+}
+
+void TestHelper::StartTracing(const TraceConfig& config,
+                              base::ScopedFile file) {
   on_stop_tracing_callback_ = task_runner_->CreateCheckpoint("stop.tracing");
-  endpoint_->EnableTracing(config);
+  endpoint_->EnableTracing(config, std::move(file));
 }
 
 void TestHelper::DisableTracing() {
@@ -121,7 +143,8 @@ void TestHelper::ReadData(uint32_t read_count) {
 }
 
 void TestHelper::WaitForConsumerConnect() {
-  task_runner_->RunUntilCheckpoint("consumer.connected");
+  task_runner_->RunUntilCheckpoint("consumer.connected." +
+                                   std::to_string(cur_consumer_num_));
 }
 
 void TestHelper::WaitForProducerEnabled() {
@@ -140,6 +163,16 @@ void TestHelper::WaitForReadData(uint32_t read_count) {
 std::function<void()> TestHelper::WrapTask(
     const std::function<void()>& function) {
   return [this, function] { task_runner_->PostTask(function); };
+}
+
+void TestHelper::OnDetach(bool) {
+  if (on_detach_callback_)
+    std::move(on_detach_callback_)();
+}
+
+void TestHelper::OnAttach(bool success, const TraceConfig&) {
+  if (on_attach_callback_)
+    std::move(on_attach_callback_)(success);
 }
 
 }  // namespace perfetto
