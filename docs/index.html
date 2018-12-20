@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/static/theme-simple.css">
   <style>
     :root {
-      --base-font-size: 18px;
+      --base-font-size: 16px;
       --base-font-family: 'Exo', sans-serif;
       --theme-hue: 210;
       --cover-max-width: 90vw;
@@ -33,6 +33,8 @@
               href = `https://android.googlesource.com/platform/external/perfetto/+/master${href}`;
             } else if(href.startsWith('http') || href.startsWith('//')) {
               // Leave it as it is.
+            } else if(href.startsWith('#')) {
+              href = `${document.location.hash.split('?')[0]}?id=${href.substr(1)}`;
             } else {
               href = href.replace(/^[/]docs/, '');
               href = `#/${href}`;

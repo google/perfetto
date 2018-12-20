@@ -65,6 +65,8 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   void ReadBuffers() override;
   void FreeBuffers() override;
   void Flush(uint32_t timeout_ms, FlushCallback) override;
+  void Detach(const std::string& key) override;
+  void Attach(const std::string& key) override;
 
   // ipc::ServiceProxy::EventListener implementation.
   // These methods are invoked by the IPC layer, which knows nothing about
@@ -74,6 +76,7 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
 
  private:
   void OnReadBuffersResponse(ipc::AsyncResult<protos::ReadBuffersResponse>);
+  void OnEnableTracingResponse(ipc::AsyncResult<protos::EnableTracingResponse>);
 
   // TODO(primiano): think to dtor order, do we rely on any specific sequence?
   Consumer* const consumer_;

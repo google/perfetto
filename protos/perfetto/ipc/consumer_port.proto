@@ -43,10 +43,6 @@ service ConsumerPort {
   // in Android Q and are not supported in Android P.
   rpc EnableTracing(EnableTracingRequest) returns (EnableTracingResponse) {}
 
-  // Starts tracing. Only valid if EnableTracing() was called setting
-  // deferred_start = true in the TraceConfig passed to EnableTracing().
-  rpc StartTracing(StartTracingRequest) returns (StartTracingResponse) {}
-
   // Disables tracing for one or more data sources.
   rpc DisableTracing(DisableTracingRequest) returns (DisableTracingResponse) {}
 
@@ -70,12 +66,37 @@ service ConsumerPort {
   //   FlushResponse is rejected and fails).
   rpc Flush(FlushRequest) returns (FlushResponse) {}
 
+  // ----------------------------------------------------
+  // All methods below have been introduced in Android Q.
+  // ----------------------------------------------------
+
+  // Starts tracing. Only valid if EnableTracing() was called setting
+  // deferred_start = true in the TraceConfig passed to EnableTracing().
+  rpc StartTracing(StartTracingRequest) returns (StartTracingResponse) {}
+
+  // Allows the consumer to detach from the session. The session will keep
+  // running even if the consumer disconnects and the consumer will not receive
+  // any further IPC until reattached.
+  rpc Detach(DetachRequest) returns (DetachResponse) {}
+
+  // Allows the consumer to re-attach to a previously detached session. The
+  // consumer will start receiving IPC notification for that session.
+  // The session will be terminated if the consumer closes the IPC channel, as
+  // in the standard non-detached case.
+  rpc Attach(AttachRequest) returns (AttachResponse) {}
+
   // TODO rpc ListDataSources(), for the UI.
 }
 
 // Arguments for rpc EnableTracing().
 message EnableTracingRequest {
   optional protos.TraceConfig trace_config = 1;
+
+  // Introduced in Android Q. This is used for re-attaching to the end-of-trace
+  // EnableTracingResponse notification after a Detach+Attach request.
+  // When this flag is set the |trace_config| is ignored and no method is called
+  // on the tracing service.
+  optional bool attach_notification_only = 2;
 }
 
 message EnableTracingResponse {
@@ -135,3 +156,17 @@ message FlushRequest {
 }
 
 message FlushResponse {}
+
+// Arguments for rpc Detach
+message DetachRequest {
+  optional string key = 1;
+}
+message DetachResponse {}
+
+// Arguments for rpc Attach.
+message AttachRequest {
+  optional string key = 1;
+}
+message AttachResponse {
+  optional protos.TraceConfig trace_config = 1;
+}

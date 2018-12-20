@@ -187,11 +187,11 @@ TracingServiceImpl::ProducerEndpointImpl* TracingServiceImpl::GetProducer(
 }
 
 std::unique_ptr<TracingService::ConsumerEndpoint>
-TracingServiceImpl::ConnectConsumer(Consumer* consumer) {
+TracingServiceImpl::ConnectConsumer(Consumer* consumer, uid_t uid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p connected", reinterpret_cast<void*>(consumer));
   std::unique_ptr<ConsumerEndpointImpl> endpoint(
-      new ConsumerEndpointImpl(this, task_runner_, consumer));
+      new ConsumerEndpointImpl(this, task_runner_, consumer, uid));
   auto it_and_inserted = consumers_.emplace(endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   task_runner_->PostTask(std::bind(&Consumer::OnConnect, endpoint->consumer_));
@@ -214,9 +214,62 @@ void TracingServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
   PERFETTO_DCHECK(!std::any_of(
       tracing_sessions_.begin(), tracing_sessions_.end(),
       [consumer](const std::pair<const TracingSessionID, TracingSession>& kv) {
-        return kv.second.consumer == consumer;
+        return kv.second.consumer_maybe_null == consumer;
       }));
 #endif
+}
+
+bool TracingServiceImpl::DetachConsumer(ConsumerEndpointImpl* consumer,
+                                        const std::string& key) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_DLOG("Consumer %p detached", reinterpret_cast<void*>(consumer));
+  PERFETTO_DCHECK(consumers_.count(consumer));
+
+  TracingSessionID tsid = consumer->tracing_session_id_;
+  TracingSession* tracing_session;
+  if (!tsid || !(tracing_session = GetTracingSession(tsid)))
+    return false;
+
+  if (GetDetachedSession(consumer->uid_, key)) {
+    PERFETTO_ELOG("Another session has been detached with the same key \"%s\"",
+                  key.c_str());
+    return false;
+  }
+
+  PERFETTO_DCHECK(tracing_session->consumer_maybe_null == consumer);
+  tracing_session->consumer_maybe_null = nullptr;
+  tracing_session->detach_key = key;
+  consumer->tracing_session_id_ = 0;
+  return true;
+}
+
+bool TracingServiceImpl::AttachConsumer(ConsumerEndpointImpl* consumer,
+                                        const std::string& key) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_DLOG("Consumer %p attaching to session %s",
+                reinterpret_cast<void*>(consumer), key.c_str());
+  PERFETTO_DCHECK(consumers_.count(consumer));
+
+  if (consumer->tracing_session_id_) {
+    PERFETTO_ELOG(
+        "Cannot reattach consumer to session %s"
+        " while it already attached tracing session ID %" PRIu64,
+        key.c_str(), consumer->tracing_session_id_);
+    return false;
+  }
+
+  auto* tracing_session = GetDetachedSession(consumer->uid_, key);
+  if (!tracing_session) {
+    PERFETTO_ELOG(
+        "Failed to attach consumer, session '%s' not found for uid %d",
+        key.c_str(), static_cast<int>(consumer->uid_));
+    return false;
+  }
+
+  consumer->tracing_session_id_ = tracing_session->id;
+  tracing_session->consumer_maybe_null = consumer;
+  tracing_session->detach_key.clear();
+  return true;
 }
 
 bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
@@ -285,6 +338,7 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     if (!fd) {
       PERFETTO_ELOG(
           "The TraceConfig had write_into_file==true but no fd was passed");
+      tracing_sessions_.erase(tsid);
       return false;
     }
     tracing_session->write_into_file = std::move(fd);
@@ -402,7 +456,9 @@ bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
     auto weak_this = weak_ptr_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(
         [weak_this, tsid] {
-          if (weak_this)
+          // Skip entirely the flush if the trace session doesn't exist anymore.
+          // This is to prevent misleading error messages to be logged.
+          if (weak_this && weak_this->GetTracingSession(tsid))
             weak_this->FlushAndDisableTracing(tsid);
         },
         trace_duration_ms);
@@ -570,7 +626,8 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
     ReadBuffers(tracing_session->id, nullptr);
   }
 
-  tracing_session->consumer->NotifyOnTracingDisabled();
+  if (tracing_session->consumer_maybe_null)
+    tracing_session->consumer_maybe_null->NotifyOnTracingDisabled();
 }
 
 void TracingServiceImpl::Flush(TracingSessionID tsid,
@@ -664,8 +721,20 @@ void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
   Flush(tsid, kFlushTimeoutMs, [weak_this, tsid](bool success) {
     PERFETTO_DLOG("Flush done (success: %d), disabling trace session %" PRIu64,
                   success, tsid);
-    if (weak_this)
+    if (!weak_this)
+      return;
+    TracingSession* session = weak_this->GetTracingSession(tsid);
+    if (session->consumer_maybe_null) {
+      // If the consumer is still attached, just disable the session but give it
+      // a chance to read the contents.
       weak_this->DisableTracing(tsid);
+    } else {
+      // If the consumer detached, destroy the session. If the consumer did
+      // start the session in long-tracing mode, the service will have saved
+      // the contents to the passed file. If not, the contents will be
+      // destroyed.
+      weak_this->FreeBuffers(tsid);
+    }
   });
 }
 
@@ -1214,6 +1283,20 @@ void TracingServiceImpl::ApplyChunkPatches(
   }
 }
 
+TracingServiceImpl::TracingSession* TracingServiceImpl::GetDetachedSession(
+    uid_t uid,
+    const std::string& key) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (auto& kv : tracing_sessions_) {
+    TracingSession* session = &kv.second;
+    if (session->consumer_uid == uid && session->detach_key == key) {
+      PERFETTO_DCHECK(session->consumer_maybe_null == nullptr);
+      return session;
+    }
+  }
+  return nullptr;
+}
+
 TracingServiceImpl::TracingSession* TracingServiceImpl::GetTracingSession(
     TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -1404,10 +1487,12 @@ void TracingServiceImpl::MaybeEmitTraceConfig(
 TracingServiceImpl::ConsumerEndpointImpl::ConsumerEndpointImpl(
     TracingServiceImpl* service,
     base::TaskRunner* task_runner,
-    Consumer* consumer)
+    Consumer* consumer,
+    uid_t uid)
     : task_runner_(task_runner),
       service_(service),
       consumer_(consumer),
+      uid_(uid),
       weak_ptr_factory_(this) {}
 
 TracingServiceImpl::ConsumerEndpointImpl::~ConsumerEndpointImpl() {
@@ -1477,6 +1562,34 @@ void TracingServiceImpl::ConsumerEndpointImpl::Flush(uint32_t timeout_ms,
     return;
   }
   service_->Flush(tracing_session_id_, timeout_ms, callback);
+}
+
+void TracingServiceImpl::ConsumerEndpointImpl::Detach(const std::string& key) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  bool success = service_->DetachConsumer(this, key);
+  auto weak_this = GetWeakPtr();
+  task_runner_->PostTask([weak_this, success] {
+    if (weak_this)
+      weak_this->consumer_->OnDetach(success);
+  });
+}
+
+void TracingServiceImpl::ConsumerEndpointImpl::Attach(const std::string& key) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  bool success = service_->AttachConsumer(this, key);
+  auto weak_this = GetWeakPtr();
+  task_runner_->PostTask([weak_this, success] {
+    if (!weak_this)
+      return;
+    Consumer* consumer = weak_this->consumer_;
+    TracingSession* session =
+        weak_this->service_->GetTracingSession(weak_this->tracing_session_id_);
+    if (!session) {
+      consumer->OnAttach(false, TraceConfig());
+      return;
+    }
+    consumer->OnAttach(success, session->config);
+  });
 }
 
 base::WeakPtr<TracingServiceImpl::ConsumerEndpointImpl>
@@ -1719,8 +1832,11 @@ void TracingServiceImpl::ProducerEndpointImpl::OnFreeBuffers(
 
 TracingServiceImpl::TracingSession::TracingSession(
     TracingSessionID session_id,
-    ConsumerEndpointImpl* consumer_ptr,
+    ConsumerEndpointImpl* consumer,
     const TraceConfig& new_config)
-    : id(session_id), consumer(consumer_ptr), config(new_config) {}
+    : id(session_id),
+      consumer_maybe_null(consumer),
+      consumer_uid(consumer->uid_),
+      config(new_config) {}
 
 }  // namespace perfetto

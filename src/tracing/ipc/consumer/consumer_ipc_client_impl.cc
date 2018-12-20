@@ -76,10 +76,8 @@ void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config,
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   async_response.Bind(
       [weak_this](ipc::AsyncResult<protos::EnableTracingResponse> response) {
-        if (!weak_this)
-          return;
-        if (!response || response->disabled())
-          weak_this->consumer_->OnTracingDisabled();
+        if (weak_this)
+          weak_this->OnEnableTracingResponse(std::move(response));
       });
 
   // |fd| will be closed when this function returns, but it's fine because the
@@ -156,6 +154,12 @@ void ConsumerIPCClientImpl::OnReadBuffersResponse(
     consumer_->OnTraceData(std::move(trace_packets), response.has_more());
 }
 
+void ConsumerIPCClientImpl::OnEnableTracingResponse(
+    ipc::AsyncResult<protos::EnableTracingResponse> response) {
+  if (!response || response->disabled())
+    consumer_->OnTracingDisabled();
+}
+
 void ConsumerIPCClientImpl::FreeBuffers() {
   if (!connected_) {
     PERFETTO_DLOG("Cannot FreeBuffers(), not connected to tracing service");
@@ -186,6 +190,67 @@ void ConsumerIPCClientImpl::Flush(uint32_t timeout_ms, FlushCallback callback) {
         callback(!!response);
       });
   consumer_port_.Flush(req, std::move(async_response));
+}
+
+void ConsumerIPCClientImpl::Detach(const std::string& key) {
+  if (!connected_) {
+    PERFETTO_DLOG("Cannot Detach(), not connected to tracing service");
+    return;
+  }
+
+  protos::DetachRequest req;
+  req.set_key(key);
+  ipc::Deferred<protos::DetachResponse> async_response;
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+
+  async_response.Bind(
+      [weak_this](ipc::AsyncResult<protos::DetachResponse> response) {
+        if (weak_this)
+          weak_this->consumer_->OnDetach(!!response);
+      });
+  consumer_port_.Detach(req, std::move(async_response));
+}
+
+void ConsumerIPCClientImpl::Attach(const std::string& key) {
+  if (!connected_) {
+    PERFETTO_DLOG("Cannot Attach(), not connected to tracing service");
+    return;
+  }
+
+  {
+    protos::AttachRequest req;
+    req.set_key(key);
+    ipc::Deferred<protos::AttachResponse> async_response;
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+
+    async_response.Bind([weak_this](
+                            ipc::AsyncResult<protos::AttachResponse> response) {
+      if (!weak_this)
+        return;
+      TraceConfig trace_config;
+      if (!response) {
+        weak_this->consumer_->OnAttach(/*success=*/false, trace_config);
+        return;
+      }
+      trace_config.FromProto(response->trace_config());
+
+      // If attached succesfully, also attach to the end-of-trace
+      // notificaton callback, via EnableTracing(attach_notification_only).
+      protos::EnableTracingRequest enable_req;
+      enable_req.set_attach_notification_only(true);
+      ipc::Deferred<protos::EnableTracingResponse> enable_resp;
+      enable_resp.Bind(
+          [weak_this](ipc::AsyncResult<protos::EnableTracingResponse> resp) {
+            if (weak_this)
+              weak_this->OnEnableTracingResponse(std::move(resp));
+          });
+      weak_this->consumer_port_.EnableTracing(enable_req,
+                                              std::move(enable_resp));
+
+      weak_this->consumer_->OnAttach(/*success=*/true, trace_config);
+    });
+    consumer_port_.Attach(req, std::move(async_response));
+  }
 }
 
 }  // namespace perfetto
