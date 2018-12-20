@@ -46,7 +46,7 @@ class MockConsumer : public Consumer {
   explicit MockConsumer(base::TestTaskRunner*);
   ~MockConsumer() override;
 
-  void Connect(TracingService* svc);
+  void Connect(TracingService* svc, uid_t = 0);
   void EnableTracing(const TraceConfig&, base::ScopedFile = base::ScopedFile());
   void StartTracing();
   void DisableTracing();
@@ -65,6 +65,8 @@ class MockConsumer : public Consumer {
   MOCK_METHOD0(OnTracingDisabled, void());
   MOCK_METHOD2(OnTraceData,
                void(std::vector<TracePacket>* /*packets*/, bool /*has_more*/));
+  MOCK_METHOD1(OnDetach, void(bool));
+  MOCK_METHOD2(OnAttach, void(bool, const TraceConfig&));
 
   // gtest doesn't support move-only types. This wrapper is here jut to pass
   // a pointer to the vector (rather than the vector itself) to the mock method.

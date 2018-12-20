@@ -58,6 +58,8 @@ class PerfettoCmd : public Consumer {
   void OnDisconnect() override;
   void OnTracingDisabled() override;
   void OnTraceData(std::vector<TracePacket>, bool has_more) override;
+  void OnDetach(bool) override;
+  void OnAttach(bool, const TraceConfig&) override;
 
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
@@ -67,6 +69,8 @@ class PerfettoCmd : public Consumer {
   void FinalizeTraceAndExit();
   int PrintUsage(const char* argv0);
   void OnTimeout();
+  bool is_detach() const { return !detach_key_.empty(); }
+  bool is_attach() const { return !attach_key_.empty(); }
 
   PlatformTaskRunner task_runner_;
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
@@ -78,6 +82,9 @@ class PerfettoCmd : public Consumer {
   std::string dropbox_tag_;
   bool did_process_full_trace_ = false;
   uint64_t bytes_written_ = 0;
+  std::string detach_key_;
+  std::string attach_key_;
+  bool stop_trace_once_attached_ = false;
 };
 
 }  // namespace perfetto

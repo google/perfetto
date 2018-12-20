@@ -6,6 +6,7 @@
   * [Running Perfetto](running.md)
   * [Capturing long traces](long-traces.md)
   * [Advanced trace config](trace-config.md)
+  * [Running in detached mode](detached-mode.md)
 * Trace analysis
   * [Trace processor](trace-processor.md)
 * Architectural docs
