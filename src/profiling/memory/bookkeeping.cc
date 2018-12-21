@@ -39,17 +39,6 @@ GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
   return child;
 }
 
-std::vector<Interner<Frame>::Interned>
-GlobalCallstackTrie::Node::BuildCallstack() const {
-  const Node* node = this;
-  std::vector<Interner<Frame>::Interned> res;
-  while (node) {
-    res.emplace_back(node->location_);
-    node = node->parent_;
-  }
-  return res;
-}
-
 void HeapTracker::RecordMalloc(
     const std::vector<unwindstack::FrameData>& callstack,
     uint64_t address,
@@ -164,6 +153,16 @@ uint64_t HeapTracker::GetSizeForTesting(
   }
   const CallstackAllocations& alloc = it->second;
   return alloc.allocated - alloc.freed;
+}
+
+std::vector<Interner<Frame>::Interned> GlobalCallstackTrie::BuildCallstack(
+    const Node* node) const {
+  std::vector<Interner<Frame>::Interned> res;
+  while (node != &root_) {
+    res.emplace_back(node->location_);
+    node = node->parent_;
+  }
+  return res;
 }
 
 GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
@@ -309,7 +308,7 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
     for (GlobalCallstackTrie::Node* node : callstacks_to_dump) {
       // There need to be two separate loops over built_callstack because
       // protozero cannot interleave different messages.
-      auto built_callstack = node->BuildCallstack();
+      auto built_callstack = callsites_.BuildCallstack(node);
       for (const Interner<Frame>::Interned& frame : built_callstack)
         dump_state.WriteFrame(profile_packet, frame);
       ProfilePacket::Callstack* callstack = profile_packet->add_callstacks();
