@@ -54,6 +54,13 @@ namespace {
 
 size_t kMaxFrames = 1000;
 
+#pragma GCC diagnostic push
+// We do not care about deterministic destructor order.
+#pragma GCC diagnostic ignored "-Wglobal-constructors"
+#pragma GCC diagnostic ignored "-Wexit-time-destructors"
+static std::vector<std::string> kSkipMaps{"heapprofd_client.so"};
+#pragma GCC diagnostic pop
+
 std::unique_ptr<unwindstack::Regs> CreateFromRawData(unwindstack::ArchEnum arch,
                                                      void* raw_data) {
   std::unique_ptr<unwindstack::Regs> ret;
@@ -169,7 +176,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
       metadata->maps.Reset();
       metadata->maps.Parse();
     }
-    unwinder.Unwind();
+    unwinder.Unwind(&kSkipMaps, nullptr);
     error_code = unwinder.LastErrorCode();
     if (error_code != unwindstack::ERROR_INVALID_MAP)
       break;
