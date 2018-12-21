@@ -229,6 +229,17 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         AddEventGroup(table, "pagecache", &events);
         continue;
       }
+
+      if (category == "memory") {
+        events.insert(GroupAndName("kmem", "rss_stat"));
+        events.insert(GroupAndName("kmem", "ion_heap_grow"));
+        events.insert(GroupAndName("kmem", "ion_heap_shrink"));
+        events.insert(GroupAndName("oom", "oom_score_adj_update"));
+        events.insert(GroupAndName("sched", "sched_process_exit"));
+        events.insert(GroupAndName("task", "task_rename"));
+        events.insert(GroupAndName("task", "task_newtask"));
+        continue;
+      }
     }
   }
   return events;
