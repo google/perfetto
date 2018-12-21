@@ -158,7 +158,6 @@ class GlobalCallstackTrie {
     Node(Interner<Frame>::Interned frame, Node* parent)
         : parent_(parent), location_(std::move(frame)) {}
 
-    std::vector<Interner<Frame>::Interned> BuildCallstack() const;
     uintptr_t id() const { return reinterpret_cast<uintptr_t>(this); }
 
    private:
@@ -178,6 +177,8 @@ class GlobalCallstackTrie {
   Node* CreateCallsite(const std::vector<unwindstack::FrameData>& locs);
   static void DecrementNode(Node* node);
   static void IncrementNode(Node* node);
+
+  std::vector<Interner<Frame>::Interned> BuildCallstack(const Node* node) const;
 
  private:
   Interner<Frame>::Interned InternCodeLocation(
