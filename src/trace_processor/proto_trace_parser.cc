@@ -734,12 +734,12 @@ void ProtoTraceParser::ParseIonHeapGrowOrShrink(int64_t timestamp,
 
   // Push the change counter.
   // TODO(b/121331269): these should really be instant events. For now we
-  // manually reset them to 0 after 1us.
+  // manually reset them to 0 after 1ns.
   UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
   context_->event_tracker->PushCounter(timestamp, change_bytes, change_name_id,
                                        utid, RefType::kRefUtid);
-  context_->event_tracker->PushCounter(timestamp + 1000, 0, change_name_id,
-                                       utid, RefType::kRefUtid);
+  context_->event_tracker->PushCounter(timestamp + 1, 0, change_name_id, utid,
+                                       RefType::kRefUtid);
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 
   // We are reusing the same function for ion_heap_grow and ion_heap_shrink.
