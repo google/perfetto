@@ -636,9 +636,10 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
   sa.sa_flags = static_cast<decltype(sa.sa_flags)>(SA_RESETHAND | SA_RESTART);
 #pragma GCC diagnostic pop
   sigaction(SIGINT, &sa, nullptr);
+  sigaction(SIGTERM, &sa, nullptr);
 
   task_runner_.AddFileDescriptorWatch(ctrl_c_evt_.fd(), [this] {
-    PERFETTO_LOG("SIGINT received: disabling tracing");
+    PERFETTO_LOG("SIGINT/SIGTERM received: disabling tracing");
     ctrl_c_evt_.Clear();
     consumer_endpoint_->Flush(kFlushTimeoutMs, [this](bool) {
       consumer_endpoint_->DisableTracing();
