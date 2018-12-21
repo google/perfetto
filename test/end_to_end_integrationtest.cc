@@ -329,7 +329,7 @@ TEST_F(PerfettoTest, DetachAndReattach) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
-  trace_config.set_duration_ms(2000);
+  trace_config.set_duration_ms(30000);  // Max timeout, session is ended before.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
   static constexpr size_t kNumPackets = 10;
