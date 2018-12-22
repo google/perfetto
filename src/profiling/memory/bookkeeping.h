@@ -101,7 +101,7 @@ struct Mapping {
   uint64_t start;
   uint64_t end;
   uint64_t load_bias;
-  std::vector<Interner<std::string>::Interned> path_components;
+  std::vector<Interned<std::string>> path_components;
 
   bool operator<(const Mapping& other) const {
     return std::tie(build_id, offset, start, end, load_bias, path_components) <
@@ -111,12 +111,10 @@ struct Mapping {
 };
 
 struct Frame {
-  Frame(Interner<Mapping>::Interned m,
-        Interner<std::string>::Interned fn_name,
-        uint64_t pc)
+  Frame(Interned<Mapping> m, Interned<std::string> fn_name, uint64_t pc)
       : mapping(m), function_name(fn_name), rel_pc(pc) {}
-  Interner<Mapping>::Interned mapping;
-  Interner<std::string>::Interned function_name;
+  Interned<Mapping> mapping;
+  Interned<std::string> function_name;
   uint64_t rel_pc;
 
   bool operator<(const Frame& other) const {
@@ -154,20 +152,19 @@ class GlobalCallstackTrie {
     // This is opaque except to GlobalCallstackTrie.
     friend class GlobalCallstackTrie;
 
-    Node(Interner<Frame>::Interned frame) : Node(std::move(frame), nullptr) {}
-    Node(Interner<Frame>::Interned frame, Node* parent)
+    Node(Interned<Frame> frame) : Node(std::move(frame), nullptr) {}
+    Node(Interned<Frame> frame, Node* parent)
         : parent_(parent), location_(std::move(frame)) {}
 
     uintptr_t id() const { return reinterpret_cast<uintptr_t>(this); }
 
    private:
-    Node* GetOrCreateChild(const Interner<Frame>::Interned& loc);
+    Node* GetOrCreateChild(const Interned<Frame>& loc);
 
     uint64_t ref_count_ = 0;
     Node* const parent_;
-    const Interner<Frame>::Interned location_;
-    base::LookupSet<Node, const Interner<Frame>::Interned, &Node::location_>
-        children_;
+    const Interned<Frame> location_;
+    base::LookupSet<Node, const Interned<Frame>, &Node::location_> children_;
   };
 
   GlobalCallstackTrie() = default;
@@ -178,12 +175,11 @@ class GlobalCallstackTrie {
   static void DecrementNode(Node* node);
   static void IncrementNode(Node* node);
 
-  std::vector<Interner<Frame>::Interned> BuildCallstack(const Node* node) const;
+  std::vector<Interned<Frame>> BuildCallstack(const Node* node) const;
 
  private:
-  Interner<Frame>::Interned InternCodeLocation(
-      const unwindstack::FrameData& loc);
-  Interner<Frame>::Interned MakeRootFrame();
+  Interned<Frame> InternCodeLocation(const unwindstack::FrameData& loc);
+  Interned<Frame> MakeRootFrame();
 
   Interner<std::string> string_interner_;
   Interner<Mapping> mapping_interner_;
@@ -194,11 +190,11 @@ class GlobalCallstackTrie {
 
 struct DumpState {
   void WriteMap(protos::pbzero::ProfilePacket* packet,
-                const Interner<Mapping>::Interned map);
+                const Interned<Mapping> map);
   void WriteFrame(protos::pbzero::ProfilePacket* packet,
-                  const Interner<Frame>::Interned frame);
+                  const Interned<Frame> frame);
   void WriteString(protos::pbzero::ProfilePacket* packet,
-                   const Interner<std::string>::Interned& str);
+                   const Interned<std::string>& str);
 
   std::set<InternID> dumped_strings;
   std::set<InternID> dumped_frames;
