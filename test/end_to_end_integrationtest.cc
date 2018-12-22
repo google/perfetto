@@ -329,18 +329,17 @@ TEST_F(PerfettoTest, DetachAndReattach) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
-  trace_config.set_duration_ms(30000);  // Max timeout, session is ended before.
+  trace_config.set_duration_ms(10000);  // Max timeout, session is ended before.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
   static constexpr size_t kNumPackets = 10;
   ds_config->mutable_for_testing()->set_message_count(kNumPackets);
   ds_config->mutable_for_testing()->set_message_size(32);
-  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
 
   // Enable tracing and detach as soon as it gets started.
   TestHelper helper(&task_runner);
   helper.StartServiceIfRequired();
-  helper.ConnectFakeProducer();
+  auto* fake_producer = helper.ConnectFakeProducer();
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
   helper.StartTracing(trace_config);
@@ -348,10 +347,17 @@ TEST_F(PerfettoTest, DetachAndReattach) {
   // Detach.
   helper.DetachConsumer("key");
 
-  // And then immediately reconnect.
+  // Write data while detached.
+  helper.WaitForProducerEnabled();
+  auto on_data_written = task_runner.CreateCheckpoint("data_written");
+  fake_producer->ProduceEventBatch(helper.WrapTask(on_data_written));
+  task_runner.RunUntilCheckpoint("data_written");
+
+  // Then reattach the consumer.
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
   helper.AttachConsumer("key");
+
   helper.DisableTracing();
   helper.WaitForTracingDisabled();
 
