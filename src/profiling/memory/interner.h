@@ -113,6 +113,9 @@ void swap(typename Interner<T>::Interned a, typename Interner<T>::Interned b) {
   std::swap(a.entry_, b.entry_);
 }
 
+template <typename T>
+using Interned = typename Interner<T>::Interned;
+
 }  // namespace profiling
 }  // namespace perfetto
 

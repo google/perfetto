@@ -26,7 +26,7 @@ namespace {
 TEST(InternerStringTest, Basic) {
   Interner<std::string> interner;
   {
-    Interner<std::string>::Interned interned_str = interner.Intern("foo");
+    Interned<std::string> interned_str = interner.Intern("foo");
     ASSERT_EQ(interned_str.data(), "foo");
   }
   ASSERT_EQ(interner.entry_count_for_testing(), 0);
@@ -35,8 +35,8 @@ TEST(InternerStringTest, Basic) {
 TEST(InternerStringTest, TwoStrings) {
   Interner<std::string> interner;
   {
-    Interner<std::string>::Interned interned_str = interner.Intern("foo");
-    Interner<std::string>::Interned other_interned_str = interner.Intern("bar");
+    Interned<std::string> interned_str = interner.Intern("foo");
+    Interned<std::string> other_interned_str = interner.Intern("bar");
     ASSERT_EQ(interned_str.data(), "foo");
     ASSERT_EQ(other_interned_str.data(), "bar");
   }
@@ -46,9 +46,9 @@ TEST(InternerStringTest, TwoStrings) {
 TEST(InternerStringTest, TwoReferences) {
   Interner<std::string> interner;
   {
-    Interner<std::string>::Interned interned_str = interner.Intern("foo");
+    Interned<std::string> interned_str = interner.Intern("foo");
     ASSERT_EQ(interned_str.data(), "foo");
-    Interner<std::string>::Interned interned_str2 = interner.Intern("foo");
+    Interned<std::string> interned_str2 = interner.Intern("foo");
     ASSERT_EQ(interner.entry_count_for_testing(), 1);
     ASSERT_EQ(interned_str2.data(), "foo");
   }
@@ -58,9 +58,9 @@ TEST(InternerStringTest, TwoReferences) {
 TEST(InternerStringTest, Move) {
   Interner<std::string> interner;
   {
-    Interner<std::string>::Interned interned_str = interner.Intern("foo");
+    Interned<std::string> interned_str = interner.Intern("foo");
     {
-      Interner<std::string>::Interned interned_str2(std::move(interned_str));
+      Interned<std::string> interned_str2(std::move(interned_str));
       ASSERT_EQ(interner.entry_count_for_testing(), 1);
       ASSERT_EQ(interned_str2.data(), "foo");
     }
@@ -71,9 +71,9 @@ TEST(InternerStringTest, Move) {
 TEST(InternerStringTest, Copy) {
   Interner<std::string> interner;
   {
-    Interner<std::string>::Interned interned_str = interner.Intern("foo");
+    Interned<std::string> interned_str = interner.Intern("foo");
     {
-      Interner<std::string>::Interned interned_str2(interned_str);
+      Interned<std::string> interned_str2(interned_str);
       ASSERT_EQ(interner.entry_count_for_testing(), 1);
       ASSERT_EQ(interned_str2.data(), "foo");
     }
@@ -85,9 +85,9 @@ TEST(InternerStringTest, Copy) {
 TEST(InternerStringTest, MoveAssign) {
   Interner<std::string> interner;
   {
-    Interner<std::string>::Interned interned_str = interner.Intern("foo");
+    Interned<std::string> interned_str = interner.Intern("foo");
     {
-      Interner<std::string>::Interned interned_str2 = std::move(interned_str);
+      Interned<std::string> interned_str2 = std::move(interned_str);
       ASSERT_EQ(interner.entry_count_for_testing(), 1);
       ASSERT_EQ(interned_str2.data(), "foo");
     }
@@ -98,9 +98,9 @@ TEST(InternerStringTest, MoveAssign) {
 TEST(InternerStringTest, CopyAssign) {
   Interner<std::string> interner;
   {
-    Interner<std::string>::Interned interned_str = interner.Intern("foo");
+    Interned<std::string> interned_str = interner.Intern("foo");
     {
-      Interner<std::string>::Interned interned_str2 = interned_str;
+      Interned<std::string> interned_str2 = interned_str;
       ASSERT_EQ(interner.entry_count_for_testing(), 1);
       ASSERT_EQ(interned_str2.data(), "foo");
     }
@@ -111,9 +111,9 @@ TEST(InternerStringTest, CopyAssign) {
 
 TEST(InternerStringTest, IDsUnique) {
   Interner<std::string> interner;
-  Interner<std::string>::Interned interned_str = interner.Intern("foo");
-  Interner<std::string>::Interned same_interned_str = interner.Intern("foo");
-  Interner<std::string>::Interned other_interned_str = interner.Intern("bar");
+  Interned<std::string> interned_str = interner.Intern("foo");
+  Interned<std::string> same_interned_str = interner.Intern("foo");
+  Interned<std::string> other_interned_str = interner.Intern("bar");
   EXPECT_EQ(interned_str.id(), same_interned_str.id());
   EXPECT_NE(interned_str.id(), other_interned_str.id());
 }
@@ -134,7 +134,7 @@ class NoCopyOrMove {
 
 TEST(InternerStringTest, NoCopyOrMove) {
   Interner<NoCopyOrMove> interner;
-  Interner<NoCopyOrMove>::Interned interned_str = interner.Intern(1);
+  Interned<NoCopyOrMove> interned_str = interner.Intern(1);
 }
 
 }  // namespace
