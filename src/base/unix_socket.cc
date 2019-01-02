@@ -41,6 +41,12 @@
 namespace perfetto {
 namespace base {
 
+// The CMSG_* macros use NULL instead of nullptr.
+#pragma GCC diagnostic push
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
+#endif
+
 namespace {
 // MSG_NOSIGNAL is not supported on Mac OS X, but in that case the socket is
 // created with SO_NOSIGPIPE (See InitializeSocket()).
@@ -56,15 +62,45 @@ using CBufLenType = size_t;
 #else
 using CBufLenType = socklen_t;
 #endif
+
+inline int GetUnixSockType(SockType type) {
+  switch (type) {
+    case SockType::kStream:
+      return SOCK_STREAM;
+    case SockType::kDgram:
+      return SOCK_DGRAM;
+    case SockType::kSeqPacket:
+      return SOCK_SEQPACKET;
+  }
+  PERFETTO_CHECK(false);
 }
 
-// The CMSG_* macros use NULL instead of nullptr.
-#pragma GCC diagnostic push
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
-#endif
+bool MakeSockAddr(const std::string& socket_name,
+                  sockaddr_un* addr,
+                  socklen_t* addr_size) {
+  memset(addr, 0, sizeof(*addr));
+  const size_t name_len = socket_name.size();
+  if (name_len >= sizeof(addr->sun_path)) {
+    errno = ENAMETOOLONG;
+    return false;
+  }
+  memcpy(addr->sun_path, socket_name.data(), name_len);
+  if (addr->sun_path[0] == '@')
+    addr->sun_path[0] = '\0';
+  addr->sun_family = AF_UNIX;
+  *addr_size = static_cast<socklen_t>(
+      __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
+  return true;
+}
 
-void ShiftMsgHdr(size_t n, struct msghdr* msg) {
+}  // namespace
+
+// +-----------------------+
+// | UnixSocketRaw methods |
+// +-----------------------+
+
+// static
+void UnixSocketRaw::ShiftMsgHdr(size_t n, struct msghdr* msg) {
   using LenType = decltype(msg->msg_iovlen);  // Mac and Linux don't agree.
   for (LenType i = 0; i < msg->msg_iovlen; ++i) {
     struct iovec* vec = &msg->msg_iov[i];
@@ -85,6 +121,92 @@ void ShiftMsgHdr(size_t n, struct msghdr* msg) {
   msg->msg_iov = nullptr;
 }
 
+// static
+std::pair<UnixSocketRaw, UnixSocketRaw> UnixSocketRaw::CreatePair(SockType t) {
+  int fds[2];
+  if (socketpair(AF_UNIX, GetUnixSockType(t), 0, fds) != 0)
+    return std::make_pair(UnixSocketRaw(), UnixSocketRaw());
+
+  return std::make_pair(UnixSocketRaw(ScopedFile(fds[0]), t),
+                        UnixSocketRaw(ScopedFile(fds[1]), t));
+}
+
+UnixSocketRaw::UnixSocketRaw() = default;
+
+UnixSocketRaw::UnixSocketRaw(SockType type)
+    : UnixSocketRaw(ScopedFile(socket(AF_UNIX, GetUnixSockType(type), 0)),
+                    type) {}
+
+UnixSocketRaw::UnixSocketRaw(ScopedFile fd, SockType type)
+    : fd_(std::move(fd)), type_(type) {
+  PERFETTO_CHECK(fd_);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  const int no_sigpipe = 1;
+  setsockopt(*fd_, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
+#endif
+
+  // There is no reason why a socket should outlive the process in case of
+  // exec() by default, this is just working around a broken unix design.
+  int fcntl_res = fcntl(*fd_, F_SETFD, FD_CLOEXEC);
+  PERFETTO_CHECK(fcntl_res == 0);
+}
+
+void UnixSocketRaw::SetBlocking(bool is_blocking) {
+  PERFETTO_DCHECK(fd_);
+  int flags = fcntl(*fd_, F_GETFL, 0);
+  if (!is_blocking) {
+    flags |= O_NONBLOCK;
+  } else {
+    flags &= ~static_cast<int>(O_NONBLOCK);
+  }
+  bool fcntl_res = fcntl(*fd_, F_SETFL, flags);
+  PERFETTO_CHECK(fcntl_res == 0);
+}
+
+bool UnixSocketRaw::IsBlocking() const {
+  PERFETTO_DCHECK(fd_);
+  return (fcntl(*fd_, F_GETFL, 0) & O_NONBLOCK) == 0;
+}
+
+bool UnixSocketRaw::Bind(const std::string& socket_name) {
+  PERFETTO_DCHECK(fd_);
+  sockaddr_un addr;
+  socklen_t addr_size;
+  if (!MakeSockAddr(socket_name, &addr, &addr_size))
+    return false;
+
+  if (bind(*fd_, reinterpret_cast<sockaddr*>(&addr), addr_size)) {
+    PERFETTO_DPLOG("bind()");
+    return false;
+  }
+
+  return true;
+}
+
+bool UnixSocketRaw::Listen() {
+  return listen(*fd_, SOMAXCONN) == 0;
+}
+
+bool UnixSocketRaw::Connect(const std::string& socket_name) {
+  PERFETTO_DCHECK(fd_);
+  sockaddr_un addr;
+  socklen_t addr_size;
+  if (!MakeSockAddr(socket_name, &addr, &addr_size))
+    return false;
+
+  int res = PERFETTO_EINTR(
+      connect(*fd_, reinterpret_cast<sockaddr*>(&addr), addr_size));
+  if (res && errno != EINPROGRESS)
+    return false;
+
+  return true;
+}
+
+void UnixSocketRaw::Shutdown() {
+  shutdown(*fd_, SHUT_RDWR);
+  fd_.reset();
+}
+
 // For the interested reader, Linux kernel dive to verify this is not only a
 // theoretical possibility: sock_stream_sendmsg, if sock_alloc_send_pskb returns
 // NULL [1] (which it does when it gets interrupted [2]), returns early with the
@@ -93,13 +215,14 @@ void ShiftMsgHdr(size_t n, struct msghdr* msg) {
 // [1]:
 // https://elixir.bootlin.com/linux/v4.18.10/source/net/unix/af_unix.c#L1872
 // [2]: https://elixir.bootlin.com/linux/v4.18.10/source/net/core/sock.c#L2101
-ssize_t SendMsgAll(int sockfd, struct msghdr* msg, int flags) {
+ssize_t UnixSocketRaw::SendMsgAll(struct msghdr* msg) {
   // This does not make sense on non-blocking sockets.
-  PERFETTO_DCHECK((fcntl(sockfd, F_GETFL, 0) & O_NONBLOCK) == 0);
+  PERFETTO_DCHECK(fd_);
+  PERFETTO_DCHECK(IsBlocking());
 
   ssize_t total_sent = 0;
   while (msg->msg_iov) {
-    ssize_t sent = PERFETTO_EINTR(sendmsg(sockfd, msg, flags));
+    ssize_t sent = PERFETTO_EINTR(sendmsg(*fd_, msg, kNoSigPipe));
     if (sent <= 0) {
       if (sent == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
         return total_sent;
@@ -114,11 +237,11 @@ ssize_t SendMsgAll(int sockfd, struct msghdr* msg, int flags) {
   return total_sent;
 }
 
-ssize_t SockSend(int fd,
-                 const void* msg,
-                 size_t len,
-                 const int* send_fds,
-                 size_t num_fds) {
+ssize_t UnixSocketRaw::Send(const void* msg,
+                            size_t len,
+                            const int* send_fds,
+                            size_t num_fds) {
+  PERFETTO_DCHECK(fd_);
   msghdr msg_hdr = {};
   iovec iov = {const_cast<void*>(msg), len};
   msg_hdr.msg_iov = &iov;
@@ -142,14 +265,14 @@ ssize_t SockSend(int fd,
     // msg_hdr.msg_controllen would need to be adjusted, see "man 3 cmsg".
   }
 
-  return SendMsgAll(fd, &msg_hdr, kNoSigPipe);
+  return SendMsgAll(&msg_hdr);
 }
 
-ssize_t SockReceive(int fd,
-                    void* msg,
-                    size_t len,
-                    ScopedFile* fd_vec,
-                    size_t max_files) {
+ssize_t UnixSocketRaw::Receive(void* msg,
+                               size_t len,
+                               ScopedFile* fd_vec,
+                               size_t max_files) {
+  PERFETTO_DCHECK(fd_);
   msghdr msg_hdr = {};
   iovec iov = {msg, len};
   msg_hdr.msg_iov = &iov;
@@ -162,7 +285,7 @@ ssize_t SockReceive(int fd,
         static_cast<CBufLenType>(CMSG_SPACE(max_files * sizeof(int)));
     PERFETTO_CHECK(msg_hdr.msg_controllen <= sizeof(control_buf));
   }
-  const ssize_t sz = PERFETTO_EINTR(recvmsg(fd, &msg_hdr, kNoSigPipe));
+  const ssize_t sz = PERFETTO_EINTR(recvmsg(*fd_, &msg_hdr, kNoSigPipe));
   if (sz <= 0) {
     return sz;
   }
@@ -201,88 +324,75 @@ ssize_t SockReceive(int fd,
   return sz;
 }
 
+bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
+  PERFETTO_DCHECK(fd_);
+  struct timeval timeout {};
+  uint32_t timeout_sec = timeout_ms / 1000;
+  timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(timeout_sec);
+  timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
+      (timeout_ms - (timeout_sec * 1000)) * 1000);
+
+  return setsockopt(*fd_, SOL_SOCKET, SO_SNDTIMEO,
+                    reinterpret_cast<const char*>(&timeout),
+                    sizeof(timeout)) == 0;
+}
+
 #pragma GCC diagnostic pop
 
-bool MakeSockAddr(const std::string& socket_name,
-                  sockaddr_un* addr,
-                  socklen_t* addr_size) {
-  memset(addr, 0, sizeof(*addr));
-  const size_t name_len = socket_name.size();
-  if (name_len >= sizeof(addr->sun_path)) {
-    errno = ENAMETOOLONG;
-    return false;
-  }
-  memcpy(addr->sun_path, socket_name.data(), name_len);
-  if (addr->sun_path[0] == '@')
-    addr->sun_path[0] = '\0';
-  addr->sun_family = AF_UNIX;
-  *addr_size = static_cast<socklen_t>(
-      __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
-  return true;
-}
-
-ScopedFile CreateSocket() {
-  return ScopedFile(socket(AF_UNIX, SOCK_STREAM, 0));
-}
+// +--------------------+
+// | UnixSocket methods |
+// +--------------------+
 
 // TODO(primiano): Add ThreadChecker to methods of this class.
 
 // static
-ScopedFile UnixSocket::CreateAndBind(const std::string& socket_name) {
-  ScopedFile fd = CreateSocket();
-  if (!fd)
-    return fd;
-
-  sockaddr_un addr;
-  socklen_t addr_size;
-  if (!MakeSockAddr(socket_name, &addr, &addr_size)) {
-    return ScopedFile();
-  }
-
-  if (bind(*fd, reinterpret_cast<sockaddr*>(&addr), addr_size)) {
-    PERFETTO_DPLOG("bind()");
-    return ScopedFile();
-  }
-
-  return fd;
-}
-
-// static
 std::unique_ptr<UnixSocket> UnixSocket::Listen(const std::string& socket_name,
                                                EventListener* event_listener,
-                                               TaskRunner* task_runner) {
+                                               TaskRunner* task_runner,
+                                               SockType sock_type) {
+  auto sock_raw = UnixSocketRaw::CreateMayFail(sock_type);
+  if (!sock_raw || !sock_raw.Bind(socket_name))
+    return nullptr;
+
   // Forward the call to the Listen() overload below.
-  return Listen(CreateAndBind(socket_name), event_listener, task_runner);
+  return Listen(sock_raw.ReleaseFd(), event_listener, task_runner);
 }
 
 // static
-std::unique_ptr<UnixSocket> UnixSocket::Listen(ScopedFile socket_fd,
+std::unique_ptr<UnixSocket> UnixSocket::Listen(ScopedFile fd,
                                                EventListener* event_listener,
-                                               TaskRunner* task_runner) {
-  std::unique_ptr<UnixSocket> sock(new UnixSocket(
-      event_listener, task_runner, std::move(socket_fd), State::kListening));
-  return sock;
+                                               TaskRunner* task_runner,
+                                               SockType sock_type) {
+  return std::unique_ptr<UnixSocket>(
+      new UnixSocket(event_listener, task_runner, std::move(fd),
+                     State::kListening, sock_type));
 }
 
 // static
 std::unique_ptr<UnixSocket> UnixSocket::Connect(const std::string& socket_name,
                                                 EventListener* event_listener,
-                                                TaskRunner* task_runner) {
-  std::unique_ptr<UnixSocket> sock(new UnixSocket(event_listener, task_runner));
+                                                TaskRunner* task_runner,
+                                                SockType sock_type) {
+  std::unique_ptr<UnixSocket> sock(
+      new UnixSocket(event_listener, task_runner, sock_type));
   sock->DoConnect(socket_name);
   return sock;
 }
 
-UnixSocket::UnixSocket(EventListener* event_listener, TaskRunner* task_runner)
+UnixSocket::UnixSocket(EventListener* event_listener,
+                       TaskRunner* task_runner,
+                       SockType sock_type)
     : UnixSocket(event_listener,
                  task_runner,
                  ScopedFile(),
-                 State::kDisconnected) {}
+                 State::kDisconnected,
+                 sock_type) {}
 
 UnixSocket::UnixSocket(EventListener* event_listener,
                        TaskRunner* task_runner,
                        ScopedFile adopt_fd,
-                       State adopt_state)
+                       State adopt_state,
+                       SockType sock_type)
     : event_listener_(event_listener),
       task_runner_(task_runner),
       weak_ptr_factory_(this) {
@@ -290,15 +400,15 @@ UnixSocket::UnixSocket(EventListener* event_listener,
   if (adopt_state == State::kDisconnected) {
     // We get here from the default ctor().
     PERFETTO_DCHECK(!adopt_fd);
-    fd_ = CreateSocket();
-    if (!fd_) {
+    sock_raw_ = UnixSocketRaw::CreateMayFail(sock_type);
+    if (!sock_raw_) {
       last_error_ = errno;
       return;
     }
   } else if (adopt_state == State::kConnected) {
     // We get here from OnNewIncomingConnection().
     PERFETTO_DCHECK(adopt_fd);
-    fd_ = std::move(adopt_fd);
+    sock_raw_ = UnixSocketRaw(std::move(adopt_fd), sock_type);
     state_ = State::kConnected;
     ReadPeerCredentials();
   } else if (adopt_state == State::kListening) {
@@ -310,8 +420,8 @@ UnixSocket::UnixSocket(EventListener* event_listener,
       return;
     }
 
-    fd_ = std::move(adopt_fd);
-    if (listen(*fd_, SOMAXCONN)) {
+    sock_raw_ = UnixSocketRaw(std::move(adopt_fd), sock_type);
+    if (!sock_raw_.Listen()) {
       last_error_ = errno;
       PERFETTO_DPLOG("listen()");
       return;
@@ -321,22 +431,13 @@ UnixSocket::UnixSocket(EventListener* event_listener,
     PERFETTO_FATAL("Unexpected adopt_state");  // Unfeasible.
   }
 
-  PERFETTO_DCHECK(fd_);
+  PERFETTO_CHECK(sock_raw_);
   last_error_ = 0;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-  const int no_sigpipe = 1;
-  setsockopt(*fd_, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
-#endif
-  // There is no reason why a socket should outlive the process in case of
-  // exec() by default, this is just working around a broken unix design.
-  int fcntl_res = fcntl(*fd_, F_SETFD, FD_CLOEXEC);
-  PERFETTO_CHECK(fcntl_res == 0);
-
-  SetBlockingIO(false);
+  sock_raw_.SetBlocking(false);
 
   WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->AddFileDescriptorWatch(*fd_, [weak_ptr]() {
+  task_runner_->AddFileDescriptorWatch(sock_raw_.fd(), [weak_ptr] {
     if (weak_ptr)
       weak_ptr->OnEvent();
   });
@@ -352,39 +453,32 @@ void UnixSocket::DoConnect(const std::string& socket_name) {
   PERFETTO_DCHECK(state_ == State::kDisconnected);
 
   // This is the only thing that can gracefully fail in the ctor.
-  if (!fd_)
+  if (!sock_raw_)
     return NotifyConnectionState(false);
 
-  sockaddr_un addr;
-  socklen_t addr_size;
-  if (!MakeSockAddr(socket_name, &addr, &addr_size)) {
+  if (!sock_raw_.Connect(socket_name)) {
     last_error_ = errno;
     return NotifyConnectionState(false);
   }
 
-  int res = PERFETTO_EINTR(
-      connect(*fd_, reinterpret_cast<sockaddr*>(&addr), addr_size));
-  if (res && errno != EINPROGRESS) {
-    last_error_ = errno;
-    return NotifyConnectionState(false);
-  }
-
-  // At this point either |res| == 0 (the connect() succeeded) or started
-  // asynchronously (EINPROGRESS).
+  // At this point either connect() succeeded or started asynchronously
+  // (errno = EINPROGRESS).
   last_error_ = 0;
   state_ = State::kConnecting;
 
   // Even if the socket is non-blocking, connecting to a UNIX socket can be
-  // acknowledged straight away rather than returning EINPROGRESS. In this case
-  // just trigger an OnEvent without waiting for the FD watch. That will poll
-  // the SO_ERROR and evolve the state into either kConnected or kDisconnected.
-  if (res == 0) {
-    WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
-    task_runner_->PostTask([weak_ptr]() {
-      if (weak_ptr)
-        weak_ptr->OnEvent();
-    });
-  }
+  // acknowledged straight away rather than returning EINPROGRESS.
+  // The decision here is to deal with the two cases uniformly, at the cost of
+  // delaying the straight-away-connect() case by one task, to avoid depending
+  // on implementation details of UNIX socket on the various OSes.
+  // Posting the OnEvent() below emulates a wakeup of the FD watch. OnEvent(),
+  // which knows how to deal with spurious wakeups, will poll the SO_ERROR and
+  // evolve, if necessary, the state into either kConnected or kDisconnected.
+  WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_ptr] {
+    if (weak_ptr)
+      weak_ptr->OnEvent();
+  });
 }
 
 void UnixSocket::ReadPeerCredentials() {
@@ -392,14 +486,15 @@ void UnixSocket::ReadPeerCredentials() {
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   struct ucred user_cred;
   socklen_t len = sizeof(user_cred);
-  int res = getsockopt(*fd_, SOL_SOCKET, SO_PEERCRED, &user_cred, &len);
+  int fd = sock_raw_.fd();
+  int res = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &user_cred, &len);
   PERFETTO_CHECK(res == 0);
   peer_uid_ = user_cred.uid;
   peer_pid_ = user_cred.pid;
 #else
   struct xucred user_cred;
   socklen_t len = sizeof(user_cred);
-  int res = getsockopt(*fd_, 0, LOCAL_PEERCRED, &user_cred, &len);
+  int res = getsockopt(sock_raw_.fd(), 0, LOCAL_PEERCRED, &user_cred, &len);
   PERFETTO_CHECK(res == 0 && user_cred.cr_version == XUCRED_VERSION);
   peer_uid_ = static_cast<uid_t>(user_cred.cr_uid);
 // There is no pid in the LOCAL_PEERCREDS for MacOS / FreeBSD.
@@ -414,10 +509,11 @@ void UnixSocket::OnEvent() {
     return event_listener_->OnDataAvailable(this);
 
   if (state_ == State::kConnecting) {
-    PERFETTO_DCHECK(fd_);
+    PERFETTO_DCHECK(sock_raw_);
     int sock_err = EINVAL;
     socklen_t err_len = sizeof(sock_err);
-    int res = getsockopt(*fd_, SOL_SOCKET, SO_ERROR, &sock_err, &err_len);
+    int res =
+        getsockopt(sock_raw_.fd(), SOL_SOCKET, SO_ERROR, &sock_err, &err_len);
     if (res == 0 && sock_err == EINPROGRESS)
       return;  // Not connected yet, just a spurious FD watch wakeup.
     if (res == 0 && sock_err == 0) {
@@ -437,28 +533,16 @@ void UnixSocket::OnEvent() {
     for (;;) {
       sockaddr_un cli_addr = {};
       socklen_t size = sizeof(cli_addr);
-      ScopedFile new_fd(PERFETTO_EINTR(
-          accept(*fd_, reinterpret_cast<sockaddr*>(&cli_addr), &size)));
+      ScopedFile new_fd(PERFETTO_EINTR(accept(
+          sock_raw_.fd(), reinterpret_cast<sockaddr*>(&cli_addr), &size)));
       if (!new_fd)
         return;
-      std::unique_ptr<UnixSocket> new_sock(new UnixSocket(
-          event_listener_, task_runner_, std::move(new_fd), State::kConnected));
+      std::unique_ptr<UnixSocket> new_sock(
+          new UnixSocket(event_listener_, task_runner_, std::move(new_fd),
+                         State::kConnected, sock_raw_.type()));
       event_listener_->OnNewIncomingConnection(this, std::move(new_sock));
     }
   }
-}
-
-bool UnixSocket::Send(const std::string& msg, BlockingMode blocking) {
-  return Send(msg.c_str(), msg.size() + 1, -1, blocking);
-}
-
-bool UnixSocket::Send(const void* msg,
-                      size_t len,
-                      int send_fd,
-                      BlockingMode blocking_mode) {
-  if (send_fd != -1)
-    return Send(msg, len, &send_fd, 1, blocking_mode);
-  return Send(msg, len, nullptr, 0, blocking_mode);
 }
 
 bool UnixSocket::Send(const void* msg,
@@ -476,10 +560,11 @@ bool UnixSocket::Send(const void* msg,
   }
 
   if (blocking_mode == BlockingMode::kBlocking)
-    SetBlockingIO(true);
-  const ssize_t sz = SockSend(*fd_, msg, len, send_fds, num_fds);
+    sock_raw_.SetBlocking(true);
+  const ssize_t sz = sock_raw_.Send(msg, len, send_fds, num_fds);
+  int saved_errno = errno;
   if (blocking_mode == BlockingMode::kBlocking)
-    SetBlockingIO(false);
+    sock_raw_.SetBlocking(false);
 
   if (sz == static_cast<ssize_t>(len)) {
     last_error_ = 0;
@@ -490,7 +575,7 @@ bool UnixSocket::Send(const void* msg,
   // endpoint disconnected in the middle of the read, and we managed to send
   // only a portion of the buffer. In this case we should just give up.
 
-  if (sz < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+  if (sz < 0 && (saved_errno == EAGAIN || saved_errno == EWOULDBLOCK)) {
     // A genuine out-of-buffer. The client should retry or give up.
     // Man pages specify that EAGAIN and EWOULDBLOCK have the same semantic here
     // and clients should check for both.
@@ -500,7 +585,7 @@ bool UnixSocket::Send(const void* msg,
 
   // Either the the other endpoint disconnect (ECONNRESET) or some other error
   // happened.
-  last_error_ = errno;
+  last_error_ = saved_errno;
   PERFETTO_DPLOG("sendmsg() failed");
   Shutdown(true);
   return false;
@@ -510,28 +595,23 @@ void UnixSocket::Shutdown(bool notify) {
   WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
   if (notify) {
     if (state_ == State::kConnected) {
-      task_runner_->PostTask([weak_ptr]() {
+      task_runner_->PostTask([weak_ptr] {
         if (weak_ptr)
           weak_ptr->event_listener_->OnDisconnect(weak_ptr.get());
       });
     } else if (state_ == State::kConnecting) {
-      task_runner_->PostTask([weak_ptr]() {
+      task_runner_->PostTask([weak_ptr] {
         if (weak_ptr)
           weak_ptr->event_listener_->OnConnect(weak_ptr.get(), false);
       });
     }
   }
 
-  if (fd_) {
-    shutdown(*fd_, SHUT_RDWR);
-    task_runner_->RemoveFileDescriptorWatch(*fd_);
-    fd_.reset();
+  if (sock_raw_) {
+    task_runner_->RemoveFileDescriptorWatch(sock_raw_.fd());
+    sock_raw_.Shutdown();
   }
   state_ = State::kDisconnected;
-}
-
-size_t UnixSocket::Receive(void* msg, size_t len) {
-  return Receive(msg, len, nullptr, 0);
 }
 
 size_t UnixSocket::Receive(void* msg,
@@ -543,7 +623,7 @@ size_t UnixSocket::Receive(void* msg,
     return 0;
   }
 
-  const ssize_t sz = SockReceive(*fd_, msg, len, fd_vec, max_files);
+  const ssize_t sz = sock_raw_.Receive(msg, len, fd_vec, max_files);
   if (sz < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
     last_error_ = EAGAIN;
     return 0;
@@ -570,21 +650,10 @@ void UnixSocket::NotifyConnectionState(bool success) {
     Shutdown(false);
 
   WeakPtr<UnixSocket> weak_ptr = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_ptr, success]() {
+  task_runner_->PostTask([weak_ptr, success] {
     if (weak_ptr)
       weak_ptr->event_listener_->OnConnect(weak_ptr.get(), success);
   });
-}
-
-void UnixSocket::SetBlockingIO(bool is_blocking) {
-  int flags = fcntl(*fd_, F_GETFL, 0);
-  if (!is_blocking) {
-    flags |= O_NONBLOCK;
-  } else {
-    flags &= ~static_cast<int>(O_NONBLOCK);
-  }
-  bool fcntl_res = fcntl(fd(), F_SETFL, flags);
-  PERFETTO_CHECK(fcntl_res == 0);
 }
 
 UnixSocket::EventListener::~EventListener() {}

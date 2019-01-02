@@ -17,6 +17,7 @@
 #include "src/profiling/memory/wire_protocol.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
+#include "perfetto/base/unix_socket.h"
 #include "src/profiling/memory/record_reader.h"
 
 #include <sys/socket.h>
@@ -53,13 +54,13 @@ bool operator==(const FreeMetadata& one, const FreeMetadata& other) {
 
 namespace {
 
-RecordReader::Record ReceiveAll(int sock) {
+RecordReader::Record ReceiveAll(base::UnixSocketRaw* sock) {
   RecordReader record_reader;
   RecordReader::Record record;
   bool received = false;
   while (!received) {
     RecordReader::ReceiveBuffer buf = record_reader.BeginReceive();
-    ssize_t rd = PERFETTO_EINTR(read(sock, buf.data, buf.size));
+    ssize_t rd = sock->Receive(buf.data, buf.size);
     PERFETTO_CHECK(rd > 0);
     auto status = record_reader.EndReceive(static_cast<size_t>(rd), &record);
     switch (status) {
@@ -93,13 +94,15 @@ TEST(WireProtocolTest, AllocMessage) {
   msg.payload = payload;
   msg.payload_size = sizeof(payload);
 
-  int sv[2];
-  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
-  base::ScopedFile send_sock(sv[0]);
-  base::ScopedFile recv_sock(sv[1]);
-  ASSERT_TRUE(SendWireMessage(*send_sock, msg));
+  base::UnixSocketRaw send_sock;
+  base::UnixSocketRaw recv_sock;
+  std::tie(send_sock, recv_sock) =
+      base::UnixSocketRaw::CreatePair(base::SockType::kStream);
+  ASSERT_TRUE(send_sock);
+  ASSERT_TRUE(recv_sock);
+  ASSERT_TRUE(SendWireMessage(&send_sock, msg));
 
-  RecordReader::Record record = ReceiveAll(*recv_sock);
+  RecordReader::Record record = ReceiveAll(&recv_sock);
 
   WireMessage recv_msg;
   ASSERT_TRUE(ReceiveWireMessage(reinterpret_cast<char*>(record.data.get()),
@@ -123,11 +126,13 @@ TEST(WireProtocolTest, FreeMessage) {
 
   int sv[2];
   ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
-  base::ScopedFile send_sock(sv[0]);
-  base::ScopedFile recv_sock(sv[1]);
-  ASSERT_TRUE(SendWireMessage(*send_sock, msg));
+  base::UnixSocketRaw send_sock(base::ScopedFile(sv[0]),
+                                base::SockType::kStream);
+  base::UnixSocketRaw recv_sock(base::ScopedFile(sv[1]),
+                                base::SockType::kStream);
+  ASSERT_TRUE(SendWireMessage(&send_sock, msg));
 
-  RecordReader::Record record = ReceiveAll(*recv_sock);
+  RecordReader::Record record = ReceiveAll(&recv_sock);
 
   WireMessage recv_msg;
   ASSERT_TRUE(ReceiveWireMessage(reinterpret_cast<char*>(record.data.get()),

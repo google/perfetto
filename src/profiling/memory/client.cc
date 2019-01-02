@@ -17,9 +17,7 @@
 #include "src/profiling/memory/client.h"
 
 #include <inttypes.h>
-#include <sys/socket.h>
 #include <sys/syscall.h>
-#include <sys/un.h>
 #include <unistd.h>
 
 #include <atomic>
@@ -46,27 +44,20 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-constexpr struct timeval kSendTimeout = {1 /* s */, 0 /* us */};
+constexpr uint32_t kSendTimeoutMs = 1000;
 constexpr std::chrono::seconds kLockTimeout{1};
 
-std::vector<base::ScopedFile> ConnectPool(const std::string& sock_name,
-                                          size_t n) {
-  sockaddr_un addr;
-  socklen_t addr_size;
-  if (!base::MakeSockAddr(sock_name, &addr, &addr_size))
-    return {};
-
-  std::vector<base::ScopedFile> res;
+std::vector<base::UnixSocketRaw> ConnectPool(const std::string& sock_name,
+                                             size_t n) {
+  std::vector<base::UnixSocketRaw> res;
   res.reserve(n);
   for (size_t i = 0; i < n; ++i) {
-    auto sock = base::CreateSocket();
-    if (connect(*sock, reinterpret_cast<sockaddr*>(&addr), addr_size) == -1) {
+    auto sock = base::UnixSocketRaw::CreateMayFail(base::SockType::kStream);
+    if (!sock || !sock.Connect(sock_name)) {
       PERFETTO_PLOG("Failed to connect to %s", sock_name.c_str());
       continue;
     }
-    if (setsockopt(*sock, SOL_SOCKET, SO_SNDTIMEO,
-                   reinterpret_cast<const char*>(&kSendTimeout),
-                   sizeof(kSendTimeout)) != 0) {
+    if (!sock.SetTxTimeout(kSendTimeoutMs)) {
       PERFETTO_PLOG("Failed to set timeout for %s", sock_name.c_str());
       continue;
     }
@@ -125,36 +116,36 @@ bool FreePage::FlushLocked(SocketPool* pool) {
   msg.record_type = RecordType::Free;
   free_page_.num_entries = offset_;
   msg.free_header = &free_page_;
-  BorrowedSocket fd(pool->Borrow());
-  if (!fd || !SendWireMessage(*fd, msg)) {
+  BorrowedSocket sock(pool->Borrow());
+  if (!sock || !SendWireMessage(sock.get(), msg)) {
     PERFETTO_ELOG("Failed to send wire message");
-    fd.Close();
+    sock.Shutdown();
     return false;
   }
   return true;
 }
 
-SocketPool::SocketPool(std::vector<base::ScopedFile> sockets)
+SocketPool::SocketPool(std::vector<base::UnixSocketRaw> sockets)
     : sockets_(std::move(sockets)), available_sockets_(sockets_.size()) {}
 
 BorrowedSocket SocketPool::Borrow() {
   std::unique_lock<std::timed_mutex> l(mutex_, kLockTimeout);
   if (!l.owns_lock())
-    return {base::ScopedFile(), nullptr};
+    return {base::UnixSocketRaw(), nullptr};
   cv_.wait(l, [this] {
     return available_sockets_ > 0 || dead_sockets_ == sockets_.size() ||
            shutdown_;
   });
 
   if (dead_sockets_ == sockets_.size() || shutdown_) {
-    return {base::ScopedFile(), nullptr};
+    return {base::UnixSocketRaw(), nullptr};
   }
 
   PERFETTO_CHECK(available_sockets_ > 0);
   return {std::move(sockets_[--available_sockets_]), this};
 }
 
-void SocketPool::Return(base::ScopedFile sock) {
+void SocketPool::Return(base::UnixSocketRaw sock) {
   std::unique_lock<std::timed_mutex> l(mutex_, kLockTimeout);
   if (!l.owns_lock())
     return;
@@ -179,7 +170,7 @@ void SocketPool::Shutdown() {
     if (!l.owns_lock())
       return;
     for (size_t i = 0; i < available_sockets_; ++i)
-      sockets_[i].reset();
+      sockets_[i].Shutdown();
     dead_sockets_ += available_sockets_;
     available_sockets_ = 0;
     shutdown_ = true;
@@ -202,7 +193,7 @@ const char* GetThreadStackBase() {
   return stackaddr + stacksize;
 }
 
-Client::Client(std::vector<base::ScopedFile> socks)
+Client::Client(std::vector<base::UnixSocketRaw> socks)
     : pthread_key_(ThreadLocalSamplingData::KeyDestructor),
       socket_pool_(std::move(socks)),
       main_thread_stack_base_(FindMainThreadStack()) {
@@ -218,16 +209,16 @@ Client::Client(std::vector<base::ScopedFile> socks)
   int fds[2];
   fds[0] = *maps;
   fds[1] = *mem;
-  auto fd = socket_pool_.Borrow();
-  if (!fd)
+  auto sock = socket_pool_.Borrow();
+  if (!sock)
     return;
   // Send an empty record to transfer fds for /proc/self/maps and
   // /proc/self/mem.
-  if (base::SockSend(*fd, &size, sizeof(size), fds, 2) != sizeof(size)) {
+  if (sock->Send(&size, sizeof(size), fds, 2) != sizeof(size)) {
     PERFETTO_DFATAL("Failed to send file descriptors.");
     return;
   }
-  if (recv(*fd, &client_config_, sizeof(client_config_), 0) !=
+  if (sock->Receive(&client_config_, sizeof(client_config_)) !=
       sizeof(client_config_)) {
     PERFETTO_DFATAL("Failed to receive client config.");
     return;
@@ -294,10 +285,10 @@ void Client::RecordMalloc(uint64_t alloc_size,
   msg.payload = const_cast<char*>(stacktop);
   msg.payload_size = static_cast<size_t>(stack_size);
 
-  BorrowedSocket fd = socket_pool_.Borrow();
-  if (!fd || !SendWireMessage(*fd, msg)) {
+  BorrowedSocket sock = socket_pool_.Borrow();
+  if (!sock || !SendWireMessage(sock.get(), msg)) {
     PERFETTO_DFATAL("Failed to send wire message.");
-    fd.Close();
+    sock.Shutdown();
     Shutdown();
   }
 }
