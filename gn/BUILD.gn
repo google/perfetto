@@ -66,6 +66,10 @@ group("gtest_main") {
     public_deps = [
       "//buildtools:gtest_main",
     ]
+  } else if (build_with_chromium) {
+    public_deps = [
+      "//base/test:run_all_unittests",
+    ]
   } else {
     public_deps = [
       "//testing/gtest:gtest_main",
