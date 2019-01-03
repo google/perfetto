@@ -378,10 +378,6 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
 
-  // Writing to the file may happen concurrently to the read below, which can
-  // cause flakiness. Flush forcefully to ensure all data was written.
-  base::FlushFile(*tmp_file);
-
   // Verify the contents of the file.
   std::string trace_raw;
   ASSERT_TRUE(base::ReadFile(tmp_file.path().c_str(), &trace_raw));
