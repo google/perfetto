@@ -37,7 +37,7 @@ bool ViewAndAdvance(char** ptr, T** out, const char* end) {
 }
 }  // namespace
 
-bool SendWireMessage(int sock, const WireMessage& msg) {
+bool SendWireMessage(base::UnixSocketRaw* sock, const WireMessage& msg) {
   uint64_t total_size;
   struct iovec iovecs[4] = {};
   // TODO(fmayer): Maye pack these two.
@@ -72,7 +72,7 @@ bool SendWireMessage(int sock, const WireMessage& msg) {
     total_size = iovecs[1].iov_len + iovecs[2].iov_len;
   }
 
-  ssize_t sent = base::SendMsgAll(sock, &hdr, MSG_NOSIGNAL);
+  ssize_t sent = sock->SendMsgAll(&hdr);
   return sent == static_cast<ssize_t>(total_size + sizeof(total_size));
 }
 

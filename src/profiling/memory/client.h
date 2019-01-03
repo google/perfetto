@@ -24,7 +24,7 @@
 #include <mutex>
 #include <vector>
 
-#include "perfetto/base/scoped_file.h"
+#include "perfetto/base/unix_socket.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -35,7 +35,7 @@ class BorrowedSocket;
 class SocketPool {
  public:
   friend class BorrowedSocket;
-  SocketPool(std::vector<base::ScopedFile> sockets);
+  SocketPool(std::vector<base::UnixSocketRaw> sockets);
 
   BorrowedSocket Borrow();
   void Shutdown();
@@ -43,10 +43,10 @@ class SocketPool {
  private:
   bool shutdown_ = false;
 
-  void Return(base::ScopedFile fd);
+  void Return(base::UnixSocketRaw);
   std::timed_mutex mutex_;
   std::condition_variable_any cv_;
-  std::vector<base::ScopedFile> sockets_;
+  std::vector<base::UnixSocketRaw> sockets_;
   size_t available_sockets_;
   size_t dead_sockets_ = 0;
 };
@@ -56,30 +56,26 @@ class BorrowedSocket {
  public:
   BorrowedSocket(const BorrowedSocket&) = delete;
   BorrowedSocket& operator=(const BorrowedSocket&) = delete;
-  BorrowedSocket(BorrowedSocket&& other) noexcept {
-    fd_ = std::move(other.fd_);
-    socket_pool_ = other.socket_pool_;
+  BorrowedSocket(BorrowedSocket&& other) noexcept
+      : sock_(std::move(other.sock_)), socket_pool_(other.socket_pool_) {
     other.socket_pool_ = nullptr;
   }
 
-  BorrowedSocket(base::ScopedFile fd, SocketPool* socket_pool)
-      : fd_(std::move(fd)), socket_pool_(socket_pool) {}
+  BorrowedSocket(base::UnixSocketRaw sock, SocketPool* socket_pool)
+      : sock_(std::move(sock)), socket_pool_(socket_pool) {}
 
   ~BorrowedSocket() {
     if (socket_pool_ != nullptr)
-      socket_pool_->Return(std::move(fd_));
+      socket_pool_->Return(std::move(sock_));
   }
 
-  int operator*() { return get(); }
-
-  int get() { return *fd_; }
-
-  void Close() { fd_.reset(); }
-
-  operator bool() const { return !!fd_; }
+  base::UnixSocketRaw* operator->() { return &sock_; }
+  base::UnixSocketRaw* get() { return &sock_; }
+  void Shutdown() { sock_.Shutdown(); }
+  explicit operator bool() const { return !!sock_; }
 
  private:
-  base::ScopedFile fd_;
+  base::UnixSocketRaw sock_;
   SocketPool* socket_pool_ = nullptr;
 };
 
@@ -130,7 +126,7 @@ class PThreadKey {
 // This is created and owned by the malloc hooks.
 class Client {
  public:
-  Client(std::vector<base::ScopedFile> sockets);
+  Client(std::vector<base::UnixSocketRaw> sockets);
   Client(const std::string& sock_name, size_t conns);
   void RecordMalloc(uint64_t alloc_size,
                     uint64_t total_size,
