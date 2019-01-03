@@ -18,6 +18,7 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "perfetto/config/trace_config.proto";
+import "perfetto/trace/android/android_log.proto";
 import "perfetto/trace/chrome/chrome_trace_event.proto";
 import "perfetto/trace/clock_snapshot.proto";
 import "perfetto/trace/filesystem/inode_file_map.proto";
@@ -36,7 +37,7 @@ package perfetto.protos;
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
 //
-// Next id: 39.
+// Next id: 40.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -59,6 +60,7 @@ message TracePacket {
     TraceStats trace_stats = 35;
     ProfilePacket profile_packet = 37;
     BatteryCounters battery = 38;
+    AndroidLogPacket android_log = 39;
 
     // This field is emitted at periodic intervals (~10s) and
     // contains always the binary representation of the UUID
