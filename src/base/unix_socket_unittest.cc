@@ -18,7 +18,9 @@
 
 #include <signal.h>
 #include <sys/mman.h>
-
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
 #include <list>
 #include <thread>
 
@@ -265,7 +267,9 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeFDs) {
 }
 
 TEST_F(UnixSocketTest, ListenWithPassedFileDescriptor) {
-  auto fd = UnixSocket::CreateAndBind(kSocketName);
+  auto sock_raw = UnixSocketRaw::CreateMayFail(SockType::kStream);
+  ASSERT_TRUE(sock_raw.Bind(kSocketName));
+  auto fd = sock_raw.ReleaseFd();
   auto srv = UnixSocket::Listen(std::move(fd), &event_listener_, &task_runner_);
   ASSERT_TRUE(srv->is_listening());
 
@@ -566,7 +570,7 @@ TEST_F(UnixSocketTest, ShiftMsgHdrSendPartialFirst) {
   hdr.msg_iov = iov;
   hdr.msg_iovlen = base::ArraySize(iov);
 
-  ShiftMsgHdr(1, &hdr);
+  UnixSocketRaw::ShiftMsgHdr(1, &hdr);
   EXPECT_NE(hdr.msg_iov, nullptr);
   EXPECT_EQ(hdr.msg_iov[0].iov_base, &hello[1]);
   EXPECT_EQ(hdr.msg_iov[1].iov_base, &world[0]);
@@ -574,13 +578,13 @@ TEST_F(UnixSocketTest, ShiftMsgHdrSendPartialFirst) {
   EXPECT_STREQ(reinterpret_cast<char*>(hdr.msg_iov[0].iov_base), "ello");
   EXPECT_EQ(iov[0].iov_len, base::ArraySize(hello) - 1);
 
-  ShiftMsgHdr(base::ArraySize(hello) - 1, &hdr);
+  UnixSocketRaw::ShiftMsgHdr(base::ArraySize(hello) - 1, &hdr);
   EXPECT_EQ(hdr.msg_iov, &iov[1]);
   EXPECT_EQ(hdr.msg_iovlen, 1);
   EXPECT_STREQ(reinterpret_cast<char*>(hdr.msg_iov[0].iov_base), world);
   EXPECT_EQ(hdr.msg_iov[0].iov_len, base::ArraySize(world));
 
-  ShiftMsgHdr(base::ArraySize(world), &hdr);
+  UnixSocketRaw::ShiftMsgHdr(base::ArraySize(world), &hdr);
   EXPECT_EQ(hdr.msg_iov, nullptr);
   EXPECT_EQ(hdr.msg_iovlen, 0);
 }
@@ -600,13 +604,13 @@ TEST_F(UnixSocketTest, ShiftMsgHdrSendFirstAndPartial) {
   hdr.msg_iov = iov;
   hdr.msg_iovlen = base::ArraySize(iov);
 
-  ShiftMsgHdr(base::ArraySize(hello) + 1, &hdr);
+  UnixSocketRaw::ShiftMsgHdr(base::ArraySize(hello) + 1, &hdr);
   EXPECT_NE(hdr.msg_iov, nullptr);
   EXPECT_EQ(hdr.msg_iovlen, 1);
   EXPECT_STREQ(reinterpret_cast<char*>(hdr.msg_iov[0].iov_base), "orld");
   EXPECT_EQ(hdr.msg_iov[0].iov_len, base::ArraySize(world) - 1);
 
-  ShiftMsgHdr(base::ArraySize(world) - 1, &hdr);
+  UnixSocketRaw::ShiftMsgHdr(base::ArraySize(world) - 1, &hdr);
   EXPECT_EQ(hdr.msg_iov, nullptr);
   EXPECT_EQ(hdr.msg_iovlen, 0);
 }
@@ -626,7 +630,8 @@ TEST_F(UnixSocketTest, ShiftMsgHdrSendEverything) {
   hdr.msg_iov = iov;
   hdr.msg_iovlen = base::ArraySize(iov);
 
-  ShiftMsgHdr(base::ArraySize(world) + base::ArraySize(hello), &hdr);
+  UnixSocketRaw::ShiftMsgHdr(base::ArraySize(world) + base::ArraySize(hello),
+                             &hdr);
   EXPECT_EQ(hdr.msg_iov, nullptr);
   EXPECT_EQ(hdr.msg_iovlen, 0);
 }
@@ -638,17 +643,18 @@ int RollbackSigaction(const struct sigaction* act) {
 }
 
 TEST_F(UnixSocketTest, PartialSendMsgAll) {
-  int sv[2];
-  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
-  base::ScopedFile send_socket(sv[0]);
-  base::ScopedFile recv_socket(sv[1]);
+  UnixSocketRaw send_sock;
+  UnixSocketRaw recv_sock;
+  std::tie(send_sock, recv_sock) = UnixSocketRaw::CreatePair(SockType::kStream);
+  ASSERT_TRUE(send_sock);
+  ASSERT_TRUE(recv_sock);
 
   // Set bufsize to minimum.
   int bufsize = 1024;
-  ASSERT_EQ(setsockopt(*send_socket, SOL_SOCKET, SO_SNDBUF, &bufsize,
+  ASSERT_EQ(setsockopt(send_sock.fd(), SOL_SOCKET, SO_SNDBUF, &bufsize,
                        sizeof(bufsize)),
             0);
-  ASSERT_EQ(setsockopt(*recv_socket, SOL_SOCKET, SO_RCVBUF, &bufsize,
+  ASSERT_EQ(setsockopt(recv_sock.fd(), SOL_SOCKET, SO_RCVBUF, &bufsize,
                        sizeof(bufsize)),
             0);
 
@@ -674,8 +680,8 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
       rollback(&oldact);
 
   auto blocked_thread = pthread_self();
-  std::thread th([blocked_thread, &recv_socket, &recv_buf] {
-    ssize_t rd = PERFETTO_EINTR(read(*recv_socket, recv_buf, 1));
+  std::thread th([blocked_thread, &recv_sock, &recv_buf] {
+    ssize_t rd = PERFETTO_EINTR(read(recv_sock.fd(), recv_buf, 1));
     ASSERT_EQ(rd, 1);
     // We are now sure the other thread is in sendmsg, interrupt send.
     ASSERT_EQ(pthread_kill(blocked_thread, SIGWINCH), 0);
@@ -683,7 +689,7 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
     size_t offset = 1;
     while (offset < sizeof(recv_buf)) {
       rd = PERFETTO_EINTR(
-          read(*recv_socket, recv_buf + offset, sizeof(recv_buf) - offset));
+          read(recv_sock.fd(), recv_buf + offset, sizeof(recv_buf) - offset));
       ASSERT_GE(rd, 0);
       offset += static_cast<size_t>(rd);
     }
@@ -703,8 +709,8 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
   hdr.msg_iov = iov;
   hdr.msg_iovlen = base::ArraySize(iov);
 
-  ASSERT_EQ(SendMsgAll(*send_socket, &hdr, 0), sizeof(send_buf));
-  send_socket.reset();
+  ASSERT_EQ(send_sock.SendMsgAll(&hdr), sizeof(send_buf));
+  send_sock.Shutdown();
   th.join();
   // Make sure the re-entry logic was actually triggered.
   ASSERT_EQ(hdr.msg_iov, nullptr);
