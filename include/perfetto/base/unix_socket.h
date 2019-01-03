@@ -28,46 +28,87 @@
 #include "perfetto/base/utils.h"
 #include "perfetto/base/weak_ptr.h"
 
-#include <sys/socket.h>
-#include <sys/un.h>
+struct msghdr;
 
 namespace perfetto {
 namespace base {
 
 class TaskRunner;
 
-ssize_t SockSend(int fd,
-                 const void* msg,
-                 size_t len,
-                 const int* send_fds,
-                 size_t num_fds);
+// Use arbitrarily high values to avoid that some code accidentally ends up
+// assuming that these enum values match the sysroot's SOCK_xxx defines rather
+// than using GetUnixSockType().
+enum class SockType { kStream = 100, kDgram, kSeqPacket };
 
-ssize_t SockReceive(int fd,
-                    void* msg,
-                    size_t len,
-                    base::ScopedFile* fd_vec,
-                    size_t max_files);
+// UnixSocketRaw is a basic wrapper around UNIX sockets. It exposes wrapper
+// methods that take care of most common pitfalls (e.g., marking fd as
+// O_CLOEXEC, avoiding SIGPIPE, properly handling partial writes). It is used as
+// a building block for the more sophisticated UnixSocket class.
+class UnixSocketRaw {
+ public:
+  // Creates a new unconnected unix socket.
+  static UnixSocketRaw CreateMayFail(SockType t) { return UnixSocketRaw(t); }
 
-bool MakeSockAddr(const std::string& socket_name,
-                  sockaddr_un* addr,
-                  socklen_t* addr_size);
+  // Crates a pair of connected sockets.
+  static std::pair<UnixSocketRaw, UnixSocketRaw> CreatePair(SockType);
 
-base::ScopedFile CreateSocket();
+  // Creates an uninitialized unix socket.
+  UnixSocketRaw();
 
-// Update msghdr so subsequent sendmsg will send data that remains after n bytes
-// have already been sent.
-// This should not be used, it's exported for test use only.
-void ShiftMsgHdr(size_t n, struct msghdr* msg);
+  // Creates a unix socket adopting an existing file descriptor. This is
+  // typically used to inherit fds from init via environment variables.
+  UnixSocketRaw(ScopedFile, SockType);
 
-// Re-enter sendmsg until all the data has been sent or an error occurs.
-//
-// TODO(fmayer): Figure out how to do timeouts here for heapprofd.
-ssize_t SendMsgAll(int sockfd, struct msghdr* msg, int flags);
+  ~UnixSocketRaw() = default;
+  UnixSocketRaw(UnixSocketRaw&&) noexcept = default;
+  UnixSocketRaw& operator=(UnixSocketRaw&&) = default;
 
-// A non-blocking UNIX domain socket in SOCK_STREAM mode. Allows also to
-// transfer file descriptors. None of the methods in this class are blocking.
-// The main design goal is API simplicity and strong guarantees on the
-// EventListener callbacks, in order to avoid ending in some undefined state.
+  bool Bind(const std::string& socket_name);
+  bool Listen();
+  bool Connect(const std::string& socket_name);
+  bool SetTxTimeout(uint32_t timeout_ms);
+  void Shutdown();
+  void SetBlocking(bool);
+  bool IsBlocking() const;
+  SockType type() const { return type_; }
+  int fd() const { return *fd_; }
+  explicit operator bool() const { return !!fd_; }
+
+  ScopedFile ReleaseFd() { return std::move(fd_); }
+
+  ssize_t Send(const void* msg,
+               size_t len,
+               const int* send_fds = nullptr,
+               size_t num_fds = 0);
+
+  // Re-enter sendmsg until all the data has been sent or an error occurs.
+  // TODO(fmayer): Figure out how to do timeouts here for heapprofd.
+  ssize_t SendMsgAll(struct msghdr* msg);
+
+  ssize_t Receive(void* msg,
+                  size_t len,
+                  ScopedFile* fd_vec = nullptr,
+                  size_t max_files = 0);
+
+  // Exposed for testing only.
+  // Update msghdr so subsequent sendmsg will send data that remains after n
+  // bytes have already been sent.
+  static void ShiftMsgHdr(size_t n, struct msghdr* msg);
+
+ private:
+  explicit UnixSocketRaw(SockType);
+
+  UnixSocketRaw(const UnixSocketRaw&) = delete;
+  UnixSocketRaw& operator=(const UnixSocketRaw&) = delete;
+
+  ScopedFile fd_;
+  SockType type_{SockType::kStream};
+};
+
+// A non-blocking UNIX domain socket. Allows also to transfer file descriptors.
+// None of the methods in this class are blocking.
+// The main design goal is making strong guarantees on the EventListener
+// callbacks, in order to avoid ending in some undefined state.
 // In case of any error it will aggressively just shut down the socket and
 // notify the failure with OnConnect(false) or OnDisconnect() depending on the
 // state of the socket (see below).
@@ -143,26 +184,23 @@ class UnixSocket {
   // is_listening() == false and last_error() will contain the failure reason.
   static std::unique_ptr<UnixSocket> Listen(const std::string& socket_name,
                                             EventListener*,
-                                            base::TaskRunner*);
+                                            TaskRunner*,
+                                            SockType = SockType::kStream);
 
   // Attaches to a pre-existing socket. The socket must have been created in
   // SOCK_STREAM mode and the caller must have called bind() on it.
-  static std::unique_ptr<UnixSocket> Listen(base::ScopedFile socket_fd,
+  static std::unique_ptr<UnixSocket> Listen(ScopedFile,
                                             EventListener*,
-                                            base::TaskRunner*);
+                                            TaskRunner*,
+                                            SockType = SockType::kStream);
 
   // Creates a Unix domain socket and connects to the listening endpoint.
   // Returns always an instance. EventListener::OnConnect(bool success) will
   // be called always, whether the connection succeeded or not.
   static std::unique_ptr<UnixSocket> Connect(const std::string& socket_name,
                                              EventListener*,
-                                             base::TaskRunner*);
-
-  // Creates a Unix domain socket and binds it to |socket_name| (see comment
-  // of Listen() above for the format). This file descriptor is suitable to be
-  // passed to Listen(ScopedFile, ...). Returns the file descriptor, or -1 in
-  // case of failure.
-  static base::ScopedFile CreateAndBind(const std::string& socket_name);
+                                             TaskRunner*,
+                                             SockType = SockType::kStream);
 
   // This class gives the hard guarantee that no callback is called on the
   // passed EventListener immediately after the object has been destroyed.
@@ -184,15 +222,23 @@ class UnixSocket {
   // DO NOT PASS kNonBlocking, it is broken.
   bool Send(const void* msg,
             size_t len,
-            int send_fd = -1,
-            BlockingMode blocking = BlockingMode::kNonBlocking);
-  bool Send(const void* msg,
-            size_t len,
             const int* send_fds,
             size_t num_fds,
             BlockingMode blocking = BlockingMode::kNonBlocking);
-  bool Send(const std::string& msg,
-            BlockingMode blockimg = BlockingMode::kNonBlocking);
+
+  inline bool Send(const void* msg,
+                   size_t len,
+                   int send_fd = -1,
+                   BlockingMode blocking = BlockingMode::kNonBlocking) {
+    if (send_fd != -1)
+      return Send(msg, len, &send_fd, 1, blocking);
+    return Send(msg, len, nullptr, 0, blocking);
+  }
+
+  inline bool Send(const std::string& msg,
+                   BlockingMode blocking = BlockingMode::kNonBlocking) {
+    return Send(msg.c_str(), msg.size() + 1, -1, blocking);
+  }
 
   // Returns the number of bytes (<= |len|) written in |msg| or 0 if there
   // is no data in the buffer to read or an error occurs (in which case a
@@ -200,11 +246,11 @@ class UnixSocket {
   // If the ScopedFile pointer is not null and a FD is received, it moves the
   // received FD into that. If a FD is received but the ScopedFile pointer is
   // null, the FD will be automatically closed.
-  size_t Receive(void* msg, size_t len);
-  size_t Receive(void* msg,
-                 size_t len,
-                 base::ScopedFile*,
-                 size_t max_files = 1);
+  size_t Receive(void* msg, size_t len, ScopedFile*, size_t max_files = 1);
+
+  inline size_t Receive(void* msg, size_t len) {
+    return Receive(msg, len, nullptr, 0);
+  }
 
   // Only for tests. This is slower than Receive() as it requires a heap
   // allocation and a copy for the std::string. Guarantees that the returned
@@ -214,7 +260,7 @@ class UnixSocket {
 
   bool is_connected() const { return state_ == State::kConnected; }
   bool is_listening() const { return state_ == State::kListening; }
-  int fd() const { return fd_.get(); }
+  int fd() const { return sock_raw_.fd(); }
   int last_error() const { return last_error_; }
 
   // User ID of the peer, as returned by the kernel. If the client disconnects
@@ -239,20 +285,19 @@ class UnixSocket {
 #endif
 
  private:
-  UnixSocket(EventListener*, base::TaskRunner*);
-  UnixSocket(EventListener*, base::TaskRunner*, base::ScopedFile, State);
+  UnixSocket(EventListener*, TaskRunner*, SockType);
+  UnixSocket(EventListener*, TaskRunner*, ScopedFile, State, SockType);
   UnixSocket(const UnixSocket&) = delete;
   UnixSocket& operator=(const UnixSocket&) = delete;
 
   // Called once by the corresponding public static factory methods.
   void DoConnect(const std::string& socket_name);
   void ReadPeerCredentials();
-  void SetBlockingIO(bool is_blocking);
 
   void OnEvent();
   void NotifyConnectionState(bool success);
 
-  base::ScopedFile fd_;
+  UnixSocketRaw sock_raw_;
   State state_ = State::kDisconnected;
   int last_error_ = 0;
   uid_t peer_uid_ = kInvalidUid;
@@ -260,9 +305,9 @@ class UnixSocket {
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   pid_t peer_pid_ = kInvalidPid;
 #endif
-  EventListener* event_listener_;
-  base::TaskRunner* task_runner_;
-  base::WeakPtrFactory<UnixSocket> weak_ptr_factory_;
+  EventListener* const event_listener_;
+  TaskRunner* const task_runner_;
+  WeakPtrFactory<UnixSocket> weak_ptr_factory_;
 };
 
 }  // namespace base
