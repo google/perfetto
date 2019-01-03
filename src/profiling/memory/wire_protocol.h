@@ -30,6 +30,11 @@
 #include <unwindstack/UserX86_64.h>
 
 namespace perfetto {
+
+namespace base {
+class UnixSocketRaw;
+}
+
 namespace profiling {
 
 // Types needed for the wire format used for communication between the client
@@ -115,7 +120,7 @@ struct WireMessage {
   size_t payload_size;
 };
 
-bool SendWireMessage(int sock, const WireMessage& msg);
+bool SendWireMessage(base::UnixSocketRaw*, const WireMessage& msg);
 
 // Parse message received over the wire.
 // |buf| has to outlive |out|.
