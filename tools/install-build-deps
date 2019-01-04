@@ -363,6 +363,7 @@ def Main():
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.ui:
     deps += UI_DEPS
+  deps_updated = False
   for rel_path, url, expected_sha1, platform in deps:
     if (platform != 'all' and platform != sys.platform):
       continue
@@ -377,6 +378,7 @@ def Main():
     if ((not is_zip and HashLocalFile(local_path) == expected_sha1) or
         (is_zip and ReadFile(zip_dir_stamp) == expected_sha1)):
       continue
+    deps_updated = True
     MkdirRecursive(os.path.dirname(rel_path))
     if HashLocalFile(local_path) != expected_sha1:
       download_path = local_path + '.tmp'
@@ -426,6 +428,12 @@ def Main():
   if args.ui:
     # Needs to happen after nodejs is installed above.
     InstallNodeModules()
+
+  if deps_updated:
+    # Stale binary files may be compiled against old sysroot headers that aren't
+    # tracked by gn.
+    logging.warn('Remember to run "gn clean <output_directory>" ' +
+                 'to avoid stale binary files.')
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.INFO)
