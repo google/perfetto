@@ -60,7 +60,7 @@ constexpr size_t kDefaultShmPageSize = base::kPageSize;
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kSnapshotsInterval(10 * 1000);
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
-constexpr int kFlushTimeoutMs = 1000;
+constexpr int kFlushTimeoutMs = 5000;
 constexpr int kMaxConcurrentTracingSessions = 5;
 
 constexpr uint64_t kMillisPerHour = 3600000;
