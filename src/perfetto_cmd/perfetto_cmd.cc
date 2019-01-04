@@ -58,7 +58,7 @@
 namespace perfetto {
 namespace {
 
-constexpr uint32_t kFlushTimeoutMs = 1000;
+constexpr uint32_t kFlushTimeoutMs = 5000;
 
 perfetto::PerfettoCmd* g_consumer_cmd;
 
