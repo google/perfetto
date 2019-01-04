@@ -61,7 +61,7 @@ class TraceWriterImpl : public TraceWriter,
 
   // Monotonic (% wrapping) sequence id of the chunk. Together with the WriterID
   // this allows the Service to reconstruct the linear sequence of packets.
-  uint16_t next_chunk_id_ = 0;
+  ChunkID next_chunk_id_ = 0;
 
   // The chunk we are holding onto (if any).
   SharedMemoryABI::Chunk cur_chunk_;
