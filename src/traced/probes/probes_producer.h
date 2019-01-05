@@ -30,9 +30,6 @@
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
-#include "src/traced/probes/power/android_power_data_source.h"
-#include "src/traced/probes/ps/process_stats_data_source.h"
-#include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 
 #include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
 
@@ -66,23 +63,21 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
                           base::TaskRunner* task_runner);
   std::unique_ptr<ProbesDataSource> CreateFtraceDataSource(
       TracingSessionID session_id,
-      DataSourceInstanceID id,
       const DataSourceConfig& config);
   std::unique_ptr<ProbesDataSource> CreateProcessStatsDataSource(
       TracingSessionID session_id,
-      DataSourceInstanceID id,
       const DataSourceConfig& config);
   std::unique_ptr<ProbesDataSource> CreateInodeFileDataSource(
       TracingSessionID session_id,
-      DataSourceInstanceID id,
       DataSourceConfig config);
-  std::unique_ptr<SysStatsDataSource> CreateSysStatsDataSource(
+  std::unique_ptr<ProbesDataSource> CreateSysStatsDataSource(
       TracingSessionID session_id,
-      DataSourceInstanceID id,
       const DataSourceConfig& config);
-  std::unique_ptr<AndroidPowerDataSource> CreateAndroidPowerDataSource(
+  std::unique_ptr<ProbesDataSource> CreateAndroidPowerDataSource(
       TracingSessionID session_id,
-      DataSourceInstanceID id,
+      const DataSourceConfig& config);
+  std::unique_ptr<ProbesDataSource> CreateAndroidLogDataSource(
+      TracingSessionID session_id,
       const DataSourceConfig& config);
 
  private:
