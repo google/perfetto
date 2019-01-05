@@ -24,6 +24,7 @@ if (perfetto_build_standalone) {
     ]
 
     sources = [
+      "android_log.cfg",
       "atrace.cfg",
       "ftrace.cfg",
       "ftrace_largebuffer.cfg",
