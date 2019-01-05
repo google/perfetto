@@ -28,6 +28,7 @@ proto_library("lite") {
     "../common:lite",
   ]
   sources = [
+    "android/android_log_config.proto",
     "chrome/chrome_config.proto",
     "data_source_config.proto",
     "data_source_descriptor.proto",
@@ -49,6 +50,7 @@ protozero_library("zero") {
     "../common:zero",
   ]
   sources = [
+    "android/android_log_config.proto",
     "chrome/chrome_config.proto",
     "data_source_config.proto",
     "data_source_descriptor.proto",

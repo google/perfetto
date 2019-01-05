@@ -21,7 +21,9 @@ import re
 import sys
 
 CONFIG_PROTOS = (
+  'protos/perfetto/common/android_log_constants.proto',
   'protos/perfetto/common/sys_stats_counters.proto',
+  'protos/perfetto/config/android/android_log_config.proto',
   'protos/perfetto/config/chrome/chrome_config.proto',
   'protos/perfetto/config/data_source_config.proto',
   'protos/perfetto/config/ftrace/ftrace_config.proto',
@@ -37,7 +39,9 @@ CONFIG_PROTOS = (
 MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'
 
 TRACE_PROTOS = (
+  'protos/perfetto/common/android_log_constants.proto',
   'protos/perfetto/common/sys_stats_counters.proto',
+  'protos/perfetto/trace/android/android_log.proto',
   'protos/perfetto/trace/clock_snapshot.proto',
   'protos/perfetto/trace/filesystem/inode_file_map.proto',
   'protos/perfetto/trace/ftrace/binder.proto',

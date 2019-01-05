@@ -19,12 +19,13 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-import "perfetto/config/profiling/heapprofd_config.proto";
+import "perfetto/config/android/android_log_config.proto";
 import "perfetto/config/chrome/chrome_config.proto";
 import "perfetto/config/ftrace/ftrace_config.proto";
 import "perfetto/config/inode_file/inode_file_config.proto";
 import "perfetto/config/power/android_power_config.proto";
 import "perfetto/config/process_stats/process_stats_config.proto";
+import "perfetto/config/profiling/heapprofd_config.proto";
 import "perfetto/config/sys_stats/sys_stats_config.proto";
 import "perfetto/config/test_config.proto";
 
@@ -67,6 +68,7 @@ message DataSourceConfig {
   optional SysStatsConfig sys_stats_config = 104;
   optional HeapprofdConfig heapprofd_config = 105;
   optional AndroidPowerConfig android_power_config = 106;
+  optional AndroidLogConfig android_log_config = 107;
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that

@@ -33,10 +33,13 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/ipc/producer_ipc_client.h"
+#include "src/traced/probes/android_log/android_log_data_source.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
 #include "src/traced/probes/power/android_power_data_source.h"
 #include "src/traced/probes/probes_data_source.h"
+#include "src/traced/probes/ps/process_stats_data_source.h"
+#include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 
 #include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -57,6 +60,7 @@ constexpr char kProcessStatsSourceName[] = "linux.process_stats";
 constexpr char kInodeMapSourceName[] = "linux.inode_file_map";
 constexpr char kSysStatsSourceName[] = "linux.sys_stats";
 constexpr char kAndroidPowerSourceName[] = "android.power";
+constexpr char kAndroidLogSourceName[] = "android.log";
 
 }  // namespace.
 
@@ -110,6 +114,12 @@ void ProbesProducer::OnConnect() {
     desc.set_name(kAndroidPowerSourceName);
     endpoint_->RegisterDataSource(desc);
   }
+
+  {
+    DataSourceDescriptor desc;
+    desc.set_name(kAndroidLogSourceName);
+    endpoint_->RegisterDataSource(desc);
+  }
 }
 
 void ProbesProducer::OnDisconnect() {
@@ -151,15 +161,17 @@ void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
 
   std::unique_ptr<ProbesDataSource> data_source;
   if (config.name() == kFtraceSourceName) {
-    data_source = CreateFtraceDataSource(session_id, instance_id, config);
+    data_source = CreateFtraceDataSource(session_id, config);
   } else if (config.name() == kInodeMapSourceName) {
-    data_source = CreateInodeFileDataSource(session_id, instance_id, config);
+    data_source = CreateInodeFileDataSource(session_id, config);
   } else if (config.name() == kProcessStatsSourceName) {
-    data_source = CreateProcessStatsDataSource(session_id, instance_id, config);
+    data_source = CreateProcessStatsDataSource(session_id, config);
   } else if (config.name() == kSysStatsSourceName) {
-    data_source = CreateSysStatsDataSource(session_id, instance_id, config);
+    data_source = CreateSysStatsDataSource(session_id, config);
   } else if (config.name() == kAndroidPowerSourceName) {
-    data_source = CreateAndroidPowerDataSource(session_id, instance_id, config);
+    data_source = CreateAndroidPowerDataSource(session_id, config);
+  } else if (config.name() == kAndroidLogSourceName) {
+    data_source = CreateAndroidLogDataSource(session_id, config);
   }
 
   if (!data_source) {
@@ -195,7 +207,6 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
 
 std::unique_ptr<ProbesDataSource> ProbesProducer::CreateFtraceDataSource(
     TracingSessionID session_id,
-    DataSourceInstanceID id,
     const DataSourceConfig& config) {
   // Don't retry if FtraceController::Create() failed once.
   // This can legitimately happen on user builds where we cannot access the
@@ -217,8 +228,7 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateFtraceDataSource(
     ftrace_->ClearTrace();
   }
 
-  PERFETTO_LOG("Ftrace setup (id=%" PRIu64 ", target_buf=%" PRIu32 ")", id,
-               config.target_buffer());
+  PERFETTO_LOG("Ftrace setup (target_buf=%" PRIu32 ")", config.target_buffer());
   const BufferID buffer_id = static_cast<BufferID>(config.target_buffer());
   std::unique_ptr<FtraceDataSource> data_source(new FtraceDataSource(
       ftrace_->GetWeakPtr(), session_id, config.ftrace_config(),
@@ -234,10 +244,9 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateFtraceDataSource(
 
 std::unique_ptr<ProbesDataSource> ProbesProducer::CreateInodeFileDataSource(
     TracingSessionID session_id,
-    DataSourceInstanceID id,
     DataSourceConfig source_config) {
-  PERFETTO_LOG("Inode file map setup (id=%" PRIu64 ", target_buf=%" PRIu32 ")",
-               id, source_config.target_buffer());
+  PERFETTO_LOG("Inode file map setup (target_buf=%" PRIu32 ")",
+               source_config.target_buffer());
   auto buffer_id = static_cast<BufferID>(source_config.target_buffer());
   if (system_inodes_.empty())
     CreateStaticDeviceToInodeMap("/system", &system_inodes_);
@@ -248,31 +257,34 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateInodeFileDataSource(
 
 std::unique_ptr<ProbesDataSource> ProbesProducer::CreateProcessStatsDataSource(
     TracingSessionID session_id,
-    DataSourceInstanceID id,
     const DataSourceConfig& config) {
-  base::ignore_result(id);
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
   return std::unique_ptr<ProcessStatsDataSource>(new ProcessStatsDataSource(
       task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id),
       config));
 }
 
-std::unique_ptr<AndroidPowerDataSource>
-ProbesProducer::CreateAndroidPowerDataSource(TracingSessionID session_id,
-                                             DataSourceInstanceID id,
-                                             const DataSourceConfig& config) {
-  base::ignore_result(id);
+std::unique_ptr<ProbesDataSource> ProbesProducer::CreateAndroidPowerDataSource(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<AndroidPowerDataSource>(
+  return std::unique_ptr<ProbesDataSource>(
       new AndroidPowerDataSource(config, task_runner_, session_id,
                                  endpoint_->CreateTraceWriter(buffer_id)));
 }
 
-std::unique_ptr<SysStatsDataSource> ProbesProducer::CreateSysStatsDataSource(
+std::unique_ptr<ProbesDataSource> ProbesProducer::CreateAndroidLogDataSource(
     TracingSessionID session_id,
-    DataSourceInstanceID id,
     const DataSourceConfig& config) {
-  base::ignore_result(id);
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::unique_ptr<ProbesDataSource>(
+      new AndroidLogDataSource(config, task_runner_, session_id,
+                               endpoint_->CreateTraceWriter(buffer_id)));
+}
+
+std::unique_ptr<ProbesDataSource> ProbesProducer::CreateSysStatsDataSource(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
   return std::unique_ptr<SysStatsDataSource>(
       new SysStatsDataSource(task_runner_, session_id,
@@ -419,6 +431,7 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
         break;
       }
       case SysStatsDataSource::kTypeId:
+      case AndroidLogDataSource::kTypeId:
         break;
       default:
         PERFETTO_DFATAL("Invalid data source.");

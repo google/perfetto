@@ -53,6 +53,7 @@ class SysStatsConfig;
 class HeapprofdConfig;
 class HeapprofdConfig_ContinuousDumpConfig;
 class AndroidPowerConfig;
+class AndroidLogConfig;
 class TestConfig;
 class TestConfig_DummyFields;
 class TraceConfig_ProducerConfig;
