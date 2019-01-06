@@ -70,12 +70,7 @@ bool ServiceIPCHostImpl::DoStart() {
       new PosixSharedMemory::Factory());
   svc_ = TracingService::CreateInstance(std::move(shm_factory), task_runner_);
 
-  if (!producer_ipc_port_) {
-    Shutdown();
-    return false;
-  }
-
-  if (!producer_ipc_port_) {
+  if (!producer_ipc_port_ || !consumer_ipc_port_) {
     Shutdown();
     return false;
   }

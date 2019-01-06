@@ -37,7 +37,7 @@ namespace ipc {
 std::unique_ptr<Host> Host::CreateInstance(const char* socket_name,
                                            base::TaskRunner* task_runner) {
   std::unique_ptr<HostImpl> host(new HostImpl(socket_name, task_runner));
-  if (!host->sock()->is_listening())
+  if (!host->sock() || !host->sock()->is_listening())
     return nullptr;
   return std::move(host);
 }
@@ -47,7 +47,7 @@ std::unique_ptr<Host> Host::CreateInstance(base::ScopedFile socket_fd,
                                            base::TaskRunner* task_runner) {
   std::unique_ptr<HostImpl> host(
       new HostImpl(std::move(socket_fd), task_runner));
-  if (!host->sock()->is_listening())
+  if (!host->sock() || !host->sock()->is_listening())
     return nullptr;
   return std::move(host);
 }
