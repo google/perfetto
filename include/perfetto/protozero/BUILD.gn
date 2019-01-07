@@ -23,7 +23,7 @@ source_set("protozero") {
     "proto_decoder.h",
     "proto_field_descriptor.h",
     "proto_utils.h",
-    "scattered_stream_memory_delegate.h",
+    "scattered_heap_buffer.h",
     "scattered_stream_null_delegate.h",
     "scattered_stream_writer.h",
   ]
