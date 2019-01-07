@@ -72,6 +72,14 @@ the client gets a chance to attach or even register the signal handler).
 No other cmdline argument other than `--stop` can be passed when using
 `--attach`.
 
+`--is_detached=key` can be used to check whether a detached session is running.
+The cmdline client will return quickly after the invocation with the following
+exit code:
+
+- 0 if the session identified by `key` exists and can be re-attached.
+- 1 in case of a general error (e.g. wrong cmdline, cannot reach the service).
+- 2 if no detached session with the given `key` is found.
+
 Examples
 --------
 

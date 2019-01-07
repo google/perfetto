@@ -159,6 +159,7 @@ statsd-specific flags:
 Detach mode. DISCOURAGED, read https://docs.perfetto.dev/#/detached-mode :
   --detach=key          : Detach from the tracing session with the given key.
   --attach=key [--stop] : Re-attach to the session (optionally stop tracing once reattached).
+  --is_detached=key     : Check if the session can be re-attached (0:Yes, 2:No, 1:Error).
 )",
                 argv0);
   return 1;
@@ -176,6 +177,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     OPT_IGNORE_GUARDRAILS,
     OPT_DETACH,
     OPT_ATTACH,
+    OPT_IS_DETACHED,
     OPT_STOP,
   };
   static const struct option long_options[] = {
@@ -196,6 +198,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"reset-guardrails", no_argument, nullptr, OPT_RESET_GUARDRAILS},
       {"detach", required_argument, nullptr, OPT_DETACH},
       {"attach", required_argument, nullptr, OPT_ATTACH},
+      {"is_detached", required_argument, nullptr, OPT_IS_DETACHED},
       {"stop", no_argument, nullptr, OPT_STOP},
       {"app", required_argument, nullptr, OPT_ATRACE_APP},
       {nullptr, 0, nullptr, 0}};
@@ -329,6 +332,13 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
     if (option == OPT_ATTACH) {
       attach_key_ = std::string(optarg);
+      PERFETTO_CHECK(!attach_key_.empty());
+      continue;
+    }
+
+    if (option == OPT_IS_DETACHED) {
+      attach_key_ = std::string(optarg);
+      redetach_once_attached_ = true;
       PERFETTO_CHECK(!attach_key_.empty());
       continue;
     }
@@ -657,8 +667,20 @@ void PerfettoCmd::OnDetach(bool success) {
 
 void PerfettoCmd::OnAttach(bool success, const TraceConfig& trace_config) {
   if (!success) {
-    PERFETTO_ELOG("Session re-attach failed. Check service logs for details");
-    exit(1);
+    if (!redetach_once_attached_) {
+      // Print an error message if attach fails, with the exception of the
+      // --is_detached case, where we want to silently return.
+      PERFETTO_ELOG("Session re-attach failed. Check service logs for details");
+    }
+    // Keep this exit code distinguishable from the general error code so
+    // --is_detached can tell the difference between a general error and the
+    // not-detached case.
+    exit(2);
+  }
+
+  if (redetach_once_attached_) {
+    consumer_endpoint_->Detach(attach_key_);  // Will invoke OnDetach() soon.
+    return;
   }
 
   trace_config_.reset(new TraceConfig(trace_config));
