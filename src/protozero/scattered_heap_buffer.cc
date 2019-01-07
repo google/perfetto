@@ -16,6 +16,8 @@
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
 
+#include <algorithm>
+
 namespace protozero {
 
 ScatteredHeapBuffer::Slice::Slice(size_t size)
