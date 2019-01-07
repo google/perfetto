@@ -33,14 +33,20 @@ int __attribute__((visibility("default"))) ServiceMain(int, char**) {
   const char* env_prod = getenv("ANDROID_SOCKET_traced_producer");
   const char* env_cons = getenv("ANDROID_SOCKET_traced_consumer");
   PERFETTO_CHECK((!env_prod && !env_cons) || (env_prod && env_cons));
+  bool started;
   if (env_prod) {
     base::ScopedFile producer_fd(atoi(env_prod));
     base::ScopedFile consumer_fd(atoi(env_cons));
-    svc->Start(std::move(producer_fd), std::move(consumer_fd));
+    started = svc->Start(std::move(producer_fd), std::move(consumer_fd));
   } else {
     unlink(GetProducerSocket());
     unlink(GetConsumerSocket());
-    svc->Start(GetProducerSocket(), GetConsumerSocket());
+    started = svc->Start(GetProducerSocket(), GetConsumerSocket());
+  }
+
+  if (!started) {
+    PERFETTO_ELOG("Failed to start the traced service");
+    return 1;
   }
 
   // Set the CPU limit and start the watchdog running. The memory limit will
