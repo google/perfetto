@@ -49,6 +49,7 @@ enum TableId : uint8_t {
   // Intentionally don't have TableId == 0 so that RowId == 0 can refer to an
   // invalid row id.
   kCounters = 1,
+  kRawEvents = 2,
 };
 
 // The top 8 bits are set to the TableId and the bottom 32 to the row of the
@@ -106,13 +107,30 @@ class TraceStorage {
   // Generic key value storage which can be referenced by other tables.
   class Args {
    public:
-    // Varardic type representing the possible values for the args table.
-    struct Varardic {
+    // Variadic type representing the possible values for the args table.
+    struct Variadic {
       enum Type { kInt, kString, kReal };
 
-      Varardic(int64_t int_val) : type(kInt), int_value(int_val) {}
-      Varardic(StringId string_val) : type(kString), string_value(string_val) {}
-      Varardic(double real_val) : type(kReal), real_value(real_val) {}
+      static Variadic Integer(int64_t int_value) {
+        Variadic variadic;
+        variadic.type = Type::kInt;
+        variadic.int_value = int_value;
+        return variadic;
+      }
+
+      static Variadic String(StringId string_id) {
+        Variadic variadic;
+        variadic.type = Type::kString;
+        variadic.string_value = string_id;
+        return variadic;
+      }
+
+      static Variadic Real(double real_value) {
+        Variadic variadic;
+        variadic.type = Type::kReal;
+        variadic.real_value = real_value;
+        return variadic;
+      }
 
       Type type;
       union {
@@ -125,13 +143,13 @@ class TraceStorage {
     const std::deque<RowId>& ids() const { return ids_; }
     const std::deque<StringId>& flat_keys() const { return flat_keys_; }
     const std::deque<StringId>& keys() const { return keys_; }
-    const std::deque<Varardic>& arg_values() const { return arg_values_; }
+    const std::deque<Variadic>& arg_values() const { return arg_values_; }
     const std::multimap<RowId, uint32_t>& args_for_id() const {
       return args_for_id_;
     }
     size_t args_count() const { return ids_.size(); }
 
-    void AddArg(RowId id, StringId flat_key, StringId key, int64_t value) {
+    void AddArg(RowId id, StringId flat_key, StringId key, Variadic value) {
       if (id == kInvalidRowId)
         return;
 
@@ -146,7 +164,7 @@ class TraceStorage {
     std::deque<RowId> ids_;
     std::deque<StringId> flat_keys_;
     std::deque<StringId> keys_;
-    std::deque<Varardic> arg_values_;
+    std::deque<Variadic> arg_values_;
     std::multimap<RowId, uint32_t> args_for_id_;
   };
 
@@ -337,6 +355,32 @@ class TraceStorage {
     std::deque<RefType> types_;
   };
 
+  class RawEvents {
+   public:
+    inline RowId AddRawEvent(int64_t timestamp,
+                             StringId name_id,
+                             UniqueTid utid) {
+      timestamps_.emplace_back(timestamp);
+      name_ids_.emplace_back(name_id);
+      utids_.emplace_back(utid);
+      return CreateRowId(TableId::kRawEvents,
+                         static_cast<uint32_t>(raw_event_count() - 1));
+    }
+
+    size_t raw_event_count() const { return timestamps_.size(); }
+
+    const std::deque<int64_t>& timestamps() const { return timestamps_; }
+
+    const std::deque<StringId>& name_ids() const { return name_ids_; }
+
+    const std::deque<UniqueTid>& utids() const { return utids_; }
+
+   private:
+    std::deque<int64_t> timestamps_;
+    std::deque<StringId> name_ids_;
+    std::deque<UniqueTid> utids_;
+  };
+
   void ResetStorage();
 
   UniqueTid AddEmptyThread(uint32_t tid) {
@@ -407,6 +451,9 @@ class TraceStorage {
   const Args& args() const { return args_; }
   Args* mutable_args() { return &args_; }
 
+  const RawEvents& raw_events() const { return raw_events_; }
+  RawEvents* mutable_raw_events() { return &raw_events_; }
+
   const std::deque<std::string>& string_pool() const { return string_pool_; }
 
   // |unique_processes_| always contains at least 1 element becuase the 0th ID
@@ -459,6 +506,12 @@ class TraceStorage {
   // and do not have a value that make sense to track over time.
   // e.g. signal events
   Instants instants_;
+
+  // Raw events are every ftrace event in the trace. The raw event includes
+  // the timestamp and the pid. The args for the raw event will be in the
+  // args table. This table can be used to generate a text version of the
+  // trace.
+  RawEvents raw_events_;
 };
 
 }  // namespace trace_processor
