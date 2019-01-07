@@ -80,8 +80,8 @@ class MockTraceStorage : public TraceStorage {
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
-    storage_ = new NiceMock<MockTraceStorage>();
-    context_.storage.reset(storage_);
+    nice_storage_ = new NiceMock<MockTraceStorage>();
+    context_.storage.reset(nice_storage_);
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     process_ = new MockProcessTracker(&context_);
@@ -89,6 +89,11 @@ class ProtoTraceParserTest : public ::testing::Test {
     const auto optim = OptimizationMode::kMinLatency;
     context_.sorter.reset(new TraceSorter(&context_, optim, 0 /*window size*/));
     context_.proto_parser.reset(new ProtoTraceParser(&context_));
+  }
+
+  void InitStorage() {
+    storage_ = new MockTraceStorage();
+    context_.storage.reset(storage_);
   }
 
   void Tokenize(const protos::Trace& trace) {
@@ -103,7 +108,8 @@ class ProtoTraceParserTest : public ::testing::Test {
   TraceProcessorContext context_;
   MockEventTracker* event_;
   MockProcessTracker* process_;
-  NiceMock<MockTraceStorage>* storage_;
+  NiceMock<MockTraceStorage>* nice_storage_;
+  MockTraceStorage* storage_;
 };
 
 TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
@@ -114,6 +120,7 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
 
   auto* event = bundle->add_event();
   event->set_timestamp(1000);
+  event->set_pid(12);
 
   static const char kProcName[] = "proc1";
   auto* sched_switch = event->mutable_sched_switch();
@@ -127,6 +134,128 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
   Tokenize(trace);
 }
 
+TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
+  InitStorage();
+  protos::Trace trace;
+
+  auto* bundle = trace.add_packet()->mutable_ftrace_events();
+  bundle->set_cpu(10);
+
+  // This event is unknown and will only appear in
+  // raw events table.
+  auto* event = bundle->add_event();
+  event->set_timestamp(1000);
+  event->set_pid(12);
+  auto* task = event->mutable_task_newtask();
+  task->set_pid(123);
+  static const char task_newtask[] = "task_newtask";
+  task->set_comm(task_newtask);
+  task->set_clone_flags(12);
+  task->set_oom_score_adj(15);
+
+  // This event has specific parsing logic, but will
+  // also appear in raw events table.
+  event = bundle->add_event();
+  event->set_timestamp(1001);
+  event->set_pid(12);
+  auto* print = event->mutable_print();
+  print->set_ip(20);
+  static const char buf_value[] = "This is a print event";
+  print->set_buf(buf_value);
+
+  static const char pid[] = "pid";
+  static const char comm[] = "comm";
+  static const char clone[] = "clone_flags";
+  static const char oom[] = "oom_score_adj";
+  static const char print_event[] = "print";
+  static const char ip[] = "ip";
+  static const char buf[] = "buf";
+
+  EXPECT_CALL(*storage_, InternString(base::StringView(task_newtask))).Times(2);
+  EXPECT_CALL(*storage_, InternString(base::StringView(pid)));
+  EXPECT_CALL(*storage_, InternString(base::StringView(comm)));
+  EXPECT_CALL(*storage_, InternString(base::StringView(clone)));
+  EXPECT_CALL(*storage_, InternString(base::StringView(oom)));
+  EXPECT_CALL(*storage_, InternString(base::StringView(print_event)));
+  EXPECT_CALL(*storage_, InternString(base::StringView(ip)));
+  EXPECT_CALL(*storage_, InternString(base::StringView(buf)));
+  EXPECT_CALL(*storage_, InternString(base::StringView(buf_value)));
+
+  Tokenize(trace);
+  const auto& raw = context_.storage->raw_events();
+  ASSERT_EQ(raw.raw_event_count(), 2);
+  const auto& args = context_.storage->args();
+  ASSERT_EQ(args.args_count(), 6);
+  ASSERT_EQ(args.arg_values()[0].int_value, 123);
+  ASSERT_EQ(args.arg_values()[1].string_value, 0);
+  ASSERT_EQ(args.arg_values()[2].int_value, 12);
+  ASSERT_EQ(args.arg_values()[3].int_value, 15);
+  ASSERT_EQ(args.arg_values()[4].int_value, 20);
+  ASSERT_EQ(args.arg_values()[5].string_value, 0);
+
+  // TODO(taylori): Add test ftrace event with all field types
+  // and test here.
+}
+
+TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
+  InitStorage();
+  protos::Trace trace;
+
+  auto* packet = trace.add_packet();
+  packet->set_timestamp(100);
+
+  auto* bundle = packet->mutable_ftrace_events();
+  bundle->set_cpu(4);
+
+  auto* ftrace = bundle->add_event();
+  ftrace->set_timestamp(100);
+  ftrace->set_pid(10);
+
+  auto* generic = ftrace->mutable_generic();
+  generic->set_event_name("Test");
+
+  auto* field = generic->add_field();
+  field->set_name("meta1");
+  field->set_str_value("value1");
+
+  field = generic->add_field();
+  field->set_name("meta2");
+  field->set_int_value(-2);
+
+  field = generic->add_field();
+  field->set_name("meta3");
+  field->set_uint_value(3);
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("Test")));
+  EXPECT_CALL(*storage_, InternString(base::StringView("meta1")));
+  EXPECT_CALL(*storage_, InternString(base::StringView("value1")));
+  EXPECT_CALL(*storage_, InternString(base::StringView("meta2")));
+  EXPECT_CALL(*storage_, InternString(base::StringView("meta3")));
+
+  Tokenize(trace);
+
+  const auto& events = storage_->raw_events();
+  const auto& args = storage_->args();
+
+  ASSERT_EQ(events.raw_event_count(), 1);
+  ASSERT_EQ(events.timestamps().back(), 100);
+  ASSERT_EQ(storage_->GetThread(events.utids().back()).tid, 10);
+
+  auto row_id = TraceStorage::CreateRowId(TableId::kRawEvents, 0);
+  auto id_it = args.args_for_id().equal_range(row_id);
+
+  // Ignore string calls as they are handled by checking InternString calls
+  // above.
+
+  auto it = ++id_it.first;
+  auto row = it->second;
+  ASSERT_EQ(args.arg_values()[row].int_value, -2);
+
+  ++it;
+  row = it->second;
+  ASSERT_EQ(args.arg_values()[row].int_value, 3);
+}
+
 TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
   protos::Trace trace;
 
@@ -135,6 +264,7 @@ TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
 
   auto* event = bundle->add_event();
   event->set_timestamp(1000);
+  event->set_pid(12);
 
   static const char kProcName1[] = "proc1";
   auto* sched_switch = event->mutable_sched_switch();
@@ -145,6 +275,7 @@ TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
 
   event = bundle->add_event();
   event->set_timestamp(1001);
+  event->set_pid(12);
 
   static const char kProcName2[] = "proc2";
   sched_switch = event->mutable_sched_switch();
@@ -170,6 +301,7 @@ TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
 
   auto* event = bundle->add_event();
   event->set_timestamp(1000);
+  event->set_pid(12);
 
   static const char kProcName1[] = "proc1";
   auto* sched_switch = event->mutable_sched_switch();
@@ -183,6 +315,7 @@ TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
 
   event = bundle->add_event();
   event->set_timestamp(1001);
+  event->set_pid(12);
 
   static const char kProcName2[] = "proc2";
   sched_switch = event->mutable_sched_switch();
@@ -205,6 +338,7 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   bundle->set_cpu(10);
   auto* event = bundle->add_event();
   event->set_timestamp(1000);
+  event->set_pid(12);
   static const char kProcName1[] = "proc1";
   auto* sched_switch = event->mutable_sched_switch();
   sched_switch->set_prev_pid(10);
@@ -217,6 +351,7 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   bundle->set_cpu(10);
   event = bundle->add_event();
   event->set_timestamp(1001);
+  event->set_pid(12);
   static const char kProcName2[] = "proc2";
   sched_switch = event->mutable_sched_switch();
   sched_switch->set_prev_pid(100);
@@ -271,6 +406,7 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   bundle->set_cpu(12);
   auto* event = bundle->add_event();
   event->set_timestamp(1000);
+  event->set_pid(12);
   auto* cpu_freq = event->mutable_cpu_frequency();
   cpu_freq->set_cpu_id(10);
   cpu_freq->set_state(2000);

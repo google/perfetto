@@ -72,11 +72,31 @@ class ProtoDecoder {
       return static_cast<int64_t>(int_value);
     }
 
+    // A relaxed version for when we are storing any int as an int64
+    // in the raw events table.
+    inline int64_t as_integer() const {
+      PERFETTO_DCHECK(type == proto_utils::ProtoWireType::kVarInt ||
+                      type == proto_utils::ProtoWireType::kFixed64 ||
+                      type == proto_utils::ProtoWireType::kFixed32);
+      return static_cast<int64_t>(int_value);
+    }
+
     inline float as_float() const {
       PERFETTO_DCHECK(type == proto_utils::ProtoWireType::kFixed32);
       float res;
       uint32_t value32 = static_cast<uint32_t>(int_value);
       memcpy(&res, &value32, sizeof(res));
+      return res;
+    }
+
+    // A relaxed version for when we are storing floats and doubles
+    // as real in the raw events table.
+    inline double as_real() const {
+      PERFETTO_DCHECK(type == proto_utils::ProtoWireType::kFixed64 ||
+                      type == proto_utils::ProtoWireType::kFixed32);
+      double res;
+      uint64_t value64 = static_cast<uint64_t>(int_value);
+      memcpy(&res, &value64, sizeof(res));
       return res;
     }
 
@@ -111,6 +131,20 @@ class ProtoDecoder {
     for (auto f = ReadField(); f.id != 0; f = ReadField()) {
       if (f.id == field_id) {
         *field_value = f.int_value;
+        res = true;
+        break;
+      }
+    }
+    Reset();
+    return res;
+  }
+
+  template <int field_id>
+  inline bool FindStringField(StringView* field_value) {
+    bool res = false;
+    for (auto f = ReadField(); f.id != 0; f = ReadField()) {
+      if (f.id == field_id) {
+        *field_value = f.as_string();
         res = true;
         break;
       }
