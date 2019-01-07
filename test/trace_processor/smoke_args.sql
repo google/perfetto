@@ -1,1 +1,1 @@
-select * from args limit 10;
+select * from args where key = "utid" limit 10;

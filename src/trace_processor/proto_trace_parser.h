@@ -84,6 +84,12 @@ class ProtoTraceParser {
   void ParseLowmemoryKill(int64_t ts, TraceBlobView);
   void ParseBatteryCounters(int64_t ts, TraceBlobView);
   void ParseOOMScoreAdjUpdate(int64_t ts, TraceBlobView);
+  void ParseGenericFtrace(int64_t timestamp, uint32_t pid, TraceBlobView view);
+  void ParseGenericFtraceField(RowId generic_row_id, TraceBlobView view);
+  void ParseTypedFtraceToRaw(uint32_t ftrace_id,
+                             int64_t timestamp,
+                             uint32_t pid,
+                             TraceBlobView view);
 
  private:
   TraceProcessorContext* context_;
