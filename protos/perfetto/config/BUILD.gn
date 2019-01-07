@@ -17,6 +17,9 @@ import("../../../gn/proto_library.gni")
 import("../../../gn/protozero_library.gni")
 
 proto_library("lite") {
+  # Chromium shouldn't ignore the "android/" folder.
+  set_sources_assignment_filter([])
+
   generate_python = false
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
@@ -44,6 +47,9 @@ proto_library("lite") {
 }
 
 protozero_library("zero") {
+  # Chromium shouldn't ignore the "android/" folder.
+  set_sources_assignment_filter([])
+
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   deps = [
