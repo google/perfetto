@@ -1,1 +1,1 @@
-select * from stats;
+select * from stats where name like 'ftrace_cpu_%' or name like 'traced_buf_%';

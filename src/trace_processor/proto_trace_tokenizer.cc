@@ -24,8 +24,10 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/trace_storage.h"
 
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
@@ -39,7 +41,7 @@ using protozero::proto_utils::MakeTagVarInt;
 using protozero::proto_utils::ParseVarInt;
 
 ProtoTraceTokenizer::ProtoTraceTokenizer(TraceProcessorContext* ctx)
-    : trace_sorter_(ctx->sorter.get()) {}
+    : trace_sorter_(ctx->sorter.get()), trace_storage_(ctx->storage.get()) {}
 ProtoTraceTokenizer::~ProtoTraceTokenizer() = default;
 
 bool ProtoTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> owned_buf,
@@ -193,6 +195,7 @@ void ProtoTraceTokenizer::ParseFtraceBundle(TraceBlobView bundle) {
   } else {
     if (!PERFETTO_LIKELY((decoder.FindIntField<kCpuFieldNumber>(&cpu)))) {
       PERFETTO_ELOG("CPU field not found in FtraceEventBundle");
+      trace_storage_->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
       return;
     }
   }
@@ -237,6 +240,7 @@ void ProtoTraceTokenizer::ParseFtraceEvent(uint32_t cpu, TraceBlobView event) {
 
   if (PERFETTO_UNLIKELY(!timestamp_found)) {
     PERFETTO_ELOG("Timestamp field not found in FtraceEvent");
+    trace_storage_->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
     return;
   }
 

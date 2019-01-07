@@ -20,21 +20,19 @@
 #include <limits>
 #include <memory>
 
+#include "src/trace_processor/stats.h"
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
+// The stats table contains diagnostic info and errors that are either:
+// - Collected at trace time (e.g., ftrace buffer overruns).
+// - Generated at parsing time (e.g., clock events out-of-order).
 class StatsTable : public Table {
  public:
-  enum Row {
-    kMismatchedSchedSwitch = 0,
-    kRssStatNoProcess = 1,
-    kMemCounterNoProcess = 2,
-    kMax = kMemCounterNoProcess + 1
-  };
-  enum Column { kKey = 0, kValue = 1 };
+  enum Column { kName = 0, kIndex, kSeverity, kSource, kValue };
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
@@ -57,11 +55,9 @@ class StatsTable : public Table {
     int Column(sqlite3_context*, int N) override;
 
    private:
-    const char* KeyForRow(uint8_t row);
-    int ValueForRow(uint8_t row);
-
-    uint8_t row_ = 0;
     const TraceStorage* const storage_;
+    size_t key_ = 0;
+    TraceStorage::Stats::IndexMap::const_iterator index_{};
   };
 
   const TraceStorage* const storage_;
