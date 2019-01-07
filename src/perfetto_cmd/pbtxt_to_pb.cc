@@ -29,7 +29,7 @@
 #include "perfetto/base/string_view.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
-#include "perfetto/protozero/scattered_stream_memory_delegate.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/perfetto_cmd/perfetto_config.descriptor.h"
 
 namespace perfetto {
@@ -599,7 +599,7 @@ std::vector<uint8_t> PbtxtToPb(const std::string& input,
   const DescriptorProto* descriptor = name_to_descriptor[kConfigProtoName];
   PERFETTO_CHECK(descriptor);
 
-  ScatteredStreamMemoryDelegate stream_delegate(base::kPageSize);
+  protozero::ScatteredHeapBuffer stream_delegate(base::kPageSize);
   protozero::ScatteredStreamWriter stream(&stream_delegate);
   stream_delegate.set_writer(&stream);
 
@@ -609,7 +609,7 @@ std::vector<uint8_t> PbtxtToPb(const std::string& input,
                           std::move(name_to_descriptor),
                           std::move(name_to_enum));
   Parse(input, &delegate);
-  return stream_delegate.StitchChunks();
+  return stream_delegate.StitchSlices();
 }
 
 }  // namespace perfetto

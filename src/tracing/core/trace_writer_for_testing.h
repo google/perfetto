@@ -17,18 +17,18 @@
 #define SRC_TRACING_CORE_TRACE_WRITER_FOR_TESTING_H_
 
 #include "perfetto/protozero/message_handle.h"
-#include "perfetto/protozero/scattered_stream_memory_delegate.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/tracing/core/trace_writer.h"
 
 namespace perfetto {
 
 // A specialization of TraceWriter for testing which writes into memory
-// allocated by the ScatteredStreamMemoryDelegate.
+// allocated by the ScatteredHeapBuffer.
 // See //include/perfetto/tracing/core/trace_writer.h for docs.
 class TraceWriterForTesting : public TraceWriter {
  public:
-  // TraceWriterForTesting(const ScatteredStreamMemoryDelegate& delegate);
+  // TraceWriterForTesting(const protozero::ScatteredHeapBuffer& delegate);
   TraceWriterForTesting();
   ~TraceWriterForTesting() override;
 
@@ -45,7 +45,7 @@ class TraceWriterForTesting : public TraceWriter {
   TraceWriterForTesting(const TraceWriterForTesting&) = delete;
   TraceWriterForTesting& operator=(const TraceWriterForTesting&) = delete;
 
-  ScatteredStreamMemoryDelegate delegate_;
+  protozero::ScatteredHeapBuffer delegate_;
   protozero::ScatteredStreamWriter stream_;
 
   // The packet returned via NewTracePacket(). Its owned by this class,
