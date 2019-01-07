@@ -31,7 +31,7 @@ source_set("protozero") {
     "message_handle.cc",
     "proto_decoder.cc",
     "proto_field_descriptor.cc",
-    "scattered_stream_memory_delegate.cc",
+    "scattered_heap_buffer.cc",
     "scattered_stream_null_delegate.cc",
     "scattered_stream_writer.cc",
   ]
