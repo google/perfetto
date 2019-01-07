@@ -26,7 +26,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/protozero/scattered_stream_memory_delegate.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 
 #include "perfetto/trace/ftrace/ftrace_event.pb.h"
@@ -117,7 +117,7 @@ class ProtoProvider {
   // on success and nullptr on failure.
   std::unique_ptr<ProtoT> ParseProto() {
     auto bundle = std::unique_ptr<ProtoT>(new ProtoT());
-    std::vector<uint8_t> buffer = delegate_.StitchChunks();
+    std::vector<uint8_t> buffer = delegate_.StitchSlices();
     if (!bundle->ParseFromArray(buffer.data(), static_cast<int>(buffer.size())))
       return nullptr;
     return bundle;
@@ -128,7 +128,7 @@ class ProtoProvider {
   ProtoProvider& operator=(const ProtoProvider&) = delete;
 
   size_t chunk_size_;
-  ScatteredStreamMemoryDelegate delegate_;
+  protozero::ScatteredHeapBuffer delegate_;
   protozero::ScatteredStreamWriter stream_;
   ZeroT writer_;
 };
