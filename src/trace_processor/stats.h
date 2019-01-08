@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_STATS_H_
 #define SRC_TRACE_PROCESSOR_STATS_H_
 
+#include <stddef.h>
+
 namespace perfetto {
 namespace trace_processor {
 namespace stats {
