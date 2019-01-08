@@ -22,6 +22,7 @@
 
 #include "perfetto/base/time.h"
 #include "src/trace_processor/args_table.h"
+#include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/counters_table.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/instants_table.h"
@@ -110,6 +111,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.event_tracker.reset(new EventTracker(&context_));
   context_.proto_parser.reset(new ProtoTraceParser(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
+  context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.sorter.reset(
       new TraceSorter(&context_, cfg.optimization_mode,
                       static_cast<int64_t>(cfg.window_size_ns)));
