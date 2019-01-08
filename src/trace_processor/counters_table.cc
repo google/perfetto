@@ -49,13 +49,8 @@ StorageSchema CountersTable::CreateStorageSchema() {
       .Build({"name", "ts", "ref"});
 }
 
-std::unique_ptr<Table::Cursor> CountersTable::CreateCursor(
-    const QueryConstraints& qc,
-    sqlite3_value** argv) {
-  uint32_t count = static_cast<uint32_t>(storage_->counters().counter_count());
-  auto it = CreateBestRowIteratorForGenericSchema(count, qc, argv);
-  return std::unique_ptr<Table::Cursor>(
-      new Cursor(std::move(it), schema_.mutable_columns()));
+uint32_t CountersTable::RowCount() {
+  return static_cast<uint32_t>(storage_->counters().counter_count());
 }
 
 int CountersTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
@@ -64,8 +59,8 @@ int CountersTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
 
   // Only the string columns are handled by SQLite
   info->order_by_consumed = true;
-  size_t name_index = schema_.ColumnIndexFromName("name");
-  size_t ref_type_index = schema_.ColumnIndexFromName("ref_type");
+  size_t name_index = schema().ColumnIndexFromName("name");
+  size_t ref_type_index = schema().ColumnIndexFromName("ref_type");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
     info->omit[i] =
         qc.constraints()[i].iColumn != static_cast<int>(name_index) &&

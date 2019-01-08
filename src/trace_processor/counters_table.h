@@ -34,8 +34,7 @@ class CountersTable : public StorageTable {
 
   // StorageTable implementation.
   StorageSchema CreateStorageSchema() override;
-  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
-                                              sqlite3_value**) override;
+  uint32_t RowCount() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:

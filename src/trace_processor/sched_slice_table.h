@@ -32,9 +32,7 @@ class SchedSliceTable : public StorageTable {
 
   // StorageTable implementation.
   StorageSchema CreateStorageSchema() override;
-  std::unique_ptr<Table::Cursor> CreateCursor(
-      const QueryConstraints& query_constraints,
-      sqlite3_value** argv) override;
+  uint32_t RowCount() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:

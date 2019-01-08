@@ -40,19 +40,14 @@ StorageSchema ArgsTable::CreateStorageSchema() {
       .Build({"id", "key"});
 }
 
-std::unique_ptr<Table::Cursor> ArgsTable::CreateCursor(
-    const QueryConstraints& qc,
-    sqlite3_value** argv) {
-  uint32_t count = static_cast<uint32_t>(storage_->args().args_count());
-  auto it = CreateBestRowIteratorForGenericSchema(count, qc, argv);
-  return std::unique_ptr<Cursor>(
-      new Cursor(std::move(it), schema_.mutable_columns()));
+uint32_t ArgsTable::RowCount() {
+  return static_cast<uint32_t>(storage_->args().args_count());
 }
 
 int ArgsTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   // In the case of an id equality filter, we can do a very efficient lookup.
   if (qc.constraints().size() == 1) {
-    auto id = static_cast<int>(schema_.ColumnIndexFromName("id"));
+    auto id = static_cast<int>(schema().ColumnIndexFromName("id"));
     const auto& cs = qc.constraints().back();
     if (cs.iColumn == id && sqlite_utils::IsOpEq(cs.op)) {
       info->estimated_cost = 1;
