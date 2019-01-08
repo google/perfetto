@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {defer} from '../base/deferred';
+import {assertExists, assertTrue} from '../base/logging';
 import * as init_trace_processor from '../gen/trace_processor';
 
 function writeToUIConsole(line: string) {
@@ -37,7 +38,7 @@ export class WasmBridge {
   whenInitialized: Promise<void>;
 
   private aborted: boolean;
-  private currentRequestResult: WasmBridgeResponse|null = null;
+  private currentRequestResult: WasmBridgeResponse|null;
   private connection: init_trace_processor.Module;
 
   constructor(init: init_trace_processor.InitWasm) {
@@ -46,11 +47,11 @@ export class WasmBridge {
 
     const deferredRuntimeInitialized = defer<void>();
     this.connection = init({
-      locateFile: (s: string) => s, print: writeToUIConsole,
-                      printErr: writeToUIConsole,
-                      onRuntimeInitialized: () =>
-                          deferredRuntimeInitialized.resolve(),
-                      onAbort: () => this.aborted = true;
+      locateFile: (s: string) => s,
+      print: writeToUIConsole,
+      printErr: writeToUIConsole,
+      onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
+      onAbort: () => this.aborted = true,
     });
     this.whenInitialized = deferredRuntimeInitialized.then(() => {
       const fn = this.connection.addFunction(this.onReply.bind(this), 'viiii');
@@ -74,9 +75,8 @@ export class WasmBridge {
         [req.id, req.data, req.data.length]      // Args.
         );
 
-    const result = this.currentRequestResult;
-    if (result === null) throw new Error('No result');
-    if (req.id !== result.id) throw new Error(`Id ${req.id} !== ${result.id}`);
+    const result = assertExists(this.currentRequestResult);
+    assertTrue(req.id === result.id);
     this.currentRequestResult = null;
     return result;
   }
