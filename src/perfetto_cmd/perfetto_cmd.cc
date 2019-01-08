@@ -652,7 +652,9 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
   task_runner_.AddFileDescriptorWatch(ctrl_c_evt_.fd(), [this] {
     PERFETTO_LOG("SIGINT/SIGTERM received: disabling tracing");
     ctrl_c_evt_.Clear();
-    consumer_endpoint_->Flush(kFlushTimeoutMs, [this](bool) {
+    consumer_endpoint_->Flush(kFlushTimeoutMs, [this](bool flush_success) {
+      if (!flush_success)
+        PERFETTO_ELOG("Final flush unsuccessful.");
       consumer_endpoint_->DisableTracing();
     });
   });
@@ -688,7 +690,9 @@ void PerfettoCmd::OnAttach(bool success, const TraceConfig& trace_config) {
   PERFETTO_DCHECK(trace_config_->write_into_file());
 
   if (stop_trace_once_attached_) {
-    consumer_endpoint_->Flush(kFlushTimeoutMs, [this](bool) {
+    consumer_endpoint_->Flush(kFlushTimeoutMs, [this](bool flush_success) {
+      if (!flush_success)
+        PERFETTO_ELOG("Final flush unsuccessful.");
       consumer_endpoint_->DisableTracing();
     });
   }
