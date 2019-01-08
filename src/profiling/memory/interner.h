@@ -74,9 +74,7 @@ class Interner {
     }
 
     bool operator<(const Interned& other) const {
-      if (entry_ == nullptr || other.entry_ == nullptr)
-        return entry_ < other.entry_;
-      return *entry_ < *(other.entry_);
+      return entry_ < other.entry_;
     }
 
     const T* operator->() const { return &entry_->data; }
