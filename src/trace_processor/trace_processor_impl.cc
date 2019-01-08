@@ -21,6 +21,7 @@
 #include <functional>
 
 #include "perfetto/base/time.h"
+#include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/counters_table.h"
@@ -128,6 +129,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
   InstantsTable::RegisterTable(*db_, context_.storage.get());
   StatsTable::RegisterTable(*db_, context_.storage.get());
+  AndroidLogsTable::RegisterTable(*db_, context_.storage.get());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
