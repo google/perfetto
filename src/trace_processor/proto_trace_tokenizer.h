@@ -30,6 +30,7 @@ namespace trace_processor {
 class TraceProcessorContext;
 class TraceBlobView;
 class TraceSorter;
+class TraceStorage;
 
 // Reads a protobuf trace in chunks and extracts boundaries of trace packets
 // (or subfields, for the case of ftrace) with their timestamps.
@@ -52,6 +53,7 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   void ParseFtraceEvent(uint32_t cpu, TraceBlobView);
 
   TraceSorter* const trace_sorter_;
+  TraceStorage* const trace_storage_;
 
   // Used to glue together trace packets that span across two (or more)
   // Parse() boundaries.
