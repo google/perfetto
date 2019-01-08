@@ -50,9 +50,6 @@ void AndroidLogConfig::FromProto(
     log_ids_.back() = static_cast<decltype(log_ids_)::value_type>(field);
   }
 
-  static_assert(sizeof(poll_ms_) == sizeof(proto.poll_ms()), "size mismatch");
-  poll_ms_ = static_cast<decltype(poll_ms_)>(proto.poll_ms());
-
   static_assert(sizeof(min_prio_) == sizeof(proto.min_prio()), "size mismatch");
   min_prio_ = static_cast<decltype(min_prio_)>(proto.min_prio());
 
@@ -75,9 +72,6 @@ void AndroidLogConfig::ToProto(
     proto->add_log_ids(static_cast<decltype(proto->log_ids(0))>(it));
     static_assert(sizeof(it) == sizeof(proto->log_ids(0)), "size mismatch");
   }
-
-  static_assert(sizeof(poll_ms_) == sizeof(proto->poll_ms()), "size mismatch");
-  proto->set_poll_ms(static_cast<decltype(proto->poll_ms())>(poll_ms_));
 
   static_assert(sizeof(min_prio_) == sizeof(proto->min_prio()),
                 "size mismatch");

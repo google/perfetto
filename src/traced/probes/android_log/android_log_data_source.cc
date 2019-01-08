@@ -35,8 +35,6 @@ namespace perfetto {
 
 namespace {
 
-constexpr uint32_t kMinPollRateMs = 100;
-constexpr uint32_t kDefaultPollRateMs = 1000;
 constexpr size_t kBufSize = base::kPageSize;
 const char kLogTagsPath[] = "/system/etc/event-log-tags";
 const char kLogdrSocket[] = "/dev/socket/logdr";
@@ -90,9 +88,6 @@ AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
       writer_(std::move(writer)),
       weak_factory_(this) {
   const auto& cfg = ds_config.android_log_config();
-  poll_rate_ms_ = cfg.poll_ms() ? cfg.poll_ms() : kDefaultPollRateMs;
-  poll_rate_ms_ = std::max(kMinPollRateMs, poll_rate_ms_);
-
   std::vector<uint32_t> log_ids;
   for (uint32_t id : cfg.log_ids())
     log_ids.push_back(id);
@@ -135,7 +130,12 @@ AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
   buf_ = base::PagedMemory::Allocate(kBufSize);
 }
 
-AndroidLogDataSource::~AndroidLogDataSource() = default;
+AndroidLogDataSource::~AndroidLogDataSource() {
+  if (logdr_sock_) {
+    EnableSocketWatchTask(false);
+    logdr_sock_.Shutdown();
+  }
+}
 
 base::UnixSocketRaw AndroidLogDataSource::ConnectLogdrSocket() {
   auto socket = base::UnixSocketRaw::CreateMayFail(base::SockType::kSeqPacket);
@@ -158,26 +158,52 @@ void AndroidLogDataSource::Start() {
     return;
   }
   logdr_sock_.SetBlocking(false);
-
-  auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this] {
-    if (weak_this)
-      weak_this->Tick(/*post_next_task=*/true);
-  });
+  EnableSocketWatchTask(true);
 }
 
-void AndroidLogDataSource::Tick(bool post_next_task) {
-  auto weak_this = weak_factory_.GetWeakPtr();
-  if (post_next_task) {
-    auto now_ms = base::GetWallTimeMs().count();
-    task_runner_->PostDelayedTask(
-        [weak_this] {
-          if (weak_this)
-            weak_this->Tick(/*post_next_task=*/true);
-        },
-        poll_rate_ms_ - (now_ms % poll_rate_ms_));
+void AndroidLogDataSource::EnableSocketWatchTask(bool enable) {
+  if (fd_watch_task_enabled_ == enable)
+    return;
+
+  if (enable) {
+    auto weak_this = weak_factory_.GetWeakPtr();
+    task_runner_->AddFileDescriptorWatch(logdr_sock_.fd(), [weak_this] {
+      if (weak_this)
+        weak_this->OnSocketDataAvailable();
+    });
+  } else {
+    task_runner_->RemoveFileDescriptorWatch(logdr_sock_.fd());
   }
 
+  fd_watch_task_enabled_ = enable;
+}
+
+void AndroidLogDataSource::OnSocketDataAvailable() {
+  PERFETTO_DCHECK(fd_watch_task_enabled_);
+  auto now_ms = base::GetWallTimeMs().count();
+
+  // Disable the FD watch until the delayed read happens, otherwise we get a
+  // storm of OnSocketDataAvailable() until the delayed ReadLogSocket() happens.
+  EnableSocketWatchTask(false);
+
+  // Delay the read by (at most) 100 ms so we get a chance to batch reads and
+  // don't cause too many context switches in cases of logging storms. The
+  // modulo is to increase the chance that the wakeup is packed together with
+  // some other wakeup task of traced_probes.
+  const uint32_t kBatchMs = 100;
+  uint32_t delay_ms = kBatchMs - (now_ms % kBatchMs);
+  auto weak_this = weak_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_this] {
+        if (weak_this) {
+          weak_this->ReadLogSocket();
+          weak_this->EnableSocketWatchTask(true);
+        }
+      },
+      delay_ms);
+}
+
+void AndroidLogDataSource::ReadLogSocket() {
   TraceWriter::TracePacketHandle packet;
   protos::pbzero::AndroidLogPacket* log_packet = nullptr;
   size_t num_events = 0;
@@ -191,9 +217,10 @@ void AndroidLogDataSource::Tick(bool post_next_task) {
     // task (posted after this while loop).
     if (num_events > 500) {
       stop = true;
+      auto weak_this = weak_factory_.GetWeakPtr();
       task_runner_->PostTask([weak_this] {
         if (weak_this)
-          weak_this->Tick(/*post_next_task=*/false);
+          weak_this->ReadLogSocket();
       });
     }
     char* buf = reinterpret_cast<char*>(buf_.Get());
@@ -218,7 +245,7 @@ void AndroidLogDataSource::Tick(bool post_next_task) {
 
     if (!packet) {
       // Lazily add the packet on the first event. This is to avoid creating
-      // empty packets if there are no events in a poll task.
+      // empty packets if there are no events in a task.
       packet = writer_->NewTracePacket();
       packet->set_timestamp(
           static_cast<uint64_t>(base::GetBootTimeNs().count()));
@@ -256,7 +283,12 @@ void AndroidLogDataSource::Tick(bool post_next_task) {
     evt->set_tid(static_cast<int32_t>(entry.tid));
     evt->set_uid(static_cast<int32_t>(entry.uid));
   }  // while(logdr_sock_.Receive())
-  PERFETTO_DLOG("Seen %zu Android log events", num_events);
+
+  // Only print the log message if we have seen a bunch of events. This is to
+  // avoid that we keep re-triggering the log socket by writing into the log
+  // buffer ourselves.
+  if (num_events > 3)
+    PERFETTO_DLOG("Seen %zu Android log events", num_events);
 }
 
 bool AndroidLogDataSource::ParseTextEvent(
@@ -408,7 +440,8 @@ bool AndroidLogDataSource::ParseBinaryEvent(
 void AndroidLogDataSource::Flush(FlushRequestID,
                                  std::function<void()> callback) {
   // Grab most recent entries.
-  Tick(/*post_next_task=*/false);
+  if (logdr_sock_)
+    ReadLogSocket();
 
   // Emit stats.
   {
