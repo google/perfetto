@@ -59,8 +59,7 @@ class PERFETTO_EXPORT TracingService {
   // The API for the Producer port of the Service.
   // Subclassed by:
   // 1. The tracing_service_impl.cc business logic when returning it in response
-  // to
-  //    the ConnectProducer() method.
+  //    to the ConnectProducer() method.
   // 2. The transport layer (e.g., src/ipc) when the producer and
   //    the service don't talk locally but via some IPC mechanism.
   class PERFETTO_EXPORT ProducerEndpoint {
@@ -193,7 +192,7 @@ class PERFETTO_EXPORT TracingService {
       const std::string& name,
       size_t shared_memory_size_hint_bytes = 0) = 0;
 
-  // Coonects a Consumer instance and obtains a ConsumerEndpoint, which is
+  // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.
   // The caller has to guarantee that the passed Consumer will be alive as long
   // as the returned ConsumerEndpoint is alive.
@@ -201,6 +200,16 @@ class PERFETTO_EXPORT TracingService {
   // to destroy the Consumer once the Consumer::OnDisconnect() has been invoked.
   virtual std::unique_ptr<ConsumerEndpoint> ConnectConsumer(Consumer*,
                                                             uid_t) = 0;
+
+  // Enable/disable scraping of chunks in the shared memory buffer. If enabled,
+  // the service will copy uncommitted but non-empty chunks from the SMB when
+  // flushing (e.g. to handle unresponsive producers or producers unable to
+  // flush their active chunks), on producer disconnect (e.g. to recover data
+  // from crashed producers), and after disabling a tracing session (e.g. to
+  // gather data from producers that didn't stop their data sources in time).
+  //
+  // This feature is currently used by Chrome.
+  virtual void SetSMBScrapingEnabled(bool enabled) = 0;
 };
 
 }  // namespace perfetto
