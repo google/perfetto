@@ -30,21 +30,17 @@ void SliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 
 base::Optional<Table::Schema> SliceTable::Init(int, const char* const*) {
   const auto& slices = storage_->nestable_slices();
-  std::unique_ptr<StorageColumn> cols[] = {
-      NumericColumnPtr("ts", &slices.start_ns(), false /* hidden */,
-                       true /* ordered */),
-      NumericColumnPtr("dur", &slices.durations()),
-      NumericColumnPtr("utid", &slices.utids()),
-      StringColumnPtr("cat", &slices.cats(), &storage_->string_pool()),
-      StringColumnPtr("name", &slices.names(), &storage_->string_pool()),
-      NumericColumnPtr("depth", &slices.depths()),
-      NumericColumnPtr("stack_id", &slices.stack_ids()),
-      NumericColumnPtr("parent_stack_id", &slices.parent_stack_ids())};
-  schema_ = StorageSchema({
-      std::make_move_iterator(std::begin(cols)),
-      std::make_move_iterator(std::end(cols)),
-  });
-  return schema_.ToTableSchema({"utid", "ts", "depth"});
+  schema_ =
+      StorageSchema::Builder()
+          .AddOrderedNumericColumn("ts", &slices.start_ns())
+          .AddNumericColumn("utid", &slices.utids())
+          .AddStringColumn("cat", &slices.cats(), &storage_->string_pool())
+          .AddStringColumn("name", &slices.names(), &storage_->string_pool())
+          .AddNumericColumn("depth", &slices.depths())
+          .AddNumericColumn("stack_id", &slices.stack_ids())
+          .AddNumericColumn("parent_stack_id", &slices.parent_stack_ids())
+          .Build({"utid", "ts", "depth"});
+  return schema_.ToTableSchema();
 }
 
 std::unique_ptr<Table::Cursor> SliceTable::CreateCursor(

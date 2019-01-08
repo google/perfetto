@@ -31,21 +31,65 @@ namespace trace_processor {
 // Used by all tables which are backed by data in TraceStorage.
 class StorageSchema {
  public:
-  StorageSchema();
-  StorageSchema(std::vector<std::unique_ptr<StorageColumn>> columns);
+  using Columns = std::vector<std::unique_ptr<StorageColumn>>;
 
-  Table::Schema ToTableSchema(std::vector<std::string> primary_keys);
+  // Builder class for StorageSchema.
+  class Builder {
+   public:
+    template <class T, class... Args>
+    Builder& AddColumn(std::string column_name, Args&&... args) {
+      columns_.emplace_back(new T(column_name, std::forward<Args>(args)...));
+      return *this;
+    }
+
+    template <class T>
+    Builder& AddNumericColumn(std::string column_name,
+                              const std::deque<T>* vals) {
+      columns_.emplace_back(
+          new NumericColumn<T>(column_name, vals, false, false));
+      return *this;
+    }
+
+    template <class T>
+    Builder& AddOrderedNumericColumn(std::string column_name,
+                                     const std::deque<T>* vals) {
+      columns_.emplace_back(
+          new NumericColumn<T>(column_name, vals, false, true));
+      return *this;
+    }
+
+    template <class Id>
+    Builder& AddStringColumn(std::string column_name,
+                             const std::deque<Id>* ids,
+                             const std::deque<std::string>* string_map) {
+      columns_.emplace_back(new StringColumn<Id>(column_name, ids, string_map));
+      return *this;
+    }
+
+    StorageSchema Build(std::vector<std::string> primary_keys) {
+      return StorageSchema(std::move(columns_), std::move(primary_keys));
+    }
+
+   private:
+    Columns columns_;
+  };
+
+  StorageSchema();
+  StorageSchema(Columns columns, std::vector<std::string> primary_keys);
+
+  Table::Schema ToTableSchema();
 
   size_t ColumnIndexFromName(const std::string& name);
 
   const StorageColumn& GetColumn(size_t idx) const { return *(columns_[idx]); }
 
-  std::vector<std::unique_ptr<StorageColumn>>* mutable_columns() {
-    return &columns_;
-  }
+  Columns* mutable_columns() { return &columns_; }
 
  private:
-  std::vector<std::unique_ptr<StorageColumn>> columns_;
+  friend class Builder;
+
+  Columns columns_;
+  std::vector<std::string> primary_keys_;
 };
 
 }  // namespace trace_processor
