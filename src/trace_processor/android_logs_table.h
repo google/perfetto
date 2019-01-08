@@ -30,7 +30,7 @@ class AndroidLogsTable : public StorageTable {
   AndroidLogsTable(sqlite3*, const TraceStorage*);
 
   // Table implementation.
-  base::Optional<Table::Schema> Init(int, const char* const*) override;
+  StorageSchema CreateStorageSchema() override;
   std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
                                               sqlite3_value**) override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
