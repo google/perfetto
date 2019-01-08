@@ -35,21 +35,18 @@ void CountersTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<CountersTable>(db, storage, "counters");
 }
 
-base::Optional<Table::Schema> CountersTable::Init(int, const char* const*) {
-  const auto& counters = storage_->counters();
-  schema_ = StorageSchema::Builder()
-                .AddColumn<IdColumn>("id", TableId::kCounters)
-                .AddOrderedNumericColumn("ts", &counters.timestamps())
-                .AddStringColumn("name", &counters.name_ids(),
-                                 &storage_->string_pool())
-                .AddNumericColumn("value", &counters.values())
-                .AddNumericColumn("dur", &counters.durations())
-                .AddColumn<TsEndColumn>("ts_end", &counters.timestamps(),
-                                        &counters.durations())
-                .AddColumn<RefColumn>("ref", storage_)
-                .AddStringColumn("ref_type", &counters.types(), &ref_types_)
-                .Build({"name", "ts", "ref"});
-  return schema_.ToTableSchema();
+StorageSchema CountersTable::CreateStorageSchema() {
+  const auto& cs = storage_->counters();
+  return StorageSchema::Builder()
+      .AddColumn<IdColumn>("id", TableId::kCounters)
+      .AddOrderedNumericColumn("ts", &cs.timestamps())
+      .AddStringColumn("name", &cs.name_ids(), &storage_->string_pool())
+      .AddNumericColumn("value", &cs.values())
+      .AddNumericColumn("dur", &cs.durations())
+      .AddColumn<TsEndColumn>("ts_end", &cs.timestamps(), &cs.durations())
+      .AddColumn<RefColumn>("ref", storage_)
+      .AddStringColumn("ref_type", &cs.types(), &ref_types_)
+      .Build({"name", "ts", "ref"});
 }
 
 std::unique_ptr<Table::Cursor> CountersTable::CreateCursor(
