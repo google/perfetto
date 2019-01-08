@@ -212,6 +212,11 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TraceBlobView packet) {
         ParseClockSnapshot(packet.slice(fld_off, fld.size()));
         break;
       }
+      case protos::TracePacket::kAndroidLogFieldNumber: {
+        const size_t fld_off = packet.offset_of(fld.data());
+        ParseAndroidLogPacket(packet.slice(fld_off, fld.size()));
+        break;
+      }
       default:
         break;
     }
@@ -1124,6 +1129,124 @@ std::pair<int, int64_t> ProtoTraceParser::ParseClockField(
     }
   }
   return std::make_pair(type, value);
+}
+
+void ProtoTraceParser::ParseAndroidLogPacket(TraceBlobView packet) {
+  ProtoDecoder decoder(packet.data(), packet.length());
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::AndroidLogPacket::kEventsFieldNumber: {
+        const size_t fld_off = packet.offset_of(fld.data());
+        ParseAndroidLogEvent(packet.slice(fld_off, fld.size()));
+        break;
+      }
+      default:
+        // TODO stats.
+        break;
+    }
+  }
+  PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+}
+
+void ProtoTraceParser::ParseAndroidLogEvent(TraceBlobView event) {
+  // TODO(primiano): Add events and non-stringified fields to the "raw" table.
+  // TODO(primiano): Add failure stats to the stats table.
+  ProtoDecoder decoder(event.data(), event.length());
+  int64_t ts = 0;
+  uint32_t pid = 0;
+  uint32_t tid = 0;
+  uint8_t prio = 0;
+  StringId tag_id = 0;
+  StringId msg_id = 0;
+  char arg_msg[4096];
+  char* arg_str = &arg_msg[0];
+  *arg_str = '\0';
+  auto arg_avail = [&arg_msg, &arg_str]() {
+    return sizeof(arg_msg) - static_cast<size_t>(arg_str - arg_msg);
+  };
+
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::AndroidLogPacket::LogEvent::kPidFieldNumber:
+        pid = fld.as_uint32();
+        break;
+      case protos::AndroidLogPacket::LogEvent::kTidFieldNumber:
+        tid = fld.as_uint32();
+        break;
+      case protos::AndroidLogPacket::LogEvent::kTimestampFieldNumber:
+        ts = fld.as_int64();
+        if (ts < context_->clock_tracker->GetFirstTimestamp(
+                     ClockDomain::kRealTime)) {
+          // Skip log events that happened before the start of the trace.
+          return;
+        }
+        break;
+      case protos::AndroidLogPacket::LogEvent::kPrioFieldNumber:
+        prio = static_cast<uint8_t>(fld.as_uint32());
+        break;
+      case protos::AndroidLogPacket::LogEvent::kTagFieldNumber:
+        tag_id = context_->storage->InternString(fld.as_string());
+        break;
+      case protos::AndroidLogPacket::LogEvent::kMessageFieldNumber:
+        msg_id = context_->storage->InternString(fld.as_string());
+        break;
+      case protos::AndroidLogPacket::LogEvent::kArgsFieldNumber: {
+        const size_t fld_off = event.offset_of(fld.data());
+        TraceBlobView arg_data = event.slice(fld_off, fld.size());
+        ParseAndroidLogBinaryArg(std::move(arg_data), &arg_str, arg_avail());
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+
+  if (prio == 0)
+    prio = protos::AndroidLogPriority::PRIO_INFO;
+
+  if (arg_str != &arg_msg[0]) {
+    PERFETTO_DCHECK(!msg_id);
+    // Skip the first space char (" foo=1 bar=2" -> "foo=1 bar=2").
+    msg_id = context_->storage->InternString(&arg_msg[1]);
+  }
+  UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
+  int64_t trace_time =
+      context_->clock_tracker->ToTraceTime(ClockDomain::kRealTime, ts);
+
+  // Log events are NOT required to be sorted by trace_time. The virtual table
+  // will take care of sorting on-demand.
+  context_->storage->mutable_android_log()->AddLogEvent(trace_time, utid, prio,
+                                                        tag_id, msg_id);
+}
+
+void ProtoTraceParser::ParseAndroidLogBinaryArg(TraceBlobView arg,
+                                                char** str,
+                                                size_t avail) {
+  ProtoDecoder decoder(arg.data(), arg.length());
+  for (auto fld = decoder.ReadField(); fld.id; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::AndroidLogPacket::LogEvent::Arg::kNameFieldNumber: {
+        base::StringView name = fld.as_string();
+        *str += snprintf(*str, avail, " %.*s=", static_cast<int>(name.size()),
+                         name.data());
+        break;
+      }
+      case protos::AndroidLogPacket::LogEvent::Arg::kStringValueFieldNumber: {
+        base::StringView val = fld.as_string();
+        *str += snprintf(*str, avail, "\"%.*s\"", static_cast<int>(val.size()),
+                         val.data());
+        break;
+      }
+      case protos::AndroidLogPacket::LogEvent::Arg::kIntValueFieldNumber:
+        *str += snprintf(*str, avail, "%" PRId64, fld.as_int64());
+        break;
+      case protos::AndroidLogPacket::LogEvent::Arg::kFloatValueFieldNumber:
+        *str +=
+            snprintf(*str, avail, "%f", static_cast<double>(fld.as_float()));
+        break;
+    }
+  }
 }
 
 }  // namespace trace_processor
