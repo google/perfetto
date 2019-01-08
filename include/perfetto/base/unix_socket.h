@@ -70,6 +70,7 @@ class UnixSocketRaw {
   void Shutdown();
   void SetBlocking(bool);
   bool IsBlocking() const;
+  void RetainOnExec();
   SockType type() const { return type_; }
   int fd() const { return *fd_; }
   explicit operator bool() const { return !!fd_; }
