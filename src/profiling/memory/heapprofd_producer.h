@@ -34,9 +34,14 @@
 namespace perfetto {
 namespace profiling {
 
+// TODO(rsavitski): central daemon can do less work if it knows that the global
+// operating mode is fork-based, as it then will not be interacting with the
+// clients. This can be implemented as an additional mode here.
+enum class HeapprofdMode { kCentral, kChild };
+
 class HeapprofdProducer : public Producer {
  public:
-  HeapprofdProducer(base::TaskRunner* task_runner);
+  HeapprofdProducer(HeapprofdMode mode, base::TaskRunner* task_runner);
   ~HeapprofdProducer() override;
 
   // Producer Impl:
@@ -72,10 +77,12 @@ class HeapprofdProducer : public Producer {
   uint32_t connection_backoff_ms_ = 0;
   const char* socket_name_ = nullptr;
 
+  const HeapprofdMode mode_;
+
   std::function<void(UnwindingRecord)> MakeSocketListenerCallback();
   std::vector<BoundedQueue<UnwindingRecord>> MakeUnwinderQueues(size_t n);
   std::vector<std::thread> MakeUnwindingThreads(size_t n);
-  std::unique_ptr<base::UnixSocket> MakeSocket();
+  std::unique_ptr<base::UnixSocket> MakeListeningSocket();
 
   void FinishDataSourceFlush(FlushRequestID flush_id);
   bool Dump(DataSourceInstanceID id,
@@ -106,7 +113,7 @@ class HeapprofdProducer : public Producer {
   std::vector<BoundedQueue<UnwindingRecord>> unwinder_queues_;
   std::vector<std::thread> unwinding_threads_;
   SocketListener socket_listener_;
-  std::unique_ptr<base::UnixSocket> socket_;
+  std::unique_ptr<base::UnixSocket> listening_socket_;
   SystemProperties properties_;
 
   base::WeakPtrFactory<HeapprofdProducer> weak_factory_;
