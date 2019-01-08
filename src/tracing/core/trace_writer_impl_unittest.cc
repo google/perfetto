@@ -97,7 +97,7 @@ TEST_P(TraceWriterImplTest, SingleWriter) {
   SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
   size_t packets_count = 0;
   for (size_t page_idx = 0; page_idx < kNumPages; page_idx++) {
-    uint32_t page_layout = abi->page_layout_dbg(page_idx);
+    uint32_t page_layout = abi->GetPageLayout(page_idx);
     size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(page_layout);
     for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
       auto chunk_state = abi->GetChunkState(page_idx, chunk_idx);
