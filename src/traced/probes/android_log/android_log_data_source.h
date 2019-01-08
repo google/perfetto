@@ -83,8 +83,9 @@ class AndroidLogDataSource : public ProbesDataSource {
   base::WeakPtr<AndroidLogDataSource> GetWeakPtr() const;
 
  private:
-  // Periodic polling task.
-  void Tick(bool post_next_task);
+  void EnableSocketWatchTask(bool);
+  void OnSocketDataAvailable();
+  void ReadLogSocket();
 
   // Parses one line of /system/etc/event-log-tags.
   bool ParseEventLogDefinitionLine(char* line, size_t len);
@@ -115,7 +116,6 @@ class AndroidLogDataSource : public ProbesDataSource {
   base::UnixSocketRaw logdr_sock_;
 
   // Config parameters coming from the data source section in the trace config.
-  uint32_t poll_rate_ms_ = 0;
   int min_prio_ = 0;
   std::string mode_;
 
@@ -132,6 +132,7 @@ class AndroidLogDataSource : public ProbesDataSource {
   // stack, due to red zones around the boundaries.
   base::PagedMemory buf_;
   Stats stats_;
+  bool fd_watch_task_enabled_ = false;
 
   base::WeakPtrFactory<AndroidLogDataSource> weak_factory_;  // Keep last.
 };

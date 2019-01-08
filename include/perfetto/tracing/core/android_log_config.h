@@ -86,9 +86,6 @@ class PERFETTO_EXPORT AndroidLogConfig {
     return &log_ids_.back();
   }
 
-  uint32_t poll_ms() const { return poll_ms_; }
-  void set_poll_ms(uint32_t value) { poll_ms_ = value; }
-
   AndroidLogPriority min_prio() const { return min_prio_; }
   void set_min_prio(AndroidLogPriority value) { min_prio_ = value; }
 
@@ -101,7 +98,6 @@ class PERFETTO_EXPORT AndroidLogConfig {
 
  private:
   std::vector<AndroidLogId> log_ids_;
-  uint32_t poll_ms_ = {};
   AndroidLogPriority min_prio_ = {};
   std::vector<std::string> filter_tags_;
 
