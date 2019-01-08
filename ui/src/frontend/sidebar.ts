@@ -65,6 +65,8 @@ select query,
 from sqlstats, first
 order by started desc`;
 
+const TRACE_STATS = 'select * from stats order by severity, source, name, idx';
+
 function createCannedQuery(query: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
@@ -139,6 +141,11 @@ const SECTIONS = [
         t: 'CPU Time by cluster by process',
         a: createCannedQuery(CPU_TIME_BY_CLUSTER_BY_PROCESS),
         i: 'search',
+      },
+      {
+        t: 'Trace stats',
+        a: createCannedQuery(TRACE_STATS),
+        i: 'bug_report',
       },
       {
         t: 'Debug SQL performance',

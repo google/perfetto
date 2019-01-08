@@ -87,14 +87,17 @@ class ProtoTraceParser {
   void ParseClockSnapshot(TraceBlobView);
   std::pair<int /*type*/, int64_t> ParseClockField(TraceBlobView);
   void ParseAndroidLogPacket(TraceBlobView);
-  void ParseAndroidLogBinaryArg(TraceBlobView, char** str, size_t avail);
   void ParseAndroidLogEvent(TraceBlobView);
+  void ParseAndroidLogBinaryArg(TraceBlobView, char** str, size_t avail);
+  void ParseAndroidLogStats(TraceBlobView);
   void ParseGenericFtrace(int64_t timestamp, uint32_t pid, TraceBlobView view);
   void ParseGenericFtraceField(RowId generic_row_id, TraceBlobView view);
   void ParseTypedFtraceToRaw(uint32_t ftrace_id,
                              int64_t timestamp,
                              uint32_t pid,
                              TraceBlobView view);
+  void ParseTraceStats(TraceBlobView);
+  void ParseFtraceStats(TraceBlobView);
 
  private:
   TraceProcessorContext* context_;

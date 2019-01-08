@@ -17,6 +17,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "perfetto/base/utils.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_processor_context.h"
 
 #include <math.h>
@@ -44,6 +45,7 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
   if (timestamp < prev_timestamp_) {
     PERFETTO_ELOG("sched_switch event out of order by %.4f ms, skipping",
                   (prev_timestamp_ - timestamp) / 1e6);
+    context_->storage->IncrementStats(stats::sched_switch_out_of_order);
     return;
   }
   prev_timestamp_ = timestamp;
@@ -55,7 +57,7 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
     // If the this events previous pid does not match the previous event's next
     // pid, make a note of this.
     if (prev_pid != pending_slice->pid) {
-      context_->storage->mutable_stats()->mismatched_sched_switch_tids++;
+      context_->storage->IncrementStats(stats::mismatched_sched_switch_tids);
     }
 
     size_t idx = pending_slice->storage_index;
@@ -80,6 +82,7 @@ RowId EventTracker::PushCounter(int64_t timestamp,
   if (timestamp < prev_timestamp_) {
     PERFETTO_ELOG("counter event out of order by %.4f ms, skipping",
                   (prev_timestamp_ - timestamp) / 1e6);
+    context_->storage->IncrementStats(stats::counter_events_out_of_order);
     return kInvalidRowId;
   }
   prev_timestamp_ = timestamp;
