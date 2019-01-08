@@ -379,7 +379,7 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value, 0, 0,
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value * 1024, 0, 0,
                                    RefType::kRefNoRef));
   Tokenize(trace_1);
 }
