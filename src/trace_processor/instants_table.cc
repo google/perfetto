@@ -36,18 +36,15 @@ void InstantsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 
 base::Optional<Table::Schema> InstantsTable::Init(int, const char* const*) {
   const auto& instants = storage_->instants();
-  std::unique_ptr<StorageColumn> cols[] = {
-      NumericColumnPtr("ts", &instants.timestamps(), false /* hidden */,
-                       true /* ordered */),
-      StringColumnPtr("name", &instants.name_ids(), &storage_->string_pool()),
-      NumericColumnPtr("value", &instants.values()),
-      NumericColumnPtr("ref", &instants.refs()),
-      StringColumnPtr("ref_type", &instants.types(), &ref_types_)};
-  schema_ = StorageSchema({
-      std::make_move_iterator(std::begin(cols)),
-      std::make_move_iterator(std::end(cols)),
-  });
-  return schema_.ToTableSchema({"name", "ts", "ref"});
+  schema_ = StorageSchema::Builder()
+                .AddOrderedNumericColumn("ts", &instants.timestamps())
+                .AddStringColumn("name", &instants.name_ids(),
+                                 &storage_->string_pool())
+                .AddNumericColumn("value", &instants.values())
+                .AddNumericColumn("ref", &instants.refs())
+                .AddStringColumn("ref_type", &instants.types(), &ref_types_)
+                .Build({"name", "ts", "ref"});
+  return schema_.ToTableSchema();
 }
 
 std::unique_ptr<Table::Cursor> InstantsTable::CreateCursor(
