@@ -32,6 +32,7 @@ StorageSchema SliceTable::CreateStorageSchema() {
   const auto& slices = storage_->nestable_slices();
   return StorageSchema::Builder()
       .AddOrderedNumericColumn("ts", &slices.start_ns())
+      .AddNumericColumn("dur", &slices.durations())
       .AddNumericColumn("utid", &slices.utids())
       .AddStringColumn("cat", &slices.cats(), &storage_->string_pool())
       .AddStringColumn("name", &slices.names(), &storage_->string_pool())
