@@ -42,6 +42,8 @@ static_library("trace_processor") {
 
 source_set("lib") {
   sources = [
+    "android_logs_table.cc",
+    "android_logs_table.h",
     "args_table.cc",
     "args_table.h",
     "chunked_trace_reader.h",
