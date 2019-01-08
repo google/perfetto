@@ -44,7 +44,6 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-constexpr uint32_t kSendTimeoutMs = 1000;
 constexpr std::chrono::seconds kLockTimeout{1};
 
 std::vector<base::UnixSocketRaw> ConnectPool(const std::string& sock_name,
@@ -57,7 +56,7 @@ std::vector<base::UnixSocketRaw> ConnectPool(const std::string& sock_name,
       PERFETTO_PLOG("Failed to connect to %s", sock_name.c_str());
       continue;
     }
-    if (!sock.SetTxTimeout(kSendTimeoutMs)) {
+    if (!sock.SetTxTimeout(kClientSockTxTimeoutMs)) {
       PERFETTO_PLOG("Failed to set timeout for %s", sock_name.c_str());
       continue;
     }
@@ -287,7 +286,7 @@ void Client::RecordMalloc(uint64_t alloc_size,
 
   BorrowedSocket sock = socket_pool_.Borrow();
   if (!sock || !SendWireMessage(sock.get(), msg)) {
-    PERFETTO_DFATAL("Failed to send wire message.");
+    PERFETTO_ELOG("Failed to send wire message.");
     sock.Shutdown();
     Shutdown();
   }

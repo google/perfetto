@@ -59,7 +59,8 @@ class HeapprofdDelegate : public ThreadDelegate {
   ~HeapprofdDelegate() override = default;
 
   void Initialize(base::TaskRunner* task_runner) override {
-    producer_.reset(new HeapprofdProducer(task_runner));
+    producer_.reset(
+        new HeapprofdProducer(HeapprofdMode::kCentral, task_runner));
     producer_->ConnectWithRetries(producer_socket_.c_str());
   }
 
