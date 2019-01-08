@@ -61,6 +61,12 @@ std::array<uint16_t, SharedMemoryABI::kNumPageLayouts> InitChunkSizes(
   return res;
 }
 
+inline void ClearChunkHeader(SharedMemoryABI::ChunkHeader* header) {
+  header->writer_id.store(0u, std::memory_order_relaxed);
+  header->chunk_id.store(0u, std::memory_order_relaxed);
+  header->packets.store({}, std::memory_order_release);
+}
+
 }  // namespace
 
 // static
@@ -184,10 +190,10 @@ SharedMemoryABI::Chunk SharedMemoryABI::TryAcquireChunk(
       if (desired_chunk_state == kChunkBeingWritten) {
         PERFETTO_DCHECK(header);
         ChunkHeader* new_header = chunk.header();
-        new_header->packets.store(header->packets, std::memory_order_relaxed);
         new_header->writer_id.store(header->writer_id,
                                     std::memory_order_relaxed);
-        new_header->chunk_id.store(header->chunk_id, std::memory_order_release);
+        new_header->chunk_id.store(header->chunk_id, std::memory_order_relaxed);
+        new_header->packets.store(header->packets, std::memory_order_release);
       }
       return chunk;
     }
@@ -228,6 +234,11 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
   size_t page_idx;
   size_t chunk_idx;
   std::tie(page_idx, chunk_idx) = GetPageAndChunkIndex(chunk);
+
+  // Reset header fields, so that the service can identify when the chunk's
+  // header has been initialized by the producer.
+  if (desired_chunk_state == kChunkFree)
+    ClearChunkHeader(chunk.header());
 
   for (int attempt = 0; attempt < kRetryAttempts; attempt++) {
     PageHeader* phdr = page_header(page_idx);
@@ -275,46 +286,6 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
   return kInvalidPageIdx;
 }
 
-bool SharedMemoryABI::TryAcquireAllChunksForReading(size_t page_idx) {
-  PageHeader* phdr = page_header(page_idx);
-  uint32_t layout = phdr->layout.load(std::memory_order_relaxed);
-  const uint32_t num_chunks = GetNumChunksForLayout(layout);
-  if (num_chunks == 0)
-    return false;
-  uint32_t next_layout = layout & kLayoutMask;
-  for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
-    const uint32_t chunk_state =
-        ((layout >> (chunk_idx * kChunkShift)) & kChunkMask);
-    switch (chunk_state) {
-      case kChunkBeingWritten:
-        return false;
-      case kChunkBeingRead:
-      case kChunkComplete:
-        next_layout |= kChunkBeingRead << (chunk_idx * kChunkShift);
-        break;
-      case kChunkFree:
-        next_layout |= kChunkFree << (chunk_idx * kChunkShift);
-        break;
-    }
-  }
-  return phdr->layout.compare_exchange_strong(layout, next_layout,
-                                              std::memory_order_acq_rel);
-}
-
-void SharedMemoryABI::ReleaseAllChunksAsFree(size_t page_idx) {
-  PageHeader* phdr = page_header(page_idx);
-  phdr->layout.store(0, std::memory_order_release);
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  uint8_t* page_start = start_ + page_idx * page_size_;
-  // TODO(fmayer): On Linux/Android this should be MADV_REMOVE if we use
-  // memfd_create() and tmpfs supports hole punching (need to consult kernel
-  // sources).
-  int ret = madvise(reinterpret_cast<uint8_t*>(page_start), page_size_,
-                    MADV_DONTNEED);
-  PERFETTO_DCHECK(ret == 0);
-#endif
-}
-
 SharedMemoryABI::Chunk::Chunk() = default;
 
 SharedMemoryABI::Chunk::Chunk(uint8_t* begin, uint16_t size, uint8_t chunk_idx)
@@ -353,7 +324,7 @@ std::pair<size_t, size_t> SharedMemoryABI::GetPageAndChunkIndex(
   PERFETTO_DCHECK((offset - sizeof(PageHeader)) % chunk.size() == 0);
   const size_t chunk_idx = (offset - sizeof(PageHeader)) / chunk.size();
   PERFETTO_DCHECK(chunk_idx < kMaxChunksPerPage);
-  PERFETTO_DCHECK(chunk_idx < GetNumChunksForLayout(page_layout_dbg(page_idx)));
+  PERFETTO_DCHECK(chunk_idx < GetNumChunksForLayout(GetPageLayout(page_idx)));
   return std::make_pair(page_idx, chunk_idx);
 }
 
