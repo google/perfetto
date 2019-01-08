@@ -22,12 +22,7 @@ import "perfetto/common/android_log_constants.proto";
 message AndroidLogConfig {
   repeated AndroidLogId log_ids = 1;
 
-  // How frequently the logging daemon should be polled. We avoid using poll()
-  // to avoid waking up perfetto daemons too frequently and interfering with
-  // system activity too much.
-  // If not set (or set to zero) it uses a default poll rate of 1s.
-  // Values < 100 ms will be throttled to 100ms.
-  optional uint32 poll_ms = 2;
+  reserved 2;  // Was |poll_ms|, deprecated.
 
   // If set ignores all log messages whose prio is < the given value.
   optional AndroidLogPriority min_prio = 3;
