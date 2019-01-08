@@ -89,6 +89,13 @@ class ProtoDecoder {
       return res;
     }
 
+    inline double as_double() const {
+      PERFETTO_DCHECK(type == proto_utils::ProtoWireType::kFixed64);
+      double res;
+      memcpy(&res, &int_value, sizeof(res));
+      return res;
+    }
+
     // A relaxed version for when we are storing floats and doubles
     // as real in the raw events table.
     inline double as_real() const {

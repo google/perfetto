@@ -31,10 +31,14 @@ void StatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 base::Optional<Table::Schema> StatsTable::Init(int, const char* const*) {
   return Schema(
       {
-          Table::Column(Column::kKey, "key", ColumnType::kString),
-          Table::Column(Column::kValue, "value", ColumnType::kInt),
+          Table::Column(Column::kName, "name", ColumnType::kString),
+          // Calling a column "index" causes sqlite to silently fail, hence idx.
+          Table::Column(Column::kIndex, "idx", ColumnType::kUint),
+          Table::Column(Column::kSeverity, "severity", ColumnType::kString),
+          Table::Column(Column::kSource, "source", ColumnType::kString),
+          Table::Column(Column::kValue, "value", ColumnType::kLong),
       },
-      {Column::kKey});
+      {Column::kName});
 }
 
 std::unique_ptr<Table::Cursor> StatsTable::CreateCursor(const QueryConstraints&,
@@ -48,14 +52,45 @@ int StatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
 
 StatsTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {}
 
-int StatsTable::Cursor::Column(sqlite3_context* context, int N) {
+int StatsTable::Cursor::Column(sqlite3_context* ctx, int N) {
+  const auto kSqliteStatic = sqlite_utils::kSqliteStatic;
   switch (N) {
-    case Column::kKey:
-      sqlite3_result_text(context, KeyForRow(row_), -1,
-                          sqlite_utils::kSqliteStatic);
+    case Column::kName:
+      sqlite3_result_text(ctx, stats::kNames[key_], -1, kSqliteStatic);
+      break;
+    case Column::kIndex:
+      if (stats::kTypes[key_] == stats::kIndexed) {
+        sqlite3_result_int(ctx, index_->first);
+      } else {
+        sqlite3_result_null(ctx);
+      }
+      break;
+    case Column::kSeverity:
+      switch (stats::kSeverities[key_]) {
+        case stats::kInfo:
+          sqlite3_result_text(ctx, "info", -1, kSqliteStatic);
+          break;
+        case stats::kError:
+          sqlite3_result_text(ctx, "error", -1, kSqliteStatic);
+          break;
+      }
+      break;
+    case Column::kSource:
+      switch (stats::kSources[key_]) {
+        case stats::kTrace:
+          sqlite3_result_text(ctx, "trace", -1, kSqliteStatic);
+          break;
+        case stats::kAnalysis:
+          sqlite3_result_text(ctx, "analysis", -1, kSqliteStatic);
+          break;
+      }
       break;
     case Column::kValue:
-      sqlite3_result_int(context, ValueForRow(row_));
+      if (stats::kTypes[key_] == stats::kIndexed) {
+        sqlite3_result_int64(ctx, index_->second);
+      } else {
+        sqlite3_result_int64(ctx, storage_->stats()[key_].value);
+      }
       break;
     default:
       PERFETTO_FATAL("Unknown column %d", N);
@@ -65,44 +100,27 @@ int StatsTable::Cursor::Column(sqlite3_context* context, int N) {
 }
 
 int StatsTable::Cursor::Next() {
-  ++row_;
+  static_assert(stats::kTypes[0] == stats::kSingle,
+                "the first stats entry cannot be indexed");
+  const auto* cur_entry = &storage_->stats()[key_];
+  if (stats::kTypes[key_] == stats::kIndexed) {
+    if (++index_ != cur_entry->indexed_values.end()) {
+      return SQLITE_OK;
+    }
+  }
+  while (++key_ < stats::kNumKeys) {
+    cur_entry = &storage_->stats()[key_];
+    index_ = cur_entry->indexed_values.begin();
+    if (stats::kTypes[key_] == stats::kSingle ||
+        !cur_entry->indexed_values.empty()) {
+      break;
+    }
+  }
   return SQLITE_OK;
 }
 
 int StatsTable::Cursor::Eof() {
-  return row_ >= Row::kMax;
-}
-
-const char* StatsTable::Cursor::KeyForRow(uint8_t row) {
-  switch (row) {
-    case StatsTable::Row::kMismatchedSchedSwitch:
-      return "mismatched_ss";
-    case StatsTable::Row::kRssStatNoProcess:
-      return "rss_stat_no_process";
-    case StatsTable::Row::kMemCounterNoProcess:
-      return "mem_count_no_process";
-    default:
-      PERFETTO_FATAL("Unknown row %u", row);
-  }
-}
-
-int StatsTable::Cursor::ValueForRow(uint8_t row) {
-  switch (row) {
-    case StatsTable::Row::kMismatchedSchedSwitch: {
-      auto val = storage_->stats().mismatched_sched_switch_tids;
-      return static_cast<int>(val);
-    }
-    case StatsTable::Row::kRssStatNoProcess: {
-      auto val = storage_->stats().rss_stat_no_process;
-      return static_cast<int>(val);
-    }
-    case StatsTable::Row::kMemCounterNoProcess: {
-      auto val = storage_->stats().mem_counter_no_process;
-      return static_cast<int>(val);
-    }
-    default:
-      PERFETTO_FATAL("Unknown row %u", row);
-  }
+  return key_ >= stats::kNumKeys;
 }
 
 }  // namespace trace_processor

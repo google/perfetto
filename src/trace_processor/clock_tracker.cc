@@ -25,12 +25,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-ClockTracker::ClockTracker(TraceProcessorContext* ctx) : context_(ctx) {
-  // TODO(primiano): remove this, will be used in upcoming CLs to solve the
-  // TODOs below.
-  base::ignore_result(context_);
-}
-
+ClockTracker::ClockTracker(TraceProcessorContext* ctx) : context_(ctx) {}
 ClockTracker::~ClockTracker() = default;
 
 void ClockTracker::SyncClocks(ClockDomain domain,
@@ -41,13 +36,13 @@ void ClockTracker::SyncClocks(ClockDomain domain,
     // The trace clock (typically CLOCK_BOOTTIME) must be monotonic.
     if (trace_time_ns <= snapshots.back().trace_time_ns) {
       PERFETTO_ELOG("Trace time in clock snapshot is moving backwards");
-      // TODO(primiano): record in stats table.
+      context_->storage->IncrementStats(stats::clock_snapshot_not_monotonic);
       return;
     }
     if (clock_time_ns <= snapshots.back().clock_time_ns) {
       if (domain == ClockDomain::kMonotonic) {
         PERFETTO_ELOG("CLOCK_MONOTONIC in clock snapshot is moving backwards");
-        // TODO(primiano): record in stats table.
+        context_->storage->IncrementStats(stats::clock_snapshot_not_monotonic);
         return;
       }
       // This can happen in other clocks, for instance CLOCK_REALTIME if
