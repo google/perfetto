@@ -57,11 +57,10 @@ class QueryTable extends Panel {
     return m(
         'div',
         m('header.overview',
-          m('span',
-            `Query result - ${Math.round(resp.durationMs)} ms`,
-            m('span.code', resp.query)),
+          `Query result - ${Math.round(resp.durationMs)} ms`,
+          m('span.code', resp.query),
           resp.error ? null :
-                       m('button.query-copy',
+                       m('button.query-ctrl',
                          {
                            onclick: () => {
                              const lines: string[][] = [];
@@ -77,7 +76,15 @@ class QueryTable extends Panel {
                                  lines.map(line => line.join('\t')).join('\n'));
                            },
                          },
-                         'Copy as .tsv')),
+                         'Copy as .tsv'),
+          m('button.query-ctrl',
+            {
+              onclick: () => {
+                globals.queryResults.delete('command');
+                globals.rafScheduler.scheduleFullRedraw();
+              }
+            },
+            'Close'), ),
         resp.error ?
             m('.query-error', `SQL error: ${resp.error}`) :
             m('table.query-table', m('thead', header), m('tbody', rows)));

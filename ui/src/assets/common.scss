@@ -211,19 +211,16 @@ button.close {
 }
 
 .page header {
-    height: 25px;
-    line-height: 25px;
     background-color: hsl(213, 22%, 82%);
     color: hsl(213, 22%, 20%);
     font-family: 'Google sans';
     font-size: 15px;
     font-weight: 400;
-    padding: 0 10px;
+    padding: 4px 10px;
     vertical-align: middle;
     border-color: hsl(213, 22%, 75%);
     border-style: solid;
-    border-top-width: 1px;
-    border-bottom-width: 1px;
+    border-width: 1px 0;
     .code {
         font-family: var(--monospace-font);
         font-size: 12px;
@@ -303,12 +300,8 @@ button.close {
   // Override top level overflow: hidden so height of this flex item can be
   // its content height.
   overflow: visible;
-
-  // If there are 3 or more panels pinned (there are pinned tracks), make the
-  // border thicker.
-  .panel:nth-child(3) ~ .panel:last-of-type {
-    border-bottom: 4px solid hsla(213, 55%, 60%, 1);
-  }
+  box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+  z-index: 2;
 }
 
 // In the scrolling case, since the canvas is overdrawn and continuously
@@ -354,27 +347,27 @@ canvas.main-canvas {
 
 .time-axis-panel {
   height: 30px;
-  border-bottom: 1px solid #c7d0db;
 }
 
 .flame-graph-panel {
   height: 500px;
 }
 
-header {
-  height: 25px;
-}
-
 header.overview {
   display: flex;
-  justify-content: space-between;
+  align-content: center;
+
+  span.code {
+    user-select: text;
+    flex-grow: 1;
+  }
 }
 
 .query-error {
   user-select: text;
 }
 
-button.query-copy {
+button.query-ctrl {
   background: #262f3c;
   color: white;
   border-radius: 10px;
@@ -382,11 +375,7 @@ button.query-copy {
   height: 18px;
   line-height: 18px;
   min-width: 7em;
-  margin: auto 0;
-}
-
-span.code {
-  user-select: text;
+  margin: auto 0 auto 1rem;
 }
 
 .debug-panel-border {
@@ -476,7 +465,7 @@ span.code {
     font-weight: bold;
   }
   .shell {
-    padding: 0 10px;
+    padding: 4px 10px;
     display: grid;
     grid-template-areas: "title fold-button";
     grid-template-columns: 1fr 24px;
