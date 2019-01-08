@@ -28,20 +28,18 @@ void AndroidLogsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 
 base::Optional<Table::Schema> AndroidLogsTable::Init(int, const char* const*) {
   const auto& alog = storage_->android_logs();
-  std::unique_ptr<StorageColumn> cols[] = {
-      // Note: the logs in the storage are NOT sorted by timestamp. We delegate
-      // that to the on-demand sorter by leaving is_naturally_ordered=false
-      // (default value) when calling NumericColumnPtr().
-      NumericColumnPtr("ts", &alog.timestamps()),
-      NumericColumnPtr("utid", &alog.utids()),
-      NumericColumnPtr("prio", &alog.prios()),
-      StringColumnPtr("tag", &alog.tag_ids(), &storage_->string_pool()),
-      StringColumnPtr("msg", &alog.msg_ids(), &storage_->string_pool())};
-  schema_ = StorageSchema({
-      std::make_move_iterator(std::begin(cols)),
-      std::make_move_iterator(std::end(cols)),
-  });
-  return schema_.ToTableSchema({"ts", "utid", "msg"});
+  // Note: the logs in the storage are NOT sorted by timestamp. We delegate
+  // that to the on-demand sorter by calling AddNumericColumn (instead of
+  // AddSortedNumericColumn).
+  schema_ =
+      StorageSchema::Builder()
+          .AddNumericColumn("ts", &alog.timestamps())
+          .AddNumericColumn("utid", &alog.utids())
+          .AddNumericColumn("prio", &alog.prios())
+          .AddStringColumn("tag", &alog.tag_ids(), &storage_->string_pool())
+          .AddStringColumn("msg", &alog.msg_ids(), &storage_->string_pool())
+          .Build({"ts", "utid", "msg"});
+  return schema_.ToTableSchema();
 }
 
 std::unique_ptr<Table::Cursor> AndroidLogsTable::CreateCursor(
