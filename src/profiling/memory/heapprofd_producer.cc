@@ -73,16 +73,20 @@ ClientConfiguration MakeClientConfiguration(const DataSourceConfig& cfg) {
 //           +--------v---------+
 //           |Bookkeeping Thread|
 //           +------------------+
-
-HeapprofdProducer::HeapprofdProducer(base::TaskRunner* task_runner)
-    : task_runner_(task_runner),
+HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
+                                     base::TaskRunner* task_runner)
+    : mode_(mode),
+      task_runner_(task_runner),
       bookkeeping_queue_(kBookkeepingQueueSize),
       bookkeeping_th_([this] { bookkeeping_thread_.Run(&bookkeeping_queue_); }),
       unwinder_queues_(MakeUnwinderQueues(kUnwinderThreads)),
       unwinding_threads_(MakeUnwindingThreads(kUnwinderThreads)),
       socket_listener_(MakeSocketListenerCallback(), &bookkeeping_thread_),
-      socket_(MakeSocket()),
-      weak_factory_(this) {}
+      weak_factory_(this) {
+  if (mode == HeapprofdMode::kCentral) {
+    listening_socket_ = MakeListeningSocket();
+  }
+}
 
 HeapprofdProducer::~HeapprofdProducer() {
   bookkeeping_queue_.Shutdown();
@@ -329,7 +333,7 @@ std::vector<std::thread> HeapprofdProducer::MakeUnwindingThreads(size_t n) {
   return ret;
 }
 
-std::unique_ptr<base::UnixSocket> HeapprofdProducer::MakeSocket() {
+std::unique_ptr<base::UnixSocket> HeapprofdProducer::MakeListeningSocket() {
   const char* sock_fd = getenv(kHeapprofdSocketEnvVar);
   if (sock_fd == nullptr) {
     unlink(kHeapprofdSocketFile);
@@ -352,13 +356,13 @@ void HeapprofdProducer::Restart() {
   // be error prone. What we do here is simply desroying the instance and
   // recreating it again.
   // TODO(hjd): Add e2e test for this.
-
+  HeapprofdMode mode = mode_;
   base::TaskRunner* task_runner = task_runner_;
   const char* socket_name = socket_name_;
 
   // Invoke destructor and then the constructor again.
   this->~HeapprofdProducer();
-  new (this) HeapprofdProducer(task_runner);
+  new (this) HeapprofdProducer(mode, task_runner);
 
   ConnectWithRetries(socket_name);
 }

@@ -163,6 +163,14 @@ void UnixSocketRaw::SetBlocking(bool is_blocking) {
   PERFETTO_CHECK(fcntl_res == 0);
 }
 
+void UnixSocketRaw::RetainOnExec() {
+  PERFETTO_DCHECK(fd_);
+  int flags = fcntl(*fd_, F_GETFD, 0);
+  flags &= ~static_cast<int>(FD_CLOEXEC);
+  bool fcntl_res = fcntl(*fd_, F_SETFD, flags);
+  PERFETTO_CHECK(fcntl_res == 0);
+}
+
 bool UnixSocketRaw::IsBlocking() const {
   PERFETTO_DCHECK(fd_);
   return (fcntl(*fd_, F_GETFL, 0) & O_NONBLOCK) == 0;
