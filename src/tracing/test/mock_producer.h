@@ -60,9 +60,9 @@ class MockProducer : public Producer {
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       const std::string& data_source_name);
 
-  // If |writer_to_flush| != nullptr does NOT reply to the flush request.
-  // If |writer_to_flush| == nullptr does NOT reply to the flush request.
-  void WaitForFlush(TraceWriter* writer_to_flush);
+  // Expect a flush. Flushes |writer_to_flush| if non-null. If |reply| is true,
+  // replies to the flush request, otherwise ignores it and doesn't reply.
+  void WaitForFlush(TraceWriter* writer_to_flush, bool reply = true);
 
   TracingService::ProducerEndpoint* endpoint() {
     return service_endpoint_.get();

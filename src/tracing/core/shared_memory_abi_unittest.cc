@@ -81,7 +81,7 @@ TEST_P(SharedMemoryABITest, NominalCases) {
     uint8_t* const page_start = buf() + page_idx * page_size();
     uint8_t* const page_end = page_start + page_size();
     const size_t num_chunks =
-        SharedMemoryABI::GetNumChunksForLayout(abi.page_layout_dbg(page_idx));
+        SharedMemoryABI::GetNumChunksForLayout(abi.GetPageLayout(page_idx));
     Chunk chunks[14];
 
     for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
@@ -179,84 +179,6 @@ TEST_P(SharedMemoryABITest, NominalCases) {
                 abi.GetChunkState(page_idx, chunk_idx));
     }
   }
-}
-
-TEST_P(SharedMemoryABITest, BatchAcquireAndRelease) {
-  SharedMemoryABI abi(buf(), buf_size(), page_size());
-  ChunkHeader header{};
-
-  // TryAcquire on a non-partitioned page should fail.
-  ASSERT_FALSE(abi.TryAcquireChunkForWriting(0, 0, &header).is_valid());
-  ASSERT_FALSE(abi.TryAcquireChunkForReading(0, 0).is_valid());
-
-  // Now partition the page in one whole chunk.
-  ASSERT_TRUE(abi.TryPartitionPage(0, SharedMemoryABI::kPageDiv1));
-
-  Chunk chunk = abi.TryAcquireChunkForWriting(0, 0, &header);
-  ASSERT_TRUE(chunk.is_valid());
-
-  // TryAcquireAllChunksForReading() should fail, as the chunk is being written.
-  ASSERT_FALSE(abi.TryAcquireAllChunksForReading(0));
-
-  ASSERT_EQ(0u, abi.ReleaseChunkAsComplete(std::move(chunk)));
-  ASSERT_FALSE(chunk.is_valid());
-
-  // TryAcquireAllChunksForReading() should succeed given that the page has only
-  // one chunk and is now complete.
-  ASSERT_TRUE(abi.TryAcquireAllChunksForReading(0));
-
-  // Release the one chunk and check that the page is freed up.
-  abi.ReleaseAllChunksAsFree(0);
-  ASSERT_TRUE(abi.is_page_free(0));
-
-  // Now repartition the page into four chunks and try some trickier cases.
-  ASSERT_TRUE(abi.TryPartitionPage(0, SharedMemoryABI::kPageDiv4));
-
-  // Acquire only the first and last chunks.
-  Chunk chunk0 = abi.TryAcquireChunkForWriting(0, 0, &header);
-  ASSERT_TRUE(chunk0.is_valid());
-  Chunk chunk3 = abi.TryAcquireChunkForWriting(0, 3, &header);
-  ASSERT_TRUE(chunk3.is_valid());
-
-  // TryAcquireAllChunksForReading() should fail, some chunks are being written.
-  ASSERT_FALSE(abi.TryAcquireAllChunksForReading(0));
-
-  // Mark only one chunks as complete and try again, it should still fail.
-  ASSERT_EQ(0u, abi.ReleaseChunkAsComplete(std::move(chunk0)));
-  ASSERT_FALSE(chunk0.is_valid());
-
-  ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi.GetChunkState(0, 0));
-  ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, 1));
-  ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, 2));
-  ASSERT_EQ(SharedMemoryABI::kChunkBeingWritten, abi.GetChunkState(0, 3));
-  ASSERT_FALSE(abi.TryAcquireAllChunksForReading(0));
-
-  // Now release also the last chunk as complete and try again the
-  // TryAcquireAllChunksForReading(). This time it should succeed.
-  ASSERT_EQ(0u, abi.ReleaseChunkAsComplete(std::move(chunk3)));
-  ASSERT_FALSE(chunk3.is_valid());
-
-  ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi.GetChunkState(0, 0));
-  ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, 1));
-  ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, 2));
-  ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi.GetChunkState(0, 3));
-  ASSERT_TRUE(abi.TryAcquireAllChunksForReading(0));
-
-  // At this point the two outer chunks should transition into the
-  // kChunkBeingRead state, while the middle ones should stay free.
-  ASSERT_EQ(SharedMemoryABI::kChunkBeingRead, abi.GetChunkState(0, 0));
-  ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, 1));
-  ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, 2));
-  ASSERT_EQ(SharedMemoryABI::kChunkBeingRead, abi.GetChunkState(0, 3));
-
-  // Release only one chunk as free.
-  abi.ReleaseChunkAsFree(abi.GetChunkUnchecked(0, abi.page_layout_dbg(0), 0));
-  ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, 0));
-  ASSERT_EQ(SharedMemoryABI::kChunkBeingRead, abi.GetChunkState(0, 3));
-
-  // Release the last chunk as free, the full page should be freed.
-  abi.ReleaseChunkAsFree(abi.GetChunkUnchecked(0, abi.page_layout_dbg(0), 3));
-  ASSERT_TRUE(abi.is_page_free(0));
 }
 
 }  // namespace
