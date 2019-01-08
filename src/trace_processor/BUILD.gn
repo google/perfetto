@@ -45,6 +45,8 @@ source_set("lib") {
     "args_table.cc",
     "args_table.h",
     "chunked_trace_reader.h",
+    "clock_tracker.cc",
+    "clock_tracker.h",
     "counters_table.cc",
     "counters_table.h",
     "event_tracker.cc",
@@ -162,6 +164,7 @@ copy("trace_processor_shell") {
 source_set("unittests") {
   testonly = true
   sources = [
+    "clock_tracker_unittest.cc",
     "counters_table_unittest.cc",
     "event_tracker_unittest.cc",
     "filtered_row_index_unittest.cc",

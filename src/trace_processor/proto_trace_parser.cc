@@ -25,6 +25,7 @@
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/traced/sys_stats_counters.h"
+#include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/process_tracker.h"
@@ -204,6 +205,11 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TraceBlobView packet) {
       case protos::TracePacket::kBatteryFieldNumber: {
         const size_t fld_off = packet.offset_of(fld.data());
         ParseBatteryCounters(ts, packet.slice(fld_off, fld.size()));
+        break;
+      }
+      case protos::TracePacket::kClockSnapshotFieldNumber: {
+        const size_t fld_off = packet.offset_of(fld.data());
+        ParseClockSnapshot(packet.slice(fld_off, fld.size()));
         break;
       }
       default:
@@ -1044,6 +1050,80 @@ void ProtoTraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
         break;
     }
   }
+}
+
+void ProtoTraceParser::ParseClockSnapshot(TraceBlobView packet) {
+  ProtoDecoder decoder(packet.data(), packet.length());
+  int64_t clock_boottime = 0;
+  int64_t clock_monotonic = 0;
+  int64_t clock_realtime = 0;
+
+  // This loop iterates over the "repeated Clock" entries.
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::ClockSnapshot::kClocksFieldNumber: {
+        const size_t fld_off = packet.offset_of(fld.data());
+        auto clk = ParseClockField(packet.slice(fld_off, fld.size()));
+        switch (clk.first) {
+          case protos::ClockSnapshot::Clock::BOOTTIME:
+            clock_boottime = clk.second;
+            break;
+          case protos::ClockSnapshot::Clock::REALTIME:
+            clock_realtime = clk.second;
+            break;
+          case protos::ClockSnapshot::Clock::MONOTONIC:
+            clock_monotonic = clk.second;
+            break;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+
+  // Usually these snapshots come all together.
+  PERFETTO_DCHECK(clock_boottime > 0 && clock_monotonic > 0 &&
+                  clock_realtime > 0);
+
+  if (clock_boottime <= 0) {
+    PERFETTO_ELOG("ClockSnapshot has an invalid BOOTTIME (%" PRId64 ")",
+                  clock_boottime);
+    return;
+  }
+
+  auto* ct = context_->clock_tracker.get();
+
+  // |clock_boottime| is used as the reference trace time.
+  ct->SyncClocks(ClockDomain::kBootTime, clock_boottime, clock_boottime);
+
+  if (clock_monotonic > 0)
+    ct->SyncClocks(ClockDomain::kMonotonic, clock_monotonic, clock_boottime);
+
+  if (clock_realtime > 0)
+    ct->SyncClocks(ClockDomain::kRealTime, clock_realtime, clock_boottime);
+}
+
+std::pair<int, int64_t> ProtoTraceParser::ParseClockField(
+    TraceBlobView packet) {
+  ProtoDecoder decoder(packet.data(), packet.length());
+  int type = protos::ClockSnapshot::Clock::UNKNOWN;
+  int64_t value = -1;
+
+  // This loop iterates over the |type| and |timestamp| field of each
+  // clock snapshot.
+  for (auto fld = decoder.ReadField(); fld.id; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::ClockSnapshot::Clock::kTypeFieldNumber:
+        type = fld.as_int32();
+        break;
+      case protos::ClockSnapshot::Clock::kTimestampFieldNumber:
+        value = fld.as_int64();
+        break;
+    }
+  }
+  return std::make_pair(type, value);
 }
 
 }  // namespace trace_processor
