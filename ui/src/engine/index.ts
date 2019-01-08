@@ -19,11 +19,10 @@ import {WasmBridge, WasmBridgeRequest} from './wasm_bridge';
 // tslint:disable no-any
 // Proxy all messages to WasmBridge#callWasm.
 const anySelf = (self as any);
-const boundPostMessage = anySelf.postMessage.bind(anySelf);
-const bridge = new WasmBridge(init_trace_processor, boundPostMessage);
-bridge.initialize();
-
-anySelf.onmessage = (msg: MessageEvent) => {
-  const request: WasmBridgeRequest = msg.data;
-  bridge.callWasm(request);
-};
+const bridge = new WasmBridge(init_trace_processor);
+bridge.whenInitialized.then(() => {
+  anySelf.onmessage = (msg: MessageEvent) => {
+    const request: WasmBridgeRequest = msg.data;
+    anySelf.postMessage(bridge.callWasm(request));
+  };
+});
