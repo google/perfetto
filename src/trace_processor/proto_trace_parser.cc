@@ -326,8 +326,9 @@ void ProtoTraceParser::ParseMemInfo(int64_t ts, TraceBlobView mem) {
     context_->storage->IncrementStats(stats::meminfo_unknown_keys);
     return;
   }
-  context_->event_tracker->PushCounter(ts, value, meminfo_strs_id_[key], 0,
-                                       RefType::kRefNoRef);
+  // /proc/meminfo counters are in kB, convert to bytes
+  context_->event_tracker->PushCounter(ts, value * 1024L, meminfo_strs_id_[key],
+                                       0, RefType::kRefNoRef);
 }
 
 void ProtoTraceParser::ParseVmStat(int64_t ts, TraceBlobView stat) {
