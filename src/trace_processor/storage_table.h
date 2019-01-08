@@ -48,7 +48,13 @@ class StorageTable : public Table {
   };
 
   StorageTable();
-  virtual ~StorageTable();
+  virtual ~StorageTable() override;
+
+  // Table implementation.
+  base::Optional<Table::Schema> Init(int, const char* const*) override final;
+
+  // Required methods for subclasses to implement.
+  virtual StorageSchema CreateStorageSchema() = 0;
 
  protected:
   // Creates a row iterator which is optimized for a generic storage schema
