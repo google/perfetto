@@ -1,0 +1,32 @@
+
+
+
+
+"tag","count(*)"
+"mm-camera",562
+"NxpTml",109
+"sysui_multi_action",101
+"NuPlayerDriver",60
+"CAM_Profiler",57
+"-----",0
+"AlarmManager",1
+"AudioTrack",1
+"CAM_ActvCamDevTrckr",1
+"CAM_AutoFlashZslImgFltr",1
+"CAM_FlashBasedPhotoCmd",1
+"-----",0
+"GnssLocationProvider",8
+"power_screen_broadcast_done",2
+"power_screen_broadcast_send",2
+"power_sleep_requested",1
+"-----",0
+"@ 1508.228: +: id 0, otherClientPresent 1, mode 3",1
+"name="power_consecutive_short_tap_count" bucket=1",1
+"content=757",1
+"name="power_double_tap_interval" bucket=133307",1
+"content=757",1
+"Waking up from dozing (uid=1000 reason=android.policy:POWER)...",1
+"Event reported without a package name",1
+"screen_state=1",1
+"@ 1508.605: [VSC SLPI] handling enable request for 65563 sensor",1
+"@ 1508.605: [VSC] Request sensor 65537, sample_duration 42 ms, report_duration 28 ms",1

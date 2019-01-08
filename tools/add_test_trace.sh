@@ -37,8 +37,12 @@ echo ""
 gsutil acl ch -u AllUsers:R gs://perfetto/$NEW_TEST_DATA
 
 echo ""
-echo "sha1sum of file $NEW_TEST_DATA is"
-echo $(sha1sum /tmp/$NEW_TEST_DATA)
+echo "SHA1 of file $NEW_TEST_DATA is"
+if which shasum; then
+echo $(shasum /tmp/$NEW_TEST_DATA)  # Mac OS
+else
+echo $(sha1sum /tmp/$NEW_TEST_DATA)  # Linux
+fi
 
 echo ""
 echo "Cleaning up leftover files"
