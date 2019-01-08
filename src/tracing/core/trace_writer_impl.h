@@ -41,6 +41,8 @@ class TraceWriterImpl : public TraceWriter,
   void Flush(std::function<void()> callback = {}) override;
   WriterID writer_id() const override;
 
+  void ResetChunkForTesting() { cur_chunk_ = SharedMemoryABI::Chunk(); }
+
  private:
   TraceWriterImpl(const TraceWriterImpl&) = delete;
   TraceWriterImpl& operator=(const TraceWriterImpl&) = delete;
