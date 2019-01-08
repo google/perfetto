@@ -15,12 +15,15 @@
  */
 
 #include <unistd.h>
+
 #include <chrono>
 #include <condition_variable>
 #include <functional>
+#include <initializer_list>
 #include <random>
 #include <thread>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -43,6 +46,9 @@ namespace perfetto {
 
 namespace {
 
+using ::testing::ContainsRegex;
+using ::testing::HasSubstr;
+
 class PerfettoTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -63,6 +69,106 @@ class PerfettoTest : public ::testing::Test {
   }
 
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
+};
+
+class PerfettoCmdlineTest : public ::testing::Test {
+ public:
+  void SetUp() override { test_helper_.StartServiceIfRequired(); }
+
+  void TearDown() override {}
+
+  // Fork() + executes the perfetto cmdline client with the given args and
+  // returns the exit code.
+  int Exec(std::initializer_list<std::string> args, std::string input = "") {
+    std::vector<char> argv_buffer;
+    std::vector<size_t> argv_offsets;
+    std::vector<char*> argv;
+    argv_offsets.push_back(0);
+
+    std::string argv0("perfetto");
+    argv_buffer.insert(argv_buffer.end(), argv0.begin(), argv0.end());
+    argv_buffer.push_back('\0');
+
+    for (const std::string& arg : args) {
+      argv_offsets.push_back(argv_buffer.size());
+      argv_buffer.insert(argv_buffer.end(), arg.begin(), arg.end());
+      argv_buffer.push_back('\0');
+    }
+
+    for (size_t off : argv_offsets)
+      argv.push_back(&argv_buffer[off]);
+    argv.push_back(nullptr);
+
+    // Create the pipe for the child process to return stderr.
+    base::Pipe err_pipe = base::Pipe::Create();
+    base::Pipe in_pipe = base::Pipe::Create();
+
+    pid_t pid = fork();
+    PERFETTO_CHECK(pid >= 0);
+    if (pid == 0) {
+      // Child process.
+      err_pipe.rd.reset();
+      in_pipe.wr.reset();
+
+      int devnull = open("/dev/null", O_RDWR);
+      PERFETTO_CHECK(devnull >= 0);
+      PERFETTO_CHECK(dup2(*in_pipe.rd, STDIN_FILENO) != -1);
+      PERFETTO_CHECK(dup2(devnull, STDOUT_FILENO) != -1);
+      PERFETTO_CHECK(dup2(*err_pipe.wr, STDERR_FILENO) != -1);
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+      setenv("PERFETTO_CONSUMER_SOCK_NAME", TestHelper::GetConsumerSocketName(),
+             1);
+      _exit(PerfettoCmdMain(static_cast<int>(argv.size() - 1), argv.data()));
+#else
+      execv("/system/bin/perfetto", &argv[0]);
+      _exit(3);
+#endif
+    }
+
+    // Parent.
+    err_pipe.wr.reset();
+    stderr_ = std::string(1024 * 1024, '\0');
+
+    // This is generally an unsafe pattern because the child process might be
+    // blocked on stdout and stall the stdin reads. It's pragmatically okay for
+    // our test cases because stdin is not expected to exceed the pipe buffer.
+    PERFETTO_CHECK(input.size() <= base::kPageSize);
+    PERFETTO_CHECK(
+        PERFETTO_EINTR(write(*in_pipe.wr, input.data(), input.size())) ==
+        static_cast<ssize_t>(input.size()));
+    in_pipe.wr.reset();
+
+    // Close the input pipe only after the write so we don't get an EPIPE signal
+    // in the cases when the child process earlies out without reading stdin.
+    in_pipe.rd.reset();
+
+    ssize_t rsize = 0;
+    size_t stderr_pos = 0;
+    while (stderr_pos < stderr_.size()) {
+      rsize = PERFETTO_EINTR(read(*err_pipe.rd, &stderr_[stderr_pos],
+                                  stderr_.size() - stderr_pos - 1));
+      if (rsize <= 0)
+        break;
+      stderr_pos += static_cast<size_t>(rsize);
+    }
+    stderr_.resize(stderr_pos);
+    int status = 1;
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, &status, 0)) == pid);
+    int exit_code;
+    if (WIFEXITED(status)) {
+      exit_code = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+      exit_code = -(WTERMSIG(status));
+      PERFETTO_CHECK(exit_code < 0);
+    } else {
+      PERFETTO_FATAL("Unexpected exit status: %d", status);
+    }
+    return exit_code;
+  }
+
+  std::string stderr_;
+  base::TestTaskRunner task_runner_;
+  TestHelper test_helper_{&task_runner_};
 };
 
 }  // namespace
@@ -409,6 +515,81 @@ TEST_F(PerfettoTest, ReattachFailsAfterTimeout) {
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
   EXPECT_FALSE(helper.AttachConsumer("key"));
+}
+
+// Disable cmdline tests on sanitizets because they use fork() and that messes
+// up leak / races detections, which has been fixed only recently (see
+// https://github.com/google/sanitizers/issues/836 ).
+#if defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) || \
+    defined(MEMORY_SANITIZER) || defined(LEAK_SANITIZER)
+#define NoSanitizers(X) DISABLED_##X
+#else
+#define NoSanitizers(X) X
+#endif
+
+TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
+  std::string cfg("duration_ms: 100");
+
+  EXPECT_EQ(1, Exec({"--invalid-arg"}));
+
+  EXPECT_EQ(1, Exec({"-c", "-", "-o", "-"}, ""));
+  EXPECT_THAT(stderr_, HasSubstr("TraceConfig is empty"));
+
+  // Cannot make assertions on --dropbox because on standalone builds it fails
+  // prematurely due to lack of dropbox.
+  EXPECT_EQ(1, Exec({"-c", "-", "--txt", "-o", "-", "--dropbox=foo"}, cfg));
+
+  EXPECT_EQ(1, Exec({"-c", "-", "--txt"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("Either --out or --dropbox"));
+
+  // Disallow mixing simple and file config.
+  EXPECT_EQ(1, Exec({"-o", "-", "-c", "-", "-t", "2s"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
+
+  EXPECT_EQ(1, Exec({"-o", "-", "-c", "-", "-b", "2m"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
+
+  EXPECT_EQ(1, Exec({"-o", "-", "-c", "-", "-s", "2m"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
+
+  // Invalid --attach / --detach cases.
+  EXPECT_EQ(1, Exec({"-c", "-", "--txt", "-o", "-", "--stop"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("--stop is supported only in combination"));
+
+  EXPECT_EQ(1, Exec({"-c", "-", "--txt", "-o", "-", "--attach=foo"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
+
+  EXPECT_EQ(1, Exec({"-t", "2s", "-o", "-", "--attach=foo"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
+
+  EXPECT_EQ(1, Exec({"--attach"}, cfg));
+  EXPECT_THAT(stderr_, ContainsRegex("option.*--attach.*requires an argument"));
+
+  EXPECT_EQ(1, Exec({"-t", "2s", "-o", "-", "--detach"}, cfg));
+  EXPECT_THAT(stderr_, ContainsRegex("option.*--detach.*requires an argument"));
+
+  EXPECT_EQ(1, Exec({"-t", "2s", "--detach=foo"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("--out or --dropbox is required"));
+}
+
+TEST_F(PerfettoCmdlineTest, NoSanitizers(TxtConfig)) {
+  std::string cfg("duration_ms: 100");
+  EXPECT_EQ(0, Exec({"-c", "-", "--txt", "-o", "-"}, cfg)) << stderr_;
+}
+
+TEST_F(PerfettoCmdlineTest, NoSanitizers(SimpleConfig)) {
+  EXPECT_EQ(0, Exec({"-o", "-", "-c", "-", "-t", "100ms"}));
+}
+
+TEST_F(PerfettoCmdlineTest, NoSanitizers(DetachAndAttach)) {
+  EXPECT_NE(0, Exec({"--attach=not_existent"}));
+  EXPECT_THAT(stderr_, HasSubstr("Session re-attach failed"));
+
+  std::string cfg("duration_ms: 10000; write_into_file: true");
+  EXPECT_EQ(0,
+            Exec({"-o", "-", "-c", "-", "--txt", "--detach=valid_stop"}, cfg))
+      << stderr_;
+  EXPECT_EQ(0, Exec({"--attach=valid_stop", "--stop"}));
 }
 
 }  // namespace perfetto
