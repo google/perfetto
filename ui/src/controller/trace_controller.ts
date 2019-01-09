@@ -233,12 +233,11 @@ export class TraceController extends Controller<States> {
       }));
     }
 
-    // TODO(b/120605557): Replace with is not null when b/120605557 fixed.
     const counters = await engine.query(`
-      select name, ifnull(ref, -1) as numeric_ref, ref_type, count(ref_type)
+      select name, ref, ref_type, count(ref_type)
       from counters
-      where numeric_ref != -1
-      group by name, numeric_ref, ref_type
+      where ref is not null
+      group by name, ref, ref_type
       order by ref_type desc
     `);
     const counterUpids = new Set<number>();
