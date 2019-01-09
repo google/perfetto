@@ -68,6 +68,8 @@ static constexpr size_t kBufferPageSize = 8192;
 
 constexpr uid_t kInvalidUid = static_cast<uid_t>(-1);
 
+constexpr uint32_t kDefaultFlushTimeoutMs = 5000;
+
 }  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_BASIC_TYPES_H_
