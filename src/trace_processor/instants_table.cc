@@ -56,7 +56,7 @@ std::unique_ptr<Table::Cursor> InstantsTable::CreateCursor(
 
 int InstantsTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   info->estimated_cost =
-      static_cast<uint32_t>(storage_->counters().counter_count());
+      static_cast<uint32_t>(storage_->instants().instant_count());
 
   // Only the string columns are handled by SQLite
   info->order_by_consumed = true;
