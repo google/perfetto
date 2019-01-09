@@ -32,6 +32,7 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/proto_trace_tokenizer.h"
+#include "src/trace_processor/raw_table.h"
 #include "src/trace_processor/sched_slice_table.h"
 #include "src/trace_processor/slice_table.h"
 #include "src/trace_processor/slice_tracker.h"
@@ -130,6 +131,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   InstantsTable::RegisterTable(*db_, context_.storage.get());
   StatsTable::RegisterTable(*db_, context_.storage.get());
   AndroidLogsTable::RegisterTable(*db_, context_.storage.get());
+  RawTable::RegisterTable(*db_, context_.storage.get());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
