@@ -60,7 +60,6 @@ constexpr size_t kDefaultShmPageSize = base::kPageSize;
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kSnapshotsInterval(10 * 1000);
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
-constexpr int kFlushTimeoutMs = 5000;
 constexpr int kMaxConcurrentTracingSessions = 5;
 
 constexpr uint64_t kMillisPerHour = 3600000;
@@ -650,6 +649,9 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
     return;
   }
 
+  if (!timeout_ms)
+    timeout_ms = tracing_session->flush_timeout_ms();
+
   if (tracing_session->pending_flushes.size() > 1000) {
     PERFETTO_ELOG("Too many flushes (%zu) pending for the tracing session",
                   tracing_session->pending_flushes.size());
@@ -867,8 +869,9 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
 
 void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_DLOG("Triggering final flush for %" PRIu64, tsid);
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  Flush(tsid, kFlushTimeoutMs, [weak_this, tsid](bool success) {
+  Flush(tsid, 0, [weak_this, tsid](bool success) {
     PERFETTO_DLOG("Flush done (success: %d), disabling trace session %" PRIu64,
                   success, tsid);
     if (!weak_this)
@@ -907,7 +910,8 @@ void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
   if (post_next_only)
     return;
 
-  Flush(tsid, kFlushTimeoutMs, [](bool success) {
+  PERFETTO_DLOG("Triggering periodic flush for %" PRIu64, tsid);
+  Flush(tsid, 0, [](bool success) {
     if (!success)
       PERFETTO_ELOG("Periodic flush timed out");
   });

@@ -290,6 +290,11 @@ class TracingServiceImpl : public TracingService {
              (base::GetWallTimeMs().count() % write_period_ms);
     }
 
+    uint32_t flush_timeout_ms() {
+      uint32_t timeout_ms = config.flush_timeout_ms();
+      return timeout_ms ? timeout_ms : kDefaultFlushTimeoutMs;
+    }
+
     const TracingSessionID id;
 
     // The consumer that started the session.

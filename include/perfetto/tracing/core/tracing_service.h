@@ -151,6 +151,9 @@ class PERFETTO_EXPORT TracingService {
     // passed callback once all of them have acked the flush (in which case
     // the callback argument |success| will be true) or |timeout_ms| are elapsed
     // (in which case |success| will be false).
+    // If |timeout_ms| is 0 the TraceConfig's flush_timeout_ms is used, or,
+    // if that one is not set (or is set to 0), kDefaultFlushTimeoutMs (5s) is
+    // used.
     using FlushCallback = std::function<void(bool /*success*/)>;
     virtual void Flush(uint32_t timeout_ms, FlushCallback) = 0;
 
