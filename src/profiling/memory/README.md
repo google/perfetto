@@ -54,7 +54,7 @@ data_sources {
 }
 
 duration_ms: 20000
-' | adb shell perfetto -t -c - -o /data/misc/perfetto-traces/trace
+' | adb shell perfetto --txt -c - -o /data/misc/perfetto-traces/trace
 
 adb pull /data/misc/perfetto-traces/trace /tmp/trace
 ```
