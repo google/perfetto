@@ -81,7 +81,8 @@ def generate(source, target, protoc_path):
     ], cwd=ROOT_DIR)
 
     s = fdescriptor.read()
-    constant_name = 'k' + target_name.title()[:-2].translate(None, '._')
+    proto_name = source_name[:-len('.proto')].title().replace("_", "")
+    constant_name = 'k' + proto_name + 'Descriptor'
     binary = '{' + ', '.join('{0:#04x}'.format(ord(c)) for c in s) + '}'
     binary = textwrap.fill(binary,
         width=80,
@@ -106,7 +107,7 @@ def generate(source, target, protoc_path):
 // SHA1({source_path})
 // {source_hash}
 
-// This is the proto {{proto_name}} encoded as a ProtoFileDescriptor to allow
+// This is the proto {proto_name} encoded as a ProtoFileDescriptor to allow
 // for reflection without libprotobuf full/non-lite protos.
 
 namespace perfetto {{
@@ -118,6 +119,7 @@ constexpr std::array<uint8_t, {size}> {constant_name}{{
 
 #endif  // {include_guard}
 """.format(**{
+        'proto_name': proto_name,
         'size': len(s),
         'constant_name': constant_name,
         'binary': binary,
