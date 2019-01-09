@@ -36,6 +36,7 @@
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/traced/traced.h"
+#include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -57,8 +58,6 @@
 
 namespace perfetto {
 namespace {
-
-constexpr uint32_t kFlushTimeoutMs = 5000;
 
 perfetto::PerfettoCmd* g_consumer_cmd;
 
@@ -518,8 +517,10 @@ void PerfettoCmd::OnConnect() {
 
   // Failsafe mechanism to avoid waiting indefinitely if the service hangs.
   if (trace_config_->duration_ms()) {
+    uint32_t trace_timeout = trace_config_->duration_ms() + 10000 +
+                             trace_config_->flush_timeout_ms();
     task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
-                                 trace_config_->duration_ms() + 10000);
+                                 trace_timeout);
   }
 }
 
@@ -650,9 +651,9 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
   sigaction(SIGTERM, &sa, nullptr);
 
   task_runner_.AddFileDescriptorWatch(ctrl_c_evt_.fd(), [this] {
-    PERFETTO_LOG("SIGINT/SIGTERM received: disabling tracing");
+    PERFETTO_LOG("SIGINT/SIGTERM received: disabling tracing.");
     ctrl_c_evt_.Clear();
-    consumer_endpoint_->Flush(kFlushTimeoutMs, [this](bool flush_success) {
+    consumer_endpoint_->Flush(0, [this](bool flush_success) {
       if (!flush_success)
         PERFETTO_ELOG("Final flush unsuccessful.");
       consumer_endpoint_->DisableTracing();
@@ -690,7 +691,7 @@ void PerfettoCmd::OnAttach(bool success, const TraceConfig& trace_config) {
   PERFETTO_DCHECK(trace_config_->write_into_file());
 
   if (stop_trace_once_attached_) {
-    consumer_endpoint_->Flush(kFlushTimeoutMs, [this](bool flush_success) {
+    consumer_endpoint_->Flush(0, [this](bool flush_success) {
       if (!flush_success)
         PERFETTO_ELOG("Final flush unsuccessful.");
       consumer_endpoint_->DisableTracing();

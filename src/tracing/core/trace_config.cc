@@ -102,6 +102,11 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
                 "size mismatch");
   flush_period_ms_ =
       static_cast<decltype(flush_period_ms_)>(proto.flush_period_ms());
+
+  static_assert(sizeof(flush_timeout_ms_) == sizeof(proto.flush_timeout_ms()),
+                "size mismatch");
+  flush_timeout_ms_ =
+      static_cast<decltype(flush_timeout_ms_)>(proto.flush_timeout_ms());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -172,6 +177,11 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
                 "size mismatch");
   proto->set_flush_period_ms(
       static_cast<decltype(proto->flush_period_ms())>(flush_period_ms_));
+
+  static_assert(sizeof(flush_timeout_ms_) == sizeof(proto->flush_timeout_ms()),
+                "size mismatch");
+  proto->set_flush_timeout_ms(
+      static_cast<decltype(proto->flush_timeout_ms())>(flush_timeout_ms_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

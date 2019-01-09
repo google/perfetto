@@ -29,7 +29,7 @@ package perfetto.protos;
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 14.
+// Next id: 15.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -149,4 +149,8 @@ message TraceConfig {
   // quasi-real-time streaming mode and to guarantee some partial ordering of
   // events in the trace in windows of X ms.
   optional uint32 flush_period_ms = 13;
+
+  // Wait for this long for producers to acknowledge flush requests.
+  // Default 5s.
+  optional uint32 flush_timeout_ms = 14;
 }

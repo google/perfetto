@@ -312,6 +312,9 @@ class PERFETTO_EXPORT TraceConfig {
   uint32_t flush_period_ms() const { return flush_period_ms_; }
   void set_flush_period_ms(uint32_t value) { flush_period_ms_ = value; }
 
+  uint32_t flush_timeout_ms() const { return flush_timeout_ms_; }
+  void set_flush_timeout_ms(uint32_t value) { flush_timeout_ms_ = value; }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -326,6 +329,7 @@ class PERFETTO_EXPORT TraceConfig {
   GuardrailOverrides guardrail_overrides_ = {};
   bool deferred_start_ = {};
   uint32_t flush_period_ms_ = {};
+  uint32_t flush_timeout_ms_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
