@@ -192,6 +192,8 @@ bool UnixSocketRaw::Bind(const std::string& socket_name) {
 }
 
 bool UnixSocketRaw::Listen() {
+  PERFETTO_DCHECK(fd_);
+  PERFETTO_DCHECK(type_ == SockType::kStream || type_ == SockType::kSeqPacket);
   return listen(*fd_, SOMAXCONN) == 0;
 }
 
@@ -363,7 +365,7 @@ std::unique_ptr<UnixSocket> UnixSocket::Listen(const std::string& socket_name,
     return nullptr;
 
   // Forward the call to the Listen() overload below.
-  return Listen(sock_raw.ReleaseFd(), event_listener, task_runner);
+  return Listen(sock_raw.ReleaseFd(), event_listener, task_runner, sock_type);
 }
 
 // static
