@@ -40,13 +40,8 @@ StorageSchema AndroidLogsTable::CreateStorageSchema() {
       .Build({"ts", "utid", "msg"});
 }
 
-std::unique_ptr<Table::Cursor> AndroidLogsTable::CreateCursor(
-    const QueryConstraints& qc,
-    sqlite3_value** argv) {
-  uint32_t count = static_cast<uint32_t>(storage_->android_logs().size());
-  auto it = CreateBestRowIteratorForGenericSchema(count, qc, argv);
-  return std::unique_ptr<Table::Cursor>(
-      new Cursor(std::move(it), schema_.mutable_columns()));
+uint32_t AndroidLogsTable::RowCount() {
+  return static_cast<uint32_t>(storage_->android_logs().size());
 }
 
 int AndroidLogsTable::BestIndex(const QueryConstraints& qc,
@@ -56,8 +51,8 @@ int AndroidLogsTable::BestIndex(const QueryConstraints& qc,
   info->order_by_consumed = true;
 
   // Only the string columns are handled by SQLite.
-  size_t tag_index = schema_.ColumnIndexFromName("tag");
-  size_t msg_index = schema_.ColumnIndexFromName("msg");
+  size_t tag_index = schema().ColumnIndexFromName("tag");
+  size_t msg_index = schema().ColumnIndexFromName("msg");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
     info->omit[i] =
         qc.constraints()[i].iColumn != static_cast<int>(tag_index) &&
