@@ -21,7 +21,7 @@ import {trackRegistry} from '../../frontend/track_registry';
 
 import {Config, Data, SLICE_TRACK_KIND} from './common';
 
-const SLICE_HEIGHT = 30;
+const SLICE_HEIGHT = 20;
 const TRACK_PADDING = 5;
 
 function hash(s: string): number {
@@ -139,6 +139,7 @@ class ChromeSliceTrack extends Track<Config, Data> {
         }
       }
       const rectXCenter = rectXStart + rectWidth / 2;
+      ctx.textBaseline = "middle";
       ctx.fillText(displayText, rectXCenter, rectYStart + SLICE_HEIGHT / 2);
     }
   }
