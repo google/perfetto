@@ -1353,4 +1353,25 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnDisable) {
                                                       Eq("payload3"))))));
 }
 
+TEST_F(TracingServiceImplTest, AbortIfTraceDurationIsTooLong) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("datasource");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("datasource");
+  trace_config.set_duration_ms(0x7fffffff);
+
+  EXPECT_CALL(*producer, SetupDataSource(_, _)).Times(0);
+  consumer->EnableTracing(trace_config);
+
+  // The trace is aborted immediately, 5s here is just some slack for the thread
+  // ping-pongs for slow devices.
+  consumer->WaitForTracingDisabled(5000);
+}
+
 }  // namespace perfetto
