@@ -79,7 +79,7 @@ class StorageSchema {
 
   Table::Schema ToTableSchema();
 
-  size_t ColumnIndexFromName(const std::string& name);
+  size_t ColumnIndexFromName(const std::string& name) const;
 
   const StorageColumn& GetColumn(size_t idx) const { return *(columns_[idx]); }
 

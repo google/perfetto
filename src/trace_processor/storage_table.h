@@ -52,23 +52,23 @@ class StorageTable : public Table {
 
   // Table implementation.
   base::Optional<Table::Schema> Init(int, const char* const*) override final;
+  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
+                                              sqlite3_value**) override;
 
   // Required methods for subclasses to implement.
   virtual StorageSchema CreateStorageSchema() = 0;
+  virtual uint32_t RowCount() = 0;
 
  protected:
-  // Creates a row iterator which is optimized for a generic storage schema
-  // (i.e. it does not make assumptions about values of columns).
-  std::unique_ptr<RowIterator> CreateBestRowIteratorForGenericSchema(
-      uint32_t size,
-      const QueryConstraints& qc,
-      sqlite3_value** argv);
-
-  StorageSchema schema_;
+  const StorageSchema& schema() const { return schema_; }
 
  private:
+  // Creates a row iterator which is optimized for a generic storage schema
+  // (i.e. it does not make assumptions about values of columns).
+  std::unique_ptr<RowIterator> CreateBestRowIterator(const QueryConstraints& qc,
+                                                     sqlite3_value** argv);
+
   FilteredRowIndex CreateRangeIterator(
-      uint32_t size,
       const std::vector<QueryConstraints::Constraint>& cs,
       sqlite3_value** argv);
 
@@ -82,6 +82,8 @@ class StorageTable : public Table {
   std::vector<uint32_t> CreateSortedIndexVector(
       FilteredRowIndex index,
       const std::vector<QueryConstraints::OrderBy>& obs);
+
+  StorageSchema schema_;
 };
 
 }  // namespace trace_processor

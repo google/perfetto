@@ -42,14 +42,8 @@ StorageSchema SliceTable::CreateStorageSchema() {
       .Build({"utid", "ts", "depth"});
 }
 
-std::unique_ptr<Table::Cursor> SliceTable::CreateCursor(
-    const QueryConstraints& qc,
-    sqlite3_value** argv) {
-  uint32_t count =
-      static_cast<uint32_t>(storage_->nestable_slices().slice_count());
-  auto it = CreateBestRowIteratorForGenericSchema(count, qc, argv);
-  return std::unique_ptr<Table::Cursor>(
-      new Cursor(std::move(it), schema_.mutable_columns()));
+uint32_t SliceTable::RowCount() {
+  return static_cast<uint32_t>(storage_->nestable_slices().slice_count());
 }
 
 int SliceTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
@@ -58,8 +52,8 @@ int SliceTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
 
   // Only the string columns are handled by SQLite
   info->order_by_consumed = true;
-  size_t name_index = schema_.ColumnIndexFromName("name");
-  size_t cat_index = schema_.ColumnIndexFromName("cat");
+  size_t name_index = schema().ColumnIndexFromName("name");
+  size_t cat_index = schema().ColumnIndexFromName("cat");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
     info->omit[i] =
         qc.constraints()[i].iColumn != static_cast<int>(name_index) &&
