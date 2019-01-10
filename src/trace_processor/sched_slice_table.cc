@@ -37,19 +37,14 @@ StorageSchema SchedSliceTable::CreateStorageSchema() {
       .Build({"cpu", "ts"});
 }
 
-std::unique_ptr<Table::Cursor> SchedSliceTable::CreateCursor(
-    const QueryConstraints& qc,
-    sqlite3_value** argv) {
-  uint32_t count = static_cast<uint32_t>(storage_->slices().slice_count());
-  auto it = CreateBestRowIteratorForGenericSchema(count, qc, argv);
-  return std::unique_ptr<Table::Cursor>(
-      new Cursor(std::move(it), schema_.mutable_columns()));
+uint32_t SchedSliceTable::RowCount() {
+  return static_cast<uint32_t>(storage_->slices().slice_count());
 }
 
 int SchedSliceTable::BestIndex(const QueryConstraints& qc,
                                BestIndexInfo* info) {
   const auto& cs = qc.constraints();
-  size_t ts_idx = schema_.ColumnIndexFromName("ts");
+  size_t ts_idx = schema().ColumnIndexFromName("ts");
   auto has_ts_column = [ts_idx](const QueryConstraints::Constraint& c) {
     return c.iColumn == static_cast<int>(ts_idx);
   };

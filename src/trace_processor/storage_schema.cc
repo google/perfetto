@@ -38,7 +38,7 @@ Table::Schema StorageSchema::ToTableSchema() {
   return Table::Schema(std::move(columns), std::move(primary_keys));
 }
 
-size_t StorageSchema::ColumnIndexFromName(const std::string& name) {
+size_t StorageSchema::ColumnIndexFromName(const std::string& name) const {
   auto p = [name](const std::unique_ptr<StorageColumn>& col) {
     return name == col->name();
   };
