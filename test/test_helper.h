@@ -32,6 +32,8 @@ namespace perfetto {
 
 class TestHelper : public Consumer {
  public:
+  static const char* GetConsumerSocketName();
+
   explicit TestHelper(base::TestTaskRunner* task_runner);
 
   // Consumer implementation.

@@ -175,4 +175,9 @@ void TestHelper::OnAttach(bool success, const TraceConfig&) {
     std::move(on_attach_callback_)(success);
 }
 
+// static
+const char* TestHelper::GetConsumerSocketName() {
+  return TEST_CONSUMER_SOCK_NAME;
+}
+
 }  // namespace perfetto

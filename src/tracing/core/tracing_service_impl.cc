@@ -688,6 +688,11 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
     pending_flush.producers.insert(producer_id);
   }
 
+  // If there are no producers to flush (realistically this happens only in
+  // some tests) fire  OnFlushTimeout() straight away, without waiting.
+  if (flush_map.empty())
+    timeout_ms = 0;
+
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_this, tsid, flush_request_id] {
@@ -733,9 +738,13 @@ void TracingServiceImpl::OnFlushTimeout(TracingSessionID tsid,
   auto it = tracing_session->pending_flushes.find(flush_request_id);
   if (it == tracing_session->pending_flushes.end())
     return;  // Nominal case: flush was completed and acked on time.
+
+  // If there were no producers to flush, consider it a success.
+  bool success = it->second.producers.empty();
+
   auto callback = std::move(it->second.callback);
   tracing_session->pending_flushes.erase(it);
-  CompleteFlush(tsid, std::move(callback), /*success=*/false);
+  CompleteFlush(tsid, std::move(callback), success);
 }
 
 void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
