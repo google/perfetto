@@ -589,7 +589,7 @@ def resolve_dependencies(desc, target_name):
     return resolved_deps
 
 
-def create_blueprint_for_targets(desc, targets):
+def create_blueprint_for_targets(desc, force_debug, targets):
     """Generate a blueprint for a list of GN targets."""
     blueprint = Blueprint()
 
@@ -604,6 +604,9 @@ def create_blueprint_for_targets(desc, targets):
         '-fvisibility=hidden',
         '-Oz',
     ]
+    if force_debug:
+      defaults.cflags.extend(['-UNDEBUG',
+                              '-DPERFETTO_ENABLE_DLOG'])
     defaults.user_debug_flag = True
 
     blueprint.add_module(defaults)
@@ -658,6 +661,12 @@ def main():
         default=os.path.join(repo_root(), 'Android.bp'),
     )
     parser.add_argument(
+        '-d',
+        '--force_debug',
+        action='store_true',
+        help='Add flags to enable DCHECK/DLOG/etc, even in release builds.'
+    )
+    parser.add_argument(
         'targets',
         nargs=argparse.REMAINDER,
         help='Targets to include in the blueprint (e.g., "//:perfetto_tests")')
@@ -669,8 +678,8 @@ def main():
     else:
         desc = create_build_description()
 
-    blueprint = create_blueprint_for_targets(desc, args.targets
-                                             or default_targets)
+    blueprint = create_blueprint_for_targets(desc, args.force_debug,
+                                             args.targets or default_targets)
     output = [
         """// Copyright (C) 2017 The Android Open Source Project
 //
