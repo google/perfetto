@@ -209,17 +209,6 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     sources = [
       "src/perfetto_cmd/main.cc",
     ]
-    if (is_android) {
-      deps += [ "src/base:android_task_runner" ]
-    }
-    if (perfetto_build_with_android) {
-      cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
-      libs = [
-        "binder",
-        "services",
-        "utils",
-      ]
-    }
   }
 
   if (perfetto_build_with_android) {

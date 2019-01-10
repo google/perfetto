@@ -23,6 +23,7 @@ cc_library_static {
     "libprotobuf-cpp-lite",
   ],
   static_libs: [
+    "libgmock",
     "libgtest",
     "perfetto_src_tracing_ipc",
     "perfetto_trace_protos",
