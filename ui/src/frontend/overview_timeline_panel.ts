@@ -66,7 +66,7 @@ export class OverviewTimelinePanel extends Panel {
     for (let i = 0; i < 100; i++) {
       const xPos = i * this.width / 100;
       const t = this.timeScale.pxToTime(xPos);
-      if (xPos < 0) continue;
+      if (xPos <= 0) continue;
       if (xPos > this.width) break;
       if (i % 10 === 0) {
         ctx.fillRect(xPos, 0, 1, headerHeight - 5);
@@ -81,7 +81,7 @@ export class OverviewTimelinePanel extends Panel {
       const numTracks = globals.overviewStore.size;
       let hue = 128;
       let y = 0;
-      const trackHeight = (tracksHeight - 2) / numTracks;
+      const trackHeight = (tracksHeight - 1) / numTracks;
       for (const key of globals.overviewStore.keys()) {
         const loads = globals.overviewStore.get(key)!;
         for (let i = 0; i < loads.length; i++) {
@@ -99,12 +99,12 @@ export class OverviewTimelinePanel extends Panel {
 
     // Draw bottom border.
     ctx.fillStyle = 'hsl(219, 40%, 50%)';
-    ctx.fillRect(0, size.height - 2, this.width, 2);
+    ctx.fillRect(0, size.height - 1, this.width, 1);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
     const vizTime = globals.frontendLocalState.visibleWindowTime;
-    const vizStartPx = this.timeScale.timeToPx(vizTime.start);
-    const vizEndPx = this.timeScale.timeToPx(vizTime.end);
+    const vizStartPx = Math.floor(this.timeScale.timeToPx(vizTime.start));
+    const vizEndPx = Math.ceil(this.timeScale.timeToPx(vizTime.end));
 
     ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
     ctx.fillRect(0, headerHeight, vizStartPx, tracksHeight);
@@ -115,7 +115,7 @@ export class OverviewTimelinePanel extends Panel {
     const handleHeight = 25;
     const y = headerHeight + (tracksHeight - handleHeight) / 2;
     ctx.fillStyle = '#333';
-    ctx.fillRect(vizStartPx, headerHeight, 1, tracksHeight);
+    ctx.fillRect(vizStartPx - 1, headerHeight, 1, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
     ctx.fillRect(vizStartPx - handleWidth, y, handleWidth, handleHeight);
     ctx.fillRect(vizEndPx + 1, y, handleWidth, handleHeight);

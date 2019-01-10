@@ -18,6 +18,9 @@
 
     // Keep in sync with TRACK_SHELL_WIDTH in track_panel.ts
     --track-shell-width: 250px;
+
+    // Keep this synchronised with drawGridLines.
+    --track-border-color: #00000025;
 }
 
 @mixin transition($time:0.1s) {
@@ -234,11 +237,11 @@ button.close {
     grid-template-columns: auto 1fr;
     grid-template-rows: 1fr 0;
 
-    &:after {
+    &::after {
       display: block;
       content: '';
       grid-column: 1 / span 2;
-      border-top: 1px solid #c7d0db;
+      border-top: 1px solid var(--track-border-color);
       margin-top: -1px;
     }
 
@@ -449,7 +452,7 @@ button.query-ctrl {
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
-  border-top: 1px solid #c7d0db;
+  border-bottom: 1px solid var(--track-border-color);
   transition: background-color .4s, color .4s;
   height: 40px;
   &[collapsed=true] {
