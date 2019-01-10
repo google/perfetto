@@ -90,10 +90,14 @@ class ProtoTraceParser {
   void ParseAndroidLogEvent(TraceBlobView);
   void ParseAndroidLogBinaryArg(TraceBlobView, char** str, size_t avail);
   void ParseAndroidLogStats(TraceBlobView);
-  void ParseGenericFtrace(int64_t timestamp, uint32_t pid, TraceBlobView view);
+  void ParseGenericFtrace(int64_t timestamp,
+                          uint32_t cpu,
+                          uint32_t pid,
+                          TraceBlobView view);
   void ParseGenericFtraceField(RowId generic_row_id, TraceBlobView view);
   void ParseTypedFtraceToRaw(uint32_t ftrace_id,
                              int64_t timestamp,
+                             uint32_t cpu,
                              uint32_t pid,
                              TraceBlobView view);
   void ParseTraceStats(TraceBlobView);

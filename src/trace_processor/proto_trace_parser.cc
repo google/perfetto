@@ -576,9 +576,10 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
 
     const size_t fld_off = ftrace.offset_of(fld.data());
     if (fld.id == protos::FtraceEvent::kGenericFieldNumber) {
-      ParseGenericFtrace(timestamp, pid, ftrace.slice(fld_off, fld.size()));
+      ParseGenericFtrace(timestamp, cpu, pid,
+                         ftrace.slice(fld_off, fld.size()));
     } else {
-      ParseTypedFtraceToRaw(fld.id, timestamp, pid,
+      ParseTypedFtraceToRaw(fld.id, timestamp, cpu, pid,
                             ftrace.slice(fld_off, fld.size()));
     }
 
@@ -956,6 +957,7 @@ void ProtoTraceParser::ParseOOMScoreAdjUpdate(int64_t ts,
 }
 
 void ProtoTraceParser::ParseGenericFtrace(int64_t timestamp,
+                                          uint32_t cpu,
                                           uint32_t tid,
                                           TraceBlobView view) {
   ProtoDecoder decoder(view.data(), view.length());
@@ -971,7 +973,7 @@ void ProtoTraceParser::ParseGenericFtrace(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, tid, 0);
   StringId event_id = context_->storage->InternString(std::move(event_name));
   RowId row_id = context_->storage->mutable_raw_events()->AddRawEvent(
-      timestamp, event_id, utid);
+      timestamp, event_id, cpu, utid);
 
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
@@ -1016,6 +1018,7 @@ void ProtoTraceParser::ParseGenericFtraceField(RowId generic_row_id,
 
 void ProtoTraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
                                              int64_t timestamp,
+                                             uint32_t cpu,
                                              uint32_t tid,
                                              TraceBlobView view) {
   ProtoDecoder decoder(view.data(), view.length());
@@ -1027,7 +1030,7 @@ void ProtoTraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
   MessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
   UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, tid, 0);
   RowId raw_event_id = context_->storage->mutable_raw_events()->AddRawEvent(
-      timestamp, context_->storage->InternString(m->name), utid);
+      timestamp, context_->storage->InternString(m->name), cpu, utid);
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     ProtoSchemaType type = m->fields[fld.id].type;
     StringId name_id = context_->storage->InternString(m->fields[fld.id].name);
