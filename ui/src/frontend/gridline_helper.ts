@@ -28,7 +28,8 @@ export function drawGridLines(
   const step = getGridStepSize(timeSpan.duration, desiredSteps);
   const start = Math.round(timeSpan.start / step) * step;
 
-  ctx.strokeStyle = '#999999';
+  // Keep this synchronised with --track-border-color.
+  ctx.strokeStyle = '#00000025';
   ctx.lineWidth = 1;
 
   for (let sec = start; sec < timeSpan.end; sec += step) {

@@ -145,7 +145,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
 class TraceViewer implements m.ClassComponent {
   private onResize: () => void = () => {};
   private zoomContent?: PanAndZoomHandler;
-  private detailsHeight = 0;
+  private detailsHeight = DRAG_HANDLE_HEIGHT_PX;
 
   oncreate(vnode: m.CVnodeDOM) {
     const frontendLocalState = globals.frontendLocalState;
