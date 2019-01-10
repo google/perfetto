@@ -33,6 +33,7 @@ StorageSchema RawTable::CreateStorageSchema() {
       .AddColumn<IdColumn>("id", TableId::kRawEvents)
       .AddOrderedNumericColumn("ts", &raw.timestamps())
       .AddStringColumn("name", &raw.name_ids(), &storage_->string_pool())
+      .AddNumericColumn("cpu", &raw.cpus())
       .AddNumericColumn("utid", &raw.utids())
       .Build({"name", "ts"});
 }
