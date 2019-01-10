@@ -14,7 +14,7 @@
 
 import {TimeSpan} from '../common/time';
 
-import {TimeScale} from './time_scale';
+import {computeZoom, TimeScale} from './time_scale';
 
 test('time scale to work', () => {
   const scale = new TimeScale(new TimeSpan(0, 100), [200, 1000]);
@@ -44,4 +44,28 @@ test('time scale to be updatable', () => {
   expect(scale.timeToPx(0)).toEqual(200);
   expect(scale.timeToPx(100)).toEqual(600);
   expect(scale.timeToPx(200)).toEqual(1000);
+});
+
+test('it zooms', () => {
+  const span = new TimeSpan(0, 20);
+  const scale = new TimeScale(span, [0, 100]);
+  const newSpan = computeZoom(scale, span, 0.5, 50);
+  expect(newSpan.start).toEqual(5);
+  expect(newSpan.end).toEqual(15);
+});
+
+test('it zooms an offset scale and span', () => {
+  const span = new TimeSpan(1000, 1020);
+  const scale = new TimeScale(span, [200, 300]);
+  const newSpan = computeZoom(scale, span, 0.5, 250);
+  expect(newSpan.start).toEqual(1005);
+  expect(newSpan.end).toEqual(1015);
+});
+
+test('it clamps zoom in', () => {
+  const span = new TimeSpan(1000, 1040);
+  const scale = new TimeScale(span, [200, 300]);
+  const newSpan = computeZoom(scale, span, 0.0000000001, 225);
+  expect((newSpan.end - newSpan.start) / 2 + newSpan.start).toBeCloseTo(1010);
+  expect(newSpan.end - newSpan.start).toBeCloseTo(1e-4, 8);
 });
