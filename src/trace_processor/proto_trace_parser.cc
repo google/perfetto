@@ -702,7 +702,7 @@ void ProtoTraceParser::ParseLowmemoryKill(int64_t timestamp,
   auto* instants = context_->storage->mutable_instants();
   UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
   uint32_t row =
-      instants->AddInstantEvent(timestamp, 0, lmk_id_, utid, RefType::kRefUtid);
+      instants->AddInstantEvent(timestamp, lmk_id_, 0, utid, RefType::kRefUtid);
 
   // Store the comm as an arg.
   RowId row_id = TraceStorage::CreateRowId(TableId::kInstants, row);
