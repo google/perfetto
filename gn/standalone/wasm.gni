@@ -57,6 +57,8 @@ template("wasm_lib") {
       "-s",
       "BINARYEN_METHOD='native-wasm'",
       "-s",
+      "BINARYEN_TRAP_MODE='clamp'",
+      "-s",
       "EXPORT_FUNCTION_TABLES=1",
       "-s",
       "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'addFunction', 'FS']",
