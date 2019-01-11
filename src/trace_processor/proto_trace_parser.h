@@ -108,6 +108,7 @@ class ProtoTraceParser {
   const StringId utid_name_id_;
   const StringId cpu_freq_name_id_;
   const StringId cpu_idle_name_id_;
+  const StringId comm_name_id_;
   const StringId num_forks_name_id_;
   const StringId num_irq_total_name_id_;
   const StringId num_softirq_total_name_id_;
@@ -126,6 +127,7 @@ class ProtoTraceParser {
   const StringId batt_capacity_id_;
   const StringId batt_current_id_;
   const StringId batt_current_avg_id_;
+  const StringId lmk_id_;
   const StringId oom_score_adj_id_;
   const StringId ion_total_unknown_id_;
   const StringId ion_change_unknown_id_;
