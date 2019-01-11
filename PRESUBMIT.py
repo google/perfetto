@@ -20,7 +20,8 @@ def CheckChange(input, output):
     # lines in them.
     long_line_sources = lambda x: input.FilterSourceFile(
             x, white_list=".*",
-            black_list=['Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$'])
+            black_list=['Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$',
+                        'test/trace_processor/index$'])
     results = []
     results += input.canned_checks.CheckDoNotSubmit(input, output)
     results += input.canned_checks.CheckChangeHasNoTabs(input, output)
