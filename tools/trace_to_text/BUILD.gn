@@ -32,8 +32,6 @@ source_set("common") {
   sources = [
     "ftrace_event_formatter.cc",
     "ftrace_event_formatter.h",
-    "ftrace_inode_handler.cc",
-    "ftrace_inode_handler.h",
     "main.cc",
     "process_formatter.h",
     "trace_to_profile.cc",
