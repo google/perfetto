@@ -2774,7 +2774,6 @@ cc_binary_host {
     "src/base/virtual_destructors.cc",
     "src/base/watchdog_posix.cc",
     "tools/trace_to_text/ftrace_event_formatter.cc",
-    "tools/trace_to_text/ftrace_inode_handler.cc",
     "tools/trace_to_text/main.cc",
     "tools/trace_to_text/proto_full_utils.cc",
     "tools/trace_to_text/trace_to_profile.cc",
