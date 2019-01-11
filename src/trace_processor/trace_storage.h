@@ -51,6 +51,7 @@ enum TableId : uint8_t {
   // invalid row id.
   kCounters = 1,
   kRawEvents = 2,
+  kInstants = 3,
 };
 
 // The top 8 bits are set to the TableId and the bottom 32 to the row of the
@@ -317,17 +318,17 @@ class TraceStorage {
 
   class Instants {
    public:
-    inline size_t AddInstantEvent(int64_t timestamp,
-                                  StringId name_id,
-                                  double value,
-                                  int64_t ref,
-                                  RefType type) {
+    inline uint32_t AddInstantEvent(int64_t timestamp,
+                                    StringId name_id,
+                                    double value,
+                                    int64_t ref,
+                                    RefType type) {
       timestamps_.emplace_back(timestamp);
       name_ids_.emplace_back(name_id);
       values_.emplace_back(value);
       refs_.emplace_back(ref);
       types_.emplace_back(type);
-      return instant_count() - 1;
+      return static_cast<uint32_t>(instant_count() - 1);
     }
 
     size_t instant_count() const { return timestamps_.size(); }
