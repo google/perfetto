@@ -40,6 +40,7 @@ class TraceWriterImpl : public TraceWriter,
   TracePacketHandle NewTracePacket() override;
   void Flush(std::function<void()> callback = {}) override;
   WriterID writer_id() const override;
+  bool SetFirstChunkId(ChunkID) override;
 
   void ResetChunkForTesting() { cur_chunk_ = SharedMemoryABI::Chunk(); }
 
