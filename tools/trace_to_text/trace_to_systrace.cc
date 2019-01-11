@@ -79,6 +79,19 @@ const char kSystemTraceEvents[] =
     "  \"systemTraceEvents\": \"";
 
 const char kFtraceHeader[] =
+    "# tracer: nop\n"
+    "#\n"
+    "# entries-in-buffer/entries-written: 30624/30624   #P:4\n"
+    "#\n"
+    "#                                      _-----=> irqs-off\n"
+    "#                                     / _----=> need-resched\n"
+    "#                                    | / _---=> hardirq/softirq\n"
+    "#                                    || / _--=> preempt-depth\n"
+    "#                                    ||| /     delay\n"
+    "#           TASK-PID    TGID   CPU#  ||||    TIMESTAMP  FUNCTION\n"
+    "#              | |        |      |   ||||       |         |\n";
+
+const char kFtraceJsonHeader[] =
     "# tracer: nop\\n"
     "#\\n"
     "# entries-in-buffer/entries-written: 30624/30624   #P:4\\n"
@@ -187,7 +200,7 @@ int TraceToSystrace(std::istream* input,
     }
     *output << "\",";
     *output << kSystemTraceEvents;
-    *output << kFtraceHeader;
+    *output << kFtraceJsonHeader;
   } else {
     *output << "TRACE:\n";
     *output << kFtraceHeader;
