@@ -51,7 +51,7 @@ void TraceSorter::SortAndFlushEventsBeyondWindow(int64_t window_size_ns) {
     sort_min_ts_ = 0;
   }
 
-  // At this point |events_| musr be fully sorted.
+  // At this point |events_| must be fully sorted.
   PERFETTO_DCHECK(std::is_sorted(events_.begin(), events_.end()));
 
   if (PERFETTO_UNLIKELY(latest_timestamp_ < window_size_ns))

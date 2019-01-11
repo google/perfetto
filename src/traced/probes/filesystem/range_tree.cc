@@ -36,7 +36,8 @@ void RangeTree::Insert(Inode inode, RangeTree::DataType value) {
   }
 
   if (map_.empty() || !lower->second.Add(value)) {
-    PERFETTO_DCHECK(map_[inode].Add(value));
+    auto success = map_[inode].Add(value);
+    PERFETTO_DCHECK(success);
   }
 }
 
