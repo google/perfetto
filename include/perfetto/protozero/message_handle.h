@@ -39,6 +39,12 @@ class Message;
 
 class PERFETTO_EXPORT MessageHandleBase {
  public:
+  class FinalizationListener {
+   public:
+    virtual ~FinalizationListener();
+    virtual void OnMessageFinalized(Message* message) = 0;
+  };
+
   ~MessageHandleBase();
 
   // Move-only type.
@@ -49,6 +55,10 @@ class PERFETTO_EXPORT MessageHandleBase {
     PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
 #endif
     return !!message_;
+  }
+
+  void set_finalization_listener(FinalizationListener* listener) {
+    listener_ = listener;
   }
 
  protected:
@@ -66,10 +76,27 @@ class PERFETTO_EXPORT MessageHandleBase {
   MessageHandleBase(const MessageHandleBase&) = delete;
   MessageHandleBase& operator=(const MessageHandleBase&) = delete;
 
-  void reset_message() { message_ = nullptr; }
+  void reset_message() {
+    // This is called by Message::Finalize().
+    PERFETTO_DCHECK(message_->is_finalized());
+    message_ = nullptr;
+    listener_ = nullptr;
+  }
+
   void Move(MessageHandleBase&&);
 
+  void FinalizeMessage() {
+    // |message_| and |listener_| may be cleared by reset_message() during
+    // Message::Finalize().
+    auto* listener = listener_;
+    auto* message = message_;
+    message->Finalize();
+    if (listener)
+      listener->OnMessageFinalized(message);
+  }
+
   Message* message_;
+  FinalizationListener* listener_ = nullptr;
 #if PERFETTO_DCHECK_IS_ON()
   uint32_t generation_;
 #endif

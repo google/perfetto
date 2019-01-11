@@ -36,6 +36,7 @@ namespace perfetto {
 class CommitDataRequest;
 class PatchList;
 class TraceWriter;
+class TraceWriterImpl;
 
 namespace base {
 class TaskRunner;
@@ -103,7 +104,9 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // SharedMemoryArbiter implementation.
   // See include/perfetto/tracing/core/shared_memory_arbiter.h for comments.
   std::unique_ptr<TraceWriter> CreateTraceWriter(
-      BufferID target_buffer = 0) override;
+      BufferID target_buffer) override;
+  bool BindStartupTraceWriter(StartupTraceWriter* writer,
+                              BufferID target_buffer) override;
 
   void NotifyFlushComplete(FlushRequestID) override;
 
