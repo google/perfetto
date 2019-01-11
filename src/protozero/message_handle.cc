@@ -22,6 +22,8 @@
 
 namespace protozero {
 
+MessageHandleBase::FinalizationListener::~FinalizationListener() {}
+
 MessageHandleBase::MessageHandleBase(Message* message) : message_(message) {
 #if PERFETTO_DCHECK_IS_ON()
   generation_ = message_ ? message->generation_ : 0;
@@ -35,7 +37,7 @@ MessageHandleBase::~MessageHandleBase() {
 #if PERFETTO_DCHECK_IS_ON()
     PERFETTO_DCHECK(generation_ == message_->generation_);
 #endif
-    message_->Finalize();
+    FinalizeMessage();
   }
 }
 
@@ -48,7 +50,7 @@ MessageHandleBase& MessageHandleBase::operator=(MessageHandleBase&& other) {
   // one, finalize the old message. However, if the other message is the same as
   // the one we point to, don't finalize.
   if (message_ && message_ != other.message_)
-    message_->Finalize();
+    FinalizeMessage();
   Move(std::move(other));
   return *this;
 }
@@ -56,6 +58,8 @@ MessageHandleBase& MessageHandleBase::operator=(MessageHandleBase&& other) {
 void MessageHandleBase::Move(MessageHandleBase&& other) {
   message_ = other.message_;
   other.message_ = nullptr;
+  listener_ = other.listener_;
+  other.listener_ = nullptr;
 #if PERFETTO_DCHECK_IS_ON()
   if (message_) {
     generation_ = message_->generation_;

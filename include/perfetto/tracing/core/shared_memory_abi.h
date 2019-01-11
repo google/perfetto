@@ -392,6 +392,19 @@ class SharedMemoryABI {
       return packets.count;
     }
 
+    // Increases |packets.count| to the given |packet_count|, but only if
+    // |packet_count| is larger than the current value of |packets.count|.
+    // Returns the new packet count. Same atomicity guarantees as
+    // IncrementPacketCount().
+    uint16_t IncreasePacketCountTo(uint16_t packet_count) {
+      ChunkHeader* chunk_header = header();
+      auto packets = chunk_header->packets.load(std::memory_order_relaxed);
+      if (packets.count < packet_count)
+        packets.count = packet_count;
+      chunk_header->packets.store(packets, std::memory_order_release);
+      return packets.count;
+    }
+
     // Flags are cleared by TryAcquireChunk(), by passing the new header for
     // the chunk.
     void SetFlag(ChunkHeader::Flags flag) {
@@ -518,6 +531,10 @@ class SharedMemoryABI {
 
   std::pair<size_t, size_t> GetPageAndChunkIndex(const Chunk& chunk);
 
+  uint16_t GetChunkSizeForLayout(uint32_t page_layout) const {
+    return chunk_sizes_[(page_layout & kLayoutMask) >> kLayoutShift];
+  }
+
   static ChunkState GetChunkStateFromLayout(uint32_t page_layout,
                                             size_t chunk_idx) {
     return static_cast<ChunkState>((page_layout >> (chunk_idx * kChunkShift)) &
@@ -545,10 +562,6 @@ class SharedMemoryABI {
  private:
   SharedMemoryABI(const SharedMemoryABI&) = delete;
   SharedMemoryABI& operator=(const SharedMemoryABI&) = delete;
-
-  uint16_t GetChunkSizeForLayout(uint32_t page_layout) const {
-    return chunk_sizes_[(page_layout & kLayoutMask) >> kLayoutShift];
-  }
 
   Chunk TryAcquireChunk(size_t page_idx,
                         size_t chunk_idx,
