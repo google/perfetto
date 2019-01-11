@@ -114,6 +114,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       utid_name_id_(context->storage->InternString("utid")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
+      comm_name_id_(context->storage->InternString("comm")),
       num_forks_name_id_(context->storage->InternString("num_forks")),
       num_irq_total_name_id_(context->storage->InternString("num_irq_total")),
       num_softirq_total_name_id_(
@@ -140,6 +141,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       batt_current_id_(context->storage->InternString("batt.current_ua")),
       batt_current_avg_id_(
           context->storage->InternString("batt.current.avg_ua")),
+      lmk_id_(context->storage->InternString("mem.lmk")),
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
       ion_total_unknown_id_(context->storage->InternString("mem.ion.unknown")),
       ion_change_unknown_id_(
@@ -622,6 +624,10 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
         ParseSignalDeliver(timestamp, pid, ftrace.slice(fld_off, fld.size()));
         break;
       }
+      case protos::FtraceEvent::kLowmemoryKill: {
+        ParseLowmemoryKill(timestamp, ftrace.slice(fld_off, fld.size()));
+        break;
+      }
       case protos::FtraceEvent::kOomScoreAdjUpdate: {
         ParseOOMScoreAdjUpdate(timestamp, ftrace.slice(fld_off, fld.size()));
         break;
@@ -691,13 +697,18 @@ void ProtoTraceParser::ParseLowmemoryKill(int64_t timestamp,
         break;
     }
   }
-  // TODO(taylori): Move the comm to the args table once it exists.
-  StringId name = context_->storage->InternString(
-      base::StringView("mem.lmk." + comm.ToStdString()));
-  auto* instants = context_->storage->mutable_instants();
+
   // Storing the pid of the event that is lmk-ed.
+  auto* instants = context_->storage->mutable_instants();
   UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
-  instants->AddInstantEvent(timestamp, 0, name, utid, RefType::kRefUtid);
+  uint32_t row =
+      instants->AddInstantEvent(timestamp, 0, lmk_id_, utid, RefType::kRefUtid);
+
+  // Store the comm as an arg.
+  RowId row_id = TraceStorage::CreateRowId(TableId::kInstants, row);
+  auto comm_id = context_->storage->InternString(comm);
+  context_->storage->mutable_args()->AddArg(
+      row_id, comm_name_id_, comm_name_id_, Variadic::String(comm_id));
 }
 
 void ProtoTraceParser::ParseRssStat(int64_t timestamp,
