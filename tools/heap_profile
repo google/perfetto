@@ -106,6 +106,8 @@ def main(argv):
                       "Default 1 minute", type=int, default=60000)
   parser.add_argument("-a", "--all", help="Profile the whole system",
                       action='store_true')
+  parser.add_argument("--no-start", help="Do not start heapprofd",
+                      action='store_true')
   parser.add_argument("-p", "--pid", help="PIDs to profile", nargs='+',
                       type=int)
   parser.add_argument("-n", "--name", help="Process names to profile",
@@ -161,9 +163,10 @@ def main(argv):
         ['adb', 'shell', 'su root setenforce %s' % enforcing])
     subprocess.check_call(['adb', 'shell', 'su root setenforce 0'])
 
-  atexit.register(subprocess.check_call,
-                  ['adb', 'shell', 'su root stop heapprofd'])
-  subprocess.check_call(['adb', 'shell', 'su root start heapprofd'])
+  if not args.no_start:
+    atexit.register(subprocess.check_call,
+                    ['adb', 'shell', 'su root stop heapprofd'])
+    subprocess.check_call(['adb', 'shell', 'su root start heapprofd'])
 
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out', PERFETTO_CMD.format(cfg)]).strip()
