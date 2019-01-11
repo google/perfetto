@@ -493,8 +493,9 @@ uint16_t ProtoTranslationTable::CreateGenericEventField(
   field->ftrace_size = ftrace_field.size;
   // Proto type is set based on ftrace type so all fields should have a
   // translation strategy.
-  PERFETTO_DCHECK(SetTranslationStrategy(
-      field->ftrace_type, field->proto_field_type, &field->strategy));
+  bool success = SetTranslationStrategy(
+      field->ftrace_type, field->proto_field_type, &field->strategy);
+  PERFETTO_DCHECK(success);
   return field_end;
 }
 

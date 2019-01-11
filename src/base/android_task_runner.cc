@@ -113,7 +113,7 @@ void AndroidTaskRunner::RunDelayedTask() {
     if (delayed_tasks_.empty())
       return;
     auto it = delayed_tasks_.begin();
-    PERFETTO_DCHECK(!(GetWallTimeMs() < it->first));
+    PERFETTO_DCHECK(GetWallTimeMs() >= it->first);
     delayed_task = std::move(it->second);
     delayed_tasks_.erase(it);
     if (!delayed_tasks_.empty())

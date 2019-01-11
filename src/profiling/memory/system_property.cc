@@ -102,7 +102,8 @@ void SystemProperties::ResetProperties() {
             [](void*, const char* name, const char*, uint32_t) {
               const char* found = strstr(name, "heapprofd");
               if (found == name) {
-                PERFETTO_DCHECK(__system_property_set(name, "") == 0);
+                int ret = __system_property_set(name, "");
+                PERFETTO_DCHECK(ret == 0);
               }
             },
             nullptr);
