@@ -174,6 +174,7 @@ TEST_F(HeapprofdEndToEnd, Smoke) {
   helper.WaitForReadData();
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
+  PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
 
   const auto& packets = helper.trace();
   ASSERT_GT(packets.size(), 0u);
@@ -222,6 +223,7 @@ TEST_F(HeapprofdEndToEnd, FinalFlush) {
   helper.WaitForReadData();
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
+  PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
 
   const auto& packets = helper.trace();
   ASSERT_GT(packets.size(), 0u);
@@ -291,6 +293,7 @@ TEST_F(HeapprofdEndToEnd, NativeStartup) {
   helper.WaitForReadData();
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
+  PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
 
   const auto& packets = helper.trace();
   ASSERT_GT(packets.size(), 0u);
