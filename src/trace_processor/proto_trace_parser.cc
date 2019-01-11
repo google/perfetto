@@ -1195,11 +1195,6 @@ void ProtoTraceParser::ParseAndroidLogEvent(TraceBlobView event) {
         break;
       case protos::AndroidLogPacket::LogEvent::kTimestampFieldNumber:
         ts = fld.as_int64();
-        if (ts < context_->clock_tracker->GetFirstTimestamp(
-                     ClockDomain::kRealTime)) {
-          // Skip log events that happened before the start of the trace.
-          return;
-        }
         break;
       case protos::AndroidLogPacket::LogEvent::kPrioFieldNumber:
         prio = static_cast<uint8_t>(fld.as_uint32());
