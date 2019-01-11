@@ -25,7 +25,9 @@ service traced_probes /system/bin/traced_probes
     class late_start
     disabled
     user nobody
-    group nobody readproc
+    # Despite the "log" group below, traced_probes is whitelisted for log read
+    # access only on userdebug/eng via selinux (see traced_probes.te).
+    group nobody readproc log
     writepid /dev/cpuset/system-background/tasks
     # Clean up procfs configuration even if traced_probes crashes
     # unexpectedly.
