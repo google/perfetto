@@ -34,6 +34,7 @@ class TaskRunner;
 }
 
 class CommitDataRequest;
+class StartupTraceWriter;
 class SharedMemory;
 class TraceWriter;
 
@@ -49,6 +50,15 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // Returns null impl of TraceWriter if all WriterID slots are exhausted.
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) = 0;
+
+  // Binds the provided unbound StartupTraceWriter to a new TraceWriter
+  // associated with the arbiter's SMB. Returns |false| if binding failed
+  // because the writer is concurrently writing data to its temporary buffer. In
+  // this case, the caller should retry (it is free to try again immediately or
+  // schedule a wakeup to retry later).
+  virtual bool BindStartupTraceWriter(StartupTraceWriter* writer,
+                                      BufferID target_buffer)
+      PERFETTO_WARN_UNUSED_RESULT = 0;
 
   // Notifies the service that all data for the given FlushRequestID has been
   // committed in the shared memory buffer.

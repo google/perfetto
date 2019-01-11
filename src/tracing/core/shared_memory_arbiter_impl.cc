@@ -21,6 +21,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/shared_memory.h"
+#include "perfetto/tracing/core/startup_trace_writer.h"
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/trace_writer_impl.h"
 
@@ -273,6 +274,11 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
   });
   return std::unique_ptr<TraceWriter>(
       new TraceWriterImpl(this, id, target_buffer));
+}
+
+bool SharedMemoryArbiterImpl::BindStartupTraceWriter(StartupTraceWriter* writer,
+                                                     BufferID target_buffer) {
+  return writer->BindToArbiter(this, target_buffer);
 }
 
 void SharedMemoryArbiterImpl::NotifyFlushComplete(FlushRequestID req_id) {
