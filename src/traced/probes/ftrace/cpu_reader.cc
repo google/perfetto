@@ -261,7 +261,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
         // If the splice() succeeded, read back from the other end of our own
         // pipe and copy the data into the pool.
         ssize_t rdres = read(*sync_pipe.rd, pool_page, kPageSize);
-        PERFETTO_DCHECK(rdres = res);
+        PERFETTO_DCHECK(rdres == res);
       }
     } else {
       if (block == kNonBlock)

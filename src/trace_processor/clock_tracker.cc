@@ -60,7 +60,7 @@ void ClockTracker::SyncClocks(ClockDomain domain,
 int64_t ClockTracker::ToTraceTime(ClockDomain domain, int64_t clock_time_ns) {
   ClockSnapshotVector& snapshots = clocks_[domain];
   if (snapshots.empty()) {
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("No clock snapshots");
     return clock_time_ns;
   }
   static auto comparator = [](int64_t lhs, const ClockSnapshot& rhs) {
