@@ -21,6 +21,14 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
       testonly = true
     }
   }
-} else {
+} else if (build_with_chromium) {
   import("//testing/test.gni")
+} else {
+  assert(perfetto_build_with_embedder)
+  template("test") {
+    group(target_name) {
+      not_needed(invoker, "*")
+      testonly = true
+    }
+  }
 }
