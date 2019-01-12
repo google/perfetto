@@ -215,14 +215,12 @@ void TracingServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
     FreeBuffers(consumer->tracing_session_id_);  // Will also DisableTracing().
   consumers_.erase(consumer);
 
-// At this point no more pointers to |consumer| should be around.
-#if PERFETTO_DCHECK_IS_ON()
+  // At this point no more pointers to |consumer| should be around.
   PERFETTO_DCHECK(!std::any_of(
       tracing_sessions_.begin(), tracing_sessions_.end(),
       [consumer](const std::pair<const TracingSessionID, TracingSession>& kv) {
         return kv.second.consumer_maybe_null == consumer;
       }));
-#endif
 }
 
 bool TracingServiceImpl::DetachConsumer(ConsumerEndpointImpl* consumer,
