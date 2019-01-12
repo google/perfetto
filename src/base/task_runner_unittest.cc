@@ -56,12 +56,14 @@ struct TestPipe : Pipe {
 
   void Read() {
     char b;
-    PERFETTO_DCHECK(read(*this->rd, &b, 1) == 1);
+    ssize_t rd = read(*this->rd, &b, 1);
+    PERFETTO_DCHECK(rd == 1);
   }
 
   void Write() {
     const char b = '?';
-    PERFETTO_DCHECK(WriteAll(*this->wr, &b, 1) == 1);
+    ssize_t wr = WriteAll(*this->wr, &b, 1);
+    PERFETTO_DCHECK(wr == 1);
   }
 };
 
