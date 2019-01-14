@@ -32,6 +32,7 @@ ScatteredStreamWriter::ScatteredStreamWriter(Delegate* delegate)
 ScatteredStreamWriter::~ScatteredStreamWriter() {}
 
 void ScatteredStreamWriter::Reset(ContiguousMemoryRange range) {
+  written_previously_ += static_cast<uint64_t>(write_ptr_ - cur_range_.begin);
   cur_range_ = range;
   write_ptr_ = range.begin;
   PERFETTO_DCHECK(!write_ptr_ || write_ptr_ < cur_range_.end);

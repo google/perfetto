@@ -106,6 +106,11 @@ class PERFETTO_EXPORT ScatteredStreamWriter {
 
   uint8_t* write_ptr() const { return write_ptr_; }
 
+  uint64_t written() const {
+    return written_previously_ +
+           static_cast<uint64_t>(write_ptr_ - cur_range_.begin);
+  }
+
  private:
   ScatteredStreamWriter(const ScatteredStreamWriter&) = delete;
   ScatteredStreamWriter& operator=(const ScatteredStreamWriter&) = delete;
@@ -115,6 +120,7 @@ class PERFETTO_EXPORT ScatteredStreamWriter {
   Delegate* const delegate_;
   ContiguousMemoryRange cur_range_;
   uint8_t* write_ptr_;
+  uint64_t written_previously_ = 0;
 };
 
 }  // namespace protozero

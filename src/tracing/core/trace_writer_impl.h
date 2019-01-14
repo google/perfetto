@@ -44,6 +44,10 @@ class TraceWriterImpl : public TraceWriter,
 
   void ResetChunkForTesting() { cur_chunk_ = SharedMemoryABI::Chunk(); }
 
+  uint64_t written() const override {
+    return protobuf_stream_writer_.written();
+  }
+
  private:
   TraceWriterImpl(const TraceWriterImpl&) = delete;
   TraceWriterImpl& operator=(const TraceWriterImpl&) = delete;

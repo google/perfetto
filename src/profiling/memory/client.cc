@@ -117,7 +117,7 @@ bool FreePage::FlushLocked(SocketPool* pool) {
   msg.free_header = &free_page_;
   BorrowedSocket sock(pool->Borrow());
   if (!sock || !SendWireMessage(sock.get(), msg)) {
-    PERFETTO_ELOG("Failed to send wire message");
+    PERFETTO_PLOG("Failed to send wire message");
     sock.Shutdown();
     return false;
   }
@@ -286,7 +286,7 @@ void Client::RecordMalloc(uint64_t alloc_size,
 
   BorrowedSocket sock = socket_pool_.Borrow();
   if (!sock || !SendWireMessage(sock.get(), msg)) {
-    PERFETTO_ELOG("Failed to send wire message.");
+    PERFETTO_PLOG("Failed to send wire message.");
     sock.Shutdown();
     Shutdown();
   }

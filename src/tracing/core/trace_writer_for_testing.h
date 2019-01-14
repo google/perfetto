@@ -40,6 +40,7 @@ class TraceWriterForTesting : public TraceWriter {
   std::unique_ptr<protos::TracePacket> ParseProto();
 
   WriterID writer_id() const override;
+  uint64_t written() const override;
 
  private:
   TraceWriterForTesting(const TraceWriterForTesting&) = delete;
