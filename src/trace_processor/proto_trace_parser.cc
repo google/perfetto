@@ -98,9 +98,15 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
         }
       }
       out->name = base::StringView(s + name_index, name_length);
+
       size_t value_index = name_index + name_length + 1;
+      size_t value_len = len - value_index;
       char value_str[32];
-      strcpy(value_str, s + value_index);
+      if (value_len >= sizeof(value_str)) {
+        return false;
+      }
+      memcpy(value_str, s + value_index, value_len);
+      value_str[value_len] = 0;
       out->value = std::stod(value_str);
       return true;
     }
