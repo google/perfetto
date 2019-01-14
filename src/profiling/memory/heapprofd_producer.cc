@@ -258,16 +258,10 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
   dump_record.pids.insert(dump_record.pids.begin(), pids.cbegin(), pids.cend());
   dump_record.trace_writer = data_source.trace_writer;
 
-  std::weak_ptr<TraceWriter> weak_trace_writer = data_source.trace_writer;
-
   auto weak_producer = weak_factory_.GetWeakPtr();
   base::TaskRunner* task_runner = task_runner_;
   if (has_flush_id) {
-    dump_record.callback = [task_runner, weak_producer, flush_id,
-                            weak_trace_writer] {
-      auto trace_writer = weak_trace_writer.lock();
-      if (trace_writer)
-        trace_writer->Flush();
+    dump_record.callback = [task_runner, weak_producer, flush_id] {
       task_runner->PostTask([weak_producer, flush_id] {
         if (weak_producer)
           return weak_producer->FinishDataSourceFlush(flush_id);

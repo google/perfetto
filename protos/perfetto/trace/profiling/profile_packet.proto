@@ -71,4 +71,7 @@ message ProfilePacket {
     optional uint64 pid = 1;
     repeated HeapSample samples = 2;
   }
+
+  optional bool continued = 6;
+  optional uint64 index = 7;
 }
