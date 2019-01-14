@@ -66,4 +66,8 @@ WriterID TraceWriterForTesting::writer_id() const {
   return 0;
 }
 
+uint64_t TraceWriterForTesting::written() const {
+  return 0;
+}
+
 }  // namespace perfetto

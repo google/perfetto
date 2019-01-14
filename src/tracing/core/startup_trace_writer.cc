@@ -210,6 +210,18 @@ WriterID StartupTraceWriter::writer_id() const {
   return 0;
 }
 
+uint64_t StartupTraceWriter::written() const {
+  PERFETTO_DCHECK_THREAD(writer_thread_checker_);
+  // We can't acquire the lock because this is a const method. So we'll only
+  // proxy to |trace_writer_| once we have written the first packet to it
+  // instead.
+  if (PERFETTO_LIKELY(was_bound_)) {
+    PERFETTO_DCHECK(trace_writer_);
+    return trace_writer_->written();
+  }
+  return 0;
+}
+
 size_t StartupTraceWriter::used_buffer_size() {
   PERFETTO_DCHECK_THREAD(writer_thread_checker_);
   if (PERFETTO_LIKELY(was_bound_))

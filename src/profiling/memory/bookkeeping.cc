@@ -29,6 +29,11 @@ namespace perfetto {
 namespace profiling {
 namespace {
 using ::perfetto::protos::pbzero::ProfilePacket;
+// This needs to be lower than the maximum acceptable chunk size, because this
+// is checked *before* writing another submessage. We conservatively assume
+// submessages can be up to 100k here for a 500k chunk size.
+// DropBox has a 500k chunk limit, and each chunk needs to parse as a proto.
+uint32_t kPacketSizeThreshold = 400000;
 }
 
 GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
@@ -107,9 +112,7 @@ void HeapTracker::CommitFree(uint64_t sequence_number, uint64_t address) {
   allocations_.erase(leaf_it);
 }
 
-void HeapTracker::Dump(
-    ProfilePacket::ProcessHeapSamples* proto,
-    std::set<GlobalCallstackTrie::Node*>* callstacks_to_dump) {
+void HeapTracker::Dump(pid_t pid, DumpState* dump_state) {
   // There are two reasons we remove the unused callstack allocations on the
   // next iteration of Dump:
   // * We need to remove them after the callstacks were dumped, which currently
@@ -124,10 +127,22 @@ void HeapTracker::Dump(
   }
   dead_callstack_allocations_.clear();
 
+  if (dump_state->currently_written() > kPacketSizeThreshold)
+    dump_state->NewProfilePacket();
+
+  ProfilePacket::ProcessHeapSamples* proto =
+      dump_state->current_profile_packet->add_process_dumps();
+  proto->set_pid(static_cast<uint64_t>(pid));
   for (auto it = callstack_allocations_.begin();
        it != callstack_allocations_.end(); ++it) {
+    if (dump_state->currently_written() > kPacketSizeThreshold) {
+      dump_state->NewProfilePacket();
+      proto = dump_state->current_profile_packet->add_process_dumps();
+      proto->set_pid(static_cast<uint64_t>(pid));
+    }
+
     const CallstackAllocations& alloc = it->second;
-    callstacks_to_dump->emplace(alloc.node);
+    dump_state->callstacks_to_dump.emplace(alloc.node);
     ProfilePacket::HeapSample* sample = proto->add_samples();
     sample->set_callstack_id(alloc.node->id());
     sample->set_cumulative_allocated(alloc.allocated);
@@ -222,13 +237,16 @@ Interned<Frame> GlobalCallstackTrie::MakeRootFrame() {
   return frame_interner_.Intern(frame);
 }
 
-void DumpState::WriteMap(ProfilePacket* packet, const Interned<Mapping> map) {
+void DumpState::WriteMap(const Interned<Mapping> map) {
   auto map_it_and_inserted = dumped_mappings.emplace(map.id());
   if (map_it_and_inserted.second) {
     for (const Interned<std::string>& str : map->path_components)
-      WriteString(packet, str);
+      WriteString(str);
 
-    auto mapping = packet->add_mappings();
+    if (currently_written() > kPacketSizeThreshold)
+      NewProfilePacket();
+
+    auto mapping = current_profile_packet->add_mappings();
     mapping->set_id(map.id());
     mapping->set_offset(map->offset);
     mapping->set_start(map->start);
@@ -239,13 +257,16 @@ void DumpState::WriteMap(ProfilePacket* packet, const Interned<Mapping> map) {
   }
 }
 
-void DumpState::WriteFrame(ProfilePacket* packet, Interned<Frame> frame) {
-  WriteMap(packet, frame->mapping);
-  WriteString(packet, frame->function_name);
+void DumpState::WriteFrame(Interned<Frame> frame) {
+  WriteMap(frame->mapping);
+  WriteString(frame->function_name);
   bool inserted;
   std::tie(std::ignore, inserted) = dumped_frames.emplace(frame.id());
   if (inserted) {
-    auto frame_proto = packet->add_frames();
+    if (currently_written() > kPacketSizeThreshold)
+      NewProfilePacket();
+
+    auto frame_proto = current_profile_packet->add_frames();
     frame_proto->set_id(frame.id());
     frame_proto->set_function_name_id(frame->function_name.id());
     frame_proto->set_mapping_id(frame->mapping.id());
@@ -253,12 +274,14 @@ void DumpState::WriteFrame(ProfilePacket* packet, Interned<Frame> frame) {
   }
 }
 
-void DumpState::WriteString(ProfilePacket* packet,
-                            const Interned<std::string>& str) {
+void DumpState::WriteString(const Interned<std::string>& str) {
   bool inserted;
   std::tie(std::ignore, inserted) = dumped_strings.emplace(str.id());
   if (inserted) {
-    auto interned_string = packet->add_strings();
+    if (currently_written() > kPacketSizeThreshold)
+      NewProfilePacket();
+
+    auto interned_string = current_profile_packet->add_strings();
     interned_string->set_id(str.id());
     interned_string->set_str(str->c_str(), str->size());
   }
@@ -279,37 +302,30 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
   if (rec->record_type == BookkeepingRecord::Type::Dump) {
     DumpRecord& dump_rec = rec->dump_record;
     std::shared_ptr<TraceWriter> trace_writer = dump_rec.trace_writer.lock();
-    if (!trace_writer)
+    if (!trace_writer) {
+      PERFETTO_LOG("Not dumping heaps");
       return;
+    }
     PERFETTO_LOG("Dumping heaps");
-    std::set<GlobalCallstackTrie::Node*> callstacks_to_dump;
-    TraceWriter::TracePacketHandle trace_packet =
-        trace_writer->NewTracePacket();
-    auto profile_packet = trace_packet->set_profile_packet();
+    DumpState dump_state(trace_writer.get(), &next_index);
+
     for (const pid_t pid : dump_rec.pids) {
-      ProfilePacket::ProcessHeapSamples* sample =
-          profile_packet->add_process_dumps();
-      sample->set_pid(static_cast<uint64_t>(pid));
       auto it = bookkeeping_data_.find(pid);
       if (it == bookkeeping_data_.end())
         continue;
 
       PERFETTO_LOG("Dumping %d ", it->first);
-      it->second.heap_tracker.Dump(sample, &callstacks_to_dump);
+      it->second.heap_tracker.Dump(pid, &dump_state);
     }
 
-    // TODO(fmayer): For incremental dumps, this should be owned by the
-    // producer. This way we can keep track on what we dumped accross multiple
-    // dumps.
-    DumpState dump_state;
-
-    for (GlobalCallstackTrie::Node* node : callstacks_to_dump) {
+    for (GlobalCallstackTrie::Node* node : dump_state.callstacks_to_dump) {
       // There need to be two separate loops over built_callstack because
       // protozero cannot interleave different messages.
       auto built_callstack = callsites_.BuildCallstack(node);
       for (const Interned<Frame>& frame : built_callstack)
-        dump_state.WriteFrame(profile_packet, frame);
-      ProfilePacket::Callstack* callstack = profile_packet->add_callstacks();
+        dump_state.WriteFrame(frame);
+      ProfilePacket::Callstack* callstack =
+          dump_state.current_profile_packet->add_callstacks();
       callstack->set_id(node->id());
       for (const Interned<Frame>& frame : built_callstack)
         callstack->add_frame_ids(frame.id());
@@ -327,8 +343,8 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
         it = bookkeeping_data_.erase(it);
       }
     }
-    trace_packet->Finalize();
-    dump_rec.callback();
+    dump_state.current_trace_packet->Finalize();
+    trace_writer->Flush(dump_rec.callback);
   } else if (rec->record_type == BookkeepingRecord::Type::Free) {
     FreeRecord& free_rec = rec->free_record;
     FreePageEntry* entries = free_rec.metadata->entries;
