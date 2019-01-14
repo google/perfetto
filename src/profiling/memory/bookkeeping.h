@@ -189,16 +189,47 @@ class GlobalCallstackTrie {
 };
 
 struct DumpState {
-  void WriteMap(protos::pbzero::ProfilePacket* packet,
-                const Interned<Mapping> map);
-  void WriteFrame(protos::pbzero::ProfilePacket* packet,
-                  const Interned<Frame> frame);
-  void WriteString(protos::pbzero::ProfilePacket* packet,
-                   const Interned<std::string>& str);
+  DumpState(TraceWriter* tw, uint64_t* ni) : trace_writer(tw), next_index(ni) {
+    last_written = trace_writer->written();
+
+    current_trace_packet = trace_writer->NewTracePacket();
+    current_profile_packet = current_trace_packet->set_profile_packet();
+    current_profile_packet->set_index((*next_index)++);
+  }
+
+  void WriteMap(const Interned<Mapping> map);
+  void WriteFrame(const Interned<Frame> frame);
+  void WriteString(const Interned<std::string>& str);
 
   std::set<InternID> dumped_strings;
   std::set<InternID> dumped_frames;
   std::set<InternID> dumped_mappings;
+
+  std::set<GlobalCallstackTrie::Node*> callstacks_to_dump;
+
+  TraceWriter* trace_writer;
+  protos::pbzero::ProfilePacket* current_profile_packet;
+  TraceWriter::TracePacketHandle current_trace_packet;
+  uint64_t* next_index;
+  uint64_t last_written = 0;
+
+  void NewProfilePacket() {
+    PERFETTO_DLOG("New profile packet after %" PRIu64 " bytes. Total: %" PRIu64
+                  ", before %" PRIu64,
+                  trace_writer->written() - last_written,
+                  trace_writer->written(), last_written);
+    current_profile_packet->set_continued(true);
+    last_written = trace_writer->written();
+
+    current_trace_packet->Finalize();
+    current_trace_packet = trace_writer->NewTracePacket();
+    current_profile_packet = current_trace_packet->set_profile_packet();
+    current_profile_packet->set_index((*next_index)++);
+  }
+
+  uint64_t currently_written() {
+    return trace_writer->written() - last_written;
+  }
 };
 
 // Snapshot for memory allocations of a particular process. Shares callsites
@@ -214,8 +245,7 @@ class HeapTracker {
                     uint64_t size,
                     uint64_t sequence_number);
   void RecordFree(uint64_t address, uint64_t sequence_number);
-  void Dump(protos::pbzero::ProfilePacket::ProcessHeapSamples* proto,
-            std::set<GlobalCallstackTrie::Node*>* callstacks_to_dump);
+  void Dump(pid_t pid, DumpState* dump_state);
 
   uint64_t GetSizeForTesting(const std::vector<unwindstack::FrameData>& stack);
 
@@ -376,6 +406,7 @@ class BookkeepingThread {
 
   std::map<pid_t, BookkeepingData> bookkeeping_data_;
   std::mutex bookkeeping_mutex_;
+  uint64_t next_index = 0;
 };
 
 void swap(BookkeepingThread::ProcessHandle&, BookkeepingThread::ProcessHandle&);

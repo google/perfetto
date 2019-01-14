@@ -85,6 +85,8 @@ class PERFETTO_EXPORT StartupTraceWriter
   // binding.
   WriterID writer_id() const override;
 
+  uint64_t written() const override;
+
   // Bind this StartupTraceWriter to the provided SharedMemoryArbiterImpl.
   // Called by SharedMemoryArbiterImpl::BindStartupTraceWriter().
   //

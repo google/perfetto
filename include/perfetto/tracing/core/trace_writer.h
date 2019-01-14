@@ -77,6 +77,8 @@ class PERFETTO_EXPORT TraceWriter {
 
   virtual WriterID writer_id() const = 0;
 
+  virtual uint64_t written() const = 0;
+
   // Set the id of the first chunk the writer will emit. Returns |false| if not
   // implemented or if the first chunk was already emitted by the writer.
   //
