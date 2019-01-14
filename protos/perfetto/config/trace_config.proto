@@ -107,6 +107,8 @@ message TraceConfig {
     optional int32 triggering_config_uid = 2;
     // The identifier of the config which triggered the alert.
     optional int64 triggering_config_id = 3;
+    // The identifier of the subscription which triggered this trace.
+    optional int64 triggering_subscription_id = 4;
   }
 
   // Statsd-specific metadata.
