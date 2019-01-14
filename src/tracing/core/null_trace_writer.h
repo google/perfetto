@@ -36,6 +36,7 @@ class NullTraceWriter : public TraceWriter {
   TracePacketHandle NewTracePacket() override;
   void Flush(std::function<void()> callback = {}) override;
   WriterID writer_id() const override;
+  uint64_t written() const override;
 
  private:
   NullTraceWriter(const NullTraceWriter&) = delete;
