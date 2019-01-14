@@ -108,7 +108,11 @@ int ThreadTable::Cursor::Column(sqlite3_context* context, int N) {
       break;
     }
     case Column::kUpid: {
-      sqlite3_result_int64(context, thread.upid.value_or(0));
+      if (thread.upid.has_value()) {
+        sqlite3_result_int64(context, thread.upid.value());
+      } else {
+        sqlite3_result_null(context);
+      }
       break;
     }
     case Column::kName: {
