@@ -154,6 +154,7 @@ statsd-specific flags:
   --alert-id           : ID of the alert that triggered this trace.
   --config-id          : ID of the triggering config.
   --config-uid         : UID of app which registered the config.
+  --subscription-id    : ID of the subscription that triggered this trace.
 
 Detach mode. DISCOURAGED, read https://docs.perfetto.dev/#/detached-mode :
   --detach=key          : Detach from the tracing session with the given key.
@@ -169,6 +170,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     OPT_ALERT_ID = 1000,
     OPT_CONFIG_ID,
     OPT_CONFIG_UID,
+    OPT_SUBSCRIPTION_ID,
     OPT_RESET_GUARDRAILS,
     OPT_PBTXT_CONFIG,
     OPT_DROPBOX,
@@ -180,7 +182,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
     OPT_STOP,
   };
   static const struct option long_options[] = {
-      // |option_index| relies on the order of options, don't reshuffle them.
       {"help", required_argument, nullptr, 'h'},
       {"config", required_argument, nullptr, 'c'},
       {"out", required_argument, nullptr, 'o'},
@@ -194,6 +195,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
       {"config-id", required_argument, nullptr, OPT_CONFIG_ID},
       {"config-uid", required_argument, nullptr, OPT_CONFIG_UID},
+      {"subscription-id", required_argument, nullptr, OPT_SUBSCRIPTION_ID},
       {"reset-guardrails", no_argument, nullptr, OPT_RESET_GUARDRAILS},
       {"detach", required_argument, nullptr, OPT_DETACH},
       {"attach", required_argument, nullptr, OPT_ATTACH},
@@ -314,6 +316,11 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
     if (option == OPT_CONFIG_UID) {
       statsd_metadata.set_triggering_config_uid(atoi(optarg));
+      continue;
+    }
+
+    if (option == OPT_SUBSCRIPTION_ID) {
+      statsd_metadata.set_triggering_subscription_id(atoll(optarg));
       continue;
     }
 
