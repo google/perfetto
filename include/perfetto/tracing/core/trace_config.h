@@ -200,10 +200,18 @@ class PERFETTO_EXPORT TraceConfig {
       triggering_config_id_ = value;
     }
 
+    int64_t triggering_subscription_id() const {
+      return triggering_subscription_id_;
+    }
+    void set_triggering_subscription_id(int64_t value) {
+      triggering_subscription_id_ = value;
+    }
+
    private:
     int64_t triggering_alert_id_ = {};
     int32_t triggering_config_uid_ = {};
     int64_t triggering_config_id_ = {};
+    int64_t triggering_subscription_id_ = {};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.

@@ -340,6 +340,13 @@ void TraceConfig::StatsdMetadata::FromProto(
       "size mismatch");
   triggering_config_id_ = static_cast<decltype(triggering_config_id_)>(
       proto.triggering_config_id());
+
+  static_assert(sizeof(triggering_subscription_id_) ==
+                    sizeof(proto.triggering_subscription_id()),
+                "size mismatch");
+  triggering_subscription_id_ =
+      static_cast<decltype(triggering_subscription_id_)>(
+          proto.triggering_subscription_id());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -367,6 +374,13 @@ void TraceConfig::StatsdMetadata::ToProto(
   proto->set_triggering_config_id(
       static_cast<decltype(proto->triggering_config_id())>(
           triggering_config_id_));
+
+  static_assert(sizeof(triggering_subscription_id_) ==
+                    sizeof(proto->triggering_subscription_id()),
+                "size mismatch");
+  proto->set_triggering_subscription_id(
+      static_cast<decltype(proto->triggering_subscription_id())>(
+          triggering_subscription_id_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
