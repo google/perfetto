@@ -22,6 +22,8 @@ package perfetto.protos;
 // Statistics for the internals of the tracing service.
 message TraceStats {
   // From TraceBuffer::Stats.
+  //
+  // NEXT ID: 12
   message BufferStats {
     // Num. bytes written into the circular buffer.
     optional uint64 bytes_written = 1;
@@ -29,8 +31,15 @@ message TraceStats {
     // Num. chunks (!= packets) written into the buffer.
     optional uint64 chunks_written = 2;
 
+    // Num. chunks (!= packets) rewritten into the buffer. This means we rewrote
+    // the same chunk with additional packets appended to the end.
+    optional uint64 chunks_rewritten = 10;
+
     // Num. chunks overwritten before they have been read (i.e. loss of data).
     optional uint64 chunks_overwritten = 3;
+
+    // Num. chunks that were committed out of order.
+    optional uint64 chunks_committed_out_of_order = 11;
 
     // Num. times the ring buffer wrapped around.
     optional uint64 write_wrap_count = 4;

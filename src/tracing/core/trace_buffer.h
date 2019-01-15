@@ -133,7 +133,9 @@ class TraceBuffer {
   struct Stats {
     uint64_t bytes_written = 0;
     uint64_t chunks_written = 0;
+    uint64_t chunks_rewritten = 0;
     uint64_t chunks_overwritten = 0;
+    uint64_t chunks_committed_out_of_order = 0;
     uint64_t write_wrap_count = 0;
     uint64_t patches_succeeded = 0;
     uint64_t patches_failed = 0;
