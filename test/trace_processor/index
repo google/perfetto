@@ -19,3 +19,4 @@ synth_1.py nulls.sql nulls.out
 ../data/android_log.pb android_log_counts.sql android_log_counts.out
 ../data/android_log.pb android_log_msgs.sql android_log_msgs.out
 ../data/android_log_ring_buffer_mode.pb android_log_ring_buffer_mode.sql android_log_ring_buffer_mode.out
+../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
