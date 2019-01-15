@@ -169,15 +169,17 @@ export class TraceController extends Controller<States> {
     const traceTimeState = {
       startSec: traceTime.start,
       endSec: traceTime.end,
-      lastUpdate: Date.now() / 1000,
     };
-    const actions = [
+    const actions: DeferredAction[] = [
       Actions.setTraceTime(traceTimeState),
       Actions.navigate({route: '/viewer'}),
     ];
 
-    if (globals.state.visibleTraceTime.lastUpdate === 0) {
-      actions.push(Actions.setVisibleTraceTime(traceTimeState));
+    if (globals.state.frontendLocalState.lastUpdate === 0) {
+      actions.push(Actions.setVisibleTraceTime({
+        time: traceTimeState,
+        lastUpdate: Date.now() / 1000,
+      }));
     }
 
     globals.dispatchMultiple(actions);
