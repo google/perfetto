@@ -19,7 +19,6 @@ import * as m from 'mithril';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
 import {State} from '../common/state';
-import {TimeSpan} from '../common/time';
 
 import {globals, QuantizedLoad, ThreadDesc} from './globals';
 import {HomePage} from './home_page';
@@ -36,16 +35,10 @@ class FrontendApi {
 
   updateState(state: State) {
     globals.state = state;
-
     // If the visible time in the global state has been updated more recently
     // than the visible time handled by the frontend @ 60fps, update it. This
     // typically happens when restoring the state from a permalink.
-    const vizTraceTime = globals.state.visibleTraceTime;
-    if (vizTraceTime.lastUpdate >
-        globals.frontendLocalState.visibleTimeLastUpdate) {
-      globals.frontendLocalState.updateVisibleTime(
-          new TimeSpan(vizTraceTime.startSec, vizTraceTime.endSec));
-    }
+    globals.frontendLocalState.mergeState(state.frontendLocalState);
     this.redraw();
   }
 
