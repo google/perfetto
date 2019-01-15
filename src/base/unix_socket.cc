@@ -184,7 +184,7 @@ bool UnixSocketRaw::Bind(const std::string& socket_name) {
     return false;
 
   if (bind(*fd_, reinterpret_cast<sockaddr*>(&addr), addr_size)) {
-    PERFETTO_DPLOG("bind()");
+    PERFETTO_DPLOG("bind(%s)", socket_name.c_str());
     return false;
   }
 
