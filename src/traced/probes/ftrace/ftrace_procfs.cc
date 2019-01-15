@@ -49,6 +49,19 @@ void KernelLogWrite(const char* s) {
     base::ignore_result(base::WriteAll(FtraceProcfs::g_kmesg_fd, s, strlen(s)));
 }
 
+bool WriteFileInternal(const std::string& path,
+                       const std::string& str,
+                       int flags) {
+  base::ScopedFile fd = base::OpenFile(path, flags);
+  if (!fd)
+    return false;
+  ssize_t written = base::WriteAll(fd.get(), str.c_str(), str.length());
+  ssize_t length = static_cast<ssize_t>(str.length());
+  // This should either fail or write fully.
+  PERFETTO_CHECK(written == length || written == -1);
+  return written == length;
+}
+
 }  // namespace
 
 // static
@@ -68,13 +81,19 @@ FtraceProcfs::~FtraceProcfs() = default;
 bool FtraceProcfs::EnableEvent(const std::string& group,
                                const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
-  return WriteToFile(path, "1");
+  if (WriteToFile(path, "1"))
+    return true;
+  path = root_ + "set_event";
+  return AppendToFile(path, group + ":" + name);
 }
 
 bool FtraceProcfs::DisableEvent(const std::string& group,
                                 const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
-  return WriteToFile(path, "0");
+  if (WriteToFile(path, "0"))
+    return true;
+  path = root_ + "set_event";
+  return AppendToFile(path, "!" + group + ":" + name);
 }
 
 bool FtraceProcfs::DisableAllEvents() {
@@ -221,14 +240,12 @@ bool FtraceProcfs::WriteNumberToFile(const std::string& path, size_t value) {
 
 bool FtraceProcfs::WriteToFile(const std::string& path,
                                const std::string& str) {
-  base::ScopedFile fd = base::OpenFile(path, O_WRONLY);
-  if (!fd)
-    return false;
-  ssize_t written = base::WriteAll(fd.get(), str.c_str(), str.length());
-  ssize_t length = static_cast<ssize_t>(str.length());
-  // This should either fail or write fully.
-  PERFETTO_CHECK(written == length || written == -1);
-  return written == length;
+  return WriteFileInternal(path, str, O_WRONLY);
+}
+
+bool FtraceProcfs::AppendToFile(const std::string& path,
+                                const std::string& str) {
+  return WriteFileInternal(path, str, O_WRONLY | O_APPEND);
 }
 
 base::ScopedFile FtraceProcfs::OpenPipeForCpu(size_t cpu) {

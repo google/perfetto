@@ -112,7 +112,7 @@ push $OUT/perfetto
 reset_tracing
 
 if is_android $OUT; then
-  PREFIX="PERFETTO_CONSUMER_SOCK_NAME=/data/misc/perfetto-traces/test_consumer_socket PERFETTO_PRODUCER_SOCK_NAME=/data/misc/perfetto-traces/test_producer_socket"
+  PREFIX="PERFETTO_CONSUMER_SOCK_NAME=@perfetto_test_consumer PERFETTO_PRODUCER_SOCK_NAME=@perfetto_test_producer"
 else
   PREFIX=""
 fi

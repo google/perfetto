@@ -100,6 +100,7 @@ class FtraceProcfs {
  protected:
   // virtual and public for testing.
   virtual bool WriteToFile(const std::string& path, const std::string& str);
+  virtual bool AppendToFile(const std::string& path, const std::string& str);
   virtual bool ClearFile(const std::string& path);
   virtual char ReadOneCharFromFile(const std::string& path);
   virtual std::string ReadFileIntoString(const std::string& path) const;
