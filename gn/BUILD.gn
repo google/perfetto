@@ -121,9 +121,10 @@ config("default_config") {
     }
   }
 
-  # Disable debug log spam if we're embedded in a third-party project.
-  if (!perfetto_build_with_embedder) {
-    defines += [ "PERFETTO_ENABLE_DLOG" ]
+  if (perfetto_force_dlog == "on") {
+    defines += [ "PERFETTO_FORCE_DLOG=1" ]
+  } else if (perfetto_force_dlog == "off") {
+    defines += [ "PERFETTO_FORCE_DLOG=0" ]
   }
 
   include_dirs = [
