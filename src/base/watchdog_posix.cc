@@ -38,8 +38,8 @@
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/thread_utils.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-#error perfetto::base::Watchdog should not be used in Chromium
+#if PERFETTO_BUILDFLAG(PERFETTO_EMBEDDER_BUILD)
+#error perfetto::base::Watchdog should not be used in Chromium or embedders
 #endif
 
 namespace perfetto {

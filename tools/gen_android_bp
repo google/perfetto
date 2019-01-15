@@ -95,7 +95,7 @@ tree_path = 'external/perfetto'
 cflag_whitelist = r'^-DPERFETTO.*$'
 
 # Compiler defines which are passed through to the blueprint.
-define_whitelist = r'^GOOGLE_PROTO.*$'
+define_whitelist = r'^(GOOGLE_PROTO.*)|(PERFETTO_BUILD_WITH_ANDROID)$'
 
 # Shared libraries which are not in PDK.
 library_not_in_pdk = {
