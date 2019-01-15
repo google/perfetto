@@ -98,6 +98,8 @@ void CheckTraceStats(const protos::TracePacket& packet) {
   EXPECT_GT(buf_stats.bytes_written(), 0u);
   EXPECT_GT(buf_stats.chunks_written(), 0u);
   EXPECT_EQ(0u, buf_stats.chunks_overwritten());
+  EXPECT_EQ(0u, buf_stats.chunks_rewritten());
+  EXPECT_EQ(0u, buf_stats.chunks_committed_out_of_order());
   EXPECT_EQ(0u, buf_stats.write_wrap_count());
   EXPECT_EQ(0u, buf_stats.patches_failed());
   EXPECT_EQ(0u, buf_stats.readaheads_failed());

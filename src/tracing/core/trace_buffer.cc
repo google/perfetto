@@ -217,8 +217,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
                       wptr - begin() + record_size, record_size);
     WriteChunkRecord(wptr, record, src, size);
     TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr, record_size).c_str());
-
-    // TODO(eseckler): Add a stat for rewritten chunks.
+    stats_.chunks_rewritten++;
     return;
   }
 
@@ -287,14 +286,14 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   // last_chunk_id shouldn't be updated even though it's larger (e.g. |chunk_id|
   // = kMaxChunkId and |last_chunk_id| = 1; chunk_id - last_chunk_id =
   // kMaxChunkId - 1).
-  //
-  // TODO(eseckler): Add a stat for out-of-order commits of chunks.
   auto producer_and_writer_id = std::make_pair(producer_id_trusted, writer_id);
   ChunkID& last_chunk_id = last_chunk_id_written_[producer_and_writer_id];
   static_assert(std::numeric_limits<ChunkID>::max() == kMaxChunkID,
                 "This code assumes that ChunkID wraps at kMaxChunkID");
   if (chunk_id - last_chunk_id < kMaxChunkID / 2) {
     last_chunk_id = chunk_id;
+  } else {
+    stats_.chunks_committed_out_of_order++;
   }
 
   if (padding_size)
