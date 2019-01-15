@@ -133,11 +133,15 @@ if [[ "$CONFIG" == *.protobuf ]]; then
   fi
   push $CONFIG_PATH
 elif [[ "$CONFIG" != ":test" ]]; then
-  CONFIG_DEVICE_PATH="$CONFIG"
-  CONFIG_PATH=test/configs/$CONFIG;
+  CONFIG_DEVICE_PATH="$(basename $CONFIG)"
+  CONFIG_PATH=test/configs/$CONFIG
+  # Check if this is a valid absolute path
   if [[ ! -f $CONFIG_PATH ]]; then
-    echo 'Config "'$CONFIG_PATH'" not known.'
-    exit 1
+    CONFIG_PATH=$CONFIG
+    if [[ ! -f $CONFIG_PATH ]]; then
+      echo 'Config "'$CONFIG'" not known.'
+      exit 1
+    fi
   fi
   CMD_OPTS="--txt $CMD_OPTS"
   push $CONFIG_PATH
