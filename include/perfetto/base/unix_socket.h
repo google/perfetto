@@ -203,6 +203,13 @@ class UnixSocket {
                                              TaskRunner*,
                                              SockType = SockType::kStream);
 
+  // Constructs a UnixSocket using the given connected socket.
+  static std::unique_ptr<UnixSocket> AdoptConnected(
+      ScopedFile fd,
+      EventListener* event_listener,
+      TaskRunner* task_runner,
+      SockType sock_type);
+
   // This class gives the hard guarantee that no callback is called on the
   // passed EventListener immediately after the object has been destroyed.
   // Any queued callback will be silently dropped.
