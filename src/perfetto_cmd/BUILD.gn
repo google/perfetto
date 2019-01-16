@@ -40,7 +40,6 @@ source_set("perfetto_cmd") {
     "rate_limiter.h",
   ]
   if (perfetto_build_with_android) {
-    cflags = [ "-DPERFETTO_BUILD_WITH_ANDROID" ]
     deps += [ "../base:android_task_runner" ]
     libs = [
       "binder",
