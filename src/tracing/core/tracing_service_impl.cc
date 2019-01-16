@@ -1491,7 +1491,7 @@ TraceBuffer* TracingServiceImpl::GetBufferByID(BufferID buffer_id) {
 }
 
 void TracingServiceImpl::UpdateMemoryGuardrail() {
-#if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD) && \
+#if !PERFETTO_BUILDFLAG(PERFETTO_EMBEDDER_BUILD) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   uint64_t total_buffer_bytes = 0;
 

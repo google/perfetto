@@ -137,6 +137,7 @@ cc_binary {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
 }
 
@@ -174,6 +175,9 @@ cc_library_shared {
   ],
   defaults: [
     "perfetto_defaults",
+  ],
+  cflags: [
+    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
   include_dirs: [
     "bionic/libc",
@@ -317,6 +321,7 @@ cc_library_shared {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
 }
 
@@ -337,6 +342,9 @@ cc_library_shared {
   ],
   defaults: [
     "perfetto_defaults",
+  ],
+  cflags: [
+    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
   static_libs: [
     "libhealthhalutils",
@@ -1959,6 +1967,7 @@ cc_binary_host {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
 }
 
@@ -2097,6 +2106,7 @@ cc_binary_host {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
 }
 
@@ -2395,6 +2405,7 @@ cc_library_static {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
 }
 
@@ -2817,6 +2828,7 @@ cc_binary_host {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
 }
 
@@ -2836,6 +2848,9 @@ cc_binary {
   defaults: [
     "perfetto_defaults",
   ],
+  cflags: [
+    "-DPERFETTO_BUILD_WITH_ANDROID",
+  ],
 }
 
 // GN target: //:traced_probes
@@ -2850,6 +2865,9 @@ cc_binary {
   ],
   defaults: [
     "perfetto_defaults",
+  ],
+  cflags: [
+    "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
   required: [
     "libperfetto_android_internal",

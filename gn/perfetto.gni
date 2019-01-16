@@ -88,6 +88,14 @@ if (perfetto_build_with_android) {
 
 # Cross-checks.
 
+# Exactly one between build_with_android, build_standalone and
+# build_with_embedder must be true.
+assert(perfetto_build_standalone || perfetto_build_with_android ||
+       perfetto_build_with_embedder)
+assert(!(perfetto_build_with_android && perfetto_build_standalone))
+assert(!(perfetto_build_with_embedder && perfetto_build_standalone))
+assert(!(perfetto_build_with_android && perfetto_build_with_embedder))
+
 # If |build_with_chromium| is true then also |perfetto_build_with_embedder|
 # must be true
 assert(!build_with_chromium || perfetto_build_with_embedder)
