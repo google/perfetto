@@ -147,7 +147,8 @@ class HeapprofdEndToEnd : public ::testing::Test {
 #endif
 };
 
-TEST_F(HeapprofdEndToEnd, Smoke) {
+// TODO(b/121352331): deflake and re-enable this test.
+TEST_F(HeapprofdEndToEnd, DISABLED_Smoke) {
   constexpr size_t kAllocSize = 1024;
 
   pid_t pid = ForkContinousMalloc(kAllocSize);
@@ -206,7 +207,8 @@ TEST_F(HeapprofdEndToEnd, Smoke) {
   EXPECT_GT(last_freed, 0);
 }
 
-TEST_F(HeapprofdEndToEnd, FinalFlush) {
+// TODO(b/121352331): deflake and re-enable this test.
+TEST_F(HeapprofdEndToEnd, DISABLED_FinalFlush) {
   constexpr size_t kAllocSize = 1024;
 
   pid_t pid = ForkContinousMalloc(kAllocSize);
@@ -263,7 +265,8 @@ TEST_F(HeapprofdEndToEnd, FinalFlush) {
   EXPECT_GT(last_freed, 0);
 }
 
-TEST_F(HeapprofdEndToEnd, NativeStartup) {
+// TODO(b/121352331): deflake and re-enable this test.
+TEST_F(HeapprofdEndToEnd, DISABLED_NativeStartup) {
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
   trace_config.set_duration_ms(5000);
