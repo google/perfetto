@@ -72,14 +72,16 @@ TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
 TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
-  uint32_t prev_state = 32;
+  int64_t prev_state = 32;
   static const char kCommProc1[] = "process1";
   static const char kCommProc2[] = "process2";
+  int32_t next_prio = 1024;
 
   context.event_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, prev_state,
-                                         /*tid=*/4, kCommProc1);
+                                         /*tid=*/4, kCommProc1, next_prio);
   context.event_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
-                                         prev_state, /*tid=*/1, kCommProc2);
+                                         prev_state, /*tid=*/1, kCommProc2,
+                                         next_prio);
 
   context.process_tracker->UpdateProcess(2, "test");
   context.process_tracker->UpdateThread(4, 2);
