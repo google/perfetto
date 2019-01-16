@@ -30,8 +30,7 @@
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) || \
-    PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+#if !PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 #error The JSON trace parser is supported only in the standalone build for now.
 #endif
 

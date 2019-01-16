@@ -40,8 +40,7 @@
 #error This translation unit should not be used in release builds
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD) || \
-    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#if !PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 #error This translation unit should not be used in non-standalone builds
 #endif
 

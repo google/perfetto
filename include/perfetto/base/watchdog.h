@@ -21,7 +21,7 @@
 
 #if (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||    \
      PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+    !PERFETTO_BUILDFLAG(PERFETTO_EMBEDDER_BUILD)
 #include "perfetto/base/watchdog_posix.h"
 #else
 #include "perfetto/base/watchdog_noop.h"
