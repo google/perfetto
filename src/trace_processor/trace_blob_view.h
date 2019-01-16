@@ -65,7 +65,8 @@ class TraceBlobView {
   inline const uint8_t* data() const { return start() + offset_; }
 
   size_t offset_of(const uint8_t* data) const {
-    PERFETTO_DCHECK(data >= start() && data < (start() + offset_ + length_));
+    // When a field is size 0, data can be equal to start() + offset_ + length_.
+    PERFETTO_DCHECK(data >= start() && data <= (start() + offset_ + length_));
     return static_cast<size_t>(data - start());
   }
 
