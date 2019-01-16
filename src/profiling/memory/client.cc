@@ -46,6 +46,8 @@ namespace {
 
 constexpr std::chrono::seconds kLockTimeout{1};
 
+// TODO(rsavitski): consider setting a receive timeout as well, otherwise the
+// constructor can block indefinitely (while waiting on the client config).
 std::vector<base::UnixSocketRaw> ConnectPool(const std::string& sock_name,
                                              size_t n) {
   std::vector<base::UnixSocketRaw> res;

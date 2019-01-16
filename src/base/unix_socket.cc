@@ -389,6 +389,17 @@ std::unique_ptr<UnixSocket> UnixSocket::Connect(const std::string& socket_name,
   return sock;
 }
 
+// static
+std::unique_ptr<UnixSocket> UnixSocket::AdoptConnected(
+    ScopedFile fd,
+    EventListener* event_listener,
+    TaskRunner* task_runner,
+    SockType sock_type) {
+  return std::unique_ptr<UnixSocket>(
+      new UnixSocket(event_listener, task_runner, std::move(fd),
+                     State::kConnected, sock_type));
+}
+
 UnixSocket::UnixSocket(EventListener* event_listener,
                        TaskRunner* task_runner,
                        SockType sock_type)
@@ -408,7 +419,6 @@ UnixSocket::UnixSocket(EventListener* event_listener,
       weak_ptr_factory_(this) {
   state_ = State::kDisconnected;
   if (adopt_state == State::kDisconnected) {
-    // We get here from the default ctor().
     PERFETTO_DCHECK(!adopt_fd);
     sock_raw_ = UnixSocketRaw::CreateMayFail(sock_type);
     if (!sock_raw_) {
@@ -416,7 +426,6 @@ UnixSocket::UnixSocket(EventListener* event_listener,
       return;
     }
   } else if (adopt_state == State::kConnected) {
-    // We get here from OnNewIncomingConnection().
     PERFETTO_DCHECK(adopt_fd);
     sock_raw_ = UnixSocketRaw(std::move(adopt_fd), sock_type);
     state_ = State::kConnected;
