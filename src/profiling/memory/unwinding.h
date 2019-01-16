@@ -17,8 +17,16 @@
 #ifndef SRC_PROFILING_MEMORY_UNWINDING_H_
 #define SRC_PROFILING_MEMORY_UNWINDING_H_
 
+#include "perfetto/base/build_config.h"
+
 #include <unwindstack/Maps.h>
 #include <unwindstack/Unwinder.h>
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#include <unwindstack/DexFiles.h>
+#include <unwindstack/JitDebug.h>
+#endif
+
 #include "perfetto/base/scoped_file.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/bounded_queue.h"
@@ -40,29 +48,66 @@ class FileDescriptorMaps : public unwindstack::Maps {
   base::ScopedFile fd_;
 };
 
-struct UnwindingMetadata {
-  UnwindingMetadata(pid_t p, base::ScopedFile maps_fd, base::ScopedFile mem)
-      : pid(p), maps(std::move(maps_fd)), mem_fd(std::move(mem)) {
-    PERFETTO_CHECK(maps.Parse());
-  }
-  pid_t pid;
-  FileDescriptorMaps maps;
-  base::ScopedFile mem_fd;
+class FDMemory : public unwindstack::Memory {
+ public:
+  FDMemory(base::ScopedFile mem_fd);
+  size_t Read(uint64_t addr, void* dst, size_t size) override;
+
+ private:
+  base::ScopedFile mem_fd_;
 };
 
 // Overlays size bytes pointed to by stack for addresses in [sp, sp + size).
 // Addresses outside of that range are read from mem_fd, which should be an fd
 // that opened /proc/[pid]/mem.
-class StackMemory : public unwindstack::Memory {
+class StackOverlayMemory : public unwindstack::Memory {
  public:
-  StackMemory(int mem_fd, uint64_t sp, uint8_t* stack, size_t size);
+  StackOverlayMemory(std::shared_ptr<unwindstack::Memory> mem,
+                     uint64_t sp,
+                     uint8_t* stack,
+                     size_t size);
   size_t Read(uint64_t addr, void* dst, size_t size) override;
 
  private:
-  int mem_fd_;
+  std::shared_ptr<unwindstack::Memory> mem_;
   uint64_t sp_;
   uint64_t stack_end_;
   uint8_t* stack_;
+};
+
+struct UnwindingMetadata {
+  UnwindingMetadata(pid_t p, base::ScopedFile maps_fd, base::ScopedFile mem)
+      : pid(p),
+        maps(std::move(maps_fd)),
+        fd_mem(std::make_shared<FDMemory>(std::move(mem)))
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+        ,
+        jit_debug(std::unique_ptr<unwindstack::JitDebug>(
+            new unwindstack::JitDebug(fd_mem))),
+        dex_files(std::unique_ptr<unwindstack::DexFiles>(
+            new unwindstack::DexFiles(fd_mem)))
+#endif
+  {
+    PERFETTO_CHECK(maps.Parse());
+  }
+  void ReparseMaps() {
+    maps.Reset();
+    maps.Parse();
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+    jit_debug = std::unique_ptr<unwindstack::JitDebug>(
+        new unwindstack::JitDebug(fd_mem));
+    dex_files = std::unique_ptr<unwindstack::DexFiles>(
+        new unwindstack::DexFiles(fd_mem));
+#endif
+  }
+  pid_t pid;
+  FileDescriptorMaps maps;
+  // The API of libunwindstack expects shared_ptr for Memory.
+  std::shared_ptr<unwindstack::Memory> fd_mem;
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  std::unique_ptr<unwindstack::JitDebug> jit_debug;
+  std::unique_ptr<unwindstack::DexFiles> dex_files;
+#endif
 };
 
 bool DoUnwind(WireMessage*, UnwindingMetadata* metadata, AllocRecord* out);
