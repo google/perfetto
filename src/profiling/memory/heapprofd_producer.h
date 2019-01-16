@@ -17,11 +17,13 @@
 #ifndef SRC_PROFILING_MEMORY_HEAPPROFD_PRODUCER_H_
 #define SRC_PROFILING_MEMORY_HEAPPROFD_PRODUCER_H_
 
+#include <functional>
 #include <map>
 
 #include "perfetto/base/task_runner.h"
 
 #include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/producer.h"
 #include "perfetto/tracing/core/tracing_service.h"
 
@@ -59,6 +61,13 @@ class HeapprofdProducer : public Producer {
   void ConnectWithRetries(const char* socket_name);
   void DumpAll();
 
+  // Valid only if mode_ == kChild. Adopts the (connected) sockets inherited
+  // from the target process, invoking the on-connection callback.
+  void AdoptConnectedSockets(std::vector<base::ScopedFile> inherited_sockets);
+
+  // Valid only if mode_ == kChild.
+  void SetTargetProcess(pid_t target_pid);
+
  private:
   // TODO(fmayer): Delete once we have generic reconnect logic.
   enum State {
@@ -75,20 +84,26 @@ class HeapprofdProducer : public Producer {
   // TODO(fmayer): Delete once we have generic reconnect logic.
   State state_ = kNotStarted;
   uint32_t connection_backoff_ms_ = 0;
-  const char* socket_name_ = nullptr;
+  const char* producer_sock_name_ = nullptr;
 
   const HeapprofdMode mode_;
 
   std::function<void(UnwindingRecord)> MakeSocketListenerCallback();
   std::vector<BoundedQueue<UnwindingRecord>> MakeUnwinderQueues(size_t n);
   std::vector<std::thread> MakeUnwindingThreads(size_t n);
-  std::unique_ptr<base::UnixSocket> MakeListeningSocket();
 
   void FinishDataSourceFlush(FlushRequestID flush_id);
   bool Dump(DataSourceInstanceID id,
             FlushRequestID flush_id,
             bool has_flush_id);
   void DoContinuousDump(DataSourceInstanceID id, uint32_t dump_interval);
+
+  // functionality specific to mode_ == kCentral
+  std::unique_ptr<base::UnixSocket> MakeListeningSocket();
+
+  // functionality specific to mode_ == kChild
+  void TerminateProcess(int exit_status);
+  bool SourceMatchesTarget(const HeapprofdConfig& cfg);
 
   struct DataSource {
     // This is a shared ptr so we can lend a weak_ptr to the bookkeeping
@@ -113,8 +128,14 @@ class HeapprofdProducer : public Producer {
   std::vector<BoundedQueue<UnwindingRecord>> unwinder_queues_;
   std::vector<std::thread> unwinding_threads_;
   SocketListener socket_listener_;
+
+  // state specific to mode_ == kCentral
   std::unique_ptr<base::UnixSocket> listening_socket_;
   SystemProperties properties_;
+
+  // state specific to mode_ == kChild
+  pid_t target_pid_ = base::kInvalidPid;
+  std::string target_cmdline_;
 
   base::WeakPtrFactory<HeapprofdProducer> weak_factory_;
 };

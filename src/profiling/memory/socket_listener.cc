@@ -92,8 +92,16 @@ void SocketListener::Match(
   process_info.set_up = true;
 }
 
+// Implementation warning: if adding a use for the first argument, consider that
+// HeapprofdProducer can supply a pre-connected socket (for which there is no
+// "listening" socket to give a pointer to).
 void SocketListener::OnNewIncomingConnection(
     base::UnixSocket*,
+    std::unique_ptr<base::UnixSocket> new_connection) {
+  HandleClientConnection(std::move(new_connection));
+}
+
+void SocketListener::HandleClientConnection(
     std::unique_ptr<base::UnixSocket> new_connection) {
   pid_t peer_pid = new_connection->peer_pid();
   base::UnixSocket* new_connection_raw = new_connection.get();
