@@ -82,6 +82,7 @@ HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
       unwinder_queues_(MakeUnwinderQueues(kUnwinderThreads)),
       unwinding_threads_(MakeUnwindingThreads(kUnwinderThreads)),
       socket_listener_(MakeSocketListenerCallback(), &bookkeeping_thread_),
+      target_pid_(base::kInvalidPid),
       weak_factory_(this) {
   if (mode == HeapprofdMode::kCentral) {
     listening_socket_ = MakeListeningSocket();
@@ -99,8 +100,58 @@ HeapprofdProducer::~HeapprofdProducer() {
   }
 }
 
+void HeapprofdProducer::SetTargetProcess(pid_t target_pid) {
+  target_pid_ = target_pid;
+  target_cmdline_.clear();
+  if (!GetCmdlineForPID(target_pid, &target_cmdline_)) {
+    PERFETTO_ELOG(
+        "Failed to look up cmdline for target pid [%d], cmdline-based "
+        "configurations will not work. Proceeding.",
+        static_cast<int>(target_pid));
+  }
+}
+
+bool HeapprofdProducer::SourceMatchesTarget(const HeapprofdConfig& cfg) {
+  if (cfg.all())
+    return true;
+  if (target_pid_ != base::kInvalidPid &&
+      std::find(cfg.pid().cbegin(), cfg.pid().cend(),
+                static_cast<uint64_t>(target_pid_)) != cfg.pid().cend()) {
+    return true;
+  }
+  if (!target_cmdline_.empty() &&
+      std::find(cfg.process_cmdline().cbegin(), cfg.process_cmdline().cend(),
+                target_cmdline_) != cfg.process_cmdline().cend()) {
+    return true;
+  }
+
+  return false;
+}
+
+void HeapprofdProducer::AdoptConnectedSockets(
+    std::vector<base::ScopedFile> inherited_sockets) {
+  PERFETTO_DCHECK(mode_ == HeapprofdMode::kChild);
+
+  auto weak_producer = weak_factory_.GetWeakPtr();
+  for (auto& scoped_fd : inherited_sockets) {
+    // Manually enqueue the on-connection callback. Pass the raw fd into the
+    // closure as we cannot easily move-capture in c++11.
+    int fd = scoped_fd.release();
+    task_runner_->PostTask([weak_producer, fd] {
+      if (!weak_producer)
+        return;
+
+      auto socket = base::UnixSocket::AdoptConnected(
+          base::ScopedFile(fd), &weak_producer->socket_listener_,
+          weak_producer->task_runner_, base::SockType::kStream);
+
+      weak_producer->socket_listener_.HandleClientConnection(std::move(socket));
+    });
+  }
+}
+
+// TODO(fmayer): Delete once we have generic reconnect logic.
 void HeapprofdProducer::OnConnect() {
-  // TODO(fmayer): Delete once we have generic reconnect logic.
   PERFETTO_DCHECK(state_ == kConnecting);
   state_ = kConnected;
   ResetConnectionBackoff();
@@ -115,13 +166,30 @@ void HeapprofdProducer::OnConnect() {
 void HeapprofdProducer::OnDisconnect() {
   PERFETTO_DCHECK(state_ == kConnected || state_ == kConnecting);
   PERFETTO_LOG("Disconnected from tracing service");
+
+  // Do not attempt to reconnect if we're a process-private process, just quit.
+  if (mode_ == HeapprofdMode::kChild) {
+    TerminateProcess(/*exit_status=*/1);  // does not return
+  }
+
+  // Central mode - attempt to reconnect.
+  auto weak_producer = weak_factory_.GetWeakPtr();
   if (state_ == kConnected)
-    return task_runner_->PostTask([this] { this->Restart(); });
+    return task_runner_->PostTask([weak_producer] {
+      if (!weak_producer)
+        return;
+      weak_producer->Restart();
+    });
 
   state_ = kNotConnected;
   IncreaseConnectionBackoff();
-  task_runner_->PostDelayedTask([this] { this->Connect(); },
-                                connection_backoff_ms_);
+  task_runner_->PostDelayedTask(
+      [weak_producer] {
+        if (!weak_producer)
+          return;
+        weak_producer->Connect();
+      },
+      connection_backoff_ms_);
 }
 
 void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
@@ -135,6 +203,14 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
 
   if (cfg.name() != kHeapprofdDataSource) {
     PERFETTO_DLOG("Invalid data source name.");
+    return;
+  }
+
+  // Child mode is only interested in data sources matching the
+  // already-connected process.
+  if (mode_ == HeapprofdMode::kChild &&
+      !SourceMatchesTarget(heapprofd_config)) {
+    PERFETTO_DLOG("Child mode skipping setup of unrelated data source.");
     return;
   }
 
@@ -186,6 +262,14 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
   PERFETTO_DLOG("Start DataSource");
   const HeapprofdConfig& heapprofd_config = cfg.heapprofd_config();
 
+  // Child mode is only interested in data sources matching the
+  // already-connected process.
+  if (mode_ == HeapprofdMode::kChild &&
+      !SourceMatchesTarget(heapprofd_config)) {
+    PERFETTO_DLOG("Child mode skipping start of unrelated data source.");
+    return;
+  }
+
   auto it = data_sources_.find(id);
   if (it == data_sources_.end()) {
     PERFETTO_DFATAL("Received invalid data source instance to start: %" PRIu64,
@@ -194,26 +278,30 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
   }
   DataSource& data_source = it->second;
 
-  if (heapprofd_config.all())
-    data_source.properties.emplace_back(properties_.SetAll());
+  // Central daemon - set system properties for any targets that start later,
+  // and signal already-running targets to start the profiling client.
+  if (mode_ == HeapprofdMode::kCentral) {
+    if (heapprofd_config.all())
+      data_source.properties.emplace_back(properties_.SetAll());
 
-  for (std::string cmdline : heapprofd_config.process_cmdline())
-    data_source.properties.emplace_back(
-        properties_.SetProperty(std::move(cmdline)));
+    for (std::string cmdline : heapprofd_config.process_cmdline())
+      data_source.properties.emplace_back(
+          properties_.SetProperty(std::move(cmdline)));
 
-  std::set<pid_t> pids;
-  if (heapprofd_config.all())
-    FindAllProfilablePids(&pids);
-  for (uint64_t pid : heapprofd_config.pid())
-    pids.emplace(static_cast<pid_t>(pid));
+    std::set<pid_t> pids;
+    if (heapprofd_config.all())
+      FindAllProfilablePids(&pids);
+    for (uint64_t pid : heapprofd_config.pid())
+      pids.emplace(static_cast<pid_t>(pid));
 
-  if (!heapprofd_config.process_cmdline().empty())
-    FindPidsForCmdlines(heapprofd_config.process_cmdline(), &pids);
+    if (!heapprofd_config.process_cmdline().empty())
+      FindPidsForCmdlines(heapprofd_config.process_cmdline(), &pids);
 
-  for (pid_t pid : pids) {
-    PERFETTO_DLOG("Sending %d to %d", kHeapprofdSignal, pid);
-    if (kill(pid, kHeapprofdSignal) != 0) {
-      PERFETTO_DPLOG("kill");
+    for (pid_t pid : pids) {
+      PERFETTO_DLOG("Sending %d to %d", kHeapprofdSignal, pid);
+      if (kill(pid, kHeapprofdSignal) != 0) {
+        PERFETTO_DPLOG("kill");
+      }
     }
   }
 
@@ -232,11 +320,27 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
   PERFETTO_DLOG("Started DataSource");
 }
 
+// TODO(rsavitski): for now, shut down child heapprofd as soon as the first
+// matching data source is stopped (even if there are other active matching data
+// sources). Instead, we could be called back by SocketListener::Disconnect to
+// handle not only the last data source reference being stopped, but also the
+// client disconnecting prematurely. Although, still need to look at whether
+// child mode heapprofd needs to distinguish between causes of the client
+// reference being torn down.
 void HeapprofdProducer::StopDataSource(DataSourceInstanceID id) {
   // DataSource holds ProfilingSession handles which on being destructed tear
   // down the profiling on the client.
-  if (data_sources_.erase(id) != 1)
-    PERFETTO_DFATAL("Trying to stop non existing data source: %" PRIu64, id);
+
+  if (mode_ == HeapprofdMode::kChild) {
+    if (data_sources_.erase(id) == 1) {
+      PERFETTO_DLOG("Child mode exiting due to stopped data source.");
+      TerminateProcess(/*exit_status=*/0);  // does not return
+    }
+
+  } else {  // kCentral
+    if (data_sources_.erase(id) != 1)
+      PERFETTO_DFATAL("Trying to stop non existing data source: %" PRIu64, id);
+  }
 }
 
 void HeapprofdProducer::OnTracingSetup() {}
@@ -343,16 +447,21 @@ std::unique_ptr<base::UnixSocket> HeapprofdProducer::MakeListeningSocket() {
                                   task_runner_);
 }
 
-// TODO(fmayer): Delete these and used ReconnectingProducer once submitted
+// TODO(fmayer): Delete these and use ReconnectingProducer once submitted
 void HeapprofdProducer::Restart() {
   // We lost the connection with the tracing service. At this point we need
   // to reset all the data sources. Trying to handle that manually is going to
-  // be error prone. What we do here is simply desroying the instance and
-  // recreating it again.
-  // TODO(hjd): Add e2e test for this.
+  // be error prone. What we do here is simply destroy the instance and
+  // recreate it again.
+
+  // Child mode producer should not attempt restarts. Note that this also means
+  // the rest of this method doesn't have to handle child-specific state.
+  if (mode_ == HeapprofdMode::kChild)
+    PERFETTO_FATAL("Attempting to restart a child mode producer.");
+
   HeapprofdMode mode = mode_;
   base::TaskRunner* task_runner = task_runner_;
-  const char* socket_name = socket_name_;
+  const char* socket_name = producer_sock_name_;
 
   // Invoke destructor and then the constructor again.
   this->~HeapprofdProducer();
@@ -366,7 +475,7 @@ void HeapprofdProducer::ConnectWithRetries(const char* socket_name) {
   state_ = kNotConnected;
 
   ResetConnectionBackoff();
-  socket_name_ = socket_name;
+  producer_sock_name_ = socket_name;
   Connect();
 }
 
@@ -380,7 +489,7 @@ void HeapprofdProducer::DumpAll() {
 void HeapprofdProducer::Connect() {
   PERFETTO_DCHECK(state_ == kNotConnected);
   state_ = kConnecting;
-  endpoint_ = ProducerIPCClient::Connect(socket_name_, this,
+  endpoint_ = ProducerIPCClient::Connect(producer_sock_name_, this,
                                          "android.heapprofd", task_runner_);
 }
 
@@ -392,6 +501,15 @@ void HeapprofdProducer::IncreaseConnectionBackoff() {
 
 void HeapprofdProducer::ResetConnectionBackoff() {
   connection_backoff_ms_ = kInitialConnectionBackoffMs;
+}
+
+// TODO(rsavitski): would be cleaner to shut down the event loop instead
+// (letting main exit). One test-friendly approach is to supply a shutdown
+// callback in the constructor.
+__attribute__((noreturn)) void HeapprofdProducer::TerminateProcess(
+    int exit_status) {
+  PERFETTO_CHECK(mode_ == HeapprofdMode::kChild);
+  exit(exit_status);
 }
 
 }  // namespace profiling
