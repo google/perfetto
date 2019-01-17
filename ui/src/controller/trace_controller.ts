@@ -27,6 +27,7 @@ import {TimeSpan} from '../common/time';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
+import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 
 import {Child, Children, Controller} from './controller';
@@ -222,6 +223,11 @@ export class TraceController extends Controller<States> {
     //    }
     //  }));
     //}
+    const maxFreq = await engine.query(`
+     select max(value)
+     from counters
+     where name = 'cpufreq';
+    `);
 
     for (let cpu = 0; cpu < numCpus; cpu++) {
       addToTrackActions.push(Actions.addTrack({
@@ -233,6 +239,27 @@ export class TraceController extends Controller<States> {
           cpu,
         }
       }));
+
+      // Only add a cpu freq track if we have
+      // cpu freq data.
+      const freqExists = await engine.query(`
+        select value
+        from counters
+        where name = 'cpufreq' and ref = ${cpu}
+        limit 1;
+      `);
+      if (freqExists.numRecords > 0) {
+        addToTrackActions.push(Actions.addTrack({
+          engineId: this.engineId,
+          kind: CPU_FREQ_TRACK_KIND,
+          name: `Cpu ${cpu} frequency`,
+          trackGroup: SCROLLING_TRACK_GROUP,
+          config: {
+            cpu,
+            maximumValue: maxFreq.columns[0].longValues![0],
+          }
+        }));
+      }
     }
 
     const counters = await engine.query(`
