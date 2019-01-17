@@ -155,6 +155,8 @@ class CpuSliceTrack extends Track<Config, Data> {
     ctx.font = '12px Google Sans';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
+    const isHovering = globals.frontendLocalState.hoveredUtid !== -1;
+
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
@@ -168,14 +170,15 @@ class CpuSliceTrack extends Track<Config, Data> {
       if (rectWidth < 0.1) continue;
 
       const threadInfo = globals.threads.get(utid);
-      const color = colorForThread(threadInfo);
 
       // TODO: consider de-duplicating this code with the copied one from
       // chrome_slices/frontend.ts.
       let title = `[utid:${utid}]`;
       let subTitle = '';
+      let pid = -1;
       if (threadInfo) {
-        if (!!threadInfo.pid) {
+        if (threadInfo.pid) {
+          pid = threadInfo.pid;
           const procName = threadInfo.procName || '';
           title = `${procName} [${threadInfo.pid}]`;
           subTitle = `${threadInfo.threadName} [${threadInfo.tid}]`;
@@ -184,10 +187,21 @@ class CpuSliceTrack extends Track<Config, Data> {
         }
       }
 
-      const hovered = globals.frontendLocalState.highlightedUtid === utid;
-      color.l =
-          hovered ? Math.max(color.l - 40, 20) : Math.min(color.l + 10, 80);
-      color.s -= 20;
+      const isThreadHovered = globals.frontendLocalState.hoveredUtid === utid;
+      const isProcessHovered = globals.frontendLocalState.hoveredPid === pid;
+      const color = colorForThread(threadInfo);
+      if (isHovering && !isThreadHovered) {
+        if (!isProcessHovered) {
+          color.l = 90;
+          color.s = 0;
+        } else {
+          color.l = Math.min(color.l + 30, 80);
+          color.s -= 20;
+        }
+      } else {
+        color.l = Math.min(color.l + 10, 60);
+        color.s -= 20;
+      }
       ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
       ctx.fillRect(rectStart, MARGIN_TOP, rectEnd - rectStart, RECT_HEIGHT);
 
@@ -237,7 +251,7 @@ class CpuSliceTrack extends Track<Config, Data> {
     const {timeScale} = globals.frontendLocalState;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
-      globals.frontendLocalState.setHighlightedUtid(-1);
+      globals.frontendLocalState.setHoveredUtidAndPid(-1, -1);
       return;
     }
     const t = timeScale.pxToTime(x);
@@ -253,12 +267,14 @@ class CpuSliceTrack extends Track<Config, Data> {
       }
     }
     this.utidHoveredInThisTrack = hoveredUtid;
-    globals.frontendLocalState.setHighlightedUtid(hoveredUtid);
+    const threadInfo = globals.threads.get(hoveredUtid);
+    const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
+    globals.frontendLocalState.setHoveredUtidAndPid(hoveredUtid, hoveredPid);
   }
 
   onMouseOut() {
     this.utidHoveredInThisTrack = -1;
-    globals.frontendLocalState.setHighlightedUtid(-1);
+    globals.frontendLocalState.setHoveredUtidAndPid(-1, -1);
     this.mouseXpos = 0;
   }
 }
