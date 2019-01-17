@@ -105,8 +105,35 @@ group("default_deps") {
   }
 }
 
+# The config that all targets in the perfetto codebase inherit by virtue of
+# having explicit deps on //gn:default_deps. This config is NOT propagated up to
+# embedders that depend on perfetto (e.g. chrome). :public_config (see below) is
+# used for that.
 config("default_config") {
+  configs = [ ":public_config" ]
+
   defines = [ "PERFETTO_IMPLEMENTATION" ]
+
+  if (build_with_chromium && is_android) {
+    # Included for __android_log_print
+    libs = [ "log" ]
+  }
+
+  include_dirs = [ ".." ]
+}
+
+# This config is propagated to embedders via libperfetto. It's also included in
+# the default_config above.
+config("public_config") {
+  include_dirs = [
+    "../include",
+
+    # The below are needed due to generated protobuf headers including other
+    # headers with a path relative to the perfetto root.
+    "${root_gen_dir}/${perfetto_root_path}/protos",
+  ]
+
+  defines = []
 
   if (perfetto_build_with_android) {
     defines += [ "PERFETTO_BUILD_WITH_ANDROID" ]
@@ -114,15 +141,10 @@ config("default_config") {
     defines += [ "PERFETTO_BUILD_WITH_EMBEDDER" ]
 
     if (build_with_chromium) {
-      if (is_component_build) {
-        defines += [ "PERFETTO_SHARED_LIBRARY" ]
-      }
-
       defines += [ "PERFETTO_BUILD_WITH_CHROMIUM" ]
 
-      if (is_android) {
-        # Included for __android_log_print
-        libs = [ "log" ]
+      if (is_component_build) {
+        defines += [ "PERFETTO_SHARED_LIBRARY" ]
       }
     }  # if (build_with_chromium)
   }  # if (build_with_embedder)
@@ -132,21 +154,6 @@ config("default_config") {
   } else if (perfetto_force_dlog == "off") {
     defines += [ "PERFETTO_FORCE_DLOG=0" ]
   }
-
-  include_dirs = [
-    "..",
-    "../include",
-  ]
-}
-
-config("public_config") {
-  include_dirs = [
-    "../include",
-
-    # The below are needed due to generated protobuf headers including other
-    # headers with a path relative to the perfetto root.
-    "${root_gen_dir}/${perfetto_root_path}/protos",
-  ]
 }
 
 # For now JsonCpp is supported only in standalone builds outside of Android or
