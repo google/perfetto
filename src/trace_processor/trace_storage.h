@@ -520,11 +520,11 @@ class TraceStorage {
 
   // |unique_processes_| always contains at least 1 element becuase the 0th ID
   // is reserved to indicate an invalid process.
-  size_t process_count() const { return unique_processes_.size() - 1; }
+  size_t process_count() const { return unique_processes_.size(); }
 
   // |unique_threads_| always contains at least 1 element becuase the 0th ID
   // is reserved to indicate an invalid thread.
-  size_t thread_count() const { return unique_threads_.size() - 1; }
+  size_t thread_count() const { return unique_threads_.size(); }
 
   // Number of interned strings in the pool. Includes the empty string w/ ID=0.
   size_t string_count() const { return string_pool_.size(); }
