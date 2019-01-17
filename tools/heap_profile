@@ -210,7 +210,13 @@ def main(argv):
 
   subprocess.check_call(['gzip'] + [os.path.join(profile_path, x) for x in
                                     os.listdir(profile_path)])
-  print("Wrote profiles to {}".format(profile_path))
+
+  symlink_path = os.path.join(os.path.dirname(profile_path),
+                                        "heap_profile-latest")
+  os.unlink(symlink_path)
+  os.symlink(profile_path, symlink_path)
+
+  print("Wrote profiles to {} (symlink {})".format(profile_path, symlink_path))
   print("These can be viewed using pprof. Googlers: head to pprof/ and "
         "upload them.")
 
