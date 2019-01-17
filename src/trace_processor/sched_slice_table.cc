@@ -43,13 +43,7 @@ uint32_t SchedSliceTable::RowCount() {
 
 int SchedSliceTable::BestIndex(const QueryConstraints& qc,
                                BestIndexInfo* info) {
-  const auto& cs = qc.constraints();
-  size_t ts_idx = schema().ColumnIndexFromName("ts");
-  auto has_ts_column = [ts_idx](const QueryConstraints::Constraint& c) {
-    return c.iColumn == static_cast<int>(ts_idx);
-  };
-  bool has_time_constraint = std::any_of(cs.begin(), cs.end(), has_ts_column);
-  info->estimated_cost = has_time_constraint ? 10 : 10000;
+  info->estimated_cost = EstimateQueryCost(qc);
 
   // We should be able to handle any constraint and any order by clause given
   // to us.
@@ -57,6 +51,40 @@ int SchedSliceTable::BestIndex(const QueryConstraints& qc,
   std::fill(info->omit.begin(), info->omit.end(), true);
 
   return SQLITE_OK;
+}
+
+uint32_t SchedSliceTable::EstimateQueryCost(const QueryConstraints& qc) {
+  const auto& cs = qc.constraints();
+
+  size_t ts_idx = schema().ColumnIndexFromName("ts");
+  auto has_ts_column = [ts_idx](const QueryConstraints::Constraint& c) {
+    return c.iColumn == static_cast<int>(ts_idx);
+  };
+  bool has_time_constraint = std::any_of(cs.begin(), cs.end(), has_ts_column);
+  if (has_time_constraint) {
+    // If there is a constraint on ts, we can do queries very fast (O(log n))
+    // so always make this preferred if available.
+    return 10;
+  }
+
+  size_t utid_idx = schema().ColumnIndexFromName("utid");
+  auto has_utid_eq_cs = [utid_idx](const QueryConstraints::Constraint& c) {
+    return c.iColumn == static_cast<int>(utid_idx) &&
+           sqlite_utils::IsOpEq(c.op);
+  };
+  bool has_utid_eq = std::any_of(cs.begin(), cs.end(), has_utid_eq_cs);
+  if (has_utid_eq) {
+    // The other column which is often joined on is utid. Sometimes, doing
+    // nested subqueries on the thread table is faster but with some queries,
+    // it's actually better to do subqueries on this table. Estimate the cost
+    // of filtering on utid equality constraint by dividing the number of slices
+    // by the number of threads.
+    return RowCount() / storage_->thread_count();
+  }
+
+  // If we get to this point, we do not have any special filter logic so
+  // simply return the number of rows.
+  return RowCount();
 }
 
 }  // namespace trace_processor

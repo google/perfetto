@@ -36,6 +36,8 @@ class SchedSliceTable : public StorageTable {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
+  uint32_t EstimateQueryCost(const QueryConstraints& cs);
+
   const TraceStorage* const storage_;
 };
 
