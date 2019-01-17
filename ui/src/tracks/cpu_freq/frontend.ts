@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import {trackRegistry} from '../../frontend/track_registry';
 
 import {
   Config,
-  COUNTER_TRACK_KIND,
+  CPU_FREQ_TRACK_KIND,
   Data,
 } from './common';
 
@@ -37,10 +37,10 @@ function getCurResolution() {
   return Math.pow(10, Math.floor(Math.log10(resolution)));
 }
 
-class CounterTrack extends Track<Config, Data> {
-  static readonly kind = COUNTER_TRACK_KIND;
-  static create(trackState: TrackState): CounterTrack {
-    return new CounterTrack(trackState);
+class CpuFreqTrack extends Track<Config, Data> {
+  static readonly kind = CPU_FREQ_TRACK_KIND;
+  static create(trackState: TrackState): CpuFreqTrack {
+    return new CpuFreqTrack(trackState);
   }
 
   private reqPending = false;
@@ -86,7 +86,7 @@ class CounterTrack extends Track<Config, Data> {
     }
     if (data === undefined) return;  // Can't possibly draw anything.
 
-    assertTrue(data.timestamps.length === data.values.length);
+    assertTrue(data.timestamps.length === data.valuesKHz.length);
 
     const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
     const endPx = Math.floor(timeScale.timeToPx(visibleWindowTime.end));
@@ -105,24 +105,18 @@ class CounterTrack extends Track<Config, Data> {
     yMax = Math.ceil(yMax / (pow10 / 4)) * (pow10 / 4);
     const yRange = data.minimumValue < 0 ? yMax * 2 : yMax;
     const unitGroup = Math.floor(exp / 3);
-    const yLabel = `${yMax / Math.pow(10, unitGroup * 3)} ${kUnits[unitGroup]}`;
-    // There are 360deg of hue. We want a scale that starts at green with
-    // exp <= 3 (<= 1KB), goes orange around exp = 6 (~1MB) and red/violet
-    // around exp >= 9 (1GB).
-    // The hue scale looks like this:
-    // 0                              180                                 360
-    // Red        orange         green | blue         purple          magenta
-    // So we want to start @ 180deg with pow=0, go down to 0deg and then wrap
-    // back from 360deg back to 180deg.
-    const expCapped = Math.min(Math.max(exp - 3), 9);
-    const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
+    const num = yMax / Math.pow(10, unitGroup * 3);
+    // The values we have for cpufreq are in kHz so +1 to unitGroup.
+    const yLabel = `${num} ${kUnits[unitGroup + 1]}Hz`;
 
-    ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
-    ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
+    const hue = (128 + (32 * this.config.cpu)) % 256;
+
+    ctx.fillStyle = `hsl(${hue}, 45%, 85%)`;
+    ctx.strokeStyle = `hsl(${hue}, 45%, 55%)`;
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
-    for (let i = 0; i < data.values.length; i++) {
-      const value = data.values[i];
+    for (let i = 0; i < data.valuesKHz.length; i++) {
+      const value = data.valuesKHz[i];
       const startTime = data.timestamps[i];
       const nextY = zeroY - Math.round((value / yRange) * RECT_HEIGHT);
       if (nextY === lastY) continue;
@@ -138,21 +132,10 @@ class CounterTrack extends Track<Config, Data> {
     ctx.fill();
     ctx.stroke();
 
-    // Draw the Y=0 dashed line.
-    ctx.strokeStyle = `hsl(${hue}, 10%, 15%)`;
-    ctx.beginPath();
-    ctx.setLineDash([2, 4]);
-    ctx.moveTo(0, zeroY);
-    ctx.lineTo(endPx, zeroY);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.setLineDash([]);
-
     ctx.font = '10px Google Sans';
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
-      // TODO(hjd): Add units.
-      const text = `value: ${this.hoveredValue.toLocaleString()}`;
+      const text = `value: ${this.hoveredValue.toLocaleString()}kHz`;
       const width = ctx.measureText(text).width;
 
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
@@ -214,13 +197,7 @@ class CounterTrack extends Track<Config, Data> {
     const [left, right] = searchSegment(data.timestamps, time);
     this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
     this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
-    this.hoveredValue = left === -1 ? undefined : data.values[left];
-
-    // for (let i = 0; i < data.values.length; i++) {
-    //  if (data.timestamps[i] > time) break;
-    //  this.hoveredTs = data.timestamps[i];
-    //  this.hoveredValue = data.values[i];
-    //}
+    this.hoveredValue = left === -1 ? undefined : data.valuesKHz[left];
   }
 
   onMouseOut() {
@@ -229,4 +206,4 @@ class CounterTrack extends Track<Config, Data> {
   }
 }
 
-trackRegistry.register(CounterTrack);
+trackRegistry.register(CpuFreqTrack);
