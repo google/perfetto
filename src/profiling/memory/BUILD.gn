@@ -109,6 +109,7 @@ source_set("unittests") {
     "client_unittest.cc",
     "heapprofd_integrationtest.cc",
     "interner_unittest.cc",
+    "proc_utils_unittest.cc",
     "process_matcher_unittest.cc",
     "record_reader_unittest.cc",
     "sampler_unittest.cc",
