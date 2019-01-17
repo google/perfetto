@@ -25,6 +25,36 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+const char* __attribute__((unused))
+FindChar(const char* s, unsigned char c, size_t n) {
+  const char* ret = s;
+  const char* end = s + n;
+  while (ret != end) {
+    const char* next = static_cast<const char*>(
+        memchr(ret, c, static_cast<size_t>(end - ret)));
+    if (next)
+      ret = next + 1;
+    else
+      break;
+  };
+  if (ret == s) {
+    if (*ret == c)
+      return ret;
+    return nullptr;
+  }
+  if (ret == end)
+    return nullptr;
+  return ret;
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+// Only conditionally compile this to have less platform specific code.
+void* memrchr(const void* s, int c, size_t n) {
+  return static_cast<void*>(const_cast<char*>(
+      FindChar(static_cast<const char*>(s), static_cast<unsigned char>(c), n)));
+}
+#endif
+
 bool GetProcFile(pid_t pid, const char* file, char* filename_buf, size_t size) {
   ssize_t written = snprintf(filename_buf, size, "/proc/%d/%s", pid, file);
   if (written < 0 || static_cast<size_t>(written) >= size) {
@@ -39,33 +69,15 @@ bool GetProcFile(pid_t pid, const char* file, char* filename_buf, size_t size) {
 
 }  // namespace
 
-// This is mostly the same as GetHeapprofdProgramProperty in
-// https://android.googlesource.com/platform/bionic/+/master/libc/bionic/malloc_common.cpp
-// This should give the same result as GetHeapprofdProgramProperty.
-bool GetCmdlineForPID(pid_t pid, std::string* name) {
-  std::string filename = "/proc/" + std::to_string(pid) + "/cmdline";
-  base::ScopedFile fd(base::OpenFile(filename, O_RDONLY | O_CLOEXEC));
-  if (!fd) {
-    PERFETTO_DLOG("Failed to open %s", filename.c_str());
-    return false;
-  }
-  char cmdline[128];
-  ssize_t rd = read(*fd, cmdline, sizeof(cmdline) - 1);
-  if (rd == -1) {
-    PERFETTO_DLOG("Failed to read %s", filename.c_str());
-    return false;
-  }
-  cmdline[rd] = '\0';
-  char* first_arg =
-      static_cast<char*>(memchr(cmdline, '\0', static_cast<size_t>(rd)));
-  if (first_arg == nullptr || first_arg == cmdline + sizeof(cmdline) - 1) {
+bool NormalizeCmdLine(char* cmdline, size_t size, std::string* name) {
+  char* first_arg = static_cast<char*>(memchr(cmdline, '\0', size));
+  if (first_arg == nullptr) {
     PERFETTO_DLOG("Overflow reading cmdline");
     return false;
   }
   // For consistency with what we do with Java app cmdlines, trim everything
   // after the @ sign of the first arg.
-  char* first_at =
-      static_cast<char*>(memchr(cmdline, '@', static_cast<size_t>(rd)));
+  char* first_at = static_cast<char*>(memchr(cmdline, '@', size));
   if (first_at != nullptr && first_at < first_arg) {
     *first_at = '\0';
     first_arg = first_at;
@@ -85,6 +97,29 @@ bool GetCmdlineForPID(pid_t pid, std::string* name) {
   size_t name_size = static_cast<size_t>(first_arg - start);
   name->assign(start, name_size);
   return true;
+}
+// This is mostly the same as GetHeapprofdProgramProperty in
+// https://android.googlesource.com/platform/bionic/+/master/libc/bionic/malloc_common.cpp
+// This should give the same result as GetHeapprofdProgramProperty.
+bool GetCmdlineForPID(pid_t pid, std::string* name) {
+  std::string filename = "/proc/" + std::to_string(pid) + "/cmdline";
+  base::ScopedFile fd(base::OpenFile(filename, O_RDONLY | O_CLOEXEC));
+  if (!fd) {
+    PERFETTO_DLOG("Failed to open %s", filename.c_str());
+    return false;
+  }
+  char cmdline[128];
+  ssize_t rd = read(*fd, cmdline, sizeof(cmdline) - 1);
+  if (rd == -1) {
+    PERFETTO_DLOG("Failed to read %s", filename.c_str());
+    return false;
+  }
+  if (rd == sizeof(cmdline) - 1) {
+    PERFETTO_DLOG("Overflow reading cmdline");
+    return false;
+  }
+  cmdline[rd] = '\0';
+  return NormalizeCmdLine(cmdline, static_cast<size_t>(rd), name);
 }
 
 void FindAllProfilablePids(std::set<pid_t>* pids) {

@@ -2566,6 +2566,7 @@ cc_test {
     "src/profiling/memory/heapprofd_producer.cc",
     "src/profiling/memory/interner_unittest.cc",
     "src/profiling/memory/proc_utils.cc",
+    "src/profiling/memory/proc_utils_unittest.cc",
     "src/profiling/memory/process_matcher.cc",
     "src/profiling/memory/process_matcher_unittest.cc",
     "src/profiling/memory/record_reader.cc",
