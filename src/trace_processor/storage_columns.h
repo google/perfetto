@@ -175,7 +175,7 @@ class NumericColumn : public StorageColumn {
   void FilterWithCast(int op,
                       sqlite3_value* value,
                       FilteredRowIndex* index) const {
-    auto predicate = sqlite_utils::CreatePredicate<C>(op, value);
+    auto predicate = sqlite_utils::CreateNumericPredicate<C>(op, value);
     index->FilterRows([this, &predicate](uint32_t row) {
       return predicate(static_cast<C>((*deque_)[row]));
     });
@@ -284,7 +284,7 @@ class IdColumn final : public StorageColumn {
   void Filter(int op,
               sqlite3_value* value,
               FilteredRowIndex* index) const override {
-    auto predicate = sqlite_utils::CreatePredicate<RowId>(op, value);
+    auto predicate = sqlite_utils::CreateNumericPredicate<RowId>(op, value);
     index->FilterRows([this, &predicate](uint32_t row) {
       return predicate(TraceStorage::CreateRowId(table_id_, row));
     });
@@ -314,39 +314,6 @@ class IdColumn final : public StorageColumn {
  private:
   TableId table_id_;
 };
-
-template <typename T>
-inline std::unique_ptr<TsEndColumn> TsEndPtr(std::string column_name,
-                                             const std::deque<T>* ts_start,
-                                             const std::deque<T>* ts_end) {
-  return std::unique_ptr<TsEndColumn>(
-      new TsEndColumn(column_name, ts_start, ts_end));
-}
-
-template <typename T>
-inline std::unique_ptr<NumericColumn<T>> NumericColumnPtr(
-    std::string column_name,
-    const std::deque<T>* deque,
-    bool hidden = false,
-    bool is_naturally_ordered = false) {
-  return std::unique_ptr<NumericColumn<T>>(
-      new NumericColumn<T>(column_name, deque, hidden, is_naturally_ordered));
-}
-
-template <typename Id>
-inline std::unique_ptr<StringColumn<Id>> StringColumnPtr(
-    std::string column_name,
-    const std::deque<Id>* deque,
-    const std::deque<std::string>* lookup_map,
-    bool hidden = false) {
-  return std::unique_ptr<StringColumn<Id>>(
-      new StringColumn<Id>(column_name, deque, lookup_map, hidden));
-}
-
-inline std::unique_ptr<IdColumn> IdColumnPtr(std::string column_name,
-                                             TableId table_id) {
-  return std::unique_ptr<IdColumn>(new IdColumn(column_name, table_id));
-}
 
 }  // namespace trace_processor
 }  // namespace perfetto
