@@ -17,6 +17,7 @@ import * as m from 'mithril';
 import {assertExists} from '../base/logging';
 import {TimeSpan, timeToString} from '../common/time';
 
+import {hueForCpu} from './colorizer';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
@@ -79,21 +80,19 @@ export class OverviewTimelinePanel extends Panel {
     // Draw mini-tracks with quanitzed density for each process.
     if (globals.overviewStore.size > 0) {
       const numTracks = globals.overviewStore.size;
-      let hue = 128;
       let y = 0;
       const trackHeight = (tracksHeight - 1) / numTracks;
       for (const key of globals.overviewStore.keys()) {
         const loads = globals.overviewStore.get(key)!;
         for (let i = 0; i < loads.length; i++) {
-          const xStart = this.timeScale.timeToPx(loads[i].startSec);
-          const xEnd = this.timeScale.timeToPx(loads[i].endSec);
-          const yOff = headerHeight + y * trackHeight;
+          const xStart = Math.floor(this.timeScale.timeToPx(loads[i].startSec));
+          const xEnd = Math.ceil(this.timeScale.timeToPx(loads[i].endSec));
+          const yOff = Math.floor(headerHeight + y * trackHeight);
           const lightness = Math.ceil((1 - loads[i].load * 0.7) * 100);
-          ctx.fillStyle = `hsl(${hue}, 50%, ${lightness}%)`;
-          ctx.fillRect(xStart, yOff, xEnd - xStart, trackHeight);
+          ctx.fillStyle = `hsl(${hueForCpu(y)}, 50%, ${lightness}%)`;
+          ctx.fillRect(xStart, yOff, xEnd - xStart, Math.ceil(trackHeight));
         }
         y++;
-        hue = (hue + 32) % 256;
       }
     }
 

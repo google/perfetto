@@ -16,6 +16,7 @@ import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
+import {colorForThread, hueForCpu} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -28,45 +29,9 @@ import {
   SummaryData
 } from './common';
 
+
 const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
-
-interface Color {
-  c: string;
-  h: number;
-  s: number;
-  l: number;
-}
-const MD_PALETTE: Color[] = [
-  {c: 'red', h: 4, s: 90, l: 58},
-  {c: 'pink', h: 340, s: 82, l: 52},
-  {c: 'purple', h: 291, s: 64, l: 42},
-  {c: 'deep purple', h: 262, s: 52, l: 47},
-  {c: 'indigo', h: 231, s: 48, l: 48},
-  {c: 'blue', h: 207, s: 90, l: 54},
-  {c: 'light blue', h: 199, s: 98, l: 48},
-  {c: 'cyan', h: 187, s: 100, l: 42},
-  {c: 'teal', h: 174, s: 100, l: 29},
-  {c: 'green', h: 122, s: 39, l: 49},
-  {c: 'light green', h: 88, s: 50, l: 53},
-  {c: 'lime', h: 66, s: 70, l: 54},
-  {c: 'yellow', h: 54, s: 100, l: 62},
-  {c: 'amber', h: 45, s: 100, l: 51},
-  {c: 'orange', h: 36, s: 100, l: 50},
-  {c: 'deep organge', h: 14, s: 100, l: 57},
-  {c: 'brown', h: 16, s: 25, l: 38},
-  {c: 'grey', h: 0, s: 0, l: 62},
-  {c: 'blue gray', h: 200, s: 18, l: 46},
-];
-
-function hash(s: string, max: number): number {
-  let hash = 0x811c9dc5 & 0xfffffff;
-  for (let i = 0; i < s.length; i++) {
-    hash ^= s.charCodeAt(i);
-    hash = (hash * 16777619) & 0xffffffff;
-  }
-  return Math.abs(hash) % max;
-}
 
 function cropText(str: string, charWidth: number, rectWidth: number) {
   const maxTextWidth = rectWidth - 4;
@@ -103,9 +68,7 @@ class CpuSliceTrack extends Track<Config, Data> {
 
   constructor(trackState: TrackState) {
     super(trackState);
-    // TODO: this needs to be kept in sync with the hue generation algorithm
-    // of overview_timeline_panel.ts
-    this.hue = (128 + (32 * this.config.cpu)) % 256;
+    this.hue = hueForCpu(this.config.cpu);
   }
 
   reqDataDeferred() {
@@ -204,27 +167,21 @@ class CpuSliceTrack extends Track<Config, Data> {
       const rectWidth = rectEnd - rectStart;
       if (rectWidth < 0.1) continue;
 
+      const threadInfo = globals.threads.get(utid);
+      const color = colorForThread(threadInfo);
 
       // TODO: consider de-duplicating this code with the copied one from
       // chrome_slices/frontend.ts.
       let title = `[utid:${utid}]`;
       let subTitle = '';
-      const color = Object.assign({}, MD_PALETTE[14]);
-
-      const threadInfo = globals.threads.get(utid);
-      if (threadInfo !== undefined) {
-        const hasProc = !!threadInfo.pid;
-        const procName = threadInfo.procName || '';
-        let hashKey = threadInfo.tid;
-        if (hasProc) {
+      if (threadInfo) {
+        if (!!threadInfo.pid) {
+          const procName = threadInfo.procName || '';
           title = `${procName} [${threadInfo.pid}]`;
           subTitle = `${threadInfo.threadName} [${threadInfo.tid}]`;
-          hashKey = threadInfo.pid!;
         } else {
           title = `${threadInfo.threadName} [${threadInfo.tid}]`;
         }
-        const colorIdx = hash(hashKey.toString(), 16);
-        Object.assign(color, MD_PALETTE[colorIdx]);
       }
 
       const hovered = globals.frontendLocalState.highlightedUtid === utid;
