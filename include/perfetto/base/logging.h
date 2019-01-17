@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <string.h>  // For strerror.
 
-#if defined(NDEBUG)
+#if defined(NDEBUG) && !defined(DCHECK_ALWAYS_ON)
 #define PERFETTO_DCHECK_IS_ON() 0
 #else
 #define PERFETTO_DCHECK_IS_ON() 1
@@ -136,12 +136,12 @@ constexpr const char* kLogFmt[] = {"\x1b[2m", "\x1b[39m", "\x1b[32m\x1b[1m",
 
 #if PERFETTO_DCHECK_IS_ON()
 
-#define PERFETTO_DCHECK(x)                            \
-  do {                                                \
-    if (PERFETTO_UNLIKELY(!(x))) {                    \
-      PERFETTO_DPLOG("%s", "PERFETTO_CHECK(" #x ")"); \
-      PERFETTO_IMMEDIATE_CRASH();                     \
-    }                                                 \
+#define PERFETTO_DCHECK(x)                           \
+  do {                                               \
+    if (PERFETTO_UNLIKELY(!(x))) {                   \
+      PERFETTO_PLOG("%s", "PERFETTO_CHECK(" #x ")"); \
+      PERFETTO_IMMEDIATE_CRASH();                    \
+    }                                                \
   } while (0)
 
 #define PERFETTO_DFATAL(fmt, ...)      \
