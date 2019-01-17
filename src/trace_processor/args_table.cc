@@ -126,29 +126,30 @@ void ArgsTable::ValueColumn::Filter(int op,
                                     FilteredRowIndex* index) const {
   switch (type_) {
     case VariadicType::kInt: {
-      auto predicate = sqlite_utils::CreatePredicate<int64_t>(op, value);
-      index->FilterRows([this, &predicate](uint32_t row) {
+      bool op_is_null = sqlite_utils::IsOpIsNull(op);
+      auto predicate = sqlite_utils::CreateNumericPredicate<int64_t>(op, value);
+      index->FilterRows([this, &predicate, op_is_null](uint32_t row) {
         const auto& arg = storage_->args().arg_values()[row];
-        return arg.type == type_ ? predicate(arg.int_value)
-                                 : predicate(base::nullopt);
+        return arg.type == type_ ? predicate(arg.int_value) : op_is_null;
       });
       break;
     }
     case VariadicType::kReal: {
-      auto predicate = sqlite_utils::CreatePredicate<double>(op, value);
-      index->FilterRows([this, &predicate](uint32_t row) {
+      bool op_is_null = sqlite_utils::IsOpIsNull(op);
+      auto predicate = sqlite_utils::CreateNumericPredicate<double>(op, value);
+      index->FilterRows([this, &predicate, op_is_null](uint32_t row) {
         const auto& arg = storage_->args().arg_values()[row];
-        return arg.type == type_ ? predicate(arg.real_value)
-                                 : predicate(base::nullopt);
+        return arg.type == type_ ? predicate(arg.real_value) : op_is_null;
       });
       break;
     }
     case VariadicType::kString: {
-      auto predicate = sqlite_utils::CreatePredicate<std::string>(op, value);
+      auto predicate = sqlite_utils::CreateStringPredicate(op, value);
       index->FilterRows([this, &predicate](uint32_t row) {
         const auto& arg = storage_->args().arg_values()[row];
-        const auto& str = storage_->GetString(arg.string_value);
-        return arg.type == type_ ? predicate(str) : predicate(base::nullopt);
+        return arg.type == type_
+                   ? predicate(storage_->GetString(arg.string_value).c_str())
+                   : predicate(nullptr);
       });
       break;
     }

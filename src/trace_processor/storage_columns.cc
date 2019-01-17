@@ -45,7 +45,7 @@ TsEndColumn::Bounds TsEndColumn::BoundFilter(int, sqlite3_value*) const {
 void TsEndColumn::Filter(int op,
                          sqlite3_value* value,
                          FilteredRowIndex* index) const {
-  auto predicate = sqlite_utils::CreatePredicate<int64_t>(op, value);
+  auto predicate = sqlite_utils::CreateNumericPredicate<int64_t>(op, value);
   index->FilterRows([this, &predicate](uint32_t row) {
     return predicate((*ts_start_)[row] + (*dur_)[row]);
   });
