@@ -11,6 +11,9 @@
 ../data/memory_counters.pb b120605557.sql memory_counters_b120605557.out
 ../data/memory_counters.pb smoke_args.sql memory_counters_smoke_args.out
 ../data/memory_counters.pb counter_args_join.sql memory_counters_counter_args_join.out
+../data/memory_counters.pb args_string_filter_null.sql memory_counters_args_string_filter_null.out
+../data/memory_counters.pb args_string_is_null.sql memory_counters_args_string_is_null.out
+../data/memory_counters.pb args_string_is_not_null.sql memory_counters_args_string_is_not_null.out
 synth_1.py smoke.sql synth_1_smoke.out
 synth_1.py filter_sched.sql synth_1_filter_sched.out
 synth_1.py filter_counters.sql synth_1_filter_counters.out
