@@ -72,7 +72,7 @@ ThreadTable::Cursor::Cursor(const TraceStorage* storage,
                             sqlite3_value** argv)
     : storage_(storage) {
   min = 0;
-  max = static_cast<uint32_t>(storage_->thread_count());
+  max = static_cast<uint32_t>(storage_->thread_count()) - 1;
   desc = false;
   current = min;
   for (size_t j = 0; j < qc.constraints().size(); j++) {
