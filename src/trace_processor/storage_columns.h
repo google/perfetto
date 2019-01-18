@@ -74,12 +74,16 @@ class StorageColumn {
 template <typename T>
 class NumericColumn : public StorageColumn {
  public:
+  // |index| is an optional multimap which maps the values in deque
+  // to the rows they are located at.
   NumericColumn(std::string col_name,
                 const std::deque<T>* deque,
+                const std::multimap<T, uint32_t>* index,
                 bool hidden,
                 bool is_naturally_ordered)
       : StorageColumn(col_name, hidden),
         deque_(deque),
+        index_(index),
         is_naturally_ordered_(is_naturally_ordered) {}
 
   void ReportResult(sqlite3_context* ctx, uint32_t row) const override {
@@ -127,6 +131,14 @@ class NumericColumn : public StorageColumn {
               sqlite3_value* value,
               FilteredRowIndex* index) const override {
     auto type = sqlite3_value_type(value);
+
+    // If we are doing equality filtering on integers, try and use the index.
+    bool is_int_compare = std::is_integral<T>::value && type == SQLITE_INTEGER;
+    if (sqlite_utils::IsOpEq(op) && is_int_compare && index_ != nullptr) {
+      FilterIntegerIndexEq(value, index);
+      return;
+    }
+
     bool is_null = type == SQLITE_NULL;
     if (std::is_integral<T>::value && (type == SQLITE_INTEGER || is_null)) {
       FilterWithCast<int64_t>(op, value, index);
@@ -166,10 +178,32 @@ class NumericColumn : public StorageColumn {
 
  protected:
   const std::deque<T>* deque_ = nullptr;
+  const std::multimap<T, uint32_t>* index_ = nullptr;
 
  private:
   T kTMin = std::numeric_limits<T>::lowest();
   T kTMax = std::numeric_limits<T>::max();
+
+  void FilterIntegerIndexEq(sqlite3_value* value,
+                            FilteredRowIndex* index) const {
+    auto raw = sqlite_utils::ExtractSqliteValue<int64_t>(value);
+    if (raw < kTMin || raw > kTMax) {
+      // If the compared value is out of bounds for T, we will never match any
+      // rows. Just return an empty result set.
+      index->IntersectRows({});
+      return;
+    }
+
+    // Otherwise, lookup the cast value in the index and return the results.
+    auto pair = index_->equal_range(static_cast<T>(raw));
+    auto size = static_cast<size_t>(std::distance(pair.first, pair.second));
+    std::vector<uint32_t> rows(size);
+    size_t i = 0;
+    for (auto it = pair.first; it != pair.second; it++) {
+      rows[i++] = it->second;
+    }
+    index->IntersectRows(std::move(rows));
+  }
 
   template <typename C>
   void FilterWithCast(int op,

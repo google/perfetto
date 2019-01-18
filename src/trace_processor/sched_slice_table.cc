@@ -33,7 +33,7 @@ StorageSchema SchedSliceTable::CreateStorageSchema() {
       .AddNumericColumn("cpu", &slices.cpus())
       .AddNumericColumn("dur", &slices.durations())
       .AddColumn<TsEndColumn>("ts_end", &slices.start_ns(), &slices.durations())
-      .AddNumericColumn("utid", &slices.utids())
+      .AddNumericColumn("utid", &slices.utids(), &slices.rows_for_utids())
       .Build({"cpu", "ts"});
 }
 
