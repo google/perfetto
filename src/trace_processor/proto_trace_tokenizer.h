@@ -60,8 +60,8 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   std::vector<uint8_t> partial_buf_;
 
   // Temporary. Currently trace packets do not have a timestamp, so the
-  // timestamp given is last_timestamp.
-  int64_t last_timestamp_ = 0;
+  // timestamp given is latest_timestamp_.
+  int64_t latest_timestamp_ = 0;
 };
 
 }  // namespace trace_processor
