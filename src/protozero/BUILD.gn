@@ -46,6 +46,7 @@ source_set("unittests") {
     "../../gn:default_deps",
     "../../gn:gtest_deps",
     "../base",
+    "../base:test_support",
   ]
   sources = [
     "message_handle_unittest.cc",
