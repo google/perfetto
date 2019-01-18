@@ -19,6 +19,25 @@
 
 #include <string>
 
+#include "gtest/gtest.h"
+#include "perfetto/base/logging.h"
+
+#if defined(GTEST_HAS_DEATH_TEST)
+#if PERFETTO_DCHECK_IS_ON()
+
+#define EXPECT_DCHECK_DEATH(statement) EXPECT_DEATH(statement, "Check failed")
+#define ASSERT_DCHECK_DEATH(statement) ASSERT_DEATH(statement, "Check failed")
+
+#else  // PERFETTO_DCHECK_IS_ON()
+
+#define EXPECT_DCHECK_DEATH(statement) \
+    GTEST_EXECUTE_STATEMENT_(statement, "Check failed")
+#define ASSERT_DCHECK_DEATH(statement) \
+    GTEST_EXECUTE_STATEMENT_(statement, "Check failed")
+
+#endif  // PERFETTO_DCHECK_IS_ON()
+#endif  // defined(GTEST_HAS_DEATH_TEST)
+
 namespace perfetto {
 namespace base {
 
