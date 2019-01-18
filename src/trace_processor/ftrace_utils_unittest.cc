@@ -53,7 +53,6 @@ TEST(TaskStateUnittest, MultipleState) {
   ASSERT_STREQ(TaskState(2048).ToString().data(), "R+");
   ASSERT_STREQ(TaskState(130).ToString().data(), "DK");
   ASSERT_STREQ(TaskState(258).ToString().data(), "DW");
-  ASSERT_STREQ(TaskState(1184).ToString().data(), "ZKN");
 }
 
 }  // namespace
