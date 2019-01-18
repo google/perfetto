@@ -63,8 +63,8 @@ class TraceSorter {
   struct TimestampedTracePiece {
     static constexpr uint32_t kNoCpu = std::numeric_limits<uint32_t>::max();
 
-    TimestampedTracePiece(int64_t a, TraceBlobView b, uint32_t c)
-        : timestamp(a), blob_view(std::move(b)), cpu(c) {}
+    TimestampedTracePiece(int64_t a, size_t i, TraceBlobView b, uint32_t c)
+        : timestamp(a), packet_idx_(i), blob_view(std::move(b)), cpu(c) {}
 
     TimestampedTracePiece(TimestampedTracePiece&&) noexcept = default;
     TimestampedTracePiece& operator=(TimestampedTracePiece&&) = default;
@@ -76,12 +76,14 @@ class TraceSorter {
 
     // For std::sort().
     inline bool operator<(const TimestampedTracePiece& o) const {
-      return timestamp < o.timestamp;
+      return timestamp < o.timestamp ||
+             (timestamp == o.timestamp && packet_idx_ < o.packet_idx_);
     }
 
     bool is_ftrace() const { return cpu != kNoCpu; }
 
     int64_t timestamp;
+    size_t packet_idx_;
     TraceBlobView blob_view;
     uint32_t cpu;
   };
@@ -89,15 +91,16 @@ class TraceSorter {
   TraceSorter(TraceProcessorContext*, OptimizationMode, int64_t window_size_ns);
 
   inline void PushTracePacket(int64_t timestamp, TraceBlobView packet) {
-    AppendAndMaybeFlushEvents(TimestampedTracePiece(
-        timestamp, std::move(packet), TimestampedTracePiece::kNoCpu));
+    AppendAndMaybeFlushEvents(
+        TimestampedTracePiece(timestamp, packet_idx_++, std::move(packet),
+                              TimestampedTracePiece::kNoCpu));
   }
 
   inline void PushFtracePacket(uint32_t cpu,
                                int64_t timestamp,
                                TraceBlobView packet) {
-    AppendAndMaybeFlushEvents(
-        TimestampedTracePiece(timestamp, std::move(packet), cpu));
+    AppendAndMaybeFlushEvents(TimestampedTracePiece(timestamp, packet_idx_++,
+                                                    std::move(packet), cpu));
   }
 
   // This method passes any events older than window_size_ns to the
@@ -175,6 +178,9 @@ class TraceSorter {
 
   // min(e.timestamp for e in events_).
   int64_t earliest_timestamp_ = std::numeric_limits<int64_t>::max();
+
+  // Monotonic increasing value used to index timestamped trace pieces.
+  size_t packet_idx_ = 0;
 
   // Contains the index (< events_.size()) of the last sorted event. In essence,
   // events_[0..sort_start_idx_] are guaranteed to be in-order, while
