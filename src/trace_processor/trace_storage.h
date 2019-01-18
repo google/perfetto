@@ -174,6 +174,7 @@ class TraceStorage {
       start_ns_.emplace_back(start_ns);
       durations_.emplace_back(duration_ns);
       utids_.emplace_back(utid);
+      rows_for_utids_.emplace(utid, slice_count() - 1);
       return slice_count() - 1;
     }
 
@@ -191,6 +192,10 @@ class TraceStorage {
 
     const std::deque<UniqueTid>& utids() const { return utids_; }
 
+    const std::multimap<UniqueTid, uint32_t>& rows_for_utids() const {
+      return rows_for_utids_;
+    }
+
    private:
     // Each deque below has the same number of entries (the number of slices
     // in the trace for the CPU).
@@ -198,6 +203,7 @@ class TraceStorage {
     std::deque<int64_t> start_ns_;
     std::deque<int64_t> durations_;
     std::deque<UniqueTid> utids_;
+    std::multimap<UniqueTid, uint32_t> rows_for_utids_;
   };
 
   class NestableSlices {
