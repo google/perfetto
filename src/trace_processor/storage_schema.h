@@ -43,10 +43,12 @@ class StorageSchema {
     }
 
     template <class T>
-    Builder& AddNumericColumn(std::string column_name,
-                              const std::deque<T>* vals) {
+    Builder& AddNumericColumn(
+        std::string column_name,
+        const std::deque<T>* vals,
+        const std::multimap<T, uint32_t>* index = nullptr) {
       columns_.emplace_back(
-          new NumericColumn<T>(column_name, vals, false, false));
+          new NumericColumn<T>(column_name, vals, index, false, false));
       return *this;
     }
 
@@ -54,7 +56,7 @@ class StorageSchema {
     Builder& AddOrderedNumericColumn(std::string column_name,
                                      const std::deque<T>* vals) {
       columns_.emplace_back(
-          new NumericColumn<T>(column_name, vals, false, true));
+          new NumericColumn<T>(column_name, vals, nullptr, false, true));
       return *this;
     }
 
