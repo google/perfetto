@@ -25,15 +25,15 @@
 #if defined(GTEST_HAS_DEATH_TEST)
 #if PERFETTO_DCHECK_IS_ON()
 
-#define EXPECT_DCHECK_DEATH(statement) EXPECT_DEATH(statement, "Check failed")
-#define ASSERT_DCHECK_DEATH(statement) ASSERT_DEATH(statement, "Check failed")
+#define EXPECT_DCHECK_DEATH(statement) EXPECT_DEATH(statement, "PERFETTO_CHECK")
+#define ASSERT_DCHECK_DEATH(statement) ASSERT_DEATH(statement, "PERFETTO_CHECK")
 
 #else  // PERFETTO_DCHECK_IS_ON()
 
 #define EXPECT_DCHECK_DEATH(statement) \
-    GTEST_EXECUTE_STATEMENT_(statement, "Check failed")
+    GTEST_EXECUTE_STATEMENT_(statement, "PERFETTO_CHECK")
 #define ASSERT_DCHECK_DEATH(statement) \
-    GTEST_EXECUTE_STATEMENT_(statement, "Check failed")
+    GTEST_EXECUTE_STATEMENT_(statement, "PERFETTO_CHECK")
 
 #endif  // PERFETTO_DCHECK_IS_ON()
 #endif  // defined(GTEST_HAS_DEATH_TEST)
