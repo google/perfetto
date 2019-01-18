@@ -31,7 +31,7 @@ void ArgsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 StorageSchema ArgsTable::CreateStorageSchema() {
   const auto& args = storage_->args();
   return StorageSchema::Builder()
-      .AddColumn<IdColumn>("id", storage_, &args.ids())
+      .AddNumericColumn("id", &args.ids(), &args.args_for_id())
       .AddStringColumn("flat_key", &args.flat_keys(), &storage_->string_pool())
       .AddStringColumn("key", &args.keys(), &storage_->string_pool())
       .AddColumn<ValueColumn>("int_value", VariadicType::kInt, storage_)
@@ -58,31 +58,6 @@ int ArgsTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   // Otherwise, just give the worst case scenario.
   info->estimated_cost = static_cast<uint32_t>(storage_->args().args_count());
   return SQLITE_OK;
-}
-
-ArgsTable::IdColumn::IdColumn(std::string col_name,
-                              const TraceStorage* storage,
-                              const std::deque<RowId>* ids)
-    : NumericColumn(col_name, ids, false, false), storage_(storage) {}
-
-void ArgsTable::IdColumn::Filter(int op,
-                                 sqlite3_value* value,
-                                 FilteredRowIndex* index) const {
-  if (!sqlite_utils::IsOpEq(op)) {
-    NumericColumn::Filter(op, value, index);
-    return;
-  }
-  auto id = sqlite_utils::ExtractSqliteValue<RowId>(value);
-  const auto& args_for_id = storage_->args().args_for_id();
-  auto it_pair = args_for_id.equal_range(id);
-
-  auto size = static_cast<size_t>(std::distance(it_pair.first, it_pair.second));
-  std::vector<uint32_t> rows(size);
-  size_t i = 0;
-  for (auto it = it_pair.first; it != it_pair.second; it++) {
-    rows[i++] = it->second;
-  }
-  index->IntersectRows(std::move(rows));
 }
 
 ArgsTable::ValueColumn::ValueColumn(std::string col_name,
