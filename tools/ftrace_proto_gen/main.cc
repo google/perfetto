@@ -205,9 +205,17 @@ int main(int argc, char** argv) {
       uint32_t i = 0;
       for (; it->second != &whitelist[i]; i++)
         ;
+
       // The first id used for events in FtraceEvent proto is 3.
+      uint32_t proto_field = i + 3;
+
+      // The generic event has field id 327 so any event with a id higher
+      // than that has to be incremented by 1.
+      if (proto_field >= 327)
+        proto_field++;
+
       events_info.push_back(
-          perfetto::SingleEventInfo(proto, event.group(), i + 3));
+          perfetto::SingleEventInfo(proto, event.group(), proto_field));
 
       *fout << proto.ToString();
       PERFETTO_CHECK(!fout->fail());
