@@ -322,3 +322,4 @@ binder/binder_transaction_alloc_buf
 signal/signal_deliver
 signal/signal_generate
 oom/oom_score_adj_update
+mm_event/mm_event_record
