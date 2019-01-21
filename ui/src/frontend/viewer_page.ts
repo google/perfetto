@@ -21,6 +21,7 @@ import {copyToClipboard} from './clipboard';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {HeaderPanel} from './header_panel';
+import {NotesEditorPanel, NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
@@ -232,6 +233,14 @@ class TraceViewer implements m.ClassComponent {
     }
     scrollingPanels.unshift(m(QueryTable));
 
+    const detailsPanels: AnyAttrsVnode[] = [];
+    if (globals.state.selectedNote) {
+      detailsPanels.push(m(NotesEditorPanel, {
+        key: 'notes',
+        id: globals.state.selectedNote,
+      }));
+    }
+
     return m(
         '.page',
         m('.pan-and-zoom-content',
@@ -240,6 +249,7 @@ class TraceViewer implements m.ClassComponent {
               panels: [
                 m(OverviewTimelinePanel, {key: 'overview'}),
                 m(TimeAxisPanel, {key: 'timeaxis'}),
+                m(NotesPanel, {key: 'notes'}),
                 ...globals.state.pinnedTracks.map(
                     id => m(TrackPanel, {key: id, id})),
               ],
@@ -255,7 +265,8 @@ class TraceViewer implements m.ClassComponent {
               this.detailsHeight = Math.max(height, DRAG_HANDLE_HEIGHT_PX);
             },
             height: this.detailsHeight,
-          })));
+          }),
+          m(PanelContainer, {doesScroll: true, panels: detailsPanels}), ));
   }
 }
 

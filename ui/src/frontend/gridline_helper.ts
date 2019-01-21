@@ -17,32 +17,8 @@ import {TimeSpan} from '../common/time';
 import {TimeScale} from './time_scale';
 
 export const DESIRED_PX_PER_STEP = 80;
-
-export function drawGridLines(
-    ctx: CanvasRenderingContext2D,
-    x: TimeScale,
-    timeSpan: TimeSpan,
-    height: number): void {
-  const width = x.deltaTimeToPx(timeSpan.duration);
-  const desiredSteps = width / DESIRED_PX_PER_STEP;
-  const step = getGridStepSize(timeSpan.duration, desiredSteps);
-  const start = Math.round(timeSpan.start / step) * step;
-
-  // Keep this synchronised with --track-border-color.
-  ctx.strokeStyle = '#00000025';
-  ctx.lineWidth = 1;
-
-  for (let sec = start; sec < timeSpan.end; sec += step) {
-    const xPos = Math.floor(x.timeToPx(sec)) + 0.5;
-
-    if (xPos >= 0 && xPos <= width) {
-      ctx.beginPath();
-      ctx.moveTo(xPos, 0);
-      ctx.lineTo(xPos, height);
-      ctx.stroke();
-    }
-  }
-}
+// TODO(hjd): Deduplicate.
+export const TRACK_SHELL_WIDTH = 250;
 
 /**
  * Returns the step size of a grid line in seconds.
@@ -84,4 +60,43 @@ export function getGridStepSize(range: number, desiredSteps: number): number {
     }
   }
   return minimizingStepSize;
+}
+
+/**
+ * Generator that returns that (given a width im px, span, and scale) returns
+ * pairs of [xInPx, timestampInS] pairs describing where gridlines should be
+ * drawn.
+ */
+export function gridlines(width: number, span: TimeSpan, timescale: TimeScale):
+    Array<[number, number]> {
+  const desiredSteps = width / DESIRED_PX_PER_STEP;
+  const step = getGridStepSize(span.duration, desiredSteps);
+  const start = Math.round(span.start / step) * step;
+  const lines: Array<[number, number]> = [];
+  for (let s = start; s < span.end; s += step) {
+    let xPos = TRACK_SHELL_WIDTH;
+    xPos += Math.floor(timescale.timeToPx(s));
+    if (xPos < TRACK_SHELL_WIDTH) continue;
+    if (xPos > width) break;
+    lines.push([xPos, s]);
+  }
+  return lines;
+}
+
+export function drawGridLines(
+    ctx: CanvasRenderingContext2D,
+    x: TimeScale,
+    timeSpan: TimeSpan,
+    width: number,
+    height: number): void {
+  // Keep this synchronised with --track-border-color.
+  ctx.strokeStyle = '#00000025';
+  ctx.lineWidth = 1;
+
+  for (const xAndTime of gridlines(width, timeSpan, x)) {
+    ctx.beginPath();
+    ctx.moveTo(xAndTime[0] + 0.5, 0);
+    ctx.lineTo(xAndTime[0] + 0.5, height);
+    ctx.stroke();
+  }
 }

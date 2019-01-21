@@ -193,12 +193,14 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     ctx.save();
-    ctx.translate(TRACK_SHELL_WIDTH, 0);
     drawGridLines(
         ctx,
         globals.frontendLocalState.timeScale,
         globals.frontendLocalState.visibleWindowTime,
+        size.width,
         size.height);
+
+    ctx.translate(TRACK_SHELL_WIDTH, 0);
 
     this.track.renderCanvas(ctx);
     ctx.restore();

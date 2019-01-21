@@ -17,9 +17,8 @@ import * as m from 'mithril';
 import {timeToString} from '../common/time';
 
 import {globals} from './globals';
-import {DESIRED_PX_PER_STEP, getGridStepSize} from './gridline_helper';
+import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
-import {TRACK_SHELL_WIDTH} from './track_panel';
 
 export class TimeAxisPanel extends Panel {
   view() {
@@ -29,21 +28,13 @@ export class TimeAxisPanel extends Panel {
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const timeScale = globals.frontendLocalState.timeScale;
+    const range = globals.frontendLocalState.visibleWindowTime;
     ctx.font = '10px Google Sans';
     ctx.fillStyle = '#999';
 
-    const range = globals.frontendLocalState.visibleWindowTime;
-    const desiredSteps = size.width / DESIRED_PX_PER_STEP;
-    const step = getGridStepSize(range.duration, desiredSteps);
-    const start = Math.round(range.start / step) * step;
-
-    for (let s = start; s < range.end; s += step) {
-      let xPos = TRACK_SHELL_WIDTH;
-      xPos += Math.floor(timeScale.timeToPx(s));
-      if (xPos < TRACK_SHELL_WIDTH) continue;
-      if (xPos > size.width) break;
-      ctx.fillRect(xPos, 0, 1, size.height);
-      ctx.fillText(timeToString(s - range.start), xPos + 5, 10);
+    for (const [x, time] of gridlines(size.width, range, timeScale)) {
+      ctx.fillRect(x, 0, 1, size.height);
+      ctx.fillText(timeToString(time - range.start), x + 5, 10);
     }
   }
 }
