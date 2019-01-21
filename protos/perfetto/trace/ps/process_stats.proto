@@ -22,9 +22,10 @@ package perfetto.protos;
 // dedicated message (as opposite to be fields in process_tree.proto) because
 // they are dumped at a different rate than cmdline and thread list.
 message ProcessStats {
-  // See /proc/[pid]/stats in `man 5 proc` for a description of these fields.
-  message MemCounters {
+  message Process {
     optional int32 pid = 1;
+
+    // See /proc/[pid]/status in `man 5 proc` for a description of these fields.
     optional uint64 vm_size_kb = 2;
     optional uint64 vm_rss_kb = 3;
     optional uint64 rss_anon_kb = 4;
@@ -35,6 +36,8 @@ message ProcessStats {
     optional uint64 vm_hwm_kb = 9;
     // When adding a new field remember to update kProcMemCounterSize in
     // the trace processor.
+
+    optional int64 oom_score_adj = 10;
   }
-  repeated MemCounters mem_counters = 1;
+  repeated Process processes = 1;
 }

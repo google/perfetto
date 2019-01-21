@@ -38,6 +38,7 @@ namespace protos {
 namespace pbzero {
 class ProcessTree;
 class ProcessStats;
+class ProcessStats_Process;
 }  // namespace pbzero
 }  // namespace protos
 
@@ -74,6 +75,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   void FinalizeCurPacket();
   protos::pbzero::ProcessTree* GetOrCreatePsTree();
   protos::pbzero::ProcessStats* GetOrCreateStats();
+  protos::pbzero::ProcessStats_Process* GetOrCreateStatsProcess(int32_t pid);
 
   // Functions for snapshotting process/thread long-term info and relationships.
   void WriteProcess(int32_t pid, const std::string& proc_status);
@@ -84,7 +86,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // Functions for periodically sampling process stats/counters.
   static void Tick(base::WeakPtr<ProcessStatsDataSource>);
   void WriteAllProcessStats();
-  bool WriteProcessStats(int32_t pid, const std::string& proc_status);
+  bool WriteMemCounters(int32_t pid, const std::string& proc_status);
 
   // Common fields used for both process/tree relationships and stats/counters.
   base::TaskRunner* const task_runner_;
@@ -105,7 +107,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // Fields for keeping track of the periodic stats/counters.
   uint32_t poll_period_ms_ = 0;
   protos::pbzero::ProcessStats* cur_ps_stats_ = nullptr;
-  std::vector<bool> pids_to_skip_;
+  protos::pbzero::ProcessStats_Process* cur_ps_stats_process_ = nullptr;
+  std::vector<bool> skip_stats_for_pids_;
 
   base::WeakPtrFactory<ProcessStatsDataSource> weak_factory_;  // Keep last.
 };
