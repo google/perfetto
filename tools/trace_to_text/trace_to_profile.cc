@@ -179,8 +179,8 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
         }
         for (uint64_t frame_id : it->second)
           gsample->add_location_id(frame_id);
-        gsample->add_value(static_cast<int64_t>(sample.cumulative_allocated() -
-                                                sample.cumulative_freed()));
+        gsample->add_value(static_cast<int64_t>(sample.self_allocated() -
+                                                sample.self_freed()));
       }
     }
     std::string filename = file_prefix + std::to_string(pid) + ".pb";
