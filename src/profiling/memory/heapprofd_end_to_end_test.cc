@@ -193,10 +193,10 @@ TEST_F(HeapprofdEndToEnd, DISABLED_Smoke) {
       EXPECT_EQ(dump.samples().size(), 1);
       for (const auto& sample : dump.samples()) {
         samples++;
-        EXPECT_EQ(sample.cumulative_allocated() % kAllocSize, 0);
-        EXPECT_EQ(sample.cumulative_freed() % kAllocSize, 0);
-        last_allocated = sample.cumulative_allocated();
-        last_freed = sample.cumulative_freed();
+        EXPECT_EQ(sample.self_allocated() % kAllocSize, 0);
+        EXPECT_EQ(sample.self_freed() % kAllocSize, 0);
+        last_allocated = sample.self_allocated();
+        last_freed = sample.self_freed();
       }
       profile_packets++;
     }
@@ -251,10 +251,10 @@ TEST_F(HeapprofdEndToEnd, DISABLED_FinalFlush) {
       EXPECT_EQ(dump.samples().size(), 1);
       for (const auto& sample : dump.samples()) {
         samples++;
-        EXPECT_EQ(sample.cumulative_allocated() % kAllocSize, 0);
-        EXPECT_EQ(sample.cumulative_freed() % kAllocSize, 0);
-        last_allocated = sample.cumulative_allocated();
-        last_freed = sample.cumulative_freed();
+        EXPECT_EQ(sample.self_allocated() % kAllocSize, 0);
+        EXPECT_EQ(sample.self_freed() % kAllocSize, 0);
+        last_allocated = sample.self_allocated();
+        last_freed = sample.self_freed();
       }
       profile_packets++;
     }
@@ -330,8 +330,8 @@ TEST_F(HeapprofdEndToEnd, DISABLED_NativeStartup) {
       profile_packets++;
       for (const auto& sample : dump.samples()) {
         samples++;
-        total_allocated += sample.cumulative_allocated();
-        total_freed += sample.cumulative_freed();
+        total_allocated += sample.self_allocated();
+        total_freed += sample.self_freed();
       }
     }
   }

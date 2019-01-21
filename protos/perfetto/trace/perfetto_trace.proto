@@ -2480,7 +2480,7 @@ message TracePacket {
     // removed field with id 33
     FtraceStats ftrace_stats = 34;
     // removed field with id 35
-    // removed field with id 37
+    ProfilePacket profile_packet = 37;
     BatteryCounters battery = 38;
     AndroidLogPacket android_log = 39;
 
@@ -2500,3 +2500,64 @@ message TracePacket {
 }
 
 // End of protos/perfetto/trace/trace_packet.proto
+
+// Begin of protos/perfetto/trace/profiling/profile_packet.proto
+
+message ProfilePacket {
+  // either a function or library name.
+  repeated InternedString strings = 1;
+  message InternedString {
+    optional uint64 id = 1;
+    optional string str = 2;
+  }
+
+  repeated Frame frames = 2;
+  message Frame {
+    optional uint64 id = 1;  // Interning key
+    // E.g. "fopen"
+    optional uint64 function_name_id = 2;  // id of string.
+    optional uint64 mapping_id = 3;
+    optional uint64 rel_pc = 4;
+  }
+
+  repeated Callstack callstacks = 3;
+  message Callstack {
+    optional uint64 id = 1;
+    // Frames of this callstack. Bottom frame first.
+    repeated uint64 frame_ids = 2;
+  }
+
+  repeated Mapping mappings = 4;
+  message Mapping {
+    optional uint64 id = 1;  // Interning key.
+    optional bytes build_id = 2;
+    optional uint64 offset = 3;
+    optional uint64 start = 4;
+    optional uint64 end = 5;
+    optional uint64 load_bias = 6;
+    // E.g. ["system", "lib64", "libc.so"]
+    repeated uint64 path_string_ids = 7;  // id of string.
+  }
+
+  message HeapSample {
+    optional uint64 callstack_id = 1;
+    // bytes allocated at this frame.
+    optional uint64 self_allocated = 2;
+    // bytes freed at this frame.
+    optional uint64 self_freed = 3;
+    optional uint64 timestamp = 4;  // timestamp [opt]
+    optional uint64 alloc_count = 5;
+    optional uint64 free_count = 6;
+  }
+
+  repeated ProcessHeapSamples process_dumps = 5;
+  message ProcessHeapSamples {
+    optional uint64 pid = 1;
+    repeated HeapSample samples = 2;
+  }
+
+  optional bool continued = 6;
+  optional uint64 index = 7;
+}
+
+// End of protos/perfetto/trace/profiling/profile_packet.proto
