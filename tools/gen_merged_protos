@@ -69,6 +69,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/sys_stats/sys_stats.proto',
   'protos/perfetto/trace/trace.proto',
   'protos/perfetto/trace/trace_packet.proto',
+  'protos/perfetto/trace/profiling/profile_packet.proto',
 )
 
 MERGED_TRACE_PROTO = 'protos/perfetto/trace/perfetto_trace.proto'

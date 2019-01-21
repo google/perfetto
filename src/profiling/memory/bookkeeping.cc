@@ -158,8 +158,8 @@ void HeapTracker::Dump(pid_t pid, DumpState* dump_state) {
     dump_state->callstacks_to_dump.emplace(alloc.node);
     ProfilePacket::HeapSample* sample = proto->add_samples();
     sample->set_callstack_id(alloc.node->id());
-    sample->set_cumulative_allocated(alloc.allocated);
-    sample->set_cumulative_freed(alloc.freed);
+    sample->set_self_allocated(alloc.allocated);
+    sample->set_self_freed(alloc.freed);
     sample->set_alloc_count(alloc.allocation_count);
     sample->set_free_count(alloc.free_count);
 
