@@ -44,7 +44,7 @@ message ProcessStatsConfig {
   optional bool record_thread_names = 3;
 
   // If > 0 samples counters (see process_stats.proto) from
-  // /proc/pid/status every X ms.
+  // /proc/pid/status and oom_score_adj every X ms.
   // This is required to be > 100ms to avoid excessive CPU usage.
   // TODO(primiano): add CPU cost for change this value.
   optional uint32 proc_stats_poll_ms = 4;
