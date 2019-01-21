@@ -21,6 +21,7 @@ import "perfetto/trace/ftrace/irq.proto";
 import "perfetto/trace/ftrace/kmem.proto";
 import "perfetto/trace/ftrace/lowmemorykiller.proto";
 import "perfetto/trace/ftrace/mdss.proto";
+import "perfetto/trace/ftrace/mm_event.proto";
 import "perfetto/trace/ftrace/oom.proto";
 import "perfetto/trace/ftrace/power.proto";
 import "perfetto/trace/ftrace/regulator.proto";
@@ -387,5 +388,6 @@ message FtraceEvent {
     SignalGenerateFtraceEvent signal_generate = 325;
     OomScoreAdjUpdateFtraceEvent oom_score_adj_update = 326;
     GenericFtraceEvent generic = 327;
+    MmEventRecordFtraceEvent mm_event_record = 328;
   }
 }
