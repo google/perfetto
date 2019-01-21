@@ -44,6 +44,10 @@ export class TimeSpan {
     return this.end - this.start;
   }
 
+  isInBounds(sec: number) {
+    return this.start <= sec && sec < this.end;
+  }
+
   add(sec: number): TimeSpan {
     return new TimeSpan(this.start + sec, this.end + sec);
   }

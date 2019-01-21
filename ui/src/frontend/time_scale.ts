@@ -65,6 +65,10 @@ export class TimeScale {
     this.updateSlope();
   }
 
+  timeInBounds(time: number): boolean {
+    return this.timeBounds.isInBounds(time);
+  }
+
   get startPx(): number {
     return this._startPx;
   }
