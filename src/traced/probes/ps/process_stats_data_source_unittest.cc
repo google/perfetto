@@ -126,7 +126,7 @@ TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
   }
 }
 
-TEST_F(ProcessStatsDataSourceTest, MemCounters) {
+TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   DataSourceConfig cfg;
   cfg.mutable_process_stats_config()->set_proc_stats_poll_ms(1);
   *(cfg.mutable_process_stats_config()->add_quirks()) =
@@ -154,17 +154,23 @@ TEST_F(ProcessStatsDataSourceTest, MemCounters) {
   int iter = 0;
   for (int pid : kPids) {
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "status"))
-        .WillRepeatedly(Invoke([checkpoint, kPids, &iter](int32_t p,
-                                                          const std::string&) {
+        .WillRepeatedly(Invoke([checkpoint, &iter](int32_t p,
+                                                   const std::string&) {
           char ret[1024];
           sprintf(ret, "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
                   p * 100 + iter * 10 + 1, p * 100 + iter * 10 + 2);
-          if (p == kPids[base::ArraySize(kPids) - 1]) {
-            if (++iter == kNumIters)
-              checkpoint();
-          }
           return std::string(ret);
         }));
+
+    EXPECT_CALL(*data_source, ReadProcPidFile(pid, "oom_score_adj"))
+        .WillRepeatedly(Invoke(
+            [checkpoint, kPids, &iter](int32_t inner_pid, const std::string&) {
+              if (inner_pid == kPids[base::ArraySize(kPids) - 1]) {
+                if (++iter == kNumIters)
+                  checkpoint();
+              }
+              return std::to_string(inner_pid * 100);
+            }));
   }
 
   data_source->Start();
@@ -176,12 +182,13 @@ TEST_F(ProcessStatsDataSourceTest, MemCounters) {
   ASSERT_TRUE(packet);
   ASSERT_TRUE(packet->has_process_stats());
   const auto& ps_stats = packet->process_stats();
-  ASSERT_EQ(ps_stats.mem_counters_size(), kNumIters * base::ArraySize(kPids));
+  ASSERT_EQ(ps_stats.processes_size(), kNumIters * base::ArraySize(kPids));
   iter = 0;
-  for (const auto& proc_counters : ps_stats.mem_counters()) {
+  for (const auto& proc_counters : ps_stats.processes()) {
     int32_t pid = proc_counters.pid();
     ASSERT_EQ(proc_counters.vm_size_kb(), pid * 100 + iter * 10 + 1);
     ASSERT_EQ(proc_counters.vm_rss_kb(), pid * 100 + iter * 10 + 2);
+    ASSERT_EQ(proc_counters.oom_score_adj(), pid * 100);
     if (pid == kPids[base::ArraySize(kPids) - 1])
       iter++;
   }

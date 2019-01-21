@@ -158,33 +158,29 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
   for (const auto& name : BuildVmstatCounterNames()) {
     vmstat_strs_id_.emplace_back(context->storage->InternString(name));
   }
+  rss_members_.emplace_back(context->storage->InternString("mem.rss.file"));
+  rss_members_.emplace_back(context->storage->InternString("mem.rss.anon"));
+  rss_members_.emplace_back(context->storage->InternString("mem.rss.swapents"));
+  rss_members_.emplace_back(context->storage->InternString("mem.rss.shmem"));
   rss_members_.emplace_back(
-      context->storage->InternString("rss_stat.mm_filepages"));
-  rss_members_.emplace_back(
-      context->storage->InternString("rss_stat.mm_anonpages"));
-  rss_members_.emplace_back(
-      context->storage->InternString("rss_stat.mm_swapents"));
-  rss_members_.emplace_back(
-      context->storage->InternString("rss_stat.mm_shmempages"));
-  rss_members_.emplace_back(
-      context->storage->InternString("rss_stat.unknown"));  // Keep this last.
+      context->storage->InternString("mem.rss.unknown"));  // Keep this last.
 
-  using MemCounters = protos::ProcessStats::MemCounters;
-  proc_mem_counter_names_[MemCounters::kVmSizeKbFieldNumber] =
+  using ProcessStats = protos::ProcessStats;
+  proc_mem_counter_names_[ProcessStats::Process::kVmSizeKbFieldNumber] =
       context->storage->InternString("mem.virt");
-  proc_mem_counter_names_[MemCounters::kVmRssKbFieldNumber] =
+  proc_mem_counter_names_[ProcessStats::Process::kVmRssKbFieldNumber] =
       context->storage->InternString("mem.rss");
-  proc_mem_counter_names_[MemCounters::kRssAnonKbFieldNumber] =
+  proc_mem_counter_names_[ProcessStats::Process::kRssAnonKbFieldNumber] =
       context->storage->InternString("mem.rss.anon");
-  proc_mem_counter_names_[MemCounters::kRssFileKbFieldNumber] =
+  proc_mem_counter_names_[ProcessStats::Process::kRssFileKbFieldNumber] =
       context->storage->InternString("mem.rss.file");
-  proc_mem_counter_names_[MemCounters::kRssShmemKbFieldNumber] =
+  proc_mem_counter_names_[ProcessStats::Process::kRssShmemKbFieldNumber] =
       context->storage->InternString("mem.rss.shmem");
-  proc_mem_counter_names_[MemCounters::kVmSwapKbFieldNumber] =
+  proc_mem_counter_names_[ProcessStats::Process::kVmSwapKbFieldNumber] =
       context->storage->InternString("mem.swap");
-  proc_mem_counter_names_[MemCounters::kVmLockedKbFieldNumber] =
+  proc_mem_counter_names_[ProcessStats::Process::kVmLockedKbFieldNumber] =
       context->storage->InternString("mem.locked");
-  proc_mem_counter_names_[MemCounters::kVmHwmKbFieldNumber] =
+  proc_mem_counter_names_[ProcessStats::Process::kVmHwmKbFieldNumber] =
       context->storage->InternString("mem.rss.watermark");
 }
 
@@ -460,7 +456,7 @@ void ProtoTraceParser::ParseProcessStats(int64_t ts, TraceBlobView stats) {
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     const size_t fld_off = stats.offset_of(fld.data());
     switch (fld.id) {
-      case protos::ProcessStats::kMemCountersFieldNumber: {
+      case protos::ProcessStats::kProcessesFieldNumber: {
         ParseProcMemCounters(ts, stats.slice(fld_off, fld.size()));
         break;
       }
@@ -482,7 +478,7 @@ void ProtoTraceParser::ParseProcMemCounters(int64_t ts,
 
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
-      case protos::ProcessStats::MemCounters::kPidFieldNumber:
+      case protos::ProcessStats::Process::kPidFieldNumber:
         pid = fld.as_uint32();
         break;
       default:
