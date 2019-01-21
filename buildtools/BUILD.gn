@@ -57,6 +57,8 @@ config("libunwindstack_config") {
     rebase_path("android-core/libprocinfo/include", root_build_dir),
     "-isystem",
     rebase_path("android-core/base/include", root_build_dir),
+    "-isystem",
+    rebase_path("android-core/demangle/include", root_build_dir),
   ]
   if (is_android) {
     cflags += [
@@ -691,6 +693,7 @@ source_set("libunwindstack") {
     "android-core/base/stringprintf.cpp",
     "android-core/base/strings.cpp",
     "android-core/base/threads.cpp",
+    "android-core/demangle/Demangler.cpp",
     "android-core/libunwindstack/ArmExidx.cpp",
     "android-core/libunwindstack/DwarfCfa.cpp",
     "android-core/libunwindstack/DwarfEhFrameWithHdr.cpp",
