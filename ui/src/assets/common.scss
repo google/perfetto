@@ -349,7 +349,37 @@ canvas.main-canvas {
 }
 
 .time-axis-panel {
-  height: 30px;
+  height: 12px;
+}
+
+.notes-panel {
+  height: 20px;
+}
+
+.notes-editor-panel {
+  padding: 0 10px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  .notes-editor-panel-heading {
+    padding-bottom: 5px;
+    input {
+      vertical-align: middle;
+    }
+  }
+  button {
+   background: #262f3c;
+   color: white;
+   border-radius: 10px;
+   font-size: 10px;
+   height: 18px;
+   line-height: 18px;
+   min-width: 7em;
+   margin: auto 0 auto 1rem;
+  }
+  textarea {
+    resize: none;
+  }
 }
 
 .flame-graph-panel {

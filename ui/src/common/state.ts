@@ -117,6 +117,13 @@ export interface Status {
   timestamp: number;  // Epoch in seconds (Date.now() / 1000).
 }
 
+export interface Note {
+  id: string;
+  timestamp: number;
+  color: string;
+  text: string;
+}
+
 export interface State {
   route: string|null;
   nextId: number;
@@ -138,7 +145,9 @@ export interface State {
   pinnedTracks: string[];
   queries: ObjectById<QueryConfig>;
   permalink: PermalinkConfig;
+  notes: ObjectById<Note>;
   status: Status;
+  selectedNote: string|null;
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to
@@ -166,6 +175,7 @@ export function createEmptyState(): State {
     scrollingTracks: [],
     queries: {},
     permalink: {},
+    notes: {},
 
     recordConfig: createEmptyRecordConfig(),
     displayConfigAsPbtxt: false,
@@ -176,6 +186,7 @@ export function createEmptyState(): State {
     },
 
     status: {msg: '', timestamp: 0},
+    selectedNote: null,
   };
 }
 
