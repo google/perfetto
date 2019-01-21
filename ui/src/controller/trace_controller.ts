@@ -322,9 +322,21 @@ export class TraceController extends Controller<States> {
       utidToMaxDepth.set(utid, maxDepth);
     }
 
-    const threadQuery = await engine.query(
-        'select utid, tid, upid, pid, thread.name, process.name ' +
-        'from thread inner join process using(upid)');
+    // Return all threads with parent process information
+    // sorted by:
+    //  total cpu time *for the whole parent process*
+    //  upid
+    //  utid
+    const threadQuery = await engine.query(`
+        select utid, tid, upid, pid, thread.name, process.name, total_dur
+        from
+          thread
+          inner join process using(upid)
+          left join (select upid, sum(dur) as total_dur
+              from sched join thread using(utid)
+              group by upid
+            ) using(upid) group by utid, upid
+        order by total_dur desc, upid, utid`);
 
     const upidToUuid = new Map<number, string>();
     const addSummaryTrackActions: DeferredAction[] = [];
