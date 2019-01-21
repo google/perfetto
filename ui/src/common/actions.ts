@@ -278,6 +278,41 @@ export const StateActions = {
   toggleDisplayConfigAsPbtxt(state: StateDraft, _: {}): void {
     state.displayConfigAsPbtxt = !state.displayConfigAsPbtxt;
   },
+
+  selectNote(state: StateDraft, args: {id: string | null}): void {
+    state.selectedNote = args.id;
+  },
+
+  addNote(state: StateDraft, args: {timestamp: number}): void {
+    const id = `${state.nextId++}`;
+    state.notes[id] = {
+      id,
+      timestamp: args.timestamp,
+      color: '#000000',
+      text: '',
+    };
+  },
+
+  changeNoteColor(state: StateDraft, args: {id: string, newColor: string}):
+      void {
+        const note = state.notes[args.id];
+        if (note === undefined) return;
+        note.color = args.newColor;
+      },
+
+  changeNoteText(state: StateDraft, args: {id: string, newText: string}): void {
+    const note = state.notes[args.id];
+    if (note === undefined) return;
+    note.text = args.newText;
+  },
+
+  removeNote(state: StateDraft, args: {id: string}): void {
+    delete state.notes[args.id];
+    if (args.id === state.selectedNote) {
+      state.selectedNote = null;
+    }
+  },
+
 };
 
 // When we are on the frontend side, we don't really want to execute the
