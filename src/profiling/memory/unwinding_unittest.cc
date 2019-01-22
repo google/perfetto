@@ -135,7 +135,7 @@ TEST(UnwindingTest, MAYBE_DoUnwind) {
   ASSERT_TRUE(DoUnwind(&msg, &metadata, &out));
   int st;
   std::unique_ptr<char> demangled(abi::__cxa_demangle(
-      out.frames[0].function_name.c_str(), nullptr, nullptr, &st));
+      out.frames[0].frame.function_name.c_str(), nullptr, nullptr, &st));
   ASSERT_EQ(st, 0);
   ASSERT_STREQ(
       demangled.get(),

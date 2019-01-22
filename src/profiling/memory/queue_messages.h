@@ -43,9 +43,18 @@ struct FreeRecord {
   FreeMetadata* metadata;
 };
 
+// A wrapper of libunwindstack FrameData that also includes the build_id.
+struct FrameData {
+  FrameData(unwindstack::FrameData f, std::string b)
+      : frame(std::move(f)), build_id(std::move(b)) {}
+
+  unwindstack::FrameData frame;
+  std::string build_id;
+};
+
 struct AllocRecord {
   AllocMetadata alloc_metadata;
-  std::vector<unwindstack::FrameData> frames;
+  std::vector<FrameData> frames;
 };
 
 struct DumpRecord {
