@@ -19,9 +19,12 @@ export function assertExists<A>(value: A | null | undefined): A {
   return value;
 }
 
-export function assertTrue(value: boolean): boolean {
+export function assertTrue(value: boolean, optMsg?: string) {
   if (value !== true) {
-    throw new Error('Failed assertion');
+    throw new Error(optMsg ? optMsg : 'Failed assertion');
   }
-  return value;
+}
+
+export function assertFalse(value: boolean, optMsg?: string) {
+  assertTrue(!value, optMsg);
 }
