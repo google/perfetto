@@ -51,7 +51,8 @@ class SocketListener : public base::UnixSocket::EventListener,
   void Disconnect(pid_t pid) override;
 
   // Delegate for OnNewIncomingConnection.
-  void HandleClientConnection(std::unique_ptr<base::UnixSocket> new_connection);
+  void HandleClientConnection(std::unique_ptr<base::UnixSocket> new_connection,
+                              Process peer_process);
 
   ProcessMatcher& process_matcher() { return process_matcher_; }
 
@@ -64,7 +65,7 @@ class SocketListener : public base::UnixSocket::EventListener,
   };
 
   struct ProcessInfo {
-    ProcessInfo(pid_t pid);
+    ProcessInfo(Process p);
 
     void Connected(ProcessMatcher* process_matcher,
                    BookkeepingThread* bookkeeping_thread);

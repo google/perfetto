@@ -39,11 +39,7 @@ ClientConfiguration MergeProcessSetSpecs(
 
 }  // namespace
 
-SocketListener::ProcessInfo::ProcessInfo(pid_t pid) {
-  process.pid = pid;
-  if (!GetCmdlineForPID(pid, &process.cmdline))
-    PERFETTO_ELOG("Failed to get cmdline for %d", pid);
-}
+SocketListener::ProcessInfo::ProcessInfo(Process p) : process(std::move(p)) {}
 
 void SocketListener::ProcessInfo::Connected(
     ProcessMatcher* process_matcher,
@@ -98,16 +94,24 @@ void SocketListener::Match(
 void SocketListener::OnNewIncomingConnection(
     base::UnixSocket*,
     std::unique_ptr<base::UnixSocket> new_connection) {
-  HandleClientConnection(std::move(new_connection));
+  Process peer_process;
+  peer_process.pid = new_connection->peer_pid();
+  if (!GetCmdlineForPID(peer_process.pid, &peer_process.cmdline))
+    PERFETTO_ELOG("Failed to get cmdline for %d", peer_process.pid);
+
+  HandleClientConnection(std::move(new_connection), peer_process);
 }
 
 void SocketListener::HandleClientConnection(
-    std::unique_ptr<base::UnixSocket> new_connection) {
-  pid_t peer_pid = new_connection->peer_pid();
+    std::unique_ptr<base::UnixSocket> new_connection,
+    Process peer_process) {
+  PERFETTO_DCHECK(peer_process.pid == new_connection->peer_pid());
+
   base::UnixSocket* new_connection_raw = new_connection.get();
 
   decltype(process_info_)::iterator it;
-  std::tie(it, std::ignore) = process_info_.emplace(peer_pid, peer_pid);
+  std::tie(it, std::ignore) =
+      process_info_.emplace(peer_process.pid, peer_process);
   ProcessInfo& process_info = it->second;
   process_info.Connected(&process_matcher_, bookkeeping_thread_);
   process_info.sockets.emplace(new_connection_raw, std::move(new_connection));
