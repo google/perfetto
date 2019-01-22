@@ -21,11 +21,8 @@ import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {Track} from './track';
+import {TRACK_SHELL_WIDTH} from './track_constants';
 import {trackRegistry} from './track_registry';
-
-// TODO(hjd): We should remove the constant where possible.
-// If any uses can't be removed we should read this constant from CSS.
-export const TRACK_SHELL_WIDTH = 250;
 
 function isPinned(id: string) {
   return globals.state.pinnedTracks.indexOf(id) !== -1;
