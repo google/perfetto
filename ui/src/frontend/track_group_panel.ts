@@ -53,10 +53,15 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
   view({attrs}: m.CVnode<Attrs>) {
     const collapsed = this.trackGroupState.collapsed;
+    const name = StripPathFromExecutable(this.trackGroupState.name);
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
         m('.shell',
-          m('h1', `${StripPathFromExecutable(this.trackGroupState.name)}`),
+          m('h1',
+            {
+              title: name,
+            },
+            name),
           m('.fold-button',
             {
               onclick: () =>
