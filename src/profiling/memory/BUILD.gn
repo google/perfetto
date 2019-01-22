@@ -37,9 +37,21 @@ source_set("wire_protocol") {
   ]
 }
 
+source_set("proc_utils") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+  sources = [
+    "proc_utils.cc",
+    "proc_utils.h",
+  ]
+}
+
 source_set("daemon") {
   public_configs = [ "../../../buildtools:libunwindstack_config" ]
   deps = [
+    ":proc_utils",
     ":wire_protocol",
     "../../../buildtools:libunwindstack",
     "../../../gn:default_deps",
@@ -58,8 +70,6 @@ source_set("daemon") {
     "heapprofd_producer.cc",
     "heapprofd_producer.h",
     "interner.h",
-    "proc_utils.cc",
-    "proc_utils.h",
     "process_matcher.cc",
     "process_matcher.h",
     "queue_messages.h",
@@ -77,6 +87,7 @@ source_set("daemon") {
 source_set("client") {
   public_configs = [ "../../../buildtools:libunwindstack_config" ]
   deps = [
+    ":proc_utils",
     ":wire_protocol",
     "../../../buildtools:libunwindstack",
     "../../../gn:default_deps",
@@ -97,6 +108,7 @@ source_set("unittests") {
   deps = [
     ":client",
     ":daemon",
+    ":proc_utils",
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../../gn:gtest_deps",
@@ -145,6 +157,7 @@ source_set("end_to_end_tests") {
 source_set("malloc_hooks") {
   deps = [
     ":client",
+    ":proc_utils",
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../base",
