@@ -34,6 +34,7 @@
 #include "perfetto/base/unix_socket.h"
 #include "perfetto/base/utils.h"
 #include "src/profiling/memory/client.h"
+#include "src/profiling/memory/proc_utils.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 // The real malloc function pointers we get in initialize.
@@ -174,7 +175,14 @@ std::unique_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon() {
 
   child_sock.RetainOnExec();
 
+  // Record own pid and cmdline, to pass down to the forked heapprofd.
   pid_t target_pid = getpid();
+  std::string target_cmdline;
+  if (!perfetto::profiling::GetCmdlineForPID(target_pid, &target_cmdline)) {
+    PERFETTO_ELOG("Failed to read own cmdline.");
+    return nullptr;
+  }
+
   pid_t fork_pid = fork();
   if (fork_pid == -1) {
     PERFETTO_PLOG("Failed to fork.");
@@ -190,10 +198,12 @@ std::unique_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon() {
     }
     std::string pid_arg =
         std::string("--exclusive-for-pid=") + std::to_string(target_pid);
+    std::string cmd_arg =
+        std::string("--exclusive-for-cmdline=") + target_cmdline;
     std::string fd_arg =
         std::string("--inherit-socket-fd=") + std::to_string(child_sock.fd());
-    const char* argv[] = {kHeapprofdBinPath, pid_arg.c_str(), fd_arg.c_str(),
-                          nullptr};
+    const char* argv[] = {kHeapprofdBinPath, pid_arg.c_str(), cmd_arg.c_str(),
+                          fd_arg.c_str(), nullptr};
 
     execv(kHeapprofdBinPath, const_cast<char**>(argv));
     PERFETTO_PLOG("Failed to execute private heapprofd.");
