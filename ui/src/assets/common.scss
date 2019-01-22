@@ -15,11 +15,7 @@
     --sidebar-width: 256px;
     --topbar-height: 48px;
     --monospace-font: 'Roboto Mono', monospace;
-
-    // Keep in sync with TRACK_SHELL_WIDTH in track_panel.ts
     --track-shell-width: 250px;
-
-    // Keep this synchronised with drawGridLines.
     --track-border-color: #00000025;
 }
 
@@ -504,7 +500,7 @@ button.query-ctrl {
     grid-template-columns: 1fr 24px;
     align-items: center;
     line-height: 1;
-    width: 250px;
+    width: var(--track-shell-width);
     transition: background-color .4s;
     h1 {
       grid-area: title;

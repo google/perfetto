@@ -20,7 +20,7 @@ import {timeToString} from '../common/time';
 import {globals} from './globals';
 import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
-import {TRACK_SHELL_WIDTH} from './track_panel';
+import {TRACK_SHELL_WIDTH} from './track_constants';
 
 const FLAG_WIDTH = 10;
 
