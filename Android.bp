@@ -161,6 +161,7 @@ cc_library_shared {
     "src/base/watchdog_posix.cc",
     "src/profiling/memory/client.cc",
     "src/profiling/memory/malloc_hooks.cc",
+    "src/profiling/memory/proc_utils.cc",
     "src/profiling/memory/sampler.cc",
     "src/profiling/memory/wire_protocol.cc",
   ],
