@@ -97,13 +97,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
         size.height);
 
     ctx.translate(this.shellWidth, 0);
-
-    // Do not show summary view if there are more than 10 track groups.
-    // Too slow now.
-    // TODO(dproy): Fix this.
-    if (Object.keys(globals.state.trackGroups).length < 10) {
-      this.summaryTrack.renderCanvas(ctx);
-    }
+    this.summaryTrack.renderCanvas(ctx);
     ctx.restore();
   }
 }
