@@ -202,20 +202,28 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     if (error_code != unwindstack::ERROR_INVALID_MAP)
       break;
   }
-  out->frames = unwinder.frames();
+  for (unwindstack::FrameData fd : unwinder.frames()) {
+    std::string build_id;
+    if (fd.map_name != "") {
+      unwindstack::MapInfo* map_info = metadata->maps.Find(fd.pc);
+      if (map_info)
+        build_id = map_info->GetBuildID();
+    }
+
+    if (base::EndsWith(fd.map_name, ".so"))
+      MaybeDemangle(&fd.function_name);
+    out->frames.emplace_back(std::move(fd), std::move(build_id));
+  }
+
   if (error_code != 0) {
     unwindstack::FrameData frame_data{};
     frame_data.function_name = "ERROR " + std::to_string(error_code);
     frame_data.map_name = "ERROR";
 
-    out->frames.emplace_back(frame_data);
+    out->frames.emplace_back(frame_data, "");
     PERFETTO_DLOG("unwinding failed %" PRIu8, error_code);
   }
 
-  for (unwindstack::FrameData& fd : out->frames) {
-    if (base::EndsWith(fd.map_name, ".so"))
-      MaybeDemangle(&fd.function_name);
-  }
   return true;
 }
 
