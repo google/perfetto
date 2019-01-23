@@ -22,11 +22,24 @@
     @media (min-width: 2000px) {
       grid-template: "config command pbtxt" auto / auto auto auto;
     }
-    grid-template: "config command" min-content "config pbtxt" auto / auto auto;
+    @media (min-width: 1000px) {
+      grid-template:
+        "config command" min-content
+        "config pbtxt" auto / auto auto;
+    }
+    grid-template:
+        "config" auto
+        "command" auto
+        "pbtxt" auto / auto;
   }
 
   &.two {
-    grid-template: "config command" auto / auto auto;
+    @media (min-width: 1000px) {
+      grid-template: "config command" auto / auto auto;
+    }
+    grid-template:
+        "config" auto
+        "command" / auto;
   }
 
   .config {
