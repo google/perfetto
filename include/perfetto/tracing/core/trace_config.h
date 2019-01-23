@@ -323,6 +323,13 @@ class PERFETTO_EXPORT TraceConfig {
   uint32_t flush_timeout_ms() const { return flush_timeout_ms_; }
   void set_flush_timeout_ms(uint32_t value) { flush_timeout_ms_ = value; }
 
+  bool disable_clock_snapshotting() const {
+    return disable_clock_snapshotting_;
+  }
+  void set_disable_clock_snapshotting(bool value) {
+    disable_clock_snapshotting_ = value;
+  }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -338,6 +345,7 @@ class PERFETTO_EXPORT TraceConfig {
   bool deferred_start_ = {};
   uint32_t flush_period_ms_ = {};
   uint32_t flush_timeout_ms_ = {};
+  bool disable_clock_snapshotting_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
