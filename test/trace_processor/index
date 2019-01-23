@@ -25,3 +25,4 @@ synth_1.py nulls.sql nulls.out
 ../data/android_log_ring_buffer_mode.pb android_log_ring_buffer_mode.sql android_log_ring_buffer_mode.out
 ../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
 ../data/mm_event.pb mm_event.sql mm_event.out
+../data/process_stats_poll.pb oom_score_poll.sql process_stats_poll_oom_score.out
