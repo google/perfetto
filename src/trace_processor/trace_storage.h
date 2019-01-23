@@ -146,6 +146,13 @@ class TraceStorage {
     size_t args_count() const { return ids_.size(); }
 
     void AddArg(RowId id, StringId flat_key, StringId key, Variadic value) {
+      // TODO(b/123252504): disable this code to stop blow-ups in ingestion time
+      // and memory.
+      perfetto::base::ignore_result(id);
+      perfetto::base::ignore_result(flat_key);
+      perfetto::base::ignore_result(key);
+      perfetto::base::ignore_result(value);
+      /*
       if (id == kInvalidRowId)
         return;
 
@@ -154,6 +161,7 @@ class TraceStorage {
       keys_.emplace_back(key);
       arg_values_.emplace_back(value);
       args_for_id_.emplace(id, static_cast<uint32_t>(args_count() - 1));
+      */
     }
 
    private:
