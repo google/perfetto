@@ -268,6 +268,8 @@ button.close {
             margin: 0;
             font-size: 14px;
             text-overflow: ellipsis;
+            text-align: left;
+            direction: rtl;
             font-family: 'Google Sans';
             color: hsl(213, 22%, 30%);
         }
@@ -507,6 +509,8 @@ button.query-ctrl {
       font-size: 14px;
       text-overflow: ellipsis;
       font-family: 'Google Sans';
+      text-align: left;
+      direction: rtl;
     }
     .fold-button {
       grid-area: fold-button;
