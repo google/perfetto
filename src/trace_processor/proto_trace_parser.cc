@@ -579,6 +579,8 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
       continue;
 
     const size_t fld_off = ftrace.offset_of(fld.data());
+    // TODO(b/123252504): don't parse raw events for now.
+    /*
     if (fld.id == protos::FtraceEvent::kGenericFieldNumber) {
       ParseGenericFtrace(timestamp, cpu, pid,
                          ftrace.slice(fld_off, fld.size()));
@@ -586,6 +588,7 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
       ParseTypedFtraceToRaw(fld.id, timestamp, cpu, pid,
                             ftrace.slice(fld_off, fld.size()));
     }
+    */
 
     switch (fld.id) {
       case protos::FtraceEvent::kSchedSwitchFieldNumber: {
