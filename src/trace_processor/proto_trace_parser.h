@@ -84,6 +84,7 @@ class ProtoTraceParser {
   void ParseLowmemoryKill(int64_t ts, TraceBlobView);
   void ParseBatteryCounters(int64_t ts, TraceBlobView);
   void ParseOOMScoreAdjUpdate(int64_t ts, TraceBlobView);
+  void ParseMmEventRecordField(int64_t ts, uint32_t pid, TraceBlobView);
   void ParseClockSnapshot(TraceBlobView);
   std::pair<int /*type*/, int64_t> ParseClockField(TraceBlobView);
   void ParseAndroidLogPacket(TraceBlobView);
@@ -139,6 +140,20 @@ class ProtoTraceParser {
   // Keep kProcMemCounterSize equal to 1 + max proto field id of MemCounters.
   static constexpr size_t kProcMemCounterSize = 10;
   std::array<StringId, kProcMemCounterSize> proc_mem_counter_names_{};
+
+  struct MmEventCounterNames {
+    MmEventCounterNames() = default;
+    MmEventCounterNames(StringId _count, StringId _max_lat, StringId _avg_lat)
+        : count(_count), max_lat(_max_lat), avg_lat(_avg_lat) {}
+
+    StringId count = 0;
+    StringId max_lat = 0;
+    StringId avg_lat = 0;
+  };
+
+  // Keep kMmEventCounterSize equal to mm_event_type::MM_TYPE_NUM in the kernel.
+  static constexpr size_t kMmEventCounterSize = 7;
+  std::array<MmEventCounterNames, kMmEventCounterSize> mm_event_counter_names_;
 };
 
 }  // namespace trace_processor
