@@ -25,7 +25,7 @@ namespace profiling {
 namespace {
 
 TEST(BoundedQueueTest, IsFIFO) {
-  BoundedQueue<int> q(2);
+  BoundedQueue<int> q("test", 2);
   q.Add(1);
   q.Add(2);
   int out;
@@ -37,7 +37,7 @@ TEST(BoundedQueueTest, IsFIFO) {
 }
 
 TEST(BoundedQueueTest, BlockingAdd) {
-  BoundedQueue<int> q(2);
+  BoundedQueue<int> q("test", 2);
   q.Add(1);
   q.Add(2);
   std::thread th([&q] { q.Add(3); });
@@ -53,7 +53,7 @@ TEST(BoundedQueueTest, BlockingAdd) {
 }
 
 TEST(BoundedQueueTest, BlockingGet) {
-  BoundedQueue<int> q(2);
+  BoundedQueue<int> q("test", 2);
   std::thread th([&q] {
     int out;
     EXPECT_TRUE(q.Get(&out));
@@ -65,7 +65,7 @@ TEST(BoundedQueueTest, BlockingGet) {
 }
 
 TEST(BoundedQueueTest, Resize) {
-  BoundedQueue<int> q(2);
+  BoundedQueue<int> q("test", 2);
   q.Add(1);
   q.Add(2);
   q.SetCapacity(3);
@@ -81,7 +81,7 @@ TEST(BoundedQueueTest, Resize) {
 }
 
 TEST(BoundedQueueTest, Shutdown) {
-  BoundedQueue<int> q(3);
+  BoundedQueue<int> q("test", 3);
   q.Add(1);
   q.Add(2);
   q.Add(3);
@@ -95,7 +95,7 @@ TEST(BoundedQueueTest, Shutdown) {
 }
 
 TEST(BoundedQueueTest, ShutdownBlockingAdd) {
-  BoundedQueue<int> q(2);
+  BoundedQueue<int> q("test", 2);
   q.Add(1);
   q.Add(2);
   std::thread th([&q] { EXPECT_FALSE(q.Add(3)); });
@@ -104,7 +104,7 @@ TEST(BoundedQueueTest, ShutdownBlockingAdd) {
 }
 
 TEST(BoundedQueueTest, ShutdownBlockingGet) {
-  BoundedQueue<int> q(1);
+  BoundedQueue<int> q("test", 1);
   std::thread th([&q] {
     int out;
     EXPECT_FALSE(q.Get(&out));
