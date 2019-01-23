@@ -17,6 +17,7 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
+import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 
 package perfetto.protos;
@@ -84,6 +85,10 @@ service ConsumerPort {
   // The session will be terminated if the consumer closes the IPC channel, as
   // in the standard non-detached case.
   rpc Attach(AttachRequest) returns (AttachResponse) {}
+
+  // Allows the consumer to obtain statistics about the current tracing session,
+  // such as buffer usage stats. Intended for debugging or UI use.
+  rpc GetTraceStats(GetTraceStatsRequest) returns (GetTraceStatsResponse) {}
 
   // TODO rpc ListDataSources(), for the UI.
 }
@@ -161,12 +166,22 @@ message FlushResponse {}
 message DetachRequest {
   optional string key = 1;
 }
+
 message DetachResponse {}
 
 // Arguments for rpc Attach.
 message AttachRequest {
   optional string key = 1;
 }
+
 message AttachResponse {
   optional protos.TraceConfig trace_config = 1;
+}
+
+// Arguments for rpc GetTraceStats.
+
+message GetTraceStatsRequest {}
+
+message GetTraceStatsResponse {
+  optional TraceStats trace_stats = 1;
 }

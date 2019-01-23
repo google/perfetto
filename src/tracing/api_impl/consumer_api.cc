@@ -91,6 +91,7 @@ class TracingSession : public Consumer {
   void OnTraceData(std::vector<TracePacket>, bool has_more) override;
   void OnDetach(bool) override;
   void OnAttach(bool, const TraceConfig&) override;
+  void OnTraceStats(bool, const TraceStats&) override;
 
  private:
   TracingSession(const TracingSession&) = delete;
@@ -233,6 +234,11 @@ void TracingSession::OnDetach(bool) {
 
 void TracingSession::OnAttach(bool, const TraceConfig&) {
   PERFETTO_DCHECK(false);  // Should never be called, Attach() is not used here.
+}
+
+void TracingSession::OnTraceStats(bool, const TraceStats&) {
+  // Should never be called, GetTraceStats() is not used here.
+  PERFETTO_DCHECK(false);
 }
 
 void TracingSession::DestroyConnection() {

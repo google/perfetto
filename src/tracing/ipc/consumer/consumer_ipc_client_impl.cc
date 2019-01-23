@@ -23,6 +23,7 @@
 #include "perfetto/ipc/client.h"
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/tracing/core/trace_stats.h"
 
 // TODO(fmayer): Add a test to check to what happens when ConsumerIPCClientImpl
 // gets destroyed w.r.t. the Consumer pointer. Also think to lifetime of the
@@ -251,6 +252,31 @@ void ConsumerIPCClientImpl::Attach(const std::string& key) {
     });
     consumer_port_.Attach(req, std::move(async_response));
   }
+}
+
+void ConsumerIPCClientImpl::GetTraceStats() {
+  if (!connected_) {
+    PERFETTO_DLOG("Cannot GetTraceStats(), not connected to tracing service");
+    return;
+  }
+
+  protos::GetTraceStatsRequest req;
+  ipc::Deferred<protos::GetTraceStatsResponse> async_response;
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+
+  async_response.Bind(
+      [weak_this](ipc::AsyncResult<protos::GetTraceStatsResponse> response) {
+        if (!weak_this)
+          return;
+        TraceStats trace_stats;
+        if (!response) {
+          weak_this->consumer_->OnTraceStats(/*success=*/false, trace_stats);
+          return;
+        }
+        trace_stats.FromProto(response->trace_stats());
+        weak_this->consumer_->OnTraceStats(/*success=*/true, trace_stats);
+      });
+  consumer_port_.GetTraceStats(req, std::move(async_response));
 }
 
 }  // namespace perfetto
