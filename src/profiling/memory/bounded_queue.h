@@ -37,10 +37,14 @@ namespace profiling {
 template <typename T>
 class BoundedQueue {
  public:
-  BoundedQueue() : BoundedQueue(1) {}
-  BoundedQueue(size_t capacity) : capacity_(capacity) {
+  BoundedQueue() : BoundedQueue("unknown") {}
+  BoundedQueue(std::string name) : BoundedQueue(std::move(name), 1) {}
+  BoundedQueue(std::string name, size_t capacity)
+      : name_(std::move(name)), capacity_(capacity) {
     PERFETTO_CHECK(capacity > 0);
   }
+
+  void SetName(std::string name) { name_ = std::move(name); }
 
   void Shutdown() {
     {
@@ -55,9 +59,15 @@ class BoundedQueue {
 
   bool Add(T item) {
     std::unique_lock<std::mutex> l(mutex_);
-    if (deque_.size() == capacity_)
+    if (deque_.size() == capacity_) {
+      if (!logged.load(std::memory_order_relaxed)) {
+        PERFETTO_ELOG("heapprofd queue %s at capacity (%zu). Blocking!",
+                      name_.c_str(), capacity_);
+        logged.store(true, std::memory_order_relaxed);
+      }
       full_cv_.wait(l,
                     [this] { return deque_.size() < capacity_ || shutdown_; });
+    }
 
     if (shutdown_)
       return false;
@@ -95,7 +105,9 @@ class BoundedQueue {
   }
 
  private:
+  std::string name_;
   size_t capacity_;
+  std::atomic<bool> logged{false};
   bool shutdown_ = false;
   size_t elements_ = 0;
   std::deque<T> deque_;
