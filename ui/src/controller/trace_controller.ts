@@ -339,7 +339,6 @@ export class TraceController extends Controller<States> {
     const addSummaryTrackActions: DeferredAction[] = [];
     const addTrackGroupActions: DeferredAction[] = [];
 
-
     for (const row of rawQueryToRows(threadQuery, {
            utid: NUM,
            upid: NUM_NULL,
@@ -372,12 +371,14 @@ export class TraceController extends Controller<States> {
         } else {
           upidToUuid.set(upid, pUuid);
         }
+
+        const pidForColor = pid || tid || upid || utid || 0;
         addSummaryTrackActions.push(Actions.addTrack({
           id: summaryTrackId,
           engineId: this.engineId,
           kind: PROCESS_SUMMARY_TRACK,
-          name: `${upid === null ? pid : tid} summary`,
-          config: {upid, pid, maxDepth, utid},
+          name: `${upid === null ? tid : pid} summary`,
+          config: {pidForColor, upid, utid},
         }));
 
         addTrackGroupActions.push(Actions.addTrackGroup({
