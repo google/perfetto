@@ -23,10 +23,44 @@ package perfetto.protos;
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // NEXT ID: 12
+  // Next id: 18.
   message BufferStats {
-    // Num. bytes written into the circular buffer.
+    // Size of the circular buffer in bytes.
+    optional uint64 buffer_size = 12;
+
+    // Num. bytes written into the circular buffer, including chunk headers.
     optional uint64 bytes_written = 1;
+
+    // Num. bytes overwritten before they have been read (i.e. loss of data).
+    optional uint64 bytes_overwritten = 13;
+
+    // Total size of chunks that were fully read from the circular buffer by the
+    // consumer. This may not be equal to |bytes_written| either in the middle
+    // of tracing, or if |chunks_overwritten| is non-zero. Note that this is the
+    // size of the chunks read from the buffer, including chunk headers, which
+    // will be different from the total size of packets returned to the
+    // consumer.
+    //
+    // The current utilization of the trace buffer (mid-tracing) can be obtained
+    // by subtracting |bytes_read| and |bytes_overwritten| from |bytes_written|,
+    // adding the difference of |padding_bytes_written| and
+    // |padding_bytes_cleared|, and comparing this sum to the |buffer_size|.
+    // Note that this represents the total size of buffered data in the buffer,
+    // yet this data may be spread non-contiguously through the buffer and may
+    // be overridden before the utilization reaches 100%.
+    optional uint64 bytes_read = 14;
+
+    // Num. bytes that were allocated as padding between chunks in the circular
+    // buffer.
+    optional uint64 padding_bytes_written = 15;
+
+    // Num. of padding bytes that were removed from the circular buffer when
+    // they were overwritten.
+    //
+    // The difference between |padding_bytes_written| and
+    // |padding_bytes_cleared| denotes the total size of padding currently
+    // present in the buffer.
+    optional uint64 padding_bytes_cleared = 16;
 
     // Num. chunks (!= packets) written into the buffer.
     optional uint64 chunks_written = 2;
@@ -37,6 +71,11 @@ message TraceStats {
 
     // Num. chunks overwritten before they have been read (i.e. loss of data).
     optional uint64 chunks_overwritten = 3;
+
+    // Num. chunks (!= packets) that were fully read from the circular buffer by
+    // the consumer. This may not be equal to |chunks_written| either in the
+    // middle of tracing, or if |chunks_overwritten| is non-zero.
+    optional uint64 chunks_read = 17;
 
     // Num. chunks that were committed out of order.
     optional uint64 chunks_committed_out_of_order = 11;
@@ -81,7 +120,7 @@ message TraceStats {
   // Num. data sources registered for all trace sessions.
   optional uint32 data_sources_registered = 4;
 
-  // Num. data sources ever seen for all trace sessions since startupb
+  // Num. data sources ever seen for all trace sessions since startup.
   optional uint64 data_sources_seen = 5;
 
   // Num. concurrently active tracing sessions.

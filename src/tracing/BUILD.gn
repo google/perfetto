@@ -61,6 +61,7 @@ source_set("tracing") {
     "core/trace_buffer.h",
     "core/trace_config.cc",
     "core/trace_packet.cc",
+    "core/trace_stats.cc",
     "core/trace_writer_impl.cc",
     "core/trace_writer_impl.h",
     "core/tracing_service_impl.cc",

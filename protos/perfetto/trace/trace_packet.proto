@@ -17,6 +17,7 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
+import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 import "perfetto/trace/android/android_log.proto";
 import "perfetto/trace/chrome/chrome_trace_event.proto";
@@ -30,7 +31,6 @@ import "perfetto/trace/ps/process_stats.proto";
 import "perfetto/trace/ps/process_tree.proto";
 import "perfetto/trace/sys_stats/sys_stats.proto";
 import "perfetto/trace/test_event.proto";
-import "perfetto/trace/trace_stats.proto";
 
 package perfetto.protos;
 
