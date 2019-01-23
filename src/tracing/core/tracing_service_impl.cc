@@ -964,8 +964,10 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   if (now >= tracing_session->last_snapshot_time + kSnapshotsInterval) {
     tracing_session->last_snapshot_time = now;
     SnapshotSyncMarker(&packets);
-    SnapshotClocks(&packets);
     SnapshotStats(tracing_session, &packets);
+
+    if (!tracing_session->config.disable_clock_snapshotting())
+      SnapshotClocks(&packets);
   }
   MaybeEmitTraceConfig(tracing_session, &packets);
 
