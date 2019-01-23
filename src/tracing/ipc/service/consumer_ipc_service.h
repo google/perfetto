@@ -57,6 +57,8 @@ class ConsumerIPCService : public protos::ConsumerPort {
   void Flush(const protos::FlushRequest&, DeferredFlushResponse) override;
   void Detach(const protos::DetachRequest&, DeferredDetachResponse) override;
   void Attach(const protos::AttachRequest&, DeferredAttachResponse) override;
+  void GetTraceStats(const protos::GetTraceStatsRequest&,
+                     DeferredGetTraceStatsResponse) override;
   void OnClientDisconnected() override;
 
  private:
@@ -76,6 +78,7 @@ class ConsumerIPCService : public protos::ConsumerPort {
     void OnTraceData(std::vector<TracePacket>, bool has_more) override;
     void OnDetach(bool) override;
     void OnAttach(bool, const TraceConfig&) override;
+    void OnTraceStats(bool, const TraceStats&) override;
 
     // The interface obtained from the core service business logic through
     // TracingService::ConnectConsumer(this). This allows to invoke methods for
@@ -96,6 +99,9 @@ class ConsumerIPCService : public protos::ConsumerPort {
 
     // As above, but for the Attach() case.
     DeferredAttachResponse attach_response;
+
+    // As above, but for GetTraceStats().
+    DeferredGetTraceStatsResponse get_trace_stats_response;
   };
 
   // This has to be a container that doesn't invalidate iterators.

@@ -30,6 +30,7 @@ source_set("core") {
     "startup_trace_writer.h",
     "trace_config.h",
     "trace_packet.h",
+    "trace_stats.h",
     "trace_writer.h",
     "tracing_service.h",
   ]

@@ -60,6 +60,7 @@ class PerfettoCmd : public Consumer {
   void OnTraceData(std::vector<TracePacket>, bool has_more) override;
   void OnDetach(bool) override;
   void OnAttach(bool, const TraceConfig&) override;
+  void OnTraceStats(bool, const TraceStats&) override;
 
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 

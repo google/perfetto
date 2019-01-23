@@ -27,6 +27,7 @@
 #include "perfetto/tracing/core/slice.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
+#include "perfetto/tracing/core/trace_stats.h"
 #include "perfetto/tracing/core/tracing_service.h"
 
 namespace perfetto {
@@ -137,6 +138,15 @@ void ConsumerIPCService::Attach(const protos::AttachRequest& req,
   remote_consumer->service_endpoint->Attach(req.key());
 }
 
+// Called by the IPC layer.
+void ConsumerIPCService::GetTraceStats(const protos::GetTraceStatsRequest&,
+                                       DeferredGetTraceStatsResponse resp) {
+  // OnTraceStats() will resolve the |get_trace_stats_response|.
+  RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
+  remote_consumer->get_trace_stats_response = std::move(resp);
+  remote_consumer->service_endpoint->GetTraceStats();
+}
+
 // Called by the service in response to a service_endpoint->Flush() request.
 void ConsumerIPCService::OnFlushCallback(
     bool success,
@@ -245,6 +255,17 @@ void ConsumerIPCService::RemoteConsumer::OnAttach(
   auto response = ipc::AsyncResult<protos::AttachResponse>::Create();
   trace_config.ToProto(response->mutable_trace_config());
   std::move(attach_response).Resolve(std::move(response));
+}
+
+void ConsumerIPCService::RemoteConsumer::OnTraceStats(bool success,
+                                                      const TraceStats& stats) {
+  if (!success) {
+    std::move(get_trace_stats_response).Reject();
+    return;
+  }
+  auto response = ipc::AsyncResult<protos::GetTraceStatsResponse>::Create();
+  stats.ToProto(response->mutable_trace_stats());
+  std::move(get_trace_stats_response).Resolve(std::move(response));
 }
 
 }  // namespace perfetto
