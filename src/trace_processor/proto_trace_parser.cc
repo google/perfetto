@@ -82,7 +82,8 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
   switch (s[0]) {
     case 'B': {
       size_t name_index = 2 + tid_length + 1;
-      out->name = base::StringView(s + name_index, len - name_index);
+      out->name = base::StringView(
+          s + name_index, len - name_index - (s[len - 1] == '\n' ? 1 : 0));
       return true;
     }
     case 'E': {
