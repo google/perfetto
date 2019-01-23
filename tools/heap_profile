@@ -181,8 +181,7 @@ def main(argv):
   signal.signal(signal.SIGINT, old_handler)
   if IS_INTERRUPTED:
     # Not check_call because it could have existed in the meantime.
-    subprocess.call(['adb', 'shell', 'su', 'root', 'kill', '-INT',
-                     perfetto_pid])
+    subprocess.call(['adb', 'shell', 'kill', '-INT', perfetto_pid])
 
   # Wait for perfetto cmd to return.
   while exists:
