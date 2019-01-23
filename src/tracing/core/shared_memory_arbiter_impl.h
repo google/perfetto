@@ -29,6 +29,7 @@
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
 #include "perfetto/tracing/core/shared_memory_arbiter.h"
+#include "perfetto/tracing/core/startup_trace_writer_registry.h"
 #include "src/tracing/core/id_allocator.h"
 
 namespace perfetto {
@@ -105,13 +106,15 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // See include/perfetto/tracing/core/shared_memory_arbiter.h for comments.
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) override;
-  bool BindStartupTraceWriter(StartupTraceWriter* writer,
-                              BufferID target_buffer) override;
+  void BindStartupTraceWriterRegistry(
+      std::unique_ptr<StartupTraceWriterRegistry>,
+      BufferID target_buffer) override;
 
   void NotifyFlushComplete(FlushRequestID) override;
 
  private:
   friend class TraceWriterImpl;
+  friend class StartupTraceWriterTest;
 
   static SharedMemoryABI::PageLayout default_page_layout;
 
@@ -137,6 +140,10 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   std::unique_ptr<CommitDataRequest> commit_data_req_;
   size_t bytes_pending_commit_ = 0;  // SUM(chunk.size() : commit_data_req_).
   IdAllocator<WriterID> active_writer_ids_;
+  // Registries whose Bind() is in progress. We destroy each registry when their
+  // Bind() is complete or when the arbiter is destroyed itself.
+  std::vector<std::unique_ptr<StartupTraceWriterRegistry>>
+      startup_trace_writer_registries_;
   // --- End lock-protected members ---
 
   // Keep at the end.
