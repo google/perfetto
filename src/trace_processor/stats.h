@@ -52,6 +52,8 @@ namespace stats {
   F(invalid_cpu_times,                          kSingle,  kError, kAnalysis), \
   F(meminfo_unknown_keys,                       kSingle,  kError, kAnalysis), \
   F(mismatched_sched_switch_tids,               kSingle,  kError, kAnalysis), \
+  F(mm_unknown_counter,                         kSingle,  kError, kAnalysis), \
+  F(mm_unknown_type,                            kSingle,  kError, kAnalysis), \
   F(proc_stat_unknown_counters,                 kSingle,  kError, kAnalysis), \
   F(rss_stat_unknown_keys,                      kSingle,  kError, kAnalysis), \
   F(sched_switch_out_of_order,                  kSingle,  kError, kAnalysis), \
