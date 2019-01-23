@@ -51,7 +51,11 @@ def main():
   test_failure = 0
   index_dir = os.path.dirname(args.index)
   for line in index_lines:
-    [trace_fname, query_fname, expected_fname] = line.strip().split(' ')
+    stripped = line.strip()
+    if stripped.startswith('#'):
+      continue
+
+    [trace_fname, query_fname, expected_fname] = stripped.split(' ')
 
     trace_path = os.path.abspath(os.path.join(index_dir, trace_fname))
     query_path = os.path.abspath(os.path.join(index_dir, query_fname))
