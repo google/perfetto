@@ -77,7 +77,7 @@ HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
                                      base::TaskRunner* task_runner)
     : mode_(mode),
       task_runner_(task_runner),
-      bookkeeping_queue_(kBookkeepingQueueSize),
+      bookkeeping_queue_("Bookkeeping", kBookkeepingQueueSize),
       bookkeeping_th_([this] { bookkeeping_thread_.Run(&bookkeeping_queue_); }),
       unwinder_queues_(MakeUnwinderQueues(kUnwinderThreads)),
       unwinding_threads_(MakeUnwindingThreads(kUnwinderThreads)),
@@ -417,8 +417,10 @@ HeapprofdProducer::MakeSocketListenerCallback() {
 std::vector<BoundedQueue<UnwindingRecord>>
 HeapprofdProducer::MakeUnwinderQueues(size_t n) {
   std::vector<BoundedQueue<UnwindingRecord>> ret(n);
-  for (size_t i = 0; i < n; ++i)
+  for (size_t i = 0; i < n; ++i) {
     ret[i].SetCapacity(kUnwinderQueueSize);
+    ret[i].SetName("Unwinder " + std::to_string(n));
+  }
   return ret;
 }
 
