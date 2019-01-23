@@ -55,6 +55,7 @@ source_set("tracing") {
     "core/sliced_protobuf_input_stream.cc",
     "core/sliced_protobuf_input_stream.h",
     "core/startup_trace_writer.cc",
+    "core/startup_trace_writer_registry.cc",
     "core/sys_stats_config.cc",
     "core/test_config.cc",
     "core/trace_buffer.cc",
