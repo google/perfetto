@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <mutex>
+#include <set>
 #include <vector>
 
 #include "perfetto/base/export.h"
@@ -33,6 +34,7 @@
 namespace perfetto {
 
 class SharedMemoryArbiterImpl;
+class StartupTraceWriterRegistryHandle;
 
 namespace protos {
 namespace pbzero {
@@ -44,8 +46,9 @@ class TracePacket;
 // when the perfetto service is not available yet.
 //
 // Until the service is available, producer threads instantiate an unbound
-// StartupTraceWriter instance and use it to emit trace events. Each writer will
-// record the serialized trace events into a temporary local memory buffer.
+// StartupTraceWriter instance (via a StartupTraceWriterRegistry) and use it to
+// emit trace events. Each writer will record the serialized trace events into a
+// temporary local memory buffer.
 //
 // Once the service is available, the producer binds each StartupTraceWriter to
 // the SMB by calling SharedMemoryArbiter::BindStartupTraceWriter(). The data in
@@ -66,10 +69,6 @@ class PERFETTO_EXPORT StartupTraceWriter
     : public TraceWriter,
       public protozero::MessageHandleBase::FinalizationListener {
  public:
-  // Create an unbound StartupTraceWriter that can later be bound by calling
-  // BindToTraceWriter().
-  StartupTraceWriter();
-
   // Create a StartupTraceWriter bound to |trace_writer|. Should only be called
   // on the writer thread.
   explicit StartupTraceWriter(std::unique_ptr<TraceWriter> trace_writer);
@@ -87,19 +86,6 @@ class PERFETTO_EXPORT StartupTraceWriter
 
   uint64_t written() const override;
 
-  // Bind this StartupTraceWriter to the provided SharedMemoryArbiterImpl.
-  // Called by SharedMemoryArbiterImpl::BindStartupTraceWriter().
-  //
-  // This method can be called on any thread. If any data was written locally
-  // before the writer was bound, BindToArbiter() will copy this data into
-  // chunks in the provided target buffer via the SMB. Any future packets will
-  // be directly written into the SMB via a newly obtained TraceWriter from the
-  // arbiter.
-  //
-  // Will fail and return |false| if a concurrent write is in progress.
-  bool BindToArbiter(SharedMemoryArbiterImpl*,
-                     BufferID target_buffer) PERFETTO_WARN_UNUSED_RESULT;
-
   // Returns |true| if the writer thread has observed that the writer was bound
   // to an SMB. Should only be called on the writer thread.
   //
@@ -116,6 +102,31 @@ class PERFETTO_EXPORT StartupTraceWriter
   size_t used_buffer_size();
 
  private:
+  friend class StartupTraceWriterRegistry;
+  friend class StartupTraceWriterTest;
+
+  // Create an unbound StartupTraceWriter associated with the registry pointed
+  // to by the handle. The writer can later be bound by calling
+  // BindToTraceWriter(). The registry handle may be nullptr in tests.
+  StartupTraceWriter(std::shared_ptr<StartupTraceWriterRegistryHandle>);
+
+  StartupTraceWriter(const StartupTraceWriter&) = delete;
+  StartupTraceWriter& operator=(const StartupTraceWriter&) = delete;
+
+  // Bind this StartupTraceWriter to the provided SharedMemoryArbiterImpl.
+  // Called by StartupTraceWriterRegistry::BindToArbiter().
+  //
+  // This method can be called on any thread. If any data was written locally
+  // before the writer was bound, BindToArbiter() will copy this data into
+  // chunks in the provided target buffer via the SMB. Any future packets will
+  // be directly written into the SMB via a newly obtained TraceWriter from the
+  // arbiter.
+  //
+  // Will fail and return |false| if a concurrent write is in progress. Returns
+  // |true| if successfully bound and should then not be called again.
+  bool BindToArbiter(SharedMemoryArbiterImpl*,
+                     BufferID target_buffer) PERFETTO_WARN_UNUSED_RESULT;
+
   // protozero::MessageHandleBase::FinalizationListener implementation.
   void OnMessageFinalized(protozero::Message* message) override;
 
@@ -123,6 +134,8 @@ class PERFETTO_EXPORT StartupTraceWriter
   ChunkID CommitLocalBufferChunks(SharedMemoryArbiterImpl*, WriterID, BufferID);
 
   PERFETTO_THREAD_CHECKER(writer_thread_checker_)
+
+  std::shared_ptr<StartupTraceWriterRegistryHandle> registry_handle_;
 
   // Only set and accessed from the writer thread. The writer thread flips this
   // bit when it sees that trace_writer_ is set (while holding the lock).
@@ -141,7 +154,6 @@ class PERFETTO_EXPORT StartupTraceWriter
   std::unique_ptr<protozero::ScatteredStreamWriter> memory_stream_writer_;
 
   std::vector<uint32_t> packet_sizes_;
-  size_t total_payload_size = 0;
 
   // Whether the writer thread is currently writing a TracePacket.
   bool write_in_progress_ = false;
