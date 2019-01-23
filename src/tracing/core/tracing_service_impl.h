@@ -32,6 +32,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
 #include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/tracing/core/trace_stats.h"
 #include "perfetto/tracing/core/tracing_service.h"
 #include "src/tracing/core/id_allocator.h"
 
@@ -162,6 +163,7 @@ class TracingServiceImpl : public TracingService {
     void Flush(uint32_t timeout_ms, FlushCallback) override;
     void Detach(const std::string& key) override;
     void Attach(const std::string& key) override;
+    void GetTraceStats() override;
 
    private:
     friend class TracingServiceImpl;
@@ -377,6 +379,7 @@ class TracingServiceImpl : public TracingService {
   void SnapshotSyncMarker(std::vector<TracePacket>*);
   void SnapshotClocks(std::vector<TracePacket>*);
   void SnapshotStats(TracingSession*, std::vector<TracePacket>*);
+  TraceStats GetTraceStats(TracingSession* tracing_session);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);

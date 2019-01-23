@@ -1374,4 +1374,33 @@ TEST_F(TracingServiceImplTest, AbortIfTraceDurationIsTooLong) {
   consumer->WaitForTracingDisabled(5000);
 }
 
+TEST_F(TracingServiceImplTest, GetTraceStats) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  consumer->GetTraceStats();
+  consumer->WaitForTraceStats(false);
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  consumer->GetTraceStats();
+  consumer->WaitForTraceStats(true);
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
 }  // namespace perfetto

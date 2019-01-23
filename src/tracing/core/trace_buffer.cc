@@ -90,6 +90,7 @@ bool TraceBuffer::Initialize(size_t size) {
     return false;
   }
   size_ = size;
+  stats_.set_buffer_size(size);
   max_chunk_size_ = std::min(size, ChunkRecord::kMaxSize);
   wptr_ = begin();
   index_.clear();
@@ -115,7 +116,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   const size_t record_size =
       base::AlignUp<sizeof(ChunkRecord)>(size + sizeof(ChunkRecord));
   if (PERFETTO_UNLIKELY(record_size > max_chunk_size_)) {
-    stats_.abi_violations++;
+    stats_.set_abi_violations(stats_.abi_violations() + 1);
     PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     return;
   }
@@ -162,7 +163,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
                           prev->size != record_size ||
                           prev->num_fragments > num_fragments ||
                           (prev->flags & chunk_flags) != prev->flags)) {
-      stats_.abi_violations++;
+      stats_.set_abi_violations(stats_.abi_violations() + 1);
       PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
       return;
     }
@@ -179,7 +180,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     const auto subsequent_it = index_.find(subsequent_key);
     if (subsequent_it != index_.end() &&
         subsequent_it->second.num_fragments_read > 0) {
-      stats_.abi_violations++;
+      stats_.set_abi_violations(stats_.abi_violations() + 1);
       PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
       return;
     }
@@ -217,7 +218,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
                       wptr - begin() + record_size, record_size);
     WriteChunkRecord(wptr, record, src, size);
     TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr, record_size).c_str());
-    stats_.chunks_rewritten++;
+    stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
     return;
   }
 
@@ -229,7 +230,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     PERFETTO_DCHECK(res <= cached_size_to_end);
     AddPaddingRecord(cached_size_to_end);
     wptr_ = begin();
-    stats_.write_wrap_count++;
+    stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
     PERFETTO_DCHECK(size_to_end() >= record_size);
   }
 
@@ -256,8 +257,8 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   size_t padding_size = DeleteNextChunksFor(record_size);
 
   // Now first insert the new chunk. At the end, if necessary, add the padding.
-  stats_.chunks_written++;
-  stats_.bytes_written += size;
+  stats_.set_chunks_written(stats_.chunks_written() + 1);
+  stats_.set_bytes_written(stats_.bytes_written() + record_size);
   auto it_and_inserted = index_.emplace(
       key, ChunkMeta(GetChunkRecordAt(wptr_), num_fragments, chunk_complete,
                      chunk_flags, producer_uid_trusted));
@@ -270,7 +271,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   if (wptr_ >= end()) {
     PERFETTO_DCHECK(padding_size == 0);
     wptr_ = begin();
-    stats_.write_wrap_count++;
+    stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
   }
   DcheckIsAlignedAndWithinBounds(wptr_);
 
@@ -293,7 +294,8 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   if (chunk_id - last_chunk_id < kMaxChunkID / 2) {
     last_chunk_id = chunk_id;
   } else {
-    stats_.chunks_committed_out_of_order++;
+    stats_.set_chunks_committed_out_of_order(
+        stats_.chunks_committed_out_of_order() + 1);
   }
 
   if (padding_size)
@@ -335,8 +337,11 @@ size_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
       bool removed = false;
       if (PERFETTO_LIKELY(it != index_.end())) {
         const ChunkMeta& meta = it->second;
-        if (PERFETTO_UNLIKELY(meta.num_fragments_read < meta.num_fragments))
-          stats_.chunks_overwritten++;
+        if (PERFETTO_UNLIKELY(meta.num_fragments_read < meta.num_fragments)) {
+          stats_.set_chunks_overwritten(stats_.chunks_overwritten() + 1);
+          stats_.set_bytes_overwritten(stats_.bytes_overwritten() +
+                                       next_chunk.size);
+        }
         index_.erase(it);
         removed = true;
       }
@@ -346,6 +351,9 @@ size_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
                         next_chunk_ptr - begin(),
                         next_chunk_ptr - begin() + next_chunk.size, removed);
       PERFETTO_DCHECK(removed);
+    } else {
+      stats_.set_padding_bytes_cleared(stats_.padding_bytes_cleared() +
+                                       next_chunk.size);
     }
 
     next_chunk_ptr += next_chunk.size;
@@ -367,6 +375,7 @@ void TraceBuffer::AddPaddingRecord(size_t size) {
   TRACE_BUFFER_DLOG("AddPaddingRecord @ [%lu - %lu] %zu", wptr_ - begin(),
                     wptr_ - begin() + size, size);
   WriteChunkRecord(wptr_, record, nullptr, size - sizeof(ChunkRecord));
+  stats_.set_padding_bytes_written(stats_.padding_bytes_written() + size);
   // |wptr_| is deliberately not advanced when writing a padding record.
 }
 
@@ -379,7 +388,7 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
   ChunkMeta::Key key(producer_id, writer_id, chunk_id);
   auto it = index_.find(key);
   if (it == index_.end()) {
-    stats_.patches_failed++;
+    stats_.set_patches_failed(stats_.patches_failed() + 1);
     return false;
   }
   ChunkMeta& chunk_meta = it->second;
@@ -409,7 +418,7 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
         ptr > chunk_end - Patch::kSize) {
       // Either the IPC was so slow and in the meantime the writer managed to
       // wrap over |chunk_id| or the producer sent a malicious IPC.
-      stats_.patches_failed++;
+      stats_.set_patches_failed(stats_.patches_failed() + 1);
       return false;
     }
 
@@ -425,7 +434,7 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
       "Chunk raw (after patch): %s",
       HexDump(chunk_begin, chunk_meta.chunk_record->size).c_str());
 
-  stats_.patches_succeeded += patches_size;
+  stats_.set_patches_succeeded(stats_.patches_succeeded() + patches_size);
   if (!other_patches_pending) {
     chunk_meta.flags &= ~kChunkNeedsPatching;
     chunk_meta.chunk_record->flags = chunk_meta.flags;
@@ -617,7 +626,7 @@ bool TraceBuffer::ReadNextTracePacket(TracePacket* packet,
         // In extremely rare cases (producer bugged / malicious) the chunk might
         // contain an invalid fragment. In such case we don't want to stall the
         // sequence but just skip the chunk and move on.
-        stats_.abi_violations++;
+        stats_.set_abi_violations(stats_.abi_violations() + 1);
         PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
         break;
       }
@@ -625,7 +634,7 @@ bool TraceBuffer::ReadNextTracePacket(TracePacket* packet,
       PERFETTO_DCHECK(action == kTryReadAhead);
       ReadAheadResult ra_res = ReadAhead(packet);
       if (ra_res == ReadAheadResult::kSucceededReturnSlices) {
-        stats_.readaheads_succeeded++;
+        stats_.set_readaheads_succeeded(stats_.readaheads_succeeded() + 1);
         *producer_uid = trusted_uid;
         return true;
       }
@@ -633,7 +642,7 @@ bool TraceBuffer::ReadNextTracePacket(TracePacket* packet,
       if (ra_res == ReadAheadResult::kFailedMoveToNextSequence) {
         // readahead didn't find a contigous packet sequence. We'll try again
         // on the next ReadPacket() call.
-        stats_.readaheads_failed++;
+        stats_.set_readaheads_failed(stats_.readaheads_failed() + 1);
 
         // TODO(primiano): optimization: this MoveToEnd() is the reason why
         // MoveNext() (that is called in the outer for(;;MoveNext)) needs to
@@ -723,7 +732,7 @@ TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {
     PERFETTO_DCHECK(read_iter_.cur == it.cur);
 
     if (PERFETTO_UNLIKELY(packet_corruption)) {
-      stats_.abi_violations++;
+      stats_.set_abi_violations(stats_.abi_violations() + 1);
       PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
       *packet = TracePacket();  // clear.
       return ReadAheadResult::kFailedStayOnSameSequence;
@@ -749,7 +758,7 @@ bool TraceBuffer::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
                         packet_begin >= record_end)) {
     // The producer has a bug or is malicious and did declare that the chunk
     // contains more packets beyond its boundaries.
-    stats_.abi_violations++;
+    stats_.set_abi_violations(stats_.abi_violations() + 1);
     PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     return false;
   }
@@ -767,18 +776,30 @@ bool TraceBuffer::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
   const uint8_t* next_packet = packet_data + packet_size;
   if (PERFETTO_UNLIKELY(next_packet <= packet_begin ||
                         next_packet > record_end)) {
-    stats_.abi_violations++;
+    stats_.set_abi_violations(stats_.abi_violations() + 1);
     PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     chunk_meta->cur_fragment_offset = 0;
     chunk_meta->num_fragments_read = chunk_meta->num_fragments;
+    if (PERFETTO_LIKELY(chunk_meta->is_complete)) {
+      stats_.set_chunks_read(stats_.chunks_read() + 1);
+      stats_.set_bytes_read(stats_.bytes_read() +
+                            chunk_meta->chunk_record->size);
+    }
     return false;
   }
   chunk_meta->cur_fragment_offset =
       static_cast<uint16_t>(next_packet - packets_begin);
   chunk_meta->num_fragments_read++;
 
+  if (PERFETTO_UNLIKELY(chunk_meta->num_fragments_read ==
+                            chunk_meta->num_fragments &&
+                        chunk_meta->is_complete)) {
+    stats_.set_chunks_read(stats_.chunks_read() + 1);
+    stats_.set_bytes_read(stats_.bytes_read() + chunk_meta->chunk_record->size);
+  }
+
   if (PERFETTO_UNLIKELY(packet_size == 0)) {
-    stats_.abi_violations++;
+    stats_.set_abi_violations(stats_.abi_violations() + 1);
     PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
     return false;
   }

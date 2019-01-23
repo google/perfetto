@@ -67,6 +67,7 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   void Flush(uint32_t timeout_ms, FlushCallback) override;
   void Detach(const std::string& key) override;
   void Attach(const std::string& key) override;
+  void GetTraceStats() override;
 
   // ipc::ServiceProxy::EventListener implementation.
   // These methods are invoked by the IPC layer, which knows nothing about

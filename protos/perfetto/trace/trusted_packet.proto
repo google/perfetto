@@ -26,9 +26,9 @@
 syntax = "proto3";
 option optimize_for = LITE_RUNTIME;
 
+import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 import "perfetto/trace/clock_snapshot.proto";
-import "perfetto/trace/trace_stats.proto";
 
 package perfetto.protos;
 

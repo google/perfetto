@@ -29,6 +29,7 @@
 #include "perfetto/base/paged_memory.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/slice.h"
+#include "perfetto/tracing/core/trace_stats.h"
 
 namespace perfetto {
 
@@ -128,22 +129,6 @@ class TraceBuffer {
  public:
   static const size_t InlineChunkHeaderSize;  // For test/fake_packet.{cc,h}.
 
-  // Maintain these fields consistent with trace_stats.proto. See comments in
-  // the .proto for the semantic of these fields.
-  struct Stats {
-    uint64_t bytes_written = 0;
-    uint64_t chunks_written = 0;
-    uint64_t chunks_rewritten = 0;
-    uint64_t chunks_overwritten = 0;
-    uint64_t chunks_committed_out_of_order = 0;
-    uint64_t write_wrap_count = 0;
-    uint64_t patches_succeeded = 0;
-    uint64_t patches_failed = 0;
-    uint64_t readaheads_succeeded = 0;
-    uint64_t readaheads_failed = 0;
-    uint64_t abi_violations = 0;
-  };
-
   // Argument for out-of-band patches applied through TryPatchChunkContents().
   struct Patch {
     // From SharedMemoryABI::kPacketHeaderSize.
@@ -232,7 +217,7 @@ class TraceBuffer {
   //   P1, P5, P7, P4 (P4 cannot come after P5)
   bool ReadNextTracePacket(TracePacket*, uid_t* producer_uid);
 
-  const Stats& stats() const { return stats_; }
+  const TraceStats::BufferStats& stats() const { return stats_; }
   size_t size() const { return size_; }
 
  private:
@@ -559,7 +544,7 @@ class TraceBuffer {
   std::map<std::pair<ProducerID, WriterID>, ChunkID> last_chunk_id_written_;
 
   // Statistics about buffer usage.
-  Stats stats_;
+  TraceStats::BufferStats stats_;
 
 #if PERFETTO_DCHECK_IS_ON()
   bool changed_since_last_read_ = false;

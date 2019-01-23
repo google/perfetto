@@ -43,6 +43,7 @@ class TestHelper : public Consumer {
   void OnTraceData(std::vector<TracePacket> packets, bool has_more) override;
   void OnDetach(bool) override;
   void OnAttach(bool, const TraceConfig&) override;
+  void OnTraceStats(bool, const TraceStats&) override;
 
   void StartServiceIfRequired();
   FakeProducer* ConnectFakeProducer();

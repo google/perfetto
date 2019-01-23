@@ -706,6 +706,11 @@ void PerfettoCmd::OnAttach(bool success, const TraceConfig& trace_config) {
   }
 }
 
+void PerfettoCmd::OnTraceStats(bool /*success*/,
+                               const TraceStats& /*trace_config*/) {
+  // TODO(eseckler): Support GetTraceStats().
+}
+
 int __attribute__((visibility("default")))
 PerfettoCmdMain(int argc, char** argv) {
   g_consumer_cmd = new perfetto::PerfettoCmd();
