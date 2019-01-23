@@ -29,7 +29,6 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
   private busy = false;
   private setup = false;
   private maximumValueSeen = 0;
-  private minimumValueSeen = 0;
 
   onBoundsChange(start: number, end: number, resolution: number): void {
     this.update(start, end, resolution);
@@ -46,38 +45,99 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     this.busy = true;
     if (!this.setup) {
       const result = await this.query(`
-      select max(value), min(value) from
+      select max(value) from
         counters where name = 'cpufreq'
         and ref = ${this.config.cpu}`);
       this.maximumValueSeen = +result.columns[0].doubleValues![0];
-      this.minimumValueSeen = +result.columns[1].doubleValues![0];
+
+      await this.query(
+        `create virtual table ${this.tableName('window')} using window;`);
+
+      await this.query(`create view ${this.tableName('freq')}
+          as select
+            ts,
+            dur,
+            ref as cpu,
+            name as freq_name,
+            value as freq_value
+          from counters
+          where name = 'cpufreq'
+            and ref = ${this.config.cpu}
+            and ref_type = 'cpu';
+      `);
+
+      await this.query(`create view ${this.tableName('idle')}
+        as select
+          ts,
+          dur,
+          ref as cpu,
+          name as idle_name,
+          value as idle_value
+        from counters
+        where name = 'cpuidle'
+          and ref = ${this.config.cpu}
+          and ref_type = 'cpu';
+      `);
+
+      await this.query(`create virtual table ${this.tableName('freq_idle')}
+              using span_join(${this.tableName('freq')} PARTITIONED cpu,
+                              ${this.tableName('idle')} PARTITIONED cpu);`);
+
+      await this.query(`create virtual table ${this.tableName('span_activity')}
+      using span_join(${this.tableName('freq_idle')} PARTITIONED cpu,
+                      ${this.tableName('window')} PARTITIONED cpu);`);
+
+      // TODO(taylori): Move the idle value processing to the TP.
+      await this.query(`create view ${this.tableName('activity')}
+      as select
+        ts,
+        dur,
+        quantum_ts,
+        cpu,
+        case idle_value
+          when 4294967295 then -1
+          else idle_value
+        end as idle,
+        freq_value as freq
+        from ${this.tableName('span_activity')};
+      `);
+
       this.setup = true;
     }
 
-    // TODO(hjd): Implement window clipping.
-    const query = `select ts, value from counters
-        where ${startNs} <= ts_end and ts <= ${endNs}
-        and name = 'cpufreq' and ref = ${this.config.cpu};`;
-    const rawResult = await this.query(query);
+    const windowDur = Math.max(1, endNs - startNs);
 
-    const numRows = +rawResult.numRecords;
+    this.query(`update ${this.tableName('window')} set
+      window_start = ${startNs},
+      window_dur = ${windowDur},
+      quantum = 0`);
 
+    // Cast as double to avoid problem where values are sometimes
+    // doubles, sometimes longs.
+    const query = `select ts, dur, cast(idle as DOUBLE), freq
+      from ${this.tableName('activity')}`;
+
+    const freqResult = await this.query(query);
+
+    const numRows = +freqResult.numRecords;
     const data: Data = {
       start,
       end,
       maximumValue: this.maximumValue(),
-      minimumValue: this.minimumValue(),
       resolution,
-      timestamps: new Float64Array(numRows),
-      valuesKHz: new Uint32Array(numRows),
+      tsStarts: new Float64Array(numRows),
+      tsEnds: new Float64Array(numRows),
+      idles: new Int8Array(numRows),
+      freqKHz: new Uint32Array(numRows),
     };
 
-    const cols = rawResult.columns;
+    const cols = freqResult.columns;
     for (let row = 0; row < numRows; row++) {
       const startSec = fromNs(+cols[0].longValues![row]);
-      const value = +cols[1].doubleValues![row];
-      data.timestamps[row] = startSec;
-      data.valuesKHz[row] = value;
+      data.tsStarts[row] = startSec;
+      data.tsEnds[row] = startSec + fromNs(+cols[1].longValues![row]);
+      data.idles[row] = +cols[2].doubleValues![row];
+      data.freqKHz[row] = +cols[3].doubleValues![row];
     }
 
     this.publish(data);
@@ -86,10 +146,6 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
 
   private maximumValue() {
     return Math.max(this.config.maximumValue || 0, this.maximumValueSeen);
-  }
-
-  private minimumValue() {
-    return Math.min(this.config.minimumValue || 0, this.minimumValueSeen);
   }
 
   private async query(query: string) {
@@ -101,7 +157,6 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     return result;
   }
 }
-
 
 
 trackControllerRegistry.register(CpuFreqTrackController);
