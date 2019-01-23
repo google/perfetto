@@ -129,7 +129,7 @@ void MockConsumer::WaitForTraceStats(bool success) {
   if (success) {
     EXPECT_CALL(*this,
                 OnTraceStats(true, testing::Property(&TraceStats::total_buffers,
-                                                     testing::Gt(0))))
+                                                     testing::Gt(0u))))
         .WillOnce(Invoke(result_callback));
   } else {
     EXPECT_CALL(*this, OnTraceStats(false, _))
