@@ -607,6 +607,9 @@ message TraceConfig {
   // Wait for this long for producers to acknowledge flush requests.
   // Default 5s.
   optional uint32 flush_timeout_ms = 14;
+
+  // Disable emitting clock timestamps into the trace.
+  optional bool disable_clock_snapshotting = 15;
 }
 
 // End of protos/perfetto/config/trace_config.proto
