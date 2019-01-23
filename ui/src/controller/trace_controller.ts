@@ -243,6 +243,8 @@ export class TraceController extends Controller<States> {
 
       // Only add a cpu freq track if we have
       // cpu freq data.
+      // TODO(taylori): Find a way to display cpu idle
+      // events even if there are no cpu freq events.
       const freqExists = await engine.query(`
         select value
         from counters
@@ -253,7 +255,7 @@ export class TraceController extends Controller<States> {
         addToTrackActions.push(Actions.addTrack({
           engineId: this.engineId,
           kind: CPU_FREQ_TRACK_KIND,
-          name: `Cpu ${cpu} frequency`,
+          name: `Cpu ${cpu} Frequency`,
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
             cpu,
@@ -296,20 +298,6 @@ export class TraceController extends Controller<States> {
         }
       }));
     }
-
-    // TODO(hjd): Find a way to show per CPU tracks.
-    // for (let cpu=0; cpu < numCpus; cpu++) {
-    //  addToTrackActions.push(Actions.addTrack({
-    //    engineId: this.engineId,
-    //    kind: 'CounterTrack',
-    //    name: `${name} (cpu: ${cpu})`,
-    //    trackGroup: SCROLLING_TRACK_GROUP,
-    //    config: {
-    //      name,
-    //      ref: cpu,
-    //    }
-    //  }));
-    //}
 
     // Local experiments shows getting maxDepth separately is ~2x faster than
     // joining with threads and processes.
