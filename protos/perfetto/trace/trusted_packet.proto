@@ -47,6 +47,7 @@ message TrustedPacket {
   oneof optional_trusted_uid { int32 trusted_uid = 3; };
 
   ClockSnapshot clock_snapshot = 6;
+  uint64 timestamp = 8;
   TraceConfig trace_config = 33;
   TraceStats trace_stats = 35;
   bytes synchronization_marker = 36;
