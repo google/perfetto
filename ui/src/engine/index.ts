@@ -19,10 +19,25 @@ import {WasmBridge, WasmBridgeRequest} from './wasm_bridge';
 // tslint:disable no-any
 // Proxy all messages to WasmBridge#callWasm.
 const anySelf = (self as any);
+
+// Messages can arrive before we are initialized, queue these for later.
+const msgQueue: MessageEvent[] = [];
+anySelf.onmessage = (msg: MessageEvent) => {
+  msgQueue.push(msg);
+};
+
 const bridge = new WasmBridge(init_trace_processor);
 bridge.whenInitialized.then(() => {
-  anySelf.onmessage = (msg: MessageEvent) => {
+  const handleMsg = (msg: MessageEvent) => {
     const request: WasmBridgeRequest = msg.data;
     anySelf.postMessage(bridge.callWasm(request));
   };
+
+  // Dispatch queued messages.
+  let msg;
+  while (msg = msgQueue.shift()) {
+    handleMsg(msg);
+  }
+
+  anySelf.onmessage = handleMsg;
 });
