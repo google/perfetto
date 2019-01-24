@@ -34,8 +34,6 @@ service ConsumerPort {
   // Enables tracing for one or more data sources. At least one buffer must have
   // been previously created. The EnableTracingResponse is sent when tracing is
   // disabled (either explicitly or because of the |duration_ms| expired).
-  // The EnableTracingResponse is sent when tracing is disabled (either
-  // explicitly or because of the |duration_ms| expired).
   // If |deferred_start| == true in the passed TraceConfig, all the tracing
   // harness is brought up (creating buffers and data sources) without actually
   // starting the data sources. Data sources will be started upon an explicit
