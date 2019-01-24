@@ -107,6 +107,13 @@ inline uint32_t ExtractSqliteValue(sqlite3_value* value) {
 }
 
 template <>
+inline int32_t ExtractSqliteValue(sqlite3_value* value) {
+  auto type = sqlite3_value_type(value);
+  PERFETTO_DCHECK(type == SQLITE_INTEGER);
+  return sqlite3_value_int(value);
+}
+
+template <>
 inline int64_t ExtractSqliteValue(sqlite3_value* value) {
   auto type = sqlite3_value_type(value);
   PERFETTO_DCHECK(type == SQLITE_INTEGER);

@@ -32,10 +32,10 @@ TEST(TaskStateUnittest, Invalid) {
 }
 
 TEST(TaskStateUnittest, Smoke) {
-  auto state = TaskState(0);
+  auto state = TaskState(static_cast<uint16_t>(0u));
   ASSERT_TRUE(state.is_valid());
 
-  ASSERT_STREQ(TaskState(0).ToString().data(), "R");
+  ASSERT_STREQ(state.ToString().data(), "R");
   ASSERT_STREQ(TaskState(1).ToString().data(), "S");
   ASSERT_STREQ(TaskState(2).ToString().data(), "D");
   ASSERT_STREQ(TaskState(4).ToString().data(), "T");
