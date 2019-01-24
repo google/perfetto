@@ -171,10 +171,14 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   std::unique_ptr<unwindstack::Regs> regs(
       CreateFromRawData(alloc_metadata->arch, alloc_metadata->register_data));
   if (regs == nullptr) {
+    unwindstack::FrameData frame_data{};
+    frame_data.function_name = "ERROR READING REGISTERS";
+    frame_data.map_name = "ERROR";
+
+    out->frames.emplace_back(frame_data, "");
     PERFETTO_DLOG("regs");
     return false;
   }
-  out->alloc_metadata = *alloc_metadata;
   uint8_t* stack = reinterpret_cast<uint8_t*>(msg->payload);
   std::shared_ptr<unwindstack::Memory> mems =
       std::make_shared<StackOverlayMemory>(metadata->fd_mem,
@@ -239,9 +243,11 @@ bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out) {
       return false;
     }
 
+    out->alloc_record.alloc_metadata = *msg.alloc_header;
     out->pid = rec->pid;
     out->record_type = BookkeepingRecord::Type::Malloc;
-    return DoUnwind(&msg, metadata.get(), &out->alloc_record);
+    DoUnwind(&msg, metadata.get(), &out->alloc_record);
+    return true;
   } else if (msg.record_type == RecordType::Free) {
     out->record_type = BookkeepingRecord::Type::Free;
     out->pid = rec->pid;
