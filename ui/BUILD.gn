@@ -34,6 +34,7 @@ group("ui") {
     ":index_dist",
     ":scss",
     ":test_scripts",
+    ":typefaces_dist",
     ":wasm_dist",
   ]
 }
@@ -270,6 +271,7 @@ node_bin("transpile_all_ts") {
 
 scss_root = "src/assets/perfetto.scss"
 scss_srcs = [
+  "src/assets/typefaces.scss",
   "src/assets/sidebar.scss",
   "src/assets/topbar.scss",
   "src/assets/record.scss",
@@ -303,6 +305,21 @@ copy("index_dist") {
   ]
   outputs = [
     "$ui_dir/index.html",
+  ]
+}
+
+copy("typefaces_dist") {
+  sources = [
+    "../buildtools/typefaces/GoogleSans-Medium.woff2",
+    "../buildtools/typefaces/GoogleSans-Regular.woff2",
+    "../buildtools/typefaces/MaterialIcons.woff2",
+    "../buildtools/typefaces/Raleway-Regular.woff2",
+    "../buildtools/typefaces/Raleway-Thin.woff2",
+    "../buildtools/typefaces/RobotoMono-Regular.woff2",
+  ]
+
+  outputs = [
+    "$ui_dir/assets/{{source_file_part}}",
   ]
 }
 
