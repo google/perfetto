@@ -161,7 +161,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
   }
   rss_members_.emplace_back(context->storage->InternString("mem.rss.file"));
   rss_members_.emplace_back(context->storage->InternString("mem.rss.anon"));
-  rss_members_.emplace_back(context->storage->InternString("mem.rss.swapents"));
+  rss_members_.emplace_back(context->storage->InternString("mem.swap"));
   rss_members_.emplace_back(context->storage->InternString("mem.rss.shmem"));
   rss_members_.emplace_back(
       context->storage->InternString("mem.rss.unknown"));  // Keep this last.
@@ -526,8 +526,6 @@ void ProtoTraceParser::ParseProcessStatsProcess(int64_t ts,
                   : fld.as_int64() * 1024;
           has_counter[fld.id] = true;
         } else {
-          PERFETTO_ELOG("Skipping unknown process stats field %" PRIu32,
-                        fld.id);
           context_->storage->IncrementStats(stats::proc_stat_unknown_counters);
         }
         break;
