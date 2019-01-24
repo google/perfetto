@@ -13,7 +13,7 @@
 // limitations under the License.
 .sidebar {
     grid-area: sidebar;
-    z-index: 2;
+    z-index: 4;
     background-color: #262f3c;
     overflow-y: auto;
     >* {
