@@ -251,6 +251,8 @@ TEST_DEPS_ANDROID = [
 # This variable is updated by tools/roll-catapult-trace-viewer.
 CATAPULT_SHA1 = 'ff5d8fd7244680b4d4456c25d5fdc04c76f9ef66'
 
+TYPEFACES_SHA1 = '756b0a015b8f99f5718f7fdf967d052c1ec55ab3'
+
 UI_DEPS = [
   ('buildtools/nodejs.tgz',
    'https://storage.googleapis.com/perfetto/node-v10.3.0-darwin-x64.tar.gz',
@@ -292,6 +294,11 @@ UI_DEPS = [
     CATAPULT_SHA1,
    'all'
   ),
+  ('buildtools/typefaces.tgz',
+   'https://storage.googleapis.com/perfetto/typefaces-%s.tar.gz' % TYPEFACES_SHA1,
+    TYPEFACES_SHA1,
+   'all'
+  )
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
