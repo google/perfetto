@@ -6,6 +6,9 @@
 ../data/android_sched_and_ps.pb b119301023.sql android_sched_and_ps_b119301023.out
 ../data/android_sched_and_ps.pb stats.sql android_sched_and_ps_stats.out
 ../data/android_sched_and_ps.pb b119496959.sql android_sched_and_ps_b119496959.out
+../data/android_sched_and_ps.pb end_reason_eq.sql android_sched_and_ps_end_reason_eq.out
+../data/android_sched_and_ps.pb end_reason_neq.sql android_sched_and_ps_end_reason_neq.out
+../data/android_sched_and_ps.pb end_reason_match.sql android_sched_and_ps_end_reason_match.out
 ../data/cpu_counters.pb b120487929.sql cpu_counters_b120487929.out
 ../data/memory_counters.pb b120278869_neg_ts_end.sql memory_counters_b120278869_neg_ts_end.out
 ../data/memory_counters.pb b120605557.sql memory_counters_b120605557.out

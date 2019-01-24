@@ -24,6 +24,73 @@ namespace perfetto {
 namespace trace_processor {
 namespace ftrace_utils {
 
+TaskState::TaskState(const char* state_str) {
+  bool invalid_char = false;
+  bool is_runnable = false;
+  for (size_t i = 0; state_str[i] != '\0'; i++) {
+    char c = state_str[i];
+    if (is_kernel_preempt()) {
+      // No other character should be encountered after '+'.
+      invalid_char = true;
+      break;
+    } else if (c == '+') {
+      state_ |= kMaxState;
+      continue;
+    }
+
+    if (is_runnable) {
+      // We should not encounter any character apart from '+' if runnable.
+      invalid_char = true;
+      break;
+    }
+
+    if (c == 'R') {
+      if (state_ != 0) {
+        // We should not encounter R if we already have set other atoms.
+        invalid_char = true;
+        break;
+      } else {
+        is_runnable = true;
+        continue;
+      }
+    }
+
+    if (c == 'S')
+      state_ |= Atom::kInterruptibleSleep;
+    else if (c == 'D')
+      state_ |= Atom::kUninterruptibleSleep;
+    else if (c == 'T')
+      state_ |= Atom::kStopped;
+    else if (c == 't')
+      state_ |= Atom::kTraced;
+    else if (c == 'X')
+      state_ |= Atom::kExitDead;
+    else if (c == 'Z')
+      state_ |= Atom::kExitZombie;
+    else if (c == 'x')
+      state_ |= Atom::kTaskDead;
+    else if (c == 'K')
+      state_ |= Atom::kWakeKill;
+    else if (c == 'W')
+      state_ |= Atom::kWaking;
+    else if (c == 'P')
+      state_ |= Atom::kParked;
+    else if (c == 'N')
+      state_ |= Atom::kNoLoad;
+    else {
+      invalid_char = true;
+      break;
+    }
+  }
+
+  bool no_state = !is_runnable && state_ == 0;
+  if (invalid_char || no_state) {
+    state_ = 0;
+  } else {
+    state_ |= kValid;
+  }
+}
+
 TaskState::TaskStateStr TaskState::ToString() const {
   PERFETTO_CHECK(is_valid());
 
