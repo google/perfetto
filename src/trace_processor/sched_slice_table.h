@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SCHED_SLICE_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SCHED_SLICE_TABLE_H_
 
+#include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/storage_table.h"
 
 namespace perfetto {
@@ -37,6 +38,33 @@ class SchedSliceTable : public StorageTable {
 
  private:
   uint32_t EstimateQueryCost(const QueryConstraints& cs);
+
+  class EndStateColumn : public StorageColumn {
+   public:
+    EndStateColumn(std::string col_name,
+                   const std::deque<ftrace_utils::TaskState>* deque);
+    ~EndStateColumn() override;
+
+    void ReportResult(sqlite3_context*, uint32_t row) const override;
+
+    void Filter(int op, sqlite3_value*, FilteredRowIndex*) const override;
+
+    Comparator Sort(const QueryConstraints::OrderBy&) const override;
+
+    Table::ColumnType GetType() const override;
+
+   private:
+    static constexpr uint16_t kNumStateStrings =
+        ftrace_utils::TaskState::kMaxState + 1;
+    std::array<ftrace_utils::TaskState::TaskStateStr, kNumStateStrings>
+        state_strings_;
+
+    void FilterOnState(int op,
+                       sqlite3_value* value,
+                       FilteredRowIndex* index) const;
+
+    const std::deque<ftrace_utils::TaskState>* deque_ = nullptr;
+  };
 
   const TraceStorage* const storage_;
 };
