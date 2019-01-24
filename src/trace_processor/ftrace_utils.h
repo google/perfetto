@@ -33,18 +33,6 @@ class TaskState {
  public:
   using TaskStateStr = std::array<char, 4>;
 
-  TaskState() = default;
-  TaskState(uint16_t raw_state) : state_(raw_state | kValid) {}
-
-  // Returns if this TaskState has a valid representation.
-  bool is_valid() const { return state_ & kValid; }
-
-  // Returns the string representation of this (valid) TaskState. This array
-  // is null terminated.
-  // Note: This function CHECKs that |IsValid()| is true.
-  TaskStateStr ToString() const;
-
- private:
   // The ordering and values of these fields comes from the kernel in the file
   // https://android.googlesource.com/kernel/msm.git/+/android-msm-wahoo-4.4-pie-qpr1/include/linux/sched.h#212
   enum Atom : uint16_t {
@@ -65,11 +53,31 @@ class TaskState {
     kValid = 0x8000,
   };
 
+  TaskState() = default;
+  explicit TaskState(uint16_t raw_state) : state_(raw_state | kValid) {}
+  explicit TaskState(const char* state_str);
+
+  // Returns if this TaskState has a valid representation.
+  bool is_valid() const { return state_ & kValid; }
+
+  // Returns the string representation of this (valid) TaskState. This array
+  // is null terminated.
+  // Note: This function CHECKs that |is_valid()| is true.
+  TaskStateStr ToString() const;
+
+  // Returns the raw state this class was created from.
+  uint16_t raw_state() const {
+    PERFETTO_DCHECK(is_valid());
+    return state_ & ~kValid;
+  }
+
+  // Returns if this TaskState is runnable.
   bool is_runnable() const { return (state_ & (kMaxState - 1)) == 0; }
 
   // Returns whether kernel preemption caused the exit state.
   bool is_kernel_preempt() const { return state_ & kMaxState; }
 
+ private:
   uint16_t state_ = 0;
 };
 

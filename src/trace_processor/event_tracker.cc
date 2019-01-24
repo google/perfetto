@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/event_tracker.h"
 #include "perfetto/base/utils.h"
+#include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -60,8 +61,11 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
     slices->set_duration(idx, duration);
 
     if (prev_pid == pending_slice->pid) {
-      // TODO(lalitm): make use of prev_state.
-      perfetto::base::ignore_result(prev_state);
+      // We store the state as a uint16 as we only consider values up to 2048
+      // when unpacking the information inside; this allows savings of 48 bits
+      // per slice.
+      slices->set_end_state(
+          idx, ftrace_utils::TaskState(static_cast<uint16_t>(prev_state)));
     } else {
       // If the this events previous pid does not match the previous event's
       // next pid, make a note of this.
@@ -73,10 +77,9 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
   auto utid =
       context_->process_tracker->UpdateThread(timestamp, next_pid, name_id);
 
-  // TODO(lalitm): make use of next_priority.
-  perfetto::base::ignore_result(next_priority);
   pending_slice->storage_index =
-      slices->AddSlice(cpu, timestamp, 0 /* duration */, utid);
+      slices->AddSlice(cpu, timestamp, 0 /* duration */, utid,
+                       ftrace_utils::TaskState(), next_priority);
   pending_slice->pid = next_pid;
 }
 
