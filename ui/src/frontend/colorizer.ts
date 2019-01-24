@@ -62,11 +62,16 @@ export function hueForCpu(cpu: number): number {
   return (128 + (32 * cpu)) % 256;
 }
 
+
+export function colorForTid(tid: number) {
+  const colorIdx = hash(tid.toString(), MD_PALETTE.length);
+  return Object.assign({}, MD_PALETTE[colorIdx]);
+}
+
 export function colorForThread(thread: ThreadDesc|undefined): Color {
   if (thread === undefined) {
     return Object.assign({}, GREY_COLOR);
   }
-  const hashKey = thread.pid ? thread.pid : thread.tid;
-  const colorIdx = hash(hashKey.toString(), MD_PALETTE.length);
-  return Object.assign({}, MD_PALETTE[colorIdx]);
+  const tid = thread.pid ? thread.pid : thread.tid;
+  return colorForTid(tid);
 }
