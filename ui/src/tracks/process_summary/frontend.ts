@@ -15,6 +15,7 @@
 import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
+import {colorForTid} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -41,11 +42,9 @@ class ProcessSummaryTrack extends Track<Config, Data> {
   }
 
   private reqPending = false;
-  private hue: number;
 
   constructor(trackState: TrackState) {
     super(trackState);
-    this.hue = (128 + (32 * this.config.upid)) % 256;
   }
 
   // TODO(dproy): This code should be factored out.
@@ -100,7 +99,12 @@ class ProcessSummaryTrack extends Track<Config, Data> {
     let lastX = startPx;
     let lastY = bottomY;
 
-    ctx.fillStyle = `hsl(${this.hue}, 50%, 60%)`;
+    // TODO(hjd): Dedupe this math.
+    const color = colorForTid(this.config.pidForColor);
+    color.l = Math.min(color.l + 10, 60);
+    color.s -= 20;
+
+    ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
     for (let i = 0; i < data.utilizations.length; i++) {
