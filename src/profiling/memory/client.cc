@@ -107,10 +107,10 @@ bool FreePage::Add(const uint64_t addr,
   if (!l.owns_lock())
     return false;
   if (offset_ == kFreePageSize) {
-    bool success = FlushLocked(pool);
+    if (!FlushLocked(pool))
+      return false;
     // Now that we have flushed, reset to after the header.
     offset_ = 0;
-    return success;
   }
   FreePageEntry& current_entry = free_page_.entries[offset_++];
   current_entry.sequence_number = sequence_number;
