@@ -98,6 +98,7 @@ def main():
         sys.stderr.write(
           "Expected did not match actual for trace {} and query {}\n"
           .format(trace_path, query_path))
+        sys.stderr.write("Expected file: {}\n".format(expected_path))
         sys.stderr.write("Commandline: {}\n".format(' '.join(cmd)))
 
         expected_lines = expected.splitlines(True)
