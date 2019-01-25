@@ -129,10 +129,6 @@ TaskState::TaskStateStr TaskState::ToString() const {
   if (is_kernel_preempt())
     buffer[pos++] = '+';
 
-  // It is very unlikely that we have used more than the size of the string
-  // array. Double check that belief on debug builds.
-  PERFETTO_DCHECK(pos < std::tuple_size<TaskStateStr>() - 1);
-
   TaskStateStr output{};
   memcpy(output.data(), buffer, std::min(pos, output.size() - 1));
   return output;
