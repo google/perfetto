@@ -57,11 +57,22 @@ class TracePacket;
 // sequences identified by the {ProducerID, WriterID} tuple. Any given chunk
 // will only contain packets (or fragments) belonging to the same sequence.
 //
-// The buffer operates by default as a ring buffer. Chunks are (over-)written
-// in the same order of the CopyChunkUntrusted() calls. When overwriting old
-// content, entire chunks are overwritten or clobbered. The buffer never leaves
-// a partial chunk around. Chunks' payload is copied as-is, but their header is
-// not and is repacked in order to keep the ProducerID around.
+// The buffer operates by default as a ring buffer.
+// It has two overwrite policies:
+//  1. kOverwrite (default): if the write pointer reaches the read pointer, old
+//     unread chunks will be overwritten by new chunks.
+//  2. kDiscard: if the write pointer reaches the read pointer, unread chunks
+//     are preserved and the new chunks are discarded. Any future write becomes
+//     a no-op, even if the reader manages to fully catch up. This is because
+//     once a chunk is discarded, the sequence of packets is broken and trying
+//     to recover would be too hard (also due to the fact that, at the same
+//     time, we allow out-of-order commits and chunk re-writes).
+//
+// Chunks are (over)written in the same order of the CopyChunkUntrusted() calls.
+// When overwriting old content, entire chunks are overwritten or clobbered.
+// The buffer never leaves a partial chunk around. Chunks' payload is copied
+// as-is, but their header is not and is repacked in order to keep the
+// ProducerID around.
 //
 // Chunks are stored in the buffer next to each other. Each chunk is prefixed by
 // an inline header (ChunkRecord), which contains most of the fields of the
@@ -129,6 +140,9 @@ class TraceBuffer {
  public:
   static const size_t InlineChunkHeaderSize;  // For test/fake_packet.{cc,h}.
 
+  // See comment in the header above.
+  enum OverwritePolicy { kOverwrite, kDiscard };
+
   // Argument for out-of-band patches applied through TryPatchChunkContents().
   struct Patch {
     // From SharedMemoryABI::kPacketHeaderSize.
@@ -139,7 +153,8 @@ class TraceBuffer {
   };
 
   // Can return nullptr if the memory allocation fails.
-  static std::unique_ptr<TraceBuffer> Create(size_t size_in_bytes);
+  static std::unique_ptr<TraceBuffer> Create(size_t size_in_bytes,
+                                             OverwritePolicy = kOverwrite);
 
   ~TraceBuffer();
 
@@ -329,8 +344,8 @@ class TraceBuffer {
           flags{f},
           num_fragments{p} {}
 
-    ChunkRecord* const chunk_record;   // Addr of ChunkRecord within |data_|.
-    const uid_t trusted_uid;           // uid of the producer.
+    ChunkRecord* const chunk_record;  // Addr of ChunkRecord within |data_|.
+    const uid_t trusted_uid;          // uid of the producer.
 
     // If true, the chunk state was kChunkComplete at the time it was copied. If
     // false, the chunk was still kChunkBeingWritten while copied. |is_complete|
@@ -341,10 +356,10 @@ class TraceBuffer {
     // Copied here for performance reasons (avoids having to dereference
     // |chunk_record| while iterating over ChunkMeta) and to aid debugging in
     // case the buffer gets corrupted.
-    uint8_t flags = 0;                 // See SharedMemoryABI::flags.
-    uint16_t num_fragments = 0;        // Total number of packet fragments.
+    uint8_t flags = 0;           // See SharedMemoryABI::flags.
+    uint16_t num_fragments = 0;  // Total number of packet fragments.
 
-    uint16_t num_fragments_read = 0;   // Number of fragments already read.
+    uint16_t num_fragments_read = 0;  // Number of fragments already read.
 
     // The start offset of the next fragment (the |num_fragments_read|-th) to be
     // read. This is the offset in bytes from the beginning of the ChunkRecord's
@@ -417,7 +432,7 @@ class TraceBuffer {
     kFailedStayOnSameSequence,
   };
 
-  TraceBuffer();
+  explicit TraceBuffer(OverwritePolicy);
   TraceBuffer(const TraceBuffer&) = delete;
   TraceBuffer& operator=(const TraceBuffer&) = delete;
 
@@ -448,9 +463,14 @@ class TraceBuffer {
   ReadAheadResult ReadAhead(TracePacket*);
 
   // Deletes (by marking the record invalid and removing form the index) all
-  // chunks from |wptr_| to |wptr_| + |bytes_to_clear|. Returns the size of the
-  // gap left between the next valid Chunk and the end of the deletion range, or
-  // 0 if such next valid chunk doesn't exist (if the buffer is still zeroed).
+  // chunks from |wptr_| to |wptr_| + |bytes_to_clear|.
+  // Returns:
+  //   * The size of the gap left between the next valid Chunk and the end of
+  //     the deletion range.
+  //   * 0 if no next valid chunk exists (if the buffer is still zeroed).
+  //   * -1 if the buffer |overwrite_policy_| == kDiscard and the deletion would
+  //     cause unread chunks to be overwritten. In this case the buffer is left
+  //     untouched.
   // Graphically, assume the initial situation is the following (|wptr_| = 10).
   // |0        |10 (wptr_)       |30       |40                 |60
   // +---------+-----------------+---------+-------------------+---------+
@@ -460,7 +480,7 @@ class TraceBuffer {
   //
   // A call to DeleteNextChunksFor(32) will remove chunks 2,3,4 and return 18
   // (60 - 42), the distance between chunk 5 and the end of the deletion range.
-  size_t DeleteNextChunksFor(size_t bytes_to_clear);
+  ssize_t DeleteNextChunksFor(size_t bytes_to_clear);
 
   // Decodes the boundaries of the next packet (or a fragment) pointed by
   // ChunkMeta and pushes that into |TracePacket|. It also increments the
@@ -483,6 +503,8 @@ class TraceBuffer {
         static_cast<size_t>(ptr + sizeof(ChunkRecord) - begin()));
     return reinterpret_cast<ChunkRecord*>(ptr);
   }
+
+  void DiscardWrite();
 
   // |src| can be nullptr (in which case |size| must be ==
   // record.size - sizeof(ChunkRecord)), for the case of writing a padding
@@ -533,6 +555,13 @@ class TraceBuffer {
   // Read iterator used for ReadNext(). It is reset by calling BeginRead().
   // It becomes invalid after any call to methods that alters the |index_|.
   SequenceIterator read_iter_;
+
+  // See comments at the top of the file.
+  OverwritePolicy overwrite_policy_ = kOverwrite;
+
+  // Only used when |overwrite_policy_ == kDiscard|. This is set the first time
+  // a write fails because it would overwrite unread chunks.
+  bool discard_writes_ = false;
 
   // Keeps track of the highest ChunkID written for a given sequence, taking
   // into account a potential overflow of ChunkIDs. In the case of overflow,

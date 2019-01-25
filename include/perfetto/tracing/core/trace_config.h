@@ -71,6 +71,7 @@ class PERFETTO_EXPORT TraceConfig {
     enum FillPolicy {
       UNSPECIFIED = 0,
       RING_BUFFER = 1,
+      DISCARD = 2,
     };
     BufferConfig();
     ~BufferConfig();

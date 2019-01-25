@@ -491,9 +491,17 @@ message TraceConfig {
 
     enum FillPolicy {
       UNSPECIFIED = 0;
+
+      // Default behavior. The buffer operates as a conventional ring buffer.
+      // If the writer is faster than the reader (or if the reader reads only
+      // after tracing is stopped) newly written packets will overwrite old
+      // packets.
       RING_BUFFER = 1;
-      // TODO: not implemented yet.
-      // STOP_WHEN_FULL = 2;
+
+      // Behaves like RING_BUFFER as long as there is space in the buffer or
+      // the reader catches up with the writer. As soon as the writer hits
+      // an unread chunk, it stops accepting new data in the buffer.
+      DISCARD = 2;
     }
     optional FillPolicy fill_policy = 4;
   }
