@@ -93,8 +93,8 @@ export function* rawQueryResultIter(result: RawQueryResult) {
   }
 }
 
-export const NUM: number = 0;
-export const STR: string = 'str';
+export const NUM = 0;
+export const STR = 'str';
 export const NUM_NULL: number|null = 1;
 export const STR_NULL: string|null = 'str_null';
 
