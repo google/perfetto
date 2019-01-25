@@ -39,6 +39,7 @@ ftrace_proto_names = [
   "mm_event.proto",
   "oom.proto",
   "power.proto",
+  "raw_syscalls.proto",
   "regulator.proto",
   "sched.proto",
   "signal.proto",
