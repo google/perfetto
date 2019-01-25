@@ -1774,6 +1774,8 @@ message FtraceEvent {
     // removed field with id 326
     GenericFtraceEvent generic = 327;
     MmEventRecordFtraceEvent mm_event_record = 328;
+    SysEnterFtraceEvent sys_enter = 329;
+    SysExitFtraceEvent sys_exit = 330;
   }
 }
 
@@ -2159,6 +2161,18 @@ message SuspendResumeFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/power.proto
+
+// Begin of protos/perfetto/trace/ftrace/raw_syscalls.proto
+
+message SysEnterFtraceEvent {
+  optional int64 id = 1;
+}
+message SysExitFtraceEvent {
+  optional int64 id = 1;
+  optional int64 ret = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/raw_syscalls.proto
 
 // Begin of protos/perfetto/trace/ftrace/sched.proto
 
