@@ -30,8 +30,11 @@ base::Optional<Table::Schema> StorageTable::Init(int, const char* const*) {
 std::unique_ptr<Table::Cursor> StorageTable::CreateCursor(
     const QueryConstraints& qc,
     sqlite3_value** argv) {
+  auto iterator = CreateBestRowIterator(qc, argv);
+  if (!iterator)
+    return nullptr;
   return std::unique_ptr<Cursor>(
-      new Cursor(CreateBestRowIterator(qc, argv), schema_.mutable_columns()));
+      new Cursor(std::move(iterator), schema_.mutable_columns()));
 }
 
 std::unique_ptr<RowIterator> StorageTable::CreateBestRowIterator(
@@ -47,6 +50,11 @@ std::unique_ptr<RowIterator> StorageTable::CreateBestRowIterator(
 
   // Create the range iterator and if we are sorted, just return it.
   auto index = CreateRangeIterator(cs, argv);
+  if (!index.error().empty()) {
+    SetErrorMessage(sqlite3_mprintf(index.error().c_str()));
+    return nullptr;
+  }
+
   if (is_ordered)
     return index.ToRowIterator(is_desc);
 
@@ -89,6 +97,9 @@ FilteredRowIndex StorageTable::CreateRangeIterator(
 
     const auto& schema_col = schema_.GetColumn(static_cast<size_t>(c.iColumn));
     schema_col.Filter(c.op, value, &index);
+
+    if (!index.error().empty())
+      break;
   }
   return index;
 }
