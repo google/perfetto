@@ -3615,6 +3615,25 @@ std::vector<Event> GetStaticEventInfo() {
   {
     events.emplace_back(Event{});
     Event* event = &events.back();
+    event->name = "sys_enter";
+    event->group = "raw_syscalls";
+    event->proto_field_id = 329;
+    event->fields.push_back(MakeField("id", 1, ProtoSchemaType::kInt64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
+    event->name = "sys_exit";
+    event->group = "raw_syscalls";
+    event->proto_field_id = 330;
+    event->fields.push_back(MakeField("id", 1, ProtoSchemaType::kInt64));
+    event->fields.push_back(MakeField("ret", 2, ProtoSchemaType::kInt64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
     event->name = "regulator_disable";
     event->group = "regulator";
     event->proto_field_id = 60;

@@ -323,3 +323,5 @@ signal/signal_deliver
 signal/signal_generate
 oom/oom_score_adj_update
 mm_event/mm_event_record
+raw_syscalls/sys_enter
+raw_syscalls/sys_exit

@@ -24,6 +24,7 @@ import "perfetto/trace/ftrace/mdss.proto";
 import "perfetto/trace/ftrace/mm_event.proto";
 import "perfetto/trace/ftrace/oom.proto";
 import "perfetto/trace/ftrace/power.proto";
+import "perfetto/trace/ftrace/raw_syscalls.proto";
 import "perfetto/trace/ftrace/regulator.proto";
 import "perfetto/trace/ftrace/sched.proto";
 import "perfetto/trace/ftrace/signal.proto";
@@ -389,5 +390,7 @@ message FtraceEvent {
     OomScoreAdjUpdateFtraceEvent oom_score_adj_update = 326;
     GenericFtraceEvent generic = 327;
     MmEventRecordFtraceEvent mm_event_record = 328;
+    SysEnterFtraceEvent sys_enter = 329;
+    SysExitFtraceEvent sys_exit = 330;
   }
 }
