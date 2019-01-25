@@ -23,7 +23,7 @@ package perfetto.protos;
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 18.
+  // Next id: 19.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -71,6 +71,10 @@ message TraceStats {
 
     // Num. chunks overwritten before they have been read (i.e. loss of data).
     optional uint64 chunks_overwritten = 3;
+
+    // Num. chunks discarded (i.e. loss of data). Can be > 0 only when a buffer
+    // is configured with FillPolicy == DISCARD.
+    optional uint64 chunks_discarded = 18;
 
     // Num. chunks (!= packets) that were fully read from the circular buffer by
     // the consumer. This may not be equal to |chunks_written| either in the

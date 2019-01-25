@@ -180,6 +180,11 @@ void TraceStats::BufferStats::FromProto(
   chunks_overwritten_ =
       static_cast<decltype(chunks_overwritten_)>(proto.chunks_overwritten());
 
+  static_assert(sizeof(chunks_discarded_) == sizeof(proto.chunks_discarded()),
+                "size mismatch");
+  chunks_discarded_ =
+      static_cast<decltype(chunks_discarded_)>(proto.chunks_discarded());
+
   static_assert(sizeof(chunks_read_) == sizeof(proto.chunks_read()),
                 "size mismatch");
   chunks_read_ = static_cast<decltype(chunks_read_)>(proto.chunks_read());
@@ -278,6 +283,11 @@ void TraceStats::BufferStats::ToProto(
       "size mismatch");
   proto->set_chunks_overwritten(
       static_cast<decltype(proto->chunks_overwritten())>(chunks_overwritten_));
+
+  static_assert(sizeof(chunks_discarded_) == sizeof(proto->chunks_discarded()),
+                "size mismatch");
+  proto->set_chunks_discarded(
+      static_cast<decltype(proto->chunks_discarded())>(chunks_discarded_));
 
   static_assert(sizeof(chunks_read_) == sizeof(proto->chunks_read()),
                 "size mismatch");

@@ -91,6 +91,9 @@ class PERFETTO_EXPORT TraceStats {
     uint64_t chunks_overwritten() const { return chunks_overwritten_; }
     void set_chunks_overwritten(uint64_t value) { chunks_overwritten_ = value; }
 
+    uint64_t chunks_discarded() const { return chunks_discarded_; }
+    void set_chunks_discarded(uint64_t value) { chunks_discarded_ = value; }
+
     uint64_t chunks_read() const { return chunks_read_; }
     void set_chunks_read(uint64_t value) { chunks_read_ = value; }
 
@@ -131,6 +134,7 @@ class PERFETTO_EXPORT TraceStats {
     uint64_t chunks_written_ = {};
     uint64_t chunks_rewritten_ = {};
     uint64_t chunks_overwritten_ = {};
+    uint64_t chunks_discarded_ = {};
     uint64_t chunks_read_ = {};
     uint64_t chunks_committed_out_of_order_ = {};
     uint64_t write_wrap_count_ = {};
