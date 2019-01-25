@@ -130,8 +130,7 @@ void SchedSliceTable::EndStateColumn::Filter(int op,
       FilterOnState(op, value, index);
       break;
     default:
-      // TODO(lalitm): report an error to sqlite for any other constraint.
-      index->IntersectRows({});
+      index->set_error("Unsupported op given to filter on end_state");
       break;
   }
 }
@@ -141,16 +140,14 @@ void SchedSliceTable::EndStateColumn::FilterOnState(
     sqlite3_value* value,
     FilteredRowIndex* index) const {
   if (sqlite3_value_type(value) != SQLITE_TEXT) {
-    // TODO(lalitm): report an error to sqlite for any other constraint.
-    index->IntersectRows({});
+    index->set_error("end_state can only be filtered using strings");
     return;
   }
 
   const char* str = reinterpret_cast<const char*>(sqlite3_value_text(value));
   ftrace_utils::TaskState compare(str);
   if (!compare.is_valid()) {
-    // TODO(lalitm): report an error to sqlite for any other constraint.
-    index->IntersectRows({});
+    index->set_error("Invalid end_state string given to filter");
     return;
   }
 
