@@ -62,14 +62,15 @@ constexpr size_t TraceBuffer::ChunkRecord::kMaxSize;
 constexpr size_t TraceBuffer::InlineChunkHeaderSize = sizeof(ChunkRecord);
 
 // static
-std::unique_ptr<TraceBuffer> TraceBuffer::Create(size_t size_in_bytes) {
-  std::unique_ptr<TraceBuffer> trace_buffer(new TraceBuffer());
+std::unique_ptr<TraceBuffer> TraceBuffer::Create(size_t size_in_bytes,
+                                                 OverwritePolicy pol) {
+  std::unique_ptr<TraceBuffer> trace_buffer(new TraceBuffer(pol));
   if (!trace_buffer->Initialize(size_in_bytes))
     return nullptr;
   return trace_buffer;
 }
 
-TraceBuffer::TraceBuffer() {
+TraceBuffer::TraceBuffer(OverwritePolicy pol) : overwrite_policy_(pol) {
   // See comments in ChunkRecord for the rationale of this.
   static_assert(sizeof(ChunkRecord) == sizeof(SharedMemoryABI::PageHeader) +
                                            sizeof(SharedMemoryABI::ChunkHeader),
@@ -215,19 +216,24 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
 
     // Override the ChunkRecord contents at the original |wptr|.
     TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr - begin(),
-                      wptr - begin() + record_size, record_size);
+                      uintptr_t(wptr - begin()) + record_size, record_size);
     WriteChunkRecord(wptr, record, src, size);
     TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr, record_size).c_str());
     stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
     return;
   }
 
+  if (PERFETTO_UNLIKELY(discard_writes_))
+    return DiscardWrite();
+
   // If there isn't enough room from the given write position. Write a padding
   // record to clear the end of the buffer and wrap back.
   const size_t cached_size_to_end = size_to_end();
   if (PERFETTO_UNLIKELY(record_size > cached_size_to_end)) {
-    size_t res = DeleteNextChunksFor(cached_size_to_end);
-    PERFETTO_DCHECK(res <= cached_size_to_end);
+    ssize_t res = DeleteNextChunksFor(cached_size_to_end);
+    if (res == -1)
+      return DiscardWrite();
+    PERFETTO_DCHECK(static_cast<size_t>(res) <= cached_size_to_end);
     AddPaddingRecord(cached_size_to_end);
     wptr_ = begin();
     stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
@@ -254,7 +260,10 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   // +---------------------------------+---------------+--------------------+
 
   // Deletes all chunks from |wptr_| to |wptr_| + |record_size|.
-  size_t padding_size = DeleteNextChunksFor(record_size);
+  ssize_t del_res = DeleteNextChunksFor(record_size);
+  if (del_res == -1)
+    return DiscardWrite();
+  size_t padding_size = static_cast<size_t>(del_res);
 
   // Now first insert the new chunk. At the end, if necessary, add the padding.
   stats_.set_chunks_written(stats_.chunks_written() + 1);
@@ -264,7 +273,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
                      chunk_flags, producer_uid_trusted));
   PERFETTO_DCHECK(it_and_inserted.second);
   TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr_ - begin(),
-                    wptr_ - begin() + record_size, record_size);
+                    uintptr_t(wptr_ - begin()) + record_size, record_size);
   WriteChunkRecord(wptr_, record, src, size);
   TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr_, record_size).c_str());
   wptr_ += record_size;
@@ -302,7 +311,9 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     AddPaddingRecord(padding_size);
 }
 
-size_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
+ssize_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
+  PERFETTO_CHECK(!discard_writes_);
+
   // Find the position of the first chunk which begins at or after
   // (|wptr_| + |bytes|). Note that such a chunk might not exist and we might
   // either reach the end of the buffer or a zeroed region of the buffer.
@@ -311,6 +322,10 @@ size_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
   TRACE_BUFFER_DLOG("Delete [%zu %zu]", wptr_ - begin(), search_end - begin());
   DcheckIsAlignedAndWithinBounds(wptr_);
   PERFETTO_DCHECK(search_end <= end());
+  std::vector<ChunkMap::iterator> index_delete;
+  uint64_t chunks_overwritten = stats_.chunks_overwritten();
+  uint64_t bytes_overwritten = stats_.bytes_overwritten();
+  uint64_t padding_bytes_cleared = stats_.padding_bytes_cleared();
   while (next_chunk_ptr < search_end) {
     const ChunkRecord& next_chunk = *GetChunkRecordAt(next_chunk_ptr);
     TRACE_BUFFER_DLOG(
@@ -334,26 +349,26 @@ size_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
     if (PERFETTO_LIKELY(!next_chunk.is_padding)) {
       ChunkMeta::Key key(next_chunk);
       auto it = index_.find(key);
-      bool removed = false;
+      bool will_remove = false;
       if (PERFETTO_LIKELY(it != index_.end())) {
         const ChunkMeta& meta = it->second;
         if (PERFETTO_UNLIKELY(meta.num_fragments_read < meta.num_fragments)) {
-          stats_.set_chunks_overwritten(stats_.chunks_overwritten() + 1);
-          stats_.set_bytes_overwritten(stats_.bytes_overwritten() +
-                                       next_chunk.size);
+          if (overwrite_policy_ == kDiscard)
+            return -1;
+          chunks_overwritten++;
+          bytes_overwritten += next_chunk.size;
         }
-        index_.erase(it);
-        removed = true;
+        index_delete.push_back(it);
+        will_remove = true;
       }
       TRACE_BUFFER_DLOG("  del index {%" PRIu32 ",%" PRIu32
-                        ",%u} @ [%lu - %lu] %zu",
+                        ",%u} @ [%lu - %lu] %d",
                         key.producer_id, key.writer_id, key.chunk_id,
                         next_chunk_ptr - begin(),
                         next_chunk_ptr - begin() + next_chunk.size, removed);
-      PERFETTO_DCHECK(removed);
+      PERFETTO_DCHECK(will_remove);
     } else {
-      stats_.set_padding_bytes_cleared(stats_.padding_bytes_cleared() +
-                                       next_chunk.size);
+      padding_bytes_cleared += next_chunk.size;
     }
 
     next_chunk_ptr += next_chunk.size;
@@ -364,8 +379,17 @@ size_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
     // buffer, to get more actionable bugs in case we hit this.
     PERFETTO_CHECK(next_chunk_ptr <= end());
   }
+
+  // Remove from the index.
+  for (auto it : index_delete) {
+    index_.erase(it);
+  }
+  stats_.set_chunks_overwritten(chunks_overwritten);
+  stats_.set_bytes_overwritten(bytes_overwritten);
+  stats_.set_padding_bytes_cleared(padding_bytes_cleared);
+
   PERFETTO_DCHECK(next_chunk_ptr >= search_end && next_chunk_ptr <= end());
-  return static_cast<size_t>(next_chunk_ptr - search_end);
+  return static_cast<ssize_t>(next_chunk_ptr - search_end);
 }
 
 void TraceBuffer::AddPaddingRecord(size_t size) {
@@ -373,7 +397,7 @@ void TraceBuffer::AddPaddingRecord(size_t size) {
   ChunkRecord record(size);
   record.is_padding = 1;
   TRACE_BUFFER_DLOG("AddPaddingRecord @ [%lu - %lu] %zu", wptr_ - begin(),
-                    wptr_ - begin() + size, size);
+                    uintptr_t(wptr_ - begin()) + size, size);
   WriteChunkRecord(wptr_, record, nullptr, size - sizeof(ChunkRecord));
   stats_.set_padding_bytes_written(stats_.padding_bytes_written() + size);
   // |wptr_| is deliberately not advanced when writing a padding record.
@@ -808,6 +832,13 @@ bool TraceBuffer::ReadNextPacketInChunk(ChunkMeta* chunk_meta,
     packet->AddSlice(packet_data, static_cast<size_t>(packet_size));
 
   return true;
+}
+
+void TraceBuffer::DiscardWrite() {
+  PERFETTO_DCHECK(overwrite_policy_ == kDiscard);
+  discard_writes_ = true;
+  stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
+  TRACE_BUFFER_DLOG("  discarding write");
 }
 
 }  // namespace perfetto
