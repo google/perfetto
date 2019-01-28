@@ -29,6 +29,7 @@ namespace stats {
   F(android_log_num_failed,                     kSingle,  kError, kTrace),    \
   F(android_log_num_skipped,                    kSingle,  kError, kTrace),    \
   F(android_log_num_total,                      kSingle,  kInfo,  kTrace),    \
+  F(atrace_tgid_mismatch,                       kSingle,  kError, kTrace),    \
   F(clock_snapshot_not_monotonic,               kSingle,  kError, kTrace),    \
   F(counter_events_out_of_order,                kSingle,  kError, kAnalysis), \
   F(ftrace_bundle_tokenizer_errors,             kSingle,  kError, kAnalysis), \

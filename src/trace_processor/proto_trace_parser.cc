@@ -55,33 +55,33 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
   const char* s = str.data();
   size_t len = str.size();
 
-  // If str matches '[BEC]\|[0-9]+[\|\n]' set tid_length to the length of
+  // If str matches '[BEC]\|[0-9]+[\|\n]' set tgid_length to the length of
   // the number. Otherwise return false.
   if (s[1] != '|' && s[1] != '\n')
     return false;
   if (s[0] != 'B' && s[0] != 'E' && s[0] != 'C')
     return false;
-  size_t tid_length = 0;
+  size_t tgid_length = 0;
   for (size_t i = 2; i < len; i++) {
     if (s[i] == '|' || s[i] == '\n') {
-      tid_length = i - 2;
+      tgid_length = i - 2;
       break;
     }
     if (s[i] < '0' || s[i] > '9')
       return false;
   }
 
-  if (tid_length == 0) {
-    out->tid = 0;
+  if (tgid_length == 0) {
+    out->tgid = 0;
   } else {
-    std::string tid_str(s + 2, tid_length);
-    out->tid = static_cast<uint32_t>(std::stoi(tid_str.c_str()));
+    std::string tgid_str(s + 2, tgid_length);
+    out->tgid = static_cast<uint32_t>(std::stoi(tgid_str.c_str()));
   }
 
   out->phase = s[0];
   switch (s[0]) {
     case 'B': {
-      size_t name_index = 2 + tid_length + 1;
+      size_t name_index = 2 + tgid_length + 1;
       out->name = base::StringView(
           s + name_index, len - name_index - (s[len - 1] == '\n' ? 1 : 0));
       return true;
@@ -90,7 +90,7 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
       return true;
     }
     case 'C': {
-      size_t name_index = 2 + tid_length + 1;
+      size_t name_index = 2 + tgid_length + 1;
       size_t name_length = 0;
       for (size_t i = name_index; i < len; i++) {
         if (s[i] == '|' || s[i] == '\n') {
@@ -941,13 +941,13 @@ void ProtoTraceParser::ParsePrint(uint32_t,
   switch (point.phase) {
     case 'B': {
       StringId name_id = context_->storage->InternString(point.name);
-      context_->slice_tracker->BeginAndroid(timestamp, pid, point.tid,
+      context_->slice_tracker->BeginAndroid(timestamp, pid, point.tgid,
                                             0 /*cat_id*/, name_id);
       break;
     }
 
     case 'E': {
-      context_->slice_tracker->EndAndroid(timestamp, pid, point.tid);
+      context_->slice_tracker->EndAndroid(timestamp, pid, point.tgid);
       break;
     }
 
@@ -968,8 +968,7 @@ void ProtoTraceParser::ParsePrint(uint32_t,
         // TODO(tilal6991): we should not add LMK events to the counters table
         // once the UI has support for displaying instants.
       }
-      UniqueTid utid =
-          context_->process_tracker->UpdateThread(timestamp, point.tid, 0);
+      UniqueTid utid = context_->process_tracker->UpdateThread(pid, point.tgid);
       StringId name_id = context_->storage->InternString(point.name);
       context_->event_tracker->PushCounter(timestamp, point.value, name_id,
                                            utid, RefType::kRefUtid);
