@@ -48,8 +48,9 @@ class TaskState {
     kWaking = 256,
     kParked = 512,
     kNoLoad = 1024,
+    kNewTask = 2048,
 
-    kMaxState = 2048,
+    kMaxState = 4096,
     kValid = 0x8000,
   };
 
