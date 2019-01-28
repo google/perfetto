@@ -130,11 +130,11 @@ class Client {
  public:
   Client(std::vector<base::UnixSocketRaw> sockets);
   Client(const std::string& sock_name, size_t conns);
-  void RecordMalloc(uint64_t alloc_size,
+  bool RecordMalloc(uint64_t alloc_size,
                     uint64_t total_size,
                     uint64_t alloc_address);
-  void RecordFree(uint64_t alloc_address);
-  void MaybeSampleAlloc(uint64_t alloc_size,
+  bool RecordFree(uint64_t alloc_address);
+  bool MaybeSampleAlloc(uint64_t alloc_size,
                         uint64_t alloc_address,
                         void* (*unhooked_malloc)(size_t),
                         void (*unhooked_free)(void*));
@@ -144,9 +144,9 @@ class Client {
   bool inited() { return inited_; }
 
  private:
-  size_t ShouldSampleAlloc(uint64_t alloc_size,
-                           void* (*unhooked_malloc)(size_t),
-                           void (*unhooked_free)(void*));
+  ssize_t ShouldSampleAlloc(uint64_t alloc_size,
+                            void* (*unhooked_malloc)(size_t),
+                            void (*unhooked_free)(void*));
   const char* GetStackBase();
 
   std::atomic<bool> inited_{false};
