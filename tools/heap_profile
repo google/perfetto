@@ -103,7 +103,7 @@ def main(argv):
   parser.add_argument("-i", "--interval", help="Sampling interval. "
                       "Default 128000 (128kB)", type=int, default=128000)
   parser.add_argument("-d", "--duration", help="Duration of profile (ms). "
-                      "Default 1 minute", type=int, default=60000)
+                      "Default 7 days", type=int, default=604800000)
   parser.add_argument("-a", "--all", help="Profile the whole system",
                       action='store_true')
   parser.add_argument("--no-start", help="Do not start heapprofd",
