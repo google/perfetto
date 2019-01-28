@@ -33,7 +33,7 @@ class SliceTracker {
 
   void BeginAndroid(int64_t timestamp,
                     uint32_t ftrace_tid,
-                    uint32_t atrace_tid,
+                    uint32_t atrace_tgid,
                     StringId cat,
                     StringId name);
 
@@ -45,7 +45,7 @@ class SliceTracker {
               StringId name,
               int64_t duration);
 
-  void EndAndroid(int64_t timestamp, uint32_t ftrace_tid, uint32_t atrace_tid);
+  void EndAndroid(int64_t timestamp, uint32_t ftrace_tid, uint32_t atrace_tgid);
 
   void End(int64_t timestamp,
            UniqueTid utid,
@@ -67,7 +67,7 @@ class SliceTracker {
 
   TraceProcessorContext* const context_;
   std::unordered_map<UniqueTid, SlicesStack> threads_;
-  std::unordered_map<uint32_t, uint32_t> ftrace_to_atrace_pid_;
+  std::unordered_map<uint32_t, uint32_t> ftrace_to_atrace_tgid_;
 };
 
 }  // namespace trace_processor
