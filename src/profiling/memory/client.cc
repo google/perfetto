@@ -282,11 +282,12 @@ const char* Client::GetStackBase() {
 //               +------------+    |
 //               |  main      |    v
 // stackbase +-> +------------+ 0xffff
-void Client::RecordMalloc(uint64_t alloc_size,
+bool Client::RecordMalloc(uint64_t alloc_size,
                           uint64_t total_size,
                           uint64_t alloc_address) {
-  if (!inited_.load(std::memory_order_acquire))
-    return;
+  if (!inited_.load(std::memory_order_acquire)) {
+    return false;
+  }
   AllocMetadata metadata;
   const char* stackbase = GetStackBase();
   const char* stacktop = reinterpret_cast<char*>(__builtin_frame_address(0));
@@ -294,7 +295,8 @@ void Client::RecordMalloc(uint64_t alloc_size,
 
   if (stackbase < stacktop) {
     PERFETTO_DFATAL("Stackbase >= stacktop.");
-    return;
+    Shutdown();
+    return false;
   }
 
   uint64_t stack_size = static_cast<uint64_t>(stackbase - stacktop);
@@ -318,36 +320,43 @@ void Client::RecordMalloc(uint64_t alloc_size,
     PERFETTO_PLOG("Failed to send wire message.");
     sock.Shutdown();
     Shutdown();
+    return false;
   }
+  return true;
 }
 
-void Client::RecordFree(uint64_t alloc_address) {
-  if (!inited_.load(std::memory_order_acquire))
-    return;
-  if (!free_page_.Add(
-          alloc_address,
-          1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel),
-          &socket_pool_))
-    Shutdown();
-}
-
-size_t Client::ShouldSampleAlloc(uint64_t alloc_size,
-                                 void* (*unhooked_malloc)(size_t),
-                                 void (*unhooked_free)(void*)) {
+bool Client::RecordFree(uint64_t alloc_address) {
   if (!inited_.load(std::memory_order_acquire))
     return false;
-  return SampleSize(pthread_key_.get(), alloc_size, client_config_.interval,
-                    unhooked_malloc, unhooked_free);
+  bool success = free_page_.Add(
+      alloc_address,
+      1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel),
+      &socket_pool_);
+  if (!success)
+    Shutdown();
+  return success;
 }
 
-void Client::MaybeSampleAlloc(uint64_t alloc_size,
+ssize_t Client::ShouldSampleAlloc(uint64_t alloc_size,
+                                  void* (*unhooked_malloc)(size_t),
+                                  void (*unhooked_free)(void*)) {
+  if (!inited_.load(std::memory_order_acquire))
+    return -1;
+  return static_cast<ssize_t>(SampleSize(pthread_key_.get(), alloc_size,
+                                         client_config_.interval,
+                                         unhooked_malloc, unhooked_free));
+}
+
+bool Client::MaybeSampleAlloc(uint64_t alloc_size,
                               uint64_t alloc_address,
                               void* (*unhooked_malloc)(size_t),
                               void (*unhooked_free)(void*)) {
-  size_t total_size =
+  ssize_t total_size =
       ShouldSampleAlloc(alloc_size, unhooked_malloc, unhooked_free);
   if (total_size > 0)
-    RecordMalloc(alloc_size, total_size, alloc_address);
+    return RecordMalloc(alloc_size, static_cast<size_t>(total_size),
+                        alloc_address);
+  return total_size != -1;
 }
 
 void Client::Shutdown() {
