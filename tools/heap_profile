@@ -212,7 +212,8 @@ def main(argv):
 
   symlink_path = os.path.join(os.path.dirname(profile_path),
                                         "heap_profile-latest")
-  os.unlink(symlink_path)
+  if os.path.exists(symlink_path):
+    os.unlink(symlink_path)
   os.symlink(profile_path, symlink_path)
 
   print("Wrote profiles to {} (symlink {})".format(profile_path, symlink_path))
