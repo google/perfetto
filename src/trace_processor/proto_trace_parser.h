@@ -33,7 +33,7 @@ class TraceProcessorContext;
 
 struct SystraceTracePoint {
   char phase;
-  uint32_t tid;
+  uint32_t tgid;
 
   // For phase = 'B' and phase = 'C' only.
   base::StringView name;
@@ -44,8 +44,8 @@ struct SystraceTracePoint {
 
 inline bool operator==(const SystraceTracePoint& x,
                        const SystraceTracePoint& y) {
-  return std::tie(x.phase, x.tid, x.name, x.value) ==
-         std::tie(y.phase, y.tid, y.name, y.value);
+  return std::tie(x.phase, x.tgid, x.name, x.value) ==
+         std::tie(y.phase, y.tgid, y.name, y.value);
 }
 
 bool ParseSystraceTracePoint(base::StringView, SystraceTracePoint* out);

@@ -33,12 +33,12 @@ SliceTracker::~SliceTracker() = default;
 
 void SliceTracker::BeginAndroid(int64_t timestamp,
                                 uint32_t ftrace_tid,
-                                uint32_t atrace_tid,
+                                uint32_t atrace_tgid,
                                 StringId cat,
                                 StringId name) {
   UniqueTid utid =
-      context_->process_tracker->UpdateThread(timestamp, atrace_tid, 0);
-  ftrace_to_atrace_pid_[ftrace_tid] = atrace_tid;
+      context_->process_tracker->UpdateThread(ftrace_tid, atrace_tgid);
+  ftrace_to_atrace_tgid_[ftrace_tid] = atrace_tgid;
   Begin(timestamp, utid, cat, name);
 }
 
@@ -82,16 +82,23 @@ void SliceTracker::StartSlice(int64_t timestamp,
 
 void SliceTracker::EndAndroid(int64_t timestamp,
                               uint32_t ftrace_tid,
-                              uint32_t atrace_tid) {
-  uint32_t actual_tid = ftrace_to_atrace_pid_[ftrace_tid];
-  if (atrace_tid != 0 && atrace_tid != actual_tid) {
-    PERFETTO_DLOG("Mismatched atrace pid %u and looked up pid %u", atrace_tid,
-                  actual_tid);
-  }
-  if (actual_tid == 0)
+                              uint32_t atrace_tgid) {
+  auto actual_tgid_it = ftrace_to_atrace_tgid_.find(ftrace_tid);
+  if (actual_tgid_it == ftrace_to_atrace_tgid_.end()) {
+    // This is possible if we start tracing after a begin slice.
+    PERFETTO_DLOG("Unknown tgid for ftrace tid %u", ftrace_tid);
     return;
+  }
+  uint32_t actual_tgid = actual_tgid_it->second;
+  // atrace_tgid can be 0 in older android versions where the end event would
+  // not contain the value.
+  if (atrace_tgid != 0 && atrace_tgid != actual_tgid) {
+    PERFETTO_DLOG("Mismatched atrace pid %u and looked up pid %u", atrace_tgid,
+                  actual_tgid);
+    context_->storage->IncrementStats(stats::atrace_tgid_mismatch);
+  }
   UniqueTid utid =
-      context_->process_tracker->UpdateThread(timestamp, actual_tid, 0);
+      context_->process_tracker->UpdateThread(ftrace_tid, actual_tgid);
   End(timestamp, utid);
 }
 
