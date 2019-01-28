@@ -1440,9 +1440,31 @@ void ProtoTraceParser::ParseTraceStats(TraceBlobView packet) {
         ProtoDecoder buf_d(buf_data.data(), buf_data.length());
         for (auto fld2 = buf_d.ReadField(); fld2.id; fld2 = buf_d.ReadField()) {
           switch (fld2.id) {
+            case protos::TraceStats::BufferStats::kBufferSizeFieldNumber:
+              storage->SetIndexedStats(stats::traced_buf_buffer_size, buf_num,
+                                       fld2.as_int64());
+              break;
             case protos::TraceStats::BufferStats::kBytesWrittenFieldNumber:
               storage->SetIndexedStats(stats::traced_buf_bytes_written, buf_num,
                                        fld2.as_int64());
+              break;
+            case protos::TraceStats::BufferStats::kBytesOverwrittenFieldNumber:
+              storage->SetIndexedStats(stats::traced_buf_bytes_overwritten,
+                                       buf_num, fld2.as_int64());
+              break;
+            case protos::TraceStats::BufferStats::kBytesReadFieldNumber:
+              storage->SetIndexedStats(stats::traced_buf_bytes_read, buf_num,
+                                       fld2.as_int64());
+              break;
+            case protos::TraceStats::BufferStats::
+                kPaddingBytesWrittenFieldNumber:
+              storage->SetIndexedStats(stats::traced_buf_padding_bytes_written,
+                                       buf_num, fld2.as_int64());
+              break;
+            case protos::TraceStats::BufferStats::
+                kPaddingBytesClearedFieldNumber:
+              storage->SetIndexedStats(stats::traced_buf_padding_bytes_cleared,
+                                       buf_num, fld2.as_int64());
               break;
             case protos::TraceStats::BufferStats::kChunksWrittenFieldNumber:
               storage->SetIndexedStats(stats::traced_buf_chunks_written,
@@ -1459,6 +1481,10 @@ void ProtoTraceParser::ParseTraceStats(TraceBlobView packet) {
             case protos::TraceStats::BufferStats::kChunksDiscardedFieldNumber:
               storage->SetIndexedStats(stats::traced_buf_chunks_discarded,
                                        buf_num, fld2.as_int64());
+              break;
+            case protos::TraceStats::BufferStats::kChunksReadFieldNumber:
+              storage->SetIndexedStats(stats::traced_buf_chunks_read, buf_num,
+                                       fld2.as_int64());
               break;
             case protos::TraceStats::BufferStats::
                 kChunksCommittedOutOfOrderFieldNumber:
