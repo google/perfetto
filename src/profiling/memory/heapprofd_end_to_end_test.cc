@@ -148,7 +148,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
 };
 
 // TODO(b/121352331): deflake and re-enable this test.
-TEST_F(HeapprofdEndToEnd, DISABLED_Smoke) {
+TEST_F(HeapprofdEndToEnd, Smoke) {
   constexpr size_t kAllocSize = 1024;
 
   pid_t pid = ForkContinousMalloc(kAllocSize);
@@ -169,7 +169,7 @@ TEST_F(HeapprofdEndToEnd, DISABLED_Smoke) {
   heapprofd_config->mutable_continuous_dump_config()->set_dump_interval_ms(100);
 
   helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(5000);
+  helper.WaitForTracingDisabled(10000);
 
   helper.ReadData();
   helper.WaitForReadData();
@@ -190,7 +190,6 @@ TEST_F(HeapprofdEndToEnd, DISABLED_Smoke) {
       ASSERT_EQ(dumps.size(), 1);
       const protos::ProfilePacket_ProcessHeapSamples& dump = dumps.Get(0);
       EXPECT_EQ(dump.pid(), pid);
-      EXPECT_EQ(dump.samples().size(), 1);
       for (const auto& sample : dump.samples()) {
         samples++;
         EXPECT_EQ(sample.self_allocated() % kAllocSize, 0);
@@ -208,7 +207,7 @@ TEST_F(HeapprofdEndToEnd, DISABLED_Smoke) {
 }
 
 // TODO(b/121352331): deflake and re-enable this test.
-TEST_F(HeapprofdEndToEnd, DISABLED_FinalFlush) {
+TEST_F(HeapprofdEndToEnd, FinalFlush) {
   constexpr size_t kAllocSize = 1024;
 
   pid_t pid = ForkContinousMalloc(kAllocSize);
@@ -227,7 +226,7 @@ TEST_F(HeapprofdEndToEnd, DISABLED_FinalFlush) {
   heapprofd_config->set_all(false);
 
   helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(5000);
+  helper.WaitForTracingDisabled(10000);
 
   helper.ReadData();
   helper.WaitForReadData();
@@ -266,7 +265,7 @@ TEST_F(HeapprofdEndToEnd, DISABLED_FinalFlush) {
 }
 
 // TODO(b/121352331): deflake and re-enable this test.
-TEST_F(HeapprofdEndToEnd, DISABLED_NativeStartup) {
+TEST_F(HeapprofdEndToEnd, NativeStartup) {
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
   trace_config.set_duration_ms(5000);
