@@ -965,13 +965,15 @@ void ProtoTraceParser::ParsePrint(uint32_t,
           context_->storage->mutable_instants()->AddInstantEvent(
               timestamp, lmk_id_, 0, killed_upid, RefType::kRefUpid);
         }
-        // TODO(tilal6991): we should not add LMK events to the counters table
+        // TODO(lalitm): we should not add LMK events to the counters table
         // once the UI has support for displaying instants.
       }
-      UniqueTid utid = context_->process_tracker->UpdateThread(pid, point.tgid);
+      // This is per upid on purpose. Some counters are pushed from arbitrary
+      // threads but are really per process.
+      UniquePid upid = context_->process_tracker->UpdateProcess(point.tgid);
       StringId name_id = context_->storage->InternString(point.name);
       context_->event_tracker->PushCounter(timestamp, point.value, name_id,
-                                           utid, RefType::kRefUtid);
+                                           upid, RefType::kRefUpid);
     }
   }
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
