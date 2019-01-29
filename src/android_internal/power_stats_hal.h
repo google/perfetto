@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_ANDROID_INTERNAL_HEALTH_HAL_H_
-#define SRC_ANDROID_INTERNAL_HEALTH_HAL_H_
+#ifndef SRC_ANDROID_INTERNAL_POWER_STATS_HAL_H_
+#define SRC_ANDROID_INTERNAL_POWER_STATS_HAL_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -29,12 +29,24 @@
 namespace perfetto {
 namespace android_internal {
 
-enum class BatteryCounter {
-  kUnspecified = 0,
-  kCharge,
-  kCapacityPercent,
-  kCurrent,
-  kCurrentAvg,
+struct RailDescriptor {
+  // Index corresponding to the rail
+  uint32_t index;
+  // Name of the rail
+  char rail_name[64];
+  // Name of the subsystem to which this rail belongs
+  char subsys_name[64];
+  // Hardware sampling rate
+  uint32_t sampling_rate;
+};
+
+struct RailEnergyData {
+  // Index corresponding to RailDescriptor.index
+  uint32_t index;
+  // Time since device boot(CLOCK_BOOTTIME) in milli-seconds
+  uint64_t timestamp;
+  // Accumulated energy since device boot in microwatt-seconds (uWs)
+  uint64_t energy;
 };
 
 extern "C" {
@@ -42,11 +54,14 @@ extern "C" {
 // These functions are not thread safe unless specified otherwise.
 
 bool __attribute__((visibility("default")))
-GetBatteryCounter(BatteryCounter, int64_t*);
+GetAvailableRails(RailDescriptor*, size_t* size_of_arr);
+
+bool __attribute__((visibility("default")))
+GetRailEnergyData(RailEnergyData*, size_t* size_of_arr);
 
 }  // extern "C"
 
 }  // namespace android_internal
 }  // namespace perfetto
 
-#endif  // SRC_ANDROID_INTERNAL_HEALTH_HAL_H_
+#endif  // SRC_ANDROID_INTERNAL_POWER_STATS_HAL_H_
