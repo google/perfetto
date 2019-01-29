@@ -129,7 +129,7 @@ class CpuFreqTrack extends Track<Config, Data> {
     }
     // Find the end time for the last frequency event and then draw
     // down to zero to show that we do not have data after that point.
-    const endTime = data.tsEnds[data.freqKHz.length-1];
+    const endTime = data.tsEnds[data.freqKHz.length - 1];
     const finalX = Math.floor(timeScale.timeToPx(endTime));
     ctx.lineTo(finalX, lastY);
     ctx.lineTo(finalX, zeroY);
@@ -185,7 +185,7 @@ class CpuFreqTrack extends Track<Config, Data> {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.fillRect(this.mouseXpos + 5, MARGIN_TOP, width + 16, RECT_HEIGHT);
       ctx.fillStyle = 'hsl(200, 50%, 40%)';
-      const centerY = MARGIN_TOP + RECT_HEIGHT/2;
+      const centerY = MARGIN_TOP + RECT_HEIGHT / 2;
       ctx.fillText(text, this.mouseXpos + 10, centerY - 3);
       // Display idle value if current hover is idle.
       if (this.hoveredIdle !== undefined && this.hoveredIdle !== -1) {
