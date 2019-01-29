@@ -335,9 +335,11 @@ cc_library_shared {
   name: "libperfetto_android_internal",
   srcs: [
     "src/android_internal/health_hal.cc",
+    "src/android_internal/power_stats_hal.cc",
   ],
   shared_libs: [
     "android.hardware.health@2.0",
+    "android.hardware.power.stats@1.0",
     "libbase",
     "libhidlbase",
     "libhidltransport",

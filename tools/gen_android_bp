@@ -73,6 +73,7 @@ module_prefix = 'perfetto_'
 # Shared libraries which are directly translated to Android system equivalents.
 library_whitelist = [
     'android.hardware.health@2.0',
+    "android.hardware.power.stats@1.0",
     'android',
     'base',
     'binder',
