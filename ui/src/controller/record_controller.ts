@@ -161,7 +161,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
     for (const [key, value] of Object.entries(msg)) {
       const isRepeated = Array.isArray(value);
       const isNested = typeof value === 'object' && !isRepeated;
-      for (const entry of (isRepeated ? value as Array<{}>: [value])) {
+      for (const entry of (isRepeated ? value as Array<{}> : [value])) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
         if (typeof entry === 'string') {
           yield looksLikeEnum(entry) ? entry : `"${entry}"`;
