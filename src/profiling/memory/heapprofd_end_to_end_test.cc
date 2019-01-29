@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/pipe.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/test_helper.h"
 
@@ -24,6 +25,8 @@
 #include "src/tracing/ipc/default_socket.h"
 
 #include <sys/system_properties.h>
+
+#include <fcntl.h>
 
 // This test only works when run on Android using an Android Q version of
 // Bionic.
@@ -142,6 +145,46 @@ class HeapprofdEndToEnd : public ::testing::Test {
   base::TestTaskRunner task_runner;
   TestHelper helper{&task_runner};
 
+  void TraceAndValidate(const TraceConfig& trace_config,
+                        pid_t pid,
+                        uint64_t alloc_size) {
+    helper.StartTracing(trace_config);
+    helper.WaitForTracingDisabled(10000);
+
+    helper.ReadData();
+    helper.WaitForReadData();
+
+    const auto& packets = helper.trace();
+    ASSERT_GT(packets.size(), 0u);
+    size_t profile_packets = 0;
+    size_t samples = 0;
+    uint64_t last_allocated = 0;
+    uint64_t last_freed = 0;
+    for (const protos::TracePacket& packet : packets) {
+      if (packet.has_profile_packet() &&
+          packet.profile_packet().process_dumps().size() > 0) {
+        const auto& dumps = packet.profile_packet().process_dumps();
+        ASSERT_EQ(dumps.size(), 1);
+        const protos::ProfilePacket_ProcessHeapSamples& dump = dumps.Get(0);
+        EXPECT_EQ(dump.pid(), pid);
+        for (const auto& sample : dump.samples()) {
+          samples++;
+          EXPECT_EQ(sample.self_allocated() % alloc_size, 0);
+          EXPECT_EQ(sample.self_freed() % alloc_size, 0);
+          last_allocated = sample.self_allocated();
+          last_freed = sample.self_freed();
+          EXPECT_THAT(sample.self_allocated() - sample.self_freed(),
+                      AnyOf(Eq(0), Eq(alloc_size)));
+        }
+        profile_packets++;
+      }
+    }
+    EXPECT_GT(profile_packets, 0);
+    EXPECT_GT(samples, 0);
+    EXPECT_GT(last_allocated, 0);
+    EXPECT_GT(last_freed, 0);
+  }
+
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
   TaskRunnerThread producer_thread("perfetto.prd");
   producer_thread.Start(std::unique_ptr<HeapprofdDelegate>(
@@ -151,7 +194,6 @@ class HeapprofdEndToEnd : public ::testing::Test {
 #endif
 };
 
-// TODO(b/121352331): deflake and re-enable this test.
 TEST_F(HeapprofdEndToEnd, Smoke) {
   constexpr size_t kAllocSize = 1024;
 
@@ -172,47 +214,12 @@ TEST_F(HeapprofdEndToEnd, Smoke) {
   heapprofd_config->mutable_continuous_dump_config()->set_dump_phase_ms(0);
   heapprofd_config->mutable_continuous_dump_config()->set_dump_interval_ms(100);
 
-  helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(10000);
-
-  helper.ReadData();
-  helper.WaitForReadData();
+  TraceAndValidate(trace_config, pid, kAllocSize);
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
   PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
-
-  const auto& packets = helper.trace();
-  ASSERT_GT(packets.size(), 0u);
-  size_t profile_packets = 0;
-  size_t samples = 0;
-  uint64_t last_allocated = 0;
-  uint64_t last_freed = 0;
-  for (const protos::TracePacket& packet : packets) {
-    if (packet.has_profile_packet() &&
-        packet.profile_packet().process_dumps().size() > 0) {
-      const auto& dumps = packet.profile_packet().process_dumps();
-      ASSERT_EQ(dumps.size(), 1);
-      const protos::ProfilePacket_ProcessHeapSamples& dump = dumps.Get(0);
-      EXPECT_EQ(dump.pid(), pid);
-      for (const auto& sample : dump.samples()) {
-        samples++;
-        EXPECT_EQ(sample.self_allocated() % kAllocSize, 0);
-        EXPECT_EQ(sample.self_freed() % kAllocSize, 0);
-        last_allocated = sample.self_allocated();
-        last_freed = sample.self_freed();
-        EXPECT_THAT(sample.self_allocated() - sample.self_freed(),
-                    AnyOf(Eq(0), Eq(kAllocSize)));
-      }
-      profile_packets++;
-    }
-  }
-  EXPECT_GT(profile_packets, 0);
-  EXPECT_GT(samples, 0);
-  EXPECT_GT(last_allocated, 0);
-  EXPECT_GT(last_freed, 0);
 }
 
-// TODO(b/121352331): deflake and re-enable this test.
 TEST_F(HeapprofdEndToEnd, FinalFlush) {
   constexpr size_t kAllocSize = 1024;
 
@@ -231,48 +238,12 @@ TEST_F(HeapprofdEndToEnd, FinalFlush) {
   *heapprofd_config->add_pid() = static_cast<uint64_t>(pid);
   heapprofd_config->set_all(false);
 
-  helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(10000);
-
-  helper.ReadData();
-  helper.WaitForReadData();
+  TraceAndValidate(trace_config, pid, kAllocSize);
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
   PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
-
-  const auto& packets = helper.trace();
-  ASSERT_GT(packets.size(), 0u);
-  size_t profile_packets = 0;
-  size_t samples = 0;
-  uint64_t last_allocated = 0;
-  uint64_t last_freed = 0;
-  for (const protos::TracePacket& packet : packets) {
-    if (packet.has_profile_packet() &&
-        packet.profile_packet().process_dumps().size() > 0) {
-      const auto& dumps = packet.profile_packet().process_dumps();
-      ASSERT_EQ(dumps.size(), 1);
-      const protos::ProfilePacket_ProcessHeapSamples& dump = dumps.Get(0);
-      EXPECT_EQ(dump.pid(), pid);
-      EXPECT_EQ(dump.samples().size(), 1);
-      for (const auto& sample : dump.samples()) {
-        samples++;
-        EXPECT_EQ(sample.self_allocated() % kAllocSize, 0);
-        EXPECT_EQ(sample.self_freed() % kAllocSize, 0);
-        last_allocated = sample.self_allocated();
-        last_freed = sample.self_freed();
-        EXPECT_THAT(sample.self_allocated() - sample.self_freed(),
-                    AnyOf(Eq(0), Eq(kAllocSize)));
-      }
-      profile_packets++;
-    }
-  }
-  EXPECT_EQ(profile_packets, 1);
-  EXPECT_GT(samples, 0);
-  EXPECT_GT(last_allocated, 0);
-  EXPECT_GT(last_freed, 0);
 }
 
-// TODO(b/121352331): deflake and re-enable this test.
 TEST_F(HeapprofdEndToEnd, NativeStartup) {
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
@@ -346,6 +317,79 @@ TEST_F(HeapprofdEndToEnd, NativeStartup) {
   EXPECT_GT(samples, 0);
   EXPECT_GT(total_allocated, 0);
   EXPECT_GT(total_freed, 0);
+}
+
+// TODO(fmayer): Enable in CL that fixes b/123352823.
+TEST_F(HeapprofdEndToEnd, DISABLED_ReInit) {
+  constexpr uint64_t kFirstIterationBytes = 5;
+  constexpr uint64_t kSecondIterationBytes = 7;
+
+  base::Pipe signal_pipe = base::Pipe::Create();
+  base::Pipe ack_pipe = base::Pipe::Create();
+
+  ASSERT_EQ(fcntl(*signal_pipe.rd, F_SETFL,
+                  fcntl(*signal_pipe.rd, F_GETFL) | O_NONBLOCK),
+            0);
+
+  pid_t pid = fork();
+  switch (pid) {
+    case -1:
+      PERFETTO_FATAL("Failed to fork.");
+    case 0: {
+      uint64_t bytes = kFirstIterationBytes;
+      signal_pipe.wr.reset();
+      ack_pipe.rd.reset();
+      for (;;) {
+        // This volatile is needed to prevent the compiler from trying to be
+        // helpful and compiling a "useless" malloc + free into a noop.
+        volatile char* x = static_cast<char*>(malloc(bytes));
+        if (x) {
+          x[1] = 'x';
+          free(const_cast<char*>(x));
+        }
+        char buf[1];
+        if (read(*signal_pipe.rd, buf, sizeof(buf)) == sizeof(buf)) {
+          bytes = kSecondIterationBytes;
+          signal_pipe.rd.reset();
+          ack_pipe.wr.reset();
+        }
+      }
+      PERFETTO_FATAL("Should be unreachable");
+    }
+    default:
+      break;
+  }
+
+  signal_pipe.rd.reset();
+  ack_pipe.wr.reset();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.set_duration_ms(1000);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.heapprofd");
+  ds_config->set_target_buffer(0);
+
+  auto* heapprofd_config = ds_config->mutable_heapprofd_config();
+  heapprofd_config->set_sampling_interval_bytes(1);
+  *heapprofd_config->add_pid() = static_cast<uint64_t>(pid);
+  heapprofd_config->set_all(false);
+  heapprofd_config->mutable_continuous_dump_config()->set_dump_phase_ms(0);
+  heapprofd_config->mutable_continuous_dump_config()->set_dump_interval_ms(100);
+
+  TraceAndValidate(trace_config, pid, kFirstIterationBytes);
+
+  char buf[1] = {'1'};
+  ASSERT_EQ(write(*signal_pipe.wr, buf, sizeof(buf)), sizeof(buf));
+  signal_pipe.wr.reset();
+  ASSERT_EQ(read(*ack_pipe.rd, buf, sizeof(buf)), 0);
+  ack_pipe.rd.reset();
+
+  TraceAndValidate(trace_config, pid, kSecondIterationBytes);
+
+  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
+  PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
 }
 
 }  // namespace
