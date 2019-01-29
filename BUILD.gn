@@ -279,9 +279,23 @@ if (perfetto_build_standalone) {
   }
 }
 
+# WARNING: this builds correctly only when using the generated Android.bp.
+#
+# This library gets loaded into (and executes in) arbitrary android processes.
+# Logging must be non-allocating. This is achieved by defining
+# PERFETTO_ANDROID_ASYNC_SAFE_LOG, which needs to be set for all perfetto code
+# being compiled for this library. When generating Android.bp, the |cflags|
+# entry on this target is sufficient (as all sources are flattened into a
+# single bp target). However this is not correctly reflected in the gn
+# structure (which is a tree of targets) as the dependencies would not pick
+# up the flag (and thus use the wrong logging macro).
+#
+# This is deemed acceptable as, at the time of writing, there is no interest in
+# building this library standalone.
 if (perfetto_build_with_android) {
   # TODO(fmayer): Investigate shared library for common pieces.
   shared_library("heapprofd_client") {
+    cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
     deps = [
       "src/profiling/memory:malloc_hooks",
     ]
