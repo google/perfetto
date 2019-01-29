@@ -174,12 +174,14 @@ cc_library_shared {
     "libunwindstack",
   ],
   static_libs: [
+    "libasync_safe",
     "libgtest_prod",
   ],
   defaults: [
     "perfetto_defaults",
   ],
   cflags: [
+    "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG",
     "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
   include_dirs: [
@@ -347,14 +349,14 @@ cc_library_shared {
     "liblog",
     "libutils",
   ],
+  static_libs: [
+    "libhealthhalutils",
+  ],
   defaults: [
     "perfetto_defaults",
   ],
   cflags: [
     "-DPERFETTO_BUILD_WITH_ANDROID",
-  ],
-  static_libs: [
-    "libhealthhalutils",
   ],
 }
 
