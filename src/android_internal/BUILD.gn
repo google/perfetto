@@ -20,6 +20,7 @@ source_set("headers") {
   ]
   sources = [
     "health_hal.h",
+    "power_stats_hal.h",
   ]
 }
 
@@ -34,14 +35,16 @@ source_set("android_internal") {
   if (perfetto_build_with_android) {
     sources = [
       "health_hal.cc",
+      "power_stats_hal.cc",
     ]
     libs = [
       "android.hardware.health@2.0",
+      "android.hardware.power.stats@1.0",
       "base",
       "log",
-      "hwbinder",
       "hidlbase",
       "hidltransport",
+      "hwbinder",
       "utils",
     ]
   }
