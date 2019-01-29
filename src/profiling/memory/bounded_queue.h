@@ -20,6 +20,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <string>
 
 #include "perfetto/base/logging.h"
 

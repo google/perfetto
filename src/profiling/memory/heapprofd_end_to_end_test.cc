@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
 #include "src/base/test/test_task_runner.h"
@@ -41,6 +42,9 @@
 namespace perfetto {
 namespace profiling {
 namespace {
+
+using ::testing::Eq;
+using ::testing::AnyOf;
 
 void WaitForHeapprofd(uint64_t timeout_ms) {
   constexpr uint64_t kSleepMs = 10;
@@ -196,6 +200,8 @@ TEST_F(HeapprofdEndToEnd, Smoke) {
         EXPECT_EQ(sample.self_freed() % kAllocSize, 0);
         last_allocated = sample.self_allocated();
         last_freed = sample.self_freed();
+        EXPECT_THAT(sample.self_allocated() - sample.self_freed(),
+                    AnyOf(Eq(0), Eq(kAllocSize)));
       }
       profile_packets++;
     }
@@ -254,6 +260,8 @@ TEST_F(HeapprofdEndToEnd, FinalFlush) {
         EXPECT_EQ(sample.self_freed() % kAllocSize, 0);
         last_allocated = sample.self_allocated();
         last_freed = sample.self_freed();
+        EXPECT_THAT(sample.self_allocated() - sample.self_freed(),
+                    AnyOf(Eq(0), Eq(kAllocSize)));
       }
       profile_packets++;
     }
