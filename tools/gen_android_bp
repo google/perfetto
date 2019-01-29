@@ -108,6 +108,7 @@ library_not_in_pdk = {
 additional_args = {
     'heapprofd_client': [
         ('include_dirs', ['bionic/libc']),
+        ('static_libs', ['libasync_safe']),
     ],
     'traced_probes': [
       ('required', ['libperfetto_android_internal']),
@@ -203,6 +204,8 @@ class Module(object):
         self.defaults = []
         self.cflags = set()
         self.local_include_dirs = []
+        self.include_dirs = []
+        self.required = []
         self.user_debug_flag = False
 
     def to_string(self, output):
@@ -224,8 +227,8 @@ class Module(object):
         self._output_field(output, 'defaults')
         self._output_field(output, 'cflags')
         self._output_field(output, 'local_include_dirs')
-        for key, value in additional_args.get(self.name, []):
-          self._write_value(output, key, value)
+        self._output_field(output, 'include_dirs')
+        self._output_field(output, 'required')
 
         disable_pdk = any(name in library_not_in_pdk for name in self.shared_libs)
         if self.user_debug_flag or disable_pdk:
@@ -557,6 +560,14 @@ def create_modules_from_target(blueprint, desc, target_name):
         # If the module is a static library, export all the generated headers.
         if module.type == 'cc_library_static':
             module.export_generated_headers = module.generated_headers
+
+        # Merge in additional hardcoded arguments.
+        for key, add_val in additional_args.get(module.name, []):
+          curr = getattr(module, key)
+          if add_val and isinstance(add_val, list) and isinstance(curr, list):
+            curr.extend(add_val)
+          else:
+            raise Error('Unimplemented type of additional_args')
 
         blueprint.add_module(module)
 

@@ -37,7 +37,16 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/utils.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG)
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#error "Async-safe logging is limited to Android tree builds"
+#endif
+// For binaries which need a very lightweight logging implementation.
+// Note that this header is incompatible with android/log.h.
+#include <async_safe/log.h>
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// Normal android logging.
 #include <android/log.h>
 #endif
 
@@ -87,9 +96,19 @@ constexpr const char* kLogFmt[] = {"\x1b[2m", "\x1b[39m", "\x1b[32m\x1b[1m",
           ##__VA_ARGS__)
 #endif
 
-// Let android log to both stderr and logcat. When part of the Android tree
-// stderr points to /dev/null so logcat is the only way to get some logging.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG)
+#define PERFETTO_XLOG(level, fmt, ...)                                         \
+  do {                                                                         \
+    async_safe_format_log(                                                     \
+        (ANDROID_LOG_DEBUG + ::perfetto::base::LogLev::level), "perfetto",     \
+        "%s " fmt, ::perfetto::base::Basename(__FILE__ ":" PERFETTO_LOG_LINE), \
+        ##__VA_ARGS__);                                                        \
+  } while (0)
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// Standard logging marco on Android - log to both stderr and logcat. When part
+// of the Android tree, stderr points to /dev/null so logcat is the only way to
+// get some logging.
 #define PERFETTO_XLOG(level, fmt, ...)                                         \
   do {                                                                         \
     __android_log_print(                                                       \
