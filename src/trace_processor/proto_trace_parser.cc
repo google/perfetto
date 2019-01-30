@@ -21,6 +21,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/optional.h"
 #include "perfetto/base/string_view.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -1351,13 +1352,15 @@ void ProtoTraceParser::ParseAndroidLogEvent(TraceBlobView event) {
     msg_id = context_->storage->InternString(&arg_msg[1]);
   }
   UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
-  int64_t trace_time =
+  base::Optional<int64_t> opt_trace_time =
       context_->clock_tracker->ToTraceTime(ClockDomain::kRealTime, ts);
+  if (!opt_trace_time)
+    return;
 
   // Log events are NOT required to be sorted by trace_time. The virtual table
   // will take care of sorting on-demand.
-  context_->storage->mutable_android_log()->AddLogEvent(trace_time, utid, prio,
-                                                        tag_id, msg_id);
+  context_->storage->mutable_android_log()->AddLogEvent(
+      opt_trace_time.value(), utid, prio, tag_id, msg_id);
 }
 
 void ProtoTraceParser::ParseAndroidLogBinaryArg(TraceBlobView arg,
