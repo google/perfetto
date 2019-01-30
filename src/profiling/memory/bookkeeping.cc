@@ -361,8 +361,18 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
     trace_writer->Flush(dump_rec.callback);
   } else if (rec->record_type == BookkeepingRecord::Type::Free) {
     FreeRecord& free_rec = rec->free_record;
-    FreePageEntry* entries = free_rec.metadata->entries;
-    uint64_t num_entries = free_rec.metadata->num_entries;
+    FreeMetadata& free_metadata = *free_rec.metadata;
+
+    if (bookkeeping_data->client_generation < free_metadata.client_generation) {
+      bookkeeping_data->heap_tracker = HeapTracker(&callsites_);
+      bookkeeping_data->client_generation = free_metadata.client_generation;
+    } else if (bookkeeping_data->client_generation >
+               free_metadata.client_generation) {
+      return;
+    }
+
+    FreePageEntry* entries = free_metadata.entries;
+    uint64_t num_entries = free_metadata.num_entries;
     if (num_entries > kFreePageSize)
       return;
     for (size_t i = 0; i < num_entries; ++i) {
@@ -372,6 +382,17 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
     }
   } else if (rec->record_type == BookkeepingRecord::Type::Malloc) {
     AllocRecord& alloc_rec = rec->alloc_record;
+    AllocMetadata& alloc_metadata = alloc_rec.alloc_metadata;
+
+    if (bookkeeping_data->client_generation <
+        alloc_metadata.client_generation) {
+      bookkeeping_data->heap_tracker = HeapTracker(&callsites_);
+      bookkeeping_data->client_generation = alloc_metadata.client_generation;
+    } else if (bookkeeping_data->client_generation >
+               alloc_metadata.client_generation) {
+      return;
+    }
+
     bookkeeping_data->heap_tracker.RecordMalloc(
         alloc_rec.frames, alloc_rec.alloc_metadata.alloc_address,
         alloc_rec.alloc_metadata.total_size,

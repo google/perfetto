@@ -70,6 +70,7 @@ struct BookkeepingRecord {
     Free = 2,
   };
   pid_t pid;
+  uint64_t client_generation;
   // TODO(fmayer): Use a union.
   Type record_type;
   AllocRecord alloc_record;
