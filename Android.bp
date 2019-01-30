@@ -169,7 +169,6 @@ cc_library_shared {
   ],
   shared_libs: [
     "libbase",
-    "liblog",
     "libprocinfo",
     "libunwindstack",
   ],
@@ -2383,7 +2382,6 @@ cc_library_static {
     "src/tracing/ipc/service/service_ipc_host_impl.cc",
   ],
   shared_libs: [
-    "liblog",
     "libprotobuf-cpp-lite",
   ],
   static_libs: [
@@ -2458,7 +2456,6 @@ cc_library_static {
     ":perfetto_protos_perfetto_trace_sys_stats_lite_gen",
   ],
   shared_libs: [
-    "liblog",
     "libprotobuf-cpp-lite",
   ],
   host_supported: true,
