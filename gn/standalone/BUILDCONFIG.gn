@@ -86,11 +86,17 @@ set_defaults("static_library") {
 set_defaults("shared_library") {
   configs = default_configs
   configs += [ "//gn/standalone:shared_library" ]
+
+  # note: the following is not a nested config to be removable.
+  configs += [ "//gn/standalone:android_liblog" ]
 }
 
 set_defaults("executable") {
   configs = default_configs
   configs += [ "//gn/standalone:executable" ]
+
+  # note: the following is not a nested config to be removable.
+  configs += [ "//gn/standalone:android_liblog" ]
 }
 
 set_default_toolchain("//gn/standalone/toolchain:gcc_like")
