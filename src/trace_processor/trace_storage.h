@@ -22,6 +22,7 @@
 #include <map>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -559,6 +560,10 @@ class TraceStorage {
 
   // Number of interned strings in the pool. Includes the empty string w/ ID=0.
   size_t string_count() const { return string_pool_.size(); }
+
+  // Start / end ts (in nanoseconds) across the parsed trace events.
+  // Returns (0, 0) if the trace is empty.
+  std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs() const;
 
  private:
   TraceStorage& operator=(const TraceStorage&) = default;
