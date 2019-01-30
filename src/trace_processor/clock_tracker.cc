@@ -57,11 +57,12 @@ void ClockTracker::SyncClocks(ClockDomain domain,
   snapshots.emplace_back(ClockSnapshot{clock_time_ns, trace_time_ns});
 }
 
-int64_t ClockTracker::ToTraceTime(ClockDomain domain, int64_t clock_time_ns) {
+base::Optional<int64_t> ClockTracker::ToTraceTime(ClockDomain domain,
+                                                  int64_t clock_time_ns) {
   ClockSnapshotVector& snapshots = clocks_[domain];
   if (snapshots.empty()) {
-    PERFETTO_DFATAL("No clock snapshots");
-    return clock_time_ns;
+    context_->storage->IncrementStats(stats::clock_sync_failure);
+    return base::nullopt;
   }
   static auto comparator = [](int64_t lhs, const ClockSnapshot& rhs) {
     return lhs < rhs.clock_time_ns;

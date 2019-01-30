@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/optional.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -48,7 +49,7 @@ class ClockTracker {
 
   // Converts the passed time in the given clock domain to the global trace
   // time (CLOCK_BOOTTIME for Android traces).
-  int64_t ToTraceTime(ClockDomain, int64_t clock_time_ns);
+  base::Optional<int64_t> ToTraceTime(ClockDomain, int64_t clock_time_ns);
 
   int64_t GetFirstTimestamp(ClockDomain domain) const {
     PERFETTO_DCHECK(!clocks_[domain].empty());
