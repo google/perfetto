@@ -356,7 +356,7 @@ class HeapTracker {
       pending_operations_;
 
   // The sequence number all mallocs and frees have been handled up to.
-  uint64_t commited_sequence_number_ = 0;
+  uint64_t committed_sequence_number_ = 0;
   GlobalCallstackTrie* const callsites_;
 };
 
