@@ -92,14 +92,21 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
 
   std::map<std::string, uint64_t> string_table;
   string_table[""] = 0;
-  string_table["space"] = 1;
-  string_table["bytes"] = 2;
+  string_table["allocations"] = 1;
+  string_table["count"] = 2;
+  string_table["space"] = 3;
+  string_table["bytes"] = 4;
 
   GProfile profile;
   GValueType* value_type = profile.add_sample_type();
-  // ["space", "bytes"];
+  // ["allocations", "count"];
   value_type->set_type(1);
-  value_type->set_type(2);
+  value_type->set_unit(2);
+  value_type = profile.add_sample_type();
+  // The last value is the default one selected.
+  // ["space", "bytes"];
+  value_type->set_type(3);
+  value_type->set_unit(4);
 
   for (const ProfilePacket& packet : packet_fragments) {
     for (const ProfilePacket::Mapping& mapping : packet.mappings()) {
@@ -196,6 +203,8 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
         }
         for (uint64_t frame_id : it->second)
           gsample->add_location_id(frame_id);
+        gsample->add_value(
+            static_cast<int64_t>(sample.alloc_count() - sample.free_count()));
         gsample->add_value(static_cast<int64_t>(sample.self_allocated() -
                                                 sample.self_freed()));
       }
