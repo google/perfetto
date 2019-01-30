@@ -17,6 +17,23 @@
 #include "src/trace_processor/trace_storage.h"
 
 #include <string.h>
+#include <algorithm>
+#include <limits>
+
+namespace {
+template <typename T>
+void MaybeUpdateMinMax(T begin_it,
+                       T end_it,
+                       int64_t* min_value,
+                       int64_t* max_value) {
+  if (begin_it == end_it) {
+    return;
+  }
+  std::pair<T, T> minmax = std::minmax_element(begin_it, end_it);
+  *min_value = std::min(*min_value, *minmax.first);
+  *max_value = std::max(*max_value, *minmax.second);
+}
+}  // namespace
 
 namespace perfetto {
 namespace trace_processor {
@@ -68,6 +85,26 @@ void TraceStorage::SqlStats::RecordQueryEnd(int64_t time_ended) {
   PERFETTO_DCHECK(!times_ended_.empty());
   PERFETTO_DCHECK(times_ended_.back() == 0);
   times_ended_.back() = time_ended;
+}
+
+std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
+  int64_t start_ns = std::numeric_limits<int64_t>::max();
+  int64_t end_ns = std::numeric_limits<int64_t>::min();
+  MaybeUpdateMinMax(slices_.start_ns().begin(), slices_.start_ns().end(),
+                    &start_ns, &end_ns);
+  MaybeUpdateMinMax(counters_.timestamps().begin(),
+                    counters_.timestamps().end(), &start_ns, &end_ns);
+  MaybeUpdateMinMax(instants_.timestamps().begin(),
+                    instants_.timestamps().end(), &start_ns, &end_ns);
+  MaybeUpdateMinMax(nestable_slices_.start_ns().begin(),
+                    nestable_slices_.start_ns().end(), &start_ns, &end_ns);
+  MaybeUpdateMinMax(android_log_.timestamps().begin(),
+                    android_log_.timestamps().end(), &start_ns, &end_ns);
+
+  if (start_ns == std::numeric_limits<int64_t>::max()) {
+    return std::make_pair(0, 0);
+  }
+  return std::make_pair(start_ns, end_ns);
 }
 
 }  // namespace trace_processor
