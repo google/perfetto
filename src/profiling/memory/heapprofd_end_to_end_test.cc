@@ -126,6 +126,13 @@ pid_t ForkContinousMalloc(size_t bytes) {
   return pid;
 }
 
+std::unique_ptr<TestHelper> GetHelper(base::TestTaskRunner* task_runner) {
+  std::unique_ptr<TestHelper> helper(new TestHelper(task_runner));
+  helper->ConnectConsumer();
+  helper->WaitForConsumerConnect();
+  return helper;
+}
+
 class HeapprofdEndToEnd : public ::testing::Test {
  public:
   HeapprofdEndToEnd() {
@@ -134,27 +141,24 @@ class HeapprofdEndToEnd : public ::testing::Test {
     // and then set to 1 again too quickly, init decides that the service is
     // "restarting" and waits before restarting it.
     usleep(50000);
-    helper.StartServiceIfRequired();
     unset_property = StartSystemHeapprofdIfRequired();
-
-    helper.ConnectConsumer();
-    helper.WaitForConsumerConnect();
   }
 
  protected:
   base::TestTaskRunner task_runner;
-  TestHelper helper{&task_runner};
 
   void TraceAndValidate(const TraceConfig& trace_config,
                         pid_t pid,
                         uint64_t alloc_size) {
-    helper.StartTracing(trace_config);
-    helper.WaitForTracingDisabled(10000);
+    auto helper = GetHelper(&task_runner);
 
-    helper.ReadData();
-    helper.WaitForReadData();
+    helper->StartTracing(trace_config);
+    helper->WaitForTracingDisabled(10000);
 
-    const auto& packets = helper.trace();
+    helper->ReadData();
+    helper->WaitForReadData();
+
+    const auto& packets = helper->trace();
     ASSERT_GT(packets.size(), 0u);
     size_t profile_packets = 0;
     size_t samples = 0;
@@ -245,6 +249,8 @@ TEST_F(HeapprofdEndToEnd, FinalFlush) {
 }
 
 TEST_F(HeapprofdEndToEnd, NativeStartup) {
+  auto helper = GetHelper(&task_runner);
+
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
   trace_config.set_duration_ms(5000);
@@ -257,7 +263,7 @@ TEST_F(HeapprofdEndToEnd, NativeStartup) {
   *heapprofd_config->add_process_cmdline() = "find";
   heapprofd_config->set_all(false);
 
-  helper.StartTracing(trace_config);
+  helper->StartTracing(trace_config);
 
   // Wait to guarantee that the process forked below is hooked by the profiler
   // by virtue of the startup check, and not by virtue of being seen as a
@@ -284,15 +290,15 @@ TEST_F(HeapprofdEndToEnd, NativeStartup) {
       break;
   }
 
-  helper.WaitForTracingDisabled(10000);
+  helper->WaitForTracingDisabled(10000);
 
-  helper.ReadData();
-  helper.WaitForReadData();
+  helper->ReadData();
+  helper->WaitForReadData();
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
   PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
 
-  const auto& packets = helper.trace();
+  const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
   size_t profile_packets = 0;
   size_t samples = 0;
@@ -324,12 +330,8 @@ TEST_F(HeapprofdEndToEnd, DISABLED_ReInit) {
   constexpr uint64_t kFirstIterationBytes = 5;
   constexpr uint64_t kSecondIterationBytes = 7;
 
-  base::Pipe signal_pipe = base::Pipe::Create();
-  base::Pipe ack_pipe = base::Pipe::Create();
-
-  ASSERT_EQ(fcntl(*signal_pipe.rd, F_SETFL,
-                  fcntl(*signal_pipe.rd, F_GETFL) | O_NONBLOCK),
-            0);
+  base::Pipe signal_pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
+  base::Pipe ack_pipe = base::Pipe::Create(base::Pipe::kBothBlock);
 
   pid_t pid = fork();
   switch (pid) {
@@ -348,7 +350,8 @@ TEST_F(HeapprofdEndToEnd, DISABLED_ReInit) {
           free(const_cast<char*>(x));
         }
         char buf[1];
-        if (read(*signal_pipe.rd, buf, sizeof(buf)) == sizeof(buf)) {
+        if (bool(signal_pipe.rd) &&
+            read(*signal_pipe.rd, buf, sizeof(buf)) == 0) {
           bytes = kSecondIterationBytes;
           signal_pipe.rd.reset();
           ack_pipe.wr.reset();
@@ -365,7 +368,7 @@ TEST_F(HeapprofdEndToEnd, DISABLED_ReInit) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(1000);
+  trace_config.set_duration_ms(2000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.heapprofd");
@@ -375,17 +378,15 @@ TEST_F(HeapprofdEndToEnd, DISABLED_ReInit) {
   heapprofd_config->set_sampling_interval_bytes(1);
   *heapprofd_config->add_pid() = static_cast<uint64_t>(pid);
   heapprofd_config->set_all(false);
-  heapprofd_config->mutable_continuous_dump_config()->set_dump_phase_ms(0);
-  heapprofd_config->mutable_continuous_dump_config()->set_dump_interval_ms(100);
 
   TraceAndValidate(trace_config, pid, kFirstIterationBytes);
 
-  char buf[1] = {'1'};
-  ASSERT_EQ(write(*signal_pipe.wr, buf, sizeof(buf)), sizeof(buf));
   signal_pipe.wr.reset();
+  char buf[1];
   ASSERT_EQ(read(*ack_pipe.rd, buf, sizeof(buf)), 0);
   ack_pipe.rd.reset();
 
+  PERFETTO_LOG("HeapprofdEndToEnd::Reinit: Starting second");
   TraceAndValidate(trace_config, pid, kSecondIterationBytes);
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
