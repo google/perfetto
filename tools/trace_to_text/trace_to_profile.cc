@@ -68,6 +68,16 @@ std::string ToHex(const std::string& build_id) {
   return hex_build_id;
 }
 
+enum Strings : int64_t {
+  kEmpty = 0,
+  kObjects,
+  kAllocObjects,
+  kCount,
+  kSpace,
+  kAllocSpace,
+  kBytes
+};
+
 void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
                        const std::string& file_prefix) {
   std::map<uint64_t, std::string> string_lookup;
@@ -91,22 +101,31 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
   }
 
   std::map<std::string, uint64_t> string_table;
-  string_table[""] = 0;
-  string_table["allocations"] = 1;
-  string_table["count"] = 2;
-  string_table["space"] = 3;
-  string_table["bytes"] = 4;
+  string_table[""] = kEmpty;
+  string_table["objects"] = kObjects;
+  string_table["alloc_objects"] = kAllocObjects;
+  string_table["count"] = kCount;
+  string_table["space"] = kSpace;
+  string_table["alloc_space"] = kAllocSpace;
+  string_table["bytes"] = kBytes;
 
   GProfile profile;
   GValueType* value_type = profile.add_sample_type();
-  // ["allocations", "count"];
-  value_type->set_type(1);
-  value_type->set_unit(2);
+  value_type->set_type(kObjects);
+  value_type->set_unit(kCount);
+
   value_type = profile.add_sample_type();
+  value_type->set_type(kAllocObjects);
+  value_type->set_unit(kCount);
+
+  value_type = profile.add_sample_type();
+  value_type->set_type(kAllocSpace);
+  value_type->set_unit(kBytes);
+
   // The last value is the default one selected.
-  // ["space", "bytes"];
-  value_type->set_type(3);
-  value_type->set_unit(4);
+  value_type = profile.add_sample_type();
+  value_type->set_type(kSpace);
+  value_type->set_unit(kBytes);
 
   for (const ProfilePacket& packet : packet_fragments) {
     for (const ProfilePacket::Mapping& mapping : packet.mappings()) {
@@ -205,6 +224,8 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
           gsample->add_location_id(frame_id);
         gsample->add_value(
             static_cast<int64_t>(sample.alloc_count() - sample.free_count()));
+        gsample->add_value(static_cast<int64_t>(sample.alloc_count()));
+        gsample->add_value(static_cast<int64_t>(sample.self_allocated()));
         gsample->add_value(static_cast<int64_t>(sample.self_allocated() -
                                                 sample.self_freed()));
       }
