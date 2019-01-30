@@ -295,6 +295,7 @@ if (perfetto_build_standalone) {
 if (perfetto_build_with_android) {
   # TODO(fmayer): Investigate shared library for common pieces.
   shared_library("heapprofd_client") {
+    configs -= [ "//gn/standalone:android_liblog" ]
     cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
     deps = [
       "src/profiling/memory:malloc_hooks",
