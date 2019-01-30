@@ -28,6 +28,8 @@
 
 namespace perfetto {
 
+uint64_t TestHelper::next_instance_num_ = 0;
+
 // If we're building on Android and starting the daemons ourselves,
 // create the sockets in a world-writable location.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
@@ -40,7 +42,8 @@ namespace perfetto {
 #endif
 
 TestHelper::TestHelper(base::TestTaskRunner* task_runner)
-    : task_runner_(task_runner),
+    : instance_num_(next_instance_num_++),
+      task_runner_(task_runner),
       service_thread_("perfetto.svc"),
       producer_thread_("perfetto.prd") {}
 
@@ -83,9 +86,8 @@ void TestHelper::StartServiceIfRequired() {
 
 FakeProducer* TestHelper::ConnectFakeProducer() {
   std::unique_ptr<FakeProducerDelegate> producer_delegate(
-      new FakeProducerDelegate(
-          TEST_PRODUCER_SOCK_NAME,
-          WrapTask(task_runner_->CreateCheckpoint("producer.enabled"))));
+      new FakeProducerDelegate(TEST_PRODUCER_SOCK_NAME,
+                               WrapTask(CreateCheckpoint("producer.enabled"))));
   FakeProducerDelegate* producer_delegate_cached = producer_delegate.get();
   producer_thread_.Start(std::move(producer_delegate));
   return producer_delegate_cached->producer();
@@ -93,34 +95,35 @@ FakeProducer* TestHelper::ConnectFakeProducer() {
 
 void TestHelper::ConnectConsumer() {
   cur_consumer_num_++;
-  on_connect_callback_ = task_runner_->CreateCheckpoint(
-      "consumer.connected." + std::to_string(cur_consumer_num_));
+  on_connect_callback_ = CreateCheckpoint("consumer.connected." +
+                                          std::to_string(cur_consumer_num_));
   endpoint_ =
       ConsumerIPCClient::Connect(TEST_CONSUMER_SOCK_NAME, this, task_runner_);
 }
 
 void TestHelper::DetachConsumer(const std::string& key) {
-  on_detach_callback_ = task_runner_->CreateCheckpoint("detach." + key);
+  on_detach_callback_ = CreateCheckpoint("detach." + key);
   endpoint_->Detach(key);
-  task_runner_->RunUntilCheckpoint("detach." + key);
+  RunUntilCheckpoint("detach." + key);
   endpoint_.reset();
 }
 
 bool TestHelper::AttachConsumer(const std::string& key) {
   bool success = false;
-  auto checkpoint = task_runner_->CreateCheckpoint("attach." + key);
+  auto checkpoint = CreateCheckpoint("attach." + key);
   on_attach_callback_ = [&success, checkpoint](bool s) {
     success = s;
     checkpoint();
   };
   endpoint_->Attach(key);
-  task_runner_->RunUntilCheckpoint("attach." + key);
+  RunUntilCheckpoint("attach." + key);
   return success;
 }
 
 void TestHelper::StartTracing(const TraceConfig& config,
                               base::ScopedFile file) {
-  on_stop_tracing_callback_ = task_runner_->CreateCheckpoint("stop.tracing");
+  trace_.clear();
+  on_stop_tracing_callback_ = CreateCheckpoint("stop.tracing");
   endpoint_->EnableTracing(config, std::move(file));
 }
 
@@ -131,33 +134,31 @@ void TestHelper::DisableTracing() {
 void TestHelper::FlushAndWait(uint32_t timeout_ms) {
   static int flush_num = 0;
   std::string checkpoint_name = "flush." + std::to_string(flush_num++);
-  auto checkpoint = task_runner_->CreateCheckpoint(checkpoint_name);
+  auto checkpoint = CreateCheckpoint(checkpoint_name);
   endpoint_->Flush(timeout_ms, [checkpoint](bool) { checkpoint(); });
-  task_runner_->RunUntilCheckpoint(checkpoint_name, timeout_ms + 1000);
+  RunUntilCheckpoint(checkpoint_name, timeout_ms + 1000);
 }
 
 void TestHelper::ReadData(uint32_t read_count) {
-  on_packets_finished_callback_ = task_runner_->CreateCheckpoint(
-      "readback.complete." + std::to_string(read_count));
+  on_packets_finished_callback_ =
+      CreateCheckpoint("readback.complete." + std::to_string(read_count));
   endpoint_->ReadBuffers();
 }
 
 void TestHelper::WaitForConsumerConnect() {
-  task_runner_->RunUntilCheckpoint("consumer.connected." +
-                                   std::to_string(cur_consumer_num_));
+  RunUntilCheckpoint("consumer.connected." + std::to_string(cur_consumer_num_));
 }
 
 void TestHelper::WaitForProducerEnabled() {
-  task_runner_->RunUntilCheckpoint("producer.enabled");
+  RunUntilCheckpoint("producer.enabled");
 }
 
 void TestHelper::WaitForTracingDisabled(uint32_t timeout_ms) {
-  task_runner_->RunUntilCheckpoint("stop.tracing", timeout_ms);
+  RunUntilCheckpoint("stop.tracing", timeout_ms);
 }
 
 void TestHelper::WaitForReadData(uint32_t read_count) {
-  task_runner_->RunUntilCheckpoint("readback.complete." +
-                                   std::to_string(read_count));
+  RunUntilCheckpoint("readback.complete." + std::to_string(read_count));
 }
 
 std::function<void()> TestHelper::WrapTask(

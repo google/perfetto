@@ -61,6 +61,19 @@ class TestHelper : public Consumer {
   void WaitForTracingDisabled(uint32_t timeout_ms = 5000);
   void WaitForReadData(uint32_t read_count = 0);
 
+  std::string AddID(const std::string& checkpoint) {
+    return checkpoint + "." + std::to_string(instance_num_);
+  }
+
+  std::function<void()> CreateCheckpoint(const std::string& checkpoint) {
+    return task_runner_->CreateCheckpoint(AddID(checkpoint));
+  }
+
+  void RunUntilCheckpoint(const std::string& checkpoint,
+                          uint32_t timeout_ms = 5000) {
+    return task_runner_->RunUntilCheckpoint(AddID(checkpoint), timeout_ms);
+  }
+
   std::function<void()> WrapTask(const std::function<void()>& function);
 
   TaskRunnerThread* service_thread() { return &service_thread_; }
@@ -68,6 +81,8 @@ class TestHelper : public Consumer {
   const std::vector<protos::TracePacket>& trace() { return trace_; }
 
  private:
+  static uint64_t next_instance_num_;
+  uint64_t instance_num_;
   base::TestTaskRunner* task_runner_ = nullptr;
   int cur_consumer_num_ = 0;
 
