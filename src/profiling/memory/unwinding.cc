@@ -206,7 +206,8 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     if (error_code != unwindstack::ERROR_INVALID_MAP)
       break;
   }
-  for (unwindstack::FrameData fd : unwinder.frames()) {
+  std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
+  for (unwindstack::FrameData& fd : frames) {
     std::string build_id;
     if (fd.map_name != "") {
       unwindstack::MapInfo* map_info = metadata->maps.Find(fd.pc);
