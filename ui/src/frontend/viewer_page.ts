@@ -22,6 +22,7 @@ import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {HeaderPanel} from './header_panel';
 import {NotesEditorPanel, NotesPanel} from './notes_panel';
+import {SliceDetailsPanel} from './slice_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
@@ -238,6 +239,13 @@ class TraceViewer implements m.ClassComponent {
       detailsPanels.push(m(NotesEditorPanel, {
         key: 'notes',
         id: globals.state.selectedNote,
+      }));
+    }
+
+    if (globals.state.selectedSlice) {
+      detailsPanels.push(m(SliceDetailsPanel, {
+        key: 'slice',
+        selection: globals.state.selectedSlice,
       }));
     }
 
