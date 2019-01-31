@@ -68,8 +68,7 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
           idx, ftrace_utils::TaskState(static_cast<uint16_t>(prev_state)));
     } else {
       // If the this events previous pid does not match the previous event's
-      // next pid, invalidate the slice and add it to the stats.
-      slices->InvalidateSlice(idx);
+      // next pid, make a note of this.
       context_->storage->IncrementStats(stats::mismatched_sched_switch_tids);
     }
   }

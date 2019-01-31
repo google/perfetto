@@ -17,10 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_TRACE_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_TRACE_STORAGE_H_
 
-#include <algorithm>
 #include <array>
 #include <deque>
-#include <limits>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -45,7 +43,6 @@ using UniquePid = uint32_t;
 // UniqueTid is an offset into |unique_threads_|. Necessary because tids can
 // be reused.
 using UniqueTid = uint32_t;
-constexpr UniqueTid kInvalidUtid = std::numeric_limits<UniqueTid>::max();
 
 // StringId is an offset into |string_pool_|.
 using StringId = uint32_t;
@@ -193,20 +190,6 @@ class TraceStorage {
       priorities_.emplace_back(priority);
       rows_for_utids_.emplace(utid, slice_count() - 1);
       return slice_count() - 1;
-    }
-
-    void InvalidateSlice(size_t index) {
-      using T = decltype(rows_for_utids_)::value_type;
-      auto pair = rows_for_utids_.equal_range(utids_[index]);
-      auto it = std::find_if(pair.first, pair.second,
-                             [index](const T& p) { return index == p.second; });
-      PERFETTO_CHECK(it != pair.second);
-      rows_for_utids_.erase(it);
-
-      utids_[index] = kInvalidUtid;
-      end_states_[index] = ftrace_utils::TaskState();
-      priorities_[index] = 0;
-      rows_for_utids_.emplace(kInvalidUtid, index);
     }
 
     void set_duration(size_t index, int64_t duration_ns) {
