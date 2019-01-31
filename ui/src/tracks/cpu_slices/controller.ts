@@ -119,7 +119,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     // TODO(hjd): Remove LIMIT
     const LIMIT = 10000;
 
-    const query = `select ts,dur,utid from span_${this.trackState.id}
+    const query = `select ts,dur,utid,row_id from span_${this.trackState.id}
         where cpu = ${this.config.cpu}
         and utid != 0
         limit ${LIMIT};`;
@@ -131,6 +131,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       start,
       end,
       resolution,
+      ids: new Float64Array(numRows),
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
       utids: new Uint32Array(numRows),
@@ -142,6 +143,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       slices.starts[row] = startSec;
       slices.ends[row] = startSec + fromNs(+cols[1].longValues![row]);
       slices.utids[row] = +cols[2].longValues![row];
+      slices.ids[row] = +cols[3].longValues![row];
     }
     if (numRows === LIMIT) {
       slices.end = slices.ends[slices.ends.length - 1];
