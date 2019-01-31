@@ -46,6 +46,8 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+constexpr useconds_t kMsToUs = 1000;
+
 using ::testing::Eq;
 using ::testing::AnyOf;
 
@@ -119,6 +121,7 @@ pid_t ForkContinousMalloc(size_t bytes) {
           x[1] = 'x';
           free(const_cast<char*>(x));
         }
+        usleep(10 * kMsToUs);
       }
     default:
       break;
@@ -326,7 +329,7 @@ TEST_F(HeapprofdEndToEnd, NativeStartup) {
 }
 
 // TODO(fmayer): Enable in CL that fixes b/123352823.
-TEST_F(HeapprofdEndToEnd, DISABLED_ReInit) {
+TEST_F(HeapprofdEndToEnd, ReInit) {
   constexpr uint64_t kFirstIterationBytes = 5;
   constexpr uint64_t kSecondIterationBytes = 7;
 
@@ -356,6 +359,7 @@ TEST_F(HeapprofdEndToEnd, DISABLED_ReInit) {
           signal_pipe.rd.reset();
           ack_pipe.wr.reset();
         }
+        usleep(10 * kMsToUs);
       }
       PERFETTO_FATAL("Should be unreachable");
     }

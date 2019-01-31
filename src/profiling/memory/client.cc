@@ -200,9 +200,13 @@ const char* GetThreadStackBase() {
   return stackaddr + stacksize;
 }
 
+std::atomic<uint64_t> Client::max_generation_{0};
+
 Client::Client(std::vector<base::UnixSocketRaw> socks)
-    : pthread_key_(ThreadLocalSamplingData::KeyDestructor),
+    : generation_(++max_generation_),
+      pthread_key_(ThreadLocalSamplingData::KeyDestructor),
       socket_pool_(std::move(socks)),
+      free_page_(generation_),
       main_thread_stack_base_(FindMainThreadStack()) {
   PERFETTO_DCHECK(pthread_key_.valid());
 
@@ -300,6 +304,7 @@ bool Client::RecordMalloc(uint64_t alloc_size,
   }
 
   uint64_t stack_size = static_cast<uint64_t>(stackbase - stacktop);
+  metadata.client_generation = generation_;
   metadata.total_size = total_size;
   metadata.alloc_size = alloc_size;
   metadata.alloc_address = alloc_address;

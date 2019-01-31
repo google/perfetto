@@ -83,6 +83,10 @@ class BorrowedSocket {
 // free separately, so we batch and send the whole buffer once it is full.
 class FreePage {
  public:
+  FreePage(uint64_t client_generation) {
+    free_page_.client_generation = client_generation;
+  }
+
   // Add address to buffer. Flush if necessary using a socket borrowed from
   // pool.
   // Can be called from any thread. Must not hold mutex_.`
@@ -148,6 +152,9 @@ class Client {
                             void* (*unhooked_malloc)(size_t),
                             void (*unhooked_free)(void*));
   const char* GetStackBase();
+
+  static std::atomic<uint64_t> max_generation_;
+  const uint64_t generation_;
 
   std::atomic<bool> inited_{false};
   ClientConfiguration client_config_;
