@@ -22,6 +22,7 @@
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_checker.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 
 #include <poll.h>
@@ -54,6 +55,7 @@ class UnixTaskRunner : public TaskRunner {
   void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
   void AddFileDescriptorWatch(int fd, std::function<void()>) override;
   void RemoveFileDescriptorWatch(int fd) override;
+  bool RunsTasksOnCurrentThread() const override;
 
  private:
   void WakeUp();
@@ -66,6 +68,7 @@ class UnixTaskRunner : public TaskRunner {
   void RunFileDescriptorWatch(int fd);
 
   ThreadChecker thread_checker_;
+  PlatformThreadID created_thread_id_ = GetThreadId();
 
   // On Linux, an eventfd(2) used to waking up the task runner when a new task
   // is posted. Otherwise the read end of a pipe used for the same purpose.

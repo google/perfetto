@@ -358,6 +358,22 @@ TYPED_TEST(TaskRunnerTest, IsIdleForTesting) {
   task_runner.Run();
 }
 
+TYPED_TEST(TaskRunnerTest, RunsTasksOnCurrentThread) {
+  auto& main_tr = this->task_runner;
+
+  EXPECT_TRUE(main_tr.RunsTasksOnCurrentThread());
+  std::thread thread([&main_tr] {
+    typename std::remove_reference<decltype(main_tr)>::type second_tr;
+    second_tr.PostTask([&main_tr, &second_tr] {
+      EXPECT_FALSE(main_tr.RunsTasksOnCurrentThread());
+      EXPECT_TRUE(second_tr.RunsTasksOnCurrentThread());
+      second_tr.Quit();
+    });
+    second_tr.Run();
+  });
+  thread.join();
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

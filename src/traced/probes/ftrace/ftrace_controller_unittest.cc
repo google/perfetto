@@ -91,6 +91,7 @@ class MockTaskRunner : public base::TaskRunner {
   MOCK_METHOD2(PostDelayedTask, void(std::function<void()>, uint32_t delay_ms));
   MOCK_METHOD2(AddFileDescriptorWatch, void(int fd, std::function<void()>));
   MOCK_METHOD1(RemoveFileDescriptorWatch, void(int fd));
+  MOCK_CONST_METHOD0(RunsTasksOnCurrentThread, bool());
 
  private:
   std::mutex lock_;
