@@ -46,7 +46,7 @@ class StorageSchema {
     Builder& AddNumericColumn(
         std::string column_name,
         const std::deque<T>* vals,
-        const std::multimap<T, uint32_t>* index = nullptr) {
+        const std::deque<std::vector<uint32_t>>* index = nullptr) {
       columns_.emplace_back(
           new NumericColumn<T>(column_name, vals, index, false, false));
       return *this;
