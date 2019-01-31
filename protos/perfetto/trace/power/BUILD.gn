@@ -16,7 +16,7 @@ import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
 import("../../../../gn/protozero_library.gni")
 
-profiling_proto_names = [ "battery_counters.proto" ]
+profiling_proto_names = [ "battery_counters.proto", "power_rails.proto" ]
 
 proto_library("lite") {
   generate_python = false

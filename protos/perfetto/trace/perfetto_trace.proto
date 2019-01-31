@@ -2325,6 +2325,38 @@ message BatteryCounters {
 
 // End of protos/perfetto/trace/power/battery_counters.proto
 
+// Begin of protos/perfetto/trace/power/power_rails.proto
+
+message PowerRails {
+
+  message RailDescriptor {
+    // Index corresponding to the rail
+    optional uint32 index = 1;
+    // Name of the rail
+    optional string rail_name = 2;
+    // Name of the subsystem to which this rail belongs
+    optional string subsys_name = 3;
+    // Hardware sampling rate
+    optional uint32 sampling_rate = 4;
+  }
+
+  // This is only emitted at the beginning of the trace.
+  repeated RailDescriptor rail_descriptor = 1;
+
+  message EnergyData {
+    // Index corresponding to RailDescriptor.index
+    optional uint32 index = 1;
+    // Time since device boot(CLOCK_BOOTTIME) in milli-seconds
+    optional uint64 timestamp_ms = 2;
+    // Accumulated energy since device boot in microwatt-seconds (uWs)
+    optional uint64 energy = 3;
+  }
+
+  repeated EnergyData energy_data = 2;
+}
+
+// End of protos/perfetto/trace/power/power_rails.proto
+
 // Begin of protos/perfetto/trace/ps/process_stats.proto
 
 // Per-process periodically sampled stats. These samples are wrapped in a
@@ -2473,7 +2505,7 @@ message Trace {
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
 //
-// Next id: 40.
+// Next id: 41.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -2496,6 +2528,7 @@ message TracePacket {
     // removed field with id 35
     ProfilePacket profile_packet = 37;
     BatteryCounters battery = 38;
+    PowerRails power_rails = 40;
     AndroidLogPacket android_log = 39;
 
     // This field is emitted at periodic intervals (~10s) and
