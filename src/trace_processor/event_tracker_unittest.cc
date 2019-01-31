@@ -86,9 +86,9 @@ TEST_F(EventTrackerTest, InsertThirdSched_SameThread) {
   context.event_tracker->PushSchedSwitch(cpu, timestamp + 11, /*tid=*/4,
                                          prev_state,
                                          /*tid=*/2, kCommProc2, next_prio);
-  context.event_tracker->PushSchedSwitch(cpu, timestamp + 31, /*tid=*/2,
+  context.event_tracker->PushSchedSwitch(cpu, timestamp + 31, /*tid=*/4,
                                          prev_state,
-                                         /*tid=*/4, kCommProc1, next_prio);
+                                         /*tid=*/2, kCommProc1, next_prio);
 
   ASSERT_EQ(timestamps.size(), 4ul);
   ASSERT_EQ(timestamps[0], timestamp);
@@ -98,26 +98,6 @@ TEST_F(EventTrackerTest, InsertThirdSched_SameThread) {
   ASSERT_EQ(context.storage->slices().durations().at(2), 31u - 11u);
   ASSERT_EQ(context.storage->slices().utids().at(0),
             context.storage->slices().utids().at(2));
-}
-
-TEST_F(EventTrackerTest, SchedMismatchedPids) {
-  uint32_t cpu = 3;
-  int64_t timestamp = 100;
-  int64_t prev_state = 32;
-  static const char kCommProc1[] = "process1";
-  static const char kCommProc2[] = "process2";
-  int32_t next_prio = 1024;
-
-  context.event_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/2,
-                                         prev_state,
-                                         /*tid=*/4, kCommProc1, next_prio);
-  context.event_tracker->PushSchedSwitch(cpu, timestamp + 11, /*tid=*/3,
-                                         prev_state,
-                                         /*tid=*/2, kCommProc2, next_prio);
-
-  ASSERT_EQ(context.storage->slices().utids().at(0),
-            std::numeric_limits<UniqueTid>::max());
-  ASSERT_EQ(context.storage->slices().utids().at(0), kInvalidUtid);
 }
 
 TEST_F(EventTrackerTest, CounterDuration) {
