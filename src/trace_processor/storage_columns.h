@@ -78,7 +78,7 @@ class NumericColumn : public StorageColumn {
   // to the rows they are located at.
   NumericColumn(std::string col_name,
                 const std::deque<T>* deque,
-                const std::multimap<T, uint32_t>* index,
+                const std::deque<std::vector<uint32_t>>* index,
                 bool hidden,
                 bool is_naturally_ordered)
       : StorageColumn(col_name, hidden),
@@ -178,7 +178,7 @@ class NumericColumn : public StorageColumn {
 
  protected:
   const std::deque<T>* deque_ = nullptr;
-  const std::multimap<T, uint32_t>* index_ = nullptr;
+  const std::deque<std::vector<uint32_t>>* index_ = nullptr;
 
  private:
   T kTMin = std::numeric_limits<T>::lowest();
@@ -187,22 +187,11 @@ class NumericColumn : public StorageColumn {
   void FilterIntegerIndexEq(sqlite3_value* value,
                             FilteredRowIndex* index) const {
     auto raw = sqlite_utils::ExtractSqliteValue<int64_t>(value);
-    if (raw < kTMin || raw > kTMax) {
-      // If the compared value is out of bounds for T, we will never match any
-      // rows. Just return an empty result set.
+    if (raw < 0 || raw >= static_cast<int64_t>(index_->size())) {
       index->IntersectRows({});
       return;
     }
-
-    // Otherwise, lookup the cast value in the index and return the results.
-    auto pair = index_->equal_range(static_cast<T>(raw));
-    auto size = static_cast<size_t>(std::distance(pair.first, pair.second));
-    std::vector<uint32_t> rows(size);
-    size_t i = 0;
-    for (auto it = pair.first; it != pair.second; it++) {
-      rows[i++] = it->second;
-    }
-    index->IntersectRows(std::move(rows));
+    index->IntersectRows((*index_)[static_cast<size_t>(raw)]);
   }
 
   template <typename C>
