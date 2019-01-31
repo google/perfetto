@@ -66,6 +66,7 @@ TEST(ProtoDecoder, FixedData) {
 
   const FieldExpectation kFieldExpectations[] = {
       {"\x08\x00", 2, 1, ProtoWireType::kVarInt, 0},
+      {"\x08\x01", 2, 1, ProtoWireType::kVarInt, 1},
       {"\x08\x42", 2, 1, ProtoWireType::kVarInt, 0x42},
       {"\xF8\x07\x42", 3, 127, ProtoWireType::kVarInt, 0x42},
       {"\x90\x4D\xFF\xFF\xFF\xFF\x0F", 7, 1234, ProtoWireType::kVarInt,
@@ -99,6 +100,10 @@ TEST(ProtoDecoder, FixedData) {
       ASSERT_EQ(exp.int_value, field.length_limited.length);
     } else {
       ASSERT_EQ(exp.int_value, field.int_value);
+      // Proto encodes booleans as varints of 0 or 1.
+      if (exp.int_value == 0 || exp.int_value == 1) {
+        ASSERT_EQ(exp.int_value, field.as_bool());
+      }
     }
   }
 }

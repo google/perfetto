@@ -264,6 +264,11 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TraceBlobView packet) {
         ParseAndroidLogPacket(packet.slice(fld_off, fld.size()));
         break;
       }
+      case protos::TracePacket::kProfilePacketFieldNumber: {
+        const size_t fld_off = packet.offset_of(fld.data());
+        ParseProfilePacket(packet.slice(fld_off, fld.size()));
+        break;
+      }
       default:
         break;
     }
@@ -1602,6 +1607,55 @@ void ProtoTraceParser::ParseFtraceStats(TraceBlobView packet) {
       }
       default:
         break;
+    }
+  }
+  PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+}
+
+void ProtoTraceParser::ParseProfilePacket(TraceBlobView packet) {
+  ProtoDecoder decoder(packet.data(), packet.length());
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::ProfilePacket::kStringsFieldNumber: {
+        const size_t fld_off = packet.offset_of(fld.data());
+        TraceBlobView nestedPacket = packet.slice(fld_off, fld.size());
+        ProtoDecoder nested(nestedPacket.data(), nestedPacket.length());
+        for (auto sub = nested.ReadField(); sub.id != 0;
+             sub = nested.ReadField()) {
+          switch (sub.id) {
+            case protos::ProfilePacket::InternedString::kIdFieldNumber: {
+              break;
+            }
+            case protos::ProfilePacket::InternedString::kStrFieldNumber: {
+              context_->storage->InternString(sub.as_string());
+              break;
+            }
+          }
+        }
+        break;
+      }
+      case protos::ProfilePacket::kFramesFieldNumber: {
+        break;
+      }
+      case protos::ProfilePacket::kCallstacksFieldNumber: {
+        break;
+      }
+      case protos::ProfilePacket::kMappingsFieldNumber: {
+        break;
+      }
+      case protos::ProfilePacket::kProcessDumpsFieldNumber: {
+        break;
+      }
+      case protos::ProfilePacket::kContinuedFieldNumber: {
+        bool continued = fld.as_bool();
+        base::ignore_result(continued);
+        break;
+      }
+      case protos::ProfilePacket::kIndexFieldNumber: {
+        int64_t index = fld.as_int64();
+        base::ignore_result(index);
+        break;
+      }
     }
   }
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());

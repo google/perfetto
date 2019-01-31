@@ -48,6 +48,11 @@ class ProtoDecoder {
       LengthDelimited length_limited;
     };
 
+    inline bool as_bool() const {
+      PERFETTO_DCHECK(type == proto_utils::ProtoWireType::kVarInt);
+      return static_cast<bool>(int_value);
+    }
+
     inline uint32_t as_uint32() const {
       PERFETTO_DCHECK(type == proto_utils::ProtoWireType::kVarInt ||
                       type == proto_utils::ProtoWireType::kFixed32);
