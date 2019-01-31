@@ -189,7 +189,8 @@ class CpuFreqTrack extends Track<Config, Data> {
       ctx.fillText(text, this.mouseXpos + 10, centerY - 3);
       // Display idle value if current hover is idle.
       if (this.hoveredIdle !== undefined && this.hoveredIdle !== -1) {
-        const idle = `idle: ${this.hoveredIdle.toLocaleString()}`;
+        // Display the idle value +1 to be consistent with catapult.
+        const idle = `idle: ${(this.hoveredIdle + 1).toLocaleString()}`;
         ctx.fillText(idle, this.mouseXpos + 10, centerY + 11);
       }
     }
