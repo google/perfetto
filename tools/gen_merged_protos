@@ -65,6 +65,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/ftrace/task.proto',
   'protos/perfetto/trace/ftrace/vmscan.proto',
   'protos/perfetto/trace/power/battery_counters.proto',
+  'protos/perfetto/trace/power/power_rails.proto',
   'protos/perfetto/trace/ps/process_stats.proto',
   'protos/perfetto/trace/ps/process_tree.proto',
   'protos/perfetto/trace/sys_stats/sys_stats.proto',
