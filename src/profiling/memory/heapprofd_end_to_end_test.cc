@@ -208,7 +208,8 @@ TEST_F(HeapprofdEndToEnd, Smoke) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(1000);
+  trace_config.set_duration_ms(2000);
+  trace_config.set_flush_timeout_ms(10000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.heapprofd");
@@ -234,7 +235,8 @@ TEST_F(HeapprofdEndToEnd, FinalFlush) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(1000);
+  trace_config.set_duration_ms(2000);
+  trace_config.set_flush_timeout_ms(10000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.heapprofd");
@@ -257,6 +259,7 @@ TEST_F(HeapprofdEndToEnd, NativeStartup) {
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
   trace_config.set_duration_ms(5000);
+  trace_config.set_flush_timeout_ms(10000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.heapprofd");
@@ -328,7 +331,6 @@ TEST_F(HeapprofdEndToEnd, NativeStartup) {
   EXPECT_GT(total_freed, 0);
 }
 
-// TODO(fmayer): Enable in CL that fixes b/123352823.
 TEST_F(HeapprofdEndToEnd, ReInit) {
   constexpr uint64_t kFirstIterationBytes = 5;
   constexpr uint64_t kSecondIterationBytes = 7;
@@ -373,6 +375,7 @@ TEST_F(HeapprofdEndToEnd, ReInit) {
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
   trace_config.set_duration_ms(2000);
+  trace_config.set_flush_timeout_ms(10000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.heapprofd");
