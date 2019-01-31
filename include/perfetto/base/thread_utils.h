@@ -37,26 +37,36 @@ namespace perfetto {
 namespace base {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-inline pid_t GetThreadId() {
+using PlatformThreadID = pid_t;
+inline PlatformThreadID GetThreadId() {
   return gettid();
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
-inline pid_t GetThreadId() {
+using PlatformThreadID = pid_t;
+inline PlatformThreadID GetThreadId() {
   return static_cast<pid_t>(syscall(__NR_gettid));
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
-inline zx_handle_t GetThreadId() {
+using PlatformThreadID = zx_handle_t;
+inline PlatformThreadID GetThreadId() {
   return static_cast<pid_t>(zx_thread_self());
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-inline uint64_t GetThreadId() {
+using PlatformThreadID = uint64_t;
+inline PlatformThreadID GetThreadId() {
   uint64_t tid;
   pthread_threadid_np(nullptr, &tid);
   return tid;
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-inline uint64_t GetThreadId() {
-  return static_cast<uint64_t>(GetCurrentThreadId());
+using PlatformThreadID = uint64_t;
+inline PlatformThreadID GetThreadId() {
+  return static_cast<uint64_t>(GetCurrentThreadID());
+}
+#else  // Default to pthreads in case no OS is set.
+using PlatformThreadID = pthread_t;
+inline PlatformThreadID GetThreadId() {
+  return pthread_self();
 }
 #endif
 

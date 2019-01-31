@@ -60,6 +60,7 @@ class TestTaskRunner : public TaskRunner {
   void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
   void AddFileDescriptorWatch(int fd, std::function<void()> callback) override;
   void RemoveFileDescriptorWatch(int fd) override;
+  bool RunsTasksOnCurrentThread() const override;
 
  private:
   TestTaskRunner(const TestTaskRunner&) = delete;
