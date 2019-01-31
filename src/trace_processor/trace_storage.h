@@ -54,6 +54,7 @@ enum TableId : uint8_t {
   kCounters = 1,
   kRawEvents = 2,
   kInstants = 3,
+  kSched = 4,
 };
 
 // The top 8 bits are set to the TableId and the bottom 32 to the row of the
