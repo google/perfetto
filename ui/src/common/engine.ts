@@ -77,18 +77,8 @@ export abstract class Engine {
   }
 
   async getTraceTimeBounds(): Promise<TimeSpan> {
-    const maxQuery = `select max(ts) from (
-      select max(ts) as ts from sched
-      union all select max(ts) as ts from slices
-      union all select max(ts) as ts from counters
-    )`;
-    const minQuery = `select min(ts) from (
-      select min(ts) as ts from sched
-      union all select min(ts) as ts from slices
-      union all select min(ts) as ts from counters
-    )`;
-    const start = (await this.queryOneRow(minQuery))[0];
-    const end = (await this.queryOneRow(maxQuery))[0];
-    return new TimeSpan(start / 1e9, end / 1e9);
+    const query = `select start_ts, end_ts from trace_bounds`;
+    const res = (await this.queryOneRow(query));
+    return new TimeSpan(res[0] / 1e9, res[1] / 1e9);
   }
 }
