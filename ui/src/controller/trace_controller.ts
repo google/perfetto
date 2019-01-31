@@ -35,6 +35,10 @@ import {Child, Children, Controller} from './controller';
 import {globals} from './globals';
 import {QueryController, QueryControllerArgs} from './query_controller';
 import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
+import {
+  SelectionController,
+  SelectionControllerArgs
+} from './selection_controller';
 
 type States = 'init'|'loading_trace'|'ready';
 
@@ -107,6 +111,10 @@ export class TraceController extends Controller<States> {
           const queryArgs: QueryControllerArgs = {queryId, engine};
           childControllers.push(Child(queryId, QueryController, queryArgs));
         }
+
+        const selectionArgs: SelectionControllerArgs = {engine};
+        childControllers.push(
+          Child('selection', SelectionController, selectionArgs));
 
         return childControllers;
 

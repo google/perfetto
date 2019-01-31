@@ -20,6 +20,7 @@ import {colorForThread, hueForCpu} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
+import {search} from '../../base/binary_search';
 
 import {
   Config,
@@ -276,6 +277,19 @@ class CpuSliceTrack extends Track<Config, Data> {
     this.utidHoveredInThisTrack = -1;
     globals.frontendLocalState.setHoveredUtidAndPid(-1, -1);
     this.mouseXpos = 0;
+  }
+
+  onMouseClick({x}: {x: number}) {
+    const data = this.data();
+    if (data === undefined || data.kind === 'summary') return;
+    const {timeScale} = globals.frontendLocalState;
+    const time = timeScale.pxToTime(x);
+    const index = search(data.starts, time);
+    const id = index === -1 ? undefined : data.ids[index];
+    if (id && this.utidHoveredInThisTrack !== -1) {
+      globals.dispatch(Actions.selectSlice(
+        {utid: this.utidHoveredInThisTrack, id}));
+    }
   }
 }
 

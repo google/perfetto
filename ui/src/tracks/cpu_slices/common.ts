@@ -33,6 +33,7 @@ export interface SliceData {
   resolution: number;
 
   // Slices are stored in a columnar fashion. All fields have the same length.
+  ids: Float64Array;
   starts: Float64Array;
   ends: Float64Array;
   utids: Uint32Array;
