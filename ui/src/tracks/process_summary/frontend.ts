@@ -75,7 +75,7 @@ class ProcessSummaryTrack extends Track<Config, Data> {
         data.resolution !== getCurResolution()) {
       if (!this.reqPending) {
         this.reqPending = true;
-        setTimeout(() => this.reqDataDeferred(), 50);
+        setTimeout(() => this.reqDataDeferred(), 250);
       }
     }
     if (data === undefined) return;  // Can't possibly draw anything.
