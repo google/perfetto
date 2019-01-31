@@ -118,7 +118,7 @@ TEST(FreePageTest, ShutdownSocketPool) {
   socks.emplace_back(CreateSocket());
   SocketPool pool(std::move(socks));
   pool.Shutdown();
-  FreePage p;
+  FreePage p{0};
   p.Add(0, 1, &pool);
 }
 

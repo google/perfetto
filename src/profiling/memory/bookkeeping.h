@@ -357,7 +357,7 @@ class HeapTracker {
 
   // The sequence number all mallocs and frees have been handled up to.
   uint64_t committed_sequence_number_ = 0;
-  GlobalCallstackTrie* const callsites_;
+  GlobalCallstackTrie* callsites_;
 };
 
 struct BookkeepingData {
@@ -366,12 +366,12 @@ struct BookkeepingData {
   explicit BookkeepingData(GlobalCallstackTrie* callsites)
       : heap_tracker(callsites) {}
 
-  HeapTracker heap_tracker;
-
   // This is different to a shared_ptr to HeapTracker, because we want to keep
   // it around until the first dump after the last socket for the PID has
-  // disconnected.
+  // disconnected
   uint64_t ref_count = 0;
+  uint64_t client_generation = 0;
+  HeapTracker heap_tracker;
 };
 
 // BookkeepingThread owns the BookkeepingData for all processes. The Run()
