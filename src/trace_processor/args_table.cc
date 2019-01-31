@@ -31,7 +31,7 @@ void ArgsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 StorageSchema ArgsTable::CreateStorageSchema() {
   const auto& args = storage_->args();
   return StorageSchema::Builder()
-      .AddNumericColumn("id", &args.ids(), &args.args_for_id())
+      .AddNumericColumn("id", &args.ids())
       .AddStringColumn("flat_key", &args.flat_keys(), &storage_->string_pool())
       .AddStringColumn("key", &args.keys(), &storage_->string_pool())
       .AddColumn<ValueColumn>("int_value", VariadicType::kInt, storage_)
