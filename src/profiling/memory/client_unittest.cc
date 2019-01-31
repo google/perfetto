@@ -17,6 +17,7 @@
 #include "src/profiling/memory/client.h"
 
 #include "gtest/gtest.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/base/unix_socket.h"
 
 #include <thread>
@@ -131,6 +132,18 @@ TEST(ClientTest, GetThreadStackBase) {
     // stack grows the other way.
     EXPECT_GT(stackbase, __builtin_frame_address(0));
   });
+  th.join();
+}
+
+TEST(ClientTest, IsMainThread) {
+  // Our code relies on the fact that getpid() == GetThreadId() if this
+  // process/thread is the main thread of the process. This test ensures that is
+  // true.
+  auto pid = getpid();
+  auto main_thread_id = base::GetThreadId();
+  EXPECT_EQ(pid, main_thread_id);
+  std::thread th(
+      [main_thread_id] { EXPECT_NE(main_thread_id, base::GetThreadId()); });
   th.join();
 }
 
