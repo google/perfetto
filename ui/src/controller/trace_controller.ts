@@ -259,7 +259,7 @@ export class TraceController extends Controller<States> {
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
             cpu,
-            maximumValue: maxFreq.columns[0].longValues![0],
+            maximumValue: +maxFreq.columns[0].doubleValues![0],
           }
         }));
       }
