@@ -79,16 +79,20 @@ data_sources {{
       all: {all}
       sampling_interval_bytes: {interval}
 {target_cfg}
-      continuous_dump_config {{
-        dump_phase_ms: 0
-        dump_interval_ms: 1000
-      }}
+{continuous_dump_cfg}
     }}
   }}
 }}
 
 duration_ms: {duration}
 '''
+
+CONTINUOUS_DUMP = """
+      continuous_dump_config {{
+        dump_phase_ms: 0
+        dump_interval_ms: {dump_interval}
+      }}
+"""
 
 PERFETTO_CMD=('CFG=\'{}\'; echo ${{CFG}} | '
               'perfetto --txt -c - -o /data/misc/perfetto-traces/profile -d')
@@ -114,6 +118,9 @@ def main(argv):
                       nargs='+')
   parser.add_argument("-t", "--trace-to-text-binary",
                       help="Path to local trace to text. For debugging.")
+  parser.add_argument("-c", "--continuous-dump",
+                      help="Dump interval in ms. 0 to disable continuous dump.",
+                      type=int, default=0)
   parser.add_argument("--disable-selinux", action="store_true",
                       help="Disable SELinux enforcement for duration of "
                       "profile")
@@ -154,8 +161,13 @@ def main(argv):
 
     trace_to_text_binary = load_trace_to_text(platform)
 
+  continuous_dump_cfg = ""
+  if args.continuous_dump:
+    continuous_dump_cfg = CONTINUOUS_DUMP.format(
+        dump_interval=args.continuous_dump)
   cfg = CFG.format(all=str(args.all == True).lower(), interval=args.interval,
-                   duration=args.duration, target_cfg=target_cfg)
+                   duration=args.duration, target_cfg=target_cfg,
+                   continuous_dump_cfg=continuous_dump_cfg)
 
   if args.disable_selinux:
     enforcing = subprocess.check_output(['adb', 'shell', 'getenforce'])
