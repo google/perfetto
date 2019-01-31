@@ -20,7 +20,7 @@ import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
 import {State} from '../common/state';
 
-import {globals, QuantizedLoad, ThreadDesc} from './globals';
+import {globals, QuantizedLoad, ThreadDesc, SliceDetails} from './globals';
 import {HomePage} from './home_page';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
 import {RecordPage} from './record_page';
@@ -75,6 +75,11 @@ class FrontendApi {
     data.forEach(thread => {
       globals.threads.set(thread.utid, thread);
     });
+    this.redraw();
+  }
+
+  publishSliceDetails(click: SliceDetails) {
+    globals.sliceDetails = click;
     this.redraw();
   }
 

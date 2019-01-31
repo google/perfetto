@@ -51,5 +51,7 @@ export abstract class Track<Config = {}, Data = {}> {
 
   onMouseMove(_position: {x: number, y: number}) {}
 
+  onMouseClick(_position: {x: number, y: number}) {}
+
   onMouseOut() {}
 }
