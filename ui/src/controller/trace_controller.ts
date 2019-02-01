@@ -465,7 +465,9 @@ export class TraceController extends Controller<States> {
   private async listThreads() {
     this.updateStatus('Reading thread list');
     const sqlQuery = `select utid, tid, pid, thread.name,
-        ifnull(process.name, thread.name)
+        ifnull(
+          case when length(process.name) > 0 then process.name else null end,
+          thread.name)
         from thread left join process using(upid)`;
     const threadRows = await assertExists(this.engine).query(sqlQuery);
     const threads: ThreadDesc[] = [];

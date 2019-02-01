@@ -150,17 +150,6 @@ ProcessTracker::GetOrCreateProcess(uint32_t pid, int64_t start_ns) {
   if (process->start_ns == 0)
     process->start_ns = start_ns;
 
-  // Give a default name to the process based on its PID just in case we never
-  // get to see the real comm (e.g., we miss the trace packet that containts it
-  // because of the ring buffer wrapping over).
-  if (process->name_id == 0) {
-    char process_name[64];
-    size_t len =
-        static_cast<size_t>(sprintf(process_name, "[pid:%" PRIu32 "]", pid));
-    process->name_id =
-        context_->storage->InternString(base::StringView(process_name, len));
-  }
-
   return std::make_tuple(upid, process);
 }
 
