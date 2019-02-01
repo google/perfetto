@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
@@ -33,12 +32,6 @@ function hash(s: string): number {
   return hash & 0xff;
 }
 
-function getCurResolution() {
-  // Truncate the resolution to the closest power of 10.
-  const resolution = globals.frontendLocalState.timeScale.deltaPxToDuration(1);
-  return Math.pow(10, Math.floor(Math.log10(resolution)));
-}
-
 class ChromeSliceTrack extends Track<Config, Data> {
   static readonly kind = SLICE_TRACK_KIND;
   static create(trackState: TrackState): ChromeSliceTrack {
@@ -46,24 +39,9 @@ class ChromeSliceTrack extends Track<Config, Data> {
   }
 
   private hoveredTitleId = -1;
-  private reqPending = false;
 
   constructor(trackState: TrackState) {
     super(trackState);
-  }
-
-  reqDataDeferred() {
-    const {visibleWindowTime} = globals.frontendLocalState;
-    const reqStart = visibleWindowTime.start - visibleWindowTime.duration;
-    const reqEnd = visibleWindowTime.end + visibleWindowTime.duration;
-    const reqRes = getCurResolution();
-    this.reqPending = false;
-    globals.dispatch(Actions.reqTrackData({
-      trackId: this.trackState.id,
-      start: reqStart,
-      end: reqEnd,
-      resolution: reqRes
-    }));
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
@@ -78,11 +56,8 @@ class ChromeSliceTrack extends Track<Config, Data> {
         (visibleWindowTime.start >= data.start &&
          visibleWindowTime.end <= data.end);
     if (!inRange || data === undefined ||
-        data.resolution > getCurResolution()) {
-      if (!this.reqPending) {
-        this.reqPending = true;
-        setTimeout(() => this.reqDataDeferred(), 50);
-      }
+        data.resolution > globals.getCurResolution()) {
+      globals.requestTrackData(this.trackState.id);
       if (data === undefined) return;  // Can't possibly draw anything.
     }
 
