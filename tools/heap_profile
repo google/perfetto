@@ -176,9 +176,13 @@ def main(argv):
     subprocess.check_call(['adb', 'shell', 'su root setenforce 0'])
 
   if not args.no_start:
-    atexit.register(subprocess.check_call,
-                    ['adb', 'shell', 'su root stop heapprofd'])
-    subprocess.check_call(['adb', 'shell', 'su root start heapprofd'])
+    heapprofd_prop = subprocess.check_output(
+        ['adb', 'shell', 'getprop persist.heapprofd.enable'])
+    if heapprofd_prop.strip() != '1':
+      subprocess.check_call(
+          ['adb', 'shell', 'setprop persist.heapprofd.enable 1'])
+      atexit.register(subprocess.check_call,
+          ['adb', 'shell', 'setprop persist.heapprofd.enable 0'])
 
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out', PERFETTO_CMD.format(cfg)]).strip()
