@@ -105,7 +105,7 @@ def sigint_handler(sig, frame):
 def main(argv):
   parser = argparse.ArgumentParser()
   parser.add_argument("-i", "--interval", help="Sampling interval. "
-                      "Default 128000 (128kB)", type=int, default=128000)
+                      "Default 4096 (4KiB)", type=int, default=4096)
   parser.add_argument("-d", "--duration", help="Duration of profile (ms). "
                       "Default 7 days", type=int, default=604800000)
   parser.add_argument("-a", "--all", help="Profile the whole system",
