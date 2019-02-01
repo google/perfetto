@@ -12,12 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Import all currently implemented tracks. After implemeting a new track, an
-// import statement for it needs to be added here.
-import './cpu_slices/controller';
-import './chrome_slices/controller';
-import './vsync/controller';
-import './process_summary/controller';
-import './counter/controller';
-import './cpu_freq/controller';
-import './android_log/controller';
+export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
+
+export interface Data {
+  start: number;
+  end: number;
+  resolution: number;
+
+  // Total number of log events within [start, end], before any quantization.
+  numEvents: number;
+
+  // Below: data quantized by resolution and aggregated by event priority.
+
+  timestamps: Float64Array;
+
+  // Each Uint8 value has the i-th bit is set if there is at least one log
+  // event at the i-th priority level at the corresponding time in |timestamps|.
+  priorities: Uint8Array;
+}
+
+export interface Config {}
