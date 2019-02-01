@@ -175,16 +175,15 @@ TEST(ProtoZeroTest, Reflection) {
   EXPECT_EQ(8, pbtest::CamelCaseFields::kU2FieldNumber);
   EXPECT_EQ(9, pbtest::CamelCaseFields::kBangBigFieldNumber);
 
-  const ProtoFieldDescriptor* reflection =
-      pbtest::EveryField::GetFieldDescriptor(
-          pbtest::EveryField::kFieldInt32FieldNumber);
-  EXPECT_STREQ("field_int32", reflection->name());
-  EXPECT_EQ(ProtoFieldDescriptor::Type::TYPE_INT32, reflection->type());
-  EXPECT_EQ(1u, reflection->number());
-  EXPECT_FALSE(reflection->is_repeated());
-  EXPECT_TRUE(reflection->is_valid());
+  ProtoFieldDescriptor reflection = pbtest::EveryField::GetFieldDescriptor(
+      pbtest::EveryField::kFieldInt32FieldNumber);
+  EXPECT_STREQ("field_int32", reflection.name());
+  EXPECT_EQ(ProtoFieldDescriptor::Type::TYPE_INT32, reflection.type());
+  EXPECT_EQ(1u, reflection.number());
+  EXPECT_FALSE(reflection.is_repeated());
+  EXPECT_TRUE(reflection.is_valid());
 
-  EXPECT_FALSE(pbtest::TransgalacticParcel::GetFieldDescriptor(42)->is_valid());
+  EXPECT_FALSE(pbtest::TransgalacticParcel::GetFieldDescriptor(42).is_valid());
 }
 
 }  // namespace
