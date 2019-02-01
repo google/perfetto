@@ -33,7 +33,6 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
     this.update(start, end, resolution);
   }
 
-
   private async update(start: number, end: number, resolution: number):
       Promise<void> {
     // TODO: we should really call TraceProcessor.Interrupt() at this point.
