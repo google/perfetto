@@ -131,7 +131,12 @@ def Main():
 
   target_dir = '/data/local/tmp/' + args.test_name
   AdbCall('shell', 'rm -rf "%s"; mkdir -p "%s"' % (2 * (target_dir,)))
-  AdbCall('push', test_bin, target_dir)
+  # This needs to go into /data/nativetest in order to have the system linker
+  # namespace applied, which we need in order to link libdexfile_external.so.
+  # This gets linked into our tests via libundwindstack.so.
+  #
+  # See https://android.git.corp.google.com/platform/system/core/+/master/rootdir/etc/ld.config.txt
+  AdbCall('push', test_bin, "/data/nativetest")
 
   if not args.no_data_deps:
     for dep in EnumerateDataDeps():
@@ -144,7 +149,7 @@ def Main():
     AdbCall('push', sanitizer_libs, target_dir)
     env += 'LD_LIBRARY_PATH="%s/sanitizer_libs" ' % (target_dir)
   cmd = 'cd %s;' % target_dir;
-  binary = env + './%s' % args.test_name
+  binary = env + '/data/nativetest/%s' % args.test_name
   cmd += binary
   if args.cmd_args:
     actual_args = [arg.replace(args.test_name, binary) for arg in args.cmd_args]
