@@ -14,7 +14,6 @@
 
 import {search} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
-import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {hueForCpu} from '../../frontend/colorizer';
@@ -32,19 +31,12 @@ import {
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30;
 
-function getCurResolution() {
-  // Truncate the resolution to the closest power of 10.
-  const resolution = globals.frontendLocalState.timeScale.deltaPxToDuration(1);
-  return Math.pow(10, Math.floor(Math.log10(resolution)));
-}
-
 class CpuFreqTrack extends Track<Config, Data> {
   static readonly kind = CPU_FREQ_TRACK_KIND;
   static create(trackState: TrackState): CpuFreqTrack {
     return new CpuFreqTrack(trackState);
   }
 
-  private reqPending = false;
   private mouseXpos = 0;
   private hoveredValue: number|undefined = undefined;
   private hoveredTs: number|undefined = undefined;
@@ -53,20 +45,6 @@ class CpuFreqTrack extends Track<Config, Data> {
 
   constructor(trackState: TrackState) {
     super(trackState);
-  }
-
-  reqDataDeferred() {
-    const {visibleWindowTime} = globals.frontendLocalState;
-    const reqStart = visibleWindowTime.start - visibleWindowTime.duration;
-    const reqEnd = visibleWindowTime.end + visibleWindowTime.duration;
-    const reqRes = getCurResolution();
-    this.reqPending = false;
-    globals.dispatch(Actions.reqTrackData({
-      trackId: this.trackState.id,
-      start: reqStart,
-      end: reqEnd,
-      resolution: reqRes
-    }));
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
@@ -80,11 +58,8 @@ class CpuFreqTrack extends Track<Config, Data> {
         (visibleWindowTime.start >= data.start &&
          visibleWindowTime.end <= data.end);
     if (!inRange || data === undefined ||
-        data.resolution !== getCurResolution()) {
-      if (!this.reqPending) {
-        this.reqPending = true;
-        setTimeout(() => this.reqDataDeferred(), 50);
-      }
+        data.resolution !== globals.getCurResolution()) {
+      globals.requestTrackData(this.trackState.id);
     }
     if (data === undefined) return;  // Can't possibly draw anything.
 
