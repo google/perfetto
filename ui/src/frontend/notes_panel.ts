@@ -48,11 +48,14 @@ export class NotesPanel extends Panel {
   }
 
   view() {
-    return m('.notes-panel', {
-      onclick: (e: MouseEvent) => {
-        this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
-      },
-    });
+    return m(
+        '.notes-panel',
+        {
+          onclick: (e: MouseEvent) => {
+            this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
+          },
+        },
+        m('.title', 'Notes'));
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
@@ -69,8 +72,6 @@ export class NotesPanel extends Panel {
     ctx.font = '10px Google Sans';
 
     for (const note of Object.values(globals.state.notes)) {
-      ctx.fillStyle = note.color;
-      ctx.strokeStyle = note.color;
       const timestamp = note.timestamp;
       if (!timeScale.timeInBounds(timestamp)) continue;
       const x = timeScale.timeToPx(timestamp);
@@ -79,19 +80,15 @@ export class NotesPanel extends Panel {
           this.hoveredX && x <= this.hoveredX && this.hoveredX < x + FLAG_WIDTH;
       const isSelected = globals.state.selectedNote === note.id;
       const left = Math.floor(x + TRACK_SHELL_WIDTH);
-      const flagHeightPx = Math.ceil(size.height / 3);
 
       // Draw flag.
-      ctx.fillRect(left, 1, 1, size.height - 1);
       if (!noteHovered && isHovered) {
         noteHovered = true;
-        ctx.fillRect(left, 1, FLAG_WIDTH, flagHeightPx);
+        this.drawFlag(ctx, left, size.height, note.color, isSelected);
       } else if (isSelected) {
-        ctx.fillRect(left, 1, FLAG_WIDTH, flagHeightPx);
+        this.drawFlag(ctx, left, size.height, note.color, /* fill */ true);
       } else {
-        ctx.fillStyle = 'white';
-        ctx.fillRect(left, 1, FLAG_WIDTH, flagHeightPx);
-        ctx.strokeRect(left + .5, 1.5, FLAG_WIDTH, flagHeightPx);
+        this.drawFlag(ctx, left, size.height, note.color);
       }
 
       ctx.fillStyle = '#222';
@@ -99,12 +96,27 @@ export class NotesPanel extends Panel {
     }
 
     if (this.hoveredX !== null && !noteHovered) {
-      ctx.fillStyle = 'black';
       const timestamp = timeScale.pxToTime(this.hoveredX);
       if (timeScale.timeInBounds(timestamp)) {
         const x = timeScale.timeToPx(timestamp);
-        ctx.fillRect(Math.floor(x + TRACK_SHELL_WIDTH), 1, 1, size.height - 1);
+        const left = Math.floor(x + TRACK_SHELL_WIDTH);
+        this.drawFlag(ctx, left, size.height, '#aaa');
       }
+    }
+  }
+
+  private drawFlag(
+      ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
+      fill?: boolean) {
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    const flagHeightPx = Math.ceil(height / 3);
+    ctx.fillRect(x, 1, 1, height - 1);
+    ctx.fillRect(x, 1, FLAG_WIDTH, flagHeightPx);
+    if (!fill) {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(x, 1, FLAG_WIDTH, flagHeightPx);
+      ctx.strokeRect(x + .5, 1.5, FLAG_WIDTH, flagHeightPx);
     }
   }
 

@@ -352,6 +352,17 @@ canvas.main-canvas {
 
 .notes-panel {
   height: 20px;
+
+  .title {
+    padding: 0 10px;
+    margin: 0;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    text-align: left;
+    direction: rtl;
+    font-family: 'Google Sans';
+    color: #3c4b5d;
+  }
 }
 
 .notes-editor-panel {
