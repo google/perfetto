@@ -230,31 +230,51 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
     FlushPendingCommitDataRequests();
 }
 
-// TODO(primiano): this is wrong w.r.t. threading because it will try to send
-// an IPC from a different thread than the IPC thread. Right now this works
-// because everything is single threaded. It will hit the thread checker
-// otherwise. What we really want to do here is doing this sync IPC only if
-// task_runner_.RunsTaskOnCurrentThread(), otherwise PostTask().
 void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
     std::function<void()> callback) {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-
-  std::unique_ptr<CommitDataRequest> req;
+  std::shared_ptr<CommitDataRequest> req;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
     req = std::move(commit_data_req_);
     bytes_pending_commit_ = 0;
   }
-  // |commit_data_req_| could become nullptr if the forced sync flush happens
-  // in GetNewChunk().
-  if (req) {
-    producer_endpoint_->CommitData(*req, callback);
-  } else if (callback) {
-    // If |commit_data_req_| was nullptr, it means that an enqueued deferred
-    // commit was executed just before this. At this point send an empty commit
-    // request to the service, just to linearize with it and give the guarantee
-    // to the caller that the data has been flushed into the service.
-    producer_endpoint_->CommitData(CommitDataRequest(), callback);
+  // C++11 does not support movable types in std::bind, std::function, and
+  // lambdas, therefore to pass it along (if we need to use PostTask) without
+  // copying. So we wrap the |req| as a shared pointer to ensure it gets deleted
+  // properly. With C++14 we could instead have a unique_ptr and transfer
+  // ownership to the lambda.
+  //
+  // |req| could be a nullptr if |commit_data_req_| became a nullptr. For
+  // example when a forced sync flush happens in GetNewChunk().
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  auto commit_data = [weak_this, req, callback]() {
+    if (!weak_this) {
+      return;
+    }
+    if (req) {
+      weak_this->producer_endpoint_->CommitData(*req, callback);
+    } else if (callback) {
+      // If |req| was nullptr, it means that an enqueued deferred commit was
+      // executed just before this. At this point send an empty commit request
+      // to the service, just to linearize with it and give the guarantee to the
+      // caller that the data has been flushed into the service.
+      weak_this->producer_endpoint_->CommitData(CommitDataRequest(),
+                                                std::move(callback));
+    }
+  };
+  // If this is already on the same thread as the task_runner we have to commit
+  // this ourselves to prevent the buffer from filling up and then never getting
+  // to the commit data task. This is because we merge commits into one large
+  // task which might be modified so if we're writing faster then we're reading
+  // we might always be apending new data until all chunks are full.
+  //
+  // If we commit data on a different thread then we will eventually clear out
+  // the data and we don't have to worry if we fill up the chunks we'll just
+  // stall but it will eventually unlock itself.
+  if (task_runner_->RunsTasksOnCurrentThread()) {
+    commit_data();
+  } else {
+    task_runner_->PostTask(std::move(commit_data));
   }
 }
 
