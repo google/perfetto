@@ -37,7 +37,6 @@ class CountersTable : public StorageTable {
   uint32_t RowCount() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
- private:
   class RefColumn final : public StorageColumn {
    public:
     RefColumn(std::string col_name, const TraceStorage* storage);
@@ -62,6 +61,7 @@ class CountersTable : public StorageTable {
     const TraceStorage* storage_ = nullptr;
   };
 
+ private:
   std::deque<std::string> ref_types_;
   const TraceStorage* const storage_;
 };
