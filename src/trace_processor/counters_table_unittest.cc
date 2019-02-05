@@ -194,6 +194,42 @@ TEST_F(CountersTableUnittest, UtidLookupUpidSort) {
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
+TEST_F(CountersTableUnittest, RefColumnComparator) {
+  int64_t timestamp = 1000;
+
+  UniquePid upid = context_.process_tracker->UpdateProcess(100);
+  // To ensure that upid and utid are not the same number
+  UniqueTid no_upid_tid =
+      context_.process_tracker->UpdateThread(timestamp, 101, 0);
+  UniqueTid utid = context_.process_tracker->UpdateThread(timestamp, 102, 0);
+  context_.storage->GetMutableThread(utid)->upid = upid;
+  ASSERT_NE(upid, utid);
+
+  uint32_t ctr_lookup_upid =
+      static_cast<uint32_t>(context_.storage->mutable_counters()->AddCounter(
+          timestamp, 0 /* dur */, 0, 1 /* value */, utid,
+          RefType::kRefUtidLookupUpid));
+
+  uint32_t ctr_upid =
+      static_cast<uint32_t>(context_.storage->mutable_counters()->AddCounter(
+          timestamp, 0 /* dur */, 0, 1 /* value */, upid, RefType::kRefUpid));
+
+  uint32_t ctr_null_upid =
+      static_cast<uint32_t>(context_.storage->mutable_counters()->AddCounter(
+          timestamp, 0 /* dur */, 0, 1 /* value */, no_upid_tid,
+          RefType::kRefUtidLookupUpid));
+
+  CountersTable::RefColumn ref_column("ref", context_.storage.get());
+  auto comparator = ref_column.Sort(QueryConstraints::OrderBy());
+  // Lookup equality
+  ASSERT_EQ(comparator(ctr_lookup_upid, ctr_upid), 0);
+
+  // Null handling
+  ASSERT_EQ(comparator(ctr_upid, ctr_null_upid), 1);
+  ASSERT_EQ(comparator(ctr_null_upid, ctr_upid), -1);
+  ASSERT_EQ(comparator(ctr_null_upid, ctr_null_upid), 0);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
