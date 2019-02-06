@@ -178,22 +178,7 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   static const char buf_value[] = "This is a print event";
   print->set_buf(buf_value);
 
-  static const char pid[] = "pid";
-  static const char comm[] = "comm";
-  static const char clone[] = "clone_flags";
-  static const char oom[] = "oom_score_adj";
-  static const char print_event[] = "print";
-  static const char ip[] = "ip";
-  static const char buf[] = "buf";
-
-  EXPECT_CALL(*storage_, InternString(base::StringView(task_newtask))).Times(2);
-  EXPECT_CALL(*storage_, InternString(base::StringView(pid)));
-  EXPECT_CALL(*storage_, InternString(base::StringView(comm)));
-  EXPECT_CALL(*storage_, InternString(base::StringView(clone)));
-  EXPECT_CALL(*storage_, InternString(base::StringView(oom)));
-  EXPECT_CALL(*storage_, InternString(base::StringView(print_event)));
-  EXPECT_CALL(*storage_, InternString(base::StringView(ip)));
-  EXPECT_CALL(*storage_, InternString(base::StringView(buf)));
+  EXPECT_CALL(*storage_, InternString(base::StringView(task_newtask)));
   EXPECT_CALL(*storage_, InternString(base::StringView(buf_value)));
 
   Tokenize(trace);
