@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/args_tracker.h"
 
+#include <algorithm>
+
 namespace perfetto {
 namespace trace_processor {
 
