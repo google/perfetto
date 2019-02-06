@@ -35,6 +35,7 @@ StorageSchema RawTable::CreateStorageSchema() {
       .AddStringColumn("name", &raw.name_ids(), &storage_->string_pool())
       .AddNumericColumn("cpu", &raw.cpus())
       .AddNumericColumn("utid", &raw.utids())
+      .AddNumericColumn("arg_set_id", &raw.arg_set_ids())
       .Build({"name", "ts"});
 }
 
