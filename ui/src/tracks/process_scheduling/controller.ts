@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,16 +20,17 @@ import {
 
 import {
   Config,
-  CPU_SLICE_TRACK_KIND,
   Data,
+  PROCESS_SCHEDULING_TRACK_KIND,
   SliceData,
   SummaryData
 } from './common';
 
-class CpuSliceTrackController extends TrackController<Config, Data> {
-  static readonly kind = CPU_SLICE_TRACK_KIND;
+class ProcessSchedulingTrackController extends TrackController<Config, Data> {
+  static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
   private busy = false;
   private setup = false;
+  private numCpus = 0;
 
   onBoundsChange(start: number, end: number, resolution: number): void {
     this.update(start, end, resolution);
@@ -40,6 +41,10 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     // TODO: we should really call TraceProcessor.Interrupt() at this point.
     if (this.busy) return;
 
+    if (!this.config.upid) {
+      return;
+    }
+
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
 
@@ -47,9 +52,14 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     if (this.setup === false) {
       await this.query(
           `create virtual table ${this.tableName('window')} using window;`);
+      await this.query(`create view ${this.tableName('process')} as
+          select ts, dur, cpu, utid, upid from sched join (
+          select utid, upid from thread
+            where utid != 0 and upid = ${this.config.upid}) using(utid);`);
       await this.query(`create virtual table ${this.tableName('span')}
-              using span_join(sched PARTITIONED cpu,
+              using span_join(${this.tableName('process')} PARTITIONED cpu,
                               ${this.tableName('window')} PARTITIONED cpu);`);
+      this.numCpus = await this.engine.getNumberOfCpus();
       this.setup = true;
     }
 
@@ -85,12 +95,15 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     const endNs = Math.round(end * 1e9);
     const numBuckets = Math.ceil((endNs - startNs) / bucketSizeNs);
 
+    // cpu < numCpus improves perfomance a lot since the window table can
+    // avoid generating many rows.
     const query = `select
         quantum_ts as bucket,
-        sum(dur)/cast(${bucketSizeNs} as float) as utilization
+        sum(dur)/cast(${bucketSizeNs * this.numCpus} as float) as utilization
         from ${this.tableName('span')}
-        where cpu = ${this.config.cpu}
+        where upid = ${this.config.upid}
         and utid != 0
+        and cpu < ${this.numCpus}
         group by quantum_ts`;
 
     const rawResult = await this.query(query);
@@ -117,21 +130,33 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     // TODO(hjd): Remove LIMIT
     const LIMIT = 10000;
 
-    const query = `select ts,dur,utid,row_id from ${this.tableName('span')}
-        where cpu = ${this.config.cpu}
-        and utid != 0
+    // cpu < numCpus improves perfomance a lot since the window table can
+    // avoid generating many rows.
+    const query = `select ts,dur,cpu,utid from ${this.tableName('span')}
+        join
+        (select utid from thread where upid = ${this.config.upid})
+        using(utid)
+        where
+        cpu < ${this.numCpus}
+        order by
+        cpu,
+        ts
         limit ${LIMIT};`;
     const rawResult = await this.query(query);
 
     const numRows = +rawResult.numRecords;
+    if (numRows === LIMIT) {
+      console.warn(`More than ${LIMIT} rows returned.`);
+    }
     const slices: SliceData = {
       kind: 'slice',
       start,
       end,
       resolution,
-      ids: new Float64Array(numRows),
+      numCpus: this.numCpus,
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
+      cpus: new Uint32Array(numRows),
       utids: new Uint32Array(numRows),
     };
 
@@ -140,11 +165,9 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       const startSec = fromNs(+cols[0].longValues![row]);
       slices.starts[row] = startSec;
       slices.ends[row] = startSec + fromNs(+cols[1].longValues![row]);
-      slices.utids[row] = +cols[2].longValues![row];
-      slices.ids[row] = +cols[3].longValues![row];
-    }
-    if (numRows === LIMIT) {
-      slices.end = slices.ends[slices.ends.length - 1];
+      slices.cpus[row] = +cols[2].longValues![row];
+      slices.utids[row] = +cols[3].longValues![row];
+      slices.end = Math.max(slices.ends[row], slices.end);
     }
     return slices;
   }
@@ -167,4 +190,4 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
   }
 }
 
-trackControllerRegistry.register(CpuSliceTrackController);
+trackControllerRegistry.register(ProcessSchedulingTrackController);
