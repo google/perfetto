@@ -114,6 +114,11 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
   disable_clock_snapshotting_ =
       static_cast<decltype(disable_clock_snapshotting_)>(
           proto.disable_clock_snapshotting());
+
+  static_assert(sizeof(notify_traceur_) == sizeof(proto.notify_traceur()),
+                "size mismatch");
+  notify_traceur_ =
+      static_cast<decltype(notify_traceur_)>(proto.notify_traceur());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -196,6 +201,11 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
   proto->set_disable_clock_snapshotting(
       static_cast<decltype(proto->disable_clock_snapshotting())>(
           disable_clock_snapshotting_));
+
+  static_assert(sizeof(notify_traceur_) == sizeof(proto->notify_traceur()),
+                "size mismatch");
+  proto->set_notify_traceur(
+      static_cast<decltype(proto->notify_traceur())>(notify_traceur_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
