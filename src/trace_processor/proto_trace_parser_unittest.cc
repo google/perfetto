@@ -19,6 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/string_view.h"
+#include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
@@ -78,11 +79,22 @@ class MockTraceStorage : public TraceStorage {
   MOCK_METHOD1(InternString, StringId(base::StringView));
 };
 
+class MockArgsTracker : public ArgsTracker {
+ public:
+  MockArgsTracker(TraceProcessorContext* context) : ArgsTracker(context) {}
+
+  MOCK_METHOD4(AddArg,
+               void(RowId row_id, StringId flat_key, StringId key, Variadic));
+  MOCK_METHOD0(Flush, void());
+};
+
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
     nice_storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(nice_storage_);
+    args_ = new MockArgsTracker(&context_);
+    context_.args_tracker.reset(args_);
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     process_ = new MockProcessTracker(&context_);
@@ -107,6 +119,7 @@ class ProtoTraceParserTest : public ::testing::Test {
 
  protected:
   TraceProcessorContext context_;
+  MockArgsTracker* args_;
   MockEventTracker* event_;
   MockProcessTracker* process_;
   NiceMock<MockTraceStorage>* nice_storage_;
@@ -136,9 +149,7 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
   Tokenize(trace);
 }
 
-// TODO(b/123252504) disable this code to stop blow-ups in ingestion time
-// and memory.
-TEST_F(ProtoTraceParserTest, DISABLED_LoadEventsIntoRaw) {
+TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   InitStorage();
   protos::Trace trace;
 
@@ -201,9 +212,7 @@ TEST_F(ProtoTraceParserTest, DISABLED_LoadEventsIntoRaw) {
   // and test here.
 }
 
-// TODO(b/123252504) disable this code to stop blow-ups in ingestion time
-// and memory.
-TEST_F(ProtoTraceParserTest, DISABLED_LoadGenericFtrace) {
+TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   InitStorage();
   protos::Trace trace;
 
@@ -240,26 +249,25 @@ TEST_F(ProtoTraceParserTest, DISABLED_LoadGenericFtrace) {
 
   Tokenize(trace);
 
-  const auto& events = storage_->raw_events();
+  const auto& raw = storage_->raw_events();
 
-  ASSERT_EQ(events.raw_event_count(), 1);
-  ASSERT_EQ(events.timestamps().back(), 100);
-  ASSERT_EQ(storage_->GetThread(events.utids().back()).tid, 10);
+  ASSERT_EQ(raw.raw_event_count(), 1);
+  ASSERT_EQ(raw.timestamps().back(), 100);
+  ASSERT_EQ(storage_->GetThread(raw.utids().back()).tid, 10);
+
+  auto set_id = raw.arg_set_ids().back();
 
   const auto& args = storage_->args();
-  auto row_id = TraceStorage::CreateRowId(TableId::kRawEvents, 0);
-  auto id_it = args.args_for_id().equal_range(row_id);
+  auto id_it =
+      std::equal_range(args.set_ids().begin(), args.set_ids().end(), set_id);
 
   // Ignore string calls as they are handled by checking InternString calls
   // above.
 
-  auto it = ++id_it.first;
-  auto row = it->second;
-  ASSERT_EQ(args.arg_values()[row].int_value, -2);
-
-  ++it;
-  row = it->second;
-  ASSERT_EQ(args.arg_values()[row].int_value, 3);
+  auto it = id_it.first;
+  auto row = static_cast<size_t>(std::distance(args.set_ids().begin(), it));
+  ASSERT_EQ(args.arg_values()[++row].int_value, -2);
+  ASSERT_EQ(args.arg_values()[++row].int_value, 3);
 }
 
 TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {

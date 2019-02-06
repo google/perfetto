@@ -22,6 +22,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class ArgsTracker;
 class ChunkedTraceReader;
 class EventTracker;
 class ProcessTracker;
@@ -37,6 +38,7 @@ class TraceProcessorContext {
   TraceProcessorContext();
   ~TraceProcessorContext();
 
+  std::unique_ptr<ArgsTracker> args_tracker;
   std::unique_ptr<SliceTracker> slice_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
   std::unique_ptr<EventTracker> event_tracker;
