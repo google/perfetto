@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/trace_processor_context.h"
+
+#include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/chunked_trace_reader.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"

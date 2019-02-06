@@ -46,6 +46,7 @@ StorageSchema CountersTable::CreateStorageSchema() {
       .AddColumn<TsEndColumn>("ts_end", &cs.timestamps(), &cs.durations())
       .AddColumn<RefColumn>("ref", storage_)
       .AddStringColumn("ref_type", &cs.types(), &ref_types_)
+      .AddNumericColumn("arg_set_id", &cs.arg_set_ids())
       .Build({"name", "ts", "ref"});
 }
 
