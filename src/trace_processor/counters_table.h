@@ -39,7 +39,10 @@ class CountersTable : public StorageTable {
 
   class RefColumn final : public StorageColumn {
    public:
-    RefColumn(std::string col_name, const TraceStorage* storage);
+    RefColumn(std::string col_name,
+              const std::deque<int64_t>* refs,
+              const std::deque<RefType>* types,
+              const TraceStorage* storage);
 
     void ReportResult(sqlite3_context* ctx, uint32_t row) const override;
 
@@ -58,6 +61,8 @@ class CountersTable : public StorageTable {
    private:
     int CompareRefsAsc(uint32_t f, uint32_t s) const;
 
+    const std::deque<int64_t>* refs_;
+    const std::deque<RefType>* types_;
     const TraceStorage* storage_ = nullptr;
   };
 
