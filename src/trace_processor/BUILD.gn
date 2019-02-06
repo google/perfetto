@@ -46,6 +46,8 @@ source_set("lib") {
     "android_logs_table.h",
     "args_table.cc",
     "args_table.h",
+    "args_tracker.cc",
+    "args_tracker.h",
     "chunked_trace_reader.h",
     "clock_tracker.cc",
     "clock_tracker.h",

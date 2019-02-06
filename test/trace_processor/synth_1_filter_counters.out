@@ -1,2 +1,2 @@
-"id","ts","name","value","dur","ts_end","ref","ref_type"
-4294967296,50,"cpufreq",50.000000,350,400,0,"cpu"
+"id","ts","name","value","dur","ts_end","ref","ref_type","arg_set_id"
+4294967296,50,"cpufreq",50.000000,350,400,0,"cpu",0
