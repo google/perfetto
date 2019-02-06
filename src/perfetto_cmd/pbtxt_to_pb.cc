@@ -27,6 +27,7 @@
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/string_view.h"
+#include "perfetto/base/utils.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -93,7 +94,7 @@ const char* FieldToTypeName(const FieldDescriptorProto* field) {
       return "enum";
   }
   // For gcc
-  PERFETTO_FATAL("Non conmplete switch");
+  PERFETTO_FATAL("Non complete switch");
 }
 
 std::string Format(const char* fmt, std::map<std::string, std::string> args) {
@@ -112,6 +113,7 @@ enum ParseState {
   kReadingKey,
   kWaitingForValue,
   kReadingStringValue,
+  kReadingStringEscape,
   kReadingNumericValue,
   kReadingIdentifierValue,
 };
@@ -211,7 +213,62 @@ class ParserDelegate {
     PERFETTO_CHECK(field_type == FieldDescriptorProto::TYPE_STRING ||
                    field_type == FieldDescriptorProto::TYPE_BYTES);
 
-    msg()->AppendBytes(field_id, value.txt.data(), value.size());
+    std::unique_ptr<char, base::FreeDeleter> s(
+        static_cast<char*>(malloc(value.size())));
+    size_t j = 0;
+    for (size_t i = 0; i < value.size(); i++) {
+      char c = value.txt.data()[i];
+      if (c == '\\') {
+        if (i + 1 >= value.size()) {
+          // This should be caught by the lexer.
+          PERFETTO_FATAL("Escape at end of string.");
+          return;
+        }
+        char next = value.txt.data()[++i];
+        switch (next) {
+          case '\\':
+          case '\'':
+          case '"':
+          case '?':
+            s.get()[j++] = next;
+            break;
+          case 'a':
+            s.get()[j++] = '\a';
+            break;
+          case 'b':
+            s.get()[j++] = '\b';
+            break;
+          case 'f':
+            s.get()[j++] = '\f';
+            break;
+          case 'n':
+            s.get()[j++] = '\n';
+            break;
+          case 'r':
+            s.get()[j++] = '\r';
+            break;
+          case 't':
+            s.get()[j++] = '\t';
+            break;
+          case 'v':
+            s.get()[j++] = '\v';
+            break;
+          default:
+            AddError(value,
+                     "Unknown string escape in $k in "
+                     "proto $n: '$v'",
+                     std::map<std::string, std::string>{
+                         {"$k", key.ToStdString()},
+                         {"$n", descriptor_name()},
+                         {"$v", value.ToStdString()},
+                     });
+            return;
+        }
+      } else {
+        s.get()[j++] = c;
+      }
+    }
+    msg()->AppendBytes(field_id, s.get(), j);
   }
 
   void IdentifierField(Token key, Token value) {
@@ -513,15 +570,20 @@ void Parse(const std::string& input, ParserDelegate* delegate) {
         break;
 
       case kReadingStringValue:
-        if (c == '"') {
+        if (c == '\\') {
+          state = kReadingStringEscape;
+        } else if (c == '"') {
           size_t size = i - value.offset - 1;
           value.column++;
           value.txt = base::StringView(input.data() + value.offset + 1, size);
           saw_semicolon_for_this_value = false;
           state = kWaitingForKey;
           delegate->StringField(key, value);
-          continue;
         }
+        continue;
+
+      case kReadingStringEscape:
+        state = kReadingStringValue;
         continue;
 
       case kReadingIdentifierValue:
