@@ -235,18 +235,23 @@ class TraceViewer implements m.ClassComponent {
     scrollingPanels.unshift(m(QueryTable));
 
     const detailsPanels: AnyAttrsVnode[] = [];
-    if (globals.state.selectedNote) {
-      detailsPanels.push(m(NotesEditorPanel, {
-        key: 'notes',
-        id: globals.state.selectedNote,
-      }));
-    }
-
-    if (globals.state.selectedSlice) {
-      detailsPanels.push(m(SliceDetailsPanel, {
-        key: 'slice',
-        selection: globals.state.selectedSlice,
-      }));
+    if (globals.state.currentSelection) {
+      switch (globals.state.currentSelection.kind) {
+        case 'NOTE':
+          detailsPanels.push(m(NotesEditorPanel, {
+            key: 'notes',
+            id: globals.state.currentSelection.id,
+          }));
+          break;
+        case 'SLICE':
+          detailsPanels.push(m(SliceDetailsPanel, {
+            key: 'slice',
+            utid: globals.state.currentSelection.utid,
+          }));
+          break;
+        default:
+          break;
+      }
     }
 
     return m(
