@@ -12,12 +12,13 @@
 ../data/cpu_counters.pb b120487929.sql cpu_counters_b120487929.out
 ../data/memory_counters.pb b120278869_neg_ts_end.sql memory_counters_b120278869_neg_ts_end.out
 ../data/memory_counters.pb b120605557.sql memory_counters_b120605557.out
-# TODO(b/123252504): reenable when this bug is fixed.
+# TODO(lalitm): this still doesn't work because we no longer add utid
+# args for memory counters (because they are keyed by upid).
 # ../data/memory_counters.pb smoke_args.sql memory_counters_smoke_args.out
 # ../data/memory_counters.pb counter_args_join.sql memory_counters_counter_args_join.out
-# ../data/memory_counters.pb args_string_filter_null.sql memory_counters_args_string_filter_null.out
-# ../data/memory_counters.pb args_string_is_null.sql memory_counters_args_string_is_null.out
-# ../data/memory_counters.pb args_string_is_not_null.sql memory_counters_args_string_is_not_null.out
+../data/memory_counters.pb args_string_filter_null.sql memory_counters_args_string_filter_null.out
+../data/memory_counters.pb args_string_is_null.sql memory_counters_args_string_is_null.out
+../data/memory_counters.pb args_string_is_not_null.sql memory_counters_args_string_is_not_null.out
 synth_1.py smoke.sql synth_1_smoke.out
 synth_1.py filter_sched.sql synth_1_filter_sched.out
 synth_1.py filter_counters.sql synth_1_filter_counters.out
