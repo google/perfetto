@@ -131,6 +131,7 @@ def Main():
 
   target_dir = '/data/local/tmp/' + args.test_name
   AdbCall('shell', 'rm -rf "%s"; mkdir -p "%s"' % (2 * (target_dir,)))
+  AdbCall('shell', 'mkdir -p /data/nativetest')
   # This needs to go into /data/nativetest in order to have the system linker
   # namespace applied, which we need in order to link libdexfile_external.so.
   # This gets linked into our tests via libundwindstack.so.
