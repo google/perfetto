@@ -216,6 +216,29 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       context->storage->InternString("mem.mm.kern_alloc.count"),
       context->storage->InternString("mem.mm.kern_alloc.max_lat"),
       context->storage->InternString("mem.mm.kern_alloc.avg_lat"));
+
+  // Build the lookup table for the strings inside ftrace events (e.g. the
+  // name of ftrace event fields and the names of their args).
+  for (size_t i = 0; i < GetDescriptorsSize(); i++) {
+    auto* descriptor = GetMessageDescriptorForId(i);
+    if (!descriptor->name) {
+      ftrace_message_strings_.emplace_back();
+      continue;
+    }
+
+    FtraceMessageStrings ftrace_strings;
+    ftrace_strings.message_name_id =
+        context->storage->InternString(descriptor->name);
+
+    for (size_t fid = 0; fid < descriptor->max_field_id; fid++) {
+      const auto& field = descriptor->fields[fid];
+      if (!field.name)
+        continue;
+      ftrace_strings.field_name_ids[fid] =
+          context->storage->InternString(field.name);
+    }
+    ftrace_message_strings_.emplace_back(ftrace_strings);
+  }
 }
 
 ProtoTraceParser::~ProtoTraceParser() = default;
@@ -1165,13 +1188,15 @@ void ProtoTraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
                   ftrace_id);
     return;
   }
+
   MessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
+  const auto& message_strings = ftrace_message_strings_[ftrace_id];
   UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, tid, 0);
   RowId raw_event_id = context_->storage->mutable_raw_events()->AddRawEvent(
-      timestamp, context_->storage->InternString(m->name), cpu, utid);
+      timestamp, message_strings.message_name_id, cpu, utid);
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     ProtoSchemaType type = m->fields[fld.id].type;
-    StringId name_id = context_->storage->InternString(m->fields[fld.id].name);
+    StringId name_id = message_strings.field_name_ids[fld.id];
     switch (type) {
       case ProtoSchemaType::kUint32:
       case ProtoSchemaType::kInt32:
