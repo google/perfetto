@@ -29,6 +29,7 @@ namespace perfetto {
 namespace {
 
 using ::testing::StrictMock;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::google::protobuf::io::ZeroCopyInputStream;
 using ::google::protobuf::io::ArrayInputStream;
@@ -327,6 +328,31 @@ duration_ms: 10000
             "perfetto.traced_probes");
 }
 
+TEST(PbtxtToPb, Strings) {
+  protos::TraceConfig config = ToProto(R"(
+data_sources {
+  config {
+    ftrace_config {
+      ftrace_events: "binder_lock"
+      ftrace_events: "foo/bar"
+      ftrace_events: "foo\\bar"
+      ftrace_events: "newline\nnewline"
+      ftrace_events: "\"quoted\""
+      ftrace_events: "\a\b\f\n\r\t\v\\\'\"\?"
+    }
+  }
+}
+)");
+  auto events =
+      config.data_sources().Get(0).config().ftrace_config().ftrace_events();
+  EXPECT_THAT(events, Contains("binder_lock"));
+  EXPECT_THAT(events, Contains("foo/bar"));
+  EXPECT_THAT(events, Contains("foo\\bar"));
+  EXPECT_THAT(events, Contains("newline\nnewline"));
+  EXPECT_THAT(events, Contains("\"quoted\""));
+  EXPECT_THAT(events, Contains("\a\b\f\n\r\t\v\\\'\"\?"));
+}
+
 TEST(PbtxtToPb, UnknownField) {
   MockErrorReporter reporter;
   EXPECT_CALL(reporter,
@@ -431,13 +457,28 @@ TEST(PbtxtToPb, NestedMessageDidNotTerminate) {
            &reporter);
 }
 
+TEST(PbtxtToPb, BadEscape) {
+  MockErrorReporter reporter;
+  EXPECT_CALL(reporter, AddError(5, 23, 2,
+                                 "Unknown string escape in ftrace_events in "
+                                 "proto FtraceConfig: '\\p'"));
+  ToErrors(R"(
+data_sources {
+  config {
+    ftrace_config {
+      ftrace_events: "\p"
+    }
+  }
+})",
+           &reporter);
+}
+
 // TODO(hjd): Add these tests.
 // TEST(PbtxtToPb, WrongTypeString)
 // TEST(PbtxtToPb, OverflowOnIntegers)
 // TEST(PbtxtToPb, NegativeNumbersForUnsignedInt)
 // TEST(PbtxtToPb, UnterminatedString) {
 // TEST(PbtxtToPb, NumberIsEof)
-// TEST(PbtxtToPb, EscapedQuotes)
 // TEST(PbtxtToPb, OneOf)
 
 }  // namespace
