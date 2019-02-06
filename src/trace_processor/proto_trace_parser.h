@@ -23,6 +23,7 @@
 #include <memory>
 
 #include "perfetto/base/string_view.h"
+#include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -137,9 +138,17 @@ class ProtoTraceParser {
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
 
-  // Maps a proto field number for memcounters in ProcessStats::Process to their
-  // StringId. Keep kProcStatsProcessSize equal to 1 + max proto field id of
-  // ProcessStats::process.
+  static constexpr size_t kFtraceMaxFieldCount = 32;
+  struct FtraceMessageStrings {
+    // The string id of name of the event field (e.g. sched_switch's id).
+    StringId message_name_id = 0;
+    std::array<StringId, kFtraceMaxFieldCount> field_name_ids;
+  };
+  std::vector<FtraceMessageStrings> ftrace_message_strings_;
+
+  // Maps a proto field number for memcounters in ProcessStats::Process to
+  // their StringId. Keep kProcStatsProcessSize equal to 1 + max proto field
+  // id of ProcessStats::Process.
   static constexpr size_t kProcStatsProcessSize = 11;
   std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
 

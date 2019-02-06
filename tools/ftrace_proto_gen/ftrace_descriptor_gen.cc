@@ -51,18 +51,20 @@ void GenerateFtraceDescriptors(
     // Skip events that don't exist or are not messages. (Proxy for events)
     if (!event ||
         event->type() != google::protobuf::FieldDescriptor::TYPE_MESSAGE) {
-      *fout << "{},";
+      *fout << "{nullptr, 0, {}},";
       continue;
     }
 
     const auto* event_descriptor = event->message_type();
-    *fout << "{\"" + event->name() + "\", {";
 
     // Find the max field id in the event.
     int max_field_id = 0;
     for (int j = 0; j < event_descriptor->field_count(); j++)
       max_field_id =
           std::max(max_field_id, event_descriptor->field(j)->number());
+
+    *fout << "{\"" + event->name() + "\", " << max_field_id << ", "
+          << "{";
 
     for (int j = 0; j <= max_field_id; j++) {
       const auto* field = event_descriptor->FindFieldByNumber(j);
