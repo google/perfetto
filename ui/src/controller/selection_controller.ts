@@ -14,9 +14,7 @@
 
 import {Controller} from './controller';
 import {globals} from './globals';
-import {SliceSelection} from '../common/state';
 import {Engine} from '../common/engine';
-import {assertExists} from '../base/logging';
 import {fromNs} from '../common/time';
 
 export interface SelectionControllerArgs {
@@ -26,26 +24,31 @@ export interface SelectionControllerArgs {
 // This class queries the TP for the details on a specific slice that has
 // been clicked.
 export class SelectionController extends Controller<'main'> {
-  private lastSelectedSlice?: SliceSelection;
+  private lastSelectedSlice?: number;
   constructor(private args: SelectionControllerArgs) {
     super('main');
   }
 
   run() {
-    if (globals.state.selectedSlice === null ||
-        globals.state.selectedSlice === this.lastSelectedSlice) {
+    const selection = globals.state.currentSelection;
+    if (selection === null ||
+        selection.kind !== 'SLICE' ||
+        selection.id === this.lastSelectedSlice) {
       return;
     }
-    const selectedSlice = assertExists(globals.state.selectedSlice);
+    const selectedSlice = selection.id;
     this.lastSelectedSlice = selectedSlice;
 
-    const id = selectedSlice.id;
-    if (id !== undefined) {
+    if (selectedSlice !== undefined) {
       const sqlQuery = `SELECT ts, dur, priority, end_state FROM sched
-                        WHERE row_id = ${id}`;
+                        WHERE row_id = ${selectedSlice}`;
       this.args.engine.query(sqlQuery).then(result => {
-        if (result.numRecords === 1 ||
-            globals.state.selectedSlice !== selectedSlice) {
+        // Check selection is still the same on completion of query.
+        const selection = globals.state.currentSelection;
+        if (result.numRecords === 1 &&
+            selection &&
+            selection.kind === 'SLICE' &&
+            selection.id === selectedSlice) {
           const ts = fromNs(result.columns[0].longValues![0] as number);
           const dur = fromNs(result.columns[1].longValues![0] as number);
           const priority = result.columns[2].longValues![0] as number;

@@ -15,15 +15,14 @@
 import * as m from 'mithril';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
-import { SliceSelection } from '../common/state';
 
 interface SliceDetailsPanelAttrs {
-  selection: SliceSelection;
+  utid: number;
 }
 
 export class SliceDetailsPanel extends Panel<SliceDetailsPanelAttrs> {
   view({attrs}: m.CVnode<SliceDetailsPanelAttrs>) {
-    const threadInfo = globals.threads.get(attrs.selection.utid);
+    const threadInfo = globals.threads.get(attrs.utid);
     const sliceInfo = globals.sliceDetails;
     if (threadInfo && sliceInfo.ts && sliceInfo.dur) {
       return m(
