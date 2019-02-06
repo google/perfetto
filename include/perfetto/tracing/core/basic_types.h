@@ -62,6 +62,14 @@ using BufferID = uint16_t;
 // Keep this in sync with SharedMemoryABI::PageHeader::target_buffer.
 static constexpr BufferID kMaxTraceBufferID = static_cast<BufferID>(-1);
 
+// Unique within the scope of a tracing session.
+using PacketSequenceID = uint32_t;
+// Used for extra packets emitted by the service, such as statistics.
+static constexpr PacketSequenceID kInvalidPacketSequenceID = 0;
+static constexpr PacketSequenceID kServicePacketSequenceID = 1;
+static constexpr PacketSequenceID kMaxPacketSequenceID =
+    static_cast<PacketSequenceID>(-1);
+
 // TODO(primiano): temporary. The buffer page size should be configurable by
 // consumers.
 static constexpr size_t kBufferPageSize = 8192;

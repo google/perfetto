@@ -1017,26 +1017,34 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     tbuf.BeginRead();
     while (!did_hit_threshold) {
       TracePacket packet;
-      uid_t producer_uid = kInvalidUid;
-      if (!tbuf.ReadNextTracePacket(&packet, &producer_uid))
+      TraceBuffer::PacketSequenceProperties sequence_properties{};
+      if (!tbuf.ReadNextTracePacket(&packet, &sequence_properties)) {
         break;
-      PERFETTO_DCHECK(producer_uid != kInvalidUid);
+      }
+      PERFETTO_DCHECK(sequence_properties.producer_id_trusted != 0);
+      PERFETTO_DCHECK(sequence_properties.writer_id != 0);
+      PERFETTO_DCHECK(sequence_properties.producer_uid_trusted != kInvalidUid);
       PERFETTO_DCHECK(packet.size() > 0);
       if (!PacketStreamValidator::Validate(packet.slices())) {
         PERFETTO_DLOG("Dropping invalid packet");
         continue;
       }
 
-      // Append a slice with the trusted UID of the producer. This can't
-      // be spoofed because above we validated that the existing slices
-      // don't contain any trusted UID fields. For added safety we append
-      // instead of prepending because according to protobuf semantics, if
-      // the same field is encountered multiple times the last instance
-      // takes priority. Note that truncated packets are also rejected, so
-      // the producer can't give us a partial packet (e.g., a truncated
-      // string) which only becomes valid when the UID is appended here.
+      // Append a slice with the trusted field data. This can't be spoofed
+      // because above we validated that the existing slices don't contain any
+      // trusted fields. For added safety we append instead of prepending
+      // because according to protobuf semantics, if the same field is
+      // encountered multiple times the last instance takes priority. Note that
+      // truncated packets are also rejected, so the producer can't give us a
+      // partial packet (e.g., a truncated string) which only becomes valid when
+      // the trusted data is appended here.
       protos::TrustedPacket trusted_packet;
-      trusted_packet.set_trusted_uid(static_cast<int32_t>(producer_uid));
+      trusted_packet.set_trusted_uid(
+          static_cast<int32_t>(sequence_properties.producer_uid_trusted));
+      trusted_packet.set_trusted_packet_sequence_id(
+          tracing_session->GetPacketSequenceID(
+              sequence_properties.producer_id_trusted,
+              sequence_properties.writer_id));
       static constexpr size_t kTrustedBufSize = 16;
       Slice slice = Slice::Allocate(kTrustedBufSize);
       PERFETTO_CHECK(
@@ -1543,6 +1551,7 @@ void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
     uint8_t* dst = &sync_marker_packet_[0];
     protos::TrustedPacket packet;
     packet.set_trusted_uid(static_cast<int32_t>(uid_));
+    packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
     PERFETTO_CHECK(packet.SerializeToArray(dst, size_left));
     size_left -= packet.ByteSize();
     sync_marker_packet_size_ += static_cast<size_t>(packet.ByteSize());
@@ -1612,6 +1621,7 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets) {
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 
   packet.set_trusted_uid(static_cast<int32_t>(uid_));
+  packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
   Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
   packets->emplace_back();
@@ -1622,6 +1632,7 @@ void TracingServiceImpl::SnapshotStats(TracingSession* tracing_session,
                                        std::vector<TracePacket>* packets) {
   protos::TrustedPacket packet;
   packet.set_trusted_uid(static_cast<int32_t>(uid_));
+  packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
 
   protos::TraceStats* trace_stats = packet.mutable_trace_stats();
   GetTraceStats(tracing_session).ToProto(trace_stats);
@@ -1662,6 +1673,7 @@ void TracingServiceImpl::MaybeEmitTraceConfig(
   protos::TrustedPacket packet;
   tracing_session->config.ToProto(packet.mutable_trace_config());
   packet.set_trusted_uid(static_cast<int32_t>(uid_));
+  packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
   Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
   packets->emplace_back();
