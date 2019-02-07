@@ -45,10 +45,15 @@ using google::protobuf::UpperString;
 
 namespace {
 
+void Assert(bool condition) {
+  if (!condition)
+    __builtin_trap();
+}
+
 struct FileDescriptorComp {
   bool operator()(const FileDescriptor* lhs, const FileDescriptor* rhs) const {
     int comp = lhs->name().compare(rhs->name());
-    GOOGLE_CHECK(comp != 0 || lhs == rhs);
+    Assert(comp != 0 || lhs == rhs);
     return comp < 0;
   }
 };
@@ -56,7 +61,7 @@ struct FileDescriptorComp {
 struct DescriptorComp {
   bool operator()(const Descriptor* lhs, const Descriptor* rhs) const {
     int comp = lhs->full_name().compare(rhs->full_name());
-    GOOGLE_CHECK(comp != 0 || lhs == rhs);
+    Assert(comp != 0 || lhs == rhs);
     return comp < 0;
   }
 };
@@ -64,7 +69,7 @@ struct DescriptorComp {
 struct EnumDescriptorComp {
   bool operator()(const EnumDescriptor* lhs, const EnumDescriptor* rhs) const {
     int comp = lhs->full_name().compare(rhs->full_name());
-    GOOGLE_CHECK(comp != 0 || lhs == rhs);
+    Assert(comp != 0 || lhs == rhs);
     return comp < 0;
   }
 };
