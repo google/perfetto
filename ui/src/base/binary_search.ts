@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+type Numbers = Float64Array|Uint32Array|number[];
+type Range = [number, number];
 
 function searchImpl(
-    haystack: Float64Array, needle: number, i: number, j: number): number {
+    haystack: Numbers, needle: number, i: number, j: number): number {
   if (i === j) return -1;
   if (i + 1 === j) {
     return (needle >= haystack[i]) ? i : -1;
@@ -29,13 +31,69 @@ function searchImpl(
   }
 }
 
-export function search(haystack: Float64Array, needle: number): number {
+function searchRangeImpl(
+    haystack: Numbers, needle: number, i: number, j: number): Range {
+  if (i === j) return [i, j];
+  if (i + 1 === j) {
+    if (haystack[i] <= needle) {
+      return [i, j];
+    } else {
+      return [i, i];
+    }
+  }
+
+  const mid = Math.floor((j - i) / 2) + i;
+  const midValue = haystack[mid];
+
+  if (needle < midValue) {
+    return searchRangeImpl(haystack, needle, i, mid);
+  } else if (needle > midValue) {
+    return searchRangeImpl(haystack, needle, mid, j);
+  } else {
+    while (haystack[i] !== needle) i++;
+    while (haystack[j - 1] !== needle) j--;
+    return [i, j];
+  }
+}
+
+export function search(haystack: Numbers, needle: number): number {
   return searchImpl(haystack, needle, 0, haystack.length);
 }
 
+/**
+ * Given a sorted array of numbers (|haystack|) and a |needle| return the
+ * half open range [i, j) of indexes where |haystack| is equal to needle.
+ */
+export function searchEq(
+    haystack: Numbers, needle: number, optRange?: Range): Range {
+  const range = searchRange(haystack, needle, optRange);
+  const [i, j] = range;
+  if (haystack[i] === needle) return range;
+  return [j, j];
+}
 
-export function searchSegment(
-    haystack: Float64Array, needle: number): [number, number] {
+/**
+ * Given a sorted array of numbers (|haystack|) and a |needle| return the
+ * smallest half open range [i, j) of indexes which contains |needle|.
+ */
+export function searchRange(
+    haystack: Numbers, needle: number, optRange?: Range): Range {
+  const [left, right] = optRange ? optRange : [0, haystack.length];
+  return searchRangeImpl(haystack, needle, left, right);
+}
+
+/**
+ * Given a sorted array of numbers (|haystack|) and a |needle| return a
+ * pair of indexes [i, j] such that:
+ * If there is at least one element in |haystack| smaller than |needle|
+ * i is the index of the largest such number otherwise -1;
+ * If there is at least one element in |haystack| larger than |needle|
+ * j is the index of the smallest such element otherwise -1.
+ *
+ * So we try to get the indexes of the two data points around needle
+ * or -1 if there is no such datapoint.
+ */
+export function searchSegment(haystack: Numbers, needle: number): Range {
   if (!haystack.length) return [-1, -1];
 
   const left = search(haystack, needle);

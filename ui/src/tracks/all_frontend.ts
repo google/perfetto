@@ -14,10 +14,11 @@
 
 // Import all currently implemented tracks. After implemeting a new track, an
 // import statement for it needs to be added here.
-import './cpu_slices/frontend';
+import './android_log/frontend';
 import './chrome_slices/frontend';
-import './vsync/frontend';
-import './process_summary/frontend';
 import './counter/frontend';
 import './cpu_freq/frontend';
-import './android_log/frontend';
+import './cpu_slices/frontend';
+import './process_scheduling/frontend';
+import './process_summary/frontend';
+import './vsync/frontend';
