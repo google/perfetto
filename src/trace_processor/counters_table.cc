@@ -42,8 +42,6 @@ StorageSchema CountersTable::CreateStorageSchema() {
       .AddOrderedNumericColumn("ts", &cs.timestamps())
       .AddStringColumn("name", &cs.name_ids(), &storage_->string_pool())
       .AddNumericColumn("value", &cs.values())
-      .AddNumericColumn("dur", &cs.durations())
-      .AddColumn<TsEndColumn>("ts_end", &cs.timestamps(), &cs.durations())
       .AddColumn<RefColumn>("ref", &cs.refs(), &cs.types(), storage_)
       .AddStringColumn("ref_type", &cs.types(), &ref_types_)
       .AddNumericColumn("arg_set_id", &cs.arg_set_ids())
