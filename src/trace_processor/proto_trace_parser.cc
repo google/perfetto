@@ -230,7 +230,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     ftrace_strings.message_name_id =
         context->storage->InternString(descriptor->name);
 
-    for (size_t fid = 0; fid < descriptor->max_field_id; fid++) {
+    for (size_t fid = 0; fid <= descriptor->max_field_id; fid++) {
       const auto& field = descriptor->fields[fid];
       if (!field.name)
         continue;
