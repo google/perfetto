@@ -51,7 +51,13 @@ export abstract class Track<Config = {}, Data = {}> {
 
   onMouseMove(_position: {x: number, y: number}) {}
 
-  onMouseClick(_position: {x: number, y: number}) {}
+  /**
+   * Returns whether the mouse click has selected something.
+   * Used to prevent further propagation if necessary.
+   */
+  onMouseClick(_position: {x: number, y: number}): boolean {
+    return false;
+  }
 
   onMouseOut() {}
 }
