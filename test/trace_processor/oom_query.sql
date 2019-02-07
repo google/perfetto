@@ -19,7 +19,7 @@ where ref_type = 'upid' and counters.name in ("mem.rss.anon", "rss_stat.mm_anonp
 /* Create the oom adj table. */
 create view oom_adj as
 select ts,
-       dur,
+       lead(ts, 1, ts) over(PARTITION by ref order by ts) - ts as dur,
        ref as upid,
        value as oom_score_adj
 from counters

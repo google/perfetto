@@ -1,7 +1,7 @@
 create view freq_view as
   select
     ts,
-    dur,
+    lead(ts) OVER (PARTITION BY name, ref ORDER BY ts) - ts as dur,
     ref as cpu,
     name as freq_name,
     value as freq_value
@@ -12,7 +12,7 @@ create view freq_view as
 create view idle_view
   as select
     ts,
-    dur,
+    lead(ts) OVER (PARTITION BY name, ref ORDER BY ts) - ts as dur,
     ref as cpu,
     name as idle_name,
     value as idle_value
