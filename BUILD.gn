@@ -63,6 +63,7 @@ group("all") {
       deps += [
         ":perfetto_benchmarks",
         ":trace_processor",
+        "src/profiling/memory:ring_buffer",
         "src/tracing:consumer_api_test",
         "test/configs",
         "tools/ftrace_proto_gen:ftrace_proto_gen",
@@ -119,6 +120,7 @@ test("perfetto_unittests") {
     deps += [
       "src/ipc:unittests",
       "src/perfetto_cmd:unittests",
+      "src/profiling/memory:ring_buffer_unittests",
       "src/traced/probes:unittests",
       "src/traced/probes/filesystem:unittests",
       "src/traced/probes/ftrace:unittests",
