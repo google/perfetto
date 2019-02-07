@@ -12,13 +12,6 @@
 ../data/cpu_counters.pb b120487929.sql cpu_counters_b120487929.out
 ../data/memory_counters.pb b120278869_neg_ts_end.sql memory_counters_b120278869_neg_ts_end.out
 ../data/memory_counters.pb b120605557.sql memory_counters_b120605557.out
-# TODO(lalitm): this still doesn't work because we no longer add utid
-# args for memory counters (because they are keyed by upid).
-# ../data/memory_counters.pb smoke_args.sql memory_counters_smoke_args.out
-# ../data/memory_counters.pb counter_args_join.sql memory_counters_counter_args_join.out
-../data/memory_counters.pb args_string_filter_null.sql memory_counters_args_string_filter_null.out
-../data/memory_counters.pb args_string_is_null.sql memory_counters_args_string_is_null.out
-../data/memory_counters.pb args_string_is_not_null.sql memory_counters_args_string_is_not_null.out
 synth_1.py smoke.sql synth_1_smoke.out
 synth_1.py filter_sched.sql synth_1_filter_sched.out
 synth_1.py filter_counters.sql synth_1_filter_counters.out
@@ -27,6 +20,18 @@ synth_1.py nulls.sql nulls.out
 ../data/android_log.pb android_log_counts.sql android_log_counts.out
 ../data/android_log.pb android_log_msgs.sql android_log_msgs.out
 ../data/android_log_ring_buffer_mode.pb android_log_ring_buffer_mode.sql android_log_ring_buffer_mode.out
-../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
 ../data/mm_event.pb mm_event.sql mm_event.out
 ../data/process_stats_poll.pb oom_score_poll.sql process_stats_poll_oom_score.out
+
+# Test LMK handling
+kernel_lmk.py lmk.sql lmk_kernel_lmk.out
+../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
+
+# Test counters handling
+../data/memory_counters.pb args_string_filter_null.sql memory_counters_args_string_filter_null.out
+../data/memory_counters.pb args_string_is_null.sql memory_counters_args_string_is_null.out
+../data/memory_counters.pb args_string_is_not_null.sql memory_counters_args_string_is_not_null.out
+# TODO(lalitm): this still doesn't work because we no longer add utid
+# args for memory counters (because they are keyed by upid).
+# ../data/memory_counters.pb smoke_args.sql memory_counters_smoke_args.out
+# ../data/memory_counters.pb counter_args_join.sql memory_counters_counter_args_join.out
