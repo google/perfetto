@@ -409,8 +409,11 @@ class TraceStorage {
       values_.emplace_back(value);
       refs_.emplace_back(ref);
       types_.emplace_back(type);
+      arg_set_ids_.emplace_back(kInvalidArgSetId);
       return static_cast<uint32_t>(instant_count() - 1);
     }
+
+    void set_arg_set_id(uint32_t row, ArgSetId id) { arg_set_ids_[row] = id; }
 
     size_t instant_count() const { return timestamps_.size(); }
 
@@ -424,12 +427,15 @@ class TraceStorage {
 
     const std::deque<RefType>& types() const { return types_; }
 
+    const std::deque<ArgSetId>& arg_set_ids() const { return arg_set_ids_; }
+
    private:
     std::deque<int64_t> timestamps_;
     std::deque<StringId> name_ids_;
     std::deque<double> values_;
     std::deque<int64_t> refs_;
     std::deque<RefType> types_;
+    std::deque<ArgSetId> arg_set_ids_;
   };
 
   class RawEvents {

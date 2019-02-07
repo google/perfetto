@@ -64,6 +64,9 @@ void ArgsTracker::Flush() {
       case TableId::kCounters:
         storage->mutable_counters()->set_arg_set_id(pair.second, set_id);
         break;
+      case TableId::kInstants:
+        storage->mutable_instants()->set_arg_set_id(pair.second, set_id);
+        break;
       default:
         PERFETTO_FATAL("Unsupported table to insert args into");
     }
