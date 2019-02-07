@@ -154,6 +154,9 @@ class SharedRingBuffer {
   inline size_t read_avail(const ScopedSpinlock& lock) {
     PERFETTO_DCHECK(lock.locked());
     PERFETTO_DCHECK(meta_->write_pos >= meta_->read_pos);
+    if (meta_->read_pos > meta_->write_pos)
+      return 0;
+
     auto res = static_cast<size_t>(meta_->write_pos - meta_->read_pos);
     PERFETTO_DCHECK(res <= size_);
     return res;
