@@ -133,7 +133,9 @@ class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         globals.rafScheduler.scheduleRedraw();
       },
       onclick: (e:MouseEvent) => {
-        attrs.track.onMouseClick({x: e.layerX, y: e.layerY});
+        if (attrs.track.onMouseClick({x: e.layerX, y: e.layerY})) {
+          e.stopPropagation();
+        }
         globals.rafScheduler.scheduleRedraw();
       }
     });

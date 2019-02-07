@@ -257,7 +257,7 @@ class CpuSliceTrack extends Track<Config, Data> {
 
   onMouseClick({x}: {x: number}) {
     const data = this.data();
-    if (data === undefined || data.kind === 'summary') return;
+    if (data === undefined || data.kind === 'summary') return false;
     const {timeScale} = globals.frontendLocalState;
     const time = timeScale.pxToTime(x);
     const index = search(data.starts, time);
@@ -265,7 +265,9 @@ class CpuSliceTrack extends Track<Config, Data> {
     if (id && this.utidHoveredInThisTrack !== -1) {
       globals.dispatch(Actions.selectSlice(
         {utid: this.utidHoveredInThisTrack, id}));
+      return true;
     }
+    return false;
   }
 }
 

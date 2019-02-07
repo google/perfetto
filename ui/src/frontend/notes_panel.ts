@@ -53,6 +53,7 @@ export class NotesPanel extends Panel {
         {
           onclick: (e: MouseEvent) => {
             this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
+            e.stopPropagation();
           },
         },
         m('.title', 'Notes'));
