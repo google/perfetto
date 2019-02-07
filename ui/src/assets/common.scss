@@ -341,6 +341,10 @@ canvas.main-canvas {
     height: 12px;
     min-height: 12px;
   }
+
+  .details-panel-container {
+    padding: 10px;
+  }
 }
 
 .overview-timeline {
@@ -349,6 +353,27 @@ canvas.main-canvas {
 
 .time-axis-panel {
   height: 12px;
+}
+
+.slice-details-panel {
+  font-family: 'Google Sans';
+  color: #3c4b5d;
+
+  .slice-details-panel-heading {
+    font-size: 20px;
+    padding-bottom: 5px;
+  }
+
+  table {
+    width: 100%;
+    td:first-child {
+      width: 20%;
+    }
+    tr:hover {
+      background-color: hsl(214, 22%, 90%);
+    }
+  }
+
 }
 
 .notes-panel {
