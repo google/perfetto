@@ -54,6 +54,8 @@ def main():
     stripped = line.strip()
     if stripped.startswith('#'):
       continue
+    elif not stripped:
+      continue
 
     [trace_fname, query_fname, expected_fname] = stripped.split(' ')
 
