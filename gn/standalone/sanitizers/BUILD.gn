@@ -88,6 +88,9 @@ config("sanitizers_cflags") {
     defines += [ "UNDEFINED_SANITIZER" ]
   }
   if (is_fuzzer) {
+    # FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION is also defined by oss-fuzz,
+    # so using the same name.
+    defines += [ "FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION" ]
     cflags += [ "-fsanitize=fuzzer-no-link" ]
     if (is_asan) {
       cflags += [
