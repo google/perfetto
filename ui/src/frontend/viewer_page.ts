@@ -36,6 +36,7 @@ import {TrackPanel} from './track_panel';
 import {Actions} from '../common/actions';
 
 const DRAG_HANDLE_HEIGHT_PX = 12;
+const DEFAULT_DETAILS_HEIGHT_PX = 250 + DRAG_HANDLE_HEIGHT_PX;
 
 class QueryTable extends Panel {
   view() {
@@ -149,6 +150,8 @@ class TraceViewer implements m.ClassComponent {
   private onResize: () => void = () => {};
   private zoomContent?: PanAndZoomHandler;
   private detailsHeight = DRAG_HANDLE_HEIGHT_PX;
+  // Used to set details panel to default height on selection.
+  private showDetailsPanel = false;
   // Used to prevent global deselection if a pan occurred.
   private panOccurred = false;
 
@@ -240,6 +243,10 @@ class TraceViewer implements m.ClassComponent {
 
     const detailsPanels: AnyAttrsVnode[] = [];
     if (globals.state.currentSelection) {
+      if (!this.showDetailsPanel) {
+        this.detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
+        this.showDetailsPanel = true;
+      }
       switch (globals.state.currentSelection.kind) {
         case 'NOTE':
           detailsPanels.push(m(NotesEditorPanel, {
@@ -255,6 +262,12 @@ class TraceViewer implements m.ClassComponent {
           break;
         default:
           break;
+      }
+    } else {
+      // No current selection so hide the details panel.
+      if (this.showDetailsPanel) {
+        this.showDetailsPanel = false;
+        this.detailsHeight = DRAG_HANDLE_HEIGHT_PX;
       }
     }
 
@@ -292,7 +305,8 @@ class TraceViewer implements m.ClassComponent {
             },
             height: this.detailsHeight,
           }),
-          m(PanelContainer, {doesScroll: true, panels: detailsPanels}), ));
+          m('.details-panel-container', m(PanelContainer,
+            {doesScroll: true, panels: detailsPanels}))));
   }
 }
 
