@@ -42,6 +42,12 @@ bool PacketStreamValidator::Validate(const Slices& slices) {
     return false;
   }
 
+  // Only the service is allowed to fill in the packet sequence id.
+  if (packet.optional_trusted_packet_sequence_id_case() !=
+      protos::TrustedPacket::OPTIONAL_TRUSTED_PACKET_SEQUENCE_ID_NOT_SET) {
+    return false;
+  }
+
   // Only the service is allowed to fill in the TraceConfig.
   if (packet.has_trace_config())
     return false;
