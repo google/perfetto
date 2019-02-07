@@ -46,6 +46,7 @@ StorageSchema InstantsTable::CreateStorageSchema() {
       .AddColumn<CountersTable::RefColumn>("ref", &instants.refs(),
                                            &instants.types(), storage_)
       .AddStringColumn("ref_type", &instants.types(), &ref_types_)
+      .AddNumericColumn("arg_set_id", &instants.arg_set_ids())
       .Build({"name", "ts", "ref"});
 }
 
