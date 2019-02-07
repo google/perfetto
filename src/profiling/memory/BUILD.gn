@@ -207,3 +207,14 @@ perfetto_fuzzer_test("unwinding_fuzzer") {
     "../../../src/base",
   ]
 }
+
+perfetto_fuzzer_test("shared_ring_buffer_fuzzer") {
+  sources = [
+    "shared_ring_buffer_fuzzer.cc",
+  ]
+  deps = [
+    ":ring_buffer",
+    "../../../gn:default_deps",
+    "../../../src/base",
+  ]
+}

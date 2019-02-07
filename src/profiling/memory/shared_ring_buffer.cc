@@ -122,7 +122,10 @@ SharedRingBuffer::~SharedRingBuffer() {
 void SharedRingBuffer::Initialize(base::ScopedFile mem_fd) {
   struct stat stat_buf = {};
   int res = fstat(*mem_fd, &stat_buf);
-  PERFETTO_CHECK(res == 0 && stat_buf.st_size > 0);
+  if (res != 0 || stat_buf.st_size == 0) {
+    PERFETTO_PLOG("Could not attach to fd.");
+    return;
+  }
   auto size_with_meta = static_cast<size_t>(stat_buf.st_size);
   auto size = size_with_meta - kMetaPageSize;
 
