@@ -935,6 +935,97 @@ TEST_F(TracingServiceImplTest, DeferredStart) {
   consumer->WaitForTracingDisabled();
 }
 
+TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer1", 123u /* uid */);
+  producer1->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer2", 456u /* uid */);
+  producer2->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("data_source");
+  producer2->WaitForTracingSetup();
+  producer2->WaitForDataSourceSetup("data_source");
+  producer1->WaitForDataSourceStart("data_source");
+  producer2->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer1a =
+      producer1->CreateTraceWriter("data_source");
+  std::unique_ptr<TraceWriter> writer1b =
+      producer1->CreateTraceWriter("data_source");
+  std::unique_ptr<TraceWriter> writer2a =
+      producer2->CreateTraceWriter("data_source");
+  {
+    auto tp = writer1a->NewTracePacket();
+    tp->set_for_testing()->set_str("payload1a1");
+    tp = writer1b->NewTracePacket();
+    tp->set_for_testing()->set_str("payload1b1");
+    tp = writer1a->NewTracePacket();
+    tp->set_for_testing()->set_str("payload1a2");
+    tp = writer2a->NewTracePacket();
+    tp->set_for_testing()->set_str("payload2a1");
+    tp = writer1b->NewTracePacket();
+    tp->set_for_testing()->set_str("payload1b2");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer1->WaitForFlush({writer1a.get(), writer1b.get()});
+  producer2->WaitForFlush(writer2a.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  consumer->DisableTracing();
+  producer1->WaitForDataSourceStop("data_source");
+  producer2->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(
+      packets,
+      Contains(AllOf(
+          Property(&protos::TracePacket::for_testing,
+                   Property(&protos::TestEvent::str, Eq("payload1a1"))),
+          Property(&protos::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(2u)))));
+  EXPECT_THAT(
+      packets,
+      Contains(AllOf(
+          Property(&protos::TracePacket::for_testing,
+                   Property(&protos::TestEvent::str, Eq("payload1a2"))),
+          Property(&protos::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(2u)))));
+  EXPECT_THAT(
+      packets,
+      Contains(AllOf(
+          Property(&protos::TracePacket::for_testing,
+                   Property(&protos::TestEvent::str, Eq("payload1b1"))),
+          Property(&protos::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(3u)))));
+  EXPECT_THAT(
+      packets,
+      Contains(AllOf(
+          Property(&protos::TracePacket::for_testing,
+                   Property(&protos::TestEvent::str, Eq("payload1b2"))),
+          Property(&protos::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(3u)))));
+  EXPECT_THAT(
+      packets,
+      Contains(AllOf(
+          Property(&protos::TracePacket::for_testing,
+                   Property(&protos::TestEvent::str, Eq("payload2a1"))),
+          Property(&protos::TracePacket::trusted_uid, Eq(456)),
+          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(4u)))));
+}
+
 TEST_F(TracingServiceImplTest, AllowedBuffers) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());

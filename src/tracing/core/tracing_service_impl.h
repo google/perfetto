@@ -297,6 +297,23 @@ class TracingServiceImpl : public TracingService {
       return timeout_ms ? timeout_ms : kDefaultFlushTimeoutMs;
     }
 
+    PacketSequenceID GetPacketSequenceID(ProducerID producer_id,
+                                         WriterID writer_id) {
+      auto key = std::make_pair(producer_id, writer_id);
+      auto it = packet_sequence_ids.find(key);
+      if (it != packet_sequence_ids.end())
+        return it->second;
+      // We shouldn't run out of sequence IDs (producer ID is 16 bit, writer IDs
+      // are limited to 1024).
+      static_assert(kMaxPacketSequenceID > kMaxProducerID * kMaxWriterID,
+                    "PacketSequenceID value space doesn't cover service "
+                    "sequence ID and all producer/writer ID combinations!");
+      PERFETTO_DCHECK(last_packet_sequence_id < kMaxPacketSequenceID);
+      PacketSequenceID sequence_id = ++last_packet_sequence_id;
+      packet_sequence_ids[key] = sequence_id;
+      return sequence_id;
+    }
+
     const TracingSessionID id;
 
     // The consumer that started the session.
@@ -329,6 +346,10 @@ class TracingServiceImpl : public TracingService {
     // BufferID (shared namespace amongst all consumers). This vector has as
     // many entries as |config.buffers_size()|.
     std::vector<BufferID> buffers_index;
+
+    std::map<std::pair<ProducerID, WriterID>, PacketSequenceID>
+        packet_sequence_ids;
+    PacketSequenceID last_packet_sequence_id = kServicePacketSequenceID;
 
     // When the last snapshots (clock, stats, sync marker) were emitted into
     // the output stream.
