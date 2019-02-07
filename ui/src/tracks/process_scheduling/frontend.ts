@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,57 +12,59 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {searchEq, searchRange} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {colorForThread, hueForCpu} from '../../frontend/colorizer';
+import {colorForThread, colorForTid} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
-import {search} from '../../base/binary_search';
 
 import {
   Config,
-  CPU_SLICE_TRACK_KIND,
   Data,
+  PROCESS_SCHEDULING_TRACK_KIND,
   SliceData,
   SummaryData
 } from './common';
 
-
 const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 
-function cropText(str: string, charWidth: number, rectWidth: number) {
-  const maxTextWidth = rectWidth - 4;
-  let displayText = '';
-  const nameLength = str.length * charWidth;
-  if (nameLength < maxTextWidth) {
-    displayText = str;
-  } else {
-    // -3 for the 3 ellipsis.
-    const displayedChars = Math.floor(maxTextWidth / charWidth) - 3;
-    if (displayedChars > 3) {
-      displayText = str.substring(0, displayedChars) + '...';
-    }
-  }
-  return displayText;
+function getCurResolution() {
+  // Truncate the resolution to the closest power of 10.
+  const resolution = globals.frontendLocalState.timeScale.deltaPxToDuration(1);
+  return Math.pow(10, Math.floor(Math.log10(resolution)));
 }
 
-class CpuSliceTrack extends Track<Config, Data> {
-  static readonly kind = CPU_SLICE_TRACK_KIND;
-  static create(trackState: TrackState): CpuSliceTrack {
-    return new CpuSliceTrack(trackState);
+class ProcessSchedulingTrack extends Track<Config, Data> {
+  static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
+  static create(trackState: TrackState): ProcessSchedulingTrack {
+    return new ProcessSchedulingTrack(trackState);
   }
 
   private mouseXpos?: number;
-  private hue: number;
+  private reqPending = false;
   private utidHoveredInThisTrack = -1;
 
   constructor(trackState: TrackState) {
     super(trackState);
-    this.hue = hueForCpu(this.config.cpu);
+  }
+
+  reqDataDeferred() {
+    const {visibleWindowTime} = globals.frontendLocalState;
+    const reqStart = visibleWindowTime.start - visibleWindowTime.duration;
+    const reqEnd = visibleWindowTime.end + visibleWindowTime.duration;
+    const reqRes = getCurResolution();
+    this.reqPending = false;
+    globals.dispatch(Actions.reqTrackData({
+      trackId: this.trackState.id,
+      start: reqStart,
+      end: reqEnd,
+      resolution: reqRes
+    }));
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
@@ -76,8 +78,11 @@ class CpuSliceTrack extends Track<Config, Data> {
         (visibleWindowTime.start >= data.start &&
          visibleWindowTime.end <= data.end);
     if (!inRange || data === undefined ||
-        data.resolution !== globals.getCurResolution()) {
-      globals.requestTrackData(this.trackState.id);
+        data.resolution !== getCurResolution()) {
+      if (!this.reqPending) {
+        this.reqPending = true;
+        setTimeout(() => this.reqDataDeferred(), 250);
+      }
     }
     if (data === undefined) return;  // Can't possibly draw anything.
 
@@ -105,7 +110,8 @@ class CpuSliceTrack extends Track<Config, Data> {
     let lastX = startPx;
     let lastY = bottomY;
 
-    ctx.fillStyle = `hsl(${this.hue}, 50%, 60%)`;
+    const color = colorForTid(this.config.pidForColor);
+    ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
     for (let i = 0; i < data.utilizations.length; i++) {
@@ -128,14 +134,13 @@ class CpuSliceTrack extends Track<Config, Data> {
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
-    ctx.textAlign = 'center';
-    ctx.font = '12px Google Sans';
-    const charWidth = ctx.measureText('dbpqaouk').width / 8;
+    const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.numCpus);
 
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
       const utid = data.utids[i];
+      const cpu = data.cpus[i];
       if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
         continue;
       }
@@ -145,22 +150,7 @@ class CpuSliceTrack extends Track<Config, Data> {
       if (rectWidth < 0.3) continue;
 
       const threadInfo = globals.threads.get(utid);
-
-      // TODO: consider de-duplicating this code with the copied one from
-      // chrome_slices/frontend.ts.
-      let title = `[utid:${utid}]`;
-      let subTitle = '';
-      let pid = -1;
-      if (threadInfo) {
-        if (threadInfo.pid) {
-          pid = threadInfo.pid;
-          const procName = threadInfo.procName || '';
-          title = `${procName} [${threadInfo.pid}]`;
-          subTitle = `${threadInfo.threadName} [${threadInfo.tid}]`;
-        } else {
-          title = `${threadInfo.threadName} [${threadInfo.tid}]`;
-        }
-      }
+      const pid = (threadInfo ? threadInfo.pid : -1) || -1;
 
       const isHovering = globals.frontendLocalState.hoveredUtid !== -1;
       const isThreadHovered = globals.frontendLocalState.hoveredUtid === utid;
@@ -179,20 +169,8 @@ class CpuSliceTrack extends Track<Config, Data> {
         color.s -= 20;
       }
       ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-      ctx.fillRect(rectStart, MARGIN_TOP, rectEnd - rectStart, RECT_HEIGHT);
-
-      // Don't render text when we have less than 5px to play with.
-      if (rectWidth < 5) continue;
-
-      title = cropText(title, charWidth, rectWidth);
-      subTitle = cropText(subTitle, charWidth, rectWidth);
-      const rectXCenter = rectStart + rectWidth / 2;
-      ctx.fillStyle = '#fff';
-      ctx.font = '12px Google Sans';
-      ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 3);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.font = '10px Google Sans';
-      ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 11);
+      const y = MARGIN_TOP + cpuTrackHeight * cpu + cpu;
+      ctx.fillRect(rectStart, y, rectEnd - rectStart, cpuTrackHeight);
     }
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
@@ -224,28 +202,29 @@ class CpuSliceTrack extends Track<Config, Data> {
     const data = this.data();
     this.mouseXpos = x;
     if (data === undefined || data.kind === 'summary') return;
-    const {timeScale} = globals.frontendLocalState;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
       globals.frontendLocalState.setHoveredUtidAndPid(-1, -1);
       return;
     }
-    const t = timeScale.pxToTime(x);
-    let hoveredUtid = -1;
 
-    for (let i = 0; i < data.starts.length; i++) {
-      const tStart = data.starts[i];
-      const tEnd = data.ends[i];
-      const utid = data.utids[i];
-      if (tStart <= t && t <= tEnd) {
-        hoveredUtid = utid;
-        break;
-      }
+    const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.numCpus);
+    const cpu = Math.floor((y - MARGIN_TOP) / (cpuTrackHeight + 1));
+    const {timeScale} = globals.frontendLocalState;
+    const t = timeScale.pxToTime(x);
+
+    const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
+    if (i === j || i >= data.starts.length || t > data.ends[i]) {
+      this.utidHoveredInThisTrack = -1;
+      globals.frontendLocalState.setHoveredUtidAndPid(-1, -1);
+      return;
     }
-    this.utidHoveredInThisTrack = hoveredUtid;
-    const threadInfo = globals.threads.get(hoveredUtid);
-    const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
-    globals.frontendLocalState.setHoveredUtidAndPid(hoveredUtid, hoveredPid);
+
+    const utid = data.utids[i];
+    this.utidHoveredInThisTrack = utid;
+    const threadInfo = globals.threads.get(utid);
+    const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
+    globals.frontendLocalState.setHoveredUtidAndPid(utid, pid);
   }
 
   onMouseOut() {
@@ -253,21 +232,6 @@ class CpuSliceTrack extends Track<Config, Data> {
     globals.frontendLocalState.setHoveredUtidAndPid(-1, -1);
     this.mouseXpos = 0;
   }
-
-  onMouseClick({x}: {x: number}) {
-    const data = this.data();
-    if (data === undefined || data.kind === 'summary') return false;
-    const {timeScale} = globals.frontendLocalState;
-    const time = timeScale.pxToTime(x);
-    const index = search(data.starts, time);
-    const id = index === -1 ? undefined : data.ids[index];
-    if (id && this.utidHoveredInThisTrack !== -1) {
-      globals.dispatch(Actions.selectSlice(
-        {utid: this.utidHoveredInThisTrack, id}));
-      return true;
-    }
-    return false;
-  }
 }
 
-trackRegistry.register(CpuSliceTrack);
+trackRegistry.register(ProcessSchedulingTrack);
