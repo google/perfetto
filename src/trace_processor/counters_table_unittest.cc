@@ -219,7 +219,9 @@ TEST_F(CountersTableUnittest, RefColumnComparator) {
           timestamp, 0 /* dur */, 0, 1 /* value */, no_upid_tid,
           RefType::kRefUtidLookupUpid));
 
-  CountersTable::RefColumn ref_column("ref", context_.storage.get());
+  const auto& cs = context_.storage->counters();
+  CountersTable::RefColumn ref_column("ref", &cs.refs(), &cs.types(),
+                                      context_.storage.get());
   auto comparator = ref_column.Sort(QueryConstraints::OrderBy());
   // Lookup equality
   ASSERT_EQ(comparator(ctr_lookup_upid, ctr_upid), 0);

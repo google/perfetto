@@ -785,8 +785,8 @@ void ProtoTraceParser::ParseLowmemoryKill(int64_t timestamp,
   // Storing the pid of the event that is lmk-ed.
   auto* instants = context_->storage->mutable_instants();
   UniquePid upid = context_->process_tracker->UpdateProcess(pid);
-  uint32_t row =
-      instants->AddInstantEvent(timestamp, lmk_id_, 0, upid, RefType::kRefUpid);
+  uint32_t row = instants->AddInstantEvent(timestamp, lmk_id_, 0, upid,
+                                           RefType::kRefUtidLookupUpid);
 
   // Store the comm as an arg.
   RowId row_id = TraceStorage::CreateRowId(TableId::kInstants, row);
