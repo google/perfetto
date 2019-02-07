@@ -339,13 +339,11 @@ class TraceStorage {
   class Counters {
    public:
     inline size_t AddCounter(int64_t timestamp,
-                             int64_t duration,
                              StringId name_id,
                              double value,
                              int64_t ref,
                              RefType type) {
       timestamps_.emplace_back(timestamp);
-      durations_.emplace_back(duration);
       name_ids_.emplace_back(name_id);
       values_.emplace_back(value);
       refs_.emplace_back(ref);
@@ -354,17 +352,11 @@ class TraceStorage {
       return counter_count() - 1;
     }
 
-    void set_duration(size_t index, int64_t duration) {
-      durations_[index] = duration;
-    }
-
     void set_arg_set_id(uint32_t row, ArgSetId id) { arg_set_ids_[row] = id; }
 
     size_t counter_count() const { return timestamps_.size(); }
 
     const std::deque<int64_t>& timestamps() const { return timestamps_; }
-
-    const std::deque<int64_t>& durations() const { return durations_; }
 
     const std::deque<StringId>& name_ids() const { return name_ids_; }
 
@@ -378,7 +370,6 @@ class TraceStorage {
 
    private:
     std::deque<int64_t> timestamps_;
-    std::deque<int64_t> durations_;
     std::deque<StringId> name_ids_;
     std::deque<double> values_;
     std::deque<int64_t> refs_;

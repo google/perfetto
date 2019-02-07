@@ -1,3 +1,3 @@
-SELECT * from counters
+SELECT COUNT(*) from counters
 WHERE
-  dur = 350;
+  ref = 0;
