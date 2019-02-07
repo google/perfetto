@@ -296,6 +296,7 @@ export const StateActions = {
       color: '#000000',
       text: '',
     };
+    this.selectNote(state, {id});
   },
 
   changeNoteColor(state: StateDraft, args: {id: string, newColor: string}):
@@ -328,6 +329,10 @@ export const StateActions = {
       id: args.id,
     };
   },
+
+  deselect(state: StateDraft, _: {}): void {
+    state.currentSelection = null;
+  }
 
 };
 
