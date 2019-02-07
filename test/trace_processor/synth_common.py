@@ -66,6 +66,12 @@ class Trace(object):
         cpufreq.state = freq
         cpufreq.cpu_id = cpu
 
+    def add_kernel_lmk(self, ts, tid):
+        ftrace = self.__add_ftrace_event(ts, tid)
+
+        lowmemory_kill = ftrace.lowmemory_kill
+        lowmemory_kill.pid = tid
+
     def add_process_tree_packet(self):
         self.packet = self.trace.packet.add()
 
