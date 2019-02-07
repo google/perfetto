@@ -26,10 +26,11 @@ InstantsTable::InstantsTable(sqlite3*, const TraceStorage* storage)
   ref_types_.resize(RefType::kRefMax);
   ref_types_[RefType::kRefNoRef] = "";
   ref_types_[RefType::kRefUtid] = "utid";
+  ref_types_[RefType::kRefUpid] = "upid";
   ref_types_[RefType::kRefCpuId] = "cpu";
   ref_types_[RefType::kRefIrq] = "irq";
   ref_types_[RefType::kRefSoftIrq] = "softirq";
-  ref_types_[RefType::kRefUpid] = "upid";
+  ref_types_[RefType::kRefUtidLookupUpid] = "upid";
 };
 
 void InstantsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
