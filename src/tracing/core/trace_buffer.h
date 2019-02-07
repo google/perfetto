@@ -152,6 +152,13 @@ class TraceBuffer {
     std::array<uint8_t, kSize> data;
   };
 
+  // Identifiers that are constant for a packet sequence.
+  struct PacketSequenceProperties {
+    ProducerID producer_id_trusted;
+    uid_t producer_uid_trusted;
+    WriterID writer_id;
+  };
+
   // Can return nullptr if the memory allocation fails.
   static std::unique_ptr<TraceBuffer> Create(size_t size_in_bytes,
                                              OverwritePolicy = kOverwrite);
@@ -177,6 +184,8 @@ class TraceBuffer {
   // not have finished writing the latest packet. Reading from a sequence will
   // also not progress past any incomplete chunks until they were rewritten with
   // |chunk_complete = true|, e.g. after a producer's commit.
+  //
+  // TODO(eseckler): Pass in a PacketStreamProperties instead of individual IDs.
   void CopyChunkUntrusted(ProducerID producer_id_trusted,
                           uid_t producer_uid_trusted,
                           WriterID writer_id,
@@ -208,9 +217,11 @@ class TraceBuffer {
   // Reads in the TraceBuffer are NOT idempotent.
   void BeginRead();
 
-  // Returns the next packet in the buffer, if any, and the uid of the producer
-  // that wrote it (as passed in the CopyChunkUntrusted() call). Returns false
-  // if no packets can be read at this point.
+  // Returns the next packet in the buffer, if any, and the producer_id,
+  // producer_uid, and writer_id of the producer/writer that wrote it (as passed
+  // in the CopyChunkUntrusted() call). Returns false if no packets can be read
+  // at this point.
+  //
   // This function returns only complete packets. Specifically:
   // When there is at least one complete packet in the buffer, this function
   // returns true and populates the TracePacket argument with the boundaries of
@@ -230,7 +241,8 @@ class TraceBuffer {
   //   P1, P4, P7, P2, P3, P5, P8, P9, P6
   // But the following is guaranteed to NOT happen:
   //   P1, P5, P7, P4 (P4 cannot come after P5)
-  bool ReadNextTracePacket(TracePacket*, uid_t* producer_uid);
+  bool ReadNextTracePacket(TracePacket*,
+                           PacketSequenceProperties* sequence_properties);
 
   const TraceStats::BufferStats& stats() const { return stats_; }
   size_t size() const { return size_; }

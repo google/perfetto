@@ -70,12 +70,15 @@ class TraceBufferTest : public testing::Test {
         p, w, c, patches.data(), patches.size(), other_patches_pending);
   }
 
-  std::vector<FakePacketFragment> ReadPacket(uint32_t* uid = nullptr) {
+  std::vector<FakePacketFragment> ReadPacket(
+      TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr) {
     std::vector<FakePacketFragment> fragments;
     TracePacket packet;
-    uint32_t ignore;
-    if (!trace_buffer_->ReadNextTracePacket(&packet, uid ? uid : &ignore))
+    TraceBuffer::PacketSequenceProperties ignore{};
+    if (!trace_buffer_->ReadNextTracePacket(
+            &packet, sequence_properties ? sequence_properties : &ignore)) {
       return fragments;
+    }
     for (const Slice& slice : packet.slices())
       fragments.emplace_back(slice.start, slice.size);
     return fragments;
@@ -757,22 +760,27 @@ TEST_F(TraceBufferTest, Fragments_PreserveUID) {
       .SetUID(11)
       .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
-  uid_t uid = kInvalidUid;
-  ASSERT_THAT(ReadPacket(&uid), ElementsAre(FakePacketFragment(10, 'a')));
-  ASSERT_EQ(11u, uid);
+  TraceBuffer::PacketSequenceProperties sequence_properties;
+  ASSERT_THAT(ReadPacket(&sequence_properties),
+              ElementsAre(FakePacketFragment(10, 'a')));
+  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted);
 
-  ASSERT_THAT(ReadPacket(&uid), ElementsAre(FakePacketFragment(10, 'b'),
-                                            FakePacketFragment(10, 'e')));
-  ASSERT_EQ(11u, uid);
+  ASSERT_THAT(
+      ReadPacket(&sequence_properties),
+      ElementsAre(FakePacketFragment(10, 'b'), FakePacketFragment(10, 'e')));
+  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted);
 
-  ASSERT_THAT(ReadPacket(&uid), ElementsAre(FakePacketFragment(10, 'f')));
-  ASSERT_EQ(11u, uid);
+  ASSERT_THAT(ReadPacket(&sequence_properties),
+              ElementsAre(FakePacketFragment(10, 'f')));
+  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted);
 
-  ASSERT_THAT(ReadPacket(&uid), ElementsAre(FakePacketFragment(10, 'c')));
-  ASSERT_EQ(22u, uid);
+  ASSERT_THAT(ReadPacket(&sequence_properties),
+              ElementsAre(FakePacketFragment(10, 'c')));
+  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted);
 
-  ASSERT_THAT(ReadPacket(&uid), ElementsAre(FakePacketFragment(10, 'd')));
-  ASSERT_EQ(22u, uid);
+  ASSERT_THAT(ReadPacket(&sequence_properties),
+              ElementsAre(FakePacketFragment(10, 'd')));
+  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted);
 
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }

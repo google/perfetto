@@ -117,10 +117,11 @@ class StartupTraceWriterTest : public AlignedBufferTest {
     size_t num_packets_read = 0;
     while (true) {
       TracePacket packet;
-      uid_t producer_uid = kInvalidUid;
-      if (!buffer->ReadNextTracePacket(&packet, &producer_uid))
+      TraceBuffer::PacketSequenceProperties sequence_properties{};
+      if (!buffer->ReadNextTracePacket(&packet, &sequence_properties))
         break;
-      EXPECT_EQ(static_cast<uid_t>(1), producer_uid);
+      EXPECT_EQ(static_cast<uid_t>(1),
+                sequence_properties.producer_uid_trusted);
 
       SlicedProtobufInputStream stream(&packet.slices());
       size_t size = 0;
