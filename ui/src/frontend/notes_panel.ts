@@ -167,7 +167,7 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
             },
             'Remove'), ),
         m('textarea', {
-          rows: 20,
+          rows: 12,
           onkeydown: (e: Event) => {
             e.stopImmediatePropagation();
           },

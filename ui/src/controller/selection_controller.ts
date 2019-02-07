@@ -50,10 +50,11 @@ export class SelectionController extends Controller<'main'> {
             selection.kind === 'SLICE' &&
             selection.id === selectedSlice) {
           const ts = fromNs(result.columns[0].longValues![0] as number);
+          const timeFromStart = ts - globals.state.traceTime.startSec;
           const dur = fromNs(result.columns[1].longValues![0] as number);
           const priority = result.columns[2].longValues![0] as number;
           const endState = result.columns[3].stringValues![0];
-          const selected = {ts, dur, priority, endState};
+          const selected = {ts: timeFromStart, dur, priority, endState};
           globals.publish('SliceDetails', selected);
         }
       });
