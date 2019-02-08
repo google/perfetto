@@ -75,6 +75,16 @@ void TraceStats::FromProto(const perfetto::protos::TraceStats& proto) {
   static_assert(sizeof(total_buffers_) == sizeof(proto.total_buffers()),
                 "size mismatch");
   total_buffers_ = static_cast<decltype(total_buffers_)>(proto.total_buffers());
+
+  static_assert(sizeof(chunks_discarded_) == sizeof(proto.chunks_discarded()),
+                "size mismatch");
+  chunks_discarded_ =
+      static_cast<decltype(chunks_discarded_)>(proto.chunks_discarded());
+
+  static_assert(sizeof(patches_discarded_) == sizeof(proto.patches_discarded()),
+                "size mismatch");
+  patches_discarded_ =
+      static_cast<decltype(patches_discarded_)>(proto.patches_discarded());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -120,6 +130,17 @@ void TraceStats::ToProto(perfetto::protos::TraceStats* proto) const {
                 "size mismatch");
   proto->set_total_buffers(
       static_cast<decltype(proto->total_buffers())>(total_buffers_));
+
+  static_assert(sizeof(chunks_discarded_) == sizeof(proto->chunks_discarded()),
+                "size mismatch");
+  proto->set_chunks_discarded(
+      static_cast<decltype(proto->chunks_discarded())>(chunks_discarded_));
+
+  static_assert(
+      sizeof(patches_discarded_) == sizeof(proto->patches_discarded()),
+      "size mismatch");
+  proto->set_patches_discarded(
+      static_cast<decltype(proto->patches_discarded())>(patches_discarded_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

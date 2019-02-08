@@ -1390,6 +1390,7 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
   ProducerEndpointImpl* producer = GetProducer(producer_id_trusted);
   if (!producer) {
     PERFETTO_DFATAL("Producer not found.");
+    chunks_discarded_++;
     return;
   }
 
@@ -1398,6 +1399,7 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     PERFETTO_DLOG("Could not find target buffer %" PRIu16
                   " for producer %" PRIu16,
                   buffer_id, producer_id_trusted);
+    chunks_discarded_++;
     return;
   }
 
@@ -1410,6 +1412,7 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
                   " tried to write into forbidden target buffer %" PRIu16,
                   producer_id_trusted, buffer_id);
     PERFETTO_DFATAL("Forbidden target buffer");
+    chunks_discarded_++;
     return;
   }
 
@@ -1423,7 +1426,8 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
                   ", but tried to write into buffer %" PRIu16,
                   writer_id, producer_id_trusted, *associated_buffer,
                   buffer_id);
-    PERFETTO_DCHECK(false);
+    PERFETTO_DFATAL("Wrong target buffer");
+    chunks_discarded_++;
     return;
   }
 
@@ -1445,18 +1449,30 @@ void TracingServiceImpl::ApplyChunkPatches(
     static_assert(std::numeric_limits<ChunkID>::max() == kMaxChunkID,
                   "Add a '|| chunk_id > kMaxChunkID' below if this fails");
     if (!writer_id || writer_id > kMaxWriterID || !buf) {
-      PERFETTO_DLOG(
+      PERFETTO_ELOG(
           "Received invalid chunks_to_patch request from Producer: %" PRIu16
           ", BufferID: %" PRIu32 " ChunkdID: %" PRIu32 " WriterID: %" PRIu16,
           producer_id_trusted, chunk.target_buffer(), chunk_id, writer_id);
+      patches_discarded_ += static_cast<uint64_t>(chunk.patches_size());
       continue;
     }
+
+    // Note, there's no need to validate that the producer is allowed to write
+    // to the specified buffer ID (or that it's the correct buffer ID for a
+    // registered TraceWriter). That's because TraceBuffer uses the producer ID
+    // and writer ID to look up the chunk to patch. If the producer specifies an
+    // incorrect buffer, this lookup will fail and TraceBuffer will ignore the
+    // patches. Because the producer ID is trusted, there's also no way for a
+    // malicious producer to patch another producer's data.
+
     // Speculate on the fact that there are going to be a limited amount of
     // patches per request, so we can allocate the |patches| array on the stack.
     std::array<TraceBuffer::Patch, 1024> patches;  // Uninitialized.
     if (chunk.patches().size() > patches.size()) {
-      PERFETTO_DFATAL("Too many patches (%zu) batched in the same request",
-                      patches.size());
+      PERFETTO_ELOG("Too many patches (%zu) batched in the same request",
+                    patches.size());
+      PERFETTO_DFATAL("Too many patches");
+      patches_discarded_ += static_cast<uint64_t>(chunk.patches_size());
       continue;
     }
 
@@ -1464,9 +1480,10 @@ void TracingServiceImpl::ApplyChunkPatches(
     for (const auto& patch : chunk.patches()) {
       const std::string& patch_data = patch.data();
       if (patch_data.size() != patches[i].data.size()) {
-        PERFETTO_DLOG("Received patch from producer: %" PRIu16
+        PERFETTO_ELOG("Received patch from producer: %" PRIu16
                       " of unexpected size %zu",
                       producer_id_trusted, patch_data.size());
+        patches_discarded_++;
         continue;
       }
       patches[i].offset_untrusted = patch.offset();
@@ -1652,6 +1669,8 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   trace_stats.set_tracing_sessions(
       static_cast<uint32_t>(tracing_sessions_.size()));
   trace_stats.set_total_buffers(static_cast<uint32_t>(buffers_.size()));
+  trace_stats.set_chunks_discarded(chunks_discarded_);
+  trace_stats.set_patches_discarded(patches_discarded_);
 
   for (BufferID buf_id : tracing_session->buffers_index) {
     TraceBuffer* buf = GetBufferByID(buf_id);

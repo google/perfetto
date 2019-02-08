@@ -75,8 +75,10 @@ namespace stats {
   F(traced_buf_readaheads_failed,               kIndexed, kInfo,  kTrace),    \
   F(traced_buf_readaheads_succeeded,            kIndexed, kInfo,  kTrace),    \
   F(traced_buf_write_wrap_count,                kIndexed, kInfo,  kTrace),    \
+  F(traced_chunks_discarded,                    kSingle,  kInfo,  kTrace),    \
   F(traced_data_sources_registered,             kSingle,  kInfo,  kTrace),    \
   F(traced_data_sources_seen,                   kSingle,  kInfo,  kTrace),    \
+  F(traced_patches_discarded,                   kSingle,  kInfo,  kTrace),    \
   F(traced_producers_connected,                 kSingle,  kInfo,  kTrace),    \
   F(traced_producers_seen,                      kSingle,  kInfo,  kTrace),    \
   F(traced_total_buffers,                       kSingle,  kInfo,  kTrace),    \
