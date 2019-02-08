@@ -438,6 +438,10 @@ class TracingServiceImpl : public TracingService {
   uint8_t sync_marker_packet_[32];  // Lazily initialized.
   size_t sync_marker_packet_size_ = 0;
 
+  // Stats.
+  uint64_t chunks_discarded_ = 0;
+  uint64_t patches_discarded_ = 0;
+
   PERFETTO_THREAD_CHECKER(thread_checker_)
 
   base::WeakPtrFactory<TracingServiceImpl>
