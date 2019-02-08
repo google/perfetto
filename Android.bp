@@ -2557,6 +2557,7 @@ cc_test {
     "src/base/string_utils.cc",
     "src/base/string_utils_unittest.cc",
     "src/base/string_view_unittest.cc",
+    "src/base/string_writer_unittest.cc",
     "src/base/task_runner_unittest.cc",
     "src/base/temp_file.cc",
     "src/base/temp_file_unittest.cc",
