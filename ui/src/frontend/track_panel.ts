@@ -19,6 +19,7 @@ import {TrackState} from '../common/state';
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
+import {drawVerticalLine} from './vertical_line_helper';
 import {Panel, PanelSize} from './panel';
 import {Track} from './track';
 import {TRACK_SHELL_WIDTH} from './track_constants';
@@ -210,5 +211,26 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
     this.track.renderCanvas(ctx);
     ctx.restore();
+
+    const localState = globals.frontendLocalState;
+    // Draw vertical line when hovering on the the notes panel.
+    if (localState.hoveredTimestamp !== -1) {
+      drawVerticalLine(ctx,
+                       localState.timeScale,
+                       localState.hoveredTimestamp,
+                       size.height,
+                       `#aaa`);
+    }
+
+    // Draw vertical line when a note is selected.
+    if (globals.state.currentSelection !== null &&
+        globals.state.currentSelection.kind === 'NOTE') {
+      const note = globals.state.notes[globals.state.currentSelection.id];
+      drawVerticalLine(ctx,
+                       localState.timeScale,
+                       note.timestamp,
+                       size.height,
+                       note.color);
+    }
   }
 }
