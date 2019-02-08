@@ -185,7 +185,7 @@ constexpr const char* kLogFmt[] = {"\x1b[2m", "\x1b[39m", "\x1b[32m\x1b[1m",
 #define PERFETTO_CHECK(x)                            \
   do {                                               \
     if (PERFETTO_UNLIKELY(!(x))) {                   \
-      PERFETTO_ELOG("%s", "PERFETTO_CHECK(" #x ")"); \
+      PERFETTO_PLOG("%s", "PERFETTO_CHECK(" #x ")"); \
       PERFETTO_IMMEDIATE_CRASH();                    \
     }                                                \
   } while (0)
