@@ -37,6 +37,12 @@ source_set("protozero") {
   ]
 }
 
+static_library("libprotozero") {
+  deps = [
+    ":protozero",
+  ]
+}
+
 source_set("unittests") {
   testonly = true
   deps = [
