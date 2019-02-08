@@ -189,6 +189,12 @@ class PERFETTO_EXPORT TraceStats {
   uint32_t total_buffers() const { return total_buffers_; }
   void set_total_buffers(uint32_t value) { total_buffers_ = value; }
 
+  uint64_t chunks_discarded() const { return chunks_discarded_; }
+  void set_chunks_discarded(uint64_t value) { chunks_discarded_ = value; }
+
+  uint64_t patches_discarded() const { return patches_discarded_; }
+  void set_patches_discarded(uint64_t value) { patches_discarded_ = value; }
+
  private:
   std::vector<BufferStats> buffer_stats_;
   uint32_t producers_connected_ = {};
@@ -197,6 +203,8 @@ class PERFETTO_EXPORT TraceStats {
   uint64_t data_sources_seen_ = {};
   uint32_t tracing_sessions_ = {};
   uint32_t total_buffers_ = {};
+  uint64_t chunks_discarded_ = {};
+  uint64_t patches_discarded_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
