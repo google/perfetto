@@ -1474,6 +1474,12 @@ void ProtoTraceParser::ParseTraceStats(TraceBlobView packet) {
       case protos::TraceStats::kTotalBuffersFieldNumber:
         storage->SetStats(stats::traced_total_buffers, fld.as_int64());
         break;
+      case protos::TraceStats::kChunksDiscardedFieldNumber:
+        storage->SetStats(stats::traced_chunks_discarded, fld.as_int64());
+        break;
+      case protos::TraceStats::kPatchesDiscardedFieldNumber:
+        storage->SetStats(stats::traced_patches_discarded, fld.as_int64());
+        break;
       case protos::TraceStats::kBufferStatsFieldNumber: {
         const size_t fld_off = packet.offset_of(fld.data());
         TraceBlobView buf_data = packet.slice(fld_off, fld.size());
