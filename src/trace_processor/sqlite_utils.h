@@ -34,6 +34,7 @@ namespace trace_processor {
 namespace sqlite_utils {
 
 const auto kSqliteStatic = reinterpret_cast<sqlite3_destructor_type>(0);
+const auto kSqliteTransient = reinterpret_cast<sqlite3_destructor_type>(-1);
 
 template <typename T>
 using is_numeric =
