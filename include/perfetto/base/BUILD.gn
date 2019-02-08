@@ -32,6 +32,7 @@ source_set("base") {
     "string_splitter.h",
     "string_utils.h",
     "string_view.h",
+    "string_writer.h",
     "task_runner.h",
     "temp_file.h",
     "thread_checker.h",
