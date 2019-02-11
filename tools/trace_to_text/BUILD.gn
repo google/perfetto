@@ -22,12 +22,15 @@ source_set("common") {
   public_deps = [
     "../../gn:default_deps",
     "../../include/perfetto/base",
+    "../../include/perfetto/trace_processor:trace_processor",
     "../../include/perfetto/traced:sys_stats_counters",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/ftrace:lite",
     "../../protos/perfetto/trace/profiling:lite",
+    "../../protos/perfetto/trace_processor:lite",
     "../../protos/third_party/pprof:lite",
     "../../src/base",
+    "../../src/trace_processor:lib",
   ]
   sources = [
     "ftrace_event_formatter.cc",

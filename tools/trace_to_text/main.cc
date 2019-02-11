@@ -76,6 +76,9 @@ int main(int argc, char** argv) {
   if (format == "systrace")
     return perfetto::trace_to_text::TraceToSystrace(input_stream, output_stream,
                                                     /*wrap_in_json=*/false);
+  if (format == "experimental_systrace")
+    return perfetto::trace_to_text::TraceToExperimentalSystrace(input_stream,
+                                                                output_stream);
   if (format == "text")
     return perfetto::trace_to_text::TraceToText(input_stream, output_stream);
 
