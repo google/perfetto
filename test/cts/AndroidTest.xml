@@ -23,6 +23,7 @@
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="CtsPerfettoProducerApp.apk" />
         <option name="test-file-name" value="CtsPerfettoDebuggableApp.apk" />
+        <option name="test-file-name" value="CtsPerfettoReleaseApp.apk" />
     </target_preparer>
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
@@ -37,8 +38,8 @@
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp" />
         <option name="module-name" value="CtsPerfettoTestCases" />
-        <option name="runtime-hint" value="0m5s" />
-        <!-- test-timeout unit is ms, value = 10 seconds -->
-        <option name="native-test-timeout" value="10000" />
+        <option name="runtime-hint" value="0m30s" />
+        <!-- test-timeout unit is ms -->
+        <option name="native-test-timeout" value="40000" />
     </test>
 </configuration>
