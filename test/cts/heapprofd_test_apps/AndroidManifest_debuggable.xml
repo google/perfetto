@@ -16,15 +16,21 @@
  -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="android.perfetto.debuggable.app">
+    package="android.perfetto.cts.app.debuggable">
 
     <application android:debuggable="true">
-        <activity android:name=".MainActivity" >
+        <activity
+          android:name="android.perfetto.cts.app.MainActivity"
+          android:exported="false">
+        </activity>
+        <activity-alias
+          android:name="android.perfetto.cts.app.debuggable.MainActivity"
+          android:targetActivity="android.perfetto.cts.app.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
     </application>
 </manifest>
 
