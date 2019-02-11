@@ -345,17 +345,9 @@ void PrintQueryResultAsCsv(const protos::RawQueryResult& res, FILE* output) {
   }
 }
 
-int RunQueryAndPrintResult(FILE* input, FILE* output) {
+bool LoadQueries(FILE* input, std::vector<std::string>* output) {
   char buffer[4096];
-  bool is_first_query = true;
-  bool is_query_error = false;
-  bool has_output_printed = false;
-  while (!feof(input) && !ferror(input) && !is_query_error) {
-    // Add an extra newline separator between query results.
-    if (!is_first_query)
-      fprintf(output, "\n");
-    is_first_query = false;
-
+  while (!feof(input) && !ferror(input)) {
     std::string sql_query;
     while (fgets(buffer, sizeof(buffer), input)) {
       if (strncmp(buffer, "\n", sizeof(buffer)) == 0)
@@ -371,33 +363,51 @@ int RunQueryAndPrintResult(FILE* input, FILE* output) {
     if (sql_query.empty())
       continue;
 
+    output->push_back(sql_query);
+  }
+  if (ferror(input)) {
+    PERFETTO_ELOG("Error reading query file");
+    return false;
+  }
+  return true;
+}
+
+bool RunQueryAndPrintResult(const std::vector<std::string> queries,
+                            FILE* output,
+                            bool* has_output) {
+  bool is_first_query = true;
+  bool is_query_error = false;
+  *has_output = false;
+  for (const auto& sql_query : queries) {
+    // Add an extra newline separator between query results.
+    if (!is_first_query)
+      fprintf(output, "\n");
+    is_first_query = false;
+
     PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
 
     protos::RawQueryArgs query;
     query.set_sql_query(sql_query);
-    g_tp->ExecuteQuery(query, [output, &is_query_error, &has_output_printed](
-                                  const protos::RawQueryResult& res) {
+    g_tp->ExecuteQuery(query, [output, &is_query_error,
+                               &has_output](const protos::RawQueryResult& res) {
       if (res.has_error()) {
         PERFETTO_ELOG("SQLite error: %s", res.error().c_str());
         is_query_error = true;
         return;
       } else if (res.num_records() != 0) {
-        if (has_output_printed) {
+        if (*has_output) {
           PERFETTO_ELOG(
               "More than one query generated result rows. This is "
               "unsupported.");
           is_query_error = true;
           return;
         }
-        has_output_printed = true;
+        *has_output = true;
       }
       PrintQueryResultAsCsv(res, output);
     });
   }
-  if (ferror(input)) {
-    PERFETTO_ELOG("Error reading query file");
-  }
-  return ferror(input) || is_query_error ? 1 : 0;
+  return !is_query_error;
 }
 
 void PrintUsage(char** argv) {
@@ -513,26 +523,32 @@ int TraceProcessorMain(int argc, char** argv) {
   signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
 #endif
 
-  int ret = 0;
-
-  // If we were given a query file, first load and execute it.
+  // If we were given a query file, load contents
+  std::vector<std::string> queries;
   if (query_file_path) {
     base::ScopedFstream file(fopen(query_file_path, "r"));
     if (!file) {
       PERFETTO_ELOG("Could not open query file (path: %s)", query_file_path);
       return 1;
     }
-    ret = RunQueryAndPrintResult(file.get(), stdout);
+    if (!LoadQueries(file.get(), &queries)) {
+      return 1;
+    }
+  }
+
+  bool has_csv_output;
+  if (!RunQueryAndPrintResult(queries, stdout, &has_csv_output)) {
+    return false;
   }
 
   // After this we can dump the database and exit if needed.
-  if (ret == 0 && sqlite_file_path) {
+  if (sqlite_file_path) {
     return ExportTraceToDatabase(sqlite_file_path);
   }
 
   // If we ran an automated query, exit.
-  if (query_file_path) {
-    return ret;
+  if (has_csv_output) {
+    return 0;
   }
 
   // Otherwise start an interactive shell.
