@@ -21,12 +21,33 @@ android_test_helper_app {
         "general-tests",
     ],
 
+    manifest: "AndroidManifest_debuggable.xml",
+
     compile_multilib: "both",
     srcs: ["src/**/*.java"],
     sdk_version: "current",
     jni_libs: [
-        "libperfettocts_debuggable",
+        "libperfettocts_heapprofdtarget",
         "libnativehelper_compat_libc++",
     ],
 }
 
+android_test_helper_app {
+    name: "CtsPerfettoReleaseApp",
+    // tag this module as a cts test artifact
+    test_suites: [
+        "cts",
+        "vts",
+        "general-tests",
+    ],
+
+    manifest: "AndroidManifest_release.xml",
+
+    compile_multilib: "both",
+    srcs: ["src/**/*.java"],
+    sdk_version: "current",
+    jni_libs: [
+        "libperfettocts_heapprofdtarget",
+        "libnativehelper_compat_libc++",
+    ],
+}

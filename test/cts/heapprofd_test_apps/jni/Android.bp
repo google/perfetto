@@ -14,7 +14,7 @@
 // limitations under the License.
 
 cc_library_shared {
-  name: "libperfettocts_debuggable",
+  name: "libperfettocts_heapprofdtarget",
   srcs: [
     "target.cc",
   ],
