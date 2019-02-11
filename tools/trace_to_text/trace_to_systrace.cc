@@ -29,6 +29,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "perfetto/traced/sys_stats_counters.h"
 #include "tools/trace_to_text/ftrace_event_formatter.h"
 #include "tools/trace_to_text/process_formatter.h"
@@ -36,6 +37,7 @@
 
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace_processor/raw_query.pb.h"
 
 // When running in Web Assembly, fflush() is a no-op and the stdio buffering
 // sends progress updates to JS only when a write ends with \n.
@@ -105,6 +107,102 @@ const char kFtraceJsonHeader[] =
     "#              | |        |      |   ||||       |         |\\n";
 
 }  // namespace
+
+int TraceToExperimentalSystrace(std::istream* input, std::ostream* output) {
+  trace_processor::Config config;
+  config.optimization_mode = trace_processor::OptimizationMode::kMaxBandwidth;
+  std::unique_ptr<trace_processor::TraceProcessor> tp =
+      trace_processor::TraceProcessor::CreateInstance(config);
+
+  // 1MB chunk size seems the best tradeoff on a MacBook Pro 2013 - i7 2.8 GHz.
+  constexpr size_t kChunkSize = 1024 * 1024;
+
+  uint64_t file_size = 0;
+  for (int i = 0;; i++) {
+    if (i % 128 == 0)
+      fprintf(stderr, "\x1b[2K\rLoading trace: %.2f MB\r", file_size / 1E6);
+
+    std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);
+    input->read(reinterpret_cast<char*>(buf.get()), kChunkSize);
+    if (input->bad()) {
+      PERFETTO_ELOG("Failed when reading trace");
+      return 1;
+    }
+
+    auto rsize = input->gcount();
+    if (rsize <= 0)
+      break;
+    file_size += static_cast<uint64_t>(rsize);
+    tp->Parse(std::move(buf), static_cast<size_t>(rsize));
+  }
+  tp->NotifyEndOfFile();
+
+  *output << "TRACE:\n";
+  *output << kFtraceHeader;
+
+  constexpr uint32_t kNumRowsToQuery = 100000;
+  int64_t start_ts = 0;
+  bool has_more = true;
+  for (uint32_t i = 0; has_more; i++) {
+    protos::RawQueryArgs query_args;
+
+    char buffer[1024];
+    sprintf(buffer,
+            "select ts, to_ftrace(id) from raw "
+            "where ts >= %" PRId64 " limit %" PRIu32,
+            start_ts, kNumRowsToQuery);
+    query_args.set_sql_query(buffer);
+
+    // This query is not actually async so just pull the result up to the
+    // function level so we can return on error.
+    protos::RawQueryResult result;
+    tp->ExecuteQuery(query_args, [&result](const protos::RawQueryResult& res) {
+      result = res;
+    });
+
+    if (result.has_error()) {
+      PERFETTO_ELOG("Error while writing systrace %s", result.error().c_str());
+      return 1;
+    }
+
+    // The code below relies on there being at least one row so just break if
+    // we don't.
+    auto num_rows = result.num_records();
+    if (num_rows == 0) {
+      has_more = false;
+      break;
+    }
+
+    // Store the end timestamp so we can start iterating from there next time.
+    const auto& ts_col = result.columns(0).long_values();
+    start_ts = ts_col.Get(ts_col.size() - 1);
+
+    // Compute how many rows we should print out - this should be the first
+    // index with the timestamp |start_ts|. Usually this is just |size - 1| but
+    // if multiple rows have the same timestamp, this can be earlier.
+    auto rit = std::find(ts_col.rbegin(), ts_col.rend(), start_ts);
+    auto rdistance = std::distance(ts_col.rbegin(), rit);
+    auto last_row = static_cast<uint32_t>(ts_col.size() - 1 - rdistance);
+
+    // Print out everything until this row.
+    for (uint64_t row = 0; row < last_row; row++) {
+      int idx = static_cast<int>(row);
+      const std::string& line = result.columns(1).string_values(idx);
+      *output << line << "\n";
+    }
+
+    output->flush();
+
+    // Update the seen count to the number of output rows and only continue if
+    // we saw exactly the number of rows we asked for.
+    has_more = kNumRowsToQuery == result.num_records();
+
+    uint64_t printed_rows = i * kNumRowsToQuery + result.num_records();
+    fprintf(stderr, "\x1b[2K\rWritten %" PRIu64 " rows\r", printed_rows);
+  }
+
+  return 0;
+}
 
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
