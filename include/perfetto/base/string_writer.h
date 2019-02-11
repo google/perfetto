@@ -72,7 +72,7 @@ class StringWriter {
 
     char data[kSizeNeeded];
     const bool negate = signbit(static_cast<double>(sign_value));
-    uint64_t value = static_cast<uint64_t>(abs(sign_value));
+    uint64_t value = static_cast<uint64_t>(std::abs(sign_value));
 
     size_t idx;
     for (idx = kSizeNeeded - 1; value >= 10;) {
