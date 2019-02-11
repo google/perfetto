@@ -18,6 +18,7 @@
 
 #include <ctype.h>
 #include <string.h>
+#include <algorithm>
 
 #include "perfetto/base/logging.h"
 
