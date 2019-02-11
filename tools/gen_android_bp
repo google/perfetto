@@ -151,6 +151,9 @@ def enable_libunwind(module):
     # libunwind is disabled on Darwin so we cannot depend on it.
     pass
 
+def enable_sqlite(module):
+    module.static_libs.append('libsqlite')
+
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
@@ -163,6 +166,7 @@ builtin_deps = {
     '//buildtools:protobuf_lite': enable_protobuf_lite,
     '//buildtools:protoc_lib': enable_protoc_lib,
     '//buildtools:libunwindstack': enable_libunwindstack,
+    '//buildtools:sqlite': enable_sqlite,
 }
 
 # ----------------------------------------------------------------------------
