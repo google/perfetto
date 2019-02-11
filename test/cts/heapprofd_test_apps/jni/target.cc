@@ -39,6 +39,6 @@ __attribute__((noreturn)) void perfetto_test_allocations() {
 }  // namespace
 
 extern "C" JNIEXPORT void JNICALL
-Java_android_perfetto_debuggable_app_MainActivity_runNative(JNIEnv*, jclass) {
+Java_android_perfetto_cts_app_MainActivity_runNative(JNIEnv*, jclass) {
   perfetto_test_allocations();
 }
