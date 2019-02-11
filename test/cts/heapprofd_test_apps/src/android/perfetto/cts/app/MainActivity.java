@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package android.perfetto.debuggable.app;
+package android.perfetto.cts.app;
 
 import android.app.Activity;
 import android.os.Bundle;
 
 public class MainActivity extends Activity {
     static {
-        System.loadLibrary("perfettocts_debuggable");
+        System.loadLibrary("perfettocts_heapprofdtarget");
     }
 
     @Override

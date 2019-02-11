@@ -19,6 +19,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include <sys/system_properties.h>
+
 #include "gtest/gtest.h"
 #include "perfetto/base/logging.h"
 #include "src/base/test/test_task_runner.h"
@@ -35,6 +37,16 @@ constexpr uint64_t kExpectedIndividualAllocSz = 4153;
 // sampling interval are recorded at their actual size.
 static_assert(kExpectedIndividualAllocSz > kTestSamplingInterval,
               "kTestSamplingInterval invalid");
+
+bool IsDebuggableBuild() {
+  char buf[PROP_VALUE_MAX + 1] = {};
+  int ret = __system_property_get("ro.debuggable", buf);
+  PERFETTO_CHECK(ret >= 0);
+  std::string debuggable(buf);
+  if (debuggable == "1")
+    return true;
+  return false;
+}
 
 // note: cannot use gtest macros due to return type
 bool IsAppRunning(const std::string& name) {
@@ -97,7 +109,7 @@ void StopApp(const std::string& app_name,
   });
 }
 
-void TestAppRuntime(std::string app_name) {
+std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -133,35 +145,10 @@ void TestAppRuntime(std::string app_name) {
   helper.ReadData();
   helper.WaitForReadData();
 
-  const auto& packets = helper.trace();
-  ASSERT_GT(packets.size(), 0);
-
-  // TODO(rsavitski): assert particular stack frames once we clarify the
-  // expected behaviour of unwinding native libs within an apk.
-  // Until then, look for an allocation that is a multiple of the expected
-  // allocation size.
-  bool found_alloc = false;
-  for (const auto& packet : packets) {
-    for (const auto& proc_dump : packet.profile_packet().process_dumps()) {
-      for (const auto& sample : proc_dump.samples()) {
-        if (sample.self_allocated() > 0 &&
-            sample.self_allocated() % kExpectedIndividualAllocSz == 0) {
-          found_alloc = true;
-
-          EXPECT_TRUE(sample.self_freed() > 0 &&
-                      sample.self_freed() % kExpectedIndividualAllocSz == 0)
-              << "self_freed: " << sample.self_freed();
-        }
-      }
-    }
-  }
-  ASSERT_TRUE(found_alloc);
-
-  std::string stop_cmd = "am force-stop " + app_name;
-  system(stop_cmd.c_str());
+  return helper.trace();
 }
 
-void TestAppStartup(std::string app_name) {
+std::vector<protos::TracePacket> ProfileStartup(std::string app_name) {
   base::TestTaskRunner task_runner;
 
   if (IsAppRunning(app_name)) {
@@ -199,7 +186,11 @@ void TestAppStartup(std::string app_name) {
   helper.ReadData();
   helper.WaitForReadData();
 
-  const auto& packets = helper.trace();
+  return helper.trace();
+}
+
+void AssertExpectedAllocationsPresent(
+    std::vector<protos::TracePacket> packets) {
   ASSERT_GT(packets.size(), 0);
 
   // TODO(rsavitski): assert particular stack frames once we clarify the
@@ -222,17 +213,56 @@ void TestAppStartup(std::string app_name) {
     }
   }
   ASSERT_TRUE(found_alloc);
+}
 
+void AssertNoProfileContents(std::vector<protos::TracePacket> packets) {
+  // If profile packets are present, they must be empty.
+  for (const auto& packet : packets) {
+    ASSERT_EQ(packet.profile_packet().process_dumps_size(), 0);
+  }
+}
+
+void StopApp(std::string app_name) {
   std::string stop_cmd = "am force-stop " + app_name;
   system(stop_cmd.c_str());
 }
 
 TEST(HeapprofdCtsTest, DebuggableAppRuntime) {
-  TestAppRuntime("android.perfetto.debuggable.app");
+  std::string app_name = "android.perfetto.cts.app.debuggable";
+  const auto& packets = ProfileRuntime(app_name);
+  AssertExpectedAllocationsPresent(packets);
+  StopApp(app_name);
 }
 
 TEST(HeapprofdCtsTest, DebuggableAppStartup) {
-  TestAppStartup("android.perfetto.debuggable.app");
+  std::string app_name = "android.perfetto.cts.app.debuggable";
+  const auto& packets = ProfileStartup(app_name);
+  AssertExpectedAllocationsPresent(packets);
+  StopApp(app_name);
+}
+
+TEST(HeapprofdCtsTest, ReleaseAppRuntime) {
+  std::string app_name = "android.perfetto.cts.app.release";
+  const auto& packets = ProfileRuntime(app_name);
+
+  if (IsDebuggableBuild())
+    AssertExpectedAllocationsPresent(packets);
+  else
+    AssertNoProfileContents(packets);
+
+  StopApp(app_name);
+}
+
+TEST(HeapprofdCtsTest, ReleaseAppStartup) {
+  std::string app_name = "android.perfetto.cts.app.release";
+  const auto& packets = ProfileStartup(app_name);
+
+  if (IsDebuggableBuild())
+    AssertExpectedAllocationsPresent(packets);
+  else
+    AssertNoProfileContents(packets);
+
+  StopApp(app_name);
 }
 
 }  // namespace
