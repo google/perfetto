@@ -302,11 +302,21 @@ Table::Schema& Table::Schema::operator=(const Schema&) = default;
 
 std::string Table::Schema::ToCreateTableStmt() const {
   std::string stmt = "CREATE TABLE x(";
-  for (const auto& col : columns_) {
-    stmt += " " + col.name() + " " + TypeToString(col.type());
-    if (col.hidden())
+  for (size_t i = 0; i < columns_.size(); ++i) {
+    const Column& col = columns_[i];
+    stmt += " " + col.name();
+
+    if (col.type() != ColumnType::kUnknown) {
+      stmt += " " + TypeToString(col.type());
+    } else if (std::find(primary_keys_.begin(), primary_keys_.end(), i) !=
+               primary_keys_.end()) {
+      PERFETTO_FATAL("Unknown type for primary key column %s",
+                     col.name().c_str());
+    }
+    if (col.hidden()) {
       stmt += " HIDDEN";
-     stmt += ",";
+    }
+    stmt += ",";
   }
   stmt += " PRIMARY KEY(";
   for (size_t i = 0; i < primary_keys_.size(); i++) {
