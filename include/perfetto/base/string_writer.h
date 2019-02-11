@@ -21,6 +21,7 @@
 #include <limits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/scoped_file.h"
 #include "perfetto/base/string_view.h"
 
 namespace perfetto {
@@ -109,6 +110,11 @@ class StringWriter {
     PERFETTO_DCHECK(pos_ < size_);
     buffer_[pos_] = '\0';
     return buffer_;
+  }
+
+  // Creates a copy of the internal buffer.
+  base::ScopedString CreateStringCopy() {
+    return base::ScopedString(strndup(buffer_, pos_));
   }
 
  private:

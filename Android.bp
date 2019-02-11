@@ -1662,6 +1662,47 @@ genrule {
   ],
 }
 
+// GN target: //protos/perfetto/trace_processor:lite_gen
+genrule {
+  name: "perfetto_protos_perfetto_trace_processor_lite_gen",
+  srcs: [
+    "protos/perfetto/trace_processor/raw_query.proto",
+    "protos/perfetto/trace_processor/sched.proto",
+    "protos/perfetto/trace_processor/trace_processor.proto",
+  ],
+  tools: [
+    "aprotoc",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/trace_processor/raw_query.pb.cc",
+    "external/perfetto/protos/perfetto/trace_processor/sched.pb.cc",
+    "external/perfetto/protos/perfetto/trace_processor/trace_processor.pb.cc",
+  ],
+}
+
+// GN target: //protos/perfetto/trace_processor:lite_gen
+genrule {
+  name: "perfetto_protos_perfetto_trace_processor_lite_gen_headers",
+  srcs: [
+    "protos/perfetto/trace_processor/raw_query.proto",
+    "protos/perfetto/trace_processor/sched.proto",
+    "protos/perfetto/trace_processor/trace_processor.proto",
+  ],
+  tools: [
+    "aprotoc",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/trace_processor/raw_query.pb.h",
+    "external/perfetto/protos/perfetto/trace_processor/sched.pb.h",
+    "external/perfetto/protos/perfetto/trace_processor/trace_processor.pb.h",
+  ],
+  export_include_dirs: [
+    "protos",
+  ],
+}
+
 // GN target: //protos/perfetto/trace/profiling:lite_gen
 genrule {
   name: "perfetto_protos_perfetto_trace_profiling_lite_gen",
@@ -2816,6 +2857,7 @@ cc_binary_host {
     ":perfetto_protos_perfetto_trace_lite_gen",
     ":perfetto_protos_perfetto_trace_minimal_lite_gen",
     ":perfetto_protos_perfetto_trace_power_lite_gen",
+    ":perfetto_protos_perfetto_trace_processor_lite_gen",
     ":perfetto_protos_perfetto_trace_profiling_lite_gen",
     ":perfetto_protos_perfetto_trace_ps_lite_gen",
     ":perfetto_protos_perfetto_trace_sys_stats_lite_gen",
@@ -2833,6 +2875,49 @@ cc_binary_host {
     "src/base/unix_task_runner.cc",
     "src/base/virtual_destructors.cc",
     "src/base/watchdog_posix.cc",
+    "src/protozero/message.cc",
+    "src/protozero/message_handle.cc",
+    "src/protozero/proto_decoder.cc",
+    "src/protozero/proto_field_descriptor.cc",
+    "src/protozero/scattered_heap_buffer.cc",
+    "src/protozero/scattered_stream_null_delegate.cc",
+    "src/protozero/scattered_stream_writer.cc",
+    "src/trace_processor/android_logs_table.cc",
+    "src/trace_processor/args_table.cc",
+    "src/trace_processor/args_tracker.cc",
+    "src/trace_processor/clock_tracker.cc",
+    "src/trace_processor/counters_table.cc",
+    "src/trace_processor/event_tracker.cc",
+    "src/trace_processor/filtered_row_index.cc",
+    "src/trace_processor/ftrace_descriptors.cc",
+    "src/trace_processor/ftrace_utils.cc",
+    "src/trace_processor/instants_table.cc",
+    "src/trace_processor/process_table.cc",
+    "src/trace_processor/process_tracker.cc",
+    "src/trace_processor/proto_trace_parser.cc",
+    "src/trace_processor/proto_trace_tokenizer.cc",
+    "src/trace_processor/query_constraints.cc",
+    "src/trace_processor/raw_table.cc",
+    "src/trace_processor/row_iterators.cc",
+    "src/trace_processor/sched_slice_table.cc",
+    "src/trace_processor/slice_table.cc",
+    "src/trace_processor/slice_tracker.cc",
+    "src/trace_processor/span_join_operator_table.cc",
+    "src/trace_processor/sql_stats_table.cc",
+    "src/trace_processor/stats_table.cc",
+    "src/trace_processor/storage_columns.cc",
+    "src/trace_processor/storage_schema.cc",
+    "src/trace_processor/storage_table.cc",
+    "src/trace_processor/string_table.cc",
+    "src/trace_processor/table.cc",
+    "src/trace_processor/thread_table.cc",
+    "src/trace_processor/trace_processor.cc",
+    "src/trace_processor/trace_processor_context.cc",
+    "src/trace_processor/trace_processor_impl.cc",
+    "src/trace_processor/trace_sorter.cc",
+    "src/trace_processor/trace_storage.cc",
+    "src/trace_processor/virtual_destructors.cc",
+    "src/trace_processor/window_operator_table.cc",
     "tools/trace_to_text/ftrace_event_formatter.cc",
     "tools/trace_to_text/main.cc",
     "tools/trace_to_text/proto_full_utils.cc",
@@ -2848,6 +2933,7 @@ cc_binary_host {
   ],
   static_libs: [
     "libgtest_prod",
+    "libsqlite",
   ],
   generated_headers: [
     "perfetto_protos_perfetto_common_lite_gen_headers",
@@ -2859,6 +2945,7 @@ cc_binary_host {
     "perfetto_protos_perfetto_trace_lite_gen_headers",
     "perfetto_protos_perfetto_trace_minimal_lite_gen_headers",
     "perfetto_protos_perfetto_trace_power_lite_gen_headers",
+    "perfetto_protos_perfetto_trace_processor_lite_gen_headers",
     "perfetto_protos_perfetto_trace_profiling_lite_gen_headers",
     "perfetto_protos_perfetto_trace_ps_lite_gen_headers",
     "perfetto_protos_perfetto_trace_sys_stats_lite_gen_headers",
