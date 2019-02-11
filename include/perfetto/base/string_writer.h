@@ -71,7 +71,7 @@ class StringWriter {
     PERFETTO_DCHECK(pos_ + kSizeNeeded <= size_);
 
     char data[kSizeNeeded];
-    const bool negate = signbit(sign_value);
+    const bool negate = signbit(static_cast<double>(sign_value));
     uint64_t value = static_cast<uint64_t>(abs(sign_value));
 
     size_t idx;
