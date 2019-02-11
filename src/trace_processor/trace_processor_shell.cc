@@ -373,11 +373,10 @@ bool LoadQueries(FILE* input, std::vector<std::string>* output) {
 }
 
 bool RunQueryAndPrintResult(const std::vector<std::string> queries,
-                            FILE* output,
-                            bool* has_output) {
+                            FILE* output) {
   bool is_first_query = true;
   bool is_query_error = false;
-  *has_output = false;
+  bool has_output = false;
   for (const auto& sql_query : queries) {
     // Add an extra newline separator between query results.
     if (!is_first_query)
@@ -395,14 +394,14 @@ bool RunQueryAndPrintResult(const std::vector<std::string> queries,
         is_query_error = true;
         return;
       } else if (res.num_records() != 0) {
-        if (*has_output) {
+        if (has_output) {
           PERFETTO_ELOG(
               "More than one query generated result rows. This is "
               "unsupported.");
           is_query_error = true;
           return;
         }
-        *has_output = true;
+        has_output = true;
       }
       PrintQueryResultAsCsv(res, output);
     });
@@ -416,6 +415,8 @@ void PrintUsage(char** argv) {
       "Usage: %s [OPTIONS] trace_file.pb\n\n"
       "Options:\n"
       " -d        Enable virtual table debugging.\n"
+      " -s FILE   Read and execute contents of file before launching an "
+      "interactive shell.\n"
       " -q FILE   Read and execute an SQL query from a file.\n"
       " -e FILE   Export the trace into a SQLite database.\n",
       argv[0]);
@@ -429,12 +430,14 @@ int TraceProcessorMain(int argc, char** argv) {
   const char* trace_file_path = nullptr;
   const char* query_file_path = nullptr;
   const char* sqlite_file_path = nullptr;
+  bool launch_shell = true;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-d") == 0) {
       EnableSQLiteVtableDebugging();
       continue;
     }
-    if (strcmp(argv[i], "-q") == 0) {
+    if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "-s") == 0) {
+      launch_shell = strcmp(argv[i], "-s") == 0;
       if (++i == argc) {
         PrintUsage(argv);
         return 1;
@@ -536,8 +539,7 @@ int TraceProcessorMain(int argc, char** argv) {
     }
   }
 
-  bool has_csv_output;
-  if (!RunQueryAndPrintResult(queries, stdout, &has_csv_output)) {
+  if (!RunQueryAndPrintResult(queries, stdout)) {
     return false;
   }
 
@@ -547,7 +549,7 @@ int TraceProcessorMain(int argc, char** argv) {
   }
 
   // If we ran an automated query, exit.
-  if (has_csv_output) {
+  if (!launch_shell) {
     return 0;
   }
 
