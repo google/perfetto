@@ -57,25 +57,6 @@ class EventTracker {
                             RefType ref_type);
 
  private:
-  // Used as the key in |prev_counters_| to find the previous counter with the
-  // same ref and name_id.
-  struct CounterKey {
-    int64_t ref;       // cpu, utid, ...
-    StringId name_id;  // "cpufreq"
-
-    bool operator==(const CounterKey& other) const {
-      return (ref == other.ref && name_id == other.name_id);
-    }
-
-    struct Hasher {
-      size_t operator()(const CounterKey& c) const {
-        size_t const h1(std::hash<int64_t>{}(c.ref));
-        size_t const h2(std::hash<size_t>{}(c.name_id));
-        return h1 ^ (h2 << 1);
-      }
-    };
-  };
-
   // Represents a slice which is currently pending.
   struct PendingSchedSlice {
     size_t storage_index = std::numeric_limits<size_t>::max();
@@ -84,10 +65,6 @@ class EventTracker {
 
   // Store pending sched slices for each CPU.
   std::array<PendingSchedSlice, base::kMaxCpus> pending_sched_per_cpu_{};
-
-  // Store pending counters for each counter key.
-  std::unordered_map<CounterKey, size_t, CounterKey::Hasher>
-      pending_counters_per_key_;
 
   // Timestamp of the previous event. Used to discard events arriving out
   // of order.
