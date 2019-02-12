@@ -15,9 +15,12 @@
  */
 
 #include "src/trace_processor/process_tracker.h"
+
+#include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/event_tracker.h"
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "src/trace_processor/event_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -31,6 +34,7 @@ class ProcessTrackerTest : public ::testing::Test {
  public:
   ProcessTrackerTest() {
     context.storage.reset(new TraceStorage());
+    context.args_tracker.reset(new ArgsTracker(&context));
     context.process_tracker.reset(new ProcessTracker(&context));
     context.event_tracker.reset(new EventTracker(&context));
   }
@@ -75,13 +79,14 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   int64_t prev_state = 32;
   static const char kCommProc1[] = "process1";
   static const char kCommProc2[] = "process2";
-  int32_t next_prio = 1024;
+  int32_t prio = 1024;
 
-  context.event_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, prev_state,
-                                         /*tid=*/4, kCommProc1, next_prio);
+  context.event_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, kCommProc2,
+                                         prio, prev_state,
+                                         /*tid=*/4, kCommProc1, prio);
   context.event_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
-                                         prev_state, /*tid=*/1, kCommProc2,
-                                         next_prio);
+                                         kCommProc1, prio, prev_state,
+                                         /*tid=*/1, kCommProc2, prio);
 
   context.process_tracker->UpdateProcess(2, "test");
   context.process_tracker->UpdateThread(4, 2);
