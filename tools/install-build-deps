@@ -112,7 +112,7 @@ BUILD_DEPS_HOST = [
   ),
   ('buildtools/libunwind',
    'https://chromium.googlesource.com/external/llvm.org/libunwind.git',
-   '94edd59b16d2084a62699290f9cfdf120d74eedf',
+   '317087cfd8e608bd24e53934d59b5b85e0a9ded6',
    'all'
   ),
 
@@ -342,7 +342,7 @@ def IsGitRepoCheckoutOutAtRevision(path, revision):
 
 def CheckoutGitRepo(path, git_url, revision):
   if IsGitRepoCheckoutOutAtRevision(path, revision):
-    return
+    return False
   if os.path.exists(path):
     shutil.rmtree(path)
   MkdirRecursive(path)
@@ -352,6 +352,7 @@ def CheckoutGitRepo(path, git_url, revision):
     ['git', 'fetch', '--quiet', '--depth', '1', git_url, revision], cwd=path)
   subprocess.check_call(['git', 'checkout', revision, '--quiet'], cwd=path)
   assert(IsGitRepoCheckoutOutAtRevision(path, revision))
+  return True
 
 def InstallNodeModules():
   ui_dir = os.path.join(ROOT_DIR, 'ui')
@@ -376,7 +377,7 @@ def Main():
       continue
     local_path = os.path.join(ROOT_DIR, rel_path)
     if url.endswith('.git'):
-      CheckoutGitRepo(local_path, url, expected_sha1)
+      deps_updated |= CheckoutGitRepo(local_path, url, expected_sha1)
       continue
     is_zip = local_path.endswith('.zip') or local_path.endswith('.tgz')
     zip_target_dir = local_path[:-4] if is_zip else None
