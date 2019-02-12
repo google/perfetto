@@ -24,7 +24,6 @@
 #include <mutex>
 #include <vector>
 
-#include "perfetto/base/thread_checker.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
@@ -131,7 +130,6 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   base::TaskRunner* const task_runner_;
   TracingService::ProducerEndpoint* const producer_endpoint_;
-  PERFETTO_THREAD_CHECKER(thread_checker_)
 
   // --- Begin lock-protected members ---
   std::mutex lock_;
