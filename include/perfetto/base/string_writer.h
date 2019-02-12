@@ -35,10 +35,11 @@ class StringWriter {
   // Creates a string buffer from a char buffer and length.
   StringWriter(char* buffer, size_t size) : buffer_(buffer), size_(size) {}
 
-  // Appends a char to the buffer.
-  void AppendChar(char in) {
-    PERFETTO_DCHECK(pos_ + 1 <= size_);
-    buffer_[pos_++] = in;
+  // Appends n instances of a char to the buffer.
+  void AppendChar(char in, size_t n = 1) {
+    PERFETTO_DCHECK(pos_ + n <= size_);
+    memset(&buffer_[pos_], in, n);
+    pos_ += n;
   }
 
   // Appends a length delimited string to the buffer.
@@ -116,6 +117,8 @@ class StringWriter {
   base::ScopedString CreateStringCopy() {
     return base::ScopedString(strndup(buffer_, pos_));
   }
+
+  size_t pos() { return pos_; }
 
  private:
   char* buffer_ = nullptr;
