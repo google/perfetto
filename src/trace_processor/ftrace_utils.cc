@@ -161,11 +161,21 @@ void FormatSystracePrefix(int64_t timestamp,
     name = "<idle>";
   }
 
+  int64_t padding = 16 - static_cast<int64_t>(name.size());
+  if (PERFETTO_LIKELY(padding > 0)) {
+    writer->AppendChar(' ', static_cast<size_t>(padding));
+  }
   writer->AppendString(name);
   writer->AppendChar('-');
-  writer->AppendInt(pid);
 
-  writer->AppendLiteral("     (");
+  size_t pre_pid_pos = writer->pos();
+  writer->AppendInt(pid);
+  size_t pid_chars = writer->pos() - pre_pid_pos;
+  if (PERFETTO_LIKELY(pid_chars < 5)) {
+    writer->AppendChar(' ', 5 - pid_chars);
+  }
+
+  writer->AppendLiteral(" (");
   if (tgid == 0) {
     writer->AppendLiteral("-----");
   } else {

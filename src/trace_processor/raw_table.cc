@@ -98,13 +98,11 @@ void RawTable::FormatSystraceArgs(const std::string& event_name,
   auto write_arg = [this, writer, start_row](uint32_t arg_idx,
                                              ValueWriter value_fn) {
     uint32_t arg_row = start_row + arg_idx;
-    if (arg_row != 0)
-      writer->AppendChar(' ');
-
     const auto& args = storage_->args();
     const auto& key = storage_->GetString(args.keys()[arg_row]);
     const auto& value = args.arg_values()[arg_row];
 
+    writer->AppendChar(' ');
     writer->AppendString(key.c_str(), key.length());
     writer->AppendChar('=');
     value_fn(value);
@@ -119,11 +117,20 @@ void RawTable::FormatSystraceArgs(const std::string& event_name,
       auto state = static_cast<uint16_t>(value.int_value);
       writer->AppendString(ftrace_utils::TaskState(state).ToString().data());
     });
-
     writer->AppendLiteral(" ==>");
     write_arg(SS::kNextCommFieldNumber - 1, write_value);
     write_arg(SS::kNextPidFieldNumber - 1, write_value);
     write_arg(SS::kNextPrioFieldNumber - 1, write_value);
+    return;
+  } else if (event_name == "sched_wakeup") {
+    using SW = protos::SchedWakeupFtraceEvent;
+    write_arg(SW::kCommFieldNumber - 1, write_value);
+    write_arg(SW::kPidFieldNumber - 1, write_value);
+    write_arg(SW::kPrioFieldNumber - 1, write_value);
+    write_arg(SW::kTargetCpuFieldNumber - 1, [writer](const Variadic& value) {
+      writer->AppendPaddedInt<'0', 3>(value.int_value);
+    });
+    return;
   }
 
   uint32_t arg = 0;
@@ -164,7 +171,7 @@ void RawTable::ToSystrace(sqlite3_context* ctx,
   const auto& event_name = storage_->GetString(raw_evts.name_ids()[row]);
   writer.AppendChar(' ');
   writer.AppendString(event_name.c_str(), event_name.size());
-  writer.AppendLiteral(": ");
+  writer.AppendChar(':');
 
   FormatSystraceArgs(event_name, raw_evts.arg_set_ids()[row], &writer);
   sqlite3_result_text(ctx, writer.CreateStringCopy().release(), -1, free);
