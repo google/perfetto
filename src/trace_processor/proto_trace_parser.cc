@@ -654,7 +654,7 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
     if (fld.id == protos::FtraceEvent::kGenericFieldNumber) {
       ParseGenericFtrace(timestamp, cpu, pid,
                          ftrace.slice(fld_off, fld.size()));
-    } else {
+    } else if (fld.id != protos::FtraceEvent::kSchedSwitchFieldNumber) {
       ParseTypedFtraceToRaw(fld.id, timestamp, cpu, pid,
                             ftrace.slice(fld_off, fld.size()));
     }
@@ -926,7 +926,9 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
                                         TraceBlobView sswitch) {
   ProtoDecoder decoder(sswitch.data(), sswitch.length());
 
+  base::StringView prev_comm;
   uint32_t prev_pid = 0;
+  int32_t prev_prio = 0;
   int64_t prev_state = 0;
   base::StringView next_comm;
   uint32_t next_pid = 0;
@@ -938,6 +940,12 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
         break;
       case protos::SchedSwitchFtraceEvent::kPrevStateFieldNumber:
         prev_state = fld.as_int64();
+        break;
+      case protos::SchedSwitchFtraceEvent::kPrevCommFieldNumber:
+        prev_comm = fld.as_string();
+        break;
+      case protos::SchedSwitchFtraceEvent::kPrevPrioFieldNumber:
+        prev_prio = fld.as_int32();
         break;
       case protos::SchedSwitchFtraceEvent::kNextPidFieldNumber:
         next_pid = fld.as_uint32();
@@ -952,8 +960,9 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
         break;
     }
   }
-  context_->event_tracker->PushSchedSwitch(cpu, timestamp, prev_pid, prev_state,
-                                           next_pid, next_comm, next_prio);
+  context_->event_tracker->PushSchedSwitch(cpu, timestamp, prev_pid, prev_comm,
+                                           prev_prio, prev_state, next_pid,
+                                           next_comm, next_prio);
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
