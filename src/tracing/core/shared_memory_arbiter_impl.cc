@@ -119,11 +119,14 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
 
       // TODO(primiano): sending the IPC synchronously is a temporary workaround
       // until the backpressure logic in probes_producer is sorted out. Until
-      // then the risk is that we stall the message loop waiting for the
-      // tracing service to  consume the shared memory buffer (SMB) and, for
-      // this reason, never run the task that tells the service to purge the
-      // SMB.
-      FlushPendingCommitDataRequests();
+      // then the risk is that we stall the message loop waiting for the tracing
+      // service to consume the shared memory buffer (SMB) and, for this reason,
+      // never run the task that tells the service to purge the SMB. This must
+      // happen iff we are on the IPC thread, not doing this will cause
+      // deadlocks, doing this on the wrong thread causes out-of-order data
+      // commits (crbug.com/919187#c28).
+      if (task_runner_->RunsTasksOnCurrentThread())
+        FlushPendingCommitDataRequests();
     }
     base::SleepMicroseconds(stall_interval_us);
     stall_interval_us =
@@ -183,7 +186,14 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
       // which we haven't notified the service yet (i.e. they are still enqueued
       // in |commit_data_req_|), force a synchronous CommitDataRequest(), to
       // reduce the likeliness of stalling the writer.
-      if (bytes_pending_commit_ >= shmem_abi_.size() / 2) {
+      //
+      // We can only do this if we're writing on the same thread that we access
+      // the producer endpoint on, since we cannot notify the producer endpoint
+      // to commit synchronously on a different thread. Attempting to flush
+      // synchronously on another thread will lead to subtle bugs caused by
+      // out-of-order commit requests (crbug.com/919187#c28).
+      if (task_runner_->RunsTasksOnCurrentThread() &&
+          bytes_pending_commit_ >= shmem_abi_.size() / 2) {
         should_commit_synchronously = true;
         should_post_callback = false;
       }
@@ -232,49 +242,24 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
 
 void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
     std::function<void()> callback) {
+  PERFETTO_DCHECK(task_runner_->RunsTasksOnCurrentThread());
   std::shared_ptr<CommitDataRequest> req;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
     req = std::move(commit_data_req_);
     bytes_pending_commit_ = 0;
   }
-  // C++11 does not support movable types in std::bind, std::function, and
-  // lambdas, therefore to pass it along (if we need to use PostTask) without
-  // copying. So we wrap the |req| as a shared pointer to ensure it gets deleted
-  // properly. With C++14 we could instead have a unique_ptr and transfer
-  // ownership to the lambda.
-  //
+
   // |req| could be a nullptr if |commit_data_req_| became a nullptr. For
   // example when a forced sync flush happens in GetNewChunk().
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  auto commit_data = [weak_this, req, callback]() {
-    if (!weak_this) {
-      return;
-    }
-    if (req) {
-      weak_this->producer_endpoint_->CommitData(*req, callback);
-    } else if (callback) {
-      // If |req| was nullptr, it means that an enqueued deferred commit was
-      // executed just before this. At this point send an empty commit request
-      // to the service, just to linearize with it and give the guarantee to the
-      // caller that the data has been flushed into the service.
-      weak_this->producer_endpoint_->CommitData(CommitDataRequest(),
-                                                std::move(callback));
-    }
-  };
-  // If this is already on the same thread as the task_runner we have to commit
-  // this ourselves to prevent the buffer from filling up and then never getting
-  // to the commit data task. This is because we merge commits into one large
-  // task which might be modified so if we're writing faster then we're reading
-  // we might always be apending new data until all chunks are full.
-  //
-  // If we commit data on a different thread then we will eventually clear out
-  // the data and we don't have to worry if we fill up the chunks we'll just
-  // stall but it will eventually unlock itself.
-  if (task_runner_->RunsTasksOnCurrentThread()) {
-    commit_data();
-  } else {
-    task_runner_->PostTask(std::move(commit_data));
+  if (req) {
+    producer_endpoint_->CommitData(*req, callback);
+  } else if (callback) {
+    // If |req| was nullptr, it means that an enqueued deferred commit was
+    // executed just before this. At this point send an empty commit request
+    // to the service, just to linearize with it and give the guarantee to the
+    // caller that the data has been flushed into the service.
+    producer_endpoint_->CommitData(CommitDataRequest(), std::move(callback));
   }
 }
 
