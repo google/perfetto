@@ -38,16 +38,16 @@ class EventTracker {
   EventTracker& operator=(const EventTracker&) = delete;
   virtual ~EventTracker();
 
-  StringId GetThreadNameId(uint32_t tid, base::StringView comm);
-
   // This method is called when a sched switch event is seen in the trace.
   virtual void PushSchedSwitch(uint32_t cpu,
                                int64_t timestamp,
                                uint32_t prev_pid,
+                               base::StringView prev_comm,
+                               int32_t prev_prio,
                                int64_t prev_state,
                                uint32_t next_pid,
                                base::StringView next_comm,
-                               int32_t next_priority);
+                               int32_t next_prio);
 
   // This method is called when a cpu freq event is seen in the trace.
   virtual RowId PushCounter(int64_t timestamp,
@@ -60,7 +60,8 @@ class EventTracker {
   // Represents a slice which is currently pending.
   struct PendingSchedSlice {
     size_t storage_index = std::numeric_limits<size_t>::max();
-    uint32_t pid = 0;
+    uint32_t next_pid = 0;
+    StringId next_comm_id = 0;
   };
 
   // Store pending sched slices for each CPU.
@@ -70,7 +71,9 @@ class EventTracker {
   // of order.
   int64_t prev_timestamp_ = 0;
 
-  StringId const idle_string_id_;
+  static constexpr uint8_t kSchedSwitchMaxFieldId = 7;
+  std::array<StringId, kSchedSwitchMaxFieldId + 1> sched_switch_field_ids_;
+  StringId sched_switch_id_;
 
   TraceProcessorContext* const context_;
 };
