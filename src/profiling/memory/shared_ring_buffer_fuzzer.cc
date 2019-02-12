@@ -72,17 +72,18 @@ int FuzzRingBuffer(const uint8_t* data, size_t size) {
 
   auto buf = SharedRingBuffer::Attach(std::move(fd));
   PERFETTO_CHECK(!!buf);
-  SharedRingBuffer::Buffer read_buf = {};
+  bool did_read;
   do {
-    read_buf = buf->BeginRead();
-    if (read_buf) {
+    auto read_buf = buf->BeginRead();
+    did_read = bool(read_buf);
+    if (did_read) {
       volatile uint8_t* v_data = read_buf.data;
       // Assert we get a reference to valid memory.
       for (size_t i = 0; i < read_buf.size; ++i)
         v_data[i] = v_data[i];
     }
     buf->EndRead(std::move(read_buf));
-  } while (read_buf);
+  } while (did_read);
   return 0;
 }
 
