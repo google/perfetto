@@ -93,6 +93,10 @@ handlers:
   static_files: static/\1
   upload: static/(.*[.]wasm)
   mime_type: application/wasm
+- url: /assets/(.*)
+  static_files: static/assets/\1
+  upload: static/assets/(.*)
+  expiration: "1d"
 - url: /(.*)
   static_files: static/\1
   upload: static/(.*)
