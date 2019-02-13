@@ -18,6 +18,8 @@
 #define INCLUDE_PERFETTO_BASE_STRING_WRITER_H_
 
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 #include <limits>
 
 #include "perfetto/base/logging.h"
@@ -115,7 +117,12 @@ class StringWriter {
 
   // Creates a copy of the internal buffer.
   base::ScopedString CreateStringCopy() {
-    return base::ScopedString(strndup(buffer_, pos_));
+    char* dup = reinterpret_cast<char*>(malloc(pos_ + 1));
+    if (dup) {
+      strncpy(dup, buffer_, pos_);
+      dup[pos_] = '\0';
+    }
+    return base::ScopedString(dup);
   }
 
   size_t pos() { return pos_; }
