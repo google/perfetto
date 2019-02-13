@@ -1,0 +1,3 @@
+"ts","dur","name"
+100,6,"sys_restart_syscall"
+105,5,"sys_exit"
