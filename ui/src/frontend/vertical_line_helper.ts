@@ -32,3 +32,18 @@ export function drawVerticalLine(ctx: CanvasRenderingContext2D,
     ctx.closePath();
     ctx.lineWidth = prevLineWidth;
 }
+
+export function drawVerticalSelection(ctx: CanvasRenderingContext2D,
+                                      timeScale: TimeScale,
+                                      timeStart: number,
+                                      timeEnd: number,
+                                      height: number,
+                                      color: string) {
+    const xStartPos = TRACK_SHELL_WIDTH +
+                      Math.floor(timeScale.timeToPx(timeStart));
+    const xEndPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(timeEnd));
+    ctx.fillStyle = color;
+    ctx.fillRect(xStartPos, 0, xEndPos - xStartPos, height);
+    drawVerticalLine(ctx, timeScale, timeEnd, height, `rgba(52,69,150)`);
+    drawVerticalLine(ctx, timeScale, timeStart, height, `rgba(52,69,150)`);
+  }

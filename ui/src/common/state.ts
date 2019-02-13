@@ -96,7 +96,13 @@ export interface SliceSelection {
   id: number;
 }
 
-type Selection = NoteSelection|SliceSelection;
+export interface TimeSpanSelection {
+  kind: 'TIMESPAN';
+  startTs: number;
+  endTs: number;
+}
+
+type Selection = NoteSelection|SliceSelection|TimeSpanSelection;
 
 export interface State {
   route: string|null;
