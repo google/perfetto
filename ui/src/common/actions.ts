@@ -292,6 +292,15 @@ export const StateActions = {
     };
   },
 
+  selectTimeSpan(state: StateDraft,
+                 args: {startTs: number, endTs: number}): void {
+    state.currentSelection = {
+      kind: 'TIMESPAN',
+      startTs: args.startTs,
+      endTs: args.endTs,
+    };
+  },
+
   deselect(state: StateDraft, _: {}): void {
     state.currentSelection = null;
   }
