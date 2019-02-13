@@ -86,6 +86,7 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
 
   if (uiCfg.cpuFreq) {
     ftraceEvents.add('power/cpu_frequency');
+    ftraceEvents.add('power/cpu_idle');
     ftraceEvents.add('power/suspend_resume');
   }
 
@@ -159,7 +160,7 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
 
   if (uiCfg.memLmk) {
     // For in-kernel LMK (roughly older devices until Go and Pixel 3).
-    ftraceEvents.add('sched/lowmemorykiller/lowmemory_kill');
+    ftraceEvents.add('lowmemorykiller/lowmemory_kill');
 
     // For userspace LMKd (newer devices).
     // 'lmkd' is not really required because the code in lmkd.c emits events

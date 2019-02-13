@@ -444,7 +444,7 @@ function Instructions(cssClass: string) {
   const pbtx = data ? data.pbtxt : '';
   let cmd = '';
   cmd += 'adb shell perfetto \\\n';
-  cmd += '  -c - --txt  # Read config from stdin (text mode) \\\n';
+  cmd += '  -c - --txt \\\n';
   cmd += '  -o /data/misc/perfetto-traces/trace \\\n';
   cmd += '<<EOF\n\n';
   cmd += pbtx;

@@ -26,6 +26,7 @@ export function checkerboard(
   ctx.fillStyle = '#eee';
   ctx.fillRect(leftPx, TRACK_PADDING, widthPx, SLICE_HEIGHT);
   ctx.fillStyle = '#666';
+  ctx.textBaseline = 'alphabetic';
   ctx.fillText(
       'loading...',
       leftPx + widthPx / 2,
