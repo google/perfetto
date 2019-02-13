@@ -22,11 +22,14 @@
 @mixin transition($time:0.1s) {
     transition: opacity $time ease,
                 background-color $time ease,
+                border-color $time ease,
                 width $time ease,
                 height $time ease,
                 max-width $time ease,
                 max-height $time ease,
                 margin $time ease,
+                transform $time ease,
+                box-shadow $time ease,
                 border-radius $time ease;
 }
 

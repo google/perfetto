@@ -238,45 +238,8 @@ export const StateActions = {
     throw new Error('Called setState on StateActions.');
   },
 
-  setConfig(state: StateDraft, args: {config: RecordConfig;}): void {
+  setRecordConfig(state: StateDraft, args: {config: RecordConfig;}): void {
     state.recordConfig = args.config;
-  },
-
-  // TODO(hjd): Parametrize this to increase type safety. See comments on
-  // aosp/778194
-  setConfigControl(
-      state: StateDraft,
-      args: {name: string; value: string | number | boolean | null;}): void {
-    const config = state.recordConfig;
-    config[args.name] = args.value;
-  },
-
-  addConfigControl(
-      state: StateDraft, args: {name: string; optionsToAdd: string[];}): void {
-    // tslint:disable-next-line no-any
-    const config = state.recordConfig as any;
-    const options = config[args.name];
-    for (const option of args.optionsToAdd) {
-      if (options.includes(option)) continue;
-      options.push(option);
-    }
-  },
-
-  removeConfigControl(
-      state: StateDraft, args: {name: string; optionsToRemove: string[];}):
-      void {
-        // tslint:disable-next-line no-any
-        const config = state.recordConfig as any;
-        const options = config[args.name];
-        for (const option of args.optionsToRemove) {
-          const index = options.indexOf(option);
-          if (index === -1) continue;
-          options.splice(index, 1);
-        }
-      },
-
-  toggleDisplayConfigAsPbtxt(state: StateDraft, _: {}): void {
-    state.displayConfigAsPbtxt = !state.displayConfigAsPbtxt;
   },
 
   selectNote(state: StateDraft, args: {id: string}): void {
@@ -321,8 +284,7 @@ export const StateActions = {
     }
   },
 
-  selectSlice(state: StateDraft,
-              args: {utid: number, id: number}): void {
+  selectSlice(state: StateDraft, args: {utid: number, id: number}): void {
     state.currentSelection = {
       kind: 'SLICE',
       utid: args.utid,

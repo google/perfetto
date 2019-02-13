@@ -17,17 +17,26 @@ import * as protos from '../gen/protos';
 
 // Aliases protos to avoid the super nested namespaces.
 // See https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
+import AndroidLogConfig = protos.perfetto.protos.AndroidLogConfig;
+import AndroidPowerConfig = protos.perfetto.protos.AndroidPowerConfig;
+import AndroidLogId = protos.perfetto.protos.AndroidLogId;
+import BatteryCounters =
+    protos.perfetto.protos.AndroidPowerConfig.BatteryCounters;
+import BufferConfig = protos.perfetto.protos.TraceConfig.BufferConfig;
+import DataSourceConfig = protos.perfetto.protos.DataSourceConfig;
+import FtraceConfig = protos.perfetto.protos.FtraceConfig;
 import IAndroidPowerConfig = protos.perfetto.protos.IAndroidPowerConfig;
+import IBufferConfig = protos.perfetto.protos.TraceConfig.IBufferConfig;
 import IProcessStatsConfig = protos.perfetto.protos.IProcessStatsConfig;
 import IRawQueryArgs = protos.perfetto.protos.IRawQueryArgs;
 import ISysStatsConfig = protos.perfetto.protos.ISysStatsConfig;
 import ITraceConfig = protos.perfetto.protos.ITraceConfig;
-import BatteryCounters =
-    protos.perfetto.protos.AndroidPowerConfig.BatteryCounters;
 import MeminfoCounters = protos.perfetto.protos.MeminfoCounters;
+import ProcessStatsConfig = protos.perfetto.protos.ProcessStatsConfig;
 import RawQueryArgs = protos.perfetto.protos.RawQueryArgs;
 import RawQueryResult = protos.perfetto.protos.RawQueryResult;
 import StatCounters = protos.perfetto.protos.SysStatsConfig.StatCounters;
+import SysStatsConfig = protos.perfetto.protos.SysStatsConfig;
 import TraceConfig = protos.perfetto.protos.TraceConfig;
 import TraceProcessor = protos.perfetto.protos.TraceProcessor;
 import VmstatCounters = protos.perfetto.protos.VmstatCounters;
@@ -184,16 +193,25 @@ export function*
 }
 
 export {
+  AndroidLogConfig,
+  AndroidLogId,
+  AndroidPowerConfig,
+  BatteryCounters,
+  BufferConfig,
+  DataSourceConfig,
+  FtraceConfig,
   IAndroidPowerConfig,
+  IBufferConfig,
   IProcessStatsConfig,
   IRawQueryArgs,
   ISysStatsConfig,
   ITraceConfig,
-  BatteryCounters,
   MeminfoCounters,
+  ProcessStatsConfig,
   RawQueryArgs,
   RawQueryResult,
   StatCounters,
+  SysStatsConfig,
   TraceConfig,
   TraceProcessor,
   VmstatCounters,

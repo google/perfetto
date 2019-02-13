@@ -63,45 +63,6 @@ export interface PermalinkConfig {
   hash?: string;       // Set by the controller when the link has been created.
 }
 
-export interface RecordConfig {
-  [key: string]: null|number|boolean|string|string[];
-
-  // Global settings
-  durationSeconds: number;
-  writeIntoFile: boolean;
-  fileWritePeriodMs: number|null;
-
-  // Buffer setup
-  bufferSizeMb: number;
-
-  // Ftrace
-  ftrace: boolean;
-  ftraceEvents: string[];
-  atraceCategories: string[];
-  atraceApps: string[];
-  ftraceDrainPeriodMs: number|null;
-  ftraceBufferSizeKb: number|null;
-
-  // Ps
-  processMetadata: boolean;
-  scanAllProcessesOnStart: boolean;
-  procStatusPeriodMs: number|null;
-
-  // SysStats
-  sysStats: boolean;
-  meminfoPeriodMs: number|null;
-  meminfoCounters: string[];
-  vmstatPeriodMs: number|null;
-  vmstatCounters: string[];
-  statPeriodMs: number|null;
-  statCounters: string[];
-
-  // Battery and power
-  power: boolean;
-  batteryPeriodMs: number|null;
-  batteryCounters: string[];
-}
-
 export interface TraceTime {
   startSec: number;
   endSec: number;
@@ -176,6 +137,102 @@ export const defaultTraceTime = {
   endSec: 10,
 };
 
+export declare type RecordMode =
+    'STOP_WHEN_FULL' | 'RING_BUFFER' | 'LONG_TRACE';
+
+export interface RecordConfig {
+  [key: string]: null|number|boolean|string|string[];
+
+  // Global settings
+  targetOS: string;  // 'Q','P','O' for Android, 'L' for Linux
+  mode: RecordMode;
+  durationMs: number;
+  bufferSizeMb: number;
+  maxFileSizeMb: number;      // Only for mode == 'LONG_TRACE'.
+  fileWritePeriodMs: number;  // Only for mode == 'LONG_TRACE'.
+
+  cpuSched: boolean;
+  cpuLatency: boolean;
+  cpuFreq: boolean;
+  cpuCoarse: boolean;
+  cpuCoarsePollMs: number;
+
+  ftrace: boolean;
+  atrace: boolean;
+  ftraceEvents: string[];
+  ftraceExtraEvents: string;
+  atraceCats: string[];
+  atraceApps: string;
+  ftraceBufferSizeKb: number;
+  ftraceDrainPeriodMs: number;
+  androidLogs: boolean;
+  androidLogBuffers: string[];
+
+  batteryDrain: boolean;
+  batteryDrainPollMs: number;
+
+  boardSensors: boolean;
+
+  memHiFreq: boolean;
+  memLmk: boolean;
+  meminfo: boolean;
+  meminfoPeriodMs: number;
+  meminfoCounters: string[];
+  vmstat: boolean;
+  vmstatPeriodMs: number;
+  vmstatCounters: string[];
+
+  procStats: boolean;
+  procStatsPeriodMs: number;
+}
+
+export function createEmptyRecordConfig(): RecordConfig {
+  return {
+    targetOS: 'Q',
+    mode: 'STOP_WHEN_FULL',
+    durationMs: 10000.0,
+    maxFileSizeMb: 100,
+    fileWritePeriodMs: 2500,
+    bufferSizeMb: 10.0,
+
+    cpuSched: false,
+    cpuLatency: false,
+    cpuFreq: false,
+
+    ftrace: false,
+    atrace: false,
+    ftraceEvents: [],
+    ftraceExtraEvents: '',
+    atraceCats: [],
+    atraceApps: '',
+    ftraceBufferSizeKb: 2 * 1024,
+    ftraceDrainPeriodMs: 250,
+    androidLogs: false,
+    androidLogBuffers: [],
+
+    cpuCoarse: false,
+    cpuCoarsePollMs: 1000,
+
+    batteryDrain: false,
+    batteryDrainPollMs: 1000,
+
+    boardSensors: false,
+
+    memHiFreq: false,
+    meminfo: false,
+    meminfoPeriodMs: 1000,
+    meminfoCounters: [],
+
+    vmstat: false,
+    vmstatPeriodMs: 1000,
+    vmstatCounters: [],
+
+    memLmk: false,
+    procStats: false,
+    procStatsPeriodMs: 1000,
+  };
+}
+
 export function createEmptyState(): State {
   return {
     route: null,
@@ -200,37 +257,5 @@ export function createEmptyState(): State {
 
     status: {msg: '', timestamp: 0},
     currentSelection: null,
-  };
-}
-
-export function createEmptyRecordConfig(): RecordConfig {
-  return {
-    durationSeconds: 10.0,
-    writeIntoFile: false,
-    fileWritePeriodMs: null,
-    bufferSizeMb: 10.0,
-
-    ftrace: false,
-    ftraceEvents: [],
-    atraceApps: [],
-    atraceCategories: [],
-    ftraceDrainPeriodMs: null,
-    ftraceBufferSizeKb: 2 * 1024,
-
-    processMetadata: false,
-    scanAllProcessesOnStart: false,
-    procStatusPeriodMs: null,
-
-    sysStats: false,
-    meminfoPeriodMs: null,
-    meminfoCounters: [],
-    vmstatPeriodMs: null,
-    vmstatCounters: [],
-    statPeriodMs: null,
-    statCounters: [],
-
-    power: false,
-    batteryPeriodMs: 1000,
-    batteryCounters: [],
   };
 }
