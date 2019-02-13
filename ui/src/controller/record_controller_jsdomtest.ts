@@ -15,11 +15,11 @@
 import {dingus} from 'dingusjs';
 
 import {TraceConfig} from '../common/protos';
-import {createEmptyRecordConfig} from '../common/state';
+import {createEmptyRecordConfig, RecordConfig} from '../common/state';
 
 import {App} from './globals';
 import {
-  encodeConfig,
+  genConfigProto,
   RecordController,
   toPbtxt,
   uint8ArrayToBase64
@@ -34,7 +34,7 @@ test('uint8ArrayToBase64', () => {
 test('encodeConfig', () => {
   const config = createEmptyRecordConfig();
   config.durationSeconds = 10;
-  const result = TraceConfig.decode(encodeConfig(config));
+  const result = TraceConfig.decode(genConfigProto(config));
   expect(result.durationMs).toBe(10000);
 });
 
@@ -86,7 +86,7 @@ producers: {
 
 test('RecordController', () => {
   const app = dingus<App>('globals');
-  // app.state.recordConfig.durationSeconds = 1000;
+  (app.state.recordConfig as RecordConfig) = createEmptyRecordConfig();
   const controller = new RecordController({app});
   controller.run();
   controller.run();

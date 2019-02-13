@@ -128,8 +128,7 @@ test('navigateToCurrentHash with invalid current route', () => {
 
 test('Params parsing', () => {
   window.location.hash = '#!/foo?a=123&b=42&c=a?b?c';
-  const router = new Router('/', {'/': mockComponent}, fakeDispatch);
-  expect(router.param('a')).toBe('123');
-  expect(router.param('b')).toBe('42');
-  expect(router.param('c')).toBe('a?b?c');
+  expect(Router.param('a')).toBe('123');
+  expect(Router.param('b')).toBe('42');
+  expect(Router.param('c')).toBe('a?b?c');
 });

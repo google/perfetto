@@ -128,7 +128,7 @@ function main() {
   (window as {} as {globals: {}}).globals = globals;
 
   // /?s=xxxx for permalinks.
-  const stateHash = router.param('s');
+  const stateHash = Router.param('s');
   if (stateHash) {
     globals.dispatch(Actions.loadPermalink({
       hash: stateHash,
