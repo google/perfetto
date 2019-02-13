@@ -242,7 +242,16 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
 
 void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
     std::function<void()> callback) {
-  PERFETTO_DCHECK(task_runner_->RunsTasksOnCurrentThread());
+  // May be called by TraceWriterImpl on any thread.
+  if (!task_runner_->RunsTasksOnCurrentThread()) {
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+    task_runner_->PostTask([weak_this, callback] {
+      if (weak_this)
+        weak_this->FlushPendingCommitDataRequests(std::move(callback));
+    });
+    return;
+  }
+
   std::shared_ptr<CommitDataRequest> req;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
