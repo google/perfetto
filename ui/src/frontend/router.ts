@@ -83,7 +83,7 @@ export class Router {
     return this.routes[route];
   }
 
-  param(key: string) {
+  static param(key: string) {
     const hash = window.location.hash;
     const paramStart = hash.indexOf('?');
     if (paramStart === -1) return undefined;
