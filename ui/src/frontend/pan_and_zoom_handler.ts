@@ -64,6 +64,8 @@ export class PanAndZoomHandler {
   private boundOnWheel = this.onWheel.bind(this);
   private boundOnKeyDown = this.onKeyDown.bind(this);
   private boundOnKeyUp = this.onKeyUp.bind(this);
+  private shiftDown = false;
+  private dragStartPx = -1;
   private panning: Pan = Pan.None;
   private zooming: Zoom = Zoom.None;
   private cancelPanTimeout?: Timer;
@@ -75,17 +77,20 @@ export class PanAndZoomHandler {
   private contentOffsetX: number;
   private onPanned: (movedPx: number) => void;
   private onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
+  private onDragSelect: (selectStartPx: number, selectEndPx: number) => void;
 
-  constructor({element, contentOffsetX, onPanned, onZoomed}: {
+  constructor({element, contentOffsetX, onPanned, onZoomed, onDragSelect}: {
     element: HTMLElement,
     contentOffsetX: number,
     onPanned: (movedPx: number) => void,
     onZoomed: (zoomPositionPx: number, zoomRatio: number) => void,
+    onDragSelect: (selectStartPx: number, selectEndPx: number) => void
   }) {
     this.element = element;
     this.contentOffsetX = contentOffsetX;
     this.onPanned = onPanned;
     this.onZoomed = onZoomed;
+    this.onDragSelect = onDragSelect;
 
     document.body.addEventListener('keydown', this.boundOnKeyDown);
     document.body.addEventListener('keyup', this.boundOnKeyUp);
@@ -94,9 +99,20 @@ export class PanAndZoomHandler {
 
     let lastX = -1;
     new DragGestureHandler(this.element, x => {
-      this.onPanned(lastX - x);
+      if (this.shiftDown && this.dragStartPx !== -1) {
+        this.onDragSelect(this.dragStartPx, x);
+      } else {
+        this.onPanned(lastX - x);
+      }
       lastX = x;
-    }, x => lastX = x);
+    }, x => {
+      lastX = x;
+      if (this.shiftDown) {
+        this.dragStartPx = x;
+      }
+    }, () => {
+      this.dragStartPx = -1;
+    });
   }
 
   shutdown() {
@@ -137,6 +153,7 @@ export class PanAndZoomHandler {
   }
 
   private onKeyDown(e: KeyboardEvent) {
+    this.shiftDown = e.shiftKey;
     if (keyToPan(e) !== Pan.None) {
       this.panning = keyToPan(e);
       const animationTime = e.repeat ?
@@ -157,6 +174,7 @@ export class PanAndZoomHandler {
   }
 
   private onKeyUp(e: KeyboardEvent) {
+    this.shiftDown = e.shiftKey;
     if (keyToPan(e) === this.panning) {
       const minEndTime = this.panAnimation.startTimeMs + TAP_ANIMATION_TIME;
       const t = minEndTime - performance.now();

@@ -19,7 +19,7 @@ import {TrackState} from '../common/state';
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {drawVerticalLine} from './vertical_line_helper';
+import {drawVerticalLine, drawVerticalSelection} from './vertical_line_helper';
 import {Panel, PanelSize} from './panel';
 import {Track} from './track';
 import {TRACK_SHELL_WIDTH} from './track_constants';
@@ -132,6 +132,10 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         globals.rafScheduler.scheduleRedraw();
       },
       onclick: (e:MouseEvent) => {
+        // If we are selecting a timespan - do not pass the click to the track.
+        const selection = globals.state.currentSelection;
+        if (selection && selection.kind === 'TIMESPAN') return;
+
         if (attrs.track.onMouseClick({x: e.layerX, y: e.layerY})) {
           e.stopPropagation();
         }
@@ -222,15 +226,23 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
                        `#aaa`);
     }
 
-    // Draw vertical line when a note is selected.
-    if (globals.state.currentSelection !== null &&
-        globals.state.currentSelection.kind === 'NOTE') {
-      const note = globals.state.notes[globals.state.currentSelection.id];
-      drawVerticalLine(ctx,
-                       localState.timeScale,
-                       note.timestamp,
-                       size.height,
-                       note.color);
+    if (globals.state.currentSelection !== null) {
+      if (globals.state.currentSelection.kind === 'NOTE') {
+        const note = globals.state.notes[globals.state.currentSelection.id];
+        drawVerticalLine(ctx,
+                        localState.timeScale,
+                        note.timestamp,
+                        size.height,
+                        note.color);
+      }
+      if (globals.state.currentSelection.kind === 'TIMESPAN') {
+        drawVerticalSelection(ctx,
+                              localState.timeScale,
+                              globals.state.currentSelection.startTs,
+                              globals.state.currentSelection.endTs,
+                              size.height,
+                              `rgba(52,69,150,0.3)`);
+      }
     }
   }
 }
