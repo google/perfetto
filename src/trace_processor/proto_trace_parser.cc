@@ -840,10 +840,15 @@ void ProtoTraceParser::ParseRssStat(int64_t timestamp,
     context_->storage->IncrementStats(stats::rss_stat_unknown_keys);
     member = kRssStatUnknown;
   }
-  UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
 
-  context_->event_tracker->PushCounter(timestamp, size, rss_members_[member],
-                                       utid, RefType::kRefUtidLookupUpid);
+  if (size >= 0) {
+    UniqueTid utid = context_->process_tracker->UpdateThread(timestamp, pid, 0);
+
+    context_->event_tracker->PushCounter(timestamp, size, rss_members_[member],
+                                         utid, RefType::kRefUtidLookupUpid);
+  } else {
+    context_->storage->IncrementStats(stats::rss_stat_negative_size);
+  }
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
