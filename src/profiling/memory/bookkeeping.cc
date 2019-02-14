@@ -301,6 +301,97 @@ void DumpState::WriteString(const Interned<std::string>& str) {
   }
 }
 
+void BookkeepingThread::HandleDumpRecord(BookkeepingRecord* rec) {
+  DumpRecord& dump_rec = rec->dump_record;
+  std::shared_ptr<TraceWriter> trace_writer = dump_rec.trace_writer.lock();
+  if (!trace_writer) {
+    PERFETTO_LOG("Not dumping heaps");
+    return;
+  }
+  PERFETTO_LOG("Dumping heaps");
+  DumpState dump_state(trace_writer.get(), &next_index);
+
+  for (const pid_t pid : dump_rec.pids) {
+    auto it = bookkeeping_data_.find(pid);
+    if (it == bookkeeping_data_.end())
+      continue;
+
+    PERFETTO_LOG("Dumping %d ", it->first);
+    it->second.heap_tracker.Dump(pid, &dump_state);
+  }
+
+  for (GlobalCallstackTrie::Node* node : dump_state.callstacks_to_dump) {
+    // There need to be two separate loops over built_callstack because
+    // protozero cannot interleave different messages.
+    auto built_callstack = callsites_.BuildCallstack(node);
+    for (const Interned<Frame>& frame : built_callstack)
+      dump_state.WriteFrame(frame);
+    ProfilePacket::Callstack* callstack =
+        dump_state.current_profile_packet->add_callstacks();
+    callstack->set_id(node->id());
+    for (const Interned<Frame>& frame : built_callstack)
+      callstack->add_frame_ids(frame.id());
+  }
+
+  // We cannot garbage collect until we have finished dumping, as the state
+  // in DumpState points into the GlobalCallstackTrie.
+  for (const pid_t pid : dump_rec.pids) {
+    auto it = bookkeeping_data_.find(pid);
+    if (it == bookkeeping_data_.end())
+      continue;
+
+    if (it->second.ref_count == 0) {
+      std::lock_guard<std::mutex> l(bookkeeping_mutex_);
+      it = bookkeeping_data_.erase(it);
+    }
+  }
+  dump_state.current_trace_packet->Finalize();
+  trace_writer->Flush(dump_rec.callback);
+}
+
+void BookkeepingThread::HandleFreeRecord(BookkeepingData* bookkeeping_data,
+                                         BookkeepingRecord* rec) {
+  FreeRecord& free_rec = rec->free_record;
+  FreeMetadata& free_metadata = *free_rec.metadata;
+
+  if (bookkeeping_data->client_generation < free_metadata.client_generation) {
+    bookkeeping_data->heap_tracker = HeapTracker(&callsites_);
+    bookkeeping_data->client_generation = free_metadata.client_generation;
+  } else if (bookkeeping_data->client_generation >
+             free_metadata.client_generation) {
+    return;
+  }
+
+  FreePageEntry* entries = free_metadata.entries;
+  uint64_t num_entries = free_metadata.num_entries;
+  if (num_entries > kFreePageSize)
+    return;
+  for (size_t i = 0; i < num_entries; ++i) {
+    const FreePageEntry& entry = entries[i];
+    bookkeeping_data->heap_tracker.RecordFree(entry.addr,
+                                              entry.sequence_number);
+  }
+}
+
+void BookkeepingThread::HandleMallocRecord(BookkeepingData* bookkeeping_data,
+                                           BookkeepingRecord* rec) {
+  AllocRecord& alloc_rec = rec->alloc_record;
+  AllocMetadata& alloc_metadata = alloc_rec.alloc_metadata;
+
+  if (bookkeeping_data->client_generation < alloc_metadata.client_generation) {
+    bookkeeping_data->heap_tracker = HeapTracker(&callsites_);
+    bookkeeping_data->client_generation = alloc_metadata.client_generation;
+  } else if (bookkeeping_data->client_generation >
+             alloc_metadata.client_generation) {
+    return;
+  }
+
+  bookkeeping_data->heap_tracker.RecordMalloc(
+      alloc_rec.frames, alloc_rec.alloc_metadata.alloc_address,
+      alloc_rec.alloc_metadata.total_size,
+      alloc_rec.alloc_metadata.sequence_number);
+}
+
 void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
   BookkeepingData* bookkeeping_data = nullptr;
   if (rec->pid != 0) {
@@ -313,93 +404,14 @@ void BookkeepingThread::HandleBookkeepingRecord(BookkeepingRecord* rec) {
     bookkeeping_data = &it->second;
   }
 
-  if (rec->record_type == BookkeepingRecord::Type::Dump) {
-    DumpRecord& dump_rec = rec->dump_record;
-    std::shared_ptr<TraceWriter> trace_writer = dump_rec.trace_writer.lock();
-    if (!trace_writer) {
-      PERFETTO_LOG("Not dumping heaps");
-      return;
-    }
-    PERFETTO_LOG("Dumping heaps");
-    DumpState dump_state(trace_writer.get(), &next_index);
-
-    for (const pid_t pid : dump_rec.pids) {
-      auto it = bookkeeping_data_.find(pid);
-      if (it == bookkeeping_data_.end())
-        continue;
-
-      PERFETTO_LOG("Dumping %d ", it->first);
-      it->second.heap_tracker.Dump(pid, &dump_state);
-    }
-
-    for (GlobalCallstackTrie::Node* node : dump_state.callstacks_to_dump) {
-      // There need to be two separate loops over built_callstack because
-      // protozero cannot interleave different messages.
-      auto built_callstack = callsites_.BuildCallstack(node);
-      for (const Interned<Frame>& frame : built_callstack)
-        dump_state.WriteFrame(frame);
-      ProfilePacket::Callstack* callstack =
-          dump_state.current_profile_packet->add_callstacks();
-      callstack->set_id(node->id());
-      for (const Interned<Frame>& frame : built_callstack)
-        callstack->add_frame_ids(frame.id());
-    }
-
-    // We cannot garbage collect until we have finished dumping, as the state
-    // in DumpState points into the GlobalCallstackTrie.
-    for (const pid_t pid : dump_rec.pids) {
-      auto it = bookkeeping_data_.find(pid);
-      if (it == bookkeeping_data_.end())
-        continue;
-
-      if (it->second.ref_count == 0) {
-        std::lock_guard<std::mutex> l(bookkeeping_mutex_);
-        it = bookkeeping_data_.erase(it);
-      }
-    }
-    dump_state.current_trace_packet->Finalize();
-    trace_writer->Flush(dump_rec.callback);
-  } else if (rec->record_type == BookkeepingRecord::Type::Free) {
-    FreeRecord& free_rec = rec->free_record;
-    FreeMetadata& free_metadata = *free_rec.metadata;
-
-    if (bookkeeping_data->client_generation < free_metadata.client_generation) {
-      bookkeeping_data->heap_tracker = HeapTracker(&callsites_);
-      bookkeeping_data->client_generation = free_metadata.client_generation;
-    } else if (bookkeeping_data->client_generation >
-               free_metadata.client_generation) {
-      return;
-    }
-
-    FreePageEntry* entries = free_metadata.entries;
-    uint64_t num_entries = free_metadata.num_entries;
-    if (num_entries > kFreePageSize)
-      return;
-    for (size_t i = 0; i < num_entries; ++i) {
-      const FreePageEntry& entry = entries[i];
-      bookkeeping_data->heap_tracker.RecordFree(entry.addr,
-                                                entry.sequence_number);
-    }
-  } else if (rec->record_type == BookkeepingRecord::Type::Malloc) {
-    AllocRecord& alloc_rec = rec->alloc_record;
-    AllocMetadata& alloc_metadata = alloc_rec.alloc_metadata;
-
-    if (bookkeeping_data->client_generation <
-        alloc_metadata.client_generation) {
-      bookkeeping_data->heap_tracker = HeapTracker(&callsites_);
-      bookkeeping_data->client_generation = alloc_metadata.client_generation;
-    } else if (bookkeeping_data->client_generation >
-               alloc_metadata.client_generation) {
-      return;
-    }
-
-    bookkeeping_data->heap_tracker.RecordMalloc(
-        alloc_rec.frames, alloc_rec.alloc_metadata.alloc_address,
-        alloc_rec.alloc_metadata.total_size,
-        alloc_rec.alloc_metadata.sequence_number);
-  } else {
+  if (rec->record_type == BookkeepingRecord::Type::Dump)
+    HandleDumpRecord(rec);
+  else if (rec->record_type == BookkeepingRecord::Type::Free)
+    HandleFreeRecord(bookkeeping_data, rec);
+  else if (rec->record_type == BookkeepingRecord::Type::Malloc)
+    HandleMallocRecord(bookkeeping_data, rec);
+  else
     PERFETTO_DFATAL("Invalid record type");
-  }
 }
 
 BookkeepingThread::ProcessHandle BookkeepingThread::NotifyProcessConnected(

@@ -407,6 +407,12 @@ class BookkeepingThread {
   void HandleBookkeepingRecord(BookkeepingRecord* rec);
 
  private:
+  void HandleDumpRecord(BookkeepingRecord* rec);
+  void HandleFreeRecord(BookkeepingData* bookkeeping_data,
+                        BookkeepingRecord* rec);
+  void HandleMallocRecord(BookkeepingData* bookkeeping_data,
+                          BookkeepingRecord* rec);
+
   // Inform the bookkeeping thread that a socket for this pid disconnected.
   // After the last client for a PID disconnects, the BookkeepingData is
   // retained until the next dump, upon which it gets garbage collected.
