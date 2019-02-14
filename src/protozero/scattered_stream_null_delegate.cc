@@ -26,7 +26,7 @@ namespace protozero {
 ScatteredStreamWriterNullDelegate::ScatteredStreamWriterNullDelegate(
     size_t chunk_size)
     : chunk_size_(chunk_size),
-      chunk_(std::unique_ptr<uint8_t[]>(new uint8_t[chunk_size_])){};
+      chunk_(std::unique_ptr<uint8_t[]>(new uint8_t[chunk_size_])) {}
 
 ScatteredStreamWriterNullDelegate::~ScatteredStreamWriterNullDelegate() {}
 
