@@ -58,6 +58,7 @@ namespace stats {
   F(proc_stat_unknown_counters,                 kSingle,  kError, kAnalysis), \
   F(rss_stat_unknown_keys,                      kSingle,  kError, kAnalysis), \
   F(sched_switch_out_of_order,                  kSingle,  kError, kAnalysis), \
+  F(sys_unknown_sys_id,                         kSingle,  kError, kAnalysis), \
   F(traced_buf_buffer_size,                     kIndexed, kInfo,  kTrace),    \
   F(traced_buf_bytes_overwritten,               kIndexed, kInfo,  kTrace),    \
   F(traced_buf_bytes_read,                      kIndexed, kInfo,  kTrace),    \

@@ -188,34 +188,50 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
   proc_stats_process_names_[ProcessStats::Process::kOomScoreAdjFieldNumber] =
       oom_score_adj_id_;
 
-  mm_event_counter_names_[0] = MmEventCounterNames(
-      context->storage->InternString("mem.mm.min_flt.count"),
-      context->storage->InternString("mem.mm.min_flt.max_lat"),
-      context->storage->InternString("mem.mm.min_flt.avg_lat"));
-  mm_event_counter_names_[1] = MmEventCounterNames(
-      context->storage->InternString("mem.mm.maj_flt.count"),
-      context->storage->InternString("mem.mm.maj_flt.max_lat"),
-      context->storage->InternString("mem.mm.maj_flt.avg_lat"));
-  mm_event_counter_names_[2] = MmEventCounterNames(
-      context->storage->InternString("mem.mm.read_io.count"),
-      context->storage->InternString("mem.mm.read_io.max_lat"),
-      context->storage->InternString("mem.mm.read_io.avg_lat"));
-  mm_event_counter_names_[3] = MmEventCounterNames(
-      context->storage->InternString("mem.mm.compaction.count"),
-      context->storage->InternString("mem.mm.compaction.max_lat"),
-      context->storage->InternString("mem.mm.compaction.avg_lat"));
-  mm_event_counter_names_[4] = MmEventCounterNames(
-      context->storage->InternString("mem.mm.reclaim.count"),
-      context->storage->InternString("mem.mm.reclaim.max_lat"),
-      context->storage->InternString("mem.mm.reclaim.avg_lat"));
-  mm_event_counter_names_[5] = MmEventCounterNames(
-      context->storage->InternString("mem.mm.swp_flt.count"),
-      context->storage->InternString("mem.mm.swp_flt.max_lat"),
-      context->storage->InternString("mem.mm.swp_flt.avg_lat"));
-  mm_event_counter_names_[6] = MmEventCounterNames(
-      context->storage->InternString("mem.mm.kern_alloc.count"),
-      context->storage->InternString("mem.mm.kern_alloc.max_lat"),
-      context->storage->InternString("mem.mm.kern_alloc.avg_lat"));
+  mm_event_counter_names_ = {
+      {MmEventCounterNames(
+           context->storage->InternString("mem.mm.min_flt.count"),
+           context->storage->InternString("mem.mm.min_flt.max_lat"),
+           context->storage->InternString("mem.mm.min_flt.avg_lat")),
+       MmEventCounterNames(
+           context->storage->InternString("mem.mm.maj_flt.count"),
+           context->storage->InternString("mem.mm.maj_flt.max_lat"),
+           context->storage->InternString("mem.mm.maj_flt.avg_lat")),
+       MmEventCounterNames(
+           context->storage->InternString("mem.mm.read_io.count"),
+           context->storage->InternString("mem.mm.read_io.max_lat"),
+           context->storage->InternString("mem.mm.read_io.avg_lat")),
+       MmEventCounterNames(
+           context->storage->InternString("mem.mm.compaction.count"),
+           context->storage->InternString("mem.mm.compaction.max_lat"),
+           context->storage->InternString("mem.mm.compaction.avg_lat")),
+       MmEventCounterNames(
+           context->storage->InternString("mem.mm.reclaim.count"),
+           context->storage->InternString("mem.mm.reclaim.max_lat"),
+           context->storage->InternString("mem.mm.reclaim.avg_lat")),
+       MmEventCounterNames(
+           context->storage->InternString("mem.mm.swp_flt.count"),
+           context->storage->InternString("mem.mm.swp_flt.max_lat"),
+           context->storage->InternString("mem.mm.swp_flt.avg_lat")),
+       MmEventCounterNames(
+           context->storage->InternString("mem.mm.kern_alloc.count"),
+           context->storage->InternString("mem.mm.kern_alloc.max_lat"),
+           context->storage->InternString("mem.mm.kern_alloc.avg_lat"))}};
+
+  // TODO(hjd): Add the missing syscalls + fix on over arch.
+  sys_name_ids_ = {{context->storage->InternString("sys_restart_syscall"),
+                    context->storage->InternString("sys_exit"),
+                    context->storage->InternString("sys_fork"),
+                    context->storage->InternString("sys_read"),
+                    context->storage->InternString("sys_write"),
+                    context->storage->InternString("sys_open"),
+                    context->storage->InternString("sys_close"),
+                    context->storage->InternString("sys_creat"),
+                    context->storage->InternString("sys_link"),
+                    context->storage->InternString("sys_unlink"),
+                    context->storage->InternString("sys_execve"),
+                    context->storage->InternString("sys_chdir"),
+                    context->storage->InternString("sys_time")}};
 
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
@@ -711,6 +727,14 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
                                 ftrace.slice(fld_off, fld.size()));
         break;
       }
+      case protos::FtraceEvent::kSysEnterFieldNumber: {
+        ParseSysEvent(timestamp, pid, true, ftrace.slice(fld_off, fld.size()));
+        break;
+      }
+      case protos::FtraceEvent::kSysExit: {
+        ParseSysEvent(timestamp, pid, false, ftrace.slice(fld_off, fld.size()));
+        break;
+      }
       default:
         break;
     }
@@ -1125,6 +1149,49 @@ void ProtoTraceParser::ParseMmEventRecordField(int64_t ts,
                                        RefType::kRefUtidLookupUpid);
 
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+}
+
+void ProtoTraceParser::ParseSysEvent(int64_t ts,
+                                     uint32_t pid,
+                                     bool is_enter,
+                                     TraceBlobView view) {
+  ProtoDecoder decoder(view.data(), view.length());
+
+  uint32_t id = 0;
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::SysEnterFtraceEvent::kIdFieldNumber:
+        id = fld.as_uint32();
+        break;
+    }
+  }
+
+  if (id >= sys_name_ids_.size()) {
+    context_->storage->IncrementStats(stats::sys_unknown_sys_id);
+    return;
+  }
+
+  // We see two write sys calls around each userspace slice that is going via
+  // trace_marker, this violates the assumption that userspace slices are
+  // perfectly nested. For the moment ignore all write sys calls.
+  // TODO(hjd): Remove this limitation.
+  if (id == 4 /*sys_write*/)
+    return;
+
+  StringId sys_name_id = sys_name_ids_[id];
+  UniqueTid utid = context_->process_tracker->UpdateThread(ts, pid, 0);
+  if (is_enter) {
+    context_->slice_tracker->Begin(ts, utid, 0 /* cat */, sys_name_id);
+  } else {
+    context_->slice_tracker->End(ts, utid, 0 /* cat */, sys_name_id);
+  }
+
+  // We are reusing the same function for sys_enter and sys_exit.
+  // It is fine as the arguments are the same, but we need to be sure that the
+  // protobuf field id for both are the same.
+  static_assert(protos::SysEnterFtraceEvent::kIdFieldNumber ==
+                    protos::SysExitFtraceEvent::kIdFieldNumber,
+                "field mismatch");
 }
 
 void ProtoTraceParser::ParseGenericFtrace(int64_t timestamp,
