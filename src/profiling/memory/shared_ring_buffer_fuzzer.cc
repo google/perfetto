@@ -31,17 +31,20 @@ struct MetadataHeader {
   uint64_t write_pos;
 };
 
-bool IsPow2(size_t x) {
-  return (x & (x - 1)) == 0;
-}
-
-size_t RoundToPow2(size_t x) {
-  if (IsPow2(x))
-    return x;
-
-  if (x == 1)
+size_t RoundToPow2(size_t v) {
+  uint64_t x = static_cast<size_t>(v);
+  if (x < 2)
     return 2;
-  return 2 * (x & (x - 1));
+
+  x--;
+  x |= x >> 1;
+  x |= x >> 2;
+  x |= x >> 4;
+  x |= x >> 8;
+  x |= x >> 16;
+  x |= x >> 32;
+  x++;
+  return static_cast<size_t>(x);
 }
 
 int FuzzRingBuffer(const uint8_t* data, size_t size) {
