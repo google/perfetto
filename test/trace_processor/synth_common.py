@@ -72,6 +72,19 @@ class Trace(object):
         lowmemory_kill = ftrace.lowmemory_kill
         lowmemory_kill.pid = tid
 
+    def add_sys_enter(self, ts, tid, id):
+        ftrace = self.__add_ftrace_event(ts, tid)
+
+        sys_enter = ftrace.sys_enter
+        sys_enter.id = id
+
+    def add_sys_exit(self, ts, tid, id, ret):
+        ftrace = self.__add_ftrace_event(ts, tid)
+
+        sys_exit = ftrace.sys_exit
+        sys_exit.id = id
+        sys_exit.ret = ret
+
     def add_process_tree_packet(self):
         self.packet = self.trace.packet.add()
 
