@@ -1,0 +1,13 @@
+"name","count(*)"
+"sys_chdir",53
+"sys_close",88
+"sys_creat",429
+"sys_execve",262
+"sys_exit",3424
+"sys_fork",616
+"sys_link",1
+"sys_open",518
+"sys_read",579
+"sys_restart_syscall",4440
+"sys_time",23
+"sys_unlink",232
