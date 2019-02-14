@@ -193,7 +193,7 @@ template <uint32_t field_id>
 void StaticAssertSingleBytePreamble() {
   static_assert(field_id < 16,
                 "Proto field id too big to fit in a single byte preamble");
-};
+}
 
 // Parses a VarInt from the encoded buffer [start, end). |end| is STL-style and
 // points one byte past the end of buffer.
