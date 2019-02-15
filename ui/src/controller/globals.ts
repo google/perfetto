@@ -106,7 +106,7 @@ class Globals implements App {
   publish(
       what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace'|
             'SliceDetails',
-      data: {}, transferList?: Array<{}>) {
+      data: {}, transferList?: Transferable[]) {
     assertExists(this._frontend)
         .send<void>(`publish${what}`, [data], transferList);
   }
