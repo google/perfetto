@@ -76,13 +76,8 @@ class ScopedSpinlock {
 // - Reads are atomic, no fragmentation.
 // - The reader sees writes in write order (% discarding).
 //
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// *IMPORTANT*: The ring buffer must be written under the assumption that the
-// other end modifies arbitrary shared memory without holding the spin-lock.
-// This means we must make local copies of read and write pointers for doing
-// bounds checks followed by reads / writes, as they might change in the
-// meantime.
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// This class assumes that reader and write trust each other. Don't use in
+// untrusted contexts.
 //
 // TODO:
 // - Write a benchmark.
@@ -144,11 +139,6 @@ class SharedRingBuffer {
     std::atomic<uint64_t> num_reads_failed;
   };
 
-  struct PointerPositions {
-    uint64_t read_pos;
-    uint64_t write_pos;
-  };
-
   struct CreateFlag {};
   struct AttachFlag {};
   SharedRingBuffer(const SharedRingBuffer&) = delete;
@@ -159,34 +149,21 @@ class SharedRingBuffer {
   }
 
   void Initialize(base::ScopedFile mem_fd);
-  bool IsCorrupt(const PointerPositions& pos);
+  bool IsCorrupt();
 
-  inline base::Optional<PointerPositions> GetPointerPositions(
-      const ScopedSpinlock& lock) {
+  inline size_t read_avail(const ScopedSpinlock& lock) {
     PERFETTO_DCHECK(lock.locked());
+    PERFETTO_DCHECK(meta_->write_pos >= meta_->read_pos);
+    if (meta_->read_pos > meta_->write_pos)
+      return 0;
 
-    PointerPositions pos;
-    pos.read_pos = meta_->read_pos;
-    pos.write_pos = meta_->write_pos;
-
-    base::Optional<PointerPositions> result;
-    if (IsCorrupt(pos)) {
-      meta_->num_reads_failed++;
-      return result;
-    }
-    result = pos;
-    return result;
-  }
-
-  inline size_t read_avail(const PointerPositions& pos) {
-    PERFETTO_DCHECK(pos.write_pos >= pos.read_pos);
-    auto res = static_cast<size_t>(pos.write_pos - pos.read_pos);
+    auto res = static_cast<size_t>(meta_->write_pos - meta_->read_pos);
     PERFETTO_DCHECK(res <= size_);
     return res;
   }
 
-  inline size_t write_avail(const PointerPositions& pos) {
-    return size_ - read_avail(pos);
+  inline size_t write_avail(const ScopedSpinlock& spinlock) {
+    return size_ - read_avail(spinlock);
   }
 
   inline uint8_t* at(uint64_t pos) { return mem_ + (pos & (size_ - 1)); }
