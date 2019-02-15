@@ -137,9 +137,9 @@ TEST(UnwindingTest, MAYBE_DoUnwind) {
   std::unique_ptr<char> demangled(abi::__cxa_demangle(
       out.frames[0].frame.function_name.c_str(), nullptr, nullptr, &st));
   ASSERT_EQ(st, 0);
-  ASSERT_STREQ(
-      demangled.get(),
-      "perfetto::(anonymous namespace)::GetRecord(perfetto::WireMessage*)");
+  ASSERT_STREQ(demangled.get(),
+               "perfetto::profiling::(anonymous "
+               "namespace)::GetRecord(perfetto::profiling::WireMessage*)");
 }
 
 }  // namespace
