@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DraftObject, produce} from 'immer';
+import {Draft, produce} from 'immer';
 import * as uuidv4 from 'uuid/v4';
 
 import {assertExists} from '../base/logging';
@@ -67,7 +67,7 @@ export class PermalinkController extends Controller<'main'> {
 
     // Convert state to use URLs and remove permalink.
     const uploadState = produce(state, draft => {
-      for (const engine of Object.values<DraftObject<EngineConfig>>(
+      for (const engine of Object.values<Draft<EngineConfig>>(
                draft.engines)) {
         if (!(engine.source instanceof File)) continue;
         engine.source = fileToUrl.get(engine.source)!;

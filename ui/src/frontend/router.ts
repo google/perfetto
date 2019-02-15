@@ -52,7 +52,7 @@ export class Router {
    * |this.routes|, dispatches a navigation to |this.defaultRoute|.
    */
   setRouteOnHash(route: string) {
-    history.pushState(undefined, undefined, ROUTE_PREFIX + route);
+    history.pushState(undefined, "", ROUTE_PREFIX + route);
 
     if (!(route in this.routes)) {
       console.info(
