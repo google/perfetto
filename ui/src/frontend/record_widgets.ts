@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DraftObject, produce} from 'immer';
+import {Draft, produce} from 'immer';
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
@@ -20,9 +20,10 @@ import {RecordConfig} from '../common/state';
 
 import {copyToClipboard} from './clipboard';
 import {globals} from './globals';
+import {assertExists} from '../base/logging';
 
 
-declare type Setter<T> = (draft: DraftObject<RecordConfig>, val: T) => void;
+declare type Setter<T> = (draft: Draft<RecordConfig>, val: T) => void;
 declare type Getter<T> = (cfg: RecordConfig) => T;
 
 // +---------------------------------------------------------------------------+
@@ -157,7 +158,8 @@ export class Dropdown implements m.ClassComponent<DropdownAttrs> {
     const dom = e.target as HTMLSelectElement;
     const selKeys: string[] = [];
     for (let i = 0; i < dom.selectedOptions.length; i++) {
-      selKeys.push(dom.selectedOptions.item(i).value);
+      const item = assertExists(dom.selectedOptions.item(i));
+      selKeys.push(item.value);
     }
     const traceCfg = produce(globals.state.recordConfig, draft => {
       attrs.set(draft, selKeys);
