@@ -223,6 +223,18 @@ int TraceToSystrace(std::istream* input,
               &thread_dump](const protos::TracePacket& packet) {
         if (!packet.has_process_tree()) {
           packets_to_process.emplace_back(std::move(packet));
+        }
+        if (packet.has_ftrace_events()) {
+          const FtraceEventBundle& bundle = packet.ftrace_events();
+          for (const FtraceEvent& event : bundle.event()) {
+            if (!event.has_sched_switch())
+              continue;
+            const auto& sched_switch = event.sched_switch();
+            thread_names[static_cast<uint32_t>(sched_switch.prev_pid())] =
+                sched_switch.prev_comm();
+            thread_names[static_cast<uint32_t>(sched_switch.next_pid())] =
+                sched_switch.next_comm();
+          }
           return;
         }
         const ProcessTree& process_tree = packet.process_tree();

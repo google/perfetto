@@ -1086,7 +1086,7 @@ std::string FormatTaskNewtask(const TaskNewtaskFtraceEvent& event) {
 std::string FormatTaskRename(const TaskRenameFtraceEvent& event) {
   char line[2048];
   sprintf(line, "task_rename: pid=%d oldcomm=%s newcomm=%s oom_score_adj=%d",
-          event.pid(), event.newcomm().c_str(), event.oldcomm().c_str(),
+          event.pid(), event.oldcomm().c_str(), event.newcomm().c_str(),
           event.oom_score_adj());
   return std::string(line);
 }
@@ -3568,19 +3568,11 @@ std::string FormatFtraceEvent(
     const protos::FtraceEvent& event,
     const std::unordered_map<uint32_t /*tid*/, uint32_t /*tgid*/>& thread_map,
     std::unordered_map<uint32_t /*tid*/, std::string>& thread_names) {
-  // Sched_switch events contain the thread name so use that in the prefix.
-  std::string name;
-  if (event.has_sched_switch()) {
-    name = event.sched_switch().prev_comm();
-    thread_names[event.pid()] = event.sched_switch().prev_comm();
-  } else {
-    // For non sched switch events use name stored from a sched switch event.
-    auto it = thread_names.find(event.pid());
-    if (it != thread_names.end()) {
-      name = it->second;
-    } else {
-      name = "<...>";
-    }
+  std::string name = "<...>";
+  // For non sched switch events use name stored from a sched switch event.
+  auto it_name = thread_names.find(event.pid());
+  if (it_name != thread_names.end()) {
+    name = it_name->second;
   }
 
   std::string line = FormatEventText(event);
