@@ -30,7 +30,7 @@ import {Controller} from './controller';
 import {App} from './globals';
 
 export function uint8ArrayToBase64(buffer: Uint8Array): string {
-  return btoa(String.fromCharCode.apply(null, buffer));
+  return btoa(String.fromCharCode.apply(null, Array.from(buffer)));
 }
 
 export function genConfigProto(uiCfg: RecordConfig): Uint8Array {

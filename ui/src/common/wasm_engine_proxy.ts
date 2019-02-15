@@ -19,6 +19,7 @@ import {WasmBridgeRequest, WasmBridgeResponse} from '../engine/wasm_bridge';
 
 import {Engine} from './engine';
 import {TraceProcessor} from './protos';
+import {Method, rpc, Message} from 'protobufjs/light';
 
 const activeWorkers = new Map<string, Worker>();
 let warmWorker: null|Worker = null;
@@ -123,7 +124,9 @@ export class WasmEngineProxy extends Engine {
   }
 
   rpcImpl(
-      serviceName: string, method: Function, requestData: Uint8Array,
+      serviceName: string,
+      method: Method | rpc.ServiceMethod<Message<{}>, Message<{}>>,
+      requestData: Uint8Array,
       callback: protobufjs.RPCImplCallback): void {
     const methodName = method.name;
     const id = this.nextRequestId++;
