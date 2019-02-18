@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "perfetto/base/circular_queue.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -63,8 +64,8 @@ class TraceSorter {
   struct TimestampedTracePiece {
     static constexpr uint32_t kNoCpu = std::numeric_limits<uint32_t>::max();
 
-    TimestampedTracePiece(int64_t a, size_t i, TraceBlobView b, uint32_t c)
-        : timestamp(a), packet_idx_(i), blob_view(std::move(b)), cpu(c) {}
+    TimestampedTracePiece(int64_t a, uint32_t i, TraceBlobView b, uint32_t c)
+        : timestamp(a), blob_view(std::move(b)), packet_idx_(i), cpu(c) {}
 
     TimestampedTracePiece(TimestampedTracePiece&&) noexcept = default;
     TimestampedTracePiece& operator=(TimestampedTracePiece&&) = default;
@@ -83,8 +84,8 @@ class TraceSorter {
     bool is_ftrace() const { return cpu != kNoCpu; }
 
     int64_t timestamp;
-    size_t packet_idx_;
     TraceBlobView blob_view;
+    uint32_t packet_idx_;
     uint32_t cpu;
   };
 
@@ -150,8 +151,7 @@ class TraceSorter {
     // things happening here: (1) Sorting the tail of |events_|; (2) Erasing the
     // head of |events_| and shifting them left. Both operations become way
     // faster if done in large batches (~1M events), where we end up erasing
-    // 90% or more of |events_| and the erase-front becomes mainly a memmove of
-    // the remaining tail elements. Capping at 1M objectis to avoid holding
+    // 90% or more of |events_|. Capping at 1M object to avoid holding onto
     // too many events in the staging area.
     if (optimization_ == OptimizationMode::kMaxBandwidth &&
         latest_timestamp_ - earliest_timestamp_ < window_size_ns_ * 10 &&
@@ -162,10 +162,7 @@ class TraceSorter {
     SortAndFlushEventsBeyondWindow(window_size_ns_);
   }
 
-  // std::deque makes erase-front potentially faster but std::sort slower.
-  // Overall seems slower than a vector (350 MB/s vs 400 MB/s) without counting
-  // next pipeline stages.
-  std::vector<TimestampedTracePiece> events_;
+  base::CircularQueue<TimestampedTracePiece> events_;
   TraceProcessorContext* const context_;
   OptimizationMode optimization_;
 
@@ -180,7 +177,7 @@ class TraceSorter {
   int64_t earliest_timestamp_ = std::numeric_limits<int64_t>::max();
 
   // Monotonic increasing value used to index timestamped trace pieces.
-  size_t packet_idx_ = 0;
+  uint32_t packet_idx_ = 0;
 
   // Contains the index (< events_.size()) of the last sorted event. In essence,
   // events_[0..sort_start_idx_] are guaranteed to be in-order, while
