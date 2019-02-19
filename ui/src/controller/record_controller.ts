@@ -229,6 +229,11 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
     for (const line of uiCfg.atraceApps.split('\n')) {
       if (line.trim().length > 0) atraceApps.add(line.trim());
     }
+
+    if (atraceCats.size > 0 || atraceApps.size > 0) {
+      ftraceEvents.add('ftrace/print');
+    }
+
     ds.config.ftraceConfig.ftraceEvents = Array.from(ftraceEvents);
     ds.config.ftraceConfig.atraceCategories = Array.from(atraceCats);
     ds.config.ftraceConfig.atraceApps = Array.from(atraceApps);
