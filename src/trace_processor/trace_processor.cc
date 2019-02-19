@@ -29,6 +29,39 @@ std::unique_ptr<TraceProcessor> TraceProcessor::CreateInstance(
 
 TraceProcessor::~TraceProcessor() = default;
 
+TraceProcessor::Iterator::Iterator(std::unique_ptr<IteratorImpl> iterator)
+    : iterator_(std::move(iterator)) {}
+TraceProcessor::Iterator::~Iterator() = default;
+
+TraceProcessor::Iterator::Iterator(TraceProcessor::Iterator&&) noexcept =
+    default;
+TraceProcessor::Iterator& TraceProcessor::Iterator::operator=(
+    TraceProcessor::Iterator&&) = default;
+
+TraceProcessor::Iterator::NextResult TraceProcessor::Iterator::Next() {
+  PERFETTO_DCHECK(IsValid());
+  return iterator_->Next();
+}
+
+SqlValue TraceProcessor::Iterator::Get(uint32_t col) {
+  PERFETTO_DCHECK(IsValid());
+  return iterator_->Get(col);
+}
+
+uint32_t TraceProcessor::Iterator::ColumnCount() {
+  PERFETTO_DCHECK(IsValid());
+  return iterator_->ColumnCount();
+}
+
+base::Optional<std::string> TraceProcessor::Iterator::GetLastError() {
+  PERFETTO_DCHECK(IsValid());
+  return iterator_->GetLastError();
+}
+
+bool TraceProcessor::Iterator::IsValid() {
+  return iterator_->IsValid();
+}
+
 // static
 void EnableSQLiteVtableDebugging() {
   // This level of indirection is required to avoid clients to depend on table.h
