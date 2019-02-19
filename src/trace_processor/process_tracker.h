@@ -65,7 +65,9 @@ class ProcessTracker {
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
   // Virtual for testing.
-  virtual UniquePid UpdateProcess(uint32_t pid, base::StringView name);
+  virtual UniquePid UpdateProcess(uint32_t pid,
+                                  base::Optional<uint32_t> ppid,
+                                  base::StringView name);
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
@@ -84,7 +86,7 @@ class ProcessTracker {
     return tids_.equal_range(tid);
   }
 
-  std::tuple<UniquePid, TraceStorage::Process*> GetOrCreateProcess(
+  std::pair<UniquePid, TraceStorage::Process*> GetOrCreateProcess(
       uint32_t pid,
       int64_t start_ns);
 
