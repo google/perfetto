@@ -21,8 +21,11 @@ import {globals} from './globals';
 import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {TRACK_SHELL_WIDTH} from './track_constants';
+import {hsl} from 'color-convert';
 
 const FLAG_WIDTH = 10;
+const MOUSE_OFFSET = 4;
+const FLAG = `\uE153`;
 
 function toSummary(s: string) {
   const newlineIndex = s.indexOf('\n') > 0 ? s.indexOf('\n') : s.length;
@@ -34,11 +37,13 @@ export class NotesPanel extends Panel {
 
   oncreate({dom}: m.CVnodeDOM) {
     dom.addEventListener('mousemove', (e: Event) => {
-      this.hoveredX = (e as MouseEvent).layerX - TRACK_SHELL_WIDTH;
+      this.hoveredX =
+        (e as MouseEvent).layerX - TRACK_SHELL_WIDTH - MOUSE_OFFSET;
       globals.rafScheduler.scheduleRedraw();
     }, {passive: true});
     dom.addEventListener('mouseenter', (e: Event) => {
-      this.hoveredX = (e as MouseEvent).layerX - TRACK_SHELL_WIDTH;
+      this.hoveredX =
+        (e as MouseEvent).layerX - TRACK_SHELL_WIDTH - MOUSE_OFFSET;
       globals.rafScheduler.scheduleRedraw();
     });
     dom.addEventListener('mouseout', () => {
@@ -50,14 +55,13 @@ export class NotesPanel extends Panel {
 
   view() {
     return m(
-        '.notes-panel',
-        {
-          onclick: (e: MouseEvent) => {
-            this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
-            e.stopPropagation();
-          },
+      '.notes-panel',
+      {
+        onclick: (e: MouseEvent) => {
+          this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
+          e.stopPropagation();
         },
-        m('.title', 'Notes'));
+      });
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
@@ -79,7 +83,9 @@ export class NotesPanel extends Panel {
       const x = timeScale.timeToPx(timestamp);
 
       const currentIsHovered =
-          this.hoveredX && x <= this.hoveredX && this.hoveredX < x + FLAG_WIDTH;
+        this.hoveredX &&
+        x - MOUSE_OFFSET <= this.hoveredX &&
+        this.hoveredX < x - MOUSE_OFFSET + FLAG_WIDTH;
       const selection = globals.state.currentSelection;
       const isSelected = selection !== null && selection.kind === 'NOTE' &&
                          selection.id === note.id;
@@ -95,8 +101,13 @@ export class NotesPanel extends Panel {
         this.drawFlag(ctx, left, size.height, note.color);
       }
 
-      ctx.fillStyle = '#222';
-      ctx.fillText(toSummary(note.text), left + 2, size.height - 1);
+      const summary = toSummary(note.text);
+      const measured = ctx.measureText(summary);
+      // Add a white semi-transparent background for the text.
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.fillRect(left + 3, size.height - 1, measured.width, -12);
+      ctx.fillStyle = '#3c4b5d';
+      ctx.fillText(summary, left + 5, size.height - 1);
     }
 
     // A real note is hovered so we don't need to see the preview line.
@@ -115,31 +126,35 @@ export class NotesPanel extends Panel {
   }
 
   private drawFlag(
-      ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
-      fill?: boolean) {
-    ctx.fillStyle = color;
-    ctx.strokeStyle = color;
-    const flagHeightPx = Math.ceil(height / 3);
-    ctx.fillRect(x, 1, 1, height - 1);
-    ctx.fillRect(x, 1, FLAG_WIDTH, flagHeightPx);
-    if (!fill) {
-      ctx.fillStyle = 'white';
-      ctx.fillRect(x, 1, FLAG_WIDTH, flagHeightPx);
-      ctx.strokeRect(x + .5, 1.5, FLAG_WIDTH, flagHeightPx);
+    ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
+    fill?: boolean) {
+      const prevFont = ctx.font;
+      if (fill) {
+        ctx.font = '20px Material Icons';
+        ctx.fillStyle = color;
+        ctx.fillText(FLAG, x - MOUSE_OFFSET, height);
+      } else {
+        ctx.strokeStyle = color;
+        ctx.font = '19.5px Material Icons';
+        ctx.strokeText(FLAG, x - MOUSE_OFFSET, height);
+      }
+      ctx.font = prevFont;
     }
-  }
 
   private onClick(x: number, _: number) {
     const timeScale = globals.frontendLocalState.timeScale;
-    const timestamp = timeScale.pxToTime(x);
+    const timestamp = timeScale.pxToTime(x - MOUSE_OFFSET);
     for (const note of Object.values(globals.state.notes)) {
       const noteX = timeScale.timeToPx(note.timestamp);
-      if (noteX <= x && x < noteX + 10) {
+      if (noteX <= x && x < noteX + FLAG_WIDTH) {
         globals.dispatch(Actions.selectNote({id: note.id}));
         return;
       }
     }
-    globals.dispatch(Actions.addNote({timestamp}));
+    // 40 different random hues 9 degrees apart.
+    const hue = Math.floor(Math.random() * 40) * 9;
+    const color = '#' + hsl.hex([hue, 90, 55]);
+    globals.dispatch(Actions.addNote({timestamp, color}));
   }
 }
 
@@ -153,27 +168,29 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
     const startTime = note.timestamp - globals.state.traceTime.startSec;
     return m(
         '.notes-editor-panel',
-        m('.notes-editor-panel-heading',
-          `Annotation at time ${timeToString(startTime)} with color `,
-          m('input[type=color]', {
-            value: note.color,
-            onchange: m.withAttr(
-                'value',
-                newColor => {
-                  globals.dispatch(Actions.changeNoteColor({
-                    id: attrs.id,
-                    newColor,
-                  }));
-                }),
-          }),
+        m('.notes-editor-panel-heading-bar',
+          m('.notes-editor-panel-heading',
+            `Annotation at ${timeToString(startTime)}`),
           m('button',
             {
               onclick: () =>
                   globals.dispatch(Actions.removeNote({id: attrs.id})),
             },
-            'Remove'), ),
+            'Remove'),
+          m('span', {id: 'color-change'}, `Change color: `,
+            m('input[type=color]', {
+              value: note.color,
+              onchange: m.withAttr(
+                  'value',
+                  newColor => {
+                    globals.dispatch(Actions.changeNoteColor({
+                      id: attrs.id,
+                      newColor,
+                    }));
+                  }),
+            })) ),
         m('textarea', {
-          rows: 12,
+          rows: 13,
           onkeydown: (e: Event) => {
             e.stopImmediatePropagation();
           },
