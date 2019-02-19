@@ -108,13 +108,22 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   return utid;
 }
 
-UniquePid ProcessTracker::UpdateProcess(uint32_t pid, base::StringView name) {
+UniquePid ProcessTracker::UpdateProcess(uint32_t pid,
+                                        base::Optional<uint32_t> ppid,
+                                        base::StringView name) {
   auto proc_name_id = context_->storage->InternString(name);
+
   UniquePid upid;
   TraceStorage::Process* process;
   std::tie(upid, process) = GetOrCreateProcess(pid, 0 /* start_ns */);
   process->name_id = proc_name_id;
-  UpdateThread(/*tid=*/pid, pid);  // Create an entry for the main thread.
+  if (ppid.has_value()) {
+    process->pupid = GetOrCreateProcess(ppid.value(), 0 /* start_ns */).first;
+  }
+
+  // Create an entry for the main thread.
+  UpdateThread(/*tid=*/pid, pid);
+
   return upid;
 }
 
@@ -126,8 +135,9 @@ UniquePid ProcessTracker::UpdateProcess(uint32_t pid) {
   return upid;
 }
 
-std::tuple<UniquePid, TraceStorage::Process*>
-ProcessTracker::GetOrCreateProcess(uint32_t pid, int64_t start_ns) {
+std::pair<UniquePid, TraceStorage::Process*> ProcessTracker::GetOrCreateProcess(
+    uint32_t pid,
+    int64_t start_ns) {
   auto pids_pair = pids_.equal_range(pid);
 
   base::Optional<UniquePid> found_upid;
@@ -150,7 +160,7 @@ ProcessTracker::GetOrCreateProcess(uint32_t pid, int64_t start_ns) {
   if (process->start_ns == 0)
     process->start_ns = start_ns;
 
-  return std::make_tuple(upid, process);
+  return std::make_pair(upid, process);
 }
 
 }  // namespace trace_processor

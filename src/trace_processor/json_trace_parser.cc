@@ -220,7 +220,7 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
         }
         if (strcmp(value["name"].asCString(), "process_name") == 0) {
           const char* proc_name = value["args"]["name"].asCString();
-          procs->UpdateProcess(pid, proc_name);
+          procs->UpdateProcess(pid, base::nullopt, proc_name);
           break;
         }
       }
