@@ -81,7 +81,7 @@ TEST_F(ThreadTableUnittest, Select) {
                                           kThreadName1, prio, prev_state,
                                           /*tid=*/1, kThreadName2, prio);
 
-  context_.process_tracker->UpdateProcess(2, "test");
+  context_.process_tracker->UpdateProcess(2, base::nullopt, "test");
   context_.process_tracker->UpdateThread(4 /*tid*/, 2 /*pid*/);
   PrepareValidStatement("SELECT utid, upid, tid, name FROM thread where tid=4");
 
@@ -112,7 +112,7 @@ TEST_F(ThreadTableUnittest, SelectWhere) {
                                           kThreadName2, prio, prev_state,
                                           /*tid=*/4, kThreadName1, prio);
 
-  context_.process_tracker->UpdateProcess(2, "test");
+  context_.process_tracker->UpdateProcess(2, base::nullopt, "test");
   context_.process_tracker->UpdateThread(4 /*tid*/, 2 /*pid*/);
   context_.process_tracker->UpdateThread(1 /*tid*/, 2 /*pid*/);
   PrepareValidStatement(
@@ -143,9 +143,9 @@ TEST_F(ThreadTableUnittest, JoinWithProcess) {
                                           /*tid=*/1, kThreadName2, prio);
 
   // Also create a process for which we haven't seen any thread.
-  context_.process_tracker->UpdateProcess(7, "pid7");
+  context_.process_tracker->UpdateProcess(7, base::nullopt, "pid7");
 
-  context_.process_tracker->UpdateProcess(2, "pid2");
+  context_.process_tracker->UpdateProcess(2, base::nullopt, "pid2");
   context_.process_tracker->UpdateThread(/*tid=*/4, /*pid=*/2);
 
   PrepareValidStatement(
