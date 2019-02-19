@@ -65,8 +65,8 @@ export abstract class TrackController<Config = {}, Data = {}> extends
 
   shouldSummarize(resolution: number): boolean {
     // |resolution| is in s/px (to nearest power of 10) assuming a display
-    // of ~1000px 0.001 is 1s.
-    return resolution >= 0.001;
+    // of ~1000px 0.0008 is 0.8s.
+    return resolution >= 0.0008;
   }
 
   run() {

@@ -64,8 +64,8 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     }
 
     const isQuantized = this.shouldSummarize(resolution);
-    // |resolution| is in s/px we want # ns for 10px window:
-    const bucketSizeNs = Math.round(resolution * 10 * 1e9);
+    // |resolution| is in s/px we want # ns for 20px window:
+    const bucketSizeNs = Math.round(resolution * 10 * 1e9 * 1.5);
     let windowStartNs = startNs;
     if (isQuantized) {
       windowStartNs = Math.floor(windowStartNs / bucketSizeNs) * bucketSizeNs;
