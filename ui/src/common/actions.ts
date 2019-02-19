@@ -251,12 +251,12 @@ export const StateActions = {
     }
   },
 
-  addNote(state: StateDraft, args: {timestamp: number}): void {
+  addNote(state: StateDraft, args: {timestamp: number, color: string}): void {
     const id = `${state.nextId++}`;
     state.notes[id] = {
       id,
       timestamp: args.timestamp,
-      color: '#000000',
+      color: args.color,
       text: '',
     };
     this.selectNote(state, {id});

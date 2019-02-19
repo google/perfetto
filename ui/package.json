@@ -13,6 +13,8 @@
   "dependencies": {
     "@types/mithril": "^1.1.16",
     "@types/uuid": "^3.4.4",
+    "@types/color-convert": "^1.9.0",
+    "color-convert": "^2.0.0",
     "immer": "^1.12.1",
     "mithril": "^1.1.6",
     "protobufjs": "^6.8.8",
