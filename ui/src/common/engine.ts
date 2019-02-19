@@ -28,6 +28,7 @@ import {TimeSpan} from './time';
  */
 export abstract class Engine {
   abstract readonly id: string;
+  private _numCpus?: number;
 
   /**
    * Push trace data into the engine. The engine is supposed to automatically
@@ -61,12 +62,14 @@ export abstract class Engine {
     return res;
   }
 
-  // TODO(hjd): Maybe we should cache result? But then Engine must be
-  // streaming aware.
+  // TODO(hjd): When streaming must invalidate this somehow.
   async getNumberOfCpus(): Promise<number> {
-    const result =
-        await this.query('select count(distinct(cpu)) as cpuCount from sched;');
-    return +result.columns[0].longValues![0];
+    if (!this._numCpus) {
+      const result = await this.query(
+          'select count(distinct(cpu)) as cpuCount from sched;');
+      this._numCpus = +result.columns[0].longValues![0];
+    }
+    return this._numCpus;
   }
 
   // TODO: This should live in code that's more specific to chrome, instead of
