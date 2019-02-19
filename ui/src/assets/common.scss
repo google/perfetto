@@ -363,11 +363,12 @@ canvas.main-canvas {
   color: #3c4b5d;
 
   .slice-details-panel-heading {
-    font-size: 20px;
+    font-size: 16px;
     padding-bottom: 5px;
   }
 
   table {
+    font-size: 14px;
     width: 100%;
     td:first-child {
       width: 20%;
@@ -381,17 +382,6 @@ canvas.main-canvas {
 
 .notes-panel {
   height: 20px;
-
-  .title {
-    padding: 0 10px;
-    margin: 0;
-    font-size: 14px;
-    text-overflow: ellipsis;
-    text-align: left;
-    direction: rtl;
-    font-family: 'Google Sans';
-    color: #3c4b5d;
-  }
 }
 
 .notes-editor-panel {
@@ -399,24 +389,47 @@ canvas.main-canvas {
   display: flex;
   flex-direction: column;
   height: 100%;
-  .notes-editor-panel-heading {
-    padding-bottom: 5px;
+  font-family: 'Google Sans';
+  color: #3c4b5d;
+
+  .notes-editor-panel-heading-bar {
+    padding-bottom: 8px;
+    font-size: 14px;
+    .notes-editor-panel-heading {
+      float: left;
+      padding-top: 3px;
+    } 
     input {
       vertical-align: middle;
     }
   }
+
+
   button {
    background: #262f3c;
    color: white;
    border-radius: 10px;
    font-size: 10px;
-   height: 18px;
+   height: 22px;
    line-height: 18px;
    min-width: 7em;
    margin: auto 0 auto 1rem;
+   float: right;
   }
+
+  span#color-change {
+    float: right;
+  }
+
   textarea {
     resize: none;
+    border-radius: 4px;
+    border:1px solid #dcdcdc;
+    padding: 3px;
+    &:focus {
+      outline:none;
+      box-shadow: 0px 0px 1px #404955;
+    }
   }
 }
 
