@@ -627,12 +627,16 @@ void ProtoTraceParser::ParseProcess(TraceBlobView process) {
   ProtoDecoder decoder(process.data(), process.length());
 
   uint32_t pid = 0;
+  uint32_t ppid = 0;
   base::StringView process_name;
 
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
       case protos::ProcessTree::Process::kPidFieldNumber:
         pid = fld.as_uint32();
+        break;
+      case protos::ProcessTree::Process::kPpidFieldNumber:
+        ppid = fld.as_uint32();
         break;
       case protos::ProcessTree::Process::kCmdlineFieldNumber:
         if (process_name.empty())
@@ -642,7 +646,7 @@ void ProtoTraceParser::ParseProcess(TraceBlobView process) {
         break;
     }
   }
-  context_->process_tracker->UpdateProcess(pid, process_name);
+  context_->process_tracker->UpdateProcess(pid, ppid, process_name);
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
