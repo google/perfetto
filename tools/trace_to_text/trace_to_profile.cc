@@ -16,6 +16,7 @@
 
 #include "tools/trace_to_text/trace_to_profile.h"
 
+#include <cxxabi.h>
 #include <inttypes.h>
 
 #include <algorithm>
@@ -41,6 +42,15 @@ namespace trace_to_text {
 namespace {
 
 constexpr const char* kDefaultTmp = "/tmp";
+
+void MaybeDemangle(std::string* name) {
+  int ignored;
+  char* data = abi::__cxa_demangle(name->c_str(), nullptr, nullptr, &ignored);
+  if (data) {
+    *name = data;
+    free(data);
+  }
+}
 
 std::string GetTemp() {
   const char* tmp = getenv("TMPDIR");
@@ -184,8 +194,13 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
       continue;
     }
     decltype(string_table)::iterator it;
+    std::string function_name = str_it->second;
+    // This assumes both the device that captured the trace and the host
+    // machine use the same mangling scheme. This is a reasonable
+    // assumption as the Itanium ABI is the de-facto standard for mangling.
+    MaybeDemangle(&function_name);
     std::tie(it, std::ignore) =
-        string_table.emplace(str_it->second, string_table.size());
+        string_table.emplace(std::move(function_name), string_table.size());
     GFunction* gfunction = profile.add_function();
     gfunction->set_id(function_name_id);
     gfunction->set_name(static_cast<int64_t>(it->second));
