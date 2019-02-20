@@ -175,17 +175,19 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginWrite(
   PERFETTO_DCHECK(spinlock.locked());
   Buffer result;
 
-  if (IsCorrupt())
+  base::Optional<PointerPositions> opt_pos = GetPointerPositions(spinlock);
+  if (!opt_pos)
     return result;
+  auto pos = opt_pos.value();
 
   const uint64_t size_with_header =
       base::AlignUp<kAlignment>(size + kHeaderSize);
-  if (size_with_header > write_avail(spinlock)) {
+  if (size_with_header > write_avail(pos)) {
     meta_->num_writes_failed++;
     return result;
   }
 
-  uint8_t* wr_ptr = at(meta_->write_pos);
+  uint8_t* wr_ptr = at(pos.write_pos);
 
   result.size = size;
   result.data = wr_ptr + kHeaderSize;
@@ -209,17 +211,17 @@ void SharedRingBuffer::EndWrite(Buffer buf) {
 SharedRingBuffer::Buffer SharedRingBuffer::BeginRead() {
   ScopedSpinlock spinlock(&meta_->spinlock, ScopedSpinlock::Mode::Blocking);
 
-  if (IsCorrupt()) {
-    meta_->num_reads_failed++;
+  base::Optional<PointerPositions> opt_pos = GetPointerPositions(spinlock);
+  if (!opt_pos)
     return Buffer();
-  }
+  auto pos = opt_pos.value();
 
-  uint64_t avail_read = read_avail(spinlock);
+  size_t avail_read = read_avail(pos);
 
   if (avail_read < kHeaderSize)
     return Buffer();  // No data
 
-  uint8_t* rd_ptr = at(meta_->read_pos);
+  uint8_t* rd_ptr = at(pos.read_pos);
   PERFETTO_DCHECK(reinterpret_cast<uintptr_t>(rd_ptr) % kAlignment == 0);
   const size_t size = reinterpret_cast<std::atomic<uint32_t>*>(rd_ptr)->load(
       std::memory_order_acquire);
@@ -231,7 +233,7 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginRead() {
     PERFETTO_ELOG(
         "Corrupted header detected, size=%zu"
         ", read_avail=%zu, rd=%" PRIu64 ", wr=%" PRIu64,
-        size, read_avail(spinlock), meta_->read_pos, meta_->write_pos);
+        size, avail_read, pos.read_pos, pos.write_pos);
     meta_->num_reads_failed++;
     return Buffer();
   }
@@ -249,13 +251,12 @@ void SharedRingBuffer::EndRead(Buffer buf) {
   meta_->read_pos += size_with_header;
 }
 
-bool SharedRingBuffer::IsCorrupt() {
-  if (meta_->write_pos < meta_->read_pos ||
-      meta_->write_pos - meta_->read_pos > size_ ||
-      meta_->write_pos % kAlignment || meta_->read_pos % kAlignment) {
+bool SharedRingBuffer::IsCorrupt(const PointerPositions& pos) {
+  if (pos.write_pos < pos.read_pos || pos.write_pos - pos.read_pos > size_ ||
+      pos.write_pos % kAlignment || pos.read_pos % kAlignment) {
     PERFETTO_ELOG("Ring buffer corrupted, rd=%" PRIu64 ", wr=%" PRIu64
                   ", size=%zu",
-                  meta_->read_pos, meta_->write_pos, size_);
+                  pos.read_pos, pos.write_pos, size_);
     return true;
   }
   return false;
