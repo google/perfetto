@@ -67,12 +67,14 @@ export class WasmBridge {
         data: undefined,
       };
     }
-
+    // TODO(b/124805622): protoio can generate CamelCase names - normalize.
+    const methodName = req.methodName;
+    const name = methodName.charAt(0).toLowerCase() + methodName.slice(1);
     this.connection.ccall(
-        `${req.serviceName}_${req.methodName}`,  // C method name.
-        'void',                                  // Return type.
-        ['number', 'array', 'number'],           // Input args.
-        [req.id, req.data, req.data.length]      // Args.
+        `${req.serviceName}_${name}`,        // C method name.
+        'void',                              // Return type.
+        ['number', 'array', 'number'],       // Input args.
+        [req.id, req.data, req.data.length]  // Args.
         );
 
     const result = assertExists(this.currentRequestResult);
