@@ -16,10 +16,6 @@
 
 #include "src/profiling/memory/unwinding.h"
 
-// TODO(fmayer): Maybe replace this with
-//   https://android.googlesource.com/platform/system/core/+/master/demangle/
-#include <cxxabi.h>
-
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineMips.h>
@@ -92,15 +88,6 @@ std::unique_ptr<unwindstack::Regs> CreateFromRawData(unwindstack::ArchEnum arch,
       break;
   }
   return ret;
-}
-
-void MaybeDemangle(std::string* name) {
-  int ignored;
-  char* data = abi::__cxa_demangle(name->c_str(), nullptr, nullptr, &ignored);
-  if (data) {
-    *name = data;
-    free(data);
-  }
 }
 
 }  // namespace
@@ -215,8 +202,6 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
         build_id = map_info->GetBuildID();
     }
 
-    if (base::EndsWith(fd.map_name, ".so"))
-      MaybeDemangle(&fd.function_name);
     out->frames.emplace_back(std::move(fd), std::move(build_id));
   }
 
