@@ -17,10 +17,10 @@
 #include "src/trace_processor/trace_processor_impl.h"
 
 #include <inttypes.h>
-#include <sqlite3.h>
 #include <algorithm>
 #include <functional>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
@@ -169,7 +169,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   RawTable::RegisterTable(*db_, context_.storage.get());
 }
 
-TraceProcessorImpl::~TraceProcessorImpl() = default;
+TraceProcessorImpl::~TraceProcessorImpl() {
+  for (auto* it : iterators_)
+    it->Reset();
+}
 
 bool TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
   if (size == 0)
@@ -318,11 +321,55 @@ void TraceProcessorImpl::ExecuteQuery(
   callback(proto);
 }
 
+TraceProcessor::Iterator TraceProcessorImpl::ExecuteQuery(
+    base::StringView sql) {
+  sqlite3_stmt* raw_stmt;
+  int err = sqlite3_prepare_v2(*db_, sql.data(), static_cast<int>(sql.size()),
+                               &raw_stmt, nullptr);
+
+  uint32_t col_count = 0;
+  base::Optional<std::string> error;
+  if (err) {
+    error = base::Optional<std::string>(sqlite3_errmsg(*db_));
+  } else {
+    col_count = static_cast<uint32_t>(sqlite3_column_count(raw_stmt));
+  }
+
+  std::unique_ptr<IteratorImpl> impl(
+      new IteratorImpl(this, *db_, ScopedStmt(raw_stmt), col_count, error));
+  iterators_.emplace_back(impl.get());
+  return TraceProcessor::Iterator(std::move(impl));
+}
+
 void TraceProcessorImpl::InterruptQuery() {
   if (!db_)
     return;
   query_interrupted_.store(true);
   sqlite3_interrupt(db_.get());
+}
+
+TraceProcessor::IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,
+                                           sqlite3* db,
+                                           ScopedStmt stmt,
+                                           uint32_t column_count,
+                                           base::Optional<std::string> error)
+    : trace_processor_(trace_processor),
+      db_(db),
+      stmt_(std::move(stmt)),
+      column_count_(column_count),
+      error_(error) {}
+
+TraceProcessor::IteratorImpl::~IteratorImpl() {
+  if (trace_processor_) {
+    auto* its = &trace_processor_->iterators_;
+    auto it = std::find(its->begin(), its->end(), this);
+    PERFETTO_CHECK(it != its->end());
+    its->erase(it);
+  }
+}
+
+void TraceProcessor::IteratorImpl::Reset() {
+  *this = IteratorImpl(nullptr, nullptr, ScopedStmt(), 0, base::nullopt);
 }
 
 }  // namespace trace_processor
