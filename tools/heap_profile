@@ -30,7 +30,7 @@ import time
 import urllib
 
 TRACE_TO_TEXT_SHAS = {
-  'linux': '4e52b07b2f6258643d16610ae1aae8ac73063624',
+  'linux': '4ab1d18e69bc70e211d27064505ed547aa82f919',
   'mac': '0893f2892f519c6c48458bbc34a61dbed50c20a5',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
