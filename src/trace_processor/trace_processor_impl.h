@@ -17,10 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_IMPL_H_
 #define SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_IMPL_H_
 
+#include <sqlite3.h>
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <vector>
 
+#include "perfetto/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/scoped_db.h"
@@ -59,17 +62,97 @@ class TraceProcessorImpl : public TraceProcessor {
       const protos::RawQueryArgs&,
       std::function<void(const protos::RawQueryResult&)>) override;
 
+  Iterator ExecuteQuery(base::StringView sql) override;
+
   void InterruptQuery() override;
 
  private:
+  // Needed for iterators to be able to delete themselves from the vector.
+  friend class IteratorImpl;
+
   ScopedDb db_;  // Keep first.
   TraceProcessorContext context_;
   bool unrecoverable_parse_error_ = false;
+
+  std::vector<IteratorImpl*> iterators_;
 
   // This is atomic because it is set by the CTRL-C signal handler and we need
   // to prevent single-flow compiler optimizations in ExecuteQuery().
   std::atomic<bool> query_interrupted_{false};
 };
+
+// The pointer implementation of TraceProcessor::Iterator.
+class TraceProcessor::IteratorImpl {
+ public:
+  IteratorImpl(TraceProcessorImpl* impl,
+               sqlite3* db,
+               ScopedStmt,
+               uint32_t column_count,
+               base::Optional<std::string> error);
+  ~IteratorImpl();
+
+  IteratorImpl(IteratorImpl&) noexcept = delete;
+  IteratorImpl& operator=(IteratorImpl&) = delete;
+
+  IteratorImpl(IteratorImpl&&) noexcept = default;
+  IteratorImpl& operator=(IteratorImpl&&) = default;
+
+  // Methods called by TraceProcessor::Iterator.
+  Iterator::NextResult Next() {
+    using Result = TraceProcessor::Iterator::NextResult;
+    if (error_.has_value())
+      return Result::kError;
+
+    int ret = sqlite3_step(*stmt_);
+    if (ret != SQLITE_ROW && ret != SQLITE_DONE) {
+      error_ = base::Optional<std::string>(sqlite3_errmsg(db_));
+      return Result::kError;
+    }
+    return ret == SQLITE_ROW ? Result::kHasNext : Result::kEOF;
+  }
+
+  SqlValue Get(uint32_t col) {
+    auto column = static_cast<int>(col);
+    auto col_type = sqlite3_column_type(*stmt_, column);
+    SqlValue value;
+    switch (col_type) {
+      case SQLITE_INTEGER:
+        value.type = SqlValue::kLong;
+        value.long_value = sqlite3_column_int64(*stmt_, column);
+        break;
+      case SQLITE_TEXT:
+        value.type = SqlValue::kString;
+        value.string_value =
+            reinterpret_cast<const char*>(sqlite3_column_text(*stmt_, column));
+        break;
+      case SQLITE_FLOAT:
+        value.type = SqlValue::kDouble;
+        value.double_value = sqlite3_column_double(*stmt_, column);
+        break;
+      case SQLITE_NULL:
+        value.type = SqlValue::kNull;
+        break;
+    }
+    return value;
+  }
+
+  uint32_t ColumnCount() { return column_count_; }
+
+  base::Optional<std::string> GetLastError() { return error_; }
+
+  bool IsValid() { return trace_processor_ != nullptr; }
+
+  // Methods called by TraceProcessorImpl.
+  void Reset();
+
+ private:
+  TraceProcessorImpl* trace_processor_;
+  sqlite3* db_ = nullptr;
+  ScopedStmt stmt_;
+  uint32_t column_count_ = 0;
+  base::Optional<std::string> error_;
+};
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
