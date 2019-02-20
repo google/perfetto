@@ -1620,12 +1620,6 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets) {
       PERFETTO_DLOG("clock_gettime failed for clock %d", clock.id);
   }
   for (auto& clock : clocks) {
-    // Put a timestamp in the base packet for sorting on the
-    // trace processor side.
-    if (clock.type == protos::ClockSnapshot::Clock::BOOTTIME) {
-      packet.set_timestamp(
-          static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
-    };
     protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
     c->set_type(clock.type);
     c->set_timestamp(
