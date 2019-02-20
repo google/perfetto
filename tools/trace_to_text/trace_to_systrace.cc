@@ -29,6 +29,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/string_writer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "perfetto/traced/sys_stats_counters.h"
 #include "tools/trace_to_text/ftrace_event_formatter.h"
@@ -140,65 +141,38 @@ int TraceToExperimentalSystrace(std::istream* input, std::ostream* output) {
   *output << "TRACE:\n";
   *output << kFtraceHeader;
 
-  constexpr uint32_t kNumRowsToQuery = 100000;
-  int64_t start_ts = 0;
-  bool has_more = true;
-  for (uint32_t i = 0; has_more; i++) {
-    protos::RawQueryArgs query_args;
+  auto iterator = tp->ExecuteQuery("select to_ftrace(id) from raw");
+  if (!iterator.IsValid()) {
+    PERFETTO_ELOG("Error creating SQL iterator");
+    return 1;
+  }
 
-    char buffer[1024];
-    sprintf(buffer,
-            "select ts, to_ftrace(id) from raw "
-            "where ts >= %" PRId64 " limit %" PRIu32,
-            start_ts, kNumRowsToQuery);
-    query_args.set_sql_query(buffer);
+  constexpr uint32_t kBufferSize = 1024u * 1024u * 16u;
+  base::ScopedString buffer(static_cast<char*>(malloc(kBufferSize)));
+  base::StringWriter writer(*buffer, kBufferSize);
 
-    // This query is not actually async so just pull the result up to the
-    // function level so we can return on error.
-    protos::RawQueryResult result;
-    tp->ExecuteQuery(query_args, [&result](const protos::RawQueryResult& res) {
-      result = res;
-    });
+  for (uint32_t rows = 0;; rows++) {
+    using Result = trace_processor::TraceProcessor::Iterator::NextResult;
 
-    if (result.has_error()) {
-      PERFETTO_ELOG("Error while writing systrace %s", result.error().c_str());
+    auto result = iterator.Next();
+    if (PERFETTO_UNLIKELY(result == Result::kError)) {
+      PERFETTO_ELOG("Error while writing systrace %s",
+                    iterator.GetLastError().value().c_str());
       return 1;
-    }
-
-    // The code below relies on there being at least one row so just break if
-    // we don't.
-    auto num_rows = result.num_records();
-    if (num_rows == 0) {
-      has_more = false;
+    } else if (result == Result::kEOF) {
       break;
     }
 
-    // Store the end timestamp so we can start iterating from there next time.
-    const auto& ts_col = result.columns(0).long_values();
-    start_ts = ts_col.Get(ts_col.size() - 1);
+    const char* line = iterator.Get(0 /* col */).string_value;
+    size_t length = strlen(line);
+    if (writer.pos() + length >= kBufferSize) {
+      fprintf(stderr, "\x1b[2K\rWritten %" PRIu32 " rows\r", rows);
 
-    // Compute how many rows we should print out - this should be the first
-    // index with the timestamp |start_ts|. Usually this is just |size - 1| but
-    // if multiple rows have the same timestamp, this can be earlier.
-    auto rit = std::find(ts_col.rbegin(), ts_col.rend(), start_ts);
-    auto rdistance = std::distance(ts_col.rbegin(), rit);
-    auto last_row = static_cast<uint32_t>(ts_col.size() - 1 - rdistance);
-
-    // Print out everything until this row.
-    for (uint64_t row = 0; row < last_row; row++) {
-      int idx = static_cast<int>(row);
-      const std::string& line = result.columns(1).string_values(idx);
-      *output << line << "\n";
+      *output << writer.GetCString();
+      writer = base::StringWriter(*buffer, kBufferSize);
     }
-
-    output->flush();
-
-    // Update the seen count to the number of output rows and only continue if
-    // we saw exactly the number of rows we asked for.
-    has_more = kNumRowsToQuery == result.num_records();
-
-    uint64_t printed_rows = i * kNumRowsToQuery + result.num_records();
-    fprintf(stderr, "\x1b[2K\rWritten %" PRIu64 " rows\r", printed_rows);
+    writer.AppendString(line, length);
+    writer.AppendChar('\n');
   }
 
   return 0;
