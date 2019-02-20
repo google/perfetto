@@ -32,7 +32,7 @@ struct MetadataHeader {
 };
 
 size_t RoundToPow2(size_t v) {
-  uint64_t x = static_cast<size_t>(v);
+  uint64_t x = static_cast<uint64_t>(v);
   if (x < 2)
     return 2;
 
