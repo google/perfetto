@@ -29,6 +29,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/paged_memory.h"
 #include "perfetto/base/string_writer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "perfetto/traced/sys_stats_counters.h"
@@ -111,8 +112,8 @@ class QueryWriter {
  public:
   QueryWriter(trace_processor::TraceProcessor* tp, std::ostream* output)
       : tp_(tp),
-        buffer_(new char[kBufferSize]),
-        global_writer_(buffer_.get(), kBufferSize),
+        buffer_(base::PagedMemory::Allocate(kBufferSize)),
+        global_writer_(static_cast<char*>(buffer_.Get()), kBufferSize),
         output_(output) {}
 
   template <typename Callback>
@@ -136,20 +137,22 @@ class QueryWriter {
         break;
       }
 
-      base::StringWriter writer(buffer, base::ArraySize(buffer));
-      callback(&iterator, &writer);
+      base::StringWriter line_writer(buffer, base::ArraySize(buffer));
+      callback(&iterator, &line_writer);
 
-      if (global_writer_.pos() + writer.pos() >= global_writer_.size()) {
+      if (global_writer_.pos() + line_writer.pos() >= global_writer_.size()) {
         fprintf(stderr, "\x1b[2K\rWritten %" PRIu32 " rows\r", rows);
-        *output_ << global_writer_.GetCString();
-        global_writer_.Reset();
+        auto str = global_writer_.GetStringView();
+        output_->write(str.data(), static_cast<std::streamsize>(str.size()));
+        global_writer_.reset();
       }
-      global_writer_.AppendString(writer.GetCString(), writer.pos());
+      global_writer_.AppendStringView(line_writer.GetStringView());
     }
 
     // Flush any dangling pieces in the global writer.
-    *output_ << global_writer_.GetCString();
-    global_writer_.Reset();
+    auto str = global_writer_.GetStringView();
+    output_->write(str.data(), static_cast<std::streamsize>(str.size()));
+    global_writer_.reset();
     return true;
   }
 
@@ -157,7 +160,7 @@ class QueryWriter {
   static constexpr uint32_t kBufferSize = 1024u * 1024u * 16u;
 
   trace_processor::TraceProcessor* tp_ = nullptr;
-  std::unique_ptr<char[]> buffer_;
+  base::PagedMemory buffer_;
   base::StringWriter global_writer_;
   std::ostream* output_ = nullptr;
 };
