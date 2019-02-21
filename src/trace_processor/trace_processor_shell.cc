@@ -468,7 +468,6 @@ int TraceProcessorMain(int argc, char** argv) {
 
   // Load the trace file into the trace processor.
   Config config;
-  config.optimization_mode = OptimizationMode::kMaxBandwidth;
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   base::ScopedFile fd(base::OpenFile(trace_file_path, O_RDONLY));
   if (!fd) {
