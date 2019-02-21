@@ -100,12 +100,6 @@ using ScopedDir = ScopedResource<DIR*, closedir, nullptr>;
 
 using ScopedFstream = ScopedResource<FILE*, fclose, nullptr>;
 
-inline int FreeString(char* ptr) {
-  free(ptr);
-  return 0;
-}
-using ScopedString = ScopedResource<char*, FreeString, nullptr>;
-
 }  // namespace base
 }  // namespace perfetto
 

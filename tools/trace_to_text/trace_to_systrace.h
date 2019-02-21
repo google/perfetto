@@ -22,7 +22,9 @@
 namespace perfetto {
 namespace trace_to_text {
 
-int TraceToExperimentalSystrace(std::istream* input, std::ostream* output);
+int TraceToExperimentalSystrace(std::istream* input,
+                                std::ostream* output,
+                                bool wrap_in_json);
 
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
