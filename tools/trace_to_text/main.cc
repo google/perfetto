@@ -73,12 +73,15 @@ int main(int argc, char** argv) {
   if (format == "json")
     return perfetto::trace_to_text::TraceToSystrace(input_stream, output_stream,
                                                     /*wrap_in_json=*/true);
+  if (format == "experimental_json")
+    return perfetto::trace_to_text::TraceToExperimentalSystrace(
+        input_stream, output_stream, /*wrap_in_json=*/true);
   if (format == "systrace")
     return perfetto::trace_to_text::TraceToSystrace(input_stream, output_stream,
                                                     /*wrap_in_json=*/false);
   if (format == "experimental_systrace")
-    return perfetto::trace_to_text::TraceToExperimentalSystrace(input_stream,
-                                                                output_stream);
+    return perfetto::trace_to_text::TraceToExperimentalSystrace(
+        input_stream, output_stream, /*wrap_in_json=*/false);
   if (format == "text")
     return perfetto::trace_to_text::TraceToText(input_stream, output_stream);
 
