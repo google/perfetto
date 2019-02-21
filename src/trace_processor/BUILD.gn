@@ -14,6 +14,7 @@
 
 import("../../gn/perfetto.gni")
 import("../../gn/wasm.gni")
+import("../../gn/fuzzer.gni")
 
 wasm_lib("trace_processor_wasm") {
   name = "trace_processor"
@@ -211,6 +212,24 @@ source_set("integrationtests") {
   ]
   deps = [
     ":lib",
+    "../../buildtools:sqlite",
+    "../../gn:default_deps",
+    "../../gn:gtest_deps",
+    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace_processor:lite",
+    "../base",
+    "../base:test_support",
+  ]
+}
+
+perfetto_fuzzer_test("trace_processor_fuzzer") {
+  testonly = true
+  sources = [
+    "trace_parsing_fuzzer.cc",
+  ]
+  deps = [
+    ":lib",
+    "../../../../gn:default_deps",
     "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
