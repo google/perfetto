@@ -76,7 +76,8 @@ void TraceSorter::SortAndFlushEventsBeyondWindow(int64_t window_size_ns) {
 
   // Now erase-front all the expired events that have been pushed by the
   // previous loop.
-  events_.erase(events_.begin(), flush_end);
+  auto del_sz = static_cast<size_t>(std::distance(events_.begin(), flush_end));
+  events_.erase_front(del_sz);
 
   if (events_.size() > 0) {
     earliest_timestamp_ = events_.front().timestamp;

@@ -2585,6 +2585,7 @@ cc_test {
     ":perfetto_src_traced_probes_ftrace_test_messages_lite_gen",
     ":perfetto_src_traced_probes_ftrace_test_messages_zero_gen",
     "src/base/android_task_runner.cc",
+    "src/base/circular_queue_unittest.cc",
     "src/base/event.cc",
     "src/base/file_utils.cc",
     "src/base/metatrace.cc",

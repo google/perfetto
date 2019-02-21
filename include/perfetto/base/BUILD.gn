@@ -17,6 +17,7 @@ import("../../../gn/perfetto.gni")
 source_set("base") {
   sources = [
     "build_config.h",
+    "circular_queue.h",
     "container_annotations.h",
     "event.h",
     "export.h",
