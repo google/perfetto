@@ -51,6 +51,8 @@ class StringWriter {
     pos_ += n;
   }
 
+  void AppendStringView(StringView sv) { AppendString(sv.data(), sv.size()); }
+
   // Appends a null-terminated string literal to the buffer.
   template <size_t N>
   inline void AppendLiteral(const char (&in)[N]) {
@@ -103,34 +105,27 @@ class StringWriter {
     // print doubles. Reevaluate this in the future if we do print them more.
     size_t res = static_cast<size_t>(
         snprintf(buffer_ + pos_, size_ - pos_, "%lf", value));
-    PERFETTO_DCHECK(pos_ + res < size_);
+    PERFETTO_DCHECK(pos_ + res <= size_);
     pos_ += res;
   }
 
-  char* GetCString() {
-    // TODO(lalitm): this may need to be changed in the future to return a
-    // StringView if we find that we will want embedded nulls in our strings.
-    PERFETTO_DCHECK(pos_ < size_);
-    buffer_[pos_] = '\0';
-    return buffer_;
+  StringView GetStringView() {
+    PERFETTO_DCHECK(pos_ <= size_);
+    return StringView(buffer_, pos_);
   }
 
-  // Creates a copy of the internal buffer.
-  std::unique_ptr<char[]> CreateStringCopy() {
-    char* dup = new char[pos_ + 1];
+  char* CreateStringCopy() {
+    char* dup = reinterpret_cast<char*>(malloc(pos_ + 1));
     if (dup) {
       strncpy(dup, buffer_, pos_);
       dup[pos_] = '\0';
     }
-    return std::unique_ptr<char[]>(dup);
+    return dup;
   }
 
-  // Resets the position to 0 with the same buffer and capacity.
-  void Reset() { pos_ = 0; }
-
-  size_t pos() { return pos_; }
-
-  size_t size() { return size_; }
+  size_t pos() const { return pos_; }
+  size_t size() const { return size_; }
+  void reset() { pos_ = 0; }
 
  private:
   char* buffer_ = nullptr;
