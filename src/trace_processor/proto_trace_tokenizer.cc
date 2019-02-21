@@ -215,6 +215,7 @@ void ProtoTraceTokenizer::ParseFtraceBundle(TraceBlobView bundle) {
         break;
     }
   }
+  trace_sorter_->FinalizeFtraceEventBatch(static_cast<uint32_t>(cpu));
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
@@ -253,7 +254,7 @@ void ProtoTraceTokenizer::ParseFtraceEvent(uint32_t cpu, TraceBlobView event) {
 
   // We don't need to parse this packet, just push it to be sorted with
   // the timestamp.
-  trace_sorter_->PushFtracePacket(cpu, timestamp, std::move(event));
+  trace_sorter_->PushFtraceEvent(cpu, timestamp, std::move(event));
 }
 
 }  // namespace trace_processor

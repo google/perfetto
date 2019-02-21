@@ -150,8 +150,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.sorter.reset(
-      new TraceSorter(&context_, cfg.optimization_mode,
-                      static_cast<int64_t>(cfg.window_size_ns)));
+      new TraceSorter(&context_, static_cast<int64_t>(cfg.window_size_ns)));
 
   ArgsTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
@@ -207,7 +206,7 @@ bool TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
 }
 
 void TraceProcessorImpl::NotifyEndOfFile() {
-  context_.sorter->FlushEventsForced();
+  context_.sorter->ExtractEventsForced();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 }
 

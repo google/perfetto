@@ -171,7 +171,6 @@ int TraceToExperimentalSystrace(std::istream* input,
                                 std::ostream* output,
                                 bool wrap_in_json) {
   trace_processor::Config config;
-  config.optimization_mode = trace_processor::OptimizationMode::kMaxBandwidth;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
