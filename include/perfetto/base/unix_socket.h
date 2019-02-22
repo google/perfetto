@@ -210,6 +210,12 @@ class UnixSocket {
       TaskRunner* task_runner,
       SockType sock_type);
 
+  UnixSocket(const UnixSocket&) = delete;
+  UnixSocket& operator=(const UnixSocket&) = delete;
+  // Cannot be easily moved because of tasks from the FileDescriptorWatch.
+  UnixSocket(UnixSocket&&) = delete;
+  UnixSocket& operator=(UnixSocket&&) = delete;
+
   // This class gives the hard guarantee that no callback is called on the
   // passed EventListener immediately after the object has been destroyed.
   // Any queued callback will be silently dropped.
@@ -292,11 +298,12 @@ class UnixSocket {
   }
 #endif
 
+  // This makes the UnixSocket unusable.
+  UnixSocketRaw ReleaseSocket();
+
  private:
   UnixSocket(EventListener*, TaskRunner*, SockType);
   UnixSocket(EventListener*, TaskRunner*, ScopedFile, State, SockType);
-  UnixSocket(const UnixSocket&) = delete;
-  UnixSocket& operator=(const UnixSocket&) = delete;
 
   // Called once by the corresponding public static factory methods.
   void DoConnect(const std::string& socket_name);
