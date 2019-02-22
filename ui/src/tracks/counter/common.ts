@@ -17,6 +17,7 @@ export const COUNTER_TRACK_KIND = 'CounterTrack';
 export interface Data {
   start: number;
   end: number;
+  isQuantized: boolean;
   resolution: number;
   maximumValue: number;
   minimumValue: number;
