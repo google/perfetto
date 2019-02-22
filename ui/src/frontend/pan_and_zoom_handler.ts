@@ -16,6 +16,8 @@ import {Animation} from './animation';
 import Timer = NodeJS.Timer;
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
+import {handleKey} from './keyboard_event_handler';
+import {TRACK_SHELL_WIDTH} from './track_constants';
 
 const ZOOM_RATIO_PER_FRAME = 0.008;
 const KEYBOARD_PAN_PX_PER_FRAME = 8;
@@ -137,7 +139,14 @@ export class PanAndZoomHandler {
   }
 
   private onMouseMove(e: MouseEvent) {
-    this.mousePositionX = e.clientX - this.contentOffsetX;
+    // TODO(taylori): Content offset is 6px off, why?
+    this.mousePositionX = e.clientX - this.contentOffsetX - 6;
+    if (this.shiftDown) {
+      const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
+      const ts =
+        globals.frontendLocalState.timeScale.pxToTime(pos);
+      globals.frontendLocalState.setHoveredTimestamp(ts);
+    }
   }
 
   private onWheel(e: WheelEvent) {
@@ -154,6 +163,13 @@ export class PanAndZoomHandler {
 
   private onKeyDown(e: KeyboardEvent) {
     this.shiftDown = e.shiftKey;
+    globals.frontendLocalState.setShowTimeSelectPreview(this.shiftDown);
+    if (this.shiftDown && this.mousePositionX) {
+      this.element.style.cursor = 'text';
+      const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
+      const ts = globals.frontendLocalState.timeScale.pxToTime(pos);
+      globals.frontendLocalState.setHoveredTimestamp(ts);
+    }
     if (keyToPan(e) !== Pan.None) {
       this.panning = keyToPan(e);
       const animationTime = e.repeat ?
@@ -171,10 +187,15 @@ export class PanAndZoomHandler {
       this.zoomAnimation.start(animationTime);
       clearTimeout(this.cancelZoomTimeout!);
     }
+
+    // Handle key events that are not pan or zoom.
+    handleKey(e.key, true);
   }
 
   private onKeyUp(e: KeyboardEvent) {
     this.shiftDown = e.shiftKey;
+    globals.frontendLocalState.setShowTimeSelectPreview(this.shiftDown);
+    if (!this.shiftDown) {this.element.style.cursor = 'default';}
     if (keyToPan(e) === this.panning) {
       const minEndTime = this.panAnimation.startTimeMs + TAP_ANIMATION_TIME;
       const t = minEndTime - performance.now();
@@ -185,5 +206,8 @@ export class PanAndZoomHandler {
       const t = minEndTime - performance.now();
       this.cancelZoomTimeout = setTimeout(() => this.zoomAnimation.stop(), t);
     }
+
+    // Handle key events that are not pan or zoom.
+    handleKey(e.key, false);
   }
 }

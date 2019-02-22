@@ -85,9 +85,13 @@ class CpuFreqTrack extends Track<Config, Data> {
     const yLabel = `${num} ${kUnits[unitGroup + 1]}Hz`;
 
     // Draw the CPU frequency graph.
-    const hue = hueForCpu(this.config.cpu); 
-    ctx.fillStyle = `hsl(${hue}, 45%, 70%)`;
-    ctx.strokeStyle = `hsl(${hue}, 45%, 55%)`;
+    const hue = hueForCpu(this.config.cpu);
+    let saturation = 45;
+    if (globals.frontendLocalState.hoveredUtid !== -1) {
+      saturation = 0;
+    }
+    ctx.fillStyle = `hsl(${hue}, ${saturation}%, 70%)`;
+    ctx.strokeStyle = `hsl(${hue}, ${saturation}%, 55%)`;
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
 
