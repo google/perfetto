@@ -467,6 +467,15 @@ UnixSocket::~UnixSocket() {
   Shutdown(true);
 }
 
+UnixSocketRaw UnixSocket::ReleaseSocket() {
+  // This will invalidate any pending calls to OnEvent.
+  state_ = State::kDisconnected;
+  if (sock_raw_)
+    task_runner_->RemoveFileDescriptorWatch(sock_raw_.fd());
+
+  return std::move(sock_raw_);
+}
+
 // Called only by the Connect() static constructor.
 void UnixSocket::DoConnect(const std::string& socket_name) {
   PERFETTO_DCHECK(state_ == State::kDisconnected);
