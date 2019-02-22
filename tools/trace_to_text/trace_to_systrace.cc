@@ -141,7 +141,7 @@ class QueryWriter {
       callback(&iterator, &line_writer);
 
       if (global_writer_.pos() + line_writer.pos() >= global_writer_.size()) {
-        fprintf(stderr, "\x1b[2K\rWritten %" PRIu32 " rows\r", rows);
+        fprintf(stderr, "Writing row %" PRIu32 PROGRESS_CHAR, rows);
         auto str = global_writer_.GetStringView();
         output_->write(str.data(), static_cast<std::streamsize>(str.size()));
         global_writer_.reset();
@@ -179,8 +179,10 @@ int TraceToExperimentalSystrace(std::istream* input,
 
   uint64_t file_size = 0;
   for (int i = 0;; i++) {
-    if (i % 128 == 0)
-      fprintf(stderr, "\x1b[2K\rLoading trace: %.2f MB\r", file_size / 1E6);
+    if (i % 128 == 0) {
+      fprintf(stderr, "Loading trace %.2f MB" PROGRESS_CHAR, file_size / 1.0e6);
+      fflush(stderr);
+    }
 
     std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);
     input->read(reinterpret_cast<char*>(buf.get()), kChunkSize);
@@ -196,6 +198,9 @@ int TraceToExperimentalSystrace(std::istream* input,
     tp->Parse(std::move(buf), static_cast<size_t>(rsize));
   }
   tp->NotifyEndOfFile();
+
+  fprintf(stderr, "Loaded trace" PROGRESS_CHAR);
+  fflush(stderr);
 
   using Iterator = trace_processor::TraceProcessor::Iterator;
 
@@ -240,6 +245,9 @@ int TraceToExperimentalSystrace(std::istream* input,
     *output << "TRACE:\n";
     *output << kFtraceHeader;
   }
+
+  fprintf(stderr, "Converting trace events" PROGRESS_CHAR);
+  fflush(stderr);
 
   static const char kRawSql[] = "select to_ftrace(id) from raw";
   auto raw_callback = [wrap_in_json](Iterator* it, base::StringWriter* writer) {
