@@ -24,7 +24,8 @@ import {Panel, PanelSize} from './panel';
 import {Track} from './track';
 import {TrackContent} from './track_panel';
 import {trackRegistry} from './track_registry';
-import {drawVerticalLine, drawVerticalSelection} from './vertical_line_helper';
+import {drawVerticalSelection,
+        drawVerticalLineAtTime} from './vertical_line_helper';
 
 
 interface Attrs {
@@ -112,22 +113,29 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
     const localState = globals.frontendLocalState;
     // Draw vertical line when hovering on the the notes panel.
-    if (localState.hoveredTimestamp !== -1) {
-      drawVerticalLine(ctx,
-                       localState.timeScale,
-                       localState.hoveredTimestamp,
-                       size.height,
-                       `#aaa`);
+    if (localState.showNotePreview) {
+      drawVerticalLineAtTime(ctx,
+                            localState.timeScale,
+                            localState.hoveredTimestamp,
+                            size.height,
+                            `#aaa`);
     }
-
+    // Draw vertical line when shift is pressed.
+    if (localState.showTimeSelectPreview) {
+      drawVerticalLineAtTime(ctx,
+                            localState.timeScale,
+                            localState.hoveredTimestamp,
+                            size.height,
+                            `rgb(52,69,150)`);
+    }
     if (globals.state.currentSelection !== null) {
       if (globals.state.currentSelection.kind === 'NOTE') {
         const note = globals.state.notes[globals.state.currentSelection.id];
-        drawVerticalLine(ctx,
-                        localState.timeScale,
-                        note.timestamp,
-                        size.height,
-                        note.color);
+        drawVerticalLineAtTime(ctx,
+                               localState.timeScale,
+                               note.timestamp,
+                               size.height,
+                               note.color);
       }
       if (globals.state.currentSelection.kind === 'TIMESPAN') {
         drawVerticalSelection(ctx,
