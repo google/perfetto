@@ -66,7 +66,7 @@ TEST(CircularQueueTest, Int) {
     }
   }
   ASSERT_EQ(queue.size(), kNumInts);
-  ASSERT_EQ(queue.end() - queue.begin(), kNumInts);
+  ASSERT_EQ(static_cast<size_t>(queue.end() - queue.begin()), kNumInts);
   {
     std::minstd_rand0 rnd_engine(0);
     it = queue.begin();
