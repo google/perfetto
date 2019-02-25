@@ -1,6 +1,6 @@
 create virtual table window_8 using window;
 
-create virtual table span_8 using span_join(sched PARTITIONED cpu, window_8 PARTITIONED cpu);
+create virtual table span_8 using span_join(sched PARTITIONED cpu, window_8);
 
 update window_8 set window_start=81473010031230, window_dur=19684693341, quantum=10000000 where rowid = 0;
 

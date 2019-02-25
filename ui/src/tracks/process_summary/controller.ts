@@ -57,13 +57,13 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       await this.query(
           `create view ${processSliceView} as ` +
           // 0 as cpu is a dummy column to perform span join on.
-          `select ts, dur/${utids.length} as dur, 0 as cpu ` +
+          `select ts, dur/${utids.length} as dur ` +
           `from slices where depth = 0 and utid in ` +
           // TODO(dproy): This query is faster if we write it as x < utid < y.
           `(${utids.join(',')})`);
       await this.query(`create virtual table ${this.tableName('span')}
-          using span_join(${processSliceView} PARTITIONED cpu,
-                          ${this.tableName('window')} PARTITIONED cpu);`);
+          using span_join(${processSliceView},
+                          ${this.tableName('window')});`);
       this.setup = true;
     }
 

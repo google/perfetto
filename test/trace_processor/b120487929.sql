@@ -26,7 +26,7 @@ create virtual table freq_idle
 create virtual table window_freq_idle using window;
 
 create virtual table span_freq_idle
-  using span_join(freq_idle PARTITIONED cpu, window_freq_idle PARTITIONED cpu)
+  using span_join(freq_idle PARTITIONED cpu, window_freq_idle)
 
 update window_freq_idle
   set
