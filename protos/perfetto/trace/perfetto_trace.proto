@@ -2305,6 +2305,52 @@ message MmVmscanKswapdSleepFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/vmscan.proto
 
+// Begin of protos/perfetto/trace/interned_data/interned_data.proto
+
+// ------------------------------ DATA INTERNING: ------------------------------
+// Interning indexes are built up gradually by adding the entries contained in
+// each TracePacket of the same packet sequence (packets emitted by the same
+// producer and TraceWriter, see |trusted_packet_sequence_id|). Thus, packets
+// can only refer to interned data from other packets in the same sequence.
+//
+// The writer will emit new entries when it encounters new internable values
+// that aren't yet in the index. Data in current and subsequent TracePackets can
+// then refer to the entry by its position (interning ID, abbreviated "iid") in
+// its index.
+//
+// Because of the incremental build-up, the interning index will miss data when
+// TracePackets are lost, e.g. because a chunk was overridden in the central
+// ring buffer. To avoid invalidation of the whole trace in such a case, the
+// index is periodically reset (see |incremental_state_cleared| in TracePacket).
+// When packet loss occurs, the reader will only lose interning data up to the
+// next reset.
+// -----------------------------------------------------------------------------
+
+// Message that contains new entries for the interning indices of a packet
+// sequence.
+//
+// The writer will usually emit new entries in the same TracePacket that first
+// refers to them (since the last reset of interning state). They may also be
+// emitted proactively in advance of referring to them in later packets.
+//
+// Next id: 5.
+message InternedData {
+  // Each field's message type needs to specify an |iid| field, which is the ID
+  // of the entry in the field's interning index. Each field constructs its own
+  // index, thus interning IDs are scoped to the tracing session and field
+  // (usually as a counter for efficient var-int encoding). It is illegal to
+  // override entries in an index (using the same iid for two different values)
+  // within the same tracing session, even after a reset of the emitted
+  // interning state.
+  repeated EventCategory event_categories = 1;
+  repeated LegacyEventName legacy_event_names = 2;
+  repeated DebugAnnotationName debug_annotation_names = 3;
+  repeated SourceLocation source_locations = 4;
+  // Note: field IDs up to 15 should be used for frequent data only.
+}
+
+// End of protos/perfetto/trace/interned_data/interned_data.proto
+
 // Begin of protos/perfetto/trace/power/battery_counters.proto
 
 message BatteryCounters {
@@ -2505,8 +2551,8 @@ message Trace {
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
 //
-// Next reserved id: 11.
-// Next id: 41.
+// Next reserved id: 13 (up to 15).
+// Next id: 45.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -2520,9 +2566,10 @@ message TracePacket {
     // removed field with id 5
     ClockSnapshot clock_snapshot = 6;
     SysStats sys_stats = 7;
+    TrackEvent track_event = 11;
 
-    // IDs up to 32 are reserved for events that are quite frequent because they
-    // take only one byte to encode their preamble.
+    // IDs up to 15 are reserved. They take only one byte to encode their
+    // preamble so should be used for freqeuent events.
 
     // removed field with id 33
     FtraceStats ftrace_stats = 34;
@@ -2531,6 +2578,10 @@ message TracePacket {
     BatteryCounters battery = 38;
     PowerRails power_rails = 40;
     AndroidLogPacket android_log = 39;
+
+    // Only used by TrackEvent.
+    ProcessDescriptor process_descriptor = 43;
+    ThreadDescriptor thread_descriptor = 44;
 
     // This field is emitted at periodic intervals (~10s) and
     // contains always the binary representation of the UUID
@@ -2556,9 +2607,285 @@ message TracePacket {
   oneof optional_trusted_packet_sequence_id {
     uint32 trusted_packet_sequence_id = 10;
   }
+
+  // Incrementally emitted interned data, valid only on the packet's sequence
+  // (packets with the same |trusted_packet_sequence_id|). The writer will
+  // usually emit new interned data in the same TracePacket that first refers to
+  // it (since the last reset of interning state). It may also be emitted
+  // proactively in advance of referring to them in later packets.
+  optional InternedData interned_data = 12;
+
+  // Set to true by the writer to indicate that it will re-emit any incremental
+  // data for the packet's sequence before referring to it again. This includes
+  // interned data as well as periodically emitted data like
+  // Process/ThreadDescriptors. This flag only affects the current packet
+  // sequence (see |trusted_packet_sequence_id|).
+  //
+  // When set to true, this TracePacket and subsequent TracePackets on the same
+  // sequence will not refer to any incremental data emitted before this
+  // TracePacket. For example, previously emitted interned data will be
+  // re-emitted if it is referred to again.
+  //
+  // When the reader detects packet loss (|previous_packet_dropped|), it needs
+  // to skip packets in the sequence until the next one with this flag set, to
+  // ensure intact incremental data.
+  optional bool incremental_state_cleared = 41;
+
+  // Flag set by the service if one or multiple packets on the packet's sequence
+  // were dropped since the last packet that the consumer read from the
+  // sequence. This can happen if chunks in the trace buffer are overridden
+  // before the consumer could read them when the trace is configured in ring
+  // buffer mode. This flag only affects the current packet sequence (see
+  // |trusted_packet_sequence_id|).
+  //
+  // When packet loss occurs, incrementally emitted data (including interned
+  // data) on the sequence should be considered invalid up until the next packet
+  // with |incremental_state_cleared| set. In such a situation, the reader
+  // should skip to the next packet with this flag set.
+  optional bool previous_packet_dropped = 42;
 }
 
 // End of protos/perfetto/trace/trace_packet.proto
+
+// Begin of protos/perfetto/trace/track_event/debug_annotation.proto
+
+// Key/value annotations provided in untyped TRACE_EVENT macros. These
+// annotations are intended for debug use and are not considered a stable API
+// surface. As such, they should not be relied upon to implement (new) metrics.
+message DebugAnnotation {
+  message NestedValue {
+    enum NestedType {
+      UNSPECIFIED = 0;  // leaf value.
+      DICT = 1;
+      ARRAY = 2;
+    }
+    optional NestedType nested_type = 1;
+
+    repeated string dict_keys = 2;
+    repeated NestedValue dict_values = 3;
+    repeated NestedValue array_values = 4;
+    optional int64 int_value = 5;
+    optional double double_value = 6;
+    optional bool bool_value = 7;
+    optional string string_value = 8;
+  }
+
+  optional uint32 name_iid = 1;  // interned DebugAnnotationName.
+
+  oneof value {
+    bool bool_value = 2;
+    uint64 uint_value = 3;
+    int64 int_value = 4;
+    double double_value = 5;
+    string string_value = 6;
+    // Pointers are stored in a separate type as the JSON output treats them
+    // differently from other uint64 values.
+    uint64 pointer_value = 7;
+    NestedValue nested_value = 8;
+
+    // Legacy instrumentation may not support conversion of nested data to
+    // NestedValue yet.
+    string legacy_json_value = 9;
+  }
+}
+
+// --------------------
+// Interned data types:
+// --------------------
+
+message DebugAnnotationName {
+  optional uint32 iid = 1;
+  optional string name = 2;
+}
+
+// End of protos/perfetto/trace/track_event/debug_annotation.proto
+
+// Begin of protos/perfetto/trace/track_event/process_descriptor.proto
+
+// Process-wide data that is periodically emitted by one thread per process.
+// Valid for all events in packet sequences emitted by the same process.
+//
+// Next id: 5.
+message ProcessDescriptor {
+  optional int32 pid = 1;
+  repeated string cmdline = 2;
+
+  // To support old UI. New UI should determine default sorting by process_type.
+  optional int32 legacy_sort_index = 3;
+
+  // See chromium's content::ProcessType.
+  enum ChromeProcessType {
+    UNSPECIFIED = 0;
+    BROWSER = 1;
+    RENDERER = 2;
+    UTILITY = 3;
+    ZYGOTE = 4;
+    SANDBOX_HELPER = 5;
+    GPU = 6;
+    PPAPI_PLUGIN = 7;
+    PPAPI_BROKER = 8;
+  }
+  optional ChromeProcessType chrome_process_type = 4;
+}
+
+// End of protos/perfetto/trace/track_event/process_descriptor.proto
+
+// Begin of protos/perfetto/trace/track_event/task_execution.proto
+
+// TrackEvent arguments describing the execution of a task.
+message TaskExecution {
+  // Source location that the task was posted from.
+  optional uint32 posted_from_iid = 1;  // interned SourceLocation.
+}
+
+// --------------------
+// Interned data types:
+// --------------------
+
+message SourceLocation {
+  optional uint32 iid = 1;
+
+  // We intend to add a binary symbol version of this in the future.
+  optional string file_name = 2;
+  optional string function_name = 3;
+}
+
+// End of protos/perfetto/trace/track_event/task_execution.proto
+
+// Begin of protos/perfetto/trace/track_event/thread_descriptor.proto
+
+// Periodically emitted data that's common to all events emitted by the same
+// thread, i.e. all events in the same packet sequence. Valid for all subsequent
+// events in the same sequence.
+//
+// Next id: 8.
+message ThreadDescriptor {
+  optional int32 pid = 1;
+  optional int32 tid = 2;
+
+  // To support old UI. New UI should determine default sorting by thread_type.
+  optional int32 legacy_sort_index = 3;
+
+  enum ChromeThreadType {
+    UNSPECIFIED = 0;
+    BROWSER_UI = 1;
+    BROWSER_IO = 2;
+    // TODO(eseckler): Add other thread types.
+  };
+  optional ChromeThreadType thread_type = 4;
+
+  // TODO(eseckler): Replace this with ChromeThreadType where possible.
+  optional string thread_name = 5;
+
+  // Absolute reference values. Clock values in subsequent TrackEvents can be
+  // encoded accumulatively and relative to these. This reduces their var-int
+  // encoding size.
+  optional int64 reference_timestamp_us = 6;
+  optional int64 reference_thread_time_us = 7;
+}
+
+// End of protos/perfetto/trace/track_event/thread_descriptor.proto
+
+// Begin of protos/perfetto/trace/track_event/track_event.proto
+
+// Trace events emitted by client instrumentation library (TRACE_EVENT macros),
+// which describe activity on a track, such as a thread, task sequence, or
+// asynchronous track.
+//
+// This message is optimized for writing and makes heavy use of data interning
+// and delta encoding (e.g. of timestamps) to reduce data repetition and encoded
+// data size.
+//
+// A TrackEvent exists in the context of its packet sequence (TracePackets
+// emitted by the same producer + writer) and refers to data in preceding
+// TracePackets emitted on the same sequence, both directly and indirectly. For
+// example, interned data entries are emitted as part of a TracePacket and
+// directly referred to from TrackEvents by their interning IDs. Attributes
+// shared by all events on the same sequence (e.g. their thread and process
+// association) are emitted as part of ProcessDescriptor and ThreadDescriptor
+// messages in separate TracePackets instead.
+//
+// Next reserved id: 7 (up to 15).
+// Next id: 20.
+message TrackEvent {
+  // Timestamp in microseconds (usually CLOCK_MONOTONIC).
+  oneof timestamp {
+    // Delta timestamp value since the last TrackEvent or ThreadDescriptor. To
+    // calculate the absolute timestamp value, sum up all delta values of the
+    // preceding TrackEvents since the last ThreadDescriptor and add the sum to
+    // the |reference_timestamp| in ThreadDescriptor. This value should always
+    // be positive.
+    int64 timestamp_delta_us = 1;
+    // Absolute value (e.g. a manually specified timestamp in the macro).
+    // This is a one-off value that does not affect delta timestamp computation
+    // in subsequent TrackEvents.
+    int64 timestamp_absolute_us = 16;
+  }
+
+  // CPU time for the current thread (e.g., CLOCK_THREAD_CPUTIME_ID) in
+  // microseconds.
+  oneof thread_time {
+    // Same encoding as |timestamp| fields above.
+    int64 thread_time_delta_us = 2;
+    // TODO(eseckler): Consider removing absolute thread time support. It's
+    // currently required to support writing PHASE_COMPLETE events out-of-order,
+    // but shouldn't be required anymore when we split them into begin/end.
+    int64 thread_time_absolute_us = 17;
+  }
+
+  // We intend to add a binary symbol version of this in the future.
+  repeated uint32 category_iids = 3;  // interned EventCategoryName.
+
+  // TODO(eseckler): May also want a debug_name for untyped debug-only events.
+
+  // Unstable key/value annotations shown in the trace viewer but not intended
+  // for metrics use.
+  repeated DebugAnnotation debug_annotations = 4;
+
+  // Typed event arguments:
+  optional TaskExecution task_execution = 5;
+  // TODO(eseckler): New argument types go here :)
+
+  // Apart from {category, time, thread time, tid, pid}, other legacy trace
+  // event attributes are initially simply proxied for conversion to a JSON
+  // trace. We intend to gradually transition these attributes to similar native
+  // features in TrackEvent (e.g. async + flow events), or deprecate them
+  // without replacement where transition is unsuitable.
+  message LegacyEvent {
+    optional uint32 name_iid = 1;  // interned LegacyEventName.
+    optional int32 phase = 2;
+    optional int64 duration = 3;
+    optional int64 thread_duration = 4;
+    optional uint32 flags = 5;  // e.g. global/process/thread scope, flow, ...
+    optional uint64 id = 6;
+    optional string scope = 7;
+    optional uint64 bind_id = 8;
+
+    // Override the pid/tid if the writer needs to emit events on behalf of
+    // another process/thread. This should be the exception. Normally, the
+    // pid+tid from ThreadDescriptor is used.
+    optional int32 pid_override = 18;
+    optional int32 tid_override = 19;
+  }
+
+  optional LegacyEvent legacy_event = 6;
+}
+
+// --------------------
+// Interned data types:
+// --------------------
+
+message EventCategory {
+  optional uint32 iid = 1;
+  optional string name = 2;
+}
+
+message LegacyEventName {
+  optional uint32 iid = 1;
+  optional string name = 2;
+}
+
+// End of protos/perfetto/trace/track_event/track_event.proto
 
 // Begin of protos/perfetto/trace/profiling/profile_packet.proto
 
