@@ -61,7 +61,6 @@ class EventTracker {
   struct PendingSchedSlice {
     size_t storage_index = std::numeric_limits<size_t>::max();
     uint32_t next_pid = 0;
-    StringId next_comm_id = 0;
   };
 
   // Store pending sched slices for each CPU.

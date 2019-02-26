@@ -91,20 +91,12 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
     }
   }
 
-  // If the prev_pid matches the previous slice's next pid, we can just lookup
-  // the comm id and utid from the previous slice. This saves relatively
-  // expensive string interning/thread lookup.
-  UniqueTid prev_utid;
-  StringId prev_comm_id;
-  if (prev_pid_match_prev_next_pid) {
-    PERFETTO_DCHECK(slice_idx < std::numeric_limits<size_t>::max());
-    prev_comm_id = prev_slice->next_comm_id;
-    prev_utid = slices->utids()[slice_idx];
-  } else {
-    prev_comm_id = context_->storage->InternString(prev_comm);
-    prev_utid =
-        context_->process_tracker->UpdateThread(ts, prev_pid, prev_comm_id);
-  }
+  // We have to intern prev_comm again because our assumption that
+  // this event's |prev_comm| == previous event's |next_comm| does not hold
+  // if the thread changed its name while scheduled.
+  StringId prev_comm_id = context_->storage->InternString(prev_comm);
+  UniqueTid prev_utid =
+      context_->process_tracker->UpdateThread(ts, prev_pid, prev_comm_id);
 
   // Push the raw event - this is done as the raw ftrace event codepath does
   // not insert sched_switch.
@@ -136,7 +128,6 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
   // Finally, update the info for the next sched switch on this CPU.
   prev_slice->storage_index = next_idx;
   prev_slice->next_pid = next_pid;
-  prev_slice->next_comm_id = next_comm_id;
 }
 
 RowId EventTracker::PushCounter(int64_t timestamp,
