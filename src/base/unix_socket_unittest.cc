@@ -717,6 +717,36 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
   ASSERT_EQ(memcmp(send_buf, recv_buf, sizeof(send_buf)), 0);
 }
 
+TEST_F(UnixSocketTest, ReleaseSocket) {
+  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_);
+  ASSERT_TRUE(srv->is_listening());
+  auto connected = task_runner_.CreateCheckpoint("connected");
+  UnixSocket* peer = nullptr;
+  EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
+      .WillOnce(Invoke([connected, &peer](UnixSocket*, UnixSocket* new_conn) {
+        peer = new_conn;
+        connected();
+      }));
+
+  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_);
+  EXPECT_CALL(event_listener_, OnConnect(cli.get(), true));
+  task_runner_.RunUntilCheckpoint("connected");
+  srv->Shutdown(true);
+
+  cli->Send("test");
+
+  ASSERT_NE(peer, nullptr);
+  auto raw_sock = peer->ReleaseSocket();
+
+  EXPECT_CALL(event_listener_, OnDataAvailable(_)).Times(0);
+  task_runner_.RunUntilIdle();
+
+  char buf[sizeof("test")];
+  ASSERT_TRUE(raw_sock);
+  ASSERT_EQ(raw_sock.Receive(buf, sizeof(buf)), sizeof(buf));
+  ASSERT_STREQ(buf, "test");
+}
+
 // TODO(primiano): add a test to check that in the case of a peer sending a fd
 // and the other end just doing a recv (without taking it), the fd is closed and
 // not left around.
