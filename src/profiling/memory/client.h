@@ -17,14 +17,15 @@
 #ifndef SRC_PROFILING_MEMORY_CLIENT_H_
 #define SRC_PROFILING_MEMORY_CLIENT_H_
 
-#include <pthread.h>
 #include <stddef.h>
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <vector>
 
 #include "perfetto/base/unix_socket.h"
+#include "src/profiling/memory/sampler.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -89,7 +90,7 @@ class FreePage {
 
   // Add address to buffer. Flush if necessary using a socket borrowed from
   // pool.
-  // Can be called from any thread. Must not hold mutex_.`
+  // Can be called from any thread. Must not hold mutex_.
   bool Add(const uint64_t addr, uint64_t sequence_number, SocketPool* pool);
 
  private:
@@ -103,33 +104,15 @@ class FreePage {
 
 const char* GetThreadStackBase();
 
-// RAII wrapper around pthread_key_t. This is different from a ScopedResource
-// because it needs a separate boolean indicating validity.
-class PThreadKey {
- public:
-  PThreadKey(const PThreadKey&) = delete;
-  PThreadKey& operator=(const PThreadKey&) = delete;
-
-  PThreadKey(void (*destructor)(void*)) noexcept
-      : valid_(pthread_key_create(&key_, destructor) == 0) {}
-  ~PThreadKey() noexcept {
-    if (valid_)
-      pthread_key_delete(key_);
-  }
-  bool valid() const { return valid_; }
-  pthread_key_t get() const {
-    PERFETTO_DCHECK(valid_);
-    return key_;
-  }
-
- private:
-  pthread_key_t key_;
-  bool valid_;
-};
-
 constexpr uint32_t kClientSockTimeoutMs = 1000;
 
-// This is created and owned by the malloc hooks.
+// Profiling client, used to sample and record the malloc/free family of calls,
+// and communicate the necessary state to a separate profiling daemon process.
+//
+// Created and owned by the malloc hooks.
+//
+// Methods of this class are thread-safe unless otherwise stated, in which case
+// the caller needs to synchronize calls behind a mutex or similar.
 class Client {
  public:
   Client(std::vector<base::UnixSocketRaw> sockets);
@@ -138,27 +121,38 @@ class Client {
                     uint64_t total_size,
                     uint64_t alloc_address);
   bool RecordFree(uint64_t alloc_address);
-  bool MaybeSampleAlloc(uint64_t alloc_size,
-                        uint64_t alloc_address,
-                        void* (*unhooked_malloc)(size_t),
-                        void (*unhooked_free)(void*));
   void Shutdown();
+
+  // Returns the number of bytes to assign to an allocation with the given
+  // |alloc_size|, based on the current sampling rate. A return value of zero
+  // means that the allocation should not be recorded. Not idempotent, each
+  // invocation mutates the sampler state.
+  //
+  // Not thread-safe.
+  size_t GetSampleSizeLocked(size_t alloc_size) {
+    if (!inited_.load(std::memory_order_acquire))
+      return 0;
+    return sampler_.SampleSize(alloc_size);
+  }
 
   ClientConfiguration client_config_for_testing() { return client_config_; }
   bool inited() { return inited_; }
 
  private:
-  ssize_t ShouldSampleAlloc(uint64_t alloc_size,
-                            void* (*unhooked_malloc)(size_t),
-                            void (*unhooked_free)(void*));
   const char* GetStackBase();
 
   static std::atomic<uint64_t> max_generation_;
   const uint64_t generation_;
 
+  // TODO(rsavitski): used to check if the client is completely initialized
+  // after construction. The reads in RecordFree & GetSampleSizeLocked are no
+  // longer necessary (was an optimization to not do redundant work after
+  // shutdown). Turn into a normal bool, or indicate construction failures
+  // differently.
   std::atomic<bool> inited_{false};
   ClientConfiguration client_config_;
-  PThreadKey pthread_key_;
+  // sampler_ operations are not thread-safe.
+  Sampler sampler_;
   SocketPool socket_pool_;
   FreePage free_page_;
   const char* main_thread_stack_base_ = nullptr;
