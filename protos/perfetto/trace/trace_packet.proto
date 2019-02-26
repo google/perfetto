@@ -22,9 +22,13 @@ import "perfetto/config/trace_config.proto";
 import "perfetto/trace/android/android_log.proto";
 import "perfetto/trace/chrome/chrome_trace_event.proto";
 import "perfetto/trace/clock_snapshot.proto";
+import "perfetto/trace/track_event/process_descriptor.proto";
+import "perfetto/trace/track_event/thread_descriptor.proto";
+import "perfetto/trace/track_event/track_event.proto";
 import "perfetto/trace/filesystem/inode_file_map.proto";
 import "perfetto/trace/ftrace/ftrace_event_bundle.proto";
 import "perfetto/trace/ftrace/ftrace_stats.proto";
+import "perfetto/trace/interned_data/interned_data.proto";
 import "perfetto/trace/power/battery_counters.proto";
 import "perfetto/trace/power/power_rails.proto";
 import "perfetto/trace/profiling/profile_packet.proto";
@@ -38,8 +42,8 @@ package perfetto.protos;
 // The root object emitted by Perfetto. A perfetto trace is just a stream of
 // TracePacket(s).
 //
-// Next reserved id: 11.
-// Next id: 41.
+// Next reserved id: 13 (up to 15).
+// Next id: 45.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -53,9 +57,10 @@ message TracePacket {
     ChromeEventBundle chrome_events = 5;
     ClockSnapshot clock_snapshot = 6;
     SysStats sys_stats = 7;
+    TrackEvent track_event = 11;
 
-    // IDs up to 32 are reserved for events that are quite frequent because they
-    // take only one byte to encode their preamble.
+    // IDs up to 15 are reserved. They take only one byte to encode their
+    // preamble so should be used for freqeuent events.
 
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
@@ -64,6 +69,10 @@ message TracePacket {
     BatteryCounters battery = 38;
     PowerRails power_rails = 40;
     AndroidLogPacket android_log = 39;
+
+    // Only used by TrackEvent.
+    ProcessDescriptor process_descriptor = 43;
+    ThreadDescriptor thread_descriptor = 44;
 
     // This field is emitted at periodic intervals (~10s) and
     // contains always the binary representation of the UUID
@@ -89,4 +98,40 @@ message TracePacket {
   oneof optional_trusted_packet_sequence_id {
     uint32 trusted_packet_sequence_id = 10;
   }
+
+  // Incrementally emitted interned data, valid only on the packet's sequence
+  // (packets with the same |trusted_packet_sequence_id|). The writer will
+  // usually emit new interned data in the same TracePacket that first refers to
+  // it (since the last reset of interning state). It may also be emitted
+  // proactively in advance of referring to them in later packets.
+  optional InternedData interned_data = 12;
+
+  // Set to true by the writer to indicate that it will re-emit any incremental
+  // data for the packet's sequence before referring to it again. This includes
+  // interned data as well as periodically emitted data like
+  // Process/ThreadDescriptors. This flag only affects the current packet
+  // sequence (see |trusted_packet_sequence_id|).
+  //
+  // When set to true, this TracePacket and subsequent TracePackets on the same
+  // sequence will not refer to any incremental data emitted before this
+  // TracePacket. For example, previously emitted interned data will be
+  // re-emitted if it is referred to again.
+  //
+  // When the reader detects packet loss (|previous_packet_dropped|), it needs
+  // to skip packets in the sequence until the next one with this flag set, to
+  // ensure intact incremental data.
+  optional bool incremental_state_cleared = 41;
+
+  // Flag set by the service if one or multiple packets on the packet's sequence
+  // were dropped since the last packet that the consumer read from the
+  // sequence. This can happen if chunks in the trace buffer are overridden
+  // before the consumer could read them when the trace is configured in ring
+  // buffer mode. This flag only affects the current packet sequence (see
+  // |trusted_packet_sequence_id|).
+  //
+  // When packet loss occurs, incrementally emitted data (including interned
+  // data) on the sequence should be considered invalid up until the next packet
+  // with |incremental_state_cleared| set. In such a situation, the reader
+  // should skip to the next packet with this flag set.
+  optional bool previous_packet_dropped = 42;
 }
