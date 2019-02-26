@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,33 +14,30 @@
  * limitations under the License.
  */
 
-#include "src/profiling/memory/sampler.h"
+#include "src/profiling/memory/scoped_spinlock.h"
 
-#include "gtest/gtest.h"
+#include <unistd.h>
 
-#include <thread>
+#include <atomic>
+
+#include "perfetto/base/utils.h"
 
 namespace perfetto {
 namespace profiling {
-namespace {
 
-TEST(SamplerTest, TestLarge) {
-  Sampler sampler(512);
-  EXPECT_EQ(sampler.SampleSize(1024), 1024);
+void ScopedSpinlock::LockSlow(Mode mode) {
+  // Slowpath.
+  for (size_t attempt = 0; mode == Mode::Blocking || attempt < 1024 * 10;
+       attempt++) {
+    if (!lock_->load(std::memory_order_relaxed) &&
+        PERFETTO_LIKELY(!lock_->exchange(true, std::memory_order_acquire))) {
+      locked_ = true;
+      return;
+    }
+    if (attempt && attempt % 1024 == 0)
+      usleep(1000);
+  }
 }
 
-TEST(SamplerTest, TestSmall) {
-  Sampler sampler(512);
-  EXPECT_EQ(sampler.SampleSize(511), 512);
-}
-
-TEST(SamplerTest, TestSequence) {
-  Sampler sampler(1);
-  EXPECT_EQ(sampler.SampleSize(3), 3);
-  EXPECT_EQ(sampler.SampleSize(7), 7);
-  EXPECT_EQ(sampler.SampleSize(5), 5);
-}
-
-}  // namespace
 }  // namespace profiling
 }  // namespace perfetto
