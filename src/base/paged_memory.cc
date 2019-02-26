@@ -53,7 +53,7 @@ PagedMemory PagedMemory::Allocate(size_t size, int flags) {
   char* usable_region = reinterpret_cast<char*>(ptr) + kGuardSize;
 #else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   void* ptr = mmap(nullptr, outer_size, PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (ptr == MAP_FAILED && (flags & kMayFail))
     return PagedMemory();
   PERFETTO_CHECK(ptr && ptr != MAP_FAILED);
