@@ -21,7 +21,7 @@
 # cat ./traceconv | python -
 
 BASH_FALLBACK=""" "
-exec python - <<'#'EOF
+exec python - "$@" <<'#'EOF
 #"""
 
 import hashlib
@@ -31,8 +31,8 @@ import tempfile
 import urllib
 
 TRACE_TO_TEXT_SHAS = {
-  'linux': '4ab1d18e69bc70e211d27064505ed547aa82f919',
-  'mac': '2ba325f95c08e8cd5a78e04fa85ee7f2a97c847e',
+  'linux': 'c531b1d8e96ef4a02dfc26c23075b383a1d3b562',
+  'mac': '783e8c120d9c311443f87ae7d00f30133d356fe0',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = (
