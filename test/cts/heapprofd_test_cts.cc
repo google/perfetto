@@ -227,21 +227,23 @@ void StopApp(std::string app_name) {
   system(stop_cmd.c_str());
 }
 
-TEST(HeapprofdCtsTest, DebuggableAppRuntime) {
+// TODO(b/125385428): re-enable tests in a non-flaky form.
+
+TEST(HeapprofdCtsTest, DISABLED_DebuggableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileRuntime(app_name);
   AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
-TEST(HeapprofdCtsTest, DebuggableAppStartup) {
+TEST(HeapprofdCtsTest, DISABLED_DebuggableAppStartup) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileStartup(app_name);
   AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
-TEST(HeapprofdCtsTest, ReleaseAppRuntime) {
+TEST(HeapprofdCtsTest, DISABLED_ReleaseAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileRuntime(app_name);
 
@@ -253,7 +255,7 @@ TEST(HeapprofdCtsTest, ReleaseAppRuntime) {
   StopApp(app_name);
 }
 
-TEST(HeapprofdCtsTest, ReleaseAppStartup) {
+TEST(HeapprofdCtsTest, DISABLED_ReleaseAppStartup) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileStartup(app_name);
 
