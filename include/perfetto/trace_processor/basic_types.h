@@ -22,10 +22,8 @@
 namespace perfetto {
 namespace trace_processor {
 
-enum class OptimizationMode { kMaxBandwidth = 0, kMinLatency };
 
 struct Config {
-  OptimizationMode optimization_mode = OptimizationMode::kMaxBandwidth;
   uint64_t window_size_ns = 60 * 1000 * 1000 * 1000ULL;  // 60 seconds.
 };
 

@@ -34,23 +34,20 @@ namespace trace_processor {
 // max window. Events are held in the TraceSorter staging area (events_) until
 // either (1) the (max - min) timestamp > window_size; (2) trace EOF.
 //
-// Performance considerations:
-// This class is designed assuming that events are mostly ordered and lack of
-// ordering tends to happen towards the end of |events_|. In practice, in fact,
-// lack of ordering comes from the fact that the ftrace buffers from differnt
-// CPUs are independent and are flushed into the trace in blocks. So, when
-// taking a trace file, events that are near (w.r.t. file offset) are likely to
-// be out-of-order, but events that are ~10MB+ apart from each other are often
-// in-order.
+// This class is designed around the assumption that:
+// - Most events come from ftrace.
+// - Ftrace events are sorted within each cpu most of the times.
 //
-// Operation:
-// When a bunch of events is pushed they are just appeneded to the end of the
-// |events_| staging area. While appending, we keep track of the fact that the
-// staging area is ordered or not. When an out-of-order event is detected we
-// keep track of: (1) the offset within the staging area where the chaos begun,
-// (2) the timestamp that broke the ordering.
-// When we decide to flush events from the staging area into the next stages of
-// the trace processor, we re-sort the events in the staging area. Rather than
+// Due to this, this class is oprerates as a streaming merge-sort of N+1 queues
+// (N = num cpus + 1 for non-ftrace events). Each queue in turn gets sorted (if
+// necessary) before proceeding with the global merge-sort-extract.
+// When an event is pushed through, it is just appeneded to the end of one of
+// the N queues. While appending, we keep track of the fact that the queue
+// is still ordered or just lost ordering. When an out-of-order event is
+// detected on a queue we keep track of: (1) the offset within the queue where
+// the chaos begun, (2) the timestamp that broke the ordering.
+// When we decide to extract events from the queues into the next stages of
+// the trace processor, we re-sort the events in the queue. Rather than
 // re-sorting everything all the times, we use the above knowledge to restrict
 // sorting to the (hopefully smaller) tail of the |events_| staging area.
 // At any time, the first partition of |events_| [0 .. sort_start_idx_) is
@@ -58,14 +55,11 @@ namespace trace_processor {
 // We use a logarithmic bound search operation to figure out what is the index
 // within the first partition where sorting should start, and sort all events
 // from there to the end.
-
 class TraceSorter {
  public:
   struct TimestampedTracePiece {
-    static constexpr uint32_t kNoCpu = std::numeric_limits<uint32_t>::max();
-
-    TimestampedTracePiece(int64_t a, uint32_t i, TraceBlobView b, uint32_t c)
-        : timestamp(a), blob_view(std::move(b)), packet_idx_(i), cpu(c) {}
+    TimestampedTracePiece(int64_t ts, uint64_t idx, TraceBlobView tbv)
+        : timestamp(ts), packet_idx_(idx), blob_view(std::move(tbv)) {}
 
     TimestampedTracePiece(TimestampedTracePiece&&) noexcept = default;
     TimestampedTracePiece& operator=(TimestampedTracePiece&&) = default;
@@ -81,36 +75,43 @@ class TraceSorter {
              (timestamp == o.timestamp && packet_idx_ < o.packet_idx_);
     }
 
-    bool is_ftrace() const { return cpu != kNoCpu; }
-
     int64_t timestamp;
+    uint64_t packet_idx_;
     TraceBlobView blob_view;
-    uint32_t packet_idx_;
-    uint32_t cpu;
   };
 
-  TraceSorter(TraceProcessorContext*, OptimizationMode, int64_t window_size_ns);
+  TraceSorter(TraceProcessorContext*, int64_t window_size_ns);
 
   inline void PushTracePacket(int64_t timestamp, TraceBlobView packet) {
-    AppendAndMaybeFlushEvents(
-        TimestampedTracePiece(timestamp, packet_idx_++, std::move(packet),
-                              TimestampedTracePiece::kNoCpu));
+    DCHECK_ftrace_batch_cpu(kNoBatch);
+    auto* queue = GetQueue(0);
+    queue->Append(
+        TimestampedTracePiece(timestamp, packet_idx_++, std::move(packet)));
+    MaybeExtractEvents(queue);
   }
 
-  inline void PushFtracePacket(uint32_t cpu,
-                               int64_t timestamp,
-                               TraceBlobView packet) {
-    AppendAndMaybeFlushEvents(TimestampedTracePiece(timestamp, packet_idx_++,
-                                                    std::move(packet), cpu));
+  inline void PushFtraceEvent(uint32_t cpu,
+                              int64_t timestamp,
+                              TraceBlobView event) {
+    set_ftrace_batch_cpu_for_DCHECK(cpu);
+    GetQueue(cpu + 1)->Append(
+        TimestampedTracePiece(timestamp, packet_idx_++, std::move(event)));
+
+    // The caller must call FinalizeFtraceEventBatch() after having pushed a
+    // batch of ftrace events. This is to amortize the overhead of handling
+    // global ordering and doing that in batches only after all ftrace events
+    // for a bundle are pushed.
   }
 
-  // This method passes any events older than window_size_ns to the
-  // parser to be parsed and then stored.
-  void SortAndFlushEventsBeyondWindow(int64_t windows_size_ns);
+  inline void FinalizeFtraceEventBatch(uint32_t cpu) {
+    DCHECK_ftrace_batch_cpu(cpu);
+    set_ftrace_batch_cpu_for_DCHECK(kNoBatch);
+    MaybeExtractEvents(GetQueue(cpu + 1));
+  }
 
-  // Flush all events ignorinig the window.
-  void FlushEventsForced() {
-    SortAndFlushEventsBeyondWindow(/*window_size_ns=*/0);
+  // Extract all events ignoring the window.
+  void ExtractEventsForced() {
+    SortAndExtractEventsBeyondWindow(/*window_size_ns=*/0);
   }
 
   void set_window_ns_for_testing(int64_t window_size_ns) {
@@ -118,77 +119,106 @@ class TraceSorter {
   }
 
  private:
-  inline void AppendAndMaybeFlushEvents(TimestampedTracePiece ttp) {
-    const int64_t timestamp = ttp.timestamp;
-    events_.emplace_back(std::move(ttp));
-    earliest_timestamp_ = std::min(earliest_timestamp_, timestamp);
+  static constexpr uint32_t kNoBatch = std::numeric_limits<uint32_t>::max();
 
-    // Events are often seen in order.
-    if (PERFETTO_LIKELY(timestamp >= latest_timestamp_)) {
-      latest_timestamp_ = timestamp;
-    } else {
-      // The event is breaking ordering. The first time it happens, keep
-      // track of which index we are at. We know that everything before that
-      // is sorted (because events were pushed monotonically). Everything after
-      // that index, instead, will need a sorting pass before moving events to
-      // the next pipeline stage.
-      if (PERFETTO_UNLIKELY(sort_start_idx_ == 0)) {
-        PERFETTO_DCHECK(events_.size() >= 2);
-        sort_start_idx_ = events_.size() - 1;
-        sort_min_ts_ = timestamp;
+  struct Queue {
+    inline void Append(TimestampedTracePiece ttp) {
+      const int64_t timestamp = ttp.timestamp;
+      events_.emplace_back(std::move(ttp));
+      min_ts_ = std::min(min_ts_, timestamp);
+
+      // Events are often seen in order.
+      if (PERFETTO_LIKELY(timestamp >= max_ts_)) {
+        max_ts_ = timestamp;
       } else {
-        sort_min_ts_ = std::min(sort_min_ts_, timestamp);
+        // The event is breaking ordering. The first time it happens, keep
+        // track of which index we are at. We know that everything before that
+        // is sorted (because events were pushed monotonically). Everything
+        // after that index, instead, will need a sorting pass before moving
+        // events to the next pipeline stage.
+        if (sort_start_idx_ == 0) {
+          PERFETTO_DCHECK(events_.size() >= 2);
+          sort_start_idx_ = events_.size() - 1;
+          sort_min_ts_ = timestamp;
+        } else {
+          sort_min_ts_ = std::min(sort_min_ts_, timestamp);
+        }
       }
+
+      PERFETTO_DCHECK(min_ts_ <= max_ts_);
     }
 
-    PERFETTO_DCHECK(earliest_timestamp_ <= latest_timestamp_);
+    bool needs_sorting() const { return sort_start_idx_ != 0; }
+    void Sort();
 
-    if (latest_timestamp_ - earliest_timestamp_ < window_size_ns_)
-      return;
+    base::CircularQueue<TimestampedTracePiece> events_;
+    int64_t min_ts_ = std::numeric_limits<int64_t>::max();
+    int64_t max_ts_ = 0;
+    size_t sort_start_idx_ = 0;
+    int64_t sort_min_ts_ = 0;
+  };
 
-    // If we are optimizing for high-bandwidth, wait before we accumulate a
-    // bunch of events before processing them. There are two cpu-intensive
-    // things happening here: (1) Sorting the tail of |events_|; (2) Erasing the
-    // head of |events_| and shifting them left. Both operations become way
-    // faster if done in large batches (~1M events), where we end up erasing
-    // 90% or more of |events_|. Capping at 1M object to avoid holding onto
-    // too many events in the staging area.
-    if (optimization_ == OptimizationMode::kMaxBandwidth &&
-        latest_timestamp_ - earliest_timestamp_ < window_size_ns_ * 10 &&
-        events_.size() < 5 * 1e6) {
-      return;
-    }
+  // This method passes any events older than window_size_ns to the
+  // parser to be parsed and then stored.
+  void SortAndExtractEventsBeyondWindow(int64_t windows_size_ns);
 
-    SortAndFlushEventsBeyondWindow(window_size_ns_);
+  inline Queue* GetQueue(size_t index) {
+    if (PERFETTO_UNLIKELY(index >= queues_.size()))
+      queues_.resize(index + 1);
+    return &queues_[index];
   }
 
-  base::CircularQueue<TimestampedTracePiece> events_;
+  inline void MaybeExtractEvents(Queue* queue) {
+    DCHECK_ftrace_batch_cpu(kNoBatch);
+    global_max_ts_ = std::max(global_max_ts_, queue->max_ts_);
+    global_min_ts_ = std::min(global_min_ts_, queue->min_ts_);
+
+    if (global_max_ts_ - global_min_ts_ < window_size_ns_)
+      return;
+
+    SortAndExtractEventsBeyondWindow(window_size_ns_);
+  }
+
   TraceProcessorContext* const context_;
-  OptimizationMode optimization_;
+
+  // queues_[0] is the general (non-ftrace) queue.
+  // queues_[1] is the ftrace queue for CPU(0).
+  // queues_[x] is the ftrace queue for CPU(x - 1).
+  std::vector<Queue> queues_;
 
   // Events are propagated to the next stage only after (max - min) timestamp
   // is larger than this value.
   int64_t window_size_ns_;
 
-  // max(e.timestamp for e in events_).
-  int64_t latest_timestamp_ = 0;
+  // max(e.timestamp for e in queues_).
+  int64_t global_max_ts_ = 0;
 
-  // min(e.timestamp for e in events_).
-  int64_t earliest_timestamp_ = std::numeric_limits<int64_t>::max();
+  // min(e.timestamp for e in queues_).
+  int64_t global_min_ts_ = std::numeric_limits<int64_t>::max();
 
   // Monotonic increasing value used to index timestamped trace pieces.
-  uint32_t packet_idx_ = 0;
+  uint64_t packet_idx_ = 0;
 
-  // Contains the index (< events_.size()) of the last sorted event. In essence,
-  // events_[0..sort_start_idx_] are guaranteed to be in-order, while
-  // events_[(sort_start_idx_ + 1)..end] are in random order.
-  size_t sort_start_idx_ = 0;
+  // Used for performance tests. True when setting TRACE_PROCESSOR_SORT_ONLY=1.
+  bool bypass_next_stage_for_testing_ = false;
 
-  // The smallest timestamp that breaks the ordering in the range
-  // events_[0..sort_start_idx_]. In order to re-establish a total order within
-  // |events_| we need to sort entries from (the index corresponding to) that
-  // timestamp.
-  int64_t sort_min_ts_ = 0;
+#if PERFETTO_DCHECK_IS_ON()
+  // Used only for DCHECK-ing that FinalizeFtraceEventBatch() is called.
+  uint32_t ftrace_batch_cpu_ = kNoBatch;
+
+  inline void DCHECK_ftrace_batch_cpu(uint32_t cpu) {
+    PERFETTO_DCHECK(ftrace_batch_cpu_ == kNoBatch || ftrace_batch_cpu_ == cpu);
+  }
+
+  inline void set_ftrace_batch_cpu_for_DCHECK(uint32_t cpu) {
+    PERFETTO_DCHECK(ftrace_batch_cpu_ == cpu || ftrace_batch_cpu_ == kNoBatch ||
+                    cpu == kNoBatch);
+    ftrace_batch_cpu_ = cpu;
+  }
+#else
+  inline void DCHECK_ftrace_batch_cpu(uint32_t) {}
+  inline void set_ftrace_batch_cpu_for_DCHECK(uint32_t) {}
+#endif
 };
 
 }  // namespace trace_processor
