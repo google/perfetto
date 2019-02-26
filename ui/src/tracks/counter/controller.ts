@@ -51,19 +51,62 @@ class CounterTrackController extends TrackController<Config, Data> {
         and ref = ${this.config.ref}`);
       this.maximumValueSeen = +result.columns[0].doubleValues![0];
       this.minimumValueSeen = +result.columns[1].doubleValues![0];
+      await this.query(
+        `create virtual table ${this.tableName('window')} using window;`);
+
+      // TODO(taylori): Remove this view once span_join is fixed.
+      await this.query(`create view ${this.tableName('window_cpu')} as
+        select ts, dur from ${this.tableName('window')} where cpu = 0;`);
+
+      await this.query(`create view ${this.tableName('counter_view')} as
+        select ts,
+        lead(ts) over (partition by ref_type order by ts) - ts as dur,
+        value, name, ref
+        from counters
+        where name = '${this.config.name}' and ref = ${this.config.ref};`);
+
+      await this.query(`create virtual table ${this.tableName('span')} using
+        span_join(${this.tableName('counter_view')},
+        ${this.tableName('window')});`);
       this.setup = true;
     }
 
-    // TODO(hjd): Implement window clipping.
-    const query = `select ts, value
-        from (
-          select ts,
-                 lead(ts) over (partition by ref_type order by ts) as ts_end,
-                 value
+    const isQuantized = this.shouldSummarize(resolution);
+    // |resolution| is in s/px we want # ns for 10px window:
+    const bucketSizeNs = Math.round(resolution * 10 * 1e9);
+    let windowStartNs = startNs;
+    if (isQuantized) {
+      windowStartNs = Math.floor(windowStartNs / bucketSizeNs) * bucketSizeNs;
+    }
+    const windowDurNs = Math.max(1, endNs - windowStartNs);
+
+    this.query(`update ${this.tableName('window')} set
+    window_start=${windowStartNs},
+    window_dur=${windowDurNs},
+    quantum=${isQuantized ? bucketSizeNs : 0}`);
+      
+    let query = `select min(ts) as ts,
+      sum(weighted_value)/sum(dur) as value
+      from (select
+        ts,
+        dur,
+        quantum_ts,
+        value*dur as weighted_value
+        from ${this.tableName('span')})
+      group by quantum_ts;`;
+
+    if (!isQuantized) {
+      // TODO(hjd): Implement window clipping.
+      query = `select ts, value
+        from (select
+          ts,
+          lead(ts) over (partition by ref_type order by ts) as ts_end,
+          value
           from counters
-          where name = '${this.config.name}' and ref = ${this.config.ref}
-        )
-        where ts <= ${endNs} and ${startNs} <= ts_end;`;
+          where name = '${this.config.name}' and ref = ${this.config.ref})
+      where ts <= ${endNs} and ${startNs} <= ts_end;`;
+    }
+
     const rawResult = await this.query(query);
 
     const numRows = +rawResult.numRecords;
@@ -71,6 +114,7 @@ class CounterTrackController extends TrackController<Config, Data> {
     const data: Data = {
       start,
       end,
+      isQuantized,
       maximumValue: this.maximumValue(),
       minimumValue: this.minimumValue(),
       resolution,
