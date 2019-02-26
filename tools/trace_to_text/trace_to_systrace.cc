@@ -177,9 +177,16 @@ int TraceToExperimentalSystrace(std::istream* input,
   // 1MB chunk size seems the best tradeoff on a MacBook Pro 2013 - i7 2.8 GHz.
   constexpr size_t kChunkSize = 1024 * 1024;
 
+// Printing the status update on stderr can be a perf bottleneck. On WASM print
+// status updates more frequently because it can be slower to parse each chunk.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  constexpr int kStderrRate = 1;
+#else
+  constexpr int kStderrRate = 128;
+#endif
   uint64_t file_size = 0;
   for (int i = 0;; i++) {
-    if (i % 128 == 0) {
+    if (i % kStderrRate == 0) {
       fprintf(stderr, "Loading trace %.2f MB" PROGRESS_CHAR, file_size / 1.0e6);
       fflush(stderr);
     }
