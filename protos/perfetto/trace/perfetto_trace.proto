@@ -2894,7 +2894,7 @@ message ProfilePacket {
   repeated InternedString strings = 1;
   message InternedString {
     optional uint64 id = 1;
-    optional string str = 2;
+    optional bytes str = 2;
   }
 
   repeated Frame frames = 2;

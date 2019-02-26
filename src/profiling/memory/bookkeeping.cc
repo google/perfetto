@@ -297,7 +297,8 @@ void DumpState::WriteString(const Interned<std::string>& str) {
 
     auto interned_string = current_profile_packet->add_strings();
     interned_string->set_id(str.id());
-    interned_string->set_str(str->c_str(), str->size());
+    interned_string->set_str(reinterpret_cast<const uint8_t*>(str->c_str()),
+                             str->size());
   }
 }
 
