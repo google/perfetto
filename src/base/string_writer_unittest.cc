@@ -28,69 +28,75 @@ TEST(StringWriterTest, BasicCases) {
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendChar('0');
-    ASSERT_STREQ(writer.GetCString(), "0");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "0");
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendInt(132545);
-    ASSERT_STREQ(writer.GetCString(), "132545");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "132545");
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<'0', 3>(0);
-    ASSERT_STREQ(writer.GetCString(), "000");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "000");
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<'0', 1>(1);
-    ASSERT_STREQ(writer.GetCString(), "1");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "1");
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<'0', 3>(1);
-    ASSERT_STREQ(writer.GetCString(), "001");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "001");
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<'0', 0>(1);
-    ASSERT_STREQ(writer.GetCString(), "1");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "1");
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<' ', 5>(123);
-    ASSERT_STREQ(writer.GetCString(), "  123");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "  123");
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendDouble(123.25);
-    ASSERT_STREQ(writer.GetCString(), "123.250000");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "123.250000");
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendInt(std::numeric_limits<int64_t>::min());
-    ASSERT_STREQ(writer.GetCString(), "-9223372036854775808");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "-9223372036854775808");
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendInt(std::numeric_limits<int64_t>::max());
-    ASSERT_STREQ(writer.GetCString(), "9223372036854775807");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "9223372036854775807");
   }
 
   constexpr char kTestStr[] = "test";
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendLiteral(kTestStr);
-    ASSERT_STREQ(writer.GetCString(), kTestStr);
+    ASSERT_EQ(writer.GetStringView().ToStdString(), kTestStr);
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendString(kTestStr, sizeof(kTestStr) - 1);
-    ASSERT_STREQ(writer.GetCString(), kTestStr);
+    ASSERT_EQ(writer.GetStringView().ToStdString(), kTestStr);
   }
   {
     base::StringWriter writer(buffer, sizeof(buffer));
     writer.AppendString(kTestStr);
-    ASSERT_STREQ(writer.GetCString(), kTestStr);
+    ASSERT_EQ(writer.GetStringView().ToStdString(), kTestStr);
+  }
+  {
+    base::StringWriter writer(buffer, sizeof(buffer));
+    writer.AppendChar('x', sizeof(buffer));
+    ASSERT_EQ(writer.GetStringView().ToStdString(),
+              std::string(sizeof(buffer), 'x').c_str());
   }
 }
 
@@ -112,8 +118,8 @@ TEST(StringWriterTest, WriteAllTypes) {
   writer.AppendString(kTestStr, sizeof(kTestStr) - 1);
   writer.AppendString(kTestStr);
 
-  ASSERT_STREQ(writer.GetCString(),
-               "01325451000101001  123123.250000testtesttest");
+  ASSERT_EQ(writer.GetStringView().ToStdString(),
+            "01325451000101001  123123.250000testtesttest");
 }
 
 }  // namespace
