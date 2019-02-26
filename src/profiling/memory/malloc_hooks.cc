@@ -216,8 +216,13 @@ std::unique_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon() {
   }  // else - parent continuing the client setup
 
   child_sock.ReleaseFd().reset();  // close child socket's fd
-  if (!parent_sock.SetTxTimeout(perfetto::profiling::kClientSockTxTimeoutMs)) {
+  if (!parent_sock.SetTxTimeout(perfetto::profiling::kClientSockTimeoutMs)) {
     PERFETTO_PLOG("Failed to set socket transmit timeout.");
+    return nullptr;
+  }
+
+  if (!parent_sock.SetRxTimeout(perfetto::profiling::kClientSockTimeoutMs)) {
+    PERFETTO_PLOG("Failed to set socket receive timeout.");
     return nullptr;
   }
 
