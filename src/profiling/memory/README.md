@@ -2,11 +2,18 @@
 
 Googlers, for design doc see: http://go/heapprofd-design
 
+**heapprofd requires Android Q.**
+
 ## Using convenience script
 
-Use the `tools/heap_profile` script to heap profile a process. See all the
-arguments using `tools/heap_profile -h`, or use the defaults and just profile a
-process (e.g. `system_server`):
+<!-- This uses github because gitiles does not allow to get the raw file. -->
+
+Use the `tools/heap_profile` script to heap profile a process. If you are
+having trouble make sure you are using the [latest version](
+https://raw.githubusercontent.com/catapult-project/perfetto/master/tools/heap_profile).
+
+See all the arguments using `tools/heap_profile -h`, or use the defaults
+and just profile a process (e.g. `system_server`):
 
 ```
 tools/heap_profile --name system_server
