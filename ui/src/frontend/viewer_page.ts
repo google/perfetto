@@ -212,6 +212,7 @@ class TraceViewer implements m.ClassComponent {
       onDragSelect: (selectStartPx: number|null, selectEndPx: number) => {
         if (!selectStartPx) return;
         this.keepCurrentSelection = true;
+        globals.frontendLocalState.setShowTimeSelectPreview(false);
         const traceTime = globals.state.traceTime;
         const scale = frontendLocalState.timeScale;
         const startPx = Math.min(selectStartPx, selectEndPx);
