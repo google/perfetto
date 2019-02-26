@@ -60,7 +60,6 @@
     "deprecation": true,
     "no-for-in-array": true,
     "no-unnecessary-type-assertion": true,
-    "no-unused-variable": true,
     "restrict-plus-operands": true,
     "whitespace": [
        true,
