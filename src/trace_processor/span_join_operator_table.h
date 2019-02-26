@@ -108,11 +108,18 @@ class SpanJoinOperatorTable : public Table {
 
     TableDefinition(std::string name,
                     std::string partition_col,
-                    std::vector<Table::Column> cols);
+                    std::vector<Table::Column> cols,
+                    uint32_t ts_idx,
+                    uint32_t dur_idx,
+                    uint32_t partition_idx);
 
     const std::string& name() const { return name_; }
     const std::string& partition_col() const { return partition_col_; }
     const std::vector<Table::Column>& columns() const { return cols_; }
+
+    uint32_t ts_idx() const { return ts_idx_; }
+    uint32_t dur_idx() const { return dur_idx_; }
+    uint32_t partition_idx() const { return partition_idx_; }
 
     bool IsPartitioned() const { return !partition_col_.empty(); }
 
@@ -120,6 +127,9 @@ class SpanJoinOperatorTable : public Table {
     std::string name_;
     std::string partition_col_;
     std::vector<Table::Column> cols_;
+    uint32_t ts_idx_ = std::numeric_limits<uint32_t>::max();
+    uint32_t dur_idx_ = std::numeric_limits<uint32_t>::max();
+    uint32_t partition_idx_ = std::numeric_limits<uint32_t>::max();
   };
 
   // Base class for a cursor on the span table.
@@ -202,6 +212,9 @@ class SpanJoinOperatorTable : public Table {
     const TableDefinition* defn;
     size_t col_index;
   };
+
+  base::Optional<TableDefinition> CreateTableDefinition(
+      const TableDescriptor& desc);
 
   std::vector<std::string> ComputeSqlConstraintsForDefinition(
       const TableDefinition& defn,
