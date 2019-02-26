@@ -40,7 +40,7 @@ class VsyncTrackController extends TrackController<Config, Data> {
       await this.query(
           `create virtual table span_${this.trackState.id}
               using span_join(sched PARTITIONED cpu,
-                              window_${this.trackState.id} PARTITIONED cpu);`);
+                              window_${this.trackState.id});`);
       this.setup = true;
     }
 
