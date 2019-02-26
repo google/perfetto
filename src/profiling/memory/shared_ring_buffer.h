@@ -20,6 +20,7 @@
 #include "perfetto/base/optional.h"
 #include "perfetto/base/unix_socket.h"
 #include "perfetto/base/utils.h"
+#include "src/profiling/memory/scoped_spinlock.h"
 
 #include <atomic>
 #include <map>
@@ -29,42 +30,6 @@
 
 namespace perfetto {
 namespace profiling {
-
-class ScopedSpinlock {
- public:
-  enum class Mode { Try, Blocking };
-
-  ScopedSpinlock(std::atomic<bool>* lock, Mode mode) : lock_(lock) {
-    if (PERFETTO_LIKELY(!lock_->exchange(true, std::memory_order_acquire))) {
-      locked_ = true;
-      return;
-    }
-    LockSlow(mode);
-  }
-
-  ScopedSpinlock(const ScopedSpinlock&) = delete;
-  ScopedSpinlock& operator=(const ScopedSpinlock&) = delete;
-
-  ScopedSpinlock(ScopedSpinlock&&) noexcept;
-  ScopedSpinlock& operator=(ScopedSpinlock&&);
-
-  ~ScopedSpinlock();
-
-  void Unlock() {
-    if (locked_) {
-      PERFETTO_DCHECK(lock_->load());
-      lock_->store(false, std::memory_order_release);
-    }
-    locked_ = false;
-  }
-
-  bool locked() const { return locked_; }
-
- private:
-  void LockSlow(Mode mode);
-  std::atomic<bool>* lock_;
-  bool locked_ = false;
-};
 
 // A concurrent, multi-writer single-reader ring buffer FIFO, based on a
 // circular buffer over shared memory. It has similar semantics to a SEQ_PACKET

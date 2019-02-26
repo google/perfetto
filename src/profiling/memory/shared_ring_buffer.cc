@@ -27,6 +27,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/temp_file.h"
+#include "src/profiling/memory/scoped_spinlock.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <linux/memfd.h>
@@ -48,36 +49,6 @@ constexpr auto kFDSeals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
 
 }  // namespace
 
-void ScopedSpinlock::LockSlow(Mode mode) {
-  // Slowpath.
-  for (size_t attempt = 0; mode == Mode::Blocking || attempt < 1024 * 10;
-       attempt++) {
-    if (!lock_->load(std::memory_order_relaxed) &&
-        PERFETTO_LIKELY(!lock_->exchange(true, std::memory_order_acquire))) {
-      locked_ = true;
-      return;
-    }
-    if (attempt && attempt % 1024 == 0)
-      usleep(1000);
-  }
-}
-
-ScopedSpinlock::ScopedSpinlock(ScopedSpinlock&& other) noexcept
-    : lock_(other.lock_), locked_(other.locked_) {
-  other.locked_ = false;
-}
-
-ScopedSpinlock& ScopedSpinlock::operator=(ScopedSpinlock&& other) {
-  if (this != &other) {
-    this->~ScopedSpinlock();
-    new (this) ScopedSpinlock(std::move(other));
-  }
-  return *this;
-}
-
-ScopedSpinlock::~ScopedSpinlock() {
-  Unlock();
-}
 
 SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
   size_t size_with_meta = size + kMetaPageSize;

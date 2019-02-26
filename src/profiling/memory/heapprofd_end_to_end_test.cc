@@ -109,15 +109,19 @@ StartSystemHeapprofdIfRequired() {
 
 constexpr size_t kStartupAllocSize = 10;
 
+void AllocateAndFree(size_t bytes) {
+  // This volatile is needed to prevent the compiler from trying to be
+  // helpful and compiling a "useless" malloc + free into a noop.
+  volatile char* x = static_cast<char*>(malloc(bytes));
+  if (x) {
+    x[1] = 'x';
+    free(const_cast<char*>(x));
+  }
+}
+
 void __attribute__((noreturn)) ContinuousMalloc(size_t bytes) {
   for (;;) {
-    // This volatile is needed to prevent the compiler from trying to be
-    // helpful and compiling a "useless" malloc + free into a noop.
-    volatile char* x = static_cast<char*>(malloc(bytes));
-    if (x) {
-      x[1] = 'x';
-      free(const_cast<char*>(x));
-    }
+    AllocateAndFree(bytes);
     usleep(10 * kMsToUs);
   }
 }
@@ -362,16 +366,13 @@ TEST_F(HeapprofdEndToEnd, ReInit) {
       signal_pipe.wr.reset();
       ack_pipe.rd.reset();
       for (;;) {
-        // This volatile is needed to prevent the compiler from trying to be
-        // helpful and compiling a "useless" malloc + free into a noop.
-        volatile char* x = static_cast<char*>(malloc(bytes));
-        if (x) {
-          x[1] = 'x';
-          free(const_cast<char*>(x));
-        }
+        AllocateAndFree(bytes);
         char buf[1];
         if (bool(signal_pipe.rd) &&
             read(*signal_pipe.rd, buf, sizeof(buf)) == 0) {
+          // make sure the client has noticed that the session has stopped
+          AllocateAndFree(bytes);
+
           bytes = kSecondIterationBytes;
           signal_pipe.rd.reset();
           ack_pipe.wr.reset();
@@ -407,6 +408,11 @@ TEST_F(HeapprofdEndToEnd, ReInit) {
   char buf[1];
   ASSERT_EQ(read(*ack_pipe.rd, buf, sizeof(buf)), 0);
   ack_pipe.rd.reset();
+
+  // TODO(rsavitski): this sleep is to compensate for the heapprofd delaying in
+  // closing the sockets (and therefore the client noticing that the session is
+  // over). Clarify where the delays are coming from.
+  usleep(100 * kMsToUs);
 
   PERFETTO_LOG("HeapprofdEndToEnd::Reinit: Starting second");
   TraceAndValidate(trace_config, pid, kSecondIterationBytes);

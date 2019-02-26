@@ -48,14 +48,26 @@ source_set("proc_utils") {
   ]
 }
 
-source_set("ring_buffer") {
+source_set("scoped_spinlock") {
   deps = [
     "../../../gn:default_deps",
     "../../base",
   ]
   sources = [
+    "scoped_spinlock.cc",
+    "scoped_spinlock.h",
+  ]
+}
+
+source_set("ring_buffer") {
+  deps = [
+    ":scoped_spinlock",
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+  sources = [
     "shared_ring_buffer.cc",
-    "shared_ring_buffer.ch",
+    "shared_ring_buffer.h",
   ]
 }
 
@@ -112,6 +124,7 @@ source_set("client") {
   public_configs = [ "../../../buildtools:libunwindstack_config" ]
   deps = [
     ":proc_utils",
+    ":scoped_spinlock",
     ":wire_protocol",
     "../../../buildtools:libunwindstack",
     "../../../gn:default_deps",
@@ -121,7 +134,6 @@ source_set("client") {
   sources = [
     "client.cc",
     "client.h",
-    "sampler.cc",
     "sampler.h",
   ]
 }
@@ -182,6 +194,7 @@ source_set("malloc_hooks") {
   deps = [
     ":client",
     ":proc_utils",
+    ":scoped_spinlock",
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../base",
