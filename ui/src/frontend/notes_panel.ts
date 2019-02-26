@@ -23,7 +23,7 @@ import {Panel, PanelSize} from './panel';
 import {TRACK_SHELL_WIDTH} from './track_constants';
 import {hsl} from 'color-convert';
 
-const FLAG_WIDTH = 10;
+const FLAG_WIDTH = 16;
 const MOUSE_OFFSET = 4;
 const FLAG = `\uE153`;
 
@@ -75,7 +75,7 @@ export class NotesPanel extends Panel {
     }
 
     ctx.textBaseline = 'bottom';
-    ctx.font = '10px Google Sans';
+    ctx.font = '10px Helvetica';
 
     for (const note of Object.values(globals.state.notes)) {
       const timestamp = note.timestamp;
@@ -101,13 +101,16 @@ export class NotesPanel extends Panel {
         this.drawFlag(ctx, left, size.height, note.color);
       }
 
-      const summary = toSummary(note.text);
-      const measured = ctx.measureText(summary);
-      // Add a white semi-transparent background for the text.
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.fillRect(left + 3, size.height - 1, measured.width, -12);
-      ctx.fillStyle = '#3c4b5d';
-      ctx.fillText(summary, left + 5, size.height - 1);
+      if (note.text) {
+        const summary = toSummary(note.text);
+        const measured = ctx.measureText(summary);
+        // Add a white semi-transparent background for the text.
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillRect(
+            left + FLAG_WIDTH + 2, size.height, measured.width + 2, -12);
+        ctx.fillStyle = '#3c4b5d';
+        ctx.fillText(summary, left + FLAG_WIDTH + 3, size.height - 1);
+      }
     }
 
     // A real note is hovered so we don't need to see the preview line.
@@ -121,26 +124,31 @@ export class NotesPanel extends Panel {
         globals.frontendLocalState.setShowNotePreview(true);
         const x = timeScale.timeToPx(timestamp);
         const left = Math.floor(x + TRACK_SHELL_WIDTH);
-        this.drawFlag(ctx, left, size.height, '#aaa');
+        this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);
       }
     }
   }
 
   private drawFlag(
-    ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
-    fill?: boolean) {
-      const prevFont = ctx.font;
-      if (fill) {
-        ctx.font = '20px Material Icons';
-        ctx.fillStyle = color;
-        ctx.fillText(FLAG, x - MOUSE_OFFSET, height);
-      } else {
-        ctx.strokeStyle = color;
-        ctx.font = '19.5px Material Icons';
-        ctx.strokeText(FLAG, x - MOUSE_OFFSET, height);
-      }
-      ctx.font = prevFont;
+      ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
+      fill?: boolean) {
+    const prevFont = ctx.font;
+    const prevBaseline = ctx.textBaseline;
+    ctx.textBaseline = 'alphabetic';
+    if (fill) {
+      ctx.font = '24px Material Icons';
+      ctx.fillStyle = color;
+      // Adjust height for icon font.
+      ctx.fillText(FLAG, x - MOUSE_OFFSET, height + 2);
+    } else {
+      ctx.strokeStyle = color;
+      ctx.font = '24px Material Icons';
+      // Adjust height for icon font.
+      ctx.strokeText(FLAG, x - MOUSE_OFFSET, height + 2.5);
     }
+    ctx.font = prevFont;
+    ctx.textBaseline = prevBaseline;
+  }
 
   private onClick(x: number, _: number) {
     const timeScale = globals.frontendLocalState.timeScale;
@@ -154,7 +162,7 @@ export class NotesPanel extends Panel {
     }
     // 40 different random hues 9 degrees apart.
     const hue = Math.floor(Math.random() * 40) * 9;
-    const color = '#' + hsl.hex([hue, 90, 55]);
+    const color = '#' + hsl.hex([hue, 90, 30]);
     globals.dispatch(Actions.addNote({timestamp, color}));
   }
 }
@@ -172,14 +180,21 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
         m('.notes-editor-panel-heading-bar',
           m('.notes-editor-panel-heading',
             `Annotation at ${timeToString(startTime)}`),
-          m('button',
-            {
-              onclick: () =>
-                  globals.dispatch(Actions.removeNote({id: attrs.id})),
+          m('input[type=text]', {
+            onkeydown: (e: Event) => {
+              e.stopImmediatePropagation();
             },
-            'Remove'),
-          m('span', {id: 'color-change'}, `Change color: `,
-            m('input[type=color]', {
+            value: note.text,
+            onchange: m.withAttr(
+                'value',
+                newText => {
+                  globals.dispatch(Actions.changeNoteText({
+                    id: attrs.id,
+                    newText,
+                  }));
+                }),
+          }),
+          m('span.color-change', `Change color: `, m('input[type=color]', {
               value: note.color,
               onchange: m.withAttr(
                   'value',
@@ -189,22 +204,13 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
                       newColor,
                     }));
                   }),
-            })) ),
-        m('textarea', {
-          rows: 13,
-          onkeydown: (e: Event) => {
-            e.stopImmediatePropagation();
-          },
-          value: note.text,
-          onchange: m.withAttr(
-              'value',
-              newText => {
-                globals.dispatch(Actions.changeNoteText({
-                  id: attrs.id,
-                  newText,
-                }));
-              }),
-        }), );
+            })),
+          m('button',
+            {
+              onclick: () =>
+                  globals.dispatch(Actions.removeNote({id: attrs.id})),
+            },
+            'Remove')), );
   }
 
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
