@@ -127,7 +127,8 @@ class CounterTrack extends Track<Config, Data> {
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       // TODO(hjd): Add units.
-      const text = `value: ${this.hoveredValue.toLocaleString()}`;
+      let text = (data.isQuantized) ? 'weighted avg: ' : 'value: ';
+      text += `${this.hoveredValue.toLocaleString()}`;
       const width = ctx.measureText(text).width;
 
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
