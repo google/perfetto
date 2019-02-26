@@ -131,6 +131,17 @@ void RawTable::FormatSystraceArgs(const std::string& event_name,
       writer->AppendPaddedInt<'0', 3>(value.int_value);
     });
     return;
+  } else if (event_name == "clock_set_rate") {
+    // TODO(lalitm): this is a big hack but the best way to do this now.
+    // Doing this requires overhauling how we deal with args by pushing them all
+    // to an array and then reading back from that array.
+
+    // We use the string "todo" as the name to stay consistent with old
+    // trace_to_text print code.
+    writer->AppendString(" todo");
+    write_arg(0 /* state */, write_value);
+    write_arg(1 /* cpu_id */, write_value);
+    return;
   }
 
   uint32_t arg = 0;
