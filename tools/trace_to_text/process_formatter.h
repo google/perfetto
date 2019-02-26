@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include "perfetto/base/string_writer.h"
 #include "perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
@@ -43,6 +44,35 @@ inline std::string FormatThread(const protos::ProcessTree::Thread& t) {
   sprintf(line, "root         %d %d %s", t.tgid(), t.tid(), name.c_str());
   return line;
 };
+
+inline void FormatProcess(uint32_t pid,
+                          uint32_t ppid,
+                          const base::StringView& name,
+                          base::StringWriter* writer) {
+  writer->AppendLiteral("root             ");
+  writer->AppendInt(pid);
+  writer->AppendLiteral("     ");
+  writer->AppendInt(ppid);
+  writer->AppendLiteral("   00000   000 null 0000000000 S ");
+  writer->AppendString(name);
+  writer->AppendLiteral("         null");
+}
+
+inline void FormatThread(uint32_t tid,
+                         uint32_t tgid,
+                         const base::StringView& name,
+                         base::StringWriter* writer) {
+  writer->AppendLiteral("root         ");
+  writer->AppendInt(tgid);
+  writer->AppendChar(' ');
+  writer->AppendInt(tid);
+  writer->AppendChar(' ');
+  if (name.empty()) {
+    writer->AppendLiteral("<...>");
+  } else {
+    writer->AppendString(name);
+  }
+}
 
 }  // namespace perfetto
 
