@@ -733,7 +733,7 @@ TEST_F(UnixSocketTest, ReleaseSocket) {
   task_runner_.RunUntilCheckpoint("connected");
   srv->Shutdown(true);
 
-  cli->Send("test");
+  cli->Send("test", UnixSocket::BlockingMode::kBlocking);
 
   ASSERT_NE(peer, nullptr);
   auto raw_sock = peer->ReleaseSocket();
