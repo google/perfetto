@@ -64,6 +64,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/ftrace/signal.proto',
   'protos/perfetto/trace/ftrace/task.proto',
   'protos/perfetto/trace/ftrace/vmscan.proto',
+  'protos/perfetto/trace/interned_data/interned_data.proto',
   'protos/perfetto/trace/power/battery_counters.proto',
   'protos/perfetto/trace/power/power_rails.proto',
   'protos/perfetto/trace/ps/process_stats.proto',
@@ -71,6 +72,11 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/sys_stats/sys_stats.proto',
   'protos/perfetto/trace/trace.proto',
   'protos/perfetto/trace/trace_packet.proto',
+  'protos/perfetto/trace/track_event/debug_annotation.proto',
+  'protos/perfetto/trace/track_event/process_descriptor.proto',
+  'protos/perfetto/trace/track_event/task_execution.proto',
+  'protos/perfetto/trace/track_event/thread_descriptor.proto',
+  'protos/perfetto/trace/track_event/track_event.proto',
   'protos/perfetto/trace/profiling/profile_packet.proto',
 )
 
@@ -114,7 +120,8 @@ def merge_protos(proto_paths, output_path):
   definitions = re.finditer(definitions_re, merged_content, re.MULTILINE)
   types = set((match.group(1) for match in definitions))
 
-  uses_re = r'^( +)(?:repeated)?\s?([A-Z]\w+.*)\s+[a-z]\w+\s*=\s*(\d+);'
+  uses_re = r'^( +)(?:repeated)?(?:optional)?\s'\
+            r'?([A-Z]\w+.*)\s+[a-z]\w+\s*=\s*(\d+);'
   uses = re.finditer(uses_re, merged_content, re.MULTILINE)
   substitutions = []
   for use in uses:
