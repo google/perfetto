@@ -254,6 +254,8 @@ if (perfetto_build_with_embedder) {
       "include/perfetto/tracing/core",
       "protos/perfetto/trace:zero",
       "protos/perfetto/trace/chrome:zero",
+      "protos/perfetto/trace/interned_data:zero",
+      "protos/perfetto/trace/track_event:zero",
     ]
   }
 }
