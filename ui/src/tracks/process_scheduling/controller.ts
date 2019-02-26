@@ -58,7 +58,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
             where utid != 0 and upid = ${this.config.upid}) using(utid);`);
       await this.query(`create virtual table ${this.tableName('span')}
               using span_join(${this.tableName('process')} PARTITIONED cpu,
-                              ${this.tableName('window')} PARTITIONED cpu);`);
+                              ${this.tableName('window')});`);
       this.numCpus = await this.engine.getNumberOfCpus();
       this.setup = true;
     }

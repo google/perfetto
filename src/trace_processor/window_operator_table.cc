@@ -48,7 +48,6 @@ base::Optional<Table::Schema> WindowOperatorTable::Init(int,
           // These are the ouput columns:
           Table::Column(Column::kTs, "ts", ColumnType::kLong),
           Table::Column(Column::kDuration, "dur", ColumnType::kLong),
-          Table::Column(Column::kCpu, "cpu", ColumnType::kUint),
           Table::Column(Column::kQuantumTs, "quantum_ts", ColumnType::kLong),
       },
       {Column::kRowId});
@@ -116,15 +115,8 @@ WindowOperatorTable::Cursor::Cursor(const WindowOperatorTable* table,
                       qc.constraints()[0].iColumn == Column::kRowId &&
                       IsOpEq(qc.constraints()[0].op) &&
                       sqlite3_value_int(argv[0]) == 0;
-  // Set return CPU if there is an equals constraint on the CPU column.
-  bool return_cpu = qc.constraints().size() == 1 &&
-                    qc.constraints()[0].iColumn == Column::kCpu &&
-                    IsOpEq(qc.constraints()[0].op);
   if (return_first) {
     filter_type_ = FilterType::kReturnFirst;
-  } else if (return_cpu) {
-    filter_type_ = FilterType::kReturnCpu;
-    current_cpu_ = static_cast<uint32_t>(sqlite3_value_int(argv[0]));
   } else {
     filter_type_ = FilterType::kReturnAll;
   }
@@ -154,10 +146,6 @@ int WindowOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
       sqlite3_result_int64(context, static_cast<sqlite_int64>(step_size_));
       break;
     }
-    case Column::kCpu: {
-      sqlite3_result_int(context, static_cast<int>(current_cpu_));
-      break;
-    }
     case Column::kQuantumTs: {
       sqlite3_result_int64(context, static_cast<sqlite_int64>(quantum_ts_));
       break;
@@ -179,16 +167,9 @@ int WindowOperatorTable::Cursor::Next() {
     case FilterType::kReturnFirst:
       current_ts_ = window_end_;
       break;
-    case FilterType::kReturnCpu:
+    case FilterType::kReturnAll:
       current_ts_ += step_size_;
       quantum_ts_++;
-      break;
-    case FilterType::kReturnAll:
-      if (++current_cpu_ == base::kMaxCpus && current_ts_ < window_end_) {
-        current_cpu_ = 0;
-        current_ts_ += step_size_;
-        quantum_ts_++;
-      }
       break;
   }
   row_id_++;
