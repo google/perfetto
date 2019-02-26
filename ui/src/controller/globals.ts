@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {produce} from 'immer';
+import {Patch, produce} from 'immer';
 
 import {assertExists} from '../base/logging';
 import {Remote} from '../base/remote';
@@ -73,14 +73,13 @@ class Globals implements App {
 
     // Run controllers locally until all state machines reach quiescence.
     let runAgain = false;
-    let summary = this._queuedActions.map(action => action.type).join(', ');
-    summary = `Controllers loop (${summary})`;
+    const patches: Patch[] = [];
     for (let iter = 0; runAgain || this._queuedActions.length > 0; iter++) {
       if (iter > 100) throw new Error('Controllers are stuck in a livelock');
       const actions = this._queuedActions;
       this._queuedActions = new Array<DeferredAction>();
       for (const action of actions) {
-        this.applyAction(action);
+        patches.push(...this.applyAction(action));
       }
       this._runningControllers = true;
       try {
@@ -89,7 +88,7 @@ class Globals implements App {
         this._runningControllers = false;
       }
     }
-    assertExists(this._frontend).send<void>('updateState', [this.state]);
+    assertExists(this._frontend).send<void>('patchState', [patches]);
   }
 
   createEngine(): Engine {
@@ -115,21 +114,23 @@ class Globals implements App {
     return assertExists(this._state);
   }
 
-  applyAction(action: DeferredAction): void {
+  applyAction(action: DeferredAction): Patch[] {
     assertExists(this._state);
-    // We need a special case for when we want to replace the whole tree.
-    if (action.type === 'setState') {
-      const args = (action as DeferredAction<{newState: State}>).args;
-      this._state = args.newState;
-      return;
-    }
+    const patches: Patch[] = [];
+
     // 'produce' creates a immer proxy which wraps the current state turning
     // all imperative mutations of the state done in the callback into
     // immutable changes to the returned state.
-    this._state = produce(this.state, draft => {
-      // tslint:disable-next-line no-any
-      (StateActions as any)[action.type](draft, action.args);
-    });
+    this._state = produce(
+        this.state,
+        draft => {
+          // tslint:disable-next-line no-any
+          (StateActions as any)[action.type](draft, action.args);
+        },
+        (morePatches, _) => {
+          patches.push(...morePatches);
+        });
+    return patches;
   }
 
   resetForTesting() {
