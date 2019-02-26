@@ -167,6 +167,7 @@ class CounterTrack extends Track<Config, Data> {
     ctx.fillRect(0, 0, 40, 16);
     ctx.fillStyle = '#666';
     ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
     ctx.fillText(`${yLabel}`, 5, 14);
 
     // If the cached trace slices don't fully cover the visible time range,
