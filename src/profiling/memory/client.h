@@ -127,7 +127,7 @@ class PThreadKey {
   bool valid_;
 };
 
-constexpr uint32_t kClientSockTxTimeoutMs = 1000;
+constexpr uint32_t kClientSockTimeoutMs = 1000;
 
 // This is created and owned by the malloc hooks.
 class Client {
