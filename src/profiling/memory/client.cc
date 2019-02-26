@@ -39,6 +39,7 @@
 #include "perfetto/base/unix_socket.h"
 #include "perfetto/base/utils.h"
 #include "src/profiling/memory/sampler.h"
+#include "src/profiling/memory/scoped_spinlock.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -206,12 +207,10 @@ std::atomic<uint64_t> Client::max_generation_{0};
 
 Client::Client(std::vector<base::UnixSocketRaw> socks)
     : generation_(++max_generation_),
-      pthread_key_(ThreadLocalSamplingData::KeyDestructor),
+      sampler_(8192),  // placeholder until we receive the config (within ctor)
       socket_pool_(std::move(socks)),
       free_page_(generation_),
       main_thread_stack_base_(FindMainThreadStack()) {
-  PERFETTO_DCHECK(pthread_key_.valid());
-
   // We might be running in a process that is not dumpable (such as app
   // processes on user builds), in which case the /proc/self/mem will be chown'd
   // to root:root, and will not be accessible even to the process itself (see
@@ -258,6 +257,8 @@ Client::Client(std::vector<base::UnixSocketRaw> socks)
     return;
   }
   PERFETTO_DCHECK(client_config_.interval >= 1);
+  sampler_ = Sampler(client_config_.interval);
+
   PERFETTO_DLOG("Initialized client.");
   inited_.store(true, std::memory_order_release);
 }
@@ -342,28 +343,6 @@ bool Client::RecordFree(uint64_t alloc_address) {
   if (!success)
     Shutdown();
   return success;
-}
-
-ssize_t Client::ShouldSampleAlloc(uint64_t alloc_size,
-                                  void* (*unhooked_malloc)(size_t),
-                                  void (*unhooked_free)(void*)) {
-  if (!inited_.load(std::memory_order_acquire))
-    return -1;
-  return static_cast<ssize_t>(SampleSize(pthread_key_.get(), alloc_size,
-                                         client_config_.interval,
-                                         unhooked_malloc, unhooked_free));
-}
-
-bool Client::MaybeSampleAlloc(uint64_t alloc_size,
-                              uint64_t alloc_address,
-                              void* (*unhooked_malloc)(size_t),
-                              void (*unhooked_free)(void*)) {
-  ssize_t total_size =
-      ShouldSampleAlloc(alloc_size, unhooked_malloc, unhooked_free);
-  if (total_size > 0)
-    return RecordMalloc(alloc_size, static_cast<size_t>(total_size),
-                        alloc_address);
-  return total_size != -1;
 }
 
 void Client::Shutdown() {

@@ -17,65 +17,72 @@
 #ifndef SRC_PROFILING_MEMORY_SAMPLER_H_
 #define SRC_PROFILING_MEMORY_SAMPLER_H_
 
-#include <atomic>
-
-#include <pthread.h>
 #include <stdint.h>
 
+#include <atomic>
 #include <random>
+
+#include "perfetto/base/utils.h"
 
 namespace perfetto {
 namespace profiling {
 
-// This is the thread-local state needed to apply poission sampling to malloc
-// samples.
+constexpr uint64_t kSamplerSeed = 1;
+
+// Poisson sampler for memory allocations. We apply sampling individually to
+// each byte. The whole allocation gets accounted as often as the number of
+// sampled bytes it contains.
 //
-// We apply poisson sampling individually to each byte. The whole
-// allocation gets accounted as often as the number of sampled bytes it
-// contains.
+// The algorithm is inspired by the Chromium sampling algorithm at
+// https://cs.chromium.org/search/?q=f:cc+symbol:AllocatorShimLogAlloc+package:%5Echromium$&type=cs
+// Googlers: see go/chrome-shp for more details.
 //
-// Googlers see go/chrome-shp for more details about the sampling (from
-// Chrome's heap profiler).
-class ThreadLocalSamplingData {
+// NB: not thread-safe, requires external synchronization.
+class Sampler {
  public:
-  ThreadLocalSamplingData(void (*unhooked_free)(void*), uint64_t interval)
-      : unhooked_free_(unhooked_free),
-        rate_(1 / static_cast<double>(interval)),
-        random_engine_(seed.load(std::memory_order_relaxed)),
+  Sampler(uint64_t sampling_interval)
+      : sampling_interval_(sampling_interval),
+        sampling_rate_(1.0 / static_cast<double>(sampling_interval)),
+        random_engine_(kSamplerSeed),
         interval_to_next_sample_(NextSampleInterval()) {}
-  // Returns number of times a sample should be accounted. Due to how the
-  // poission sampling works, some samples should be accounted multiple times.
-  size_t NumberOfSamples(size_t sz);
 
-  // Destroy a TheadLocalSamplingData object after the pthread key has been
-  // deleted or when the thread shuts down. This uses unhooked_free passed in
-  // the constructor.
-  static void KeyDestructor(void* ptr);
-
-  static std::atomic<uint64_t> seed;
+  // Returns number of bytes that should be be attributed to the sample.
+  // If returned size is 0, the allocation should not be sampled.
+  //
+  // Due to how the poission sampling works, some samples should be accounted
+  // multiple times.
+  size_t SampleSize(size_t alloc_sz) {
+    if (PERFETTO_UNLIKELY(alloc_sz >= sampling_interval_))
+      return alloc_sz;
+    return sampling_interval_ * NumberOfSamples(alloc_sz);
+  }
 
  private:
-  int64_t NextSampleInterval();
-  void (*unhooked_free_)(void*);
-  double rate_;
+  int64_t NextSampleInterval() {
+    std::exponential_distribution<double> dist(sampling_rate_);
+    int64_t next = static_cast<int64_t>(dist(random_engine_));
+    // The +1 corrects the distribution of the first value in the interval.
+    // TODO(fmayer): Figure out why.
+    return next + 1;
+  }
+
+  // Returns number of times a sample should be accounted. Due to how the
+  // poission sampling works, some samples should be accounted multiple times.
+  size_t NumberOfSamples(size_t alloc_sz) {
+    interval_to_next_sample_ -= alloc_sz;
+    size_t num_samples = 0;
+    while (PERFETTO_UNLIKELY(interval_to_next_sample_ <= 0)) {
+      interval_to_next_sample_ += NextSampleInterval();
+      ++num_samples;
+    }
+    return num_samples;
+  }
+
+  uint64_t sampling_interval_;
+  double sampling_rate_;
   std::default_random_engine random_engine_;
   int64_t interval_to_next_sample_;
 };
-
-// Returns number of bytes that should be be attributed to the sample.
-// If returned size is 0, the allocation should not be sampled.
-//
-// Due to how the poission sampling works, some samples should be accounted
-// multiple times.
-//
-// Delegate to this thread's ThreadLocalSamplingData.
-//
-// We have to pass through the real malloc in order to allocate the TLS.
-size_t SampleSize(pthread_key_t key,
-                  size_t sz,
-                  uint64_t rate,
-                  void* (*unhooked_malloc)(size_t),
-                  void (*unhooked_free)(void*));
 
 }  // namespace profiling
 }  // namespace perfetto
