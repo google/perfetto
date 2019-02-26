@@ -30,6 +30,10 @@ import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 import "perfetto/trace/chrome/chrome_trace_event.proto";
 import "perfetto/trace/clock_snapshot.proto";
+import "perfetto/trace/interned_data/interned_data.proto";
+import "perfetto/trace/track_event/process_descriptor.proto";
+import "perfetto/trace/track_event/thread_descriptor.proto";
+import "perfetto/trace/track_event/track_event.proto";
 
 package perfetto.protos;
 
@@ -41,9 +45,19 @@ package perfetto.protos;
 message ChromeTracePacket {
   ChromeEventBundle chrome_events = 5;
 
+  ClockSnapshot clock_snapshot = 6;
+  TrackEvent track_event = 11;
+  ProcessDescriptor process_descriptor = 43;
+  ThreadDescriptor thread_descriptor = 44;
+
   // The original trace config.
   TraceConfig trace_config = 33;
   TraceStats trace_stats = 35;
 
-  ClockSnapshot clock_snapshot = 6;
+  uint32 trusted_packet_sequence_id = 10;
+
+  InternedData interned_data = 12;
+
+  bool incremental_state_cleared = 41;
+  bool previous_packet_dropped = 42;
 }

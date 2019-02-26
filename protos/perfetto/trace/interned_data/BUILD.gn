@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,39 +13,27 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/proto_library.gni")
 import("../../../../gn/protozero_library.gni")
 
-chrome_proto_names = [ "chrome_trace_event.proto" ]
-minimal_chrome_proto_names = [ "chrome_trace_packet.proto" ]
+event_proto_names = [ "interned_data.proto" ]
 
 proto_library("lite") {
+  deps = [
+    "../track_event:lite",
+  ]
   generate_python = false
-  sources = chrome_proto_names
+  sources = event_proto_names
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
 }
 
 protozero_library("zero") {
   deps = [
-    "../interned_data:zero",
     "../track_event:zero",
   ]
-  sources = chrome_proto_names
+  sources = event_proto_names
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   generator_plugin_options = "wrapper_namespace=pbzero"
-}
-
-proto_library("minimal_complete_lite") {
-  generate_python = false
-  deps = [
-    ":lite",
-    "../:minimal_lite",
-    "../../config:lite",
-    "../interned_data:lite",
-    "../track_event:lite",
-  ]
-  sources = minimal_chrome_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
 }
