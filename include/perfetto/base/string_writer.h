@@ -99,6 +99,16 @@ class StringWriter {
     AppendString(&data[idx + 1], kSizeNeeded - idx - 1);
   }
 
+  // Appends a hex integer to the buffer.
+  void AppendHexInt(uint32_t value) {
+    // TODO(lalitm): trying to optimize this is premature given we almost never
+    // print hex ints. Reevaluate this in the future if we do print them more.
+    size_t res = static_cast<size_t>(
+        snprintf(buffer_ + pos_, size_ - pos_, "%x", value));
+    PERFETTO_DCHECK(pos_ + res <= size_);
+    pos_ += res;
+  }
+
   // Appends a double to the buffer.
   void AppendDouble(double value) {
     // TODO(lalitm): trying to optimize this is premature given we almost never
