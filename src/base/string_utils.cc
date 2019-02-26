@@ -33,5 +33,17 @@ bool Contains(const std::string& haystack, const std::string& needle) {
   return haystack.find(needle) != std::string::npos;
 }
 
+std::string Join(const std::vector<std::string>& parts,
+                 const std::string& delim) {
+  std::string acc;
+  for (size_t i = 0; i < parts.size(); ++i) {
+    acc += parts[i];
+    if (i + 1 != parts.size()) {
+      acc += delim;
+    }
+  }
+  return acc;
+}
+
 }  // namespace base
 }  // namespace perfetto

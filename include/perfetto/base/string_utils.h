@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_BASE_STRING_UTILS_H_
 
 #include <string>
+#include <vector>
 
 namespace perfetto {
 namespace base {
@@ -25,6 +26,8 @@ namespace base {
 bool StartsWith(const std::string& str, const std::string& prefix);
 bool EndsWith(const std::string& str, const std::string& suffix);
 bool Contains(const std::string& haystack, const std::string& needle);
+std::string Join(const std::vector<std::string>& parts,
+                 const std::string& delim);
 
 }  // namespace base
 }  // namespace perfetto
