@@ -47,8 +47,6 @@ namespace {
 
 constexpr std::chrono::seconds kLockTimeout{1};
 
-// TODO(rsavitski): consider setting a receive timeout as well, otherwise the
-// constructor can block indefinitely (while waiting on the client config).
 std::vector<base::UnixSocketRaw> ConnectPool(const std::string& sock_name,
                                              size_t n) {
   std::vector<base::UnixSocketRaw> res;
@@ -59,8 +57,12 @@ std::vector<base::UnixSocketRaw> ConnectPool(const std::string& sock_name,
       PERFETTO_PLOG("Failed to connect to %s", sock_name.c_str());
       continue;
     }
-    if (!sock.SetTxTimeout(kClientSockTxTimeoutMs)) {
-      PERFETTO_PLOG("Failed to set timeout for %s", sock_name.c_str());
+    if (!sock.SetTxTimeout(kClientSockTimeoutMs)) {
+      PERFETTO_PLOG("Failed to set send timeout for %s", sock_name.c_str());
+      continue;
+    }
+    if (!sock.SetRxTimeout(kClientSockTimeoutMs)) {
+      PERFETTO_PLOG("Failed to set receive timeout for %s", sock_name.c_str());
       continue;
     }
     res.emplace_back(std::move(sock));

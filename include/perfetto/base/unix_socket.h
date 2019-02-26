@@ -67,6 +67,7 @@ class UnixSocketRaw {
   bool Listen();
   bool Connect(const std::string& socket_name);
   bool SetTxTimeout(uint32_t timeout_ms);
+  bool SetRxTimeout(uint32_t timeout_ms);
   void Shutdown();
   void SetBlocking(bool);
   bool IsBlocking() const;
