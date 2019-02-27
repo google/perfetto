@@ -240,6 +240,15 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
     FlushPendingCommitDataRequests();
 }
 
+// This function is quite subtle. When making changes keep in mind these two
+// challenges:
+// 1) If the producer stalls and we happen to be on the |task_runner_| IPC
+//    thread (or, for in-process cases, on the same thread where
+//    TracingServiceImpl lives), the CommitData() call must be synchronous and
+//    not posted, to avoid deadlocks.
+// 2) When different threads hit this function, we must guarantee that we don't
+//    accidentally make commits out of order. See commit 4e4fe8f56ef and
+//    crbug.com/919187 for more context.
 void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
     std::function<void()> callback) {
   // May be called by TraceWriterImpl on any thread.
