@@ -136,8 +136,9 @@ RowId EventTracker::PushCounter(int64_t timestamp,
                                 int64_t ref,
                                 RefType ref_type) {
   if (timestamp < prev_timestamp_) {
-    PERFETTO_ELOG("counter event out of order by %.4f ms, skipping",
-                  (prev_timestamp_ - timestamp) / 1e6);
+    PERFETTO_ELOG("counter event (ts: %" PRId64
+                  ") out of order by %.4f ms, skipping",
+                  timestamp, (prev_timestamp_ - timestamp) / 1e6);
     context_->storage->IncrementStats(stats::counter_events_out_of_order);
     return kInvalidRowId;
   }
