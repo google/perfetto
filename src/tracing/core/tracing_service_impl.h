@@ -20,6 +20,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 
 #include "perfetto/base/gtest_prod_util.h"
@@ -136,8 +137,12 @@ class TracingServiceImpl : public TracingService {
     // before use.
     std::map<WriterID, BufferID> writers_;
 
-    // This is used only in in-process configurations (mostly tests).
+    // This is used only in in-process configurations. The mutex protects
+    // concurrent construction of |inproc_shmem_arbiter_|.
+    // SharedMemoryArbiterImpl methods themselves are thread-safe.
+    std::mutex inproc_shmem_arbiter_mutex_;
     std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
+
     PERFETTO_THREAD_CHECKER(thread_checker_)
     base::WeakPtrFactory<ProducerEndpointImpl> weak_ptr_factory_;  // Keep last.
   };

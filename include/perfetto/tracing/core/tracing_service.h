@@ -85,6 +85,13 @@ class PERFETTO_EXPORT TracingService {
 
     // Called by the Producer to signal that some pages in the shared memory
     // buffer (shared between Service and Producer) have changed.
+    // When the Producer and the Service are hosted in the same process and
+    // hence potentially live on the same task runner, This method must call
+    // TracingServiceImpl's CommitData synchronously, without any PostTask()s,
+    // if on the same thread. This is to avoid a deadlock where the Producer
+    // exhausts its SMB and stalls waiting for the service to catch up with
+    // reads, but the Service never gets to that because it lives on the same
+    // thread.
     using CommitDataCallback = std::function<void()>;
     virtual void CommitData(const CommitDataRequest&,
                             CommitDataCallback callback = {}) = 0;
@@ -183,6 +190,12 @@ class PERFETTO_EXPORT TracingService {
   // essentially a 1:1 channel between one Producer and the Service.
   // The caller has to guarantee that the passed Producer will be alive as long
   // as the returned ProducerEndpoint is alive.
+  // Both the passed Prodcer and the returned ProducerEndpint must live on the
+  // same task runner of the service, specifically:
+  // 1) The Service will call Producer::* methods on the Service's task runner.
+  // 2) The Producer should call ProducerEndpoint::* methods only on the
+  //    service's task runner, except for ProducerEndpoint::CreateTraceWriter(),
+  //    which can be called on any thread.
   // To disconnect just destroy the returned ProducerEndpoint object. It is safe
   // to destroy the Producer once the Producer::OnDisconnect() has been invoked.
   // |uid| is the trusted user id of the producer process, used by the consumers
