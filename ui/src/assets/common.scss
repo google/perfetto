@@ -530,9 +530,15 @@ button.query-ctrl {
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
-  border-bottom: 1px solid var(--track-border-color);
   transition: background-color .4s, color .4s;
   height: 40px;
+  &::after {
+    display: block;
+    content: '';
+    grid-column: 1 / span 2;
+    border-top: 1px solid var(--track-border-color);
+    margin-top: -1px;
+  }
   &[collapsed=true] {
     background-color: var(--collapsed-background-transparent);
     .shell {
