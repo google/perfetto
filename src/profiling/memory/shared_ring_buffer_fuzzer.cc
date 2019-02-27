@@ -54,7 +54,9 @@ int FuzzRingBuffer(const uint8_t* data, size_t size) {
   auto fd = base::TempFile::CreateUnlinked().ReleaseFD();
   PERFETTO_CHECK(fd);
 
-  // Put the remaining fuzzer input into the data portion of the ring buffer.
+  // Use fuzzer input to first fill the MetadataHeader in the first page, and
+  // then put the remainder into the data portion of the ring buffer (2nd+
+  // pages).
   size_t payload_size = size - sizeof(MetadataHeader);
   const uint8_t* payload = data + sizeof(MetadataHeader);
   size_t payload_size_pages =
@@ -63,9 +65,14 @@ int FuzzRingBuffer(const uint8_t* data, size_t size) {
   // for the metadata.
   size_t total_size_pages = 1 + RoundToPow2(payload_size_pages);
 
-  PERFETTO_CHECK(ftruncate(*fd, total_size_pages * base::kPageSize) == 0);
+  // Clear spinlock field, as otherwise the read will wait indefinitely (it
+  // defaults to indefinite blocking mode).
+  MetadataHeader header = {};
+  memcpy(&header, data, sizeof(header));
+  header.spinlock = 0;
 
-  PERFETTO_CHECK(base::WriteAll(*fd, data, sizeof(MetadataHeader)) != -1);
+  PERFETTO_CHECK(ftruncate(*fd, total_size_pages * base::kPageSize) == 0);
+  PERFETTO_CHECK(base::WriteAll(*fd, &header, sizeof(header)) != -1);
   PERFETTO_CHECK(lseek(*fd, base::kPageSize, SEEK_SET) != -1);
   PERFETTO_CHECK(base::WriteAll(*fd, payload, payload_size) != -1);
 
