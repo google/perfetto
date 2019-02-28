@@ -124,6 +124,7 @@ TEST_F(CreateConfigFromOptionsTest, FullConfig) {
   options.atrace_apps.push_back("com.android.chrome");
   ASSERT_TRUE(CreateConfigFromOptions(options, &config));
   EXPECT_EQ(config.duration_ms(), 60 * 60 * 1000);
+  EXPECT_EQ(config.flush_period_ms(), 30 * 1000);
   EXPECT_EQ(config.max_file_size_bytes(), 1 * 1024 * 1024 * 1024);
   EXPECT_EQ(config.buffers().Get(0).size_kb(), 100 * 1024);
   EXPECT_EQ(config.data_sources().Get(0).config().name(), "linux.ftrace");
