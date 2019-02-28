@@ -68,3 +68,8 @@ synth_1.py filter_counters.sql synth_1_filter_counters.out
 
 # Null printing
 synth_1.py nulls.sql nulls.out
+
+
+# The below tests check the systrace conversion code in the raw table.
+# Print events
+../data/lmk_userspace.pb print_systrace.sql print_systrace_lmk_userspace.out
