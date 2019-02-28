@@ -336,13 +336,31 @@ canvas.main-canvas {
 
 .details-content {
   .handle {
-    background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAAFCAYAAACeuGYRAAAAFUlEQVR42mPYvXv3f1IxA1lgcNsEAEynfFEloq9lAAAAAElFTkSuQmCC) 0 0 no-repeat; // http://
-    background-color: #fafafa;
-    background-position: center center;
+    background-color: hsl(215, 1%, 95%);
     border: 1px solid rgba(0,0,0,0.1);
     cursor: row-resize;
-    height: 12px;
-    min-height: 12px;
+    height: 28px;
+    min-height: 28px;
+
+    i.material-icons {
+      font-size: 24px;
+      float: right;
+      vertical-align: middle;
+      margin-right: 5px;
+      margin-top: 1px;
+      &:hover{
+        cursor: pointer;
+      }
+    }
+
+    .handle-title {
+      float: left;
+      font-family: 'Google Sans';
+      color: #3c4b5d;
+      margin-left: 5px;
+      padding: 5px;
+      font-size: 13px;
+    }
   }
 
   .details-panel-container {
