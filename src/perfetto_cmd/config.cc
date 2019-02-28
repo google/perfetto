@@ -117,6 +117,7 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
 
   config->set_duration_ms(static_cast<unsigned int>(duration_ms));
   config->set_max_file_size_bytes(max_file_size_kb * 1024);
+  config->set_flush_period_ms(30 * 1000);
   if (max_file_size_kb)
     config->set_write_into_file(true);
   config->add_buffers()->set_size_kb(static_cast<unsigned int>(buffer_size_kb));
