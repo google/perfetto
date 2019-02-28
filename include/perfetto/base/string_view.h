@@ -21,6 +21,8 @@
 
 #include <string>
 
+#include "perfetto/base/hash.h"
+
 namespace perfetto {
 namespace base {
 
@@ -49,14 +51,9 @@ class StringView {
   std::string ToStdString() const { return std::string(data_, size_); }
 
   uint64_t Hash() const {
-    if (size_ == 0)
-      return 0;
-    uint64_t hash = 0xcbf29ce484222325;  // FNV-1a-64 offset basis.
-    for (size_t i = 0; i < size_; ++i) {
-      hash ^= static_cast<decltype(hash)>(data_[i]);
-      hash *= 1099511628211;  // FNV-1a-64 prime.
-    }
-    return hash;
+    base::Hash hasher;
+    hasher.Update(data_, size_);
+    return hasher.digest();
   }
 
  private:
