@@ -94,7 +94,6 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       quantum_ts as bucket,
       sum(dur)/cast(${bucketSizeNs} as float) as utilization
       from ${this.tableName('span')}
-      where cpu = 0
       group by quantum_ts`;
 
     const rawResult = await this.query(query);
