@@ -70,6 +70,7 @@ export class NotesPanel extends Panel {
     let aNoteIsHovered = false;
 
     ctx.fillStyle = '#999';
+    ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 2, size.height);
     for (const xAndTime of gridlines(size.width, range, timeScale)) {
       ctx.fillRect(xAndTime[0], 0, 1, size.height);
     }
