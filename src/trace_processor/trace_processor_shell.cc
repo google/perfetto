@@ -539,7 +539,7 @@ int TraceProcessorMain(int argc, char** argv) {
   }
 
   if (!RunQueryAndPrintResult(queries, stdout)) {
-    return false;
+    return 1;
   }
 
   // After this we can dump the database and exit if needed.
