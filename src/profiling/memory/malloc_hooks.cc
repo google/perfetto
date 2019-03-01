@@ -77,6 +77,7 @@ void* HEAPPROFD_ADD_PREFIX(_realloc)(void* pointer, size_t bytes);
 void* HEAPPROFD_ADD_PREFIX(_calloc)(size_t nmemb, size_t bytes);
 struct mallinfo HEAPPROFD_ADD_PREFIX(_mallinfo)();
 int HEAPPROFD_ADD_PREFIX(_mallopt)(int param, int value);
+int HEAPPROFD_ADD_PREFIX(_malloc_info)(int options, FILE* fp);
 int HEAPPROFD_ADD_PREFIX(_posix_memalign)(void** memptr,
                                           size_t alignment,
                                           size_t size);
@@ -462,6 +463,11 @@ struct mallinfo HEAPPROFD_ADD_PREFIX(_mallinfo)() {
 int HEAPPROFD_ADD_PREFIX(_mallopt)(int param, int value) {
   const MallocDispatch* dispatch = GetDispatch();
   return dispatch->mallopt(param, value);
+}
+
+int HEAPPROFD_ADD_PREFIX(_malloc_info)(int options, FILE* fp) {
+  const MallocDispatch* dispatch = GetDispatch();
+  return dispatch->malloc_info(options, fp);
 }
 
 int HEAPPROFD_ADD_PREFIX(_iterate)(uintptr_t,
