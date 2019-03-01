@@ -29,6 +29,7 @@
 
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/pipe.h"
+#include "src/base/test/gtest_test_suite.h"
 
 namespace perfetto {
 namespace base {
@@ -46,7 +47,8 @@ using TaskRunnerTypes = ::testing::Types<AndroidTaskRunner, UnixTaskRunner>;
 #else
 using TaskRunnerTypes = ::testing::Types<UnixTaskRunner>;
 #endif
-TYPED_TEST_CASE(TaskRunnerTest, TaskRunnerTypes);
+
+TYPED_TEST_SUITE(TaskRunnerTest, TaskRunnerTypes);
 
 struct TestPipe : Pipe {
   TestPipe() : Pipe(Pipe::Create()) {

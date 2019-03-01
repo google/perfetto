@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/generic.pbzero.h"
+#include "src/base/test/gtest_test_suite.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 
@@ -102,7 +103,7 @@ TEST_P(AllTranslationTableTest, Create) {
   }
 }
 
-INSTANTIATE_TEST_CASE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
+INSTANTIATE_TEST_SUITE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
 
 TEST(TranslationTableTest, Seed) {
   std::string path =
@@ -256,7 +257,7 @@ print fmt: "some format")"));
   EXPECT_EQ(field_e.strategy, kUint32ToUint64);
 }
 
-INSTANTIATE_TEST_CASE_P(BySize, TranslationTableCreationTest, Values(4, 8));
+INSTANTIATE_TEST_SUITE_P(BySize, TranslationTableCreationTest, Values(4, 8));
 
 TEST(TranslationTableTest, InferFtraceType) {
   FtraceFieldType type;
