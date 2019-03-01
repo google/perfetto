@@ -17,6 +17,7 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
+
 import "perfetto/common/sys_stats_counters.proto";
 
 // Various Linux system stat counters from /proc.
