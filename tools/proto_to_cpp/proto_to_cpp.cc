@@ -309,6 +309,10 @@ void ProtoToCpp::GenHeader(const Descriptor* msg, Printer* p) {
   p->Print("$n$& operator=($n$&&);\n", "n", msg->name());
   p->Print("$n$(const $n$&);\n", "n", msg->name());
   p->Print("$n$& operator=(const $n$&);\n", "n", msg->name());
+  p->Print("bool operator==(const $n$&) const;\n", "n", msg->name());
+  p->Print(
+      "bool operator!=(const $n$& other) const { return !(*this == other); }\n",
+      "n", msg->name());
   p->Print("\n");
 
   std::string proto_type = GetFwdDeclType(msg, true);
@@ -342,6 +346,10 @@ void ProtoToCpp::GenHeader(const Descriptor* msg, Printer* p) {
           "t", GetCppType(field, false), "n", field->lowercase_name());
       p->Print("const std::vector<$t$>& $n$() const { return $n$_; }\n", "t",
                GetCppType(field, false), "n", field->lowercase_name());
+      p->Print("std::vector<$t$>* mutable_$n$() { return &$n$_; }\n", "t",
+               GetCppType(field, false), "n", field->lowercase_name());
+      p->Print("void clear_$n$() { $n$_.clear(); }\n", "n",
+               field->lowercase_name());
       p->Print("$t$* add_$n$() { $n$_.emplace_back(); return &$n$_.back(); }\n",
                "t", GetCppType(field, false), "n", field->lowercase_name());
     }
@@ -384,6 +392,25 @@ void ProtoToCpp::GenCpp(const Descriptor* msg, Printer* p, std::string prefix) {
            msg->name());
 
   p->Print("\n");
+
+  // Comparison operator
+  p->Print("#pragma GCC diagnostic push\n");
+  p->Print("#pragma GCC diagnostic ignored \"-Wfloat-equal\"\n");
+  p->Print("bool $f$::operator==(const $f$& other) const {\n", "f", full_name,
+           "n", msg->name());
+  p->Indent();
+
+  p->Print("return ");
+  for (int i = 0; i < msg->field_count(); i++) {
+    if (i > 0)
+      p->Print("\n && ");
+    const FieldDescriptor* field = msg->field(i);
+    p->Print("($n$_ == other.$n$_)", "n", field->name());
+  }
+  p->Print(";");
+  p->Outdent();
+  p->Print("}\n");
+  p->Print("#pragma GCC diagnostic pop\n\n");
 
   std::string proto_type = GetFwdDeclType(msg, true);
 

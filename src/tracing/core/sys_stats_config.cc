@@ -39,6 +39,18 @@ SysStatsConfig& SysStatsConfig::operator=(const SysStatsConfig&) = default;
 SysStatsConfig::SysStatsConfig(SysStatsConfig&&) noexcept = default;
 SysStatsConfig& SysStatsConfig::operator=(SysStatsConfig&&) = default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool SysStatsConfig::operator==(const SysStatsConfig& other) const {
+  return (meminfo_period_ms_ == other.meminfo_period_ms_) &&
+         (meminfo_counters_ == other.meminfo_counters_) &&
+         (vmstat_period_ms_ == other.vmstat_period_ms_) &&
+         (vmstat_counters_ == other.vmstat_counters_) &&
+         (stat_period_ms_ == other.stat_period_ms_) &&
+         (stat_counters_ == other.stat_counters_);
+}
+#pragma GCC diagnostic pop
+
 void SysStatsConfig::FromProto(const perfetto::protos::SysStatsConfig& proto) {
   static_assert(sizeof(meminfo_period_ms_) == sizeof(proto.meminfo_period_ms()),
                 "size mismatch");

@@ -40,6 +40,16 @@ ProcessStatsConfig::ProcessStatsConfig(ProcessStatsConfig&&) noexcept = default;
 ProcessStatsConfig& ProcessStatsConfig::operator=(ProcessStatsConfig&&) =
     default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool ProcessStatsConfig::operator==(const ProcessStatsConfig& other) const {
+  return (quirks_ == other.quirks_) &&
+         (scan_all_processes_on_start_ == other.scan_all_processes_on_start_) &&
+         (record_thread_names_ == other.record_thread_names_) &&
+         (proc_stats_poll_ms_ == other.proc_stats_poll_ms_);
+}
+#pragma GCC diagnostic pop
+
 void ProcessStatsConfig::FromProto(
     const perfetto::protos::ProcessStatsConfig& proto) {
   quirks_.clear();

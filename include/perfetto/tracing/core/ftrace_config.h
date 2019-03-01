@@ -52,6 +52,8 @@ class PERFETTO_EXPORT FtraceConfig {
   FtraceConfig& operator=(FtraceConfig&&);
   FtraceConfig(const FtraceConfig&);
   FtraceConfig& operator=(const FtraceConfig&);
+  bool operator==(const FtraceConfig&) const;
+  bool operator!=(const FtraceConfig& other) const { return !(*this == other); }
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::FtraceConfig&);
@@ -63,6 +65,8 @@ class PERFETTO_EXPORT FtraceConfig {
   const std::vector<std::string>& ftrace_events() const {
     return ftrace_events_;
   }
+  std::vector<std::string>* mutable_ftrace_events() { return &ftrace_events_; }
+  void clear_ftrace_events() { ftrace_events_.clear(); }
   std::string* add_ftrace_events() {
     ftrace_events_.emplace_back();
     return &ftrace_events_.back();
@@ -74,6 +78,10 @@ class PERFETTO_EXPORT FtraceConfig {
   const std::vector<std::string>& atrace_categories() const {
     return atrace_categories_;
   }
+  std::vector<std::string>* mutable_atrace_categories() {
+    return &atrace_categories_;
+  }
+  void clear_atrace_categories() { atrace_categories_.clear(); }
   std::string* add_atrace_categories() {
     atrace_categories_.emplace_back();
     return &atrace_categories_.back();
@@ -81,6 +89,8 @@ class PERFETTO_EXPORT FtraceConfig {
 
   int atrace_apps_size() const { return static_cast<int>(atrace_apps_.size()); }
   const std::vector<std::string>& atrace_apps() const { return atrace_apps_; }
+  std::vector<std::string>* mutable_atrace_apps() { return &atrace_apps_; }
+  void clear_atrace_apps() { atrace_apps_.clear(); }
   std::string* add_atrace_apps() {
     atrace_apps_.emplace_back();
     return &atrace_apps_.back();
