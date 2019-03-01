@@ -20,9 +20,12 @@ import os
 import re
 import sys
 
-CONFIG_PROTOS = (
+COMMON_PROTOS = (
   'protos/perfetto/common/android_log_constants.proto',
   'protos/perfetto/common/sys_stats_counters.proto',
+)
+
+CONFIG_PROTOS = (
   'protos/perfetto/config/android/android_log_config.proto',
   'protos/perfetto/config/chrome/chrome_config.proto',
   'protos/perfetto/config/data_source_config.proto',
@@ -39,8 +42,6 @@ CONFIG_PROTOS = (
 MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'
 
 TRACE_PROTOS = (
-  'protos/perfetto/common/android_log_constants.proto',
-  'protos/perfetto/common/sys_stats_counters.proto',
   'protos/perfetto/trace/android/android_log.proto',
   'protos/perfetto/trace/clock_snapshot.proto',
   'protos/perfetto/trace/filesystem/inode_file_map.proto',
@@ -111,7 +112,7 @@ def merge_protos(proto_paths, output_path):
     content = content[len(header):]
     if merged_content == '':
       merged_content += REPLACEMENT_HEADER.lstrip() % __file__
-    content = re.sub(r'^import.*?\n', '', content, flags=re.MULTILINE)
+    content = re.sub(r'^import.*?\n\n?', '', content, flags=re.MULTILINE)
     merged_content += '\n// Begin of %s\n' % proto
     merged_content += content
     merged_content += '\n// End of %s\n' % proto
@@ -156,8 +157,10 @@ def merge_protos(proto_paths, output_path):
   return True
 
 def main():
-  config_result = merge_protos(CONFIG_PROTOS, MERGED_CONFIG_PROTO)
-  trace_result = merge_protos(TRACE_PROTOS, MERGED_TRACE_PROTO)
+  config_result = merge_protos(COMMON_PROTOS + CONFIG_PROTOS,
+                               MERGED_CONFIG_PROTO)
+  trace_result = merge_protos(COMMON_PROTOS + TRACE_PROTOS + CONFIG_PROTOS,
+                              MERGED_TRACE_PROTO)
   return 0 if config_result and trace_result else 1
 
 if __name__ == '__main__':
