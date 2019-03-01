@@ -21,6 +21,7 @@
 #include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/tracing_service.h"
+#include "src/base/test/gtest_test_suite.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/test/aligned_buffer_test.h"
@@ -56,9 +57,9 @@ class TraceWriterImplTest : public AlignedBufferTest {
 };
 
 size_t const kPageSizes[] = {4096, 65536};
-INSTANTIATE_TEST_CASE_P(PageSize,
-                        TraceWriterImplTest,
-                        ::testing::ValuesIn(kPageSizes));
+INSTANTIATE_TEST_SUITE_P(PageSize,
+                         TraceWriterImplTest,
+                         ::testing::ValuesIn(kPageSizes));
 
 TEST_P(TraceWriterImplTest, SingleWriter) {
   const BufferID kBufId = 42;
