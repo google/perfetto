@@ -20,6 +20,7 @@
 #include "perfetto/tracing/core/startup_trace_writer_registry.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/tracing_service.h"
+#include "src/base/test/gtest_test_suite.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/sliced_protobuf_input_stream.h"
@@ -176,9 +177,9 @@ constexpr char StartupTraceWriterTest::kPacketPayload[];
 namespace {
 
 size_t const kPageSizes[] = {4096, 65536};
-INSTANTIATE_TEST_CASE_P(PageSize,
-                        StartupTraceWriterTest,
-                        ::testing::ValuesIn(kPageSizes));
+INSTANTIATE_TEST_SUITE_P(PageSize,
+                         StartupTraceWriterTest,
+                         ::testing::ValuesIn(kPageSizes));
 
 TEST_P(StartupTraceWriterTest, CreateUnboundAndBind) {
   auto writer = CreateUnboundWriter();
