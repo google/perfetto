@@ -23,6 +23,7 @@ source_set("base") {
     "export.h",
     "file_utils.h",
     "gtest_prod_util.h",
+    "hash.h",
     "logging.h",
     "metatrace.h",
     "optional.h",
