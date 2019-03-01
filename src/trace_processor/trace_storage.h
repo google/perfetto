@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/hash.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/optional.h"
 #include "perfetto/base/string_view.h"
@@ -153,23 +154,21 @@ class TraceStorage {
 
     struct ArgHasher {
       uint64_t operator()(const Arg& arg) const noexcept {
-        uint64_t hash = kFnv1a64OffsetBasis;
-        hash ^= static_cast<decltype(hash)>(arg.key);
-        hash *= 1099511628211;  // FNV-1a-64 prime.
+        base::Hash hash;
+        hash.Update(arg.key);
         // We don't hash arg.flat_key because it's a subsequence of arg.key.
         switch (arg.value.type) {
           case Variadic::Type::kInt:
-            hash ^= static_cast<uint64_t>(arg.value.int_value);
+            hash.Update(arg.value.int_value);
             break;
           case Variadic::Type::kString:
-            hash ^= static_cast<uint64_t>(arg.value.string_value);
+            hash.Update(arg.value.string_value);
             break;
           case Variadic::Type::kReal:
-            hash ^= static_cast<uint64_t>(arg.value.real_value);
+            hash.Update(arg.value.real_value);
             break;
         }
-        hash *= kFnv1a64Prime;
-        return hash;
+        return hash.digest();
       }
     };
 
@@ -184,20 +183,20 @@ class TraceStorage {
     ArgSetId AddArgSet(const std::vector<Arg>& args,
                        uint32_t begin,
                        uint32_t end) {
-      ArgSetHash hash = kFnv1a64OffsetBasis;
+      base::Hash hash;
       for (uint32_t i = begin; i < end; i++) {
-        hash ^= ArgHasher()(args[i]);
-        hash *= kFnv1a64Prime;
+        hash.Update(ArgHasher()(args[i]));
       }
 
-      auto it = arg_row_for_hash_.find(hash);
+      ArgSetHash digest = hash.digest();
+      auto it = arg_row_for_hash_.find(digest);
       if (it != arg_row_for_hash_.end()) {
         return set_ids_[it->second];
       }
 
       // The +1 ensures that nothing has an id == kInvalidArgSetId == 0.
       ArgSetId id = static_cast<uint32_t>(arg_row_for_hash_.size()) + 1;
-      arg_row_for_hash_.emplace(hash, args_count());
+      arg_row_for_hash_.emplace(digest, args_count());
       for (uint32_t i = begin; i < end; i++) {
         const auto& arg = args[i];
         set_ids_.emplace_back(id);
@@ -210,9 +209,6 @@ class TraceStorage {
 
    private:
     using ArgSetHash = uint64_t;
-
-    static constexpr uint64_t kFnv1a64OffsetBasis = 0xcbf29ce484222325;
-    static constexpr uint64_t kFnv1a64Prime = 0xcbf29ce484222325;
 
     std::deque<ArgSetId> set_ids_;
     std::deque<StringId> flat_keys_;
