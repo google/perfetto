@@ -29,6 +29,7 @@ source_set("base") {
     "paged_memory.cc",
     "string_splitter.cc",
     "string_utils.cc",
+    "string_view.cc",
     "thread_checker.cc",
     "time.cc",
     "virtual_destructors.cc",
