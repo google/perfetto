@@ -150,7 +150,10 @@ if (current_toolchain == host_toolchain) {
       "../base",
     ]
     if (perfetto_build_standalone) {
-      deps += [ "../../buildtools:linenoise" ]
+      deps += [
+        "../../buildtools:linenoise",
+        "../../gn/standalone:gen_git_revision",
+      ]
     }
     sources = [
       "trace_processor_shell.cc",
