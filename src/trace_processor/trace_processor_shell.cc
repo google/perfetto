@@ -43,6 +43,9 @@
 #include <linenoise.h>
 #include <pwd.h>
 #include <sys/types.h>
+#include "perfetto_version.gen.h"
+#else
+#define PERFETTO_GET_GIT_REVISION() "unknown"
 #endif
 
 #if PERFETTO_HAS_SIGNAL_H()
@@ -432,6 +435,10 @@ int TraceProcessorMain(int argc, char** argv) {
   const char* sqlite_file_path = nullptr;
   bool launch_shell = true;
   for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
+      printf("%s\n", PERFETTO_GET_GIT_REVISION());
+      exit(0);
+    }
     if (strcmp(argv[i], "-d") == 0) {
       EnableSQLiteVtableDebugging();
       continue;
