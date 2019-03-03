@@ -52,6 +52,10 @@ class PERFETTO_EXPORT DataSourceDescriptor {
   DataSourceDescriptor& operator=(DataSourceDescriptor&&);
   DataSourceDescriptor(const DataSourceDescriptor&);
   DataSourceDescriptor& operator=(const DataSourceDescriptor&);
+  bool operator==(const DataSourceDescriptor&) const;
+  bool operator!=(const DataSourceDescriptor& other) const {
+    return !(*this == other);
+  }
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::DataSourceDescriptor&);

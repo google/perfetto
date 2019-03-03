@@ -42,6 +42,14 @@ DataSourceDescriptor::DataSourceDescriptor(DataSourceDescriptor&&) noexcept =
 DataSourceDescriptor& DataSourceDescriptor::operator=(DataSourceDescriptor&&) =
     default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool DataSourceDescriptor::operator==(const DataSourceDescriptor& other) const {
+  return (name_ == other.name_) &&
+         (will_notify_on_stop_ == other.will_notify_on_stop_);
+}
+#pragma GCC diagnostic pop
+
 void DataSourceDescriptor::FromProto(
     const perfetto::protos::DataSourceDescriptor& proto) {
   static_assert(sizeof(name_) == sizeof(proto.name()), "size mismatch");

@@ -40,6 +40,15 @@ AndroidPowerConfig::AndroidPowerConfig(AndroidPowerConfig&&) noexcept = default;
 AndroidPowerConfig& AndroidPowerConfig::operator=(AndroidPowerConfig&&) =
     default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool AndroidPowerConfig::operator==(const AndroidPowerConfig& other) const {
+  return (battery_poll_ms_ == other.battery_poll_ms_) &&
+         (battery_counters_ == other.battery_counters_) &&
+         (collect_power_rails_ == other.collect_power_rails_);
+}
+#pragma GCC diagnostic pop
+
 void AndroidPowerConfig::FromProto(
     const perfetto::protos::AndroidPowerConfig& proto) {
   static_assert(sizeof(battery_poll_ms_) == sizeof(proto.battery_poll_ms()),

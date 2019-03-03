@@ -57,6 +57,10 @@ class PERFETTO_EXPORT ProcessStatsConfig {
   ProcessStatsConfig& operator=(ProcessStatsConfig&&);
   ProcessStatsConfig(const ProcessStatsConfig&);
   ProcessStatsConfig& operator=(const ProcessStatsConfig&);
+  bool operator==(const ProcessStatsConfig&) const;
+  bool operator!=(const ProcessStatsConfig& other) const {
+    return !(*this == other);
+  }
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::ProcessStatsConfig&);
@@ -64,6 +68,8 @@ class PERFETTO_EXPORT ProcessStatsConfig {
 
   int quirks_size() const { return static_cast<int>(quirks_.size()); }
   const std::vector<Quirks>& quirks() const { return quirks_; }
+  std::vector<Quirks>* mutable_quirks() { return &quirks_; }
+  void clear_quirks() { quirks_.clear(); }
   Quirks* add_quirks() {
     quirks_.emplace_back();
     return &quirks_.back();
