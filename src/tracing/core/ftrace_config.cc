@@ -38,6 +38,17 @@ FtraceConfig& FtraceConfig::operator=(const FtraceConfig&) = default;
 FtraceConfig::FtraceConfig(FtraceConfig&&) noexcept = default;
 FtraceConfig& FtraceConfig::operator=(FtraceConfig&&) = default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool FtraceConfig::operator==(const FtraceConfig& other) const {
+  return (ftrace_events_ == other.ftrace_events_) &&
+         (atrace_categories_ == other.atrace_categories_) &&
+         (atrace_apps_ == other.atrace_apps_) &&
+         (buffer_size_kb_ == other.buffer_size_kb_) &&
+         (drain_period_ms_ == other.drain_period_ms_);
+}
+#pragma GCC diagnostic pop
+
 void FtraceConfig::FromProto(const perfetto::protos::FtraceConfig& proto) {
   ftrace_events_.clear();
   for (const auto& field : proto.ftrace_events()) {

@@ -79,6 +79,10 @@ class PERFETTO_EXPORT TraceConfig {
     BufferConfig& operator=(BufferConfig&&);
     BufferConfig(const BufferConfig&);
     BufferConfig& operator=(const BufferConfig&);
+    bool operator==(const BufferConfig&) const;
+    bool operator!=(const BufferConfig& other) const {
+      return !(*this == other);
+    }
 
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_BufferConfig&);
@@ -107,6 +111,8 @@ class PERFETTO_EXPORT TraceConfig {
     DataSource& operator=(DataSource&&);
     DataSource(const DataSource&);
     DataSource& operator=(const DataSource&);
+    bool operator==(const DataSource&) const;
+    bool operator!=(const DataSource& other) const { return !(*this == other); }
 
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_DataSource&);
@@ -121,6 +127,10 @@ class PERFETTO_EXPORT TraceConfig {
     const std::vector<std::string>& producer_name_filter() const {
       return producer_name_filter_;
     }
+    std::vector<std::string>* mutable_producer_name_filter() {
+      return &producer_name_filter_;
+    }
+    void clear_producer_name_filter() { producer_name_filter_.clear(); }
     std::string* add_producer_name_filter() {
       producer_name_filter_.emplace_back();
       return &producer_name_filter_.back();
@@ -149,6 +159,10 @@ class PERFETTO_EXPORT TraceConfig {
     ProducerConfig& operator=(ProducerConfig&&);
     ProducerConfig(const ProducerConfig&);
     ProducerConfig& operator=(const ProducerConfig&);
+    bool operator==(const ProducerConfig&) const;
+    bool operator!=(const ProducerConfig& other) const {
+      return !(*this == other);
+    }
 
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_ProducerConfig&);
@@ -181,6 +195,10 @@ class PERFETTO_EXPORT TraceConfig {
     StatsdMetadata& operator=(StatsdMetadata&&);
     StatsdMetadata(const StatsdMetadata&);
     StatsdMetadata& operator=(const StatsdMetadata&);
+    bool operator==(const StatsdMetadata&) const;
+    bool operator!=(const StatsdMetadata& other) const {
+      return !(*this == other);
+    }
 
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_StatsdMetadata&);
@@ -227,6 +245,10 @@ class PERFETTO_EXPORT TraceConfig {
     GuardrailOverrides& operator=(GuardrailOverrides&&);
     GuardrailOverrides(const GuardrailOverrides&);
     GuardrailOverrides& operator=(const GuardrailOverrides&);
+    bool operator==(const GuardrailOverrides&) const;
+    bool operator!=(const GuardrailOverrides& other) const {
+      return !(*this == other);
+    }
 
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_GuardrailOverrides&);
@@ -253,6 +275,8 @@ class PERFETTO_EXPORT TraceConfig {
   TraceConfig& operator=(TraceConfig&&);
   TraceConfig(const TraceConfig&);
   TraceConfig& operator=(const TraceConfig&);
+  bool operator==(const TraceConfig&) const;
+  bool operator!=(const TraceConfig& other) const { return !(*this == other); }
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::TraceConfig&);
@@ -260,6 +284,8 @@ class PERFETTO_EXPORT TraceConfig {
 
   int buffers_size() const { return static_cast<int>(buffers_.size()); }
   const std::vector<BufferConfig>& buffers() const { return buffers_; }
+  std::vector<BufferConfig>* mutable_buffers() { return &buffers_; }
+  void clear_buffers() { buffers_.clear(); }
   BufferConfig* add_buffers() {
     buffers_.emplace_back();
     return &buffers_.back();
@@ -269,6 +295,8 @@ class PERFETTO_EXPORT TraceConfig {
     return static_cast<int>(data_sources_.size());
   }
   const std::vector<DataSource>& data_sources() const { return data_sources_; }
+  std::vector<DataSource>* mutable_data_sources() { return &data_sources_; }
+  void clear_data_sources() { data_sources_.clear(); }
   DataSource* add_data_sources() {
     data_sources_.emplace_back();
     return &data_sources_.back();
@@ -289,6 +317,8 @@ class PERFETTO_EXPORT TraceConfig {
 
   int producers_size() const { return static_cast<int>(producers_.size()); }
   const std::vector<ProducerConfig>& producers() const { return producers_; }
+  std::vector<ProducerConfig>* mutable_producers() { return &producers_; }
+  void clear_producers() { producers_.clear(); }
   ProducerConfig* add_producers() {
     producers_.emplace_back();
     return &producers_.back();

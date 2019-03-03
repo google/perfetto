@@ -74,6 +74,10 @@ class PERFETTO_EXPORT DataSourceConfig {
   DataSourceConfig& operator=(DataSourceConfig&&);
   DataSourceConfig(const DataSourceConfig&);
   DataSourceConfig& operator=(const DataSourceConfig&);
+  bool operator==(const DataSourceConfig&) const;
+  bool operator!=(const DataSourceConfig& other) const {
+    return !(*this == other);
+  }
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::DataSourceConfig&);

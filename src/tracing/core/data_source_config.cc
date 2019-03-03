@@ -48,6 +48,25 @@ DataSourceConfig& DataSourceConfig::operator=(const DataSourceConfig&) =
 DataSourceConfig::DataSourceConfig(DataSourceConfig&&) noexcept = default;
 DataSourceConfig& DataSourceConfig::operator=(DataSourceConfig&&) = default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool DataSourceConfig::operator==(const DataSourceConfig& other) const {
+  return (name_ == other.name_) && (target_buffer_ == other.target_buffer_) &&
+         (trace_duration_ms_ == other.trace_duration_ms_) &&
+         (tracing_session_id_ == other.tracing_session_id_) &&
+         (ftrace_config_ == other.ftrace_config_) &&
+         (chrome_config_ == other.chrome_config_) &&
+         (inode_file_config_ == other.inode_file_config_) &&
+         (process_stats_config_ == other.process_stats_config_) &&
+         (sys_stats_config_ == other.sys_stats_config_) &&
+         (heapprofd_config_ == other.heapprofd_config_) &&
+         (android_power_config_ == other.android_power_config_) &&
+         (android_log_config_ == other.android_log_config_) &&
+         (legacy_config_ == other.legacy_config_) &&
+         (for_testing_ == other.for_testing_);
+}
+#pragma GCC diagnostic pop
+
 void DataSourceConfig::FromProto(
     const perfetto::protos::DataSourceConfig& proto) {
   static_assert(sizeof(name_) == sizeof(proto.name()), "size mismatch");

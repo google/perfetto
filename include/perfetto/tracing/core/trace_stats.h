@@ -55,6 +55,10 @@ class PERFETTO_EXPORT TraceStats {
     BufferStats& operator=(BufferStats&&);
     BufferStats(const BufferStats&);
     BufferStats& operator=(const BufferStats&);
+    bool operator==(const BufferStats&) const;
+    bool operator!=(const BufferStats& other) const {
+      return !(*this == other);
+    }
 
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceStats_BufferStats&);
@@ -155,6 +159,8 @@ class PERFETTO_EXPORT TraceStats {
   TraceStats& operator=(TraceStats&&);
   TraceStats(const TraceStats&);
   TraceStats& operator=(const TraceStats&);
+  bool operator==(const TraceStats&) const;
+  bool operator!=(const TraceStats& other) const { return !(*this == other); }
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::TraceStats&);
@@ -164,6 +170,8 @@ class PERFETTO_EXPORT TraceStats {
     return static_cast<int>(buffer_stats_.size());
   }
   const std::vector<BufferStats>& buffer_stats() const { return buffer_stats_; }
+  std::vector<BufferStats>* mutable_buffer_stats() { return &buffer_stats_; }
+  void clear_buffer_stats() { buffer_stats_.clear(); }
   BufferStats* add_buffer_stats() {
     buffer_stats_.emplace_back();
     return &buffer_stats_.back();
