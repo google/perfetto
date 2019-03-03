@@ -38,6 +38,13 @@ ChromeConfig& ChromeConfig::operator=(const ChromeConfig&) = default;
 ChromeConfig::ChromeConfig(ChromeConfig&&) noexcept = default;
 ChromeConfig& ChromeConfig::operator=(ChromeConfig&&) = default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool ChromeConfig::operator==(const ChromeConfig& other) const {
+  return (trace_config_ == other.trace_config_);
+}
+#pragma GCC diagnostic pop
+
 void ChromeConfig::FromProto(const perfetto::protos::ChromeConfig& proto) {
   static_assert(sizeof(trace_config_) == sizeof(proto.trace_config()),
                 "size mismatch");

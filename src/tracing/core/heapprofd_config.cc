@@ -38,6 +38,16 @@ HeapprofdConfig& HeapprofdConfig::operator=(const HeapprofdConfig&) = default;
 HeapprofdConfig::HeapprofdConfig(HeapprofdConfig&&) noexcept = default;
 HeapprofdConfig& HeapprofdConfig::operator=(HeapprofdConfig&&) = default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool HeapprofdConfig::operator==(const HeapprofdConfig& other) const {
+  return (sampling_interval_bytes_ == other.sampling_interval_bytes_) &&
+         (process_cmdline_ == other.process_cmdline_) && (pid_ == other.pid_) &&
+         (all_ == other.all_) &&
+         (continuous_dump_config_ == other.continuous_dump_config_);
+}
+#pragma GCC diagnostic pop
+
 void HeapprofdConfig::FromProto(
     const perfetto::protos::HeapprofdConfig& proto) {
   static_assert(sizeof(sampling_interval_bytes_) ==
@@ -109,6 +119,15 @@ HeapprofdConfig::ContinuousDumpConfig::ContinuousDumpConfig(
     HeapprofdConfig::ContinuousDumpConfig&&) noexcept = default;
 HeapprofdConfig::ContinuousDumpConfig& HeapprofdConfig::ContinuousDumpConfig::
 operator=(HeapprofdConfig::ContinuousDumpConfig&&) = default;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool HeapprofdConfig::ContinuousDumpConfig::operator==(
+    const HeapprofdConfig::ContinuousDumpConfig& other) const {
+  return (dump_phase_ms_ == other.dump_phase_ms_) &&
+         (dump_interval_ms_ == other.dump_interval_ms_);
+}
+#pragma GCC diagnostic pop
 
 void HeapprofdConfig::ContinuousDumpConfig::FromProto(
     const perfetto::protos::HeapprofdConfig_ContinuousDumpConfig& proto) {

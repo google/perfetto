@@ -192,6 +192,10 @@ class PERFETTO_EXPORT SysStatsConfig {
   SysStatsConfig& operator=(SysStatsConfig&&);
   SysStatsConfig(const SysStatsConfig&);
   SysStatsConfig& operator=(const SysStatsConfig&);
+  bool operator==(const SysStatsConfig&) const;
+  bool operator!=(const SysStatsConfig& other) const {
+    return !(*this == other);
+  }
 
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::SysStatsConfig&);
@@ -206,6 +210,10 @@ class PERFETTO_EXPORT SysStatsConfig {
   const std::vector<MeminfoCounters>& meminfo_counters() const {
     return meminfo_counters_;
   }
+  std::vector<MeminfoCounters>* mutable_meminfo_counters() {
+    return &meminfo_counters_;
+  }
+  void clear_meminfo_counters() { meminfo_counters_.clear(); }
   MeminfoCounters* add_meminfo_counters() {
     meminfo_counters_.emplace_back();
     return &meminfo_counters_.back();
@@ -220,6 +228,10 @@ class PERFETTO_EXPORT SysStatsConfig {
   const std::vector<VmstatCounters>& vmstat_counters() const {
     return vmstat_counters_;
   }
+  std::vector<VmstatCounters>* mutable_vmstat_counters() {
+    return &vmstat_counters_;
+  }
+  void clear_vmstat_counters() { vmstat_counters_.clear(); }
   VmstatCounters* add_vmstat_counters() {
     vmstat_counters_.emplace_back();
     return &vmstat_counters_.back();
@@ -234,6 +246,8 @@ class PERFETTO_EXPORT SysStatsConfig {
   const std::vector<StatCounters>& stat_counters() const {
     return stat_counters_;
   }
+  std::vector<StatCounters>* mutable_stat_counters() { return &stat_counters_; }
+  void clear_stat_counters() { stat_counters_.clear(); }
   StatCounters* add_stat_counters() {
     stat_counters_.emplace_back();
     return &stat_counters_.back();
