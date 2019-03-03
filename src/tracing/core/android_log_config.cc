@@ -40,6 +40,14 @@ AndroidLogConfig& AndroidLogConfig::operator=(const AndroidLogConfig&) =
 AndroidLogConfig::AndroidLogConfig(AndroidLogConfig&&) noexcept = default;
 AndroidLogConfig& AndroidLogConfig::operator=(AndroidLogConfig&&) = default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool AndroidLogConfig::operator==(const AndroidLogConfig& other) const {
+  return (log_ids_ == other.log_ids_) && (min_prio_ == other.min_prio_) &&
+         (filter_tags_ == other.filter_tags_);
+}
+#pragma GCC diagnostic pop
+
 void AndroidLogConfig::FromProto(
     const perfetto::protos::AndroidLogConfig& proto) {
   log_ids_.clear();
