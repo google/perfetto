@@ -52,6 +52,32 @@ TEST(StringViewTest, BasicCases) {
     EXPECT_TRUE(x == StringView("abc"));
     EXPECT_TRUE(x != StringView("abcd"));
   }
+
+  // Test find().
+  EXPECT_EQ(StringView("").find('x'), StringView::npos);
+  EXPECT_EQ(StringView("foo").find('x'), StringView::npos);
+  EXPECT_EQ(StringView("foo").find('f'), 0u);
+  EXPECT_EQ(StringView("foo").find('o'), 1u);
+
+  // Test rfind().
+  EXPECT_EQ(StringView("").rfind('x'), StringView::npos);
+  EXPECT_EQ(StringView("foo").rfind('x'), StringView::npos);
+  EXPECT_EQ(StringView("foo").rfind('f'), 0u);
+  EXPECT_EQ(StringView("foo").rfind('o'), 2u);
+
+  // Test substr().
+  EXPECT_EQ(StringView("foo").substr(3, 1).ToStdString(), "");
+  EXPECT_EQ(StringView("foo").substr(4, 0).ToStdString(), "");
+  EXPECT_EQ(StringView("foo").substr(4, 1).ToStdString(), "");
+  EXPECT_EQ(StringView("foo").substr(0, 1).ToStdString(), "f");
+  EXPECT_EQ(StringView("foo").substr(0, 3).ToStdString(), "foo");
+  EXPECT_EQ(StringView("foo").substr(0, 99).ToStdString(), "foo");
+  EXPECT_EQ(StringView("foo").substr(1, 2).ToStdString(), "oo");
+  EXPECT_EQ(StringView("foo").substr(1, 3).ToStdString(), "oo");
+  EXPECT_EQ(StringView("foo").substr(1, 99).ToStdString(), "oo");
+  EXPECT_EQ(StringView("xyz").substr(0).ToStdString(), "xyz");
+  EXPECT_EQ(StringView("xyz").substr(2).ToStdString(), "z");
+  EXPECT_EQ(StringView("xyz").substr(3).ToStdString(), "");
 }
 
 TEST(StringViewTest, HashCollisions) {
