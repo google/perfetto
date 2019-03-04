@@ -69,7 +69,7 @@ TEST(ProtoDecoder, VeryLargeField) {
 
   ProtoDecoder decoder(data.get(), size);
   ProtoDecoder::Field field = decoder.ReadField();
-  ASSERT_EQ(0, field.id);
+  ASSERT_EQ(0u, field.id);
   ASSERT_TRUE(decoder.IsEndOfBuffer());
 }
 
