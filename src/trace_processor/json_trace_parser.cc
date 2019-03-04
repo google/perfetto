@@ -215,7 +215,8 @@ bool JsonTraceParser::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
       case 'M': {  // Metadata events (process and thread names).
         if (strcmp(value["name"].asCString(), "thread_name") == 0) {
           const char* thread_name = value["args"]["name"].asCString();
-          procs->UpdateThreadName(tid, pid, thread_name);
+          auto thrad_name_id = context_->storage->InternString(thread_name);
+          procs->UpdateThread(ts, tid, thrad_name_id);
           break;
         }
         if (strcmp(value["name"].asCString(), "process_name") == 0) {
