@@ -4,6 +4,8 @@
 ../data/android_sched_and_ps.pb smoke.sql android_sched_and_ps_smoke.out
 synth_1.py smoke.sql synth_1_smoke.out
 
+# Test for the process<>thread tracking logic.
+synth_process_tracking.py process_tracking.sql process_tracking.out
 
 # The below tests check the storage backed tables in the trace processor.
 # Sched reason
