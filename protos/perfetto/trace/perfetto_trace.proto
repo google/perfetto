@@ -2715,15 +2715,15 @@ message ProcessDescriptor {
 
   // See chromium's content::ProcessType.
   enum ChromeProcessType {
-    UNSPECIFIED = 0;
-    BROWSER = 1;
-    RENDERER = 2;
-    UTILITY = 3;
-    ZYGOTE = 4;
-    SANDBOX_HELPER = 5;
-    GPU = 6;
-    PPAPI_PLUGIN = 7;
-    PPAPI_BROKER = 8;
+    PROCESS_UNSPECIFIED = 0;
+    PROCESS_BROWSER = 1;
+    PROCESS_RENDERER = 2;
+    PROCESS_UTILITY = 3;
+    PROCESS_ZYGOTE = 4;
+    PROCESS_SANDBOX_HELPER = 5;
+    PROCESS_GPU = 6;
+    PROCESS_PPAPI_PLUGIN = 7;
+    PROCESS_PPAPI_BROKER = 8;
   }
   optional ChromeProcessType chrome_process_type = 4;
 }
@@ -2767,10 +2767,8 @@ message ThreadDescriptor {
   optional int32 legacy_sort_index = 3;
 
   enum ChromeThreadType {
-    UNSPECIFIED = 0;
-    BROWSER_UI = 1;
-    BROWSER_IO = 2;
-    // TODO(eseckler): Add other thread types.
+    THREAD_UNSPECIFIED = 0;
+    // TODO(eseckler): Add thread types.
   };
   optional ChromeThreadType thread_type = 4;
 
@@ -2851,15 +2849,44 @@ message TrackEvent {
   // trace. We intend to gradually transition these attributes to similar native
   // features in TrackEvent (e.g. async + flow events), or deprecate them
   // without replacement where transition is unsuitable.
+  //
+  // Next reserved id: 15 (up to 16).
+  // Next id: 20.
   message LegacyEvent {
     optional uint32 name_iid = 1;  // interned LegacyEventName.
     optional int32 phase = 2;
     optional int64 duration = 3;
     optional int64 thread_duration = 4;
+
+    // TODO(eseckler): Remove once chromium uses the new fields.
     optional uint32 flags = 5;  // e.g. global/process/thread scope, flow, ...
+
     optional uint64 id = 6;
     optional string scope = 7;
+    optional uint64 local_id = 10;
+    optional uint64 global_id = 11;
+
+    // Consider the thread timestamps for async BEGIN/END event pairs as valid.
+    optional bool use_async_tts = 9;
+
     optional uint64 bind_id = 8;
+    optional bool bind_to_enclosing = 12;
+
+    enum FlowDirection {
+      FLOW_UNSPECIFIED = 0;
+      FLOW_IN = 1;
+      FLOW_OUT = 2;
+      FLOW_INOUT = 3;
+    }
+    optional FlowDirection flow_direction = 13;
+
+    enum InstantEventScope {
+      SCOPE_UNSPECIFIED = 0;
+      SCOPE_GLOBAL = 1;
+      SCOPE_PROCESS = 2;
+      SCOPE_THREAD = 3;
+    }
+    optional InstantEventScope instant_event_scope = 14;
 
     // Override the pid/tid if the writer needs to emit events on behalf of
     // another process/thread. This should be the exception. Normally, the
