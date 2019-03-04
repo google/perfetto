@@ -32,10 +32,8 @@ message ThreadDescriptor {
   optional int32 legacy_sort_index = 3;
 
   enum ChromeThreadType {
-    UNSPECIFIED = 0;
-    BROWSER_UI = 1;
-    BROWSER_IO = 2;
-    // TODO(eseckler): Add other thread types.
+    THREAD_UNSPECIFIED = 0;
+    // TODO(eseckler): Add thread types.
   };
   optional ChromeThreadType thread_type = 4;
 
