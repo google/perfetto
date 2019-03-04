@@ -55,6 +55,24 @@ TEST(ProtoDecoder, ReadString) {
   }
 }
 
+TEST(ProtoDecoder, VeryLargeField) {
+  const uint64_t size = 512 * 1024 * 1024 + 6;
+  std::unique_ptr<uint8_t, perfetto::base::FreeDeleter> data(
+      static_cast<uint8_t*>(malloc(size)));
+
+  data.get()[0] = static_cast<unsigned char>('\x0A');
+  data.get()[1] = static_cast<unsigned char>('\x80');
+  data.get()[2] = static_cast<unsigned char>('\x80');
+  data.get()[3] = static_cast<unsigned char>('\x80');
+  data.get()[4] = static_cast<unsigned char>('\x80');
+  data.get()[5] = static_cast<unsigned char>('\x02');
+
+  ProtoDecoder decoder(data.get(), size);
+  ProtoDecoder::Field field = decoder.ReadField();
+  ASSERT_EQ(0, field.id);
+  ASSERT_TRUE(decoder.IsEndOfBuffer());
+}
+
 TEST(ProtoDecoder, FixedData) {
   struct FieldExpectation {
     const char* encoded;
