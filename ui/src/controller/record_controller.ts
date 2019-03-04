@@ -92,8 +92,8 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
 
   if (procThreadAssociationFtrace) {
     ftraceEvents.add('sched/sched_process_exit');
-    ftraceEvents.add('sched/sched_process_fork');
     ftraceEvents.add('sched/sched_process_free');
+    ftraceEvents.add('task/task_newtask');
     ftraceEvents.add('task/task_rename');
   }
 
