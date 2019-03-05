@@ -146,6 +146,13 @@ void RawTable::FormatSystraceArgs(const std::string& event_name,
     write_arg(0 /* state */, write_value);
     write_arg(1 /* cpu_id */, write_value);
     return;
+  } else if (event_name == "clk_set_rate") {
+    using CSR = protos::ClkSetRateFtraceEvent;
+    writer->AppendLiteral(" ");
+    write_value_at_index(CSR::kNameFieldNumber - 1, write_value);
+    writer->AppendLiteral(" ");
+    write_value_at_index(CSR::kRateFieldNumber - 1, write_value);
+    return;
   } else if (event_name == "binder_transaction") {
     using BT = protos::BinderTransactionFtraceEvent;
     writer->AppendString(" transaction=");
