@@ -32,7 +32,7 @@ import urllib
 
 TRACE_TO_TEXT_SHAS = {
   'linux': '551041589acbd9d680a4cbc51249eab90c4a3143',
-  'mac': '1fa1316ef2a761f94d21d955f0319b731699eb78',
+  'mac': '3868fdd6c31e795383e99c87e4c7e8c7e0d4fa56',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = (
