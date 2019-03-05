@@ -121,6 +121,7 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     : context_(context),
       utid_name_id_(context->storage->InternString("utid")),
+      sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
       comm_name_id_(context->storage->InternString("comm")),
@@ -685,6 +686,10 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
         ParseSchedSwitch(cpu, timestamp, ftrace.slice(fld_off, fld.size()));
         break;
       }
+      case protos::FtraceEvent::kSchedWakeup: {
+        ParseSchedWakeup(timestamp, ftrace.slice(fld_off, fld.size()));
+        break;
+      }
       case protos::FtraceEvent::kCpuFrequency: {
         ParseCpuFreq(timestamp, ftrace.slice(fld_off, fld.size()));
         break;
@@ -1005,6 +1010,30 @@ void ProtoTraceParser::ParseSchedSwitch(uint32_t cpu,
   context_->event_tracker->PushSchedSwitch(cpu, timestamp, prev_pid, prev_comm,
                                            prev_prio, prev_state, next_pid,
                                            next_comm, next_prio);
+  PERFETTO_DCHECK(decoder.IsEndOfBuffer());
+}
+
+void ProtoTraceParser::ParseSchedWakeup(int64_t timestamp,
+                                        TraceBlobView sswitch) {
+  ProtoDecoder decoder(sswitch.data(), sswitch.length());
+
+  base::StringView comm;
+  uint32_t wakee_pid = 0;
+  for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
+    switch (fld.id) {
+      case protos::SchedWakeupFtraceEvent::kCommFieldNumber:
+        comm = fld.as_string();
+        break;
+      case protos::SchedWakeupFtraceEvent::kPidFieldNumber:
+        wakee_pid = fld.as_uint32();
+        break;
+    }
+  }
+  StringId name_id = context_->storage->InternString(comm);
+  auto utid =
+      context_->process_tracker->UpdateThread(timestamp, wakee_pid, name_id);
+  context_->storage->mutable_instants()->AddInstantEvent(
+      timestamp, sched_wakeup_name_id_, 0 /* value */, utid, RefType::kRefUtid);
   PERFETTO_DCHECK(decoder.IsEndOfBuffer());
 }
 
