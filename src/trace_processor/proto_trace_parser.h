@@ -65,6 +65,7 @@ class ProtoTraceParser {
   void ParseProcessStats(int64_t timestamp, TraceBlobView);
   void ParseProcessStatsProcess(int64_t timestamp, TraceBlobView);
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, TraceBlobView);
+  void ParseSchedWakeup(int64_t timestamp, TraceBlobView);
   void ParseTaskNewTask(int64_t ts, uint32_t source_tid, TraceBlobView);
   void ParseTaskRename(int64_t ts, TraceBlobView);
   void ParseCpuFreq(int64_t timestamp, TraceBlobView);
@@ -112,6 +113,7 @@ class ProtoTraceParser {
  private:
   TraceProcessorContext* context_;
   const StringId utid_name_id_;
+  const StringId sched_wakeup_name_id_;
   const StringId cpu_freq_name_id_;
   const StringId cpu_idle_name_id_;
   const StringId comm_name_id_;
