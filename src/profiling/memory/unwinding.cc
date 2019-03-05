@@ -16,6 +16,9 @@
 
 #include "src/profiling/memory/unwinding.h"
 
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineMips.h>
@@ -90,6 +93,22 @@ std::unique_ptr<unwindstack::Regs> CreateFromRawData(unwindstack::ArchEnum arch,
   return ret;
 }
 
+// Behaves as a pread64, emulating it if not already exposed by the standard
+// library. Safe to use on 32bit platforms for addresses with the top bit set.
+// Clobbers the |fd| seek position if emulating.
+ssize_t ReadAtOffsetClobberSeekPos(int fd,
+                                   void* buf,
+                                   size_t count,
+                                   uint64_t addr) {
+#ifdef __BIONIC__
+  return pread64(fd, buf, count, static_cast<off64_t>(addr));
+#else
+  if (lseek64(fd, static_cast<off64_t>(addr), SEEK_SET) == -1)
+    return -1;
+  return read(fd, buf, count);
+#endif
+}
+
 }  // namespace
 
 StackOverlayMemory::StackOverlayMemory(std::shared_ptr<unwindstack::Memory> mem,
@@ -111,12 +130,9 @@ size_t StackOverlayMemory::Read(uint64_t addr, void* dst, size_t size) {
 FDMemory::FDMemory(base::ScopedFile mem_fd) : mem_fd_(std::move(mem_fd)) {}
 
 size_t FDMemory::Read(uint64_t addr, void* dst, size_t size) {
-  if (lseek(*mem_fd_, static_cast<off_t>(addr), SEEK_SET) == -1)
-    return 0;
-
-  ssize_t rd = read(*mem_fd_, dst, size);
+  ssize_t rd = ReadAtOffsetClobberSeekPos(*mem_fd_, dst, size, addr);
   if (rd == -1) {
-    PERFETTO_DPLOG("read");
+    PERFETTO_DPLOG("read at offset");
     return 0;
   }
   return static_cast<size_t>(rd);
