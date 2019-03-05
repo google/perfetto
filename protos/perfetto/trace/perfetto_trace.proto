@@ -2855,21 +2855,27 @@ message TrackEvent {
   message LegacyEvent {
     optional uint32 name_iid = 1;  // interned LegacyEventName.
     optional int32 phase = 2;
-    optional int64 duration = 3;
-    optional int64 thread_duration = 4;
+    optional int64 duration_us = 3;
+    optional int64 thread_duration_us = 4;
 
-    // TODO(eseckler): Remove once chromium uses the new fields.
-    optional uint32 flags = 5;  // e.g. global/process/thread scope, flow, ...
+    reserved 5;  // used to be |flags|.
 
-    optional uint64 id = 6;
-    optional string scope = 7;
-    optional uint64 local_id = 10;
-    optional uint64 global_id = 11;
+    oneof id {
+      uint64 unscoped_id = 6;
+      uint64 local_id = 10;
+      uint64 global_id = 11;
+    }
+    // Additional optional scope for |id|.
+    optional string id_scope = 7;
 
     // Consider the thread timestamps for async BEGIN/END event pairs as valid.
     optional bool use_async_tts = 9;
 
+    // Idenfifies a flow. Flow events with the same bind_id are connected.
     optional uint64 bind_id = 8;
+    // Use the enclosing slice as binding point for a flow end event instead of
+    // the next slice. Flow start/step events always bind to the enclosing
+    // slice.
     optional bool bind_to_enclosing = 12;
 
     enum FlowDirection {
