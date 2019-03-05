@@ -29,11 +29,9 @@ template("ipc_library") {
     generator_plugin_label =
         "$perfetto_root_path/src/ipc/protoc_plugin:ipc_plugin"
     generator_plugin_suffix = ".ipc"
-    deps = [
-      "$perfetto_root_path/src/ipc",
-    ]
+    link_deps = [ "$perfetto_root_path/src/ipc" ]
     if (defined(invoker.deps)) {
-      deps += invoker.deps
+      link_deps += invoker.deps
     }
     forward_variables_from(invoker,
                            [
