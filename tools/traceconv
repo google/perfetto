@@ -31,7 +31,7 @@ import tempfile
 import urllib
 
 TRACE_TO_TEXT_SHAS = {
-  'linux': '566334dc45004ef3db1573292c8cf64a556b5d10',
+  'linux': '551041589acbd9d680a4cbc51249eab90c4a3143',
   'mac': '1fa1316ef2a761f94d21d955f0319b731699eb78',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
