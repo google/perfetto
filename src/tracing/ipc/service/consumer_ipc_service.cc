@@ -85,6 +85,17 @@ void ConsumerIPCService::StartTracing(const protos::StartTracingRequest&,
 }
 
 // Called by the IPC layer.
+void ConsumerIPCService::ChangeTraceConfig(
+    const protos::ChangeTraceConfigRequest& req,
+    DeferredChangeTraceConfigResponse resp) {
+  RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
+  TraceConfig trace_config;
+  trace_config.FromProto(req.trace_config());
+  remote_consumer->service_endpoint->ChangeTraceConfig(trace_config);
+  resp.Resolve(ipc::AsyncResult<protos::ChangeTraceConfigResponse>::Create());
+}
+
+// Called by the IPC layer.
 void ConsumerIPCService::DisableTracing(const protos::DisableTracingRequest&,
                                         DeferredDisableTracingResponse resp) {
   GetConsumerForCurrentRequest()->service_endpoint->DisableTracing();

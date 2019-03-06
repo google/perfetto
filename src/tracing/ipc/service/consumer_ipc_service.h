@@ -48,6 +48,8 @@ class ConsumerIPCService : public protos::ConsumerPort {
                      DeferredEnableTracingResponse) override;
   void StartTracing(const protos::StartTracingRequest&,
                     DeferredStartTracingResponse) override;
+  void ChangeTraceConfig(const protos::ChangeTraceConfigRequest&,
+                         DeferredChangeTraceConfigResponse) override;
   void DisableTracing(const protos::DisableTracingRequest&,
                       DeferredDisableTracingResponse) override;
   void ReadBuffers(const protos::ReadBuffersRequest&,
