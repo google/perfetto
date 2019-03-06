@@ -75,6 +75,8 @@ class SharedRingBuffer {
   static base::Optional<SharedRingBuffer> Attach(base::ScopedFile);
 
   ~SharedRingBuffer();
+  SharedRingBuffer() = default;
+
   SharedRingBuffer(SharedRingBuffer&&) noexcept;
   SharedRingBuffer& operator=(SharedRingBuffer&&);
 
