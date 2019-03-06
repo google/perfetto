@@ -45,6 +45,11 @@ source_set("common") {
     "utils.cc",
     "utils.h",
   ]
+  if (perfetto_build_standalone) {
+    deps = [
+      "../../gn/standalone:gen_git_revision",
+    ]
+  }
 }
 
 # Lite target for the WASM UI. Doesn't have any dependency on libprotobuf-full.
