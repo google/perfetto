@@ -22,6 +22,12 @@
 #include "tools/trace_to_text/trace_to_systrace.h"
 #include "tools/trace_to_text/trace_to_text.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#include "perfetto_version.gen.h"
+#else
+#define PERFETTO_GET_GIT_REVISION() "unknown"
+#endif
+
 namespace {
 
 int Usage(const char* argv0) {
@@ -35,6 +41,13 @@ int Usage(const char* argv0) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
+      printf("%s\n", PERFETTO_GET_GIT_REVISION());
+      return 0;
+    }
+  }
+
   if (argc < 2)
     return Usage(argv[0]);
 
