@@ -19,9 +19,7 @@ sys_stats_proto_names = [ "sys_stats.proto" ]
 
 proto_library("lite") {
   generate_python = false
-  deps = [
-    "../../common:lite",
-  ]
+  link_deps = [ "../../common:lite" ]
   sources = sys_stats_proto_names
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"

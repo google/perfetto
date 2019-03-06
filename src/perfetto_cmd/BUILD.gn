@@ -51,7 +51,6 @@ source_set("perfetto_cmd") {
 
 proto_library("protos") {
   generate_python = false
-  deps = []
   sources = [
     "descriptor.proto",
     "perfetto_cmd_state.proto",

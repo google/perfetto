@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/protozero_library.gni")
 import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
+import("../../../gn/protozero_library.gni")
 
 # Common protos used by both the ":minimal_lite" target (for the service) and
 # the generic ":lite" target
@@ -52,7 +52,7 @@ protozero_library("zero") {
 # Protobuf Lite stubs, for readers.
 proto_library("lite") {
   generate_python = false
-  deps = [
+  link_deps = [
     ":minimal_lite",
     "../config:lite",
     "android:lite",
@@ -77,9 +77,7 @@ proto_library("lite") {
 # Contains the subprotos of TracePacket that all targets need.
 proto_library("minimal_lite") {
   generate_python = false
-  deps = [
-    "../config:lite",
-  ]
+  link_deps = [ "../config:lite" ]
   sources = proto_sources_minimal
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
@@ -88,7 +86,7 @@ proto_library("minimal_lite") {
 # Used by the traced service for packet sanitization.
 proto_library("trusted_lite") {
   generate_python = false
-  deps = [
+  link_deps = [
     ":minimal_lite",
     "../config:lite",
   ]
