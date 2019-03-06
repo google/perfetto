@@ -27,9 +27,7 @@ proto_library("lite") {
     generate_descriptor =
         "$perfetto_root_path/protos/perfetto/trace/config.descriptor"
   }
-  deps = [
-    "../common:lite",
-  ]
+  link_deps = [ "../common:lite" ]
   sources = [
     "android/android_log_config.proto",
     "chrome/chrome_config.proto",
