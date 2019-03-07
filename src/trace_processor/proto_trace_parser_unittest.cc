@@ -496,6 +496,9 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 
 TEST(SystraceParserTest, SystraceEvent) {
   SystraceTracePoint result{};
+
+  ASSERT_FALSE(ParseSystraceTracePoint(base::StringView(""), &result));
+
   ASSERT_TRUE(ParseSystraceTracePoint(base::StringView("B|1|foo"), &result));
   EXPECT_EQ(result, (SystraceTracePoint{'B', 1, base::StringView("foo"), 0}));
 
