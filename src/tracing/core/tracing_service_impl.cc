@@ -450,6 +450,120 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   return true;
 }
 
+void TracingServiceImpl::ChangeTraceConfig(ConsumerEndpointImpl* consumer,
+                                           const TraceConfig& updated_cfg) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  TracingSession* tracing_session =
+      GetTracingSession(consumer->tracing_session_id_);
+  PERFETTO_DCHECK(tracing_session);
+
+  if ((tracing_session->state != TracingSession::STARTED) &&
+      (tracing_session->state != TracingSession::CONFIGURED)) {
+    PERFETTO_ELOG(
+        "ChangeTraceConfig() was called for a tracing session which isn't "
+        "running.");
+    return;
+  }
+
+  // We only support updating producer_name_filter (and pass-through configs)
+  // for now; null out any changeable fields and make sure the rest are
+  // identical.
+  TraceConfig new_config_copy(updated_cfg);
+  for (auto& ds_cfg : *new_config_copy.mutable_data_sources()) {
+    ds_cfg.clear_producer_name_filter();
+  }
+
+  TraceConfig current_config_copy(tracing_session->config);
+  for (auto& ds_cfg : *current_config_copy.mutable_data_sources())
+    ds_cfg.clear_producer_name_filter();
+
+  if (new_config_copy != current_config_copy) {
+    PERFETTO_LOG(
+        "ChangeTraceConfig() was called with a config containing unsupported "
+        "changes; only adding to the producer_name_filter is currently "
+        "supported and will have an effect.");
+  }
+
+  for (TraceConfig::DataSource& cfg_data_source :
+       *tracing_session->config.mutable_data_sources()) {
+    // Find the updated producer_filter in the new config.
+    std::vector<std::string> new_producer_name_filter;
+    bool found_data_source = false;
+    for (auto it : updated_cfg.data_sources()) {
+      if (cfg_data_source.config().name() == it.config().name()) {
+        new_producer_name_filter = it.producer_name_filter();
+        found_data_source = true;
+        break;
+      }
+    }
+
+    // Bail out if data source not present in the new config.
+    if (!found_data_source) {
+      PERFETTO_ELOG(
+          "ChangeTraceConfig() called without a current data source also "
+          "present in the new "
+          "config: %s",
+          cfg_data_source.config().name().c_str());
+      continue;
+    }
+
+    // TODO(oysteine): Just replacing the filter means that if
+    // there are any filter entries which were present in the original config,
+    // but removed from the config passed to ChangeTraceConfig, any matching
+    // producers will keep producing but newly added producers after this
+    // point will never start.
+    *cfg_data_source.mutable_producer_name_filter() = new_producer_name_filter;
+
+    // Scan all the registered data sources with a matching name.
+    auto range = data_sources_.equal_range(cfg_data_source.config().name());
+    for (auto it = range.first; it != range.second; it++) {
+      ProducerEndpointImpl* producer = GetProducer(it->second.producer_id);
+      PERFETTO_DCHECK(producer);
+
+      // Check if the producer name of this data source is present
+      // in the name filter. We currently only support new filters, not removing
+      // old ones.
+      if (!new_producer_name_filter.empty() &&
+          std::find(new_producer_name_filter.begin(),
+                    new_producer_name_filter.end(),
+                    producer->name_) == new_producer_name_filter.end()) {
+        continue;
+      }
+
+      bool already_setup = false;
+      auto& ds_instances = tracing_session->data_source_instances;
+      for (auto instance_it = ds_instances.begin();
+           instance_it != ds_instances.end(); ++instance_it) {
+        if (instance_it->first == it->second.producer_id &&
+            instance_it->second.data_source_name ==
+                cfg_data_source.config().name()) {
+          already_setup = true;
+          break;
+        }
+      }
+
+      if (already_setup)
+        continue;
+
+      // If it wasn't previously setup, set it up now.
+      // (The per-producer config is optional).
+      TraceConfig::ProducerConfig producer_config;
+      for (auto& config : tracing_session->config.producers()) {
+        if (producer->name_ == config.producer_name()) {
+          producer_config = config;
+          break;
+        }
+      }
+
+      DataSourceInstance* ds_inst = SetupDataSource(
+          cfg_data_source, producer_config, it->second, tracing_session);
+
+      if (ds_inst && tracing_session->state == TracingSession::STARTED)
+        producer->StartDataSource(ds_inst->instance_id, ds_inst->config);
+    }
+  }
+}
+
 bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingSession* tracing_session = GetTracingSession(tsid);
@@ -1293,6 +1407,8 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   }
   // TODO(primiano): Add tests for registration ordering
   // (data sources vs consumers).
+  // TODO: This logic is duplicated in ChangeTraceConfig, consider refactoring
+  // it. Meanwhile update both.
   if (!cfg_data_source.producer_name_filter().empty()) {
     if (std::find(cfg_data_source.producer_name_filter().begin(),
                   cfg_data_source.producer_name_filter().end(),
@@ -1728,6 +1844,17 @@ void TracingServiceImpl::ConsumerEndpointImpl::EnableTracing(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!service_->EnableTracing(this, cfg, std::move(fd)))
     NotifyOnTracingDisabled();
+}
+
+void TracingServiceImpl::ConsumerEndpointImpl::ChangeTraceConfig(
+    const TraceConfig& cfg) {
+  if (!tracing_session_id_) {
+    PERFETTO_LOG(
+        "Consumer called ChangeTraceConfig() but tracing was "
+        "not active");
+    return;
+  }
+  service_->ChangeTraceConfig(this, cfg);
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::StartTracing() {
