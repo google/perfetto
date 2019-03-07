@@ -246,6 +246,10 @@ void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
 }
 
 void UnwindingWorker::OnDataAvailable(base::UnixSocket* self) {
+  // Drain buffer to clear the notification.
+  char recv_buf[1024];
+  self->Receive(recv_buf, sizeof(recv_buf));
+
   auto it = client_data_.find(self->peer_pid());
   if (it == client_data_.end()) {
     PERFETTO_DFATAL("Unexpected data.");
