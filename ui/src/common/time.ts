@@ -30,6 +30,28 @@ export function fromNs(ns: number) {
   return ns / 1e9;
 }
 
+export function timeToCode(sec: number) {
+  let result = '';
+  let ns = Math.round(sec * 1e9);
+  const unitAndValue = [
+    ['m', 60000000000],
+    ['s', 1000000000],
+    ['ms', 1000000],
+    ['us', 1000],
+    ['ns', 1]
+  ];
+  unitAndValue.forEach(pair => {
+    const unit = pair[0] as string;
+    const val = pair[1] as number;
+    if (ns >= val) {
+      const i = Math.floor(ns / val);
+      ns -= i * val;
+      result += i.toLocaleString() + unit + ' ';
+    }
+  });
+  return result;
+}
+
 export class TimeSpan {
   readonly start: number;
   readonly end: number;
