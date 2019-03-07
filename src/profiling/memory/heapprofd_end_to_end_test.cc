@@ -410,7 +410,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
 
     TraceConfig trace_config;
     trace_config.add_buffers()->set_size_kb(10 * 1024);
-    trace_config.set_duration_ms(5000);
+    trace_config.set_duration_ms(2000);
     trace_config.set_flush_timeout_ms(10000);
 
     auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -432,7 +432,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     // TODO(rsavitski): this sleep is to compensate for the heapprofd delaying
     // in closing the sockets (and therefore the client noticing that the
     // session is over). Clarify where the delays are coming from.
-    usleep(5000 * kMsToUs);
+    usleep(100 * kMsToUs);
 
     PERFETTO_LOG("HeapprofdEndToEnd::Reinit: Starting second");
     TraceAndValidate(trace_config, pid, kSecondIterationBytes);
