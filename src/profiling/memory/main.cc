@@ -26,9 +26,7 @@
 #include "perfetto/base/event.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/unix_socket.h"
-#include "src/profiling/memory/bounded_queue.h"
 #include "src/profiling/memory/heapprofd_producer.h"
-#include "src/profiling/memory/socket_listener.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "src/tracing/ipc/default_socket.h"
 
@@ -40,7 +38,7 @@ namespace {
 
 int StartChildHeapprofd(pid_t target_pid,
                         std::string target_cmdline,
-                        std::vector<base::ScopedFile> inherited_sock_fds);
+                        base::ScopedFile inherited_sock_fd);
 int StartCentralHeapprofd();
 
 base::Event* g_dump_evt = nullptr;
@@ -49,7 +47,7 @@ int HeapprofdMain(int argc, char** argv) {
   bool cleanup_crash = false;
   pid_t target_pid = base::kInvalidPid;
   std::string target_cmdline;
-  std::vector<base::ScopedFile> inherited_sock_fds;
+  base::ScopedFile inherited_sock_fd;
 
   enum { kCleanupCrash = 256, kTargetPid, kTargetCmd, kInheritFd };
   static struct option long_options[] = {
@@ -66,13 +64,19 @@ int HeapprofdMain(int argc, char** argv) {
         cleanup_crash = true;
         break;
       case kTargetPid:
+        if (target_pid != base::kInvalidPid)
+          PERFETTO_FATAL("Duplicate exclusive-for-pid");
         target_pid = static_cast<pid_t>(atoi(optarg));
         break;
       case kTargetCmd:  // assumed to be already normalized
+        if (!target_cmdline.empty())
+          PERFETTO_FATAL("Duplicate exclusive-for-cmdline");
         target_cmdline = std::string(optarg);
         break;
-      case kInheritFd:  // repetition supported
-        inherited_sock_fds.emplace_back(atoi(optarg));
+      case kInheritFd:  // repetition not supported
+        if (inherited_sock_fd)
+          PERFETTO_FATAL("Duplicate inherit-socket-fd");
+        inherited_sock_fd = base::ScopedFile(atoi(optarg));
         break;
       default:
         PERFETTO_ELOG("Usage: %s [--cleanup-after-crash]", argv[0]);
@@ -90,7 +94,7 @@ int HeapprofdMain(int argc, char** argv) {
   // reparenting.
   bool tpid_set = target_pid != base::kInvalidPid;
   bool tcmd_set = !target_cmdline.empty();
-  bool fds_set = !inherited_sock_fds.empty();
+  bool fds_set = !!inherited_sock_fd;
   if (tpid_set || tcmd_set || fds_set) {
     if (!tpid_set || !tcmd_set || !fds_set) {
       PERFETTO_ELOG(
@@ -100,7 +104,7 @@ int HeapprofdMain(int argc, char** argv) {
     }
 
     return StartChildHeapprofd(target_pid, target_cmdline,
-                               std::move(inherited_sock_fds));
+                               std::move(inherited_sock_fd));
   }
 
   // Otherwise start as a central daemon.
@@ -109,12 +113,12 @@ int HeapprofdMain(int argc, char** argv) {
 
 int StartChildHeapprofd(pid_t target_pid,
                         std::string target_cmdline,
-                        std::vector<base::ScopedFile> inherited_sock_fds) {
+                        base::ScopedFile inherited_sock_fd) {
   base::UnixTaskRunner task_runner;
   HeapprofdProducer producer(HeapprofdMode::kChild, &task_runner);
-  producer.SetTargetProcess(target_pid, target_cmdline);
+  producer.SetTargetProcess(target_pid, target_cmdline,
+                            std::move(inherited_sock_fd));
   producer.ConnectWithRetries(GetProducerSocket());
-  producer.AdoptConnectedSockets(std::move(inherited_sock_fds));
   task_runner.Run();
   return 0;
 }

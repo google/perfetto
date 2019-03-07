@@ -26,6 +26,7 @@ if (!build_with_chromium) {
 source_set("wire_protocol") {
   public_configs = [ "../../../buildtools:libunwindstack_config" ]
   deps = [
+    ":ring_buffer",
     "../../../buildtools:libunwindstack",
     "../../../gn:default_deps",
     "../../base",
@@ -88,6 +89,8 @@ source_set("daemon") {
   public_configs = [ "../../../buildtools:libunwindstack_config" ]
   deps = [
     ":proc_utils",
+    ":ring_buffer",
+    ":scoped_spinlock",
     ":wire_protocol",
     "../../../buildtools:libunwindstack",
     "../../../gn:default_deps",
@@ -106,13 +109,9 @@ source_set("daemon") {
     "heapprofd_producer.cc",
     "heapprofd_producer.h",
     "interner.h",
-    "process_matcher.cc",
-    "process_matcher.h",
     "queue_messages.h",
     "record_reader.cc",
     "record_reader.h",
-    "socket_listener.cc",
-    "socket_listener.h",
     "system_property.cc",
     "system_property.h",
     "unwinding.cc",
@@ -124,6 +123,7 @@ source_set("client") {
   public_configs = [ "../../../buildtools:libunwindstack_config" ]
   deps = [
     ":proc_utils",
+    ":ring_buffer",
     ":scoped_spinlock",
     ":wire_protocol",
     "../../../buildtools:libunwindstack",
@@ -153,15 +153,11 @@ source_set("unittests") {
   ]
   sources = [
     "bookkeeping_unittest.cc",
-    "bounded_queue_unittest.cc",
     "client_unittest.cc",
-    "heapprofd_integrationtest.cc",
     "interner_unittest.cc",
     "proc_utils_unittest.cc",
-    "process_matcher_unittest.cc",
     "record_reader_unittest.cc",
     "sampler_unittest.cc",
-    "socket_listener_unittest.cc",
     "system_property_unittest.cc",
     "unwinding_unittest.cc",
     "wire_protocol_unittest.cc",
