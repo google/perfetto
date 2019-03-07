@@ -3451,6 +3451,9 @@ message HeapprofdConfig {
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
   optional bool all = 5;
+  // Do not emit function names for mappings starting with this prefix.
+  // E.g. /system to not emit symbols for any system libraries.
+  repeated string skip_symbol_prefix = 7;
 
   // Dump once at the end of the trace, emitting the heap dump at maximum
   // memory usage.
