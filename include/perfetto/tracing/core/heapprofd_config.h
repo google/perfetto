@@ -127,6 +127,21 @@ class PERFETTO_EXPORT HeapprofdConfig {
   bool all() const { return all_; }
   void set_all(bool value) { all_ = value; }
 
+  int skip_symbol_prefix_size() const {
+    return static_cast<int>(skip_symbol_prefix_.size());
+  }
+  const std::vector<std::string>& skip_symbol_prefix() const {
+    return skip_symbol_prefix_;
+  }
+  std::vector<std::string>* mutable_skip_symbol_prefix() {
+    return &skip_symbol_prefix_;
+  }
+  void clear_skip_symbol_prefix() { skip_symbol_prefix_.clear(); }
+  std::string* add_skip_symbol_prefix() {
+    skip_symbol_prefix_.emplace_back();
+    return &skip_symbol_prefix_.back();
+  }
+
   const ContinuousDumpConfig& continuous_dump_config() const {
     return continuous_dump_config_;
   }
@@ -139,6 +154,7 @@ class PERFETTO_EXPORT HeapprofdConfig {
   std::vector<std::string> process_cmdline_;
   std::vector<uint64_t> pid_;
   bool all_ = {};
+  std::vector<std::string> skip_symbol_prefix_;
   ContinuousDumpConfig continuous_dump_config_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
