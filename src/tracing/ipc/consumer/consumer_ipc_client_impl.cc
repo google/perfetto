@@ -86,6 +86,23 @@ void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config,
   consumer_port_.EnableTracing(req, std::move(async_response), *fd);
 }
 
+void ConsumerIPCClientImpl::ChangeTraceConfig(const TraceConfig&) {
+  if (!connected_) {
+    PERFETTO_DLOG(
+        "Cannot ChangeTraceConfig(), not connected to tracing service");
+    return;
+  }
+
+  ipc::Deferred<protos::ChangeTraceConfigResponse> async_response;
+  async_response.Bind(
+      [](ipc::AsyncResult<protos::ChangeTraceConfigResponse> response) {
+        if (!response)
+          PERFETTO_DLOG("ChangeTraceConfig() failed");
+      });
+  protos::ChangeTraceConfigRequest req;
+  consumer_port_.ChangeTraceConfig(req, std::move(async_response));
+}
+
 void ConsumerIPCClientImpl::StartTracing() {
   if (!connected_) {
     PERFETTO_DLOG("Cannot StartTracing(), not connected to tracing service");
