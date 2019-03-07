@@ -146,6 +146,12 @@ class PERFETTO_EXPORT TracingService {
     virtual void EnableTracing(const TraceConfig&,
                                base::ScopedFile = base::ScopedFile()) = 0;
 
+    // Update the trace config of an existing tracing session; only a subset
+    // of options can be changed mid-session. Currently the only
+    // supported functionality is expanding the list of producer_name_filters()
+    // (or removing the filter entirely) for existing data sources.
+    virtual void ChangeTraceConfig(const TraceConfig&) = 0;
+
     // Starts all data sources configured in the trace config. This is used only
     // after calling EnableTracing() with TraceConfig.deferred_start=true.
     // It's a no-op if called after a regular EnableTracing(), without setting

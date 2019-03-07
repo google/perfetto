@@ -61,6 +61,7 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   // tracing library, which know nothing about the IPC transport.
   void EnableTracing(const TraceConfig&, base::ScopedFile) override;
   void StartTracing() override;
+  void ChangeTraceConfig(const TraceConfig&) override;
   void DisableTracing() override;
   void ReadBuffers() override;
   void FreeBuffers() override;

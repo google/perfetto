@@ -161,6 +161,7 @@ class TracingServiceImpl : public TracingService {
 
     // TracingService::ConsumerEndpoint implementation.
     void EnableTracing(const TraceConfig&, base::ScopedFile) override;
+    void ChangeTraceConfig(const TraceConfig& cfg) override;
     void StartTracing() override;
     void DisableTracing() override;
     void ReadBuffers() override;
@@ -214,6 +215,8 @@ class TracingServiceImpl : public TracingService {
   bool EnableTracing(ConsumerEndpointImpl*,
                      const TraceConfig&,
                      base::ScopedFile);
+  void ChangeTraceConfig(ConsumerEndpointImpl*, const TraceConfig&);
+
   bool StartTracing(TracingSessionID);
   void DisableTracing(TracingSessionID, bool disable_immediately = false);
   void Flush(TracingSessionID tsid,
@@ -330,9 +333,9 @@ class TracingServiceImpl : public TracingService {
     // prevent that a consumer re-attaches to a session from a different uid.
     uid_t const consumer_uid;
 
-    // The original trace config provided by the Consumer when calling
-    // EnableTracing().
-    const TraceConfig config;
+    // The trace config provided by the Consumer when calling
+    // EnableTracing(), plus any updates performed by ChangeTraceConfig.
+    TraceConfig config;
 
     // List of data source instances that have been enabled on the various
     // producers for this tracing session.
