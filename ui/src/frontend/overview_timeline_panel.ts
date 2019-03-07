@@ -110,14 +110,9 @@ export class OverviewTimelinePanel extends Panel {
     ctx.fillRect(vizEndPx, headerHeight, this.width - vizEndPx, tracksHeight);
 
     // Draw brushes.
-    const handleWidth = 3;
-    const handleHeight = 25;
-    const y = headerHeight + (tracksHeight - handleHeight) / 2;
     ctx.fillStyle = '#333';
     ctx.fillRect(vizStartPx - 1, headerHeight, 1, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
-    ctx.fillRect(vizStartPx - handleWidth, y, handleWidth, handleHeight);
-    ctx.fillRect(vizEndPx + 1, y, handleWidth, handleHeight);
   }
 
   onDrag(x: number) {
