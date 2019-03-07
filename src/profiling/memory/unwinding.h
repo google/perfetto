@@ -29,7 +29,6 @@
 
 #include "perfetto/base/scoped_file.h"
 #include "src/profiling/memory/bookkeeping.h"
-#include "src/profiling/memory/bounded_queue.h"
 #include "src/profiling/memory/queue_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
 
@@ -41,6 +40,23 @@ namespace profiling {
 class FileDescriptorMaps : public unwindstack::Maps {
  public:
   FileDescriptorMaps(base::ScopedFile fd);
+
+  FileDescriptorMaps(const FileDescriptorMaps&) = delete;
+  FileDescriptorMaps& operator=(const FileDescriptorMaps&) = delete;
+
+  FileDescriptorMaps(FileDescriptorMaps&& m) : Maps(std::move(m)) {
+    fd_ = std::move(m.fd_);
+  }
+
+  FileDescriptorMaps& operator=(FileDescriptorMaps&& m) {
+    if (&m != this)
+      fd_ = std::move(m.fd_);
+    Maps::operator=(std::move(m));
+    return *this;
+  }
+
+  virtual ~FileDescriptorMaps() override = default;
+
   bool Parse() override;
   void Reset();
 
@@ -112,10 +128,55 @@ struct UnwindingMetadata {
 
 bool DoUnwind(WireMessage*, UnwindingMetadata* metadata, AllocRecord* out);
 
-bool HandleUnwindingRecord(UnwindingRecord* rec, BookkeepingRecord* out);
+class UnwindingWorker : public base::UnixSocket::EventListener {
+ public:
+  class Delegate {
+   public:
+    virtual void PostAllocRecord(AllocRecord);
+    virtual void PostFreeRecord(FreeRecord);
+    virtual void PostSocketDisconnected(DataSourceInstanceID, pid_t pid);
+    virtual ~Delegate() = default;
+  };
 
-void UnwindingMainLoop(BoundedQueue<UnwindingRecord>* input_queue,
-                       BoundedQueue<BookkeepingRecord>* output_queue);
+  struct HandoffData {
+    DataSourceInstanceID data_source_instance_id;
+    base::UnixSocketRaw sock;
+    base::ScopedFile fds[kHandshakeSize];
+    SharedRingBuffer shmem;
+  };
+
+  UnwindingWorker(Delegate* delegate, base::TaskRunner* task_runner)
+      : delegate_(delegate), task_runner_(task_runner) {}
+
+  // Public API safe to call from other threads.
+  void PostDisconnectSocket(pid_t pid);
+  void PostHandoffSocket(HandoffData);
+
+  // Implementation of UnixSocket::EventListener.
+  // Do not call explicitly.
+  void OnDisconnect(base::UnixSocket* self) override;
+  void OnNewIncomingConnection(base::UnixSocket*,
+                               std::unique_ptr<base::UnixSocket>) override {
+    PERFETTO_DFATAL("This should not happen.");
+  }
+  void OnDataAvailable(base::UnixSocket* self) override;
+
+ private:
+  struct ClientData {
+    DataSourceInstanceID data_source_instance_id;
+    std::unique_ptr<base::UnixSocket> sock;
+    UnwindingMetadata metadata;
+    SharedRingBuffer shmem;
+  };
+
+  void HandleBuffer(SharedRingBuffer::Buffer* buf, ClientData* socket_data);
+  void HandleHandoffSocket(HandoffData data);
+  void HandleDisconnectSocket(pid_t pid);
+
+  std::map<pid_t, ClientData> client_data_;
+  Delegate* delegate_;
+  base::TaskRunner* task_runner_;
+};
 
 }  // namespace profiling
 }  // namespace perfetto

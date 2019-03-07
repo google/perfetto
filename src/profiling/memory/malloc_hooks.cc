@@ -123,7 +123,6 @@ std::shared_ptr<perfetto::profiling::Client> g_client;
 // is tied together).
 std::atomic<bool> g_client_lock{false};
 
-constexpr size_t kNumConnections = 2;
 constexpr char kHeapprofdBinPath[] = "/system/bin/heapprofd";
 
 const MallocDispatch* GetDispatch() {
@@ -184,7 +183,7 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientForCentralDaemon() {
   PERFETTO_DLOG("Constructing client for central daemon.");
 
   return std::make_shared<perfetto::profiling::Client>(
-      perfetto::profiling::kHeapprofdSocketFile, kNumConnections);
+      perfetto::profiling::kHeapprofdSocketFile);
 }
 
 std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon() {
@@ -256,10 +255,7 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon() {
     return nullptr;
   }
 
-  std::vector<perfetto::base::UnixSocketRaw> client_sockets;
-  client_sockets.emplace_back(std::move(parent_sock));
-  return std::make_shared<perfetto::profiling::Client>(
-      std::move(client_sockets));
+  return std::make_shared<perfetto::profiling::Client>(std::move(parent_sock));
 }
 
 }  // namespace
