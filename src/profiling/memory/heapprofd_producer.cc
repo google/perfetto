@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/file_utils.h"
+#include "perfetto/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_writer.h"
@@ -641,6 +642,19 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
   if (heap_tracker_it == ds.heap_trackers.end()) {
     PERFETTO_LOG("Invalid PID in alloc record.");
     return;
+  }
+
+  const auto& prefixes = ds.config.skip_symbol_prefix();
+  if (!prefixes.empty()) {
+    for (FrameData& frame_data : alloc_rec.frames) {
+      const std::string& map = frame_data.frame.map_name;
+      if (std::find_if(prefixes.cbegin(), prefixes.cend(),
+                       [&map](const std::string& prefix) {
+                         return base::StartsWith(map, prefix);
+                       }) != prefixes.cend()) {
+        frame_data.frame.function_name = "FILTERED";
+      }
+    }
   }
 
   HeapTracker& heap_tracker = heap_tracker_it->second;
