@@ -57,6 +57,9 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
   const char* s = str.data();
   size_t len = str.size();
 
+  if (len < 2)
+    return false;
+
   // If str matches '[BEC]\|[0-9]+[\|\n]' set tgid_length to the length of
   // the number. Otherwise return false.
   if (s[1] != '|' && s[1] != '\n')
