@@ -132,10 +132,10 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
  public:
   class Delegate {
    public:
-    virtual void PostAllocRecord(AllocRecord);
-    virtual void PostFreeRecord(FreeRecord);
-    virtual void PostSocketDisconnected(DataSourceInstanceID, pid_t pid);
-    virtual ~Delegate() = default;
+    virtual void PostAllocRecord(AllocRecord) = 0;
+    virtual void PostFreeRecord(FreeRecord) = 0;
+    virtual void PostSocketDisconnected(DataSourceInstanceID, pid_t pid) = 0;
+    virtual ~Delegate();
   };
 
   struct HandoffData {
