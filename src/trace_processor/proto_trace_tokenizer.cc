@@ -203,6 +203,12 @@ void ProtoTraceTokenizer::ParseFtraceBundle(TraceBlobView bundle) {
     }
   }
 
+  if (PERFETTO_UNLIKELY(cpu > base::kMaxCpus)) {
+    PERFETTO_ELOG("CPU number larger than kMaxCpus (%" PRIu64 " > %zu)", cpu,
+                  base::kMaxCpus);
+    return;
+  }
+
   for (auto fld = decoder.ReadField(); fld.id != 0; fld = decoder.ReadField()) {
     switch (fld.id) {
       case protos::FtraceEventBundle::kEventFieldNumber: {
