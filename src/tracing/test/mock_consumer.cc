@@ -57,6 +57,10 @@ void MockConsumer::StartTracing() {
   service_endpoint_->StartTracing();
 }
 
+void MockConsumer::ChangeTraceConfig(const TraceConfig& trace_config) {
+  service_endpoint_->ChangeTraceConfig(trace_config);
+}
+
 void MockConsumer::DisableTracing() {
   service_endpoint_->DisableTracing();
 }

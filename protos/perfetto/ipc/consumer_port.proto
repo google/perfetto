@@ -73,6 +73,11 @@ service ConsumerPort {
   // deferred_start = true in the TraceConfig passed to EnableTracing().
   rpc StartTracing(StartTracingRequest) returns (StartTracingResponse) {}
 
+  // Changes the configuration for a running tracing session; only possible
+  // for a subset of configuration options.
+  rpc ChangeTraceConfig(ChangeTraceConfigRequest)
+      returns (ChangeTraceConfigResponse) {}
+
   // Allows the consumer to detach from the session. The session will keep
   // running even if the consumer disconnects and the consumer will not receive
   // any further IPC until reattached.
@@ -110,6 +115,13 @@ message EnableTracingResponse {
 message StartTracingRequest {}
 
 message StartTracingResponse {}
+
+// Arguments for rpc ChangeTraceConfig().
+message ChangeTraceConfigRequest {
+  optional protos.TraceConfig trace_config = 1;
+}
+
+message ChangeTraceConfigResponse {}
 
 // Arguments for rpc DisableTracing().
 message DisableTracingRequest {
