@@ -186,6 +186,12 @@ def main(argv):
 
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out', PERFETTO_CMD.format(cfg)]).strip()
+  try:
+    int(perfetto_pid.strip())
+  except ValueError:
+    print("Failed to invoke perfetto: {}".format(perfetto_pid),
+          file=sys.stderr)
+    return 1
 
   old_handler = signal.signal(signal.SIGINT, sigint_handler)
   print("Profiling active. Press Ctrl+C to terminate.")
