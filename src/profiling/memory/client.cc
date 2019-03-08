@@ -125,7 +125,7 @@ bool Client::FlushFrees(FreeMetadata* free_metadata) {
     Shutdown();
     return false;
   }
-  if (!sock_.Send(kSingleByte, sizeof(kSingleByte))) {
+  if (sock_.Send(kSingleByte, sizeof(kSingleByte)) == -1) {
     Shutdown();
     return false;
   }
