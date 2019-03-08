@@ -94,8 +94,9 @@ CONTINUOUS_DUMP = """
       }}
 """
 
-PERFETTO_CMD=('CFG=\'{}\'; echo ${{CFG}} | '
-              'perfetto --txt -c - -o /data/misc/perfetto-traces/profile -d')
+PERFETTO_CMD=('CFG=\'{cfg}\'; echo ${{CFG}} | '
+              'perfetto --txt -c - -o '
+              '/data/misc/perfetto-traces/profile-{user} -d')
 IS_INTERRUPTED = False
 def sigint_handler(sig, frame):
   global IS_INTERRUPTED
@@ -184,8 +185,9 @@ def main(argv):
       atexit.register(subprocess.check_call,
           ['adb', 'shell', 'setprop persist.heapprofd.enable 0'])
 
+  user = subprocess.check_output(['adb', 'shell', 'whoami']).strip()
   perfetto_pid = subprocess.check_output(
-      ['adb', 'exec-out', PERFETTO_CMD.format(cfg)]).strip()
+      ['adb', 'exec-out', PERFETTO_CMD.format(cfg=cfg, user=user)]).strip()
   try:
     int(perfetto_pid.strip())
   except ValueError:
@@ -211,7 +213,8 @@ def main(argv):
         ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
     time.sleep(1)
 
-  subprocess.check_call(['adb', 'pull', '/data/misc/perfetto-traces/profile',
+  subprocess.check_call(['adb', 'pull',
+                         '/data/misc/perfetto-traces/profile-{}'.format(user),
                          '/tmp/profile'], stdout=NULL)
   trace_to_text_output = subprocess.check_output(
       [trace_to_text_binary, 'profile', '/tmp/profile'],
