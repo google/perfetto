@@ -26,10 +26,15 @@ See all the arguments using `tools/heap_profile -h`, or use the defaults
 and just profile a process (e.g. `system_server`):
 
 ```
-tools/heap_profile --name system_server
+$ tools/heap_profile --name system_server
+Profiling active. Press Ctrl+C to terminate.
+^CWrote profiles to /tmp/heap_profile-XSKcZ3i (symlink /tmp/heap_profile-latest)
+These can be viewed using pprof. Googlers: head to pprof/ and upload them.
 ```
 
-This will create a heap dump when Ctrl+C is pressed.
+This will create a pprof-compatible heap dump when Ctrl+C is pressed.
+
+## Viewing the data
 
 The resulting profile proto contains four views on the data
 
@@ -112,4 +117,6 @@ gzip /tmp/heap_profile-XXXXXX/*.pb
 ```
 
 to get gzipped protos, which tools handling pprof profile protos expect.
-Head to http://pprof/ and upload the gzipped protos to get a visualization.
+
+Follow the instructions in [Viewing the Data](#viewing-the-data) to visualise
+the results.
