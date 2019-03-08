@@ -7,6 +7,7 @@
   * [Capturing long traces](long-traces.md)
   * [Advanced trace config](trace-config.md)
   * [Running in detached mode](detached-mode.md)
+  * [Heap Profiling](heapprofd.md)
 * Trace analysis
   * [Trace processor](trace-processor.md)
   * [Trace conversion](traceconv.md)
