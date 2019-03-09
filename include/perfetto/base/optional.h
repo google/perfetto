@@ -375,12 +375,12 @@ using RemoveCvRefT =
 
 }  // namespace internal
 
-// On Windows, by default, empty-base class optimization does not work,
+// On MSVC, by default, empty-base class optimization does not work,
 // which means even if the base class is empty struct, it still consumes one
 // byte for its body. __declspec(empty_bases) enables the optimization.
 // cf)
 // https://blogs.msdn.microsoft.com/vcblog/2016/03/30/optimizing-the-layout-of-empty-base-classes-in-vs2015-update-2-3/
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
 #define OPTIONAL_DECLSPEC_EMPTY_BASES __declspec(empty_bases)
 #else
 #define OPTIONAL_DECLSPEC_EMPTY_BASES
