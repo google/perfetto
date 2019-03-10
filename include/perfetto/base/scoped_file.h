@@ -22,7 +22,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 #include <corecrt_io.h>
 typedef int mode_t;
 #else
