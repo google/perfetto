@@ -36,23 +36,21 @@ bool PacketStreamValidator::Validate(const Slices& slices) {
   if (!packet.ParseFromBoundedZeroCopyStream(&stream, static_cast<int>(size)))
     return false;
 
-  // Only the service is allowed to fill in the trusted uid.
+  // Only the service is allowed to fill in these fields:
+
   if (packet.optional_trusted_uid_case() !=
       protos::TrustedPacket::OPTIONAL_TRUSTED_UID_NOT_SET) {
     return false;
   }
 
-  // Only the service is allowed to fill in the packet sequence id.
   if (packet.optional_trusted_packet_sequence_id_case() !=
       protos::TrustedPacket::OPTIONAL_TRUSTED_PACKET_SEQUENCE_ID_NOT_SET) {
     return false;
   }
 
-  // Only the service is allowed to fill in the TraceConfig.
   if (packet.has_trace_config())
     return false;
 
-  // Only the service is allowed to fill in the TraceStats.
   if (packet.has_trace_stats())
     return false;
 
