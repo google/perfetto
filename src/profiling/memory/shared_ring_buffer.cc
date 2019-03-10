@@ -19,6 +19,7 @@
 #include <atomic>
 #include <type_traits>
 
+#include <errno.h>
 #include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -167,7 +168,7 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginWrite(
 
   base::Optional<PointerPositions> opt_pos = GetPointerPositions(spinlock);
   if (!opt_pos) {
-    errno = EBADFD;
+    errno = EBADF;
     return result;
   }
   auto pos = opt_pos.value();
