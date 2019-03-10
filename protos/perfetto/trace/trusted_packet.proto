@@ -55,4 +55,5 @@ message TrustedPacket {
   TraceConfig trace_config = 33;
   TraceStats trace_stats = 35;
   bytes synchronization_marker = 36;
+  uint32 previous_packet_dropped = 42;
 }
