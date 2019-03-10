@@ -161,7 +161,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   }
   void OnDataAvailable(base::UnixSocket* self) override;
 
- private:
+ public:  // Public for testing / fuzzing.
   struct ClientData {
     DataSourceInstanceID data_source_instance_id;
     std::unique_ptr<base::UnixSocket> sock;
@@ -170,6 +170,8 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   };
 
   void HandleBuffer(SharedRingBuffer::Buffer* buf, ClientData* socket_data);
+
+ private:
   void HandleHandoffSocket(HandoffData data);
   void HandleDisconnectSocket(pid_t pid);
 
