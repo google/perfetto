@@ -71,12 +71,18 @@ class TraceBufferTest : public testing::Test {
   }
 
   std::vector<FakePacketFragment> ReadPacket(
-      TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr) {
+      TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
+      bool* previous_packet_dropped = nullptr) {
     std::vector<FakePacketFragment> fragments;
     TracePacket packet;
-    TraceBuffer::PacketSequenceProperties ignore{};
+    TraceBuffer::PacketSequenceProperties ignored_sequence_properties{};
+    bool ignored_previous_packet_dropped;
     if (!trace_buffer_->ReadNextTracePacket(
-            &packet, sequence_properties ? sequence_properties : &ignore)) {
+            &packet,
+            sequence_properties ? sequence_properties
+                                : &ignored_sequence_properties,
+            previous_packet_dropped ? previous_packet_dropped
+                                    : &ignored_previous_packet_dropped)) {
       return fragments;
     }
     for (const Slice& slice : packet.slices())
@@ -1673,6 +1679,103 @@ TEST_F(TraceBufferTest, DiscardPolicy) {
   }
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+TEST_F(TraceBufferTest, MissingPacketsOnSequence) {
+  ResetBuffer(4096);
+  SuppressSanityDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(10, 'a')
+      .AddPacket(10, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
+      .AddPacket(10, 'u')
+      .AddPacket(10, 'v')
+      .AddPacket(10, 'w')
+      .ClearBytes(10, 1)  // Clears the varint header of packet "v".
+      .CopyIntoTraceBuffer();
+
+  bool previous_packet_dropped = false;
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(10, 'a')));
+  // First packet in first sequence, so previous one didn't exist.
+  ASSERT_TRUE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(10, 'b')));
+  // We read packet "a" before.
+  ASSERT_FALSE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(10, 'u')));
+  // First packet in second sequence, so previous one didn't exist.
+  ASSERT_TRUE(previous_packet_dropped);
+
+  // Packet "v" in second sequence is corrupted, so chunk will be skipped.
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(1))
+      .AddPacket(10, 'x')
+      .AddPacket(10, 'y')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(10, 'd', kContFromPrevChunk)
+      .AddPacket(10, 'e')
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(
+      ReadPacket(nullptr, &previous_packet_dropped),
+      ElementsAre(FakePacketFragment(10, 'c'), FakePacketFragment(10, 'd')));
+  // We read packet "b" before.
+  ASSERT_FALSE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(10, 'e')));
+  // We read packet "d" before.
+  ASSERT_FALSE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(10, 'x')));
+  // We didn't read packets "v" and "w".
+  ASSERT_TRUE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(10, 'y')));
+  // We read packet "x".
+  ASSERT_FALSE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Write two large chunks that don't fit into the buffer at the same time. We
+  // will drop the former one before we can read it.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(2000, 'f')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+      .AddPacket(3000, 'g')
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(3000, 'g')));
+  // We didn't read packet "f".
+  ASSERT_TRUE(previous_packet_dropped);
+
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(2))
+      .AddPacket(10, 'z')
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(10, 'z')));
+  // We've lost any state from the second producer's sequence because all its
+  // previous chunks were removed from the buffer due to the two large chunks.
+  // So the buffer can't be sure that no packets were dropped.
+  ASSERT_TRUE(previous_packet_dropped);
 }
 
 // TODO(primiano): test stats().
