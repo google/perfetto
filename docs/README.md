@@ -21,7 +21,7 @@ zero-syscall (on fast-paths) writing of protobufs over shared memory.
 
 **Processing of traces**  
 [A C++ library for efficient processing and extraction of trace-based
-metrics.][trace-processor]. The library accepts both protobuf and json-based
+metrics.](trace-processor). The library accepts both protobuf and json-based
 traces as input and exposes an SQL query interface to the data.
 The library is built to be linked by other programs but can also be used
 standalone as a command line tool.
@@ -29,7 +29,7 @@ standalone as a command line tool.
 
 **Web-based frontend**  
 An open-source UI for inspection and analysis of traces.
-Available at [ui.perfetto.dev][https://ui.perfetto.dev].
+Available at [ui.perfetto.dev](https://ui.perfetto.dev).
 The UI is built on top of C++ trace processor library whic is cross-compiled
 to WASM to run locally in the browser.
 
