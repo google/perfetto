@@ -25,20 +25,27 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+class FakeDelegate : public UnwindingWorker::Delegate {
+ public:
+  ~FakeDelegate() override {}
+  void PostAllocRecord(AllocRecord) override {}
+  void PostFreeRecord(FreeRecord) override {}
+  void PostSocketDisconnected(DataSourceInstanceID, pid_t) override {}
+};
+
 int FuzzUnwinding(const uint8_t* data, size_t size) {
-  UnwindingRecord record;
-  auto unwinding_metadata = std::make_shared<UnwindingMetadata>(
-      getpid(), base::OpenFile("/proc/self/maps", O_RDONLY),
-      base::OpenFile("/proc/self/mem", O_RDONLY));
+  FakeDelegate delegate;
+  UnwindingWorker worker(&delegate, /*task_runner=*/nullptr);
 
-  record.pid = getpid();
-  record.size = size;
-  record.data.reset(new uint8_t[size]);
-  memcpy(record.data.get(), data, size);
-  record.metadata = unwinding_metadata;
+  SharedRingBuffer::Buffer buf(const_cast<uint8_t*>(data), size);
 
-  BookkeepingRecord out;
-  HandleUnwindingRecord(&record, &out);
+  UnwindingWorker::ClientData sock_data{
+      0, nullptr,
+      UnwindingMetadata{getpid(), base::OpenFile("/proc/self/maps", O_RDONLY),
+                        base::OpenFile("/proc/self/mem", O_RDONLY)},
+      *SharedRingBuffer::Create(4096)};
+
+  worker.HandleBuffer(&buf, &sock_data);
   return 0;
 }
 
