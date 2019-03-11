@@ -20,8 +20,8 @@ zero-syscall (on fast-paths) writing of protobufs over shared memory.
 * Many new probes coming soon: heap profiling, perf sampling, syscall tracing.
 
 **Processing of traces**  
-A C++ library for efficient processing and extraction of trace-based
-metrics.](trace-processor). The library accepts both protobuf and json-based
+[A C++ library for efficient processing and extraction of trace-based
+metrics.][trace-processor]. The library accepts both protobuf and json-based
 traces as input and exposes an SQL query interface to the data.
 The library is built to be linked by other programs but can also be used
 standalone as a command line tool.
