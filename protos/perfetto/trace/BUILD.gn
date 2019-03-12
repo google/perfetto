@@ -18,7 +18,10 @@ import("../../../gn/protozero_library.gni")
 
 # Common protos used by both the ":minimal_lite" target (for the service) and
 # the generic ":lite" target
-proto_sources_minimal = [ "clock_snapshot.proto" ]
+proto_sources_minimal = [
+  "clock_snapshot.proto",
+  "system_info.proto",
+]
 
 proto_sources_trusted = [ "trusted_packet.proto" ]
 
