@@ -194,7 +194,7 @@ void RawTable::FormatSystraceArgs(const std::string& event_name,
       const auto& str = storage_->GetString(value.string_value);
 
       // If the last character is a newline in a print, just drop it.
-      auto chars_to_print = str.size() > 0 && str[str.size() - 1] == '\n'
+      auto chars_to_print = !str.empty() && str[str.size() - 1] == '\n'
                                 ? str.size() - 1
                                 : str.size();
       writer->AppendString(str.c_str(), chars_to_print);

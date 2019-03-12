@@ -78,7 +78,7 @@ class ProcessTracker {
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
   // Virtual for testing.
-  virtual UniquePid UpdateProcess(uint32_t pid, int64_t start_ts = 0);
+  virtual UniquePid UpdateProcess(uint32_t pid, int64_t start_ns = 0);
 
   // Returns the bounds of a range that includes all UniquePids that have the
   // requested pid.
