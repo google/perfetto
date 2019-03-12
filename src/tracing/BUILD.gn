@@ -113,10 +113,10 @@ source_set("unittests") {
   # has no Windows implementation.
   if (!is_win) {
     sources += [
-      "core/service_impl_unittest.cc",
       "core/shared_memory_arbiter_impl_unittest.cc",
       "core/startup_trace_writer_unittest.cc",
       "core/trace_writer_impl_unittest.cc",
+      "core/tracing_service_impl_unittest.cc",
       "test/fake_producer_endpoint.h",
       "test/mock_consumer.cc",
       "test/mock_consumer.h",
