@@ -201,9 +201,11 @@ class NumericColumn : public StorageColumn {
                       sqlite3_value* value,
                       FilteredRowIndex* index) const {
     auto predicate = sqlite_utils::CreateNumericPredicate<C>(op, value);
-    index->FilterRows([this, &predicate](uint32_t row) {
+    auto cast_predicate = [this,
+                           predicate](uint32_t row) PERFETTO_ALWAYS_INLINE {
       return predicate(static_cast<C>((*deque_)[row]));
-    });
+    };
+    index->FilterRows(cast_predicate);
   }
 
   bool is_naturally_ordered_ = false;
@@ -310,7 +312,7 @@ class IdColumn final : public StorageColumn {
               sqlite3_value* value,
               FilteredRowIndex* index) const override {
     auto predicate = sqlite_utils::CreateNumericPredicate<RowId>(op, value);
-    index->FilterRows([this, &predicate](uint32_t row) {
+    index->FilterRows([this, predicate](uint32_t row) PERFETTO_ALWAYS_INLINE {
       return predicate(TraceStorage::CreateRowId(table_id_, row));
     });
   }

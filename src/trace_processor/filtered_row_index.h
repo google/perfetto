@@ -54,8 +54,8 @@ class FilteredRowIndex {
 
   // Calls |fn| on each row index which is currently to be returned and retains
   // row index if |fn| returns true or discards the row otherwise.
-  template <typename Predicate>
-  void FilterRows(Predicate fn) {
+  template <typename RowPredicate /* (uint32_t) -> bool */>
+  void FilterRows(RowPredicate fn) {
     PERFETTO_DCHECK(error_.empty());
 
     switch (mode_) {
@@ -99,10 +99,11 @@ class FilteredRowIndex {
   template <typename Predicate>
   void FilterAllRows(Predicate fn) {
     mode_ = Mode::kBitVector;
-    row_filter_.resize(end_row_ - start_row_, true);
+    row_filter_.resize(end_row_ - start_row_, false);
 
-    for (uint32_t i = start_row_; i < end_row_; i++) {
-      row_filter_[i - start_row_] = fn(i);
+    for (auto i = start_row_; i < end_row_; i++) {
+      if (fn(i))
+        row_filter_[i - start_row_] = true;
     }
   }
 
@@ -110,10 +111,12 @@ class FilteredRowIndex {
   void FilterBitVector(Predicate fn) {
     auto b = row_filter_.begin();
     auto e = row_filter_.end();
+
     using std::find;
     for (auto it = find(b, e, true); it != e; it = find(it + 1, e, true)) {
       auto filter_idx = static_cast<uint32_t>(std::distance(b, it));
-      *it = fn(start_row_ + filter_idx);
+      auto value_it = start_row_ + filter_idx;
+      *it = fn(value_it);
     }
   }
 
