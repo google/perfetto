@@ -366,6 +366,9 @@ class TracingServiceImpl : public TracingService {
     // Whether we mirrored the trace config back to the trace output yet.
     bool did_emit_config = false;
 
+    // Whether we put the system info into the trace output yet.
+    bool did_emit_system_info = false;
+
     State state = DISABLED;
 
     // If the consumer detached the session, this variable defines the key used
@@ -410,6 +413,7 @@ class TracingServiceImpl : public TracingService {
   void SnapshotStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession* tracing_session);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
+  void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);

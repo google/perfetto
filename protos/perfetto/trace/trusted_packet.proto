@@ -29,6 +29,7 @@ option optimize_for = LITE_RUNTIME;
 import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 import "perfetto/trace/clock_snapshot.proto";
+import "perfetto/trace/system_info.proto";
 
 package perfetto.protos;
 
@@ -56,4 +57,5 @@ message TrustedPacket {
   TraceStats trace_stats = 35;
   bytes synchronization_marker = 36;
   uint32 previous_packet_dropped = 42;
+  SystemInfo system_info = 45;
 }
