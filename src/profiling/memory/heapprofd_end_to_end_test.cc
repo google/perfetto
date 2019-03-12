@@ -310,7 +310,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
 
     // Wait to guarantee that the process forked below is hooked by the profiler
     // by virtue of the startup check, and not by virtue of being seen as a
-    // runnning process. This sleep is here to prevent that, accidentally, the
+    // running process. This sleep is here to prevent that, accidentally, the
     // test gets to the fork()+exec() too soon, before the heap profiling daemon
     // has received the trace config.
     sleep(1);
