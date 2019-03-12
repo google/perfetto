@@ -90,6 +90,10 @@ inline bool IsOpIsNull(int op) {
   return op == SQLITE_INDEX_CONSTRAINT_ISNULL;
 }
 
+inline bool IsOpIsNotNull(int op) {
+  return op == SQLITE_INDEX_CONSTRAINT_ISNOTNULL;
+}
+
 template <typename T>
 T ExtractSqliteValue(sqlite3_value* value);
 
@@ -140,34 +144,46 @@ inline std::string ExtractSqliteValue(sqlite3_value* value) {
   return std::string(extracted);
 }
 
-template <typename T, typename sqlite_utils::is_numeric<T>* = nullptr>
-std::function<bool(T)> CreateNumericPredicate(int op, sqlite3_value* value) {
-  switch (op) {
-    case SQLITE_INDEX_CONSTRAINT_ISNULL:
-      return [](T) { return false; };
-    case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
-      return [](T) { return true; };
+template <typename T>
+class NumericPredicate {
+ public:
+  NumericPredicate(int op, T constant) : op_(op), constant_(constant) {}
+
+  PERFETTO_ALWAYS_INLINE bool operator()(T other) const {
+    switch (op_) {
+      case SQLITE_INDEX_CONSTRAINT_ISNULL:
+        return false;
+      case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
+        return true;
+      case SQLITE_INDEX_CONSTRAINT_EQ:
+      case SQLITE_INDEX_CONSTRAINT_IS:
+        return std::equal_to<T>()(other, constant_);
+      case SQLITE_INDEX_CONSTRAINT_NE:
+      case SQLITE_INDEX_CONSTRAINT_ISNOT:
+        return std::not_equal_to<T>()(other, constant_);
+      case SQLITE_INDEX_CONSTRAINT_GE:
+        return std::greater_equal<T>()(other, constant_);
+      case SQLITE_INDEX_CONSTRAINT_GT:
+        return std::greater<T>()(other, constant_);
+      case SQLITE_INDEX_CONSTRAINT_LE:
+        return std::less_equal<T>()(other, constant_);
+      case SQLITE_INDEX_CONSTRAINT_LT:
+        return std::less<T>()(other, constant_);
+      default:
+        PERFETTO_FATAL("For GCC");
+    }
   }
 
-  T val = ExtractSqliteValue<T>(value);
-  switch (op) {
-    case SQLITE_INDEX_CONSTRAINT_EQ:
-    case SQLITE_INDEX_CONSTRAINT_IS:
-      return [val](T f) { return std::equal_to<T>()(f, val); };
-    case SQLITE_INDEX_CONSTRAINT_NE:
-    case SQLITE_INDEX_CONSTRAINT_ISNOT:
-      return [val](T f) { return std::not_equal_to<T>()(f, val); };
-    case SQLITE_INDEX_CONSTRAINT_GE:
-      return [val](T f) { return f >= val; };
-    case SQLITE_INDEX_CONSTRAINT_GT:
-      return [val](T f) { return f > val; };
-    case SQLITE_INDEX_CONSTRAINT_LE:
-      return [val](T f) { return f <= val; };
-    case SQLITE_INDEX_CONSTRAINT_LT:
-      return [val](T f) { return f < val; };
-    default:
-      PERFETTO_FATAL("For GCC");
-  }
+ private:
+  int op_;
+  T constant_;
+};
+
+template <typename T, typename sqlite_utils::is_numeric<T>* = nullptr>
+NumericPredicate<T> CreateNumericPredicate(int op, sqlite3_value* value) {
+  T extracted =
+      IsOpIsNull(op) || IsOpIsNotNull(op) ? 0 : ExtractSqliteValue<T>(value);
+  return NumericPredicate<T>(op, extracted);
 }
 
 inline std::function<bool(const char*)> CreateStringPredicate(
