@@ -45,7 +45,7 @@ message ProfilePacket {
 
   repeated Mapping mappings = 4;
   message Mapping {
-    optional uint64 id = 1;  // Interning key.
+    optional uint64 id = 1;        // Interning key.
     optional uint64 build_id = 2;  // Interning key.
     optional uint64 offset = 3;
     optional uint64 start = 4;

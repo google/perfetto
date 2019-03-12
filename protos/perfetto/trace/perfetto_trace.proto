@@ -2403,6 +2403,67 @@ message PowerRails {
 
 // End of protos/perfetto/trace/power/power_rails.proto
 
+// Begin of protos/perfetto/trace/profiling/profile_packet.proto
+
+message ProfilePacket {
+  // either a function or library name.
+  repeated InternedString strings = 1;
+  message InternedString {
+    optional uint64 id = 1;
+    optional bytes str = 2;
+  }
+
+  repeated Frame frames = 2;
+  message Frame {
+    optional uint64 id = 1;  // Interning key
+    // E.g. "fopen"
+    optional uint64 function_name_id = 2;  // id of string.
+    optional uint64 mapping_id = 3;
+    optional uint64 rel_pc = 4;
+  }
+
+  repeated Callstack callstacks = 3;
+  message Callstack {
+    optional uint64 id = 1;
+    // Frames of this callstack. Bottom frame first.
+    repeated uint64 frame_ids = 2;
+  }
+
+  repeated Mapping mappings = 4;
+  message Mapping {
+    optional uint64 id = 1;        // Interning key.
+    optional uint64 build_id = 2;  // Interning key.
+    optional uint64 offset = 3;
+    optional uint64 start = 4;
+    optional uint64 end = 5;
+    optional uint64 load_bias = 6;
+    // E.g. ["system", "lib64", "libc.so"]
+    repeated uint64 path_string_ids = 7;  // id of string.
+  }
+
+  message HeapSample {
+    optional uint64 callstack_id = 1;
+    // bytes allocated at this frame.
+    optional uint64 self_allocated = 2;
+    // bytes freed at this frame.
+    optional uint64 self_freed = 3;
+    optional uint64 timestamp = 4;  // timestamp [opt]
+    optional uint64 alloc_count = 5;
+    optional uint64 free_count = 6;
+  }
+
+  repeated ProcessHeapSamples process_dumps = 5;
+  message ProcessHeapSamples {
+    optional uint64 pid = 1;
+    repeated HeapSample samples = 2;
+  }
+
+  optional bool continued = 6;
+  optional uint64 index = 7;
+}
+
+// End of protos/perfetto/trace/profiling/profile_packet.proto
+
 // Begin of protos/perfetto/trace/ps/process_stats.proto
 
 // Per-process periodically sampled stats. These samples are wrapped in a
@@ -2532,6 +2593,21 @@ message SysStats {
 
 // End of protos/perfetto/trace/sys_stats/sys_stats.proto
 
+// Begin of protos/perfetto/trace/system_info.proto
+
+message Utsname {
+  optional string sysname = 1;
+  optional string version = 2;
+  optional string release = 3;
+  optional string machine = 4;
+}
+
+message SystemInfo {
+  optional Utsname utsname = 1;
+}
+
+// End of protos/perfetto/trace/system_info.proto
+
 // Begin of protos/perfetto/trace/trace.proto
 
 message Trace {
@@ -2552,7 +2628,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 45.
+// Next id: 46.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -2578,6 +2654,7 @@ message TracePacket {
     BatteryCounters battery = 38;
     PowerRails power_rails = 40;
     AndroidLogPacket android_log = 39;
+    SystemInfo system_info = 45;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
@@ -2919,67 +2996,6 @@ message LegacyEventName {
 }
 
 // End of protos/perfetto/trace/track_event/track_event.proto
-
-// Begin of protos/perfetto/trace/profiling/profile_packet.proto
-
-message ProfilePacket {
-  // either a function or library name.
-  repeated InternedString strings = 1;
-  message InternedString {
-    optional uint64 id = 1;
-    optional bytes str = 2;
-  }
-
-  repeated Frame frames = 2;
-  message Frame {
-    optional uint64 id = 1;  // Interning key
-    // E.g. "fopen"
-    optional uint64 function_name_id = 2;  // id of string.
-    optional uint64 mapping_id = 3;
-    optional uint64 rel_pc = 4;
-  }
-
-  repeated Callstack callstacks = 3;
-  message Callstack {
-    optional uint64 id = 1;
-    // Frames of this callstack. Bottom frame first.
-    repeated uint64 frame_ids = 2;
-  }
-
-  repeated Mapping mappings = 4;
-  message Mapping {
-    optional uint64 id = 1;  // Interning key.
-    optional uint64 build_id = 2;  // Interning key.
-    optional uint64 offset = 3;
-    optional uint64 start = 4;
-    optional uint64 end = 5;
-    optional uint64 load_bias = 6;
-    // E.g. ["system", "lib64", "libc.so"]
-    repeated uint64 path_string_ids = 7;  // id of string.
-  }
-
-  message HeapSample {
-    optional uint64 callstack_id = 1;
-    // bytes allocated at this frame.
-    optional uint64 self_allocated = 2;
-    // bytes freed at this frame.
-    optional uint64 self_freed = 3;
-    optional uint64 timestamp = 4;  // timestamp [opt]
-    optional uint64 alloc_count = 5;
-    optional uint64 free_count = 6;
-  }
-
-  repeated ProcessHeapSamples process_dumps = 5;
-  message ProcessHeapSamples {
-    optional uint64 pid = 1;
-    repeated HeapSample samples = 2;
-  }
-
-  optional bool continued = 6;
-  optional uint64 index = 7;
-}
-
-// End of protos/perfetto/trace/profiling/profile_packet.proto
 
 // Begin of protos/perfetto/config/android/android_log_config.proto
 
