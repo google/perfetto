@@ -430,7 +430,11 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
 
-  static const int kNumPreamblePackets = 4;
+  // The preamble packets are:
+  // Config
+  // SystemInfo
+  // 3x unknown
+  static const int kNumPreamblePackets = 5;
   static const int kNumTestPackets = 10;
   static const char kPayload[] = "1234567890abcdef-";
 

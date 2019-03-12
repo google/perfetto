@@ -361,7 +361,7 @@ TEST_F(PerfettoTest, TestFakeProducer) {
   ds_config->set_name("android.perfetto.FakeProducer");
   ds_config->set_target_buffer(0);
 
-  static constexpr size_t kNumPackets = 10;
+  static constexpr size_t kNumPackets = 11;
   static constexpr uint32_t kRandomSeed = 42;
   static constexpr uint32_t kMsgSize = 1024;
   ds_config->mutable_for_testing()->set_seed(kRandomSeed);
@@ -402,7 +402,7 @@ TEST_F(PerfettoTest, VeryLargePackets) {
   ds_config->set_name("android.perfetto.FakeProducer");
   ds_config->set_target_buffer(0);
 
-  static constexpr size_t kNumPackets = 5;
+  static constexpr size_t kNumPackets = 7;
   static constexpr uint32_t kRandomSeed = 42;
   static constexpr uint32_t kMsgSize = 1024 * 1024 - 42;
   ds_config->mutable_for_testing()->set_seed(kRandomSeed);
@@ -438,7 +438,7 @@ TEST_F(PerfettoTest, DetachAndReattach) {
   trace_config.set_duration_ms(10000);  // Max timeout, session is ended before.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
-  static constexpr size_t kNumPackets = 10;
+  static constexpr size_t kNumPackets = 11;
   ds_config->mutable_for_testing()->set_message_count(kNumPackets);
   ds_config->mutable_for_testing()->set_message_size(32);
 
