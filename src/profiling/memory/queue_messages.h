@@ -20,28 +20,12 @@
 #include <unwindstack/Maps.h>
 #include <unwindstack/Unwinder.h>
 
-#include "perfetto/tracing/core/trace_writer.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 // TODO(fmayer): Find better places to put these structs.
 
 namespace perfetto {
 namespace profiling {
-
-struct UnwindingMetadata;
-
-struct UnwindingRecord {
-  pid_t pid;
-  size_t size;
-  std::unique_ptr<uint8_t[]> data;
-  std::weak_ptr<UnwindingMetadata> metadata;
-};
-
-struct FreeRecord {
-  pid_t pid;
-  uint64_t data_source_instance_id;
-  FreeMetadata metadata;
-};
 
 // A wrapper of libunwindstack FrameData that also includes the build_id.
 struct FrameData {
@@ -59,24 +43,10 @@ struct AllocRecord {
   std::vector<FrameData> frames;
 };
 
-struct DumpRecord {
-  std::vector<pid_t> pids;
-  std::weak_ptr<TraceWriter> trace_writer;
-  std::function<void()> callback;
-};
-
-struct BookkeepingRecord {
-  enum class Type {
-    Dump = 0,
-    Malloc = 1,
-    Free = 2,
-  };
+struct FreeRecord {
   pid_t pid;
-  // TODO(fmayer): Use a union.
-  Type record_type;
-  AllocRecord alloc_record;
-  FreeRecord free_record;
-  DumpRecord dump_record;
+  uint64_t data_source_instance_id;
+  FreeMetadata metadata;
 };
 
 }  // namespace profiling

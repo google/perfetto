@@ -206,24 +206,29 @@ source_set("malloc_hooks") {
 }
 
 perfetto_fuzzer_test("unwinding_fuzzer") {
+  testonly = true
   sources = [
     "unwinding_fuzzer.cc",
   ]
   deps = [
     ":daemon",
+    ":ring_buffer",
     ":wire_protocol",
     "../../../gn:default_deps",
-    "../../../src/base",
+    "../../base",
+    "../../base:test_support",
+    "../../tracing",
   ]
 }
 
 perfetto_fuzzer_test("shared_ring_buffer_fuzzer") {
+  testonly = true
   sources = [
     "shared_ring_buffer_fuzzer.cc",
   ]
   deps = [
     ":ring_buffer",
     "../../../gn:default_deps",
-    "../../../src/base",
+    "../../base",
   ]
 }
