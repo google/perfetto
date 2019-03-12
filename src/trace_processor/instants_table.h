@@ -17,6 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_INSTANTS_TABLE_H_
 #define SRC_TRACE_PROCESSOR_INSTANTS_TABLE_H_
 
+#include <string>
+#include <vector>
+
 #include "src/trace_processor/storage_table.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -35,7 +38,7 @@ class InstantsTable : public StorageTable {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-  std::deque<std::string> ref_types_;
+  std::vector<std::string> ref_types_;
   const TraceStorage* const storage_;
 };
 }  // namespace trace_processor
