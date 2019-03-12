@@ -16,8 +16,10 @@
 #define SRC_TRACE_PROCESSOR_STORAGE_COLUMNS_H_
 
 #include <deque>
+#include <limits>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "src/trace_processor/filtered_row_index.h"
 #include "src/trace_processor/sqlite_utils.h"
@@ -212,7 +214,7 @@ class StringColumn final : public StorageColumn {
  public:
   StringColumn(std::string col_name,
                const std::deque<Id>* deque,
-               const std::deque<std::string>* string_map,
+               const std::vector<std::string>* string_map,
                bool hidden = false)
       : StorageColumn(col_name, hidden),
         deque_(deque),
@@ -258,7 +260,7 @@ class StringColumn final : public StorageColumn {
 
  private:
   const std::deque<Id>* deque_ = nullptr;
-  const std::deque<std::string>* string_map_ = nullptr;
+  const std::vector<std::string>* string_map_ = nullptr;
 };
 
 // Column which represents the "ts_end" column present in all time based
@@ -268,7 +270,7 @@ class TsEndColumn final : public StorageColumn {
   TsEndColumn(std::string col_name,
               const std::deque<int64_t>* ts_start,
               const std::deque<int64_t>* dur);
-  virtual ~TsEndColumn() override;
+  ~TsEndColumn() override;
 
   void ReportResult(sqlite3_context*, uint32_t) const override;
 
@@ -295,7 +297,7 @@ class TsEndColumn final : public StorageColumn {
 class IdColumn final : public StorageColumn {
  public:
   IdColumn(std::string column_name, TableId table_id);
-  virtual ~IdColumn() override;
+  ~IdColumn() override;
 
   void ReportResult(sqlite3_context* ctx, uint32_t row) const override {
     auto id = TraceStorage::CreateRowId(table_id_, row);

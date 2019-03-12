@@ -123,13 +123,15 @@ UniquePid ProcessTracker::UpdateProcess(uint32_t pid,
                                         base::StringView name) {
   auto proc_name_id = context_->storage->InternString(name);
 
+  base::Optional<UniquePid> pupid;
+  if (ppid.has_value()) {
+    pupid = GetOrCreateProcess(ppid.value(), 0 /* start_ns */).first;
+  }
   UniquePid upid;
   TraceStorage::Process* process;
   std::tie(upid, process) = GetOrCreateProcess(pid, 0 /* start_ns */);
   process->name_id = proc_name_id;
-  if (ppid.has_value()) {
-    process->pupid = GetOrCreateProcess(ppid.value(), 0 /* start_ns */).first;
-  }
+  process->pupid = pupid;
   return upid;
 }
 
