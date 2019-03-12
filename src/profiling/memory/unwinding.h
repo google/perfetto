@@ -28,6 +28,7 @@
 #endif
 
 #include "perfetto/base/scoped_file.h"
+#include "perfetto/tracing/core/basic_types.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/queue_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
@@ -161,19 +162,22 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   }
   void OnDataAvailable(base::UnixSocket* self) override;
 
- public:  // Public for testing / fuzzing.
+ public:  // public for fuzzing/testing
+  void HandleBuffer(SharedRingBuffer::Buffer* buf,
+                    UnwindingMetadata* unwinding_metadata,
+                    DataSourceInstanceID data_source_instance_id,
+                    pid_t peer_pid);
+
+ private:
+  void HandleHandoffSocket(HandoffData data);
+  void HandleDisconnectSocket(pid_t pid);
+
   struct ClientData {
     DataSourceInstanceID data_source_instance_id;
     std::unique_ptr<base::UnixSocket> sock;
     UnwindingMetadata metadata;
     SharedRingBuffer shmem;
   };
-
-  void HandleBuffer(SharedRingBuffer::Buffer* buf, ClientData* socket_data);
-
- private:
-  void HandleHandoffSocket(HandoffData data);
-  void HandleDisconnectSocket(pid_t pid);
 
   std::map<pid_t, ClientData> client_data_;
   Delegate* delegate_;
