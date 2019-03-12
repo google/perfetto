@@ -18,34 +18,36 @@
 #include <stdint.h>
 
 #include "perfetto/base/utils.h"
+#include "perfetto/tracing/core/basic_types.h"
+#include "src/base/test/test_task_runner.h"
 #include "src/profiling/memory/queue_messages.h"
+#include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/unwinding.h"
 
 namespace perfetto {
 namespace profiling {
 namespace {
 
-class FakeDelegate : public UnwindingWorker::Delegate {
- public:
-  ~FakeDelegate() override {}
+class NopDelegate : public UnwindingWorker::Delegate {
   void PostAllocRecord(AllocRecord) override {}
   void PostFreeRecord(FreeRecord) override {}
   void PostSocketDisconnected(DataSourceInstanceID, pid_t) override {}
 };
 
 int FuzzUnwinding(const uint8_t* data, size_t size) {
-  FakeDelegate delegate;
-  UnwindingWorker worker(&delegate, /*task_runner=*/nullptr);
+  NopDelegate nop_delegate;
+  base::TestTaskRunner task_runner;
+  UnwindingWorker worker(&nop_delegate, &task_runner);
 
   SharedRingBuffer::Buffer buf(const_cast<uint8_t*>(data), size);
 
-  UnwindingWorker::ClientData sock_data{
-      0, nullptr,
-      UnwindingMetadata{getpid(), base::OpenFile("/proc/self/maps", O_RDONLY),
-                        base::OpenFile("/proc/self/mem", O_RDONLY)},
-      *SharedRingBuffer::Create(4096)};
+  pid_t self_pid = getpid();
+  DataSourceInstanceID id = 0;
+  UnwindingMetadata metadata(self_pid,
+                             base::OpenFile("/proc/self/maps", O_RDONLY),
+                             base::OpenFile("/proc/self/mem", O_RDONLY));
 
-  worker.HandleBuffer(&buf, &sock_data);
+  worker.HandleBuffer(&buf, &metadata, id, self_pid);
   return 0;
 }
 

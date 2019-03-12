@@ -25,6 +25,7 @@
 #include "perfetto/base/string_splitter.h"
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
+#include "perfetto/tracing/core/trace_writer.h"
 #include "src/profiling/memory/interner.h"
 #include "src/profiling/memory/queue_messages.h"
 
