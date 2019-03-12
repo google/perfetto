@@ -610,7 +610,7 @@ class TraceStorage {
   const RawEvents& raw_events() const { return raw_events_; }
   RawEvents* mutable_raw_events() { return &raw_events_; }
 
-  const std::deque<std::string>& string_pool() const { return string_pool_; }
+  const std::vector<std::string>& string_pool() const { return string_pool_; }
 
   // |unique_processes_| always contains at least 1 element becuase the 0th ID
   // is reserved to indicate an invalid process.
@@ -644,13 +644,15 @@ class TraceStorage {
   Args args_;
 
   // One entry for each unique string in the trace.
-  std::deque<std::string> string_pool_;
+  std::vector<std::string> string_pool_;
 
   // One entry for each unique string in the trace.
   std::unordered_map<StringHash, StringId> string_index_;
 
   // One entry for each UniquePid, with UniquePid as the index.
-  std::deque<Process> unique_processes_;
+  // Never hold on to pointers to Process, as vector resize will
+  // invalidate them.
+  std::vector<Process> unique_processes_;
 
   // One entry for each UniqueTid, with UniqueTid as the index.
   std::deque<Thread> unique_threads_;
