@@ -75,6 +75,11 @@ HeapprofdProducer::~HeapprofdProducer() {
     task_runner.Quit();
   for (std::thread& th : unwinding_threads_)
     th.join();
+  // We only borrowed this from the environment variable.
+  // UnixSocket always owns the socket, so we need to manually release it
+  // here.
+  if (mode_ == HeapprofdMode::kCentral)
+    listening_socket_->ReleaseSocket().ReleaseFd().release();
 }
 
 void HeapprofdProducer::SetTargetProcess(pid_t target_pid,
