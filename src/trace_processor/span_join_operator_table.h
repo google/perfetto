@@ -247,6 +247,11 @@ class SpanJoinOperatorTable : public Table {
 
   bool IsLeftJoin() const { return name() == "span_left_join"; }
 
+  const std::string& partition_col() const {
+    return t1_defn_.IsPartitioned() ? t1_defn_.partition_col()
+                                    : t2_defn_.partition_col();
+  }
+
   base::Optional<TableDefinition> CreateTableDefinition(
       const TableDescriptor& desc,
       bool emit_shadow_slices);
