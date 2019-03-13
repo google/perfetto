@@ -85,6 +85,7 @@ void Table::RegisterInternal(sqlite3* db,
                       const char* const* argv, sqlite3_vtab** tab, char**) {
     const TableDescriptor* xdesc = static_cast<const TableDescriptor*>(arg);
     auto table = xdesc->factory(xdb, xdesc->storage);
+    table->name_ = xdesc->name;
 
     auto opt_schema = table->Init(argc, argv);
     if (!opt_schema.has_value()) {
@@ -102,7 +103,6 @@ void Table::RegisterInternal(sqlite3* db,
 
     // Freed in xDisconnect().
     table->schema_ = std::move(schema);
-    table->name_ = xdesc->name;
     *tab = table.release();
 
     return SQLITE_OK;
