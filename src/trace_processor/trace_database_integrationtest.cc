@@ -73,7 +73,7 @@ TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
       "where dur != 0 and utid != 0",
       &res);
   ASSERT_EQ(res.num_records(), 1);
-  ASSERT_EQ(res.columns(0).long_values(0), 139789);
+  ASSERT_EQ(res.columns(0).long_values(0), 139783);
   ASSERT_EQ(res.columns(1).long_values(0), 19684308497);
 }
 
