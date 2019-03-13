@@ -130,12 +130,12 @@ TEST_F(SchedSliceTableTest, RowsReturnedInCorrectOrderBetweenCpu) {
   context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 3, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_1, timestamp + 4, pid_1,
-                                          kCommProc2, prio, prev_state, pid_2,
-                                          kCommProc1, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 10, pid_2,
+  context_.event_tracker->PushSchedSwitch(cpu_1, timestamp + 4, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
+  context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 10, pid_1,
+                                          kCommProc2, prio, prev_state, pid_2,
+                                          kCommProc1, prio);
 
   PrepareValidStatement(
       "SELECT dur, ts, cpu FROM sched where dur != 0 ORDER BY dur desc");
@@ -174,12 +174,12 @@ TEST_F(SchedSliceTableTest, FilterCpus) {
   context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 3, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_1, timestamp + 4, pid_1,
-                                          kCommProc2, prio, prev_state, pid_2,
-                                          kCommProc1, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 10, pid_2,
+  context_.event_tracker->PushSchedSwitch(cpu_1, timestamp + 4, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
+  context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 10, pid_1,
+                                          kCommProc2, prio, prev_state, pid_2,
+                                          kCommProc1, prio);
 
   PrepareValidStatement(
       "SELECT dur, ts, cpu FROM sched WHERE dur != 0 and cpu = 3");
