@@ -59,6 +59,7 @@ syscall.py sys.sql sys_syscall.out
 synth_1.py span_join_unordered_cols.sql span_join_unordered_cols_synth_1.out
 synth_1.py span_join_unordered_cols_reverse.sql span_join_unordered_cols_synth_1.out
 ../data/android_sched_and_ps.pb span_left_join.sql span_left_join.out
+../data/android_sched_and_ps.pb span_left_join_unpartitioned.sql span_left_join_unpartitioned.out
 
 # Window table
 ../data/android_sched_and_ps.pb smoke_window.sql android_sched_and_ps_smoke_window.out
