@@ -29,9 +29,9 @@ using protozero::proto_utils::WriteVarInt;
 namespace perfetto {
 
 FakePacketFragment::FakePacketFragment(size_t size, char prefix) {
-  // |size| has to be at least == 2, because one byte will be taken just by the
+  // |size| has to be at least == 1, because one byte will be taken just by the
   // varint header.
-  PERFETTO_CHECK(size > 1);
+  PERFETTO_CHECK(size >= 1);
 
   // Finding the |payload_size| from |size| is quite tricky:
   // A packet with 127 bytes of payload requires:

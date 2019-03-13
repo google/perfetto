@@ -461,6 +461,23 @@ TEST_F(TraceBufferTest, ReadWrite_PaddingAtEndUpdatesIndexMisaligned) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
+// Verify that empty packets are skipped.
+TEST_F(TraceBufferTest, ReadWrite_EmptyPacket) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), 0)
+      .AddPacket(42, 1)
+      .AddPacket(1, 2)
+      .AddPacket(42, 3)
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(42, 1)));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(42, 3)));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  EXPECT_EQ(0u, trace_buffer()->stats().abi_violations());
+}
+
 // --------------------------------------
 // Fragments stitching and skipping logic
 // --------------------------------------
@@ -1071,7 +1088,8 @@ TEST_F(TraceBufferTest, Malicious_JumboVarint) {
 }
 
 // Like the Malicious_ZeroVarintHeader, but put the chunk in the middle of a
-// sequence that would be otherwise valid.
+// sequence that would be otherwise valid. The zero-sized fragment should be
+// skipped.
 TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderInSequence) {
   ResetBuffer(4096);
   SuppressSanityDchecksForTesting();
@@ -1094,17 +1112,17 @@ TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderInSequence) {
       .CopyIntoTraceBuffer();
 
   trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'a'),
+                                        FakePacketFragment(4, 'c')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'd')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'e')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(5, 'f')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-// Similar to Malicious_ZeroVarintHeader, but this time the zero-sized fragment
-// is the last fragment for a chunk and is marked for continuation.
-// One might argue that this case is borderline legit, and in this case we
-// should just read a packet consisting of (4, 'c'). However this is too complex
-// to support and doesn't bring any benefit.
+// Similar to Malicious_ZeroVarintHeaderInSequence, but this time the zero-sized
+// fragment is the last fragment for a chunk and is marked for continuation. The
+// zero-sized fragment should be skipped.
 TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderAtEndOfChunk) {
   ResetBuffer(4096);
   SuppressSanityDchecksForTesting();
@@ -1126,6 +1144,7 @@ TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderAtEndOfChunk) {
 
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'c')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'd')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'e')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4, 'f')));
