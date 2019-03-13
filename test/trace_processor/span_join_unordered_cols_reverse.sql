@@ -31,6 +31,6 @@ VALUES
 ("B", 50, 90, 1, 40, 200),
 ("C", 90, 1, 1, 100, 300);
 
-create virtual table sp using span_join(t1, t2 PARTITIONED part);
+create virtual table sp using span_join(t2 PARTITIONED part, t1);
 
 select ts,dur,part,b1,b2,b3,a1,a2,a3 from sp;
