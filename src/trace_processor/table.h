@@ -170,7 +170,8 @@ class Table : public sqlite3_vtab {
     zErrMsg = error;
   }
 
-  const Schema& schema() { return schema_; }
+  const Schema& schema() const { return schema_; }
+  const std::string& name() const { return name_; }
 
  private:
   template <typename TableType>
