@@ -93,9 +93,9 @@ TEST_F(EventTrackerTest, InsertThirdSched_SameThread) {
   context.event_tracker->PushSchedSwitch(cpu, timestamp + 11, /*tid=*/4,
                                          kCommProc2, prio, prev_state,
                                          /*tid=*/2, kCommProc1, prio);
-  context.event_tracker->PushSchedSwitch(cpu, timestamp + 31, /*tid=*/4,
+  context.event_tracker->PushSchedSwitch(cpu, timestamp + 31, /*tid=*/2,
                                          kCommProc1, prio, prev_state,
-                                         /*tid=*/2, kCommProc2, prio);
+                                         /*tid=*/4, kCommProc2, prio);
 
   ASSERT_EQ(timestamps.size(), 4ul);
   ASSERT_EQ(timestamps[0], timestamp);
