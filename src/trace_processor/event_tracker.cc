@@ -75,11 +75,11 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
   auto* prev_slice = &pending_sched_per_cpu_[cpu];
   size_t slice_idx = prev_slice->storage_index;
   if (slice_idx < std::numeric_limits<size_t>::max()) {
-    int64_t duration = ts - slices->start_ns()[slice_idx];
-    slices->set_duration(slice_idx, duration);
-
     prev_pid_match_prev_next_pid = prev_pid == prev_slice->next_pid;
     if (PERFETTO_LIKELY(prev_pid_match_prev_next_pid)) {
+      int64_t duration = ts - slices->start_ns()[slice_idx];
+      slices->set_duration(slice_idx, duration);
+
       // We store the state as a uint16 as we only consider values up to 2048
       // when unpacking the information inside; this allows savings of 48 bits
       // per slice.
