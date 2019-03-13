@@ -1823,8 +1823,8 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
     return;
   tracing_session->did_emit_system_info = true;
   protos::TrustedPacket packet;
-  protos::SystemInfo* info = packet.mutable_system_info();
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  protos::SystemInfo* info = packet.mutable_system_info();
   struct utsname uname_info;
   if (uname(&uname_info) == 0) {
     protos::Utsname* utsname_info = info->mutable_utsname();
