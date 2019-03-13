@@ -77,11 +77,6 @@ base::Optional<Table::Schema> SpanJoinOperatorTable::Init(
     return base::nullopt;
   auto t2_desc = *maybe_t2_desc;
 
-  // If we're in the mixed case, ensure t1 is the partitioned table.
-  if (!t1_desc.IsPartitioned() && t2_desc.IsPartitioned()) {
-    std::swap(t1_desc, t2_desc);
-  }
-
   if (t1_desc.partition_col == t2_desc.partition_col) {
     if (!t1_desc.IsPartitioned() && IsLeftJoin()) {
       PERFETTO_ELOG("span_left_join not supported for no partitioned joins");
@@ -118,16 +113,14 @@ base::Optional<Table::Schema> SpanJoinOperatorTable::Init(
   cols.emplace_back(Column::kTimestamp, kTsColumnName, ColumnType::kLong);
   cols.emplace_back(Column::kDuration, kDurColumnName, ColumnType::kLong);
   if (partitioning_ != PartitioningType::kNoPartitioning)
-    cols.emplace_back(Column::kPartition, t1_desc.partition_col,
-                      ColumnType::kLong);
+    cols.emplace_back(Column::kPartition, partition_col(), ColumnType::kLong);
 
   CreateSchemaColsForDefn(t1_defn_, &cols);
   CreateSchemaColsForDefn(t2_defn_, &cols);
 
   std::vector<size_t> primary_keys = {Column::kTimestamp};
-  if (partitioning_ != PartitioningType::kNoPartitioning) {
+  if (partitioning_ != PartitioningType::kNoPartitioning)
     primary_keys.push_back(Column::kPartition);
-  }
   return Schema(cols, primary_keys);
 }
 
@@ -291,26 +284,26 @@ int SpanJoinOperatorTable::Cursor::Next() {
   bool t2_shadow_slices = t2_.definition()->emit_shadow_slices();
 
   while (true) {
-    if (t1_.Eof())
-      return SQLITE_OK;
-
-    if (t2_.Eof()) {
-      if (table_->partitioning_ != PartitioningType::kMixedPartitioning) {
+    if (t1_.Eof() || t2_.Eof()) {
+      if (table_->partitioning_ != PartitioningType::kMixedPartitioning)
         return SQLITE_OK;
-      } else {
-        PERFETTO_DCHECK(t1_.IsPartitioned() && !t2_.IsPartitioned());
-        res = t1_.StepToNextPartition();
-        if (PERFETTO_UNLIKELY(res.is_err()))
-          return res.err_code;
-        else if (PERFETTO_UNLIKELY(res.is_eof()))
-          continue;
 
-        res = t2_.StepToPartition(t1_.partition());
-        if (PERFETTO_UNLIKELY(res.is_err()))
-          return res.err_code;
-        else if (PERFETTO_UNLIKELY(res.is_eof()))
-          continue;
-      }
+      auto* partitioned = t1_.IsPartitioned() ? &t1_ : &t2_;
+      auto* unpartitioned = t1_.IsPartitioned() ? &t2_ : &t1_;
+      if (partitioned->Eof())
+        return SQLITE_OK;
+
+      res = partitioned->StepToNextPartition();
+      if (PERFETTO_UNLIKELY(res.is_err()))
+        return res.err_code;
+      else if (PERFETTO_UNLIKELY(res.is_eof()))
+        continue;
+
+      res = unpartitioned->StepToPartition(partitioned->partition());
+      if (PERFETTO_UNLIKELY(res.is_err()))
+        return res.err_code;
+      else if (PERFETTO_UNLIKELY(res.is_eof()))
+        continue;
     }
 
     int64_t partition = t2_shadow_slices
@@ -375,7 +368,8 @@ int SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
     PERFETTO_DCHECK(table_->partitioning_ ==
                         PartitioningType::kMixedPartitioning ||
                     t1_.partition() == t2_.partition());
-    sqlite3_result_int64(context, static_cast<sqlite3_int64>(t1_.partition()));
+    auto partition = t1_.IsPartitioned() ? t1_.partition() : t2_.partition();
+    sqlite3_result_int64(context, static_cast<sqlite3_int64>(partition));
   } else {
     size_t index = static_cast<size_t>(N);
     const auto& locator = table_->global_index_to_column_locator_[index];
