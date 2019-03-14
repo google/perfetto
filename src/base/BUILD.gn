@@ -41,6 +41,7 @@ source_set("base") {
       "event.cc",
       "pipe.cc",
       "temp_file.cc",
+      "thread_task_runner.cc",
       "unix_task_runner.cc",
     ]
   }
@@ -157,6 +158,7 @@ source_set("unittests") {
       "task_runner_unittest.cc",
       "temp_file_unittest.cc",
       "thread_checker_unittest.cc",
+      "thread_task_runner_unittest.cc",
       "utils_unittest.cc",
     ]
   }
