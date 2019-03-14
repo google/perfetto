@@ -177,7 +177,7 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginWrite(
       base::AlignUp<kAlignment>(size + kHeaderSize);
   if (size_with_header > write_avail(pos)) {
     errno = EAGAIN;
-    meta_->num_writes_failed++;
+    meta_->num_writes_failed.fetch_add(1, std::memory_order_relaxed);
     return result;
   }
 
@@ -186,8 +186,8 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginWrite(
   result.size = size;
   result.data = wr_ptr + kHeaderSize;
   meta_->write_pos += size_with_header;
-  meta_->bytes_written += size;
-  meta_->num_writes_succeeded++;
+  meta_->bytes_written.fetch_add(size, std::memory_order_relaxed);
+  meta_->num_writes_succeeded.fetch_add(1, std::memory_order_relaxed);
   // By making this a release store, we can save grabbing the spinlock in
   // EndWrite.
   reinterpret_cast<std::atomic<uint32_t>*>(wr_ptr)->store(
@@ -230,7 +230,7 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginRead() {
         "Corrupted header detected, size=%zu"
         ", read_avail=%zu, rd=%" PRIu64 ", wr=%" PRIu64,
         size, avail_read, pos.read_pos, pos.write_pos);
-    meta_->num_reads_failed++;
+    meta_->num_reads_failed.fetch_add(1, std::memory_order_relaxed);
     return Buffer();
   }
 
