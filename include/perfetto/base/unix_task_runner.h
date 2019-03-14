@@ -36,6 +36,20 @@ namespace perfetto {
 namespace base {
 
 // Runs a task runner on the current thread.
+//
+// Implementation note: we currently assume (and enforce in debug builds) that
+// Run() is called from the thread that constructed the UnixTaskRunner. This is
+// not strictly necessary, and we could instead track the thread that invokes
+// Run(). However, a related property that *might* be important to enforce is
+// that the destructor runs on the task-running thread. Otherwise, if there are
+// still-pending tasks at the time of destruction, we would destroy those
+// outside of the task thread (which might be unexpected to the caller). On the
+// other hand, the std::function task interface discourages use of any
+// resource-owning tasks (as the callable needs to be copyable), so this might
+// not be important in practice.
+//
+// TODO(rsavitski): consider adding a thread-check in the destructor, after
+// auditing existing usages.
 class UnixTaskRunner : public TaskRunner {
  public:
   UnixTaskRunner();
@@ -56,6 +70,11 @@ class UnixTaskRunner : public TaskRunner {
   void AddFileDescriptorWatch(int fd, std::function<void()>) override;
   void RemoveFileDescriptorWatch(int fd) override;
   bool RunsTasksOnCurrentThread() const override;
+
+  // Returns true if the task runner is quitting, or has quit and hasn't been
+  // restarted since. Exposed primarily for ThreadTaskRunner, not necessary for
+  // normal use of this class.
+  bool QuitCalled();
 
  private:
   void WakeUp();
