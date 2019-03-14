@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_COUNTERS_TABLE_H_
-#define SRC_TRACE_PROCESSOR_COUNTERS_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_COUNTER_DEFINITIONS_TABLE_H_
+#define SRC_TRACE_PROCESSOR_COUNTER_DEFINITIONS_TABLE_H_
 
 #include <deque>
 #include <memory>
@@ -27,11 +27,11 @@
 namespace perfetto {
 namespace trace_processor {
 
-class CountersTable : public StorageTable {
+class CounterDefinitionsTable : public StorageTable {
  public:
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
-  CountersTable(sqlite3*, const TraceStorage*);
+  CounterDefinitionsTable(sqlite3*, const TraceStorage*);
 
   // StorageTable implementation.
   StorageSchema CreateStorageSchema() override;
@@ -68,10 +68,12 @@ class CountersTable : public StorageTable {
   };
 
  private:
+  uint32_t EstimateCost(const QueryConstraints&);
+
   std::vector<std::string> ref_types_;
   const TraceStorage* const storage_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_COUNTERS_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_COUNTER_DEFINITIONS_TABLE_H_

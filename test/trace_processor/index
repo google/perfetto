@@ -66,12 +66,17 @@ synth_1.py span_join_unordered_cols_reverse.sql span_join_unordered_cols_synth_1
 
 # The below tests check the lower level layers of the trace processor (i.e.
 # fitering and printing code).
-# Filtering
+# Sched table
 synth_1.py filter_sched.sql synth_1_filter_sched.out
-synth_1.py filter_counters.sql synth_1_filter_counters.out
-../data/android_sched_and_ps.pb b119301023.sql android_sched_and_ps_b119301023.out
 ../data/android_sched_and_ps.pb b119496959.sql android_sched_and_ps_b119496959.out
+../data/android_sched_and_ps.pb b119301023.sql android_sched_and_ps_b119301023.out
+
+# Counters table
+synth_1.py filter_counters.sql synth_1_filter_counters.out
 ../data/memory_counters.pb b120278869_neg_ts_end.sql memory_counters_b120278869_neg_ts_end.out
+counters_where_cpu.py counters_where_cpu.sql counters_where_cpu_counters_where_cpu.out
+counters_group_by_freq.py counters_group_by_freq.sql counters_group_by_freq_counters_group_by_freq.out
+counters_order_ref.py counters_order_ref.sql counters_order_ref_counters_order_ref.out
 
 # Null printing
 synth_1.py nulls.sql nulls.out
