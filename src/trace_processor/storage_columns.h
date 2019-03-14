@@ -342,6 +342,71 @@ class IdColumn final : public StorageColumn {
   TableId table_id_;
 };
 
+// Column which is used to simply return the row index itself.
+class RowColumn final : public StorageColumn {
+ public:
+  RowColumn(std::string column_name);
+  virtual ~RowColumn() override;
+
+  void ReportResult(sqlite3_context* ctx, uint32_t row) const override {
+    sqlite_utils::ReportSqliteResult(ctx, row);
+  }
+
+  Bounds BoundFilter(int op, sqlite3_value* sqlite_val) const override {
+    Bounds bounds;
+
+    // Makes the below code much more readable.
+    using namespace sqlite_utils;
+
+    constexpr uint32_t kTMin = std::numeric_limits<uint32_t>::min();
+    constexpr uint32_t kTMax = std::numeric_limits<uint32_t>::max();
+
+    uint32_t min = kTMin;
+    uint32_t max = kTMax;
+    if (IsOpGe(op) || IsOpGt(op)) {
+      min = FindGtBound<uint32_t>(IsOpGe(op), sqlite_val);
+    } else if (IsOpLe(op) || IsOpLt(op)) {
+      max = FindLtBound<uint32_t>(IsOpLe(op), sqlite_val);
+    } else if (IsOpEq(op)) {
+      auto val = FindEqBound<uint32_t>(sqlite_val);
+      min = val;
+      max = val;
+    }
+
+    if (min == kTMin && max == kTMax)
+      return bounds;
+
+    bounds.min_idx = min;
+    bounds.max_idx = max + 1;
+    bounds.consumed = true;
+
+    return bounds;
+  }
+
+  void Filter(int op,
+              sqlite3_value* val,
+              FilteredRowIndex* index) const override {
+    index->FilterRows(sqlite_utils::CreateNumericPredicate<uint32_t>(op, val));
+  }
+
+  Comparator Sort(const QueryConstraints::OrderBy& ob) const override {
+    if (ob.desc) {
+      return [](uint32_t f, uint32_t s) {
+        return sqlite_utils::CompareValuesDesc(f, s);
+      };
+    }
+    return [](uint32_t f, uint32_t s) {
+      return sqlite_utils::CompareValuesAsc(f, s);
+    };
+  }
+
+  Table::ColumnType GetType() const override {
+    return Table::ColumnType::kUint;
+  }
+
+  bool IsNaturallyOrdered() const override { return true; }
+};
+
 }  // namespace trace_processor
 }  // namespace perfetto
 

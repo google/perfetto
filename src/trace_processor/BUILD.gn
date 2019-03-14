@@ -52,8 +52,10 @@ source_set("lib") {
     "chunked_trace_reader.h",
     "clock_tracker.cc",
     "clock_tracker.h",
-    "counters_table.cc",
-    "counters_table.h",
+    "counter_definitions_table.cc",
+    "counter_definitions_table.h",
+    "counter_values_table.cc",
+    "counter_values_table.h",
     "event_tracker.cc",
     "event_tracker.h",
     "filtered_row_index.cc",
@@ -181,7 +183,6 @@ source_set("unittests") {
   testonly = true
   sources = [
     "clock_tracker_unittest.cc",
-    "counters_table_unittest.cc",
     "event_tracker_unittest.cc",
     "filtered_row_index_unittest.cc",
     "ftrace_utils_unittest.cc",
