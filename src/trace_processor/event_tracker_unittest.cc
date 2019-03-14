@@ -120,15 +120,19 @@ TEST_F(EventTrackerTest, CounterDuration) {
   context.event_tracker->PushCounter(timestamp + 9, 1000, name_id, cpu,
                                      RefType::kRefCpuId);
 
-  ASSERT_EQ(context.storage->counters().counter_count(), 4ul);
-  ASSERT_EQ(context.storage->counters().timestamps().at(0), timestamp);
-  ASSERT_EQ(context.storage->counters().values().at(0), 1000);
+  ASSERT_EQ(context.storage->counter_definitions().size(), 1ul);
 
-  ASSERT_EQ(context.storage->counters().timestamps().at(1), timestamp + 1);
-  ASSERT_EQ(context.storage->counters().values().at(1), 4000);
+  ASSERT_EQ(context.storage->counter_values().size(), 4ul);
+  ASSERT_EQ(context.storage->counter_values().timestamps().at(0), timestamp);
+  ASSERT_EQ(context.storage->counter_values().values().at(0), 1000);
 
-  ASSERT_EQ(context.storage->counters().timestamps().at(2), timestamp + 3);
-  ASSERT_EQ(context.storage->counters().values().at(2), 5000);
+  ASSERT_EQ(context.storage->counter_values().timestamps().at(1),
+            timestamp + 1);
+  ASSERT_EQ(context.storage->counter_values().values().at(1), 4000);
+
+  ASSERT_EQ(context.storage->counter_values().timestamps().at(2),
+            timestamp + 3);
+  ASSERT_EQ(context.storage->counter_values().values().at(2), 5000);
 }
 
 }  // namespace

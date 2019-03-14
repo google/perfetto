@@ -26,7 +26,8 @@
 #include "src/trace_processor/args_table.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/clock_tracker.h"
-#include "src/trace_processor/counters_table.h"
+#include "src/trace_processor/counter_definitions_table.h"
+#include "src/trace_processor/counter_values_table.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/instants_table.h"
 #include "src/trace_processor/process_table.h"
@@ -114,6 +115,19 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
   }
 }
 
+void CreateBuiltinViews(sqlite3* db) {
+  char* error = nullptr;
+  sqlite3_exec(db,
+               "CREATE VIEW counters AS "
+               "SELECT * FROM counter_values "
+               "INNER JOIN counter_definitions USING(counter_id);",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
+}
+
 bool IsPrefix(const std::string& a, const std::string& b) {
   return a.size() <= b.size() && b.substr(0, a.size()) == a;
 }
@@ -144,6 +158,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   InitializeSqlite(db);
   CreateBuiltinTables(db);
+  CreateBuiltinViews(db);
   db_.reset(std::move(db));
 
   context_.storage.reset(new TraceStorage());
@@ -163,7 +178,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   SqlStatsTable::RegisterTable(*db_, context_.storage.get());
   StringTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
-  CountersTable::RegisterTable(*db_, context_.storage.get());
+  CounterDefinitionsTable::RegisterTable(*db_, context_.storage.get());
+  CounterValuesTable::RegisterTable(*db_, context_.storage.get());
   SpanJoinOperatorTable::RegisterTable(*db_, context_.storage.get());
   WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
   InstantsTable::RegisterTable(*db_, context_.storage.get());

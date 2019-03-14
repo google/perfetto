@@ -144,9 +144,12 @@ RowId EventTracker::PushCounter(int64_t timestamp,
   }
   prev_timestamp_ = timestamp;
 
-  auto* counters = context_->storage->mutable_counters();
-  size_t idx = counters->AddCounter(timestamp, name_id, value, ref, ref_type);
-  return TraceStorage::CreateRowId(TableId::kCounters,
+  auto* definitions = context_->storage->mutable_counter_definitions();
+  auto counter_row = definitions->AddCounterDefinition(name_id, ref, ref_type);
+
+  auto* counter_values = context_->storage->mutable_counter_values();
+  size_t idx = counter_values->AddCounterValue(counter_row, timestamp, value);
+  return TraceStorage::CreateRowId(TableId::kCounterValues,
                                    static_cast<uint32_t>(idx));
 }
 

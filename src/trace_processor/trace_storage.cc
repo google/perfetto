@@ -92,8 +92,8 @@ std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
   int64_t end_ns = std::numeric_limits<int64_t>::min();
   MaybeUpdateMinMax(slices_.start_ns().begin(), slices_.start_ns().end(),
                     &start_ns, &end_ns);
-  MaybeUpdateMinMax(counters_.timestamps().begin(),
-                    counters_.timestamps().end(), &start_ns, &end_ns);
+  MaybeUpdateMinMax(counter_values_.timestamps().begin(),
+                    counter_values_.timestamps().end(), &start_ns, &end_ns);
   MaybeUpdateMinMax(instants_.timestamps().begin(),
                     instants_.timestamps().end(), &start_ns, &end_ns);
   MaybeUpdateMinMax(nestable_slices_.start_ns().begin(),

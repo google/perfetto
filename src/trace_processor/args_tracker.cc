@@ -61,8 +61,8 @@ void ArgsTracker::Flush() {
       case TableId::kRawEvents:
         storage->mutable_raw_events()->set_arg_set_id(pair.second, set_id);
         break;
-      case TableId::kCounters:
-        storage->mutable_counters()->set_arg_set_id(pair.second, set_id);
+      case TableId::kCounterValues:
+        storage->mutable_counter_values()->set_arg_set_id(pair.second, set_id);
         break;
       case TableId::kInstants:
         storage->mutable_instants()->set_arg_set_id(pair.second, set_id);
