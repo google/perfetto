@@ -19,7 +19,6 @@
 
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/basic_types.h"
-#include "src/base/test/test_task_runner.h"
 #include "src/profiling/memory/queue_messages.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/unwinding.h"
@@ -35,10 +34,6 @@ class NopDelegate : public UnwindingWorker::Delegate {
 };
 
 int FuzzUnwinding(const uint8_t* data, size_t size) {
-  NopDelegate nop_delegate;
-  base::TestTaskRunner task_runner;
-  UnwindingWorker worker(&nop_delegate, &task_runner);
-
   SharedRingBuffer::Buffer buf(const_cast<uint8_t*>(data), size);
 
   pid_t self_pid = getpid();
@@ -47,7 +42,8 @@ int FuzzUnwinding(const uint8_t* data, size_t size) {
                              base::OpenFile("/proc/self/maps", O_RDONLY),
                              base::OpenFile("/proc/self/mem", O_RDONLY));
 
-  worker.HandleBuffer(&buf, &metadata, id, self_pid);
+  NopDelegate nop_delegate;
+  UnwindingWorker::HandleBuffer(&buf, &metadata, id, self_pid, &nop_delegate);
   return 0;
 }
 

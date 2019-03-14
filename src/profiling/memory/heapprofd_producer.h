@@ -125,9 +125,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   const HeapprofdMode mode_;
 
-  std::vector<std::thread> MakeUnwindingThreads(size_t n);
-  std::vector<UnwindingWorker> MakeUnwindingWorkers(size_t n);
-
   void FinishDataSourceFlush(FlushRequestID flush_id);
   bool Dump(DataSourceInstanceID id,
             FlushRequestID flush_id,
@@ -177,11 +174,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // of them were dropped.
   uint64_t next_index_ = 0;
 
-  // These are not fields in UnwinderThread as the task runner is not movable
-  // and that makes UnwinderThread very unwieldy objects (e.g. we cannot
-  // emplace_back into a vector as that requires movability.)
-  std::vector<base::UnixTaskRunner> unwinding_task_runners_;
-  std::vector<std::thread> unwinding_threads_;  // Only for ownership.
   std::vector<UnwindingWorker> unwinding_workers_;
 
   // state specific to mode_ == kCentral

@@ -216,7 +216,6 @@ perfetto_fuzzer_test("unwinding_fuzzer") {
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../base",
-    "../../base:test_support",
     "../../tracing",
   ]
 }

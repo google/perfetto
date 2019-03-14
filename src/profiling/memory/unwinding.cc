@@ -49,6 +49,7 @@
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/string_utils.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/thread_task_runner.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -268,15 +269,17 @@ void UnwindingWorker::OnDataAvailable(base::UnixSocket* self) {
       break;
     HandleBuffer(&buf, &socket_data.metadata,
                  socket_data.data_source_instance_id,
-                 socket_data.sock->peer_pid());
+                 socket_data.sock->peer_pid(), delegate_);
     shmem.EndRead(std::move(buf));
   }
 }
 
+// static
 void UnwindingWorker::HandleBuffer(SharedRingBuffer::Buffer* buf,
                                    UnwindingMetadata* unwinding_metadata,
                                    DataSourceInstanceID data_source_instance_id,
-                                   pid_t peer_pid) {
+                                   pid_t peer_pid,
+                                   Delegate* delegate) {
   WireMessage msg;
   // TODO(fmayer): standardise on char* or uint8_t*.
   // char* has stronger guarantees regarding aliasing.
@@ -293,14 +296,14 @@ void UnwindingWorker::HandleBuffer(SharedRingBuffer::Buffer* buf,
     rec.pid = peer_pid;
     rec.data_source_instance_id = data_source_instance_id;
     DoUnwind(&msg, unwinding_metadata, &rec);
-    delegate_->PostAllocRecord(std::move(rec));
+    delegate->PostAllocRecord(std::move(rec));
   } else if (msg.record_type == RecordType::Free) {
     FreeRecord rec;
     rec.pid = peer_pid;
     rec.data_source_instance_id = data_source_instance_id;
     // We need to copy this, so we can return the memory to the shmem buffer.
     memcpy(&rec.metadata, msg.free_header, sizeof(*msg.free_header));
-    delegate_->PostFreeRecord(std::move(rec));
+    delegate->PostFreeRecord(std::move(rec));
   } else {
     PERFETTO_DFATAL("Invalid record type.");
   }
@@ -310,9 +313,9 @@ void UnwindingWorker::PostHandoffSocket(HandoffData handoff_data) {
   // Even with C++14, this cannot be moved, as std::function has to be
   // copyable, which HandoffData is not.
   HandoffData* raw_data = new HandoffData(std::move(handoff_data));
-  // We do not need to use a WeakPtr here because the TaskRunner gets Quit-ed
-  // before this object get destructed.
-  task_runner_->PostTask([this, raw_data] {
+  // We do not need to use a WeakPtr here because the task runner will not
+  // outlive its UnwindingWorker.
+  thread_task_runner_.get()->PostTask([this, raw_data] {
     HandoffData data = std::move(*raw_data);
     delete raw_data;
     HandleHandoffSocket(std::move(data));
@@ -320,9 +323,9 @@ void UnwindingWorker::PostHandoffSocket(HandoffData handoff_data) {
 }
 
 void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
-  auto sock = base::UnixSocket::AdoptConnected(handoff_data.sock.ReleaseFd(),
-                                               this, this->task_runner_,
-                                               base::SockType::kStream);
+  auto sock = base::UnixSocket::AdoptConnected(
+      handoff_data.sock.ReleaseFd(), this, this->thread_task_runner_.get(),
+      base::SockType::kStream);
   pid_t peer_pid = sock->peer_pid();
 
   UnwindingMetadata metadata(peer_pid,
@@ -336,9 +339,10 @@ void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
 }
 
 void UnwindingWorker::PostDisconnectSocket(pid_t pid) {
-  // We do not need to use a WeakPtr here because the TaskRunner gets Quit-ed
-  // before this object get destructed.
-  task_runner_->PostTask([this, pid] { HandleDisconnectSocket(pid); });
+  // We do not need to use a WeakPtr here because the task runner will not
+  // outlive its UnwindingWorker.
+  thread_task_runner_.get()->PostTask(
+      [this, pid] { HandleDisconnectSocket(pid); });
 }
 
 void UnwindingWorker::HandleDisconnectSocket(pid_t pid) {
