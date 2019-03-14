@@ -71,5 +71,9 @@ IdColumn::IdColumn(std::string column_name, TableId table_id)
     : StorageColumn(std::move(column_name), false), table_id_(table_id) {}
 IdColumn::~IdColumn() = default;
 
+RowColumn::RowColumn(std::string column_name)
+    : StorageColumn(std::move(column_name), false) {}
+RowColumn::~RowColumn() = default;
+
 }  // namespace trace_processor
 }  // namespace perfetto

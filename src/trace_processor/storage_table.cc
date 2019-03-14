@@ -161,6 +161,16 @@ std::vector<uint32_t> StorageTable::CreateSortedIndexVector(
   return sorted_rows;
 }
 
+bool StorageTable::HasEqConstraint(const QueryConstraints& qc,
+                                   const std::string& col_name) {
+  size_t c_idx = schema().ColumnIndexFromName(col_name);
+  auto fn = [c_idx](const QueryConstraints::Constraint& c) {
+    return c.iColumn == static_cast<int>(c_idx) && sqlite_utils::IsOpEq(c.op);
+  };
+  const auto& cs = qc.constraints();
+  return std::find_if(cs.begin(), cs.end(), fn) != cs.end();
+}
+
 StorageTable::Cursor::Cursor(std::unique_ptr<RowIterator> iterator,
                              std::vector<std::unique_ptr<StorageColumn>>* cols)
     : iterator_(std::move(iterator)), columns_(std::move(cols)) {}

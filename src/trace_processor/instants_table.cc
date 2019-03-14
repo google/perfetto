@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/instants_table.h"
 
-#include "src/trace_processor/counters_table.h"
+#include "src/trace_processor/counter_definitions_table.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -44,8 +44,9 @@ StorageSchema InstantsTable::CreateStorageSchema() {
       .AddOrderedNumericColumn("ts", &instants.timestamps())
       .AddStringColumn("name", &instants.name_ids(), &storage_->string_pool())
       .AddNumericColumn("value", &instants.values())
-      .AddColumn<CountersTable::RefColumn>("ref", &instants.refs(),
-                                           &instants.types(), storage_)
+      // TODO(lalitm): remove this hack.
+      .AddColumn<CounterDefinitionsTable::RefColumn>(
+          "ref", &instants.refs(), &instants.types(), storage_)
       .AddStringColumn("ref_type", &instants.types(), &ref_types_)
       .AddNumericColumn("arg_set_id", &instants.arg_set_ids())
       .Build({"name", "ts", "ref"});

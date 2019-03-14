@@ -62,6 +62,8 @@ class StorageTable : public Table {
  protected:
   const StorageSchema& schema() const { return schema_; }
 
+  bool HasEqConstraint(const QueryConstraints&, const std::string& col_name);
+
  private:
   // Creates a row iterator which is optimized for a generic storage schema
   // (i.e. it does not make assumptions about values of columns).
