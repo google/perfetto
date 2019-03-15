@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_MEMORY_QUEUE_MESSAGES_H_
-#define SRC_PROFILING_MEMORY_QUEUE_MESSAGES_H_
+#ifndef SRC_PROFILING_MEMORY_UNWOUND_MESSAGES_H_
+#define SRC_PROFILING_MEMORY_UNWOUND_MESSAGES_H_
 
 #include <unwindstack/Maps.h>
 #include <unwindstack/Unwinder.h>
 
 #include "src/profiling/memory/wire_protocol.h"
-
-// TODO(fmayer): Find better places to put these structs.
 
 namespace perfetto {
 namespace profiling {
@@ -36,6 +34,7 @@ struct FrameData {
   std::string build_id;
 };
 
+// Single allocation with an unwound callstack.
 struct AllocRecord {
   pid_t pid;
   uint64_t data_source_instance_id;
@@ -43,13 +42,14 @@ struct AllocRecord {
   std::vector<FrameData> frames;
 };
 
+// Batch of deallocations.
 struct FreeRecord {
   pid_t pid;
   uint64_t data_source_instance_id;
-  FreeMetadata metadata;
+  FreeBatch free_batch;
 };
 
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_MEMORY_QUEUE_MESSAGES_H_
+#endif  // SRC_PROFILING_MEMORY_UNWOUND_MESSAGES_H_
