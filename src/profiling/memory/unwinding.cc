@@ -134,7 +134,7 @@ FDMemory::FDMemory(base::ScopedFile mem_fd) : mem_fd_(std::move(mem_fd)) {}
 size_t FDMemory::Read(uint64_t addr, void* dst, size_t size) {
   ssize_t rd = ReadAtOffsetClobberSeekPos(*mem_fd_, dst, size, addr);
   if (rd == -1) {
-    PERFETTO_DPLOG("read at offset");
+    PERFETTO_DPLOG("read of %zu at offset %" PRIu64, size, addr);
     return 0;
   }
   return static_cast<size_t>(rd);
@@ -198,6 +198,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   uint8_t error_code = 0;
   for (int attempt = 0; attempt < 2; ++attempt) {
     if (attempt > 0) {
+      PERFETTO_DLOG("Reparsing maps");
       metadata->ReparseMaps();
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
       unwinder.SetJitDebug(metadata->jit_debug.get(), regs->Arch());
@@ -222,6 +223,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   }
 
   if (error_code != 0) {
+    PERFETTO_DLOG("Unwinding error %d", error_code);
     unwindstack::FrameData frame_data{};
     frame_data.function_name = "ERROR " + std::to_string(error_code);
     frame_data.map_name = "ERROR";
