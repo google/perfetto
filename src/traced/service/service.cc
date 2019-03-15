@@ -18,6 +18,7 @@
 #include "perfetto/base/watchdog.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/ipc/service_ipc_host.h"
+#include "src/traced/service/lazy_producer.h"
 #include "src/tracing/ipc/default_socket.h"
 
 namespace perfetto {
@@ -48,6 +49,10 @@ int __attribute__((visibility("default"))) ServiceMain(int, char**) {
     PERFETTO_ELOG("Failed to start the traced service");
     return 1;
   }
+
+  LazyProducer lazy_heapprofd(&task_runner, /*delay_ms=*/30000,
+                              "android.heapprofd", "traced.lazy.heapprofd");
+  lazy_heapprofd.ConnectInProcess(svc->service());
 
   // Set the CPU limit and start the watchdog running. The memory limit will
   // be set inside the service code as it relies on the size of buffers.
