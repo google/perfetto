@@ -70,12 +70,6 @@ TEST(UnwindingTest, FileDescriptorMapsParse) {
   ASSERT_EQ(map_info->name, "[stack]");
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_DoUnwind DoUnwind
-#else
-#define MAYBE_DoUnwind DISABLED_DoUnwind
-#endif
-
 // This is needed because ASAN thinks copying the whole stack is a buffer
 // underrun.
 void __attribute__((noinline))
@@ -123,7 +117,7 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
 }
 
 // TODO(fmayer): Investigate why this fails out of tree.
-TEST(UnwindingTest, MAYBE_DoUnwind) {
+TEST(UnwindingTest, DoUnwind) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   GlobalCallstackTrie callsites;
@@ -134,7 +128,7 @@ TEST(UnwindingTest, MAYBE_DoUnwind) {
   AllocRecord out;
   ASSERT_TRUE(DoUnwind(&msg, &metadata, &out));
   int st;
-  std::unique_ptr<char> demangled(abi::__cxa_demangle(
+  std::unique_ptr<char, base::FreeDeleter> demangled(abi::__cxa_demangle(
       out.frames[0].frame.function_name.c_str(), nullptr, nullptr, &st));
   ASSERT_EQ(st, 0);
   ASSERT_STREQ(demangled.get(),
