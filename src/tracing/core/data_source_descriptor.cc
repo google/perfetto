@@ -46,7 +46,8 @@ DataSourceDescriptor& DataSourceDescriptor::operator=(DataSourceDescriptor&&) =
 #pragma GCC diagnostic ignored "-Wfloat-equal"
 bool DataSourceDescriptor::operator==(const DataSourceDescriptor& other) const {
   return (name_ == other.name_) &&
-         (will_notify_on_stop_ == other.will_notify_on_stop_);
+         (will_notify_on_stop_ == other.will_notify_on_stop_) &&
+         (will_notify_on_start_ == other.will_notify_on_start_);
 }
 #pragma GCC diagnostic pop
 
@@ -60,6 +61,12 @@ void DataSourceDescriptor::FromProto(
       "size mismatch");
   will_notify_on_stop_ =
       static_cast<decltype(will_notify_on_stop_)>(proto.will_notify_on_stop());
+
+  static_assert(
+      sizeof(will_notify_on_start_) == sizeof(proto.will_notify_on_start()),
+      "size mismatch");
+  will_notify_on_start_ = static_cast<decltype(will_notify_on_start_)>(
+      proto.will_notify_on_start());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -76,6 +83,13 @@ void DataSourceDescriptor::ToProto(
   proto->set_will_notify_on_stop(
       static_cast<decltype(proto->will_notify_on_stop())>(
           will_notify_on_stop_));
+
+  static_assert(
+      sizeof(will_notify_on_start_) == sizeof(proto->will_notify_on_start()),
+      "size mismatch");
+  proto->set_will_notify_on_start(
+      static_cast<decltype(proto->will_notify_on_start())>(
+          will_notify_on_start_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

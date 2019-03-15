@@ -53,6 +53,12 @@ service ProducerPort {
   // 3) Acknowledge a Flush() request.
   rpc CommitData(protos.CommitDataRequest) returns (CommitDataResponse) {}
 
+  // Sent by the client in response to a StartDataSource message, when a data
+  // source is successfully started. This is expected only for data sources that
+  // set the DataSourceDescriptor.will_notify_on_start flag when registering.
+  rpc NotifyDataSourceStarted(NotifyDataSourceStartedRequest)
+      returns (NotifyDataSourceStartedResponse) {}
+
   // Sent by the client in response to a StopDataSource message, when a data
   // source is succesfully stopped. This is expected only for data sources that
   // set the DataSourceDescriptor.will_notify_on_stop flag when registering.
@@ -134,7 +140,16 @@ message UnregisterTraceWriterResponse {}
 
 message CommitDataResponse {}
 
-// Arguments for rpc NotifyDataSourceStoppedRequest().
+// Arguments for rpc NotifyDataSourceStarted().
+
+message NotifyDataSourceStartedRequest {
+  // ID of the data source that has successfully started.
+  optional uint64 data_source_id = 1;
+}
+
+message NotifyDataSourceStartedResponse {}
+
+// Arguments for rpc NotifyDataSourceStopped().
 
 message NotifyDataSourceStoppedRequest {
   // ID of the data source that has successfully stopped.

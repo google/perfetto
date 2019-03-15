@@ -63,6 +63,9 @@ constexpr size_t kMaxShmSizeKb = TracingServiceImpl::kMaxShmSize / 1024;
 
 class TracingServiceImplTest : public testing::Test {
  public:
+  using DataSourceInstanceState =
+      TracingServiceImpl::DataSourceInstance::DataSourceInstanceState;
+
   TracingServiceImplTest() {
     auto shm_factory =
         std::unique_ptr<SharedMemory::Factory>(new TestSharedMemory::Factory());
@@ -138,6 +141,15 @@ class TracingServiceImplTest : public testing::Test {
     };
     task_runner.PostDelayedTask(task, 1);
     task_runner.RunUntilCheckpoint(checkpoint_name);
+  }
+
+  DataSourceInstanceState GetDataSourceInstanceState(const std::string& name) {
+    for (const auto& kv : tracing_session()->data_source_instances) {
+      if (kv.second.data_source_name == name)
+        return kv.second.state;
+    }
+    PERFETTO_FATAL("Can't find data source instance with name %s",
+                   name.c_str());
   }
 
   base::TestTaskRunner task_runner;
@@ -740,9 +752,11 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForDataSourceStopAcks) {
 
   std::unique_ptr<MockProducer> producer = CreateMockProducer();
   producer->Connect(svc.get(), "mock_producer");
-  producer->RegisterDataSource("ds_will_ack_1", /*ack_stop=*/true);
+  producer->RegisterDataSource("ds_will_ack_1", /*ack_stop=*/true,
+                               /*ack_start=*/true);
   producer->RegisterDataSource("ds_wont_ack");
-  producer->RegisterDataSource("ds_will_ack_2", /*ack_stop=*/true);
+  producer->RegisterDataSource("ds_will_ack_2", /*ack_stop=*/true,
+                               /*ack_start=*/false);
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
@@ -750,31 +764,66 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForDataSourceStopAcks) {
   trace_config.add_data_sources()->mutable_config()->set_name("ds_wont_ack");
   trace_config.add_data_sources()->mutable_config()->set_name("ds_will_ack_2");
   trace_config.set_duration_ms(1);
+  trace_config.set_deferred_start(true);
 
   consumer->EnableTracing(trace_config);
+
+  EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_1"),
+            DataSourceInstanceState::CONFIGURED);
+  EXPECT_EQ(GetDataSourceInstanceState("ds_wont_ack"),
+            DataSourceInstanceState::CONFIGURED);
+  EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_2"),
+            DataSourceInstanceState::CONFIGURED);
+
   producer->WaitForTracingSetup();
 
   producer->WaitForDataSourceSetup("ds_will_ack_1");
   producer->WaitForDataSourceSetup("ds_wont_ack");
   producer->WaitForDataSourceSetup("ds_will_ack_2");
 
+  DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_will_ack_1");
+  DataSourceInstanceID id2 = producer->GetDataSourceInstanceId("ds_will_ack_2");
+
+  consumer->StartTracing();
+
+  EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_1"),
+            DataSourceInstanceState::STARTING);
+  EXPECT_EQ(GetDataSourceInstanceState("ds_wont_ack"),
+            DataSourceInstanceState::STARTED);
+  EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_2"),
+            DataSourceInstanceState::STARTED);
+
   producer->WaitForDataSourceStart("ds_will_ack_1");
   producer->WaitForDataSourceStart("ds_wont_ack");
   producer->WaitForDataSourceStart("ds_will_ack_2");
+
+  producer->endpoint()->NotifyDataSourceStarted(id1);
+
+  EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_1"),
+            DataSourceInstanceState::STARTED);
 
   std::unique_ptr<TraceWriter> writer =
       producer->CreateTraceWriter("ds_wont_ack");
   producer->WaitForFlush(writer.get());
 
-  DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_will_ack_1");
-  DataSourceInstanceID id2 = producer->GetDataSourceInstanceId("ds_will_ack_2");
-
   producer->WaitForDataSourceStop("ds_will_ack_1");
   producer->WaitForDataSourceStop("ds_wont_ack");
   producer->WaitForDataSourceStop("ds_will_ack_2");
 
+  EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_1"),
+            DataSourceInstanceState::STOPPING);
+  EXPECT_EQ(GetDataSourceInstanceState("ds_wont_ack"),
+            DataSourceInstanceState::STOPPED);
+  EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_2"),
+            DataSourceInstanceState::STOPPING);
+
   producer->endpoint()->NotifyDataSourceStopped(id1);
   producer->endpoint()->NotifyDataSourceStopped(id2);
+
+  EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_1"),
+            DataSourceInstanceState::STOPPED);
+  EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_2"),
+            DataSourceInstanceState::STOPPED);
 
   // Wait for at most half of the service timeout, so that this test fails if
   // the service falls back on calling the OnTracingDisabled() because some of
