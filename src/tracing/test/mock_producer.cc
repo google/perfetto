@@ -56,10 +56,13 @@ void MockProducer::Connect(TracingService* svc,
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
-void MockProducer::RegisterDataSource(const std::string& name, bool ack_stop) {
+void MockProducer::RegisterDataSource(const std::string& name,
+                                      bool ack_stop,
+                                      bool ack_start) {
   DataSourceDescriptor ds_desc;
   ds_desc.set_name(name);
   ds_desc.set_will_notify_on_stop(ack_stop);
+  ds_desc.set_will_notify_on_start(ack_start);
   service_endpoint_->RegisterDataSource(ds_desc);
 }
 
