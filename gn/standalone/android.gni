@@ -32,7 +32,7 @@ declare_args() {
   android_compile_sysroot = "$android_ndk_root/sysroot/usr/include"
 
   if (current_cpu == "x86") {
-    android_abi_target = "i686-linux-androideabi"
+    android_abi_target = "i686-linux-android"
     android_compile_sysroot_subdir = "i686-linux-android"
     android_link_sysroot_subdir =
         "platforms/android-${android_api_level}/arch-x86"
