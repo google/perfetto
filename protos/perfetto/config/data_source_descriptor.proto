@@ -33,6 +33,11 @@ message DataSourceDescriptor {
   // Android P in Jul 2018 and is not supported on older versions.
   optional bool will_notify_on_stop = 2;
 
+  // When true the data source is expected to ack the start request through the
+  // NotifyDataSourceStarted() IPC. This field has been introduced after
+  // Android P in March 2019 and is not supported on older versions.
+  optional bool will_notify_on_start = 3;
+
   // TODO: this should have a structure to enable reflection of the proto
   // fields emitted (see go/perfetto-logging).
 }
