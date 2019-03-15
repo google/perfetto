@@ -47,7 +47,9 @@ class MockProducer : public Producer {
                const std::string& producer_name,
                uid_t uid = 42,
                size_t shared_memory_size_hint_bytes = 0);
-  void RegisterDataSource(const std::string& name, bool ack_stop = false);
+  void RegisterDataSource(const std::string& name,
+                          bool ack_stop = false,
+                          bool ack_start = false);
   void UnregisterDataSource(const std::string& name);
   void RegisterTraceWriter(uint32_t writer_id, uint32_t target_buffer);
   void UnregisterTraceWriter(uint32_t writer_id);
