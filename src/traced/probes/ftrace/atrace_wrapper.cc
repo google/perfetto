@@ -60,11 +60,30 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
       _exit(1);
     }
 
+    int null_fd = open("/dev/null", O_RDWR);
+    if (null_fd == -1) {
+      const char kError[] = "Unable to open dev null";
+      base::ignore_result(write(*err_pipe.wr, kError, sizeof(kError)));
+      _exit(1);
+    }
+
+    if ((dup2(null_fd, STDOUT_FILENO) == -1)) {
+      const char kError[] = "Unable to duplicate stdout fd";
+      base::ignore_result(write(*err_pipe.wr, kError, sizeof(kError)));
+      _exit(1);
+    }
+
+    if ((dup2(null_fd, STDIN_FILENO) == -1)) {
+      const char kError[] = "Unable to duplicate stdin fd";
+      base::ignore_result(write(*err_pipe.wr, kError, sizeof(kError)));
+      _exit(1);
+    }
+
     // Close stdin/out + any file descriptor that we might have mistakenly
     // not marked as FD_CLOEXEC. |err_pipe| is FD_CLOEXEC and will be
     // automatically closed on exec.
     for (int i = 0; i < 128; i++) {
-      if (i != STDERR_FILENO)
+      if (i != STDIN_FILENO && i != STDERR_FILENO && i != STDOUT_FILENO)
         close(i);
     }
 
