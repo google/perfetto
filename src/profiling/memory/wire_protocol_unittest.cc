@@ -18,7 +18,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/unix_socket.h"
-#include "src/profiling/memory/record_reader.h"
 
 #include <sys/socket.h>
 #include <sys/types.h>
