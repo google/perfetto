@@ -113,6 +113,7 @@ test("perfetto_unittests") {
     "gn:gtest_main",
     "src/base:unittests",
     "src/protozero:unittests",
+    "src/traced/service:unittests",
     "src/tracing:unittests",
   ]
 

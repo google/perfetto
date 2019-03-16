@@ -88,7 +88,7 @@ bool ServiceIPCHostImpl::DoStart() {
   return true;
 }
 
-TracingService* ServiceIPCHostImpl::service_for_testing() const {
+TracingService* ServiceIPCHostImpl::service() const {
   return svc_.get();
 }
 

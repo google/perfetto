@@ -24,5 +24,8 @@ service heapprofd /system/bin/heapprofd
 on property:persist.heapprofd.enable=1
     start heapprofd
 
-on property:persist.heapprofd.enable=0
+on property:traced.lazy.heapprofd=1
+    start heapprofd
+
+on property:persist.heapprofd.enable=0 && property:traced.lazy.heapprofd=0
     stop heapprofd
