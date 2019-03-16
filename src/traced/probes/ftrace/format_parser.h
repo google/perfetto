@@ -42,6 +42,9 @@ struct FtraceEvent {
     }
   };
 
+  // When making changes / additions to these structs, remember that
+  // proto_translation_table.cc has some fallback code for 'page_header' and
+  // the 'print' event that fill this struct.
   std::string name;
   uint32_t id;
   std::vector<Field> common_fields;
