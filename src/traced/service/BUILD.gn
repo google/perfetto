@@ -23,6 +23,23 @@ source_set("service") {
     "../../tracing:ipc",
   ]
   sources = [
+    "lazy_producer.cc",
+    "lazy_producer.h",
     "service.cc",
+  ]
+}
+
+source_set("unittests") {
+  testonly = true
+  deps = [
+    ":service",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_deps",
+    "../../base",
+    "../../base:test_support",
+    "../../tracing",
+  ]
+  sources = [
+    "lazy_producer_unittest.cc",
   ]
 }
