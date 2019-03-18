@@ -158,6 +158,35 @@ void ConsumerIPCService::GetTraceStats(const protos::GetTraceStatsRequest&,
   remote_consumer->service_endpoint->GetTraceStats();
 }
 
+// Called by the IPC layer.
+void ConsumerIPCService::ObserveEvents(const protos::ObserveEventsRequest& req,
+                                       DeferredObserveEventsResponse resp) {
+  RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
+
+  // If there's a prior stream, close it so that client can clean it up.
+  remote_consumer->CloseObserveEventsResponseStream();
+
+  remote_consumer->observe_events_response = std::move(resp);
+
+  bool observe_instances = false;
+  for (const auto& type : req.events_to_observe()) {
+    switch (type) {
+      case protos::ObservableEvents::TYPE_DATA_SOURCES_INSTANCES:
+        observe_instances = true;
+        break;
+      default:
+        PERFETTO_DFATAL("Unknown ObservableEvent type: %d", type);
+        break;
+    }
+  }
+  remote_consumer->service_endpoint->ObserveEvents(observe_instances);
+
+  // If no events are to be observed, close the stream immediately so that the
+  // client can clean up.
+  if (req.events_to_observe().size() == 0)
+    remote_consumer->CloseObserveEventsResponseStream();
+}
+
 // Called by the service in response to a service_endpoint->Flush() request.
 void ConsumerIPCService::OnFlushCallback(
     bool success,
@@ -277,6 +306,26 @@ void ConsumerIPCService::RemoteConsumer::OnTraceStats(bool success,
   auto response = ipc::AsyncResult<protos::GetTraceStatsResponse>::Create();
   stats.ToProto(response->mutable_trace_stats());
   std::move(get_trace_stats_response).Resolve(std::move(response));
+}
+
+void ConsumerIPCService::RemoteConsumer::OnObservableEvents(
+    const ObservableEvents& events) {
+  if (!observe_events_response.IsBound())
+    return;
+
+  auto result = ipc::AsyncResult<protos::ObserveEventsResponse>::Create();
+  result.set_has_more(true);
+  events.ToProto(result->mutable_events());
+  observe_events_response.Resolve(std::move(result));
+}
+
+void ConsumerIPCService::RemoteConsumer::CloseObserveEventsResponseStream() {
+  if (!observe_events_response.IsBound())
+    return;
+
+  auto result = ipc::AsyncResult<protos::ObserveEventsResponse>::Create();
+  result.set_has_more(false);
+  observe_events_response.Resolve(std::move(result));
 }
 
 }  // namespace perfetto

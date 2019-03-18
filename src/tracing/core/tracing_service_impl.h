@@ -31,6 +31,7 @@
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/observable_events.h"
 #include "perfetto/tracing/core/shared_memory_abi.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_stats.h"
@@ -174,21 +175,35 @@ class TracingServiceImpl : public TracingService {
     void Detach(const std::string& key) override;
     void Attach(const std::string& key) override;
     void GetTraceStats() override;
+    void ObserveEvents(uint32_t enabled_event_types) override;
 
-    // TODO(eseckler): Notify consumer about the state change if necessary.
+    // If |observe_data_source_instances == true|, will queue a task to notify
+    // the consumer about the state change.
     void OnDataSourceInstanceStateChange(const ProducerEndpointImpl&,
-                                         const DataSourceInstance&) {}
+                                         const DataSourceInstance&);
 
    private:
     friend class TracingServiceImpl;
     ConsumerEndpointImpl(const ConsumerEndpointImpl&) = delete;
     ConsumerEndpointImpl& operator=(const ConsumerEndpointImpl&) = delete;
 
+    // Returns a pointer to an ObservableEvents object that the caller can fill
+    // and schedules a task to send the ObservableEvents to the consumer.
+    ObservableEvents* AddObservableEvents();
+
     base::TaskRunner* const task_runner_;
     TracingServiceImpl* const service_;
     Consumer* const consumer_;
     uid_t const uid_;
     TracingSessionID tracing_session_id_ = 0;
+
+    // Whether the consumer is interested in DataSourceInstance state change
+    // events.
+    uint32_t enabled_observable_event_types_ = ObservableEventType::kNone;
+    // ObservableEvents that will be sent to the consumer. If set, a task to
+    // flush the events to the consumer has been queued.
+    std::unique_ptr<ObservableEvents> observable_events_;
+
     PERFETTO_THREAD_CHECKER(thread_checker_)
     base::WeakPtrFactory<ConsumerEndpointImpl> weak_ptr_factory_;  // Keep last.
   };

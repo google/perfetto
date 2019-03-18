@@ -179,6 +179,8 @@ void TestHelper::OnAttach(bool success, const TraceConfig&) {
 
 void TestHelper::OnTraceStats(bool, const TraceStats&) {}
 
+void TestHelper::OnObservableEvents(const ObservableEvents&) {}
+
 // static
 const char* TestHelper::GetConsumerSocketName() {
   return TEST_CONSUMER_SOCK_NAME;
