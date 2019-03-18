@@ -19,9 +19,9 @@
 
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/basic_types.h"
-#include "src/profiling/memory/queue_messages.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/unwinding.h"
+#include "src/profiling/memory/unwound_messages.h"
 
 namespace perfetto {
 namespace profiling {
@@ -43,7 +43,7 @@ int FuzzUnwinding(const uint8_t* data, size_t size) {
                              base::OpenFile("/proc/self/mem", O_RDONLY));
 
   NopDelegate nop_delegate;
-  UnwindingWorker::HandleBuffer(&buf, &metadata, id, self_pid, &nop_delegate);
+  UnwindingWorker::HandleBuffer(buf, &metadata, id, self_pid, &nop_delegate);
   return 0;
 }
 

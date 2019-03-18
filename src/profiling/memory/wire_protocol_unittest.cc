@@ -39,8 +39,8 @@ bool operator==(const AllocMetadata& one, const AllocMetadata& other) {
              0;
 }
 
-bool operator==(const FreeMetadata& one, const FreeMetadata& other);
-bool operator==(const FreeMetadata& one, const FreeMetadata& other) {
+bool operator==(const FreeBatch& one, const FreeBatch& other);
+bool operator==(const FreeBatch& one, const FreeBatch& other) {
   if (one.num_entries != other.num_entries)
     return false;
   for (size_t i = 0; i < one.num_entries; ++i) {
@@ -109,13 +109,13 @@ TEST(WireProtocolTest, AllocMessage) {
 TEST(WireProtocolTest, FreeMessage) {
   WireMessage msg = {};
   msg.record_type = RecordType::Free;
-  FreeMetadata metadata = {};
-  metadata.num_entries = kFreePageSize;
-  for (size_t i = 0; i < kFreePageSize; ++i) {
-    metadata.entries[i].sequence_number = 0x111111111111111;
-    metadata.entries[i].addr = 0x222222222222222;
+  FreeBatch batch = {};
+  batch.num_entries = kFreeBatchSize;
+  for (size_t i = 0; i < kFreeBatchSize; ++i) {
+    batch.entries[i].sequence_number = 0x111111111111111;
+    batch.entries[i].addr = 0x222222222222222;
   }
-  msg.free_header = &metadata;
+  msg.free_header = &batch;
 
   auto shmem_client = SharedRingBuffer::Create(kShmemSize);
   ASSERT_TRUE(shmem_client);

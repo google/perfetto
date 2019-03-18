@@ -128,7 +128,7 @@ bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
     }
     out->payload_size = static_cast<size_t>(end - buf);
   } else if (*record_type == RecordType::Free) {
-    if (!ViewAndAdvance<FreeMetadata>(&buf, &out->free_header, end)) {
+    if (!ViewAndAdvance<FreeBatch>(&buf, &out->free_header, end)) {
       PERFETTO_DFATAL("Cannot read free header.");
       return false;
     }
