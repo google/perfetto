@@ -22,6 +22,7 @@ source_set("core") {
     "consumer.h",
     "data_source_config.h",
     "data_source_descriptor.h",
+    "observable_events.h",
     "producer.h",
     "shared_memory.h",
     "shared_memory_abi.h",

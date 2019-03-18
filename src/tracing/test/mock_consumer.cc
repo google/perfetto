@@ -142,4 +142,23 @@ void MockConsumer::WaitForTraceStats(bool success) {
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
+void MockConsumer::ObserveEvents(uint32_t enabled_event_types) {
+  service_endpoint_->ObserveEvents(enabled_event_types);
+}
+
+ObservableEvents MockConsumer::WaitForObservableEvents() {
+  ObservableEvents events;
+  static int i = 0;
+  std::string checkpoint_name = "on_observable_events_" + std::to_string(i++);
+  auto on_observable_events = task_runner_->CreateCheckpoint(checkpoint_name);
+  EXPECT_CALL(*this, OnObservableEvents(_))
+      .WillOnce(Invoke([&events, on_observable_events](
+                           const ObservableEvents& observable_events) {
+        events = observable_events;
+        on_observable_events();
+      }));
+  task_runner_->RunUntilCheckpoint(checkpoint_name);
+  return events;
+}
+
 }  // namespace perfetto

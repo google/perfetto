@@ -17,11 +17,11 @@
 #ifndef INCLUDE_PERFETTO_TRACING_CORE_CONSUMER_H_
 #define INCLUDE_PERFETTO_TRACING_CORE_CONSUMER_H_
 
-#include "perfetto/tracing/core/basic_types.h"
-
 #include <vector>
 
 #include "perfetto/base/export.h"
+#include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/observable_events.h"
 
 namespace perfetto {
 
@@ -73,6 +73,11 @@ class PERFETTO_EXPORT Consumer {
   // Called back by the Service (or transport layer) after invoking
   // TracingService::ConsumerEndpoint::GetTraceStats().
   virtual void OnTraceStats(bool success, const TraceStats&) = 0;
+
+  // Called back by the Service (or transport layer) after invoking
+  // TracingService::ConsumerEndpoint::ObserveEvents() whenever one or more
+  // ObservableEvents of enabled event types occur.
+  virtual void OnObservableEvents(const ObservableEvents&) = 0;
 };
 
 }  // namespace perfetto
