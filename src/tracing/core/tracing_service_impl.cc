@@ -1456,11 +1456,10 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
         if (it->second.state != DataSourceInstance::STOPPED) {
           if (it->second.state != DataSourceInstance::STOPPING)
             producer->StopDataSource(ds_inst_id);
-          it->second.state = DataSourceInstance::STOPPED;
-          if (kv.second.consumer_maybe_null) {
-            kv.second.consumer_maybe_null->OnDataSourceInstanceStateChange(
-                *producer, it->second);
-          }
+          // Mark the instance as stopped immediately, since we are
+          // unregistering it below.
+          if (it->second.state == DataSourceInstance::STOPPING)
+            NotifyDataSourceStopped(producer_id, ds_inst_id);
         }
         it = ds_instances.erase(it);
       } else {
