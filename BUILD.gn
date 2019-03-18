@@ -113,7 +113,6 @@ test("perfetto_unittests") {
     "gn:gtest_main",
     "src/base:unittests",
     "src/protozero:unittests",
-    "src/traced/service:unittests",
     "src/tracing:unittests",
   ]
 
@@ -125,6 +124,7 @@ test("perfetto_unittests") {
       "src/traced/probes:unittests",
       "src/traced/probes/filesystem:unittests",
       "src/traced/probes/ftrace:unittests",
+      "src/traced/service:unittests",
       "tools/ftrace_proto_gen:unittests",
       "tools/sanitizers_unittests",
     ]
