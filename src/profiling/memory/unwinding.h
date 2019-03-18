@@ -31,7 +31,7 @@
 #include "perfetto/base/thread_task_runner.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "src/profiling/memory/bookkeeping.h"
-#include "src/profiling/memory/queue_messages.h"
+#include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -166,7 +166,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
 
  public:
   // static and public for testing/fuzzing
-  static void HandleBuffer(SharedRingBuffer::Buffer* buf,
+  static void HandleBuffer(const SharedRingBuffer::Buffer& buf,
                            UnwindingMetadata* unwinding_metadata,
                            DataSourceInstanceID data_source_instance_id,
                            pid_t peer_pid,

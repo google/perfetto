@@ -116,7 +116,6 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   return {std::move(payload), std::move(metadata)};
 }
 
-// TODO(fmayer): Investigate why this fails out of tree.
 TEST(UnwindingTest, DoUnwind) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
