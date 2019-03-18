@@ -22,6 +22,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ipc/client.h"
 #include "perfetto/tracing/core/consumer.h"
+#include "perfetto/tracing/core/observable_events.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_stats.h"
 
@@ -279,21 +280,52 @@ void ConsumerIPCClientImpl::GetTraceStats() {
 
   protos::GetTraceStatsRequest req;
   ipc::Deferred<protos::GetTraceStatsResponse> async_response;
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
 
+  // The IPC layer guarantees that callbacks are destroyed after this object
+  // is destroyed (by virtue of destroying the |consumer_port_|). In turn the
+  // contract of this class expects the caller to not destroy the Consumer class
+  // before having destroyed this class. Hence binding |this| here is safe.
   async_response.Bind(
-      [weak_this](ipc::AsyncResult<protos::GetTraceStatsResponse> response) {
-        if (!weak_this)
-          return;
+      [this](ipc::AsyncResult<protos::GetTraceStatsResponse> response) {
         TraceStats trace_stats;
         if (!response) {
-          weak_this->consumer_->OnTraceStats(/*success=*/false, trace_stats);
+          consumer_->OnTraceStats(/*success=*/false, trace_stats);
           return;
         }
         trace_stats.FromProto(response->trace_stats());
-        weak_this->consumer_->OnTraceStats(/*success=*/true, trace_stats);
+        consumer_->OnTraceStats(/*success=*/true, trace_stats);
       });
   consumer_port_.GetTraceStats(req, std::move(async_response));
+}
+
+void ConsumerIPCClientImpl::ObserveEvents(uint32_t enabled_event_types) {
+  if (!connected_) {
+    PERFETTO_DLOG("Cannot ObserveEvents(), not connected to tracing service");
+    return;
+  }
+
+  protos::ObserveEventsRequest req;
+  if (enabled_event_types & ObservableEventType::kDataSourceInstances) {
+    req.add_events_to_observe(
+        protos::ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
+  }
+  ipc::Deferred<protos::ObserveEventsResponse> async_response;
+  // The IPC layer guarantees that callbacks are destroyed after this object
+  // is destroyed (by virtue of destroying the |consumer_port_|). In turn the
+  // contract of this class expects the caller to not destroy the Consumer class
+  // before having destroyed this class. Hence binding |this| here is safe.
+  async_response.Bind(
+      [this](ipc::AsyncResult<protos::ObserveEventsResponse> response) {
+        // Skip empty response, which the service sends to close the stream.
+        if (!response->events().instance_state_changes().size()) {
+          PERFETTO_DCHECK(!response.has_more());
+          return;
+        }
+        ObservableEvents events;
+        events.FromProto(response->events());
+        consumer_->OnObservableEvents(events);
+      });
+  consumer_port_.ObserveEvents(req, std::move(async_response));
 }
 
 }  // namespace perfetto
