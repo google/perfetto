@@ -98,40 +98,6 @@ int UnsetDumpable(int) {
 
 }  // namespace
 
-bool FreePage::Add(const uint64_t addr,
-                   const uint64_t sequence_number,
-                   Client* client) {
-  std::unique_lock<std::timed_mutex> l(mutex_, kLockTimeout);
-  if (!l.owns_lock())
-    return false;
-  if (free_page_.num_entries == kFreePageSize) {
-    if (!client->FlushFrees(&free_page_))
-      return false;
-    // Now that we have flushed, reset to after the header.
-    free_page_.num_entries = 0;
-  }
-  FreePageEntry& current_entry = free_page_.entries[free_page_.num_entries++];
-  current_entry.sequence_number = sequence_number;
-  current_entry.addr = addr;
-  return true;
-}
-
-bool Client::FlushFrees(FreeMetadata* free_metadata) {
-  WireMessage msg = {};
-  msg.record_type = RecordType::Free;
-  msg.free_header = free_metadata;
-  if (!SendWireMessage(&shmem_, msg)) {
-    PERFETTO_PLOG("Failed to send wire message");
-    Shutdown();
-    return false;
-  }
-  if (sock_.Send(kSingleByte, sizeof(kSingleByte)) == -1) {
-    Shutdown();
-    return false;
-  }
-  return true;
-}
-
 const char* GetThreadStackBase() {
   pthread_attr_t attr;
   if (pthread_getattr_np(pthread_self(), &attr) != 0)
@@ -287,15 +253,50 @@ bool Client::RecordMalloc(uint64_t alloc_size,
   return true;
 }
 
-bool Client::RecordFree(uint64_t alloc_address) {
+bool Client::RecordFree(const uint64_t alloc_address) {
   if (!inited_.load(std::memory_order_acquire))
     return false;
-  bool success = free_page_.Add(
+  bool success = AddFreeToBatch(
       alloc_address,
-      1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel), this);
+      1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel));
   if (!success)
     Shutdown();
   return success;
+}
+
+// TODO(rsavitski): consider inlining into RecordFree.
+bool Client::AddFreeToBatch(const uint64_t addr,
+                            const uint64_t sequence_number) {
+  std::unique_lock<std::timed_mutex> l(free_batch_lock_, kLockTimeout);
+  if (!l.owns_lock())
+    return false;
+  if (free_batch_.num_entries == kFreeBatchSize) {
+    if (!FlushFreesLocked())
+      return false;
+    // Flushed the contents of the buffer, reset it for reuse.
+    free_batch_.num_entries = 0;
+  }
+  FreeBatchEntry& current_entry =
+      free_batch_.entries[free_batch_.num_entries++];
+  current_entry.sequence_number = sequence_number;
+  current_entry.addr = addr;
+  return true;
+}
+
+bool Client::FlushFreesLocked() {
+  WireMessage msg = {};
+  msg.record_type = RecordType::Free;
+  msg.free_header = &free_batch_;
+  if (!SendWireMessage(&shmem_, msg)) {
+    PERFETTO_PLOG("Failed to send wire message");
+    Shutdown();
+    return false;
+  }
+  if (sock_.Send(kSingleByte, sizeof(kSingleByte)) == -1) {
+    Shutdown();
+    return false;
+  }
+  return true;
 }
 
 void Client::Shutdown() {

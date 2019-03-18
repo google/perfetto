@@ -109,11 +109,11 @@ source_set("daemon") {
     "heapprofd_producer.cc",
     "heapprofd_producer.h",
     "interner.h",
-    "queue_messages.h",
     "system_property.cc",
     "system_property.h",
     "unwinding.cc",
     "unwinding.h",
+    "unwound_messages.h",
   ]
 }
 

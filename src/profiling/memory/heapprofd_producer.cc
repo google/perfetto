@@ -659,7 +659,7 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
 }
 
 void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
-  const FreeMetadata& free_metadata = free_rec.metadata;
+  const FreeBatch& free_batch = free_rec.free_batch;
   auto it = data_sources_.find(free_rec.data_source_instance_id);
   if (it == data_sources_.end()) {
     PERFETTO_LOG("Invalid data source in free record.");
@@ -675,14 +675,14 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
 
   HeapTracker& heap_tracker = heap_tracker_it->second;
 
-  const FreePageEntry* entries = free_metadata.entries;
-  uint64_t num_entries = free_metadata.num_entries;
-  if (num_entries > kFreePageSize) {
+  const FreeBatchEntry* entries = free_batch.entries;
+  uint64_t num_entries = free_batch.num_entries;
+  if (num_entries > kFreeBatchSize) {
     PERFETTO_DFATAL("Malformed free page.");
     return;
   }
   for (size_t i = 0; i < num_entries; ++i) {
-    const FreePageEntry& entry = entries[i];
+    const FreeBatchEntry& entry = entries[i];
     heap_tracker.RecordFree(entry.addr, entry.sequence_number);
   }
 }

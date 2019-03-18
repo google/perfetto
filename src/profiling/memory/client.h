@@ -32,25 +32,6 @@
 namespace perfetto {
 namespace profiling {
 
-class Client;
-
-// Cache for frees that have been observed. It is infeasible to send every
-// free separately, so we batch and send the whole buffer once it is full.
-class FreePage {
- public:
-  FreePage() { free_page_.num_entries = 0; }
-
-  // Add address to buffer. Flush if necessary.
-  // Can be called from any thread. Must not hold mutex_.
-  bool Add(const uint64_t addr, uint64_t sequence_number, Client* client);
-
- private:
-  // TODO(fmayer): Sort out naming. It's confusing data FreePage has a member
-  // called free_page_ that is of type FreeMetadata.
-  FreeMetadata free_page_;
-  std::timed_mutex mutex_;
-};
-
 const char* GetThreadStackBase();
 
 constexpr uint32_t kClientSockTimeoutMs = 1000;
@@ -71,7 +52,6 @@ class Client {
                     uint64_t alloc_address);
   bool RecordFree(uint64_t alloc_address);
   void Shutdown();
-  bool FlushFrees(FreeMetadata* free_metadata);
 
   // Returns the number of bytes to assign to an allocation with the given
   // |alloc_size|, based on the current sampling rate. A return value of zero
@@ -91,6 +71,12 @@ class Client {
  private:
   const char* GetStackBase();
 
+  // Add address to buffer of deallocations. Flush if necessary.
+  // Can be called from any thread. Must not hold free_batch_lock_.
+  bool AddFreeToBatch(uint64_t addr, uint64_t sequence_number);
+  // Flush the contents of free_batch_. Must hold free_batch_lock_.
+  bool FlushFreesLocked();
+
   // TODO(rsavitski): used to check if the client is completely initialized
   // after construction. The reads in RecordFree & GetSampleSizeLocked are no
   // longer necessary (was an optimization to not do redundant work after
@@ -101,7 +87,11 @@ class Client {
   // sampler_ operations are not thread-safe.
   Sampler sampler_;
   base::UnixSocketRaw sock_;
-  FreePage free_page_;
+
+  // Protected by free_batch_lock_.
+  FreeBatch free_batch_;
+  std::timed_mutex free_batch_lock_;
+
   const char* main_thread_stack_base_ = nullptr;
   std::atomic<uint64_t> sequence_number_{0};
   SharedRingBuffer shmem_;
