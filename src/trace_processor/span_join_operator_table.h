@@ -198,6 +198,7 @@ class SpanJoinOperatorTable : public Table {
     }
 
     int64_t CursorPartition() const {
+      PERFETTO_DCHECK(defn_->IsPartitioned());
       auto partition_idx = static_cast<int>(defn_->partition_idx());
       return sqlite3_column_int64(stmt_.get(), partition_idx);
     }
