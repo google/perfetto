@@ -86,10 +86,6 @@ base::Optional<Table::Schema> SpanJoinOperatorTable::Init(
                   t1_desc.partition_col.c_str(), t2_desc.partition_col.c_str());
     return base::nullopt;
   } else {
-    if (IsLeftJoin()) {
-      PERFETTO_ELOG("span_left_join not supported for mixed partitioning");
-      return base::nullopt;
-    }
     partitioning_ = PartitioningType::kMixedPartitioning;
   }
 
@@ -250,14 +246,22 @@ int SpanJoinOperatorTable::Cursor::Initialize(const QueryConstraints& qc,
   if (err != SQLITE_OK)
     return err;
 
-  // We step table 2 and allow Next() to step from table 1.
-  next_stepped_ = &t1_;
+  // Step the partitioned table to allow for us to look into it below.
+  Query* step_now = t1_.IsPartitioned() ? &t1_ : &t2_;
+  next_stepped_ = step_now == &t1_ ? &t2_ : &t1_;
 
-  auto res = t2_.Step();
-  bool is_mixed_part =
-      table_->partitioning_ == PartitioningType::kMixedPartitioning;
-  if (res.is_err() || (res.is_eof() && !is_mixed_part))
+  auto res = step_now->Step();
+  if (PERFETTO_UNLIKELY(res.is_err()))
     return res.err_code;
+
+  // Forward the unpartitioned table to reflect the partition of the partitoined
+  // table.
+  if (table_->partitioning_ == PartitioningType::kMixedPartitioning) {
+    PERFETTO_DCHECK(step_now->IsPartitioned());
+    res = next_stepped_->StepToPartition(step_now->partition());
+    if (PERFETTO_UNLIKELY(res.is_err()))
+      return res.err_code;
+  }
 
   // Otherwise, find an overlapping span.
   return Next();
