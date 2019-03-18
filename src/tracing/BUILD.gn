@@ -45,6 +45,7 @@ source_set("tracing") {
     "core/inode_file_config.cc",
     "core/null_trace_writer.cc",
     "core/null_trace_writer.h",
+    "core/observable_events.cc",
     "core/packet_stream_validator.cc",
     "core/packet_stream_validator.h",
     "core/patch_list.h",

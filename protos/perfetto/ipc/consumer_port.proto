@@ -17,6 +17,7 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
+import "perfetto/common/observable_events.proto";
 import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 
@@ -92,6 +93,11 @@ service ConsumerPort {
   // Allows the consumer to obtain statistics about the current tracing session,
   // such as buffer usage stats. Intended for debugging or UI use.
   rpc GetTraceStats(GetTraceStatsRequest) returns (GetTraceStatsResponse) {}
+
+  // Allows the consumer to observe certain state changes, such as data source
+  // instances starting to record.
+  rpc ObserveEvents(ObserveEventsRequest)
+      returns (stream ObserveEventsResponse) {}
 
   // TODO rpc ListDataSources(), for the UI.
 }
@@ -194,4 +200,16 @@ message GetTraceStatsRequest {}
 
 message GetTraceStatsResponse {
   optional TraceStats trace_stats = 1;
+}
+
+// Arguments for rpc ObserveEvents.
+
+// To stop observing events of a certain type, send a request with the remaining
+// types. To stop observing completely, send an empty request.
+message ObserveEventsRequest {
+  repeated ObservableEvents.Type events_to_observe = 1;
+}
+
+message ObserveEventsResponse {
+  optional ObservableEvents events = 1;
 }

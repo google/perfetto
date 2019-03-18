@@ -61,6 +61,7 @@ class PerfettoCmd : public Consumer {
   void OnDetach(bool) override;
   void OnAttach(bool, const TraceConfig&) override;
   void OnTraceStats(bool, const TraceStats&) override;
+  void OnObservableEvents(const ObservableEvents&) override;
 
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
