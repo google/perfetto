@@ -88,6 +88,7 @@ struct RecordMemory {
 
 RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   std::unique_ptr<AllocMetadata> metadata(new AllocMetadata);
+  *metadata = {};
 
   const char* stackbase = GetThreadStackBase();
   const char* stacktop = reinterpret_cast<char*>(__builtin_frame_address(0));
