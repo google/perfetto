@@ -79,7 +79,7 @@ class HeapprofdDelegate : public ThreadDelegate {
 };
 
 constexpr const char* kEnableHeapprofdProperty = "persist.heapprofd.enable";
-constexpr const char* kHeapprofdModeProperty = "heapprofd.usedebug.mode";
+constexpr const char* kHeapprofdModeProperty = "heapprofd.userdebug.mode";
 
 std::string ReadProperty(const std::string& name, std::string def) {
   const prop_info* pi = __system_property_find(name.c_str());
