@@ -119,6 +119,20 @@ TEST(SliceTrackerTest, Scoped) {
               ElementsAre(SliceInfo{0, 10}, SliceInfo{1, 8}, SliceInfo{2, 6}));
 }
 
+TEST(SliceTrackerTest, IgnoreMismatchedEnds) {
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  SliceTracker tracker(&context);
+
+  tracker.Begin(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/);
+  tracker.End(3 /*ts*/, 42 /*tid*/, 1 /*cat*/, 1 /*name*/);
+  tracker.End(4 /*ts*/, 42 /*tid*/, 0 /*cat*/, 2 /*name*/);
+  tracker.End(5 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/);
+
+  auto slices = ToSliceInfo(context.storage->nestable_slices());
+  EXPECT_THAT(slices, ElementsAre(SliceInfo{2, 3}));
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
