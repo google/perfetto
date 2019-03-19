@@ -32,6 +32,7 @@ constexpr const char* kPropertyName = "persist.heapprofd.enable";
 using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Return;
+using ::testing::InvokeWithoutArgs;
 
 class MockLazyProducer : public LazyProducer {
  public:
@@ -46,19 +47,25 @@ TEST(LazyProducersTest, Simple) {
   DataSourceConfig cfg;
   cfg.set_name(kDataSourceName);
   base::TestTaskRunner task_runner;
+  auto done = task_runner.CreateCheckpoint("done");
   MockLazyProducer p(&task_runner);
   InSequence s;
   EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "1")).WillOnce(Return(true));
-  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "0")).WillOnce(Return(true));
+  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "0"))
+      .WillOnce(InvokeWithoutArgs([&done]() {
+        done();
+        return true;
+      }));
   p.SetupDataSource(1, cfg);
   p.StopDataSource(1);
-  task_runner.RunUntilIdle();
+  task_runner.RunUntilCheckpoint("done");
 }
 
 TEST(LazyProducersTest, RefCount) {
   DataSourceConfig cfg;
   cfg.set_name(kDataSourceName);
   base::TestTaskRunner task_runner;
+  auto done = task_runner.CreateCheckpoint("done");
   MockLazyProducer p(&task_runner);
   InSequence s;
   EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "1"))
@@ -67,15 +74,20 @@ TEST(LazyProducersTest, RefCount) {
   p.SetupDataSource(2, cfg);
   p.StopDataSource(2);
   task_runner.RunUntilIdle();
-  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "0")).WillOnce(Return(true));
+  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "0"))
+      .WillOnce(InvokeWithoutArgs([&done]() {
+        done();
+        return true;
+      }));
   p.StopDataSource(1);
-  task_runner.RunUntilIdle();
+  task_runner.RunUntilCheckpoint("done");
 }
 
 TEST(LazyProducersTest, NoFlap) {
   DataSourceConfig cfg;
   cfg.set_name(kDataSourceName);
   base::TestTaskRunner task_runner;
+  auto done = task_runner.CreateCheckpoint("done");
   MockLazyProducer p(&task_runner);
   InSequence s;
   EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "1"))
@@ -85,8 +97,12 @@ TEST(LazyProducersTest, NoFlap) {
   p.SetupDataSource(2, cfg);
   task_runner.RunUntilIdle();
   p.StopDataSource(2);
-  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "0")).WillOnce(Return(true));
-  task_runner.RunUntilIdle();
+  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "0"))
+      .WillOnce(InvokeWithoutArgs([&done]() {
+        done();
+        return true;
+      }));
+  task_runner.RunUntilCheckpoint("done");
 }
 
 }  // namespace
