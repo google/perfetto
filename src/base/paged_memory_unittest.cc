@@ -132,7 +132,7 @@ TEST(PagedMemoryTest, AccessUncommittedMemoryTriggersASAN) {
         ptr_raw[kMappedSize] = 'x';
         abort();
       },
-      "AddressSanitizer: container-overflow.*");
+      "AddressSanitizer: .*");
 }
 #endif  // ADDRESS_SANITIZER
 
