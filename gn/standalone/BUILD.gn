@@ -35,6 +35,7 @@ config("extra_warnings") {
       "-Wno-gnu-zero-variadic-macro-arguments",
       "-Wno-padded",
       "-Wno-reserved-id-macro",
+      "-Wno-unknown-sanitizers",
     ]
   }
 }
