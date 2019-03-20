@@ -123,12 +123,16 @@ source_set("lib") {
     "window_operator_table.cc",
     "window_operator_table.h",
   ]
+
+  # TODO(primiano): remove :lite deps and depend only on protozero targets.
   deps = [
     "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../include/perfetto/traced:sys_stats_counters",
     "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/ftrace:lite",
+    "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace_processor:lite",
     "../base",
     "../protozero",
