@@ -143,11 +143,10 @@ class ProtoTraceParser {
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
 
-  static constexpr size_t kFtraceMaxFieldCount = 32;
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
     StringId message_name_id = 0;
-    std::array<StringId, kFtraceMaxFieldCount> field_name_ids;
+    std::array<StringId, kMaxFtraceEventFields> field_name_ids;
   };
   std::vector<FtraceMessageStrings> ftrace_message_strings_;
 
