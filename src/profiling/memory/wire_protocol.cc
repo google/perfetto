@@ -38,7 +38,7 @@ bool ViewAndAdvance(char** ptr, T** out, const char* end) {
 
 // We need this to prevent crashes due to FORTIFY_SOURCE.
 void UnsafeMemcpy(char* dest, const char* src, size_t n)
-    __attribute__((no_sanitize("address"))) {
+    __attribute__((no_sanitize("address", "hwaddress"))) {
   for (size_t i = 0; i < n; ++i) {
     dest[i] = src[i];
   }
