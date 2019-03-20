@@ -19,21 +19,29 @@
 #include <string.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 
 namespace protozero {
 
 using namespace proto_utils;
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define BYTE_SWAP_TO_LE32(x) (x)
-#define BYTE_SWAP_TO_LE64(x) (x)
-#else
+#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
 #error Unimplemented for big endian archs.
 #endif
 
-ProtoDecoder::Field ProtoDecoder::ReadField() {
-  Field field{};
+namespace {
+
+struct ParseFieldResult {
+  const uint8_t* next;
+  Field field;
+};
+
+// Parses one field and returns the field itself and a pointer to the next
+// field to parse. If parsing fails, the returned |next| == |buffer|.
+PERFETTO_ALWAYS_INLINE ParseFieldResult
+ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
+  ParseFieldResult res{buffer, Field{}};
 
   // The first byte of a proto field is structured as follows:
   // The least 3 significant bits determine the field type.
@@ -41,99 +49,161 @@ ProtoDecoder::Field ProtoDecoder::ReadField() {
   // field id continues on the next bytes following the VarInt encoding.
   const uint8_t kFieldTypeNumBits = 3;
   const uint64_t kFieldTypeMask = (1 << kFieldTypeNumBits) - 1;  // 0000 0111;
-
-  const uint8_t* end = buffer_ + length_;
-  const uint8_t* pos = current_position_;
-  PERFETTO_DCHECK(pos >= buffer_);
-  PERFETTO_DCHECK(pos <= end);
+  const uint8_t* pos = buffer;
 
   // If we've already hit the end, just return an invalid field.
-  if (pos >= end) {
-    return field;
-  }
+  if (PERFETTO_UNLIKELY(pos >= end))
+    return res;
 
-  uint64_t raw_field_id = 0;
-  if (PERFETTO_LIKELY(*pos < 0x80)) {
-    raw_field_id = *(pos++);  // Fastpath for fields with ID < 32.
+  uint64_t preamble = 0;
+  if (PERFETTO_LIKELY(*pos < 0x80)) {  // Fastpath for fields with ID < 32.
+    preamble = *(pos++);
   } else {
-    pos = ParseVarInt(pos, end, &raw_field_id);
+    pos = ParseVarInt(pos, end, &preamble);
   }
 
-  uint32_t field_id = static_cast<uint32_t>(raw_field_id >> kFieldTypeNumBits);
-  if (field_id == 0 || pos >= end) {
-    return field;
-  }
+  uint32_t field_id = static_cast<uint32_t>(preamble >> kFieldTypeNumBits);
+  if (field_id == 0 || pos >= end)
+    return res;
 
-  field.type = static_cast<ProtoWireType>(raw_field_id & kFieldTypeMask);
+  auto field_type = static_cast<uint8_t>(preamble & kFieldTypeMask);
+  const uint8_t* new_pos = pos;
+  uint64_t int_value = 0;
+  uint32_t size = 0;
 
-  const uint8_t* new_pos = nullptr;
-  uint64_t field_intvalue = 0;
-  switch (field.type) {
-    case ProtoWireType::kVarInt: {
-      new_pos = ParseVarInt(pos, end, &field.int_value);
+  switch (field_type) {
+    case static_cast<uint8_t>(ProtoWireType::kVarInt): {
+      new_pos = ParseVarInt(pos, end, &int_value);
 
       // new_pos not being greater than pos means ParseVarInt could not fully
       // parse the number. This is because we are out of space in the buffer.
       // Set the id to zero and return but don't update the offset so a future
       // read can read this field.
-      if (new_pos == pos) {
-        return field;
-      }
-      pos = new_pos;
+      if (PERFETTO_UNLIKELY(new_pos == pos))
+        return res;
+
       break;
     }
-    case ProtoWireType::kLengthDelimited: {
-      new_pos = ParseVarInt(pos, end, &field_intvalue);
 
-      // new_pos not being greater than pos means ParseVarInt could not fully
-      // parse the number. This is because we are out of space in the buffer.
-      // Alternatively, we may not have space to fully read the length
-      // delimited field. Set the id to zero and return but don't update the
-      // offset so a future read can read this field.
-      // It is safe to static_cast end - new_pos as new_pos will be <= end after
-      // ParseVarInt.
-      if (new_pos == pos ||
-          field_intvalue > static_cast<uint64_t>(end - new_pos)) {
-        return field;
-      }
+    case static_cast<uint8_t>(ProtoWireType::kLengthDelimited): {
+      uint64_t payload_length;
+      new_pos = ParseVarInt(pos, end, &payload_length);
+      if (PERFETTO_UNLIKELY(new_pos == pos))
+        return res;
+
+      // ParseVarInt guarantees that |new_pos| <= |end| when it succeeds;
+      if (payload_length > static_cast<uint64_t>(end - new_pos))
+        return res;
 
       // If the message is larger than 256 MiB silently skip it.
-      if (field_intvalue >= proto_utils::kMaxMessageLength) {
-        current_position_ = new_pos + field_intvalue;
-        return ReadField();
+      if (PERFETTO_LIKELY(payload_length <= proto_utils::kMaxMessageLength)) {
+        const uintptr_t payload_start = reinterpret_cast<uintptr_t>(new_pos);
+        int_value = payload_start;
+        size = static_cast<uint32_t>(payload_length);
       }
 
-      pos = new_pos;
-      field.length_limited.data = pos;
-      field.length_limited.length = static_cast<size_t>(field_intvalue);
-      pos += field_intvalue;
+      new_pos += payload_length;
       break;
     }
-    case ProtoWireType::kFixed64: {
-      if (pos + sizeof(uint64_t) > end) {
-        return field;
-      }
-      memcpy(&field_intvalue, pos, sizeof(uint64_t));
-      field.int_value = BYTE_SWAP_TO_LE64(field_intvalue);
-      pos += sizeof(uint64_t);
+
+    case static_cast<uint8_t>(ProtoWireType::kFixed64): {
+      new_pos = pos + sizeof(uint64_t);
+      if (PERFETTO_UNLIKELY(new_pos > end))
+        return res;
+      memcpy(&int_value, pos, sizeof(uint64_t));
       break;
     }
-    case ProtoWireType::kFixed32: {
-      if (pos + sizeof(uint32_t) > end) {
-        return field;
-      }
-      uint32_t tmp;
-      memcpy(&tmp, pos, sizeof(uint32_t));
-      field.int_value = BYTE_SWAP_TO_LE32(tmp);
-      pos += sizeof(uint32_t);
+
+    case static_cast<uint8_t>(ProtoWireType::kFixed32): {
+      new_pos = pos + sizeof(uint32_t);
+      if (PERFETTO_UNLIKELY(new_pos > end))
+        return res;
+      memcpy(&int_value, pos, sizeof(uint32_t));
+      break;
+    }
+
+    default:
+      PERFETTO_DLOG("Invalid proto field type: %u", field_type);
+      return res;
+  }
+
+  if (PERFETTO_UNLIKELY(field_id > std::numeric_limits<uint16_t>::max())) {
+    PERFETTO_DFATAL("Cannot parse proto field ids > 0xFFFF");
+    return res;
+  }
+
+  res.field.initialize(static_cast<uint16_t>(field_id), field_type, int_value,
+                       size);
+  res.next = new_pos;
+  return res;
+}
+
+}  // namespace
+
+Field ProtoDecoder::FindField(uint32_t field_id) {
+  Field res;
+  auto old_position = read_ptr_;
+  read_ptr_ = begin_;
+  for (auto f = ReadField(); f.valid(); f = ReadField()) {
+    if (f.id() == field_id) {
+      res = f;
       break;
     }
   }
-  // Set the field id to make the returned value valid and update the current
-  // position in the buffer.
-  field.id = field_id;
-  current_position_ = pos;
-  return field;
+  read_ptr_ = old_position;
+  return res;
+}
+
+PERFETTO_ALWAYS_INLINE
+Field ProtoDecoder::ReadField() {
+  ParseFieldResult res = ParseOneField(read_ptr_, end_);
+  read_ptr_ = res.next;
+  return res.field;
+}
+
+void TypedProtoDecoderBase::ParseAllFields() {
+  const uint8_t* cur = begin_;
+  ParseFieldResult res;
+  for (;;) {
+    res = ParseOneField(cur, end_);
+    if (res.next == cur)
+      break;
+    cur = res.next;
+
+    auto field_id = res.field.id();
+    if (PERFETTO_UNLIKELY(field_id >= size_))
+      continue;
+
+    Field* fld = &fields_[field_id];
+    if (PERFETTO_LIKELY(!fld->valid())) {
+      // This is the first time we see this field.
+      *fld = std::move(res.field);
+    } else {
+      // Repeated field case. Append to the end of the |fields_| vector.
+      // The RepeatedFieldIterator will find first the one at fields_[id] and
+      // then will keep finding the other repeated fields with matching id.
+      if (PERFETTO_UNLIKELY(size_ == capacity_)) {
+        ExpandHeapStorage();
+        PERFETTO_DCHECK(size_ < capacity_);
+      }
+      fields_[size_++] = std::move(res.field);
+    }
+  }
+  read_ptr_ = res.next;
+}
+
+void TypedProtoDecoderBase::ExpandHeapStorage() {
+  uint32_t new_capacity = capacity_ * 2;
+  PERFETTO_CHECK(new_capacity > size_);
+  std::unique_ptr<Field[]> new_storage(new Field[new_capacity]);
+
+  static_assert(std::is_trivially_copyable<Field>::value,
+                "Field must be trivially copyable");
+  memcpy(&new_storage[0], fields_, sizeof(Field) * size_);
+
+  heap_storage_ = std::move(new_storage);
+  fields_ = &heap_storage_[0];
+  capacity_ = new_capacity;
 }
 
 }  // namespace protozero

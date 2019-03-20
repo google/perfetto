@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/proto_library.gni")
 import("../../gn/protozero_library.gni")
@@ -30,7 +31,6 @@ source_set("protozero") {
     "message.cc",
     "message_handle.cc",
     "proto_decoder.cc",
-    "proto_field_descriptor.cc",
     "scattered_heap_buffer.cc",
     "scattered_stream_null_delegate.cc",
     "scattered_stream_writer.cc",
@@ -89,4 +89,14 @@ proto_library("testing_messages_lite") {
   sources = testing_proto_sources
   proto_in_dir = perfetto_root_path
   proto_out_dir = perfetto_root_path
+}
+
+perfetto_fuzzer_test("protozero_decoder_fuzzer") {
+  sources = [
+    "proto_decoder_fuzzer.cc",
+  ]
+  deps = [
+    ":protozero",
+    "../../gn:default_deps",
+  ]
 }
