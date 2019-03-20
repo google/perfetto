@@ -117,7 +117,14 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   return {std::move(payload), std::move(metadata)};
 }
 
-TEST(UnwindingTest, DoUnwind) {
+// TODO(rsavitski): Investigate TSAN unwinding.
+#if defined(THREAD_SANITIZER)
+#define MAYBE_DoUnwind DISABLED_DoUnwind
+#else
+#define MAYBE_DoUnwind DoUnwind
+#endif
+
+TEST(UnwindingTest, MAYBE_DoUnwind) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   GlobalCallstackTrie callsites;
