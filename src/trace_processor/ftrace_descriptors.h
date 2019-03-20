@@ -25,6 +25,10 @@ namespace trace_processor {
 
 using protozero::proto_utils::ProtoSchemaType;
 
+// We assume that no ftrace event (e.g. SchedSwitchFtraceEvent) has a proto
+// field which id is >= this.
+static constexpr size_t kMaxFtraceEventFields = 32;
+
 // This file is the header for the generated descriptors for all ftrace event
 // protos. These descriptors can be used to parse ftrace event protos without
 // needing individual parsing logic for every event. (In proto_trace_parser.cc)
@@ -39,7 +43,7 @@ struct FieldDescriptor {
 struct MessageDescriptor {
   const char* name;
   size_t max_field_id;
-  FieldDescriptor fields[32];
+  FieldDescriptor fields[kMaxFtraceEventFields];
 };
 
 MessageDescriptor* GetMessageDescriptorForId(size_t id);
