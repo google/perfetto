@@ -202,7 +202,7 @@ TEST(SharedRingBufferTest, MultiThreadingTest) {
     }
     std::minstd_rand0 rnd_engine(static_cast<uint32_t>(thread_id));
     std::uniform_int_distribution<size_t> dist(1, base::kPageSize * 8);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 1000; i++) {
       size_t size = dist(rnd_engine);
       ASSERT_GT(size, 0);
       std::string data;
