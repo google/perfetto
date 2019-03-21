@@ -59,6 +59,8 @@ class TestConfig_DummyFields;
 class TraceConfig_ProducerConfig;
 class TraceConfig_StatsdMetadata;
 class TraceConfig_GuardrailOverrides;
+class TraceConfig_TriggerConfig;
+class TraceConfig_TriggerConfig_Trigger;
 }  // namespace protos
 }  // namespace perfetto
 
@@ -269,6 +271,93 @@ class PERFETTO_EXPORT TraceConfig {
     std::string unknown_fields_;
   };
 
+  class PERFETTO_EXPORT TriggerConfig {
+   public:
+    enum TriggerMode {
+      UNSPECIFIED = 0,
+      START_TRACING = 1,
+      STOP_TRACING = 2,
+    };
+
+    class PERFETTO_EXPORT Trigger {
+     public:
+      Trigger();
+      ~Trigger();
+      Trigger(Trigger&&) noexcept;
+      Trigger& operator=(Trigger&&);
+      Trigger(const Trigger&);
+      Trigger& operator=(const Trigger&);
+      bool operator==(const Trigger&) const;
+      bool operator!=(const Trigger& other) const { return !(*this == other); }
+
+      // Conversion methods from/to the corresponding protobuf types.
+      void FromProto(
+          const perfetto::protos::TraceConfig_TriggerConfig_Trigger&);
+      void ToProto(perfetto::protos::TraceConfig_TriggerConfig_Trigger*) const;
+
+      const std::string& name() const { return name_; }
+      void set_name(const std::string& value) { name_ = value; }
+
+      const std::string& producer_name_regex() const {
+        return producer_name_regex_;
+      }
+      void set_producer_name_regex(const std::string& value) {
+        producer_name_regex_ = value;
+      }
+
+      uint32_t stop_delay_ms() const { return stop_delay_ms_; }
+      void set_stop_delay_ms(uint32_t value) { stop_delay_ms_ = value; }
+
+     private:
+      std::string name_ = {};
+      std::string producer_name_regex_ = {};
+      uint32_t stop_delay_ms_ = {};
+
+      // Allows to preserve unknown protobuf fields for compatibility
+      // with future versions of .proto files.
+      std::string unknown_fields_;
+    };
+
+    TriggerConfig();
+    ~TriggerConfig();
+    TriggerConfig(TriggerConfig&&) noexcept;
+    TriggerConfig& operator=(TriggerConfig&&);
+    TriggerConfig(const TriggerConfig&);
+    TriggerConfig& operator=(const TriggerConfig&);
+    bool operator==(const TriggerConfig&) const;
+    bool operator!=(const TriggerConfig& other) const {
+      return !(*this == other);
+    }
+
+    // Conversion methods from/to the corresponding protobuf types.
+    void FromProto(const perfetto::protos::TraceConfig_TriggerConfig&);
+    void ToProto(perfetto::protos::TraceConfig_TriggerConfig*) const;
+
+    TriggerMode trigger_mode() const { return trigger_mode_; }
+    void set_trigger_mode(TriggerMode value) { trigger_mode_ = value; }
+
+    int triggers_size() const { return static_cast<int>(triggers_.size()); }
+    const std::vector<Trigger>& triggers() const { return triggers_; }
+    std::vector<Trigger>* mutable_triggers() { return &triggers_; }
+    void clear_triggers() { triggers_.clear(); }
+    Trigger* add_triggers() {
+      triggers_.emplace_back();
+      return &triggers_.back();
+    }
+
+    uint32_t trigger_timeout_ms() const { return trigger_timeout_ms_; }
+    void set_trigger_timeout_ms(uint32_t value) { trigger_timeout_ms_ = value; }
+
+   private:
+    TriggerMode trigger_mode_ = {};
+    std::vector<Trigger> triggers_;
+    uint32_t trigger_timeout_ms_ = {};
+
+    // Allows to preserve unknown protobuf fields for compatibility
+    // with future versions of .proto files.
+    std::string unknown_fields_;
+  };
+
   TraceConfig();
   ~TraceConfig();
   TraceConfig(TraceConfig&&) noexcept;
@@ -364,6 +453,9 @@ class PERFETTO_EXPORT TraceConfig {
   bool notify_traceur() const { return notify_traceur_; }
   void set_notify_traceur(bool value) { notify_traceur_ = value; }
 
+  const TriggerConfig& trigger_config() const { return trigger_config_; }
+  TriggerConfig* mutable_trigger_config() { return &trigger_config_; }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -381,6 +473,7 @@ class PERFETTO_EXPORT TraceConfig {
   uint32_t flush_timeout_ms_ = {};
   bool disable_clock_snapshotting_ = {};
   bool notify_traceur_ = {};
+  TriggerConfig trigger_config_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
