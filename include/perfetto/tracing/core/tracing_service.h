@@ -128,6 +128,10 @@ class PERFETTO_EXPORT TracingService {
     // if the data source registered setting the flag
     // DataSourceDescriptor.will_notify_on_stop.
     virtual void NotifyDataSourceStopped(DataSourceInstanceID) = 0;
+
+    // This informs the service to activate any of these triggers if any tracing
+    // session was waiting for them.
+    virtual void ActivateTriggers(const std::vector<std::string>&) = 0;
   };  // class ProducerEndpoint.
 
   // The API for the Consumer port of the Service.

@@ -92,6 +92,7 @@ class TracingServiceImpl : public TracingService {
     void NotifyDataSourceStopped(DataSourceInstanceID) override;
     SharedMemory* shared_memory() const override;
     size_t shared_buffer_page_size_kb() const override;
+    void ActivateTriggers(const std::vector<std::string>&) override;
 
     void OnTracingSetup();
     void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&);

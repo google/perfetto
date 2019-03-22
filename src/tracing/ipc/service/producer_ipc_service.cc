@@ -256,6 +256,29 @@ void ProducerIPCService::NotifyDataSourceStopped(
   }
 }
 
+void ProducerIPCService::ActivateTriggers(
+    const protos::ActivateTriggersRequest& proto_req,
+    DeferredActivateTriggersResponse resp) {
+  RemoteProducer* producer = GetProducerForCurrentRequest();
+  if (!producer) {
+    PERFETTO_DLOG(
+        "Producer invoked ActivateTriggers() before InitializeConnection()");
+    if (resp.IsBound())
+      resp.Reject();
+    return;
+  }
+  std::vector<std::string> triggers;
+  for (const auto& name : proto_req.trigger_names()) {
+    triggers.push_back(name);
+  }
+  producer->service_endpoint->ActivateTriggers(triggers);
+  // ActivateTriggers shouldn't expect any meaningful response, avoid
+  // a useless IPC in that case.
+  if (resp.IsBound()) {
+    resp.Resolve(ipc::AsyncResult<protos::ActivateTriggersResponse>::Create());
+  }
+}
+
 void ProducerIPCService::GetAsyncCommand(
     const protos::GetAsyncCommandRequest&,
     DeferredGetAsyncCommandResponse response) {

@@ -2428,6 +2428,11 @@ size_t TracingServiceImpl::ProducerEndpointImpl::shared_buffer_page_size_kb()
   return shared_buffer_page_size_kb_;
 }
 
+void TracingServiceImpl::ProducerEndpointImpl::ActivateTriggers(
+    const std::vector<std::string>& triggers) {
+  service_->ActivateTriggers(id_, triggers);
+}
+
 void TracingServiceImpl::ProducerEndpointImpl::StopDataSource(
     DataSourceInstanceID ds_inst_id) {
   // TODO(primiano): When we'll support tearing down the SMB, at this point we
