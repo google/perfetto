@@ -22,6 +22,8 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <string.h>
+#include <regex>
+#include <unordered_set>
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/uio.h>
@@ -105,6 +107,12 @@ uid_t geteuid() {
   return 0;
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+bool HasStartTracingTrigger(const perfetto::TraceConfig& cfg) {
+  return !cfg.trigger_config().triggers().empty() &&
+         cfg.trigger_config().trigger_mode() ==
+             TraceConfig::TriggerConfig::START_TRACING;
+}
 
 }  // namespace
 
@@ -311,6 +319,31 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     return false;
   }
 
+  const bool has_start_trigger = HasStartTracingTrigger(cfg);
+  if (has_start_trigger && (cfg.trigger_config().trigger_timeout_ms() == 0 ||
+                            cfg.trigger_config().trigger_timeout_ms() >
+                                kGuardrailsMaxTracingDurationMillis)) {
+    PERFETTO_ELOG(
+        "Traces with START_TRACING triggers must provide a positive "
+        "trigger_timeout_ms < 7 days (received %" PRIu32 "ms)",
+        cfg.trigger_config().trigger_timeout_ms());
+    return false;
+  }
+
+  if (has_start_trigger && cfg.duration_ms() != 0) {
+    PERFETTO_ELOG(
+        "duration_ms was set, this field is ignored for traces with triggers.");
+    return false;
+  }
+
+  std::unordered_set<std::string> triggers;
+  for (const auto& trigger : cfg.trigger_config().triggers()) {
+    if (!triggers.insert(trigger.name()).second) {
+      PERFETTO_ELOG("Duplicate trigger name: %s", trigger.name().c_str());
+      return false;
+    }
+  }
+
   if (cfg.enable_extra_guardrails()) {
     if (cfg.deferred_start()) {
       PERFETTO_ELOG(
@@ -443,9 +476,23 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       cfg.data_sources().size(), cfg.duration_ms(), cfg.buffers_size(),
       total_buf_size_kb, tracing_sessions_.size());
 
+  // For traces which use START_TRACE triggers we need to ensure that the
+  // tracing session will be cleaned up when it times out.
+  if (has_start_trigger) {
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+    task_runner_->PostDelayedTask(
+        [weak_this, tsid]() {
+          if (weak_this)
+            weak_this->OnStartTriggersTimeout(tsid);
+        },
+        cfg.trigger_config().trigger_timeout_ms());
+  }
+
   // Start the data sources, unless this is a case of early setup + fast
-  // triggering, using TraceConfig.deferred_start.
-  if (!cfg.deferred_start())
+  // triggering, either through TraceConfig.deferred_start or
+  // TraceConfig.trigger_config(). If both are specified which ever one occurs
+  // first will initiate the trace.
+  if (!cfg.deferred_start() && !has_start_trigger)
     return StartTracing(tsid);
 
   return true;
@@ -792,6 +839,68 @@ void TracingServiceImpl::NotifyDataSourceStopped(
     // All data sources acked the termination.
     DisableTracingNotifyConsumerAndFlushFile(&tracing_session);
   }  // for (tracing_session)
+}
+
+void TracingServiceImpl::ActivateTriggers(
+    ProducerID producer_id,
+    const std::vector<std::string>& triggers) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto* producer = GetProducer(producer_id);
+  PERFETTO_DCHECK(producer);
+  for (const auto& trigger_name : triggers) {
+    for (auto& id_and_tracing_session : tracing_sessions_) {
+      auto& tracing_session = id_and_tracing_session.second;
+      auto iter = std::find_if(
+          tracing_session.config.trigger_config().triggers().begin(),
+          tracing_session.config.trigger_config().triggers().end(),
+          [&trigger_name](const TraceConfig::TriggerConfig::Trigger& trigger) {
+            return trigger.name() == trigger_name;
+          });
+      if (iter == tracing_session.config.trigger_config().triggers().end()) {
+        continue;
+      }
+
+      // If this trigger requires a certain producer to have sent it
+      // (non-empty producer_name()) ensure the producer who sent this trigger
+      // matches.
+      if (!iter->producer_name_regex().empty() &&
+          !std::regex_match(producer->name_,
+                            std::regex(iter->producer_name_regex()))) {
+        continue;
+      }
+
+      // TODO(nuskos): Currently we store these triggers but don't actually
+      // return them inside ReadBuffers. In a followup CL add this
+      // functionality. Ensure that there is no race condition between
+      // future triggers being added and ReadBuffers processing this vector.
+      tracing_session.received_triggers.push_back(std::make_pair(
+          static_cast<uint64_t>(base::GetBootTimeNs().count()), *iter));
+      switch (tracing_session.config.trigger_config().trigger_mode()) {
+        case TraceConfig::TriggerConfig::START_TRACING:
+          // If the session has already been triggered and moved past
+          // CONFIGURED then we don't need to repeat StartTracing. This would
+          // work fine (StartTracing would return false) but would add error
+          // logs.
+          if (tracing_session.state == TracingSession::CONFIGURED) {
+            PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
+                          " with duration of %" PRIu32 "ms.",
+                          iter->name().c_str(), id_and_tracing_session.first,
+                          iter->stop_delay_ms());
+            // We override the trace duration to be the trigger's requested
+            // value, this ensures that the trace will end after this amount
+            // of time has passed.
+            tracing_session.config.set_duration_ms(iter->stop_delay_ms());
+            StartTracing(id_and_tracing_session.first);
+          }
+          break;
+        case TraceConfig::TriggerConfig::UNSPECIFIED:
+        case TraceConfig::TriggerConfig::STOP_TRACING:
+          // TODO(nuskos): Add finalize in followup CL and choose which mode
+          // is the default for UNSPECIFIED.
+          break;
+      }
+    }
+  }
 }
 
 // Always invoked kDataSourceStopTimeoutMs after DisableTracing(). In nominal
@@ -1141,6 +1250,20 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     if (consumer)
       PERFETTO_DLOG("Cannot ReadBuffers(): no tracing session is active");
     return;  // TODO(primiano): signal failure?
+  }
+
+  // When a tracing session is waiting for a trigger it is considered empty. If
+  // a tracing session finishes and moves into DISABLED without ever receiving a
+  // trigger the trace should never return any data. This includes the synthetic
+  // packets like TraceConfig and Clock snapshots. So we bail out early and let
+  // the consumer know there is no data.
+  if (!tracing_session->config.trigger_config().triggers().empty() &&
+      tracing_session->received_triggers.empty()) {
+    if (consumer)
+      consumer->consumer_->OnTraceData({}, /* has_more = */ false);
+    PERFETTO_DLOG(
+        "ReadBuffers(): tracing session has not received a trigger yet.");
+    return;
   }
 
   // This can happen if the file is closed by a previous task because it reaches
@@ -1748,6 +1871,30 @@ TraceBuffer* TracingServiceImpl::GetBufferByID(BufferID buffer_id) {
   if (buf_iter == buffers_.end())
     return nullptr;
   return &*buf_iter->second;
+}
+
+void TracingServiceImpl::OnStartTriggersTimeout(TracingSessionID tsid) {
+  // Skip entirely the flush if the trace session doesn't exist anymore.
+  // This is to prevent misleading error messages to be logged.
+  //
+  // if the trace has started from the trigger we rely on
+  // the |stop_delay_ms| from the trigger so don't flush and
+  // disable if we've moved beyond a CONFIGURED state
+  auto* tracing_session_ptr = GetTracingSession(tsid);
+  if (tracing_session_ptr &&
+      tracing_session_ptr->state == TracingSession::CONFIGURED) {
+    PERFETTO_DLOG("Disabling TracingSession %" PRIu64
+                  " since no triggers activated.",
+                  tsid);
+    // No data should be returned from ReadBuffers() regardless of if we
+    // call FreeBuffers() or DisableTracing(). This is because in
+    // STOP_TRACING we need this promise in either case, and using
+    // DisableTracing() allows a graceful shutdown. Consumers can follow
+    // their normal path and check the buffers through ReadBuffers() and
+    // the code won't hang because the tracing session will still be
+    // alive just disabled.
+    DisableTracing(tsid);
+  }
 }
 
 void TracingServiceImpl::UpdateMemoryGuardrail() {
