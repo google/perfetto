@@ -126,6 +126,9 @@ class TypedProtoDecoderBase : public ProtoDecoder {
     return PERFETTO_LIKELY(id < size_) ? fields_[id] : fields_[0];
   }
 
+  // Returns an object that allows to iterate over all instances of a repeated
+  // field given its id. Example usage:
+  // for (auto it = decoder.GetRepeated(N); it; ++it) { ... }
   inline RepeatedFieldIterator GetRepeated(uint32_t field_id) const {
     return RepeatedFieldIterator(field_id, &fields_[0], &fields_[size_]);
   }
@@ -152,6 +155,9 @@ class TypedProtoDecoderBase : public ProtoDecoder {
   }
 
   void ParseAllFields();
+
+  // Called when the default on-stack storage is exhausted and new repeated
+  // fields need to be pushed.
   void ExpandHeapStorage();
 
   // Used only in presence of a large number of repeated fields, when the
