@@ -108,12 +108,6 @@ uid_t geteuid() {
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
-bool HasStartTracingTrigger(const perfetto::TraceConfig& cfg) {
-  return !cfg.trigger_config().triggers().empty() &&
-         cfg.trigger_config().trigger_mode() ==
-             TraceConfig::TriggerConfig::START_TRACING;
-}
-
 }  // namespace
 
 // These constants instead are defined in the header because are used by tests.
@@ -319,10 +313,11 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     return false;
   }
 
-  const bool has_start_trigger = HasStartTracingTrigger(cfg);
-  if (has_start_trigger && (cfg.trigger_config().trigger_timeout_ms() == 0 ||
-                            cfg.trigger_config().trigger_timeout_ms() >
-                                kGuardrailsMaxTracingDurationMillis)) {
+  const bool has_trigger_config = cfg.trigger_config().trigger_mode() !=
+                                  TraceConfig::TriggerConfig::UNSPECIFIED;
+  if (has_trigger_config && (cfg.trigger_config().trigger_timeout_ms() == 0 ||
+                             cfg.trigger_config().trigger_timeout_ms() >
+                                 kGuardrailsMaxTracingDurationMillis)) {
     PERFETTO_ELOG(
         "Traces with START_TRACING triggers must provide a positive "
         "trigger_timeout_ms < 7 days (received %" PRIu32 "ms)",
@@ -330,7 +325,7 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     return false;
   }
 
-  if (has_start_trigger && cfg.duration_ms() != 0) {
+  if (has_trigger_config && cfg.duration_ms() != 0) {
     PERFETTO_ELOG(
         "duration_ms was set, this field is ignored for traces with triggers.");
     return false;
@@ -469,24 +464,42 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
+  bool has_start_trigger = false;
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  switch (cfg.trigger_config().trigger_mode()) {
+    case TraceConfig::TriggerConfig::UNSPECIFIED:
+      // no triggers are specified so this isn't a trace that is using triggers.
+      PERFETTO_DCHECK(!has_trigger_config);
+      break;
+    case TraceConfig::TriggerConfig::START_TRACING:
+      // For traces which use START_TRACE triggers we need to ensure that the
+      // tracing session will be cleaned up when it times out.
+      has_start_trigger = true;
+      task_runner_->PostDelayedTask(
+          [weak_this, tsid]() {
+            if (weak_this)
+              weak_this->OnStartTriggersTimeout(tsid);
+          },
+          cfg.trigger_config().trigger_timeout_ms());
+      break;
+    case TraceConfig::TriggerConfig::STOP_TRACING:
+      // Update the tracing_session's duration_ms to ensure that if no trigger
+      // is received the session will end and be cleaned up equal to the
+      // timeout.
+      //
+      // TODO(nuskos): Refactor this so that rather then modifying the config we
+      // have a field we look at on the tracing_session.
+      tracing_session->config.set_duration_ms(
+          cfg.trigger_config().trigger_timeout_ms());
+      break;
+  }
+
   tracing_session->state = TracingSession::CONFIGURED;
   PERFETTO_LOG(
       "Configured tracing, #sources:%zu, duration:%d ms, #buffers:%d, total "
       "buffer size:%zu KB, total sessions:%zu",
-      cfg.data_sources().size(), cfg.duration_ms(), cfg.buffers_size(),
-      total_buf_size_kb, tracing_sessions_.size());
-
-  // For traces which use START_TRACE triggers we need to ensure that the
-  // tracing session will be cleaned up when it times out.
-  if (has_start_trigger) {
-    auto weak_this = weak_ptr_factory_.GetWeakPtr();
-    task_runner_->PostDelayedTask(
-        [weak_this, tsid]() {
-          if (weak_this)
-            weak_this->OnStartTriggersTimeout(tsid);
-        },
-        cfg.trigger_config().trigger_timeout_ms());
-  }
+      cfg.data_sources().size(), tracing_session->config.duration_ms(),
+      cfg.buffers_size(), total_buf_size_kb, tracing_sessions_.size());
 
   // Start the data sources, unless this is a case of early setup + fast
   // triggering, either through TraceConfig.deferred_start or
@@ -636,8 +649,21 @@ bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
         [weak_this, tsid] {
           // Skip entirely the flush if the trace session doesn't exist anymore.
           // This is to prevent misleading error messages to be logged.
-          if (weak_this && weak_this->GetTracingSession(tsid))
-            weak_this->FlushAndDisableTracing(tsid);
+          if (!weak_this)
+            return;
+          auto* tracing_session_ptr = weak_this->GetTracingSession(tsid);
+          if (!tracing_session_ptr)
+            return;
+          // If this trace was using STOP_TRACING triggers and we've seen
+          // one, then the trigger overrides the normal timeout. In this
+          // case we just return and let the other task clean up this trace.
+          if (tracing_session_ptr->config.trigger_config().trigger_mode() ==
+                  TraceConfig::TriggerConfig::STOP_TRACING &&
+              !tracing_session_ptr->received_triggers.empty())
+            return;
+          // In all other cases (START_TRACING or no triggers) we flush
+          // after |trace_duration_ms| unconditionally.
+          weak_this->FlushAndDisableTracing(tsid);
         },
         trace_duration_ms);
   }
@@ -850,6 +876,7 @@ void TracingServiceImpl::ActivateTriggers(
   for (const auto& trigger_name : triggers) {
     for (auto& id_and_tracing_session : tracing_sessions_) {
       auto& tracing_session = id_and_tracing_session.second;
+      TracingSessionID tsid = id_and_tracing_session.first;
       auto iter = std::find_if(
           tracing_session.config.trigger_config().triggers().begin(),
           tracing_session.config.trigger_config().triggers().end(),
@@ -873,30 +900,56 @@ void TracingServiceImpl::ActivateTriggers(
       // return them inside ReadBuffers. In a followup CL add this
       // functionality. Ensure that there is no race condition between
       // future triggers being added and ReadBuffers processing this vector.
+      const bool triggers_already_received =
+          !tracing_session.received_triggers.empty();
       tracing_session.received_triggers.push_back(std::make_pair(
           static_cast<uint64_t>(base::GetBootTimeNs().count()), *iter));
+      auto weak_this = weak_ptr_factory_.GetWeakPtr();
       switch (tracing_session.config.trigger_config().trigger_mode()) {
         case TraceConfig::TriggerConfig::START_TRACING:
           // If the session has already been triggered and moved past
           // CONFIGURED then we don't need to repeat StartTracing. This would
           // work fine (StartTracing would return false) but would add error
           // logs.
-          if (tracing_session.state == TracingSession::CONFIGURED) {
-            PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
-                          " with duration of %" PRIu32 "ms.",
-                          iter->name().c_str(), id_and_tracing_session.first,
-                          iter->stop_delay_ms());
-            // We override the trace duration to be the trigger's requested
-            // value, this ensures that the trace will end after this amount
-            // of time has passed.
-            tracing_session.config.set_duration_ms(iter->stop_delay_ms());
-            StartTracing(id_and_tracing_session.first);
-          }
+          if (tracing_session.state != TracingSession::CONFIGURED)
+            break;
+
+          PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
+                        " with duration of %" PRIu32 "ms.",
+                        iter->name().c_str(), tsid, iter->stop_delay_ms());
+          // We override the trace duration to be the trigger's requested
+          // value, this ensures that the trace will end after this amount
+          // of time has passed.
+          tracing_session.config.set_duration_ms(iter->stop_delay_ms());
+          StartTracing(tsid);
+          break;
+        case TraceConfig::TriggerConfig::STOP_TRACING:
+          // Only stop the trace once to avoid confusing log messages. I.E.
+          // when we've already hit the first trigger we've already Posted the
+          // task to FlushAndDisable. So all future triggers will just break
+          // out.
+          if (triggers_already_received)
+            break;
+
+          PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
+                        " with duration of %" PRIu32 "ms.",
+                        iter->name().c_str(), tsid, iter->stop_delay_ms());
+          // Now that we've seen a trigger we need to stop, flush, and disable
+          // this session after the configured |stop_delay_ms|.
+          task_runner_->PostDelayedTask(
+              [weak_this, tsid] {
+                // Skip entirely the flush if the trace session doesn't exist
+                // anymore. This is to prevent misleading error messages to be
+                // logged.
+                if (weak_this && weak_this->GetTracingSession(tsid))
+                  weak_this->FlushAndDisableTracing(tsid);
+              },
+              // If this trigger is zero this will immediately executable and
+              // will happen shortly.
+              iter->stop_delay_ms());
           break;
         case TraceConfig::TriggerConfig::UNSPECIFIED:
-        case TraceConfig::TriggerConfig::STOP_TRACING:
-          // TODO(nuskos): Add finalize in followup CL and choose which mode
-          // is the default for UNSPECIFIED.
+          // There are no triggers in this session move onto the next.
           break;
       }
     }
