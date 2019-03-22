@@ -286,6 +286,22 @@ void ProducerIPCClientImpl::NotifyDataSourceStopped(DataSourceInstanceID id) {
       req, ipc::Deferred<protos::NotifyDataSourceStoppedResponse>());
 }
 
+void ProducerIPCClientImpl::ActivateTriggers(
+    const std::vector<std::string>& triggers) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!connected_) {
+    PERFETTO_DLOG(
+        "Cannot ActivateTriggers(), not connected to tracing service");
+    return;
+  }
+  protos::ActivateTriggersRequest proto_req;
+  for (const auto& name : triggers) {
+    *proto_req.add_trigger_names() = name;
+  }
+  producer_port_.ActivateTriggers(
+      proto_req, ipc::Deferred<protos::ActivateTriggersResponse>());
+}
+
 std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
     BufferID target_buffer) {
   // This method can be called by different threads. |shared_memory_arbiter_| is

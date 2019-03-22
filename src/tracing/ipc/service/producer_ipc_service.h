@@ -61,6 +61,10 @@ class ProducerIPCService : public protos::ProducerPort {
   void NotifyDataSourceStopped(
       const protos::NotifyDataSourceStoppedRequest&,
       DeferredNotifyDataSourceStoppedResponse) override;
+
+  void ActivateTriggers(const protos::ActivateTriggersRequest&,
+                        DeferredActivateTriggersResponse) override;
+
   void GetAsyncCommand(const protos::GetAsyncCommandRequest&,
                        DeferredGetAsyncCommandResponse) override;
   void OnClientDisconnected() override;

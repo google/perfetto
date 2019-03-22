@@ -17,9 +17,9 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
+import "perfetto/common/commit_data_request.proto";
 import "perfetto/config/data_source_config.proto";
 import "perfetto/config/data_source_descriptor.proto";
-import "perfetto/common/commit_data_request.proto";
 
 package perfetto.protos;
 
@@ -38,6 +38,21 @@ service ProducerPort {
   rpc UnregisterDataSource(UnregisterDataSourceRequest)
       returns (UnregisterDataSourceResponse) {}
 
+  // Sent by the client to request the service to:
+  // 1) Move some chunks from the shmem buffer into the logging buffer.
+  // 2) Patch the content of some chunks previously moved.
+  // 3) Acknowledge a Flush() request.
+  rpc CommitData(protos.CommitDataRequest) returns (CommitDataResponse) {}
+
+  // This is a backchannel to get asynchronous commands / notifications back
+  // from the Service.
+  rpc GetAsyncCommand(GetAsyncCommandRequest)
+      returns (stream GetAsyncCommandResponse) {}
+
+  // ----------------------------------------------------
+  // All methods below have been introduced in Android Q.
+  // ----------------------------------------------------
+
   // Associates a trace writer with its target buffer.
   rpc RegisterTraceWriter(RegisterTraceWriterRequest)
       returns (RegisterTraceWriterResponse) {}
@@ -46,12 +61,6 @@ service ProducerPort {
   // RegisterTraceWriter.
   rpc UnregisterTraceWriter(UnregisterTraceWriterRequest)
       returns (UnregisterTraceWriterResponse) {}
-
-  // Sent by the client to request the service to:
-  // 1) Move some chunks from the shmem buffer into the logging buffer.
-  // 2) Patch the content of some chunks previously moved.
-  // 3) Acknowledge a Flush() request.
-  rpc CommitData(protos.CommitDataRequest) returns (CommitDataResponse) {}
 
   // Sent by the client in response to a StartDataSource message, when a data
   // source is successfully started. This is expected only for data sources that
@@ -65,10 +74,11 @@ service ProducerPort {
   rpc NotifyDataSourceStopped(NotifyDataSourceStoppedRequest)
       returns (NotifyDataSourceStoppedResponse) {}
 
-  // This is a backchannel to get asynchronous commands / notifications back
-  // from the Service.
-  rpc GetAsyncCommand(GetAsyncCommandRequest)
-      returns (stream GetAsyncCommandResponse) {}
+  // Sent by the client to request the service to:
+  // 1) Find all sessions which define these triggers
+  // 2) Perform an action as defined in those sessions configs.
+  rpc ActivateTriggers(ActivateTriggersRequest)
+      returns (ActivateTriggersResponse) {}
 }
 
 // Arguments for rpc InitializeConnection().
@@ -157,6 +167,14 @@ message NotifyDataSourceStoppedRequest {
 }
 
 message NotifyDataSourceStoppedResponse {}
+
+// Arguments for rpc ActivateTriggersRequest().
+
+message ActivateTriggersRequest {
+  repeated string trigger_names = 1;
+}
+
+message ActivateTriggersResponse {}
 
 // Arguments for rpc GetAsyncCommand().
 
