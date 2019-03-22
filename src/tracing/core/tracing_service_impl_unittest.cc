@@ -607,7 +607,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerMultipleTraces) {
 
   EXPECT_EQ("trigger_name",
             tracing_session_2->received_triggers[0].second.name());
-  EXPECT_EQ(1, tracing_session_2->received_triggers[0].second.stop_delay_ms());
+  EXPECT_EQ(1u, tracing_session_2->received_triggers[0].second.stop_delay_ms());
 
   EXPECT_EQ("trigger_name_2",
             tracing_session_2->received_triggers[1].second.name());
@@ -788,7 +788,7 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerRingBuffer) {
   consumer->WaitForTracingDisabled();
   // There are 5 preample packets plus the kNumTestPackets we wrote out. The
   // large_payload one should be overwritten.
-  static const int kNumPreamblePackets = 5;
+  static const uint32_t kNumPreamblePackets = 5;
   auto packets = consumer->ReadBuffers();
   EXPECT_EQ(kNumTestPackets + kNumPreamblePackets, packets.size());
   // We expect for the TraceConfig preamble packet to be there correctly and
