@@ -182,9 +182,13 @@ bool ShouldForkPrivateDaemon() {
 
 std::shared_ptr<perfetto::profiling::Client> CreateClientForCentralDaemon() {
   PERFETTO_DLOG("Constructing client for central daemon.");
+  using perfetto::profiling::Client;
 
-  return std::make_shared<perfetto::profiling::Client>(
-      perfetto::profiling::kHeapprofdSocketFile);
+  perfetto::base::Optional<perfetto::base::UnixSocketRaw> sock =
+      Client::ConnectToHeapprofd(perfetto::profiling::kHeapprofdSocketFile);
+  if (!sock)
+    return nullptr;
+  return Client::CreateAndHandshake(std::move(sock.value()));
 }
 
 std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon() {
@@ -256,7 +260,8 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon() {
     return nullptr;
   }
 
-  return std::make_shared<perfetto::profiling::Client>(std::move(parent_sock));
+  return perfetto::profiling::Client::CreateAndHandshake(
+      std::move(parent_sock));
 }
 
 }  // namespace
@@ -288,10 +293,11 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
       ShouldForkPrivateDaemon() ? CreateClientAndPrivateDaemon()
                                 : CreateClientForCentralDaemon();
 
-  if (!client || !client->inited()) {
+  if (!client) {
     PERFETTO_LOG("Client not initialized, not installing hooks.");
     return false;
   }
+  PERFETTO_DLOG("Client initialized.");
 
   g_client = std::move(client);
   return true;
