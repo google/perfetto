@@ -19,7 +19,9 @@ import("../../../../gn/protozero_library.gni")
 android_proto_names = [ "android_log.proto" ]
 
 proto_library("lite") {
-  link_deps = [ "../../common:lite" ]
+  deps = [
+    "../../common:lite",
+  ]
   generate_python = false
   sources = android_proto_names
   proto_in_dir = "$perfetto_root_path/protos"
