@@ -33,6 +33,7 @@ export function fromNs(ns: number) {
 export function timeToCode(sec: number) {
   let result = '';
   let ns = Math.round(sec * 1e9);
+  if (ns < 1) return '0s ';
   const unitAndValue = [
     ['m', 60000000000],
     ['s', 1000000000],
