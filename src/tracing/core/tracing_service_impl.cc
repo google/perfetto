@@ -816,7 +816,7 @@ void TracingServiceImpl::NotifyDataSourceStarted(
       continue;
 
     if (instance->state != DataSourceInstance::STARTING) {
-      PERFETTO_DFATAL("Data source instance in incorrect state.");
+      PERFETTO_ELOG("Data source instance in incorrect state.");
       continue;
     }
 
@@ -844,7 +844,7 @@ void TracingServiceImpl::NotifyDataSourceStopped(
       continue;
 
     if (instance->state != DataSourceInstance::STOPPING) {
-      PERFETTO_DFATAL("Data source instance in incorrect state.");
+      PERFETTO_ELOG("Data source instance in incorrect state.");
       continue;
     }
     PERFETTO_DCHECK(tracing_session.state ==
