@@ -116,7 +116,7 @@ TEST(ProtoDecoderTest, FixedData) {
     if (field.type() == ProtoWireType::kLengthDelimited) {
       ASSERT_EQ(exp.int_value, field.size());
     } else {
-      ASSERT_EQ(exp.int_value, field.as_int64());
+      ASSERT_EQ(int64_t(exp.int_value), field.as_int64());
       // Proto encodes booleans as varints of 0 or 1.
       if (exp.int_value == 0 || exp.int_value == 1) {
         ASSERT_EQ(int64_t(exp.int_value), field.as_bool());
