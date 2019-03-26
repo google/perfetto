@@ -2708,17 +2708,17 @@ message TracePacket {
   // ensure intact incremental data.
   optional bool incremental_state_cleared = 41;
 
-  // Flag set by the service if one or multiple packets on the packet's sequence
-  // were dropped since the last packet that the consumer read from the
-  // sequence. This can happen if chunks in the trace buffer are overridden
-  // before the consumer could read them when the trace is configured in ring
-  // buffer mode. This flag only affects the current packet sequence (see
-  // |trusted_packet_sequence_id|).
+  // Flag set by the service if, for the current packet sequence (see
+  // |trusted_packet_sequence_id|), either:
+  // * this is the first packet, or
+  // * one or multiple packets were dropped since the last packet that the
+  //   consumer read from the sequence. This can happen if chunks in the trace
+  //   buffer are overridden before the consumer could read them when the trace
+  //   is configured in ring buffer mode.
   //
   // When packet loss occurs, incrementally emitted data (including interned
   // data) on the sequence should be considered invalid up until the next packet
-  // with |incremental_state_cleared| set. In such a situation, the reader
-  // should skip to the next packet with this flag set.
+  // with |incremental_state_cleared| set.
   optional bool previous_packet_dropped = 42;
 }
 
