@@ -2847,7 +2847,7 @@ message ThreadDescriptor {
     THREAD_UNSPECIFIED = 0;
     // TODO(eseckler): Add thread types.
   };
-  optional ChromeThreadType thread_type = 4;
+  optional ChromeThreadType chrome_thread_type = 4;
 
   // TODO(eseckler): Replace this with ChromeThreadType where possible.
   optional string thread_name = 5;
