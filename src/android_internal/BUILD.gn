@@ -19,6 +19,7 @@ source_set("headers") {
     "../../gn:default_deps",
   ]
   sources = [
+    "atrace_hal.h",
     "health_hal.h",
     "power_stats_hal.h",
   ]
@@ -34,12 +35,14 @@ source_set("android_internal") {
   ]
   if (perfetto_build_with_android) {
     sources = [
+      "atrace_hal.cc",
       "health_hal.cc",
       "power_stats_hal.cc",
     ]
     libs = [
       "android.hardware.health@2.0",
       "android.hardware.power.stats@1.0",
+      "android.hardware.atrace@1.0",
       "base",
       "log",
       "hidlbase",

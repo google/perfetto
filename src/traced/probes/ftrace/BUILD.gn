@@ -108,15 +108,19 @@ source_set("ftrace") {
     "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../tracing",
   ]
+  libs = [ "dl" ]  # for dlopen()
   deps = [
     ":format_parser",
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/traced",
+    "../../../android_internal:headers",
     "../../../base",
     "../../../protozero",
   ]
   sources = [
+    "atrace_hal_wrapper.cc",
+    "atrace_hal_wrapper.h",
     "atrace_wrapper.cc",
     "atrace_wrapper.h",
     "cpu_reader.cc",
