@@ -168,10 +168,11 @@ void TypedProtoDecoderBase::ParseAllFields() {
     res = ParseOneField(cur, end_);
     if (res.next == cur)
       break;
+    PERFETTO_DCHECK(res.field.valid());
     cur = res.next;
 
     auto field_id = res.field.id();
-    if (PERFETTO_UNLIKELY(field_id >= size_))
+    if (PERFETTO_UNLIKELY(field_id >= num_fields_))
       continue;
 
     Field* fld = &fields_[field_id];
@@ -179,14 +180,23 @@ void TypedProtoDecoderBase::ParseAllFields() {
       // This is the first time we see this field.
       *fld = std::move(res.field);
     } else {
-      // Repeated field case. Append to the end of the |fields_| vector.
-      // The RepeatedFieldIterator will find first the one at fields_[id] and
-      // then will keep finding the other repeated fields with matching id.
-      if (PERFETTO_UNLIKELY(size_ == capacity_)) {
+      // Repeated field case.
+      // In this case we need to:
+      // 1. Append the last value of the field to end of the repeated field
+      //    storage.
+      // 2. Replace the default instance at offset |field_id| with the current
+      //    value. This is because in case of repeated field a call to Get(X) is
+      //    supposed to return the last value of X, not the first one.
+      // This is so that the RepeatedFieldIterator will iterate in the right
+      // order, see comments on RepeatedFieldIterator.
+      if (PERFETTO_UNLIKELY(size_ >= capacity_)) {
         ExpandHeapStorage();
+        // ExpandHeapStorage moves fields_ so we need to update the ptr to fld:
+        fld = &fields_[field_id];
         PERFETTO_DCHECK(size_ < capacity_);
       }
-      fields_[size_++] = std::move(res.field);
+      fields_[size_++] = *fld;
+      *fld = std::move(res.field);
     }
   }
   read_ptr_ = res.next;
