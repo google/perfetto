@@ -3175,7 +3175,6 @@ cc_binary_host {
     "src/trace_processor/trace_storage.cc",
     "src/trace_processor/virtual_destructors.cc",
     "src/trace_processor/window_operator_table.cc",
-    "tools/trace_to_text/ftrace_event_formatter.cc",
     "tools/trace_to_text/main.cc",
     "tools/trace_to_text/proto_full_utils.cc",
     "tools/trace_to_text/trace_to_profile.cc",
