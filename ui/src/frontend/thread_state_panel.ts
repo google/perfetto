@@ -16,46 +16,43 @@ import * as m from 'mithril';
 
 import {translateState} from '../common/thread_state';
 import {timeToCode} from '../common/time';
+
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
 
-interface SliceDetailsPanelAttrs {
+interface ThreadStateDetailsAttr {
   utid: number;
+  ts: number;
+  dur: number;
+  state: string;
 }
 
-export class SliceDetailsPanel extends Panel<SliceDetailsPanelAttrs> {
-  view({attrs}: m.CVnode<SliceDetailsPanelAttrs>) {
+export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
+  view({attrs}: m.CVnode<ThreadStateDetailsAttr>) {
     const threadInfo = globals.threads.get(attrs.utid);
-    const sliceInfo = globals.sliceDetails;
-    if (threadInfo && sliceInfo.ts && sliceInfo.dur) {
+    if (threadInfo) {
       return m(
           '.details-panel',
-          m('.details-panel-heading', `Slice Details:`),
+          m('.details-panel-heading', 'Thread State'),
           m('.details-table', [m('table', [
-              m('tr', m('td', `PID`), m('td', `${threadInfo.pid}`)),
-              m('tr',
-                m('td', `Process name`),
-                m('td', `${threadInfo.procName}`)),
-              m('tr', m('td', `TID`), m('td', `${threadInfo.tid}`)),
-              m('tr',
-                m('td', `Thread name`),
-                m('td', `${threadInfo.threadName}`)),
               m('tr',
                 m('td', `Start time`),
-                m('td', `${timeToCode(sliceInfo.ts)}`)),
+                m('td',
+                  `${
+                     timeToCode(attrs.ts - globals.state.traceTime.startSec)
+                   }`)),
+              m('tr', m('td', `Duration`), m('td', `${timeToCode(attrs.dur)}`)),
               m('tr',
-                m('td', `Duration`),
-                m('td', `${timeToCode(sliceInfo.dur)}`)),
-              m('tr', m('td', `Prio`), m('td', `${sliceInfo.priority}`)),
+                m('td', `State`),
+                m('td', `${translateState(attrs.state)}`)),
               m('tr',
-                m('td', `End State`),
-                m('td', `${translateState(sliceInfo.endState)}`))
-            ])], ));
+                m('td', `Process`),
+                m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
+            ])]));
+    } else {
+      return m('.details-panel');
     }
-  else {
-      return m(
-          '.details-panel', m('.details-panel-heading', `Slice Details:`, ));
   }
-}
+
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
 }

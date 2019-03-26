@@ -102,7 +102,16 @@ export interface TimeSpanSelection {
   endTs: number;
 }
 
-type Selection = NoteSelection|SliceSelection|TimeSpanSelection;
+export interface ThreadStateSelection {
+  kind: 'THREAD_STATE';
+  utid: number;
+  ts: number;
+  dur: number;
+  state: string;
+}
+
+type Selection =
+    NoteSelection|SliceSelection|TimeSpanSelection|ThreadStateSelection;
 
 export interface State {
   route: string|null;
