@@ -163,9 +163,29 @@ std::shared_ptr<Client> Client::CreateAndHandshake(base::UnixSocketRaw sock) {
 
   ClientConfiguration client_config;
   base::ScopedFile shmem_fd;
-  if (sock.Receive(&client_config, sizeof(client_config), &shmem_fd, 1) !=
-      sizeof(client_config)) {
-    PERFETTO_DFATAL("Failed to receive client config.");
+  size_t recv = 0;
+  while (recv < sizeof(client_config)) {
+    size_t num_fds = 0;
+    base::ScopedFile* fd = nullptr;
+    if (!shmem_fd) {
+      num_fds = 1;
+      fd = &shmem_fd;
+    }
+    ssize_t rd = sock.Receive(reinterpret_cast<char*>(&client_config) + recv,
+                              sizeof(client_config) - recv, fd, num_fds);
+    if (rd == -1) {
+      PERFETTO_PLOG("Failed to receive ClientConfiguration.");
+      return nullptr;
+    }
+    if (rd == 0) {
+      PERFETTO_LOG("Server disconnected while sending ClientConfiguration.");
+      return nullptr;
+    }
+    recv += static_cast<size_t>(rd);
+  }
+
+  if (!shmem_fd) {
+    PERFETTO_DFATAL("Did not receive shmem fd.");
     return nullptr;
   }
 
