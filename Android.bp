@@ -254,6 +254,7 @@ cc_library_shared {
     "src/traced/probes/filesystem/lru_inode_cache.cc",
     "src/traced/probes/filesystem/prefix_finder.cc",
     "src/traced/probes/filesystem/range_tree.cc",
+    "src/traced/probes/ftrace/atrace_hal_wrapper.cc",
     "src/traced/probes/ftrace/atrace_wrapper.cc",
     "src/traced/probes/ftrace/cpu_reader.cc",
     "src/traced/probes/ftrace/cpu_stats_parser.cc",
@@ -350,10 +351,12 @@ cc_library_shared {
 cc_library_shared {
   name: "libperfetto_android_internal",
   srcs: [
+    "src/android_internal/atrace_hal.cc",
     "src/android_internal/health_hal.cc",
     "src/android_internal/power_stats_hal.cc",
   ],
   shared_libs: [
+    "android.hardware.atrace@1.0",
     "android.hardware.health@2.0",
     "android.hardware.power.stats@1.0",
     "libbase",
@@ -615,6 +618,7 @@ cc_test {
     "src/traced/probes/filesystem/lru_inode_cache.cc",
     "src/traced/probes/filesystem/prefix_finder.cc",
     "src/traced/probes/filesystem/range_tree.cc",
+    "src/traced/probes/ftrace/atrace_hal_wrapper.cc",
     "src/traced/probes/ftrace/atrace_wrapper.cc",
     "src/traced/probes/ftrace/cpu_reader.cc",
     "src/traced/probes/ftrace/cpu_stats_parser.cc",
@@ -2915,6 +2919,7 @@ cc_test {
     "src/traced/probes/filesystem/prefix_finder_unittest.cc",
     "src/traced/probes/filesystem/range_tree.cc",
     "src/traced/probes/filesystem/range_tree_unittest.cc",
+    "src/traced/probes/ftrace/atrace_hal_wrapper.cc",
     "src/traced/probes/ftrace/atrace_wrapper.cc",
     "src/traced/probes/ftrace/cpu_reader.cc",
     "src/traced/probes/ftrace/cpu_reader_unittest.cc",
