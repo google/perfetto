@@ -167,9 +167,9 @@ class QueryWriter {
 
 }  // namespace
 
-int TraceToExperimentalSystrace(std::istream* input,
-                                std::ostream* output,
-                                bool wrap_in_json) {
+int TraceToSystrace(std::istream* input,
+                    std::ostream* output,
+                    bool wrap_in_json) {
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
@@ -287,9 +287,9 @@ int TraceToExperimentalSystrace(std::istream* input,
   return 0;
 }
 
-int TraceToSystrace(std::istream* input,
-                    std::ostream* output,
-                    bool wrap_in_json) {
+int TraceToSystraceLegacy(std::istream* input,
+                          std::ostream* output,
+                          bool wrap_in_json) {
   std::multimap<uint64_t, std::string> ftrace_sorted;
   std::vector<std::string> proc_dump;
   std::vector<std::string> thread_dump;
