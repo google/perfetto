@@ -26,4 +26,5 @@ test('seconds to code', () => {
   expect(timeToCode(0.000003)).toEqual('3us ');
   expect(timeToCode(1.000001)).toEqual('1s 1us ');
   expect(timeToCode(200.00000003)).toEqual('3m 20s 30ns ');
+  expect(timeToCode(0)).toEqual('0s ');
 });
