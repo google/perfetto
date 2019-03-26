@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 
+import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {TimeSpan} from '../common/time';
 
@@ -21,19 +22,19 @@ import {copyToClipboard} from './clipboard';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {NotesEditorPanel, NotesPanel} from './notes_panel';
-import {SliceDetailsPanel} from './slice_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {Panel} from './panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
+import {SliceDetailsPanel} from './slice_panel';
+import {ThreadStatePanel} from './thread_state_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {computeZoom} from './time_scale';
 import {TimeSelectionPanel} from './time_selection_panel';
 import {TRACK_SHELL_WIDTH} from './track_constants';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
-import {Actions} from '../common/actions';
 
 const DRAG_HANDLE_HEIGHT_PX = 28;
 const DEFAULT_DETAILS_HEIGHT_PX = 230 + DRAG_HANDLE_HEIGHT_PX;
@@ -286,6 +287,15 @@ class TraceViewer implements m.ClassComponent {
           detailsPanels.push(m(SliceDetailsPanel, {
             key: 'slice',
             utid: curSelection.utid,
+          }));
+          break;
+        case 'THREAD_STATE':
+          detailsPanels.push(m(ThreadStatePanel, {
+            key: 'thread_state',
+            ts: curSelection.ts,
+            dur: curSelection.dur,
+            utid: curSelection.utid,
+            state: curSelection.state
           }));
           break;
         default:
