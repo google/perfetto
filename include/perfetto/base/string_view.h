@@ -34,19 +34,25 @@ class StringView {
  public:
   static constexpr size_t npos = static_cast<size_t>(-1);
 
-  StringView() : data_(""), size_(0) {}
+  StringView() : data_(nullptr), size_(0) {}
   StringView(const StringView&) = default;
   StringView& operator=(const StringView&) = default;
-  StringView(const char* data, size_t size) : data_(data), size_(size) {}
+  StringView(const char* data, size_t size) : data_(data), size_(size) {
+    PERFETTO_DCHECK(data != nullptr);
+  }
 
   // Allow implicit conversion from any class that has a |data| and |size| field
   // and has the kConvertibleToStringView trait (e.g., protozero::ConstChars).
   template <typename T, typename = std::enable_if<T::kConvertibleToStringView>>
-  StringView(const T& x) : StringView(x.data, x.size) {}
+  StringView(const T& x) : StringView(x.data, x.size) {
+    PERFETTO_DCHECK(x.data != nullptr);
+  }
 
   // Creates a StringView from a null-terminated C string.
   // Deliberately not "explicit".
-  StringView(const char* cstr) : data_(cstr), size_(strlen(cstr)) {}
+  StringView(const char* cstr) : data_(cstr), size_(strlen(cstr)) {
+    PERFETTO_DCHECK(cstr != nullptr);
+  }
 
   // This instead has to be explicit, as creating a StringView out of a
   // std::string can be subtle.
@@ -80,12 +86,14 @@ class StringView {
 
   StringView substr(size_t pos, size_t count = npos) const {
     if (pos >= size_)
-      return StringView();
+      return StringView("", 0);
     size_t rcount = std::min(count, size_ - pos);
     return StringView(data_ + pos, rcount);
   }
 
-  std::string ToStdString() const { return std::string(data_, size_); }
+  std::string ToStdString() const {
+    return data_ == nullptr ? "" : std::string(data_, size_);
+  }
 
   uint64_t Hash() const {
     base::Hash hasher;
@@ -101,11 +109,33 @@ class StringView {
 inline bool operator==(const StringView& x, const StringView& y) {
   if (x.size() != y.size())
     return false;
+  if (x.size() == 0)
+    return true;
   return memcmp(x.data(), y.data(), x.size()) == 0;
 }
 
 inline bool operator!=(const StringView& x, const StringView& y) {
   return !(x == y);
+}
+
+inline bool operator<(const StringView& x, const StringView& y) {
+  auto size = std::min(x.size(), y.size());
+  if (size == 0)
+    return x.size() < y.size();
+  int result = memcmp(x.data(), y.data(), size);
+  return result < 0 || (result == 0 && x.size() < y.size());
+}
+
+inline bool operator>=(const StringView& x, const StringView& y) {
+  return !(x < y);
+}
+
+inline bool operator>(const StringView& x, const StringView& y) {
+  return y < x;
+}
+
+inline bool operator<=(const StringView& x, const StringView& y) {
+  return !(y < x);
 }
 
 }  // namespace base
