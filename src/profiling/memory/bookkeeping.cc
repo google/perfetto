@@ -124,7 +124,9 @@ void HeapTracker::CommitOperation(uint64_t sequence_number, uint64_t address) {
   //  be treated as a no-op.
 }
 
-void HeapTracker::Dump(pid_t pid, DumpState* dump_state) {
+void HeapTracker::Dump(
+    std::function<void(ProfilePacket::ProcessHeapSamples*)> fill_process_header,
+    DumpState* dump_state) {
   // There are two reasons we remove the unused callstack allocations on the
   // next iteration of Dump:
   // * We need to remove them after the callstacks were dumped, which currently
@@ -144,13 +146,13 @@ void HeapTracker::Dump(pid_t pid, DumpState* dump_state) {
 
   ProfilePacket::ProcessHeapSamples* proto =
       dump_state->current_profile_packet->add_process_dumps();
-  proto->set_pid(static_cast<uint64_t>(pid));
+  fill_process_header(proto);
   for (auto it = callstack_allocations_.begin();
        it != callstack_allocations_.end(); ++it) {
     if (dump_state->currently_written() > kPacketSizeThreshold) {
       dump_state->NewProfilePacket();
       proto = dump_state->current_profile_packet->add_process_dumps();
-      proto->set_pid(static_cast<uint64_t>(pid));
+      fill_process_header(proto);
     }
 
     const CallstackAllocations& alloc = it->second;

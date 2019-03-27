@@ -246,7 +246,10 @@ class HeapTracker {
                     uint64_t address,
                     uint64_t size,
                     uint64_t sequence_number);
-  void Dump(pid_t pid, DumpState* dump_state);
+  void Dump(
+      std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
+          fill_process_header,
+      DumpState* dump_state);
   void RecordFree(uint64_t address, uint64_t sequence_number) {
     RecordOperation(sequence_number, address);
   }
