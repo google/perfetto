@@ -67,7 +67,11 @@ message ProfilePacket {
   }
 
   repeated ProcessHeapSamples process_dumps = 5;
-  message ProcessStats { optional uint64 unwinding_errors = 1; }
+  message ProcessStats {
+    optional uint64 unwinding_errors = 1;
+    optional uint64 heap_samples = 2;
+    optional uint64 map_reparses = 3;
+  }
 
   message ProcessHeapSamples {
     optional uint64 pid = 1;
