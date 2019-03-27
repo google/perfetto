@@ -173,6 +173,13 @@ std::unique_ptr<TestHelper> GetHelper(base::TestTaskRunner* task_runner) {
   return helper;
 }
 
+std::string FormatStats(const protos::ProfilePacket_ProcessStats& stats) {
+  return std::string("unwinding_errors: ") +
+         std::to_string(stats.unwinding_errors()) + "\n" +
+         "heap_samples: " + std::to_string(stats.heap_samples()) + "\n" +
+         "map_reparses: " + std::to_string(stats.map_reparses());
+}
+
 class HeapprofdEndToEnd : public ::testing::Test {
  public:
   HeapprofdEndToEnd() {
@@ -196,6 +203,17 @@ class HeapprofdEndToEnd : public ::testing::Test {
     helper->ReadData();
     helper->WaitForReadData();
     return helper;
+  }
+
+  void PrintStats(TestHelper* helper) {
+    const auto& packets = helper->trace();
+    for (const protos::TracePacket& packet : packets) {
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        // protobuf uint64 does not like the PRIu64 formatter.
+        PERFETTO_LOG("Stats for %s: %s", std::to_string(dump.pid()).c_str(),
+                     FormatStats(dump.stats()).c_str());
+      }
+    }
   }
 
   void ValidateSampleSizes(TestHelper* helper,
@@ -310,6 +328,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
         100);
 
     auto helper = Trace(trace_config);
+    PrintStats(helper.get());
     ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
     ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
     ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
@@ -338,6 +357,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     heapprofd_config->set_all(false);
 
     auto helper = Trace(trace_config);
+    PrintStats(helper.get());
     ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
     ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
     ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
@@ -479,6 +499,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     heapprofd_config->set_all(false);
 
     auto helper = Trace(trace_config);
+    PrintStats(helper.get());
     ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
     ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
     ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
@@ -496,6 +517,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
 
     PERFETTO_LOG("HeapprofdEndToEnd::Reinit: Starting second");
     helper = Trace(trace_config);
+    PrintStats(helper.get());
     ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
     ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
     ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
@@ -536,6 +558,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     helper->WaitForTracingDisabled(20000);
     helper->ReadData();
     helper->WaitForReadData();
+    PrintStats(helper.get());
     ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
     ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
     ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
@@ -545,6 +568,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     helper_concurrent->WaitForTracingDisabled(20000);
     helper_concurrent->ReadData();
     helper_concurrent->WaitForReadData();
+    PrintStats(helper.get());
     ValidateOnlyPID(helper_concurrent.get(), static_cast<uint64_t>(pid));
     ValidateRejectedConcurrent(helper_concurrent.get(),
                                static_cast<uint64_t>(pid), true);
