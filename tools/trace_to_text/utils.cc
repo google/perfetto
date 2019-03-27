@@ -33,9 +33,9 @@
 namespace perfetto {
 namespace trace_to_text {
 
-void ForEachPacketInTrace(
+void ForEachPacketBlobInTrace(
     std::istream* input,
-    const std::function<void(const protos::TracePacket&)>& f) {
+    const std::function<void(std::unique_ptr<char[]>, size_t)>& f) {
   size_t bytes_processed = 0;
   // The trace stream can be very large. We cannot just pass it in one go to
   // libprotobuf as that will refuse to parse messages > 64MB. However we know
@@ -74,14 +74,23 @@ void ForEachPacketInTrace(
     input->read(buf.get(), static_cast<std::streamsize>(field_size));
     bytes_processed += field_size;
 
-    protos::TracePacket packet;
-    auto res = packet.ParseFromArray(buf.get(), static_cast<int>(field_size));
-    if (!res) {
-      PERFETTO_ELOG("Skipping invalid packet");
-      continue;
-    }
-    f(packet);
+    f(std::move(buf), field_size);
   }
+}
+
+void ForEachPacketInTrace(
+    std::istream* input,
+    const std::function<void(const protos::TracePacket&)>& f) {
+  ForEachPacketBlobInTrace(
+      input, [f](std::unique_ptr<char[]> buf, size_t size) {
+        protos::TracePacket packet;
+        auto res = packet.ParseFromArray(buf.get(), static_cast<int>(size));
+        if (!res) {
+          PERFETTO_ELOG("Skipping invalid packet");
+          return;
+        }
+        f(packet);
+      });
 }
 
 }  // namespace trace_to_text
