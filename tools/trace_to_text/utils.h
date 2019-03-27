@@ -59,6 +59,10 @@ inline size_t GetTerminalWidth() {
   return win_size.ws_col;
 }
 
+void ForEachPacketBlobInTrace(
+    std::istream* input,
+    const std::function<void(std::unique_ptr<char[]>, size_t)>&);
+
 void ForEachPacketInTrace(
     std::istream* input,
     const std::function<void(const protos::TracePacket&)>&);
