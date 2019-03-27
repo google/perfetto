@@ -42,23 +42,6 @@ constexpr char kProgressChar = '\n';
 constexpr char kProgressChar = '\r';
 #endif
 
-inline bool StdoutIsTty() {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
-  return false;
-#else
-  static bool is_a_tty = isatty(STDOUT_FILENO);
-  return is_a_tty;
-#endif
-}
-
-inline size_t GetTerminalWidth() {
-  if (!StdoutIsTty())
-    return 80;
-  struct winsize win_size;
-  ioctl(STDOUT_FILENO, TIOCGWINSZ, &win_size);
-  return win_size.ws_col;
-}
-
 void ForEachPacketBlobInTrace(
     std::istream* input,
     const std::function<void(std::unique_ptr<char[]>, size_t)>&);

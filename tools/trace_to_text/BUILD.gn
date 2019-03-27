@@ -33,10 +33,7 @@ source_set("common") {
     "../../src/trace_processor:lib",
   ]
   sources = [
-    "ftrace_event_formatter.cc",
-    "ftrace_event_formatter.h",
     "main.cc",
-    "process_formatter.h",
     "trace_to_profile.cc",
     "trace_to_profile.h",
     "trace_to_systrace.cc",
