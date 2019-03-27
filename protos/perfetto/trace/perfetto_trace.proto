@@ -2453,8 +2453,20 @@ message ProfilePacket {
   }
 
   repeated ProcessHeapSamples process_dumps = 5;
+  message ProcessStats { optional uint64 unwinding_errors = 1; }
+
   message ProcessHeapSamples {
     optional uint64 pid = 1;
+
+    // This process was profiled from startup.
+    // If false, this process was already running when profiling started.
+    optional bool from_startup = 3;
+
+    // This process was not profiled because a concurrent session was active.
+    // If this is true, samples will be empty.
+    optional bool rejected_concurrent = 4;
+    optional ProcessStats stats = 5;
+
     repeated HeapSample samples = 2;
   }
 

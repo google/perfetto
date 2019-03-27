@@ -137,11 +137,16 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   // functionality specific to mode_ == kChild
   void TerminateProcess(int exit_status);
-  bool SourceMatchesTarget(const HeapprofdConfig& cfg);
 
   // Valid only if mode_ == kChild. Adopts the (connected) sockets inherited
   // from the target process, invoking the on-connection callback.
   void AdoptTargetProcessSocket();
+
+  struct ProcessState {
+    ProcessState(GlobalCallstackTrie* callsites) : heap_tracker(callsites) {}
+    uint64_t unwinding_errors = 0;
+    HeapTracker heap_tracker;
+  };
 
   struct DataSource {
     DataSourceInstanceID id;
@@ -149,9 +154,9 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     HeapprofdConfig config;
     ClientConfiguration client_configuration;
     std::vector<SystemProperties::Handle> properties;
-    std::map<pid_t, HeapTracker> heap_trackers;
-    // Sequence number for ProfilePackets, so the consumer can assert that none
-    // of them were dropped.
+    std::set<pid_t> signaled_pids;
+    std::set<pid_t> rejected_pids;
+    std::map<pid_t, ProcessState> process_states;
     uint64_t next_index_ = 0;
   };
 
@@ -163,7 +168,10 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   std::map<pid_t, PendingProcess> pending_processes_;
 
+  bool IsPidProfiled(pid_t);
   DataSource* GetDataSourceForProcess(const Process& proc);
+  bool ConfigTargetsProcess(const HeapprofdConfig& cfg, const Process& proc);
+  void RecordOtherSourcesAsRejected(DataSource* active_ds, const Process& proc);
 
   std::map<DataSourceInstanceID, DataSource> data_sources_;
   std::map<FlushRequestID, size_t> flushes_in_progress_;
@@ -180,9 +188,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   SystemProperties properties_;
 
   // state specific to mode_ == kChild
-  pid_t target_pid_ = base::kInvalidPid;
-  std::string target_cmdline_;
-  // This is a valid FD between SetTargetProcess and UseTargetProcessSocket
+  Process target_process_{base::kInvalidPid, ""};
+  // This is a valid FD between SetTargetProcess and AdoptTargetProcessSocket
   // only.
   base::ScopedFile inherited_fd_;
 
