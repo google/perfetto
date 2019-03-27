@@ -354,12 +354,14 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
     HeapTracker& heap_tracker = process_state.heap_tracker;
     bool from_startup =
         data_source.signaled_pids.find(pid) == data_source.signaled_pids.cend();
-    uint64_t unwinding_errors = process_state.unwinding_errors;
-    auto new_heapsamples = [pid, from_startup, unwinding_errors](
+    auto new_heapsamples = [pid, from_startup, &process_state](
                                ProfilePacket::ProcessHeapSamples* proto) {
       proto->set_pid(static_cast<uint64_t>(pid));
       proto->set_from_startup(from_startup);
-      proto->set_stats()->set_unwinding_errors(unwinding_errors);
+      auto* stats = proto->set_stats();
+      stats->set_unwinding_errors(process_state.unwinding_errors);
+      stats->set_heap_samples(process_state.heap_samples);
+      stats->set_map_reparses(process_state.map_reparses);
     };
     heap_tracker.Dump(std::move(new_heapsamples), &dump_state);
   }
@@ -710,6 +712,9 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
 
   if (alloc_rec.error)
     process_state.unwinding_errors++;
+  if (alloc_rec.reparsed_map)
+    process_state.map_reparses++;
+  process_state.heap_samples++;
 
   heap_tracker.RecordMalloc(alloc_rec.frames, alloc_metadata.alloc_address,
                             alloc_metadata.total_size,

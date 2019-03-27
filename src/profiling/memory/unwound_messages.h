@@ -38,6 +38,7 @@ struct FrameData {
 struct AllocRecord {
   pid_t pid;
   bool error = false;
+  bool reparsed_map = false;
   uint64_t data_source_instance_id;
   AllocMetadata alloc_metadata;
   std::vector<FrameData> frames;
