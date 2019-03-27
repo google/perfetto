@@ -54,6 +54,7 @@ namespace stats {
   F(meminfo_unknown_keys,                       kSingle,  kError, kAnalysis), \
   F(mismatched_sched_switch_tids,               kSingle,  kError, kAnalysis), \
   F(mm_unknown_type,                            kSingle,  kError, kAnalysis), \
+  F(power_rail_unknown_index,                   kSingle,  kError, kTrace), \
   F(proc_stat_unknown_counters,                 kSingle,  kError, kAnalysis), \
   F(rss_stat_unknown_keys,                      kSingle,  kError, kAnalysis), \
   F(rss_stat_negative_size,                     kSingle,  kInfo,  kAnalysis), \
