@@ -83,6 +83,11 @@ message ProfilePacket {
     // This process was not profiled because a concurrent session was active.
     // If this is true, samples will be empty.
     optional bool rejected_concurrent = 4;
+
+    // This process disconnected while it was profiled.
+    // If false, the process outlived the profiling session.
+    optional bool disconnected = 6;
+
     optional ProcessStats stats = 5;
 
     repeated HeapSample samples = 2;
