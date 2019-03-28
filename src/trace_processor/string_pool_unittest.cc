@@ -71,8 +71,8 @@ TEST(StringPoolTest, Iterator) {
 }
 
 TEST(StringPoolTest, StressTest) {
-  // First create a buffer with 128MB of random characters.
-  constexpr size_t kBufferSize = 128 * 1024 * 1024;
+  // First create a buffer with 8MB of random characters.
+  constexpr size_t kBufferSize = 8 * 1024 * 1024;
   std::minstd_rand0 rnd_engine(0);
   std::unique_ptr<char[]> buffer(new char[kBufferSize]);
   for (size_t i = 0; i < kBufferSize; i++)

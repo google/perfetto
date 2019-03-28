@@ -107,7 +107,6 @@ TEST(ProtoDecoderTest, SingleRepeatedFieldWithExpansion) {
   for (int i = 0; i < 2000; i++) {
     EXPECT_TRUE(it);
     EXPECT_EQ(it->as_int32(), i);
-    PERFETTO_ELOG("%d", i);
     ++it;
   }
   EXPECT_FALSE(it);

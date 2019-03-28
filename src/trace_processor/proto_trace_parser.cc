@@ -631,7 +631,8 @@ void ProtoTraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
 
   // Store the comm as an arg.
   RowId row_id = TraceStorage::CreateRowId(TableId::kInstants, row);
-  auto comm_id = context_->storage->InternString(lmk.comm());
+  auto comm_id = context_->storage->InternString(
+      lmk.has_comm() ? lmk.comm() : base::StringView());
   context_->args_tracker->AddArg(row_id, comm_name_id_, comm_name_id_,
                                  Variadic::String(comm_id));
 }
@@ -1102,8 +1103,10 @@ void ProtoTraceParser::ParseAndroidLogEvent(ConstBytes blob) {
   uint32_t pid = static_cast<uint32_t>(evt.pid());
   uint32_t tid = static_cast<uint32_t>(evt.tid());
   uint8_t prio = static_cast<uint8_t>(evt.prio());
-  StringId tag_id = context_->storage->InternString(evt.tag());
-  StringId msg_id = context_->storage->InternString(evt.message());
+  StringId tag_id = context_->storage->InternString(
+      evt.has_tag() ? evt.tag() : base::StringView());
+  StringId msg_id = context_->storage->InternString(
+      evt.has_message() ? evt.message() : base::StringView());
 
   char arg_msg[4096];
   char* arg_str = &arg_msg[0];
