@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 
+import {translateState} from '../common/thread_state';
 import {timeToCode} from '../common/time';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
@@ -46,7 +47,9 @@ export class SliceDetailsPanel extends Panel<SliceDetailsPanelAttrs> {
                 m('td', `Duration`),
                 m('td', `${timeToCode(sliceInfo.dur)}`)),
               m('tr', m('td', `Prio`), m('td', `${sliceInfo.priority}`)),
-              m('tr', m('td', `End State`), m('td', `${sliceInfo.endState}`))
+              m('tr',
+                m('td', `End State`),
+                m('td', `${translateState(sliceInfo.endState)}`))
             ])], ));
     }
   else {

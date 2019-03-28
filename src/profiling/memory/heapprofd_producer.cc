@@ -323,7 +323,8 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
   }
   DataSource& data_source = it->second;
 
-  DumpState dump_state(data_source.trace_writer.get(), &next_index_);
+  DumpState dump_state(data_source.trace_writer.get(),
+                       &data_source.next_index_);
 
   for (std::pair<const pid_t, HeapTracker>& pid_and_heap_tracker :
        data_source.heap_trackers) {

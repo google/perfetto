@@ -38,7 +38,7 @@ protozero_library("zero") {
 
 proto_library("minimal_complete_lite") {
   generate_python = false
-  link_deps = [
+  deps = [
     ":lite",
     "../:minimal_lite",
     "../../config:lite",

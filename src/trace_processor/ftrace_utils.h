@@ -49,8 +49,13 @@ class TaskState {
     kWaking = 256,
     kParked = 512,
     kNoLoad = 1024,
-    kNewTask = 2048,
 
+    // kMaxState is used by sched switch to show a task was kernel preempted.
+    // The difficult thing is that in newer kernels a task_new state is added
+    // and kMaxState increases to 4096. Without the kernel version and the
+    // mapping of this to the correct version of this enum we cannot be
+    // accurate. Since task_new is rare we ignore it for now.
+    kTaskNewOrMaxState = 2048,
     kMaxState = 4096,
     kValid = 0x8000,
   };
@@ -74,10 +79,15 @@ class TaskState {
   }
 
   // Returns if this TaskState is runnable.
-  bool is_runnable() const { return (state_ & (kMaxState - 1)) == 0; }
+  bool is_runnable() const {
+    return ((state_ & (kMaxState - 1)) == 0) ||
+           ((state_ & (kTaskNewOrMaxState - 1)) == 0);
+  }
 
   // Returns whether kernel preemption caused the exit state.
-  bool is_kernel_preempt() const { return state_ & kMaxState; }
+  bool is_kernel_preempt() const {
+    return state_ & kTaskNewOrMaxState || state_ & kMaxState;
+  }
 
  private:
   uint16_t state_ = 0;

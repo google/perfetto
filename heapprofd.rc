@@ -19,7 +19,10 @@ service heapprofd /system/bin/heapprofd
     group nobody readproc
     writepid /dev/cpuset/system-background/tasks
     onrestart exec_background - nobody shell -- /system/bin/heapprofd --cleanup-after-crash
-    capabilities KILL
+    # DAC_READ_SEARCH is denied by SELinux on user builds because the SELinux
+    # permission is userdebug_or_eng only.
+    # This is fine as this is not needed for central heapprofd in fork mode.
+    capabilities KILL DAC_READ_SEARCH
 
 on property:persist.heapprofd.enable=1
     start heapprofd

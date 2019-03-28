@@ -129,13 +129,19 @@ source_set("lib") {
     "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../include/perfetto/traced:sys_stats_counters",
-    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:zero",
-    "../../protos/perfetto/trace/ftrace:lite",
+    "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:zero",
-    "../../protos/perfetto/trace_processor:lite",
+    "../../protos/perfetto/trace/power:zero",
+    "../../protos/perfetto/trace/profiling:zero",
+    "../../protos/perfetto/trace/ps:zero",
+    "../../protos/perfetto/trace/sys_stats:zero",
     "../base",
     "../protozero",
+
+    # TODO(primiano): remove this one dep and move to a ":zero" dep.
+    "../../protos/perfetto/trace_processor:lite",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor",
@@ -207,8 +213,13 @@ source_set("unittests") {
     "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
-    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/common:zero",
+    "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/ftrace:zero",
+    "../../protos/perfetto/trace/ps:zero",
+    "../../protos/perfetto/trace/sys_stats:zero",
     "../base",
+    "../protozero",
   ]
   if (perfetto_build_standalone) {
     sources += [ "json_trace_parser_unittest.cc" ]
