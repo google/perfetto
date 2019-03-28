@@ -39,6 +39,7 @@ message ChromeStringTableEntry {
   optional int32 index = 2;
 }
 
+// Deprecated, use TrackEvent protos instead.
 message ChromeTraceEvent {
   message Arg {
     optional string name = 1;
@@ -108,7 +109,8 @@ message ChromeLegacyJsonTrace {
 }
 
 message ChromeEventBundle {
-  repeated ChromeTraceEvent trace_events = 1;
+  // Deprecated, use TrackEvent protos instead.
+  repeated ChromeTraceEvent trace_events = 1 [deprecated = true];
   repeated ChromeMetadata metadata = 2;
   // ftrace output from CrOS and Cast system tracing agents.
   // TODO(eseckler): Replace system traces with native perfetto service.
@@ -117,5 +119,5 @@ message ChromeEventBundle {
 
   // Contents of a string table that's valid for
   // the whole ChromeEventBundle entry.
-  repeated ChromeStringTableEntry string_table = 3;
+  repeated ChromeStringTableEntry string_table = 3 [deprecated = true];
 }
