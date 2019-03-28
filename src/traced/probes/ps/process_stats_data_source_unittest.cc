@@ -165,11 +165,12 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "oom_score_adj"))
         .WillRepeatedly(Invoke(
             [checkpoint, kPids, &iter](int32_t inner_pid, const std::string&) {
+              auto oom_score = inner_pid * 100 + iter * 10 + 3;
               if (inner_pid == kPids[base::ArraySize(kPids) - 1]) {
                 if (++iter == kNumIters)
                   checkpoint();
               }
-              return std::to_string(inner_pid * 100);
+              return std::to_string(oom_score);
             }));
   }
 
@@ -188,7 +189,7 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
     int32_t pid = proc_counters.pid();
     ASSERT_EQ(proc_counters.vm_size_kb(), pid * 100 + iter * 10 + 1);
     ASSERT_EQ(proc_counters.vm_rss_kb(), pid * 100 + iter * 10 + 2);
-    ASSERT_EQ(proc_counters.oom_score_adj(), pid * 100);
+    ASSERT_EQ(proc_counters.oom_score_adj(), pid * 100 + iter * 10 + 3);
     if (pid == kPids[base::ArraySize(kPids) - 1])
       iter++;
   }
@@ -196,6 +197,71 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   // Cleanup |fake_proc|. TempDir checks that the directory is empty.
   for (std::string& path : dirs_to_delete)
     rmdir(path.c_str());
+}
+
+TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
+  DataSourceConfig cfg;
+  cfg.mutable_process_stats_config()->set_proc_stats_poll_ms(105);
+  cfg.mutable_process_stats_config()->set_proc_stats_cache_ttl_ms(220);
+  *(cfg.mutable_process_stats_config()->add_quirks()) =
+      perfetto::ProcessStatsConfig::DISABLE_ON_DEMAND;
+  auto data_source = GetProcessStatsDataSource(cfg);
+
+  // Populate a fake /proc/ directory.
+  auto fake_proc = base::TempDir::Create();
+  const int kPid = 1;
+
+  char path[256];
+  sprintf(path, "%s/%d", fake_proc.path().c_str(), kPid);
+  mkdir(path, 0755);
+
+  auto checkpoint = task_runner_.CreateCheckpoint("all_done");
+
+  EXPECT_CALL(*data_source, OpenProcDir()).WillRepeatedly(Invoke([&fake_proc] {
+    return base::ScopedDir(opendir(fake_proc.path().c_str()));
+  }));
+
+  const int kNumIters = 4;
+  int iter = 0;
+  EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "status"))
+      .WillRepeatedly(Invoke([checkpoint](int32_t p, const std::string&) {
+        char ret[1024];
+        sprintf(ret, "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
+                p * 100 + 1, p * 100 + 2);
+        return std::string(ret);
+      }));
+
+  EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "oom_score_adj"))
+      .WillRepeatedly(
+          Invoke([checkpoint, &iter](int32_t inner_pid, const std::string&) {
+            if (++iter == kNumIters)
+              checkpoint();
+            return std::to_string(inner_pid * 100);
+          }));
+
+  data_source->Start();
+  task_runner_.RunUntilCheckpoint("all_done");
+  data_source->Flush(1 /* FlushRequestId */, []() {});
+
+  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
+  ASSERT_TRUE(packet);
+  ASSERT_TRUE(packet->has_process_stats());
+  const auto& ps_stats = packet->process_stats();
+  ASSERT_EQ(ps_stats.processes_size(), 2);
+
+  // We should get two counter events because:
+  // a) emissions happen at 0ms, 105ms, 210ms, 315ms
+  // b) clear events happen at 220ms, 440ms...
+  // Therefore, we should see the emissions at 0ms and 315ms.
+  for (const auto& proc_counters : ps_stats.processes()) {
+    ASSERT_EQ(proc_counters.pid(), kPid);
+    ASSERT_EQ(proc_counters.vm_size_kb(), kPid * 100 + 1);
+    ASSERT_EQ(proc_counters.vm_rss_kb(), kPid * 100 + 2);
+    ASSERT_EQ(proc_counters.oom_score_adj(), kPid * 100);
+  }
+
+  // Cleanup |fake_proc|. TempDir checks that the directory is empty.
+  rmdir(path);
 }
 
 }  // namespace
