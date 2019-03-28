@@ -149,6 +149,9 @@ class PERFETTO_EXPORT HeapprofdConfig {
     return &continuous_dump_config_;
   }
 
+  uint64_t shmem_size_bytes() const { return shmem_size_bytes_; }
+  void set_shmem_size_bytes(uint64_t value) { shmem_size_bytes_ = value; }
+
  private:
   uint64_t sampling_interval_bytes_ = {};
   std::vector<std::string> process_cmdline_;
@@ -156,6 +159,7 @@ class PERFETTO_EXPORT HeapprofdConfig {
   bool all_ = {};
   std::vector<std::string> skip_symbol_prefix_;
   ContinuousDumpConfig continuous_dump_config_ = {};
+  uint64_t shmem_size_bytes_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
