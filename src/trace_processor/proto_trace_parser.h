@@ -82,6 +82,7 @@ class ProtoTraceParser {
   void ParseSignalGenerate(int64_t ts, ConstBytes);
   void ParseLowmemoryKill(int64_t ts, ConstBytes);
   void ParseBatteryCounters(int64_t ts, ConstBytes);
+  void ParsePowerRails(ConstBytes);
   void ParseOOMScoreAdjUpdate(int64_t ts, ConstBytes);
   void ParseMmEventRecord(int64_t ts, uint32_t pid, ConstBytes);
   void ParseSysEvent(int64_t ts, uint32_t pid, bool is_enter, ConstBytes);
@@ -134,6 +135,7 @@ class ProtoTraceParser {
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
+  std::vector<StringId> power_rails_strs_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
