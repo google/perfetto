@@ -16,6 +16,8 @@
 import {search, searchEq} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
+import {translateState} from '../../common/thread_state';
+import {cropText} from '../../common/track_utils';
 import {colorForState} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
@@ -47,6 +49,7 @@ class ThreadStateTrack extends Track<Config, Data> {
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     const data = this.data();
+    const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     // If there aren't enough cached slices data in |data| request more to
     // the controller.
@@ -71,7 +74,17 @@ class ThreadStateTrack extends Track<Config, Data> {
         const rectEnd = timeScale.timeToPx(tEnd);
         const color = colorForState(state);
         ctx.fillStyle = `hsl(${color.h},${color.s}%,${color.l}%)`;
-        ctx.fillRect(rectStart, MARGIN_TOP, rectEnd - rectStart, RECT_HEIGHT);
+        const rectWidth = rectEnd - rectStart;
+        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+
+        // Don't render text when we have less than 5px to play with.
+        if (rectWidth < 5) continue;
+        ctx.textAlign = 'center';
+        const title = cropText(translateState(state), charWidth, rectWidth);
+        const rectXCenter = rectStart + rectWidth / 2;
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px Google Sans';
+        ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
       }
     }
 
