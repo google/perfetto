@@ -108,6 +108,12 @@ ProcessStatsDataSource::ProcessStatsDataSource(
                   poll_period_ms_);
     poll_period_ms_ = 100;
   }
+
+  if (poll_period_ms_ > 0) {
+    auto proc_stats_ttl_ms = ps_config.proc_stats_cache_ttl_ms();
+    process_stats_cache_ttl_ticks_ =
+        std::max(proc_stats_ttl_ms / poll_period_ms_, 1u);
+  }
 }
 
 ProcessStatsDataSource::~ProcessStatsDataSource() = default;
@@ -312,6 +318,12 @@ void ProcessStatsDataSource::Tick(
   thiz.task_runner_->PostDelayedTask(
       std::bind(&ProcessStatsDataSource::Tick, weak_this), delay_ms);
   thiz.WriteAllProcessStats();
+
+  // We clear the cache every process_stats_cache_ttl_ticks_ ticks.
+  if (++thiz.ticks_ == thiz.process_stats_cache_ttl_ticks_) {
+    thiz.ticks_ = 0;
+    thiz.process_stats_cache_.clear();
+  }
 }
 
 void ProcessStatsDataSource::WriteAllProcessStats() {
@@ -346,8 +358,14 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
     }
 
     std::string oom_score_adj = ReadProcPidFile(pid, "oom_score_adj");
-    if (!oom_score_adj.empty())
-      GetOrCreateStatsProcess(pid)->set_oom_score_adj(ToInt(oom_score_adj));
+    if (!oom_score_adj.empty()) {
+      CachedProcessStats& cached = process_stats_cache_[pid];
+      auto counter = ToInt(oom_score_adj);
+      if (counter != cached.oom_score_adj) {
+        GetOrCreateStatsProcess(pid)->set_oom_score_adj(counter);
+        cached.oom_score_adj = counter;
+      }
+    }
 
     pids.push_back(pid);
   }
@@ -364,6 +382,7 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
 bool ProcessStatsDataSource::WriteMemCounters(int32_t pid,
                                               const std::string& proc_status) {
   bool proc_status_has_mem_counters = false;
+  CachedProcessStats& cached = process_stats_cache_[pid];
 
   // Parse /proc/[pid]/status, which looks like this:
   // Name:   cat
@@ -388,21 +407,54 @@ bool ProcessStatsDataSource::WriteMemCounters(int32_t pid,
       if (strcmp(key.data(), "VmSize") == 0) {
         // Assume that if we see VmSize we'll see also the others.
         proc_status_has_mem_counters = true;
-        GetOrCreateStatsProcess(pid)->set_vm_size_kb(ToU32(value.data()));
+
+        auto counter = ToU32(value.data());
+        if (counter != cached.vm_size_kb) {
+          GetOrCreateStatsProcess(pid)->set_vm_size_kb(counter);
+          cached.vm_size_kb = counter;
+        }
       } else if (strcmp(key.data(), "VmLck") == 0) {
-        GetOrCreateStatsProcess(pid)->set_vm_locked_kb(ToU32(value.data()));
+        auto counter = ToU32(value.data());
+        if (counter != cached.vm_locked_kb) {
+          GetOrCreateStatsProcess(pid)->set_vm_locked_kb(counter);
+          cached.vm_locked_kb = counter;
+        }
       } else if (strcmp(key.data(), "VmHWM") == 0) {
-        GetOrCreateStatsProcess(pid)->set_vm_hwm_kb(ToU32(value.data()));
+        auto counter = ToU32(value.data());
+        if (counter != cached.vm_hvm_kb) {
+          GetOrCreateStatsProcess(pid)->set_vm_hwm_kb(counter);
+          cached.vm_hvm_kb = counter;
+        }
       } else if (strcmp(key.data(), "VmRSS") == 0) {
-        GetOrCreateStatsProcess(pid)->set_vm_rss_kb(ToU32(value.data()));
+        auto counter = ToU32(value.data());
+        if (counter != cached.vm_rss_kb) {
+          GetOrCreateStatsProcess(pid)->set_vm_rss_kb(counter);
+          cached.vm_rss_kb = counter;
+        }
       } else if (strcmp(key.data(), "RssAnon") == 0) {
-        GetOrCreateStatsProcess(pid)->set_rss_anon_kb(ToU32(value.data()));
+        auto counter = ToU32(value.data());
+        if (counter != cached.rss_anon_kb) {
+          GetOrCreateStatsProcess(pid)->set_rss_anon_kb(counter);
+          cached.rss_anon_kb = counter;
+        }
       } else if (strcmp(key.data(), "RssFile") == 0) {
-        GetOrCreateStatsProcess(pid)->set_rss_file_kb(ToU32(value.data()));
+        auto counter = ToU32(value.data());
+        if (counter != cached.rss_file_kb) {
+          GetOrCreateStatsProcess(pid)->set_rss_file_kb(counter);
+          cached.rss_file_kb = counter;
+        }
       } else if (strcmp(key.data(), "RssShmem") == 0) {
-        GetOrCreateStatsProcess(pid)->set_rss_shmem_kb(ToU32(value.data()));
+        auto counter = ToU32(value.data());
+        if (counter != cached.rss_shmem_kb) {
+          GetOrCreateStatsProcess(pid)->set_rss_shmem_kb(counter);
+          cached.rss_shmem_kb = counter;
+        }
       } else if (strcmp(key.data(), "VmSwap") == 0) {
-        GetOrCreateStatsProcess(pid)->set_vm_swap_kb(ToU32(value.data()));
+        auto counter = ToU32(value.data());
+        if (counter != cached.vm_swap_kb) {
+          GetOrCreateStatsProcess(pid)->set_vm_swap_kb(counter);
+          cached.vm_swap_kb = counter;
+        }
       }
 
       key.clear();
