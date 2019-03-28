@@ -54,6 +54,10 @@ void SpanJoinOperatorTable::RegisterTable(sqlite3* db,
   Table::Register<SpanJoinOperatorTable>(db, storage, "span_left_join",
                                          /* read_write */ false,
                                          /* requires_args */ true);
+
+  Table::Register<SpanJoinOperatorTable>(db, storage, "span_outer_join",
+                                         /* read_write */ false,
+                                         /* requires_args */ true);
 }
 
 base::Optional<Table::Schema> SpanJoinOperatorTable::Init(
@@ -81,20 +85,29 @@ base::Optional<Table::Schema> SpanJoinOperatorTable::Init(
     partitioning_ = t1_desc.IsPartitioned()
                         ? PartitioningType::kSamePartitioning
                         : PartitioningType::kNoPartitioning;
+    if (partitioning_ == PartitioningType::kNoPartitioning && IsOuterJoin()) {
+      PERFETTO_ELOG("Outer join not supported for no partition tables");
+      return base::nullopt;
+    }
   } else if (t1_desc.IsPartitioned() && t2_desc.IsPartitioned()) {
     PERFETTO_ELOG("Mismatching partitions (%s, %s)",
                   t1_desc.partition_col.c_str(), t2_desc.partition_col.c_str());
     return base::nullopt;
   } else {
+    if (IsOuterJoin()) {
+      PERFETTO_ELOG("Outer join not supported for mixed partitioned tables");
+      return base::nullopt;
+    }
     partitioning_ = PartitioningType::kMixedPartitioning;
   }
 
-  auto maybe_t1_defn = CreateTableDefinition(t1_desc, false);
+  auto maybe_t1_defn = CreateTableDefinition(t1_desc, IsOuterJoin());
   if (!maybe_t1_defn.has_value())
     return base::nullopt;
   t1_defn_ = maybe_t1_defn.value();
 
-  auto maybe_t2_defn = CreateTableDefinition(t2_desc, IsLeftJoin());
+  auto maybe_t2_defn =
+      CreateTableDefinition(t2_desc, IsOuterJoin() || IsLeftJoin());
   if (!maybe_t2_defn.has_value())
     return base::nullopt;
   t2_defn_ = maybe_t2_defn.value();
@@ -278,7 +291,9 @@ int SpanJoinOperatorTable::Cursor::Initialize(const QueryConstraints& qc,
 }
 
 bool SpanJoinOperatorTable::Cursor::IsOverlappingSpan() {
-  if (t1_.partition() != t2_.partition()) {
+  if (!t1_.IsRealSlice() && !t2_.IsRealSlice()) {
+    return false;
+  } else if (t1_.partition() != t2_.partition()) {
     return false;
   } else if (t1_.ts_end() <= t2_.ts_start() || t2_.ts_end() <= t1_.ts_start()) {
     return false;
@@ -343,6 +358,36 @@ int SpanJoinOperatorTable::Cursor::Next() {
       return res.err_code;
     else if (PERFETTO_UNLIKELY(res.is_eof()))
       continue;
+
+    // If we're in the case where we have shadow slices on both tables, try
+    // and forward the earliest table and see what happens. IsOverlappingSpan()
+    // will double check that we have at least one non-real slice now.
+    // Note: if we don't do this, we end up in an infinite loop because all
+    // the code above will not change anything because these shadow slices will
+    // be overlapping.
+    if (!t1_.IsRealSlice() && !t2_.IsRealSlice()) {
+      PERFETTO_DCHECK(t1_.partition() == t2_.partition());
+
+      // If the table is not partitioned, partition() will return the partition
+      // the table was set to have by StepToPartition().
+      auto t1_partition =
+          t1_.IsPartitioned() ? t1_.CursorPartition() : t1_.partition();
+      auto t2_partition =
+          t2_.IsPartitioned() ? t2_.CursorPartition() : t2_.partition();
+
+      Query* stepped;
+      if (t1_partition == t2_partition) {
+        stepped = t1_.ts_end() <= t2_.ts_end() ? &t1_ : &t2_;
+      } else {
+        stepped = t1_partition <= t2_partition ? &t1_ : &t2_;
+      }
+
+      res = stepped->Step();
+      if (PERFETTO_UNLIKELY(res.is_err()))
+        return res.err_code;
+      else if (PERFETTO_UNLIKELY(res.is_eof()))
+        continue;
+    }
 
     if (IsOverlappingSpan())
       break;
