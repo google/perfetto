@@ -88,11 +88,17 @@ class PERFETTO_EXPORT ProcessStatsConfig {
   uint32_t proc_stats_poll_ms() const { return proc_stats_poll_ms_; }
   void set_proc_stats_poll_ms(uint32_t value) { proc_stats_poll_ms_ = value; }
 
+  uint32_t proc_stats_cache_ttl_ms() const { return proc_stats_cache_ttl_ms_; }
+  void set_proc_stats_cache_ttl_ms(uint32_t value) {
+    proc_stats_cache_ttl_ms_ = value;
+  }
+
  private:
   std::vector<Quirks> quirks_;
   bool scan_all_processes_on_start_ = {};
   bool record_thread_names_ = {};
   uint32_t proc_stats_poll_ms_ = {};
+  uint32_t proc_stats_cache_ttl_ms_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
