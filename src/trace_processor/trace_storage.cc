@@ -50,6 +50,11 @@ TraceStorage::TraceStorage() {
 TraceStorage::~TraceStorage() {}
 
 StringId TraceStorage::InternString(base::StringView str) {
+  // Temporarily return the empty string's id as the null string.
+  // TODO(lalitm): remove this as part of the usage of StringPool.
+  if (str.data() == nullptr)
+    return 0;
+
   auto hash = str.Hash();
   auto id_it = string_index_.find(hash);
   if (id_it != string_index_.end()) {
