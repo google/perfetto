@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {search, searchEq} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
+import {cropText} from '../../common/track_utils';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {colorForThread, hueForCpu} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
-import {searchEq, search} from '../../base/binary_search';
 
 import {
   Config,
@@ -33,22 +34,6 @@ import {
 
 const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
-
-function cropText(str: string, charWidth: number, rectWidth: number) {
-  const maxTextWidth = rectWidth - 4;
-  let displayText = '';
-  const nameLength = str.length * charWidth;
-  if (nameLength < maxTextWidth) {
-    displayText = str;
-  } else {
-    // -3 for the 3 ellipsis.
-    const displayedChars = Math.floor(maxTextWidth / charWidth) - 3;
-    if (displayedChars > 3) {
-      displayText = str.substring(0, displayedChars) + '...';
-    }
-  }
-  return displayText;
-}
 
 class CpuSliceTrack extends Track<Config, Data> {
   static readonly kind = CPU_SLICE_TRACK_KIND;
