@@ -358,6 +358,7 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
                                ProfilePacket::ProcessHeapSamples* proto) {
       proto->set_pid(static_cast<uint64_t>(pid));
       proto->set_from_startup(from_startup);
+      proto->set_disconnected(process_state.disconnected);
       auto* stats = proto->set_stats();
       stats->set_unwinding_errors(process_state.unwinding_errors);
       stats->set_heap_samples(process_state.heap_samples);
@@ -751,10 +752,18 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   }
 }
 
-void HeapprofdProducer::HandleSocketDisconnected(DataSourceInstanceID, pid_t) {
-  // TODO(fmayer): Dump on process disconnect rather than data source
-  // destruction. This prevents us needing to hold onto the bookkeeping data
-  // after the process disconnected.
+void HeapprofdProducer::HandleSocketDisconnected(DataSourceInstanceID id,
+                                                 pid_t pid) {
+  auto it = data_sources_.find(id);
+  if (it == data_sources_.end())
+    return;
+  DataSource& ds = it->second;
+
+  auto process_state_it = ds.process_states.find(pid);
+  if (process_state_it == ds.process_states.end())
+    return;
+  ProcessState& process_state = process_state_it->second;
+  process_state.disconnected = true;
 }
 
 }  // namespace profiling
