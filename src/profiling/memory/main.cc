@@ -85,7 +85,14 @@ int HeapprofdMain(int argc, char** argv) {
   }
 
   if (cleanup_crash) {
+    PERFETTO_LOG(
+        "Recovering from crash: unsetting heapprofd system properties. "
+        "Expect SELinux denials for unrelated properties.");
     SystemProperties::ResetProperties();
+    PERFETTO_LOG(
+        "Finished unsetting heapprofd system properties. "
+        "SELinux denials about properties are unexpected after "
+        "this point.");
     return 0;
   }
 
