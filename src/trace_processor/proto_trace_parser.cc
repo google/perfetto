@@ -53,6 +53,7 @@
 #include "perfetto/trace/ftrace/signal.pbzero.h"
 #include "perfetto/trace/ftrace/task.pbzero.h"
 #include "perfetto/trace/power/battery_counters.pbzero.h"
+#include "perfetto/trace/power/power_rails.pbzero.h"
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "perfetto/trace/ps/process_stats.pbzero.h"
 #include "perfetto/trace/ps/process_tree.pbzero.h"
@@ -300,6 +301,9 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TraceBlobView blob) {
 
   if (packet.has_battery())
     ParseBatteryCounters(ts, packet.battery());
+
+  if (packet.has_power_rails())
+    ParsePowerRails(packet.power_rails());
 
   if (packet.has_trace_stats())
     ParseTraceStats(packet.trace_stats());
@@ -840,6 +844,38 @@ void ProtoTraceParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   if (evt.has_current_avg_ua()) {
     context_->event_tracker->PushCounter(
         ts, evt.current_avg_ua(), batt_current_avg_id_, 0, RefType::kRefNoRef);
+  }
+}
+
+void ProtoTraceParser::ParsePowerRails(ConstBytes blob) {
+  protos::pbzero::PowerRails::Decoder evt(blob.data, blob.size);
+  if (evt.has_rail_descriptor()) {
+    for (auto it = evt.rail_descriptor(); it; ++it) {
+      protos::pbzero::PowerRails::RailDescriptor::Decoder desc(it->data(),
+                                                               it->size());
+      auto idx = desc.index();
+      if (power_rails_strs_id_.size() <= idx)
+        power_rails_strs_id_.resize(idx + 1);
+      char counter_name[255];
+      snprintf(counter_name, sizeof(counter_name), "power.%.*s_uws",
+               int(desc.rail_name().size), desc.rail_name().data);
+      power_rails_strs_id_[idx] = context_->storage->InternString(counter_name);
+    }
+  }
+
+  if (evt.has_energy_data()) {
+    for (auto it = evt.energy_data(); it; ++it) {
+      protos::pbzero::PowerRails::EnergyData::Decoder desc(it->data(),
+                                                           it->size());
+      if (desc.index() < power_rails_strs_id_.size()) {
+        int64_t ts = static_cast<int64_t>(desc.timestamp_ms()) * 1000000;
+        context_->event_tracker->PushCounter(ts, desc.energy(),
+                                             power_rails_strs_id_[desc.index()],
+                                             0, RefType::kRefNoRef);
+      } else {
+        context_->storage->IncrementStats(stats::power_rail_unknown_index);
+      }
+    }
   }
 }
 
