@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {TrackState} from '../../common/state';
+import {cropText} from '../../common/track_utils';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
@@ -74,7 +75,7 @@ class ChromeSliceTrack extends Track<Config, Data> {
     ctx.textAlign = 'center';
 
     // measuretext is expensive so we only use it once.
-    const charWidth = ctx.measureText('abcdefghij').width / 10;
+    const charWidth = ctx.measureText('ACBDLqsdfg').width / 10;
     const pxEnd = timeScale.timeToPx(visibleWindowTime.end);
 
     for (let i = 0; i < data.starts.length; i++) {
@@ -97,22 +98,10 @@ class ChromeSliceTrack extends Track<Config, Data> {
       const hue = hash(cat);
       const saturation = Math.min(20 + depth * 10, 70);
       ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${hovered ? 30 : 65}%)`;
-
       ctx.fillRect(rectXStart, rectYStart, rectWidth, SLICE_HEIGHT);
 
-      const nameLength = title.length * charWidth;
       ctx.fillStyle = 'white';
-      const maxTextWidth = rectWidth - 15;
-      let displayText = '';
-      if (nameLength < maxTextWidth) {
-        displayText = title;
-      } else {
-        // -3 for the 3 ellipsis.
-        const displayedChars = Math.floor(maxTextWidth / charWidth) - 3;
-        if (displayedChars > 3) {
-          displayText = title.substring(0, displayedChars) + '...';
-        }
-      }
+      const displayText = cropText(title, charWidth, rectWidth);
       const rectXCenter = rectXStart + rectWidth / 2;
       ctx.textBaseline = "middle";
       ctx.fillText(displayText, rectXCenter, rectYStart + SLICE_HEIGHT / 2);
