@@ -45,7 +45,8 @@ bool HeapprofdConfig::operator==(const HeapprofdConfig& other) const {
          (process_cmdline_ == other.process_cmdline_) && (pid_ == other.pid_) &&
          (all_ == other.all_) &&
          (skip_symbol_prefix_ == other.skip_symbol_prefix_) &&
-         (continuous_dump_config_ == other.continuous_dump_config_);
+         (continuous_dump_config_ == other.continuous_dump_config_) &&
+         (shmem_size_bytes_ == other.shmem_size_bytes_);
 }
 #pragma GCC diagnostic pop
 
@@ -88,6 +89,11 @@ void HeapprofdConfig::FromProto(
   }
 
   continuous_dump_config_.FromProto(proto.continuous_dump_config());
+
+  static_assert(sizeof(shmem_size_bytes_) == sizeof(proto.shmem_size_bytes()),
+                "size mismatch");
+  shmem_size_bytes_ =
+      static_cast<decltype(shmem_size_bytes_)>(proto.shmem_size_bytes());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -124,6 +130,11 @@ void HeapprofdConfig::ToProto(perfetto::protos::HeapprofdConfig* proto) const {
   }
 
   continuous_dump_config_.ToProto(proto->mutable_continuous_dump_config());
+
+  static_assert(sizeof(shmem_size_bytes_) == sizeof(proto->shmem_size_bytes()),
+                "size mismatch");
+  proto->set_shmem_size_bytes(
+      static_cast<decltype(proto->shmem_size_bytes())>(shmem_size_bytes_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
