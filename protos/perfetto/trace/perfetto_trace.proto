@@ -2485,6 +2485,9 @@ message ProfilePacket {
 // Per-process periodically sampled stats. These samples are wrapped in a
 // dedicated message (as opposite to be fields in process_tree.proto) because
 // they are dumped at a different rate than cmdline and thread list.
+// Note: not all of these stats will be present in every ProcessStats message
+// and sometimes processes may be missing . This is because counters are
+// cached to reduce emission of counters which do not change.
 message ProcessStats {
   message Process {
     optional int32 pid = 1;
@@ -3206,6 +3209,12 @@ message ProcessStatsConfig {
   // entry of /proc/pid/cmdline).
   // TODO(primiano): implement this feature.
   // repeated string proc_stats_filter = 5;
+
+  // This is required to be either = 0 or a multiple of |proc_stats_poll_ms|
+  // (default: |proc_stats_poll_ms|). If = 0, will be set to
+  // |proc_stats_poll_ms|. Non-multiples will be rounded down to the nearest
+  // multiple.
+  optional uint32 proc_stats_cache_ttl_ms = 6;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto

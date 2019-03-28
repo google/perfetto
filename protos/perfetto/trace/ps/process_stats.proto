@@ -21,6 +21,9 @@ package perfetto.protos;
 // Per-process periodically sampled stats. These samples are wrapped in a
 // dedicated message (as opposite to be fields in process_tree.proto) because
 // they are dumped at a different rate than cmdline and thread list.
+// Note: not all of these stats will be present in every ProcessStats message
+// and sometimes processes may be missing . This is because counters are
+// cached to reduce emission of counters which do not change.
 message ProcessStats {
   message Process {
     optional int32 pid = 1;
