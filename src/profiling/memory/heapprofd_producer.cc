@@ -42,8 +42,8 @@ constexpr int kHeapprofdSignal = 36;
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 
-// TODO(fmayer): Add to HeapprofdConfig.
-constexpr uint64_t kShmemSize = 8 * 1048576;  // ~8 MB
+constexpr uint64_t kDefaultShmemSize = 8 * 1048576;  // ~8 MB
+constexpr uint64_t kMaxShmemSize = 500 * 1048576;    // ~500 MB
 
 ClientConfiguration MakeClientConfiguration(const DataSourceConfig& cfg) {
   ClientConfiguration client_config;
@@ -630,7 +630,13 @@ void HeapprofdProducer::HandleClientConnection(
   }
   RecordOtherSourcesAsRejected(data_source, process);
 
-  auto shmem = SharedRingBuffer::Create(kShmemSize);
+  uint64_t shmem_size = data_source->config.shmem_size_bytes();
+  if (!shmem_size)
+    shmem_size = kDefaultShmemSize;
+  if (shmem_size > kMaxShmemSize)
+    shmem_size = kMaxShmemSize;
+
+  auto shmem = SharedRingBuffer::Create(shmem_size);
   if (!shmem || !shmem->is_valid()) {
     PERFETTO_LOG("Failed to create shared memory.");
     return;
