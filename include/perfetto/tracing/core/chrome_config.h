@@ -62,8 +62,14 @@ class PERFETTO_EXPORT ChromeConfig {
   const std::string& trace_config() const { return trace_config_; }
   void set_trace_config(const std::string& value) { trace_config_ = value; }
 
+  bool privacy_filtering_enabled() const { return privacy_filtering_enabled_; }
+  void set_privacy_filtering_enabled(bool value) {
+    privacy_filtering_enabled_ = value;
+  }
+
  private:
   std::string trace_config_ = {};
+  bool privacy_filtering_enabled_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

@@ -3045,6 +3045,10 @@ message AndroidLogConfig {
 
 message ChromeConfig {
   optional string trace_config = 1;
+
+  // When enabled, the data source should only fill in fields in the output that
+  // are not potentially privacy sensitive.
+  optional bool privacy_filtering_enabled = 2;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
