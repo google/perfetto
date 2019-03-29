@@ -109,6 +109,13 @@ base::ScopedResource<std::string*, SetModeProperty, nullptr> EnableFork() {
       new std::string(prev_property_value));
 }
 
+base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
+  std::string prev_property_value = ReadProperty(kHeapprofdModeProperty, "");
+  __system_property_set(kHeapprofdModeProperty, "");
+  return base::ScopedResource<std::string*, SetModeProperty, nullptr>(
+      new std::string(prev_property_value));
+}
+
 int __attribute__((unused)) SetEnableProperty(std::string* value) {
   if (value) {
     __system_property_set(kEnableHeapprofdProperty, value->c_str());
@@ -334,7 +341,42 @@ class HeapprofdEndToEnd : public ::testing::Test {
     ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
 
     PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-    PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  }
+
+  void TwoProcesses() {
+    constexpr size_t kAllocSize = 1024;
+    constexpr size_t kAllocSize2 = 7;
+
+    pid_t pid = ForkContinuousMalloc(kAllocSize);
+    pid_t pid2 = ForkContinuousMalloc(kAllocSize2);
+
+    TraceConfig trace_config;
+    trace_config.add_buffers()->set_size_kb(10 * 1024);
+    trace_config.set_duration_ms(2000);
+    trace_config.set_flush_timeout_ms(10000);
+
+    auto* ds_config = trace_config.add_data_sources()->mutable_config();
+    ds_config->set_name("android.heapprofd");
+    ds_config->set_target_buffer(0);
+
+    auto* heapprofd_config = ds_config->mutable_heapprofd_config();
+    heapprofd_config->set_sampling_interval_bytes(1);
+    *heapprofd_config->add_pid() = static_cast<uint64_t>(pid);
+    *heapprofd_config->add_pid() = static_cast<uint64_t>(pid2);
+    heapprofd_config->set_all(false);
+
+    auto helper = Trace(trace_config);
+    PrintStats(helper.get());
+    ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
+    ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
+    ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid2));
+    ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid2), kAllocSize2);
+
+    PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+    PERFETTO_CHECK(kill(pid2, SIGKILL) == 0);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid2, nullptr, 0)) == pid2);
   }
 
   void FinalFlush() {
@@ -363,7 +405,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
 
     PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-    PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
   }
 
   void NativeStartup() {
@@ -417,7 +459,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     helper->WaitForReadData();
 
     PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-    PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
 
     const auto& packets = helper->trace();
     ASSERT_GT(packets.size(), 0u);
@@ -524,7 +566,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
                         kSecondIterationBytes);
 
     PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-    PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
   }
 
   void ConcurrentSession() {
@@ -574,7 +616,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
                                static_cast<uint64_t>(pid), true);
 
     PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-    PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
   }
 };
 
@@ -588,8 +630,28 @@ TEST_F(HeapprofdEndToEnd, Smoke_Central) {
   if (IsCuttlefish())
     return;
 
+  auto prop = DisableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
   Smoke();
+}
+
+TEST_F(HeapprofdEndToEnd, TwoProcesses_Fork) {
+  if (IsCuttlefish())
+    return;
+
+  // RAII handle that resets to central mode when out of scope.
+  auto prop = EnableFork();
+  ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "fork");
+  TwoProcesses();
+}
+
+TEST_F(HeapprofdEndToEnd, TwoProcesses_Central) {
+  if (IsCuttlefish())
+    return;
+
+  auto prop = DisableFork();
+  ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
+  TwoProcesses();
 }
 
 TEST_F(HeapprofdEndToEnd, Smoke_Fork) {
@@ -606,6 +668,7 @@ TEST_F(HeapprofdEndToEnd, FinalFlush_Central) {
   if (IsCuttlefish())
     return;
 
+  auto prop = DisableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
   FinalFlush();
 }
@@ -624,6 +687,7 @@ TEST_F(HeapprofdEndToEnd, NativeStartup_Central) {
   if (IsCuttlefish())
     return;
 
+  auto prop = DisableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
   NativeStartup();
 }
@@ -642,6 +706,7 @@ TEST_F(HeapprofdEndToEnd, ReInit_Central) {
   if (IsCuttlefish())
     return;
 
+  auto prop = DisableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
   ReInit();
 }
@@ -660,6 +725,7 @@ TEST_F(HeapprofdEndToEnd, ConcurrentSession_Central) {
   if (IsCuttlefish())
     return;
 
+  auto prop = DisableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
   ConcurrentSession();
 }
