@@ -323,7 +323,7 @@ class UnixSocket {
 #endif
   EventListener* const event_listener_;
   TaskRunner* const task_runner_;
-  WeakPtrFactory<UnixSocket> weak_ptr_factory_;
+  WeakPtrFactory<UnixSocket> weak_ptr_factory_;  // Keep last.
 };
 
 }  // namespace base

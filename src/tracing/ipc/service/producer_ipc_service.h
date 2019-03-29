@@ -116,7 +116,7 @@ class ProducerIPCService : public protos::ProducerPort {
   // |core_service_| business logic.
   std::map<ipc::ClientID, std::unique_ptr<RemoteProducer>> producers_;
 
-  base::WeakPtrFactory<ProducerIPCService> weak_ptr_factory_;
+  base::WeakPtrFactory<ProducerIPCService> weak_ptr_factory_;  // Keep last.
 };
 
 }  // namespace perfetto

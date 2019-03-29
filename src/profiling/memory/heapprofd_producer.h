@@ -198,7 +198,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   SocketDelegate socket_delegate_;
 
-  base::WeakPtrFactory<HeapprofdProducer> weak_factory_;
+  base::WeakPtrFactory<HeapprofdProducer> weak_factory_;  // Keep last.
 };
 
 }  // namespace profiling
