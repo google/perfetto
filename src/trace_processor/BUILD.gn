@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/wasm.gni")
-import("../../gn/fuzzer.gni")
 
 wasm_lib("trace_processor_wasm") {
   name = "trace_processor"
