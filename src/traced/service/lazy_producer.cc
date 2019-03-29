@@ -39,7 +39,7 @@ LazyProducer::LazyProducer(base::TaskRunner* task_runner,
 
 void LazyProducer::ConnectInProcess(TracingService* svc) {
   endpoint_ = svc->ConnectProducer(this, geteuid(), "lazy_producer",
-                                   /*shm_hint_kb*/ 16);
+                                   /*shm_hint_kb*/ 16, /*in_process*/ true);
 }
 
 void LazyProducer::OnConnect() {
