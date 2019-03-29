@@ -207,7 +207,7 @@ void TypedProtoDecoderBase::ExpandHeapStorage() {
   PERFETTO_CHECK(new_capacity > size_);
   std::unique_ptr<Field[]> new_storage(new Field[new_capacity]);
 
-  static_assert(std::is_trivially_copyable<Field>::value,
+  static_assert(PERFETTO_IS_TRIVIALLY_COPYABLE(Field),
                 "Field must be trivially copyable");
   memcpy(&new_storage[0], fields_, sizeof(Field) * size_);
 
