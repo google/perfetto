@@ -24,4 +24,8 @@ package perfetto.protos;
 
 message ChromeConfig {
   optional string trace_config = 1;
+
+  // When enabled, the data source should only fill in fields in the output that
+  // are not potentially privacy sensitive.
+  optional bool privacy_filtering_enabled = 2;
 }
