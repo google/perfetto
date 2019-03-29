@@ -129,8 +129,8 @@ class FtraceController {
   std::vector<std::unique_ptr<CpuReader>> cpu_readers_;
   std::set<FtraceDataSource*> data_sources_;
   std::set<FtraceDataSource*> started_data_sources_;
-  base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
   PERFETTO_THREAD_CHECKER(thread_checker_)
+  base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
 };
 
 }  // namespace perfetto

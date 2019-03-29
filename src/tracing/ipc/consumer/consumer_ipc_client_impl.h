@@ -100,6 +100,7 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   // one with |last_slice_for_packet| == true is received.
   TracePacket partial_packet_;
 
+  // Keep last.
   base::WeakPtrFactory<ConsumerIPCClientImpl> weak_ptr_factory_;
 };
 
