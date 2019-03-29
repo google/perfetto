@@ -147,6 +147,11 @@ void HeapprofdProducer::OnDisconnect() {
 void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
                                         const DataSourceConfig& cfg) {
   PERFETTO_DLOG("Setting up data source.");
+  if (mode_ == HeapprofdMode::kChild && cfg.enable_extra_guardrails()) {
+    PERFETTO_ELOG("enable_extra_guardrails is not supported on user.");
+    return;
+  }
+
   const HeapprofdConfig& heapprofd_config = cfg.heapprofd_config();
   if (heapprofd_config.all() && !heapprofd_config.pid().empty())
     PERFETTO_ELOG("No point setting all and pid");
