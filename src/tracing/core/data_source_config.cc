@@ -53,6 +53,7 @@ DataSourceConfig& DataSourceConfig::operator=(DataSourceConfig&&) = default;
 bool DataSourceConfig::operator==(const DataSourceConfig& other) const {
   return (name_ == other.name_) && (target_buffer_ == other.target_buffer_) &&
          (trace_duration_ms_ == other.trace_duration_ms_) &&
+         (enable_extra_guardrails_ == other.enable_extra_guardrails_) &&
          (tracing_session_id_ == other.tracing_session_id_) &&
          (ftrace_config_ == other.ftrace_config_) &&
          (chrome_config_ == other.chrome_config_) &&
@@ -80,6 +81,12 @@ void DataSourceConfig::FromProto(
                 "size mismatch");
   trace_duration_ms_ =
       static_cast<decltype(trace_duration_ms_)>(proto.trace_duration_ms());
+
+  static_assert(sizeof(enable_extra_guardrails_) ==
+                    sizeof(proto.enable_extra_guardrails()),
+                "size mismatch");
+  enable_extra_guardrails_ = static_cast<decltype(enable_extra_guardrails_)>(
+      proto.enable_extra_guardrails());
 
   static_assert(
       sizeof(tracing_session_id_) == sizeof(proto.tracing_session_id()),
@@ -128,6 +135,13 @@ void DataSourceConfig::ToProto(
       "size mismatch");
   proto->set_trace_duration_ms(
       static_cast<decltype(proto->trace_duration_ms())>(trace_duration_ms_));
+
+  static_assert(sizeof(enable_extra_guardrails_) ==
+                    sizeof(proto->enable_extra_guardrails()),
+                "size mismatch");
+  proto->set_enable_extra_guardrails(
+      static_cast<decltype(proto->enable_extra_guardrails())>(
+          enable_extra_guardrails_));
 
   static_assert(
       sizeof(tracing_session_id_) == sizeof(proto->tracing_session_id()),
