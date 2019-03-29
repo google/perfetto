@@ -47,10 +47,10 @@ TEST(TaskStateUnittest, Smoke) {
   ASSERT_STREQ(TaskState(256).ToString().data(), "W");
   ASSERT_STREQ(TaskState(512).ToString().data(), "P");
   ASSERT_STREQ(TaskState(1024).ToString().data(), "N");
-  ASSERT_STREQ(TaskState(2048).ToString().data(), "n");
 }
 
 TEST(TaskStateUnittest, MultipleState) {
+  ASSERT_STREQ(TaskState(2048).ToString().data(), "R+");
   ASSERT_STREQ(TaskState(4096).ToString().data(), "R+");
   ASSERT_STREQ(TaskState(130).ToString().data(), "DK");
   ASSERT_STREQ(TaskState(258).ToString().data(), "DW");

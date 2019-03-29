@@ -19,7 +19,9 @@ import("../../../../gn/protozero_library.gni")
 event_proto_names = [ "interned_data.proto" ]
 
 proto_library("lite") {
-  link_deps = [ "../track_event:lite" ]
+  deps = [
+    "../track_event:lite",
+  ]
   generate_python = false
   sources = event_proto_names
   proto_in_dir = "$perfetto_root_path/protos"

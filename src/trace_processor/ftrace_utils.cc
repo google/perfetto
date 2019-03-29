@@ -89,8 +89,6 @@ TaskState::TaskState(const char* state_str) {
       state_ |= Atom::kParked;
     else if (c == 'N')
       state_ |= Atom::kNoLoad;
-    else if (c == 'n')
-      state_ |= Atom::kNewTask;
     else {
       invalid_char = true;
       break;
@@ -138,8 +136,6 @@ TaskState::TaskStateStr TaskState::ToString() const {
       buffer[pos++] = 'P';
     if (state_ & Atom::kNoLoad)
       buffer[pos++] = 'N';
-    if (state_ & Atom::kNewTask)
-      buffer[pos++] = 'n';
   }
 
   if (is_kernel_preempt())

@@ -138,7 +138,7 @@ function main() {
   // Prevent pinch zoom.
   document.body.addEventListener('wheel', (e: MouseEvent) => {
     if (e.ctrlKey) e.preventDefault();
-  });
+  }, {passive: false});
 
   router.navigateToCurrentHash();
 }

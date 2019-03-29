@@ -42,7 +42,11 @@ class LazyProducer : public Producer {
   void OnTracingSetup() override {}
   void StartDataSource(DataSourceInstanceID, const DataSourceConfig&) override {
   }
-  void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override {}
+  void Flush(FlushRequestID flush_id,
+             const DataSourceInstanceID*,
+             size_t) override {
+    endpoint_->NotifyFlushComplete(flush_id);
+  }
 
   void OnConnect() override;
   void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&) override;
