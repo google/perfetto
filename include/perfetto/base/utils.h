@@ -64,7 +64,7 @@ using ssize_t = long;
 // TODO(lalitm): is_trivially_constructible is currently not available
 // in some environments we build in. Reenable when that environment supports
 // this.
-#if !defined(__clang__) && defined(__GNUG__) && __GNUC__ < 5
+#if defined(__GLIBCXX__)
 #define PERFETTO_IS_TRIVIALLY_CONSTRUCTIBLE(T) true
 #else
 #define PERFETTO_IS_TRIVIALLY_CONSTRUCTIBLE(T) \
@@ -74,7 +74,7 @@ using ssize_t = long;
 // TODO(lalitm): is_trivially_copyable is currently not available
 // in some environments we build in. Reenable when that environment supports
 // this.
-#if !defined(__clang__) && defined(__GNUG__) && __GNUC__ < 5
+#if defined(__GLIBCXX__)
 #define PERFETTO_IS_TRIVIALLY_COPYABLE(T) true
 #else
 #define PERFETTO_IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
