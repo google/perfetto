@@ -33,6 +33,7 @@
 #include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
+#include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 
 #include "perfetto/common/android_log_constants.pbzero.h"
@@ -58,6 +59,7 @@
 #include "perfetto/trace/ps/process_stats.pbzero.h"
 #include "perfetto/trace/ps/process_tree.pbzero.h"
 #include "perfetto/trace/sys_stats/sys_stats.pbzero.h"
+#include "perfetto/trace/system_info.pbzero.h"
 #include "perfetto/trace/trace.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
@@ -246,21 +248,6 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
            context->storage->InternString("mem.mm.kern_alloc.max_lat"),
            context->storage->InternString("mem.mm.kern_alloc.avg_lat"))}};
 
-  // TODO(hjd): Add the missing syscalls + fix on over arch.
-  sys_name_ids_ = {{context->storage->InternString("sys_restart_syscall"),
-                    context->storage->InternString("sys_exit"),
-                    context->storage->InternString("sys_fork"),
-                    context->storage->InternString("sys_read"),
-                    context->storage->InternString("sys_write"),
-                    context->storage->InternString("sys_open"),
-                    context->storage->InternString("sys_close"),
-                    context->storage->InternString("sys_creat"),
-                    context->storage->InternString("sys_link"),
-                    context->storage->InternString("sys_unlink"),
-                    context->storage->InternString("sys_execve"),
-                    context->storage->InternString("sys_chdir"),
-                    context->storage->InternString("sys_time")}};
-
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -319,6 +306,9 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TraceBlobView blob) {
 
   if (packet.has_profile_packet())
     ParseProfilePacket(packet.profile_packet());
+
+  if (packet.has_system_info())
+    ParseSystemInfo(packet.system_info());
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
@@ -919,24 +909,12 @@ void ProtoTraceParser::ParseSysEvent(int64_t ts,
                                      ConstBytes blob) {
   protos::pbzero::SysEnterFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t syscall_num = static_cast<uint32_t>(evt.id());
-  if (syscall_num >= sys_name_ids_.size()) {
-    context_->storage->IncrementStats(stats::sys_unknown_syscall);
-    return;
-  }
-
-  // We see two write sys calls around each userspace slice that is going via
-  // trace_marker, this violates the assumption that userspace slices are
-  // perfectly nested. For the moment ignore all write sys calls.
-  // TODO(hjd): Remove this limitation.
-  if (syscall_num == 4 /*sys_write*/)
-    return;
-
-  StringId sys_name_id = sys_name_ids_[syscall_num];
   UniqueTid utid = context_->process_tracker->UpdateThread(ts, pid, 0);
+
   if (is_enter) {
-    context_->slice_tracker->Begin(ts, utid, 0 /* cat */, sys_name_id);
+    context_->syscall_tracker->Enter(ts, utid, syscall_num);
   } else {
-    context_->slice_tracker->End(ts, utid, 0 /* cat */, sys_name_id);
+    context_->syscall_tracker->Exit(ts, utid, syscall_num);
   }
 
   // We are reusing the same function for sys_enter and sys_exit.
@@ -1279,6 +1257,23 @@ void ProtoTraceParser::ParseProfilePacket(ConstBytes blob) {
 
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     context_->storage->InternString(base::StringView(str, entry.str().size));
+  }
+}
+
+void ProtoTraceParser::ParseSystemInfo(ConstBytes blob) {
+  protos::pbzero::SystemInfo::Decoder packet(blob.data, blob.size);
+  if (packet.has_utsname()) {
+    ConstBytes utsname_blob = packet.utsname();
+    protos::pbzero::Utsname::Decoder utsname(utsname_blob.data,
+                                             utsname_blob.size);
+    base::StringView machine = utsname.machine();
+    if (machine == "aarch64" || machine == "armv8l") {
+      context_->syscall_tracker->SetArchitecture(kAarch64);
+    } else if (machine == "x86_64") {
+      context_->syscall_tracker->SetArchitecture(kX86_64);
+    } else {
+      PERFETTO_ELOG("Unknown architecture %s", machine.ToStdString().c_str());
+    }
   }
 }
 
