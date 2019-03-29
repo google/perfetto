@@ -143,7 +143,8 @@ std::unique_ptr<TracingService::ProducerEndpoint>
 TracingServiceImpl::ConnectProducer(Producer* producer,
                                     uid_t uid,
                                     const std::string& producer_name,
-                                    size_t shared_memory_size_hint_bytes) {
+                                    size_t shared_memory_size_hint_bytes,
+                                    bool in_process) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   if (lockdown_mode_ && uid != geteuid()) {
@@ -160,7 +161,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   PERFETTO_DLOG("Producer %" PRIu16 " connected", id);
 
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
-      id, uid, this, task_runner_, producer, producer_name));
+      id, uid, this, task_runner_, producer, producer_name, in_process));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -2359,13 +2360,15 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     TracingServiceImpl* service,
     base::TaskRunner* task_runner,
     Producer* producer,
-    const std::string& producer_name)
+    const std::string& producer_name,
+    bool in_process)
     : id_(id),
       uid_(uid),
       service_(service),
       task_runner_(task_runner),
       producer_(producer),
       name_(producer_name),
+      in_process_(in_process),
       weak_ptr_factory_(this) {}
 
 TracingServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
@@ -2471,6 +2474,11 @@ void TracingServiceImpl::ProducerEndpointImpl::SetSharedMemory(
   shmem_abi_.Initialize(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                         shared_memory_->size(),
                         shared_buffer_page_size_kb() * 1024);
+  if (in_process_) {
+    inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
+        shared_memory_->start(), shared_memory_->size(),
+        shared_buffer_page_size_kb_ * 1024, this, task_runner_));
+  }
 }
 
 SharedMemory* TracingServiceImpl::ProducerEndpointImpl::shared_memory() const {
@@ -2502,27 +2510,29 @@ void TracingServiceImpl::ProducerEndpointImpl::StopDataSource(
 }
 
 SharedMemoryArbiterImpl*
-TracingServiceImpl::ProducerEndpointImpl::GetOrCreateShmemArbiter() {
-  std::lock_guard<std::mutex> lock(inproc_shmem_arbiter_mutex_);
-  if (!inproc_shmem_arbiter_) {
-    PERFETTO_CHECK(shared_memory_ && shared_memory_->start());
-    inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
-        shared_memory_->start(), shared_memory_->size(),
-        shared_buffer_page_size_kb_ * 1024, this, task_runner_));
-  }
+TracingServiceImpl::ProducerEndpointImpl::GetShmemArbiter() {
+  PERFETTO_CHECK(inproc_shmem_arbiter_);
   return inproc_shmem_arbiter_.get();
 }
 
 // Can be called on any thread.
 std::unique_ptr<TraceWriter>
 TracingServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID buf_id) {
-  return GetOrCreateShmemArbiter()->CreateTraceWriter(buf_id);
+  if (!inproc_shmem_arbiter_) {
+    PERFETTO_FATAL(
+        "ProducerEndpoint::CreateTraceWriter can only be used when "
+        "CreateProducer has been called with in_process=true and after tracing "
+        "has started.");
+  }
+
+  PERFETTO_DCHECK(in_process_);
+  return GetShmemArbiter()->CreateTraceWriter(buf_id);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::NotifyFlushComplete(
     FlushRequestID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  return GetOrCreateShmemArbiter()->NotifyFlushComplete(id);
+  return GetShmemArbiter()->NotifyFlushComplete(id);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::OnTracingSetup() {
