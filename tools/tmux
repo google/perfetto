@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 set -e
+CUR_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
+
+export PATH="$PATH:$CUR_DIR"
 
 if [ "$TMPDIR" == "" ]; then
   TMPDIR=/tmp
