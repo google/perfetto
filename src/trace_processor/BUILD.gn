@@ -66,6 +66,7 @@ source_set("lib") {
     "ftrace_utils.h",
     "instants_table.cc",
     "instants_table.h",
+    "null_term_string_view.h",
     "process_table.cc",
     "process_table.h",
     "process_tracker.cc",
