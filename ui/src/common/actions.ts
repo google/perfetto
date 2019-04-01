@@ -19,6 +19,7 @@ import {ConvertTrace} from '../controller/trace_converter';
 
 import {
   createEmptyState,
+  LogsPagination,
   RecordConfig,
   SCROLLING_TRACK_GROUP,
   State,
@@ -319,7 +320,11 @@ export const StateActions = {
 
   deselect(state: StateDraft, _: {}): void {
     state.currentSelection = null;
-  }
+  },
+
+  updateLogsPagination(state: StateDraft, args: LogsPagination): void {
+    state.logsPagination = args;
+  },
 
 };
 
