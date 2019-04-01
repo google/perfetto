@@ -30,7 +30,7 @@ void CounterValuesTable::RegisterTable(sqlite3* db,
 StorageSchema CounterValuesTable::CreateStorageSchema() {
   const auto& cs = storage_->counter_values();
   return StorageSchema::Builder()
-      .AddColumn<IdColumn>("id", TableId::kCounterValues)
+      .AddGenericNumericColumn("id", RowIdAccessor(TableId::kCounterValues))
       .AddNumericColumn("counter_id", &cs.counter_ids())
       .AddOrderedNumericColumn("ts", &cs.timestamps())
       .AddNumericColumn("value", &cs.values())
