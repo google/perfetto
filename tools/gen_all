@@ -45,6 +45,7 @@ def main():
     assert os.path.isdir(out), \
         'Output directory "{}" is not a directory'.format(out)
     call('fix_include_guards')
+    call('gen_build')
     call('gen_android_bp')
     call('gen_merged_protos')
     call('gen_binary_descriptors', '--protoc', protoc_path(out))
