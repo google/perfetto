@@ -40,7 +40,7 @@ void CounterDefinitionsTable::RegisterTable(sqlite3* db,
 StorageSchema CounterDefinitionsTable::CreateStorageSchema() {
   const auto& cs = storage_->counter_definitions();
   return StorageSchema::Builder()
-      .AddColumn<RowColumn>("counter_id")
+      .AddGenericNumericColumn("counter_id", RowAccessor())
       .AddStringColumn("name", &cs.name_ids(), &storage_->string_pool())
       .AddColumn<RefColumn>("ref", &cs.refs(), &cs.types(), storage_)
       .AddStringColumn("ref_type", &cs.types(), &ref_types_)

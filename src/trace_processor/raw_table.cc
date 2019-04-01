@@ -48,7 +48,7 @@ void RawTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 StorageSchema RawTable::CreateStorageSchema() {
   const auto& raw = storage_->raw_events();
   return StorageSchema::Builder()
-      .AddColumn<IdColumn>("id", TableId::kRawEvents)
+      .AddGenericNumericColumn("id", RowIdAccessor(TableId::kRawEvents))
       .AddOrderedNumericColumn("ts", &raw.timestamps())
       .AddStringColumn("name", &raw.name_ids(), &storage_->string_pool())
       .AddNumericColumn("cpu", &raw.cpus())
