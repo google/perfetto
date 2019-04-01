@@ -1,12 +1,12 @@
 genrule(
     name = "trace_processor_shell_rule",
     srcs = [
-        ":src_trace_processor_trace_processor_shell_host",
+        ":trace_processor_shell",
     ],
     outs = [
         "trace_processor_shell",
     ],
-    cmd = "cp $(location :src_trace_processor_trace_processor_shell_host) $@",
+    cmd = "cp $(location :trace_processor_shell) $@",
     executable = 1,
 )
 
@@ -20,12 +20,12 @@ gensignature(
 genrule(
     name = "trace_to_text_rule",
     srcs = [
-        ":tools_trace_to_text_trace_to_text_host",
+        ":trace_to_text",
     ],
     outs = [
         "trace_to_text",
     ],
-    cmd = "cp $(location :tools_trace_to_text_trace_to_text_host) $@",
+    cmd = "cp $(location :trace_to_text) $@",
     executable = 1,
 )
 

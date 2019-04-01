@@ -58,19 +58,18 @@ gn_args = 'target_os="linux" is_debug=false'
 
 # Default targets to translate to the blueprint file.
 default_targets = [
-    '//src/trace_processor:trace_processor',
-    '//tools/trace_to_text:trace_to_text_host(//gn/standalone/toolchain:gcc_like_host)',
-    '//src/trace_processor:trace_processor_shell_host(//gn/standalone/toolchain:gcc_like_host)',
-    '//src/protozero/protoc_plugin:protoc_plugin(//gn/standalone/toolchain:gcc_like_host)',
-    '//src/protozero:libprotozero',
-    '//protos/perfetto/trace:zero_gen',
+  '//src/protozero:libprotozero',
+  '//src/trace_processor:trace_processor',
+  '//src/trace_processor:trace_processor_shell_host(//gn/standalone/toolchain:gcc_like_host)',
+  '//tools/trace_to_text:trace_to_text_host(//gn/standalone/toolchain:gcc_like_host)',
 ]
 
 # Aliases to add to the BUILD file
 alias_targets = {
-    '//src/trace_processor:trace_processor': 'trace_processor',
-    '//src/protozero:libprotozero': 'libprotozero',
-    '//src/protozero/protoc_plugin:protoc_plugin': 'protozero_plugin',
+  '//src/protozero:libprotozero': 'libprotozero',
+  '//src/trace_processor:trace_processor': 'trace_processor',
+  '//src/trace_processor:trace_processor_shell_host': 'trace_processor_shell',
+  '//tools/trace_to_text:trace_to_text_host': 'trace_to_text',
 }
 
 
@@ -391,7 +390,7 @@ class BuildGenerator(object):
         self.action_generated_files.update(target['outputs'])
 
 
-  def create_build_for_targets(self, targets, aliases):
+  def create_build_for_targets(self, targets):
     """Generate a BUILD for a list of GN targets and aliases."""
     self.build = Build(public=True)
 
@@ -402,9 +401,6 @@ class BuildGenerator(object):
 
     for target in targets:
       self.create_target(target)
-
-    for (target, alias) in aliases.iteritems():
-      self.create_alias(target, alias)
 
     return (self.build, self.proto_build)
 
@@ -494,23 +490,24 @@ class BuildGenerator(object):
                   (dep_name, dep_desc['type']))
 
 
-  def create_action_target(self, target_name):
-    target_desc = self.desc[target_name]
+  def create_action_target(self, gn_target_name):
+    target_desc = self.desc[gn_target_name]
     args = target_desc['args']
     if not args[0].endswith('/protoc'):
-      raise Error('Unsupported action in target %s: %s' % (target_name,
+      raise Error('Unsupported action in target %s: %s' % (gn_target_name,
                                                           target_desc['args']))
 
     is_pbzero = any("pbzero" in arg for arg in args)
+    gn_target_name_no_toolchain = label_without_toolchain(gn_target_name)
     pretty_target_name = label_to_target_name_with_parent(
-        label_without_toolchain(target_name))
+        gn_target_name_no_toolchain)
     pretty_target_name = pretty_target_name.replace("_lite_gen", "")
     pretty_target_name = pretty_target_name.replace("_zero_gen", "_zero")
 
     proto_target = Target(
         'proto_library',
         pretty_target_name,
-        gn_name=target_name,
+        gn_name=gn_target_name_no_toolchain,
         is_pbzero=is_pbzero
     )
     proto_target.srcs.update([
@@ -521,7 +518,7 @@ class BuildGenerator(object):
       proto_target.visibility.add("//visibility:public")
     self.proto_build.add_target(proto_target)
 
-    for dep_name in self.resolve_dependencies(target_name):
+    for dep_name in self.resolve_dependencies(gn_target_name):
       self.apply_module_dependency(proto_target, dep_name)
 
     if is_pbzero:
@@ -539,7 +536,7 @@ class BuildGenerator(object):
 
       cc_target_name = proto_target.name + "_cc_proto"
       cc_target = Target('pbzero_cc_proto_library',
-                        cc_target_name, gn_name=target_name)
+                        cc_target_name, gn_name=gn_target_name_no_toolchain)
 
       cc_target.deps.add(Label('//third_party/perfetto:libprotozero'))
       cc_target.deps.update(cc_deps)
@@ -552,7 +549,7 @@ class BuildGenerator(object):
     else:
       cc_target_name = proto_target.name + "_cc_proto"
       cc_target = Target('cc_proto_library',
-                        cc_target_name, gn_name=target_name)
+                        cc_target_name, gn_name=gn_target_name_no_toolchain)
       cc_target.visibility.add("//visibility:public")
       cc_target.deps.add(
           Label("//third_party/perfetto/protos:" + proto_target.name))
@@ -561,7 +558,7 @@ class BuildGenerator(object):
     return (proto_target, cc_target)
 
 
-  def create_target(self, target_name):
+  def create_target(self, gn_target_name):
     """Generate module(s) for a given GN target.
 
     Given a GN target name, generate one or more corresponding modules into a
@@ -570,12 +567,12 @@ class BuildGenerator(object):
     Args:
         build: Build instance which is being generated.
         desc: JSON GN description.
-        target_name: GN target for module generation.
+        gn_target_name: GN target name for module generation.
     """
 
-    target_desc = self.desc[target_name]
+    target_desc = self.desc[gn_target_name]
     if target_desc['type'] == 'action':
-      return self.create_action_target(target_name)
+      return self.create_action_target(gn_target_name)
     elif target_desc['type'] == 'executable':
       target_type = 'cc_binary'
     elif target_desc['type'] == 'static_library':
@@ -585,36 +582,21 @@ class BuildGenerator(object):
     else:
       raise Error('Unknown target type: %s' % target_desc['type'])
 
-    target = Target(target_type, label_to_target_name_with_path(
-        label_without_toolchain(target_name)), gn_name=target_name)
+    label_no_toolchain = label_without_toolchain(gn_target_name)
+    target_name_path = label_to_target_name_with_path(label_no_toolchain)
+    target_name = alias_targets.get(label_no_toolchain, target_name_path)
+    target = Target(target_type, target_name, gn_name=label_no_toolchain)
     target.srcs.update(
         Label(label_to_path(src))
         for src in target_desc.get('sources', [])
         if src not in self.action_generated_files
     )
 
-    for dep_name in self.resolve_dependencies(target_name):
+    for dep_name in self.resolve_dependencies(gn_target_name):
       self.apply_module_dependency(target, dep_name)
 
     self.build.add_target(target)
     return target
-
-
-  def create_alias(self, target_name, alias):
-    """Adds an alias for a target to the given build file.
-
-    Given a target name and an alias for that target, adds a alias
-    rule to the build file.
-
-    Args:
-        build: Build instance which is being generated.
-        target_name: GN target to create the alias from.
-        alias: the alias for the target.
-    """
-    build_target = ':' + label_to_target_name_with_path(target_name)
-    self.build.add_target(Target(type='alias', name=alias, actual=build_target))
-
-
 
 def main():
   parser = argparse.ArgumentParser(
@@ -657,7 +639,7 @@ def main():
 
   build_generator = BuildGenerator(desc)
   build, proto_build = build_generator.create_build_for_targets(
-      args.targets or default_targets, alias_targets)
+      args.targets or default_targets)
   with open(args.output, 'w') as f:
     writer = Writer(f)
     build.write(writer)
