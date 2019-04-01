@@ -1,32 +1,8 @@
-genrule(
-    name = "trace_processor_shell_rule",
-    srcs = [
-        ":trace_processor_shell",
-    ],
-    outs = [
-        "trace_processor_shell",
-    ],
-    cmd = "cp $(location :trace_processor_shell) $@",
-    executable = 1,
-)
-
 gensignature(
     name = "trace_processor_shell_sig",
     srcs = [
         ":trace_processor_shell",
     ],
-)
-
-genrule(
-    name = "trace_to_text_rule",
-    srcs = [
-        ":trace_to_text",
-    ],
-    outs = [
-        "trace_to_text",
-    ],
-    cmd = "cp $(location :trace_to_text) $@",
-    executable = 1,
 )
 
 gensignature(
