@@ -21,7 +21,7 @@ def CheckChange(input, output):
     long_line_sources = lambda x: input.FilterSourceFile(
             x, white_list=".*",
             black_list=['Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$',
-                        'test/trace_processor/index$'])
+                        'test/trace_processor/index$', 'BUILD$', 'protos/BUILD$'])
     results = []
     results += input.canned_checks.CheckDoNotSubmit(input, output)
     results += input.canned_checks.CheckChangeHasNoTabs(input, output)
@@ -31,6 +31,7 @@ def CheckChange(input, output):
             input, output, check_js=True)
     results += input.canned_checks.CheckGNFormatted(input, output)
     results += CheckIncludeGuards(input, output)
+    results += CheckBuild(input, output)
     results += CheckAndroidBlueprint(input, output)
     results += CheckBinaryDescriptors(input, output)
     results += CheckMergedTraceConfigProto(input, output)
@@ -44,6 +45,35 @@ def CheckChangeOnUpload(input_api, output_api):
 
 def CheckChangeOnCommit(input_api, output_api):
     return CheckChange(input_api, output_api)
+
+
+def CheckBuild(input_api, output_api):
+    # If no GN files were modified, bail out.
+    def build_file_filter(x): return input_api.FilterSourceFile(
+        x,
+        white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'tools/gen_build'))
+    if not input_api.AffectedSourceFiles(build_file_filter):
+        return []
+
+    with open('BUILD') as f:
+        current_build = f.read()
+
+    new_build = subprocess.check_output(
+        ['tools/gen_build', '--output', '/dev/stdout', '--output-proto', '/dev/null'])
+
+    with open('protos/BUILD') as f:
+        current_proto_build = f.read()
+
+    new_proto_build = subprocess.check_output(
+        ['tools/gen_build', '--output', '/dev/null', '--output-proto', '/dev/stdout'])
+
+    if current_build != new_build or current_proto_build != new_proto_build:
+        return [
+            output_api.PresubmitError(
+                'BUILD and/or protos/BUILD is out of date. Please run tools/gen_build '
+                'to update it.')
+        ]
+    return []
 
 
 def CheckAndroidBlueprint(input_api, output_api):
