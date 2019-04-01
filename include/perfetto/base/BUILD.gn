@@ -57,4 +57,5 @@ source_set("base") {
   public_deps = [
     "../../../gn:gtest_prod_config",
   ]
+  public_configs = [ "../../../gn:asan_instrumentation" ]
 }
