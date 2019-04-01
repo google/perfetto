@@ -53,7 +53,7 @@ class CounterDefinitionsTable : public StorageTable {
 
     Comparator Sort(const QueryConstraints::OrderBy& ob) const override;
 
-    bool IsNaturallyOrdered() const override { return false; }
+    bool HasOrdering() const override { return false; }
 
     Table::ColumnType GetType() const override {
       return Table::ColumnType::kLong;
