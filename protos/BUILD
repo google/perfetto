@@ -23,8 +23,7 @@ licenses(["notice"])  # Apache 2.0
 
 exports_files(["LICENSE"])
 
-# GN target:
-# //protos/perfetto/trace/android:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/android:lite_gen
 proto_library(
     name = "android",
     srcs = [
@@ -41,8 +40,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/android:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/android:lite_gen
 cc_proto_library(
     name = "android_cc_proto",
     visibility = [
@@ -74,8 +72,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/chrome:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/chrome:lite_gen
 proto_library(
     name = "chrome",
     srcs = [
@@ -89,8 +86,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/chrome:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/chrome:lite_gen
 cc_proto_library(
     name = "chrome_cc_proto",
     visibility = [
@@ -123,8 +119,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/common:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/common:lite_gen
 proto_library(
     name = "common",
     srcs = [
@@ -142,8 +137,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/common:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/common:lite_gen
 cc_proto_library(
     name = "common_cc_proto",
     visibility = [
@@ -176,8 +170,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/config:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/config:lite_gen
 proto_library(
     name = "config",
     srcs = [
@@ -205,8 +198,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/config:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/config:lite_gen
 cc_proto_library(
     name = "config_cc_proto",
     visibility = [
@@ -249,8 +241,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/filesystem:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/filesystem:lite_gen
 proto_library(
     name = "filesystem",
     srcs = [
@@ -264,8 +255,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/filesystem:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/filesystem:lite_gen
 cc_proto_library(
     name = "filesystem_cc_proto",
     visibility = [
@@ -294,8 +284,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/ftrace:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/ftrace:lite_gen
 proto_library(
     name = "ftrace",
     srcs = [
@@ -340,8 +329,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/ftrace:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/ftrace:lite_gen
 cc_proto_library(
     name = "ftrace_cc_proto",
     visibility = [
@@ -401,8 +389,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/interned_data:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/interned_data:lite_gen
 proto_library(
     name = "interned_data",
     srcs = [
@@ -419,8 +406,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/interned_data:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/interned_data:lite_gen
 cc_proto_library(
     name = "interned_data_cc_proto",
     visibility = [
@@ -452,8 +438,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/power:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/power:lite_gen
 proto_library(
     name = "power",
     srcs = [
@@ -468,8 +453,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/power:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/power:lite_gen
 cc_proto_library(
     name = "power_cc_proto",
     visibility = [
@@ -499,8 +483,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/third_party/pprof:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/third_party/pprof:lite_gen
 proto_library(
     name = "pprof",
     srcs = [
@@ -514,8 +497,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/third_party/pprof:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/third_party/pprof:lite_gen
 cc_proto_library(
     name = "pprof_cc_proto",
     visibility = [
@@ -526,8 +508,7 @@ cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/profiling:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/profiling:lite_gen
 proto_library(
     name = "profiling",
     srcs = [
@@ -541,8 +522,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/profiling:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/profiling:lite_gen
 cc_proto_library(
     name = "profiling_cc_proto",
     visibility = [
@@ -571,8 +551,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/ps:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/ps:lite_gen
 proto_library(
     name = "ps",
     srcs = [
@@ -587,8 +566,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/ps:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/ps:lite_gen
 cc_proto_library(
     name = "ps_cc_proto",
     visibility = [
@@ -618,8 +596,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/sys_stats:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/sys_stats:lite_gen
 proto_library(
     name = "sys_stats",
     srcs = [
@@ -636,8 +613,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/sys_stats:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/sys_stats:lite_gen
 cc_proto_library(
     name = "sys_stats_cc_proto",
     visibility = [
@@ -669,8 +645,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace:lite_gen
 proto_library(
     name = "trace",
     srcs = [
@@ -701,8 +676,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace:lite_gen
 cc_proto_library(
     name = "trace_cc_proto",
     visibility = [
@@ -713,8 +687,7 @@ cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace:minimal_lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace:minimal_lite_gen
 proto_library(
     name = "trace_minimal",
     srcs = [
@@ -733,8 +706,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace:minimal_lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace:minimal_lite_gen
 cc_proto_library(
     name = "trace_minimal_cc_proto",
     visibility = [
@@ -745,8 +717,7 @@ cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace_processor:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace_processor:lite_gen
 proto_library(
     name = "trace_processor",
     srcs = [
@@ -762,8 +733,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace_processor:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace_processor:lite_gen
 cc_proto_library(
     name = "trace_processor_cc_proto",
     visibility = [
@@ -810,8 +780,7 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/track_event:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/track_event:lite_gen
 proto_library(
     name = "track_event",
     srcs = [
@@ -829,8 +798,7 @@ proto_library(
     ],
 )
 
-# GN target:
-# //protos/perfetto/trace/track_event:lite_gen(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //protos/perfetto/trace/track_event:lite_gen
 cc_proto_library(
     name = "track_event_cc_proto",
     visibility = [
