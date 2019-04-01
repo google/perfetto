@@ -20,19 +20,9 @@ licenses(["notice"])  # Apache 2.0
 
 exports_files(["LICENSE"])
 
-alias(
-    name = "libprotozero",
-    actual = ":src_protozero_libprotozero",
-)
-
-alias(
-    name = "protozero_plugin",
-    actual = ":src_protozero_protoc_plugin_protoc_plugin",
-)
-
 # GN target: //src/protozero:libprotozero
 cc_library(
-    name = "src_protozero_libprotozero",
+    name = "libprotozero",
     srcs = [
         "src/base/event.cc",
         "src/base/file_utils.cc",
@@ -104,8 +94,7 @@ cc_library(
     ],
 )
 
-# GN target:
-# //src/protozero/protoc_plugin:protoc_plugin(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //src/protozero/protoc_plugin:protoc_plugin
 cc_binary(
     name = "src_protozero_protoc_plugin_protoc_plugin",
     srcs = [
@@ -121,7 +110,7 @@ cc_binary(
 
 # GN target: //src/trace_processor:trace_processor
 cc_library(
-    name = "src_trace_processor_trace_processor",
+    name = "trace_processor",
     srcs = [
         "src/base/event.cc",
         "src/base/file_utils.cc",
@@ -300,10 +289,9 @@ cc_library(
     ],
 )
 
-# GN target:
-# //src/trace_processor:trace_processor_shell_host(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //src/trace_processor:trace_processor_shell_host
 cc_binary(
-    name = "src_trace_processor_trace_processor_shell_host",
+    name = "trace_processor_shell",
     srcs = [
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/circular_queue.h",
@@ -483,10 +471,9 @@ cc_binary(
     ],
 )
 
-# GN target:
-# //tools/trace_to_text:trace_to_text_host(//gn/standalone/toolchain:gcc_like_host)
+# GN target: //tools/trace_to_text:trace_to_text_host
 cc_binary(
-    name = "tools_trace_to_text_trace_to_text_host",
+    name = "trace_to_text",
     srcs = [
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/circular_queue.h",
@@ -691,20 +678,15 @@ cc_binary(
     ],
 )
 
-alias(
-    name = "trace_processor",
-    actual = ":src_trace_processor_trace_processor",
-)
-
 genrule(
     name = "trace_processor_shell_rule",
     srcs = [
-        ":src_trace_processor_trace_processor_shell_host",
+        ":trace_processor_shell",
     ],
     outs = [
         "trace_processor_shell",
     ],
-    cmd = "cp $(location :src_trace_processor_trace_processor_shell_host) $@",
+    cmd = "cp $(location :trace_processor_shell) $@",
     executable = 1,
 )
 
@@ -718,12 +700,12 @@ gensignature(
 genrule(
     name = "trace_to_text_rule",
     srcs = [
-        ":tools_trace_to_text_trace_to_text_host",
+        ":trace_to_text",
     ],
     outs = [
         "trace_to_text",
     ],
-    cmd = "cp $(location :tools_trace_to_text_trace_to_text_host) $@",
+    cmd = "cp $(location :trace_to_text) $@",
     executable = 1,
 )
 
