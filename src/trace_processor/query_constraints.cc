@@ -19,7 +19,7 @@
 #include <sqlite3.h>
 #include <string>
 
-#include "include/perfetto/base/string_splitter.h"
+#include "perfetto/base/string_splitter.h"
 
 namespace perfetto {
 namespace trace_processor {
