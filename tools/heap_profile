@@ -73,6 +73,12 @@ CFG='''buffers {{
 
 data_sources {{
   config {{
+    name: "android.packages_list"
+  }}
+}}
+
+data_sources {{
+  config {{
     name: "android.heapprofd"
     heapprofd_config {{
 
