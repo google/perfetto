@@ -16,7 +16,10 @@ import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
 import("../../../../gn/protozero_library.gni")
 
-android_proto_names = [ "android_log.proto" ]
+android_proto_names = [
+  "android_log.proto",
+  "packages_list.proto",
+]
 
 proto_library("lite") {
   deps = [
