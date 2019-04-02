@@ -693,6 +693,7 @@ proto_library(
     srcs = [
         "perfetto/trace/clock_snapshot.proto",
         "perfetto/trace/system_info.proto",
+        "perfetto/trace/trigger.proto",
     ],
     has_services = 1,
     cc_api_version = 2,
@@ -753,6 +754,7 @@ proto_library(
         "perfetto/trace/test_event.proto",
         "perfetto/trace/trace.proto",
         "perfetto/trace/trace_packet.proto",
+        "perfetto/trace/trigger.proto",
     ],
     deps = [
         "//third_party/perfetto/protos:android_zero",
