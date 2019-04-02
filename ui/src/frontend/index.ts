@@ -19,6 +19,7 @@ import * as m from 'mithril';
 
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
+import {LogBoundsKey, LogEntriesKey, LogExistsKey} from '../common/logs';
 
 import {globals, QuantizedLoad, SliceDetails, ThreadDesc} from './globals';
 import {HomePage} from './home_page';
@@ -62,7 +63,11 @@ class FrontendApi {
 
   publishTrackData(args: {id: string, data: {}}) {
     globals.setTrackData(args.id, args.data);
-    globals.rafScheduler.scheduleRedraw();
+    if ([LogExistsKey, LogBoundsKey, LogEntriesKey].includes(args.id)) {
+      globals.rafScheduler.scheduleFullRedraw();
+    } else {
+      globals.rafScheduler.scheduleRedraw();
+    }
   }
 
   publishQueryResult(args: {id: string, data: {}}) {

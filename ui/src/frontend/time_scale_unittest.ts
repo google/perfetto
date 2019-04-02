@@ -31,7 +31,7 @@ test('time scale to work', () => {
 
   expect(scale.timeInBounds(50)).toEqual(true);
   expect(scale.timeInBounds(0)).toEqual(true);
-  expect(scale.timeInBounds(100)).toEqual(false);
+  expect(scale.timeInBounds(100)).toEqual(true);
   expect(scale.timeInBounds(-1)).toEqual(false);
   expect(scale.timeInBounds(101)).toEqual(false);
 });

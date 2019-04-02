@@ -113,6 +113,11 @@ export interface ThreadStateSelection {
 type Selection =
     NoteSelection|SliceSelection|TimeSpanSelection|ThreadStateSelection;
 
+export interface LogsPagination {
+  offset: number;
+  count: number;
+}
+
 export interface State {
   route: string|null;
   nextId: number;
@@ -137,6 +142,8 @@ export interface State {
   notes: ObjectById<Note>;
   status: Status;
   currentSelection: Selection|null;
+
+  logsPagination: LogsPagination;
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to
@@ -268,6 +275,11 @@ export function createEmptyState(): State {
     frontendLocalState: {
       visibleTraceTime: {...defaultTraceTime},
       lastUpdate: 0,
+    },
+
+    logsPagination: {
+      offset: 0,
+      count: 0,
     },
 
     status: {msg: '', timestamp: 0},

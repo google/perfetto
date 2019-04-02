@@ -95,7 +95,6 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.parentHeight = clientRect.height;
 
     this.readPanelHeightsFromDom(vnodeDom.dom);
-    (vnodeDom.dom as HTMLElement).style.height = `${this.totalPanelHeight}px`;
 
     this.updateCanvasDimensions();
     this.repositionCanvas();
@@ -148,10 +147,6 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   onupdate(vnodeDom: m.CVnodeDOM<Attrs>) {
     const totalPanelHeightChanged = this.readPanelHeightsFromDom(vnodeDom.dom);
     const parentSizeChanged = this.readParentSizeFromDom(vnodeDom.dom);
-
-    if (totalPanelHeightChanged) {
-      (vnodeDom.dom as HTMLElement).style.height = `${this.totalPanelHeight}px`;
-    }
 
     const canvasSizeShouldChange =
         this.attrs.doesScroll ? parentSizeChanged : totalPanelHeightChanged;
