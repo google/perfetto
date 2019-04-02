@@ -398,8 +398,13 @@ class TracingServiceImpl : public TracingService {
     // were received at. This is used to insert 'fake' packets back to the
     // consumer so they can tell when some event happened. The order matches the
     // order they were received.
-    std::vector<std::pair<uint64_t, TraceConfig::TriggerConfig::Trigger>>
-        received_triggers;
+    struct TriggerInfo {
+      uint64_t boot_time_ns;
+      std::string trigger_name;
+      std::string producer_name;
+      uid_t producer_uid;
+    };
+    std::vector<TriggerInfo> received_triggers;
 
     // The trace config provided by the Consumer when calling
     // EnableTracing(), plus any updates performed by ChangeTraceConfig.
@@ -431,6 +436,9 @@ class TracingServiceImpl : public TracingService {
 
     // Whether we put the system info into the trace output yet.
     bool did_emit_system_info = false;
+
+    // The number of received triggers we've emitted into the trace output.
+    size_t num_triggers_emitted_into_trace = 0;
 
     State state = DISABLED;
 
@@ -480,6 +488,7 @@ class TracingServiceImpl : public TracingService {
   TraceStats GetTraceStats(TracingSession* tracing_session);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
+  void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);

@@ -1668,6 +1668,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/clock_snapshot.proto",
     "protos/perfetto/trace/system_info.proto",
+    "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
     "aprotoc",
@@ -1676,6 +1677,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.cc",
     "external/perfetto/protos/perfetto/trace/system_info.pb.cc",
+    "external/perfetto/protos/perfetto/trace/trigger.pb.cc",
   ],
 }
 
@@ -1685,6 +1687,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/clock_snapshot.proto",
     "protos/perfetto/trace/system_info.proto",
+    "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
     "aprotoc",
@@ -1693,6 +1696,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.h",
     "external/perfetto/protos/perfetto/trace/system_info.pb.h",
+    "external/perfetto/protos/perfetto/trace/trigger.pb.h",
   ],
   export_include_dirs: [
     "protos",
@@ -2170,6 +2174,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
     "aprotoc",
@@ -2182,6 +2187,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/trigger.pbzero.cc",
   ],
 }
 
@@ -2194,6 +2200,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
     "aprotoc",
@@ -2206,6 +2213,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/trigger.pbzero.h",
   ],
   export_include_dirs: [
     "protos",
