@@ -844,7 +844,12 @@ void ProtoTraceParser::ParsePowerRails(ConstBytes blob) {
     for (auto it = evt.rail_descriptor(); it; ++it) {
       protos::pbzero::PowerRails::RailDescriptor::Decoder desc(it->data(),
                                                                it->size());
-      auto idx = desc.index();
+      uint32_t idx = desc.index();
+      if (PERFETTO_UNLIKELY(idx > 256)) {
+        PERFETTO_DLOG("Skipping excessively large power_rail index %" PRIu32,
+                      idx);
+        continue;
+      }
       if (power_rails_strs_id_.size() <= idx)
         power_rails_strs_id_.resize(idx + 1);
       char counter_name[255];
