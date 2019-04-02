@@ -897,14 +897,11 @@ void TracingServiceImpl::ActivateTriggers(
         continue;
       }
 
-      // TODO(nuskos): Currently we store these triggers but don't actually
-      // return them inside ReadBuffers. In a followup CL add this
-      // functionality. Ensure that there is no race condition between
-      // future triggers being added and ReadBuffers processing this vector.
       const bool triggers_already_received =
           !tracing_session.received_triggers.empty();
-      tracing_session.received_triggers.push_back(std::make_pair(
-          static_cast<uint64_t>(base::GetBootTimeNs().count()), *iter));
+      tracing_session.received_triggers.push_back(
+          {static_cast<uint64_t>(base::GetBootTimeNs().count()), iter->name(),
+           producer->name_, producer->uid_});
       auto weak_this = weak_ptr_factory_.GetWeakPtr();
       switch (tracing_session.config.trigger_config().trigger_mode()) {
         case TraceConfig::TriggerConfig::START_TRACING:
@@ -1347,6 +1344,7 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   }
   MaybeEmitTraceConfig(tracing_session, &packets);
   MaybeEmitSystemInfo(tracing_session, &packets);
+  MaybeEmitReceivedTriggers(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
   size_t total_slices = 0;   // SUM(#slices in |packets|).
@@ -2135,6 +2133,32 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
   packets->emplace_back();
   packets->back().AddSlice(std::move(slice));
+}
+
+void TracingServiceImpl::MaybeEmitReceivedTriggers(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  PERFETTO_DCHECK(tracing_session->num_triggers_emitted_into_trace <=
+                  tracing_session->received_triggers.size());
+  for (size_t i = tracing_session->num_triggers_emitted_into_trace;
+       i < tracing_session->received_triggers.size(); ++i) {
+    const auto& info = tracing_session->received_triggers[i];
+    protos::TrustedPacket packet;
+
+    protos::Trigger* trigger = packet.mutable_trigger();
+    trigger->set_trigger_name(info.trigger_name);
+    trigger->set_producer_name(info.producer_name);
+    trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
+
+    packet.set_timestamp(info.boot_time_ns);
+    packet.set_trusted_uid(static_cast<int32_t>(uid_));
+    packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
+    PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
+    packets->emplace_back();
+    packets->back().AddSlice(std::move(slice));
+    ++tracing_session->num_triggers_emitted_into_trace;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
