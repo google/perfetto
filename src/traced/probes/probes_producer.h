@@ -79,6 +79,9 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   std::unique_ptr<ProbesDataSource> CreateAndroidLogDataSource(
       TracingSessionID session_id,
       const DataSourceConfig& config);
+  std::unique_ptr<ProbesDataSource> CreatePackagesListDataSource(
+      TracingSessionID session_id,
+      const DataSourceConfig& config);
 
  private:
   enum State {
