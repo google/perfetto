@@ -21,6 +21,7 @@
 
 @mixin transition($time:0.1s) {
     transition: opacity $time ease,
+                color $time ease,
                 background-color $time ease,
                 border-color $time ease,
                 width $time ease,
@@ -335,6 +336,9 @@ canvas.main-canvas {
 }
 
 .details-content {
+  display: grid;
+  grid-template-rows: auto 1fr;
+
   .handle {
     background-color: hsl(215, 1%, 95%);
     border: 1px solid rgba(0,0,0,0.1);
@@ -364,8 +368,14 @@ canvas.main-canvas {
   }
 
   .details-panel-container {
-    width: 100%;
-    height: 100%;
+    .scroll-limiter {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      .panel:last-child {
+        flex-grow: 1;
+      }
+    }
   }
 }
 
@@ -598,4 +608,85 @@ button.query-ctrl {
 
 .time-selection-panel {
   height: 10px;
+}
+
+.log-panel {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+
+  header.stale {
+    color: grey;
+  }
+
+  .scrolling-container {
+    overflow-y: scroll;
+    position: relative;
+    width: 100%;
+    background-color: #fefefe;
+    border-bottom: 1px solid hsl(213, 22%, 75%);
+
+    .rows {
+      position: relative;
+      direction: ltr;
+      width: 100%;
+
+      .row {
+        @include transition();
+        position: absolute;
+        width: 100%;
+        height: 20px;
+        line-height: 20px;
+        background-color: hsl(214, 22%, 100%);
+
+        &.D { color: hsl(122, 20%, 40%); }
+        &.V { color: hsl(122, 20%, 30%); }
+        &.I { color: hsl(0, 0%, 20%); }
+        &.W { color: hsl(45, 60%, 45%); }
+        &.E { color: hsl(4, 90%, 58%); }
+        &.F { color: hsl(291, 64%, 42%); }
+        &.stale { color: #aaa; }
+        &:nth-child(even) {
+            background-color: hsl(214, 22%, 95%);
+        }
+        &:hover {
+          background-color: hsl(214, 22%, 90%);
+        }
+        .cell {
+          font-size: 11px;
+          font-family: var(--monospace-font);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          padding-left: 10px;
+          padding-right: 10px;
+          display: inline-block;
+          &:first-child {
+            padding-left: 5px;
+          }
+          &:last-child {
+            padding-right: 5px;
+          }
+          &:nth-child(1) {
+            width: 110px;
+            text-overflow: clip;
+            text-align: right;
+          }
+          &:nth-child(2) {
+            width: 20px;
+          }
+          &:nth-child(3) {
+            width: 15%;
+          }
+          &:nth-child(4) {
+            width: calc(100% - 110px - 20px - 15%);
+          }
+          &:only-child {
+            width: 100%;
+          }
+        }
+      }
+    }
+  }
 }

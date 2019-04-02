@@ -221,6 +221,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     ctx.translate(TRACK_SHELL_WIDTH, 0);
 
     this.track.renderCanvas(ctx);
+
     ctx.restore();
 
     const localState = globals.frontendLocalState;
