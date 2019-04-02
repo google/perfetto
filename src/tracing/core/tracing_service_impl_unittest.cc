@@ -716,7 +716,7 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStartTracingTrigger) {
         Property(
             &protos::TracePacket::trigger,
             AllOf(Property(&protos::Trigger::trigger_name, Eq(name)),
-                  Property(&protos::Trigger::trusted_producer_uid, Eq(123u)),
+                  Property(&protos::Trigger::trusted_producer_uid, Eq(123)),
                   Property(&protos::Trigger::producer_name,
                            Eq("mock_producer")))),
         Property(&protos::TracePacket::trusted_packet_sequence_id,
@@ -794,7 +794,7 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStopTracingTrigger) {
         Property(
             &protos::TracePacket::trigger,
             AllOf(Property(&protos::Trigger::trigger_name, Eq(name)),
-                  Property(&protos::Trigger::trusted_producer_uid, Eq(321u)),
+                  Property(&protos::Trigger::trusted_producer_uid, Eq(321)),
                   Property(&protos::Trigger::producer_name,
                            Eq("mock_producer")))),
         Property(&protos::TracePacket::trusted_packet_sequence_id,
