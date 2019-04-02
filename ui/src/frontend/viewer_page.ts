@@ -15,12 +15,14 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {LogExists, LogExistsKey} from '../common/logs';
 import {QueryResponse} from '../common/queries';
 import {TimeSpan} from '../common/time';
 
 import {copyToClipboard} from './clipboard';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
+import {LogPanel} from './logs_panel';
 import {NotesEditorPanel, NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
@@ -40,6 +42,11 @@ const DRAG_HANDLE_HEIGHT_PX = 28;
 const DEFAULT_DETAILS_HEIGHT_PX = 230 + DRAG_HANDLE_HEIGHT_PX;
 const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
+
+function hasLogs(): boolean {
+  const data = globals.trackDataStore.get(LogExistsKey) as LogExists;
+  return data && data.exists;
+}
 
 class QueryTable extends Panel {
   view() {
@@ -109,7 +116,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private dragStartHeight = 0;
   private height = 0;
   private resize: (height: number) => void = () => {};
-  private isClosed = this.height === DRAG_HANDLE_HEIGHT_PX;
+  private isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
 
   oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
@@ -171,9 +178,9 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
 class TraceViewer implements m.ClassComponent {
   private onResize: () => void = () => {};
   private zoomContent?: PanAndZoomHandler;
-  private detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
+  private detailsHeight = DRAG_HANDLE_HEIGHT_PX;
   // Used to set details panel to default height on selection.
-  private showDetailsPanel = false;
+  private showDetailsPanel = true;
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
 
@@ -275,7 +282,6 @@ class TraceViewer implements m.ClassComponent {
     const detailsPanels: AnyAttrsVnode[] = [];
     const curSelection = globals.state.currentSelection;
     if (curSelection) {
-      this.showDetailsPanel = true;
       switch (curSelection.kind) {
         case 'NOTE':
           detailsPanels.push(m(NotesEditorPanel, {
@@ -301,10 +307,11 @@ class TraceViewer implements m.ClassComponent {
         default:
           break;
       }
-    } else {
-      // No current selection so hide the details panel.
-      this.showDetailsPanel = false;
+    } else if (hasLogs()) {
+      detailsPanels.push(m(LogPanel, {}));
     }
+
+    this.showDetailsPanel = detailsPanels.length > 0;
 
     return m(
         '.page',
@@ -338,7 +345,7 @@ class TraceViewer implements m.ClassComponent {
           {
             style: {
               height: `${this.detailsHeight}px`,
-              display: this.showDetailsPanel ? 'block' : 'none'
+              display: this.showDetailsPanel ? null : 'none'
             }
           },
           m(DragHandle, {
