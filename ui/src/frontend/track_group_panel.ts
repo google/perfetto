@@ -68,7 +68,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
             m.trust('&#x200E;')),
           m('.fold-button',
             {
-              onclick: (e:MouseEvent) => {
+              onclick: (e: MouseEvent) => {
                 globals.dispatch(Actions.toggleTrackGroupCollapsed({
                   trackGroupId: attrs.trackGroupId,
                 })),
@@ -77,7 +77,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
             },
             m('i.material-icons',
               this.trackGroupState.collapsed ? 'expand_more' : 'expand_less'))),
-        m(TrackContent, {track: this.summaryTrack}), );
+        this.summaryTrack ? m(TrackContent, {track: this.summaryTrack}) : null);
   }
 
   oncreate(vnode: m.CVnodeDOM<Attrs>) {
@@ -108,7 +108,9 @@ export class TrackGroupPanel extends Panel<Attrs> {
         size.height);
 
     ctx.translate(this.shellWidth, 0);
-    this.summaryTrack.renderCanvas(ctx);
+    if (this.summaryTrack) {
+      this.summaryTrack.renderCanvas(ctx);
+    }
     ctx.restore();
 
     const localState = globals.frontendLocalState;

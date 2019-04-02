@@ -38,6 +38,7 @@ import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
 import {Child, Children, Controller} from './controller';
 import {globals} from './globals';
+import {LogsController} from './logs_controller';
 import {QueryController, QueryControllerArgs} from './query_controller';
 import {
   SelectionController,
@@ -120,6 +121,11 @@ export class TraceController extends Controller<States> {
         const selectionArgs: SelectionControllerArgs = {engine};
         childControllers.push(
           Child('selection', SelectionController, selectionArgs));
+
+        childControllers.push(Child('logs', LogsController, {
+          engine,
+          app: globals,
+        }));
 
         return childControllers;
 
