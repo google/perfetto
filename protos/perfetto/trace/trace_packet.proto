@@ -20,6 +20,7 @@ option optimize_for = LITE_RUNTIME;
 import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 import "perfetto/trace/android/android_log.proto";
+import "perfetto/trace/android/packages_list.proto";
 import "perfetto/trace/chrome/chrome_trace_event.proto";
 import "perfetto/trace/clock_snapshot.proto";
 import "perfetto/trace/filesystem/inode_file_map.proto";
@@ -73,6 +74,7 @@ message TracePacket {
     AndroidLogPacket android_log = 39;
     SystemInfo system_info = 45;
     Trigger trigger = 46;
+    PackagesList packages_list = 47;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
