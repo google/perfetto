@@ -170,6 +170,7 @@ if (current_toolchain == host_toolchain) {
     deps = [
       ":lib",
       "../../gn:default_deps",
+      "../../protos/perfetto/metrics:lite",
       "../../protos/perfetto/trace_processor:lite",
       "../base",
     ]
