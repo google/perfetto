@@ -27,12 +27,11 @@ class ChunkedTraceReader;
 class ClockTracker;
 class EventTracker;
 class ProcessTracker;
-class ProtoTraceParser;
 class SliceTracker;
 class SyscallTracker;
 class TraceParser;
-class TraceSorter;
 class TraceStorage;
+class TraceSorter;
 
 class TraceProcessorContext {
  public:
@@ -46,7 +45,7 @@ class TraceProcessorContext {
   std::unique_ptr<EventTracker> event_tracker;
   std::unique_ptr<ClockTracker> clock_tracker;
   std::unique_ptr<TraceStorage> storage;
-  std::unique_ptr<ProtoTraceParser> proto_parser;
+  std::unique_ptr<TraceParser> parser;
   std::unique_ptr<TraceSorter> sorter;
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
 };

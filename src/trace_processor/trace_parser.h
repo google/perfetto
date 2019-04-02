@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,28 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/chunked_trace_reader.h"
-#include "src/trace_processor/trace_parser.h"
+#ifndef SRC_TRACE_PROCESSOR_TRACE_PARSER_H_
+#define SRC_TRACE_PROCESSOR_TRACE_PARSER_H_
+
+#include <stdint.h>
+
+#include "src/trace_processor/trace_sorter.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-ChunkedTraceReader::~ChunkedTraceReader() {}
-TraceParser::~TraceParser() {}
+class TraceParser {
+ public:
+  virtual ~TraceParser();
+
+  virtual void ParseTracePacket(int64_t timestamp,
+                                TraceSorter::TimestampedTracePiece) = 0;
+  virtual void ParseFtracePacket(uint32_t cpu,
+                                 int64_t timestamp,
+                                 TraceSorter::TimestampedTracePiece) = 0;
+};
 
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // SRC_TRACE_PROCESSOR_TRACE_PARSER_H_
