@@ -28,6 +28,7 @@ proto_library(
     name = "android",
     srcs = [
         "perfetto/trace/android/android_log.proto",
+        "perfetto/trace/android/packages_list.proto",
     ],
     has_services = 1,
     cc_api_version = 2,
@@ -56,6 +57,7 @@ proto_library(
     name = "android_zero",
     srcs = [
         "perfetto/trace/android/android_log.proto",
+        "perfetto/trace/android/packages_list.proto",
     ],
     deps = [
         "//third_party/perfetto/protos:common_zero",
