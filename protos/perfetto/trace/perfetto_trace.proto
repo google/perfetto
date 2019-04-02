@@ -240,6 +240,25 @@ message AndroidLogPacket {
 
 // End of protos/perfetto/trace/android/android_log.proto
 
+// Begin of protos/perfetto/trace/android/packages_list.proto
+
+message PackagesList {
+  message Package {
+    optional string name = 1;
+    optional uint64 uid = 2;
+    optional bool debuggable = 3;
+    optional bool profileable_from_shell = 4;
+    optional int64 version_code = 5;
+  }
+
+  repeated Package packages = 1;
+
+  // At least one error occured parsing the packages.list.
+  optional bool error = 2;
+}
+
+// End of protos/perfetto/trace/android/packages_list.proto
+
 // Begin of protos/perfetto/trace/clock_snapshot.proto
 
 // A snapshot of clock readings to allow for trace alignment.
@@ -2680,6 +2699,7 @@ message TracePacket {
     AndroidLogPacket android_log = 39;
     SystemInfo system_info = 45;
     Trigger trigger = 46;
+    PackagesList packages_list = 47;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
