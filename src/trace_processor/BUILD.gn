@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/wasm.gni")
-import("../../gn/fuzzer.gni")
 
 wasm_lib("trace_processor_wasm") {
   name = "trace_processor"
@@ -66,6 +66,7 @@ source_set("lib") {
     "ftrace_utils.h",
     "instants_table.cc",
     "instants_table.h",
+    "null_term_string_view.h",
     "process_table.cc",
     "process_table.h",
     "process_tracker.cc",
@@ -103,8 +104,12 @@ source_set("lib") {
     "storage_schema.h",
     "storage_table.cc",
     "storage_table.h",
+    "string_pool.cc",
+    "string_pool.h",
     "string_table.cc",
     "string_table.h",
+    "syscall_tracker.cc",
+    "syscall_tracker.h",
     "table.cc",
     "table.h",
     "thread_table.cc",
@@ -196,6 +201,7 @@ source_set("unittests") {
     "event_tracker_unittest.cc",
     "filtered_row_index_unittest.cc",
     "ftrace_utils_unittest.cc",
+    "null_term_string_view_unittest.cc",
     "process_table_unittest.cc",
     "process_tracker_unittest.cc",
     "proto_trace_parser_unittest.cc",
@@ -204,6 +210,8 @@ source_set("unittests") {
     "slice_tracker_unittest.cc",
     "span_join_operator_table_unittest.cc",
     "sqlite3_str_split_unittest.cc",
+    "string_pool_unittest.cc",
+    "syscall_tracker_unittest.cc",
     "thread_table_unittest.cc",
     "trace_processor_impl_unittest.cc",
     "trace_sorter_unittest.cc",

@@ -1,0 +1,13 @@
+gensignature(
+    name = "trace_processor_shell_sig",
+    srcs = [
+        ":trace_processor_shell",
+    ],
+)
+
+gensignature(
+    name = "trace_to_text_sig",
+    srcs = [
+        ":trace_to_text",
+    ],
+)

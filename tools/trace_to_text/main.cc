@@ -83,18 +83,12 @@ int main(int argc, char** argv) {
 
   std::string format(argv[1]);
 
-  if (format == "old_json")
+  if (format == "json")
     return perfetto::trace_to_text::TraceToSystrace(input_stream, output_stream,
                                                     /*wrap_in_json=*/true);
-  if (format == "json")
-    return perfetto::trace_to_text::TraceToExperimentalSystrace(
-        input_stream, output_stream, /*wrap_in_json=*/true);
-  if (format == "old_systrace")
+  if (format == "systrace")
     return perfetto::trace_to_text::TraceToSystrace(input_stream, output_stream,
                                                     /*wrap_in_json=*/false);
-  if (format == "systrace")
-    return perfetto::trace_to_text::TraceToExperimentalSystrace(
-        input_stream, output_stream, /*wrap_in_json=*/false);
   if (format == "text")
     return perfetto::trace_to_text::TraceToText(input_stream, output_stream);
 

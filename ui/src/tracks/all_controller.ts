@@ -21,4 +21,5 @@ import './cpu_freq/controller';
 import './cpu_slices/controller';
 import './process_scheduling/controller';
 import './process_summary/controller';
+import './thread_state/controller';
 import './vsync/controller';

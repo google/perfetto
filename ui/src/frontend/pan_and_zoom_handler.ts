@@ -162,14 +162,7 @@ export class PanAndZoomHandler {
   }
 
   private onKeyDown(e: KeyboardEvent) {
-    this.shiftDown = e.shiftKey;
-    globals.frontendLocalState.setShowTimeSelectPreview(this.shiftDown);
-    if (this.shiftDown && this.mousePositionX) {
-      this.element.style.cursor = 'text';
-      const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
-      const ts = globals.frontendLocalState.timeScale.pxToTime(pos);
-      globals.frontendLocalState.setHoveredTimestamp(ts);
-    }
+    this.updateShift(e.shiftKey);
     if (keyToPan(e) !== Pan.None) {
       this.panning = keyToPan(e);
       const animationTime = e.repeat ?
@@ -193,9 +186,7 @@ export class PanAndZoomHandler {
   }
 
   private onKeyUp(e: KeyboardEvent) {
-    this.shiftDown = e.shiftKey;
-    globals.frontendLocalState.setShowTimeSelectPreview(this.shiftDown);
-    if (!this.shiftDown) {this.element.style.cursor = 'default';}
+    this.updateShift(e.shiftKey);
     if (keyToPan(e) === this.panning) {
       const minEndTime = this.panAnimation.startTimeMs + TAP_ANIMATION_TIME;
       const t = minEndTime - performance.now();
@@ -209,5 +200,23 @@ export class PanAndZoomHandler {
 
     // Handle key events that are not pan or zoom.
     handleKey(e.key, false);
+  }
+
+  private updateShift(down: boolean) {
+    if (down === this.shiftDown) return;
+    this.shiftDown = down;
+    if (this.shiftDown) {
+      if (this.mousePositionX) {
+        this.element.style.cursor = 'text';
+        const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
+        const ts = globals.frontendLocalState.timeScale.pxToTime(pos);
+        globals.frontendLocalState.setHoveredTimestamp(ts);
+      }
+    } else {
+      globals.frontendLocalState.setHoveredTimestamp(-1);
+      this.element.style.cursor = 'default';
+    }
+
+    globals.frontendLocalState.setShowTimeSelectPreview(this.shiftDown);
   }
 }

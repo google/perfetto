@@ -2453,8 +2453,29 @@ message ProfilePacket {
   }
 
   repeated ProcessHeapSamples process_dumps = 5;
+  message ProcessStats {
+    optional uint64 unwinding_errors = 1;
+    optional uint64 heap_samples = 2;
+    optional uint64 map_reparses = 3;
+  }
+
   message ProcessHeapSamples {
     optional uint64 pid = 1;
+
+    // This process was profiled from startup.
+    // If false, this process was already running when profiling started.
+    optional bool from_startup = 3;
+
+    // This process was not profiled because a concurrent session was active.
+    // If this is true, samples will be empty.
+    optional bool rejected_concurrent = 4;
+
+    // This process disconnected while it was profiled.
+    // If false, the process outlived the profiling session.
+    optional bool disconnected = 6;
+
+    optional ProcessStats stats = 5;
+
     repeated HeapSample samples = 2;
   }
 
@@ -2469,6 +2490,9 @@ message ProfilePacket {
 // Per-process periodically sampled stats. These samples are wrapped in a
 // dedicated message (as opposite to be fields in process_tree.proto) because
 // they are dumped at a different rate than cmdline and thread list.
+// Note: not all of these stats will be present in every ProcessStats message
+// and sometimes processes may be missing . This is because counters are
+// cached to reduce emission of counters which do not change.
 message ProcessStats {
   message Process {
     optional int32 pid = 1;
@@ -2628,7 +2652,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 46.
+// Next id: 47.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -2655,6 +2679,7 @@ message TracePacket {
     PowerRails power_rails = 40;
     AndroidLogPacket android_log = 39;
     SystemInfo system_info = 45;
+    Trigger trigger = 46;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
@@ -2708,17 +2733,17 @@ message TracePacket {
   // ensure intact incremental data.
   optional bool incremental_state_cleared = 41;
 
-  // Flag set by the service if one or multiple packets on the packet's sequence
-  // were dropped since the last packet that the consumer read from the
-  // sequence. This can happen if chunks in the trace buffer are overridden
-  // before the consumer could read them when the trace is configured in ring
-  // buffer mode. This flag only affects the current packet sequence (see
-  // |trusted_packet_sequence_id|).
+  // Flag set by the service if, for the current packet sequence (see
+  // |trusted_packet_sequence_id|), either:
+  // * this is the first packet, or
+  // * one or multiple packets were dropped since the last packet that the
+  //   consumer read from the sequence. This can happen if chunks in the trace
+  //   buffer are overridden before the consumer could read them when the trace
+  //   is configured in ring buffer mode.
   //
   // When packet loss occurs, incrementally emitted data (including interned
   // data) on the sequence should be considered invalid up until the next packet
-  // with |incremental_state_cleared| set. In such a situation, the reader
-  // should skip to the next packet with this flag set.
+  // with |incremental_state_cleared| set.
   optional bool previous_packet_dropped = 42;
 }
 
@@ -2847,7 +2872,7 @@ message ThreadDescriptor {
     THREAD_UNSPECIFIED = 0;
     // TODO(eseckler): Add thread types.
   };
-  optional ChromeThreadType thread_type = 4;
+  optional ChromeThreadType chrome_thread_type = 4;
 
   // TODO(eseckler): Replace this with ChromeThreadType where possible.
   optional string thread_name = 5;
@@ -2997,6 +3022,23 @@ message LegacyEventName {
 
 // End of protos/perfetto/trace/track_event/track_event.proto
 
+// Begin of protos/perfetto/trace/trigger.proto
+
+// When a TracingSession receives a trigger it records the boot time nanoseconds
+// in the TracePacket's timestamp field as well as the name of the producer that
+// triggered it. We emit this data so filtering can be done on triggers received
+// in the trace.
+message Trigger {
+  // Name of the trigger which was received.
+  optional string trigger_name = 1;
+  // The actual producer that activated |trigger|.
+  optional string producer_name = 2;
+  // The verified UID of the producer.
+  optional int32 trusted_producer_uid = 3;
+}
+
+// End of protos/perfetto/trace/trigger.proto
+
 // Begin of protos/perfetto/config/android/android_log_config.proto
 
 message AndroidLogConfig {
@@ -3021,6 +3063,10 @@ message AndroidLogConfig {
 
 message ChromeConfig {
   optional string trace_config = 1;
+
+  // When enabled, the data source should only fill in fields in the output that
+  // are not potentially privacy sensitive.
+  optional bool privacy_filtering_enabled = 2;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
@@ -3048,6 +3094,11 @@ message DataSourceConfig {
   // Set by the service to indicate the duration of the trace.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional uint32 trace_duration_ms = 3;
+
+  // Set by the service to indicate whether this tracing session has extra
+  // guardrails.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional bool enable_extra_guardrails = 6;
 
   // Set by the service to indicate which tracing session the data source
   // belongs to. The intended use case for this is checking if two data sources,
@@ -3190,6 +3241,12 @@ message ProcessStatsConfig {
   // entry of /proc/pid/cmdline).
   // TODO(primiano): implement this feature.
   // repeated string proc_stats_filter = 5;
+
+  // This is required to be either = 0 or a multiple of |proc_stats_poll_ms|
+  // (default: |proc_stats_poll_ms|). If = 0, will be set to
+  // |proc_stats_poll_ms|. Non-multiples will be rounded down to the nearest
+  // multiple.
+  optional uint32 proc_stats_cache_ttl_ms = 6;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
@@ -3536,6 +3593,11 @@ message HeapprofdConfig {
 
   // Dump at a predefined interval.
   optional ContinuousDumpConfig continuous_dump_config = 6;
+
+  // Size of the shared memory buffer between the profiled processes and
+  // heapprofd. Defaults to 8 MiB. If larger than 500 MiB, truncated to 500
+  // MiB.
+  optional uint64 shmem_size_bytes = 8;
 }
 
 // End of protos/perfetto/config/profiling/heapprofd_config.proto

@@ -75,7 +75,8 @@ class TracingServiceImpl : public TracingService {
                          TracingServiceImpl*,
                          base::TaskRunner*,
                          Producer*,
-                         const std::string& producer_name);
+                         const std::string& producer_name,
+                         bool in_process);
     ~ProducerEndpointImpl() override;
 
     // TracingService::ProducerEndpoint implementation.
@@ -117,7 +118,7 @@ class TracingServiceImpl : public TracingService {
     friend class TracingServiceImplTest;
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
-    SharedMemoryArbiterImpl* GetOrCreateShmemArbiter();
+    SharedMemoryArbiterImpl* GetShmemArbiter();
 
     ProducerID const id_;
     const uid_t uid_;
@@ -129,6 +130,7 @@ class TracingServiceImpl : public TracingService {
     SharedMemoryABI shmem_abi_;
     size_t shmem_size_hint_bytes_ = 0;
     const std::string name_;
+    bool in_process_;
 
     // Set of the global target_buffer IDs that the producer is configured to
     // write into in any active tracing session.
@@ -144,10 +146,8 @@ class TracingServiceImpl : public TracingService {
     // before use.
     std::map<WriterID, BufferID> writers_;
 
-    // This is used only in in-process configurations. The mutex protects
-    // concurrent construction of |inproc_shmem_arbiter_|.
+    // This is used only in in-process configurations.
     // SharedMemoryArbiterImpl methods themselves are thread-safe.
-    std::mutex inproc_shmem_arbiter_mutex_;
     std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
 
     PERFETTO_THREAD_CHECKER(thread_checker_)
@@ -258,7 +258,8 @@ class TracingServiceImpl : public TracingService {
       Producer*,
       uid_t uid,
       const std::string& producer_name,
-      size_t shared_memory_size_hint_bytes = 0) override;
+      size_t shared_memory_size_hint_bytes = 0,
+      bool in_process = false) override;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
@@ -397,8 +398,13 @@ class TracingServiceImpl : public TracingService {
     // were received at. This is used to insert 'fake' packets back to the
     // consumer so they can tell when some event happened. The order matches the
     // order they were received.
-    std::vector<std::pair<uint64_t, TraceConfig::TriggerConfig::Trigger>>
-        received_triggers;
+    struct TriggerInfo {
+      uint64_t boot_time_ns;
+      std::string trigger_name;
+      std::string producer_name;
+      uid_t producer_uid;
+    };
+    std::vector<TriggerInfo> received_triggers;
 
     // The trace config provided by the Consumer when calling
     // EnableTracing(), plus any updates performed by ChangeTraceConfig.
@@ -430,6 +436,9 @@ class TracingServiceImpl : public TracingService {
 
     // Whether we put the system info into the trace output yet.
     bool did_emit_system_info = false;
+
+    // The number of received triggers we've emitted into the trace output.
+    size_t num_triggers_emitted_into_trace = 0;
 
     State state = DISABLED;
 
@@ -479,6 +488,7 @@ class TracingServiceImpl : public TracingService {
   TraceStats GetTraceStats(TracingSession* tracing_session);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
+  void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);

@@ -33,10 +33,11 @@ import "perfetto/trace/ps/process_stats.proto";
 import "perfetto/trace/ps/process_tree.proto";
 import "perfetto/trace/sys_stats/sys_stats.proto";
 import "perfetto/trace/system_info.proto";
-import "perfetto/trace/test_event.proto";
 import "perfetto/trace/track_event/process_descriptor.proto";
 import "perfetto/trace/track_event/thread_descriptor.proto";
 import "perfetto/trace/track_event/track_event.proto";
+import "perfetto/trace/trigger.proto";
+import "perfetto/trace/test_event.proto";
 
 package perfetto.protos;
 
@@ -44,7 +45,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 46.
+// Next id: 47.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -71,6 +72,7 @@ message TracePacket {
     PowerRails power_rails = 40;
     AndroidLogPacket android_log = 39;
     SystemInfo system_info = 45;
+    Trigger trigger = 46;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
@@ -124,16 +126,16 @@ message TracePacket {
   // ensure intact incremental data.
   optional bool incremental_state_cleared = 41;
 
-  // Flag set by the service if one or multiple packets on the packet's sequence
-  // were dropped since the last packet that the consumer read from the
-  // sequence. This can happen if chunks in the trace buffer are overridden
-  // before the consumer could read them when the trace is configured in ring
-  // buffer mode. This flag only affects the current packet sequence (see
-  // |trusted_packet_sequence_id|).
+  // Flag set by the service if, for the current packet sequence (see
+  // |trusted_packet_sequence_id|), either:
+  // * this is the first packet, or
+  // * one or multiple packets were dropped since the last packet that the
+  //   consumer read from the sequence. This can happen if chunks in the trace
+  //   buffer are overridden before the consumer could read them when the trace
+  //   is configured in ring buffer mode.
   //
   // When packet loss occurs, incrementally emitted data (including interned
   // data) on the sequence should be considered invalid up until the next packet
-  // with |incremental_state_cleared| set. In such a situation, the reader
-  // should skip to the next packet with this flag set.
+  // with |incremental_state_cleared| set.
   optional bool previous_packet_dropped = 42;
 }

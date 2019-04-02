@@ -17,8 +17,10 @@
 #ifndef SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
 #define SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
 
+#include <limits>
 #include <memory>
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 #include "perfetto/base/scoped_file.h"
@@ -67,6 +69,18 @@ class ProcessStatsDataSource : public ProbesDataSource {
   virtual std::string ReadProcPidFile(int32_t pid, const std::string& file);
 
  private:
+  struct CachedProcessStats {
+    uint32_t vm_size_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t vm_rss_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t rss_anon_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t rss_file_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t rss_shmem_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t vm_swap_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t vm_locked_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t vm_hvm_kb = std::numeric_limits<uint32_t>::max();
+    int oom_score_adj = std::numeric_limits<int>::max();
+  };
+
   // Common functions.
   ProcessStatsDataSource(const ProcessStatsDataSource&) = delete;
   ProcessStatsDataSource& operator=(const ProcessStatsDataSource&) = delete;
@@ -106,9 +120,15 @@ class ProcessStatsDataSource : public ProbesDataSource {
 
   // Fields for keeping track of the periodic stats/counters.
   uint32_t poll_period_ms_ = 0;
+  uint64_t ticks_ = 0;
   protos::pbzero::ProcessStats* cur_ps_stats_ = nullptr;
   protos::pbzero::ProcessStats_Process* cur_ps_stats_process_ = nullptr;
   std::vector<bool> skip_stats_for_pids_;
+
+  // Cached process stats per process. Cleared every |cache_ttl_ticks_| *
+  // |poll_period_ms_| ms.
+  uint32_t process_stats_cache_ttl_ticks_ = 0;
+  std::unordered_map<int32_t, CachedProcessStats> process_stats_cache_;
 
   base::WeakPtrFactory<ProcessStatsDataSource> weak_factory_;  // Keep last.
 };

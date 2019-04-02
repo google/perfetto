@@ -30,6 +30,11 @@ declare_args() {
 
   # Compile for fuzzing.
   is_fuzzer = false
+
+  # When enabled, only relevant sanitizer defines are set, but compilation
+  # happens with no extra flags. This is useful when in component build
+  # enabling sanitizers only in some of the components.
+  use_sanitizer_configs_without_instrumentation = false
 }
 
 declare_args() {

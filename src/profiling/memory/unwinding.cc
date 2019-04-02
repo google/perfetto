@@ -182,6 +182,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     frame_data.map_name = "ERROR";
 
     out->frames.emplace_back(frame_data, "");
+    out->error = true;
     return false;
   }
   uint8_t* stack = reinterpret_cast<uint8_t*>(msg->payload);
@@ -202,6 +203,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     if (attempt > 0) {
       PERFETTO_DLOG("Reparsing maps");
       metadata->ReparseMaps();
+      out->reparsed_map = true;
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
       unwinder.SetJitDebug(metadata->jit_debug.get(), regs->Arch());
       unwinder.SetDexFiles(metadata->dex_files.get(), regs->Arch());
@@ -231,6 +233,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     frame_data.map_name = "ERROR";
 
     out->frames.emplace_back(frame_data, "");
+    out->error = true;
   }
 
   return true;

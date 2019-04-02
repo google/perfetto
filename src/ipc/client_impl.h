@@ -93,7 +93,7 @@ class ClientImpl : public Client, public base::UnixSocket::EventListener {
   // Queue of calls to BindService() that happened before the socket connected.
   std::list<base::WeakPtr<ServiceProxy>> queued_bindings_;
 
-  base::WeakPtrFactory<Client> weak_ptr_factory_;
+  base::WeakPtrFactory<Client> weak_ptr_factory_;  // Keep last.
 };
 
 }  // namespace ipc

@@ -496,7 +496,7 @@ class GeneratorJob {
       }
 
       if (field->number() > max_field_id) {
-        stub_h_->Print("// field $name$ omitted because its id is too high",
+        stub_h_->Print("// field $name$ omitted because its id is too high\n",
                        "name", field->name());
         continue;
       }

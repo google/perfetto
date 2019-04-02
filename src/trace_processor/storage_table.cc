@@ -114,7 +114,7 @@ std::pair<bool, bool> StorageTable::IsOrdered(
 
   const auto& ob = obs[0];
   auto col = static_cast<size_t>(ob.iColumn);
-  return std::make_pair(schema_.GetColumn(col).IsNaturallyOrdered(), ob.desc);
+  return std::make_pair(schema_.GetColumn(col).HasOrdering(), ob.desc);
 }
 
 std::vector<QueryConstraints::OrderBy> StorageTable::RemoveRedundantOrderBy(

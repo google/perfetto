@@ -48,7 +48,7 @@ void RawTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 StorageSchema RawTable::CreateStorageSchema() {
   const auto& raw = storage_->raw_events();
   return StorageSchema::Builder()
-      .AddColumn<IdColumn>("id", TableId::kRawEvents)
+      .AddGenericNumericColumn("id", RowIdAccessor(TableId::kRawEvents))
       .AddOrderedNumericColumn("ts", &raw.timestamps())
       .AddStringColumn("name", &raw.name_ids(), &storage_->string_pool())
       .AddNumericColumn("cpu", &raw.cpus())
@@ -193,16 +193,17 @@ void RawTable::FormatSystraceArgs(const std::string& event_name,
     return;
   } else if (event_name == "print") {
     using P = protos::pbzero::PrintFtraceEvent;
-    write_arg(P::kIpFieldNumber - 1, write_value);
-    write_arg(P::kBufFieldNumber - 1, [this, writer](const Variadic& value) {
-      const auto& str = storage_->GetString(value.string_value);
 
-      // If the last character is a newline in a print, just drop it.
-      auto chars_to_print = !str.empty() && str[str.size() - 1] == '\n'
-                                ? str.size() - 1
-                                : str.size();
-      writer->AppendString(str.c_str(), chars_to_print);
-    });
+    uint32_t arg_row = start_row + P::kBufFieldNumber - 1;
+    const auto& args = storage_->args();
+    const auto& value = args.arg_values()[arg_row];
+    const auto& str = storage_->GetString(value.string_value);
+    // If the last character is a newline in a print, just drop it.
+    auto chars_to_print = !str.empty() && str[str.size() - 1] == '\n'
+                              ? str.size() - 1
+                              : str.size();
+    writer->AppendChar(' ');
+    writer->AppendString(str.c_str(), chars_to_print);
     return;
   }
 
@@ -243,7 +244,11 @@ void RawTable::ToSystrace(sqlite3_context* ctx,
 
   const auto& event_name = storage_->GetString(raw_evts.name_ids()[row]);
   writer.AppendChar(' ');
-  writer.AppendString(event_name.c_str(), event_name.size());
+  if (event_name == "print") {
+    writer.AppendString("tracing_mark_write");
+  } else {
+    writer.AppendString(event_name.c_str(), event_name.size());
+  }
   writer.AppendChar(':');
 
   FormatSystraceArgs(event_name, raw_evts.arg_set_ids()[row], &writer);

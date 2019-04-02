@@ -109,6 +109,13 @@ base::ScopedResource<std::string*, SetModeProperty, nullptr> EnableFork() {
       new std::string(prev_property_value));
 }
 
+base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
+  std::string prev_property_value = ReadProperty(kHeapprofdModeProperty, "");
+  __system_property_set(kHeapprofdModeProperty, "");
+  return base::ScopedResource<std::string*, SetModeProperty, nullptr>(
+      new std::string(prev_property_value));
+}
+
 int __attribute__((unused)) SetEnableProperty(std::string* value) {
   if (value) {
     __system_property_set(kEnableHeapprofdProperty, value->c_str());
@@ -173,6 +180,13 @@ std::unique_ptr<TestHelper> GetHelper(base::TestTaskRunner* task_runner) {
   return helper;
 }
 
+std::string FormatStats(const protos::ProfilePacket_ProcessStats& stats) {
+  return std::string("unwinding_errors: ") +
+         std::to_string(stats.unwinding_errors()) + "\n" +
+         "heap_samples: " + std::to_string(stats.heap_samples()) + "\n" +
+         "map_reparses: " + std::to_string(stats.map_reparses());
+}
+
 class HeapprofdEndToEnd : public ::testing::Test {
  public:
   HeapprofdEndToEnd() {
@@ -187,9 +201,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
  protected:
   base::TestTaskRunner task_runner;
 
-  void TraceAndValidate(const TraceConfig& trace_config,
-                        pid_t pid,
-                        uint64_t alloc_size) {
+  std::unique_ptr<TestHelper> Trace(const TraceConfig& trace_config) {
     auto helper = GetHelper(&task_runner);
 
     helper->StartTracing(trace_config);
@@ -197,7 +209,65 @@ class HeapprofdEndToEnd : public ::testing::Test {
 
     helper->ReadData();
     helper->WaitForReadData();
+    return helper;
+  }
 
+  void PrintStats(TestHelper* helper) {
+    const auto& packets = helper->trace();
+    for (const protos::TracePacket& packet : packets) {
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        // protobuf uint64 does not like the PRIu64 formatter.
+        PERFETTO_LOG("Stats for %s: %s", std::to_string(dump.pid()).c_str(),
+                     FormatStats(dump.stats()).c_str());
+      }
+    }
+  }
+
+  void ValidateSampleSizes(TestHelper* helper,
+                           uint64_t pid,
+                           uint64_t alloc_size) {
+    const auto& packets = helper->trace();
+    for (const protos::TracePacket& packet : packets) {
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        if (dump.pid() != pid)
+          continue;
+        for (const auto& sample : dump.samples()) {
+          EXPECT_EQ(sample.self_allocated() % alloc_size, 0);
+          EXPECT_EQ(sample.self_freed() % alloc_size, 0);
+          EXPECT_THAT(sample.self_allocated() - sample.self_freed(),
+                      AnyOf(Eq(0), Eq(alloc_size)));
+        }
+      }
+    }
+  }
+
+  void ValidateFromStartup(TestHelper* helper,
+                           uint64_t pid,
+                           bool from_startup) {
+    const auto& packets = helper->trace();
+    for (const protos::TracePacket& packet : packets) {
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        if (dump.pid() != pid)
+          continue;
+        EXPECT_EQ(dump.from_startup(), from_startup);
+      }
+    }
+  }
+
+  void ValidateRejectedConcurrent(TestHelper* helper,
+                                  uint64_t pid,
+                                  bool rejected_concurrent) {
+    const auto& packets = helper->trace();
+    for (const protos::TracePacket& packet : packets) {
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        if (dump.pid() != pid)
+          continue;
+        EXPECT_EQ(dump.rejected_concurrent(), rejected_concurrent);
+      }
+    }
+  }
+
+  void ValidateHasSamples(TestHelper* helper, uint64_t pid) {
     const auto& packets = helper->trace();
     ASSERT_GT(packets.size(), 0u);
     size_t profile_packets = 0;
@@ -205,20 +275,13 @@ class HeapprofdEndToEnd : public ::testing::Test {
     uint64_t last_allocated = 0;
     uint64_t last_freed = 0;
     for (const protos::TracePacket& packet : packets) {
-      if (packet.has_profile_packet() &&
-          packet.profile_packet().process_dumps().size() > 0) {
-        const auto& dumps = packet.profile_packet().process_dumps();
-        ASSERT_EQ(dumps.size(), 1);
-        const protos::ProfilePacket_ProcessHeapSamples& dump = dumps.Get(0);
-        EXPECT_EQ(dump.pid(), pid);
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        if (dump.pid() != pid)
+          continue;
         for (const auto& sample : dump.samples()) {
-          samples++;
-          EXPECT_EQ(sample.self_allocated() % alloc_size, 0);
-          EXPECT_EQ(sample.self_freed() % alloc_size, 0);
           last_allocated = sample.self_allocated();
           last_freed = sample.self_freed();
-          EXPECT_THAT(sample.self_allocated() - sample.self_freed(),
-                      AnyOf(Eq(0), Eq(alloc_size)));
+          samples++;
         }
         profile_packets++;
       }
@@ -227,6 +290,18 @@ class HeapprofdEndToEnd : public ::testing::Test {
     EXPECT_GT(samples, 0);
     EXPECT_GT(last_allocated, 0);
     EXPECT_GT(last_freed, 0);
+  }
+
+  void ValidateOnlyPID(TestHelper* helper, uint64_t pid) {
+    size_t dumps = 0;
+    const auto& packets = helper->trace();
+    for (const protos::TracePacket& packet : packets) {
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        EXPECT_EQ(dump.pid(), pid);
+        dumps++;
+      }
+    }
+    EXPECT_GT(dumps, 0);
   }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
@@ -259,10 +334,49 @@ class HeapprofdEndToEnd : public ::testing::Test {
     heapprofd_config->mutable_continuous_dump_config()->set_dump_interval_ms(
         100);
 
-    TraceAndValidate(trace_config, pid, kAllocSize);
+    auto helper = Trace(trace_config);
+    PrintStats(helper.get());
+    ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
+    ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
+    ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
 
     PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-    PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  }
+
+  void TwoProcesses() {
+    constexpr size_t kAllocSize = 1024;
+    constexpr size_t kAllocSize2 = 7;
+
+    pid_t pid = ForkContinuousMalloc(kAllocSize);
+    pid_t pid2 = ForkContinuousMalloc(kAllocSize2);
+
+    TraceConfig trace_config;
+    trace_config.add_buffers()->set_size_kb(10 * 1024);
+    trace_config.set_duration_ms(2000);
+    trace_config.set_flush_timeout_ms(10000);
+
+    auto* ds_config = trace_config.add_data_sources()->mutable_config();
+    ds_config->set_name("android.heapprofd");
+    ds_config->set_target_buffer(0);
+
+    auto* heapprofd_config = ds_config->mutable_heapprofd_config();
+    heapprofd_config->set_sampling_interval_bytes(1);
+    *heapprofd_config->add_pid() = static_cast<uint64_t>(pid);
+    *heapprofd_config->add_pid() = static_cast<uint64_t>(pid2);
+    heapprofd_config->set_all(false);
+
+    auto helper = Trace(trace_config);
+    PrintStats(helper.get());
+    ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
+    ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
+    ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid2));
+    ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid2), kAllocSize2);
+
+    PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+    PERFETTO_CHECK(kill(pid2, SIGKILL) == 0);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid2, nullptr, 0)) == pid2);
   }
 
   void FinalFlush() {
@@ -284,10 +398,14 @@ class HeapprofdEndToEnd : public ::testing::Test {
     *heapprofd_config->add_pid() = static_cast<uint64_t>(pid);
     heapprofd_config->set_all(false);
 
-    TraceAndValidate(trace_config, pid, kAllocSize);
+    auto helper = Trace(trace_config);
+    PrintStats(helper.get());
+    ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
+    ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
+    ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
 
     PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-    PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
   }
 
   void NativeStartup() {
@@ -341,7 +459,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     helper->WaitForReadData();
 
     PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-    PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
 
     const auto& packets = helper->trace();
     ASSERT_GT(packets.size(), 0u);
@@ -422,7 +540,12 @@ class HeapprofdEndToEnd : public ::testing::Test {
     *heapprofd_config->add_pid() = static_cast<uint64_t>(pid);
     heapprofd_config->set_all(false);
 
-    TraceAndValidate(trace_config, pid, kFirstIterationBytes);
+    auto helper = Trace(trace_config);
+    PrintStats(helper.get());
+    ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
+    ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
+    ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
+                        kFirstIterationBytes);
 
     signal_pipe.wr.reset();
     char buf[1];
@@ -435,10 +558,65 @@ class HeapprofdEndToEnd : public ::testing::Test {
     usleep(100 * kMsToUs);
 
     PERFETTO_LOG("HeapprofdEndToEnd::Reinit: Starting second");
-    TraceAndValidate(trace_config, pid, kSecondIterationBytes);
+    helper = Trace(trace_config);
+    PrintStats(helper.get());
+    ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
+    ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
+    ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
+                        kSecondIterationBytes);
 
     PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-    PERFETTO_CHECK(waitpid(pid, nullptr, 0) == pid);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  }
+
+  void ConcurrentSession() {
+    constexpr size_t kAllocSize = 1024;
+
+    pid_t pid = ForkContinuousMalloc(kAllocSize);
+
+    TraceConfig trace_config;
+    trace_config.add_buffers()->set_size_kb(10 * 1024);
+    trace_config.set_duration_ms(5000);
+    trace_config.set_flush_timeout_ms(10000);
+
+    auto* ds_config = trace_config.add_data_sources()->mutable_config();
+    ds_config->set_name("android.heapprofd");
+    ds_config->set_target_buffer(0);
+
+    auto* heapprofd_config = ds_config->mutable_heapprofd_config();
+    heapprofd_config->set_sampling_interval_bytes(1);
+    *heapprofd_config->add_pid() = static_cast<uint64_t>(pid);
+    heapprofd_config->set_all(false);
+    heapprofd_config->mutable_continuous_dump_config()->set_dump_phase_ms(0);
+    heapprofd_config->mutable_continuous_dump_config()->set_dump_interval_ms(
+        100);
+
+    auto helper = GetHelper(&task_runner);
+    helper->StartTracing(trace_config);
+    sleep(1);
+    auto helper_concurrent = GetHelper(&task_runner);
+    helper_concurrent->StartTracing(trace_config);
+
+    helper->WaitForTracingDisabled(20000);
+    helper->ReadData();
+    helper->WaitForReadData();
+    PrintStats(helper.get());
+    ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
+    ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
+    ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
+    ValidateRejectedConcurrent(helper_concurrent.get(),
+                               static_cast<uint64_t>(pid), false);
+
+    helper_concurrent->WaitForTracingDisabled(20000);
+    helper_concurrent->ReadData();
+    helper_concurrent->WaitForReadData();
+    PrintStats(helper.get());
+    ValidateOnlyPID(helper_concurrent.get(), static_cast<uint64_t>(pid));
+    ValidateRejectedConcurrent(helper_concurrent.get(),
+                               static_cast<uint64_t>(pid), true);
+
+    PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
   }
 };
 
@@ -452,8 +630,28 @@ TEST_F(HeapprofdEndToEnd, Smoke_Central) {
   if (IsCuttlefish())
     return;
 
+  auto prop = DisableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
   Smoke();
+}
+
+TEST_F(HeapprofdEndToEnd, TwoProcesses_Fork) {
+  if (IsCuttlefish())
+    return;
+
+  // RAII handle that resets to central mode when out of scope.
+  auto prop = EnableFork();
+  ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "fork");
+  TwoProcesses();
+}
+
+TEST_F(HeapprofdEndToEnd, TwoProcesses_Central) {
+  if (IsCuttlefish())
+    return;
+
+  auto prop = DisableFork();
+  ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
+  TwoProcesses();
 }
 
 TEST_F(HeapprofdEndToEnd, Smoke_Fork) {
@@ -470,6 +668,7 @@ TEST_F(HeapprofdEndToEnd, FinalFlush_Central) {
   if (IsCuttlefish())
     return;
 
+  auto prop = DisableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
   FinalFlush();
 }
@@ -488,6 +687,7 @@ TEST_F(HeapprofdEndToEnd, NativeStartup_Central) {
   if (IsCuttlefish())
     return;
 
+  auto prop = DisableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
   NativeStartup();
 }
@@ -506,6 +706,7 @@ TEST_F(HeapprofdEndToEnd, ReInit_Central) {
   if (IsCuttlefish())
     return;
 
+  auto prop = DisableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
   ReInit();
 }
@@ -518,6 +719,25 @@ TEST_F(HeapprofdEndToEnd, ReInit_Fork) {
   auto prop = EnableFork();
   ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "fork");
   ReInit();
+}
+
+TEST_F(HeapprofdEndToEnd, ConcurrentSession_Central) {
+  if (IsCuttlefish())
+    return;
+
+  auto prop = DisableFork();
+  ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "");
+  ConcurrentSession();
+}
+
+TEST_F(HeapprofdEndToEnd, ConcurrentSession_Fork) {
+  if (IsCuttlefish())
+    return;
+
+  // RAII handle that resets to central mode when out of scope.
+  auto prop = EnableFork();
+  ASSERT_EQ(ReadProperty(kHeapprofdModeProperty, ""), "fork");
+  ConcurrentSession();
 }
 
 }  // namespace

@@ -115,9 +115,13 @@ std::unique_ptr<RowIterator> FilteredRowIndex::ToRowIterator(bool desc) {
       return std::unique_ptr<RangeRowIterator>(
           new RangeRowIterator(start_row_, desc, TakeBitVector()));
     }
-    case Mode::kRowVector:
+    case Mode::kRowVector: {
+      auto vector = TakeRowVector();
+      if (desc)
+        std::reverse(vector.begin(), vector.end());
       return std::unique_ptr<VectorRowIterator>(
-          new VectorRowIterator(TakeRowVector()));
+          new VectorRowIterator(std::move(vector)));
+    }
   }
   PERFETTO_FATAL("For GCC");
 }

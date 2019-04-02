@@ -61,6 +61,25 @@ using ssize_t = long;
 #define PERFETTO_ALWAYS_INLINE
 #endif
 
+// TODO(lalitm): is_trivially_constructible is currently not available
+// in some environments we build in. Reenable when that environment supports
+// this.
+#if defined(__GLIBCXX__)
+#define PERFETTO_IS_TRIVIALLY_CONSTRUCTIBLE(T) true
+#else
+#define PERFETTO_IS_TRIVIALLY_CONSTRUCTIBLE(T) \
+  std::is_trivially_constructible<T>::value
+#endif
+
+// TODO(lalitm): is_trivially_copyable is currently not available
+// in some environments we build in. Reenable when that environment supports
+// this.
+#if defined(__GLIBCXX__)
+#define PERFETTO_IS_TRIVIALLY_COPYABLE(T) true
+#else
+#define PERFETTO_IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
+#endif
+
 namespace perfetto {
 namespace base {
 

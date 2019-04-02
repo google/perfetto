@@ -90,8 +90,8 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
   std::map<base::UnixSocket*, ClientConnection*> clients_by_socket_;
   ServiceID last_service_id_ = 0;
   ClientID last_client_id_ = 0;
-  base::WeakPtrFactory<HostImpl> weak_ptr_factory_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
+  base::WeakPtrFactory<HostImpl> weak_ptr_factory_;  // Keep last.
 };
 
 }  // namespace ipc

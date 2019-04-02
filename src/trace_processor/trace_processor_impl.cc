@@ -43,6 +43,7 @@
 #include "src/trace_processor/sqlite3_str_split.h"
 #include "src/trace_processor/stats_table.h"
 #include "src/trace_processor/string_table.h"
+#include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/thread_table.h"
 #include "src/trace_processor/trace_sorter.h"
@@ -167,6 +168,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.event_tracker.reset(new EventTracker(&context_));
   context_.proto_parser.reset(new ProtoTraceParser(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
+  context_.syscall_tracker.reset(new SyscallTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.sorter.reset(
       new TraceSorter(&context_, static_cast<int64_t>(cfg.window_size_ns)));

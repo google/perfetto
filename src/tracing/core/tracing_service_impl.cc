@@ -143,7 +143,8 @@ std::unique_ptr<TracingService::ProducerEndpoint>
 TracingServiceImpl::ConnectProducer(Producer* producer,
                                     uid_t uid,
                                     const std::string& producer_name,
-                                    size_t shared_memory_size_hint_bytes) {
+                                    size_t shared_memory_size_hint_bytes,
+                                    bool in_process) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   if (lockdown_mode_ && uid != geteuid()) {
@@ -160,7 +161,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   PERFETTO_DLOG("Producer %" PRIu16 " connected", id);
 
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
-      id, uid, this, task_runner_, producer, producer_name));
+      id, uid, this, task_runner_, producer, producer_name, in_process));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -896,14 +897,11 @@ void TracingServiceImpl::ActivateTriggers(
         continue;
       }
 
-      // TODO(nuskos): Currently we store these triggers but don't actually
-      // return them inside ReadBuffers. In a followup CL add this
-      // functionality. Ensure that there is no race condition between
-      // future triggers being added and ReadBuffers processing this vector.
       const bool triggers_already_received =
           !tracing_session.received_triggers.empty();
-      tracing_session.received_triggers.push_back(std::make_pair(
-          static_cast<uint64_t>(base::GetBootTimeNs().count()), *iter));
+      tracing_session.received_triggers.push_back(
+          {static_cast<uint64_t>(base::GetBootTimeNs().count()), iter->name(),
+           producer->name_, producer->uid_});
       auto weak_this = weak_ptr_factory_.GetWeakPtr();
       switch (tracing_session.config.trigger_config().trigger_mode()) {
         case TraceConfig::TriggerConfig::START_TRACING:
@@ -1346,6 +1344,7 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   }
   MaybeEmitTraceConfig(tracing_session, &packets);
   MaybeEmitSystemInfo(tracing_session, &packets);
+  MaybeEmitReceivedTriggers(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
   size_t total_slices = 0;   // SUM(#slices in |packets|).
@@ -1723,6 +1722,8 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
 
   DataSourceConfig& ds_config = ds_instance->config;
   ds_config.set_trace_duration_ms(tracing_session->config.duration_ms());
+  ds_config.set_enable_extra_guardrails(
+      tracing_session->config.enable_extra_guardrails());
   ds_config.set_tracing_session_id(tracing_session->id);
   BufferID global_id = tracing_session->buffers_index[relative_buffer_id];
   PERFETTO_DCHECK(global_id);
@@ -2134,6 +2135,32 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   packets->back().AddSlice(std::move(slice));
 }
 
+void TracingServiceImpl::MaybeEmitReceivedTriggers(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  PERFETTO_DCHECK(tracing_session->num_triggers_emitted_into_trace <=
+                  tracing_session->received_triggers.size());
+  for (size_t i = tracing_session->num_triggers_emitted_into_trace;
+       i < tracing_session->received_triggers.size(); ++i) {
+    const auto& info = tracing_session->received_triggers[i];
+    protos::TrustedPacket packet;
+
+    protos::Trigger* trigger = packet.mutable_trigger();
+    trigger->set_trigger_name(info.trigger_name);
+    trigger->set_producer_name(info.producer_name);
+    trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
+
+    packet.set_timestamp(info.boot_time_ns);
+    packet.set_trusted_uid(static_cast<int32_t>(uid_));
+    packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
+    PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
+    packets->emplace_back();
+    packets->back().AddSlice(std::move(slice));
+    ++tracing_session->num_triggers_emitted_into_trace;
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // TracingServiceImpl::ConsumerEndpointImpl implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -2357,13 +2384,15 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     TracingServiceImpl* service,
     base::TaskRunner* task_runner,
     Producer* producer,
-    const std::string& producer_name)
+    const std::string& producer_name,
+    bool in_process)
     : id_(id),
       uid_(uid),
       service_(service),
       task_runner_(task_runner),
       producer_(producer),
       name_(producer_name),
+      in_process_(in_process),
       weak_ptr_factory_(this) {}
 
 TracingServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
@@ -2469,6 +2498,11 @@ void TracingServiceImpl::ProducerEndpointImpl::SetSharedMemory(
   shmem_abi_.Initialize(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                         shared_memory_->size(),
                         shared_buffer_page_size_kb() * 1024);
+  if (in_process_) {
+    inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
+        shared_memory_->start(), shared_memory_->size(),
+        shared_buffer_page_size_kb_ * 1024, this, task_runner_));
+  }
 }
 
 SharedMemory* TracingServiceImpl::ProducerEndpointImpl::shared_memory() const {
@@ -2500,27 +2534,29 @@ void TracingServiceImpl::ProducerEndpointImpl::StopDataSource(
 }
 
 SharedMemoryArbiterImpl*
-TracingServiceImpl::ProducerEndpointImpl::GetOrCreateShmemArbiter() {
-  std::lock_guard<std::mutex> lock(inproc_shmem_arbiter_mutex_);
-  if (!inproc_shmem_arbiter_) {
-    PERFETTO_CHECK(shared_memory_ && shared_memory_->start());
-    inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
-        shared_memory_->start(), shared_memory_->size(),
-        shared_buffer_page_size_kb_ * 1024, this, task_runner_));
-  }
+TracingServiceImpl::ProducerEndpointImpl::GetShmemArbiter() {
+  PERFETTO_CHECK(inproc_shmem_arbiter_);
   return inproc_shmem_arbiter_.get();
 }
 
 // Can be called on any thread.
 std::unique_ptr<TraceWriter>
 TracingServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID buf_id) {
-  return GetOrCreateShmemArbiter()->CreateTraceWriter(buf_id);
+  if (!inproc_shmem_arbiter_) {
+    PERFETTO_FATAL(
+        "ProducerEndpoint::CreateTraceWriter can only be used when "
+        "CreateProducer has been called with in_process=true and after tracing "
+        "has started.");
+  }
+
+  PERFETTO_DCHECK(in_process_);
+  return GetShmemArbiter()->CreateTraceWriter(buf_id);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::NotifyFlushComplete(
     FlushRequestID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  return GetOrCreateShmemArbiter()->NotifyFlushComplete(id);
+  return GetShmemArbiter()->NotifyFlushComplete(id);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::OnTracingSetup() {

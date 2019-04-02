@@ -29,9 +29,9 @@ export class SliceDetailsPanel extends Panel<SliceDetailsPanelAttrs> {
     const sliceInfo = globals.sliceDetails;
     if (threadInfo && sliceInfo.ts && sliceInfo.dur) {
       return m(
-          '.slice-details-panel',
-          m('.slice-details-panel-heading', `Slice Details:`),
-          m('.slice-details-table', [m('table', [
+          '.details-panel',
+          m('.details-panel-heading', `Slice Details:`),
+          m('.details-table', [m('table', [
               m('tr', m('td', `PID`), m('td', `${threadInfo.pid}`)),
               m('tr',
                 m('td', `Process name`),
@@ -53,11 +53,8 @@ export class SliceDetailsPanel extends Panel<SliceDetailsPanelAttrs> {
             ])], ));
     }
   else {
-    return m(
-      '.slice-details-panel',
-      m('.slice-details-panel-heading',
-        `Slice Details:`,
-      ));
+      return m(
+          '.details-panel', m('.details-panel-heading', `Slice Details:`, ));
   }
 }
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}

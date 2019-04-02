@@ -254,6 +254,7 @@ cc_library_shared {
     "src/traced/probes/filesystem/lru_inode_cache.cc",
     "src/traced/probes/filesystem/prefix_finder.cc",
     "src/traced/probes/filesystem/range_tree.cc",
+    "src/traced/probes/ftrace/atrace_hal_wrapper.cc",
     "src/traced/probes/ftrace/atrace_wrapper.cc",
     "src/traced/probes/ftrace/cpu_reader.cc",
     "src/traced/probes/ftrace/cpu_stats_parser.cc",
@@ -350,10 +351,12 @@ cc_library_shared {
 cc_library_shared {
   name: "libperfetto_android_internal",
   srcs: [
+    "src/android_internal/atrace_hal.cc",
     "src/android_internal/health_hal.cc",
     "src/android_internal/power_stats_hal.cc",
   ],
   shared_libs: [
+    "android.hardware.atrace@1.0",
     "android.hardware.health@2.0",
     "android.hardware.power.stats@1.0",
     "libbase",
@@ -615,6 +618,7 @@ cc_test {
     "src/traced/probes/filesystem/lru_inode_cache.cc",
     "src/traced/probes/filesystem/prefix_finder.cc",
     "src/traced/probes/filesystem/range_tree.cc",
+    "src/traced/probes/ftrace/atrace_hal_wrapper.cc",
     "src/traced/probes/ftrace/atrace_wrapper.cc",
     "src/traced/probes/ftrace/cpu_reader.cc",
     "src/traced/probes/ftrace/cpu_stats_parser.cc",
@@ -1664,6 +1668,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/clock_snapshot.proto",
     "protos/perfetto/trace/system_info.proto",
+    "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
     "aprotoc",
@@ -1672,6 +1677,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.cc",
     "external/perfetto/protos/perfetto/trace/system_info.pb.cc",
+    "external/perfetto/protos/perfetto/trace/trigger.pb.cc",
   ],
 }
 
@@ -1681,6 +1687,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/clock_snapshot.proto",
     "protos/perfetto/trace/system_info.proto",
+    "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
     "aprotoc",
@@ -1689,6 +1696,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.h",
     "external/perfetto/protos/perfetto/trace/system_info.pb.h",
+    "external/perfetto/protos/perfetto/trace/trigger.pb.h",
   ],
   export_include_dirs: [
     "protos",
@@ -2166,6 +2174,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
     "aprotoc",
@@ -2178,6 +2187,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/trigger.pbzero.cc",
   ],
 }
 
@@ -2190,6 +2200,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
     "aprotoc",
@@ -2202,6 +2213,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/trigger.pbzero.h",
   ],
   export_include_dirs: [
     "protos",
@@ -2915,6 +2927,7 @@ cc_test {
     "src/traced/probes/filesystem/prefix_finder_unittest.cc",
     "src/traced/probes/filesystem/range_tree.cc",
     "src/traced/probes/filesystem/range_tree_unittest.cc",
+    "src/traced/probes/ftrace/atrace_hal_wrapper.cc",
     "src/traced/probes/ftrace/atrace_wrapper.cc",
     "src/traced/probes/ftrace/cpu_reader.cc",
     "src/traced/probes/ftrace/cpu_reader_unittest.cc",
@@ -3160,7 +3173,9 @@ cc_binary_host {
     "src/trace_processor/storage_columns.cc",
     "src/trace_processor/storage_schema.cc",
     "src/trace_processor/storage_table.cc",
+    "src/trace_processor/string_pool.cc",
     "src/trace_processor/string_table.cc",
+    "src/trace_processor/syscall_tracker.cc",
     "src/trace_processor/table.cc",
     "src/trace_processor/thread_table.cc",
     "src/trace_processor/trace_processor.cc",
@@ -3170,7 +3185,6 @@ cc_binary_host {
     "src/trace_processor/trace_storage.cc",
     "src/trace_processor/virtual_destructors.cc",
     "src/trace_processor/window_operator_table.cc",
-    "tools/trace_to_text/ftrace_event_formatter.cc",
     "tools/trace_to_text/main.cc",
     "tools/trace_to_text/proto_full_utils.cc",
     "tools/trace_to_text/trace_to_profile.cc",

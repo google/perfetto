@@ -30,7 +30,7 @@ standalone as a command line tool.
 **Web-based frontend**  
 An open-source UI for inspection and analysis of traces.
 Available at [ui.perfetto.dev](https://ui.perfetto.dev).
-The UI is built on top of C++ trace processor library whic is cross-compiled
+The UI is built on top of C++ trace processor library which is cross-compiled
 to WASM to run locally in the browser.
 
 

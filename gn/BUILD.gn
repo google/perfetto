@@ -14,6 +14,17 @@
 
 import("perfetto.gni")
 import("proto_library.gni")
+if (perfetto_build_standalone || perfetto_build_with_android) {
+  import("//gn/standalone/sanitizers/vars.gni")
+} else {
+  import("//build/config/sanitizers/sanitizers.gni")
+}
+
+config("asan_instrumentation") {
+  if (use_sanitizer_configs_without_instrumentation) {
+    defines = [ "ADDRESS_SANITIZER_WITHOUT_INSTRUMENTATION" ]
+  }
+}
 
 # Used by base/gtest_prod_util.h for the FRIEND_TEST_* macros. Note that other
 # production targets (i.e. testonly == false) should use base/gtest_prod_util.h
