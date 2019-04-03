@@ -129,6 +129,12 @@ size_t StackOverlayMemory::Read(uint64_t addr, void* dst, size_t size) {
   return mem_->Read(addr, dst, size);
 }
 
+void StackOverlayMemory::SetStack(uint64_t sp, uint8_t* stack, size_t size) {
+  sp_ = sp;
+  stack_end_ = sp + size;
+  stack_ = stack;
+}
+
 FDMemory::FDMemory(base::ScopedFile mem_fd) : mem_fd_(std::move(mem_fd)) {}
 
 size_t FDMemory::Read(uint64_t addr, void* dst, size_t size) {
@@ -171,6 +177,23 @@ void FileDescriptorMaps::Reset() {
   maps_.clear();
 }
 
+UnwindingMetadata::UnwindingMetadata(pid_t p,
+                                     base::ScopedFile maps_fd,
+                                     base::ScopedFile mem)
+    : pid(p),
+      maps(new FileDescriptorMaps(std::move(maps_fd))),
+      fd_mem(std::make_shared<StackOverlayMemory>(
+          std::make_shared<FDMemory>(std::move(mem)))),
+      unwinder(kMaxFrames, maps.get(), fd_mem) {
+  PERFETTO_CHECK(maps->Parse());
+}
+
+void UnwindingMetadata::ReparseMaps() {
+  maps->Reset();
+  maps->Parse();
+  unwinder = unwindstack::Unwinder(kMaxFrames, maps.get(), fd_mem);
+}
+
 bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   AllocMetadata* alloc_metadata = msg->alloc_header;
   std::unique_ptr<unwindstack::Regs> regs(
@@ -186,16 +209,11 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     return false;
   }
   uint8_t* stack = reinterpret_cast<uint8_t*>(msg->payload);
-  std::shared_ptr<unwindstack::Memory> mems =
-      std::make_shared<StackOverlayMemory>(metadata->fd_mem,
-                                           alloc_metadata->stack_pointer, stack,
-                                           msg->payload_size);
+  metadata->fd_mem->SetStack(alloc_metadata->stack_pointer, stack,
+                             msg->payload_size);
 
-  unwindstack::Unwinder unwinder(kMaxFrames, &metadata->maps, regs.get(), mems);
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  unwinder.SetJitDebug(metadata->jit_debug.get(), regs->Arch());
-  unwinder.SetDexFiles(metadata->dex_files.get(), regs->Arch());
-#endif
+  unwindstack::Unwinder& unwinder = metadata->unwinder;
+  unwinder.SetRegs(regs.get());
   // Surpress incorrect "variable may be uninitialized" error for if condition
   // after this loop. error_code = LastErrorCode gets run at least once.
   uint8_t error_code = 0;
@@ -203,11 +221,8 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     if (attempt > 0) {
       PERFETTO_DLOG("Reparsing maps");
       metadata->ReparseMaps();
+      unwinder.SetRegs(regs.get());
       out->reparsed_map = true;
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-      unwinder.SetJitDebug(metadata->jit_debug.get(), regs->Arch());
-      unwinder.SetDexFiles(metadata->dex_files.get(), regs->Arch());
-#endif
     }
     unwinder.Unwind(&kSkipMaps, nullptr);
     error_code = unwinder.LastErrorCode();
@@ -218,7 +233,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   for (unwindstack::FrameData& fd : frames) {
     std::string build_id;
     if (fd.map_name != "") {
-      unwindstack::MapInfo* map_info = metadata->maps.Find(fd.pc);
+      unwindstack::MapInfo* map_info = metadata->maps->Find(fd.pc);
       if (map_info)
         build_id = map_info->GetBuildID();
     }
