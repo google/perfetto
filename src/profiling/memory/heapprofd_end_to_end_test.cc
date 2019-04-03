@@ -180,11 +180,29 @@ std::unique_ptr<TestHelper> GetHelper(base::TestTaskRunner* task_runner) {
   return helper;
 }
 
+std::string FormatHistogram(const protos::ProfilePacket_Histogram& hist) {
+  std::string out;
+  std::string prev_upper_limit = "-inf";
+  for (const auto& bucket : hist.buckets()) {
+    std::string upper_limit;
+    if (bucket.max_bucket())
+      upper_limit = "inf";
+    else
+      upper_limit = std::to_string(bucket.upper_limit());
+
+    out += "[" + prev_upper_limit + ", " + upper_limit +
+           "]: " + std::to_string(bucket.count()) + "; ";
+    prev_upper_limit = std::move(upper_limit);
+  }
+  return out + "\n";
+}
+
 std::string FormatStats(const protos::ProfilePacket_ProcessStats& stats) {
   return std::string("unwinding_errors: ") +
          std::to_string(stats.unwinding_errors()) + "\n" +
          "heap_samples: " + std::to_string(stats.heap_samples()) + "\n" +
-         "map_reparses: " + std::to_string(stats.map_reparses());
+         "map_reparses: " + std::to_string(stats.map_reparses()) + "\n" +
+         "unwinding_time_us: " + FormatHistogram(stats.unwinding_time_us());
 }
 
 class HeapprofdEndToEnd : public ::testing::Test {
