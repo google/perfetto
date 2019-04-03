@@ -1,0 +1,1655 @@
+"utid","tid","upid","pid","threadName","processName","totalDur"
+950,5506,31,5506,"id.GoogleCamera","com.google.android.GoogleCamera",15154766434
+954,5511,31,5506,"Jit thread pool","com.google.android.GoogleCamera",15154766434
+955,5512,31,5506,"Signal Catcher","com.google.android.GoogleCamera",15154766434
+957,5517,31,5506,"HeapTaskDaemon","com.google.android.GoogleCamera",15154766434
+958,5516,31,5506,"FinalizerWatchd","com.google.android.GoogleCamera",15154766434
+959,5515,31,5506,"FinalizerDaemon","com.google.android.GoogleCamera",15154766434
+960,5514,31,5506,"ReferenceQueueD","com.google.android.GoogleCamera",15154766434
+961,5513,31,5506,"ADB-JDWP Connec","com.google.android.GoogleCamera",15154766434
+962,5518,31,5506,"Binder:5506_1","com.google.android.GoogleCamera",15154766434
+963,5519,31,5506,"Binder:5506_2","com.google.android.GoogleCamera",15154766434
+973,5520,31,5506,"Profile Saver","com.google.android.GoogleCamera",15154766434
+975,5522,31,5506,"GoogleApiHandle","com.google.android.GoogleCamera",15154766434
+977,5524,31,5506,"queued-work-loo","com.google.android.GoogleCamera",15154766434
+978,5525,31,5506,"Executor-1","com.google.android.GoogleCamera",15154766434
+979,5526,31,5506,"Executor-2","com.google.android.GoogleCamera",15154766434
+980,5527,31,5506,"Executor-3","com.google.android.GoogleCamera",15154766434
+981,5528,31,5506,"Executor-4","com.google.android.GoogleCamera",15154766434
+983,5529,31,5506,"IOExecutor-1","com.google.android.GoogleCamera",15154766434
+984,5530,31,5506,"IndicatorUpdate","com.google.android.GoogleCamera",15154766434
+987,5531,31,5506,"CamcorderCamera","com.google.android.GoogleCamera",15154766434
+988,5532,31,5506,"Thread-11","com.google.android.GoogleCamera",15154766434
+989,5533,31,5506,"Thread-12","com.google.android.GoogleCamera",15154766434
+990,5534,31,5506,"Thread-92","com.google.android.GoogleCamera",15154766434
+993,5536,31,5506,"Executor-5","com.google.android.GoogleCamera",15154766434
+994,5537,31,5506,"Executor-6","com.google.android.GoogleCamera",15154766434
+995,5538,31,5506,"RenderThread","com.google.android.GoogleCamera",15154766434
+998,5541,31,5506,"Executor-7","com.google.android.GoogleCamera",15154766434
+1014,5557,31,5506,"RenderThread","com.google.android.GoogleCamera",15154766434
+1017,5559,31,5506,"RenderThread","com.google.android.GoogleCamera",15154766434
+1085,5595,31,5506,"Executor-8","com.google.android.GoogleCamera",15154766434
+1086,5596,31,5506,"Camera-Hndlr","com.google.android.GoogleCamera",15154766434
+1087,5597,31,5506,"SoundPool","com.google.android.GoogleCamera",15154766434
+1088,5598,31,5506,"SoundPoolThread","com.google.android.GoogleCamera",15154766434
+1090,5599,31,5506,"UsageStatEx","com.google.android.GoogleCamera",15154766434
+1092,5600,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1093,5601,31,5506,"HwBinder:5506_1","com.google.android.GoogleCamera",15154766434
+1096,5604,31,5506,"Camera-Ex","com.google.android.GoogleCamera",15154766434
+1136,5626,31,5506,"Camera Handler ","com.google.android.GoogleCamera",15154766434
+1143,5632,31,5506,"Camera Job Disp","com.google.android.GoogleCamera",15154766434
+1147,5634,31,5506,"Binder:5506_3","com.google.android.GoogleCamera",15154766434
+1154,5641,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1164,5648,31,5506,"camera.wearable","com.google.android.GoogleCamera",15154766434
+1165,5649,31,5506,"CamcorderCamera","com.google.android.GoogleCamera",15154766434
+1166,5650,31,5506,"Binder:5506_4","com.google.android.GoogleCamera",15154766434
+1167,5651,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1170,5654,31,5506,"IR-RAW10w4032","com.google.android.GoogleCamera",15154766434
+1172,5655,31,5506,"Binder:5506_5","com.google.android.GoogleCamera",15154766434
+1180,5657,31,5506,"MicrovideoFrame","com.google.android.GoogleCamera",15154766434
+1181,5658,31,5506,"AsyncTask #1","com.google.android.GoogleCamera",15154766434
+1202,5673,31,5506,"IR-YUV_420_888w","com.google.android.GoogleCamera",15154766434
+1203,5674,31,5506,"IR-JPEGw4032","com.google.android.GoogleCamera",15154766434
+1204,5675,31,5506,"reproc-write","com.google.android.GoogleCamera",15154766434
+1205,5676,31,5506,"reproc-read","com.google.android.GoogleCamera",15154766434
+1208,5680,31,5506,"CameraEx-2","com.google.android.GoogleCamera",15154766434
+1209,5679,31,5506,"CameraEx-1","com.google.android.GoogleCamera",15154766434
+1210,5681,31,5506,"MicrovideoQShar","com.google.android.GoogleCamera",15154766434
+1211,5682,31,5506,"n.StateCallback","com.google.android.GoogleCamera",15154766434
+1213,5684,31,5506,"mv-vid-encoder","com.google.android.GoogleCamera",15154766434
+1215,5686,31,5506,"SharedPreferenc","com.google.android.GoogleCamera",15154766434
+1225,5696,31,5506,"AsyncTask #2","com.google.android.GoogleCamera",15154766434
+1230,5701,31,5506,"GcaMetadataHand","com.google.android.GoogleCamera",15154766434
+1231,5702,31,5506,"r.ImageListener","com.google.android.GoogleCamera",15154766434
+1232,5703,31,5506,"Binder:5506_6","com.google.android.GoogleCamera",15154766434
+1234,5706,31,5506,"OnDemandLoader","com.google.android.GoogleCamera",15154766434
+1243,5713,31,5506,"NotificationDot","com.google.android.GoogleCamera",15154766434
+1253,5722,31,5506,"GAC_Executor[0]","com.google.android.GoogleCamera",15154766434
+1260,5729,31,5506,"Timer-0","com.google.android.GoogleCamera",15154766434
+1264,5733,31,5506,"Timer-1","com.google.android.GoogleCamera",15154766434
+1265,5732,31,5506,"GAC_Executor[1]","com.google.android.GoogleCamera",15154766434
+1267,5734,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1272,5743,31,5506,"AsyncTask #3","com.google.android.GoogleCamera",15154766434
+1303,5760,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1312,5769,31,5506,"hwuiTask1","com.google.android.GoogleCamera",15154766434
+1316,5772,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1317,5775,31,5506,"Timer-2","com.google.android.GoogleCamera",15154766434
+1327,5781,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1340,5793,31,5506,"mv-ctrl-exec","com.google.android.GoogleCamera",15154766434
+1341,5794,31,5506,"ois-exec","com.google.android.GoogleCamera",15154766434
+1342,5795,31,5506,"mv-meta-exec","com.google.android.GoogleCamera",15154766434
+1343,5796,31,5506,"mv-gyro-exec-0","com.google.android.GoogleCamera",15154766434
+1344,5797,31,5506,"DelHDR+Ind","com.google.android.GoogleCamera",15154766434
+1349,5801,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1356,5804,31,5506,"FilterHDR+Ind","com.google.android.GoogleCamera",15154766434
+1357,5805,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1360,5808,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1363,5811,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1368,5814,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1371,5817,31,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+1379,5824,31,5506,"CameraProcessin","com.google.android.GoogleCamera",15154766434
+1381,5825,31,5506,"ProcServ","com.google.android.GoogleCamera",15154766434
+1382,5826,31,5506,"MediaCodec_loop","com.google.android.GoogleCamera",15154766434
+1383,5827,31,5506,"CodecLooper","com.google.android.GoogleCamera",15154766434
+1386,5829,31,5506,"Binder:5506_7","com.google.android.GoogleCamera",15154766434
+1392,5834,31,5506,"IOExecutor-2","com.google.android.GoogleCamera",15154766434
+1398,5839,31,5506,"AudioTrack","com.google.android.GoogleCamera",15154766434
+1409,5845,31,5506,"Thread-38","com.google.android.GoogleCamera",15154766434
+1410,5847,31,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+1411,5848,31,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+1412,5849,31,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+1413,5850,31,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+1414,5851,31,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+1415,5852,31,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+1416,5853,31,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+1429,5865,31,5506,"AsyncTask #4","com.google.android.GoogleCamera",15154766434
+1432,5869,31,5506,"glide-source-th","com.google.android.GoogleCamera",15154766434
+1433,5870,31,5506,"Thread-72","com.google.android.GoogleCamera",15154766434
+1435,5872,31,5506,"Thread-56","com.google.android.GoogleCamera",15154766434
+1436,5873,31,5506,"Thread-49","com.google.android.GoogleCamera",15154766434
+1441,5875,31,5506,"Thread-52","com.google.android.GoogleCamera",15154766434
+1442,5876,31,5506,"Thread-66","com.google.android.GoogleCamera",15154766434
+1443,5877,31,5506,"Thread-65","com.google.android.GoogleCamera",15154766434
+1444,5879,31,5506,"Thread-58","com.google.android.GoogleCamera",15154766434
+1445,5878,31,5506,"Thread-61","com.google.android.GoogleCamera",15154766434
+1495,5923,31,5506,"DelLifetime","com.google.android.GoogleCamera",15154766434
+1511,5938,31,5506,"Thread-91","com.google.android.GoogleCamera",15154766434
+1513,5941,31,5506,"Finish Thread","com.google.android.GoogleCamera",15154766434
+1514,5940,31,5506,"Finish Thread","com.google.android.GoogleCamera",15154766434
+1516,5944,31,5506,"Thread-80","com.google.android.GoogleCamera",15154766434
+1517,5945,31,5506,"Thread-84","com.google.android.GoogleCamera",15154766434
+1518,5946,31,5506,"Thread-79","com.google.android.GoogleCamera",15154766434
+1519,5943,31,5506,"Thread-85","com.google.android.GoogleCamera",15154766434
+1520,5947,31,5506,"Thread-81","com.google.android.GoogleCamera",15154766434
+1521,5948,31,5506,"Thread-83","com.google.android.GoogleCamera",15154766434
+1522,5949,31,5506,"Thread-82","com.google.android.GoogleCamera",15154766434
+1589,6011,31,5506,"mv-disk-writer","com.google.android.GoogleCamera",15154766434
+76,3482,4,1204,"Binder:1204_17","system_server",6809850362
+78,1421,4,1204,"InputReader","system_server",6809850362
+81,1204,4,1204,"system_server","system_server",6809850362
+82,1259,4,1204,"PowerManagerSer","system_server",6809850362
+84,1251,4,1204,"android.ui","system_server",6809850362
+86,1257,4,1204,"android.display","system_server",6809850362
+87,1250,4,1204,"ActivityManager","system_server",6809850362
+88,1249,4,1204,"android.bg","system_server",6809850362
+101,1420,4,1204,"InputDispatcher","system_server",6809850362
+112,1256,4,1204,"android.fg","system_server",6809850362
+113,1446,4,1204,"tworkPolicy.uid","system_server",6809850362
+115,2692,4,1204,"Binder:1204_12","system_server",6809850362
+118,1254,4,1204,"batterystats-wo","system_server",6809850362
+130,1453,4,1204,"WifiService","system_server",6809850362
+136,1454,4,1204,"ClientModeImpl","system_server",6809850362
+139,4064,4,1204,"Binder:1204_18","system_server",6809850362
+140,1525,4,1204,"PhotonicModulat","system_server",6809850362
+145,1374,4,1204,"SensorService","system_server",6809850362
+148,1419,4,1204,"UEventObserver","system_server",6809850362
+182,1363,4,1204,"android.anim","system_server",6809850362
+183,2697,4,1204,"Binder:1204_16","system_server",6809850362
+185,2483,4,1204,"Binder:1204_A","system_server",6809850362
+207,1460,4,1204,"WifiScanningSer","system_server",6809850362
+210,1516,4,1204,"wifiAwareServic","system_server",6809850362
+217,1463,4,1204,"ConnectivitySer","system_server",6809850362
+218,1492,4,1204,"ConnectivityThr","system_server",6809850362
+223,1648,4,1204,"NetworkTimeUpda","system_server",6809850362
+244,1373,4,1204,"SensorEventAckR","system_server",6809850362
+270,2274,4,1204,"IpClient.wlan0","system_server",6809850362
+272,1396,4,1204,"AlarmManager","system_server",6809850362
+273,1252,4,1204,"ActivityManager","system_server",6809850362
+304,1253,4,1204,"ActivityManager","system_server",6809850362
+342,2688,4,1204,"Binder:1204_10","system_server",6809850362
+343,1699,4,1204,"Binder:1204_4","system_server",6809850362
+344,1700,4,1204,"Binder:1204_5","system_server",6809850362
+345,4743,4,1204,"Binder:1204_1A","system_server",6809850362
+346,1216,4,1204,"Binder:1204_1","system_server",6809850362
+347,2695,4,1204,"Binder:1204_15","system_server",6809850362
+407,1364,4,1204,"android.anim.lf","system_server",6809850362
+476,1489,4,1204,"HwBinder:1204_3","system_server",6809850362
+504,1519,4,1204,"TaskSnapshotPer","system_server",6809850362
+525,1529,4,1204,"LazyTaskWriterT","system_server",6809850362
+557,5332,4,1204,"GrallocUploadTh","system_server",6809850362
+636,1517,4,1204,"EthernetService","system_server",6809850362
+645,1246,4,1204,"android.io","system_server",6809850362
+688,1423,4,1204,"NetworkWatchlis","system_server",6809850362
+691,1469,4,1204,"ranker","system_server",6809850362
+692,2381,4,1204,"backup","system_server",6809850362
+761,1441,4,1204,"NetdConnector","system_server",6809850362
+762,1444,4,1204,"NetworkStats","system_server",6809850362
+782,1581,4,1204,"NetworkStatsObs","system_server",6809850362
+784,1445,4,1204,"NetworkPolicy","system_server",6809850362
+789,1383,4,1204,"SettingsProvide","system_server",6809850362
+792,1468,4,1204,"notification-sq","system_server",6809850362
+801,1255,4,1204,"FileObserver","system_server",6809850362
+807,1260,4,1204,"HwBinder:1204_1","system_server",6809850362
+836,3342,4,1204,"pool-4-thread-1","system_server",6809850362
+864,5498,4,1204,"RenderThread","system_server",6809850362
+865,5499,4,1204,"RenderThread","system_server",6809850362
+867,1214,4,1204,"HeapTaskDaemon","system_server",6809850362
+869,1211,4,1204,"ReferenceQueueD","system_server",6809850362
+879,1212,4,1204,"FinalizerDaemon","system_server",6809850362
+880,1213,4,1204,"FinalizerWatchd","system_server",6809850362
+1283,1739,4,1204,"hidl_ssvc_poll","system_server",6809850362
+1489,1480,4,1204,"AudioService","system_server",6809850362
+1619,1597,4,1204,"watchdog","system_server",6809850362
+535,5313,23,5313,".android.chrome","com.android.chrome",5125412570
+536,5318,23,5313,"Jit thread pool","com.android.chrome",5125412570
+537,5319,23,5313,"Signal Catcher","com.android.chrome",5125412570
+538,5322,23,5313,"FinalizerDaemon","com.android.chrome",5125412570
+539,5323,23,5313,"FinalizerWatchd","com.android.chrome",5125412570
+540,5321,23,5313,"ReferenceQueueD","com.android.chrome",5125412570
+541,5320,23,5313,"ADB-JDWP Connec","com.android.chrome",5125412570
+542,5324,23,5313,"HeapTaskDaemon","com.android.chrome",5125412570
+543,5325,23,5313,"Binder:5313_1","com.android.chrome",5125412570
+544,5326,23,5313,"Binder:5313_2","com.android.chrome",5125412570
+546,5327,23,5313,"Profile Saver","com.android.chrome",5125412570
+561,5333,23,5313,"CrAsyncTask #1","com.android.chrome",5125412570
+562,5334,23,5313,"CrAsyncTask #2","com.android.chrome",5125412570
+563,5335,23,5313,"CrAsyncTask #3","com.android.chrome",5125412570
+569,5336,23,5313,"SharedPreferenc","com.android.chrome",5125412570
+571,5339,23,5313,"Thread-2","com.android.chrome",5125412570
+576,5342,23,5313,"Thread-3","com.android.chrome",5125412570
+577,5343,23,5313,"CrAsyncTask #4","com.android.chrome",5125412570
+578,5344,23,5313,"magnifier pixel","com.android.chrome",5125412570
+579,5345,23,5313,"RenderThread","com.android.chrome",5125412570
+580,5346,23,5313,"Gservices","com.android.chrome",5125412570
+581,5347,23,5313,"Chrome_ProcessL","com.android.chrome",5125412570
+603,5364,23,5313,"Binder:5313_3","com.android.chrome",5125412570
+605,5365,23,5313,"Chrome_IOThread","com.android.chrome",5125412570
+606,5366,23,5313,"TaskSchedulerSe","com.android.chrome",5125412570
+607,5367,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
+608,5368,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
+609,5369,23,5313,"DnsConfigServic","com.android.chrome",5125412570
+610,5370,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
+611,5371,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
+612,5372,23,5313,"TaskSchedulerSi","com.android.chrome",5125412570
+613,5373,23,5313,"queued-work-loo","com.android.chrome",5125412570
+614,5374,23,5313,"AudioThread","com.android.chrome",5125412570
+615,5375,23,5313,"BrowserWatchdog","com.android.chrome",5125412570
+616,5376,23,5313,"Chrome_HistoryT","com.android.chrome",5125412570
+620,5380,23,5313,"TaskSchedulerSi","com.android.chrome",5125412570
+639,5396,23,5313,"CompositorTileW","com.android.chrome",5125412570
+643,5399,23,5313,"hwuiTask1","com.android.chrome",5125412570
+665,5415,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
+699,5443,23,5313,"SAFE_BROWSING_U","com.android.chrome",5125412570
+700,5444,23,5313,"GoogleApiHandle","com.android.chrome",5125412570
+729,5461,23,5313,"SensorsHandlerT","com.android.chrome",5125412570
+744,5471,23,5313,"Binder:5313_4","com.android.chrome",5125412570
+746,5473,23,5313,"AudioTrack","com.android.chrome",5125412570
+757,5482,23,5313,"Chrome_DevTools","com.android.chrome",5125412570
+857,5496,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
+920,5502,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
+921,5503,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
+1507,5935,23,5313,"Binder:5313_5","com.android.chrome",5125412570
+587,5348,24,5348,"dboxed_process0","com.android.chrome:sandboxed_process0",3569713072
+592,5353,24,5348,"Jit thread pool","com.android.chrome:sandboxed_process0",3569713072
+593,5354,24,5348,"Signal Catcher","com.android.chrome:sandboxed_process0",3569713072
+594,5355,24,5348,"ADB-JDWP Connec","com.android.chrome:sandboxed_process0",3569713072
+595,5357,24,5348,"FinalizerDaemon","com.android.chrome:sandboxed_process0",3569713072
+596,5356,24,5348,"ReferenceQueueD","com.android.chrome:sandboxed_process0",3569713072
+597,5358,24,5348,"FinalizerWatchd","com.android.chrome:sandboxed_process0",3569713072
+598,5359,24,5348,"HeapTaskDaemon","com.android.chrome:sandboxed_process0",3569713072
+599,5360,24,5348,"Binder:5348_1","com.android.chrome:sandboxed_process0",3569713072
+600,5361,24,5348,"Binder:5348_2","com.android.chrome:sandboxed_process0",3569713072
+601,5362,24,5348,"Binder:5348_3","com.android.chrome:sandboxed_process0",3569713072
+602,5363,24,5348,"CrRendererMain","com.android.chrome:sandboxed_process0",3569713072
+648,5404,24,5348,"TaskSchedulerFo","com.android.chrome:sandboxed_process0",3569713072
+649,5405,24,5348,"Chrome_ChildIOT","com.android.chrome:sandboxed_process0",3569713072
+650,5403,24,5348,"TaskSchedulerFo","com.android.chrome:sandboxed_process0",3569713072
+651,5402,24,5348,"TaskSchedulerSe","com.android.chrome:sandboxed_process0",3569713072
+652,5406,24,5348,"GpuMemoryThread","com.android.chrome:sandboxed_process0",3569713072
+660,5408,24,5348,"Compositor","com.android.chrome:sandboxed_process0",3569713072
+661,5414,24,5348,"CompositorTileW","com.android.chrome:sandboxed_process0",3569713072
+662,5413,24,5348,"CompositorTileW","com.android.chrome:sandboxed_process0",3569713072
+707,5452,24,5348,"TaskSchedulerFo","com.android.chrome:sandboxed_process0",3569713072
+708,5451,24,5348,"TaskSchedulerFo","com.android.chrome:sandboxed_process0",3569713072
+709,5450,24,5348,"TaskSchedulerFo","com.android.chrome:sandboxed_process0",3569713072
+710,5449,24,5348,"TaskSchedulerFo","com.android.chrome:sandboxed_process0",3569713072
+711,5448,24,5348,"TaskSchedulerFo","com.android.chrome:sandboxed_process0",3569713072
+712,5447,24,5348,"TaskSchedulerFo","com.android.chrome:sandboxed_process0",3569713072
+719,5455,24,5348,"ScriptStreamer ","com.android.chrome:sandboxed_process0",3569713072
+732,5462,24,5348,"Media","com.android.chrome:sandboxed_process0",3569713072
+748,5475,24,5348,"AudioOutputDevi","com.android.chrome:sandboxed_process0",3569713072
+1108,1926,225,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1112,5608,225,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1113,5607,225,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1114,5606,225,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1115,1696,225,759,"provider@2.4-se","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1116,5609,225,759,"QCamera3HdrPlus","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1119,5610,225,759,"CAM_MctServ","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1121,5611,225,759,"CAM_MctBus","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1123,5614,225,759,"CAM_sensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1127,5617,225,759,"CAM_iface_ses","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1130,5620,225,759,"CAM_img_msg","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1131,5621,225,759,"CAM_img_msg","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1132,5622,225,759,"CAM_cpp","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1133,5624,225,759,"CAM_c2d","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1134,5623,225,759,"CAM_isp_trigger","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1135,5625,225,759,"CAM_hw_update","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1137,5627,225,759,"CAM_isp_parser","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1138,5628,225,759,"CAM_startsensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1139,5629,225,759,"CAM_gyro_sens","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1140,5630,225,759,"CAM_startsensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1141,5631,225,759,"CAM_startsensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1144,5633,225,759,"CAM_img_msg","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1148,5635,225,759,"CAM_AECAWB","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1149,5636,225,759,"CAM_AF","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1150,5638,225,759,"CAM_ASD","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1151,5637,225,759,"CAM_AFD","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1152,5639,225,759,"CAM_Dispatch","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1153,5640,225,759,"CAM_evntPoll","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1159,5644,225,759,"CAM_dataPoll","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1233,5705,225,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1235,5704,225,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1236,5707,225,759,"mm_jpeg_thread","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1237,5708,225,759,"OMX_ImgEnc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1238,5711,225,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1239,5710,225,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1240,5709,225,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1249,5719,225,759,"CAM_img","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1250,5720,225,759,"CAM_img","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1252,5721,225,759,"CAM_METADATA","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1254,5723,225,759,"CAM_ANALYSISCAM","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1255,5724,225,759,"CAM_PREVIEW","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1256,5725,225,759,"CAM_SNAPSHOT","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1257,5726,225,759,"CAM_CALLBACK","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1258,5727,225,759,"CAM_CALLBACK","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1259,5728,225,759,"CAM_RAW","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1261,5730,225,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1262,5731,225,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1263,1543,225,759,"CAM_imgTh","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1273,5742,225,759,"CAM_iface_poll","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1277,5744,225,759,"CAM_iface_hw","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1284,759,225,759,"provider@2.4-se","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1285,5752,225,759,"HwBinder:759_2","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1299,5756,225,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1300,5757,225,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1301,5758,225,759,"CAM_laser_sens","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1305,5762,225,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1308,5765,225,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1309,5766,225,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1310,5767,225,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1311,5768,225,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1313,5770,225,759,"HwBinder:759_3","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1321,5776,225,759,"CAM_sof_timer","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1425,5862,225,759,"HwBinder:759_4","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+97,2285,5,1572,"Binder:1572_8","com.android.systemui",3072242745
+100,1572,5,1572,"ndroid.systemui","com.android.systemui",3072242745
+114,1589,5,1572,"Binder:1572_1","com.android.systemui",3072242745
+120,1981,5,1572,"RenderThread","com.android.systemui",3072242745
+128,1934,5,1572,"SysUiBg","com.android.systemui",3072242745
+161,2121,5,1572,"ScreenDecoratio","com.android.systemui",3072242745
+205,1876,5,1572,"pool-1-thread-1","com.android.systemui",3072242745
+212,1580,5,1572,"Jit thread pool","com.android.systemui",3072242745
+222,1994,5,1572,"ConnectivityThr","com.android.systemui",3072242745
+243,2021,5,1572,"async_sensor","com.android.systemui",3072242745
+257,2270,5,1572,"hwuiTask1","com.android.systemui",3072242745
+374,2090,5,1572,"recents.fg","com.android.systemui",3072242745
+434,2256,5,1572,"GrallocUploadTh","com.android.systemui",3072242745
+566,1593,5,1572,"Binder:1572_2","com.android.systemui",3072242745
+567,2044,5,1572,"Binder:1572_5","com.android.systemui",3072242745
+568,2079,5,1572,"Binder:1572_7","com.android.systemui",3072242745
+788,1932,5,1572,"VolumeDialogCon","com.android.systemui",3072242745
+795,2275,5,1572,"Thread-2","com.android.systemui",3072242745
+796,5486,5,1572,"AsyncTask #7","com.android.systemui",3072242745
+797,5487,5,1572,"AsyncTask #8","com.android.systemui",3072242745
+798,5488,5,1572,"InflaterThread ","com.android.systemui",3072242745
+799,5489,5,1572,"InflaterThread ","com.android.systemui",3072242745
+800,5490,5,1572,"InflaterThread ","com.android.systemui",3072242745
+822,5155,5,1572,"AsyncTask #6","com.android.systemui",3072242745
+823,5493,5,1572,"InflaterThread ","com.android.systemui",3072242745
+830,2002,5,1572,"AsyncTask #1","com.android.systemui",3072242745
+860,1587,5,1572,"HeapTaskDaemon","com.android.systemui",3072242745
+861,1584,5,1572,"ReferenceQueueD","com.android.systemui",3072242745
+862,1585,5,1572,"FinalizerDaemon","com.android.systemui",3072242745
+863,1586,5,1572,"FinalizerWatchd","com.android.systemui",3072242745
+1109,2059,5,1572,"FlashlightContr","com.android.systemui",3072242745
+29,2798,9,2400,"TimerThread0","com.google.android.googlequicksearchbox:search",2487567838
+30,3004,9,2400,"UserFacing3","com.google.android.googlequicksearchbox:search",2487567838
+35,4163,9,2400,"ChromiumNet","com.google.android.googlequicksearchbox:search",2487567838
+160,2961,9,2400,"Binder:2400_4","com.google.android.googlequicksearchbox:search",2487567838
+229,2921,9,2400,"ConnectivityThr","com.google.android.googlequicksearchbox:search",2487567838
+230,2400,9,2400,"earchbox:search","com.google.android.googlequicksearchbox:search",2487567838
+235,4075,9,2400,"CronetInit","com.google.android.googlequicksearchbox:search",2487567838
+371,5189,9,2400,"Binder:2400_7","com.google.android.googlequicksearchbox:search",2487567838
+399,4155,9,2400,"TaskSchedulerSe","com.google.android.googlequicksearchbox:search",2487567838
+400,4156,9,2400,"TaskSchedulerBa","com.google.android.googlequicksearchbox:search",2487567838
+401,4157,9,2400,"TaskSchedulerBa","com.google.android.googlequicksearchbox:search",2487567838
+402,4910,9,2400,"TaskSchedulerFo","com.google.android.googlequicksearchbox:search",2487567838
+403,4165,9,2400,"TaskSchedulerFo","com.google.android.googlequicksearchbox:search",2487567838
+404,4161,9,2400,"TaskSchedulerFo","com.google.android.googlequicksearchbox:search",2487567838
+405,4162,9,2400,"TaskSchedulerFo","com.google.android.googlequicksearchbox:search",2487567838
+406,5271,9,2400,"magnifier pixel","com.google.android.googlequicksearchbox:search",2487567838
+414,2428,9,2400,"Jit thread pool","com.google.android.googlequicksearchbox:search",2487567838
+433,5281,9,2400,"RenderThread","com.google.android.googlequicksearchbox:search",2487567838
+444,2522,9,2400,"Profile Saver","com.google.android.googlequicksearchbox:search",2487567838
+459,2448,9,2400,"HeapTaskDaemon","com.google.android.googlequicksearchbox:search",2487567838
+466,2690,9,2400,"SearchSettings_","com.google.android.googlequicksearchbox:search",2487567838
+467,2442,9,2400,"ReferenceQueueD","com.google.android.googlequicksearchbox:search",2487567838
+468,2444,9,2400,"FinalizerDaemon","com.google.android.googlequicksearchbox:search",2487567838
+469,2446,9,2400,"FinalizerWatchd","com.google.android.googlequicksearchbox:search",2487567838
+470,4041,9,2400,"NonUserFacing5","com.google.android.googlequicksearchbox:search",2487567838
+471,2834,9,2400,"queued-work-loo","com.google.android.googlequicksearchbox:search",2487567838
+478,2799,9,2400,"UserFacing0","com.google.android.googlequicksearchbox:search",2487567838
+490,2848,9,2400,"UserFacing1","com.google.android.googlequicksearchbox:search",2487567838
+491,5308,9,2400,"IcingConnection","com.google.android.googlequicksearchbox:search",2487567838
+492,4118,9,2400,"UserFacing5","com.google.android.googlequicksearchbox:search",2487567838
+497,2854,9,2400,"UserFacing2","com.google.android.googlequicksearchbox:search",2487567838
+502,4807,9,2400,"Binder:2400_6","com.google.android.googlequicksearchbox:search",2487567838
+503,2846,9,2400,"NonUserFacing1","com.google.android.googlequicksearchbox:search",2487567838
+509,4040,9,2400,"NonUserFacing4","com.google.android.googlequicksearchbox:search",2487567838
+510,2778,9,2400,"NonUserFacing0","com.google.android.googlequicksearchbox:search",2487567838
+511,5310,9,2400,"GcoreGoogleApiC","com.google.android.googlequicksearchbox:search",2487567838
+512,5311,9,2400,"GAC_Executor[1]","com.google.android.googlequicksearchbox:search",2487567838
+513,4306,9,2400,"GAC_Executor[0]","com.google.android.googlequicksearchbox:search",2487567838
+560,2451,9,2400,"Binder:2400_1","com.google.android.googlequicksearchbox:search",2487567838
+804,5491,9,2400,"TaskSchedulerFo","com.google.android.googlequicksearchbox:search",2487567838
+811,4164,9,2400,"DnsConfigServic","com.google.android.googlequicksearchbox:search",2487567838
+828,3841,9,2400,"GoogleApiHandle","com.google.android.googlequicksearchbox:search",2487567838
+859,4039,9,2400,"NonUserFacing3","com.google.android.googlequicksearchbox:search",2487567838
+996,5540,9,2400,"TaskSchedulerFo","com.google.android.googlequicksearchbox:search",2487567838
+997,5539,9,2400,"TaskSchedulerBa","com.google.android.googlequicksearchbox:search",2487567838
+1466,4167,9,2400,"Network File Th","com.google.android.googlequicksearchbox:search",2487567838
+617,5377,25,5377,"ileged_process0","com.android.chrome:privileged_process0",2338957110
+624,5384,25,5377,"Jit thread pool","com.android.chrome:privileged_process0",2338957110
+625,5385,25,5377,"Signal Catcher","com.android.chrome:privileged_process0",2338957110
+626,5386,25,5377,"ADB-JDWP Connec","com.android.chrome:privileged_process0",2338957110
+627,5388,25,5377,"FinalizerDaemon","com.android.chrome:privileged_process0",2338957110
+628,5389,25,5377,"FinalizerWatchd","com.android.chrome:privileged_process0",2338957110
+629,5387,25,5377,"ReferenceQueueD","com.android.chrome:privileged_process0",2338957110
+630,5390,25,5377,"HeapTaskDaemon","com.android.chrome:privileged_process0",2338957110
+631,5391,25,5377,"Binder:5377_1","com.android.chrome:privileged_process0",2338957110
+632,5392,25,5377,"Binder:5377_2","com.android.chrome:privileged_process0",2338957110
+634,5393,25,5377,"Binder:5377_3","com.android.chrome:privileged_process0",2338957110
+635,5394,25,5377,"Profile Saver","com.android.chrome:privileged_process0",2338957110
+638,5395,25,5377,"CrGpuMain","com.android.chrome:privileged_process0",2338957110
+640,5397,25,5377,"Watchdog","com.android.chrome:privileged_process0",2338957110
+656,5411,25,5377,"TaskSchedulerFo","com.android.chrome:privileged_process0",2338957110
+657,5412,25,5377,"Chrome_ChildIOT","com.android.chrome:privileged_process0",2338957110
+658,5410,25,5377,"TaskSchedulerFo","com.android.chrome:privileged_process0",2338957110
+659,5409,25,5377,"TaskSchedulerSe","com.android.chrome:privileged_process0",2338957110
+733,5463,25,5377,"CrGpuMain","com.android.chrome:privileged_process0",2338957110
+734,5464,25,5377,"TaskSchedulerSi","com.android.chrome:privileged_process0",2338957110
+750,5476,25,5377,"AVDAAutoThread","com.android.chrome:privileged_process0",2338957110
+751,5477,25,5377,"AVDASWThread","com.android.chrome:privileged_process0",2338957110
+752,5478,25,5377,"MediaCodec_loop","com.android.chrome:privileged_process0",2338957110
+753,5479,25,5377,"JNISurfaceTextu","com.android.chrome:privileged_process0",2338957110
+755,5480,25,5377,"HwBinder:5377_1","com.android.chrome:privileged_process0",2338957110
+89,652,80,622,"Binder:622_2","/system/bin/surfaceflinger",2155181851
+91,692,80,622,"surfaceflinger","/system/bin/surfaceflinger",2155181851
+92,656,80,622,"sfEventThread","/system/bin/surfaceflinger",2155181851
+94,654,80,622,"DispSync","/system/bin/surfaceflinger",2155181851
+95,1221,80,622,"Binder:622_3","/system/bin/surfaceflinger",2155181851
+98,651,80,622,"Binder:622_1","/system/bin/surfaceflinger",2155181851
+106,622,80,622,"surfaceflinger","/system/bin/surfaceflinger",2155181851
+109,655,80,622,"appEventThread","/system/bin/surfaceflinger",2155181851
+127,688,80,622,"HwBinder:622_1","/system/bin/surfaceflinger",2155181851
+422,4032,80,622,"Binder:622_5","/system/bin/surfaceflinger",2155181851
+423,1438,80,622,"Binder:622_4","/system/bin/surfaceflinger",2155181851
+858,5497,80,622,"surfaceflinger","/system/bin/surfaceflinger",2155181851
+169,2551,6,2523,"Binder:2523_1","com.google.android.apps.nexuslauncher",1639085587
+171,2523,6,2523,"s.nexuslauncher","com.google.android.apps.nexuslauncher",1639085587
+172,2745,6,2523,"UiThreadHelper","com.google.android.apps.nexuslauncher",1639085587
+369,3017,6,2523,"RenderThread","com.google.android.apps.nexuslauncher",1639085587
+372,4571,6,2523,"Binder:2523_4","com.google.android.apps.nexuslauncher",1639085587
+373,2639,6,2523,"launcher-loader","com.google.android.apps.nexuslauncher",1639085587
+375,3107,6,2523,"reflection-thre","com.google.android.apps.nexuslauncher",1639085587
+376,2705,6,2523,"GoogleApiHandle","com.google.android.apps.nexuslauncher",1639085587
+378,2531,6,2523,"Jit thread pool","com.google.android.apps.nexuslauncher",1639085587
+379,2838,6,2523,"queued-work-loo","com.google.android.apps.nexuslauncher",1639085587
+381,2988,6,2523,"GrallocUploadTh","com.google.android.apps.nexuslauncher",1639085587
+547,5328,6,2523,"hwuiTask1","com.google.android.apps.nexuslauncher",1639085587
+551,5330,6,2523,"pool-3-thread-1","com.google.android.apps.nexuslauncher",1639085587
+552,2548,6,2523,"HeapTaskDaemon","com.google.android.apps.nexuslauncher",1639085587
+553,2886,6,2523,"TaskThumbnailIc","com.google.android.apps.nexuslauncher",1639085587
+559,2545,6,2523,"ReferenceQueueD","com.google.android.apps.nexuslauncher",1639085587
+572,2546,6,2523,"FinalizerDaemon","com.google.android.apps.nexuslauncher",1639085587
+574,2547,6,2523,"FinalizerWatchd","com.google.android.apps.nexuslauncher",1639085587
+769,2629,6,2523,"Profile Saver","com.google.android.apps.nexuslauncher",1639085587
+844,5495,6,2523,"pool-3-thread-2","com.google.android.apps.nexuslauncher",1639085587
+874,2562,6,2523,"Binder:2523_2","com.google.android.apps.nexuslauncher",1639085587
+875,2582,6,2523,"Binder:2523_3","com.google.android.apps.nexuslauncher",1639085587
+876,5500,6,2523,"Binder:2523_5","com.google.android.apps.nexuslauncher",1639085587
+3,906,41,906,"traced_probes","/system/bin/traced_probes",1598981574
+6,5244,41,906,"traced_probes0","/system/bin/traced_probes",1598981574
+7,5251,41,906,"traced_probes7","/system/bin/traced_probes",1598981574
+9,5250,41,906,"traced_probes6","/system/bin/traced_probes",1598981574
+10,5249,41,906,"traced_probes5","/system/bin/traced_probes",1598981574
+11,5248,41,906,"traced_probes4","/system/bin/traced_probes",1598981574
+12,5247,41,906,"traced_probes3","/system/bin/traced_probes",1598981574
+13,5246,41,906,"traced_probes2","/system/bin/traced_probes",1598981574
+14,5245,41,906,"traced_probes1","/system/bin/traced_probes",1598981574
+1612,916,41,906,"traced_probes","/system/bin/traced_probes",1598981574
+59,2685,3,2139,"GlobalScheduler","com.google.android.gms.persistent",1577881906
+60,2139,3,2139,".gms.persistent","com.google.android.gms.persistent",1577881906
+61,2955,3,2139,"lowpool[2]","com.google.android.gms.persistent",1577881906
+117,4201,3,2139,"Binder:2139_C","com.google.android.gms.persistent",1577881906
+119,3279,3,2139,"FlpThread","com.google.android.gms.persistent",1577881906
+349,4474,3,2139,"Binder:2139_E","com.google.android.gms.persistent",1577881906
+358,3255,3,2139,"GeofencerStateM","com.google.android.gms.persistent",1577881906
+362,3517,3,2139,"GoogleLocationS","com.google.android.gms.persistent",1577881906
+377,2144,3,2139,"Jit thread pool","com.google.android.gms.persistent",1577881906
+380,3635,3,2139,"lowpool[8]","com.google.android.gms.persistent",1577881906
+413,2236,3,2139,"peration loader","com.google.android.gms.persistent",1577881906
+416,4772,3,2139,"raService] idle","com.google.android.gms.persistent",1577881906
+427,2237,3,2139,"queued-work-loo","com.google.android.gms.persistent",1577881906
+463,2682,3,2139,"GoogleApiHandle","com.google.android.gms.persistent",1577881906
+464,5300,3,2139,"raService] idle","com.google.android.gms.persistent",1577881906
+493,2740,3,2139,"netscheduler-qu","com.google.android.gms.persistent",1577881906
+514,4203,3,2139,"Binder:2139_D","com.google.android.gms.persistent",1577881906
+515,2227,3,2139,"GlobalDispatchi","com.google.android.gms.persistent",1577881906
+516,3005,3,2139,"lowpool[4]","com.google.android.gms.persistent",1577881906
+530,2176,3,2139,"Profile Saver","com.google.android.gms.persistent",1577881906
+663,2151,3,2139,"Binder:2139_1","com.google.android.gms.persistent",1577881906
+664,3054,3,2139,"highpool[2]","com.google.android.gms.persistent",1577881906
+714,5453,3,2139,"Thread-26","com.google.android.gms.persistent",1577881906
+718,3745,3,2139,"Okio Watchdog","com.google.android.gms.persistent",1577881906
+727,4114,3,2139,"OkHttp Connecti","com.google.android.gms.persistent",1577881906
+881,2666,3,2139,"Binder:2139_6","com.google.android.gms.persistent",1577881906
+882,2159,3,2139,"Binder:2139_4","com.google.android.gms.persistent",1577881906
+883,3135,3,2139,"Binder:2139_A","com.google.android.gms.persistent",1577881906
+884,2158,3,2139,"Binder:2139_3","com.google.android.gms.persistent",1577881906
+885,2946,3,2139,"Binder:2139_7","com.google.android.gms.persistent",1577881906
+886,3063,3,2139,"Binder:2139_9","com.google.android.gms.persistent",1577881906
+887,2154,3,2139,"Binder:2139_2","com.google.android.gms.persistent",1577881906
+888,2999,3,2139,"Binder:2139_8","com.google.android.gms.persistent",1577881906
+889,3200,3,2139,"Binder:2139_B","com.google.android.gms.persistent",1577881906
+1084,3653,3,2139,"Places","com.google.android.gms.persistent",1577881906
+1599,2660,3,2139,"Binder:2139_5","com.google.android.gms.persistent",1577881906
+1600,6019,3,2139,"Binder:2139_F","com.google.android.gms.persistent",1577881906
+436,150,177,150,"kswapd0","kswapd0",1377437355
+37,2827,1,2238,"GlobalScheduler","com.google.android.gms",1130387110
+38,2238,1,2238,"gle.android.gms","com.google.android.gms",1130387110
+39,2757,1,2238,"lowpool[2]","com.google.android.gms",1130387110
+162,4264,1,2238,"Binder:2238_E","com.google.android.gms",1130387110
+367,3750,1,2238,"Binder:2238_B","com.google.android.gms",1130387110
+425,5275,1,2238,"peration loader","com.google.android.gms",1130387110
+426,5276,1,2238,"raService] idle","com.google.android.gms",1130387110
+428,5277,1,2238,"raService] idle","com.google.android.gms",1130387110
+429,5278,1,2238,"raService] idle","com.google.android.gms",1130387110
+430,2640,1,2238,"GoogleApiHandle","com.google.android.gms",1130387110
+431,5279,1,2238,"raService] idle","com.google.android.gms",1130387110
+435,5282,1,2238,"raService] idle","com.google.android.gms",1130387110
+437,2243,1,2238,"Jit thread pool","com.google.android.gms",1130387110
+507,2772,1,2238,"lowpool[3]","com.google.android.gms",1130387110
+654,3098,1,2238,"GAC_Executor[1]","com.google.android.gms",1130387110
+655,2895,1,2238,"GAC_Executor[0]","com.google.android.gms",1130387110
+713,3905,1,2238,"highpool[2]","com.google.android.gms",1130387110
+722,5458,1,2238,"IntentService[D","com.google.android.gms",1130387110
+736,5465,1,2238,"mdns-send","com.google.android.gms",1130387110
+737,5466,1,2238,"MdnsSocketClien","com.google.android.gms",1130387110
+738,5467,1,2238,"mdns-multicast-","com.google.android.gms",1130387110
+739,3925,1,2238,"lowpool[7]","com.google.android.gms",1130387110
+740,5468,1,2238,"lowpool[8]","com.google.android.gms",1130387110
+826,2254,1,2238,"Profile Saver","com.google.android.gms",1130387110
+870,2761,1,2238,"Binder:2238_6","com.google.android.gms",1130387110
+871,4475,1,2238,"Binder:2238_F","com.google.android.gms",1130387110
+872,2831,1,2238,"Binder:2238_8","com.google.android.gms",1130387110
+1065,4038,1,2238,"Okio Watchdog","com.google.android.gms",1130387110
+1174,2755,1,2238,"Binder:2238_5","com.google.android.gms",1130387110
+1175,3749,1,2238,"Binder:2238_A","com.google.android.gms",1130387110
+1176,2396,1,2238,"Binder:2238_4","com.google.android.gms",1130387110
+1177,4257,1,2238,"Binder:2238_D","com.google.android.gms",1130387110
+1480,5910,1,2238,"peration loader","com.google.android.gms",1130387110
+1481,5911,1,2238,"raService] idle","com.google.android.gms",1130387110
+1591,6013,1,2238,"IntentService[M","com.google.android.gms",1130387110
+1592,6014,1,2238,"MediaTracker bu","com.google.android.gms",1130387110
+1595,2249,1,2238,"HeapTaskDaemon","com.google.android.gms",1130387110
+1597,2246,1,2238,"ReferenceQueueD","com.google.android.gms",1130387110
+1606,2247,1,2238,"FinalizerDaemon","com.google.android.gms",1130387110
+1607,2248,1,2238,"FinalizerWatchd","com.google.android.gms",1130387110
+754,2165,205,943,"HwBinder:943_3","media.codec",930299908
+756,5481,205,943,"VideoDecCallBac","media.codec",930299908
+758,5484,205,943,"OMXCallbackDisp","media.codec",930299908
+759,5483,205,943,"VideoDecMsgThre","media.codec",930299908
+760,1107,205,943,"HwBinder:943_1","media.codec",930299908
+763,2229,205,943,"HwBinder:943_5","media.codec",930299908
+764,1110,205,943,"HwBinder:943_2","media.codec",930299908
+827,2184,205,943,"HwBinder:943_4","media.codec",930299908
+1394,5837,205,943,"OMXCallbackDisp","media.codec",930299908
+1395,5836,205,943,"VideoEncCallBac","media.codec",930299908
+1396,5835,205,943,"VideoEncMsgThre","media.codec",930299908
+1401,943,205,943,"omx@1.0-service","media.codec",930299908
+1402,5841,205,943,"HwBinder:943_6","media.codec",930299908
+1417,5854,205,943,"VideoEncMsgThre","media.codec",930299908
+1418,5855,205,943,"VideoEncMsgThre","media.codec",930299908
+1275,5737,37,5737,"oid.apps.photos","com.google.android.apps.photos",748904789
+1279,5746,37,5737,"Jit thread pool","com.google.android.apps.photos",748904789
+1280,5747,37,5737,"Signal Catcher","com.google.android.apps.photos",748904789
+1281,5748,37,5737,"ADB-JDWP Connec","com.google.android.apps.photos",748904789
+1282,5749,37,5737,"ReferenceQueueD","com.google.android.apps.photos",748904789
+1286,5750,37,5737,"FinalizerDaemon","com.google.android.apps.photos",748904789
+1287,5751,37,5737,"FinalizerWatchd","com.google.android.apps.photos",748904789
+1288,5753,37,5737,"HeapTaskDaemon","com.google.android.apps.photos",748904789
+1291,5754,37,5737,"Binder:5737_1","com.google.android.apps.photos",748904789
+1292,5755,37,5737,"Binder:5737_2","com.google.android.apps.photos",748904789
+1304,5761,37,5737,"Binder:5737_3","com.google.android.apps.photos",748904789
+1314,5771,37,5737,"Profile Saver","com.google.android.apps.photos",748904789
+1322,5777,37,5737,"default_backgro","com.google.android.apps.photos",748904789
+1325,5779,37,5737,"Primes-init-1","com.google.android.apps.photos",748904789
+1334,5788,37,5737,"MediaPageFetche","com.google.android.apps.photos",748904789
+1335,5787,37,5737,"queued-work-loo","com.google.android.apps.photos",748904789
+1390,5832,37,5737,"glide-source-th","com.google.android.apps.photos",748904789
+1428,5866,37,5737,"glide-source-th","com.google.android.apps.photos",748904789
+1590,6012,37,5737,"glide-source-th","com.google.android.apps.photos",748904789
+1596,6017,37,5737,"Binder:5737_4","com.google.android.apps.photos",748904789
+1608,6021,37,5737,"GrallocUploadTh","com.google.android.apps.photos",748904789
+1609,6022,37,5737,"glide-active-re","com.google.android.apps.photos",748904789
+1618,6025,37,5737,"BackgroundTask ","com.google.android.apps.photos",748904789
+110,1774,13,1657,"Binder:1657_3","com.breel.wallpapers",638226980
+152,1657,13,1657,"reel.wallpapers","com.breel.wallpapers",638226980
+261,2060,13,1657,"GLThread 35","com.breel.wallpapers",638226980
+408,1663,13,1657,"Jit thread pool","com.breel.wallpapers",638226980
+409,1801,13,1657,"Profile Saver","com.breel.wallpapers",638226980
+1019,2371,13,1657,"Binder:1657_4","com.breel.wallpapers",638226980
+90,687,82,624,"HwBinder:624_1","/vendor/bin/hw/android.hardware.graphics.composer@2.1-service",617056001
+102,741,82,624,"HwBinder:624_2","/vendor/bin/hw/android.hardware.graphics.composer@2.1-service",617056001
+126,664,82,624,"SDM_EventThread","/vendor/bin/hw/android.hardware.graphics.composer@2.1-service",617056001
+154,686,82,624,"HWC_UeventThrea","/vendor/bin/hw/android.hardware.graphics.composer@2.1-service",617056001
+1156,639,82,624,"Binder:624_2","/vendor/bin/hw/android.hardware.graphics.composer@2.1-service",617056001
+1627,624,82,624,"","/vendor/bin/hw/android.hardware.graphics.composer@2.1-service",617056001
+129,1368,98,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+132,1392,98,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+133,955,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+138,1393,98,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+143,1085,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+144,804,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+240,1047,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+241,1046,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+245,1083,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+246,1082,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+251,1041,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+252,1040,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+253,1076,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+254,1075,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+255,1051,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+256,1050,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+475,975,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+725,1391,98,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+726,959,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+730,1016,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+731,1015,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1223,5694,98,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1224,5695,98,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1289,977,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1290,976,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1315,1070,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1490,1069,98,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+999,5542,32,5542,"ssioncontroller","com.google.android.permissioncontroller",521893072
+1004,5547,32,5542,"Jit thread pool","com.google.android.permissioncontroller",521893072
+1005,5548,32,5542,"Signal Catcher","com.google.android.permissioncontroller",521893072
+1006,5549,32,5542,"ADB-JDWP Connec","com.google.android.permissioncontroller",521893072
+1007,5550,32,5542,"ReferenceQueueD","com.google.android.permissioncontroller",521893072
+1008,5551,32,5542,"FinalizerDaemon","com.google.android.permissioncontroller",521893072
+1009,5552,32,5542,"FinalizerWatchd","com.google.android.permissioncontroller",521893072
+1010,5553,32,5542,"HeapTaskDaemon","com.google.android.permissioncontroller",521893072
+1011,5554,32,5542,"Binder:5542_1","com.google.android.permissioncontroller",521893072
+1012,5555,32,5542,"Binder:5542_2","com.google.android.permissioncontroller",521893072
+1013,5556,32,5542,"Profile Saver","com.google.android.permissioncontroller",521893072
+1018,5560,32,5542,"RenderThread","com.google.android.permissioncontroller",521893072
+1020,5561,32,5542,"RenderThread","com.google.android.permissioncontroller",521893072
+1021,5562,32,5542,"RenderThread","com.google.android.permissioncontroller",521893072
+1039,5579,32,5542,"Binder:5542_3","com.google.android.permissioncontroller",521893072
+1110,5605,32,5542,"queued-work-loo","com.google.android.permissioncontroller",521893072
+443,5283,22,5283,"d.process.acore","android.process.acore",388957949
+447,5288,22,5283,"Jit thread pool","android.process.acore",388957949
+448,5289,22,5283,"Signal Catcher","android.process.acore",388957949
+450,5294,22,5283,"FinalizerWatchd","android.process.acore",388957949
+451,5290,22,5283,"ADB-JDWP Connec","android.process.acore",388957949
+452,5295,22,5283,"HeapTaskDaemon","android.process.acore",388957949
+453,5293,22,5283,"FinalizerDaemon","android.process.acore",388957949
+454,5292,22,5283,"ReferenceQueueD","android.process.acore",388957949
+457,5297,22,5283,"Binder:5283_1","android.process.acore",388957949
+458,5298,22,5283,"Binder:5283_2","android.process.acore",388957949
+462,5299,22,5283,"Binder:5283_3","android.process.acore",388957949
+465,5301,22,5283,"Profile Saver","android.process.acore",388957949
+472,5302,22,5283,"Worker-1","android.process.acore",388957949
+477,5303,22,5283,"Worker-1","android.process.acore",388957949
+482,5304,22,5283,"Worker-1","android.process.acore",388957949
+484,5306,22,5283,"Worker-1","android.process.acore",388957949
+485,5307,22,5283,"Worker-1","android.process.acore",388957949
+721,5457,22,5283,"android.bg","android.process.acore",388957949
+248,105,145,105,"system","system",379031400
+105,990,93,626,"HwBinder:626_2","/vendor/bin/hw/android.hardware.graphics.allocator@2.0-service",337948219
+383,626,93,626,"allocator@2.0-s","/vendor/bin/hw/android.hardware.graphics.allocator@2.0-service",337948219
+384,983,93,626,"HwBinder:626_1","/vendor/bin/hw/android.hardware.graphics.allocator@2.0-service",337948219
+385,5270,93,626,"HwBinder:626_3","/vendor/bin/hw/android.hardware.graphics.allocator@2.0-service",337948219
+202,1175,135,864,"Binder:864_1","/system/bin/audioserver",335741587
+203,1481,135,864,"TimeCheckThread","/system/bin/audioserver",335741587
+494,1225,135,864,"AudioOut_D","/system/bin/audioserver",335741587
+495,1227,135,864,"AudioOut_15","/system/bin/audioserver",335741587
+496,1228,135,864,"AudioOut_1D","/system/bin/audioserver",335741587
+498,1230,135,864,"AudioOut_25","/system/bin/audioserver",335741587
+500,1231,135,864,"AudioOut_2D","/system/bin/audioserver",335741587
+501,1233,135,864,"AudioOut_35","/system/bin/audioserver",335741587
+517,1367,135,864,"soundTrigger cb","/system/bin/audioserver",335741587
+518,864,135,864,"audioserver","/system/bin/audioserver",335741587
+868,1174,135,864,"ApmOutput","/system/bin/audioserver",335741587
+873,1482,135,864,"Binder:864_3","/system/bin/audioserver",335741587
+1241,5712,135,864,"Binder:864_4","/system/bin/audioserver",335741587
+1242,1176,135,864,"Binder:864_2","/system/bin/audioserver",335741587
+1399,1224,135,864,"FastMixer","/system/bin/audioserver",335741587
+197,5192,36,5133,"Binder:5133_4","android.process.media",299474876
+366,5154,36,5133,"Okio Watchdog","android.process.media",299474876
+931,5133,36,5133,"d.process.media","android.process.media",299474876
+1293,5145,36,5133,"Binder:5133_1","android.process.media",299474876
+1294,5147,36,5133,"Binder:5133_3","android.process.media",299474876
+1295,5146,36,5133,"Binder:5133_2","android.process.media",299474876
+1320,5144,36,5133,"HeapTaskDaemon","android.process.media",299474876
+1378,5138,36,5133,"Jit thread pool","android.process.media",299474876
+1385,5141,36,5133,"ReferenceQueueD","android.process.media",299474876
+1387,5142,36,5133,"FinalizerDaemon","android.process.media",299474876
+1388,5143,36,5133,"FinalizerWatchd","android.process.media",299474876
+1508,5936,36,5133,"Binder:5133_5","android.process.media",299474876
+1598,6018,36,5133,"Binder:5133_6","android.process.media",299474876
+108,4494,91,4494,"mdss_fb0","mdss_fb0",290944157
+296,2539,160,920,"Binder:920_3","/system/bin/cameraserver",285767510
+916,920,160,920,"cameraserver","/system/bin/cameraserver",285767510
+1161,5645,160,920,"C3Dev-0-Status","/system/bin/cameraserver",285767510
+1162,5647,160,920,"CDU-0-FrameProc","/system/bin/cameraserver",285767510
+1163,5646,160,920,"C3Dev-0-ReqQueu","/system/bin/cameraserver",285767510
+1324,1088,160,920,"HwBinder:920_1","/system/bin/cameraserver",285767510
+44,217,63,217,"kworker/2:1","kworker/2:1",275251650
+668,5416,26,5416,"oogle.vr.vrcore","com.google.vr.vrcore",270533097
+673,5421,26,5416,"Jit thread pool","com.google.vr.vrcore",270533097
+674,5422,26,5416,"Signal Catcher","com.google.vr.vrcore",270533097
+675,5423,26,5416,"ADB-JDWP Connec","com.google.vr.vrcore",270533097
+677,5428,26,5416,"HeapTaskDaemon","com.google.vr.vrcore",270533097
+678,5427,26,5416,"FinalizerWatchd","com.google.vr.vrcore",270533097
+679,5426,26,5416,"FinalizerDaemon","com.google.vr.vrcore",270533097
+680,5425,26,5416,"ReferenceQueueD","com.google.vr.vrcore",270533097
+681,5429,26,5416,"Binder:5416_1","com.google.vr.vrcore",270533097
+682,5430,26,5416,"Binder:5416_2","com.google.vr.vrcore",270533097
+683,5431,26,5416,"Binder:5416_3","com.google.vr.vrcore",270533097
+684,5432,26,5416,"Profile Saver","com.google.vr.vrcore",270533097
+689,5436,26,5416,"queued-work-loo","com.google.vr.vrcore",270533097
+690,5437,26,5416,"GAC_Executor[0]","com.google.vr.vrcore",270533097
+693,5438,26,5416,"Primes-init-1","com.google.vr.vrcore",270533097
+695,5440,26,5416,"AsyncTask #1","com.google.vr.vrcore",270533097
+696,5442,26,5416,"SharedPreferenc","com.google.vr.vrcore",270533097
+697,5441,26,5416,"GAC_Executor[1]","com.google.vr.vrcore",270533097
+164,4358,21,2470,"Binder:2470_10","com.google.process.gservices",248908946
+445,2750,21,2470,"Binder:2470_7","com.google.process.gservices",248908946
+446,2470,21,2470,"","com.google.process.gservices",248908946
+505,2492,21,2470,"HeapTaskDaemon","com.google.process.gservices",248908946
+1070,4270,21,2470,"Binder:2470_F","com.google.process.gservices",248908946
+1071,3878,21,2470,"Binder:2470_D","com.google.process.gservices",248908946
+1072,4192,21,2470,"Binder:2470_E","com.google.process.gservices",248908946
+1073,2493,21,2470,"Binder:2470_1","com.google.process.gservices",248908946
+1074,2667,21,2470,"Binder:2470_5","com.google.process.gservices",248908946
+1075,2709,21,2470,"Binder:2470_6","com.google.process.gservices",248908946
+1076,3753,21,2470,"Binder:2470_C","com.google.process.gservices",248908946
+1077,2501,21,2470,"Binder:2470_2","com.google.process.gservices",248908946
+1171,2489,21,2470,"ReferenceQueueD","com.google.process.gservices",248908946
+1178,2490,21,2470,"FinalizerDaemon","com.google.process.gservices",248908946
+1179,2491,21,2470,"FinalizerWatchd","com.google.process.gservices",248908946
+1182,3075,21,2470,"Binder:2470_A","com.google.process.gservices",248908946
+1183,3708,21,2470,"Binder:2470_B","com.google.process.gservices",248908946
+1184,2782,21,2470,"Binder:2470_8","com.google.process.gservices",248908946
+1185,2512,21,2470,"Binder:2470_3","com.google.process.gservices",248908946
+1186,2896,21,2470,"Binder:2470_9","com.google.process.gservices",248908946
+1187,2633,21,2470,"Binder:2470_4","com.google.process.gservices",248908946
+204,1483,136,757,"HwBinder:757_3","/vendor/bin/hw/android.hardware.audio@2.0-service",247532931
+499,757,136,757,"audio@2.0-servi","/vendor/bin/hw/android.hardware.audio@2.0-service",247532931
+520,5312,136,757,"audio@2.0-servi","/vendor/bin/hw/android.hardware.audio@2.0-service",247532931
+558,1168,136,757,"audio@2.0-servi","/vendor/bin/hw/android.hardware.audio@2.0-service",247532931
+743,1223,136,757,"HwBinder:757_2","/vendor/bin/hw/android.hardware.audio@2.0-service",247532931
+765,5485,136,757,"writer","/vendor/bin/hw/android.hardware.audio@2.0-service",247532931
+1400,5840,136,757,"writer","/vendor/bin/hw/android.hardware.audio@2.0-service",247532931
+667,6,200,6,"kworker/u16:0","kworker/u16:0",230962436
+41,905,60,905,"traced","/system/bin/traced",227754138
+1611,909,60,905,"traced","/system/bin/traced",227754138
+1,606,50,586,"logd.klogd","/system/bin/logd",215959701
+5,595,50,586,"logd.writer","/system/bin/logd",215959701
+480,607,50,586,"logd.auditd","/system/bin/logd",215959701
+481,591,50,586,"logd.daemon","/system/bin/logd",215959701
+1624,586,50,586,"","/system/bin/logd",215959701
+1022,5563,33,5563,"ndroid.contacts","com.google.android.contacts",205871264
+1027,5568,33,5563,"Jit thread pool","com.google.android.contacts",205871264
+1028,5569,33,5563,"Signal Catcher","com.google.android.contacts",205871264
+1029,5570,33,5563,"ADB-JDWP Connec","com.google.android.contacts",205871264
+1030,5571,33,5563,"ReferenceQueueD","com.google.android.contacts",205871264
+1031,5572,33,5563,"FinalizerDaemon","com.google.android.contacts",205871264
+1032,5573,33,5563,"FinalizerWatchd","com.google.android.contacts",205871264
+1033,5574,33,5563,"HeapTaskDaemon","com.google.android.contacts",205871264
+1034,5575,33,5563,"Binder:5563_1","com.google.android.contacts",205871264
+1035,5576,33,5563,"Binder:5563_2","com.google.android.contacts",205871264
+1037,5577,33,5563,"Binder:5563_3","com.google.android.contacts",205871264
+1038,5578,33,5563,"Profile Saver","com.google.android.contacts",205871264
+1041,5581,33,5563,"Primes-init-1","com.google.android.contacts",205871264
+1042,5582,33,5563,"AsyncTask #1","com.google.android.contacts",205871264
+1045,5585,33,5563,"AsyncTask #2","com.google.android.contacts",205871264
+1048,5588,33,5563,"measurement-1","com.google.android.contacts",205871264
+1049,5589,33,5563,"GoogleApiHandle","com.google.android.contacts",205871264
+1050,5590,33,5563,"AsyncTask #3","com.google.android.contacts",205871264
+1051,5591,33,5563,"AsyncTask #4","com.google.android.contacts",205871264
+1052,5592,33,5563,"queued-work-loo","com.google.android.contacts",205871264
+1173,5656,33,5563,"Binder:5563_4","com.google.android.contacts",205871264
+27,860,46,860,"kworker/u16:14","kworker/u16:14",193101748
+46,2796,2,2712,"Monitor Thread ","com.android.vending",177335230
+47,2712,2,2712,"android.vending","com.android.vending",177335230
+54,3042,2,2712,"ChromiumNet","com.android.vending",177335230
+56,2815,2,2712,"BlockingExecuto","com.android.vending",177335230
+178,2744,2,2712,"Binder:2712_3","com.android.vending",177335230
+225,3019,2,2712,"CronetInit","com.android.vending",177335230
+226,5173,2,2712,"Binder:2712_6","com.android.vending",177335230
+785,3040,2,2712,"TaskSchedulerFo","com.android.vending",177335230
+812,3044,2,2712,"DnsConfigServic","com.android.vending",177335230
+829,3041,2,2712,"TaskSchedulerFo","com.android.vending",177335230
+924,5120,2,2712,".lowPriority #1","com.android.vending",177335230
+925,5124,2,2712,".lowPriority #2","com.android.vending",177335230
+1067,2719,2,2712,"Jit thread pool","com.android.vending",177335230
+1068,2945,2,2712,"queued-work-loo","com.android.vending",177335230
+1069,3177,2,2712,"Db-scheduler","com.android.vending",177335230
+1078,3394,2,2712,"ogging_store.db","com.android.vending",177335230
+1079,5593,2,2712,"acquisitions.db","com.android.vending",177335230
+1080,3000,2,2712,"libraries-threa","com.android.vending",177335230
+1081,4742,2,2712,"bgExecutor #3","com.android.vending",177335230
+1601,5117,2,2712,"Binder:2712_5","com.android.vending",177335230
+1602,2737,2,2712,"Binder:2712_1","com.android.vending",177335230
+1603,3887,2,2712,"Binder:2712_4","com.android.vending",177335230
+1604,2739,2,2712,"Binder:2712_2","com.android.vending",177335230
+1605,6020,2,2712,"Binder:2712_7","com.android.vending",177335230
+1613,2771,2,2712,"Profile Saver","com.android.vending",177335230
+1615,5125,2,2712,"Okio Watchdog","com.android.vending",177335230
+368,561,167,561,"kworker/u16:10","kworker/u16:10",162785755
+32,2265,57,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",158591004
+137,834,57,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",158591004
+787,1165,212,968,"fingerprint@2.1","/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service.fpc",154062201
+1648,968,212,968,"","/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service.fpc",154062201
+107,292,94,292,"kgsl_worker_thr","kgsl_worker_thr",151947892
+238,462,122,462,"kworker/u16:8","kworker/u16:8",150465902
+85,1028,78,935,"statsd.writer","/system/bin/statsd",128205711
+1626,935,78,935,"","/system/bin/statsd",128205711
+749,1354,206,924,"Binder:924_3","/system/bin/installd",125398920
+1251,1381,206,924,"Binder:924_5","/system/bin/installd",125398920
+1266,1371,206,924,"Binder:924_4","/system/bin/installd",125398920
+1647,924,206,924,"","/system/bin/installd",125398920
+396,360,179,360,"kworker/u16:6","kworker/u16:6",120714225
+16,7,39,7,"rcu_preempt","rcu_preempt",119952293
+1188,5659,35,5659,"e.process.gapps","com.google.process.gapps",116729960
+1193,5664,35,5659,"Jit thread pool","com.google.process.gapps",116729960
+1194,5665,35,5659,"Signal Catcher","com.google.process.gapps",116729960
+1195,5666,35,5659,"ADB-JDWP Connec","com.google.process.gapps",116729960
+1196,5669,35,5659,"FinalizerWatchd","com.google.process.gapps",116729960
+1197,5668,35,5659,"FinalizerDaemon","com.google.process.gapps",116729960
+1198,5667,35,5659,"ReferenceQueueD","com.google.process.gapps",116729960
+1199,5670,35,5659,"HeapTaskDaemon","com.google.process.gapps",116729960
+1200,5671,35,5659,"Binder:5659_1","com.google.process.gapps",116729960
+1201,5672,35,5659,"Binder:5659_2","com.google.process.gapps",116729960
+1206,5677,35,5659,"Binder:5659_3","com.google.process.gapps",116729960
+1207,5678,35,5659,"Profile Saver","com.google.process.gapps",116729960
+1221,5692,35,5659,"RefQueueWorker@","com.google.process.gapps",116729960
+43,665,61,665,"kworker/0:3","kworker/0:3",106548861
+364,568,165,568,"irq/760-synapti","irq/760-synapti",106209494
+550,193,195,193,"spi_wdsp","spi_wdsp",100615236
+2,253,49,253,"kworker/3:1","kworker/3:1",92350845
+284,5252,14,5252,"android.ramdump","com.android.ramdump",88012042
+285,5257,14,5252,"Jit thread pool","com.android.ramdump",88012042
+286,5258,14,5252,"Signal Catcher","com.android.ramdump",88012042
+287,5262,14,5252,"FinalizerWatchd","com.android.ramdump",88012042
+288,5263,14,5252,"HeapTaskDaemon","com.android.ramdump",88012042
+289,5261,14,5252,"FinalizerDaemon","com.android.ramdump",88012042
+290,5260,14,5252,"ReferenceQueueD","com.android.ramdump",88012042
+291,5259,14,5252,"ADB-JDWP Connec","com.android.ramdump",88012042
+292,5264,14,5252,"Binder:5252_1","com.android.ramdump",88012042
+294,5265,14,5252,"Binder:5252_2","com.android.ramdump",88012042
+297,5266,14,5252,"Binder:5252_3","com.android.ramdump",88012042
+299,5267,14,5252,"Profile Saver","com.android.ramdump",88012042
+302,5269,14,5252,"queued-work-loo","com.android.ramdump",88012042
+644,5400,14,5252,"android.bg","com.android.ramdump",88012042
+50,2189,87,2189,"cds_ol_rx_threa","cds_ol_rx_threa",85880168
+274,734,58,734,"main","zygote64",84352921
+280,5256,58,734,"HeapTaskDaemon","zygote64",84352921
+281,5255,58,734,"FinalizerWatchd","zygote64",84352921
+282,5254,58,734,"FinalizerDaemon","zygote64",84352921
+283,5253,58,734,"ReferenceQueueD","zygote64",84352921
+439,5287,58,734,"HeapTaskDaemon","zygote64",84352921
+440,5286,58,734,"FinalizerWatchd","zygote64",84352921
+441,5285,58,734,"FinalizerDaemon","zygote64",84352921
+442,5284,58,734,"ReferenceQueueD","zygote64",84352921
+669,5418,58,734,"FinalizerDaemon","zygote64",84352921
+670,5417,58,734,"ReferenceQueueD","zygote64",84352921
+671,5420,58,734,"HeapTaskDaemon","zygote64",84352921
+672,5419,58,734,"FinalizerWatchd","zygote64",84352921
+949,5507,58,734,"ReferenceQueueD","zygote64",84352921
+951,5508,58,734,"FinalizerDaemon","zygote64",84352921
+952,5509,58,734,"FinalizerWatchd","zygote64",84352921
+953,5510,58,734,"HeapTaskDaemon","zygote64",84352921
+1000,5546,58,734,"HeapTaskDaemon","zygote64",84352921
+1001,5545,58,734,"FinalizerWatchd","zygote64",84352921
+1002,5544,58,734,"FinalizerDaemon","zygote64",84352921
+1003,5543,58,734,"ReferenceQueueD","zygote64",84352921
+1023,5564,58,734,"ReferenceQueueD","zygote64",84352921
+1024,5565,58,734,"FinalizerDaemon","zygote64",84352921
+1025,5567,58,734,"HeapTaskDaemon","zygote64",84352921
+1026,5566,58,734,"FinalizerWatchd","zygote64",84352921
+1189,5660,58,734,"ReferenceQueueD","zygote64",84352921
+1190,5661,58,734,"FinalizerDaemon","zygote64",84352921
+1191,5662,58,734,"FinalizerWatchd","zygote64",84352921
+1192,5663,58,734,"HeapTaskDaemon","zygote64",84352921
+1269,5741,58,734,"HeapTaskDaemon","zygote64",84352921
+1270,5740,58,734,"FinalizerWatchd","zygote64",84352921
+1271,5739,58,734,"FinalizerDaemon","zygote64",84352921
+1274,5738,58,734,"ReferenceQueueD","zygote64",84352921
+83,587,77,587,"servicemanager","/system/bin/servicemanager",79206880
+177,3672,17,3657,"Binder:3657_2","com.google.android.inputmethod.latin",77776147
+359,3657,17,3657,"putmethod.latin","com.google.android.inputmethod.latin",77776147
+417,3688,17,3657,"MetricsManager","com.google.android.inputmethod.latin",77776147
+418,3673,17,3657,"Binder:3657_3","com.google.android.inputmethod.latin",77776147
+419,3671,17,3657,"Binder:3657_1","com.google.android.inputmethod.latin",77776147
+421,3677,17,3657,"queued-work-loo","com.google.android.inputmethod.latin",77776147
+424,5274,17,3657,"AsyncTask #1","com.google.android.inputmethod.latin",77776147
+488,3701,17,3657,"NativeLogger-1","com.google.android.inputmethod.latin",77776147
+489,4340,17,3657,"DecoderWrapper","com.google.android.inputmethod.latin",77776147
+604,4808,17,3657,"Binder:3657_5","com.google.android.inputmethod.latin",77776147
+831,4287,17,3657,"OkHttp Dispatch","com.google.android.inputmethod.latin",77776147
+832,4238,17,3657,"OkHttp Http2Con","com.google.android.inputmethod.latin",77776147
+835,4239,17,3657,"Okio Watchdog","com.google.android.inputmethod.latin",77776147
+922,4338,17,3657,"DFacilitator-1","com.google.android.inputmethod.latin",77776147
+1525,3662,17,3657,"Jit thread pool","com.google.android.inputmethod.latin",77776147
+1526,3674,17,3657,"Profile Saver","com.google.android.inputmethod.latin",77776147
+8,739,45,739,"kworker/u16:12","kworker/u16:12",75191272
+158,2505,28,2024,"Binder:2024_3","com.google.android.ext.services",70194314
+350,2024,28,2024,"id.ext.services","com.google.android.ext.services",70194314
+839,2031,28,2024,"Jit thread pool","com.google.android.ext.services",70194314
+1380,2040,28,2024,"Binder:2024_1","com.google.android.ext.services",70194314
+1510,2052,28,2024,"Profile Saver","com.google.android.ext.services",70194314
+26,87,43,87,"smem_native_rpm","smem_native_rpm",66468457
+21,10,48,10,"rcuop/0","rcuop/0",66117921
+1089,2195,226,930,"Binder:930_3","media.extractor",65836741
+1146,930,226,930,"mediaextractor","media.extractor",65836741
+55,588,69,588,"hwservicemanage","/system/bin/hwservicemanager",63243286
+397,877,174,877,"kworker/u16:15","kworker/u16:15",62642499
+141,2188,106,2188,"cds_mc_thread","cds_mc_thread",58715477
+24,592,44,592,"sugov:0","sugov:0",57337287
+42,42,101,42,"kworker/4:0","kworker/4:0",53199534
+295,866,156,866,"lmkd","/system/bin/lmkd",50165676
+1620,859,253,859,"rmt_storage","/vendor/bin/rmt_storage",49808599
+1621,1183,253,859,"rmt_storage","/vendor/bin/rmt_storage",49808599
+72,641,75,641,"jbd2/sda45-8","jbd2/sda45-8",49714183
+211,849,140,849,"msm_irqbalance","/vendor/bin/msm_irqbalance",46455318
+79,749,79,749,"suspend@1.0-ser","/system/bin/hw/android.system.suspend@1.0-service",43663325
+103,593,104,593,"sugov:4","sugov:4",41041664
+22,28,42,28,"rcuop/2","rcuop/2",40951065
+142,767,137,767,"light@2.0-servi","/vendor/bin/hw/android.hardware.light@2.0-service",39666625
+52,1815,15,1815,"m.android.phone","com.android.phone",37507869
+153,1829,15,1815,"Binder:1815_1","com.android.phone",37507869
+637,2133,15,1815,"Binder:1815_8","com.android.phone",37507869
+1366,1822,15,1815,"Jit thread pool","com.android.phone",37507869
+1367,1872,15,1815,"Profile Saver","com.android.phone",37507869
+174,2585,29,2557,"Binder:2557_3","com.google.android.apps.pixelmigrate",35978391
+793,2557,29,2557,"ps.pixelmigrate","com.google.android.apps.pixelmigrate",35978391
+820,2565,29,2557,"Jit thread pool","com.google.android.apps.pixelmigrate",35978391
+821,2600,29,2557,"Profile Saver","com.google.android.apps.pixelmigrate",35978391
+890,2758,29,2557,"queued-work-loo","com.google.android.apps.pixelmigrate",35978391
+1404,2578,29,2557,"Binder:2557_2","com.google.android.apps.pixelmigrate",35978391
+163,2399,20,2383,"Binder:2383_3","com.google.android.googlequicksearchbox:interactor",32259686
+410,2383,20,2383,"hbox:interactor","com.google.android.googlequicksearchbox:interactor",32259686
+411,2386,20,2383,"Jit thread pool","com.google.android.googlequicksearchbox:interactor",32259686
+420,5273,20,2383,"GELServices0","com.google.android.googlequicksearchbox:interactor",32259686
+564,4318,20,2383,"queued-work-loo","com.google.android.googlequicksearchbox:interactor",32259686
+93,795,81,795,"power@1.2-servi","/vendor/bin/hw/android.hardware.power@1.2-service.wahoo-libperfmgr",29634741
+96,2330,81,795,"NodeLooperThrea","/vendor/bin/hw/android.hardware.power@1.2-service.wahoo-libperfmgr",29634741
+99,2331,81,795,"power@1.2-servi","/vendor/bin/hw/android.hardware.power@1.2-service.wahoo-libperfmgr",29634741
+701,933,202,933,"mediaserver","/system/bin/mediaserver",28837457
+702,1931,202,933,"Binder:933_3","/system/bin/mediaserver",28837457
+703,1139,202,933,"Binder:933_1","/system/bin/mediaserver",28837457
+704,1930,202,933,"Binder:933_2","/system/bin/mediaserver",28837457
+705,5445,202,933,"Binder:933_4","/system/bin/mediaserver",28837457
+706,5446,202,933,"Binder:933_5","/system/bin/mediaserver",28837457
+75,713,84,707,"netd","/system/bin/netd",28341775
+122,721,84,707,"netd","/system/bin/netd",28341775
+151,714,84,707,"netd","/system/bin/netd",28341775
+646,718,84,707,"netd","/system/bin/netd",28341775
+647,5401,84,707,"netd","/system/bin/netd",28341775
+676,5424,84,707,"netd","/system/bin/netd",28341775
+777,724,84,707,"Binder:707_3","/system/bin/netd",28341775
+817,715,84,707,"netd","/system/bin/netd",28341775
+818,723,84,707,"Binder:707_2","/system/bin/netd",28341775
+1628,707,84,707,"","/system/bin/netd",28341775
+522,83,189,83,"smem_native_lpa","smem_native_lpa",25394851
+23,36,55,36,"rcuop/3","rcuop/3",25286302
+521,84,188,84,"lpass_smem_glin","lpass_smem_glin",21108382
+398,738,175,738,"kworker/u16:11","kworker/u16:11",19811607
+125,188,97,188,"vsync_retire_wo","vsync_retire_wo",19256755
+58,20,70,20,"rcuop/1","rcuop/1",19090257
+298,215,157,215,"hwrng","hwrng",18838324
+104,2287,100,2287,"irq/35-1008000.","irq/35-1008000.",18035090
+19,60,54,60,"rcuop/6","rcuop/6",17623175
+15,8,51,8,"rcu_sched","rcu_sched",17556886
+165,2427,16,2405,"Binder:2405_2","com.android.nfc",17234063
+353,2405,16,2405,"com.android.nfc","com.android.nfc",17234063
+354,2724,16,2405,"AsyncTask #1","com.android.nfc",17234063
+361,2703,16,2405,"AsyncTask #1","com.android.nfc",17234063
+363,2736,16,2405,"HwBinder:2405_1","com.android.nfc",17234063
+176,2625,30,2586,"Binder:2586_2","com.google.android.as",17085108
+794,2586,30,2586,"ogle.android.as","com.google.android.as",17085108
+1405,2630,30,2586,"Binder:2586_3","com.google.android.as",17085108
+131,875,105,855,"sensors.qcom","/vendor/bin/sensors.qcom",16853030
+239,884,105,855,"sensors.qcom","/vendor/bin/sensors.qcom",16853030
+723,874,105,855,"sensors.qcom","/vendor/bin/sensors.qcom",16853030
+1629,855,105,855,"","/vendor/bin/sensors.qcom",16853030
+33,18,67,18,"kworker/1:0","kworker/1:0",16450528
+348,735,65,735,"main","zygote",16213076
+531,5316,65,735,"FinalizerWatchd","zygote",16213076
+532,5315,65,735,"FinalizerDaemon","zygote",16213076
+533,5317,65,735,"HeapTaskDaemon","zygote",16213076
+534,5314,65,735,"ReferenceQueueD","zygote",16213076
+618,5378,65,735,"ReferenceQueueD","zygote",16213076
+619,5379,65,735,"FinalizerDaemon","zygote",16213076
+621,5381,65,735,"FinalizerWatchd","zygote",16213076
+622,5382,65,735,"HeapTaskDaemon","zygote",16213076
+34,3,59,3,"ksoftirqd/0","ksoftirqd/0",15973387
+189,5031,10,4716,"Binder:4716_4","com.google.android.youtube",15832867
+201,4716,10,4716,"android.youtube","com.google.android.youtube",15832867
+232,4774,10,4716,"ConnectivityThr","com.google.android.youtube",15832867
+236,4813,10,4716,"CronetInit","com.google.android.youtube",15832867
+262,4827,10,4716,"TaskSchedulerSe","com.google.android.youtube",15832867
+263,4831,10,4716,"TaskSchedulerFo","com.google.android.youtube",15832867
+264,4828,10,4716,"TaskSchedulerBa","com.google.android.youtube",15832867
+265,4832,10,4716,"TaskSchedulerFo","com.google.android.youtube",15832867
+266,4829,10,4716,"TaskSchedulerBa","com.google.android.youtube",15832867
+267,4992,10,4716,"TaskSchedulerFo","com.google.android.youtube",15832867
+268,4843,10,4716,"TaskSchedulerFo","com.google.android.youtube",15832867
+816,4837,10,4716,"DnsConfigServic","com.google.android.youtube",15832867
+926,4834,10,4716,"ChromiumNet","com.google.android.youtube",15832867
+928,4858,10,4716,"RxIoScheduler-1","com.google.android.youtube",15832867
+1450,5885,10,4716,"TaskSchedulerFo","com.google.android.youtube",15832867
+1451,5886,10,4716,"TaskSchedulerFo","com.google.android.youtube",15832867
+1452,5884,10,4716,"TaskSchedulerBa","com.google.android.youtube",15832867
+1614,4844,10,4716,"Network File Th","com.google.android.youtube",15832867
+519,748,192,748,"allocator@1.0-s","/system/bin/hw/android.hidl.allocator@1.0-service",15704215
+208,937,117,937,"wificond","/system/bin/wificond",15345262
+49,5098,27,5071,"RxSchedulerPurg","com.android.vending:instant_app_installer",15183338
+196,5118,27,5071,"Binder:5071_5","com.android.vending:instant_app_installer",15183338
+716,5076,27,5071,"Jit thread pool","com.android.vending:instant_app_installer",15183338
+717,5071,27,5071,"","com.android.vending:instant_app_installer",15183338
+1504,5932,250,5932,"mdss_fb0","mdss_fb0",15134014
+25,33,56,33,"ksoftirqd/3","ksoftirqd/3",14923229
+237,44,141,44,"rcuop/4","rcuop/4",14607086
+1551,4795,251,4795,"kworker/2:3","kworker/2:3",14394787
+666,829,201,829,"kworker/u16:13","kworker/u16:13",13106411
+111,777,92,777,"memtrack@1.0-se","/vendor/bin/hw/android.hardware.memtrack@1.0-service",12793649
+31,17,66,17,"ksoftirqd/1","ksoftirqd/1",12746514
+199,68,144,68,"rcuop/7","rcuop/7",11663380
+242,640,152,640,"kworker/7:2","kworker/7:2",11563228
+355,781,164,781,"nfc@1.1-service","/vendor/bin/hw/android.hardware.nfc@1.1-service",11324160
+356,2763,164,781,"nfc@1.1-service","/vendor/bin/hw/android.hardware.nfc@1.1-service",11324160
+357,2765,164,781,"nfc@1.1-service","/vendor/bin/hw/android.hardware.nfc@1.1-service",11324160
+360,2762,164,781,"nfc@1.1-service","/vendor/bin/hw/android.hardware.nfc@1.1-service",11324160
+186,4588,127,4572,"Binder:4572_2","com.google.android.videos",10846095
+303,4572,127,4572,".android.videos","com.google.android.videos",10846095
+150,2119,19,2104,"Binder:2104_2","com.google.android.euicc",10600157
+388,2116,19,2104,"HeapTaskDaemon","com.google.android.euicc",10600157
+389,2104,19,2104,"","com.google.android.euicc",10600157
+390,2113,19,2104,"ReferenceQueueD","com.google.android.euicc",10600157
+391,2114,19,2104,"FinalizerDaemon","com.google.android.euicc",10600157
+392,2115,19,2104,"FinalizerWatchd","com.google.android.euicc",10600157
+53,782,68,747,"thermal-engine","/vendor/bin/thermal-engine",10386569
+124,768,68,747,"HwBinder:747_1","/vendor/bin/thermal-engine",10386569
+1625,747,68,747,"","/vendor/bin/thermal-engine",10386569
+524,330,191,330,"spi2","spi2",10153284
+1111,521,228,521,"set_state_work","set_state_work",9652813
+135,85,138,85,"smem_native_dsp","smem_native_dsp",9464583
+1351,368,246,368,"rot_commitq_0_0","rot_commitq_0_0",9046302
+116,766,90,766,"health@2.0-serv","/vendor/bin/hw/android.hardware.health@2.0-service.wahoo",8993956
+213,2232,118,2232,"wpa_supplicant","/vendor/bin/hw/wpa_supplicant",8946564
+147,3215,7,1767,"Binder:1767_4",".dataservices",8929067
+215,1871,7,1767,"MainEventThread",".dataservices",8929067
+216,1767,7,1767,"",".dataservices",8929067
+220,1868,7,1767,"ConnectivityThr",".dataservices",8929067
+221,1802,7,1767,"Binder:1767_3",".dataservices",8929067
+805,1789,7,1767,"Binder:1767_1",".dataservices",8929067
+134,86,99,86,"dsps_smem_glink","dsps_smem_glink",8925199
+549,807,194,807,"irq/254-wcd9xxx","irq/254-wcd9xxx",8525734
+1352,370,247,370,"rot_doneq_0_0","rot_doneq_0_0",8500466
+48,4,64,4,"kworker/0:0","kworker/0:0",8271980
+582,1603,197,1603,"webview_zygote","webview_zygote",8038281
+588,5349,197,1603,"ReferenceQueueD","webview_zygote",8038281
+589,5352,197,1603,"HeapTaskDaemon","webview_zygote",8038281
+590,5351,197,1603,"FinalizerWatchd","webview_zygote",8038281
+591,5350,197,1603,"FinalizerDaemon","webview_zygote",8038281
+206,415,147,415,"kworker/6:2","kworker/6:2",7999679
+249,52,146,52,"rcuop/5","rcuop/5",6847037
+70,610,72,610,"wlan_logging_th","wlan_logging_th",6831663
+1347,765,245,765,"gnss@1.0-servic","/vendor/bin/hw/android.hardware.gnss@1.0-service-qti",6572600
+1348,1649,245,765,"Loc_hal","/vendor/bin/hw/android.hardware.gnss@1.0-service-qti",6572600
+1353,1676,245,765,"Loc_hal","/vendor/bin/hw/android.hardware.gnss@1.0-service-qti",6572600
+1623,1674,245,765,"Loc_hal","/vendor/bin/hw/android.hardware.gnss@1.0-service-qti",6572600
+28,25,47,25,"ksoftirqd/2","ksoftirqd/2",6568908
+556,194,196,194,"wdsp_spi_glink_","wdsp_spi_glink_",6245167
+214,2259,120,1398,"lowi-server","lowi-server",6218334
+766,1406,120,1398,"lowi-server","lowi-server",6218334
+806,2260,120,1398,"lowi-server","lowi-server",6218334
+813,1403,120,1398,"lowi-server","lowi-server",6218334
+1635,1398,120,1398,"","lowi-server",6218334
+74,926,86,926,"kworker/3:1H","kworker/3:1H",6151237
+36,329,107,329,"kworker/5:1","kworker/5:1",6129165
+209,13,116,13,"migration/0","migration/0",6019582
+269,1030,154,918,"netlink socket","/vendor/bin/ipacm",5797711
+271,1029,154,918,"ipacm","/vendor/bin/ipacm",5797711
+1645,918,154,918,"","/vendor/bin/ipacm",5797711
+1117,1329,235,944,"rild","/vendor/bin/hw/rild",5642917
+1459,1316,235,944,"rild","/vendor/bin/hw/rild",5642917
+1460,1188,235,944,"rild","/vendor/bin/hw/rild",5642917
+1652,944,235,944,"","/vendor/bin/hw/rild",5642917
+293,5232,159,5232,"adbd","/system/bin/adbd",5559584
+1345,5798,244,5798,"rot_fenceq_0_0","rot_fenceq_0_0",5520255
+123,24,96,24,"migration/2","migration/2",4888326
+1330,345,242,345,"irq/262-vl53l0_","irq/262-vl53l0_",4656812
+843,1084,222,1084,"kworker/u17:1","kworker/u17:1",4391826
+387,32,171,32,"migration/3","migration/3",4379169
+341,11,158,11,"rcuos/0","rcuos/0",4111771
+77,1,40,1,"init","/system/bin/init",3984013
+415,16,176,16,"migration/1","migration/1",3864697
+698,94,203,94,"irq/126-cpr3","irq/126-cpr3",3853854
+279,61,155,61,"rcuos/6","rcuos/6",3755260
+1091,1066,231,921,"Binder:921_1","/system/bin/drmserver",3717808
+1651,921,231,921,"","/system/bin/drmserver",3717808
+810,5492,216,5492,"kworker/3:4","kworker/3:4",3522241
+184,5190,18,4431,"Binder:4431_5","com.google.android.setupwizard",3362133
+231,4431,18,4431,"oid.setupwizard","com.google.android.setupwizard",3362133
+866,1061,223,931,"Binder:931_1","media.metrics",3343382
+1650,931,223,931,"","media.metrics",3343382
+352,1948,163,1948,"kworker/2:2","kworker/2:2",3278172
+200,5205,12,5193,"Binder:5193_1","com.google.android.apps.turbo",2687762
+258,5204,12,5193,"HeapTaskDaemon","com.google.android.apps.turbo",2687762
+259,5193,12,5193,"roid.apps.turbo","com.google.android.apps.turbo",2687762
+877,5207,12,5193,"Binder:5193_3","com.google.android.apps.turbo",2687762
+878,5229,12,5193,"Binder:5193_4","com.google.android.apps.turbo",2687762
+45,80,62,80,"kworker/0:1","kworker/0:1",2316250
+219,1006,148,913,"HwBinder:913_1","/vendor/bin/cnd",2234739
+224,913,148,913,"cnd","/vendor/bin/cnd",2234739
+17,29,52,29,"rcuos/2","rcuos/2",2107032
+20,57,110,57,"ksoftirqd/6","ksoftirqd/6",1972815
+778,711,209,711,"iptables-restor","/system/bin/iptables-restore",1913334
+803,3776,213,3776,"kworker/3:3","kworker/3:3",1896459
+395,545,173,545,"kworker/6:1H","kworker/6:1H",1883224
+159,1490,142,806,"HwBinder:806_1","/vendor/bin/hw/android.hardware.usb@1.1-service.wahoo",1785000
+1642,806,142,806,"","/vendor/bin/hw/android.hardware.usb@1.1-service.wahoo",1785000
+486,21,185,21,"rcuos/1","rcuos/1",1652702
+365,546,166,546,"kworker/4:1H","kworker/4:1H",1630985
+814,1071,214,914,"netmgrd","/vendor/bin/netmgrd",1580886
+815,1162,214,914,"netmgrd","/vendor/bin/netmgrd",1580886
+1649,914,214,914,"","/vendor/bin/netmgrd",1580886
+460,761,180,761,"contexthub@1.0-","/vendor/bin/hw/android.hardware.contexthub@1.0-service",1580624
+474,794,180,761,"contexthub@1.0-","/vendor/bin/hw/android.hardware.contexthub@1.0-service",1580624
+386,45,170,45,"rcuos/4","rcuos/4",1510723
+40,49,108,49,"ksoftirqd/5","ksoftirqd/5",1440728
+842,813,221,813,"vibrator@1.2-se","/vendor/bin/hw/android.hardware.vibrator@1.2-service.wahoo",1428749
+487,1946,186,625,"HwBinder:625_2","/vendor/bin/hw/android.hardware.configstore@1.2-service",1419479
+1646,625,186,625,"","/vendor/bin/hw/android.hardware.configstore@1.2-service",1419479
+179,3875,11,3862,"Binder:3862_1","com.google.android.ims",1399063
+233,3917,11,3862,"ConnectivityThr","com.google.android.ims",1399063
+234,3862,11,3862,"","com.google.android.ims",1399063
+790,4140,11,3862,"WebRtcVolumeLev","com.google.android.ims",1399063
+63,41,102,41,"ksoftirqd/4","ksoftirqd/4",1389897
+80,756,85,756,"kworker/1:1H","kworker/1:1H",1334268
+181,4535,8,4007,"Binder:4007_4","com.google.android.connectivitymonitor",1253492
+227,4088,8,4007,"ConnectivityThr","com.google.android.connectivitymonitor",1253492
+228,4007,8,4007,"","com.google.android.connectivitymonitor",1253492
+260,547,153,547,"kworker/7:1H","kworker/7:1H",1252138
+155,613,121,604,"Binder:604_2","/system/bin/vold",1173387
+250,703,121,604,"Binder:604_4","/system/bin/vold",1173387
+1636,604,121,604,"","/system/bin/vold",1173387
+508,64,187,64,"migration/7","migration/7",1159275
+51,65,88,65,"ksoftirqd/7","ksoftirqd/7",1113747
+351,69,162,69,"rcuos/7","rcuos/7",1101406
+461,962,183,962,"chre","/vendor/bin/chre",1097968
+473,1132,183,962,"chre","/vendor/bin/chre",1097968
+779,712,210,712,"ip6tables-resto","/system/bin/ip6tables-restore",1078437
+394,40,178,40,"migration/4","migration/4",1049219
+370,549,168,549,"kworker/5:1H","kworker/5:1H",937763
+1155,589,227,589,"vndservicemanag","/vendor/bin/vndservicemanager",918385
+175,3558,34,3543,"Binder:3543_2","com.google.android.gms.unstable",865106
+1083,3543,34,3543,"id.gms.unstable","com.google.android.gms.unstable",865106
+300,56,161,56,"migration/6","migration/6",852711
+1118,459,229,459,"irq/226-bcm1560","irq/226-bcm1560",814738
+73,737,76,737,"kworker/2:1H","kworker/2:1H",772971
+545,559,193,559,"kworker/0:1H","kworker/0:1H",752236
+809,2,38,2,"kthreadd","kthreadd",734166
+247,927,149,927,"keystore","/system/bin/keystore",721094
+62,14,73,14,"watchdog/0","watchdog/0",694114
+18,37,53,37,"rcuos/3","rcuos/3",591927
+767,411,207,411,"kworker/1:1","kworker/1:1",570470
+786,321,211,321,"irq/286-soc:fp_","irq/286-soc:fp_",570414
+393,53,169,53,"rcuos/5","rcuos/5",472133
+66,31,71,31,"watchdog/3","watchdog/3",470833
+195,5049,134,5035,"Binder:5035_3","com.android.keychain",457189
+1641,5035,134,5035,"","com.android.keychain",457189
+64,15,83,15,"watchdog/1","watchdog/1",455415
+146,1848,123,1623,"Binder:1623_3","com.google.modemservice",426041
+1637,1623,123,1623,"","com.google.modemservice",426041
+1145,81,234,81,"smem_native_mps","smem_native_mps",414167
+768,634,208,634,"kworker/1:3","kworker/1:3",388280
+479,597,184,597,"kauditd","kauditd",377498
+382,48,172,48,"migration/5","migration/5",370572
+65,23,74,23,"watchdog/2","watchdog/2",342031
+170,3890,125,3526,"Binder:3526_5","com.google.android.apps.messaging",340676
+1638,3526,125,3526,"","com.google.android.apps.messaging",340676
+157,564,139,564,"ueventd","/system/bin/ueventd",326822
+156,1867,113,1852,"Binder:1852_1","com.qualcomm.qcrilmsgtunnel",316457
+1631,1852,113,1852,"","com.qualcomm.qcrilmsgtunnel",316457
+193,5230,133,4995,"Binder:4995_4","com.google.android.apps.messaging:rcs",305835
+1640,4995,133,4995,"","com.google.android.apps.messaging:rcs",305835
+121,492,95,492,"irq/747-ima-rdy","irq/747-ima-rdy",305308
+191,4927,131,4912,"Binder:4912_1","com.qualcomm.telephony",303488
+1639,4912,131,4912,"","com.qualcomm.telephony",303488
+149,2377,112,1796,"Binder:1796_3","com.qualcomm.qti.telephonyservice",303385
+1630,1796,112,1796,"","com.qualcomm.qti.telephonyservice",303385
+1142,82,233,82,"mpss_smem_glink","mpss_smem_glink",298386
+523,695,190,695,"msm_slim_qmi_cl","msm_slim_qmi_cl",285730
+173,2579,115,2534,"Binder:2534_2","com.google.intelligence.sense",280938
+1633,2534,115,2534,"","com.google.intelligence.sense",280938
+198,2509,151,2452,"Binder:2452_3","com.google.SSRestartDetector",272813
+1644,2452,151,2452,"","com.google.SSRestartDetector",272813
+166,2521,114,2421,"Binder:2421_3","com.android.se",270469
+1632,2421,114,2421,"","com.android.se",270469
+194,3280,150,2439,"Binder:2439_4","com.android.ims.rcsservice",265937
+1643,2439,150,2439,"","com.android.ims.rcsservice",265937
+735,872,204,872,"kworker/3:2","kworker/3:2",257036
+168,750,143,750,"healthd","/system/bin/healthd",250625
+69,55,111,55,"watchdog/6","watchdog/6",247083
+190,4896,130,4881,"Binder:4881_3","com.google.mds",242969
+1053,4881,130,4881,"com.google.mds","com.google.mds",242969
+841,91,220,91,"msm_watchdog","msm_watchdog",237864
+825,949,217,949,"cnss-daemon","/vendor/bin/cnss-daemon",237396
+192,4976,132,4964,"Binder:4964_1","com.tmobile.planprovider",228385
+1097,4964,132,4964,"le.planprovider","com.tmobile.planprovider",228385
+180,3951,126,3934,"Binder:3934_2","com.google.android.carrier",228281
+845,3934,126,3934,"android.carrier","com.google.android.carrier",228281
+188,4740,129,4689,"Binder:4689_4","com.google.android.wfcactivation",215626
+903,4689,129,4689,"d.wfcactivation","com.google.android.wfcactivation",215626
+456,520,182,520,"kworker/5:2","kworker/5:2",192500
+1622,1409,254,1399,"pcid-lo","xtra-daemon",189271
+1653,1399,254,1399,"","xtra-daemon",189271
+167,5061,124,2963,"Binder:2963_8","com.google.process.gapps",179740
+933,2963,124,2963,"e.process.gapps","com.google.process.gapps",179740
+187,4666,128,4650,"Binder:4650_1","com.google.android.volta",173594
+891,4650,128,4650,"e.android.volta","com.google.android.volta",173594
+1160,528,232,528,"irq/758-mnh_pci","irq/758-mnh_pci",168855
+68,47,109,47,"watchdog/5","watchdog/5",161093
+67,39,103,39,"watchdog/4","watchdog/4",147342
+71,63,89,63,"watchdog/7","watchdog/7",144117
+641,201,199,201,"kworker/4:1","kworker/4:1",130885
+1302,5759,240,5759,"irq/164-arm-smm","irq/164-arm-smm",115989
+1064,667,224,667,"kworker/0:4","kworker/0:4",111771
+633,372,198,372,"kworker/4:3","kworker/4:3",103905
+1326,5780,243,5780,"ois_wq","ois_wq",99375
+1298,523,239,523,"irq/751-mnh_pci","irq/751-mnh_pci",90937
+1278,5745,236,5745,"irq/163-arm-smm","irq/163-arm-smm",86615
+1323,5778,241,5778,"irq/165-arm-smm","irq/165-arm-smm",72500
+808,34,215,34,"kworker/3:0","kworker/3:0",67917
+1124,522,230,522,"irq/227-mnh-rea","irq/227-mnh-rea",50365
+438,704,181,704,"kworker/5:3","kworker/5:3",47343
+838,1055,219,1055,"kworker/7:3","kworker/7:3",38178
+1297,526,238,526,"irq/754-mnh_pci","irq/754-mnh_pci",32136
+837,66,218,66,"kworker/7:0","kworker/7:0",28750
+1350,5800,249,5800,"irq/167-arm-smm","irq/167-arm-smm",23177
+1346,5799,248,5799,"irq/166-arm-smm","irq/166-arm-smm",19478
+1296,524,237,524,"irq/752-mnh_pci","irq/752-mnh_pci",14271
+1587,93,252,93,"kworker/u16:1","kworker/u16:1",10729
+0,0,"[NULL]","[NULL]","swapper/0","[NULL]","[NULL]"
+4,5243,"[NULL]","[NULL]","atrace","[NULL]","[NULL]"
+57,2817,"[NULL]","[NULL]","BlockingExecuto","[NULL]","[NULL]"
+275,5197,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+276,5194,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+277,5195,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+278,5196,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+301,5268,"[NULL]","[NULL]","Thread-2","[NULL]","[NULL]"
+305,4580,"[NULL]","[NULL]","Jit thread pool","[NULL]","[NULL]"
+306,4581,"[NULL]","[NULL]","Signal Catcher","[NULL]","[NULL]"
+307,4582,"[NULL]","[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+308,4584,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+309,4583,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+310,4585,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+311,4586,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+312,4587,"[NULL]","[NULL]","Binder:4572_1","[NULL]","[NULL]"
+313,4701,"[NULL]","[NULL]","GAC_Executor[1]","[NULL]","[NULL]"
+314,4683,"[NULL]","[NULL]","GAC_Executor[0]","[NULL]","[NULL]"
+315,4676,"[NULL]","[NULL]","GoogleApiHandle","[NULL]","[NULL]"
+316,4669,"[NULL]","[NULL]","sync-1","[NULL]","[NULL]"
+317,4667,"[NULL]","[NULL]","pool-5-thread-1","[NULL]","[NULL]"
+318,4657,"[NULL]","[NULL]","ConnectivityThr","[NULL]","[NULL]"
+319,4653,"[NULL]","[NULL]","local-2","[NULL]","[NULL]"
+320,4645,"[NULL]","[NULL]","local-1","[NULL]","[NULL]"
+321,4643,"[NULL]","[NULL]","network-4","[NULL]","[NULL]"
+322,4640,"[NULL]","[NULL]","network-3","[NULL]","[NULL]"
+323,4639,"[NULL]","[NULL]","network-2","[NULL]","[NULL]"
+324,4638,"[NULL]","[NULL]","network-1","[NULL]","[NULL]"
+325,4635,"[NULL]","[NULL]","PlayEventLogger","[NULL]","[NULL]"
+326,4625,"[NULL]","[NULL]","queued-work-loo","[NULL]","[NULL]"
+327,4620,"[NULL]","[NULL]","tentative-gc-ru","[NULL]","[NULL]"
+328,4619,"[NULL]","[NULL]","Thread-11","[NULL]","[NULL]"
+329,4618,"[NULL]","[NULL]","Thread-10","[NULL]","[NULL]"
+330,4617,"[NULL]","[NULL]","Thread-9","[NULL]","[NULL]"
+331,4616,"[NULL]","[NULL]","Thread-8","[NULL]","[NULL]"
+332,4615,"[NULL]","[NULL]","Thread-7","[NULL]","[NULL]"
+333,4614,"[NULL]","[NULL]","RefQueueWorker@","[NULL]","[NULL]"
+334,4613,"[NULL]","[NULL]","Thread-5","[NULL]","[NULL]"
+335,4612,"[NULL]","[NULL]","Thread-4","[NULL]","[NULL]"
+336,4611,"[NULL]","[NULL]","Thread-3","[NULL]","[NULL]"
+337,4610,"[NULL]","[NULL]","RefQueueWorker@","[NULL]","[NULL]"
+338,4608,"[NULL]","[NULL]","movies_logging","[NULL]","[NULL]"
+339,4593,"[NULL]","[NULL]","Profile Saver","[NULL]","[NULL]"
+340,4589,"[NULL]","[NULL]","Binder:4572_3","[NULL]","[NULL]"
+412,5272,"[NULL]","[NULL]","applyRouting","[NULL]","[NULL]"
+432,5280,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+449,5291,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+455,5296,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+483,5305,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+506,5309,"[NULL]","[NULL]","gcm-task#1","[NULL]","[NULL]"
+526,5075,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+527,5072,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+528,5073,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+529,5074,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+548,5329,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+554,5331,"[NULL]","[NULL]","EGL Init","[NULL]","[NULL]"
+555,3607,"[NULL]","[NULL]","pool-4-thread-1","[NULL]","[NULL]"
+565,5337,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+570,5338,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+573,5340,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+575,5341,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+583,1613,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+584,1610,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+585,1611,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+586,1612,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+623,5383,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+642,5398,"[NULL]","[NULL]","gcm-task#1","[NULL]","[NULL]"
+653,5407,"[NULL]","[NULL]","IntentService[D","[NULL]","[NULL]"
+685,5433,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+686,5434,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+687,5435,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+694,5439,"[NULL]","[NULL]","Thread-25","[NULL]","[NULL]"
+715,5454,"[NULL]","[NULL]","netd","[NULL]","[NULL]"
+720,5456,"[NULL]","[NULL]","netd","[NULL]","[NULL]"
+724,5459,"[NULL]","[NULL]","sensors.qcom","[NULL]","[NULL]"
+728,5460,"[NULL]","[NULL]","netd","[NULL]","[NULL]"
+741,5469,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+742,5470,"[NULL]","[NULL]","netd","[NULL]","[NULL]"
+745,5472,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+747,5474,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+770,5097,"[NULL]","[NULL]","AsyncTask #5","[NULL]","[NULL]"
+771,5103,"[NULL]","[NULL]","AsyncTask #1","[NULL]","[NULL]"
+772,5108,"[NULL]","[NULL]","AsyncTask #2","[NULL]","[NULL]"
+773,5238,"[NULL]","[NULL]","pool-6-thread-1","[NULL]","[NULL]"
+774,2088,"[NULL]","[NULL]","AsyncTask #4","[NULL]","[NULL]"
+775,2283,"[NULL]","[NULL]","InflaterThread ","[NULL]","[NULL]"
+776,2282,"[NULL]","[NULL]","InflaterThread ","[NULL]","[NULL]"
+780,5239,"[NULL]","[NULL]","pool-7-thread-1","[NULL]","[NULL]"
+781,2329,"[NULL]","[NULL]","InflaterThread ","[NULL]","[NULL]"
+783,2281,"[NULL]","[NULL]","InflaterThread ","[NULL]","[NULL]"
+791,4143,"[NULL]","[NULL]","unnerJobService","[NULL]","[NULL]"
+802,5115,"[NULL]","[NULL]","TaskSchedulerFo","[NULL]","[NULL]"
+819,4230,"[NULL]","[NULL]","OkHttp Dispatch","[NULL]","[NULL]"
+824,4207,"[NULL]","[NULL]","oundTaskService","[NULL]","[NULL]"
+833,4237,"[NULL]","[NULL]","OkHttp Http2Con","[NULL]","[NULL]"
+834,4285,"[NULL]","[NULL]","oundTaskService","[NULL]","[NULL]"
+840,5494,"[NULL]","[NULL]","netd","[NULL]","[NULL]"
+846,3942,"[NULL]","[NULL]","Signal Catcher","[NULL]","[NULL]"
+847,3944,"[NULL]","[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+848,3945,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+849,3946,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+850,3947,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+851,3948,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+852,4600,"[NULL]","[NULL]","queued-work-loo","[NULL]","[NULL]"
+853,3941,"[NULL]","[NULL]","Jit thread pool","[NULL]","[NULL]"
+854,3949,"[NULL]","[NULL]","Binder:3934_1","[NULL]","[NULL]"
+855,3954,"[NULL]","[NULL]","Binder:3934_3","[NULL]","[NULL]"
+856,3960,"[NULL]","[NULL]","Profile Saver","[NULL]","[NULL]"
+892,4659,"[NULL]","[NULL]","Jit thread pool","[NULL]","[NULL]"
+893,4660,"[NULL]","[NULL]","Signal Catcher","[NULL]","[NULL]"
+894,4663,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+895,4664,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+896,4668,"[NULL]","[NULL]","Binder:4650_2","[NULL]","[NULL]"
+897,4672,"[NULL]","[NULL]","Profile Saver","[NULL]","[NULL]"
+898,4684,"[NULL]","[NULL]","Binder:4650_3","[NULL]","[NULL]"
+899,4686,"[NULL]","[NULL]","queued-work-loo","[NULL]","[NULL]"
+900,4665,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+901,4662,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+902,4661,"[NULL]","[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+904,4694,"[NULL]","[NULL]","Jit thread pool","[NULL]","[NULL]"
+905,4695,"[NULL]","[NULL]","Signal Catcher","[NULL]","[NULL]"
+906,4696,"[NULL]","[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+907,4698,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+908,4697,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+909,4699,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+910,4730,"[NULL]","[NULL]","queued-work-loo","[NULL]","[NULL]"
+911,4713,"[NULL]","[NULL]","Binder:4689_3","[NULL]","[NULL]"
+912,4709,"[NULL]","[NULL]","Profile Saver","[NULL]","[NULL]"
+913,4703,"[NULL]","[NULL]","Binder:4689_2","[NULL]","[NULL]"
+914,4702,"[NULL]","[NULL]","Binder:4689_1","[NULL]","[NULL]"
+915,4700,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+917,5501,"[NULL]","[NULL]","netd","[NULL]","[NULL]"
+918,5504,"[NULL]","[NULL]","netd","[NULL]","[NULL]"
+919,5505,"[NULL]","[NULL]","netd","[NULL]","[NULL]"
+923,3434,"[NULL]","[NULL]","measurement-1","[NULL]","[NULL]"
+927,5126,"[NULL]","[NULL]",".lowPriority #3","[NULL]","[NULL]"
+929,5129,"[NULL]","[NULL]","AsyncTask #3","[NULL]","[NULL]"
+930,5131,"[NULL]","[NULL]","AsyncTask #4","[NULL]","[NULL]"
+932,2972,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+934,2969,"[NULL]","[NULL]","Signal Catcher","[NULL]","[NULL]"
+935,2968,"[NULL]","[NULL]","Jit thread pool","[NULL]","[NULL]"
+936,2970,"[NULL]","[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+937,2982,"[NULL]","[NULL]","Binder:2963_1","[NULL]","[NULL]"
+938,2971,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+939,2992,"[NULL]","[NULL]","Profile Saver","[NULL]","[NULL]"
+940,2973,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+941,4200,"[NULL]","[NULL]","Binder:2963_5","[NULL]","[NULL]"
+942,2974,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+943,2985,"[NULL]","[NULL]","Binder:2963_2","[NULL]","[NULL]"
+944,2986,"[NULL]","[NULL]","Binder:2963_3","[NULL]","[NULL]"
+945,3073,"[NULL]","[NULL]","RefQueueWorker@","[NULL]","[NULL]"
+946,3513,"[NULL]","[NULL]","Binder:2963_4","[NULL]","[NULL]"
+947,4380,"[NULL]","[NULL]","Binder:2963_6","[NULL]","[NULL]"
+948,4476,"[NULL]","[NULL]","Binder:2963_7","[NULL]","[NULL]"
+956,4902,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+964,4873,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+965,4876,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+966,4904,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+967,4872,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+968,4903,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+969,4874,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+970,4901,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+971,4905,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+972,4906,"[NULL]","[NULL]","pool-17-thread-","[NULL]","[NULL]"
+974,5521,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+976,5523,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+982,3095,"[NULL]","[NULL]","AsyncTask #1","[NULL]","[NULL]"
+985,5158,"[NULL]","[NULL]","TaskSchedulerFo","[NULL]","[NULL]"
+986,5157,"[NULL]","[NULL]","TaskSchedulerBa","[NULL]","[NULL]"
+991,5535,"[NULL]","[NULL]","EGL Init","[NULL]","[NULL]"
+992,5064,"[NULL]","[NULL]","AsyncTask #5","[NULL]","[NULL]"
+1015,3140,"[NULL]","[NULL]","AsyncTask #3","[NULL]","[NULL]"
+1016,5558,"[NULL]","[NULL]","EGL Init","[NULL]","[NULL]"
+1036,4985,"[NULL]","[NULL]","dScanJobService","[NULL]","[NULL]"
+1040,5580,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1043,5583,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1044,5584,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1046,5586,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1047,5587,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1054,4887,"[NULL]","[NULL]","Jit thread pool","[NULL]","[NULL]"
+1055,4888,"[NULL]","[NULL]","Signal Catcher","[NULL]","[NULL]"
+1056,4889,"[NULL]","[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+1057,4890,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+1058,4891,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+1059,4892,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+1060,4893,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+1061,4894,"[NULL]","[NULL]","Binder:4881_1","[NULL]","[NULL]"
+1062,4895,"[NULL]","[NULL]","Binder:4881_2","[NULL]","[NULL]"
+1063,4900,"[NULL]","[NULL]","Profile Saver","[NULL]","[NULL]"
+1066,5119,"[NULL]","[NULL]",".lowPriority #0","[NULL]","[NULL]"
+1082,5594,"[NULL]","[NULL]","sensors.qcom","[NULL]","[NULL]"
+1094,5603,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1095,5602,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1098,4969,"[NULL]","[NULL]","Jit thread pool","[NULL]","[NULL]"
+1099,4970,"[NULL]","[NULL]","Signal Catcher","[NULL]","[NULL]"
+1100,4971,"[NULL]","[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+1101,4972,"[NULL]","[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+1102,4973,"[NULL]","[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+1103,4974,"[NULL]","[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+1104,4975,"[NULL]","[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+1105,4977,"[NULL]","[NULL]","Binder:4964_2","[NULL]","[NULL]"
+1106,4978,"[NULL]","[NULL]","Binder:4964_3","[NULL]","[NULL]"
+1107,4980,"[NULL]","[NULL]","Profile Saver","[NULL]","[NULL]"
+1120,5612,"[NULL]","[NULL]","CAM_startsensor","[NULL]","[NULL]"
+1122,5613,"[NULL]","[NULL]","CAM_startiface","[NULL]","[NULL]"
+1125,5615,"[NULL]","[NULL]","CAM_startisp","[NULL]","[NULL]"
+1126,5616,"[NULL]","[NULL]","CAM_startstats","[NULL]","[NULL]"
+1128,5618,"[NULL]","[NULL]","CAM_startpproc","[NULL]","[NULL]"
+1129,5619,"[NULL]","[NULL]","CAM_startimglib","[NULL]","[NULL]"
+1157,5642,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1158,5643,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1168,5652,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1169,5653,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1212,5683,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1214,5685,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1216,5687,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1217,5688,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1218,5689,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1219,5691,"[NULL]","[NULL]","cam_data_proc","[NULL]","[NULL]"
+1220,5690,"[NULL]","[NULL]","cam_data_proc","[NULL]","[NULL]"
+1222,5693,"[NULL]","[NULL]","CAM_jpeg_jobmgr","[NULL]","[NULL]"
+1226,5697,"[NULL]","[NULL]","OMX_ImgEnc","[NULL]","[NULL]"
+1227,5698,"[NULL]","[NULL]","cam_data_proc","[NULL]","[NULL]"
+1228,5699,"[NULL]","[NULL]","cam_data_proc","[NULL]","[NULL]"
+1229,5700,"[NULL]","[NULL]","cam_data_proc","[NULL]","[NULL]"
+1244,5714,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1245,5715,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1246,5716,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1247,5717,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1248,5718,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1268,5736,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1276,5735,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1306,5763,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1307,5764,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1318,5774,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1319,5773,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1328,5783,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1329,5782,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1331,5784,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1332,5785,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1333,5786,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1336,5789,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1337,5790,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1338,5791,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1339,5792,"[NULL]","[NULL]","applyRouting","[NULL]","[NULL]"
+1354,5803,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1355,5802,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1358,5807,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1359,5806,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1361,5810,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1362,5809,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1364,5813,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1365,5812,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1369,5816,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1370,5815,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1372,5818,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1373,5819,"[NULL]","[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+1374,5820,"[NULL]","[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+1375,5821,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1376,5822,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1377,5823,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1384,5828,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1389,5830,"[NULL]","[NULL]","HwBinder:943_4","[NULL]","[NULL]"
+1391,5831,"[NULL]","[NULL]","HwBinder:943_4","[NULL]","[NULL]"
+1393,5833,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1397,5838,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1403,5842,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1406,5843,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1407,5844,"[NULL]","[NULL]","gcm-task#1","[NULL]","[NULL]"
+1408,5846,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1419,5856,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1420,5857,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1421,5858,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1422,5859,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1423,5860,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1424,5861,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1426,5863,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1427,5864,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1430,5867,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1431,5868,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1434,5871,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1437,5874,"[NULL]","[NULL]","gcm-task#1","[NULL]","[NULL]"
+1438,5174,"[NULL]","[NULL]","TaskSchedulerBa","[NULL]","[NULL]"
+1439,5176,"[NULL]","[NULL]","TaskSchedulerFo","[NULL]","[NULL]"
+1440,5175,"[NULL]","[NULL]","TaskSchedulerFo","[NULL]","[NULL]"
+1446,5880,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1447,5881,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1448,5882,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1449,5883,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1453,5887,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1454,5888,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1455,5889,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1456,5890,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1457,5891,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1458,5892,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1461,5893,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1462,5894,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1463,5895,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1464,5896,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1465,5897,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1467,5898,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1468,3097,"[NULL]","[NULL]","AsyncTask #2","[NULL]","[NULL]"
+1469,5899,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1470,5900,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1471,5901,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1472,5902,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1473,5903,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1474,5904,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1475,5905,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1476,5906,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1477,5907,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1478,5908,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1479,5909,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1482,5912,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1483,5913,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1484,5914,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1485,5915,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1486,5916,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1487,5917,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1488,5918,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1491,5919,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1492,5920,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1493,5921,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1494,5922,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1496,5924,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1497,5925,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1498,5926,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1499,5928,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1500,5927,"[NULL]","[NULL]","applyRouting","[NULL]","[NULL]"
+1501,5929,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1502,5930,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1503,5931,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1505,5933,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1506,5934,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1509,5937,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1512,5939,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1515,5942,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1523,5950,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1524,5951,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1527,5952,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1528,5953,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1529,5954,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1530,5955,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1531,5956,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1532,5957,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1533,5958,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1534,5959,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1535,5960,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1536,5961,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1537,5962,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1538,5963,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1539,5964,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1540,5965,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1541,5966,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1542,5967,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1543,5968,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1544,5969,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1545,5970,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1546,5971,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1547,5972,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1548,5973,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1549,5974,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1550,5975,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1552,5976,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1553,5977,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1554,5228,"[NULL]","[NULL]","Measurement Wor","[NULL]","[NULL]"
+1555,5978,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1556,5979,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1557,5980,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1558,5981,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1559,5982,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1560,5983,"[NULL]","[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+1561,5986,"[NULL]","[NULL]","CAM_SNAPSHOT","[NULL]","[NULL]"
+1562,5987,"[NULL]","[NULL]","CAM_CALLBACK","[NULL]","[NULL]"
+1563,5988,"[NULL]","[NULL]","CAM_CALLBACK","[NULL]","[NULL]"
+1564,5989,"[NULL]","[NULL]","CAM_RAW","[NULL]","[NULL]"
+1565,5990,"[NULL]","[NULL]","CAM_ANALYSISCAM","[NULL]","[NULL]"
+1566,5985,"[NULL]","[NULL]","CAM_PREVIEW","[NULL]","[NULL]"
+1567,5984,"[NULL]","[NULL]","CAM_METADATA","[NULL]","[NULL]"
+1568,5991,"[NULL]","[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+1569,5992,"[NULL]","[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+1570,5993,"[NULL]","[NULL]","CAM_iface_poll","[NULL]","[NULL]"
+1571,5994,"[NULL]","[NULL]","CAM_iface_hw","[NULL]","[NULL]"
+1572,5995,"[NULL]","[NULL]","irq/164-arm-smm","[NULL]","[NULL]"
+1573,5996,"[NULL]","[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+1574,5997,"[NULL]","[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+1575,5998,"[NULL]","[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+1576,5999,"[NULL]","[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+1577,6000,"[NULL]","[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+1578,6001,"[NULL]","[NULL]","irq/165-arm-smm","[NULL]","[NULL]"
+1579,6002,"[NULL]","[NULL]","CAM_sof_timer","[NULL]","[NULL]"
+1580,6003,"[NULL]","[NULL]","HwBinder:759_2","[NULL]","[NULL]"
+1581,6004,"[NULL]","[NULL]","CAM_stopsensor","[NULL]","[NULL]"
+1582,6005,"[NULL]","[NULL]","CAM_stopiface","[NULL]","[NULL]"
+1583,6006,"[NULL]","[NULL]","CAM_stopisp","[NULL]","[NULL]"
+1584,6007,"[NULL]","[NULL]","CAM_stopstats","[NULL]","[NULL]"
+1585,6008,"[NULL]","[NULL]","CAM_stoppproc","[NULL]","[NULL]"
+1586,6009,"[NULL]","[NULL]","CAM_stopimglib","[NULL]","[NULL]"
+1588,6010,"[NULL]","[NULL]","ProPrgsFin","[NULL]","[NULL]"
+1593,6015,"[NULL]","[NULL]","gcm-task#1","[NULL]","[NULL]"
+1594,6016,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1610,6023,"[NULL]","[NULL]","SharedPreferenc","[NULL]","[NULL]"
+1616,5218,"[NULL]","[NULL]","Measurement Wor","[NULL]","[NULL]"
+1617,6024,"[NULL]","[NULL]","sensors.qcom","[NULL]","[NULL]"
+1634,950,119,950,"","","[NULL]"
