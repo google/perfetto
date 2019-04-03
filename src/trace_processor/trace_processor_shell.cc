@@ -141,6 +141,56 @@ char* GetLine(const char* prompt) {
 
 #endif
 
+bool PrintStats() {
+  auto it = g_tp->ExecuteQuery(
+      "SELECT name, idx, source, value from stats "
+      "where severity = 'error' and value > 0");
+
+  bool first = true;
+  for (uint32_t rows = 0; it.Next(); rows++) {
+    if (first) {
+      fprintf(stderr, "Error stats for this trace:\n");
+
+      for (uint32_t i = 0; i < it.ColumnCount(); i++)
+        fprintf(stderr, "%40s ", it.GetColumName(i).c_str());
+      fprintf(stderr, "\n");
+
+      for (uint32_t i = 0; i < it.ColumnCount(); i++)
+        fprintf(stderr, "%40s ", "----------------------------------------");
+      fprintf(stderr, "\n");
+
+      first = false;
+    }
+
+    for (uint32_t c = 0; c < it.ColumnCount(); c++) {
+      auto value = it.Get(c);
+      switch (value.type) {
+        case SqlValue::Type::kNull:
+          fprintf(stderr, "%-40.40s", "[NULL]");
+          break;
+        case SqlValue::Type::kDouble:
+          fprintf(stderr, "%40f", value.double_value);
+          break;
+        case SqlValue::Type::kLong:
+          fprintf(stderr, "%40" PRIi64, value.long_value);
+          break;
+        case SqlValue::Type::kString:
+          fprintf(stderr, "%-40.40s", value.string_value);
+          break;
+      }
+      fprintf(stderr, " ");
+    }
+    fprintf(stderr, "\n");
+  }
+
+  auto opt_error = it.GetLastError();
+  if (PERFETTO_UNLIKELY(opt_error.has_value())) {
+    PERFETTO_ELOG("Error while iterating stats %s", opt_error->c_str());
+    return false;
+  }
+  return true;
+}
+
 int ExportTraceToDatabase(const std::string& output_name) {
   PERFETTO_CHECK(output_name.find("'") == std::string::npos);
   {
@@ -563,6 +613,11 @@ int TraceProcessorMain(int argc, char** argv) {
 #if PERFETTO_HAS_SIGNAL_H()
   signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
 #endif
+
+  // Print out the stats to stderr for the trace.
+  if (!PrintStats()) {
+    return 1;
+  }
 
   // First, see if we have some metrics to run. If we do, just run them and
   // return.
