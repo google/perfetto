@@ -971,7 +971,7 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerRingBuffer) {
   // then add a bunch of smaller ones which causes the larger packet to be
   // dropped. After we activate the session we should only see a bunch of the
   // smaller ones.
-  static const int kNumTestPackets = 10;
+  static const size_t kNumTestPackets = 10;
   static const char kPayload[] = "1234567890abcdef-";
 
   auto writer = producer->CreateTraceWriter("ds_1");
@@ -984,7 +984,7 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerRingBuffer) {
   }
 
   // Now we add a bunch of data before the trigger and after.
-  for (int i = 0; i < kNumTestPackets; i++) {
+  for (size_t i = 0; i < kNumTestPackets; i++) {
     if (i == kNumTestPackets / 2) {
       std::vector<std::string> req;
       req.push_back("trigger_name");
@@ -1011,7 +1011,7 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerRingBuffer) {
   // packet.
   EXPECT_THAT(packets,
               HasTriggerMode(protos::TraceConfig::TriggerConfig::STOP_TRACING));
-  for (int i = 0; i < kNumTestPackets; i++) {
+  for (size_t i = 0; i < kNumTestPackets; i++) {
     std::string payload = kPayload;
     payload += std::to_string(i);
     EXPECT_THAT(packets, Contains(Property(
