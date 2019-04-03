@@ -341,7 +341,7 @@ class NumericDequeAccessor : public NumericAccessor<NumericType> {
 
   std::vector<uint32_t> EqualIndices(NumericType value) const override {
     PERFETTO_DCHECK(CanFindEqualIndices());
-    if (value < 0 || value >= static_cast<NumericType>(Size()))
+    if (value < 0 || static_cast<size_t>(value) >= index_->size())
       return {};
     return (*index_)[static_cast<size_t>(value)];
   }
