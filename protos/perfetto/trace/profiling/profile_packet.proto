@@ -67,10 +67,26 @@ message ProfilePacket {
   }
 
   repeated ProcessHeapSamples process_dumps = 5;
+  message Histogram {
+    message Bucket {
+      // This bucket counts values from the previous bucket's (or -infinity if
+      // this is the first bucket) upper_limit (inclusive) to this upper_limit
+      // (exclusive).
+      optional uint64 upper_limit = 1;
+      // This is the highest bucket. This is set instead of the upper_limit. Any
+      // values larger or equal to the previous bucket's upper_limit are counted
+      // in this bucket.
+      optional bool max_bucket = 2;
+      // Number of values that fall into this range.
+      optional uint64 count = 3;
+    }
+    repeated Bucket buckets = 1;
+  }
   message ProcessStats {
     optional uint64 unwinding_errors = 1;
     optional uint64 heap_samples = 2;
     optional uint64 map_reparses = 3;
+    optional Histogram unwinding_time_us = 4;
   }
 
   message ProcessHeapSamples {

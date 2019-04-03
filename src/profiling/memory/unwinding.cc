@@ -250,7 +250,6 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     out->frames.emplace_back(frame_data, "");
     out->error = true;
   }
-
   return true;
 }
 
@@ -318,7 +317,10 @@ void UnwindingWorker::HandleBuffer(const SharedRingBuffer::Buffer& buf,
     rec.alloc_metadata = *msg.alloc_header;
     rec.pid = peer_pid;
     rec.data_source_instance_id = data_source_instance_id;
+    auto start_time_us = base::GetWallTimeNs() / 1000;
     DoUnwind(&msg, unwinding_metadata, &rec);
+    rec.unwinding_time_us = static_cast<uint64_t>(
+        ((base::GetWallTimeNs() / 1000) - start_time_us).count());
     delegate->PostAllocRecord(std::move(rec));
   } else if (msg.record_type == RecordType::Free) {
     FreeRecord rec;
