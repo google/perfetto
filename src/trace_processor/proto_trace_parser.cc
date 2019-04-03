@@ -783,8 +783,10 @@ void ProtoTraceParser::ParsePrint(uint32_t,
                                   ConstBytes blob) {
   protos::pbzero::PrintFtraceEvent::Decoder evt(blob.data, blob.size);
   SystraceTracePoint point{};
-  if (!ParseSystraceTracePoint(evt.buf(), &point))
+  if (!ParseSystraceTracePoint(evt.buf(), &point)) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
+  }
 
   switch (point.phase) {
     case 'B': {
