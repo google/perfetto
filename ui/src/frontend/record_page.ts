@@ -187,13 +187,6 @@ function PowerSettings(cssClass: string) {
           get: (cfg) => cfg.batteryDrainPollMs
         } as SliderAttrs)),
       m(Probe, {
-        title: 'CPU frequency and idle states',
-        img: 'rec_cpu_freq.png',
-        descr: 'Records cpu frequency and idle state changes via ftrace',
-        setEnabled: (cfg, val) => cfg.cpuFreq = val,
-        isEnabled: (cfg) => cfg.cpuFreq
-      } as ProbeAttrs),
-      m(Probe, {
         title: 'Board voltages & frequencies',
         img: 'rec_board_voltage.png',
         descr: 'Tracks voltage and frequency changes from board sensors',
@@ -228,6 +221,13 @@ function CpuSettings(cssClass: string) {
         descr: 'Enables high-detailed tracking of scheduling events',
         setEnabled: (cfg, val) => cfg.cpuSched = val,
         isEnabled: (cfg) => cfg.cpuSched
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'CPU frequency and idle states',
+        img: 'rec_cpu_freq.png',
+        descr: 'Records cpu frequency and idle state changes via ftrace',
+        setEnabled: (cfg, val) => cfg.cpuFreq = val,
+        isEnabled: (cfg) => cfg.cpuFreq
       } as ProbeAttrs),
       m(Probe, {
         title: 'Scheduling chains / latency analysis',
