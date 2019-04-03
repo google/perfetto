@@ -515,6 +515,11 @@ int TraceProcessorMain(int argc, char** argv) {
   cb.aio_fildes = *fd;
 
   std::unique_ptr<uint8_t[]> aio_buf(new uint8_t[kChunkSize]);
+#if defined(MEMORY_SANITIZER)
+  // Just initialize the memory to make the memory sanitizer happy as it
+  // cannot track aio calls below.
+  memset(aio_buf.get(), 0, kChunkSize);
+#endif
   cb.aio_buf = aio_buf.get();
 
   PERFETTO_CHECK(aio_read(&cb) == 0);
@@ -537,6 +542,11 @@ int TraceProcessorMain(int argc, char** argv) {
     // with a fresh buffer.
     std::unique_ptr<uint8_t[]> buf(std::move(aio_buf));
     aio_buf.reset(new uint8_t[kChunkSize]);
+#if defined(MEMORY_SANITIZER)
+    // Just initialize the memory to make the memory sanitizer happy as it
+    // cannot track aio calls below.
+    memset(aio_buf.get(), 0, kChunkSize);
+#endif
     cb.aio_buf = aio_buf.get();
     cb.aio_offset += rsize;
     PERFETTO_CHECK(aio_read(&cb) == 0);
