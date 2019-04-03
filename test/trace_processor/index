@@ -7,6 +7,10 @@ synth_1.py smoke.sql synth_1_smoke.out
 # Test for the process<>thread tracking logic.
 synth_process_tracking.py process_tracking.sql process_tracking.out
 
+# Test for computing CPU time from sched events for threads.
+../data/example_android_trace_30s.pb thread_cpu_time.sql thread_cpu_time_example_android_trace_30s.out
+
+
 # The below tests check the storage backed tables in the trace processor.
 # Sched
 ../data/android_sched_and_ps.pb ts_desc_filter.sql ts_desc_filter_android_sched_and_ps.out
