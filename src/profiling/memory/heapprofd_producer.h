@@ -44,6 +44,20 @@ struct Process {
   std::string cmdline;
 };
 
+class LogHistogram {
+ public:
+  static const uint64_t kMaxBucket;
+  static constexpr size_t kBuckets = 20;
+
+  void Add(uint64_t value) { values_[GetBucket(value)]++; }
+  std::vector<std::pair<uint64_t, uint64_t>> GetData();
+
+ private:
+  size_t GetBucket(uint64_t value);
+
+  std::array<uint64_t, kBuckets> values_ = {};
+};
+
 // TODO(rsavitski): central daemon can do less work if it knows that the global
 // operating mode is fork-based, as it then will not be interacting with the
 // clients. This can be implemented as an additional mode here.
@@ -148,6 +162,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     uint64_t heap_samples = 0;
     uint64_t map_reparses = 0;
     uint64_t unwinding_errors = 0;
+
+    LogHistogram unwinding_time_us;
     HeapTracker heap_tracker;
   };
 
