@@ -146,8 +146,8 @@ void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {
     }
 
     if (check_only) {
-      PERFETTO_DCHECK(ts >= start_ts);
-      PERFETTO_DCHECK(dur == 0 || ts <= end_ts);
+      PERFETTO_CHECK(ts >= start_ts);
+      PERFETTO_CHECK(dur == 0 || ts <= end_ts);
       continue;
     }
 
