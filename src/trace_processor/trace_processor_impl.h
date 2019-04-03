@@ -100,17 +100,16 @@ class TraceProcessor::IteratorImpl {
   IteratorImpl& operator=(IteratorImpl&&) = default;
 
   // Methods called by TraceProcessor::Iterator.
-  Iterator::NextResult Next() {
-    using Result = TraceProcessor::Iterator::NextResult;
-    if (error_.has_value())
-      return Result::kError;
+  bool Next() {
+    if (PERFETTO_UNLIKELY(error_.has_value()))
+      return false;
 
     int ret = sqlite3_step(*stmt_);
-    if (ret != SQLITE_ROW && ret != SQLITE_DONE) {
+    if (PERFETTO_UNLIKELY(ret != SQLITE_ROW && ret != SQLITE_DONE)) {
       error_ = base::Optional<std::string>(sqlite3_errmsg(db_));
-      return Result::kError;
+      return false;
     }
-    return ret == SQLITE_ROW ? Result::kHasNext : Result::kEOF;
+    return ret == SQLITE_ROW;
   }
 
   SqlValue Get(uint32_t col) {
@@ -138,11 +137,13 @@ class TraceProcessor::IteratorImpl {
     return value;
   }
 
+  std::string GetColumnName(uint32_t col) {
+    return sqlite3_column_name(stmt_.get(), static_cast<int>(col));
+  }
+
   uint32_t ColumnCount() { return column_count_; }
 
   base::Optional<std::string> GetLastError() { return error_; }
-
-  bool IsValid() { return trace_processor_ != nullptr; }
 
   // Methods called by TraceProcessorImpl.
   void Reset();

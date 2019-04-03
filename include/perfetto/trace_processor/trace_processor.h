@@ -42,8 +42,6 @@ class TraceProcessor {
   // Iterator returning SQL rows satisfied by a query.
   class Iterator {
    public:
-    enum NextResult { kEOF = 0, kError = -1, kHasNext = 1 };
-
     Iterator(std::unique_ptr<IteratorImpl> iterator);
     ~Iterator();
 
@@ -53,25 +51,29 @@ class TraceProcessor {
     Iterator(Iterator&&) noexcept;
     Iterator& operator=(Iterator&&);
 
-    // Forwards the iterator to the next result row and returns an enum
-    // indicating if there we have reached EOF and whether there was an error.
-    NextResult Next();
+    // Forwards the iterator to the next result row and returns a boolean of
+    // whether there is a next row. If this method returns false,
+    // |GetLastError()| should be called to check if there was an error. If
+    // there was no error, this means the EOF was reached.
+    bool Next();
 
     // Returns the value associated with the column |col|. Any call to
     // |Get()| must be preceeded by a call to |Next()| returning
     // kHasNext. |col| must be less than the number returned by |ColumnCount()|.
     SqlValue Get(uint32_t col);
 
+    // Returns the name of the column at index |col|. Can be called even before
+    // calling |Next()|.
+    std::string GetColumName(uint32_t col);
+
     // Returns the number of columns in this iterator's query. Can be called
     // even before calling |Next()|.
     uint32_t ColumnCount();
 
-    // Returns the error indicated by the last |Next()| call. If no error
-    // occurred, the returned value will be base::nullopt.
+    // Returns the error (if any) from the last call to next. If no error
+    // occurred, the returned value will be base::nullopt and implies that
+    // EOF was reached.
     base::Optional<std::string> GetLastError();
-
-    // Returns if this iterator is valid to call methods on.
-    bool IsValid();
 
    private:
     std::unique_ptr<IteratorImpl> iterator_;
