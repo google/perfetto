@@ -440,6 +440,31 @@ pbzero_cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/metrics:lite_gen
+proto_library(
+    name = "metrics",
+    srcs = [
+        "perfetto/metrics/metrics.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics:lite_gen
+cc_proto_library(
+    name = "metrics_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:metrics",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/power:lite_gen
 proto_library(
     name = "power",

@@ -469,6 +469,7 @@ cc_binary(
         "//third_party/perfetto/protos:filesystem_zero_cc_proto",
         "//third_party/perfetto/protos:ftrace_zero_cc_proto",
         "//third_party/perfetto/protos:interned_data_zero_cc_proto",
+        "//third_party/perfetto/protos:metrics_cc_proto",
         "//third_party/perfetto/protos:power_zero_cc_proto",
         "//third_party/perfetto/protos:profiling_zero_cc_proto",
         "//third_party/perfetto/protos:ps_zero_cc_proto",
