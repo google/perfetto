@@ -86,6 +86,17 @@ TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_EQ(res.columns(1).long_values(0), 40532506000);
 }
 
+TEST_F(TraceProcessorIntegrationTest, UnsortedTrace) {
+  ASSERT_TRUE(LoadTrace("unsorted_trace.json", strlen("{\"traceEvents\":[")));
+  protos::RawQueryResult res;
+  Query("select ts, depth from slices order by ts", &res);
+  ASSERT_EQ(res.num_records(), 2);
+  ASSERT_EQ(res.columns(0).long_values(0), 50000);
+  ASSERT_EQ(res.columns(1).long_values(0), 0);
+  ASSERT_EQ(res.columns(0).long_values(1), 100000);
+  ASSERT_EQ(res.columns(1).long_values(1), 1);
+}
+
 TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
   ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb"));
   protos::RawQueryResult res;

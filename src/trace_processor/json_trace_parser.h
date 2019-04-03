@@ -23,7 +23,8 @@
 #include <tuple>
 #include <unordered_map>
 
-#include "src/trace_processor/chunked_trace_reader.h"
+#include "src/trace_processor/trace_parser.h"
+#include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace Json {
@@ -35,24 +36,25 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-base::Optional<int64_t> CoerceToNs(const Json::Value& value);
 base::Optional<int64_t> CoerceToInt64(const Json::Value& value);
 base::Optional<uint32_t> CoerceToUint32(const Json::Value& value);
 
 // Parses legacy chrome JSON traces. The support for now is extremely rough
 // and supports only explicit TRACE_EVENT_BEGIN/END events.
-class JsonTraceParser : public ChunkedTraceReader {
+class JsonTraceParser : public TraceParser {
  public:
   explicit JsonTraceParser(TraceProcessorContext*);
   ~JsonTraceParser() override;
 
   // TraceParser implementation.
-  bool Parse(std::unique_ptr<uint8_t[]>, size_t) override;
+  void ParseTracePacket(int64_t timestamp,
+                        TraceSorter::TimestampedTracePiece) override;
+  void ParseFtracePacket(uint32_t,
+                         int64_t,
+                         TraceSorter::TimestampedTracePiece) override;
 
  private:
   TraceProcessorContext* const context_;
-  uint64_t offset_ = 0;
-  std::vector<char> buffer_;
 };
 
 }  // namespace trace_processor
