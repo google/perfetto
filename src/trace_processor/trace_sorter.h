@@ -25,6 +25,15 @@
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#include <json/value.h>
+#else
+// Json traces are only supported in standalone build.
+namespace Json {
+class Value {};
+}  // namespace Json
+#endif
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -75,6 +84,17 @@ class TraceSorter {
              (timestamp == o.timestamp && packet_idx_ < o.packet_idx_);
     }
 
+    TimestampedTracePiece(int64_t ts,
+                          uint64_t idx,
+                          std::unique_ptr<Json::Value> value)
+        : json_value(std::move(value)),
+          timestamp(ts),
+          packet_idx_(idx),
+          // TODO(dproy): Stop requiring TraceBlobView in TimestampedTracePiece.
+          blob_view(TraceBlobView(nullptr, 0, 0)) {}
+
+    std::unique_ptr<Json::Value> json_value;
+
     int64_t timestamp;
     uint64_t packet_idx_;
     TraceBlobView blob_view;
@@ -87,6 +107,14 @@ class TraceSorter {
     auto* queue = GetQueue(0);
     queue->Append(
         TimestampedTracePiece(timestamp, packet_idx_++, std::move(packet)));
+    MaybeExtractEvents(queue);
+  }
+
+  inline void PushJsonValue(int64_t timestamp,
+                            std::unique_ptr<Json::Value> json_value) {
+    auto* queue = GetQueue(0);
+    queue->Append(
+        TimestampedTracePiece(timestamp, packet_idx_++, std::move(json_value)));
     MaybeExtractEvents(queue);
   }
 
@@ -155,7 +183,7 @@ class TraceSorter {
     int64_t min_ts_ = std::numeric_limits<int64_t>::max();
     int64_t max_ts_ = 0;
     size_t sort_start_idx_ = 0;
-    int64_t sort_min_ts_ = 0;
+    int64_t sort_min_ts_ = std::numeric_limits<int64_t>::max();
   };
 
   // This method passes any events older than window_size_ns to the

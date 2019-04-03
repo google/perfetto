@@ -115,6 +115,7 @@ source_set("lib") {
     "thread_table.cc",
     "thread_table.h",
     "trace_blob_view.h",
+    "trace_parser.h",
     "trace_processor.cc",
     "trace_processor_context.cc",
     "trace_processor_context.h",
@@ -155,6 +156,10 @@ source_set("lib") {
     sources += [
       "json_trace_parser.cc",
       "json_trace_parser.h",
+      "json_trace_tokenizer.cc",
+      "json_trace_tokenizer.h",
+      "json_trace_utils.cc",
+      "json_trace_utils.h",
     ]
     deps += [ "../../gn:jsoncpp_deps" ]
   }
@@ -230,7 +235,7 @@ source_set("unittests") {
     "../protozero",
   ]
   if (perfetto_build_standalone) {
-    sources += [ "json_trace_parser_unittest.cc" ]
+    sources += [ "json_trace_utils_unittest.cc" ]
     deps += [ "../../gn:jsoncpp_deps" ]
   }
 }
@@ -250,6 +255,9 @@ source_set("integrationtests") {
     "../base",
     "../base:test_support",
   ]
+  if (perfetto_build_standalone) {
+    deps += [ "../../gn:jsoncpp_deps" ]
+  }
 }
 
 perfetto_fuzzer_test("trace_processor_fuzzer") {
