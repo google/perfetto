@@ -46,6 +46,7 @@
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/thread_table.h"
+#include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/window_operator_table.h"
 
@@ -54,6 +55,7 @@
 // JSON parsing is only supported in the standalone build.
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 #include "src/trace_processor/json_trace_parser.h"
+#include "src/trace_processor/json_trace_tokenizer.h"
 #endif
 
 // In Android tree builds, we don't have the percentile module.
@@ -154,7 +156,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   return kProtoTraceType;
 }
 
-TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
+TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) : cfg_(cfg) {
   sqlite3* db = nullptr;
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   InitializeSqlite(db);
@@ -166,12 +168,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.args_tracker.reset(new ArgsTracker(&context_));
   context_.slice_tracker.reset(new SliceTracker(&context_));
   context_.event_tracker.reset(new EventTracker(&context_));
-  context_.proto_parser.reset(new ProtoTraceParser(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.syscall_tracker.reset(new SyscallTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
-  context_.sorter.reset(
-      new TraceSorter(&context_, static_cast<int64_t>(cfg.window_size_ns)));
 
   ArgsTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
@@ -209,13 +208,19 @@ bool TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
       case kJsonTraceType:
         PERFETTO_DLOG("Legacy JSON trace detected");
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
-        context_.chunk_reader.reset(new JsonTraceParser(&context_));
+        context_.chunk_reader.reset(new JsonTraceTokenizer(&context_));
+        context_.sorter.reset(
+            new TraceSorter(&context_, std::numeric_limits<int64_t>::max()));
+        context_.parser.reset(new JsonTraceParser(&context_));
 #else
         PERFETTO_FATAL("JSON traces only supported in standalone mode.");
 #endif
         break;
       case kProtoTraceType:
         context_.chunk_reader.reset(new ProtoTraceTokenizer(&context_));
+        context_.sorter.reset(new TraceSorter(
+            &context_, static_cast<int64_t>(cfg_.window_size_ns)));
+        context_.parser.reset(new ProtoTraceParser(&context_));
         break;
       case kUnknownTraceType:
         return false;
@@ -228,6 +233,9 @@ bool TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
 }
 
 void TraceProcessorImpl::NotifyEndOfFile() {
+  if (unrecoverable_parse_error_ || !context_.chunk_reader)
+    return;
+
   context_.sorter->ExtractEventsForced();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 }

@@ -26,6 +26,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -52,17 +53,18 @@ inline bool operator==(const SystraceTracePoint& x,
 
 bool ParseSystraceTracePoint(base::StringView, SystraceTracePoint* out);
 
-class ProtoTraceParser {
+class ProtoTraceParser : public TraceParser {
  public:
   using ConstBytes = protozero::ConstBytes;
   explicit ProtoTraceParser(TraceProcessorContext*);
   virtual ~ProtoTraceParser();
 
-  // virtual for testing.
-  virtual void ParseTracePacket(int64_t timestamp, TraceBlobView);
+  // TraceParser implementation.
+  virtual void ParseTracePacket(int64_t timestamp,
+                                TraceSorter::TimestampedTracePiece);
   virtual void ParseFtracePacket(uint32_t cpu,
                                  int64_t timestamp,
-                                 TraceBlobView);
+                                 TraceSorter::TimestampedTracePiece);
   void ParseProcessTree(ConstBytes);
   void ParseProcessStats(int64_t timestamp, ConstBytes);
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, ConstBytes);

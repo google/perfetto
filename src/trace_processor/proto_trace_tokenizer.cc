@@ -43,7 +43,7 @@ using protozero::proto_utils::MakeTagVarInt;
 using protozero::proto_utils::ParseVarInt;
 
 ProtoTraceTokenizer::ProtoTraceTokenizer(TraceProcessorContext* ctx)
-    : trace_sorter_(ctx->sorter.get()), trace_storage_(ctx->storage.get()) {}
+    : context_(ctx) {}
 ProtoTraceTokenizer::~ProtoTraceTokenizer() = default;
 
 bool ProtoTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> owned_buf,
@@ -149,7 +149,7 @@ void ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
 
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
-  trace_sorter_->PushTracePacket(timestamp, std::move(packet));
+  context_->sorter->PushTracePacket(timestamp, std::move(packet));
   PERFETTO_DCHECK(!decoder.bytes_left());
 }
 
@@ -160,7 +160,7 @@ void ProtoTraceTokenizer::ParseFtraceBundle(TraceBlobView bundle) {
 
   if (PERFETTO_UNLIKELY(!decoder.has_cpu())) {
     PERFETTO_ELOG("CPU field not found in FtraceEventBundle");
-    trace_storage_->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
     return;
   }
 
@@ -174,7 +174,7 @@ void ProtoTraceTokenizer::ParseFtraceBundle(TraceBlobView bundle) {
     size_t off = bundle.offset_of(it->data());
     ParseFtraceEvent(cpu, bundle.slice(off, it->size()));
   }
-  trace_sorter_->FinalizeFtraceEventBatch(cpu);
+  context_->sorter->FinalizeFtraceEventBatch(cpu);
 }
 
 PERFETTO_ALWAYS_INLINE
@@ -205,7 +205,7 @@ void ProtoTraceTokenizer::ParseFtraceEvent(uint32_t cpu, TraceBlobView event) {
 
   if (PERFETTO_UNLIKELY(!timestamp_found)) {
     PERFETTO_ELOG("Timestamp field not found in FtraceEvent");
-    trace_storage_->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
     return;
   }
 
@@ -214,7 +214,7 @@ void ProtoTraceTokenizer::ParseFtraceEvent(uint32_t cpu, TraceBlobView event) {
 
   // We don't need to parse this packet, just push it to be sorted with
   // the timestamp.
-  trace_sorter_->PushFtraceEvent(cpu, timestamp, std::move(event));
+  context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event));
 }
 
 }  // namespace trace_processor

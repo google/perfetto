@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,30 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/chunked_trace_reader.h"
-#include "src/trace_processor/trace_parser.h"
+#ifndef SRC_TRACE_PROCESSOR_JSON_TRACE_UTILS_H_
+#define SRC_TRACE_PROCESSOR_JSON_TRACE_UTILS_H_
+
+#include <stdint.h>
+
+#include "perfetto/base/optional.h"
+
+namespace Json {
+class Value;
+}
 
 namespace perfetto {
 namespace trace_processor {
 
-ChunkedTraceReader::~ChunkedTraceReader() {}
-TraceParser::~TraceParser() {}
+class TraceProcessorContext;
 
+namespace json_trace_utils {
+
+base::Optional<int64_t> CoerceToNs(const Json::Value& value);
+base::Optional<int64_t> CoerceToInt64(const Json::Value& value);
+base::Optional<uint32_t> CoerceToUint32(const Json::Value& value);
+
+}  // namespace json_trace_utils
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // SRC_TRACE_PROCESSOR_JSON_TRACE_UTILS_H_

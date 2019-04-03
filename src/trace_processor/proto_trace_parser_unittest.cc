@@ -116,7 +116,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     process_ = new MockProcessTracker(&context_);
     context_.process_tracker.reset(process_);
     context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
-    context_.proto_parser.reset(new ProtoTraceParser(&context_));
+    context_.parser.reset(new ProtoTraceParser(&context_));
   }
 
   void ResetTraceBuffers() {

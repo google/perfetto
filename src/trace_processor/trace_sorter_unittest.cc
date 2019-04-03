@@ -47,14 +47,17 @@ class MockTraceParser : public ProtoTraceParser {
 
   void ParseFtracePacket(uint32_t cpu,
                          int64_t timestamp,
-                         TraceBlobView tbv) override {
+                         TraceSorter::TimestampedTracePiece ttp) override {
+    TraceBlobView& tbv = ttp.blob_view;
     MOCK_ParseFtracePacket(cpu, timestamp, tbv.data(), tbv.length());
   }
 
   MOCK_METHOD3(MOCK_ParseTracePacket,
                void(int64_t ts, const uint8_t* data, size_t length));
 
-  void ParseTracePacket(int64_t ts, TraceBlobView tbv) override {
+  void ParseTracePacket(int64_t ts,
+                        TraceSorter::TimestampedTracePiece ttp) override {
+    TraceBlobView& tbv = ttp.blob_view;
     MOCK_ParseTracePacket(ts, tbv.data(), tbv.length());
   }
 };
@@ -74,7 +77,7 @@ class TraceSorterTest : public ::testing::Test {
     context_.storage.reset(storage_);
     context_.sorter.reset(new TraceSorter(&context_, 0 /*window_size*/));
     parser_ = new MockTraceParser(&context_);
-    context_.proto_parser.reset(parser_);
+    context_.parser.reset(parser_);
   }
 
  protected:
