@@ -152,6 +152,7 @@ source_set("unittests") {
   sources = [
     "bookkeeping_unittest.cc",
     "client_unittest.cc",
+    "heapprofd_producer_unittest.cc",
     "interner_unittest.cc",
     "proc_utils_unittest.cc",
     "sampler_unittest.cc",

@@ -2897,6 +2897,7 @@ cc_test {
     "src/profiling/memory/client.cc",
     "src/profiling/memory/client_unittest.cc",
     "src/profiling/memory/heapprofd_producer.cc",
+    "src/profiling/memory/heapprofd_producer_unittest.cc",
     "src/profiling/memory/interner_unittest.cc",
     "src/profiling/memory/proc_utils.cc",
     "src/profiling/memory/proc_utils_unittest.cc",
