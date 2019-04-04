@@ -163,6 +163,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     uint64_t map_reparses = 0;
     uint64_t unwinding_errors = 0;
 
+    uint64_t total_unwinding_time_us = 0;
     LogHistogram unwinding_time_us;
     HeapTracker heap_tracker;
   };
