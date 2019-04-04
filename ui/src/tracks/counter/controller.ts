@@ -80,15 +80,10 @@ class CounterTrackController extends TrackController<Config, Data> {
     window_start=${windowStartNs},
     window_dur=${windowDurNs},
     quantum=${isQuantized ? bucketSizeNs : 0}`);
-      
+
     let query = `select min(ts) as ts,
-      sum(weighted_value)/sum(dur) as value
-      from (select
-        ts,
-        dur,
-        quantum_ts,
-        value*dur as weighted_value
-        from ${this.tableName('span')})
+      max(value) as value
+      from ${this.tableName('span')}
       group by quantum_ts;`;
 
     if (!isQuantized) {
