@@ -452,6 +452,9 @@ proto_library(
     visibility = [
         "//visibility:public",
     ],
+    deps = [
+        "//third_party/perfetto/protos:android",
+    ],
 )
 
 # GN target: //protos/perfetto/metrics:lite_gen

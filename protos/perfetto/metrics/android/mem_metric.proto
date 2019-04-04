@@ -1,0 +1,103 @@
+/*
+ * Copyright (C) 2019 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package perfetto.protos;
+
+// Memory metrics on Android.
+message AndroidMemoryMetric {
+  // Next id: 6
+  message SystemMetrics {
+    reserved 3;
+
+    optional Counter anon_pages = 1;
+    optional Counter mmaped_pages = 2;
+    repeated NamedCounter ion_buffers = 4;
+    optional LowMemoryKills lmks = 5;
+  }
+
+  message LowMemoryKills {
+    message LowMemoryKillBreakdown {
+      optional int32 oom_score_adj = 1;
+      optional int32 count = 2;
+    }
+
+    optional int32 total_count = 1;
+    repeated LowMemoryKillBreakdown breakdown = 2;
+  }
+
+  // Next id: 14
+  message ProcessMetrics {
+    reserved 2 to 9;
+
+    optional string process_name = 1;
+    optional ProcessMemoryCounters overall_counters = 10;
+
+    message ProcessMetricsBreakdown {
+      reserved 1;
+      optional string process_priority = 3;
+      optional ProcessMemoryCounters counters = 2;
+    }
+    repeated ProcessMetricsBreakdown breakdown = 11;
+
+    // Reserved for internal use.
+    extensions 12;
+
+    // A single process might have started one or more times in the duration of
+    // a trace. For each of these instances, measure the starting and ending
+    // anon+swap memory values.
+    repeated SpanGrowth anon_growth = 13;
+  }
+
+  message ProcessMemoryCounters {
+    optional Counter anon_rss = 1;
+    optional Counter file_rss = 2;
+    optional Counter swap = 3;
+    optional Counter anon_and_swap = 4;
+  }
+
+  message NamedCounter {
+    optional string name = 1;
+    optional Counter counter = 2;
+  }
+
+  message Counter {
+    optional double min = 1;
+    optional double max = 2;
+    optional double avg = 3;
+  }
+
+  message SpanGrowth {
+    // Initial value (at the beginning of the trace or process start)
+    optional double start_val = 1;
+
+    // End value (last sample for the pid).
+    optional double end_val = 2;
+
+    // Process duration (might or might not match the trace duration).
+    optional int64 duration = 3;
+
+    // (end_val - start_val) / start_val
+    optional double growth = 4;
+  }
+
+  optional SystemMetrics system_metrics = 4;
+
+  // Process-level metrics
+  repeated ProcessMetrics process_metrics = 3;
+}
