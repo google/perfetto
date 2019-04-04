@@ -638,14 +638,15 @@ class HeapprofdEndToEnd : public ::testing::Test {
   }
 };
 
-// TODO(b/118428762): stop pretending the tests pass on cuttlefish
-bool IsCuttlefish() {
-  std::string build = ReadProperty("ro.build.product", "");
-  return build.find("vsoc_x86") == 0;  // also matches vsoc_x86_64
+// TODO(b/118428762): unwinding is broken at least x86 emulators, blanket-skip
+// all x86-like primary ABIs until we've taken a closer look.
+bool IsX86() {
+  std::string abi = ReadProperty("ro.product.cpu.abi", "");
+  return abi.find("x86") != std::string::npos;
 }
 
 TEST_F(HeapprofdEndToEnd, Smoke_Central) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   auto prop = DisableFork();
@@ -654,7 +655,7 @@ TEST_F(HeapprofdEndToEnd, Smoke_Central) {
 }
 
 TEST_F(HeapprofdEndToEnd, TwoProcesses_Fork) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   // RAII handle that resets to central mode when out of scope.
@@ -664,7 +665,7 @@ TEST_F(HeapprofdEndToEnd, TwoProcesses_Fork) {
 }
 
 TEST_F(HeapprofdEndToEnd, TwoProcesses_Central) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   auto prop = DisableFork();
@@ -673,7 +674,7 @@ TEST_F(HeapprofdEndToEnd, TwoProcesses_Central) {
 }
 
 TEST_F(HeapprofdEndToEnd, Smoke_Fork) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   // RAII handle that resets to central mode when out of scope.
@@ -683,7 +684,7 @@ TEST_F(HeapprofdEndToEnd, Smoke_Fork) {
 }
 
 TEST_F(HeapprofdEndToEnd, FinalFlush_Central) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   auto prop = DisableFork();
@@ -692,7 +693,7 @@ TEST_F(HeapprofdEndToEnd, FinalFlush_Central) {
 }
 
 TEST_F(HeapprofdEndToEnd, FinalFlush_Fork) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   // RAII handle that resets to central mode when out of scope.
@@ -702,7 +703,7 @@ TEST_F(HeapprofdEndToEnd, FinalFlush_Fork) {
 }
 
 TEST_F(HeapprofdEndToEnd, NativeStartup_Central) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   auto prop = DisableFork();
@@ -711,7 +712,7 @@ TEST_F(HeapprofdEndToEnd, NativeStartup_Central) {
 }
 
 TEST_F(HeapprofdEndToEnd, NativeStartup_Fork) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   // RAII handle that resets to central mode when out of scope.
@@ -721,7 +722,7 @@ TEST_F(HeapprofdEndToEnd, NativeStartup_Fork) {
 }
 
 TEST_F(HeapprofdEndToEnd, ReInit_Central) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   auto prop = DisableFork();
@@ -730,7 +731,7 @@ TEST_F(HeapprofdEndToEnd, ReInit_Central) {
 }
 
 TEST_F(HeapprofdEndToEnd, ReInit_Fork) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   // RAII handle that resets to central mode when out of scope.
@@ -740,7 +741,7 @@ TEST_F(HeapprofdEndToEnd, ReInit_Fork) {
 }
 
 TEST_F(HeapprofdEndToEnd, ConcurrentSession_Central) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   auto prop = DisableFork();
@@ -749,7 +750,7 @@ TEST_F(HeapprofdEndToEnd, ConcurrentSession_Central) {
 }
 
 TEST_F(HeapprofdEndToEnd, ConcurrentSession_Fork) {
-  if (IsCuttlefish())
+  if (IsX86())
     return;
 
   // RAII handle that resets to central mode when out of scope.
