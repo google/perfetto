@@ -89,11 +89,12 @@ void PackagesListDataSource::Start() {
   auto* packages_list_packet = trace_packet->set_packages_list();
   if (!fs) {
     PERFETTO_ELOG("Failed to open packages.list");
-    packages_list_packet->set_error(true);
+    packages_list_packet->set_read_error(true);
     trace_packet->Finalize();
     writer_->Flush();
     return;
   }
+  bool parse_error = false;
   char line[2048];
   while (fgets(line, sizeof(line), *fs) != nullptr) {
     Package pkg_struct;
@@ -105,9 +106,16 @@ void PackagesListDataSource::Start() {
       package->set_profileable_from_shell(pkg_struct.profileable_from_shell);
       package->set_version_code(pkg_struct.version_code);
     } else {
-      packages_list_packet->set_error(true);
+      parse_error = true;
     }
   }
+
+  if (parse_error)
+    packages_list_packet->set_parse_error(true);
+
+  if (ferror(*fs))
+    packages_list_packet->set_read_error(true);
+
   trace_packet->Finalize();
   writer_->Flush();
 }

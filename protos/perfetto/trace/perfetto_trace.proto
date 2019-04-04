@@ -243,7 +243,7 @@ message AndroidLogPacket {
 // Begin of protos/perfetto/trace/android/packages_list.proto
 
 message PackagesList {
-  message Package {
+  message PackageInfo {
     optional string name = 1;
     optional uint64 uid = 2;
     optional bool debuggable = 3;
@@ -251,10 +251,13 @@ message PackagesList {
     optional int64 version_code = 5;
   }
 
-  repeated Package packages = 1;
+  repeated PackageInfo packages = 1;
 
   // At least one error occurred parsing the packages.list.
-  optional bool error = 2;
+  optional bool parse_error = 2;
+
+  // Failed to open / read packages.list.
+  optional bool read_error = 3;
 }
 
 // End of protos/perfetto/trace/android/packages_list.proto
