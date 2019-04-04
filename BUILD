@@ -461,6 +461,7 @@ cc_binary(
         "//third_party/perfetto/google:jsoncpp",
         "//third_party/perfetto/google:linenoise",
         "//third_party/perfetto/google:perfetto_version",
+        "//third_party/perfetto/protos:android_cc_proto",
         "//third_party/perfetto/protos:android_zero_cc_proto",
         "//third_party/perfetto/protos:chrome_zero_cc_proto",
         "//third_party/perfetto/protos:common_cc_proto",

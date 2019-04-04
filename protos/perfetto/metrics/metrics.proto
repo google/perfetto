@@ -19,7 +19,10 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
+import "perfetto/metrics/android/mem_metric.proto";
+
 // Root message for all Perfetto-based metrics.
 message TraceMetrics {
-  // TODO(lalitm): add sub-messages for each team using Perfetto metrics.
+  // Memory metrics on Android (owned by the Android Telemetry team).
+  optional AndroidMemoryMetric android_mem = 1;
 }
