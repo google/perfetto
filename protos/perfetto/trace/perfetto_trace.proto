@@ -253,7 +253,7 @@ message PackagesList {
 
   repeated Package packages = 1;
 
-  // At least one error occured parsing the packages.list.
+  // At least one error occurred parsing the packages.list.
   optional bool error = 2;
 }
 
