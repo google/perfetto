@@ -12,16 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
-import("../../../gn/proto_library.gni")
-import("../../../gn/protozero_library.gni")
+import("../../../../gn/perfetto.gni")
+import("../../../../gn/proto_library.gni")
+import("../../../../gn/protozero_library.gni")
 
-common_sources = [ "metrics.proto" ]
+common_sources = [ "mem_metric.proto" ]
 
 proto_library("lite") {
-  deps = [
-    "android:lite",
-  ]
   generate_python = false
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
@@ -29,9 +26,6 @@ proto_library("lite") {
 }
 
 protozero_library("zero") {
-  deps = [
-    "android:zero",
-  ]
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   sources = common_sources
