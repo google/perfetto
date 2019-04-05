@@ -34,32 +34,20 @@
 #error "This test can only be used on Android."
 #endif
 
-// If we're building on Android and starting the daemons ourselves,
-// create the sockets in a world-writable location.
-#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-#define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
-#else
-#define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
-#endif
-
 namespace perfetto {
 namespace profiling {
 namespace {
+
+// If we're building on Android and starting the daemons ourselves,
+// create the sockets in a world-writable location.
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+constexpr const char* kTestProducerSockName "/data/local/tmp/traced_producer";
+#endif
 
 constexpr useconds_t kMsToUs = 1000;
 
 using ::testing::Eq;
 using ::testing::AnyOf;
-
-void WaitForHeapprofd(uint64_t timeout_ms) {
-  constexpr uint64_t kSleepMs = 10;
-  std::vector<std::string> cmdlines{"heapprofd"};
-  std::set<pid_t> pids;
-  for (size_t i = 0; i < timeout_ms / kSleepMs && pids.empty(); ++i) {
-    FindPidsForCmdlines(cmdlines, &pids);
-    usleep(kSleepMs * 1000);
-  }
-}
 
 class HeapprofdDelegate : public ThreadDelegate {
  public:
@@ -122,16 +110,6 @@ int __attribute__((unused)) SetEnableProperty(std::string* value) {
     delete value;
   }
   return 0;
-}
-
-base::ScopedResource<std::string*, SetEnableProperty, nullptr>
-StartSystemHeapprofdIfRequired() {
-  base::ignore_result(TEST_PRODUCER_SOCK_NAME);
-  std::string prev_property_value = ReadProperty(kEnableHeapprofdProperty, "0");
-  __system_property_set(kEnableHeapprofdProperty, "1");
-  WaitForHeapprofd(5000);
-  return base::ScopedResource<std::string*, SetEnableProperty, nullptr>(
-      new std::string(prev_property_value));
 }
 
 constexpr size_t kStartupAllocSize = 10;
@@ -213,7 +191,6 @@ class HeapprofdEndToEnd : public ::testing::Test {
     // and then set to 1 again too quickly, init decides that the service is
     // "restarting" and waits before restarting it.
     usleep(50000);
-    unset_property = StartSystemHeapprofdIfRequired();
   }
 
  protected:
@@ -325,9 +302,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
   TaskRunnerThread producer_thread("perfetto.prd");
   producer_thread.Start(std::unique_ptr<HeapprofdDelegate>(
-      new HeapprofdDelegate(TEST_PRODUCER_SOCK_NAME)));
-#else
-  base::ScopedResource<std::string*, SetEnableProperty, nullptr> unset_property;
+      new HeapprofdDelegate(kTestProducerSockName)));
 #endif
 
   void Smoke() {
