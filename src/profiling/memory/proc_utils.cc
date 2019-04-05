@@ -85,6 +85,24 @@ bool NormalizeCmdLine(char* cmdline, size_t size, std::string* name) {
   name->assign(start, name_size);
   return true;
 }
+
+std::vector<std::string> NormalizeCmdlines(
+    const std::vector<std::string>& cmdlines) {
+  std::vector<std::string> normalized_cmdlines;
+  for (std::string cmdline : cmdlines) {
+    // Add nullbyte to make sure it's a C string.
+    cmdline.resize(cmdline.size() + 1, '\0');
+    std::string normalized;
+    if (!NormalizeCmdLine(&(cmdline[0]), cmdline.size(), &normalized)) {
+      PERFETTO_ELOG("Failed to normalize cmdline %s. Skipping.",
+                    cmdline.c_str());
+      continue;
+    }
+    normalized_cmdlines.emplace_back(std::move(normalized));
+  }
+  return normalized_cmdlines;
+}
+
 // This is mostly the same as GetHeapprofdProgramProperty in
 // https://android.googlesource.com/platform/bionic/+/master/libc/bionic/malloc_common.cpp
 // This should give the same result as GetHeapprofdProgramProperty.
