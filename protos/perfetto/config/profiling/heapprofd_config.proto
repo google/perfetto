@@ -34,8 +34,14 @@ message HeapprofdConfig {
   optional uint64 sampling_interval_bytes = 1;
 
   // E.g. surfaceflinger, com.android.phone
+  // This input is normalized in the following way: if it contains slashes,
+  // everything up to the last slash is discarded. If it contains "@",
+  // everything after the first @ is discared.
+  // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
+  // This transformation is also applied to the processes' command lines when
+  // matching.
   repeated string process_cmdline = 2;
-  // repeated string android_app = 3;  // TODO(fmayer): Implement
+
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
   optional bool all = 5;
