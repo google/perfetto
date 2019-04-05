@@ -34,8 +34,8 @@ function drawVerticalLine(ctx: CanvasRenderingContext2D,
     ctx.strokeStyle = color;
     const prevLineWidth = ctx.lineWidth;
     ctx.lineWidth = lineWidth;
-    ctx.moveTo(xPos + (lineWidth / 2), 0);
-    ctx.lineTo(xPos + (lineWidth / 2), height);
+    ctx.moveTo(xPos, 0);
+    ctx.lineTo(xPos, height);
     ctx.stroke();
     ctx.closePath();
     ctx.lineWidth = prevLineWidth;

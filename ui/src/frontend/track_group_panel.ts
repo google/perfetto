@@ -147,6 +147,15 @@ export class TrackGroupPanel extends Panel<Attrs> {
                               size.height,
                               `rgba(52,69,150,0.3)`);
       }
+      if (globals.state.currentSelection.kind === 'SLICE' &&
+          globals.sliceDetails.wakeupTs !== undefined) {
+        drawVerticalLineAtTime(
+            ctx,
+            localState.timeScale,
+            globals.sliceDetails.wakeupTs,
+            size.height,
+            `black`);
+      }
     }
   }
 }

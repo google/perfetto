@@ -399,12 +399,18 @@ canvas.main-canvas {
 
   table {
     font-size: 14px;
-    width: 100%;
-    td:first-child {
-      width: 20%;
-    }
+    width: 50%;
+    min-width: 200px;
+    max-width: 50%;
+    table-layout: fixed;
+    word-wrap: break-word;
     tr:hover {
       background-color: hsl(214, 22%, 90%);
+    }
+    th {
+      text-align: left;
+      width: 30%;
+      font-weight: normal;
     }
   }
 
