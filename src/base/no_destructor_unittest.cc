@@ -33,6 +33,9 @@ class FatalDestructor {
   }
 };
 
+// TODO(b/130026407): chromium trybots don't like these death tests,
+// investigate and re-enable if possible.
+#if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 TEST(NoDestructorTest, DoesNotDestruct) {
   // Fatal without wrapper.
   EXPECT_DEATH({ FatalDestructor f; }, "");
@@ -63,6 +66,7 @@ TEST(NoDestructorTest, DoesNotDestructStatic) {
       ::testing::ExitedWithCode(0), "");
 }
 #pragma GCC diagnostic pop
+#endif
 
 class NonTrivial {
  public:
