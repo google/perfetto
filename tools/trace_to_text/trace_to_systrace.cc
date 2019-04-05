@@ -131,25 +131,9 @@ class QueryWriter {
 
   template <typename Callback>
   bool RunQuery(base::StringView sql, Callback callback) {
-    auto iterator = tp_->ExecuteQuery(sql);
-    if (!iterator.IsValid()) {
-      PERFETTO_ELOG("Error creating SQL iterator");
-      return false;
-    }
-
     char buffer[2048];
-    for (uint32_t rows = 0;; rows++) {
-      using Result = trace_processor::TraceProcessor::Iterator::NextResult;
-
-      auto result = iterator.Next();
-      if (PERFETTO_UNLIKELY(result == Result::kError)) {
-        PERFETTO_ELOG("Error while writing systrace %s",
-                      iterator.GetLastError().value().c_str());
-        return false;
-      } else if (result == Result::kEOF) {
-        break;
-      }
-
+    auto iterator = tp_->ExecuteQuery(sql);
+    for (uint32_t rows = 0; iterator.Next(); rows++) {
       base::StringWriter line_writer(buffer, base::ArraySize(buffer));
       callback(&iterator, &line_writer);
 
@@ -160,6 +144,13 @@ class QueryWriter {
         global_writer_.reset();
       }
       global_writer_.AppendStringView(line_writer.GetStringView());
+    }
+
+    // Check if we have an error in the iterator and print if so.
+    auto opt_error = iterator.GetLastError();
+    if (opt_error.has_value()) {
+      PERFETTO_ELOG("Error while writing systrace %s", opt_error->c_str());
+      return false;
     }
 
     // Flush any dangling pieces in the global writer.
