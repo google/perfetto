@@ -136,7 +136,7 @@ def Main():
   # namespace applied, which we need in order to link libdexfile_external.so.
   # This gets linked into our tests via libundwindstack.so.
   #
-  # See https://android.git.corp.google.com/platform/system/core/+/master/rootdir/etc/ld.config.txt
+  # See https://android.googlesource.com/platform/system/core/+/master/rootdir/etc/ld.config.txt.
   AdbCall('push', test_bin, "/data/nativetest")
 
   if not args.no_data_deps:
