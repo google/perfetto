@@ -41,6 +41,7 @@ proto_library("minimal_complete_lite") {
   deps = [
     ":lite",
     "../:minimal_lite",
+    "../../common:lite",
     "../../config:lite",
     "../interned_data:lite",
     "../track_event:lite",
