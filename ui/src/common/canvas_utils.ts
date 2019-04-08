@@ -27,3 +27,36 @@ export function cropText(str: string, charWidth: number, rectWidth: number) {
   }
   return displayText;
 }
+
+export function drawDoubleHeadedArrow(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    length: number,
+    showArrowHeads: boolean,
+    width = 2,
+    color = 'black') {
+  ctx.beginPath();
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = color;
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + length, y);
+  ctx.stroke();
+  ctx.closePath();
+  // Arrowheads on the each end of the line.
+  if (showArrowHeads) {
+    ctx.beginPath();
+    ctx.moveTo(x + length - 8, y - 4);
+    ctx.lineTo(x + length, y);
+    ctx.lineTo(x + length - 8, y + 4);
+    ctx.stroke();
+    ctx.closePath();
+    ctx.beginPath();
+    ctx.moveTo(x + 8, y - 4);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + 8, y + 4);
+    ctx.stroke();
+    ctx.closePath();
+  }
+}
