@@ -72,20 +72,18 @@ class StorageColumn {
   bool hidden_ = false;
 };
 
-template <typename Id>
+// The implementation of StorageColumn for Strings.
+// The actual retrieval of the numerics from the data types is left to the
+// Acessor trait (see below for definition).
+template <typename Accessor /* <NullTermStringView> */>
 class StringColumn final : public StorageColumn {
  public:
-  StringColumn(std::string col_name,
-               const std::deque<Id>* deque,
-               const std::vector<std::string>* string_map,
-               bool hidden = false)
-      : StorageColumn(col_name, hidden),
-        deque_(deque),
-        string_map_(string_map) {}
+  StringColumn(std::string col_name, Accessor accessor, bool hidden = false)
+      : StorageColumn(col_name, hidden), accessor_(accessor) {}
 
   void ReportResult(sqlite3_context* ctx, uint32_t row) const override {
-    const auto& str = (*string_map_)[(*deque_)[row]];
-    if (str.empty()) {
+    NullTermStringView str = accessor_.Get(row);
+    if (str.c_str() == nullptr) {
       sqlite3_result_null(ctx);
     } else {
       sqlite3_result_text(ctx, str.c_str(), -1, sqlite_utils::kSqliteStatic);
@@ -94,7 +92,7 @@ class StringColumn final : public StorageColumn {
 
   Bounds BoundFilter(int, sqlite3_value*) const override {
     Bounds bounds;
-    bounds.max_idx = static_cast<uint32_t>(deque_->size());
+    bounds.max_idx = static_cast<uint32_t>(accessor_.Size());
     return bounds;
   }
 
@@ -103,14 +101,14 @@ class StringColumn final : public StorageColumn {
   Comparator Sort(const QueryConstraints::OrderBy& ob) const override {
     if (ob.desc) {
       return [this](uint32_t f, uint32_t s) {
-        const std::string& a = (*string_map_)[(*deque_)[f]];
-        const std::string& b = (*string_map_)[(*deque_)[s]];
+        NullTermStringView a = accessor_.Get(f);
+        NullTermStringView b = accessor_.Get(s);
         return sqlite_utils::CompareValuesDesc(a, b);
       };
     }
     return [this](uint32_t f, uint32_t s) {
-      const std::string& a = (*string_map_)[(*deque_)[f]];
-      const std::string& b = (*string_map_)[(*deque_)[s]];
+      NullTermStringView a = accessor_.Get(f);
+      NullTermStringView b = accessor_.Get(s);
       return sqlite_utils::CompareValuesAsc(a, b);
     };
   }
@@ -119,21 +117,21 @@ class StringColumn final : public StorageColumn {
     return Table::ColumnType::kString;
   }
 
-  bool HasOrdering() const override { return false; }
+  bool HasOrdering() const override { return accessor_.HasOrdering(); }
 
  private:
-  const std::deque<Id>* deque_ = nullptr;
-  const std::vector<std::string>* string_map_ = nullptr;
+  Accessor accessor_;
 };
 
 // The implementation of StorageColumn for numeric data types.
 // The actual retrieval of the numerics from the data types is left to the
 // Acessor trait (see below for definition).
-template <typename Accessor>
+template <typename Accessor,
+          typename sqlite_utils::is_numeric<typename Accessor::Type>* = nullptr>
 class NumericColumn : public StorageColumn {
  public:
   // The type of the column. This is one of uint32_t, int32_t, uint64_t etc.
-  using NumericType = typename Accessor::NumericType;
+  using NumericType = typename Accessor::Type;
 
   NumericColumn(std::string col_name, bool hidden, Accessor accessor)
       : StorageColumn(col_name, hidden), accessor_(accessor) {}
@@ -260,7 +258,7 @@ class NumericColumn : public StorageColumn {
   Accessor accessor_;
 };
 
-// Defines an accessor for numeric columns.
+// Defines an accessor for columns.
 // An accessor is a abstraction over the method to retrieve data in a column. As
 // there are many possible types of backing data (std::vector, std::deque,
 // creating on the flight etc.), this class hides this complexity behind an
@@ -269,28 +267,28 @@ class NumericColumn : public StorageColumn {
 // This class exists as an interface for documentation purposes. There should
 // be no use of it apart from classes inheriting from it to ensure they comply
 // with the requirements of the interface.
-template <typename NumericT>
-class NumericAccessor {
+template <typename DataType>
+class Accessor {
  public:
-  using NumericType = NumericT;
+  using Type = DataType;
 
-  virtual ~NumericAccessor() = default;
+  virtual ~Accessor() = default;
 
   // Returns the number of elements in the backing storage.
   virtual uint32_t Size() const = 0;
 
   // Returns the element located at index |idx|.
-  virtual NumericType Get(uint32_t idx) const = 0;
+  virtual Type Get(uint32_t idx) const = 0;
 
   // Returns whether the backing data source is ordered. |LowerBoundIndex| and
   // |UpperBoundIndex| will be called only if HasOrdering() returns true.
   virtual bool HasOrdering() const { return false; }
 
   // Returns the index of the lower bound of the value.
-  virtual uint32_t LowerBoundIndex(NumericType) const { PERFETTO_CHECK(false); }
+  virtual uint32_t LowerBoundIndex(Type) const { PERFETTO_CHECK(false); }
 
   // Returns the index of the lower bound of the value.
-  virtual uint32_t UpperBoundIndex(NumericType) const { PERFETTO_CHECK(false); }
+  virtual uint32_t UpperBoundIndex(Type) const { PERFETTO_CHECK(false); }
 
   // Returns whether the backing data sources can efficiently provide the
   // indices of elements equal to a given value. |EqualIndices| will be called
@@ -299,15 +297,59 @@ class NumericAccessor {
 
   // Returns the indices into the backing data source with value equal to
   // |value|.
-  virtual std::vector<uint32_t> EqualIndices(NumericType) const {
+  virtual std::vector<uint32_t> EqualIndices(Type) const {
     PERFETTO_CHECK(false);
   }
+};
+
+// An accessor implementation for string which uses a deque to store offsets
+// into a StringPool.
+class StringPoolAccessor : public Accessor<NullTermStringView> {
+ public:
+  StringPoolAccessor(const std::deque<StringPool::Id>* deque,
+                     const StringPool* string_pool);
+  ~StringPoolAccessor() override;
+
+  uint32_t Size() const override {
+    return static_cast<uint32_t>(deque_->size());
+  }
+
+  NullTermStringView Get(uint32_t idx) const override {
+    return string_pool_->Get((*deque_)[idx]);
+  }
+
+ private:
+  const std::deque<StringPool::Id>* deque_;
+  const StringPool* string_pool_;
+};
+
+// An accessor implementation for string which uses a deque to store indices
+// into a vector of strings.
+template <typename Id>
+class StringVectorAccessor : public Accessor<NullTermStringView> {
+ public:
+  StringVectorAccessor(const std::deque<Id>* deque,
+                       const std::vector<std::string>* string_map)
+      : deque_(deque), string_map_(string_map) {}
+  ~StringVectorAccessor() override = default;
+
+  uint32_t Size() const override {
+    return static_cast<uint32_t>(deque_->size());
+  }
+
+  NullTermStringView Get(uint32_t idx) const override {
+    return NullTermStringView((*string_map_)[(*deque_)[idx]]);
+  }
+
+ private:
+  const std::deque<Id>* deque_;
+  const std::vector<std::string>* string_map_;
 };
 
 // An accessor implementation for numeric columns which uses a deque as the
 // backing storage with an opitonal index for quick equality filtering.
 template <typename NumericType>
-class NumericDequeAccessor : public NumericAccessor<NumericType> {
+class NumericDequeAccessor : public Accessor<NumericType> {
  public:
   NumericDequeAccessor(const std::deque<NumericType>* deque,
                        const std::deque<std::vector<uint32_t>>* index,
@@ -352,7 +394,7 @@ class NumericDequeAccessor : public NumericAccessor<NumericType> {
   bool has_ordering_ = false;
 };
 
-class TsEndAccessor : public NumericAccessor<int64_t> {
+class TsEndAccessor : public Accessor<int64_t> {
  public:
   TsEndAccessor(const std::deque<int64_t>* ts, const std::deque<int64_t>* dur);
   ~TsEndAccessor() override;
@@ -368,7 +410,7 @@ class TsEndAccessor : public NumericAccessor<int64_t> {
   const std::deque<int64_t>* dur_ = nullptr;
 };
 
-class RowIdAccessor : public NumericAccessor<int64_t> {
+class RowIdAccessor : public Accessor<int64_t> {
  public:
   RowIdAccessor(TableId table_id);
   ~RowIdAccessor() override;
@@ -385,7 +427,7 @@ class RowIdAccessor : public NumericAccessor<int64_t> {
   TableId table_id_;
 };
 
-class RowAccessor : public NumericAccessor<uint32_t> {
+class RowAccessor : public Accessor<uint32_t> {
  public:
   RowAccessor();
   ~RowAccessor() override;
