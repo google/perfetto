@@ -182,7 +182,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     OPT_STOP,
   };
   static const struct option long_options[] = {
-      {"help", required_argument, nullptr, 'h'},
+      {"help", no_argument, nullptr, 'h'},
       {"config", required_argument, nullptr, 'c'},
       {"out", required_argument, nullptr, 'o'},
       {"background", no_argument, nullptr, 'd'},
@@ -218,7 +218,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
   for (;;) {
     int option =
-        getopt_long(argc, argv, "c:o:dt:b:s:", long_options, &option_index);
+        getopt_long(argc, argv, "hc:o:dt:b:s:", long_options, &option_index);
 
     if (option == -1)
       break;  // EOF.
