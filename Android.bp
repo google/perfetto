@@ -2849,6 +2849,7 @@ cc_test {
     "src/base/event.cc",
     "src/base/file_utils.cc",
     "src/base/metatrace.cc",
+    "src/base/no_destructor_unittest.cc",
     "src/base/optional_unittest.cc",
     "src/base/paged_memory.cc",
     "src/base/paged_memory_unittest.cc",
