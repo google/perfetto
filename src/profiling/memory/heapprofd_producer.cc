@@ -204,10 +204,14 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     return;
   }
 
+  std::vector<std::string> normalized_cmdlines =
+      NormalizeCmdlines(heapprofd_config.process_cmdline());
+
   // Child mode is only interested in the first data source matching the
   // already-connected process.
   if (mode_ == HeapprofdMode::kChild) {
-    if (!ConfigTargetsProcess(heapprofd_config, target_process_)) {
+    if (!ConfigTargetsProcess(heapprofd_config, target_process_,
+                              normalized_cmdlines)) {
       PERFETTO_DLOG("Child mode skipping setup of unrelated data source.");
       return;
     }
@@ -235,6 +239,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   data_source.config = heapprofd_config;
   auto buffer_id = static_cast<BufferID>(cfg.target_buffer());
   data_source.trace_writer = endpoint_->CreateTraceWriter(buffer_id);
+  data_source.normalized_cmdlines = std::move(normalized_cmdlines);
 
   data_sources_.emplace(id, std::move(data_source));
   PERFETTO_DLOG("Set up data source.");
@@ -289,7 +294,7 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
     if (heapprofd_config.all())
       data_source.properties.emplace_back(properties_.SetAll());
 
-    for (std::string cmdline : heapprofd_config.process_cmdline())
+    for (std::string cmdline : data_source.normalized_cmdlines)
       data_source.properties.emplace_back(
           properties_.SetProperty(std::move(cmdline)));
 
@@ -299,8 +304,8 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
     for (uint64_t pid : heapprofd_config.pid())
       pids.emplace(static_cast<pid_t>(pid));
 
-    if (!heapprofd_config.process_cmdline().empty())
-      FindPidsForCmdlines(heapprofd_config.process_cmdline(), &pids);
+    if (!data_source.normalized_cmdlines.empty())
+      FindPidsForCmdlines(data_source.normalized_cmdlines, &pids);
 
     for (auto pid_it = pids.cbegin(); pid_it != pids.cend();) {
       pid_t pid = *pid_it;
@@ -630,8 +635,10 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
   }
 }
 
-bool HeapprofdProducer::ConfigTargetsProcess(const HeapprofdConfig& cfg,
-                                             const Process& proc) {
+bool HeapprofdProducer::ConfigTargetsProcess(
+    const HeapprofdConfig& cfg,
+    const Process& proc,
+    const std::vector<std::string>& normalized_cmdlines) {
   if (cfg.all())
     return true;
 
@@ -641,9 +648,8 @@ bool HeapprofdProducer::ConfigTargetsProcess(const HeapprofdConfig& cfg,
     return true;
   }
 
-  const auto& cmdlines = cfg.process_cmdline();
-  if (std::find(cmdlines.cbegin(), cmdlines.cend(), proc.cmdline) !=
-      cmdlines.cend()) {
+  if (std::find(normalized_cmdlines.cbegin(), normalized_cmdlines.cend(),
+                proc.cmdline) != normalized_cmdlines.cend()) {
     return true;
   }
 
@@ -654,7 +660,7 @@ HeapprofdProducer::DataSource* HeapprofdProducer::GetDataSourceForProcess(
     const Process& proc) {
   for (auto& ds_id_and_datasource : data_sources_) {
     DataSource& ds = ds_id_and_datasource.second;
-    if (ConfigTargetsProcess(ds.config, proc))
+    if (ConfigTargetsProcess(ds.config, proc, ds.normalized_cmdlines))
       return &ds;
   }
   return nullptr;
@@ -664,7 +670,8 @@ void HeapprofdProducer::RecordOtherSourcesAsRejected(DataSource* active_ds,
                                                      const Process& proc) {
   for (auto& ds_id_and_datasource : data_sources_) {
     DataSource& ds = ds_id_and_datasource.second;
-    if (&ds != active_ds && ConfigTargetsProcess(ds.config, proc))
+    if (&ds != active_ds &&
+        ConfigTargetsProcess(ds.config, proc, ds.normalized_cmdlines))
       ds.rejected_pids.emplace(proc.pid);
   }
 }
