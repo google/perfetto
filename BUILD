@@ -464,8 +464,6 @@ cc_binary(
         "//third_party/perfetto/protos:common_cc_proto",
         "//third_party/perfetto/protos:common_zero_cc_proto",
         "//third_party/perfetto/protos:config_zero_cc_proto",
-        "//third_party/perfetto/protos:metrics_android_cc_proto",
-        "//third_party/perfetto/protos:metrics_cc_proto",
         "//third_party/perfetto/protos:trace_android_zero_cc_proto",
         "//third_party/perfetto/protos:trace_chrome_zero_cc_proto",
         "//third_party/perfetto/protos:trace_filesystem_zero_cc_proto",
