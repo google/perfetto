@@ -115,7 +115,7 @@ HeapprofdProducer::~HeapprofdProducer() {
   // We only borrowed this from the environment variable.
   // UnixSocket always owns the socket, so we need to manually release it
   // here.
-  if (mode_ == HeapprofdMode::kCentral)
+  if (mode_ == HeapprofdMode::kCentral && bool(listening_socket_))
     listening_socket_->ReleaseSocket().ReleaseFd().release();
 }
 
@@ -173,7 +173,7 @@ void HeapprofdProducer::OnDisconnect() {
       [weak_producer] {
         if (!weak_producer)
           return;
-        weak_producer->Connect();
+        weak_producer->ConnectService();
       },
       connection_backoff_ms_);
 }
@@ -520,7 +520,7 @@ void HeapprofdProducer::ConnectWithRetries(const char* socket_name) {
 
   ResetConnectionBackoff();
   producer_sock_name_ = socket_name;
-  Connect();
+  ConnectService();
 }
 
 void HeapprofdProducer::DumpAll() {
@@ -530,11 +530,16 @@ void HeapprofdProducer::DumpAll() {
   }
 }
 
-void HeapprofdProducer::Connect() {
+void HeapprofdProducer::ConnectService() {
+  SetProducerEndpoint(ProducerIPCClient::Connect(
+      producer_sock_name_, this, "android.heapprofd", task_runner_));
+}
+
+void HeapprofdProducer::SetProducerEndpoint(
+    std::unique_ptr<TracingService::ProducerEndpoint> endpoint) {
   PERFETTO_DCHECK(state_ == kNotConnected);
   state_ = kConnecting;
-  endpoint_ = ProducerIPCClient::Connect(producer_sock_name_, this,
-                                         "android.heapprofd", task_runner_);
+  endpoint_ = std::move(endpoint);
 }
 
 void HeapprofdProducer::IncreaseConnectionBackoff() {

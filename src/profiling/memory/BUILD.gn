@@ -148,6 +148,7 @@ source_set("unittests") {
     "../../../gn:gtest_deps",
     "../../base",
     "../../base:test_support",
+    "../../tracing",
   ]
   sources = [
     "bookkeeping_unittest.cc",

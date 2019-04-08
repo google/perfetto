@@ -19,11 +19,37 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/commit_data_request.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
+
+#include "src/base/test/test_task_runner.h"
+
 namespace perfetto {
 namespace profiling {
 
 using ::testing::Contains;
 using ::testing::Pair;
+using ::testing::Eq;
+using ::testing::Property;
+
+class MockProducerEndpoint : public TracingService::ProducerEndpoint {
+ public:
+  MOCK_METHOD1(UnregisterDataSource, void(const std::string&));
+  MOCK_METHOD1(NotifyFlushComplete, void(FlushRequestID));
+  MOCK_METHOD1(NotifyDataSourceStarted, void(DataSourceInstanceID));
+  MOCK_METHOD1(NotifyDataSourceStopped, void(DataSourceInstanceID));
+
+  MOCK_CONST_METHOD0(shared_memory, SharedMemory*());
+  MOCK_CONST_METHOD0(shared_buffer_page_size_kb, size_t());
+  MOCK_METHOD1(CreateTraceWriter, std::unique_ptr<TraceWriter>(BufferID));
+  MOCK_METHOD1(ActivateTriggers, void(const std::vector<std::string>&));
+
+  MOCK_METHOD1(RegisterDataSource, void(const DataSourceDescriptor&));
+  MOCK_METHOD2(CommitData, void(const CommitDataRequest&, CommitDataCallback));
+  MOCK_METHOD2(RegisterTraceWriter, void(uint32_t, uint32_t));
+  MOCK_METHOD1(UnregisterTraceWriter, void(uint32_t));
+};
 
 TEST(LogHistogramTest, Simple) {
   LogHistogram h;
@@ -37,6 +63,19 @@ TEST(LogHistogramTest, Overflow) {
   LogHistogram h;
   h.Add(std::numeric_limits<uint64_t>::max());
   EXPECT_THAT(h.GetData(), Contains(Pair(LogHistogram::kMaxBucket, 1)));
+}
+
+TEST(HeapprofdProducerTest, ExposesDataSource) {
+  base::TestTaskRunner task_runner;
+  HeapprofdProducer producer(HeapprofdMode::kCentral, &task_runner);
+
+  std::unique_ptr<MockProducerEndpoint> endpoint(new MockProducerEndpoint());
+  EXPECT_CALL(*endpoint,
+              RegisterDataSource(Property(&DataSourceDescriptor::name,
+                                          Eq("android.heapprofd"))))
+      .Times(1);
+  producer.SetProducerEndpoint(std::move(endpoint));
+  producer.OnConnect();
 }
 
 }  // namespace profiling
