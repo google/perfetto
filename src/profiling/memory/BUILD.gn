@@ -229,3 +229,15 @@ perfetto_fuzzer_test("shared_ring_buffer_fuzzer") {
     "../../base",
   ]
 }
+
+perfetto_fuzzer_test("shared_ring_buffer_write_fuzzer") {
+  testonly = true
+  sources = [
+    "shared_ring_buffer_write_fuzzer.cc",
+  ]
+  deps = [
+    ":ring_buffer",
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}

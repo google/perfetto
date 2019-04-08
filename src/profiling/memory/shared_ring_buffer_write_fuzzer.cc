@@ -25,6 +25,11 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+struct FuzzingInputHeader {
+  size_t write_size;
+  SharedRingBuffer::MetadataPage metadata_page;
+};
+
 size_t RoundToPow2(size_t v) {
   uint64_t x = static_cast<uint64_t>(v);
   if (x < 2)
@@ -41,51 +46,51 @@ size_t RoundToPow2(size_t v) {
   return static_cast<size_t>(x);
 }
 
-int FuzzRingBuffer(const uint8_t* data, size_t size) {
-  if (size <= sizeof(SharedRingBuffer::MetadataPage))
+int FuzzRingBufferWrite(const uint8_t* data, size_t size) {
+  if (size <= sizeof(FuzzingInputHeader))
     return 0;
 
   auto fd = base::TempFile::CreateUnlinked().ReleaseFD();
   PERFETTO_CHECK(fd);
 
-  // Use fuzzer input to first fill the SharedRingBuffer::MetadataPage in the
-  // first page, and then put the remainder into the data portion of the ring
-  // buffer (2nd+ pages).
-  size_t payload_size = size - sizeof(SharedRingBuffer::MetadataPage);
-  const uint8_t* payload = data + sizeof(SharedRingBuffer::MetadataPage);
+  // Prefill shared buffer with fuzzer input, then attempt to write.
+  // TODO(fmayer): Do we actually need to fill the buffer with payload, or
+  // should we only fuzz the metadata?
+  size_t payload_size = size - sizeof(FuzzingInputHeader);
+  const uint8_t* payload = data + sizeof(FuzzingInputHeader);
   size_t payload_size_pages =
       (payload_size + base::kPageSize - 1) / base::kPageSize;
   // Upsize test buffer to be 2^n data pages (precondition of the impl) + 1 page
   // for the metadata.
   size_t total_size_pages = 1 + RoundToPow2(payload_size_pages);
 
-  // Clear spinlock field, as otherwise the read will wait indefinitely (it
-  // defaults to indefinite blocking mode).
-  SharedRingBuffer::MetadataPage header = {};
+  // Clear spinlock field, as otherwise we will fail acquiring the lock below.
+  FuzzingInputHeader header = {};
   memcpy(&header, data, sizeof(header));
-  header.spinlock = 0;
+  SharedRingBuffer::MetadataPage& metadata_page = header.metadata_page;
+  metadata_page.spinlock = 0;
 
   PERFETTO_CHECK(ftruncate(*fd, static_cast<off_t>(total_size_pages *
                                                    base::kPageSize)) == 0);
-  PERFETTO_CHECK(base::WriteAll(*fd, &header, sizeof(header)) != -1);
+  PERFETTO_CHECK(base::WriteAll(*fd, &metadata_page, sizeof(metadata_page)) !=
+                 -1);
   PERFETTO_CHECK(lseek(*fd, base::kPageSize, SEEK_SET) != -1);
   PERFETTO_CHECK(base::WriteAll(*fd, payload, payload_size) != -1);
 
   auto buf = SharedRingBuffer::Attach(std::move(fd));
   PERFETTO_CHECK(!!buf);
 
-  bool did_read;
-  do {
-    auto read_buf = buf->BeginRead();
-    did_read = bool(read_buf);
-    if (did_read) {
-      volatile uint8_t* v_data = read_buf.data;
-      // Assert we get a reference to valid memory.
-      for (size_t i = 0; i < read_buf.size; ++i)
-        v_data[i] = v_data[i];
-    }
-    buf->EndRead(std::move(read_buf));
-  } while (did_read);
+  SharedRingBuffer::Buffer write_buf;
+  {
+    auto lock = buf->AcquireLock(ScopedSpinlock::Mode::Try);
+    PERFETTO_CHECK(lock.locked());
+    write_buf = buf->BeginWrite(lock, header.write_size);
+  }
+  if (!write_buf)
+    return 0;
+
+  memset(write_buf.data, '\0', write_buf.size);
+  buf->EndWrite(std::move(write_buf));
   return 0;
 }
 
@@ -96,5 +101,5 @@ int FuzzRingBuffer(const uint8_t* data, size_t size) {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-  return perfetto::profiling::FuzzRingBuffer(data, size);
+  return perfetto::profiling::FuzzRingBufferWrite(data, size);
 }
