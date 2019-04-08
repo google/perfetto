@@ -31,7 +31,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
-#include "perfetto/metrics/metrics.pb.h"
 #include "perfetto/trace_processor/raw_query.pb.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -254,11 +253,12 @@ int ExportTraceToDatabase(const std::string& output_name) {
 }
 
 int RunMetrics(const std::vector<std::string>& metric_names) {
-  protos::TraceMetrics metrics_proto;
-  for (const auto& metric : metric_names) {
-    perfetto::base::ignore_result(metric);
+  std::vector<uint8_t> metric_result;
+  int res = g_tp->ComputeMetric(metric_names, &metric_result);
+  if (res) {
+    PERFETTO_ELOG("Error when computing metrics");
+    return 1;
   }
-  perfetto::base::ignore_result(metrics_proto);
   return 0;
 }
 
