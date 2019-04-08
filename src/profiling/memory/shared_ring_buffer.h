@@ -121,8 +121,8 @@ class SharedRingBuffer {
     return lock;
   }
 
- private:
-  struct alignas(base::kPageSize) MetadataPage {
+  // Exposed for fuzzers.
+  struct MetadataPage {
     alignas(uint64_t) std::atomic<bool> spinlock;
     uint64_t read_pos;
     uint64_t write_pos;
@@ -131,6 +131,7 @@ class SharedRingBuffer {
     Stats stats;
   };
 
+ private:
   struct PointerPositions {
     uint64_t read_pos;
     uint64_t write_pos;
