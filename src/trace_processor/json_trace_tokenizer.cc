@@ -20,6 +20,7 @@
 #include <json/value.h>
 
 #include "src/trace_processor/json_trace_utils.h"
+#include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 
@@ -125,7 +126,10 @@ bool JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
 
     base::Optional<int64_t> opt_ts =
         json_trace_utils::CoerceToNs((*value)["ts"]);
-    PERFETTO_CHECK(opt_ts.has_value());
+    if (!opt_ts.has_value()) {
+      context_->storage->IncrementStats(stats::json_tokenizer_failure);
+      continue;
+    }
     int64_t ts = opt_ts.value();
 
     trace_sorter->PushJsonValue(ts, std::move(value));
