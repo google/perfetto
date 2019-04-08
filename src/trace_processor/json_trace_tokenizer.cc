@@ -27,10 +27,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-namespace {
-
-enum ReadDictRes { kFoundDict, kNeedsMoreData, kEndOfTrace, kFatalError };
-
 // Parses at most one JSON dictionary and returns a pointer to the end of it,
 // or nullptr if no dict could be detected.
 // This is to avoid decoding the full trace in memory and reduce heap traffic.
@@ -43,9 +39,23 @@ ReadDictRes ReadOneJsonDict(const char* start,
   int braces = 0;
   int square_brackets = 0;
   const char* dict_begin = nullptr;
+  bool in_string = false;
+  bool is_escaping = false;
   for (const char* s = start; s < end; s++) {
     if (isspace(*s) || *s == ',')
       continue;
+    if (*s == '"' && !is_escaping) {
+      in_string = !in_string;
+      continue;
+    }
+    if (in_string) {
+      // If we're in a string and we see a backslash and the last character was
+      // not a backslash the next character is escaped:
+      is_escaping = *s == '\\' && !is_escaping;
+      // If we're currently parsing a string we should ignore otherwise special
+      // characters:
+      continue;
+    }
     if (*s == '{') {
       if (braces == 0)
         dict_begin = s;
@@ -80,13 +90,9 @@ ReadDictRes ReadOneJsonDict(const char* start,
       }
       square_brackets--;
     }
-
-    // TODO(primiano): skip braces in quoted strings, e.g.: {"foo": "ba{z" }
   }
   return kNeedsMoreData;
 }
-
-}  // namespace
 
 JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx) {}
