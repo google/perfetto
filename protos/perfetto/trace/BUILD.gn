@@ -94,6 +94,7 @@ proto_library("trusted_lite") {
   generate_python = false
   deps = [
     ":minimal_lite",
+    "../common:lite",
     "../config:lite",
   ]
   sources = proto_sources_trusted
