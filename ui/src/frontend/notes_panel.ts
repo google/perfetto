@@ -24,7 +24,7 @@ import {TRACK_SHELL_WIDTH} from './track_constants';
 import {hsl} from 'color-convert';
 
 const FLAG_WIDTH = 16;
-const MOUSE_OFFSET = 4;
+const MOUSE_OFFSET = 6;
 const FLAG = `\uE153`;
 
 function toSummary(s: string) {
