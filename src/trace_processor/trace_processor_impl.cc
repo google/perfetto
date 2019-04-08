@@ -89,6 +89,27 @@ void InitializeSqlite(sqlite3* db) {
 #endif
 }
 
+void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
+  char* error = nullptr;
+  sqlite3_exec(db, "DELETE FROM trace_bounds", nullptr, nullptr, &error);
+  if (error) {
+    PERFETTO_ELOG("Error deleting from bounds table: %s", error);
+    sqlite3_free(error);
+    return;
+  }
+
+  char* insert_sql = sqlite3_mprintf("INSERT INTO trace_bounds VALUES(%" PRId64
+                                     ", %" PRId64 ")",
+                                     bounds.first, bounds.second);
+
+  sqlite3_exec(db, insert_sql, 0, 0, &error);
+  sqlite3_free(insert_sql);
+  if (error) {
+    PERFETTO_ELOG("Error inserting bounds table: %s", error);
+    sqlite3_free(error);
+  }
+}
+
 void CreateBuiltinTables(sqlite3* db) {
   char* error = nullptr;
   sqlite3_exec(db, "CREATE TABLE perfetto_tables(name STRING)", 0, 0, &error);
@@ -103,19 +124,10 @@ void CreateBuiltinTables(sqlite3* db) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
-}
 
-void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
-  char* insert_sql = sqlite3_mprintf("INSERT INTO trace_bounds VALUES(%" PRId64
-                                     ", %" PRId64 ")",
-                                     bounds.first, bounds.second);
-  char* error = nullptr;
-  sqlite3_exec(db, insert_sql, 0, 0, &error);
-  sqlite3_free(insert_sql);
-  if (error) {
-    PERFETTO_ELOG("Error inserting bounds table: %s", error);
-    sqlite3_free(error);
-  }
+  // Initialize the bounds table with some data so even before parsing any data,
+  // we still have a valid table.
+  BuildBoundsTable(db, std::make_pair(0, 0));
 }
 
 void CreateBuiltinViews(sqlite3* db) {
