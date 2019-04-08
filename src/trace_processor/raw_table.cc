@@ -74,7 +74,7 @@ int RawTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
-void RawTable::FormatSystraceArgs(const std::string& event_name,
+void RawTable::FormatSystraceArgs(NullTermStringView event_name,
                                   ArgSetId arg_set_id,
                                   base::StringWriter* writer) {
   const auto& set_ids = storage_->args().set_ids();
@@ -111,7 +111,7 @@ void RawTable::FormatSystraceArgs(const std::string& event_name,
     const auto& value = args.arg_values()[arg_row];
 
     writer->AppendChar(' ');
-    writer->AppendString(key.c_str(), key.length());
+    writer->AppendString(key.c_str(), key.size());
     writer->AppendChar('=');
     value_fn(value);
   };
@@ -199,7 +199,7 @@ void RawTable::FormatSystraceArgs(const std::string& event_name,
     const auto& value = args.arg_values()[arg_row];
     const auto& str = storage_->GetString(value.string_value);
     // If the last character is a newline in a print, just drop it.
-    auto chars_to_print = !str.empty() && str[str.size() - 1] == '\n'
+    auto chars_to_print = !str.empty() && str.c_str()[str.size() - 1] == '\n'
                               ? str.size() - 1
                               : str.size();
     writer->AppendChar(' ');
