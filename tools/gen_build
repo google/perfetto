@@ -182,17 +182,6 @@ def label_to_target_name_with_path(label):
   return name
 
 
-def label_to_target_name_with_parent(label):
-  """
-  Turn a GN label into a target name involving the parent dir.
-  e.g., //src/perfetto:tests -> perfetto_tests
-  """
-  name = re.sub(r'^//:?', '', label)
-  parts = name.split('/')
-  name = re.sub(r'[^a-zA-Z0-9_]', '_', parts[-1])
-  return name
-
-
 def label_without_toolchain(label):
   """Strips the toolchain from a GN label.
 
@@ -499,8 +488,8 @@ class BuildGenerator(object):
 
     is_pbzero = any("pbzero" in arg for arg in args)
     gn_target_name_no_toolchain = label_without_toolchain(gn_target_name)
-    pretty_target_name = label_to_target_name_with_parent(
-        gn_target_name_no_toolchain)
+    stripped_path = gn_target_name_no_toolchain.replace("protos/perfetto/", "")
+    pretty_target_name = label_to_target_name_with_path(stripped_path)
     pretty_target_name = pretty_target_name.replace("_lite_gen", "")
     pretty_target_name = pretty_target_name.replace("_zero_gen", "_zero")
 
