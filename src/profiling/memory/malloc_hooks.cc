@@ -57,7 +57,7 @@ using perfetto::profiling::UnhookedAllocator;
 extern "C" {
 
 bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
-                                       int* malloc_zygote_child,
+                                       bool* zygote_child,
                                        const char* options);
 void HEAPPROFD_ADD_PREFIX(_finalize)();
 void HEAPPROFD_ADD_PREFIX(_dump_heap)(const char* file_name);
@@ -295,7 +295,7 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
 // (which is safe to block). If profiling is triggered at startup, then this
 // code runs synchronously.
 bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
-                                       int*,
+                                       bool*,
                                        const char*) {
   // Table of pointers to backing implementation.
   g_dispatch.store(malloc_dispatch, std::memory_order_relaxed);
