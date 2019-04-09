@@ -51,6 +51,7 @@ kernel_lmk.py lmk.sql lmk_kernel_lmk.out
 # ../data/memory_counters.pb smoke_args.sql memory_counters_smoke_args.out
 # ../data/memory_counters.pb counter_args_join.sql memory_counters_counter_args_join.out
 ../data/memory_counters.pb b120605557.sql memory_counters_b120605557.out
+../data/memory_counters.pb counters_ref_type_null.sql counters_ref_type_null_memory_counters.out
 
 # Stats
 ../data/android_sched_and_ps.pb stats.sql android_sched_and_ps_stats.out
