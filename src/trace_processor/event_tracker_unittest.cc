@@ -66,9 +66,9 @@ TEST_F(EventTrackerTest, InsertSecondSched) {
   ASSERT_EQ(timestamps.size(), 2ul);
   ASSERT_EQ(timestamps[0], timestamp);
   ASSERT_EQ(context.storage->GetThread(1).start_ns, timestamp);
-  ASSERT_EQ(std::string(context.storage->GetString(
-                context.storage->GetThread(1).name_id)),
-            kCommProc1);
+  ASSERT_STREQ(
+      context.storage->GetString(context.storage->GetThread(1).name_id).c_str(),
+      kCommProc1);
   ASSERT_EQ(context.storage->slices().utids().front(), 1);
   ASSERT_EQ(context.storage->slices().durations().front(), 1);
 }

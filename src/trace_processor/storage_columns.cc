@@ -23,6 +23,11 @@ StorageColumn::StorageColumn(std::string col_name, bool hidden)
     : col_name_(col_name), hidden_(hidden) {}
 StorageColumn::~StorageColumn() = default;
 
+StringPoolAccessor::StringPoolAccessor(const std::deque<StringId>* deque,
+                                       const StringPool* string_pool)
+    : deque_(deque), string_pool_(string_pool) {}
+StringPoolAccessor::~StringPoolAccessor() = default;
+
 TsEndAccessor::TsEndAccessor(const std::deque<int64_t>* ts,
                              const std::deque<int64_t>* dur)
     : ts_(ts), dur_(dur) {}
