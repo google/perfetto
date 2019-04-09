@@ -19,54 +19,30 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "perfetto/base/logging.h"
 #include "perfetto/base/no_destructor.h"
 
 namespace perfetto {
 namespace base {
 namespace {
 
-class FatalDestructor {
+class SetFlagOnDestruct {
  public:
-  __attribute__((noreturn)) ~FatalDestructor() {
-    PERFETTO_FATAL("Should not be called.");
-  }
+  SetFlagOnDestruct(bool* flag) : flag_(flag) {}
+  ~SetFlagOnDestruct() { *flag_ = true; }
+
+  bool* flag_;
 };
 
-// TODO(b/130026407): chromium trybots don't like these death tests,
-// investigate and re-enable if possible.
-#if !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 TEST(NoDestructorTest, DoesNotDestruct) {
-  // Fatal without wrapper.
-  EXPECT_DEATH({ FatalDestructor f; }, "");
+  bool destructor_called = false;
+  { SetFlagOnDestruct f(&destructor_called); }
+  ASSERT_TRUE(destructor_called);
 
   // Not destructed when wrapped.
-  EXPECT_NO_FATAL_FAILURE({ NoDestructor<FatalDestructor> f; });
+  destructor_called = false;
+  { NoDestructor<SetFlagOnDestruct> f(&destructor_called); }
+  ASSERT_FALSE(destructor_called);
 }
-
-#pragma GCC diagnostic push
-#if defined(__clang__)
-#pragma GCC diagnostic ignored "-Wexit-time-destructors"
-#endif
-TEST(NoDestructorTest, DoesNotDestructStatic) {
-  // Fatal without wrapper.
-  ASSERT_DEATH(
-      {
-        static FatalDestructor f;
-        exit(0);
-      },
-      "");
-
-  // Not destructed when wrapped.
-  ASSERT_EXIT(
-      {
-        static NoDestructor<FatalDestructor> f;
-        exit(0);
-      },
-      ::testing::ExitedWithCode(0), "");
-}
-#pragma GCC diagnostic pop
-#endif
 
 class NonTrivial {
  public:
