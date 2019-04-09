@@ -116,7 +116,9 @@ base::Optional<base::UnixSocketRaw> Client::ConnectToHeapprofd(
 }
 
 // static
-std::shared_ptr<Client> Client::CreateAndHandshake(base::UnixSocketRaw sock) {
+std::shared_ptr<Client> Client::CreateAndHandshake(
+    base::UnixSocketRaw sock,
+    UnhookedAllocator<Client> unhooked_allocator) {
   if (!sock) {
     PERFETTO_DFATAL("Socket not connected.");
     return nullptr;
@@ -197,9 +199,10 @@ std::shared_ptr<Client> Client::CreateAndHandshake(base::UnixSocketRaw sock) {
 
   PERFETTO_DCHECK(client_config.interval >= 1);
   Sampler sampler{client_config.interval};
-  return std::make_shared<Client>(std::move(sock), client_config,
-                                  std::move(shmem.value()), std::move(sampler),
-                                  FindMainThreadStack());
+  // note: the shared_ptr will retain a copy of the unhooked_allocator
+  return std::allocate_shared<Client>(
+      unhooked_allocator, std::move(sock), client_config,
+      std::move(shmem.value()), std::move(sampler), FindMainThreadStack());
 }
 
 Client::Client(base::UnixSocketRaw sock,
