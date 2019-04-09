@@ -177,6 +177,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     std::set<pid_t> signaled_pids;
     std::set<pid_t> rejected_pids;
     std::map<pid_t, ProcessState> process_states;
+    std::vector<std::string> normalized_cmdlines;
     uint64_t next_index_ = 0;
   };
 
@@ -190,7 +191,10 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   bool IsPidProfiled(pid_t);
   DataSource* GetDataSourceForProcess(const Process& proc);
-  bool ConfigTargetsProcess(const HeapprofdConfig& cfg, const Process& proc);
+  bool ConfigTargetsProcess(
+      const HeapprofdConfig& cfg,
+      const Process& proc,
+      const std::vector<std::string>& normalized_cmdlines);
   void RecordOtherSourcesAsRejected(DataSource* active_ds, const Process& proc);
 
   std::map<DataSourceInstanceID, DataSource> data_sources_;
