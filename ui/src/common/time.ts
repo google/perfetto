@@ -44,7 +44,7 @@ export function formatTimestamp(sec: number) {
 export function timeToCode(sec: number) {
   let result = '';
   let ns = Math.round(sec * 1e9);
-  if (ns < 1) return '0s ';
+  if (ns < 1) return '0s';
   const unitAndValue = [
     ['m', 60000000000],
     ['s', 1000000000],
@@ -61,7 +61,7 @@ export function timeToCode(sec: number) {
       result += i.toLocaleString() + unit + ' ';
     }
   });
-  return result;
+  return result.slice(0, -1);
 }
 
 export class TimeSpan {

@@ -36,17 +36,17 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
           m('.details-panel-heading', 'Thread State'),
           m('.details-table', [m('table', [
               m('tr',
-                m('td', `Start time`),
+                m('th', `Start time`),
                 m('td',
                   `${
                      timeToCode(attrs.ts - globals.state.traceTime.startSec)
                    }`)),
-              m('tr', m('td', `Duration`), m('td', `${timeToCode(attrs.dur)}`)),
+              m('tr', m('th', `Duration`), m('td', `${timeToCode(attrs.dur)}`)),
               m('tr',
-                m('td', `State`),
+                m('th', `State`),
                 m('td', `${translateState(attrs.state)}`)),
               m('tr',
-                m('td', `Process`),
+                m('th', `Process`),
                 m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
             ])]));
     } else {
