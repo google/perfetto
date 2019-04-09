@@ -77,7 +77,18 @@ class StorageSchema {
     Builder& AddStringColumn(std::string column_name,
                              const std::deque<Id>* ids,
                              const std::vector<std::string>* string_map) {
-      columns_.emplace_back(new StringColumn<Id>(column_name, ids, string_map));
+      StringVectorAccessor<Id> accessor(ids, string_map);
+      columns_.emplace_back(
+          new StringColumn<decltype(accessor)>(column_name, accessor));
+      return *this;
+    }
+
+    Builder& AddStringColumn(std::string column_name,
+                             const std::deque<StringPool::Id>* ids,
+                             const StringPool* string_pool) {
+      StringPoolAccessor accessor(ids, string_pool);
+      columns_.emplace_back(
+          new StringColumn<StringPoolAccessor>(column_name, accessor));
       return *this;
     }
 

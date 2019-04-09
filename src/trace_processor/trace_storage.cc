@@ -42,30 +42,9 @@ TraceStorage::TraceStorage() {
   // Upid/utid 0 is reserved for idle processes/threads.
   unique_processes_.emplace_back(0);
   unique_threads_.emplace_back(0);
-
-  // Reserve string ID 0 for the empty string.
-  InternString("");
 }
 
 TraceStorage::~TraceStorage() {}
-
-StringId TraceStorage::InternString(base::StringView str) {
-  // Temporarily return the empty string's id as the null string.
-  // TODO(lalitm): remove this as part of the usage of StringPool.
-  if (str.data() == nullptr)
-    return 0;
-
-  auto hash = str.Hash();
-  auto id_it = string_index_.find(hash);
-  if (id_it != string_index_.end()) {
-    PERFETTO_DCHECK(base::StringView(string_pool_[id_it->second]) == str);
-    return id_it->second;
-  }
-  string_pool_.emplace_back(str.ToStdString());
-  StringId string_id = static_cast<uint32_t>(string_pool_.size() - 1);
-  string_index_.emplace(hash, string_id);
-  return string_id;
-}
 
 void TraceStorage::ResetStorage() {
   *this = TraceStorage();
