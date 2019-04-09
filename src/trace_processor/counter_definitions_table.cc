@@ -23,7 +23,7 @@ CounterDefinitionsTable::CounterDefinitionsTable(sqlite3*,
                                                  const TraceStorage* storage)
     : storage_(storage) {
   ref_types_.resize(RefType::kRefMax);
-  ref_types_[RefType::kRefNoRef] = "";
+  ref_types_[RefType::kRefNoRef] = nullptr;
   ref_types_[RefType::kRefUtid] = "utid";
   ref_types_[RefType::kRefCpuId] = "cpu";
   ref_types_[RefType::kRefIrq] = "irq";
