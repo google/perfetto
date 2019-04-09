@@ -27,6 +27,7 @@
 #include "perfetto/base/unix_socket.h"
 #include "src/profiling/memory/sampler.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
+#include "src/profiling/memory/unhooked_allocator.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -43,15 +44,23 @@ constexpr uint32_t kClientSockTimeoutMs = 1000;
 //
 // Methods of this class are thread-safe unless otherwise stated, in which case
 // the caller needs to synchronize calls behind a mutex or similar.
+//
+// Implementation warning: this class should not use any heap, as otherwise its
+// destruction would enter the possibly-hooked |free|, which can reference the
+// Client itself. If avoiding the heap is not possible, then look at using
+// UnhookedAllocator.
 class Client {
  public:
   // Returns a client that is ready for sampling allocations, using the given
   // socket (which should already be connected to heapprofd).
   //
   // Returns a shared_ptr since that is how the client will ultimately be used,
-  // and to take advantage of std::make_shared putting the object & the control
-  // block in one block of memory.
-  static std::shared_ptr<Client> CreateAndHandshake(base::UnixSocketRaw sock);
+  // and to take advantage of std::allocate_shared putting the object & the
+  // control block in one block of memory.
+  static std::shared_ptr<Client> CreateAndHandshake(
+      base::UnixSocketRaw sock,
+      UnhookedAllocator<Client> unhooked_allocator);
+
   static base::Optional<base::UnixSocketRaw> ConnectToHeapprofd(
       const std::string& sock_name);
 
@@ -72,8 +81,8 @@ class Client {
     return sampler_.SampleSize(alloc_size);
   }
 
-  // Public for std::make_shared. Use CreateAndHandshake() to create instances
-  // instead.
+  // Public for std::allocate_shared. Use CreateAndHandshake() to create
+  // instances instead.
   Client(base::UnixSocketRaw sock,
          ClientConfiguration client_config,
          SharedRingBuffer shmem,
