@@ -402,6 +402,7 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
       stats->set_unwinding_errors(process_state.unwinding_errors);
       stats->set_heap_samples(process_state.heap_samples);
       stats->set_map_reparses(process_state.map_reparses);
+      stats->set_total_unwinding_time_us(process_state.total_unwinding_time_us);
       auto* unwinding_hist = stats->set_unwinding_time_us();
       for (const auto& p : process_state.unwinding_time_us.GetData()) {
         auto* bucket = unwinding_hist->add_buckets();
@@ -771,6 +772,7 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
     process_state.map_reparses++;
   process_state.heap_samples++;
   process_state.unwinding_time_us.Add(alloc_rec.unwinding_time_us);
+  process_state.total_unwinding_time_us += alloc_rec.unwinding_time_us;
 
   heap_tracker.RecordMalloc(alloc_rec.frames, alloc_metadata.alloc_address,
                             alloc_metadata.total_size,
