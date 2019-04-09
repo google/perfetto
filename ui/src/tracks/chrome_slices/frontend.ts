@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {cropText} from '../../common/canvas_utils';
 import {TrackState} from '../../common/state';
-import {cropText} from '../../common/track_utils';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
