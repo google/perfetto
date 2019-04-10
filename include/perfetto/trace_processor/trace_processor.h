@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "perfetto/base/optional.h"
-#include "perfetto/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto {
@@ -107,7 +106,7 @@ class TraceProcessor {
 
   // Executes a SQLite query on the loaded portion of the trace. The returned
   // iterator can be used to load rows from the result.
-  virtual Iterator ExecuteQuery(base::StringView sql) = 0;
+  virtual Iterator ExecuteQuery(const std::string& sql) = 0;
 
   // Computes the given metrics on the loded portion of the trace. If
   // successful, the output argument |metrics_proto| will be filled with the

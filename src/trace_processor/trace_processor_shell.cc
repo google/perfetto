@@ -203,7 +203,7 @@ int ExportTraceToDatabase(const std::string& output_name) {
 
   std::string attach_sql =
       "ATTACH DATABASE '" + output_name + "' AS perfetto_export";
-  auto attach_it = g_tp->ExecuteQuery(base::StringView(attach_sql));
+  auto attach_it = g_tp->ExecuteQuery(attach_sql);
   bool attach_has_more = attach_it.Next();
   PERFETTO_DCHECK(!attach_has_more);
   if (base::Optional<std::string> opt_error = attach_it.GetLastError()) {
@@ -220,7 +220,7 @@ int ExportTraceToDatabase(const std::string& output_name) {
     std::string export_sql = "CREATE TABLE perfetto_export." + table_name +
                              " AS SELECT * FROM " + table_name;
 
-    auto export_it = g_tp->ExecuteQuery(base::StringView(export_sql));
+    auto export_it = g_tp->ExecuteQuery(export_sql);
     bool export_has_more = export_it.Next();
     PERFETTO_DCHECK(!export_has_more);
     if (base::Optional<std::string> opt_error = export_it.GetLastError()) {
@@ -349,16 +349,14 @@ int StartInteractiveShell() {
 }
 
 void PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
-  for (uint32_t rows = 0; it->Next(); rows++) {
-    if (rows == 0) {
-      for (uint32_t c = 0; c < it->ColumnCount(); c++) {
-        if (c > 0)
-          fprintf(output, ",");
-        fprintf(output, "\"%s\"", it->GetColumName(c).c_str());
-      }
-      fprintf(output, "\n");
-    }
+  for (uint32_t c = 0; c < it->ColumnCount(); c++) {
+    if (c > 0)
+      fprintf(output, ",");
+    fprintf(output, "\"%s\"", it->GetColumName(c).c_str());
+  }
+  fprintf(output, "\n");
 
+  for (uint32_t rows = 0; it->Next(); rows++) {
     for (uint32_t c = 0; c < it->ColumnCount(); c++) {
       if (c > 0)
         fprintf(output, ",");
@@ -423,13 +421,19 @@ bool RunQueryAndPrintResult(const std::vector<std::string> queries,
 
     PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
 
-    auto it = g_tp->ExecuteQuery(base::StringView(sql_query));
+    auto it = g_tp->ExecuteQuery(sql_query);
     if (base::Optional<std::string> opt_error = it.GetLastError()) {
       PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
       is_query_error = true;
       break;
     }
-    if (has_output && it.ColumnCount() > 0) {
+    if (it.ColumnCount() == 0) {
+      bool it_has_more = it.Next();
+      PERFETTO_DCHECK(!it_has_more);
+      continue;
+    }
+
+    if (has_output) {
       PERFETTO_ELOG(
           "More than one query generated result rows. This is "
           "unsupported.");
@@ -437,7 +441,7 @@ bool RunQueryAndPrintResult(const std::vector<std::string> queries,
       break;
     }
     PrintQueryResultAsCsv(&it, output);
-    has_output = it.ColumnCount() > 0;
+    has_output = true;
   }
   return !is_query_error;
 }
