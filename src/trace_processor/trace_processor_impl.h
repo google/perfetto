@@ -62,7 +62,7 @@ class TraceProcessorImpl : public TraceProcessor {
       const protos::RawQueryArgs&,
       std::function<void(const protos::RawQueryResult&)>) override;
 
-  Iterator ExecuteQuery(base::StringView sql) override;
+  Iterator ExecuteQuery(const std::string& sql) override;
 
   int ComputeMetric(const std::vector<std::string>& metric_names,
                     std::vector<uint8_t>* metrics) override;
