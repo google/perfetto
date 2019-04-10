@@ -743,6 +743,11 @@ message HeapprofdConfig {
   // Size of the shared memory buffer between the profiled processes and
   // heapprofd. Defaults to 8 MiB. If larger than 500 MiB, truncated to 500
   // MiB.
+  //
+  // Needs to be:
+  // * at least 8192,
+  // * a power of two,
+  // * a multiple of 4096.
   optional uint64 shmem_size_bytes = 8;
 }
 
