@@ -20,15 +20,12 @@
 #include <json/value.h>
 
 #include "src/trace_processor/json_trace_utils.h"
+#include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 
 namespace perfetto {
 namespace trace_processor {
-
-namespace {
-
-enum ReadDictRes { kFoundDict, kNeedsMoreData, kEndOfTrace, kFatalError };
 
 // Parses at most one JSON dictionary and returns a pointer to the end of it,
 // or nullptr if no dict could be detected.
@@ -42,9 +39,23 @@ ReadDictRes ReadOneJsonDict(const char* start,
   int braces = 0;
   int square_brackets = 0;
   const char* dict_begin = nullptr;
+  bool in_string = false;
+  bool is_escaping = false;
   for (const char* s = start; s < end; s++) {
     if (isspace(*s) || *s == ',')
       continue;
+    if (*s == '"' && !is_escaping) {
+      in_string = !in_string;
+      continue;
+    }
+    if (in_string) {
+      // If we're in a string and we see a backslash and the last character was
+      // not a backslash the next character is escaped:
+      is_escaping = *s == '\\' && !is_escaping;
+      // If we're currently parsing a string we should ignore otherwise special
+      // characters:
+      continue;
+    }
     if (*s == '{') {
       if (braces == 0)
         dict_begin = s;
@@ -79,13 +90,9 @@ ReadDictRes ReadOneJsonDict(const char* start,
       }
       square_brackets--;
     }
-
-    // TODO(primiano): skip braces in quoted strings, e.g.: {"foo": "ba{z" }
   }
   return kNeedsMoreData;
 }
-
-}  // namespace
 
 JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx) {}
@@ -125,7 +132,10 @@ bool JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
 
     base::Optional<int64_t> opt_ts =
         json_trace_utils::CoerceToNs((*value)["ts"]);
-    PERFETTO_CHECK(opt_ts.has_value());
+    if (!opt_ts.has_value()) {
+      context_->storage->IncrementStats(stats::json_tokenizer_failure);
+      continue;
+    }
     int64_t ts = opt_ts.value();
 
     trace_sorter->PushJsonValue(ts, std::move(value));
