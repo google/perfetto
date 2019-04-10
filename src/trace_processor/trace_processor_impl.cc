@@ -363,9 +363,9 @@ void TraceProcessorImpl::ExecuteQuery(
 }
 
 TraceProcessor::Iterator TraceProcessorImpl::ExecuteQuery(
-    base::StringView sql) {
+    const std::string& sql) {
   sqlite3_stmt* raw_stmt;
-  int err = sqlite3_prepare_v2(*db_, sql.data(), static_cast<int>(sql.size()),
+  int err = sqlite3_prepare_v2(*db_, sql.c_str(), static_cast<int>(sql.size()),
                                &raw_stmt, nullptr);
   base::Optional<std::string> error;
   uint32_t col_count = 0;
