@@ -235,7 +235,10 @@ source_set("unittests") {
     "../protozero",
   ]
   if (perfetto_build_standalone) {
-    sources += [ "json_trace_utils_unittest.cc" ]
+    sources += [
+      "json_trace_tokenizer_unittest.cc",
+      "json_trace_utils_unittest.cc",
+    ]
     deps += [ "../../gn:jsoncpp_deps" ]
   }
 }

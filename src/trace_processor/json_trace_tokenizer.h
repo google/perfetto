@@ -32,6 +32,15 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
+// Visible for testing.
+enum ReadDictRes { kFoundDict, kNeedsMoreData, kEndOfTrace, kFatalError };
+
+// Visible for testing.
+ReadDictRes ReadOneJsonDict(const char* start,
+                            const char* end,
+                            Json::Value* value,
+                            const char** next);
+
 // Reads a JSON trace in chunks and extracts top level json objects.
 class JsonTraceTokenizer : public ChunkedTraceReader {
  public:
