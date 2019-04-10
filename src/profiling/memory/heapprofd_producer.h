@@ -105,11 +105,15 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // UnwindingWorker::Delegate impl:
   void PostAllocRecord(AllocRecord) override;
   void PostFreeRecord(FreeRecord) override;
-  void PostSocketDisconnected(DataSourceInstanceID, pid_t) override;
+  void PostSocketDisconnected(DataSourceInstanceID,
+                              pid_t,
+                              SharedRingBuffer::Stats) override;
 
   void HandleAllocRecord(AllocRecord);
   void HandleFreeRecord(FreeRecord);
-  void HandleSocketDisconnected(DataSourceInstanceID, pid_t);
+  void HandleSocketDisconnected(DataSourceInstanceID,
+                                pid_t,
+                                SharedRingBuffer::Stats);
 
   // Valid only if mode_ == kChild.
   void SetTargetProcess(pid_t target_pid,
@@ -163,6 +167,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   struct ProcessState {
     ProcessState(GlobalCallstackTrie* callsites) : heap_tracker(callsites) {}
     bool disconnected = false;
+    bool buffer_overran = false;
+
     uint64_t heap_samples = 0;
     uint64_t map_reparses = 0;
     uint64_t unwinding_errors = 0;
