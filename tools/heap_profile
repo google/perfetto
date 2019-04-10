@@ -37,6 +37,13 @@ TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = (
     'https://storage.googleapis.com/perfetto/')
 
+NULL = open(os.devnull)
+NOOUT = {
+  'stdout': NULL,
+  'stderr': NULL,
+}
+
+
 def check_hash(file_name, sha_value):
   with open(file_name, 'rb') as fd:
     # TODO(fmayer): Chunking.
@@ -203,10 +210,14 @@ def main(argv):
 
   old_handler = signal.signal(signal.SIGINT, sigint_handler)
   print("Profiling active. Press Ctrl+C to terminate.")
+  print("You may disconnect your device.")
   exists = True
-  while exists and not IS_INTERRUPTED:
+  device_connected = True
+  while not device_connected or (exists and not IS_INTERRUPTED):
     exists = subprocess.call(
-        ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
+        ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)],
+        **NOOUT) == 0
+    device_connected = subprocess.call(['adb', 'shell', 'true'], **NOOUT) == 0
     time.sleep(1)
   signal.signal(signal.SIGINT, old_handler)
   if IS_INTERRUPTED:
