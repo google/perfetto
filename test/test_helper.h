@@ -33,6 +33,7 @@ namespace perfetto {
 class TestHelper : public Consumer {
  public:
   static const char* GetConsumerSocketName();
+  static const char* GetProducerSocketName();
 
   explicit TestHelper(base::TestTaskRunner* task_runner);
 
@@ -58,6 +59,7 @@ class TestHelper : public Consumer {
   bool AttachConsumer(const std::string& key);
 
   void WaitForConsumerConnect();
+  void WaitForProducerSetup();
   void WaitForProducerEnabled();
   void WaitForTracingDisabled(uint32_t timeout_ms = 5000);
   void WaitForReadData(uint32_t read_count = 0);
