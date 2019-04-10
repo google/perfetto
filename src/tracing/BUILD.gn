@@ -155,30 +155,6 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     ]
   }
 
-  # IPC transport: only consumer side
-  # TODO(fmayer): Remove duplication between this and ipc.
-  source_set("ipc_consumer") {
-    public_deps = [
-      "../../include/perfetto/tracing/core",
-      "../../include/perfetto/tracing/ipc",
-    ]
-    sources = [
-      "ipc/consumer/consumer_ipc_client_impl.cc",
-      "ipc/consumer/consumer_ipc_client_impl.h",
-      "ipc/default_socket.cc",
-      "ipc/default_socket.h",
-      "ipc/posix_shared_memory.cc",
-      "ipc/posix_shared_memory.h",
-    ]
-    deps = [
-      ":tracing",
-      "../../gn:default_deps",
-      "../../protos/perfetto/ipc",
-      "../base",
-      "../ipc",
-    ]
-  }
-
   # Posix specialization of the tracing library for Linux/Android/Mac. Provides
   # an IPC transport over a UNIX domain socket.
   static_library("ipc") {

@@ -64,14 +64,17 @@ class ProbesProducerDelegate : public ThreadDelegate {
 class FakeProducerDelegate : public ThreadDelegate {
  public:
   FakeProducerDelegate(const std::string& producer_socket,
+                       std::function<void()> setup_callback,
                        std::function<void()> connect_callback)
       : producer_socket_(producer_socket),
+        setup_callback_(std::move(setup_callback)),
         connect_callback_(std::move(connect_callback)) {}
   ~FakeProducerDelegate() override = default;
 
   void Initialize(base::TaskRunner* task_runner) override {
     producer_.reset(new FakeProducer("android.perfetto.FakeProducer"));
     producer_->Connect(producer_socket_.c_str(), task_runner,
+                       std::move(setup_callback_),
                        std::move(connect_callback_));
   }
 
@@ -80,6 +83,7 @@ class FakeProducerDelegate : public ThreadDelegate {
  private:
   std::string producer_socket_;
   std::unique_ptr<FakeProducer> producer_;
+  std::function<void()> setup_callback_;
   std::function<void()> connect_callback_;
 };
 }  // namespace perfetto
