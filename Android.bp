@@ -430,6 +430,7 @@ cc_binary {
     "src/perfetto_cmd/pbtxt_to_pb.cc",
     "src/perfetto_cmd/perfetto_cmd.cc",
     "src/perfetto_cmd/rate_limiter.cc",
+    "src/perfetto_cmd/trigger_producer.cc",
     "src/protozero/message.cc",
     "src/protozero/message_handle.cc",
     "src/protozero/proto_decoder.cc",
@@ -464,9 +465,6 @@ cc_binary {
     "src/tracing/core/trace_writer_impl.cc",
     "src/tracing/core/tracing_service_impl.cc",
     "src/tracing/core/virtual_destructors.cc",
-    "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
-    "src/tracing/ipc/default_socket.cc",
-    "src/tracing/ipc/posix_shared_memory.cc",
   ],
   shared_libs: [
     "libandroid",
@@ -478,6 +476,7 @@ cc_binary {
   ],
   static_libs: [
     "libgtest_prod",
+    "perfetto_src_tracing_ipc",
   ],
   generated_headers: [
     "perfetto_protos_perfetto_common_lite_gen_headers",
@@ -2900,6 +2899,7 @@ cc_test {
     "src/perfetto_cmd/perfetto_cmd.cc",
     "src/perfetto_cmd/rate_limiter.cc",
     "src/perfetto_cmd/rate_limiter_unittest.cc",
+    "src/perfetto_cmd/trigger_producer.cc",
     "src/profiling/memory/bookkeeping.cc",
     "src/profiling/memory/bookkeeping_unittest.cc",
     "src/profiling/memory/client.cc",
@@ -3026,9 +3026,6 @@ cc_test {
     "src/tracing/core/tracing_service_impl.cc",
     "src/tracing/core/tracing_service_impl_unittest.cc",
     "src/tracing/core/virtual_destructors.cc",
-    "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
-    "src/tracing/ipc/default_socket.cc",
-    "src/tracing/ipc/posix_shared_memory.cc",
     "src/tracing/ipc/posix_shared_memory_unittest.cc",
     "src/tracing/test/aligned_buffer_test.cc",
     "src/tracing/test/fake_packet.cc",

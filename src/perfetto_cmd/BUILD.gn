@@ -26,7 +26,7 @@ source_set("perfetto_cmd") {
     "../../protos/perfetto/config:lite",
     "../base",
     "../protozero",
-    "../tracing:ipc_consumer",
+    "../tracing:ipc",
   ]
   sources = [
     "config.cc",
@@ -38,6 +38,8 @@ source_set("perfetto_cmd") {
     "perfetto_config.descriptor.h",
     "rate_limiter.cc",
     "rate_limiter.h",
+    "trigger_producer.cc",
+    "trigger_producer.h",
   ]
   if (perfetto_build_with_android) {
     deps += [ "../base:android_task_runner" ]
