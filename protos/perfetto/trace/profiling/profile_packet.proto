@@ -105,6 +105,10 @@ message ProfilePacket {
     // If false, the process outlived the profiling session.
     optional bool disconnected = 6;
 
+    // If disconnected, this disconnect was caused by the client overrunning
+    // the buffer.
+    optional bool buffer_overran = 7;
+
     optional ProcessStats stats = 5;
 
     repeated HeapSample samples = 2;

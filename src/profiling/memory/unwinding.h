@@ -136,7 +136,9 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
    public:
     virtual void PostAllocRecord(AllocRecord) = 0;
     virtual void PostFreeRecord(FreeRecord) = 0;
-    virtual void PostSocketDisconnected(DataSourceInstanceID, pid_t pid) = 0;
+    virtual void PostSocketDisconnected(DataSourceInstanceID,
+                                        pid_t pid,
+                                        SharedRingBuffer::Stats stats) = 0;
     virtual ~Delegate();
   };
 
