@@ -403,6 +403,7 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
       proto->set_pid(static_cast<uint64_t>(pid));
       proto->set_from_startup(from_startup);
       proto->set_disconnected(process_state.disconnected);
+      proto->set_buffer_overran(process_state.buffer_overran);
       auto* stats = proto->set_stats();
       stats->set_unwinding_errors(process_state.unwinding_errors);
       stats->set_heap_samples(process_state.heap_samples);
@@ -739,11 +740,12 @@ void HeapprofdProducer::PostFreeRecord(FreeRecord free_rec) {
 }
 
 void HeapprofdProducer::PostSocketDisconnected(DataSourceInstanceID ds_id,
-                                               pid_t pid) {
+                                               pid_t pid,
+                                               SharedRingBuffer::Stats stats) {
   auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_id, pid] {
+  task_runner_->PostTask([weak_this, ds_id, pid, stats] {
     if (weak_this)
-      weak_this->HandleSocketDisconnected(ds_id, pid);
+      weak_this->HandleSocketDisconnected(ds_id, pid, stats);
   });
 }
 
@@ -821,8 +823,10 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   }
 }
 
-void HeapprofdProducer::HandleSocketDisconnected(DataSourceInstanceID id,
-                                                 pid_t pid) {
+void HeapprofdProducer::HandleSocketDisconnected(
+    DataSourceInstanceID id,
+    pid_t pid,
+    SharedRingBuffer::Stats stats) {
   auto it = data_sources_.find(id);
   if (it == data_sources_.end())
     return;
@@ -833,6 +837,7 @@ void HeapprofdProducer::HandleSocketDisconnected(DataSourceInstanceID id,
     return;
   ProcessState& process_state = process_state_it->second;
   process_state.disconnected = true;
+  process_state.buffer_overran = stats.num_writes_overflow > 0;
 
   // TODO(fmayer): Dump on process disconnect rather than data source
   // destruction. This prevents us needing to hold onto the bookkeeping data
