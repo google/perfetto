@@ -130,7 +130,7 @@ class QueryWriter {
         output_(output) {}
 
   template <typename Callback>
-  bool RunQuery(base::StringView sql, Callback callback) {
+  bool RunQuery(const std::string& sql, Callback callback) {
     char buffer[2048];
     auto iterator = tp_->ExecuteQuery(sql);
     for (uint32_t rows = 0; iterator.Next(); rows++) {
