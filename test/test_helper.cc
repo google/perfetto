@@ -88,6 +88,7 @@ void TestHelper::StartServiceIfRequired() {
 FakeProducer* TestHelper::ConnectFakeProducer() {
   std::unique_ptr<FakeProducerDelegate> producer_delegate(
       new FakeProducerDelegate(TEST_PRODUCER_SOCK_NAME,
+                               WrapTask(CreateCheckpoint("producer.setup")),
                                WrapTask(CreateCheckpoint("producer.enabled"))));
   FakeProducerDelegate* producer_delegate_cached = producer_delegate.get();
   producer_thread_.Start(std::move(producer_delegate));
@@ -150,6 +151,10 @@ void TestHelper::WaitForConsumerConnect() {
   RunUntilCheckpoint("consumer.connected." + std::to_string(cur_consumer_num_));
 }
 
+void TestHelper::WaitForProducerSetup() {
+  RunUntilCheckpoint("producer.setup");
+}
+
 void TestHelper::WaitForProducerEnabled() {
   RunUntilCheckpoint("producer.enabled");
 }
@@ -184,6 +189,11 @@ void TestHelper::OnObservableEvents(const ObservableEvents&) {}
 // static
 const char* TestHelper::GetConsumerSocketName() {
   return TEST_CONSUMER_SOCK_NAME;
+}
+
+// static
+const char* TestHelper::GetProducerSocketName() {
+  return TEST_PRODUCER_SOCK_NAME;
 }
 
 }  // namespace perfetto
