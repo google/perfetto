@@ -71,8 +71,6 @@ def load_trace_to_text(platform):
   return local_file
 
 
-NULL = open('/dev/null', 'r')
-
 CFG_IDENT = '      '
 CFG='''buffers {{
   size_kb: 32768
@@ -234,8 +232,7 @@ def main(argv):
                          '/data/misc/perfetto-traces/profile-{}'.format(user),
                          '/tmp/profile'], stdout=NULL)
   trace_to_text_output = subprocess.check_output(
-      [trace_to_text_binary, 'profile', '/tmp/profile'],
-      stderr=NULL)
+      [trace_to_text_binary, 'profile', '/tmp/profile'])
   profile_path = None
   for word in trace_to_text_output.split():
     if 'heap_profile-' in word:
