@@ -583,33 +583,6 @@ pbzero_cc_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace_processor:lite_gen
-proto_library(
-    name = "trace_processor",
-    srcs = [
-        "perfetto/trace_processor/raw_query.proto",
-        "perfetto/trace_processor/sched.proto",
-        "perfetto/trace_processor/trace_processor.proto",
-    ],
-    has_services = 1,
-    cc_api_version = 2,
-    cc_generic_services = 1,
-    visibility = [
-        "//visibility:public",
-    ],
-)
-
-# GN target: //protos/perfetto/trace_processor:lite_gen
-cc_proto_library(
-    name = "trace_processor_cc_proto",
-    visibility = [
-        "//visibility:public",
-    ],
-    deps = [
-        "//third_party/perfetto/protos:trace_processor",
-    ],
-)
-
 # GN target: //protos/perfetto/trace/profiling:lite_gen
 proto_library(
     name = "trace_profiling",
