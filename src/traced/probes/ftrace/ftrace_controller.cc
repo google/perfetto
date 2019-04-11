@@ -300,6 +300,7 @@ void FtraceController::StartIfNeeded() {
 
   {
     std::lock_guard<std::mutex> lock(thread_sync_.mutex);
+    thread_sync_.cpus_to_drain.reset();
     thread_sync_.cmd = FtraceThreadSync::kRun;
     thread_sync_.cmd_id++;
   }
@@ -412,6 +413,7 @@ bool FtraceController::AddDataSource(FtraceDataSource* data_source) {
 
 bool FtraceController::StartDataSource(FtraceDataSource* data_source) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_DCHECK(data_sources_.count(data_source) > 0);
 
   FtraceConfigId config_id = data_source->config_id();
   PERFETTO_CHECK(config_id);

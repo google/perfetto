@@ -86,7 +86,9 @@ class MockTaskRunner : public base::TaskRunner {
 
   std::function<void()> TakeTask() {
     std::unique_lock<std::mutex> lock(lock_);
-    return std::move(task_);
+    auto task(std::move(task_));
+    task_ = std::function<void()>();
+    return task;
   }
 
   MOCK_METHOD1(PostTask, void(std::function<void()>));
@@ -410,8 +412,8 @@ TEST(FtraceControllerTest, BackToBackEnableDisable) {
   EXPECT_CALL(*controller->procfs(), ReadOneCharFromFile("/root/tracing_on"))
       .Times(AnyNumber());
 
-  EXPECT_CALL(*controller->runner(), PostTask(_)).Times(1);
-  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, 100)).Times(1);
+  EXPECT_CALL(*controller->runner(), PostTask(_)).Times(2);
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, 100)).Times(2);
   FtraceConfig config = CreateFtraceConfig({"group/foo"});
   auto data_source = controller->AddFakeDataSource(config);
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));
@@ -424,16 +426,20 @@ TEST(FtraceControllerTest, BackToBackEnableDisable) {
   // It should be a no-op.
   data_source.reset();
   controller->runner()->RunLastTask();
+  controller->runner()->RunLastTask();
   worker.join();
 
   // Register another data source and wait for it to generate data.
   data_source = controller->AddFakeDataSource(config);
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));
+
+  on_data_available = controller->GetDataAvailableCallback(0u);
   std::thread worker2([on_data_available] { on_data_available(); });
   controller->WaitForData(0u);
 
   // This drain should also be a no-op after the data source is unregistered.
   data_source.reset();
+  controller->runner()->RunLastTask();
   controller->runner()->RunLastTask();
   worker2.join();
 }
