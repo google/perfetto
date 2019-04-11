@@ -74,6 +74,7 @@ group("all") {
       if (is_linux || is_android) {
         deps += [ "tools/skippy" ]
         deps += [ "tools/busy_threads" ]
+        deps += [ "tools/dump_ftrace_stats" ]
       }
       if (is_fuzzer) {
         deps += [ ":fuzzers" ]
