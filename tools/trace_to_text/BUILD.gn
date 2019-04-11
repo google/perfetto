@@ -27,7 +27,6 @@ source_set("common") {
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/ftrace:lite",
     "../../protos/perfetto/trace/profiling:lite",
-    "../../protos/perfetto/trace_processor:lite",
     "../../protos/third_party/pprof:lite",
     "../../src/base",
     "../../src/trace_processor:lib",

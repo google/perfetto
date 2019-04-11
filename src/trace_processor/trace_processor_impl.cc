@@ -50,8 +50,6 @@
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/window_operator_table.h"
 
-#include "perfetto/trace_processor/raw_query.pb.h"
-
 // JSON parsing is only supported in the standalone build.
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 #include "src/trace_processor/json_trace_parser.h"
@@ -250,116 +248,6 @@ void TraceProcessorImpl::NotifyEndOfFile() {
 
   context_.sorter->ExtractEventsForced();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
-}
-
-void TraceProcessorImpl::ExecuteQuery(
-    const protos::RawQueryArgs& args,
-    std::function<void(const protos::RawQueryResult&)> callback) {
-  protos::RawQueryResult proto;
-  query_interrupted_.store(false, std::memory_order_relaxed);
-
-  base::TimeNanos t_start = base::GetWallTimeNs();
-  const std::string& sql = args.sql_query();
-  context_.storage->mutable_sql_stats()->RecordQueryBegin(
-      sql, static_cast<int64_t>(args.time_queued_ns()), t_start.count());
-  sqlite3_stmt* raw_stmt;
-  int err = sqlite3_prepare_v2(*db_, sql.c_str(), static_cast<int>(sql.size()),
-                               &raw_stmt, nullptr);
-  ScopedStmt stmt(raw_stmt);
-
-  int col_count = sqlite3_column_count(*stmt);
-  int row_count = 0;
-
-  while (!err) {
-    int r = sqlite3_step(*stmt);
-    if (r != SQLITE_ROW) {
-      if (r != SQLITE_DONE)
-        err = r;
-      break;
-    }
-
-    using ColumnDesc = protos::RawQueryResult::ColumnDesc;
-    for (int col = 0; col < col_count; col++) {
-      if (row_count == 0) {
-        // Setup the descriptors.
-        auto* descriptor = proto.add_column_descriptors();
-        descriptor->set_name(sqlite3_column_name(*stmt, col));
-        descriptor->set_type(ColumnDesc::UNKNOWN);
-
-        // Add an empty column.
-        proto.add_columns();
-      }
-
-      auto* column = proto.mutable_columns(col);
-      auto* desc = proto.mutable_column_descriptors(col);
-      auto col_type = sqlite3_column_type(*stmt, col);
-      if (desc->type() == ColumnDesc::UNKNOWN) {
-        switch (col_type) {
-          case SQLITE_INTEGER:
-            desc->set_type(ColumnDesc::LONG);
-            break;
-          case SQLITE_TEXT:
-            desc->set_type(ColumnDesc::STRING);
-            break;
-          case SQLITE_FLOAT:
-            desc->set_type(ColumnDesc::DOUBLE);
-            break;
-          case SQLITE_NULL:
-            break;
-        }
-      }
-
-      // If either the column type is null or we still don't know the type,
-      // just add null values to all the columns.
-      if (col_type == SQLITE_NULL || desc->type() == ColumnDesc::UNKNOWN) {
-        column->add_long_values(0);
-        column->add_string_values("[NULL]");
-        column->add_double_values(0);
-        column->add_is_nulls(true);
-        continue;
-      }
-
-      // Cast the sqlite value to the type of the column.
-      switch (desc->type()) {
-        case ColumnDesc::LONG:
-          column->add_long_values(sqlite3_column_int64(*stmt, col));
-          column->add_is_nulls(false);
-          break;
-        case ColumnDesc::STRING: {
-          const char* str =
-              reinterpret_cast<const char*>(sqlite3_column_text(*stmt, col));
-          column->add_string_values(str);
-          column->add_is_nulls(false);
-          break;
-        }
-        case ColumnDesc::DOUBLE:
-          column->add_double_values(sqlite3_column_double(*stmt, col));
-          column->add_is_nulls(false);
-          break;
-        case ColumnDesc::UNKNOWN:
-          PERFETTO_FATAL("Handled in if statement above.");
-      }
-    }
-    row_count++;
-  }
-
-  if (err) {
-    proto.set_error(sqlite3_errmsg(*db_));
-    callback(std::move(proto));
-    return;
-  }
-
-  proto.set_num_records(static_cast<uint64_t>(row_count));
-
-  if (query_interrupted_.load()) {
-    PERFETTO_ELOG("SQLite query interrupted");
-    query_interrupted_ = false;
-  }
-
-  base::TimeNanos t_end = base::GetWallTimeNs();
-  context_.storage->mutable_sql_stats()->RecordQueryEnd(t_end.count());
-  proto.set_execution_time_ns(static_cast<uint64_t>((t_end - t_start).count()));
-  callback(proto);
 }
 
 TraceProcessor::Iterator TraceProcessorImpl::ExecuteQuery(
