@@ -31,8 +31,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
-#include "perfetto/trace_processor/raw_query.pb.h"
-
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)

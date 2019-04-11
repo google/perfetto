@@ -58,10 +58,6 @@ class TraceProcessorImpl : public TraceProcessor {
 
   void NotifyEndOfFile() override;
 
-  void ExecuteQuery(
-      const protos::RawQueryArgs&,
-      std::function<void(const protos::RawQueryResult&)>) override;
-
   Iterator ExecuteQuery(const std::string& sql) override;
 
   int ComputeMetric(const std::vector<std::string>& metric_names,
