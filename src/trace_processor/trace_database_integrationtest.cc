@@ -25,8 +25,6 @@
 #include "src/base/test/utils.h"
 #include "src/trace_processor/json_trace_parser.h"
 
-#include "perfetto/trace_processor/raw_query.pb.h"
-
 namespace perfetto {
 namespace trace_processor {
 namespace {
@@ -52,13 +50,8 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
     return true;
   }
 
-  void Query(const std::string& query, protos::RawQueryResult* result) {
-    protos::RawQueryArgs args;
-    args.set_sql_query(query);
-    auto on_result = [&result](const protos::RawQueryResult& res) {
-      result->CopyFrom(res);
-    };
-    processor_->ExecuteQuery(args, on_result);
+  TraceProcessor::Iterator Query(const std::string& query) {
+    return processor_->ExecuteQuery(query.c_str());
   }
 
  private:
@@ -67,43 +60,54 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
 
 TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
   ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb"));
-  protos::RawQueryResult res;
-  Query(
+  auto it = Query(
       "select count(*), max(ts) - min(ts) from sched "
-      "where dur != 0 and utid != 0",
-      &res);
-  ASSERT_EQ(res.num_records(), 1);
-  ASSERT_EQ(res.columns(0).long_values(0), 139783);
-  ASSERT_EQ(res.columns(1).long_values(0), 19684308497);
+      "where dur != 0 and utid != 0");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(0).long_value, 139783);
+  ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(1).long_value, 19684308497);
+  ASSERT_FALSE(it.Next());
 }
 
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")));
-  protos::RawQueryResult res;
-  Query("select count(*), max(ts) - min(ts) from slices where utid != 0", &res);
-  ASSERT_EQ(res.num_records(), 1);
-  ASSERT_EQ(res.columns(0).long_values(0), 39828);
-  ASSERT_EQ(res.columns(1).long_values(0), 40532506000);
+  auto it =
+      Query("select count(*), max(ts) - min(ts) from slices where utid != 0");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(0).long_value, 39828);
+  ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(1).long_value, 40532506000);
+  ASSERT_FALSE(it.Next());
 }
 
 TEST_F(TraceProcessorIntegrationTest, UnsortedTrace) {
   ASSERT_TRUE(LoadTrace("unsorted_trace.json", strlen("{\"traceEvents\":[")));
-  protos::RawQueryResult res;
-  Query("select ts, depth from slices order by ts", &res);
-  ASSERT_EQ(res.num_records(), 2);
-  ASSERT_EQ(res.columns(0).long_values(0), 50000);
-  ASSERT_EQ(res.columns(1).long_values(0), 0);
-  ASSERT_EQ(res.columns(0).long_values(1), 100000);
-  ASSERT_EQ(res.columns(1).long_values(1), 1);
+  auto it = Query("select ts, depth from slices order by ts");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(0).long_value, 50000);
+  ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(1).long_value, 0);
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(0).long_value, 100000);
+  ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(1).long_value, 1);
+  ASSERT_FALSE(it.Next());
 }
 
 TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
   ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb"));
-  protos::RawQueryResult res;
-  Query("select start_ts, end_ts from trace_bounds", &res);
-  ASSERT_EQ(res.num_records(), 1);
-  ASSERT_EQ(res.columns(0).long_values(0), 81473009948313);
-  ASSERT_EQ(res.columns(1).long_values(0), 81492700784311);
+  auto it = Query("select start_ts, end_ts from trace_bounds");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(0).long_value, 81473009948313);
+  ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(1).long_value, 81492700784311);
+  ASSERT_FALSE(it.Next());
 }
 
 // TODO(hjd): Add trace to test_data.

@@ -1795,47 +1795,6 @@ genrule {
   ],
 }
 
-// GN target: //protos/perfetto/trace_processor:lite_gen
-genrule {
-  name: "perfetto_protos_perfetto_trace_processor_lite_gen",
-  srcs: [
-    "protos/perfetto/trace_processor/raw_query.proto",
-    "protos/perfetto/trace_processor/sched.proto",
-    "protos/perfetto/trace_processor/trace_processor.proto",
-  ],
-  tools: [
-    "aprotoc",
-  ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
-  out: [
-    "external/perfetto/protos/perfetto/trace_processor/raw_query.pb.cc",
-    "external/perfetto/protos/perfetto/trace_processor/sched.pb.cc",
-    "external/perfetto/protos/perfetto/trace_processor/trace_processor.pb.cc",
-  ],
-}
-
-// GN target: //protos/perfetto/trace_processor:lite_gen
-genrule {
-  name: "perfetto_protos_perfetto_trace_processor_lite_gen_headers",
-  srcs: [
-    "protos/perfetto/trace_processor/raw_query.proto",
-    "protos/perfetto/trace_processor/sched.proto",
-    "protos/perfetto/trace_processor/trace_processor.proto",
-  ],
-  tools: [
-    "aprotoc",
-  ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
-  out: [
-    "external/perfetto/protos/perfetto/trace_processor/raw_query.pb.h",
-    "external/perfetto/protos/perfetto/trace_processor/sched.pb.h",
-    "external/perfetto/protos/perfetto/trace_processor/trace_processor.pb.h",
-  ],
-  export_include_dirs: [
-    "protos",
-  ],
-}
-
 // GN target: //protos/perfetto/trace/profiling:lite_gen
 genrule {
   name: "perfetto_protos_perfetto_trace_profiling_lite_gen",
@@ -3131,7 +3090,6 @@ cc_binary_host {
     ":perfetto_protos_perfetto_trace_minimal_lite_gen",
     ":perfetto_protos_perfetto_trace_power_lite_gen",
     ":perfetto_protos_perfetto_trace_power_zero_gen",
-    ":perfetto_protos_perfetto_trace_processor_lite_gen",
     ":perfetto_protos_perfetto_trace_profiling_lite_gen",
     ":perfetto_protos_perfetto_trace_profiling_zero_gen",
     ":perfetto_protos_perfetto_trace_ps_lite_gen",
@@ -3238,7 +3196,6 @@ cc_binary_host {
     "perfetto_protos_perfetto_trace_minimal_lite_gen_headers",
     "perfetto_protos_perfetto_trace_power_lite_gen_headers",
     "perfetto_protos_perfetto_trace_power_zero_gen_headers",
-    "perfetto_protos_perfetto_trace_processor_lite_gen_headers",
     "perfetto_protos_perfetto_trace_profiling_lite_gen_headers",
     "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
     "perfetto_protos_perfetto_trace_ps_lite_gen_headers",

@@ -130,7 +130,6 @@ source_set("lib") {
     "window_operator_table.h",
   ]
 
-  # TODO(primiano): remove :lite deps and depend only on protozero targets.
   deps = [
     "../../buildtools:sqlite",
     "../../gn:default_deps",
@@ -145,9 +144,6 @@ source_set("lib") {
     "../../protos/perfetto/trace/sys_stats:zero",
     "../base",
     "../protozero",
-
-    # TODO(primiano): remove this one dep and move to a ":zero" dep.
-    "../../protos/perfetto/trace_processor:lite",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor",
@@ -170,7 +166,6 @@ if (current_toolchain == host_toolchain) {
     deps = [
       ":lib",
       "../../gn:default_deps",
-      "../../protos/perfetto/trace_processor:lite",
       "../base",
     ]
     if (perfetto_build_standalone) {

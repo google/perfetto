@@ -26,11 +26,6 @@
 
 namespace perfetto {
 
-namespace protos {
-class RawQueryArgs;
-class RawQueryResult;
-}  // namespace protos
-
 namespace trace_processor {
 
 // Coordinates the loading of traces from an arbitrary source and allows
@@ -97,12 +92,6 @@ class TraceProcessor {
   // into Parse(). This allows to flush the events queued in the ordering stage,
   // without having to wait for their time window to expire.
   virtual void NotifyEndOfFile() = 0;
-
-  // Executes a SQLite query on the loaded portion of the trace. |result| will
-  // be invoked once after the result of the query is available.
-  virtual void ExecuteQuery(
-      const protos::RawQueryArgs&,
-      std::function<void(const protos::RawQueryResult&)>) = 0;
 
   // Executes a SQLite query on the loaded portion of the trace. The returned
   // iterator can be used to load rows from the result.
