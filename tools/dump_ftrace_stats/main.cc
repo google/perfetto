@@ -96,7 +96,8 @@ void DumpAllCpuStats() {
       writer.AppendLiteral("\n");
 
       auto output = writer.GetStringView();
-      write(*file, output.data(), output.size());
+      PERFETTO_CHECK(write(*file, output.data(), output.size()) ==
+                     static_cast<ssize_t>(output.size()));
     }
   }
   g_task_runner->PostDelayedTask(&DumpAllCpuStats, 500);
