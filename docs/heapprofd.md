@@ -55,6 +55,23 @@ profiling apps.*
 dump, but will only show the space view. *Tip: Click Left Heavy on the top
 left for a good visualisation.*
 
+## Sampling interval
+heapprofd samples heap allocations. Given a sampling interval of n bytes,
+one allocation is sampled, on average, every n bytes allocated. This allows to
+reduce the performance impact on the target process. The default sampling rate
+is 4096 bytes.
+
+The easiest way to reason about this is to imagine the memory allocations as a
+steady stream of one byte allocations. From this stream, every n-th byte is
+selected as a sample, and the corresponding allocation gets attributed the
+complete n bytes. As an optimization, we sample allocations larger than the
+sampling interval with their true size.
+
+To make this statistically more meaningful, Poisson sampling is employed.
+Instead of a static parameter of n bytes, the user can only choose the mean
+value around which the interval is distributed. This makes sure frequent small
+allocations get sampled as well as infrequent large ones.
+
 ## Manual instructions
 *It is not recommended to use these instructions unless you have advanced
 requirements or are developing heapprofd. Proceed with caution*
