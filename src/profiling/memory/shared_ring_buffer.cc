@@ -53,7 +53,6 @@ constexpr auto kFDSeals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
 
 SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
   size_t size_with_meta = size + kMetaPageSize;
-  // TODO(primiano): this is copy/pasted from posix_shared_memory.cc . Refactor.
   base::ScopedFile fd;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   bool is_memfd = false;
