@@ -316,6 +316,8 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
 // heapprofd_initialize. Concurrent calls get discarded, which might be our
 // unpatching attempt if there is a concurrent re-initialization running due to
 // a new signal.
+// Note that a Client might be destroyed in heapprofd_initialize without calling
+// this function.
 void ShutdownLazy() {
   ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
   if (!g_client.ref())  // other invocation already initiated shutdown
@@ -343,22 +345,36 @@ void ShutdownLazy() {
 bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
                                        int*,
                                        const char*) {
+  using ::perfetto::profiling::Client;
+
   // Table of pointers to backing implementation.
   g_dispatch.store(malloc_dispatch, std::memory_order_relaxed);
 
-  ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
+  // TODO(fmayer): Check other destructions of client and make a decision
+  // whether we want to ban heap objects in the client or not.
+  std::shared_ptr<Client> old_client;
+  {
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
 
-  if (g_client.ref()) {
-    PERFETTO_LOG("Rejecting concurrent profiling initialization.");
-    return true;  // success as we're in a valid state
+    // Only reject concurrent session if the previous one is still active.
+    if (g_client.ref() && g_client.ref()->IsConnected()) {
+      PERFETTO_LOG("Rejecting concurrent profiling initialization.");
+      return true;  // success as we're in a valid state
+    }
+    old_client = g_client.ref();
+    g_client.ref().reset();
   }
+
+  old_client.reset();
 
   // The dispatch table never changes, so let the custom allocator retain the
   // function pointers directly.
-  UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator(
-      malloc_dispatch->malloc, malloc_dispatch->free);
+  UnhookedAllocator<Client> unhooked_allocator(malloc_dispatch->malloc,
+                                               malloc_dispatch->free);
 
-  std::shared_ptr<perfetto::profiling::Client> client =
+  // These factory functions use heap objects, so we need to run them without
+  // the spinlock held.
+  std::shared_ptr<Client> client =
       ShouldForkPrivateDaemon()
           ? CreateClientAndPrivateDaemon(unhooked_allocator)
           : CreateClientForCentralDaemon(unhooked_allocator);
@@ -368,8 +384,13 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
     return false;
   }
   PERFETTO_LOG("heapprofd_client initialized.");
-
-  g_client.ref() = std::move(client);
+  {
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
+    // This cannot have been set in the meantime. There are never two concurrent
+    // calls to this function, as Bionic uses atomics to guard against that.
+    PERFETTO_DCHECK(g_client.ref() == nullptr);
+    g_client.ref() = std::move(client);
+  }
   return true;
 }
 
