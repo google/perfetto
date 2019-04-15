@@ -232,6 +232,14 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
                       " ended early due to a buffer overrun.",
                       pid);
       }
+      if (samples->buffer_corrupted()) {
+        PERFETTO_ELOG("WARNING: The profile for %" PRIu64
+                      " ended early due to a buffer corruption."
+                      " THIS IS ALWAYS A BUG IN HEAPPROFD OR"
+                      " CLIENT MEMORY CORRUPTION.",
+                      pid);
+      }
+
       for (const ProfilePacket::HeapSample& sample : samples->samples()) {
         GSample* gsample = cur_profile.add_sample();
         auto it = callstack_lookup.find(sample.callstack_id());
