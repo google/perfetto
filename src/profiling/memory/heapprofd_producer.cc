@@ -537,6 +537,7 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
       proto->set_from_startup(from_startup);
       proto->set_disconnected(process_state.disconnected);
       proto->set_buffer_overran(process_state.buffer_overran);
+      proto->set_buffer_corrupted(process_state.buffer_corrupted);
       auto* stats = proto->set_stats();
       stats->set_unwinding_errors(process_state.unwinding_errors);
       stats->set_heap_samples(process_state.heap_samples);
@@ -867,6 +868,8 @@ void HeapprofdProducer::HandleSocketDisconnected(
   ProcessState& process_state = process_state_it->second;
   process_state.disconnected = true;
   process_state.buffer_overran = stats.num_writes_overflow > 0;
+  process_state.buffer_corrupted =
+      stats.num_writes_corrupt > 0 || stats.num_reads_corrupt > 0;
 
   // TODO(fmayer): Dump on process disconnect rather than data source
   // destruction. This prevents us needing to hold onto the bookkeeping data
