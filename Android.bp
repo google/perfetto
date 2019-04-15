@@ -533,13 +533,6 @@ cc_defaults {
       cflags: ["-DPERFETTO_BUILD_WITH_ANDROID_USERDEBUG"],
     },
   },
-  target: {
-    android: {
-      lto: {
-        thin: true,
-      },
-    },
-  },
 }
 
 // GN target: //:perfetto_integrationtests
