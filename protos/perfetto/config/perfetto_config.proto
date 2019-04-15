@@ -720,7 +720,9 @@ message HeapprofdConfig {
 
   // Set to 1 for perfect accuracy.
   // Otherwise, sample every sample_interval_bytes on average.
-  // TODO(fmayer): Add link to docs elaborating on this.
+  //
+  // See https://docs.perfetto.dev/#/heapprofd?id=sampling-interval for more
+  // details.
   optional uint64 sampling_interval_bytes = 1;
 
   // E.g. surfaceflinger, com.android.phone
