@@ -15,9 +15,9 @@
 
 import {search, searchEq} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
+import {cropText} from '../../common/canvas_utils';
 import {TrackState} from '../../common/state';
 import {translateState} from '../../common/thread_state';
-import {cropText} from '../../common/track_utils';
 import {colorForState} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';

@@ -31,9 +31,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
-#include "perfetto/metrics/metrics.pb.h"
-#include "perfetto/trace_processor/raw_query.pb.h"
-
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
@@ -141,6 +138,55 @@ char* GetLine(const char* prompt) {
 
 #endif
 
+bool PrintStats() {
+  auto it = g_tp->ExecuteQuery(
+      "SELECT name, idx, source, value from stats "
+      "where severity = 'error' and value > 0");
+
+  bool first = true;
+  for (uint32_t rows = 0; it.Next(); rows++) {
+    if (first) {
+      fprintf(stderr, "Error stats for this trace:\n");
+
+      for (uint32_t i = 0; i < it.ColumnCount(); i++)
+        fprintf(stderr, "%40s ", it.GetColumName(i).c_str());
+      fprintf(stderr, "\n");
+
+      for (uint32_t i = 0; i < it.ColumnCount(); i++)
+        fprintf(stderr, "%40s ", "----------------------------------------");
+      fprintf(stderr, "\n");
+
+      first = false;
+    }
+
+    for (uint32_t c = 0; c < it.ColumnCount(); c++) {
+      auto value = it.Get(c);
+      switch (value.type) {
+        case SqlValue::Type::kNull:
+          fprintf(stderr, "%-40.40s", "[NULL]");
+          break;
+        case SqlValue::Type::kDouble:
+          fprintf(stderr, "%40f", value.double_value);
+          break;
+        case SqlValue::Type::kLong:
+          fprintf(stderr, "%40" PRIi64, value.long_value);
+          break;
+        case SqlValue::Type::kString:
+          fprintf(stderr, "%-40.40s", value.string_value);
+          break;
+      }
+      fprintf(stderr, " ");
+    }
+    fprintf(stderr, "\n");
+  }
+
+  if (base::Optional<std::string> opt_error = it.GetLastError()) {
+    PERFETTO_ELOG("Error while iterating stats %s", opt_error->c_str());
+    return false;
+  }
+  return true;
+}
+
 int ExportTraceToDatabase(const std::string& output_name) {
   PERFETTO_CHECK(output_name.find("'") == std::string::npos);
   {
@@ -153,78 +199,64 @@ int ExportTraceToDatabase(const std::string& output_name) {
     PERFETTO_CHECK(res == 0);
   }
 
-  // TODO(skyostil): Use synchronous queries.
   std::string attach_sql =
       "ATTACH DATABASE '" + output_name + "' AS perfetto_export";
-  protos::RawQueryArgs attach_query;
-  attach_query.set_sql_query(attach_sql);
-  g_tp->ExecuteQuery(
-      attach_query, [](const protos::RawQueryResult& attach_res) {
-        if (attach_res.has_error()) {
-          PERFETTO_ELOG("SQLite error: %s", attach_res.error().c_str());
-          return;
-        }
-        protos::RawQueryArgs list_query;
-        // Find all the virtual tables we have created internally as well as
-        // actual tables registered through SQL.
-        list_query.set_sql_query(
-            "SELECT name FROM perfetto_tables UNION "
-            "SELECT name FROM sqlite_master WHERE type='table'");
-        g_tp->ExecuteQuery(list_query, [](const protos::RawQueryResult& res) {
-          if (res.has_error()) {
-            PERFETTO_ELOG("SQLite error: %s", res.error().c_str());
-            return;
-          }
-          PERFETTO_CHECK(res.columns_size() == 1);
-          for (int r = 0; r < static_cast<int>(res.num_records()); r++) {
-            std::string table_name = res.columns(0).string_values(r);
-            PERFETTO_CHECK(table_name.find("'") == std::string::npos);
-            std::string export_sql = "CREATE TABLE perfetto_export." +
-                                     table_name + " AS SELECT * FROM " +
-                                     table_name;
-            protos::RawQueryArgs export_query;
-            export_query.set_sql_query(export_sql);
-            g_tp->ExecuteQuery(export_query,
-                               [](const protos::RawQueryResult& export_res) {
-                                 if (export_res.has_error())
-                                   PERFETTO_ELOG("SQLite error: %s",
-                                                 export_res.error().c_str());
-                               });
-          }
-        });
-      });
+  auto attach_it = g_tp->ExecuteQuery(attach_sql);
+  bool attach_has_more = attach_it.Next();
+  PERFETTO_DCHECK(!attach_has_more);
+  if (base::Optional<std::string> opt_error = attach_it.GetLastError()) {
+    PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+    return 1;
+  }
 
-  protos::RawQueryArgs detach_query;
-  detach_query.set_sql_query("DETACH DATABASE perfetto_export");
-  g_tp->ExecuteQuery(detach_query, [](const protos::RawQueryResult& res) {
-    if (res.has_error())
-      PERFETTO_ELOG("SQLite error: %s", res.error().c_str());
-  });
+  auto tables_it = g_tp->ExecuteQuery(
+      "SELECT name FROM perfetto_tables UNION "
+      "SELECT name FROM sqlite_master WHERE type='table'");
+  for (uint32_t rows = 0; tables_it.Next(); rows++) {
+    std::string table_name = tables_it.Get(0).string_value;
+    PERFETTO_CHECK(table_name.find("'") == std::string::npos);
+    std::string export_sql = "CREATE TABLE perfetto_export." + table_name +
+                             " AS SELECT * FROM " + table_name;
+
+    auto export_it = g_tp->ExecuteQuery(export_sql);
+    bool export_has_more = export_it.Next();
+    PERFETTO_DCHECK(!export_has_more);
+    if (base::Optional<std::string> opt_error = export_it.GetLastError()) {
+      PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+      return 1;
+    }
+  }
+  if (base::Optional<std::string> opt_error = tables_it.GetLastError()) {
+    PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+    return 1;
+  }
+
+  auto detach_it = g_tp->ExecuteQuery("DETACH DATABASE perfetto_export");
+  bool detach_has_more = attach_it.Next();
+  PERFETTO_DCHECK(!detach_has_more);
+  if (base::Optional<std::string> opt_error = detach_it.GetLastError()) {
+    PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+    return 1;
+  }
   return 0;
 }
 
 int RunMetrics(const std::vector<std::string>& metric_names) {
-  protos::TraceMetrics metrics_proto;
-  for (const auto& metric : metric_names) {
-    perfetto::base::ignore_result(metric);
+  std::vector<uint8_t> metric_result;
+  int res = g_tp->ComputeMetric(metric_names, &metric_result);
+  if (res) {
+    PERFETTO_ELOG("Error when computing metrics");
+    return 1;
   }
-  perfetto::base::ignore_result(metrics_proto);
   return 0;
 }
 
-void PrintQueryResultInteractively(base::TimeNanos t_start,
-                                   const protos::RawQueryResult& res) {
-  if (res.has_error()) {
-    PERFETTO_ELOG("SQLite error: %s", res.error().c_str());
-    return;
-  }
-  PERFETTO_CHECK(res.columns_size() == res.column_descriptors_size());
-
-  base::TimeNanos t_end = base::GetWallTimeNs();
-
-  for (int r = 0; r < static_cast<int>(res.num_records()); r++) {
-    if (r % 32 == 0) {
-      if (r > 0) {
+void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
+                                   base::TimeNanos t_start) {
+  base::TimeNanos t_end = t_start;
+  for (uint32_t rows = 0; it->Next(); rows++) {
+    if (rows % 32 == 0) {
+      if (rows > 0) {
         fprintf(stderr, "...\nType 'q' to stop, Enter for more records: ");
         fflush(stderr);
         char input[32];
@@ -232,41 +264,41 @@ void PrintQueryResultInteractively(base::TimeNanos t_start,
           exit(0);
         if (input[0] == 'q')
           break;
+      } else {
+        t_end = base::GetWallTimeMs();
       }
-      for (const auto& col : res.column_descriptors())
-        printf("%20s ", col.name().c_str());
+      for (uint32_t i = 0; i < it->ColumnCount(); i++)
+        printf("%20s ", it->GetColumName(i).c_str());
       printf("\n");
 
-      for (int i = 0; i < res.columns_size(); i++)
+      for (uint32_t i = 0; i < it->ColumnCount(); i++)
         printf("%20s ", "--------------------");
       printf("\n");
     }
 
-    using ColumnDesc = protos::RawQueryResult::ColumnDesc;
-    for (int c = 0; c < res.columns_size(); c++) {
-      if (res.columns(c).is_nulls(r)) {
-        printf("%-20.20s", "[NULL]");
-      } else {
-        switch (res.column_descriptors(c).type()) {
-          case ColumnDesc::STRING:
-            printf("%-20.20s", res.columns(c).string_values(r).c_str());
-            break;
-          case ColumnDesc::DOUBLE:
-            printf("%20f", res.columns(c).double_values(r));
-            break;
-          case ColumnDesc::LONG: {
-            auto value = res.columns(c).long_values(r);
-            printf("%20lld", value);
-            break;
-          }
-          case ColumnDesc::UNKNOWN:
-            PERFETTO_FATAL("Row should be null so handled above");
-            break;
-        }
+    for (uint32_t c = 0; c < it->ColumnCount(); c++) {
+      auto value = it->Get(c);
+      switch (value.type) {
+        case SqlValue::Type::kNull:
+          printf("%-20.20s", "[NULL]");
+          break;
+        case SqlValue::Type::kDouble:
+          printf("%20f", value.double_value);
+          break;
+        case SqlValue::Type::kLong:
+          printf("%20" PRIi64, value.long_value);
+          break;
+        case SqlValue::Type::kString:
+          printf("%-20.20s", value.string_value);
+          break;
       }
       printf(" ");
     }
     printf("\n");
+  }
+
+  if (base::Optional<std::string> opt_error = it->GetLastError()) {
+    PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
   }
   printf("\nQuery executed in %.3f ms\n\n", (t_end - t_start).count() / 1E6);
 }
@@ -304,56 +336,43 @@ int StartInteractiveShell() {
       }
       continue;
     }
-    protos::RawQueryArgs query;
-    query.set_sql_query(line);
+
     base::TimeNanos t_start = base::GetWallTimeNs();
-    g_tp->ExecuteQuery(query, [t_start](const protos::RawQueryResult& res) {
-      PrintQueryResultInteractively(t_start, res);
-    });
+    auto it = g_tp->ExecuteQuery(line);
+    PrintQueryResultInteractively(&it, t_start);
 
     FreeLine(line);
   }
   return 0;
 }
 
-void PrintQueryResultAsCsv(const protos::RawQueryResult& res, FILE* output) {
-  PERFETTO_CHECK(res.columns_size() == res.column_descriptors_size());
+void PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
+  for (uint32_t c = 0; c < it->ColumnCount(); c++) {
+    if (c > 0)
+      fprintf(output, ",");
+    fprintf(output, "\"%s\"", it->GetColumName(c).c_str());
+  }
+  fprintf(output, "\n");
 
-  for (int r = 0; r < static_cast<int>(res.num_records()); r++) {
-    if (r == 0) {
-      for (int c = 0; c < res.column_descriptors_size(); c++) {
-        const auto& col = res.column_descriptors(c);
-        if (c > 0)
-          fprintf(output, ",");
-        fprintf(output, "\"%s\"", col.name().c_str());
-      }
-      fprintf(output, "\n");
-    }
-
-    for (int c = 0; c < res.columns_size(); c++) {
+  for (uint32_t rows = 0; it->Next(); rows++) {
+    for (uint32_t c = 0; c < it->ColumnCount(); c++) {
       if (c > 0)
         fprintf(output, ",");
 
-      using ColumnDesc = protos::RawQueryResult::ColumnDesc;
-      if (res.columns(c).is_nulls(r)) {
-        fprintf(output, "\"%s\"", "[NULL]");
-      } else {
-        switch (res.column_descriptors(c).type()) {
-          case ColumnDesc::STRING:
-            fprintf(output, "\"%s\"", res.columns(c).string_values(r).c_str());
-            break;
-          case ColumnDesc::DOUBLE:
-            fprintf(output, "%f", res.columns(c).double_values(r));
-            break;
-          case ColumnDesc::LONG: {
-            auto value = res.columns(c).long_values(r);
-            fprintf(output, "%lld", value);
-            break;
-          }
-          case ColumnDesc::UNKNOWN:
-            PERFETTO_FATAL("Row should be null so handled above");
-            break;
-        }
+      auto value = it->Get(c);
+      switch (value.type) {
+        case SqlValue::Type::kNull:
+          fprintf(output, "\"%s\"", "[NULL]");
+          break;
+        case SqlValue::Type::kDouble:
+          fprintf(output, "%f", value.double_value);
+          break;
+        case SqlValue::Type::kLong:
+          fprintf(output, "%" PRIi64, value.long_value);
+          break;
+        case SqlValue::Type::kString:
+          fprintf(output, "\"%s\"", value.string_value);
+          break;
       }
     }
     fprintf(output, "\n");
@@ -400,26 +419,27 @@ bool RunQueryAndPrintResult(const std::vector<std::string> queries,
 
     PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
 
-    protos::RawQueryArgs query;
-    query.set_sql_query(sql_query);
-    g_tp->ExecuteQuery(query, [output, &is_query_error,
-                               &has_output](const protos::RawQueryResult& res) {
-      if (res.has_error()) {
-        PERFETTO_ELOG("SQLite error: %s", res.error().c_str());
-        is_query_error = true;
-        return;
-      } else if (res.num_records() != 0) {
-        if (has_output) {
-          PERFETTO_ELOG(
-              "More than one query generated result rows. This is "
-              "unsupported.");
-          is_query_error = true;
-          return;
-        }
-        has_output = true;
-      }
-      PrintQueryResultAsCsv(res, output);
-    });
+    auto it = g_tp->ExecuteQuery(sql_query);
+    if (base::Optional<std::string> opt_error = it.GetLastError()) {
+      PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+      is_query_error = true;
+      break;
+    }
+    if (it.ColumnCount() == 0) {
+      bool it_has_more = it.Next();
+      PERFETTO_DCHECK(!it_has_more);
+      continue;
+    }
+
+    if (has_output) {
+      PERFETTO_ELOG(
+          "More than one query generated result rows. This is "
+          "unsupported.");
+      is_query_error = true;
+      break;
+    }
+    PrintQueryResultAsCsv(&it, output);
+    has_output = true;
   }
   return !is_query_error;
 }
@@ -563,6 +583,11 @@ int TraceProcessorMain(int argc, char** argv) {
 #if PERFETTO_HAS_SIGNAL_H()
   signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
 #endif
+
+  // Print out the stats to stderr for the trace.
+  if (!PrintStats()) {
+    return 1;
+  }
 
   // First, see if we have some metrics to run. If we do, just run them and
   // return.

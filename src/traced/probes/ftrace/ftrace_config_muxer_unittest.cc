@@ -312,6 +312,49 @@ TEST_F(FtraceConfigMuxerTest, AddAllEvents) {
               Contains("sched/sched_new_event"));
 }
 
+TEST_F(FtraceConfigMuxerTest, TwoWildcardGroups) {
+  auto mock_table = GetMockTable();
+  NiceMock<MockFtraceProcfs> ftrace;
+
+  FtraceConfig config = CreateFtraceConfig({"group_one/*", "group_two/*"});
+
+  FtraceConfigMuxer model(&ftrace, mock_table.get());
+
+  std::set<std::string> event_names = {"foo"};
+  ON_CALL(ftrace, GetEventNamesForGroup("events/group_one"))
+      .WillByDefault(Return(event_names));
+  EXPECT_CALL(ftrace, GetEventNamesForGroup("events/group_one"))
+      .Times(AnyNumber());
+
+  ON_CALL(ftrace, GetEventNamesForGroup("events/group_two"))
+      .WillByDefault(Return(event_names));
+  EXPECT_CALL(ftrace, GetEventNamesForGroup("events/group_two"))
+      .Times(AnyNumber());
+
+  Event event1;
+  event1.name = "foo";
+  event1.group = "group_one";
+  event1.ftrace_event_id = 1;
+  ON_CALL(*mock_table, GetOrCreateEvent(GroupAndName("group_one", "foo")))
+      .WillByDefault(Return(&event1));
+  EXPECT_CALL(*mock_table, GetOrCreateEvent(GroupAndName("group_one", "foo")));
+
+  Event event2;
+  event2.name = "foo";
+  event2.group = "group_two";
+  event2.ftrace_event_id = 2;
+  ON_CALL(*mock_table, GetOrCreateEvent(GroupAndName("group_two", "foo")))
+      .WillByDefault(Return(&event2));
+  EXPECT_CALL(*mock_table, GetOrCreateEvent(GroupAndName("group_two", "foo")));
+
+  FtraceConfigId id = model.SetupConfig(config);
+  ASSERT_TRUE(model.ActivateConfig(id));
+  const FtraceConfig* actual_config = model.GetConfigForTesting(id);
+  EXPECT_TRUE(actual_config);
+  EXPECT_THAT(actual_config->ftrace_events(), Contains("group_one/foo"));
+  EXPECT_THAT(actual_config->ftrace_events(), Contains("group_two/foo"));
+}
+
 TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
   MockFtraceProcfs ftrace;
 

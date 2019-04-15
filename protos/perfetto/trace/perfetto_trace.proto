@@ -243,7 +243,7 @@ message AndroidLogPacket {
 // Begin of protos/perfetto/trace/android/packages_list.proto
 
 message PackagesList {
-  message Package {
+  message PackageInfo {
     optional string name = 1;
     optional uint64 uid = 2;
     optional bool debuggable = 3;
@@ -251,10 +251,13 @@ message PackagesList {
     optional int64 version_code = 5;
   }
 
-  repeated Package packages = 1;
+  repeated PackageInfo packages = 1;
 
-  // At least one error occured parsing the packages.list.
-  optional bool error = 2;
+  // At least one error occurred parsing the packages.list.
+  optional bool parse_error = 2;
+
+  // Failed to open / read packages.list.
+  optional bool read_error = 3;
 }
 
 // End of protos/perfetto/trace/android/packages_list.proto
@@ -2492,6 +2495,7 @@ message ProfilePacket {
     optional uint64 heap_samples = 2;
     optional uint64 map_reparses = 3;
     optional Histogram unwinding_time_us = 4;
+    optional uint64 total_unwinding_time_us = 5;
   }
 
   message ProcessHeapSamples {
@@ -2508,6 +2512,10 @@ message ProfilePacket {
     // This process disconnected while it was profiled.
     // If false, the process outlived the profiling session.
     optional bool disconnected = 6;
+
+    // If disconnected, this disconnect was caused by the client overrunning
+    // the buffer.
+    optional bool buffer_overran = 7;
 
     optional ProcessStats stats = 5;
 
@@ -3614,8 +3622,14 @@ message HeapprofdConfig {
   optional uint64 sampling_interval_bytes = 1;
 
   // E.g. surfaceflinger, com.android.phone
+  // This input is normalized in the following way: if it contains slashes,
+  // everything up to the last slash is discarded. If it contains "@",
+  // everything after the first @ is discared.
+  // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
+  // This transformation is also applied to the processes' command lines when
+  // matching.
   repeated string process_cmdline = 2;
-  // repeated string android_app = 3;  // TODO(fmayer): Implement
+
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
   optional bool all = 5;
@@ -3633,6 +3647,11 @@ message HeapprofdConfig {
   // Size of the shared memory buffer between the profiled processes and
   // heapprofd. Defaults to 8 MiB. If larger than 500 MiB, truncated to 500
   // MiB.
+  //
+  // Needs to be:
+  // * at least 8192,
+  // * a power of two,
+  // * a multiple of 4096.
   optional uint64 shmem_size_bytes = 8;
 }
 

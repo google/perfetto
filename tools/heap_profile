@@ -37,6 +37,13 @@ TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = (
     'https://storage.googleapis.com/perfetto/')
 
+NULL = open(os.devnull)
+NOOUT = {
+  'stdout': NULL,
+  'stderr': NULL,
+}
+
+
 def check_hash(file_name, sha_value):
   with open(file_name, 'rb') as fd:
     # TODO(fmayer): Chunking.
@@ -64,8 +71,6 @@ def load_trace_to_text(platform):
   return local_file
 
 
-NULL = open('/dev/null', 'r')
-
 CFG_IDENT = '      '
 CFG='''buffers {{
   size_kb: 32768
@@ -83,6 +88,7 @@ data_sources {{
     heapprofd_config {{
 
       all: {all}
+      shmem_size_bytes: {shmem_size}
       sampling_interval_bytes: {interval}
 {target_cfg}
 {continuous_dump_cfg}
@@ -131,6 +137,10 @@ def main(argv):
   parser.add_argument("--disable-selinux", action="store_true",
                       help="Disable SELinux enforcement for duration of "
                       "profile")
+  parser.add_argument("--shmem-size", help="Size of buffer between client and "
+                      "heapprofd. Default 8MiB. Needs to be a power of two "
+                      "multiple of 4096, at least 8192.", type=int,
+                      default=8 * 1048576)
 
   args = parser.parse_args()
 
@@ -143,6 +153,15 @@ def main(argv):
     fail = True
   if args.interval is None:
     print("FATAL: No interval given.", file=sys.stderr)
+    fail = True
+  if args.shmem_size % 4096:
+    print("FATAL: shmem-size is not a multiple of 4096.", file=sys.stderr)
+    fail = True
+  if args.shmem_size < 8192:
+    print("FATAL: shmem-size is less than 8192.", file=sys.stderr)
+    fail = True
+  if args.shmem_size & (args.shmem_size - 1):
+    print("FATAL: shmem-size is not a power of two.", file=sys.stderr)
     fail = True
   if fail:
     parser.print_help()
@@ -174,7 +193,8 @@ def main(argv):
         dump_interval=args.continuous_dump)
   cfg = CFG.format(all=str(args.all == True).lower(), interval=args.interval,
                    duration=args.duration, target_cfg=target_cfg,
-                   continuous_dump_cfg=continuous_dump_cfg)
+                   continuous_dump_cfg=continuous_dump_cfg,
+                   shmem_size=args.shmem_size)
 
   if args.disable_selinux:
     enforcing = subprocess.check_output(['adb', 'shell', 'getenforce'])
@@ -203,10 +223,14 @@ def main(argv):
 
   old_handler = signal.signal(signal.SIGINT, sigint_handler)
   print("Profiling active. Press Ctrl+C to terminate.")
+  print("You may disconnect your device.")
   exists = True
-  while exists and not IS_INTERRUPTED:
+  device_connected = True
+  while not device_connected or (exists and not IS_INTERRUPTED):
     exists = subprocess.call(
-        ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
+        ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)],
+        **NOOUT) == 0
+    device_connected = subprocess.call(['adb', 'shell', 'true'], **NOOUT) == 0
     time.sleep(1)
   signal.signal(signal.SIGINT, old_handler)
   if IS_INTERRUPTED:
@@ -223,8 +247,7 @@ def main(argv):
                          '/data/misc/perfetto-traces/profile-{}'.format(user),
                          '/tmp/profile'], stdout=NULL)
   trace_to_text_output = subprocess.check_output(
-      [trace_to_text_binary, 'profile', '/tmp/profile'],
-      stderr=NULL)
+      [trace_to_text_binary, 'profile', '/tmp/profile'])
   profile_path = None
   for word in trace_to_text_output.split():
     if 'heap_profile-' in word:

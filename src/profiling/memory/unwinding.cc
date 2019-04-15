@@ -246,12 +246,32 @@ void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
     return;
   }
   ClientData& client_data = it->second;
+  SharedRingBuffer& shmem = client_data.shmem;
+
+  // Currently, these stats are used to determine whether the application
+  // disconnected due to an error condition (i.e. buffer overflow) or
+  // volutarily. Because a buffer overflow leads to an immediate disconnect, we
+  // do not need these stats when heapprofd tears down the tracing session.
+  //
+  // TODO(fmayer): We should make it that normal disconnects also go through
+  // this code path, so we can write other stats to the result. This will also
+  // allow us to free the bookkeeping data earlier for processes that exit
+  // during the session. See TODO in
+  // HeapprofdProducer::HandleSocketDisconnected.
+  SharedRingBuffer::Stats stats = {};
+  {
+    auto lock = shmem.AcquireLock(ScopedSpinlock::Mode::Try);
+    if (lock.locked())
+      stats = shmem.GetStats(lock);
+    else
+      PERFETTO_ELOG("Failed to log shmem to get stats.");
+  }
   DataSourceInstanceID ds_id = client_data.data_source_instance_id;
   pid_t peer_pid = self->peer_pid();
   client_data_.erase(it);
   // The erase invalidates the self pointer.
   self = nullptr;
-  delegate_->PostSocketDisconnected(ds_id, peer_pid);
+  delegate_->PostSocketDisconnected(ds_id, peer_pid, stats);
 }
 
 void UnwindingWorker::OnDataAvailable(base::UnixSocket* self) {

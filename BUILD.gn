@@ -73,6 +73,8 @@ group("all") {
       ]
       if (is_linux || is_android) {
         deps += [ "tools/skippy" ]
+        deps += [ "tools/busy_threads" ]
+        deps += [ "tools/dump_ftrace_stats" ]
       }
       if (is_fuzzer) {
         deps += [ ":fuzzers" ]
@@ -278,6 +280,7 @@ if (perfetto_build_standalone) {
     deps = [
       "src/ipc:buffered_frame_deserializer_fuzzer",
       "src/profiling/memory:shared_ring_buffer_fuzzer",
+      "src/profiling/memory:shared_ring_buffer_write_fuzzer",
       "src/profiling/memory:unwinding_fuzzer",
       "src/protozero:protozero_decoder_fuzzer",
       "src/trace_processor:trace_processor_fuzzer",

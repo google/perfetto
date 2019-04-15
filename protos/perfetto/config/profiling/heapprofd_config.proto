@@ -34,8 +34,14 @@ message HeapprofdConfig {
   optional uint64 sampling_interval_bytes = 1;
 
   // E.g. surfaceflinger, com.android.phone
+  // This input is normalized in the following way: if it contains slashes,
+  // everything up to the last slash is discarded. If it contains "@",
+  // everything after the first @ is discared.
+  // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
+  // This transformation is also applied to the processes' command lines when
+  // matching.
   repeated string process_cmdline = 2;
-  // repeated string android_app = 3;  // TODO(fmayer): Implement
+
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
   optional bool all = 5;
@@ -53,5 +59,10 @@ message HeapprofdConfig {
   // Size of the shared memory buffer between the profiled processes and
   // heapprofd. Defaults to 8 MiB. If larger than 500 MiB, truncated to 500
   // MiB.
+  //
+  // Needs to be:
+  // * at least 8192,
+  // * a power of two,
+  // * a multiple of 4096.
   optional uint64 shmem_size_bytes = 8;
 }

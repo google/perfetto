@@ -19,6 +19,9 @@ import("../../../gn/protozero_library.gni")
 common_sources = [ "metrics.proto" ]
 
 proto_library("lite") {
+  deps = [
+    "android:lite",
+  ]
   generate_python = false
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
@@ -26,6 +29,9 @@ proto_library("lite") {
 }
 
 protozero_library("zero") {
+  deps = [
+    "android:zero",
+  ]
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   sources = common_sources

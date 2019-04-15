@@ -87,6 +87,7 @@ message ProfilePacket {
     optional uint64 heap_samples = 2;
     optional uint64 map_reparses = 3;
     optional Histogram unwinding_time_us = 4;
+    optional uint64 total_unwinding_time_us = 5;
   }
 
   message ProcessHeapSamples {
@@ -103,6 +104,10 @@ message ProfilePacket {
     // This process disconnected while it was profiled.
     // If false, the process outlived the profiling session.
     optional bool disconnected = 6;
+
+    // If disconnected, this disconnect was caused by the client overrunning
+    // the buffer.
+    optional bool buffer_overran = 7;
 
     optional ProcessStats stats = 5;
 

@@ -60,7 +60,6 @@ namespace stats {
   F(rss_stat_negative_size,                     kSingle,  kInfo,  kAnalysis), \
   F(sched_switch_out_of_order,                  kSingle,  kError, kAnalysis), \
   F(systrace_parse_failure,                     kSingle,  kError, kAnalysis), \
-  F(sys_unknown_syscall,                        kSingle,  kError, kAnalysis), \
   F(traced_buf_buffer_size,                     kIndexed, kInfo,  kTrace),    \
   F(traced_buf_bytes_overwritten,               kIndexed, kInfo,  kTrace),    \
   F(traced_buf_bytes_read,                      kIndexed, kInfo,  kTrace),    \
@@ -88,7 +87,8 @@ namespace stats {
   F(traced_tracing_sessions,                    kSingle,  kInfo,  kTrace),    \
   F(vmstat_unknown_keys,                        kSingle,  kError, kAnalysis), \
   F(clock_sync_failure,                         kSingle,  kError, kAnalysis), \
-  F(process_tracker_errors,                     kSingle,  kError, kAnalysis)
+  F(process_tracker_errors,                     kSingle,  kError, kAnalysis), \
+  F(json_tokenizer_failure,                     kSingle,  kError, kTrace)
 // clang-format on
 
 enum Type {

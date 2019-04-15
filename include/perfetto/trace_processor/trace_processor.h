@@ -19,17 +19,12 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/optional.h"
-#include "perfetto/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto {
-
-namespace protos {
-class RawQueryArgs;
-class RawQueryResult;
-}  // namespace protos
 
 namespace trace_processor {
 
@@ -42,8 +37,6 @@ class TraceProcessor {
   // Iterator returning SQL rows satisfied by a query.
   class Iterator {
    public:
-    enum NextResult { kEOF = 0, kError = -1, kHasNext = 1 };
-
     Iterator(std::unique_ptr<IteratorImpl> iterator);
     ~Iterator();
 
@@ -53,25 +46,29 @@ class TraceProcessor {
     Iterator(Iterator&&) noexcept;
     Iterator& operator=(Iterator&&);
 
-    // Forwards the iterator to the next result row and returns an enum
-    // indicating if there we have reached EOF and whether there was an error.
-    NextResult Next();
+    // Forwards the iterator to the next result row and returns a boolean of
+    // whether there is a next row. If this method returns false,
+    // |GetLastError()| should be called to check if there was an error. If
+    // there was no error, this means the EOF was reached.
+    bool Next();
 
     // Returns the value associated with the column |col|. Any call to
     // |Get()| must be preceeded by a call to |Next()| returning
     // kHasNext. |col| must be less than the number returned by |ColumnCount()|.
     SqlValue Get(uint32_t col);
 
+    // Returns the name of the column at index |col|. Can be called even before
+    // calling |Next()|.
+    std::string GetColumName(uint32_t col);
+
     // Returns the number of columns in this iterator's query. Can be called
     // even before calling |Next()|.
     uint32_t ColumnCount();
 
-    // Returns the error indicated by the last |Next()| call. If no error
-    // occurred, the returned value will be base::nullopt.
+    // Returns the error (if any) from the last call to next. If no error
+    // occurred, the returned value will be base::nullopt and implies that
+    // EOF was reached.
     base::Optional<std::string> GetLastError();
-
-    // Returns if this iterator is valid to call methods on.
-    bool IsValid();
 
    private:
     std::unique_ptr<IteratorImpl> iterator_;
@@ -96,15 +93,17 @@ class TraceProcessor {
   // without having to wait for their time window to expire.
   virtual void NotifyEndOfFile() = 0;
 
-  // Executes a SQLite query on the loaded portion of the trace. |result| will
-  // be invoked once after the result of the query is available.
-  virtual void ExecuteQuery(
-      const protos::RawQueryArgs&,
-      std::function<void(const protos::RawQueryResult&)>) = 0;
-
   // Executes a SQLite query on the loaded portion of the trace. The returned
   // iterator can be used to load rows from the result.
-  virtual Iterator ExecuteQuery(base::StringView sql) = 0;
+  virtual Iterator ExecuteQuery(const std::string& sql) = 0;
+
+  // Computes the given metrics on the loded portion of the trace. If
+  // successful, the output argument |metrics_proto| will be filled with the
+  // proto-encoded bytes for the message TraceMetrics in
+  // perfetto/metrics/metrics.proto. The return value will be 0 if no error
+  // occured or non-zero otherwise.
+  virtual int ComputeMetric(const std::vector<std::string>& metric_names,
+                            std::vector<uint8_t>* metrics_proto) = 0;
 
   // Interrupts the current query. Typically used by Ctrl-C handler.
   virtual void InterruptQuery() = 0;

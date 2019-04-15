@@ -115,7 +115,7 @@ HeapprofdProducer::~HeapprofdProducer() {
   // We only borrowed this from the environment variable.
   // UnixSocket always owns the socket, so we need to manually release it
   // here.
-  if (mode_ == HeapprofdMode::kCentral)
+  if (mode_ == HeapprofdMode::kCentral && bool(listening_socket_))
     listening_socket_->ReleaseSocket().ReleaseFd().release();
 }
 
@@ -173,7 +173,7 @@ void HeapprofdProducer::OnDisconnect() {
       [weak_producer] {
         if (!weak_producer)
           return;
-        weak_producer->Connect();
+        weak_producer->ConnectService();
       },
       connection_backoff_ms_);
 }
@@ -204,10 +204,14 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     return;
   }
 
+  std::vector<std::string> normalized_cmdlines =
+      NormalizeCmdlines(heapprofd_config.process_cmdline());
+
   // Child mode is only interested in the first data source matching the
   // already-connected process.
   if (mode_ == HeapprofdMode::kChild) {
-    if (!ConfigTargetsProcess(heapprofd_config, target_process_)) {
+    if (!ConfigTargetsProcess(heapprofd_config, target_process_,
+                              normalized_cmdlines)) {
       PERFETTO_DLOG("Child mode skipping setup of unrelated data source.");
       return;
     }
@@ -235,6 +239,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   data_source.config = heapprofd_config;
   auto buffer_id = static_cast<BufferID>(cfg.target_buffer());
   data_source.trace_writer = endpoint_->CreateTraceWriter(buffer_id);
+  data_source.normalized_cmdlines = std::move(normalized_cmdlines);
 
   data_sources_.emplace(id, std::move(data_source));
   PERFETTO_DLOG("Set up data source.");
@@ -289,7 +294,7 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
     if (heapprofd_config.all())
       data_source.properties.emplace_back(properties_.SetAll());
 
-    for (std::string cmdline : heapprofd_config.process_cmdline())
+    for (std::string cmdline : data_source.normalized_cmdlines)
       data_source.properties.emplace_back(
           properties_.SetProperty(std::move(cmdline)));
 
@@ -299,8 +304,8 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
     for (uint64_t pid : heapprofd_config.pid())
       pids.emplace(static_cast<pid_t>(pid));
 
-    if (!heapprofd_config.process_cmdline().empty())
-      FindPidsForCmdlines(heapprofd_config.process_cmdline(), &pids);
+    if (!data_source.normalized_cmdlines.empty())
+      FindPidsForCmdlines(data_source.normalized_cmdlines, &pids);
 
     for (auto pid_it = pids.cbegin(); pid_it != pids.cend();) {
       pid_t pid = *pid_it;
@@ -398,10 +403,12 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
       proto->set_pid(static_cast<uint64_t>(pid));
       proto->set_from_startup(from_startup);
       proto->set_disconnected(process_state.disconnected);
+      proto->set_buffer_overran(process_state.buffer_overran);
       auto* stats = proto->set_stats();
       stats->set_unwinding_errors(process_state.unwinding_errors);
       stats->set_heap_samples(process_state.heap_samples);
       stats->set_map_reparses(process_state.map_reparses);
+      stats->set_total_unwinding_time_us(process_state.total_unwinding_time_us);
       auto* unwinding_hist = stats->set_unwinding_time_us();
       for (const auto& p : process_state.unwinding_time_us.GetData()) {
         auto* bucket = unwinding_hist->add_buckets();
@@ -514,7 +521,7 @@ void HeapprofdProducer::ConnectWithRetries(const char* socket_name) {
 
   ResetConnectionBackoff();
   producer_sock_name_ = socket_name;
-  Connect();
+  ConnectService();
 }
 
 void HeapprofdProducer::DumpAll() {
@@ -524,11 +531,16 @@ void HeapprofdProducer::DumpAll() {
   }
 }
 
-void HeapprofdProducer::Connect() {
-  PERFETTO_DCHECK(state_ == kNotConnected);
+void HeapprofdProducer::ConnectService() {
+  SetProducerEndpoint(ProducerIPCClient::Connect(
+      producer_sock_name_, this, "android.heapprofd", task_runner_));
+}
+
+void HeapprofdProducer::SetProducerEndpoint(
+    std::unique_ptr<TracingService::ProducerEndpoint> endpoint) {
+  PERFETTO_DCHECK(state_ == kNotConnected || state_ == kNotStarted);
   state_ = kConnecting;
-  endpoint_ = ProducerIPCClient::Connect(producer_sock_name_, this,
-                                         "android.heapprofd", task_runner_);
+  endpoint_ = std::move(endpoint);
 }
 
 void HeapprofdProducer::IncreaseConnectionBackoff() {
@@ -629,8 +641,10 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
   }
 }
 
-bool HeapprofdProducer::ConfigTargetsProcess(const HeapprofdConfig& cfg,
-                                             const Process& proc) {
+bool HeapprofdProducer::ConfigTargetsProcess(
+    const HeapprofdConfig& cfg,
+    const Process& proc,
+    const std::vector<std::string>& normalized_cmdlines) {
   if (cfg.all())
     return true;
 
@@ -640,9 +654,8 @@ bool HeapprofdProducer::ConfigTargetsProcess(const HeapprofdConfig& cfg,
     return true;
   }
 
-  const auto& cmdlines = cfg.process_cmdline();
-  if (std::find(cmdlines.cbegin(), cmdlines.cend(), proc.cmdline) !=
-      cmdlines.cend()) {
+  if (std::find(normalized_cmdlines.cbegin(), normalized_cmdlines.cend(),
+                proc.cmdline) != normalized_cmdlines.cend()) {
     return true;
   }
 
@@ -653,7 +666,7 @@ HeapprofdProducer::DataSource* HeapprofdProducer::GetDataSourceForProcess(
     const Process& proc) {
   for (auto& ds_id_and_datasource : data_sources_) {
     DataSource& ds = ds_id_and_datasource.second;
-    if (ConfigTargetsProcess(ds.config, proc))
+    if (ConfigTargetsProcess(ds.config, proc, ds.normalized_cmdlines))
       return &ds;
   }
   return nullptr;
@@ -663,7 +676,8 @@ void HeapprofdProducer::RecordOtherSourcesAsRejected(DataSource* active_ds,
                                                      const Process& proc) {
   for (auto& ds_id_and_datasource : data_sources_) {
     DataSource& ds = ds_id_and_datasource.second;
-    if (&ds != active_ds && ConfigTargetsProcess(ds.config, proc))
+    if (&ds != active_ds &&
+        ConfigTargetsProcess(ds.config, proc, ds.normalized_cmdlines))
       ds.rejected_pids.emplace(proc.pid);
   }
 }
@@ -726,11 +740,12 @@ void HeapprofdProducer::PostFreeRecord(FreeRecord free_rec) {
 }
 
 void HeapprofdProducer::PostSocketDisconnected(DataSourceInstanceID ds_id,
-                                               pid_t pid) {
+                                               pid_t pid,
+                                               SharedRingBuffer::Stats stats) {
   auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_id, pid] {
+  task_runner_->PostTask([weak_this, ds_id, pid, stats] {
     if (weak_this)
-      weak_this->HandleSocketDisconnected(ds_id, pid);
+      weak_this->HandleSocketDisconnected(ds_id, pid, stats);
   });
 }
 
@@ -771,6 +786,7 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
     process_state.map_reparses++;
   process_state.heap_samples++;
   process_state.unwinding_time_us.Add(alloc_rec.unwinding_time_us);
+  process_state.total_unwinding_time_us += alloc_rec.unwinding_time_us;
 
   heap_tracker.RecordMalloc(alloc_rec.frames, alloc_metadata.alloc_address,
                             alloc_metadata.total_size,
@@ -807,8 +823,10 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   }
 }
 
-void HeapprofdProducer::HandleSocketDisconnected(DataSourceInstanceID id,
-                                                 pid_t pid) {
+void HeapprofdProducer::HandleSocketDisconnected(
+    DataSourceInstanceID id,
+    pid_t pid,
+    SharedRingBuffer::Stats stats) {
   auto it = data_sources_.find(id);
   if (it == data_sources_.end())
     return;
@@ -819,6 +837,7 @@ void HeapprofdProducer::HandleSocketDisconnected(DataSourceInstanceID id,
     return;
   ProcessState& process_state = process_state_it->second;
   process_state.disconnected = true;
+  process_state.buffer_overran = stats.num_writes_overflow > 0;
 
   // TODO(fmayer): Dump on process disconnect rather than data source
   // destruction. This prevents us needing to hold onto the bookkeeping data

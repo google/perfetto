@@ -62,7 +62,6 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
   is_memfd = !!fd;
 
   if (!fd) {
-    // TODO: if this fails on Android we should fall back on ashmem.
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     // In-tree builds should only allow mem_fd, so we can inspect the seals
     // to verify the fd is appropriately sealed.
@@ -83,7 +82,10 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (is_memfd) {
     res = fcntl(*fd, F_ADD_SEALS, kFDSeals);
-    PERFETTO_DCHECK(res == 0);
+    if (res != 0) {
+      PERFETTO_PLOG("Failed to seal FD.");
+      return;
+    }
   }
 #endif
   Initialize(std::move(fd));
@@ -105,6 +107,10 @@ SharedRingBuffer::~SharedRingBuffer() {
 void SharedRingBuffer::Initialize(base::ScopedFile mem_fd) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   int seals = fcntl(*mem_fd, F_GET_SEALS);
+  if (seals == -1) {
+    PERFETTO_PLOG("Failed to get seals of FD.");
+    return;
+  }
   if ((seals & kFDSeals) != kFDSeals) {
     PERFETTO_ELOG("FD not properly sealed. Expected %x, got %x", kFDSeals,
                   seals);
@@ -176,6 +182,13 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginWrite(
 
   const uint64_t size_with_header =
       base::AlignUp<kAlignment>(size + kHeaderSize);
+
+  // size_with_header < size is for catching overflow of size_with_header.
+  if (PERFETTO_UNLIKELY(size_with_header < size)) {
+    errno = EINVAL;
+    return result;
+  }
+
   if (size_with_header > write_avail(pos)) {
     meta_->stats.num_writes_overflow++;
     errno = EAGAIN;

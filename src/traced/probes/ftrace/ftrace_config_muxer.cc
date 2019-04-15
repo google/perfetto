@@ -76,7 +76,8 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
     std::string name;
     std::tie(group, name) = EventToStringGroupAndName(config_value);
     if (name == "*") {
-      events = ReadEventsInGroupFromFs(*ftrace_, group);
+      for (const auto& event : ReadEventsInGroupFromFs(*ftrace_, group))
+        events.insert(event);
     } else if (group.empty()) {
       // If there is no group specified, find an event with that name and
       // use it's group.

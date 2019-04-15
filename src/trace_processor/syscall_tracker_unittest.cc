@@ -65,8 +65,8 @@ TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
 
   context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
   context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
-  EXPECT_EQ(context.storage->GetString(begin_name), "UNKNOWN_SYSCALL");
-  EXPECT_EQ(context.storage->GetString(end_name), "UNKNOWN_SYSCALL");
+  EXPECT_EQ(context.storage->GetString(begin_name), "sys_57");
+  EXPECT_EQ(context.storage->GetString(end_name), "sys_57");
 }
 
 TEST_F(SyscallTrackerTest, IgnoreWriteSyscalls) {
@@ -74,8 +74,8 @@ TEST_F(SyscallTrackerTest, IgnoreWriteSyscalls) {
   EXPECT_CALL(*slice_tracker, Begin(_, _, _, _)).Times(0);
   EXPECT_CALL(*slice_tracker, End(_, _, _, _)).Times(0);
 
-  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 58 /*sys_write*/);
-  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 58 /*sys_write*/);
+  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 64 /*sys_write*/);
+  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 64 /*sys_write*/);
 }
 
 TEST_F(SyscallTrackerTest, Aarch64) {
@@ -87,8 +87,8 @@ TEST_F(SyscallTrackerTest, Aarch64) {
       .WillOnce(SaveArg<3>(&end_name));
 
   context.syscall_tracker->SetArchitecture(kAarch64);
-  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
-  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
+  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
+  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
   EXPECT_EQ(context.storage->GetString(begin_name), "sys_read");
   EXPECT_EQ(context.storage->GetString(end_name), "sys_read");
 }
@@ -111,10 +111,9 @@ TEST_F(SyscallTrackerTest, x8664) {
 TEST_F(SyscallTrackerTest, SyscallNumberTooLarge) {
   EXPECT_CALL(*slice_tracker, Begin(_, _, _, _)).Times(0);
   EXPECT_CALL(*slice_tracker, End(_, _, _, _)).Times(0);
-
   context.syscall_tracker->SetArchitecture(kAarch64);
-  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 1024);
-  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 1024);
+  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 9999);
+  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 9999);
 }
 
 }  // namespace

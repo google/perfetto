@@ -105,16 +105,24 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // UnwindingWorker::Delegate impl:
   void PostAllocRecord(AllocRecord) override;
   void PostFreeRecord(FreeRecord) override;
-  void PostSocketDisconnected(DataSourceInstanceID, pid_t) override;
+  void PostSocketDisconnected(DataSourceInstanceID,
+                              pid_t,
+                              SharedRingBuffer::Stats) override;
 
   void HandleAllocRecord(AllocRecord);
   void HandleFreeRecord(FreeRecord);
-  void HandleSocketDisconnected(DataSourceInstanceID, pid_t);
+  void HandleSocketDisconnected(DataSourceInstanceID,
+                                pid_t,
+                                SharedRingBuffer::Stats);
 
   // Valid only if mode_ == kChild.
   void SetTargetProcess(pid_t target_pid,
                         std::string target_cmdline,
                         base::ScopedFile inherited_socket);
+
+  // Exposed for testing.
+  void SetProducerEndpoint(
+      std::unique_ptr<TracingService::ProducerEndpoint> endpoint);
 
  private:
   void HandleClientConnection(std::unique_ptr<base::UnixSocket> new_connection,
@@ -127,7 +135,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     kConnecting,
     kConnected,
   };
-  void Connect();
+  void ConnectService();
   void Restart();
   void ResetConnectionBackoff();
   void IncreaseConnectionBackoff();
@@ -159,10 +167,13 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   struct ProcessState {
     ProcessState(GlobalCallstackTrie* callsites) : heap_tracker(callsites) {}
     bool disconnected = false;
+    bool buffer_overran = false;
+
     uint64_t heap_samples = 0;
     uint64_t map_reparses = 0;
     uint64_t unwinding_errors = 0;
 
+    uint64_t total_unwinding_time_us = 0;
     LogHistogram unwinding_time_us;
     HeapTracker heap_tracker;
   };
@@ -176,6 +187,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     std::set<pid_t> signaled_pids;
     std::set<pid_t> rejected_pids;
     std::map<pid_t, ProcessState> process_states;
+    std::vector<std::string> normalized_cmdlines;
     uint64_t next_index_ = 0;
   };
 
@@ -189,7 +201,10 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   bool IsPidProfiled(pid_t);
   DataSource* GetDataSourceForProcess(const Process& proc);
-  bool ConfigTargetsProcess(const HeapprofdConfig& cfg, const Process& proc);
+  bool ConfigTargetsProcess(
+      const HeapprofdConfig& cfg,
+      const Process& proc,
+      const std::vector<std::string>& normalized_cmdlines);
   void RecordOtherSourcesAsRejected(DataSource* active_ds, const Process& proc);
 
   std::map<DataSourceInstanceID, DataSource> data_sources_;
