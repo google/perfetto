@@ -189,6 +189,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     ProcessState(GlobalCallstackTrie* callsites) : heap_tracker(callsites) {}
     bool disconnected = false;
     bool buffer_overran = false;
+    bool buffer_corrupted = false;
 
     uint64_t heap_samples = 0;
     uint64_t map_reparses = 0;
