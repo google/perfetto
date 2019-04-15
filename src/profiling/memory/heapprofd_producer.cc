@@ -42,6 +42,8 @@ constexpr int kHeapprofdSignal = 36;
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 
+constexpr uint32_t kChildModeWatchdogPeriodMs = 10 * 1000;
+
 constexpr uint64_t kDefaultShmemSize = 8 * 1048576;  // ~8 MB
 constexpr uint64_t kMaxShmemSize = 500 * 1048576;    // ~500 MB
 
@@ -58,6 +60,25 @@ std::vector<UnwindingWorker> MakeUnwindingWorkers(HeapprofdProducer* delegate,
     ret.emplace_back(delegate, base::ThreadTaskRunner::CreateAndStart());
   }
   return ret;
+}
+
+bool ConfigTargetsProcess(const HeapprofdConfig& cfg,
+                          const Process& proc,
+                          const std::vector<std::string>& normalized_cmdlines) {
+  if (cfg.all())
+    return true;
+
+  const auto& pids = cfg.pid();
+  if (std::find(pids.cbegin(), pids.cend(), static_cast<uint64_t>(proc.pid)) !=
+      pids.cend()) {
+    return true;
+  }
+
+  if (std::find(normalized_cmdlines.cbegin(), normalized_cmdlines.cend(),
+                proc.cmdline) != normalized_cmdlines.cend()) {
+    return true;
+  }
+  return false;
 }
 
 // Return largest n such that pow(2, n) < value.
@@ -98,7 +119,6 @@ size_t LogHistogram::GetBucket(uint64_t value) {
 
 // We create kUnwinderThreads unwinding threads. Bookkeeping is done on the main
 // thread.
-// TODO(fmayer): Summarize threading document here.
 HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
                                      base::TaskRunner* task_runner)
     : mode_(mode),
@@ -119,6 +139,22 @@ HeapprofdProducer::~HeapprofdProducer() {
     listening_socket_->ReleaseSocket().ReleaseFd().release();
 }
 
+std::unique_ptr<base::UnixSocket> HeapprofdProducer::MakeListeningSocket() {
+  const char* sock_fd = getenv(kHeapprofdSocketEnvVar);
+  if (sock_fd == nullptr) {
+    unlink(kHeapprofdSocketFile);
+    return base::UnixSocket::Listen(kHeapprofdSocketFile, &socket_delegate_,
+                                    task_runner_);
+  }
+  char* end;
+  int raw_fd = static_cast<int>(strtol(sock_fd, &end, 10));
+  if (*end != '\0')
+    PERFETTO_FATAL("Invalid %s. Expected decimal integer.",
+                   kHeapprofdSocketEnvVar);
+  return base::UnixSocket::Listen(base::ScopedFile(raw_fd), &socket_delegate_,
+                                  task_runner_);
+}
+
 void HeapprofdProducer::SetTargetProcess(pid_t target_pid,
                                          std::string target_cmdline,
                                          base::ScopedFile inherited_socket) {
@@ -136,19 +172,18 @@ void HeapprofdProducer::AdoptTargetProcessSocket() {
   HandleClientConnection(std::move(socket), target_process_);
 }
 
-// TODO(fmayer): Delete once we have generic reconnect logic.
 void HeapprofdProducer::OnConnect() {
   PERFETTO_DCHECK(state_ == kConnecting);
   state_ = kConnected;
   ResetConnectionBackoff();
-  PERFETTO_LOG("Connected to the service");
+  PERFETTO_LOG("Connected to the service, mode [%s].",
+               mode_ == HeapprofdMode::kCentral ? "central" : "child");
 
   DataSourceDescriptor desc;
   desc.set_name(kHeapprofdDataSource);
   endpoint_->RegisterDataSource(desc);
 }
 
-// TODO(fmayer): Delete once we have generic reconnect logic.
 void HeapprofdProducer::OnDisconnect() {
   PERFETTO_DCHECK(state_ == kConnected || state_ == kConnecting);
   PERFETTO_LOG("Disconnected from tracing service");
@@ -177,6 +212,109 @@ void HeapprofdProducer::OnDisconnect() {
       },
       connection_backoff_ms_);
 }
+
+void HeapprofdProducer::ConnectWithRetries(const char* socket_name) {
+  PERFETTO_DCHECK(state_ == kNotStarted);
+  state_ = kNotConnected;
+
+  ResetConnectionBackoff();
+  producer_sock_name_ = socket_name;
+  ConnectService();
+}
+
+void HeapprofdProducer::ConnectService() {
+  SetProducerEndpoint(ProducerIPCClient::Connect(
+      producer_sock_name_, this, "android.heapprofd", task_runner_));
+}
+
+void HeapprofdProducer::SetProducerEndpoint(
+    std::unique_ptr<TracingService::ProducerEndpoint> endpoint) {
+  PERFETTO_DCHECK(state_ == kNotConnected);
+  state_ = kConnecting;
+  endpoint_ = std::move(endpoint);
+}
+
+void HeapprofdProducer::IncreaseConnectionBackoff() {
+  connection_backoff_ms_ *= 2;
+  if (connection_backoff_ms_ > kMaxConnectionBackoffMs)
+    connection_backoff_ms_ = kMaxConnectionBackoffMs;
+}
+
+void HeapprofdProducer::ResetConnectionBackoff() {
+  connection_backoff_ms_ = kInitialConnectionBackoffMs;
+}
+
+void HeapprofdProducer::Restart() {
+  // We lost the connection with the tracing service. At this point we need
+  // to reset all the data sources. Trying to handle that manually is going to
+  // be error prone. What we do here is simply destroy the instance and
+  // recreate it again.
+
+  // Child mode producer should not attempt restarts. Note that this also means
+  // the rest of this method doesn't have to handle child-specific state.
+  if (mode_ == HeapprofdMode::kChild)
+    PERFETTO_FATAL("Attempting to restart a child mode producer.");
+
+  HeapprofdMode mode = mode_;
+  base::TaskRunner* task_runner = task_runner_;
+  const char* socket_name = producer_sock_name_;
+
+  // Invoke destructor and then the constructor again.
+  this->~HeapprofdProducer();
+  new (this) HeapprofdProducer(mode, task_runner);
+
+  ConnectWithRetries(socket_name);
+}
+
+void HeapprofdProducer::ScheduleActiveDataSourceWatchdog() {
+  PERFETTO_DCHECK(mode_ == HeapprofdMode::kChild);
+
+  // Post the first check after a delay, to let the freshly forked heapprofd
+  // to receive the active data sources from traced. The checks will reschedule
+  // themselves from that point onwards.
+  auto weak_producer = weak_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_producer]() {
+        if (!weak_producer)
+          return;
+        weak_producer->ActiveDataSourceWatchdogCheck();
+      },
+      kChildModeWatchdogPeriodMs);
+}
+
+void HeapprofdProducer::ActiveDataSourceWatchdogCheck() {
+  PERFETTO_DCHECK(mode_ == HeapprofdMode::kChild);
+
+  // Fork mode heapprofd should be working on exactly one data source matching
+  // its target process.
+  if (data_sources_.empty()) {
+    PERFETTO_LOG(
+        "Child heapprofd exiting as it never received a data source for the "
+        "target process, or somehow lost/finished the task without exiting.");
+    TerminateProcess(/*exit_status=*/1);
+  } else {
+    // reschedule check.
+    auto weak_producer = weak_factory_.GetWeakPtr();
+    task_runner_->PostDelayedTask(
+        [weak_producer]() {
+          if (!weak_producer)
+            return;
+          weak_producer->ActiveDataSourceWatchdogCheck();
+        },
+        kChildModeWatchdogPeriodMs);
+  }
+}
+
+// TODO(rsavitski): would be cleaner to shut down the event loop instead
+// (letting main exit). One test-friendly approach is to supply a shutdown
+// callback in the constructor.
+__attribute__((noreturn)) void HeapprofdProducer::TerminateProcess(
+    int exit_status) {
+  PERFETTO_CHECK(mode_ == HeapprofdMode::kChild);
+  exit(exit_status);
+}
+
+void HeapprofdProducer::OnTracingSetup() {}
 
 void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
                                         const DataSourceConfig& cfg) {
@@ -246,20 +384,6 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
 
   if (mode_ == HeapprofdMode::kChild)
     AdoptTargetProcessSocket();
-}
-
-void HeapprofdProducer::DoContinuousDump(DataSourceInstanceID id,
-                                         uint32_t dump_interval) {
-  if (!Dump(id, 0 /* flush_id */, false /* is_flush */))
-    return;
-  auto weak_producer = weak_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_producer, id, dump_interval] {
-        if (!weak_producer)
-          return;
-        weak_producer->DoContinuousDump(id, dump_interval);
-      },
-      dump_interval);
 }
 
 bool HeapprofdProducer::IsPidProfiled(pid_t pid) {
@@ -341,13 +465,10 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
   PERFETTO_DLOG("Started DataSource");
 }
 
-// TODO(rsavitski): for now, shut down child heapprofd as soon as the first
-// matching data source is stopped (even if there are other active matching data
-// sources). Instead, we could be called back by SocketListener::Disconnect to
-// handle not only the last data source reference being stopped, but also the
-// client disconnecting prematurely. Although, still need to look at whether
-// child mode heapprofd needs to distinguish between causes of the client
-// reference being torn down.
+UnwindingWorker& HeapprofdProducer::UnwinderForPID(pid_t pid) {
+  return unwinding_workers_[static_cast<uint64_t>(pid) % kUnwinderThreads];
+}
+
 void HeapprofdProducer::StopDataSource(DataSourceInstanceID id) {
   auto it = data_sources_.find(id);
   if (it == data_sources_.end()) {
@@ -368,7 +489,19 @@ void HeapprofdProducer::StopDataSource(DataSourceInstanceID id) {
     TerminateProcess(/*exit_status=*/0);  // does not return
 }
 
-void HeapprofdProducer::OnTracingSetup() {}
+void HeapprofdProducer::DoContinuousDump(DataSourceInstanceID id,
+                                         uint32_t dump_interval) {
+  if (!Dump(id, 0 /* flush_id */, false /* is_flush */))
+    return;
+  auto weak_producer = weak_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_producer, id, dump_interval] {
+        if (!weak_producer)
+          return;
+        weak_producer->DoContinuousDump(id, dump_interval);
+      },
+      dump_interval);
+}
 
 bool HeapprofdProducer::Dump(DataSourceInstanceID id,
                              FlushRequestID flush_id,
@@ -450,6 +583,13 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
   return true;
 }
 
+void HeapprofdProducer::DumpAll() {
+  for (const auto& id_and_data_source : data_sources_) {
+    if (!Dump(id_and_data_source.first, 0 /* flush_id */, false /* is_flush */))
+      PERFETTO_DLOG("Failed to dump %" PRIu64, id_and_data_source.first);
+  }
+}
+
 void HeapprofdProducer::Flush(FlushRequestID flush_id,
                               const DataSourceInstanceID* ids,
                               size_t num_ids) {
@@ -476,92 +616,6 @@ void HeapprofdProducer::FinishDataSourceFlush(FlushRequestID flush_id) {
   }
 }
 
-std::unique_ptr<base::UnixSocket> HeapprofdProducer::MakeListeningSocket() {
-  const char* sock_fd = getenv(kHeapprofdSocketEnvVar);
-  if (sock_fd == nullptr) {
-    unlink(kHeapprofdSocketFile);
-    return base::UnixSocket::Listen(kHeapprofdSocketFile, &socket_delegate_,
-                                    task_runner_);
-  }
-  char* end;
-  int raw_fd = static_cast<int>(strtol(sock_fd, &end, 10));
-  if (*end != '\0')
-    PERFETTO_FATAL("Invalid %s. Expected decimal integer.",
-                   kHeapprofdSocketEnvVar);
-  return base::UnixSocket::Listen(base::ScopedFile(raw_fd), &socket_delegate_,
-                                  task_runner_);
-}
-
-// TODO(fmayer): Delete these and use ReconnectingProducer once submitted
-void HeapprofdProducer::Restart() {
-  // We lost the connection with the tracing service. At this point we need
-  // to reset all the data sources. Trying to handle that manually is going to
-  // be error prone. What we do here is simply destroy the instance and
-  // recreate it again.
-
-  // Child mode producer should not attempt restarts. Note that this also means
-  // the rest of this method doesn't have to handle child-specific state.
-  if (mode_ == HeapprofdMode::kChild)
-    PERFETTO_FATAL("Attempting to restart a child mode producer.");
-
-  HeapprofdMode mode = mode_;
-  base::TaskRunner* task_runner = task_runner_;
-  const char* socket_name = producer_sock_name_;
-
-  // Invoke destructor and then the constructor again.
-  this->~HeapprofdProducer();
-  new (this) HeapprofdProducer(mode, task_runner);
-
-  ConnectWithRetries(socket_name);
-}
-
-void HeapprofdProducer::ConnectWithRetries(const char* socket_name) {
-  PERFETTO_DCHECK(state_ == kNotStarted);
-  state_ = kNotConnected;
-
-  ResetConnectionBackoff();
-  producer_sock_name_ = socket_name;
-  ConnectService();
-}
-
-void HeapprofdProducer::DumpAll() {
-  for (const auto& id_and_data_source : data_sources_) {
-    if (!Dump(id_and_data_source.first, 0 /* flush_id */, false /* is_flush */))
-      PERFETTO_DLOG("Failed to dump %" PRIu64, id_and_data_source.first);
-  }
-}
-
-void HeapprofdProducer::ConnectService() {
-  SetProducerEndpoint(ProducerIPCClient::Connect(
-      producer_sock_name_, this, "android.heapprofd", task_runner_));
-}
-
-void HeapprofdProducer::SetProducerEndpoint(
-    std::unique_ptr<TracingService::ProducerEndpoint> endpoint) {
-  PERFETTO_DCHECK(state_ == kNotConnected || state_ == kNotStarted);
-  state_ = kConnecting;
-  endpoint_ = std::move(endpoint);
-}
-
-void HeapprofdProducer::IncreaseConnectionBackoff() {
-  connection_backoff_ms_ *= 2;
-  if (connection_backoff_ms_ > kMaxConnectionBackoffMs)
-    connection_backoff_ms_ = kMaxConnectionBackoffMs;
-}
-
-void HeapprofdProducer::ResetConnectionBackoff() {
-  connection_backoff_ms_ = kInitialConnectionBackoffMs;
-}
-
-// TODO(rsavitski): would be cleaner to shut down the event loop instead
-// (letting main exit). One test-friendly approach is to supply a shutdown
-// callback in the constructor.
-__attribute__((noreturn)) void HeapprofdProducer::TerminateProcess(
-    int exit_status) {
-  PERFETTO_CHECK(mode_ == HeapprofdMode::kChild);
-  exit(exit_status);
-}
-
 void HeapprofdProducer::SocketDelegate::OnDisconnect(base::UnixSocket* self) {
   auto it = producer_->pending_processes_.find(self->peer_pid());
   if (it == producer_->pending_processes_.end()) {
@@ -582,10 +636,6 @@ void HeapprofdProducer::SocketDelegate::OnNewIncomingConnection(
     PERFETTO_ELOG("Failed to get cmdline for %d", peer_process.pid);
 
   producer_->HandleClientConnection(std::move(new_connection), peer_process);
-}
-
-UnwindingWorker& HeapprofdProducer::UnwinderForPID(pid_t pid) {
-  return unwinding_workers_[static_cast<uint64_t>(pid) % kUnwinderThreads];
 }
 
 void HeapprofdProducer::SocketDelegate::OnDataAvailable(
@@ -639,27 +689,6 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
   } else {
     PERFETTO_DLOG("%d: Received no FDs.", self->peer_pid());
   }
-}
-
-bool HeapprofdProducer::ConfigTargetsProcess(
-    const HeapprofdConfig& cfg,
-    const Process& proc,
-    const std::vector<std::string>& normalized_cmdlines) {
-  if (cfg.all())
-    return true;
-
-  const auto& pids = cfg.pid();
-  if (std::find(pids.cbegin(), pids.cend(), static_cast<uint64_t>(proc.pid)) !=
-      pids.cend()) {
-    return true;
-  }
-
-  if (std::find(normalized_cmdlines.cbegin(), normalized_cmdlines.cend(),
-                proc.cmdline) != normalized_cmdlines.cend()) {
-    return true;
-  }
-
-  return false;
 }
 
 HeapprofdProducer::DataSource* HeapprofdProducer::GetDataSourceForProcess(
