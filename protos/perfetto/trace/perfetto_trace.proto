@@ -2467,7 +2467,7 @@ message ProfilePacket {
     optional uint64 callstack_id = 1;
     // bytes allocated at this frame.
     optional uint64 self_allocated = 2;
-    // bytes freed at this frame.
+    // bytes allocated at this frame that have been freed.
     optional uint64 self_freed = 3;
     optional uint64 timestamp = 4;  // timestamp [opt]
     optional uint64 alloc_count = 5;
