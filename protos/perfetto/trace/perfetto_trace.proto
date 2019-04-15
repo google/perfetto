@@ -3601,6 +3601,12 @@ message TraceConfig {
     optional uint32 trigger_timeout_ms = 3;
   }
   optional TriggerConfig trigger_config = 17;
+
+  // When this is non-empty the perfetto command line tool will ignore the rest
+  // of this TraceConfig and instead connect to the perfetto service as a
+  // producer and send these triggers, potentially stopping or starting traces
+  // that were previous configured to use a TriggerConfig.
+  repeated string activate_triggers = 18;
 }
 
 // End of protos/perfetto/config/trace_config.proto

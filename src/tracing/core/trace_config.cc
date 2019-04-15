@@ -58,7 +58,8 @@ bool TraceConfig::operator==(const TraceConfig& other) const {
          (flush_timeout_ms_ == other.flush_timeout_ms_) &&
          (disable_clock_snapshotting_ == other.disable_clock_snapshotting_) &&
          (notify_traceur_ == other.notify_traceur_) &&
-         (trigger_config_ == other.trigger_config_);
+         (trigger_config_ == other.trigger_config_) &&
+         (activate_triggers_ == other.activate_triggers_);
 }
 #pragma GCC diagnostic pop
 
@@ -144,6 +145,16 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
       static_cast<decltype(notify_traceur_)>(proto.notify_traceur());
 
   trigger_config_.FromProto(proto.trigger_config());
+
+  activate_triggers_.clear();
+  for (const auto& field : proto.activate_triggers()) {
+    activate_triggers_.emplace_back();
+    static_assert(
+        sizeof(activate_triggers_.back()) == sizeof(proto.activate_triggers(0)),
+        "size mismatch");
+    activate_triggers_.back() =
+        static_cast<decltype(activate_triggers_)::value_type>(field);
+  }
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -233,6 +244,13 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
       static_cast<decltype(proto->notify_traceur())>(notify_traceur_));
 
   trigger_config_.ToProto(proto->mutable_trigger_config());
+
+  for (const auto& it : activate_triggers_) {
+    proto->add_activate_triggers(
+        static_cast<decltype(proto->activate_triggers(0))>(it));
+    static_assert(sizeof(it) == sizeof(proto->activate_triggers(0)),
+                  "size mismatch");
+  }
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
