@@ -211,6 +211,7 @@ bool ShouldForkPrivateDaemon() {
   // On development builds, we support both modes of profiling, depending on a
   // system property.
   if (build_type == "userdebug" || build_type == "eng") {
+    // Note: if renaming the property, also update system_property.cc
     std::string mode = ReadSystemProperty("heapprofd.userdebug.mode");
     return mode == "fork";
   }
@@ -316,8 +317,9 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
 // heapprofd_initialize. Concurrent calls get discarded, which might be our
 // unpatching attempt if there is a concurrent re-initialization running due to
 // a new signal.
-// Note that a Client might be destroyed in heapprofd_initialize without calling
-// this function.
+//
+// Note: g_client can be reset by heapprofd_initialize without calling this
+// function.
 void ShutdownLazy() {
   ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
   if (!g_client.ref())  // other invocation already initiated shutdown
