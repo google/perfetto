@@ -456,6 +456,21 @@ class PERFETTO_EXPORT TraceConfig {
   const TriggerConfig& trigger_config() const { return trigger_config_; }
   TriggerConfig* mutable_trigger_config() { return &trigger_config_; }
 
+  int activate_triggers_size() const {
+    return static_cast<int>(activate_triggers_.size());
+  }
+  const std::vector<std::string>& activate_triggers() const {
+    return activate_triggers_;
+  }
+  std::vector<std::string>* mutable_activate_triggers() {
+    return &activate_triggers_;
+  }
+  void clear_activate_triggers() { activate_triggers_.clear(); }
+  std::string* add_activate_triggers() {
+    activate_triggers_.emplace_back();
+    return &activate_triggers_.back();
+  }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -474,6 +489,7 @@ class PERFETTO_EXPORT TraceConfig {
   bool disable_clock_snapshotting_ = {};
   bool notify_traceur_ = {};
   TriggerConfig trigger_config_ = {};
+  std::vector<std::string> activate_triggers_;
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
