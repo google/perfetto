@@ -56,7 +56,12 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-size_t kMaxFrames = 1000;
+constexpr size_t kMaxFrames = 1000;
+
+// We assume average ~300us per unwind. If we handle up to 1000 unwinds, this
+// makes sure other tasks get to be run at least every 300ms if the unwinding
+// saturates this thread.
+constexpr size_t kUnwindBatchSize = 1000;
 
 #pragma GCC diagnostic push
 // We do not care about deterministic destructor order.
@@ -276,12 +281,17 @@ void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
 
 void UnwindingWorker::OnDataAvailable(base::UnixSocket* self) {
   // Drain buffer to clear the notification.
-  char recv_buf[1024];
+  char recv_buf[kUnwindBatchSize];
   self->Receive(recv_buf, sizeof(recv_buf));
+  HandleUnwindBatch(self->peer_pid());
+}
 
-  auto it = client_data_.find(self->peer_pid());
+void UnwindingWorker::HandleUnwindBatch(pid_t peer_pid) {
+  auto it = client_data_.find(peer_pid);
   if (it == client_data_.end()) {
-    PERFETTO_DFATAL("Unexpected data.");
+    // This can happen if the client disconnected before the buffer was fully
+    // handled.
+    PERFETTO_DLOG("Unexpected data.");
     return;
   }
 
@@ -289,7 +299,8 @@ void UnwindingWorker::OnDataAvailable(base::UnixSocket* self) {
   SharedRingBuffer& shmem = client_data.shmem;
   SharedRingBuffer::Buffer buf;
 
-  for (;;) {
+  size_t i;
+  for (i = 0; i < kUnwindBatchSize; ++i) {
     // TODO(fmayer): Allow spinlock acquisition to fail and repost Task if it
     // did.
     buf = shmem.BeginRead();
@@ -299,6 +310,11 @@ void UnwindingWorker::OnDataAvailable(base::UnixSocket* self) {
                  client_data.data_source_instance_id,
                  client_data.sock->peer_pid(), delegate_);
     shmem.EndRead(std::move(buf));
+  }
+
+  if (i == kUnwindBatchSize) {
+    thread_task_runner_.get()->PostTask(
+        [this, peer_pid] { HandleUnwindBatch(peer_pid); });
   }
 }
 
