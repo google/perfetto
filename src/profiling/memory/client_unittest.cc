@@ -50,6 +50,24 @@ TEST(ClientTest, IsMainThread) {
   th.join();
 }
 
+TEST(ClientTest, IsConnected) {
+  auto socketpair = base::UnixSocketRaw::CreatePair(base::SockType::kStream);
+  base::UnixSocketRaw& client_sock = socketpair.first;
+  client_sock.SetBlocking(false);
+  Client c(std::move(client_sock), {}, {}, {1}, nullptr);
+  EXPECT_EQ(c.IsConnected(), true);
+}
+
+TEST(ClientTest, IsDisconnected) {
+  auto socketpair = base::UnixSocketRaw::CreatePair(base::SockType::kStream);
+  base::UnixSocketRaw& client_sock = socketpair.first;
+  base::UnixSocketRaw& service_sock = socketpair.second;
+  client_sock.SetBlocking(false);
+  service_sock = base::UnixSocketRaw();
+  Client c(std::move(client_sock), {}, {}, {1}, nullptr);
+  EXPECT_EQ(c.IsConnected(), false);
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
