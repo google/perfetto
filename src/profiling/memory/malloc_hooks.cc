@@ -145,18 +145,42 @@ const MallocDispatch* GetDispatch() {
   return g_dispatch.load(std::memory_order_relaxed);
 }
 
-// Note: android_mallopt(M_RESET_HOOKS) is mutually exclusive with initialize
-// (concurrent calls get discarded).
-void ShutdownLazy() {
-  ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
-  if (!g_client.ref())  // other invocation already initiated shutdown
-    return;
+int CloneWithoutSigchld() {
+  return clone(nullptr, nullptr, 0, nullptr);
+}
 
-  // Clear primary shared pointer, such that later hook invocations become nops.
-  g_client.ref().reset();
+int ForklikeClone() {
+  return clone(nullptr, nullptr, SIGCHLD, nullptr);
+}
 
-  if (!android_mallopt(M_RESET_HOOKS, nullptr, 0))
-    PERFETTO_PLOG("Unpatching heapprofd hooks failed.");
+// Like daemon(), but using clone to avoid invoking pthread_atfork(3) handlers.
+int Daemonize() {
+  switch (ForklikeClone()) {
+    case -1:
+      PERFETTO_PLOG("Daemonize.clone");
+      return -1;
+      break;
+    case 0:
+      break;
+    default:
+      _exit(0);
+      break;
+  }
+  if (setsid() == -1) {
+    PERFETTO_PLOG("Daemonize.setsid");
+    return -1;
+  }
+  // best effort chdir & fd close
+  chdir("/");
+  int fd = open("/dev/null", O_RDWR, 0);
+  if (fd != -1) {
+    dup2(fd, STDIN_FILENO);
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+    if (fd > STDERR_FILENO)
+      close(fd);
+  }
+  return 0;
 }
 
 std::string ReadSystemProperty(const char* key) {
@@ -231,16 +255,19 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
     return nullptr;
   }
 
-  pid_t fork_pid = fork();
-  if (fork_pid == -1) {
-    PERFETTO_PLOG("Failed to fork.");
+  // Use fork-like clone to avoid invoking the host's pthread_atfork(3)
+  // handlers. Also avoid sending the current process a SIGCHILD to further
+  // reduce our interference.
+  pid_t clone_pid = CloneWithoutSigchld();
+  if (clone_pid == -1) {
+    PERFETTO_PLOG("Failed to clone.");
     return nullptr;
   }
-  if (fork_pid == 0) {  // child
-    // daemon() forks again, terminating the calling thread (i.e. the direct
+  if (clone_pid == 0) {  // child
+    // Daemonize clones again, terminating the calling thread (i.e. the direct
     // child of the original process). So the rest of this codepath will be
-    // executed in a (new) reparented process.
-    if (daemon(/*nochdir=*/0, /*noclose=*/0) == -1) {
+    // executed in a new reparented process.
+    if (Daemonize() == -1) {
       PERFETTO_PLOG("Daemonization failed.");
       _exit(1);
     }
@@ -271,15 +298,29 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
 
   // Wait on the immediate child to exit (allow for ECHILD in the unlikely case
   // we're in a process that has made its children unwaitable).
-  siginfo_t unused = {};
-  if (PERFETTO_EINTR(waitid(P_PID, fork_pid, &unused, WEXITED)) == -1 &&
+  int unused = 0;
+  if (PERFETTO_EINTR(waitpid(clone_pid, &unused, __WCLONE)) == -1 &&
       errno != ECHILD) {
-    PERFETTO_PLOG("Failed to waitid on immediate child.");
+    PERFETTO_PLOG("Failed to waitpid on immediate child.");
     return nullptr;
   }
 
   return perfetto::profiling::Client::CreateAndHandshake(std::move(parent_sock),
                                                          unhooked_allocator);
+}
+
+// Note: android_mallopt(M_RESET_HOOKS) is mutually exclusive with initialize
+// (concurrent calls get discarded).
+void ShutdownLazy() {
+  ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
+  if (!g_client.ref())  // other invocation already initiated shutdown
+    return;
+
+  // Clear primary shared pointer, such that later hook invocations become nops.
+  g_client.ref().reset();
+
+  if (!android_mallopt(M_RESET_HOOKS, nullptr, 0))
+    PERFETTO_PLOG("Unpatching heapprofd hooks failed.");
 }
 
 }  // namespace
@@ -318,10 +359,10 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
           : CreateClientForCentralDaemon(unhooked_allocator);
 
   if (!client) {
-    PERFETTO_LOG("Client not initialized, not installing hooks.");
+    PERFETTO_LOG("heapprofd_client not initialized, not installing hooks.");
     return false;
   }
-  PERFETTO_DLOG("Client initialized.");
+  PERFETTO_LOG("heapprofd_client initialized.");
 
   g_client.ref() = std::move(client);
   return true;
