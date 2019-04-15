@@ -822,4 +822,157 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
               ::testing::HasSubstr("Skipping upload to dropbox. Empty trace."));
 }
 
+TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
+  // See |message_count| and |message_size| in the TraceConfig above.
+  constexpr size_t kMessageCount = 11;
+  constexpr size_t kMessageSize = 32;
+  protos::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
+  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  auto* trigger_cfg = trace_config.mutable_trigger_config();
+  trigger_cfg->set_trigger_mode(
+      protos::TraceConfig::TriggerConfig::STOP_TRACING);
+  trigger_cfg->set_trigger_timeout_ms(15000);
+  auto* trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name");
+  // |stop_delay_ms| must be long enough that we can write the packets in
+  // before the trace finishes. This has to be long enough for the slowest
+  // emulator. But as short as possible to prevent the test running a long
+  // time.
+  trigger->set_stop_delay_ms(500);
+  trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name_3");
+  trigger->set_stop_delay_ms(60000);
+
+  // We have 5 normal preample packets (trace config, clock, system info, sync
+  // marker, stats) and then since this is a trace with a trigger config we have
+  // an additional ReceivedTriggers packet.
+  base::TestTaskRunner task_runner;
+
+  // Enable tracing and detach as soon as it gets started.
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  auto* fake_producer = helper.ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  base::TempFile trace_output = base::TempFile::Create();
+  std::thread background_trace([&trace_output, &trace_config, this]() {
+    EXPECT_EQ(0, Exec(
+                     {
+                         "-o", trace_output.path(), "-c", "-",
+                     },
+                     trace_config.SerializeAsString()));
+  });
+
+  helper.WaitForProducerEnabled();
+  // Wait for the producer to start, and then write out 11 packets, before the
+  // trace actually starts (the trigger is seen).
+  auto on_data_written = task_runner.CreateCheckpoint("data_written_1");
+  fake_producer->ProduceEventBatch(helper.WrapTask(on_data_written));
+  task_runner.RunUntilCheckpoint("data_written_1");
+
+  std::string triggers = R"(
+    activate_triggers: "trigger_name_2"
+    activate_triggers: "trigger_name"
+    activate_triggers: "trigger_name_3"
+  )";
+
+  EXPECT_EQ(0, Exec(
+                   {
+                       "-o", trace_output.path(), "-c", "-", "--txt",
+                   },
+                   triggers))
+      << "stderr: " << stderr_;
+
+  background_trace.join();
+
+  std::string trace_str;
+  base::ReadFile(trace_output.path(), &trace_str);
+  protos::Trace trace;
+  ASSERT_TRUE(trace.ParseFromString(trace_str));
+  EXPECT_LT(kMessageCount, trace.packet_size());
+  bool seen_first_trigger = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.data_case() == protos::TracePacket::kTraceConfig) {
+      // Ensure the trace config properly includes the trigger mode we set.
+      EXPECT_EQ(protos::TraceConfig::TriggerConfig::STOP_TRACING,
+                packet.trace_config().trigger_config().trigger_mode());
+    } else if (packet.data_case() == protos::TracePacket::kTrigger) {
+      // validate that the triggers are properly added to the trace.
+      if (!seen_first_trigger) {
+        EXPECT_EQ("trigger_name", packet.trigger().trigger_name());
+        seen_first_trigger = true;
+      } else {
+        EXPECT_EQ("trigger_name_3", packet.trigger().trigger_name());
+      }
+    } else if (packet.data_case() == protos::TracePacket::kForTesting) {
+      // Make sure that the data size is correctly set based on what we
+      // requested.
+      EXPECT_EQ(kMessageSize, packet.for_testing().str().size());
+    }
+  }
+}
+
+TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
+  // See |message_count| and |message_size| in the TraceConfig above.
+  constexpr size_t kMessageCount = 11;
+  constexpr size_t kMessageSize = 32;
+  protos::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
+  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  auto* trigger_cfg = trace_config.mutable_trigger_config();
+  trigger_cfg->set_trigger_mode(
+      protos::TraceConfig::TriggerConfig::STOP_TRACING);
+  trigger_cfg->set_trigger_timeout_ms(15000);
+  auto* trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name");
+  // |stop_delay_ms| must be long enough that we can write the packets in
+  // before the trace finishes. This has to be long enough for the slowest
+  // emulator. But as short as possible to prevent the test running a long
+  // time.
+  trigger->set_stop_delay_ms(500);
+  trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name_3");
+  trigger->set_stop_delay_ms(60000);
+
+  // We have 5 normal preample packets (trace config, clock, system info, sync
+  // marker, stats) and then since this is a trace with a trigger config we have
+  // an additional ReceivedTriggers packet.
+  base::TestTaskRunner task_runner;
+
+  // Enable tracing and detach as soon as it gets started.
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  auto* fake_producer = helper.ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  base::TempFile trace_output = base::TempFile::Create();
+  const std::string path = trace_output.path();
+  trace_output.Unlink();
+
+  std::string trace_str;
+  EXPECT_FALSE(base::ReadFile(path, &trace_str));
+
+  std::string triggers = R"(
+    activate_triggers: "trigger_name_2"
+    activate_triggers: "trigger_name"
+    activate_triggers: "trigger_name_3"
+  )";
+
+  EXPECT_EQ(0, Exec(
+                   {
+                       "-o", path, "-c", "-", "--txt",
+                   },
+                   triggers))
+      << "stderr: " << stderr_;
+
+  EXPECT_FALSE(base::ReadFile(path, &trace_str));
+}
+
 }  // namespace perfetto

@@ -454,6 +454,17 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
   }
 
+  // |activate_triggers| in the trace config is shorthand for --trigger. In this
+  // case we don't intend to send any trace config to the service, rather use
+  // that as a signal to the cmdline client to connect as a producer and
+  // activate triggers.
+  if (!trace_config_->activate_triggers().empty()) {
+    for (const auto& trigger : trace_config_->activate_triggers()) {
+      triggers_to_activate.push_back(trigger);
+    }
+    trace_config_.reset(new TraceConfig());
+  }
+
   bool open_out_file = true;
   if (is_attach()) {
     open_out_file = false;
