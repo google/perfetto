@@ -64,7 +64,7 @@ class SystemProperties {
   Handle SetProperty(std::string name);
   Handle SetAll();
 
-  static void ResetProperties();
+  static void ResetHeapprofdProperties();
 
   virtual ~SystemProperties();
 
