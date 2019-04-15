@@ -109,6 +109,11 @@ message ProfilePacket {
     // the buffer.
     optional bool buffer_overran = 7;
 
+    // If disconnected, this disconnected was caused by the shared memory
+    // buffer being corrupted. THIS IS ALWAYS A BUG IN HEAPPROFD OR CLIENT
+    // MEMORY CORRUPTION.
+    optional bool buffer_corrupted = 8;
+
     optional ProcessStats stats = 5;
 
     repeated HeapSample samples = 2;
