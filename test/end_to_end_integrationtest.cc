@@ -133,9 +133,9 @@ class PerfettoCmdlineTest : public ::testing::Test {
              1);
       _exit(PerfettoCmdMain(static_cast<int>(argv.size() - 1), argv.data()));
 #else
-      // We have to choose a location that the perfetto binary will have
-      // permission to write to. This does not include /data/local/tmp so
-      // instead we override TMPDIR to the trace directory.
+      // We have to choose a location that the perfetto binary will be able to
+      // write to. On android this does not include /data/local/tmp so in the
+      // test SetUp() we overrode TMPDIR to the perfetto-traces directory.
       execv("/system/bin/perfetto", &argv[0]);
       _exit(3);
 #endif
