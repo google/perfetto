@@ -178,6 +178,8 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   void HandleHandoffSocket(HandoffData data);
   void HandleDisconnectSocket(pid_t pid);
 
+  void HandleUnwindBatch(pid_t);
+
   struct ClientData {
     DataSourceInstanceID data_source_instance_id;
     std::unique_ptr<base::UnixSocket> sock;
