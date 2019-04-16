@@ -2435,6 +2435,18 @@ message ProfilePacket {
     optional bytes str = 2;
   }
 
+  repeated Mapping mappings = 4;
+  message Mapping {
+    optional uint64 id = 1;        // Interning key.
+    optional uint64 build_id = 2;  // Interning key.
+    optional uint64 offset = 3;
+    optional uint64 start = 4;
+    optional uint64 end = 5;
+    optional uint64 load_bias = 6;
+    // E.g. ["system", "lib64", "libc.so"]
+    repeated uint64 path_string_ids = 7;  // id of string.
+  }
+
   repeated Frame frames = 2;
   message Frame {
     optional uint64 id = 1;  // Interning key
@@ -2451,18 +2463,6 @@ message ProfilePacket {
     repeated uint64 frame_ids = 2;
   }
 
-  repeated Mapping mappings = 4;
-  message Mapping {
-    optional uint64 id = 1;        // Interning key.
-    optional uint64 build_id = 2;  // Interning key.
-    optional uint64 offset = 3;
-    optional uint64 start = 4;
-    optional uint64 end = 5;
-    optional uint64 load_bias = 6;
-    // E.g. ["system", "lib64", "libc.so"]
-    repeated uint64 path_string_ids = 7;  // id of string.
-  }
-
   message HeapSample {
     optional uint64 callstack_id = 1;
     // bytes allocated at this frame.
@@ -2474,7 +2474,6 @@ message ProfilePacket {
     optional uint64 free_count = 6;
   }
 
-  repeated ProcessHeapSamples process_dumps = 5;
   message Histogram {
     message Bucket {
       // This bucket counts values from the previous bucket's (or -infinity if
@@ -2490,6 +2489,7 @@ message ProfilePacket {
     }
     repeated Bucket buckets = 1;
   }
+
   message ProcessStats {
     optional uint64 unwinding_errors = 1;
     optional uint64 heap_samples = 2;
@@ -2498,6 +2498,7 @@ message ProfilePacket {
     optional uint64 total_unwinding_time_us = 5;
   }
 
+  repeated ProcessHeapSamples process_dumps = 5;
   message ProcessHeapSamples {
     optional uint64 pid = 1;
 
