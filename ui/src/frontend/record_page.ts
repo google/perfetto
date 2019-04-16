@@ -60,7 +60,7 @@ ATRACE_CATEGORIES.set('ss', 'System Server');
 ATRACE_CATEGORIES.set('database', 'Database');
 ATRACE_CATEGORIES.set('network', 'Network');
 ATRACE_CATEGORIES.set('adb', 'ADB');
-ATRACE_CATEGORIES.set('vibrartor', 'Vibrator');
+ATRACE_CATEGORIES.set('vibrator', 'Vibrator');
 ATRACE_CATEGORIES.set('aidl', 'AIDL calls');
 ATRACE_CATEGORIES.set('nnapi', 'Neural Network API');
 ATRACE_CATEGORIES.set('rro', 'Resource Overlay');
