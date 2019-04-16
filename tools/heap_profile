@@ -97,6 +97,7 @@ data_sources {{
 }}
 
 duration_ms: {duration}
+flush_timeout_ms: 30000
 '''
 
 CONTINUOUS_DUMP = """
