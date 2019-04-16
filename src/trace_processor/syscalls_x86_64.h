@@ -19,10 +19,9 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
 
 // See tools/extract_linux_syscall_tables .
-const char* kSyscalls_x86_64[] = {
+constexpr const char* kSyscalls_x86_64[] = {
     "sys_read",                    // 0
     "sys_write",                   // 1
     "sys_open",                    // 2
@@ -573,7 +572,6 @@ const char* kSyscalls_x86_64[] = {
     "sys_pwritev2",                // 547
 };
 
-}  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
 
