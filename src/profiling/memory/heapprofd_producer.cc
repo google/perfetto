@@ -121,8 +121,8 @@ size_t LogHistogram::GetBucket(uint64_t value) {
 // thread.
 HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
                                      base::TaskRunner* task_runner)
-    : mode_(mode),
-      task_runner_(task_runner),
+    : task_runner_(task_runner),
+      mode_(mode),
       unwinding_workers_(MakeUnwindingWorkers(this, kUnwinderThreads)),
       socket_delegate_(this),
       weak_factory_(this) {
