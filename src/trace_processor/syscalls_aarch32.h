@@ -19,10 +19,9 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
 
 // See tools/extract_linux_syscall_tables .
-const char* kSyscalls_Aarch32[] = {
+constexpr const char* kSyscalls_Aarch32[] = {
     "sys_restart_syscall",         // 0
     "sys_exit",                    // 1
     "sys_fork",                    // 2
@@ -424,7 +423,6 @@ const char* kSyscalls_Aarch32[] = {
     "sys_rseq",                    // 398
 };
 
-}  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
 
