@@ -229,7 +229,6 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
   }  // scoped_lock(lock_)
 
   if (should_post_callback) {
-    PERFETTO_DCHECK(weak_this);
     task_runner_->PostTask([weak_this] {
       if (weak_this)
         weak_this->FlushPendingCommitDataRequests();
