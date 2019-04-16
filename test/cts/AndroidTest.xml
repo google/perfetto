@@ -23,6 +23,7 @@
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="CtsPerfettoProducerApp.apk" />
         <option name="test-file-name" value="CtsPerfettoDebuggableApp.apk" />
+        <option name="test-file-name" value="CtsPerfettoProfileableApp.apk" />
         <option name="test-file-name" value="CtsPerfettoReleaseApp.apk" />
     </target_preparer>
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">

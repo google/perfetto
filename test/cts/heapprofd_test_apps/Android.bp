@@ -33,6 +33,26 @@ android_test_helper_app {
 }
 
 android_test_helper_app {
+    name: "CtsPerfettoProfileableApp",
+    // tag this module as a cts test artifact
+    test_suites: [
+        "cts",
+        "vts",
+        "general-tests",
+    ],
+
+    manifest: "AndroidManifest_profileable.xml",
+
+    compile_multilib: "both",
+    srcs: ["src/**/*.java"],
+    sdk_version: "current",
+    jni_libs: [
+        "libperfettocts_heapprofdtarget",
+        "libnativehelper_compat_libc++",
+    ],
+}
+
+android_test_helper_app {
     name: "CtsPerfettoReleaseApp",
     // tag this module as a cts test artifact
     test_suites: [
