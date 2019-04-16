@@ -19,10 +19,9 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
 
 // See tools/extract_linux_syscall_tables .
-const char* kSyscalls_Aarch64[] = {
+constexpr const char* kSyscalls_Aarch64[] = {
     "sys_io_setup",                // 0
     "sys_io_destroy",              // 1
     "sys_io_submit",               // 2
@@ -319,7 +318,6 @@ const char* kSyscalls_Aarch64[] = {
     "sys_rseq",                    // 293
 };
 
-}  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
 
