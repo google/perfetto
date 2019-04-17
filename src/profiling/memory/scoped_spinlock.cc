@@ -22,20 +22,27 @@
 
 #include "perfetto/base/utils.h"
 
+namespace {
+// Wait for ~1s before timing out (+- spurious wakeups from the sleeps).
+constexpr unsigned kSleepAttempts = 1000;
+constexpr unsigned kLockAttemptsPerSleep = 1000;
+constexpr unsigned kSleepDurationUs = 1000;
+}  // namespace
+
 namespace perfetto {
 namespace profiling {
 
 void ScopedSpinlock::LockSlow(Mode mode) {
-  // Slowpath.
-  for (size_t attempt = 0; mode == Mode::Blocking || attempt < 1024 * 10;
+  for (size_t attempt = 0; mode == Mode::Blocking ||
+                           attempt < kLockAttemptsPerSleep * kSleepAttempts;
        attempt++) {
     if (!lock_->load(std::memory_order_relaxed) &&
         PERFETTO_LIKELY(!lock_->exchange(true, std::memory_order_acquire))) {
       locked_ = true;
       return;
     }
-    if (attempt && attempt % 1024 == 0)
-      usleep(1000);
+    if (attempt && attempt % kLockAttemptsPerSleep == 0)
+      usleep(kSleepDurationUs);
   }
 }
 
