@@ -150,8 +150,8 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   };
 
   UnwindingWorker(Delegate* delegate, base::ThreadTaskRunner thread_task_runner)
-      : delegate_(delegate),
-        thread_task_runner_(std::move(thread_task_runner)) {}
+      : thread_task_runner_(std::move(thread_task_runner)),
+        delegate_(delegate) {}
 
   // Public API safe to call from other threads.
   void PostDisconnectSocket(pid_t pid);
@@ -187,10 +187,13 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
     SharedRingBuffer shmem;
   };
 
+  // Task runner with a dedicated thread. Keep at the start of the data member
+  // declarations, such that it is valid during construction & destruction of
+  // the other members.
+  base::ThreadTaskRunner thread_task_runner_;
+
   std::map<pid_t, ClientData> client_data_;
   Delegate* delegate_;
-  // Task runner with a dedicated thread.
-  base::ThreadTaskRunner thread_task_runner_;
 };
 
 }  // namespace profiling
