@@ -88,6 +88,9 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
   }
 #endif
   Initialize(std::move(fd));
+  if (!is_valid())
+    return;
+
   new (meta_) MetadataPage();
 }
 
