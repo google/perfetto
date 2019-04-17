@@ -38,6 +38,7 @@ class CommitDataRequest;
 class Consumer;
 class DataSourceDescriptor;
 class Producer;
+class SharedMemoryArbiter;
 class TraceConfig;
 class TraceWriter;
 
@@ -115,6 +116,12 @@ class PERFETTO_EXPORT TracingService {
     // DataSourceConfig.target_buffer().
     virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
         BufferID target_buffer) = 0;
+
+    // If TracingService::ConnectProducer is called with |in_process=true|,
+    // this returns the producer's SharedMemoryArbiter which can be used
+    // to create TraceWriters which is able to directly commit chunks
+    // without going through an IPC layer.
+    virtual SharedMemoryArbiter* GetInProcessShmemArbiter() = 0;
 
     // Called in response to a Producer::Flush(request_id) call after all data
     // for the flush request has been committed.
