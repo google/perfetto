@@ -72,6 +72,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer) override;
+  SharedMemoryArbiter* GetInProcessShmemArbiter() override;
   void NotifyFlushComplete(FlushRequestID) override;
   SharedMemory* shared_memory() const override;
   size_t shared_buffer_page_size_kb() const override;
