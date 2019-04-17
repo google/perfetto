@@ -255,6 +255,12 @@ TEST(SharedRingBufferTest, MultiThreadingTest) {
   reader_thread.join();
 }
 
+TEST(SharedRingBufferTest, InvalidSize) {
+  constexpr auto kBufSize = base::kPageSize * 4 + 1;
+  base::Optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
+  EXPECT_EQ(wr, base::nullopt);
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
