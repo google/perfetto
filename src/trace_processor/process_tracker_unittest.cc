@@ -50,6 +50,19 @@ TEST_F(ProcessTrackerTest, PushProcess) {
   ASSERT_EQ(pair_it.first->second, 1);
 }
 
+TEST_F(ProcessTrackerTest, GetOrCreateNewProcess) {
+  TraceStorage storage;
+  auto upid = context.process_tracker->GetOrCreateProcess(123);
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
+}
+
+TEST_F(ProcessTrackerTest, StartNewProcess) {
+  TraceStorage storage;
+  auto upid = context.process_tracker->StartNewProcess(1000, 123);
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
+  ASSERT_EQ(context.storage->GetProcess(upid).start_ns, 1000);
+}
+
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
   context.process_tracker->UpdateProcess(1, base::nullopt, "test");
   context.process_tracker->UpdateProcess(1, base::nullopt, "test");
@@ -97,7 +110,7 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   ASSERT_EQ(thread.tid, 4);
   ASSERT_EQ(thread.upid.value(), 1);
   ASSERT_EQ(process.pid, 2);
-  ASSERT_EQ(process.start_ns, timestamp);
+  ASSERT_EQ(process.start_ns, 0);
 }
 
 TEST_F(ProcessTrackerTest, UpdateThreadCreate) {

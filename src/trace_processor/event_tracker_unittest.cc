@@ -65,7 +65,7 @@ TEST_F(EventTrackerTest, InsertSecondSched) {
 
   ASSERT_EQ(timestamps.size(), 2ul);
   ASSERT_EQ(timestamps[0], timestamp);
-  ASSERT_EQ(context.storage->GetThread(1).start_ns, timestamp);
+  ASSERT_EQ(context.storage->GetThread(1).start_ns, 0);
   ASSERT_STREQ(
       context.storage->GetString(context.storage->GetThread(1).name_id).c_str(),
       kCommProc1);
@@ -99,7 +99,7 @@ TEST_F(EventTrackerTest, InsertThirdSched_SameThread) {
 
   ASSERT_EQ(timestamps.size(), 4ul);
   ASSERT_EQ(timestamps[0], timestamp);
-  ASSERT_EQ(context.storage->GetThread(1).start_ns, timestamp);
+  ASSERT_EQ(context.storage->GetThread(1).start_ns, 0);
   ASSERT_EQ(context.storage->slices().durations().at(0), 1u);
   ASSERT_EQ(context.storage->slices().durations().at(1), 11u - 1u);
   ASSERT_EQ(context.storage->slices().durations().at(2), 31u - 11u);
