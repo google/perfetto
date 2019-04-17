@@ -52,6 +52,23 @@ namespace {
 using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
+std::string RandomTraceFileName() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  constexpr char kSysTmpPath[] = "/data/misc/perfetto-traces";
+#else
+  constexpr char kSysTmpPath[] = "/tmp";
+#endif
+  static int suffix = 0;
+
+  std::string path;
+  path.assign(kSysTmpPath);
+  path.append("/trace-");
+  path.append(std::to_string(base::GetBootTimeNs().count()));
+  path.append("-");
+  path.append(std::to_string(suffix++));
+  return path;
+}
+
 class PerfettoTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -77,12 +94,6 @@ class PerfettoTest : public ::testing::Test {
 class PerfettoCmdlineTest : public ::testing::Test {
  public:
   void SetUp() override {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    // On android P perfetto shell only has permission to write traces to this
-    // directory. So we update TMPDIR to this so that our client will have
-    // permissions.
-    setenv("TMPDIR", "/data/misc/perfetto-traces", 1);
-#endif
     test_helper_.StartServiceIfRequired();
   }
 
@@ -133,9 +144,6 @@ class PerfettoCmdlineTest : public ::testing::Test {
              1);
       _exit(PerfettoCmdMain(static_cast<int>(argv.size() - 1), argv.data()));
 #else
-      // We have to choose a location that the perfetto binary will be able to
-      // write to. On android this does not include /data/local/tmp so in the
-      // test SetUp() we overrode TMPDIR to the perfetto-traces directory.
       execv("/system/bin/perfetto", &argv[0]);
       _exit(3);
 #endif
@@ -642,9 +650,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   helper.StartServiceIfRequired();
   auto* fake_producer = helper.ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
-  base::TempFile trace_output = base::TempFile::Create();
-  const std::string path = trace_output.path();
-  trace_output.Unlink();
+  const std::string path = RandomTraceFileName();
   std::thread background_trace([&path, &trace_config, this]() {
     EXPECT_EQ(0, Exec(
                      {
@@ -722,9 +728,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   auto* fake_producer = helper.ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
-  base::TempFile trace_output = base::TempFile::Create();
-  const std::string path = trace_output.path();
-  trace_output.Unlink();
+  const std::string path = RandomTraceFileName();
   std::thread background_trace([&path, &trace_config, this]() {
     EXPECT_EQ(0, Exec(
                      {
@@ -858,11 +862,11 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
   auto* fake_producer = helper.ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
-  base::TempFile trace_output = base::TempFile::Create();
-  std::thread background_trace([&trace_output, &trace_config, this]() {
+  const std::string path = RandomTraceFileName();
+  std::thread background_trace([&path, &trace_config, this]() {
     EXPECT_EQ(0, Exec(
                      {
-                         "-o", trace_output.path(), "-c", "-",
+                         "-o", path, "-c", "-",
                      },
                      trace_config.SerializeAsString()));
   });
@@ -882,7 +886,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
 
   EXPECT_EQ(0, Exec(
                    {
-                       "-o", trace_output.path(), "-c", "-", "--txt",
+                       "-o", path, "-c", "-", "--txt",
                    },
                    triggers))
       << "stderr: " << stderr_;
@@ -890,7 +894,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
   background_trace.join();
 
   std::string trace_str;
-  base::ReadFile(trace_output.path(), &trace_str);
+  base::ReadFile(path, &trace_str);
   protos::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
   EXPECT_LT(kMessageCount, trace.packet_size());
@@ -952,9 +956,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
   auto* fake_producer = helper.ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
-  base::TempFile trace_output = base::TempFile::Create();
-  const std::string path = trace_output.path();
-  trace_output.Unlink();
+  const std::string path = RandomTraceFileName();
 
   std::string trace_str;
   EXPECT_FALSE(base::ReadFile(path, &trace_str));
