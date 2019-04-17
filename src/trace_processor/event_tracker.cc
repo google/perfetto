@@ -69,7 +69,7 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
 
   StringId next_comm_id = context_->storage->InternString(next_comm);
   auto next_utid =
-      context_->process_tracker->UpdateThread(ts, next_pid, next_comm_id);
+      context_->process_tracker->UpdateThreadName(next_pid, next_comm_id);
 
   // First use this data to close the previous slice.
   bool prev_pid_match_prev_next_pid = false;
@@ -97,7 +97,7 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
   // if the thread changed its name while scheduled.
   StringId prev_comm_id = context_->storage->InternString(prev_comm);
   UniqueTid prev_utid =
-      context_->process_tracker->UpdateThread(ts, prev_pid, prev_comm_id);
+      context_->process_tracker->UpdateThreadName(prev_pid, prev_comm_id);
 
   // Push the raw event - this is done as the raw ftrace event codepath does
   // not insert sched_switch.

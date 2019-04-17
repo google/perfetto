@@ -473,7 +473,7 @@ void ProtoTraceParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
       // pre-cached |proc_stats_process_names_| map.
       StringId name = proc_stats_process_names_[field_id];
       int64_t value = counter_values[field_id];
-      UniquePid upid = context_->process_tracker->UpdateProcess(pid);
+      UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
       context_->event_tracker->PushCounter(ts, value, name, upid,
                                            RefType::kRefUpid);
     }
@@ -579,7 +579,7 @@ void ProtoTraceParser::ParseFtracePacket(
         break;
       }
       case protos::pbzero::FtraceEvent::kTaskRenameFieldNumber: {
-        ParseTaskRename(ts, data);
+        ParseTaskRename(data);
         break;
       }
       default:
@@ -599,7 +599,7 @@ void ProtoTraceParser::ParseSignalDeliver(int64_t ts,
                                           ConstBytes blob) {
   protos::pbzero::SignalDeliverFtraceEvent::Decoder sig(blob.data, blob.size);
   auto* instants = context_->storage->mutable_instants();
-  UniqueTid utid = context_->process_tracker->UpdateThread(ts, pid, 0);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   instants->AddInstantEvent(ts, signal_deliver_id_, sig.sig(), utid,
                             RefType::kRefUtid);
 }
@@ -610,8 +610,8 @@ void ProtoTraceParser::ParseSignalGenerate(int64_t ts, ConstBytes blob) {
   protos::pbzero::SignalGenerateFtraceEvent::Decoder sig(blob.data, blob.size);
 
   auto* instants = context_->storage->mutable_instants();
-  UniqueTid utid = context_->process_tracker->UpdateThread(
-      ts, static_cast<uint32_t>(sig.pid()), 0);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(
+      static_cast<uint32_t>(sig.pid()));
   instants->AddInstantEvent(ts, signal_generate_id_, sig.sig(), utid,
                             RefType::kRefUtid);
 }
@@ -624,7 +624,7 @@ void ProtoTraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
   // Store the pid of the event that is lmk-ed.
   auto* instants = context_->storage->mutable_instants();
   auto pid = static_cast<uint32_t>(lmk.pid());
-  UniquePid upid = context_->process_tracker->UpdateProcess(pid);
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
   uint32_t row = instants->AddInstantEvent(ts, lmk_id_, 0, upid,
                                            RefType::kRefUtidLookupUpid);
 
@@ -647,7 +647,7 @@ void ProtoTraceParser::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
   }
 
   if (size >= 0) {
-    UniqueTid utid = context_->process_tracker->UpdateThread(ts, pid, 0);
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
     context_->event_tracker->PushCounter(ts, size, rss_members_[member], utid,
                                          RefType::kRefUtidLookupUpid);
   } else {
@@ -683,7 +683,7 @@ void ProtoTraceParser::ParseIonHeapGrowOrShrink(int64_t ts,
   // Push the change counter.
   // TODO(b/121331269): these should really be instant events. For now we
   // manually reset them to 0 after 1ns.
-  UniqueTid utid = context_->process_tracker->UpdateThread(ts, pid, 0);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   context_->event_tracker->PushCounter(ts, change_bytes, change_name_id, utid,
                                        RefType::kRefUtid);
   context_->event_tracker->PushCounter(ts + 1, 0, change_name_id, utid,
@@ -740,7 +740,7 @@ void ProtoTraceParser::ParseSchedWakeup(int64_t ts, ConstBytes blob) {
   protos::pbzero::SchedWakeupFtraceEvent::Decoder sw(blob.data, blob.size);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
-  auto utid = context_->process_tracker->UpdateThread(ts, wakee_pid, name_id);
+  auto utid = context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
   context_->storage->mutable_instants()->AddInstantEvent(
       ts, sched_wakeup_name_id_, 0 /* value */, utid, RefType::kRefUtid);
 }
@@ -765,16 +765,16 @@ void ProtoTraceParser::ParseTaskNewTask(int64_t ts,
 
   // This is a pthread_create or similar. Bind the two threads together, so
   // they get resolved to the same process.
-  auto source_utid = proc_tracker->UpdateThread(ts, source_tid, 0);
+  auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
   auto new_utid = proc_tracker->StartNewThread(ts, new_tid, new_comm);
   proc_tracker->AssociateThreads(source_utid, new_utid);
 }
 
-void ProtoTraceParser::ParseTaskRename(int64_t ts, ConstBytes blob) {
+void ProtoTraceParser::ParseTaskRename(ConstBytes blob) {
   protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
-  context_->process_tracker->UpdateThread(ts, tid, comm);
+  context_->process_tracker->UpdateThreadName(tid, comm);
 }
 
 void ProtoTraceParser::ParsePrint(uint32_t,
@@ -811,7 +811,7 @@ void ProtoTraceParser::ParsePrint(uint32_t,
         auto killed_pid = static_cast<uint32_t>(point.value);
         if (killed_pid != 0) {
           UniquePid killed_upid =
-              context_->process_tracker->UpdateProcess(killed_pid);
+              context_->process_tracker->GetOrCreateProcess(killed_pid);
           context_->storage->mutable_instants()->AddInstantEvent(
               ts, lmk_id_, 0, killed_upid, RefType::kRefUpid);
         }
@@ -820,7 +820,8 @@ void ProtoTraceParser::ParsePrint(uint32_t,
       }
       // This is per upid on purpose. Some counters are pushed from arbitrary
       // threads but are really per process.
-      UniquePid upid = context_->process_tracker->UpdateProcess(point.tgid);
+      UniquePid upid =
+          context_->process_tracker->GetOrCreateProcess(point.tgid);
       StringId name_id = context_->storage->InternString(point.name);
       context_->event_tracker->PushCounter(ts, point.value, name_id, upid,
                                            RefType::kRefUpid);
@@ -893,7 +894,7 @@ void ProtoTraceParser::ParseOOMScoreAdjUpdate(int64_t ts, ConstBytes blob) {
   // had a bug on negative varint encoding (b/120618641).
   int16_t oom_adj = static_cast<int16_t>(evt.oom_score_adj());
   uint32_t pid = static_cast<uint32_t>(evt.pid());
-  UniquePid upid = context_->process_tracker->UpdateProcess(pid);
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
   context_->event_tracker->PushCounter(ts, oom_adj, oom_score_adj_id_, upid,
                                        RefType::kRefUpid);
 }
@@ -903,7 +904,7 @@ void ProtoTraceParser::ParseMmEventRecord(int64_t ts,
                                           ConstBytes blob) {
   protos::pbzero::MmEventRecordFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t type = evt.type();
-  UniqueTid utid = context_->process_tracker->UpdateThread(ts, pid, 0);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
   if (type >= mm_event_counter_names_.size()) {
     context_->storage->IncrementStats(stats::mm_unknown_type);
@@ -925,7 +926,7 @@ void ProtoTraceParser::ParseSysEvent(int64_t ts,
                                      ConstBytes blob) {
   protos::pbzero::SysEnterFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t syscall_num = static_cast<uint32_t>(evt.id());
-  UniqueTid utid = context_->process_tracker->UpdateThread(ts, pid, 0);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
   if (is_enter) {
     context_->syscall_tracker->Enter(ts, utid, syscall_num);
@@ -948,7 +949,7 @@ void ProtoTraceParser::ParseGenericFtrace(int64_t ts,
                                           ConstBytes blob) {
   protos::pbzero::GenericFtraceEvent::Decoder evt(blob.data, blob.size);
   StringId event_id = context_->storage->InternString(evt.event_name());
-  UniqueTid utid = context_->process_tracker->UpdateThread(ts, tid, 0);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
   RowId row_id = context_->storage->mutable_raw_events()->AddRawEvent(
       ts, event_id, cpu, utid);
 
@@ -985,7 +986,7 @@ void ProtoTraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
 
   MessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
   const auto& message_strings = ftrace_message_strings_[ftrace_id];
-  UniqueTid utid = context_->process_tracker->UpdateThread(ts, tid, 0);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
   RowId raw_event_id = context_->storage->mutable_raw_events()->AddRawEvent(
       ts, message_strings.message_name_id, cpu, utid);
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {

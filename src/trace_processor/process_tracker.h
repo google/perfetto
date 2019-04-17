@@ -52,12 +52,14 @@ class ProcessTracker {
   UniqueTid StartNewThread(int64_t timestamp,
                            uint32_t tid,
                            StringId thread_name_id);
+
+  // Returns the thread utid (or creates a new entry if not present)
+  UniqueTid GetOrCreateThread(uint32_t tid);
+
   // Called when a sched switch event is seen in the trace. Retrieves the
   // UniqueTid that matches the tid or assigns a new UniqueTid and stores
   // the thread_name_id.
-  UniqueTid UpdateThread(int64_t timestamp,
-                         uint32_t tid,
-                         StringId thread_name_id);
+  UniqueTid UpdateThreadName(uint32_t tid, StringId thread_name_id);
 
   // Called when a thread is seen the process tree. Retrieves the matching utid
   // for the tid and the matching upid for the tgid and stores both.
@@ -78,7 +80,7 @@ class ProcessTracker {
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
   // Virtual for testing.
-  virtual UniquePid UpdateProcess(uint32_t pid, int64_t start_ns = 0);
+  virtual UniquePid GetOrCreateProcess(uint32_t pid);
 
   // Returns the bounds of a range that includes all UniquePids that have the
   // requested pid.
@@ -104,9 +106,8 @@ class ProcessTracker {
   // other threads associated to the passed thread.
   void ResolvePendingAssociations(UniqueTid, UniquePid);
 
-  std::pair<UniquePid, TraceStorage::Process*> GetOrCreateProcess(
-      uint32_t pid,
-      int64_t start_ns);
+  std::pair<UniquePid, TraceStorage::Process*> GetOrCreateProcessPtr(
+      uint32_t pid);
 
   TraceProcessorContext* const context_;
 
