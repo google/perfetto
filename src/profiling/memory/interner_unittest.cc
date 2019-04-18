@@ -118,6 +118,17 @@ TEST(InternerStringTest, IDsUnique) {
   EXPECT_NE(interned_str.id(), other_interned_str.id());
 }
 
+TEST(InternerStringTest, IdsConsecutive) {
+  Interner<std::string> interner;
+  {
+    Interned<std::string> interned_str = interner.Intern("foo");
+    interner.Intern("foo");
+    Interned<std::string> other_interned_str = interner.Intern("bar");
+    ASSERT_EQ(interned_str.id() + 1, other_interned_str.id());
+  }
+  ASSERT_EQ(interner.entry_count_for_testing(), 0);
+}
+
 class NoCopyOrMove {
  public:
   NoCopyOrMove(const NoCopyOrMove&) = delete;
