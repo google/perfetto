@@ -139,6 +139,32 @@ void CreateBuiltinViews(sqlite3* db) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
+
+  sqlite3_exec(db,
+               "CREATE VIEW slice AS "
+               "SELECT "
+               "  *, "
+               "  CASE ref_type "
+               "    WHEN 'utid' THEN ref "
+               "    ELSE NULL "
+               "  END AS utid "
+               "FROM internal_slice;",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
+
+  // Legacy view for "slice" table with a deprecated table name.
+  // TODO(eseckler): Remove this view when all users have switched to "slice".
+  sqlite3_exec(db,
+               "CREATE VIEW slices AS "
+               "SELECT * FROM slice;",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
 }
 
 bool IsPrefix(const std::string& a, const std::string& b) {
