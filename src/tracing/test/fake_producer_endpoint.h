@@ -40,6 +40,7 @@ class FakeProducerEndpoint : public TracingService::ProducerEndpoint {
   std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override {
     return nullptr;
   }
+  SharedMemoryArbiter* GetInProcessShmemArbiter() override { return nullptr; }
 
   CommitDataRequest last_commit_data_request;
 };
