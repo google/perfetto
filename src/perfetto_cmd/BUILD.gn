@@ -21,6 +21,7 @@ source_set("perfetto_cmd") {
     "../../include/perfetto/traced",
   ]
   deps = [
+    ":trigger_producer",
     "../../buildtools:protobuf_lite",
     "../../gn:default_deps",
     "../../protos/perfetto/config:lite",
@@ -38,8 +39,6 @@ source_set("perfetto_cmd") {
     "perfetto_config.descriptor.h",
     "rate_limiter.cc",
     "rate_limiter.h",
-    "trigger_producer.cc",
-    "trigger_producer.h",
   ]
   if (perfetto_build_with_android) {
     deps += [ "../base:android_task_runner" ]
@@ -49,6 +48,36 @@ source_set("perfetto_cmd") {
       "utils",
     ]
   }
+}
+
+source_set("trigger_perfetto_cmd") {
+  public_deps = [
+    ":protos",
+    "../../include/perfetto/traced",
+  ]
+  deps = [
+    ":trigger_producer",
+    "../../gn:default_deps",
+    "../base",
+    "../tracing:ipc",
+  ]
+  sources = [
+    "trigger_perfetto.cc",
+  ]
+}
+
+source_set("trigger_producer") {
+  sources = [
+    "trigger_producer.cc",
+    "trigger_producer.h",
+  ]
+  deps = [
+    "../../buildtools:protobuf_lite",
+    "../../gn:default_deps",
+    "../../protos/perfetto/config:lite",
+    "../base",
+    "../tracing:ipc",
+  ]
 }
 
 proto_library("protos") {
