@@ -19,7 +19,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <set>
+#include <functional>
+#include <unordered_set>
 
 #include "perfetto/base/logging.h"
 
@@ -37,6 +38,13 @@ class Interner {
         : data(std::forward<U...>(args...)), id(i), interner(in) {}
 
     bool operator<(const Entry& other) const { return data < other.data; }
+    bool operator==(const Entry& other) const { return data == other.data; }
+
+    struct Hash {
+      size_t operator()(const Entry& e) const noexcept {
+        return std::hash<T>{}(e.data);
+      }
+    };
 
     const T data;
     size_t ref_count = 0;
@@ -77,6 +85,10 @@ class Interner {
       return entry_ < other.entry_;
     }
 
+    bool operator==(const Interned& other) const {
+      return entry_ == other.entry_;
+    }
+
     const T* operator->() const { return &entry_->data; }
 
    private:
@@ -85,6 +97,8 @@ class Interner {
 
   template <typename... U>
   Interned Intern(U... args) {
+    // This does not invalidate pointers to entries we hold in Interned. See
+    // https://timsong-cpp.github.io/cppwp/n3337/unord.req#8
     auto itr_and_inserted =
         entries_.emplace(this, next_id, std::forward<U...>(args...));
     if (itr_and_inserted.second)
@@ -104,7 +118,7 @@ class Interner {
       entries_.erase(*entry);
   }
   uint64_t next_id = 1;
-  std::set<Entry> entries_;
+  std::unordered_set<Entry, typename Entry::Hash> entries_;
   static_assert(sizeof(Interned) == sizeof(void*),
                 "interned things should be small");
 };
