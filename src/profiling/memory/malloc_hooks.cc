@@ -16,19 +16,18 @@
 
 #include <inttypes.h>
 #include <malloc.h>
+#include <private/bionic_malloc.h>
+#include <private/bionic_malloc_dispatch.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/system_properties.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <atomic>
 #include <tuple>
-
-#include <sys/system_properties.h>
-
-#include <private/bionic_malloc.h>
-#include <private/bionic_malloc_dispatch.h>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -183,6 +182,21 @@ int Daemonize() {
   return 0;
 }
 
+// Called only if |g_client_lock| acquisition fails, which shouldn't happen
+// unless we're in a completely unexpected state (which we won't know how to
+// recover from). Tries to abort (SIGABRT) the whole process to serve as an
+// explicit indication of a bug.
+//
+// Doesn't use PERFETTO_FATAL as that is a single attempt to self-signal (in
+// practice - SIGTRAP), while abort() tries to make sure the process has
+// exited one way or another.
+__attribute__((noreturn, noinline)) void AbortOnSpinlockTimeout() {
+  PERFETTO_ELOG(
+      "Timed out on the spinlock - something is horribly wrong. "
+      "Aborting whole process.");
+  abort();
+}
+
 std::string ReadSystemProperty(const char* key) {
   std::string prop_value;
   const prop_info* prop = __system_property_find(key);
@@ -321,7 +335,10 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
 // Note: g_client can be reset by heapprofd_initialize without calling this
 // function.
 void ShutdownLazy() {
-  ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
+  ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+  if (PERFETTO_UNLIKELY(!s.locked()))
+    AbortOnSpinlockTimeout();
+
   if (!g_client.ref())  // other invocation already initiated shutdown
     return;
 
@@ -356,7 +373,9 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
   // whether we want to ban heap objects in the client or not.
   std::shared_ptr<Client> old_client;
   {
-    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+    if (PERFETTO_UNLIKELY(!s.locked()))
+      AbortOnSpinlockTimeout();
 
     // Only reject concurrent session if the previous one is still active.
     if (g_client.ref() && g_client.ref()->IsConnected()) {
@@ -387,7 +406,10 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
   }
   PERFETTO_LOG("heapprofd_client initialized.");
   {
-    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+    if (PERFETTO_UNLIKELY(!s.locked()))
+      AbortOnSpinlockTimeout();
+
     // This cannot have been set in the meantime. There are never two concurrent
     // calls to this function, as Bionic uses atomics to guard against that.
     PERFETTO_DCHECK(g_client.ref() == nullptr);
@@ -416,7 +438,10 @@ static void MaybeSampleAllocation(size_t size, void* addr) {
   size_t sampled_alloc_sz = 0;
   std::shared_ptr<perfetto::profiling::Client> client;
   {
-    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+    if (PERFETTO_UNLIKELY(!s.locked()))
+      AbortOnSpinlockTimeout();
+
     if (!g_client.ref())  // no active client (most likely shutting down)
       return;
 
@@ -480,7 +505,10 @@ void HEAPPROFD_ADD_PREFIX(_free)(void* pointer) {
   const MallocDispatch* dispatch = GetDispatch();
   std::shared_ptr<perfetto::profiling::Client> client;
   {
-    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+    if (PERFETTO_UNLIKELY(!s.locked()))
+      AbortOnSpinlockTimeout();
+
     client = g_client.ref();  // owning copy (or empty)
   }
 
@@ -505,7 +533,10 @@ void* HEAPPROFD_ADD_PREFIX(_realloc)(void* pointer, size_t size) {
   size_t sampled_alloc_sz = 0;
   std::shared_ptr<perfetto::profiling::Client> client;
   {
-    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Blocking);
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+    if (PERFETTO_UNLIKELY(!s.locked()))
+      AbortOnSpinlockTimeout();
+
     // If there is no active client, we still want to reach the backing realloc,
     // so keep going.
     if (g_client.ref()) {
