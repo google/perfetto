@@ -229,7 +229,7 @@ void HeapprofdProducer::ConnectService() {
 
 void HeapprofdProducer::SetProducerEndpoint(
     std::unique_ptr<TracingService::ProducerEndpoint> endpoint) {
-  PERFETTO_DCHECK(state_ == kNotConnected);
+  PERFETTO_DCHECK(state_ == kNotConnected || state_ == kNotStarted);
   state_ = kConnecting;
   endpoint_ = std::move(endpoint);
 }
