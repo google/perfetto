@@ -16,22 +16,15 @@
 
 #include "src/trace_processor/instants_table.h"
 
-#include "src/trace_processor/counter_definitions_table.h"
+#include <string>
+
+#include "src/trace_processor/storage_columns.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 InstantsTable::InstantsTable(sqlite3*, const TraceStorage* storage)
-    : storage_(storage) {
-  ref_types_.resize(RefType::kRefMax);
-  ref_types_[RefType::kRefNoRef] = nullptr;
-  ref_types_[RefType::kRefUtid] = "utid";
-  ref_types_[RefType::kRefUpid] = "upid";
-  ref_types_[RefType::kRefCpuId] = "cpu";
-  ref_types_[RefType::kRefIrq] = "irq";
-  ref_types_[RefType::kRefSoftIrq] = "softirq";
-  ref_types_[RefType::kRefUtidLookupUpid] = "upid";
-};
+    : storage_(storage) {}
 
 void InstantsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<InstantsTable>(db, storage, "instants");
@@ -44,10 +37,9 @@ StorageSchema InstantsTable::CreateStorageSchema() {
       .AddOrderedNumericColumn("ts", &instants.timestamps())
       .AddStringColumn("name", &instants.name_ids(), &storage_->string_pool())
       .AddNumericColumn("value", &instants.values())
-      // TODO(lalitm): remove this hack.
-      .AddColumn<CounterDefinitionsTable::RefColumn>(
-          "ref", &instants.refs(), &instants.types(), storage_)
-      .AddStringColumn("ref_type", &instants.types(), &ref_types_)
+      .AddColumn<RefColumn>("ref", &instants.refs(), &instants.types(),
+                            storage_)
+      .AddStringColumn("ref_type", &instants.types(), &GetRefTypeStringMap())
       .AddNumericColumn("arg_set_id", &instants.arg_set_ids())
       .Build({"name", "ts", "ref"});
 }
