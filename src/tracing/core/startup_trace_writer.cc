@@ -193,12 +193,17 @@ TraceWriter::TracePacketHandle StartupTraceWriter::NewTracePacket() {
 
   // Now grab the lock and safely check whether we are still unbound.
   {
-    std::lock_guard<std::mutex> lock(lock_);
+    std::unique_lock<std::mutex> lock(lock_);
     if (trace_writer_) {
       PERFETTO_DCHECK(!cur_packet_);
       // Set the |was_bound_| flag to avoid locking in future calls to
       // NewTracePacket().
       was_bound_ = true;
+      // Don't hold the lock while calling NewTracePacket() on |trace_writer_|.
+      // This is safe because |trace_writer_| remains valid once set. It also
+      // avoids deadlocks that may be caused by holding the lock while waiting
+      // for a new SMB chunk in |trace_writer_|.
+      lock.unlock();
       return trace_writer_->NewTracePacket();
     }
     // Not bound. Make sure it stays this way until the TracePacketHandle goes
