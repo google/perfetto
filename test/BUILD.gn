@@ -43,7 +43,10 @@ source_set("end_to_end_integrationtests") {
     # In CTS mode we use /syste/bin/perfetto for the cmdline tests and the
     # perfetto_cmd is not required. Outside of CTS mode, instead, we need to
     # build the cmdline code as part of the test executable.
-    deps += [ "../src/perfetto_cmd" ]
+    deps += [
+      "../src/perfetto_cmd",
+      "../src/perfetto_cmd:trigger_perfetto_cmd",
+    ]
   }
 }
 

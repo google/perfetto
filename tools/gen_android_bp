@@ -47,6 +47,7 @@ default_targets = [
     '//:trace_to_text',
     '//:heapprofd_client',
     '//:heapprofd',
+    '//:trigger_perfetto',
 ]
 
 # Defines a custom init_rc argument to be applied to the corresponding output
@@ -112,7 +113,7 @@ additional_args = {
         ('static_libs', ['libasync_safe']),
     ],
     'traced_probes': [
-      ('required', ['libperfetto_android_internal']),
+      ('required', ['libperfetto_android_internal', 'trigger_perfetto']),
     ],
     'libperfetto_android_internal': [
       ('static_libs', ['libhealthhalutils']),
