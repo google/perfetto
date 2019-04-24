@@ -99,15 +99,26 @@ class PerfettoCmdlineTest : public ::testing::Test {
 
   void TearDown() override {}
 
+  int ExecPerfetto(std::initializer_list<std::string> args,
+                   std::string input = "") {
+    return Exec("perfetto", args, input);
+  }
+
+  int ExecTrigger(std::initializer_list<std::string> args,
+                  std::string input = "") {
+    return Exec("trigger_perfetto", args, input);
+  }
+
   // Fork() + executes the perfetto cmdline client with the given args and
   // returns the exit code.
-  int Exec(std::initializer_list<std::string> args, std::string input = "") {
+  int Exec(const std::string& argv0,
+           std::initializer_list<std::string> args,
+           std::string input = "") {
     std::vector<char> argv_buffer;
     std::vector<size_t> argv_offsets;
     std::vector<char*> argv;
     argv_offsets.push_back(0);
 
-    std::string argv0("perfetto");
     argv_buffer.insert(argv_buffer.end(), argv0.begin(), argv0.end());
     argv_buffer.push_back('\0');
 
@@ -142,9 +153,16 @@ class PerfettoCmdlineTest : public ::testing::Test {
              1);
       setenv("PERFETTO_PRODUCER_SOCK_NAME", TestHelper::GetProducerSocketName(),
              1);
-      _exit(PerfettoCmdMain(static_cast<int>(argv.size() - 1), argv.data()));
+      if (argv0 == "perfetto") {
+        _exit(PerfettoCmdMain(static_cast<int>(argv.size() - 1), argv.data()));
+      } else if (argv0 == "trigger_perfetto") {
+        _exit(TriggerPerfettoMain(static_cast<int>(argv.size() - 1),
+                                  argv.data()));
+      } else {
+        ADD_FAILURE() << "Unknown binary: " << argv0.c_str();
+      }
 #else
-      execv("/system/bin/perfetto", &argv[0]);
+      execv((std::string("/system/bin/") + argv0).c_str(), &argv[0]);
       _exit(3);
 #endif
     }
@@ -554,66 +572,68 @@ TEST_F(PerfettoTest, ReattachFailsAfterTimeout) {
 TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
   std::string cfg("duration_ms: 100");
 
-  EXPECT_EQ(1, Exec({"--invalid-arg"}));
+  EXPECT_EQ(1, ExecPerfetto({"--invalid-arg"}));
 
-  EXPECT_EQ(1, Exec({"-c", "-", "-o", "-"}, ""));
+  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "-o", "-"}, ""));
   EXPECT_THAT(stderr_, HasSubstr("TraceConfig is empty"));
 
   // Cannot make assertions on --dropbox because on standalone builds it fails
   // prematurely due to lack of dropbox.
-  EXPECT_EQ(1, Exec({"-c", "-", "--txt", "-o", "-", "--dropbox=foo"}, cfg));
+  EXPECT_EQ(
+      1, ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--dropbox=foo"}, cfg));
 
-  EXPECT_EQ(1, Exec({"-c", "-", "--txt"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "--txt"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("Either --out or --dropbox"));
 
   // Disallow mixing simple and file config.
-  EXPECT_EQ(1, Exec({"-o", "-", "-c", "-", "-t", "2s"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-o", "-", "-c", "-", "-t", "2s"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
 
-  EXPECT_EQ(1, Exec({"-o", "-", "-c", "-", "-b", "2m"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-o", "-", "-c", "-", "-b", "2m"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
 
-  EXPECT_EQ(1, Exec({"-o", "-", "-c", "-", "-s", "2m"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-o", "-", "-c", "-", "-s", "2m"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
 
   // Invalid --attach / --detach cases.
-  EXPECT_EQ(1, Exec({"-c", "-", "--txt", "-o", "-", "--stop"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--stop"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("--stop is supported only in combination"));
 
-  EXPECT_EQ(1, Exec({"-c", "-", "--txt", "-o", "-", "--attach=foo"}, cfg));
+  EXPECT_EQ(1,
+            ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--attach=foo"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
 
-  EXPECT_EQ(1, Exec({"-t", "2s", "-o", "-", "--attach=foo"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "-o", "-", "--attach=foo"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
 
-  EXPECT_EQ(1, Exec({"--attach"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"--attach"}, cfg));
   EXPECT_THAT(stderr_, ContainsRegex("option.*--attach.*requires an argument"));
 
-  EXPECT_EQ(1, Exec({"-t", "2s", "-o", "-", "--detach"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "-o", "-", "--detach"}, cfg));
   EXPECT_THAT(stderr_, ContainsRegex("option.*--detach.*requires an argument"));
 
-  EXPECT_EQ(1, Exec({"-t", "2s", "--detach=foo"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "--detach=foo"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("--out or --dropbox is required"));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(TxtConfig)) {
   std::string cfg("duration_ms: 100");
-  EXPECT_EQ(0, Exec({"-c", "-", "--txt", "-o", "-"}, cfg)) << stderr_;
+  EXPECT_EQ(0, ExecPerfetto({"-c", "-", "--txt", "-o", "-"}, cfg)) << stderr_;
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(SimpleConfig)) {
-  EXPECT_EQ(0, Exec({"-o", "-", "-c", "-", "-t", "100ms"}));
+  EXPECT_EQ(0, ExecPerfetto({"-o", "-", "-c", "-", "-t", "100ms"}));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(DetachAndAttach)) {
-  EXPECT_NE(0, Exec({"--attach=not_existent"}));
+  EXPECT_NE(0, ExecPerfetto({"--attach=not_existent"}));
   EXPECT_THAT(stderr_, HasSubstr("Session re-attach failed"));
 
   std::string cfg("duration_ms: 10000; write_into_file: true");
-  EXPECT_EQ(0,
-            Exec({"-o", "-", "-c", "-", "--txt", "--detach=valid_stop"}, cfg))
+  EXPECT_EQ(0, ExecPerfetto(
+                   {"-o", "-", "-c", "-", "--txt", "--detach=valid_stop"}, cfg))
       << stderr_;
-  EXPECT_EQ(0, Exec({"--attach=valid_stop", "--stop"}));
+  EXPECT_EQ(0, ExecPerfetto({"--attach=valid_stop", "--stop"}));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
@@ -652,7 +672,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   EXPECT_TRUE(fake_producer);
   const std::string path = RandomTraceFileName();
   std::thread background_trace([&path, &trace_config, this]() {
-    EXPECT_EQ(0, Exec(
+    EXPECT_EQ(0, ExecPerfetto(
                      {
                          "-o", path, "-c", "-",
                      },
@@ -660,7 +680,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   });
 
   helper.WaitForProducerSetup();
-  EXPECT_EQ(0, Exec({"--trigger=trigger_name"})) << "stderr: " << stderr_;
+  EXPECT_EQ(0, ExecTrigger({"trigger_name"})) << "stderr: " << stderr_;
 
   // Wait for the producer to start, and then write out 11 packets.
   helper.WaitForProducerEnabled();
@@ -730,7 +750,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
 
   const std::string path = RandomTraceFileName();
   std::thread background_trace([&path, &trace_config, this]() {
-    EXPECT_EQ(0, Exec(
+    EXPECT_EQ(0, ExecPerfetto(
                      {
                          "-o", path, "-c", "-",
                      },
@@ -744,8 +764,8 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   fake_producer->ProduceEventBatch(helper.WrapTask(on_data_written));
   task_runner.RunUntilCheckpoint("data_written_1");
 
-  EXPECT_EQ(0, Exec({"--trigger=trigger_name_2", "--trigger=trigger_name",
-                     "--trigger=trigger_name_3"}))
+  EXPECT_EQ(0,
+            ExecTrigger({"trigger_name_2", "trigger_name", "trigger_name_3"}))
       << "stderr: " << stderr_;
 
   background_trace.join();
@@ -814,7 +834,7 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
   EXPECT_TRUE(fake_producer);
 
   std::thread background_trace([&trace_config, this]() {
-    EXPECT_EQ(0, Exec(
+    EXPECT_EQ(0, ExecPerfetto(
                      {
                          "--dropbox", "TAG", "--no-guardrails", "-c", "-",
                      },
@@ -864,7 +884,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
 
   const std::string path = RandomTraceFileName();
   std::thread background_trace([&path, &trace_config, this]() {
-    EXPECT_EQ(0, Exec(
+    EXPECT_EQ(0, ExecPerfetto(
                      {
                          "-o", path, "-c", "-",
                      },
@@ -884,7 +904,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
     activate_triggers: "trigger_name_3"
   )";
 
-  EXPECT_EQ(0, Exec(
+  EXPECT_EQ(0, ExecPerfetto(
                    {
                        "-o", path, "-c", "-", "--txt",
                    },
@@ -967,7 +987,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
     activate_triggers: "trigger_name_3"
   )";
 
-  EXPECT_EQ(0, Exec(
+  EXPECT_EQ(0, ExecPerfetto(
                    {
                        "-o", path, "-c", "-", "--txt",
                    },
