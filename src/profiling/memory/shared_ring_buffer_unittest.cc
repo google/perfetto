@@ -255,6 +255,26 @@ TEST(SharedRingBufferTest, MultiThreadingTest) {
   reader_thread.join();
 }
 
+TEST(SharedRingBufferTest, InvalidSize) {
+  constexpr auto kBufSize = base::kPageSize * 4 + 1;
+  base::Optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
+  EXPECT_EQ(wr, base::nullopt);
+}
+
+TEST(SharedRingBufferTest, EmptyWrite) {
+  constexpr auto kBufSize = base::kPageSize * 4;
+  base::Optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
+  ASSERT_TRUE(wr);
+  SharedRingBuffer::Buffer buf;
+  {
+    auto lock = wr->AcquireLock(ScopedSpinlock::Mode::Try);
+    ASSERT_TRUE(lock.locked());
+    buf = wr->BeginWrite(lock, 0);
+  }
+  EXPECT_TRUE(buf);
+  wr->EndWrite(std::move(buf));
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto

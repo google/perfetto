@@ -63,6 +63,24 @@ class LogHistogram {
 // clients. This can be implemented as an additional mode here.
 enum class HeapprofdMode { kCentral, kChild };
 
+// Heap profiling producer. Can be instantiated in two modes, central and
+// child (also referred to as fork mode).
+//
+// The central mode producer is instantiated by the system heapprofd daemon. Its
+// primary responsibility is activating profiling (via system properties and
+// signals) in targets identified by profiling configs. On debug platform
+// builds, the central producer can also handle the out-of-process unwinding &
+// writing of the profiles for all client processes.
+//
+// An alternative model is where the central heapprofd triggers the profiling in
+// the target process, but the latter fork-execs a private heapprofd binary to
+// handle unwinding only for that process. The forked heapprofd instantiates
+// this producer in the "child" mode. In this scenario, the profiled process
+// never talks to the system daemon.
+//
+// TODO(fmayer||rsavitski): cover interesting invariants/structure of the
+// implementation (e.g. number of data sources in child mode), including
+// threading structure.
 class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
  public:
   friend class SocketDelegate;
@@ -98,7 +116,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
              const DataSourceInstanceID* data_source_ids,
              size_t num_data_sources) override;
 
-  // TODO(fmayer): Delete once we have generic reconnect logic.
+  // TODO(fmayer): Refactor once/if we have generic reconnect logic.
   void ConnectWithRetries(const char* socket_name);
   void DumpAll();
 
@@ -119,55 +137,30 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void SetTargetProcess(pid_t target_pid,
                         std::string target_cmdline,
                         base::ScopedFile inherited_socket);
+  // Valid only if mode_ == kChild. Kicks off a periodic check that the child
+  // heapprofd is actively working on a data source (which should correspond to
+  // the target process). The first check is delayed to let the freshly spawned
+  // producer get the data sources from the tracing service (i.e. traced).
+  void ScheduleActiveDataSourceWatchdog();
 
   // Exposed for testing.
   void SetProducerEndpoint(
       std::unique_ptr<TracingService::ProducerEndpoint> endpoint);
 
  private:
-  void HandleClientConnection(std::unique_ptr<base::UnixSocket> new_connection,
-                              Process process);
-
-  // TODO(fmayer): Delete once we have generic reconnect logic.
+  // State of the connection to tracing service (traced).
   enum State {
     kNotStarted = 0,
     kNotConnected,
     kConnecting,
     kConnected,
   };
-  void ConnectService();
-  void Restart();
-  void ResetConnectionBackoff();
-  void IncreaseConnectionBackoff();
-
-  // TODO(fmayer): Delete once we have generic reconnect logic.
-  State state_ = kNotStarted;
-  uint32_t connection_backoff_ms_ = 0;
-  const char* producer_sock_name_ = nullptr;
-
-  const HeapprofdMode mode_;
-
-  void FinishDataSourceFlush(FlushRequestID flush_id);
-  bool Dump(DataSourceInstanceID id,
-            FlushRequestID flush_id,
-            bool has_flush_id);
-  void DoContinuousDump(DataSourceInstanceID id, uint32_t dump_interval);
-  UnwindingWorker& UnwinderForPID(pid_t);
-
-  // functionality specific to mode_ == kCentral
-  std::unique_ptr<base::UnixSocket> MakeListeningSocket();
-
-  // functionality specific to mode_ == kChild
-  void TerminateProcess(int exit_status);
-
-  // Valid only if mode_ == kChild. Adopts the (connected) sockets inherited
-  // from the target process, invoking the on-connection callback.
-  void AdoptTargetProcessSocket();
 
   struct ProcessState {
     ProcessState(GlobalCallstackTrie* callsites) : heap_tracker(callsites) {}
     bool disconnected = false;
     bool buffer_overran = false;
+    bool buffer_corrupted = false;
 
     uint64_t heap_samples = 0;
     uint64_t map_reparses = 0;
@@ -197,34 +190,76 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     SharedRingBuffer shmem;
   };
 
-  std::map<pid_t, PendingProcess> pending_processes_;
+  void HandleClientConnection(std::unique_ptr<base::UnixSocket> new_connection,
+                              Process process);
 
+  void ConnectService();
+  void Restart();
+  void ResetConnectionBackoff();
+  void IncreaseConnectionBackoff();
+
+  void FinishDataSourceFlush(FlushRequestID flush_id);
+  bool Dump(DataSourceInstanceID id,
+            FlushRequestID flush_id,
+            bool has_flush_id);
+  void DoContinuousDump(DataSourceInstanceID id, uint32_t dump_interval);
+
+  UnwindingWorker& UnwinderForPID(pid_t);
   bool IsPidProfiled(pid_t);
   DataSource* GetDataSourceForProcess(const Process& proc);
-  bool ConfigTargetsProcess(
-      const HeapprofdConfig& cfg,
-      const Process& proc,
-      const std::vector<std::string>& normalized_cmdlines);
   void RecordOtherSourcesAsRejected(DataSource* active_ds, const Process& proc);
 
-  std::map<DataSourceInstanceID, DataSource> data_sources_;
-  std::map<FlushRequestID, size_t> flushes_in_progress_;
+  // Specific to mode_ == kCentral
+  std::unique_ptr<base::UnixSocket> MakeListeningSocket();
 
-  // These two are borrowed from the caller.
+  // Specific to mode_ == kChild
+  void TerminateProcess(int exit_status);
+  // Specific to mode_ == kChild
+  void ActiveDataSourceWatchdogCheck();
+  // Adopts the (connected) sockets inherited from the target process, invoking
+  // the on-connection callback.
+  // Specific to mode_ == kChild
+  void AdoptTargetProcessSocket();
+
+  // Class state:
+
+  // Task runner is owned by the main thread.
   base::TaskRunner* const task_runner_;
+  const HeapprofdMode mode_;
+
+  // State of connection to the tracing service.
+  State state_ = kNotStarted;
+  uint32_t connection_backoff_ms_ = 0;
+  const char* producer_sock_name_ = nullptr;
+
+  // Client processes that have connected, but with which we have not yet
+  // finished the handshake.
+  std::map<pid_t, PendingProcess> pending_processes_;
+
+  // Must outlive data_sources_ - owns at least the shared memory referenced by
+  // TraceWriters.
   std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;
 
+  // Must outlive data_sources_ - HeapTracker references the trie.
   GlobalCallstackTrie callsites_;
-  std::vector<UnwindingWorker> unwinding_workers_;
 
-  // state specific to mode_ == kCentral
-  std::unique_ptr<base::UnixSocket> listening_socket_;
+  // Must outlive data_sources_ - DataSource can hold
+  // SystemProperties::Handle-s.
+  // Specific to mode_ == kCentral
   SystemProperties properties_;
 
-  // state specific to mode_ == kChild
+  std::map<FlushRequestID, size_t> flushes_in_progress_;
+  std::map<DataSourceInstanceID, DataSource> data_sources_;
+  std::vector<UnwindingWorker> unwinding_workers_;
+
+  // Specific to mode_ == kCentral
+  std::unique_ptr<base::UnixSocket> listening_socket_;
+
+  // Specific to mode_ == kChild
   Process target_process_{base::kInvalidPid, ""};
-  // This is a valid FD between SetTargetProcess and AdoptTargetProcessSocket
-  // only.
+  // This is a valid FD only between SetTargetProcess and
+  // AdoptTargetProcessSocket.
+  // Specific to mode_ == kChild
   base::ScopedFile inherited_fd_;
 
   SocketDelegate socket_delegate_;

@@ -54,6 +54,7 @@ class NoDestructor {
 
   ~NoDestructor() = default;
 
+  const T& ref() const { return *reinterpret_cast<const T*>(storage_); }
   T& ref() { return *reinterpret_cast<T*>(storage_); }
 
  private:

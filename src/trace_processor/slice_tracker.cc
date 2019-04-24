@@ -73,8 +73,9 @@ void SliceTracker::StartSlice(int64_t timestamp,
     return;
   }
   int64_t parent_stack_id = depth == 0 ? 0 : slices->stack_ids()[stack->back()];
-  size_t slice_idx = slices->AddSlice(timestamp, duration, utid, cat, name,
-                                      depth, 0, parent_stack_id);
+  size_t slice_idx =
+      slices->AddSlice(timestamp, duration, utid, RefType::kRefUtid, cat, name,
+                       depth, 0, parent_stack_id);
   stack->emplace_back(slice_idx);
 
   slices->set_stack_id(slice_idx, GetStackHash(*stack));

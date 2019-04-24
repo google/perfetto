@@ -309,6 +309,11 @@ std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
   return shared_memory_arbiter_->CreateTraceWriter(target_buffer);
 }
 
+SharedMemoryArbiter* ProducerIPCClientImpl::GetInProcessShmemArbiter() {
+  PERFETTO_DLOG("Cannot GetInProcessShmemArbiter() via the IPC layer.");
+  return nullptr;
+}
+
 void ProducerIPCClientImpl::NotifyFlushComplete(FlushRequestID req_id) {
   return shared_memory_arbiter_->NotifyFlushComplete(req_id);
 }

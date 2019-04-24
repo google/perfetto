@@ -17,12 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_COUNTER_DEFINITIONS_TABLE_H_
 #define SRC_TRACE_PROCESSOR_COUNTER_DEFINITIONS_TABLE_H_
 
-#include <deque>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "src/trace_processor/storage_table.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -38,41 +34,12 @@ class CounterDefinitionsTable : public StorageTable {
   uint32_t RowCount() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
-  class RefColumn final : public StorageColumn {
-   public:
-    RefColumn(std::string col_name,
-              const std::deque<int64_t>* refs,
-              const std::deque<RefType>* types,
-              const TraceStorage* storage);
-
-    void ReportResult(sqlite3_context* ctx, uint32_t row) const override;
-
-    Bounds BoundFilter(int op, sqlite3_value* sqlite_val) const override;
-
-    void Filter(int op, sqlite3_value* value, FilteredRowIndex*) const override;
-
-    Comparator Sort(const QueryConstraints::OrderBy& ob) const override;
-
-    bool HasOrdering() const override { return false; }
-
-    Table::ColumnType GetType() const override {
-      return Table::ColumnType::kLong;
-    }
-
-   private:
-    int CompareRefsAsc(uint32_t f, uint32_t s) const;
-
-    const std::deque<int64_t>* refs_;
-    const std::deque<RefType>* types_;
-    const TraceStorage* storage_ = nullptr;
-  };
-
  private:
   uint32_t EstimateCost(const QueryConstraints&);
 
-  std::vector<const char*> ref_types_;
   const TraceStorage* const storage_;
 };
+
 }  // namespace trace_processor
 }  // namespace perfetto
 

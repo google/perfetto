@@ -17,6 +17,7 @@
 #ifndef SRC_PROFILING_MEMORY_BOOKKEEPING_H_
 #define SRC_PROFILING_MEMORY_BOOKKEEPING_H_
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -110,6 +111,11 @@ struct Mapping {
            std::tie(other.build_id, other.offset, other.start, other.end,
                     other.load_bias, other.path_components);
   }
+  bool operator==(const Mapping& other) const {
+    return std::tie(build_id, offset, start, end, load_bias, path_components) ==
+           std::tie(other.build_id, other.offset, other.start, other.end,
+                    other.load_bias, other.path_components);
+  }
 };
 
 struct Frame {
@@ -121,6 +127,11 @@ struct Frame {
 
   bool operator<(const Frame& other) const {
     return std::tie(mapping, function_name, rel_pc) <
+           std::tie(other.mapping, other.function_name, other.rel_pc);
+  }
+
+  bool operator==(const Frame& other) const {
+    return std::tie(mapping, function_name, rel_pc) ==
            std::tie(other.mapping, other.function_name, other.rel_pc);
   }
 };
@@ -365,5 +376,36 @@ class HeapTracker {
 
 }  // namespace profiling
 }  // namespace perfetto
+
+namespace std {
+template <>
+struct hash<::perfetto::profiling::Mapping> {
+  using argument_type = ::perfetto::profiling::Mapping;
+  using result_type = size_t;
+  result_type operator()(const argument_type& mapping) {
+    size_t h =
+        std::hash<::perfetto::profiling::InternID>{}(mapping.build_id.id());
+    h ^= std::hash<uint64_t>{}(mapping.offset);
+    h ^= std::hash<uint64_t>{}(mapping.start);
+    h ^= std::hash<uint64_t>{}(mapping.end);
+    h ^= std::hash<uint64_t>{}(mapping.load_bias);
+    for (const auto& path : mapping.path_components)
+      h ^= std::hash<uint64_t>{}(path.id());
+    return h;
+  }
+};
+
+template <>
+struct hash<::perfetto::profiling::Frame> {
+  using argument_type = ::perfetto::profiling::Frame;
+  using result_type = size_t;
+  result_type operator()(const argument_type& frame) {
+    size_t h = std::hash<::perfetto::profiling::InternID>{}(frame.mapping.id());
+    h ^= std::hash<::perfetto::profiling::InternID>{}(frame.function_name.id());
+    h ^= std::hash<uint64_t>{}(frame.rel_pc);
+    return h;
+  }
+};
+}  // namespace std
 
 #endif  // SRC_PROFILING_MEMORY_BOOKKEEPING_H_

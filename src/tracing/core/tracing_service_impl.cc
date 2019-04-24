@@ -328,7 +328,7 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   if (has_trigger_config && cfg.duration_ms() != 0) {
     PERFETTO_ELOG(
-        "duration_ms was set, this field is ignored for traces with triggers.");
+        "duration_ms was set, this must not be set for traces with triggers.");
     return false;
   }
 
@@ -947,7 +947,7 @@ void TracingServiceImpl::ActivateTriggers(
               iter->stop_delay_ms());
           break;
         case TraceConfig::TriggerConfig::UNSPECIFIED:
-          // There are no triggers in this session move onto the next.
+          PERFETTO_ELOG("Trigger activated but trigger mode unspecified.");
           break;
       }
     }
@@ -2533,30 +2533,29 @@ void TracingServiceImpl::ProducerEndpointImpl::StopDataSource(
   });
 }
 
-SharedMemoryArbiterImpl*
-TracingServiceImpl::ProducerEndpointImpl::GetShmemArbiter() {
-  PERFETTO_CHECK(inproc_shmem_arbiter_);
+SharedMemoryArbiter*
+TracingServiceImpl::ProducerEndpointImpl::GetInProcessShmemArbiter() {
+  if (!inproc_shmem_arbiter_) {
+    PERFETTO_FATAL(
+        "The in-process SharedMemoryArbiter can only be used when "
+        "CreateProducer has been called with in_process=true and after tracing "
+        "has started.");
+  }
+
+  PERFETTO_DCHECK(in_process_);
   return inproc_shmem_arbiter_.get();
 }
 
 // Can be called on any thread.
 std::unique_ptr<TraceWriter>
 TracingServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID buf_id) {
-  if (!inproc_shmem_arbiter_) {
-    PERFETTO_FATAL(
-        "ProducerEndpoint::CreateTraceWriter can only be used when "
-        "CreateProducer has been called with in_process=true and after tracing "
-        "has started.");
-  }
-
-  PERFETTO_DCHECK(in_process_);
-  return GetShmemArbiter()->CreateTraceWriter(buf_id);
+  return GetInProcessShmemArbiter()->CreateTraceWriter(buf_id);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::NotifyFlushComplete(
     FlushRequestID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  return GetShmemArbiter()->NotifyFlushComplete(id);
+  return GetInProcessShmemArbiter()->NotifyFlushComplete(id);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::OnTracingSetup() {

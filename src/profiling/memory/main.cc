@@ -33,6 +33,9 @@
 
 #include "perfetto/base/unix_task_runner.h"
 
+// TODO(rsavitski): the task runner watchdog spawns a thread (normally for
+// tracking cpu/mem usage) that we don't strictly need.
+
 namespace perfetto {
 namespace profiling {
 namespace {
@@ -89,7 +92,7 @@ int HeapprofdMain(int argc, char** argv) {
     PERFETTO_LOG(
         "Recovering from crash: unsetting heapprofd system properties. "
         "Expect SELinux denials for unrelated properties.");
-    SystemProperties::ResetProperties();
+    SystemProperties::ResetHeapprofdProperties();
     PERFETTO_LOG(
         "Finished unsetting heapprofd system properties. "
         "SELinux denials about properties are unexpected after "
@@ -128,6 +131,7 @@ int StartChildHeapprofd(pid_t target_pid,
   producer.SetTargetProcess(target_pid, target_cmdline,
                             std::move(inherited_sock_fd));
   producer.ConnectWithRetries(GetProducerSocket());
+  producer.ScheduleActiveDataSourceWatchdog();
   task_runner.Run();
   return 0;
 }

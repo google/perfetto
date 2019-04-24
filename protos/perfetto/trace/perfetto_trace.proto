@@ -2435,6 +2435,18 @@ message ProfilePacket {
     optional bytes str = 2;
   }
 
+  repeated Mapping mappings = 4;
+  message Mapping {
+    optional uint64 id = 1;        // Interning key.
+    optional uint64 build_id = 2;  // Interning key.
+    optional uint64 offset = 3;
+    optional uint64 start = 4;
+    optional uint64 end = 5;
+    optional uint64 load_bias = 6;
+    // E.g. ["system", "lib64", "libc.so"]
+    repeated uint64 path_string_ids = 7;  // id of string.
+  }
+
   repeated Frame frames = 2;
   message Frame {
     optional uint64 id = 1;  // Interning key
@@ -2451,30 +2463,17 @@ message ProfilePacket {
     repeated uint64 frame_ids = 2;
   }
 
-  repeated Mapping mappings = 4;
-  message Mapping {
-    optional uint64 id = 1;        // Interning key.
-    optional uint64 build_id = 2;  // Interning key.
-    optional uint64 offset = 3;
-    optional uint64 start = 4;
-    optional uint64 end = 5;
-    optional uint64 load_bias = 6;
-    // E.g. ["system", "lib64", "libc.so"]
-    repeated uint64 path_string_ids = 7;  // id of string.
-  }
-
   message HeapSample {
     optional uint64 callstack_id = 1;
     // bytes allocated at this frame.
     optional uint64 self_allocated = 2;
-    // bytes freed at this frame.
+    // bytes allocated at this frame that have been freed.
     optional uint64 self_freed = 3;
     optional uint64 timestamp = 4;  // timestamp [opt]
     optional uint64 alloc_count = 5;
     optional uint64 free_count = 6;
   }
 
-  repeated ProcessHeapSamples process_dumps = 5;
   message Histogram {
     message Bucket {
       // This bucket counts values from the previous bucket's (or -infinity if
@@ -2490,6 +2489,7 @@ message ProfilePacket {
     }
     repeated Bucket buckets = 1;
   }
+
   message ProcessStats {
     optional uint64 unwinding_errors = 1;
     optional uint64 heap_samples = 2;
@@ -2498,6 +2498,7 @@ message ProfilePacket {
     optional uint64 total_unwinding_time_us = 5;
   }
 
+  repeated ProcessHeapSamples process_dumps = 5;
   message ProcessHeapSamples {
     optional uint64 pid = 1;
 
@@ -2516,6 +2517,11 @@ message ProfilePacket {
     // If disconnected, this disconnect was caused by the client overrunning
     // the buffer.
     optional bool buffer_overran = 7;
+
+    // If disconnected, this disconnected was caused by the shared memory
+    // buffer being corrupted. THIS IS ALWAYS A BUG IN HEAPPROFD OR CLIENT
+    // MEMORY CORRUPTION.
+    optional bool buffer_corrupted = 8;
 
     optional ProcessStats stats = 5;
 
@@ -3401,7 +3407,7 @@ message TestConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 18.
+// Next id: 20.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -3601,6 +3607,18 @@ message TraceConfig {
     optional uint32 trigger_timeout_ms = 3;
   }
   optional TriggerConfig trigger_config = 17;
+
+  // When this is non-empty the perfetto command line tool will ignore the rest
+  // of this TraceConfig and instead connect to the perfetto service as a
+  // producer and send these triggers, potentially stopping or starting traces
+  // that were previous configured to use a TriggerConfig.
+  repeated string activate_triggers = 18;
+
+  // Additional guardrail used by the Perfetto command line client.
+  // On user builds when --dropbox is set perfetto will refuse to trace unless
+  // this is also set.
+  // Added in Q.
+  optional bool allow_user_build_tracing = 19;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -3618,7 +3636,9 @@ message HeapprofdConfig {
 
   // Set to 1 for perfect accuracy.
   // Otherwise, sample every sample_interval_bytes on average.
-  // TODO(fmayer): Add link to docs elaborating on this.
+  //
+  // See https://docs.perfetto.dev/#/heapprofd?id=sampling-interval for more
+  // details.
   optional uint64 sampling_interval_bytes = 1;
 
   // E.g. surfaceflinger, com.android.phone

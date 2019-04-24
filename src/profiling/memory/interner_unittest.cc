@@ -118,23 +118,15 @@ TEST(InternerStringTest, IDsUnique) {
   EXPECT_NE(interned_str.id(), other_interned_str.id());
 }
 
-class NoCopyOrMove {
- public:
-  NoCopyOrMove(const NoCopyOrMove&) = delete;
-  NoCopyOrMove& operator=(const NoCopyOrMove&) = delete;
-  NoCopyOrMove(const NoCopyOrMove&&) = delete;
-  NoCopyOrMove& operator=(const NoCopyOrMove&&) = delete;
-  NoCopyOrMove(int d) : data(d) {}
-  ~NoCopyOrMove() {}
-  bool operator<(const NoCopyOrMove& other) const { return data < other.data; }
-
- private:
-  int data;
-};
-
-TEST(InternerStringTest, NoCopyOrMove) {
-  Interner<NoCopyOrMove> interner;
-  Interned<NoCopyOrMove> interned_str = interner.Intern(1);
+TEST(InternerStringTest, IdsConsecutive) {
+  Interner<std::string> interner;
+  {
+    Interned<std::string> interned_str = interner.Intern("foo");
+    interner.Intern("foo");
+    Interned<std::string> other_interned_str = interner.Intern("bar");
+    ASSERT_EQ(interned_str.id() + 1, other_interned_str.id());
+  }
+  ASSERT_EQ(interner.entry_count_for_testing(), 0);
 }
 
 }  // namespace

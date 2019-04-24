@@ -52,6 +52,23 @@ namespace {
 using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
+std::string RandomTraceFileName() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  constexpr char kSysTmpPath[] = "/data/misc/perfetto-traces";
+#else
+  constexpr char kSysTmpPath[] = "/tmp";
+#endif
+  static int suffix = 0;
+
+  std::string path;
+  path.assign(kSysTmpPath);
+  path.append("/trace-");
+  path.append(std::to_string(base::GetBootTimeNs().count()));
+  path.append("-");
+  path.append(std::to_string(suffix++));
+  return path;
+}
+
 class PerfettoTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -77,26 +94,31 @@ class PerfettoTest : public ::testing::Test {
 class PerfettoCmdlineTest : public ::testing::Test {
  public:
   void SetUp() override {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    // On android P perfetto shell only has permission to write traces to this
-    // directory. So we update TMPDIR to this so that our client will have
-    // permissions.
-    setenv("TMPDIR", "/data/misc/perfetto-traces", 1);
-#endif
     test_helper_.StartServiceIfRequired();
   }
 
   void TearDown() override {}
 
+  int ExecPerfetto(std::initializer_list<std::string> args,
+                   std::string input = "") {
+    return Exec("perfetto", args, input);
+  }
+
+  int ExecTrigger(std::initializer_list<std::string> args,
+                  std::string input = "") {
+    return Exec("trigger_perfetto", args, input);
+  }
+
   // Fork() + executes the perfetto cmdline client with the given args and
   // returns the exit code.
-  int Exec(std::initializer_list<std::string> args, std::string input = "") {
+  int Exec(const std::string& argv0,
+           std::initializer_list<std::string> args,
+           std::string input = "") {
     std::vector<char> argv_buffer;
     std::vector<size_t> argv_offsets;
     std::vector<char*> argv;
     argv_offsets.push_back(0);
 
-    std::string argv0("perfetto");
     argv_buffer.insert(argv_buffer.end(), argv0.begin(), argv0.end());
     argv_buffer.push_back('\0');
 
@@ -131,12 +153,16 @@ class PerfettoCmdlineTest : public ::testing::Test {
              1);
       setenv("PERFETTO_PRODUCER_SOCK_NAME", TestHelper::GetProducerSocketName(),
              1);
-      _exit(PerfettoCmdMain(static_cast<int>(argv.size() - 1), argv.data()));
+      if (argv0 == "perfetto") {
+        _exit(PerfettoCmdMain(static_cast<int>(argv.size() - 1), argv.data()));
+      } else if (argv0 == "trigger_perfetto") {
+        _exit(TriggerPerfettoMain(static_cast<int>(argv.size() - 1),
+                                  argv.data()));
+      } else {
+        ADD_FAILURE() << "Unknown binary: " << argv0.c_str();
+      }
 #else
-      // We have to choose a location that the perfetto binary will have
-      // permission to write to. This does not include /data/local/tmp so
-      // instead we override TMPDIR to the trace directory.
-      execv("/system/bin/perfetto", &argv[0]);
+      execv((std::string("/system/bin/") + argv0).c_str(), &argv[0]);
       _exit(3);
 #endif
     }
@@ -546,66 +572,68 @@ TEST_F(PerfettoTest, ReattachFailsAfterTimeout) {
 TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
   std::string cfg("duration_ms: 100");
 
-  EXPECT_EQ(1, Exec({"--invalid-arg"}));
+  EXPECT_EQ(1, ExecPerfetto({"--invalid-arg"}));
 
-  EXPECT_EQ(1, Exec({"-c", "-", "-o", "-"}, ""));
+  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "-o", "-"}, ""));
   EXPECT_THAT(stderr_, HasSubstr("TraceConfig is empty"));
 
   // Cannot make assertions on --dropbox because on standalone builds it fails
   // prematurely due to lack of dropbox.
-  EXPECT_EQ(1, Exec({"-c", "-", "--txt", "-o", "-", "--dropbox=foo"}, cfg));
+  EXPECT_EQ(
+      1, ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--dropbox=foo"}, cfg));
 
-  EXPECT_EQ(1, Exec({"-c", "-", "--txt"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "--txt"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("Either --out or --dropbox"));
 
   // Disallow mixing simple and file config.
-  EXPECT_EQ(1, Exec({"-o", "-", "-c", "-", "-t", "2s"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-o", "-", "-c", "-", "-t", "2s"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
 
-  EXPECT_EQ(1, Exec({"-o", "-", "-c", "-", "-b", "2m"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-o", "-", "-c", "-", "-b", "2m"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
 
-  EXPECT_EQ(1, Exec({"-o", "-", "-c", "-", "-s", "2m"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-o", "-", "-c", "-", "-s", "2m"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
 
   // Invalid --attach / --detach cases.
-  EXPECT_EQ(1, Exec({"-c", "-", "--txt", "-o", "-", "--stop"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--stop"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("--stop is supported only in combination"));
 
-  EXPECT_EQ(1, Exec({"-c", "-", "--txt", "-o", "-", "--attach=foo"}, cfg));
+  EXPECT_EQ(1,
+            ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--attach=foo"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
 
-  EXPECT_EQ(1, Exec({"-t", "2s", "-o", "-", "--attach=foo"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "-o", "-", "--attach=foo"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
 
-  EXPECT_EQ(1, Exec({"--attach"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"--attach"}, cfg));
   EXPECT_THAT(stderr_, ContainsRegex("option.*--attach.*requires an argument"));
 
-  EXPECT_EQ(1, Exec({"-t", "2s", "-o", "-", "--detach"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "-o", "-", "--detach"}, cfg));
   EXPECT_THAT(stderr_, ContainsRegex("option.*--detach.*requires an argument"));
 
-  EXPECT_EQ(1, Exec({"-t", "2s", "--detach=foo"}, cfg));
+  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "--detach=foo"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("--out or --dropbox is required"));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(TxtConfig)) {
   std::string cfg("duration_ms: 100");
-  EXPECT_EQ(0, Exec({"-c", "-", "--txt", "-o", "-"}, cfg)) << stderr_;
+  EXPECT_EQ(0, ExecPerfetto({"-c", "-", "--txt", "-o", "-"}, cfg)) << stderr_;
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(SimpleConfig)) {
-  EXPECT_EQ(0, Exec({"-o", "-", "-c", "-", "-t", "100ms"}));
+  EXPECT_EQ(0, ExecPerfetto({"-o", "-", "-c", "-", "-t", "100ms"}));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(DetachAndAttach)) {
-  EXPECT_NE(0, Exec({"--attach=not_existent"}));
+  EXPECT_NE(0, ExecPerfetto({"--attach=not_existent"}));
   EXPECT_THAT(stderr_, HasSubstr("Session re-attach failed"));
 
   std::string cfg("duration_ms: 10000; write_into_file: true");
-  EXPECT_EQ(0,
-            Exec({"-o", "-", "-c", "-", "--txt", "--detach=valid_stop"}, cfg))
+  EXPECT_EQ(0, ExecPerfetto(
+                   {"-o", "-", "-c", "-", "--txt", "--detach=valid_stop"}, cfg))
       << stderr_;
-  EXPECT_EQ(0, Exec({"--attach=valid_stop", "--stop"}));
+  EXPECT_EQ(0, ExecPerfetto({"--attach=valid_stop", "--stop"}));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
@@ -642,11 +670,9 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   helper.StartServiceIfRequired();
   auto* fake_producer = helper.ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
-  base::TempFile trace_output = base::TempFile::Create();
-  const std::string path = trace_output.path();
-  trace_output.Unlink();
+  const std::string path = RandomTraceFileName();
   std::thread background_trace([&path, &trace_config, this]() {
-    EXPECT_EQ(0, Exec(
+    EXPECT_EQ(0, ExecPerfetto(
                      {
                          "-o", path, "-c", "-",
                      },
@@ -654,7 +680,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   });
 
   helper.WaitForProducerSetup();
-  EXPECT_EQ(0, Exec({"--trigger=trigger_name"})) << "stderr: " << stderr_;
+  EXPECT_EQ(0, ExecTrigger({"trigger_name"})) << "stderr: " << stderr_;
 
   // Wait for the producer to start, and then write out 11 packets.
   helper.WaitForProducerEnabled();
@@ -722,11 +748,9 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   auto* fake_producer = helper.ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
-  base::TempFile trace_output = base::TempFile::Create();
-  const std::string path = trace_output.path();
-  trace_output.Unlink();
+  const std::string path = RandomTraceFileName();
   std::thread background_trace([&path, &trace_config, this]() {
-    EXPECT_EQ(0, Exec(
+    EXPECT_EQ(0, ExecPerfetto(
                      {
                          "-o", path, "-c", "-",
                      },
@@ -740,8 +764,8 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   fake_producer->ProduceEventBatch(helper.WrapTask(on_data_written));
   task_runner.RunUntilCheckpoint("data_written_1");
 
-  EXPECT_EQ(0, Exec({"--trigger=trigger_name_2", "--trigger=trigger_name",
-                     "--trigger=trigger_name_3"}))
+  EXPECT_EQ(0,
+            ExecTrigger({"trigger_name_2", "trigger_name", "trigger_name_3"}))
       << "stderr: " << stderr_;
 
   background_trace.join();
@@ -810,7 +834,7 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
   EXPECT_TRUE(fake_producer);
 
   std::thread background_trace([&trace_config, this]() {
-    EXPECT_EQ(0, Exec(
+    EXPECT_EQ(0, ExecPerfetto(
                      {
                          "--dropbox", "TAG", "--no-guardrails", "-c", "-",
                      },
@@ -820,6 +844,157 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
 
   EXPECT_THAT(stderr_,
               ::testing::HasSubstr("Skipping upload to dropbox. Empty trace."));
+}
+
+TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
+  // See |message_count| and |message_size| in the TraceConfig above.
+  constexpr size_t kMessageCount = 11;
+  constexpr size_t kMessageSize = 32;
+  protos::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
+  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  auto* trigger_cfg = trace_config.mutable_trigger_config();
+  trigger_cfg->set_trigger_mode(
+      protos::TraceConfig::TriggerConfig::STOP_TRACING);
+  trigger_cfg->set_trigger_timeout_ms(15000);
+  auto* trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name");
+  // |stop_delay_ms| must be long enough that we can write the packets in
+  // before the trace finishes. This has to be long enough for the slowest
+  // emulator. But as short as possible to prevent the test running a long
+  // time.
+  trigger->set_stop_delay_ms(500);
+  trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name_3");
+  trigger->set_stop_delay_ms(60000);
+
+  // We have 5 normal preample packets (trace config, clock, system info, sync
+  // marker, stats) and then since this is a trace with a trigger config we have
+  // an additional ReceivedTriggers packet.
+  base::TestTaskRunner task_runner;
+
+  // Enable tracing and detach as soon as it gets started.
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  auto* fake_producer = helper.ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  const std::string path = RandomTraceFileName();
+  std::thread background_trace([&path, &trace_config, this]() {
+    EXPECT_EQ(0, ExecPerfetto(
+                     {
+                         "-o", path, "-c", "-",
+                     },
+                     trace_config.SerializeAsString()));
+  });
+
+  helper.WaitForProducerEnabled();
+  // Wait for the producer to start, and then write out 11 packets, before the
+  // trace actually starts (the trigger is seen).
+  auto on_data_written = task_runner.CreateCheckpoint("data_written_1");
+  fake_producer->ProduceEventBatch(helper.WrapTask(on_data_written));
+  task_runner.RunUntilCheckpoint("data_written_1");
+
+  std::string triggers = R"(
+    activate_triggers: "trigger_name_2"
+    activate_triggers: "trigger_name"
+    activate_triggers: "trigger_name_3"
+  )";
+
+  EXPECT_EQ(0, ExecPerfetto(
+                   {
+                       "-o", path, "-c", "-", "--txt",
+                   },
+                   triggers))
+      << "stderr: " << stderr_;
+
+  background_trace.join();
+
+  std::string trace_str;
+  base::ReadFile(path, &trace_str);
+  protos::Trace trace;
+  ASSERT_TRUE(trace.ParseFromString(trace_str));
+  EXPECT_LT(kMessageCount, trace.packet_size());
+  bool seen_first_trigger = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.data_case() == protos::TracePacket::kTraceConfig) {
+      // Ensure the trace config properly includes the trigger mode we set.
+      EXPECT_EQ(protos::TraceConfig::TriggerConfig::STOP_TRACING,
+                packet.trace_config().trigger_config().trigger_mode());
+    } else if (packet.data_case() == protos::TracePacket::kTrigger) {
+      // validate that the triggers are properly added to the trace.
+      if (!seen_first_trigger) {
+        EXPECT_EQ("trigger_name", packet.trigger().trigger_name());
+        seen_first_trigger = true;
+      } else {
+        EXPECT_EQ("trigger_name_3", packet.trigger().trigger_name());
+      }
+    } else if (packet.data_case() == protos::TracePacket::kForTesting) {
+      // Make sure that the data size is correctly set based on what we
+      // requested.
+      EXPECT_EQ(kMessageSize, packet.for_testing().str().size());
+    }
+  }
+}
+
+TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
+  // See |message_count| and |message_size| in the TraceConfig above.
+  constexpr size_t kMessageCount = 11;
+  constexpr size_t kMessageSize = 32;
+  protos::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
+  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  auto* trigger_cfg = trace_config.mutable_trigger_config();
+  trigger_cfg->set_trigger_mode(
+      protos::TraceConfig::TriggerConfig::STOP_TRACING);
+  trigger_cfg->set_trigger_timeout_ms(15000);
+  auto* trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name");
+  // |stop_delay_ms| must be long enough that we can write the packets in
+  // before the trace finishes. This has to be long enough for the slowest
+  // emulator. But as short as possible to prevent the test running a long
+  // time.
+  trigger->set_stop_delay_ms(500);
+  trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name_3");
+  trigger->set_stop_delay_ms(60000);
+
+  // We have 5 normal preample packets (trace config, clock, system info, sync
+  // marker, stats) and then since this is a trace with a trigger config we have
+  // an additional ReceivedTriggers packet.
+  base::TestTaskRunner task_runner;
+
+  // Enable tracing and detach as soon as it gets started.
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  auto* fake_producer = helper.ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  const std::string path = RandomTraceFileName();
+
+  std::string trace_str;
+  EXPECT_FALSE(base::ReadFile(path, &trace_str));
+
+  std::string triggers = R"(
+    activate_triggers: "trigger_name_2"
+    activate_triggers: "trigger_name"
+    activate_triggers: "trigger_name_3"
+  )";
+
+  EXPECT_EQ(0, ExecPerfetto(
+                   {
+                       "-o", path, "-c", "-", "--txt",
+                   },
+                   triggers))
+      << "stderr: " << stderr_;
+
+  EXPECT_FALSE(base::ReadFile(path, &trace_str));
 }
 
 }  // namespace perfetto

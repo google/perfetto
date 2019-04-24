@@ -88,6 +88,7 @@ class TracingServiceImpl : public TracingService {
     void CommitData(const CommitDataRequest&, CommitDataCallback) override;
     void SetSharedMemory(std::unique_ptr<SharedMemory>);
     std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override;
+    SharedMemoryArbiter* GetInProcessShmemArbiter() override;
     void NotifyFlushComplete(FlushRequestID) override;
     void NotifyDataSourceStarted(DataSourceInstanceID) override;
     void NotifyDataSourceStopped(DataSourceInstanceID) override;
@@ -118,7 +119,6 @@ class TracingServiceImpl : public TracingService {
     friend class TracingServiceImplTest;
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
-    SharedMemoryArbiterImpl* GetShmemArbiter();
 
     ProducerID const id_;
     const uid_t uid_;

@@ -30,8 +30,8 @@ import time
 import urllib
 
 TRACE_TO_TEXT_SHAS = {
-  'linux': '4ab1d18e69bc70e211d27064505ed547aa82f919',
-  'mac': '2ba325f95c08e8cd5a78e04fa85ee7f2a97c847e',
+  'linux': 'a8171d85c5964ccafe457142dbb7df68ca8da543',
+  'mac': '268c2fc096039566979d16c1a7a99eabef0d9682',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = (
@@ -97,6 +97,7 @@ data_sources {{
 }}
 
 duration_ms: {duration}
+flush_timeout_ms: 30000
 '''
 
 CONTINUOUS_DUMP = """
