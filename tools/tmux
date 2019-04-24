@@ -128,8 +128,8 @@ fi
 CONFIG_DEVICE_PATH="$CONFIG"
 CMD_OPTS=""
 if [[ "$CONFIG" == *.protobuf ]]; then
-  CONFIG_DEVICE_PATH="$CONFIG.protobuf"
-  CONFIG_PATH=$OUT/$CONFIG.protobuf;
+  CONFIG_DEVICE_PATH="$CONFIG"
+  CONFIG_PATH=$OUT/$CONFIG;
   if [[ ! -f $CONFIG_PATH ]]; then
     echo 'Config "'$CONFIG_PATH'" not known.'
     exit 1

@@ -328,7 +328,7 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   if (has_trigger_config && cfg.duration_ms() != 0) {
     PERFETTO_ELOG(
-        "duration_ms was set, this field is ignored for traces with triggers.");
+        "duration_ms was set, this must not be set for traces with triggers.");
     return false;
   }
 
@@ -947,7 +947,7 @@ void TracingServiceImpl::ActivateTriggers(
               iter->stop_delay_ms());
           break;
         case TraceConfig::TriggerConfig::UNSPECIFIED:
-          // There are no triggers in this session move onto the next.
+          PERFETTO_ELOG("Trigger activated but trigger mode unspecified.");
           break;
       }
     }
