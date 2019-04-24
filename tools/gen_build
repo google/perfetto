@@ -62,6 +62,8 @@ default_targets = [
   '//src/trace_processor:trace_processor',
   '//src/trace_processor:trace_processor_shell_host(//gn/standalone/toolchain:gcc_like_host)',
   '//tools/trace_to_text:trace_to_text_host(//gn/standalone/toolchain:gcc_like_host)',
+  '//protos/perfetto/config:merged_config_gen',
+  '//protos/perfetto/trace:merged_trace_gen',
 ]
 
 # Aliases to add to the BUILD file
