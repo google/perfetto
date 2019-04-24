@@ -202,7 +202,6 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
   PERFETTO_DCHECK(client_config.interval >= 1);
   Sampler sampler{client_config.interval};
   // note: the shared_ptr will retain a copy of the unhooked_allocator
-  sock.SetBlocking(false);
   return std::allocate_shared<Client>(
       unhooked_allocator, std::move(sock), client_config,
       std::move(shmem.value()), std::move(sampler), FindMainThreadStack());
@@ -218,7 +217,6 @@ Client::Client(base::UnixSocketRaw sock,
       sock_(std::move(sock)),
       main_thread_stack_base_(main_thread_stack_base),
       shmem_(std::move(shmem)) {
-  PERFETTO_DCHECK(!sock_.IsBlocking());
 }
 
 const char* Client::GetStackBase() {
@@ -311,21 +309,8 @@ bool Client::FlushFreesLocked() {
   return SendControlSocketByte();
 }
 
-bool Client::IsConnected() {
-  PERFETTO_DCHECK(!sock_.IsBlocking());
-  char buf[1];
-  ssize_t recv_bytes = sock_.Receive(buf, sizeof(buf), nullptr, 0);
-  if (recv_bytes == 0)
-    return false;
-  else if (recv_bytes > 0)
-    return true;
-  return errno == EAGAIN || errno == EWOULDBLOCK;
-}
-
 bool Client::SendControlSocketByte() {
-  PERFETTO_DCHECK(!sock_.IsBlocking());
-  if (sock_.Send(kSingleByte, sizeof(kSingleByte)) == -1 && errno != EAGAIN &&
-      errno != EWOULDBLOCK) {
+  if (sock_.Send(kSingleByte, sizeof(kSingleByte)) == -1) {
     PERFETTO_PLOG("Failed to send control socket byte.");
     return false;
   }
