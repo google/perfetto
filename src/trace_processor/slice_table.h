@@ -43,6 +43,9 @@ class SliceTable : public StorageTable {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
+  uint32_t EstimateCost(const QueryConstraints&);
+
+  std::vector<const char*> ref_types_;
   const TraceStorage* const storage_;
 };
 

@@ -446,6 +446,36 @@ class RowAccessor : public Accessor<uint32_t> {
   uint32_t UpperBoundIndex(uint32_t idx) const override { return idx + 1; }
 };
 
+// Column storing values of different RefTypes.
+class RefColumn final : public StorageColumn {
+ public:
+  RefColumn(std::string col_name,
+            const std::deque<int64_t>* refs,
+            const std::deque<RefType>* types,
+            const TraceStorage* storage);
+
+  void ReportResult(sqlite3_context* ctx, uint32_t row) const override;
+
+  Bounds BoundFilter(int op, sqlite3_value* sqlite_val) const override;
+
+  void Filter(int op, sqlite3_value* value, FilteredRowIndex*) const override;
+
+  Comparator Sort(const QueryConstraints::OrderBy& ob) const override;
+
+  bool HasOrdering() const override { return false; }
+
+  Table::ColumnType GetType() const override {
+    return Table::ColumnType::kLong;
+  }
+
+ private:
+  int CompareRefsAsc(uint32_t f, uint32_t s) const;
+
+  const std::deque<int64_t>* refs_;
+  const std::deque<RefType>* types_;
+  const TraceStorage* storage_ = nullptr;
+};
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
