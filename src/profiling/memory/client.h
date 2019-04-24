@@ -90,7 +90,6 @@ class Client {
          const char* main_thread_stack_base);
 
   ClientConfiguration client_config_for_testing() { return client_config_; }
-  bool IsConnected();
 
  private:
   const char* GetStackBase();

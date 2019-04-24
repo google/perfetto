@@ -377,8 +377,7 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
     if (PERFETTO_UNLIKELY(!s.locked()))
       AbortOnSpinlockTimeout();
 
-    // Only reject concurrent session if the previous one is still active.
-    if (g_client.ref() && g_client.ref()->IsConnected()) {
+    if (g_client.ref()) {
       PERFETTO_LOG("Rejecting concurrent profiling initialization.");
       return true;  // success as we're in a valid state
     }
