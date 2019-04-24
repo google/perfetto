@@ -450,6 +450,7 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
       }
       case SysStatsDataSource::kTypeId:
       case AndroidLogDataSource::kTypeId:
+      case PackagesListDataSource::kTypeId:
         break;
       default:
         PERFETTO_DFATAL("Invalid data source.");
