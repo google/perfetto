@@ -113,6 +113,31 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/config:merged_config_gen
+proto_library(
+    name = "config_merged_config_gen",
+    srcs = [
+        "perfetto/config/perfetto_config.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/config:merged_config_gen
+cc_proto_library(
+    name = "config_merged_config_gen_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_merged_config_gen",
+    ],
+)
+
 # GN target: //protos/perfetto/config:zero_gen
 proto_library(
     name = "config_zero",
@@ -504,6 +529,31 @@ pbzero_cc_proto_library(
     deps = [
         "//third_party/perfetto:libprotozero",
         "//third_party/perfetto/google:gtest_prod",
+    ],
+)
+
+# GN target: //protos/perfetto/trace:merged_trace_gen
+proto_library(
+    name = "trace_merged_trace_gen",
+    srcs = [
+        "perfetto/trace/perfetto_trace.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/trace:merged_trace_gen
+cc_proto_library(
+    name = "trace_merged_trace_gen_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_merged_trace_gen",
     ],
 )
 
