@@ -78,6 +78,8 @@ enum RefType {
   kRefMax
 };
 
+const std::vector<const char*>& GetRefTypeStringMap();
+
 // Stores a data inside a trace file in a columnar form. This makes it efficient
 // to read or search across a single field of the trace (e.g. all the thread
 // names for a given CPU).
@@ -283,7 +285,8 @@ class TraceStorage {
    public:
     inline size_t AddSlice(int64_t start_ns,
                            int64_t duration_ns,
-                           UniqueTid utid,
+                           int64_t ref,
+                           RefType type,
                            StringId cat,
                            StringId name,
                            uint8_t depth,
@@ -291,7 +294,8 @@ class TraceStorage {
                            int64_t parent_stack_id) {
       start_ns_.emplace_back(start_ns);
       durations_.emplace_back(duration_ns);
-      utids_.emplace_back(utid);
+      refs_.emplace_back(ref);
+      types_.emplace_back(type);
       cats_.emplace_back(cat);
       names_.emplace_back(name);
       depths_.emplace_back(depth);
@@ -311,7 +315,8 @@ class TraceStorage {
     size_t slice_count() const { return start_ns_.size(); }
     const std::deque<int64_t>& start_ns() const { return start_ns_; }
     const std::deque<int64_t>& durations() const { return durations_; }
-    const std::deque<UniqueTid>& utids() const { return utids_; }
+    const std::deque<int64_t>& refs() const { return refs_; }
+    const std::deque<RefType>& types() const { return types_; }
     const std::deque<StringId>& cats() const { return cats_; }
     const std::deque<StringId>& names() const { return names_; }
     const std::deque<uint8_t>& depths() const { return depths_; }
@@ -323,7 +328,8 @@ class TraceStorage {
    private:
     std::deque<int64_t> start_ns_;
     std::deque<int64_t> durations_;
-    std::deque<UniqueTid> utids_;
+    std::deque<int64_t> refs_;
+    std::deque<RefType> types_;
     std::deque<StringId> cats_;
     std::deque<StringId> names_;
     std::deque<uint8_t> depths_;
