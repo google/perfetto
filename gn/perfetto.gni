@@ -106,3 +106,9 @@ assert(!(perfetto_build_with_android && perfetto_build_with_embedder))
 # If |build_with_chromium| is true then also |perfetto_build_with_embedder|
 # must be true
 assert(!build_with_chromium || perfetto_build_with_embedder)
+
+# Only perfetto itself (standalone or with android) and chromium should link
+# in the IPC layer.
+perfetto_build_with_ipc_layer =
+    perfetto_build_standalone || perfetto_build_with_android ||
+    build_with_chromium
