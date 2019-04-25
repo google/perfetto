@@ -91,7 +91,7 @@ if (is_debug && perfetto_build_standalone && !is_wasm) {
   }
 }
 
-if (perfetto_build_standalone || perfetto_build_with_android) {
+if (perfetto_build_with_ipc_layer) {
   # This cannot be in :base as it does not build on WASM.
   source_set("unix_socket") {
     deps = [
