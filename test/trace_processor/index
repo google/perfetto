@@ -3,6 +3,8 @@
 ../data/sfgate.json smoke_slices.sql sfgate_smoke_slices.out
 ../data/android_sched_and_ps.pb smoke.sql android_sched_and_ps_smoke.out
 synth_1.py smoke.sql synth_1_smoke.out
+../data/fuchsia_trace.fxt smoke.sql fuchsia_smoke.out
+../data/fuchsia_trace.fxt smoke_slices.sql fuchsia_smoke_slices.out
 
 # Test for the process<>thread tracking logic.
 synth_process_tracking.py process_tracking.sql process_tracking.out
