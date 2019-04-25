@@ -19,11 +19,8 @@
 #include <inttypes.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
+#include <sys/types.h>
 #include <unistd.h>
-
-#include <atomic>
-#include <new>
-
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineMips.h>
@@ -32,6 +29,9 @@
 #include <unwindstack/MachineX86_64.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsGetLocal.h>
+
+#include <atomic>
+#include <new>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
@@ -202,22 +202,24 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
   PERFETTO_DCHECK(client_config.interval >= 1);
   Sampler sampler{client_config.interval};
   // note: the shared_ptr will retain a copy of the unhooked_allocator
-  return std::allocate_shared<Client>(
-      unhooked_allocator, std::move(sock), client_config,
-      std::move(shmem.value()), std::move(sampler), FindMainThreadStack());
+  return std::allocate_shared<Client>(unhooked_allocator, std::move(sock),
+                                      client_config, std::move(shmem.value()),
+                                      std::move(sampler), getpid(),
+                                      FindMainThreadStack());
 }
 
 Client::Client(base::UnixSocketRaw sock,
                ClientConfiguration client_config,
                SharedRingBuffer shmem,
                Sampler sampler,
+               pid_t pid_at_creation,
                const char* main_thread_stack_base)
     : client_config_(client_config),
       sampler_(std::move(sampler)),
       sock_(std::move(sock)),
       main_thread_stack_base_(main_thread_stack_base),
-      shmem_(std::move(shmem)) {
-}
+      shmem_(std::move(shmem)),
+      pid_at_creation_(pid_at_creation) {}
 
 const char* Client::GetStackBase() {
   if (IsMainThread()) {
@@ -245,6 +247,11 @@ const char* Client::GetStackBase() {
 bool Client::RecordMalloc(uint64_t alloc_size,
                           uint64_t total_size,
                           uint64_t alloc_address) {
+  if (getpid() != pid_at_creation_) {
+    PERFETTO_LOG("Detected post-fork child situation, stopping profiling.");
+    return false;
+  }
+
   AllocMetadata metadata;
   const char* stackbase = GetStackBase();
   const char* stacktop = reinterpret_cast<char*>(__builtin_frame_address(0));
@@ -299,6 +306,11 @@ bool Client::RecordFree(const uint64_t alloc_address) {
 }
 
 bool Client::FlushFreesLocked() {
+  if (getpid() != pid_at_creation_) {
+    PERFETTO_LOG("Detected post-fork child situation, stopping profiling.");
+    return false;
+  }
+
   WireMessage msg = {};
   msg.record_type = RecordType::Free;
   msg.free_header = &free_batch_;
