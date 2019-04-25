@@ -29,6 +29,8 @@
 #include "src/trace_processor/counter_definitions_table.h"
 #include "src/trace_processor/counter_values_table.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/fuchsia_trace_parser.h"
+#include "src/trace_processor/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/instants_table.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/process_tracker.h"
@@ -177,6 +179,10 @@ std::string RemoveWhitespace(const std::string& input) {
   return str;
 }
 
+// Fuchsia traces have a magic number as documented here:
+// https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format.md#magic-number-record-trace-info-type-0
+constexpr uint64_t kFuchsiaMagicNumber = 0x0016547846040010;
+
 }  // namespace
 
 TraceType GuessTraceType(const uint8_t* data, size_t size) {
@@ -189,6 +195,11 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     return kJsonTraceType;
   if (IsPrefix("[{", start_minus_white_space))
     return kJsonTraceType;
+  if (size >= 8) {
+    uint64_t first_word = *reinterpret_cast<const uint64_t*>(data);
+    if (first_word == kFuchsiaMagicNumber)
+      return kFuchsiaTraceType;
+  }
   return kProtoTraceType;
 }
 
@@ -257,6 +268,12 @@ bool TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
         context_.sorter.reset(new TraceSorter(
             &context_, static_cast<int64_t>(cfg_.window_size_ns)));
         context_.parser.reset(new ProtoTraceParser(&context_));
+        break;
+      case kFuchsiaTraceType:
+        context_.chunk_reader.reset(new FuchsiaTraceTokenizer(&context_));
+        context_.sorter.reset(new TraceSorter(
+            &context_, static_cast<int64_t>(cfg_.window_size_ns)));
+        context_.parser.reset(new FuchsiaTraceParser(&context_));
         break;
       case kUnknownTraceType:
         return false;
