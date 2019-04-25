@@ -70,12 +70,8 @@ export function colorForState(state: string): Color {
     case 'R':
     case 'R+':
       return {c: 'lime green', h: 75, s: 55, l: 47};
-    case 'x':
-    case 'Z':
-    case 'X':
-      return {c: 'light grey', h: 0, s: 0, l: 73};
     default:
-      return {c: 'dark red', h: 0, s: 39, l: 52};
+      return {c: 'light grey', h: 0, s: 0, l: 87};
   }
 }
 

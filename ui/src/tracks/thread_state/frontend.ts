@@ -70,6 +70,8 @@ class ThreadStateTrack extends Track<Config, Data> {
         continue;
       }
       if (tStart && tEnd) {
+        // Don't display a slice for Task Dead.
+        if (state === 'x') continue;
         const rectStart = timeScale.timeToPx(tStart);
         const rectEnd = timeScale.timeToPx(tEnd);
         const color = colorForState(state);
@@ -82,7 +84,7 @@ class ThreadStateTrack extends Track<Config, Data> {
         ctx.textAlign = 'center';
         const title = cropText(translateState(state), charWidth, rectWidth);
         const rectXCenter = rectStart + rectWidth / 2;
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = color.l < 80 ? '#fff' : '#404040';
         ctx.font = '10px Google Sans';
         ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
       }
