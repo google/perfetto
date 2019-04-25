@@ -55,7 +55,14 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       await this.query(
           `create virtual table ${this.tableName('window')} using window;`);
 
-      // Create an entry from start_ts to either the first sched_wakeup
+      // Get the first ts for this utid - whether a sched wakeup
+      // or sched event.
+      await this.query(`create view ${this.tableName('start')} as
+      select min(ts) as ts from
+        (select ts from ${this.tableName('sched_wakeup')} UNION
+         select ts from sched where utid = ${this.config.utid})`);
+
+      // Create an entry from first ts to either the first sched_wakeup
       // or to the end if there are no sched wakeups. This means
       // we will show all information we have even with no sched_wakeup events.
       // TODO(taylori): Once span outer join exists I should simplify this
@@ -63,11 +70,11 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       // window.
       await this.query(`create view ${this.tableName('fill')} AS
         select
-        (select start_ts from trace_bounds) as ts,
+        (select ts from ${this.tableName('start')}),
         (select coalesce(
           (select min(ts) from ${this.tableName('sched_wakeup')}),
           (select end_ts from trace_bounds)
-        )) - (select start_ts from trace_bounds) as dur,
+        )) - (select ts from ${this.tableName('start')}) as dur,
         ${this.config.utid} as utid
         `);
 
