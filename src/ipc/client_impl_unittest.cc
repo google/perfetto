@@ -350,7 +350,8 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
 
   base::TempFile tx_file = base::TempFile::CreateUnlinked();
   static constexpr char kFileContent[] = "shared file";
-  ASSERT_EQ(base::WriteAll(tx_file.fd(), kFileContent, sizeof(kFileContent)),
+  ASSERT_EQ(static_cast<size_t>(base::WriteAll(tx_file.fd(), kFileContent,
+                                               sizeof(kFileContent))),
             sizeof(kFileContent));
   host_->next_reply_fd = tx_file.fd();
 
@@ -395,7 +396,8 @@ TEST_F(ClientImplTest, SendFileDescriptor) {
 
   base::TempFile tx_file = base::TempFile::CreateUnlinked();
   static constexpr char kFileContent[] = "shared file";
-  ASSERT_EQ(base::WriteAll(tx_file.fd(), kFileContent, sizeof(kFileContent)),
+  ASSERT_EQ(static_cast<size_t>(base::WriteAll(tx_file.fd(), kFileContent,
+                                               sizeof(kFileContent))),
             sizeof(kFileContent));
   EXPECT_CALL(*host_method, OnInvoke(_, _))
       .WillOnce(Invoke(

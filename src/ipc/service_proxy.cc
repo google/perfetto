@@ -33,7 +33,7 @@ ServiceProxy::ServiceProxy(EventListener* event_listener)
 ServiceProxy::~ServiceProxy() {
   if (client_ && connected())
     client_->UnbindService(service_id_);
-};
+}
 
 void ServiceProxy::InitializeBinding(
     base::WeakPtr<Client> client,
