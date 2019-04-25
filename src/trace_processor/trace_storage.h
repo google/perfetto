@@ -388,7 +388,13 @@ class TraceStorage {
       timestamps_.emplace_back(timestamp);
       values_.emplace_back(value);
       arg_set_ids_.emplace_back(kInvalidArgSetId);
-      return size() - 1;
+
+      if (counter_id >= rows_for_counter_id_.size()) {
+        rows_for_counter_id_.resize(counter_id + 1);
+      }
+      uint32_t row = size() - 1;
+      rows_for_counter_id_[counter_id].emplace_back(row);
+      return row;
     }
 
     void set_arg_set_id(uint32_t row, ArgSetId id) { arg_set_ids_[row] = id; }
@@ -405,11 +411,19 @@ class TraceStorage {
 
     const std::deque<ArgSetId>& arg_set_ids() const { return arg_set_ids_; }
 
+    const std::deque<std::vector<uint32_t>>& rows_for_counter_id() const {
+      return rows_for_counter_id_;
+    }
+
    private:
     std::deque<CounterDefinitions::Id> counter_ids_;
     std::deque<int64_t> timestamps_;
     std::deque<double> values_;
     std::deque<ArgSetId> arg_set_ids_;
+
+    // Indexed by counter_id value and contains the row numbers corresponding to
+    // it.
+    std::deque<std::vector<uint32_t>> rows_for_counter_id_;
   };
 
   class SqlStats {
