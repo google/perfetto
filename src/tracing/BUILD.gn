@@ -104,7 +104,7 @@ if (perfetto_build_standalone || perfetto_build_with_android ||
       "test/test_shared_memory.h",
     ]
 
-    if (perfetto_build_standalone || perfetto_build_with_android) {
+    if (perfetto_build_with_ipc_layer) {
       deps += [ ":ipc" ]
       sources += [
         "ipc/posix_shared_memory_unittest.cc",
@@ -158,8 +158,36 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     ]
   }
 
-  # Posix specialization of the tracing library for Linux/Android/Mac. Provides
-  # an IPC transport over a UNIX domain socket.
+  source_set("tracing_benchmarks") {
+    testonly = true
+    deps = [
+      "../../gn:default_deps",
+      "//buildtools:benchmark",
+    ]
+    sources = [
+      "test/hello_world_benchmark.cc",
+    ]
+  }
+
+  # Imlementation of the public-facing consumer API in libperfetto.so (only for
+  # Android builds).
+  source_set("api") {
+    deps = [
+      ":ipc",
+      ":tracing",
+      "../../gn:default_deps",
+      "../../protos/perfetto/config:lite",
+      "../base",
+    ]
+    sources = [
+      "api_impl/consumer_api.cc",
+    ]
+  }
+}
+
+if (perfetto_build_with_ipc_layer) {
+  # Posix specialization of the tracing library for Linux / Android / Mac.
+  # Provides an IPC transport over a UNIX domain socket.
   static_library("ipc") {
     public_deps = [
       "../../include/perfetto/tracing/core",
@@ -187,32 +215,6 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
       "../../protos/perfetto/ipc",
       "../base",
       "../ipc",
-    ]
-  }
-
-  source_set("tracing_benchmarks") {
-    testonly = true
-    deps = [
-      "../../gn:default_deps",
-      "//buildtools:benchmark",
-    ]
-    sources = [
-      "test/hello_world_benchmark.cc",
-    ]
-  }
-
-  # Imlementation of the public-facing consumer API in libperfetto.so (only for
-  # Android builds).
-  source_set("api") {
-    deps = [
-      ":ipc",
-      ":tracing",
-      "../../gn:default_deps",
-      "../../protos/perfetto/config:lite",
-      "../base",
-    ]
-    sources = [
-      "api_impl/consumer_api.cc",
     ]
   }
 }
