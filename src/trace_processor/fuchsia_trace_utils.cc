@@ -21,8 +21,8 @@ namespace trace_processor {
 namespace fuchsia_trace_utils {
 
 namespace {
-const uint32_t kInlineStringMarker = 0x8000;
-const uint32_t kInlineStringLengthMask = 0x7FFF;
+constexpr uint32_t kInlineStringMarker = 0x8000;
+constexpr uint32_t kInlineStringLengthMask = 0x7FFF;
 }  // namespace
 
 bool IsInlineString(uint32_t string_ref) {
