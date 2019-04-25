@@ -175,7 +175,15 @@ export class LogsController extends Controller<'main'> {
     const newSpan = new TimeSpan(traceTime.startSec, traceTime.endSec);
     const oldSpan = this.span;
 
-    const {offset, count} = this.app.state.logsPagination;
+    const pagination = this.app.state.logsPagination;
+    // This can occur when loading old traces.
+    // TODO(hjd): Fix the problem of accessing state from a previous version of
+    // the UI in a general way.
+    if (pagination === undefined) {
+      return;
+    }
+
+    const {offset, count} = pagination;
     const requestedPagination = new Pagination(offset, count);
     const oldPagination = this.pagination;
 
