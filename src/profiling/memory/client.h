@@ -18,6 +18,7 @@
 #define SRC_PROFILING_MEMORY_CLIENT_H_
 
 #include <stddef.h>
+#include <sys/types.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -87,6 +88,7 @@ class Client {
          ClientConfiguration client_config,
          SharedRingBuffer shmem,
          Sampler sampler,
+         pid_t pid_at_creation,
          const char* main_thread_stack_base);
 
   ClientConfiguration client_config_for_testing() { return client_config_; }
@@ -109,6 +111,13 @@ class Client {
   const char* main_thread_stack_base_{nullptr};
   std::atomic<uint64_t> sequence_number_{0};
   SharedRingBuffer shmem_;
+
+  // Used to detect (during the slow path) the situation where the process has
+  // forked during profiling, and is performing malloc operations in the child.
+  // In this scenario, we want to stop profiling in the child, as otherwise
+  // it'll proceed to write to the same shared buffer & control socket (with
+  // duplicate sequence ids).
+  const pid_t pid_at_creation_;
 };
 
 }  // namespace profiling
