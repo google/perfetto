@@ -25,6 +25,11 @@
 
 namespace perfetto {
 namespace trace_processor {
+namespace {
+// Slices which have been opened but haven't been closed yet will be marked
+// with this duration placeholder.
+constexpr int64_t kPendingDuration = -1;
+};  // namespace
 
 SliceTracker::SliceTracker(TraceProcessorContext* context)
     : context_(context) {}
@@ -47,7 +52,7 @@ void SliceTracker::Begin(int64_t timestamp,
                          StringId cat,
                          StringId name) {
   MaybeCloseStack(timestamp, &threads_[utid]);
-  StartSlice(timestamp, 0, utid, cat, name);
+  StartSlice(timestamp, kPendingDuration, utid, cat, name);
 }
 
 void SliceTracker::Scoped(int64_t timestamp,
@@ -55,6 +60,7 @@ void SliceTracker::Scoped(int64_t timestamp,
                           StringId cat,
                           StringId name,
                           int64_t duration) {
+  PERFETTO_DCHECK(duration >= 0);
   MaybeCloseStack(timestamp, &threads_[utid]);
   StartSlice(timestamp, duration, utid, cat, name);
 }
@@ -123,6 +129,7 @@ void SliceTracker::End(int64_t timestamp,
   if (name && slices->names()[slice_idx] != name)
     return;
 
+  PERFETTO_DCHECK(slices->durations()[slice_idx] == kPendingDuration);
   slices->set_duration(slice_idx, timestamp - slices->start_ns()[slice_idx]);
 
   CompleteSlice(utid);
@@ -142,13 +149,13 @@ void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {
     int64_t start_ts = slices.start_ns()[slice_idx];
     int64_t dur = slices.durations()[slice_idx];
     int64_t end_ts = start_ts + dur;
-    if (dur == 0) {
+    if (dur == kPendingDuration) {
       check_only = true;
     }
 
     if (check_only) {
       PERFETTO_CHECK(ts >= start_ts);
-      PERFETTO_CHECK(dur == 0 || ts <= end_ts);
+      PERFETTO_CHECK(dur == kPendingDuration || ts <= end_ts);
       continue;
     }
 
