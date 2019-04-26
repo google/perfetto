@@ -136,6 +136,24 @@ TEST(SliceTrackerTest, IgnoreMismatchedEnds) {
   EXPECT_THAT(slices, ElementsAre(SliceInfo{2, 3}));
 }
 
+TEST(SliceTrackerTest, ZeroLengthScoped) {
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  SliceTracker tracker(&context);
+
+  // Bug scenario: the second zero-length scoped slice prevents the first slice
+  // from being closed, leading to an inconsistency when we try to insert the
+  // final slice and it doesn't intersect with the still pending first slice.
+  tracker.Scoped(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/, 10 /* dur */);
+  tracker.Scoped(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/, 0 /* dur */);
+  tracker.Scoped(12 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/, 1 /* dur */);
+  tracker.Scoped(13 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/, 1 /* dur */);
+
+  auto slices = ToSliceInfo(context.storage->nestable_slices());
+  EXPECT_THAT(slices, ElementsAre(SliceInfo{2, 10}, SliceInfo{2, 0},
+                                  SliceInfo{12, 1}, SliceInfo{13, 1}));
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
