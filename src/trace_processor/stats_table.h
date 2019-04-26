@@ -33,6 +33,28 @@ namespace trace_processor {
 class StatsTable : public Table {
  public:
   enum Column { kName = 0, kIndex, kSeverity, kSource, kValue };
+  class Cursor : public Table::Cursor {
+   public:
+    Cursor(StatsTable*);
+
+    // Implementation of Table::Cursor.
+    int Filter(const QueryConstraints&, sqlite3_value**) override;
+    int Next() override;
+    int Eof() override;
+    int Column(sqlite3_context*, int N) override;
+
+   private:
+    Cursor(Cursor&) = delete;
+    Cursor& operator=(const Cursor&) = delete;
+
+    Cursor(Cursor&&) noexcept = default;
+    Cursor& operator=(Cursor&&) = default;
+
+    StatsTable* table_ = nullptr;
+    const TraceStorage* storage_ = nullptr;
+    size_t key_ = 0;
+    TraceStorage::Stats::IndexMap::const_iterator index_{};
+  };
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
@@ -40,26 +62,10 @@ class StatsTable : public Table {
 
   // Table implementation.
   base::Optional<Table::Schema> Init(int, const char* const*) override;
-  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
-                                              sqlite3_value**) override;
+  std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-  class Cursor : public Table::Cursor {
-   public:
-    Cursor(const TraceStorage*);
-
-    // Implementation of Table::Cursor.
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
-
-   private:
-    const TraceStorage* const storage_;
-    size_t key_ = 0;
-    TraceStorage::Stats::IndexMap::const_iterator index_{};
-  };
-
   const TraceStorage* const storage_;
 };
 }  // namespace trace_processor

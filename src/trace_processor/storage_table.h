@@ -34,17 +34,18 @@ class StorageTable : public Table {
   // column to implement the Cursor interface.
   class Cursor final : public Table::Cursor {
    public:
-    Cursor(std::unique_ptr<RowIterator>,
-           std::vector<std::unique_ptr<StorageColumn>>*);
+    Cursor(StorageTable* table);
 
     // Implementation of Table::Cursor.
+    int Filter(const QueryConstraints& qc, sqlite3_value** argv) override;
     int Next() override;
     int Eof() override;
     int Column(sqlite3_context*, int N) override;
 
    private:
     std::unique_ptr<RowIterator> iterator_;
-    std::vector<std::unique_ptr<StorageColumn>>* columns_;
+    std::vector<std::unique_ptr<StorageColumn>>* columns_ = nullptr;
+    StorageTable* table_ = nullptr;
   };
 
   StorageTable();
@@ -52,8 +53,7 @@ class StorageTable : public Table {
 
   // Table implementation.
   base::Optional<Table::Schema> Init(int, const char* const*) override final;
-  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
-                                              sqlite3_value**) override;
+  std::unique_ptr<Table::Cursor> CreateCursor() override;
 
   // Required methods for subclasses to implement.
   virtual StorageSchema CreateStorageSchema() = 0;

@@ -46,10 +46,8 @@ base::Optional<Table::Schema> SqlStatsTable::Init(int, const char* const*) {
       {Column::kTimeQueued});
 }
 
-std::unique_ptr<Table::Cursor> SqlStatsTable::CreateCursor(
-    const QueryConstraints&,
-    sqlite3_value**) {
-  return std::unique_ptr<Table::Cursor>(new Cursor(storage_));
+std::unique_ptr<Table::Cursor> SqlStatsTable::CreateCursor() {
+  return std::unique_ptr<Table::Cursor>(new Cursor(this));
 }
 
 int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo* info) {
@@ -57,11 +55,16 @@ int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
-SqlStatsTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {
-  num_rows_ = storage->sql_stats().size();
-}
+SqlStatsTable::Cursor::Cursor(SqlStatsTable* table)
+    : Table::Cursor(table), storage_(table->storage_), table_(table) {}
 
 SqlStatsTable::Cursor::~Cursor() = default;
+
+int SqlStatsTable::Cursor::Filter(const QueryConstraints&, sqlite3_value**) {
+  *this = Cursor(table_);
+  num_rows_ = storage_->sql_stats().size();
+  return SQLITE_OK;
+}
 
 int SqlStatsTable::Cursor::Next() {
   row_++;

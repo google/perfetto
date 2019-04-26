@@ -45,10 +45,8 @@ base::Optional<Table::Schema> StringTable::Init(int, const char* const*) {
       {Column::kStringId});
 }
 
-std::unique_ptr<Table::Cursor> StringTable::CreateCursor(
-    const QueryConstraints&,
-    sqlite3_value**) {
-  return std::unique_ptr<Table::Cursor>(new Cursor(storage_));
+std::unique_ptr<Table::Cursor> StringTable::CreateCursor() {
+  return std::unique_ptr<Table::Cursor>(new Cursor(this));
 }
 
 int StringTable::BestIndex(const QueryConstraints&, BestIndexInfo* info) {
@@ -57,11 +55,16 @@ int StringTable::BestIndex(const QueryConstraints&, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
-StringTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {
-  num_rows_ = storage->string_count();
-}
+StringTable::Cursor::Cursor(StringTable* table)
+    : Table::Cursor(table), storage_(table->storage_), table_(table) {}
 
 StringTable::Cursor::~Cursor() = default;
+
+int StringTable::Cursor::Filter(const QueryConstraints&, sqlite3_value**) {
+  *this = Cursor(table_);
+  num_rows_ = storage_->string_count();
+  return SQLITE_OK;
+}
 
 int StringTable::Cursor::Next() {
   row_++;
