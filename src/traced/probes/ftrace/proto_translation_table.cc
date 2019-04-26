@@ -61,6 +61,12 @@ ProtoTranslationTable::FtracePageHeaderSpec MakeFtracePageHeaderSpec(
 // matches the userspace bitness.
 ProtoTranslationTable::FtracePageHeaderSpec GuessFtracePageHeaderSpec() {
   ProtoTranslationTable::FtracePageHeaderSpec spec{};
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && __i386__
+  // local_t is arch-specific and models the largest size of an integer that is
+  // still atomic across bus transactions, exceptions and IRQ. On android x86
+  // this is always size 8
+  uint16_t commit_size = 8;
+#else
   uint16_t commit_size = sizeof(long);
 
   struct utsname sysinfo;
@@ -71,6 +77,7 @@ ProtoTranslationTable::FtracePageHeaderSpec GuessFtracePageHeaderSpec() {
     commit_size = strstr(sysinfo.machine, "64") ||
                   strstr(sysinfo.machine, "armv8") ? 8 : 4;
   }
+#endif
 
   // header_page typically looks as follows on a 64-bit kernel:
   // field: u64 timestamp; offset:0; size:8; signed:0;
