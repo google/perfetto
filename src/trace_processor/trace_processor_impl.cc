@@ -180,7 +180,7 @@ std::string RemoveWhitespace(const std::string& input) {
 }
 
 // Fuchsia traces have a magic number as documented here:
-// https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format.md#magic-number-record-trace-info-type-0
+// https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format/README.md#magic-number-record-trace-info-type-0
 constexpr uint64_t kFuchsiaMagicNumber = 0x0016547846040010;
 
 }  // namespace
