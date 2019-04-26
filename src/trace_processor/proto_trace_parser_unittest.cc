@@ -516,6 +516,9 @@ TEST(SystraceParserTest, SystraceEvent) {
   EXPECT_EQ(result, (SystraceTracePoint{'C', 543, base::StringView("foo"), 8}));
 }
 
+// TODO(eseckler): Add tests for TrackEvent tokenization + parsing once they are
+// supported in sorter and parser.
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
