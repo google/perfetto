@@ -19,8 +19,8 @@ Usage
 ---------
 ```
 curl https://get.perfetto.dev/traceconv -o traceconv
-chmod +x tracecov
-./traceconv [text|json|systrace|profile] [intput proto file] [output file]
+chmod +x traceconv
+./traceconv [text|json|systrace|profile] [input proto file] [output file]
 ```
 
 Examples
