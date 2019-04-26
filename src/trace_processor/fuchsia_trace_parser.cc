@@ -24,12 +24,12 @@ namespace trace_processor {
 
 namespace {
 // Record Types
-const uint32_t kEvent = 4;
+constexpr uint32_t kEvent = 4;
 
 // Event Types
-const uint32_t kDurationBegin = 2;
-const uint32_t kDurationEnd = 3;
-const uint32_t kDurationComplete = 4;
+constexpr uint32_t kDurationBegin = 2;
+constexpr uint32_t kDurationEnd = 3;
+constexpr uint32_t kDurationComplete = 4;
 }  // namespace
 
 FuchsiaTraceParser::FuchsiaTraceParser(TraceProcessorContext* context)
