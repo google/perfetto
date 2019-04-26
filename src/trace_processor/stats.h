@@ -49,6 +49,7 @@ namespace stats {
   F(ftrace_cpu_overrun_end,                     kIndexed, kError, kTrace),    \
   F(ftrace_cpu_read_events_begin,               kIndexed, kInfo,  kTrace),    \
   F(ftrace_cpu_read_events_end,                 kIndexed, kInfo,  kTrace),    \
+  F(interned_data_tokenizer_errors,             kSingle,  kInfo,  kAnalysis), \
   F(invalid_clock_snapshots,                    kSingle,  kError, kAnalysis), \
   F(invalid_cpu_times,                          kSingle,  kError, kAnalysis), \
   F(meminfo_unknown_keys,                       kSingle,  kError, kAnalysis), \
@@ -85,6 +86,8 @@ namespace stats {
   F(traced_producers_seen,                      kSingle,  kInfo,  kTrace),    \
   F(traced_total_buffers,                       kSingle,  kInfo,  kTrace),    \
   F(traced_tracing_sessions,                    kSingle,  kInfo,  kTrace),    \
+  F(track_event_tokenizer_errors,               kSingle,  kInfo,  kAnalysis), \
+  F(track_event_tokenizer_skipped_packets,      kSingle,  kInfo,  kAnalysis), \
   F(vmstat_unknown_keys,                        kSingle,  kError, kAnalysis), \
   F(clock_sync_failure,                         kSingle,  kError, kAnalysis), \
   F(process_tracker_errors,                     kSingle,  kError, kAnalysis), \
