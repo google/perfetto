@@ -57,14 +57,15 @@ class ProtoTraceParser : public TraceParser {
  public:
   using ConstBytes = protozero::ConstBytes;
   explicit ProtoTraceParser(TraceProcessorContext*);
-  virtual ~ProtoTraceParser();
+  ~ProtoTraceParser() override;
 
   // TraceParser implementation.
-  virtual void ParseTracePacket(int64_t timestamp,
-                                TraceSorter::TimestampedTracePiece);
-  virtual void ParseFtracePacket(uint32_t cpu,
-                                 int64_t timestamp,
-                                 TraceSorter::TimestampedTracePiece);
+  void ParseTracePacket(int64_t timestamp,
+                        TraceSorter::TimestampedTracePiece) override;
+  void ParseFtracePacket(uint32_t cpu,
+                         int64_t timestamp,
+                         TraceSorter::TimestampedTracePiece) override;
+
   void ParseProcessTree(ConstBytes);
   void ParseProcessStats(int64_t timestamp, ConstBytes);
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, ConstBytes);

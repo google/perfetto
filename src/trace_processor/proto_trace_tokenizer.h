@@ -23,6 +23,9 @@
 #include <vector>
 
 #include "src/trace_processor/chunked_trace_reader.h"
+#include "src/trace_processor/proto_incremental_state.h"
+
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -49,8 +52,27 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
                      uint8_t* data,
                      size_t size);
   void ParsePacket(TraceBlobView);
+  void HandleIncrementalStateCleared(
+      const protos::pbzero::TracePacket::Decoder& packet_decoder);
+  void HandlePreviousPacketDropped(
+      const protos::pbzero::TracePacket::Decoder& packet_decoder);
+  void ParseInternedData(
+      const protos::pbzero::TracePacket::Decoder& packet_decoder,
+      TraceBlobView interned_data);
+  void ParseThreadDescriptorPacket(
+      const protos::pbzero::TracePacket::Decoder& packet_decoder);
+  void ParseTrackEventPacket(
+      const protos::pbzero::TracePacket::Decoder& packet_decoder,
+      TraceBlobView packet);
   void ParseFtraceBundle(TraceBlobView);
   void ParseFtraceEvent(uint32_t cpu, TraceBlobView);
+
+  ProtoIncrementalState::PacketSequenceState*
+  GetIncrementalStateForPacketSequence(uint32_t sequence_id) {
+    if (!incremental_state)
+      incremental_state.reset(new ProtoIncrementalState());
+    return incremental_state->GetOrCreateStateForPacketSequence(sequence_id);
+  }
 
   TraceProcessorContext* context_;
 
@@ -61,6 +83,10 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   // Temporary. Currently trace packets do not have a timestamp, so the
   // timestamp given is latest_timestamp_.
   int64_t latest_timestamp_ = 0;
+
+  // Stores incremental state and references to interned data, e.g. for track
+  // event protos.
+  std::unique_ptr<ProtoIncrementalState> incremental_state;
 };
 
 }  // namespace trace_processor
