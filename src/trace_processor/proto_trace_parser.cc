@@ -623,9 +623,9 @@ void ProtoTraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
 
   // Store the pid of the event that is lmk-ed.
   auto* instants = context_->storage->mutable_instants();
-  auto pid = static_cast<uint32_t>(lmk.pid());
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
-  uint32_t row = instants->AddInstantEvent(ts, lmk_id_, 0, upid,
+  auto tid = static_cast<uint32_t>(lmk.pid());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+  uint32_t row = instants->AddInstantEvent(ts, lmk_id_, 0, utid,
                                            RefType::kRefUtidLookupUpid);
 
   // Store the comm as an arg.
