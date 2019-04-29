@@ -48,10 +48,8 @@ base::Optional<Table::Schema> ThreadTable::Init(int, const char* const*) {
       {Column::kUtid});
 }
 
-std::unique_ptr<Table::Cursor> ThreadTable::CreateCursor(
-    const QueryConstraints& qc,
-    sqlite3_value** argv) {
-  return std::unique_ptr<Table::Cursor>(new Cursor(storage_, qc, argv));
+std::unique_ptr<Table::Cursor> ThreadTable::CreateCursor() {
+  return std::unique_ptr<Table::Cursor>(new Cursor(this));
 }
 
 int ThreadTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
@@ -68,10 +66,13 @@ int ThreadTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
-ThreadTable::Cursor::Cursor(const TraceStorage* storage,
-                            const QueryConstraints& qc,
-                            sqlite3_value** argv)
-    : storage_(storage) {
+ThreadTable::Cursor::Cursor(ThreadTable* table)
+    : Table::Cursor(table), storage_(table->storage_), table_(table) {}
+
+int ThreadTable::Cursor::Filter(const QueryConstraints& qc,
+                                sqlite3_value** argv) {
+  *this = Cursor(table_);
+
   min = 0;
   max = static_cast<uint32_t>(storage_->thread_count()) - 1;
   desc = false;
@@ -100,6 +101,7 @@ ThreadTable::Cursor::Cursor(const TraceStorage* storage,
       current = desc ? max : min;
     }
   }
+  return SQLITE_OK;
 }
 
 int ThreadTable::Cursor::Column(sqlite3_context* context, int N) {
