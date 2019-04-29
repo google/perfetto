@@ -34,7 +34,7 @@ StorageSchema SliceTable::CreateStorageSchema() {
       .AddGenericNumericColumn("slice_id", RowAccessor())
       .AddOrderedNumericColumn("ts", &slices.start_ns())
       .AddNumericColumn("dur", &slices.durations())
-      .AddColumn<RefColumn>("ref", &slices.refs(), &slices.types(), storage_)
+      .AddNumericColumn("ref", &slices.refs())
       .AddStringColumn("ref_type", &slices.types(), &GetRefTypeStringMap())
       .AddStringColumn("cat", &slices.cats(), &storage_->string_pool())
       .AddStringColumn("name", &slices.names(), &storage_->string_pool())
