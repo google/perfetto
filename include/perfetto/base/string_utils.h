@@ -28,6 +28,8 @@ bool EndsWith(const std::string& str, const std::string& suffix);
 bool Contains(const std::string& haystack, const std::string& needle);
 std::string Join(const std::vector<std::string>& parts,
                  const std::string& delim);
+std::vector<std::string> SplitString(const std::string& text,
+                                     const std::string& delimiter);
 
 }  // namespace base
 }  // namespace perfetto

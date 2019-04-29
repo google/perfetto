@@ -147,6 +147,8 @@ source_set("lib") {
     "../../gn:default_deps",
     "../../include/perfetto/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
+    "../../protos/perfetto/metrics:zero",
+    "../../protos/perfetto/metrics/android:zero",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:zero",
@@ -158,6 +160,7 @@ source_set("lib") {
     "../../protos/perfetto/trace/track_event:zero",
     "../base",
     "../protozero",
+    "metrics:gen_merged_sql_metrics",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor",
