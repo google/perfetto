@@ -72,6 +72,86 @@ Instead of a static parameter of n bytes, the user can only choose the mean
 value around which the interval is distributed. This makes sure frequent small
 allocations get sampled as well as infrequent large ones.
 
+## Startup profiling
+When a profile session names processes by name and a matching process is
+started, it gets profiled from the beginning. The resulting profile will
+contain all allocations done between the start of the process and the end
+of the profiling session.
+
+On Android, Java apps are usually not started, but the zygote forks and then
+specializes into the desired app. If the app's name matches a name specified
+in the profiling session, profiling will be enabled as part of the zygote
+specialization. The resulting profile contains all allocations done between
+that point in zygote specialization and the end of the profiling session.
+Some allocations done early in the specialization process are not accounted
+for.
+
+The Resulting `ProfileProto` will have `from_startup` set  to true in the
+corresponding `ProcessHeapSamples` message. This does not get surfaced in the
+converted pprof compatible proto.
+
+## Runtime profiling
+When a profile session is started, all matching processes (by name or PID)
+are enumerated and profiling is enabled. The resulting profile will contain
+all allocations done between the beginning and the end of the profiling
+session.
+
+The Resulting `ProfileProto` will have `from_startup` set  to false in the
+corresponding `ProcessHeapSamples` message. This does not get surfaced in the
+converted pprof compatible proto.
+
+## Concurrent profiling sessions
+If multiple sessions name the same target process (either by name or PID),
+only the first relevant session will profile the process. The other sessions
+will report that the process had already been profiled when converting to
+the pprof compatible proto.
+
+If you see this message but do not expect any other sessions, run
+```
+adb shell killall -KILL perfetto
+```
+to stop any concurrent sessions that may be running.
+
+
+The Resulting `ProfileProto` will have `rejected_concurrent` set  to true in
+otherwise empty corresponding `ProcessHeapSamples` message. This does not get
+surfaced in the converted pprof compatible proto.
+
+## Target processes
+Depending on the build of Android that heapprofd is run on, some processes
+are not be eligible to be profiled.
+
+On user builds, only Java applications with either the profileable or the
+debugable manifest flag set can be profiled. Profiling requests for other
+processes will result in an empty profile.
+
+On userdebug builds, all processes except for a small blacklist of critical
+services can be profiled. This restriction can be lifted by disabling
+SELinux by running `adb shell su root setenforce 0` or by passing
+`--disable-selinux` to the `heap_profile` script.
+
+|                         | userdebug setenforce 0 | userdebug | user |
+|-------------------------|------------------------|-----------|------|
+| critical native service |            y           |     n     |  n   |
+| native service          |            y           |     y     |  n   |
+| app                     |            y           |     y     |  n   |
+| profileable app         |            y           |     y     |  y   |
+| debugable app           |            y           |     y     |  y   |
+
+## Troubleshooting
+
+### Buffer overrun
+If the rate of allocations is too high for heapprofd to keep up, the profiling
+session will end early due to a buffer overrun. If the buffer overrun is
+caused by a transient spike in allocations, increasing the shared memory buffer
+size (passing `--shmem-size` to heap\_profile) can resolve the issue.
+Otherwise the sampling interval can be increased (at the expense of lower
+accuracy in the resulting profile) by passing `--interval` to heap\_profile.
+
+### Profile is empty
+Check whether your target process is eligible to be profiled by consulting
+[Target process](#Target_process) above.
+
 ## Manual instructions
 *It is not recommended to use these instructions unless you have advanced
 requirements or are developing heapprofd. Proceed with caution*
