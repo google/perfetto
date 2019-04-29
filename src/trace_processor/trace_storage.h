@@ -74,7 +74,6 @@ enum RefType {
   kRefIrq = 3,
   kRefSoftIrq = 4,
   kRefUpid = 5,
-  kRefUtidLookupUpid = 6,
   kRefMax
 };
 
@@ -340,6 +339,7 @@ class TraceStorage {
   class CounterDefinitions {
    public:
     using Id = uint32_t;
+    static constexpr Id kInvalidId = std::numeric_limits<Id>::max();
 
     inline Id AddCounterDefinition(StringId name_id,
                                    int64_t ref,
@@ -389,12 +389,26 @@ class TraceStorage {
       values_.emplace_back(value);
       arg_set_ids_.emplace_back(kInvalidArgSetId);
 
+      if (counter_id != CounterDefinitions::kInvalidId) {
+        if (counter_id >= rows_for_counter_id_.size()) {
+          rows_for_counter_id_.resize(counter_id + 1);
+        }
+        rows_for_counter_id_[counter_id].emplace_back(size() - 1);
+      }
+      return size() - 1;
+    }
+
+    void set_counter_id(uint32_t index, CounterDefinitions::Id counter_id) {
+      PERFETTO_DCHECK(counter_ids_[index] == CounterDefinitions::kInvalidId);
+
+      counter_ids_[index] = counter_id;
       if (counter_id >= rows_for_counter_id_.size()) {
         rows_for_counter_id_.resize(counter_id + 1);
       }
-      uint32_t row = size() - 1;
-      rows_for_counter_id_[counter_id].emplace_back(row);
-      return row;
+
+      auto* new_rows = &rows_for_counter_id_[counter_id];
+      new_rows->insert(
+          std::upper_bound(new_rows->begin(), new_rows->end(), index), index);
     }
 
     void set_arg_set_id(uint32_t row, ArgSetId id) { arg_set_ids_[row] = id; }
@@ -461,6 +475,8 @@ class TraceStorage {
       arg_set_ids_.emplace_back(kInvalidArgSetId);
       return static_cast<uint32_t>(instant_count() - 1);
     }
+
+    void set_ref(uint32_t row, int64_t ref) { refs_[row] = ref; }
 
     void set_arg_set_id(uint32_t row, ArgSetId id) { arg_set_ids_[row] = id; }
 

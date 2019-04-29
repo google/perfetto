@@ -598,10 +598,9 @@ void ProtoTraceParser::ParseSignalDeliver(int64_t ts,
                                           uint32_t pid,
                                           ConstBytes blob) {
   protos::pbzero::SignalDeliverFtraceEvent::Decoder sig(blob.data, blob.size);
-  auto* instants = context_->storage->mutable_instants();
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  instants->AddInstantEvent(ts, signal_deliver_id_, sig.sig(), utid,
-                            RefType::kRefUtid);
+  context_->event_tracker->PushInstant(ts, signal_deliver_id_, sig.sig(), utid,
+                                       RefType::kRefUtid);
 }
 
 // This event has both the pid of the thread that sent the signal and the
@@ -609,11 +608,10 @@ void ProtoTraceParser::ParseSignalDeliver(int64_t ts,
 void ProtoTraceParser::ParseSignalGenerate(int64_t ts, ConstBytes blob) {
   protos::pbzero::SignalGenerateFtraceEvent::Decoder sig(blob.data, blob.size);
 
-  auto* instants = context_->storage->mutable_instants();
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(
       static_cast<uint32_t>(sig.pid()));
-  instants->AddInstantEvent(ts, signal_generate_id_, sig.sig(), utid,
-                            RefType::kRefUtid);
+  context_->event_tracker->PushInstant(ts, signal_generate_id_, sig.sig(), utid,
+                                       RefType::kRefUtid);
 }
 
 void ProtoTraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
@@ -622,14 +620,12 @@ void ProtoTraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
   protos::pbzero::LowmemoryKillFtraceEvent::Decoder lmk(blob.data, blob.size);
 
   // Store the pid of the event that is lmk-ed.
-  auto* instants = context_->storage->mutable_instants();
-  auto tid = static_cast<uint32_t>(lmk.pid());
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  uint32_t row = instants->AddInstantEvent(ts, lmk_id_, 0, utid,
-                                           RefType::kRefUtidLookupUpid);
+  auto pid = static_cast<uint32_t>(lmk.pid());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  auto row_id = context_->event_tracker->PushInstant(ts, lmk_id_, 0, utid,
+                                                     RefType::kRefUtid, true);
 
   // Store the comm as an arg.
-  RowId row_id = TraceStorage::CreateRowId(TableId::kInstants, row);
   auto comm_id = context_->storage->InternString(
       lmk.has_comm() ? lmk.comm() : base::StringView());
   context_->args_tracker->AddArg(row_id, comm_name_id_, comm_name_id_,
@@ -649,7 +645,7 @@ void ProtoTraceParser::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
   if (size >= 0) {
     UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
     context_->event_tracker->PushCounter(ts, size, rss_members_[member], utid,
-                                         RefType::kRefUtidLookupUpid);
+                                         RefType::kRefUtid, true);
   } else {
     context_->storage->IncrementStats(stats::rss_stat_negative_size);
   }
@@ -741,8 +737,8 @@ void ProtoTraceParser::ParseSchedWakeup(int64_t ts, ConstBytes blob) {
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
   auto utid = context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
-  context_->storage->mutable_instants()->AddInstantEvent(
-      ts, sched_wakeup_name_id_, 0 /* value */, utid, RefType::kRefUtid);
+  context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_, 0 /* value */,
+                                       utid, RefType::kRefUtid);
 }
 
 void ProtoTraceParser::ParseTaskNewTask(int64_t ts,
@@ -812,8 +808,8 @@ void ProtoTraceParser::ParsePrint(uint32_t,
         if (killed_pid != 0) {
           UniquePid killed_upid =
               context_->process_tracker->GetOrCreateProcess(killed_pid);
-          context_->storage->mutable_instants()->AddInstantEvent(
-              ts, lmk_id_, 0, killed_upid, RefType::kRefUpid);
+          context_->event_tracker->PushInstant(ts, lmk_id_, 0, killed_upid,
+                                               RefType::kRefUpid);
         }
         // TODO(lalitm): we should not add LMK events to the counters table
         // once the UI has support for displaying instants.
@@ -913,11 +909,11 @@ void ProtoTraceParser::ParseMmEventRecord(int64_t ts,
 
   const auto& counter_names = mm_event_counter_names_[type];
   context_->event_tracker->PushCounter(ts, evt.count(), counter_names.count,
-                                       utid, RefType::kRefUtidLookupUpid);
+                                       utid, RefType::kRefUtid, true);
   context_->event_tracker->PushCounter(ts, evt.max_lat(), counter_names.max_lat,
-                                       utid, RefType::kRefUtidLookupUpid);
+                                       utid, RefType::kRefUtid, true);
   context_->event_tracker->PushCounter(ts, evt.avg_lat(), counter_names.avg_lat,
-                                       utid, RefType::kRefUtidLookupUpid);
+                                       utid, RefType::kRefUtid, true);
 }
 
 void ProtoTraceParser::ParseSysEvent(int64_t ts,
