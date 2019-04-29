@@ -12,7 +12,7 @@
 // SHA1(tools/gen_binary_descriptors)
 // e329b1e1e964417db57f83d8ecf081e041923e78
 // SHA1(protos/perfetto/config/perfetto_config.proto)
-// 6d3c51a205e0173ca0c17e91be3c0787cac0ae45
+// 0cd78670a7f0f92659bb099e24dc6b3f47b4ad96
 
 // This is the proto PerfettoConfig encoded as a ProtoFileDescriptor to allow
 // for reflection without libprotobuf full/non-lite protos.

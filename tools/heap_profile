@@ -87,7 +87,6 @@ data_sources {{
     name: "android.heapprofd"
     heapprofd_config {{
 
-      all: {all}
       shmem_size_bytes: {shmem_size}
       sampling_interval_bytes: {interval}
 {target_cfg}
@@ -122,8 +121,6 @@ def main(argv):
                       "Default 4096 (4KiB)", type=int, default=4096)
   parser.add_argument("-d", "--duration", help="Duration of profile (ms). "
                       "Default 7 days", type=int, default=604800000)
-  parser.add_argument("-a", "--all", help="Profile the whole system",
-                      action='store_true')
   parser.add_argument("--no-start", help="Do not start heapprofd",
                       action='store_true')
   parser.add_argument("-p", "--pid", help="PIDs to profile", nargs='+',
@@ -146,8 +143,8 @@ def main(argv):
   args = parser.parse_args()
 
   fail = False
-  if args.all is None and args.pid is None and args.name is None:
-    print("FATAL: Neither --all nor PID nor NAME given.", file=sys.stderr)
+  if args.pid is None and args.name is None:
+    print("FATAL: Neither PID nor NAME given.", file=sys.stderr)
     fail = True
   if args.duration is None:
     print("FATAL: No duration given.", file=sys.stderr)
@@ -192,7 +189,7 @@ def main(argv):
   if args.continuous_dump:
     continuous_dump_cfg = CONTINUOUS_DUMP.format(
         dump_interval=args.continuous_dump)
-  cfg = CFG.format(all=str(args.all == True).lower(), interval=args.interval,
+  cfg = CFG.format(interval=args.interval,
                    duration=args.duration, target_cfg=target_cfg,
                    continuous_dump_cfg=continuous_dump_cfg,
                    shmem_size=args.shmem_size)

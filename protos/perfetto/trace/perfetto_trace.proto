@@ -3652,7 +3652,19 @@ message HeapprofdConfig {
 
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
+
+  // Profile all processes eligible for profiling on the system.
+  // See https://docs.perfetto.dev/#/heapprofd?id=target-processes for which
+  // processes are eligible.
+  //
+  // On unmodified userdebug builds, this will lead to system crashes. Zygote
+  // will crash when trying to launch a new process as it will have an
+  // unexpected open socket to heapprofd.
+  //
+  // heapprofd will likely be overloaded by the amount of data for low
+  // sampling intervals.
   optional bool all = 5;
+
   // Do not emit function names for mappings starting with this prefix.
   // E.g. /system to not emit symbols for any system libraries.
   repeated string skip_symbol_prefix = 7;
