@@ -67,12 +67,13 @@ class MockEventTracker : public EventTracker {
                     base::StringView next_comm,
                     int32_t next_prio));
 
-  MOCK_METHOD5(PushCounter,
+  MOCK_METHOD6(PushCounter,
                RowId(int64_t timestamp,
                      double value,
                      StringId name_id,
                      int64_t ref,
-                     RefType ref_type));
+                     RefType ref_type,
+                     bool resolve_utid_to_upid));
 };
 
 class MockProcessTracker : public ProcessTracker {
@@ -427,7 +428,7 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   meminfo->set_value(value);
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value * 1024, 0, 0,
-                                   RefType::kRefNoRef));
+                                   RefType::kRefNoRef, false));
   Tokenize();
 }
 
@@ -442,7 +443,7 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   meminfo->set_value(value);
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value, 0, 0,
-                                   RefType::kRefNoRef));
+                                   RefType::kRefNoRef, false));
   Tokenize();
 }
 
@@ -456,7 +457,8 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   cpu_freq->set_cpu_id(10);
   cpu_freq->set_state(2000);
 
-  EXPECT_CALL(*event_, PushCounter(1000, 2000, 0, 10, RefType::kRefCpuId));
+  EXPECT_CALL(*event_,
+              PushCounter(1000, 2000, 0, 10, RefType::kRefCpuId, false));
   Tokenize();
 }
 
