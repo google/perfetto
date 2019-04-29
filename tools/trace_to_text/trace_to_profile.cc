@@ -227,6 +227,11 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
     GProfile cur_profile = profile;
     uint64_t pid = p.first;
     for (const ProfilePacket::ProcessHeapSamples* samples : p.second) {
+      if (samples->rejected_concurrent()) {
+        PERFETTO_ELOG("WARNING: The profile for %" PRIu64
+                      " was rejected due to a concurrent profile.",
+                      pid);
+      }
       if (samples->buffer_overran()) {
         PERFETTO_ELOG("WARNING: The profile for %" PRIu64
                       " ended early due to a buffer overrun.",
