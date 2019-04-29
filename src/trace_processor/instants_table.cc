@@ -37,8 +37,7 @@ StorageSchema InstantsTable::CreateStorageSchema() {
       .AddOrderedNumericColumn("ts", &instants.timestamps())
       .AddStringColumn("name", &instants.name_ids(), &storage_->string_pool())
       .AddNumericColumn("value", &instants.values())
-      .AddColumn<RefColumn>("ref", &instants.refs(), &instants.types(),
-                            storage_)
+      .AddNumericColumn("ref", &instants.refs())
       .AddStringColumn("ref_type", &instants.types(), &GetRefTypeStringMap())
       .AddNumericColumn("arg_set_id", &instants.arg_set_ids())
       .Build({"name", "ts", "ref"});

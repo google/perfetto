@@ -48,7 +48,6 @@ std::vector<const char*> CreateRefTypeStringMap() {
   map[RefType::kRefIrq] = "irq";
   map[RefType::kRefSoftIrq] = "softirq";
   map[RefType::kRefUpid] = "upid";
-  map[RefType::kRefUtidLookupUpid] = "upid";
   return map;
 }
 

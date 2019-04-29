@@ -49,12 +49,25 @@ class EventTracker {
                                base::StringView next_comm,
                                int32_t next_prio);
 
-  // This method is called when a cpu freq event is seen in the trace.
+  // This method is called when a counter event is seen in the trace.
   virtual RowId PushCounter(int64_t timestamp,
                             double value,
                             StringId name_id,
                             int64_t ref,
-                            RefType ref_type);
+                            RefType ref_type,
+                            bool resolve_utid_to_upid = false);
+
+  // This method is called when a instant event is seen in the trace.
+  virtual RowId PushInstant(int64_t timestamp,
+                            StringId name_id,
+                            double value,
+                            int64_t ref,
+                            RefType ref_type,
+                            bool resolve_utid_to_upid = false);
+
+  // Called at the end of trace to flush any events which are pending to the
+  // storage.
+  void FlushPendingEvents();
 
  private:
   // Represents a slice which is currently pending.
@@ -63,8 +76,27 @@ class EventTracker {
     uint32_t next_pid = 0;
   };
 
+  // Represents a counter event which is currently pending upid resolution.
+  struct PendingUpidResolutionCounter {
+    uint32_t row = 0;
+    StringId name_id = 0;
+    UniqueTid utid = 0;
+  };
+
+  // Represents a instant event which is currently pending upid resolution.
+  struct PendingUpidResolutionInstant {
+    uint32_t row = 0;
+    UniqueTid utid = 0;
+  };
+
   // Store pending sched slices for each CPU.
   std::array<PendingSchedSlice, base::kMaxCpus> pending_sched_per_cpu_{};
+
+  // Store the rows in the counters table which need upids resolved.
+  std::vector<PendingUpidResolutionCounter> pending_upid_resolution_counter_;
+
+  // Store the rows in the instants table which need upids resolved.
+  std::vector<PendingUpidResolutionInstant> pending_upid_resolution_instant_;
 
   // Timestamp of the previous event. Used to discard events arriving out
   // of order.
