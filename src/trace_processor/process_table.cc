@@ -47,10 +47,8 @@ base::Optional<Table::Schema> ProcessTable::Init(int, const char* const*) {
       {Column::kUpid});
 }
 
-std::unique_ptr<Table::Cursor> ProcessTable::CreateCursor(
-    const QueryConstraints& qc,
-    sqlite3_value** argv) {
-  return std::unique_ptr<Table::Cursor>(new Cursor(storage_, qc, argv));
+std::unique_ptr<Table::Cursor> ProcessTable::CreateCursor() {
+  return std::unique_ptr<Table::Cursor>(new Cursor(this));
 }
 
 int ProcessTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
@@ -66,10 +64,11 @@ int ProcessTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
-ProcessTable::Cursor::Cursor(const TraceStorage* storage,
-                             const QueryConstraints& qc,
-                             sqlite3_value** argv)
-    : storage_(storage) {
+ProcessTable::Cursor::Cursor(ProcessTable* table)
+    : Table::Cursor(table), storage_(table->storage_) {}
+
+int ProcessTable::Cursor::Filter(const QueryConstraints& qc,
+                                 sqlite3_value** argv) {
   min = 0;
   max = static_cast<uint32_t>(storage_->process_count()) - 1;
   desc = false;
@@ -98,6 +97,7 @@ ProcessTable::Cursor::Cursor(const TraceStorage* storage,
       current = desc ? max : min;
     }
   }
+  return SQLITE_OK;
 }
 
 int ProcessTable::Cursor::Column(sqlite3_context* context, int N) {

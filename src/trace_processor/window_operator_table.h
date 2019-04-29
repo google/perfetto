@@ -38,29 +38,12 @@ class WindowOperatorTable : public Table {
     kDuration = 5,
     kQuantumTs = 6
   };
-
-  static void RegisterTable(sqlite3* db, const TraceStorage* storage);
-
-  WindowOperatorTable(sqlite3*, const TraceStorage*);
-
-  // Table implementation.
-  base::Optional<Table::Schema> Init(int, const char* const*) override;
-  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
-                                              sqlite3_value**) override;
-  int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
-  int Update(int, sqlite3_value**, sqlite3_int64*) override;
-
- private:
   class Cursor : public Table::Cursor {
    public:
-    Cursor(const WindowOperatorTable*,
-           int64_t window_start,
-           int64_t window_end,
-           int64_t step_size,
-           const QueryConstraints& qc,
-           sqlite3_value** argv);
+    Cursor(WindowOperatorTable*);
 
     // Implementation of Table::Cursor.
+    int Filter(const QueryConstraints& qc, sqlite3_value**) override;
     int Next() override;
     int Eof() override;
     int Column(sqlite3_context*, int N) override;
@@ -74,18 +57,30 @@ class WindowOperatorTable : public Table {
       kReturnFirst = 1,
     };
 
-    int64_t const window_start_;
-    int64_t const window_end_;
-    int64_t const step_size_;
-    const WindowOperatorTable* const table_;
+    int64_t window_start_ = 0;
+    int64_t window_end_ = 0;
+    int64_t step_size_ = 0;
 
     int64_t current_ts_ = 0;
     int64_t quantum_ts_ = 0;
     int64_t row_id_ = 0;
 
     FilterType filter_type_ = FilterType::kReturnAll;
+
+    WindowOperatorTable* table_ = nullptr;
   };
 
+  static void RegisterTable(sqlite3* db, const TraceStorage* storage);
+
+  WindowOperatorTable(sqlite3*, const TraceStorage*);
+
+  // Table implementation.
+  base::Optional<Table::Schema> Init(int, const char* const*) override;
+  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
+  int Update(int, sqlite3_value**, sqlite3_int64*) override;
+
+ private:
   int64_t quantum_ = 0;
   int64_t window_start_ = 0;
 

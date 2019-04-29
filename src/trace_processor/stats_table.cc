@@ -41,16 +41,21 @@ base::Optional<Table::Schema> StatsTable::Init(int, const char* const*) {
       {Column::kName});
 }
 
-std::unique_ptr<Table::Cursor> StatsTable::CreateCursor(const QueryConstraints&,
-                                                        sqlite3_value**) {
-  return std::unique_ptr<Table::Cursor>(new Cursor(storage_));
+std::unique_ptr<Table::Cursor> StatsTable::CreateCursor() {
+  return std::unique_ptr<Table::Cursor>(new Cursor(this));
 }
 
 int StatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
   return SQLITE_OK;
 }
 
-StatsTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {}
+StatsTable::Cursor::Cursor(StatsTable* table)
+    : Table::Cursor(table), table_(table), storage_(table->storage_) {}
+
+int StatsTable::Cursor::Filter(const QueryConstraints&, sqlite3_value**) {
+  *this = Cursor(table_);
+  return SQLITE_OK;
+}
 
 int StatsTable::Cursor::Column(sqlite3_context* ctx, int N) {
   const auto kSqliteStatic = sqlite_utils::kSqliteStatic;
