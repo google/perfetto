@@ -79,6 +79,7 @@ source_set("lib") {
     "process_table.h",
     "process_tracker.cc",
     "process_tracker.h",
+    "proto_incremental_state.h",
     "proto_trace_parser.cc",
     "proto_trace_parser.h",
     "proto_trace_tokenizer.cc",
