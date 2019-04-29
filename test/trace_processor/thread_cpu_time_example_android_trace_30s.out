@@ -124,6 +124,7 @@
 1521,5948,31,5506,"Thread-83","com.google.android.GoogleCamera",15154766434
 1522,5949,31,5506,"Thread-82","com.google.android.GoogleCamera",15154766434
 1589,6011,31,5506,"mv-disk-writer","com.google.android.GoogleCamera",15154766434
+103,593,104,593,"sugov:4","sugov:4",6846445779
 76,3482,4,1204,"Binder:1204_17","system_server",6809850362
 78,1421,4,1204,"InputReader","system_server",6809850362
 81,1204,4,1204,"system_server","system_server",6809850362
@@ -190,6 +191,7 @@
 1283,1739,4,1204,"hidl_ssvc_poll","system_server",6809850362
 1489,1480,4,1204,"AudioService","system_server",6809850362
 1619,1597,4,1204,"watchdog","system_server",6809850362
+50,2189,87,2189,"cds_ol_rx_threa","cds_ol_rx_threa",6684635721
 535,5313,23,5313,".android.chrome","com.android.chrome",5125412570
 536,5318,23,5313,"Jit thread pool","com.android.chrome",5125412570
 537,5319,23,5313,"Signal Catcher","com.android.chrome",5125412570
@@ -239,6 +241,7 @@
 920,5502,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
 921,5503,23,5313,"TaskSchedulerFo","com.android.chrome",5125412570
 1507,5935,23,5313,"Binder:5313_5","com.android.chrome",5125412570
+20,57,110,57,"ksoftirqd/6","ksoftirqd/6",4117624162
 587,5348,24,5348,"dboxed_process0","com.android.chrome:sandboxed_process0",3569713072
 592,5353,24,5348,"Jit thread pool","com.android.chrome:sandboxed_process0",3569713072
 593,5354,24,5348,"Signal Catcher","com.android.chrome:sandboxed_process0",3569713072
@@ -445,6 +448,8 @@
 422,4032,80,622,"Binder:622_5","/system/bin/surfaceflinger",2155181851
 423,1438,80,622,"Binder:622_4","/system/bin/surfaceflinger",2155181851
 858,5497,80,622,"surfaceflinger","/system/bin/surfaceflinger",2155181851
+32,2265,57,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",2046147338
+137,834,57,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",2046147338
 169,2551,6,2523,"Binder:2523_1","com.google.android.apps.nexuslauncher",1639085587
 171,2523,6,2523,"s.nexuslauncher","com.google.android.apps.nexuslauncher",1639085587
 172,2745,6,2523,"UiThreadHelper","com.google.android.apps.nexuslauncher",1639085587
@@ -687,6 +692,7 @@
 1241,5712,135,864,"Binder:864_4","/system/bin/audioserver",335741587
 1242,1176,135,864,"Binder:864_2","/system/bin/audioserver",335741587
 1399,1224,135,864,"FastMixer","/system/bin/audioserver",335741587
+21,10,48,10,"rcuop/0","rcuop/0",335600708
 197,5192,36,5133,"Binder:5133_4","android.process.media",299474876
 366,5154,36,5133,"Okio Watchdog","android.process.media",299474876
 931,5133,36,5133,"d.process.media","android.process.media",299474876
@@ -811,8 +817,6 @@
 1613,2771,2,2712,"Profile Saver","com.android.vending",177335230
 1615,5125,2,2712,"Okio Watchdog","com.android.vending",177335230
 368,561,167,561,"kworker/u16:10","kworker/u16:10",162785755
-32,2265,57,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",158591004
-137,834,57,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",158591004
 787,1165,212,968,"fingerprint@2.1","/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service.fpc",154062201
 1648,968,212,968,"[NULL]","/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service.fpc",154062201
 107,292,94,292,"kgsl_worker_thr","kgsl_worker_thr",151947892
@@ -856,7 +860,6 @@
 299,5267,14,5252,"Profile Saver","com.android.ramdump",88012042
 302,5269,14,5252,"queued-work-loo","com.android.ramdump",88012042
 644,5400,14,5252,"android.bg","com.android.ramdump",88012042
-50,2189,87,2189,"cds_ol_rx_threa","cds_ol_rx_threa",85880168
 274,734,58,734,"main","zygote64",84352921
 280,5256,58,734,"HeapTaskDaemon","zygote64",84352921
 281,5255,58,734,"FinalizerWatchd","zygote64",84352921
@@ -914,7 +917,6 @@
 1380,2040,28,2024,"Binder:2024_1","com.google.android.ext.services",70194314
 1510,2052,28,2024,"Profile Saver","com.google.android.ext.services",70194314
 26,87,43,87,"smem_native_rpm","smem_native_rpm",66468457
-21,10,48,10,"rcuop/0","rcuop/0",66117921
 1089,2195,226,930,"Binder:930_3","media.extractor",65836741
 1146,930,226,930,"mediaextractor","media.extractor",65836741
 55,588,69,588,"hwservicemanage","/system/bin/hwservicemanager",63243286
@@ -928,7 +930,6 @@
 72,641,75,641,"jbd2/sda45-8","jbd2/sda45-8",49714183
 211,849,140,849,"msm_irqbalance","/vendor/bin/msm_irqbalance",46455318
 79,749,79,749,"suspend@1.0-ser","/system/bin/hw/android.system.suspend@1.0-service",43663325
-103,593,104,593,"sugov:4","sugov:4",41041664
 22,28,42,28,"rcuop/2","rcuop/2",40951065
 142,767,137,767,"light@2.0-servi","/vendor/bin/hw/android.hardware.light@2.0-service",39666625
 52,1815,15,1815,"m.android.phone","com.android.phone",37507869
@@ -1120,7 +1121,6 @@
 219,1006,148,913,"HwBinder:913_1","/vendor/bin/cnd",2234739
 224,913,148,913,"cnd","/vendor/bin/cnd",2234739
 17,29,52,29,"rcuos/2","rcuos/2",2107032
-20,57,110,57,"ksoftirqd/6","ksoftirqd/6",1972815
 778,711,209,711,"iptables-restor","/system/bin/iptables-restore",1913334
 803,3776,213,3776,"kworker/3:3","kworker/3:3",1896459
 395,545,173,545,"kworker/6:1H","kworker/6:1H",1883224

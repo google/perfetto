@@ -37,7 +37,7 @@ StorageSchema CounterDefinitionsTable::CreateStorageSchema() {
   return StorageSchema::Builder()
       .AddGenericNumericColumn("counter_id", RowAccessor())
       .AddStringColumn("name", &cs.name_ids(), &storage_->string_pool())
-      .AddColumn<RefColumn>("ref", &cs.refs(), &cs.types(), storage_)
+      .AddNumericColumn("ref", &cs.refs())
       .AddStringColumn("ref_type", &cs.types(), &GetRefTypeStringMap())
       .Build({"counter_id"});
 }
