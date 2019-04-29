@@ -40,6 +40,18 @@ bool IsRequiredColumn(const std::string& name) {
   return name == kTsColumnName || name == kDurColumnName;
 }
 
+bool HasDuplicateColumns(const std::vector<Table::Column>& cols) {
+  std::set<std::string> names;
+  for (const auto& col : cols) {
+    if (names.count(col.name()) > 0) {
+      PERFETTO_ELOG("Column '%s' present in the output schema more than once.",
+                    col.name().c_str());
+      return true;
+    }
+    names.insert(col.name());
+  }
+  return false;
+}
 }  // namespace
 
 SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
@@ -123,6 +135,9 @@ base::Optional<Table::Schema> SpanJoinOperatorTable::Init(
   CreateSchemaColsForDefn(t1_defn_, &cols);
   CreateSchemaColsForDefn(t2_defn_, &cols);
 
+  if (HasDuplicateColumns(cols)) {
+    return base::nullopt;
+  }
   std::vector<size_t> primary_keys = {Column::kTimestamp};
   if (partitioning_ != PartitioningType::kNoPartitioning)
     primary_keys.push_back(Column::kPartition);
