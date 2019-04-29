@@ -27,21 +27,6 @@ namespace trace_processor {
 
 namespace {
 
-struct TableDescriptor {
-  Table::Factory factory;
-  const TraceStorage* storage = nullptr;
-  std::string name;
-  sqlite3_module module = {};
-};
-
-Table* ToTable(sqlite3_vtab* vtab) {
-  return static_cast<Table*>(vtab);
-}
-
-Table::RawCursor* ToCursor(sqlite3_vtab_cursor* cursor) {
-  return static_cast<Table::RawCursor*>(cursor);
-}
-
 std::string TypeToString(Table::ColumnType type) {
   switch (type) {
     case Table::ColumnType::kString:
@@ -68,123 +53,9 @@ bool Table::debug = false;
 Table::Table() = default;
 Table::~Table() = default;
 
-void Table::RegisterInternal(sqlite3* db,
-                             const TraceStorage* storage,
-                             const std::string& table_name,
-                             bool read_write,
-                             bool requires_args,
-                             Factory factory) {
-  std::unique_ptr<TableDescriptor> desc(new TableDescriptor());
-  desc->storage = storage;
-  desc->factory = factory;
-  desc->name = table_name;
-  sqlite3_module* module = &desc->module;
-  memset(module, 0, sizeof(*module));
-
-  auto create_fn = [](sqlite3* xdb, void* arg, int argc,
-                      const char* const* argv, sqlite3_vtab** tab, char**) {
-    const TableDescriptor* xdesc = static_cast<const TableDescriptor*>(arg);
-    auto table = xdesc->factory(xdb, xdesc->storage);
-    table->name_ = xdesc->name;
-
-    auto opt_schema = table->Init(argc, argv);
-    if (!opt_schema.has_value()) {
-      PERFETTO_ELOG("Failed to create schema (table %s)", xdesc->name.c_str());
-      return SQLITE_ERROR;
-    }
-
-    const auto& schema = opt_schema.value();
-    auto create_stmt = schema.ToCreateTableStmt();
-    PERFETTO_DLOG("Create table statement: %s", create_stmt.c_str());
-
-    int res = sqlite3_declare_vtab(xdb, create_stmt.c_str());
-    if (res != SQLITE_OK)
-      return res;
-
-    // Freed in xDisconnect().
-    table->schema_ = std::move(schema);
-    *tab = table.release();
-
-    return SQLITE_OK;
-  };
-  module->xCreate = create_fn;
-  module->xConnect = create_fn;
-
-  auto destroy_fn = [](sqlite3_vtab* t) {
-    delete ToTable(t);
-    return SQLITE_OK;
-  };
-  module->xDisconnect = destroy_fn;
-  module->xDestroy = destroy_fn;
-
-  module->xOpen = [](sqlite3_vtab* t, sqlite3_vtab_cursor** c) {
-    return ToTable(t)->OpenInternal(c);
-  };
-
-  module->xClose = [](sqlite3_vtab_cursor* c) {
-    delete ToCursor(c);
-    return SQLITE_OK;
-  };
-
-  module->xBestIndex = [](sqlite3_vtab* t, sqlite3_index_info* i) {
-    return ToTable(t)->BestIndexInternal(i);
-  };
-
-  module->xFilter = [](sqlite3_vtab_cursor* c, int i, const char* s, int a,
-                       sqlite3_value** v) {
-    return ToCursor(c)->Filter(i, s, a, v);
-  };
-  module->xNext = [](sqlite3_vtab_cursor* c) {
-    return ToCursor(c)->cursor()->Next();
-  };
-  module->xEof = [](sqlite3_vtab_cursor* c) {
-    return ToCursor(c)->cursor()->Eof();
-  };
-  module->xColumn = [](sqlite3_vtab_cursor* c, sqlite3_context* a, int b) {
-    return ToCursor(c)->cursor()->Column(a, b);
-  };
-
-  module->xRowid = [](sqlite3_vtab_cursor* c, sqlite3_int64* r) {
-    return ToCursor(c)->cursor()->RowId(r);
-  };
-
-  module->xFindFunction =
-      [](sqlite3_vtab* t, int, const char* name,
-         void (**fn)(sqlite3_context*, int, sqlite3_value**),
-         void** args) { return ToTable(t)->FindFunction(name, fn, args); };
-
-  if (read_write) {
-    module->xUpdate = [](sqlite3_vtab* t, int a, sqlite3_value** v,
-                         sqlite3_int64* r) {
-      return ToTable(t)->Update(a, v, r);
-    };
-  }
-
-  int res = sqlite3_create_module_v2(
-      db, table_name.c_str(), module, desc.release(),
-      [](void* arg) { delete static_cast<TableDescriptor*>(arg); });
-  PERFETTO_CHECK(res == SQLITE_OK);
-
-  // Register virtual tables into an internal 'perfetto_tables' table. This is
-  // used for iterating through all the tables during a database export. Note
-  // that virtual tables requiring arguments aren't registered because they
-  // can't be automatically instantiated for exporting.
-  if (!requires_args) {
-    char* insert_sql = sqlite3_mprintf(
-        "INSERT INTO perfetto_tables(name) VALUES('%q')", table_name.c_str());
-    char* error = nullptr;
-    sqlite3_exec(db, insert_sql, 0, 0, &error);
-    sqlite3_free(insert_sql);
-    if (error) {
-      PERFETTO_ELOG("Error registering table: %s", error);
-      sqlite3_free(error);
-    }
-  }
-}
-
 int Table::OpenInternal(sqlite3_vtab_cursor** ppCursor) {
   // Freed in xClose().
-  *ppCursor = static_cast<sqlite3_vtab_cursor*>(new RawCursor(this));
+  *ppCursor = static_cast<sqlite3_vtab_cursor*>(CreateCursor().release());
   return SQLITE_OK;
 }
 
@@ -251,29 +122,27 @@ int Table::Update(int, sqlite3_value**, sqlite3_int64*) {
   return SQLITE_READONLY;
 }
 
-Table::RawCursor::RawCursor(Table* table) : table_(table) {}
-
-int Table::RawCursor::Filter(int idxNum,
-                             const char* idxStr,
-                             int argc,
-                             sqlite3_value** argv) {
-  auto* table = ToTable(this->pVtab);
+const QueryConstraints& Table::ParseConstraints(int idxNum,
+                                                const char* idxStr,
+                                                int argc) {
   bool cache_hit = true;
-  if (idxNum != table->qc_hash_) {
-    table->qc_cache_ = QueryConstraints::FromString(idxStr);
-    table->qc_hash_ = idxNum;
+  if (idxNum != qc_hash_) {
+    qc_cache_ = QueryConstraints::FromString(idxStr);
+    qc_hash_ = idxNum;
     cache_hit = false;
   }
   if (Table::debug) {
-    PERFETTO_LOG("[%s::Filter] constraints=%s argc=%d cache_hit=%d",
-                 table->name_.c_str(), idxStr, argc, cache_hit);
+    PERFETTO_LOG("[%s::ParseConstraints] constraints=%s argc=%d cache_hit=%d",
+                 name_.c_str(), idxStr, argc, cache_hit);
   }
-  PERFETTO_DCHECK(table->qc_cache_.constraints().size() ==
-                  static_cast<size_t>(argc));
-  cursor_ = table_->CreateCursor(table->qc_cache_, argv);
-  return !cursor_ ? SQLITE_ERROR : SQLITE_OK;
+  return qc_cache_;
 }
 
+Table::Cursor::Cursor(Table* table) : table_(table) {
+  // This is required to prevent us from leaving this field uninitialised if
+  // we ever move construct the Cursor.
+  pVtab = table;
+}
 Table::Cursor::~Cursor() = default;
 
 int Table::Cursor::RowId(sqlite3_int64*) {
