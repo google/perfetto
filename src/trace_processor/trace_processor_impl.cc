@@ -181,6 +181,15 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 }
 
+void CreateMetricsFunctions(TraceProcessorImpl* tp, sqlite3* db) {
+  auto ret = sqlite3_create_function_v2(db, "RUN_METRIC", -1, SQLITE_UTF8, tp,
+                                        metrics::RunMetric, nullptr, nullptr,
+                                        sqlite_utils::kSqliteStatic);
+  if (ret) {
+    PERFETTO_ELOG("Error initializing RUN_METRIC");
+  }
+}
+
 // Fuchsia traces have a magic number as documented here:
 // https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format/README.md#magic-number-record-trace-info-type-0
 constexpr uint64_t kFuchsiaMagicNumber = 0x0016547846040010;
@@ -211,6 +220,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) : cfg_(cfg) {
   InitializeSqlite(db);
   CreateBuiltinTables(db);
   CreateBuiltinViews(db);
+  CreateMetricsFunctions(this, db);
   db_.reset(std::move(db));
 
   context_.storage.reset(new TraceStorage());

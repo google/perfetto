@@ -25,6 +25,7 @@ genrule(
     name = "gen_merged_sql_metrics",
     srcs = [
         "src/trace_processor/metrics/android/android_mem.sql",
+        "src/trace_processor/metrics/android/android_mem_lmk.sql",
     ],
     cmd = "$(location gen_merged_sql_metrics_py) --cpp_out=$@ $SRCS",
     outs = [

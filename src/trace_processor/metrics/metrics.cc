@@ -26,6 +26,36 @@ namespace perfetto {
 namespace trace_processor {
 namespace metrics {
 
+void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  auto* tp = static_cast<TraceProcessor*>(sqlite3_user_data(ctx));
+  if (argc == 0 || sqlite3_value_type(argv[0]) != SQLITE_TEXT) {
+    sqlite3_result_error(ctx, "Invalid call to RUN_METRIC", -1);
+    return;
+  }
+
+  const char* filename =
+      reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+  const char* sql = sql_metrics::GetBundledMetric(filename);
+  if (!sql) {
+    sqlite3_result_error(ctx, "Unknown filename provided to RUN_METRIC", -1);
+    return;
+  }
+
+  for (const auto& query : base::SplitString(sql, ";\n\n")) {
+    PERFETTO_DLOG("Executing query in RUN_METRIC: %s", query.c_str());
+
+    auto it = tp->ExecuteQuery(query);
+    if (auto opt_error = it.GetLastError()) {
+      sqlite3_result_error(ctx, "Error when running RUN_METRIC file", -1);
+      return;
+    } else if (it.Next()) {
+      sqlite3_result_error(
+          ctx, "RUN_METRIC functions should not produce any output", -1);
+      return;
+    }
+  }
+}
+
 int ComputeMetrics(TraceProcessor* tp,
                    const std::vector<std::string>& metric_names,
                    std::vector<uint8_t>* metrics_proto) {
