@@ -141,7 +141,7 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
 }  // namespace
 
 Field ProtoDecoder::FindField(uint32_t field_id) {
-  Field res;
+  Field res{};
   auto old_position = read_ptr_;
   read_ptr_ = begin_;
   for (auto f = ReadField(); f.valid(); f = ReadField()) {
