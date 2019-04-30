@@ -232,5 +232,17 @@ TEST(ProtoDecoderTest, FixedData) {
   EXPECT_DOUBLE_EQ(decoder.Get(2).as_double(), -1000.25);
 }
 
+TEST(ProtoDecoderTest, FindField) {
+  uint8_t buf[] = {0x08, 0x00};  // field_id 1, varint value 0.
+  ProtoDecoder pd(buf, 2);
+
+  auto field = pd.FindField(1);
+  ASSERT_TRUE(field);
+  EXPECT_EQ(field.as_int64(), 0);
+
+  auto field2 = pd.FindField(2);
+  EXPECT_FALSE(field2);
+}
+
 }  // namespace
 }  // namespace protozero
