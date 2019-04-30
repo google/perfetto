@@ -314,7 +314,7 @@ class Target(object):
   def __init__(self, type, name, gn_name=None, **kwargs):
     assert type in ('cc_binary', 'cc_library', 'cc_proto_library',
                     'proto_library', 'filegroup', 'alias',
-                    'pbzero_cc_proto_library',)
+                    'pbzero_cc_proto_library', 'genrule', )
     self.type = type
     self.name = name
     self.srcs = set()
@@ -459,13 +459,21 @@ class BuildGenerator(object):
 
       self.apply_module_sources_to_target(target, dep_desc)
     elif dep_desc['type'] == 'action':
-      (proto_target, cc_target) = self.create_target(dep_name)
-      if target.type == 'proto_library':
-        dep_target_name = proto_target.name
+      args = dep_desc['args']
+      if "gen_merged_sql_metrics" in dep_name:
+        dep_target = self.create_merged_sql_metrics_target(dep_name)
+        target.deps.add(Label("//third_party/perfetto:" + dep_target.name))
+      elif args[0].endswith('/protoc'):
+        (proto_target, cc_target) = self.create_proto_target(dep_name)
+        if target.type == 'proto_library':
+          dep_target_name = proto_target.name
+        else:
+          dep_target_name = cc_target.name
+        target.deps.add(
+            Label("//third_party/perfetto/protos:" + dep_target_name))
       else:
-        dep_target_name = cc_target.name
-      target.deps.add(
-          Label("//third_party/perfetto/protos:" + dep_target_name))
+        raise Error('Unsupported action in target %s: %s' % (dep_target_name,
+                                                            args))
     elif dep_desc['type'] == 'static_library':
       dep_target = self.create_target(dep_name)
       target.deps.add(Label("//third_party/perfetto:" + dep_target.name))
@@ -480,13 +488,33 @@ class BuildGenerator(object):
       raise Error('Unknown target name %s with type: %s' %
                   (dep_name, dep_desc['type']))
 
+  def create_merged_sql_metrics_target(self, gn_target_name):
+    target_desc = self.desc[gn_target_name]
+    gn_target_name_no_toolchain = label_without_toolchain(gn_target_name)
+    target = Target(
+      'genrule',
+      'gen_merged_sql_metrics',
+      gn_name=gn_target_name_no_toolchain,
+      outs=set(
+        Label(src[src.index('gen/') + len('gen/'):])
+        for src in target_desc.get('outputs', [])
+      ),
+      cmd = '$(location gen_merged_sql_metrics_py) --cpp_out=$@ $SRCS',
+      tools=[
+        'gen_merged_sql_metrics_py',
+      ],
+    )
+    target.srcs.update(
+      Label(label_to_path(src))
+      for src in target_desc.get('inputs', [])
+      if src not in self.action_generated_files
+    )
+    self.build.add_target(target)
+    return target
 
-  def create_action_target(self, gn_target_name):
+  def create_proto_target(self, gn_target_name):
     target_desc = self.desc[gn_target_name]
     args = target_desc['args']
-    if not args[0].endswith('/protoc'):
-      raise Error('Unsupported action in target %s: %s' % (gn_target_name,
-                                                          target_desc['args']))
 
     is_pbzero = any("pbzero" in arg for arg in args)
     gn_target_name_no_toolchain = label_without_toolchain(gn_target_name)
@@ -496,14 +524,14 @@ class BuildGenerator(object):
     pretty_target_name = pretty_target_name.replace("_zero_gen", "_zero")
 
     proto_target = Target(
-        'proto_library',
-        pretty_target_name,
-        gn_name=gn_target_name_no_toolchain,
-        is_pbzero=is_pbzero
+      'proto_library',
+      pretty_target_name,
+      gn_name=gn_target_name_no_toolchain,
+      is_pbzero=is_pbzero
     )
     proto_target.srcs.update([
-        Label(label_to_path(src).replace('protos/', ''))
-        for src in target_desc.get('sources', [])
+      Label(label_to_path(src).replace('protos/', ''))
+      for src in target_desc.get('sources', [])
     ])
     if not is_pbzero:
       proto_target.visibility.add("//visibility:public")
@@ -563,7 +591,12 @@ class BuildGenerator(object):
 
     target_desc = self.desc[gn_target_name]
     if target_desc['type'] == 'action':
-      return self.create_action_target(gn_target_name)
+      args = target_desc['args']
+      if args[0].endswith('/protoc'):
+        return self.create_proto_target(gn_target_name)
+      else:
+        raise Error('Unsupported action in target %s: %s' % (gn_target_name,
+                                                            args))
     elif target_desc['type'] == 'executable':
       target_type = 'cc_binary'
     elif target_desc['type'] == 'static_library':

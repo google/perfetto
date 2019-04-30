@@ -21,7 +21,9 @@
 #include <functional>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/string_utils.h"
 #include "perfetto/base/time.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
 #include "src/trace_processor/args_tracker.h"
@@ -32,6 +34,7 @@
 #include "src/trace_processor/fuchsia_trace_parser.h"
 #include "src/trace_processor/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/instants_table.h"
+#include "src/trace_processor/metrics/sql_metrics.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
@@ -52,6 +55,9 @@
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/window_operator_table.h"
 
+#include "perfetto/metrics/android/mem_metric.pbzero.h"
+#include "perfetto/metrics/metrics.pbzero.h"
+
 // JSON parsing is only supported in the standalone build.
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 #include "src/trace_processor/json_trace_parser.h"
@@ -70,6 +76,12 @@ extern "C" int sqlite3_percentile_init(sqlite3* db,
 namespace perfetto {
 namespace trace_processor {
 namespace {
+
+std::string RemoveWhitespace(const std::string& input) {
+  std::string str(input);
+  str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
+  return str;
+}
 
 void InitializeSqlite(sqlite3* db) {
   char* error = nullptr;
@@ -169,16 +181,6 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 }
 
-bool IsPrefix(const std::string& a, const std::string& b) {
-  return a.size() <= b.size() && b.substr(0, a.size()) == a;
-}
-
-std::string RemoveWhitespace(const std::string& input) {
-  std::string str(input);
-  str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
-  return str;
-}
-
 // Fuchsia traces have a magic number as documented here:
 // https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format/README.md#magic-number-record-trace-info-type-0
 constexpr uint64_t kFuchsiaMagicNumber = 0x0016547846040010;
@@ -191,9 +193,9 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   std::string start(reinterpret_cast<const char*>(data),
                     std::min<size_t>(size, 20));
   std::string start_minus_white_space = RemoveWhitespace(start);
-  if (IsPrefix("{\"traceEvents\":[", start_minus_white_space))
+  if (base::StartsWith(start_minus_white_space, "{\"traceEvents\":["))
     return kJsonTraceType;
-  if (IsPrefix("[{", start_minus_white_space))
+  if (base::StartsWith(start_minus_white_space, "[{"))
     return kJsonTraceType;
   if (size >= 8) {
     uint64_t first_word = *reinterpret_cast<const uint64_t*>(data);
@@ -322,7 +324,53 @@ void TraceProcessorImpl::InterruptQuery() {
 int TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
-  perfetto::base::ignore_result(metric_names, metrics_proto);
+  // TODO(lalitm): stop hardcoding android.mem metric and read the proto
+  // descriptor for this logic instead.
+  if (metric_names.size() != 1 || metric_names[0] != "android.mem") {
+    PERFETTO_ELOG("Only android.mem metric is currently supported");
+    return 1;
+  }
+
+  auto queries = base::SplitString(metrics::kAndroidMem, ";\n\n");
+  for (const auto& query : queries) {
+    PERFETTO_DLOG("Executing query: %s", query.c_str());
+    auto prep_it = ExecuteQuery(query);
+    auto prep_has_next = prep_it.Next();
+    if (auto opt_error = prep_it.GetLastError()) {
+      PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+      return 1;
+    }
+    PERFETTO_DCHECK(!prep_has_next);
+  }
+
+  protozero::ScatteredHeapBuffer delegate;
+  protozero::ScatteredStreamWriter writer(&delegate);
+  delegate.set_writer(&writer);
+
+  protos::pbzero::TraceMetrics metrics;
+  metrics.Reset(&writer);
+
+  // TODO(lalitm): all the below is temporary hardcoded queries and proto
+  // filling to ensure that the code above works.
+  auto it = ExecuteQuery("SELECT COUNT(*) from lmk_by_score;");
+  auto has_next = it.Next();
+  if (auto opt_error = it.GetLastError()) {
+    PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+    return 1;
+  }
+  PERFETTO_CHECK(has_next);
+  PERFETTO_CHECK(it.Get(0).type == SqlValue::Type::kLong);
+
+  auto* memory = metrics.set_android_mem();
+  memory->set_system_metrics()->set_lmks()->set_total_count(
+      static_cast<int32_t>(it.Get(0).long_value));
+  metrics.Finalize();
+
+  *metrics_proto = delegate.StitchSlices();
+
+  has_next = it.Next();
+  PERFETTO_DCHECK(!has_next);
+
   return 0;
 }
 

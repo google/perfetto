@@ -17,6 +17,7 @@
 #include <aio.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -248,6 +249,7 @@ int RunMetrics(const std::vector<std::string>& metric_names) {
     PERFETTO_ELOG("Error when computing metrics");
     return 1;
   }
+  fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(), stdout);
   return 0;
 }
 

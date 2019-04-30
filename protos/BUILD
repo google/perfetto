@@ -170,6 +170,45 @@ pbzero_cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/metrics/android:zero_gen
+proto_library(
+    name = "metrics_android_zero",
+    srcs = [
+        "perfetto/metrics/android/mem_metric.proto",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics/android:zero_gen
+pbzero_cc_proto_library(
+    name = "metrics_android_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:metrics_android_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+        "//third_party/perfetto/google:gtest_prod",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics:zero_gen
+proto_library(
+    name = "metrics_zero",
+    srcs = [
+        "perfetto/metrics/metrics.proto",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:metrics_android_zero",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics:zero_gen
+pbzero_cc_proto_library(
+    name = "metrics_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:metrics_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+        "//third_party/perfetto/google:gtest_prod",
+    ],
+)
+
 # GN target: //protos/third_party/pprof:lite_gen
 proto_library(
     name = "protos_third_party_pprof",
