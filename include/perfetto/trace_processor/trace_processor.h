@@ -95,7 +95,8 @@ class TraceProcessor {
 
   // Executes a SQLite query on the loaded portion of the trace. The returned
   // iterator can be used to load rows from the result.
-  virtual Iterator ExecuteQuery(const std::string& sql) = 0;
+  virtual Iterator ExecuteQuery(const std::string& sql,
+                                int64_t time_queued = 0) = 0;
 
   // Computes the given metrics on the loded portion of the trace. If
   // successful, the output argument |metrics_proto| will be filled with the

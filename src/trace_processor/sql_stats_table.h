@@ -36,7 +36,8 @@ class SqlStatsTable : public Table {
     kQuery = 0,
     kTimeQueued = 1,
     kTimeStarted = 2,
-    kTimeEnded = 3,
+    kTimeFirstNext = 3,
+    kTimeEnded = 4,
   };
 
   // Implementation of the SQLite cursor interface.
