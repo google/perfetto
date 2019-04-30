@@ -57,6 +57,17 @@ struct FileToSql {
 };
 '''
 
+FIND_SQL_FN = '''
+inline const char* GetBundledMetric(const char* filename) {
+  for (const auto& filename_to_sql : sql_metrics::kFileToSql) {
+    if (strcmp(filename_to_sql.filename, filename) == 0) {
+      return filename_to_sql.sql;
+    }
+  }
+  return nullptr;
+}
+'''
+
 NAMESPACE_END = '''
 }  // namespace sql_metrics
 }  // namespace metrics
@@ -70,7 +81,7 @@ def filename_to_variable(filename):
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--cpp_out', required=True)
-  parser.add_argument('sql_files', action='append')
+  parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
 
   # Extract the SQL output from each file.
@@ -101,6 +112,7 @@ def main():
       output.write('\n  {{"{}", {}}},\n'.format(name, variable))
     output.write("};\n")
 
+    output.write(FIND_SQL_FN)
     output.write(NAMESPACE_END)
 
   return 0

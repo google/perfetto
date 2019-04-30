@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_METRICS_METRICS_H_
 #define SRC_TRACE_PROCESSOR_METRICS_METRICS_H_
 
+#include <sqlite3.h>
 #include <vector>
 
 #include "perfetto/trace_processor/trace_processor.h"
@@ -24,6 +25,9 @@
 namespace perfetto {
 namespace trace_processor {
 namespace metrics {
+
+// This function implements the RUN_METRIC SQL function.
+void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 
 int ComputeMetrics(TraceProcessor* impl,
                    const std::vector<std::string>& metric_names,

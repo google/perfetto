@@ -14,7 +14,10 @@
 
 import("../../../gn/perfetto.gni")
 
-sql_files = [ "android/android_mem.sql" ]
+sql_files = [
+  "android/android_mem.sql",
+  "android/android_mem_lmk.sql",
+]
 
 config("gen_config") {
   include_dirs = [ "${root_gen_dir}/${perfetto_root_path}" ]
@@ -41,6 +44,7 @@ source_set("lib") {
   ]
   deps = [
     ":gen_merged_sql_metrics",
+    "../../../buildtools:sqlite",
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/metrics:zero",
