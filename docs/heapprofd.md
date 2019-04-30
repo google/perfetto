@@ -152,6 +152,10 @@ accuracy in the resulting profile) by passing `--interval` to heap\_profile.
 Check whether your target process is eligible to be profiled by consulting
 [Target process](#Target_process) above.
 
+## Known Issues
+
+* Does not work on x86 platforms (including the Android cuttlefish emulator).
+
 ## Manual instructions
 *It is not recommended to use these instructions unless you have advanced
 requirements or are developing heapprofd. Proceed with caution*
