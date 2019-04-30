@@ -247,7 +247,7 @@ const char* Client::GetStackBase() {
 bool Client::RecordMalloc(uint64_t alloc_size,
                           uint64_t total_size,
                           uint64_t alloc_address) {
-  if (getpid() != pid_at_creation_) {
+  if (PERFETTO_UNLIKELY(getpid() != pid_at_creation_)) {
     PERFETTO_LOG("Detected post-fork child situation, stopping profiling.");
     return false;
   }
@@ -306,7 +306,7 @@ bool Client::RecordFree(const uint64_t alloc_address) {
 }
 
 bool Client::FlushFreesLocked() {
-  if (getpid() != pid_at_creation_) {
+  if (PERFETTO_UNLIKELY(getpid() != pid_at_creation_)) {
     PERFETTO_LOG("Detected post-fork child situation, stopping profiling.");
     return false;
   }
