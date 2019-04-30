@@ -33,3 +33,18 @@ action("gen_merged_sql_metrics") {
   ]
   public_configs = [ ":gen_config" ]
 }
+
+source_set("lib") {
+  sources = [
+    "metrics.cc",
+    "metrics.h",
+  ]
+  deps = [
+    ":gen_merged_sql_metrics",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/trace_processor",
+    "../../../protos/perfetto/metrics:zero",
+    "../../../protos/perfetto/metrics/android:zero",
+    "../../protozero:protozero",
+  ]
+}
