@@ -34,7 +34,7 @@
 #include "src/trace_processor/fuchsia_trace_parser.h"
 #include "src/trace_processor/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/instants_table.h"
-#include "src/trace_processor/metrics/sql_metrics.h"
+#include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
@@ -324,54 +324,7 @@ void TraceProcessorImpl::InterruptQuery() {
 int TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
-  // TODO(lalitm): stop hardcoding android.mem metric and read the proto
-  // descriptor for this logic instead.
-  if (metric_names.size() != 1 || metric_names[0] != "android.mem") {
-    PERFETTO_ELOG("Only android.mem metric is currently supported");
-    return 1;
-  }
-
-  auto queries = base::SplitString(metrics::kAndroidMem, ";\n\n");
-  for (const auto& query : queries) {
-    PERFETTO_DLOG("Executing query: %s", query.c_str());
-    auto prep_it = ExecuteQuery(query);
-    auto prep_has_next = prep_it.Next();
-    if (auto opt_error = prep_it.GetLastError()) {
-      PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
-      return 1;
-    }
-    PERFETTO_DCHECK(!prep_has_next);
-  }
-
-  protozero::ScatteredHeapBuffer delegate;
-  protozero::ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-
-  protos::pbzero::TraceMetrics metrics;
-  metrics.Reset(&writer);
-
-  // TODO(lalitm): all the below is temporary hardcoded queries and proto
-  // filling to ensure that the code above works.
-  auto it = ExecuteQuery("SELECT COUNT(*) from lmk_by_score;");
-  auto has_next = it.Next();
-  if (auto opt_error = it.GetLastError()) {
-    PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
-    return 1;
-  }
-  PERFETTO_CHECK(has_next);
-  PERFETTO_CHECK(it.Get(0).type == SqlValue::Type::kLong);
-
-  auto* memory = metrics.set_android_mem();
-  memory->set_system_metrics()->set_lmks()->set_total_count(
-      static_cast<int32_t>(it.Get(0).long_value));
-  metrics.Finalize();
-
-  *metrics_proto = delegate.StitchSlices();
-
-  has_next = it.Next();
-  PERFETTO_DCHECK(!has_next);
-
-  return 0;
+  return metrics::ComputeMetrics(this, metric_names, metrics_proto);
 }
 
 TraceProcessor::IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,

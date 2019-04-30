@@ -161,7 +161,7 @@ source_set("lib") {
     "../../protos/perfetto/trace/track_event:zero",
     "../base",
     "../protozero",
-    "metrics:gen_merged_sql_metrics",
+    "metrics:lib",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor",

@@ -31,11 +31,6 @@
 
 namespace perfetto {
 
-namespace protos {
-class RawQueryArgs;
-class RawQueryResult;
-}  // namespace protos
-
 namespace trace_processor {
 
 enum TraceType {
