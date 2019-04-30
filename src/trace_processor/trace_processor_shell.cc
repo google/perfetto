@@ -267,7 +267,7 @@ void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
         if (input[0] == 'q')
           break;
       } else {
-        t_end = base::GetWallTimeMs();
+        t_end = base::GetWallTimeNs();
       }
       for (uint32_t i = 0; i < it->ColumnCount(); i++)
         printf("%20s ", it->GetColumName(i).c_str());

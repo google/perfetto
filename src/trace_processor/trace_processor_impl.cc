@@ -297,7 +297,8 @@ void TraceProcessorImpl::NotifyEndOfFile() {
 }
 
 TraceProcessor::Iterator TraceProcessorImpl::ExecuteQuery(
-    const std::string& sql) {
+    const std::string& sql,
+    int64_t time_queued) {
   sqlite3_stmt* raw_stmt;
   int err = sqlite3_prepare_v2(*db_, sql.c_str(), static_cast<int>(sql.size()),
                                &raw_stmt, nullptr);
@@ -308,8 +309,14 @@ TraceProcessor::Iterator TraceProcessorImpl::ExecuteQuery(
   } else {
     col_count = static_cast<uint32_t>(sqlite3_column_count(raw_stmt));
   }
-  std::unique_ptr<IteratorImpl> impl(
-      new IteratorImpl(this, *db_, ScopedStmt(raw_stmt), col_count, error));
+
+  base::TimeNanos t_start = base::GetWallTimeNs();
+  uint32_t sql_stats_row =
+      context_.storage->mutable_sql_stats()->RecordQueryBegin(sql, time_queued,
+                                                              t_start.count());
+
+  std::unique_ptr<IteratorImpl> impl(new IteratorImpl(
+      this, *db_, ScopedStmt(raw_stmt), col_count, error, sql_stats_row));
   iterators_.emplace_back(impl.get());
   return TraceProcessor::Iterator(std::move(impl));
 }
@@ -378,12 +385,14 @@ TraceProcessor::IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,
                                            sqlite3* db,
                                            ScopedStmt stmt,
                                            uint32_t column_count,
-                                           base::Optional<std::string> error)
+                                           base::Optional<std::string> error,
+                                           uint32_t sql_stats_row)
     : trace_processor_(trace_processor),
       db_(db),
       stmt_(std::move(stmt)),
       column_count_(column_count),
-      error_(error) {}
+      error_(error),
+      sql_stats_row_(sql_stats_row) {}
 
 TraceProcessor::IteratorImpl::~IteratorImpl() {
   if (trace_processor_) {
@@ -391,11 +400,21 @@ TraceProcessor::IteratorImpl::~IteratorImpl() {
     auto it = std::find(its->begin(), its->end(), this);
     PERFETTO_CHECK(it != its->end());
     its->erase(it);
+
+    base::TimeNanos t_end = base::GetWallTimeNs();
+    auto* sql_stats = trace_processor_->context_.storage->mutable_sql_stats();
+    sql_stats->RecordQueryEnd(sql_stats_row_, t_end.count());
   }
 }
 
 void TraceProcessor::IteratorImpl::Reset() {
-  *this = IteratorImpl(nullptr, nullptr, ScopedStmt(), 0, base::nullopt);
+  *this = IteratorImpl(nullptr, nullptr, ScopedStmt(), 0, base::nullopt, 0);
+}
+
+void TraceProcessor::IteratorImpl::RecordFirstNextInSqlStats() {
+  base::TimeNanos t_first_next = base::GetWallTimeNs();
+  auto* sql_stats = trace_processor_->context_.storage->mutable_sql_stats();
+  sql_stats->RecordQueryFirstNext(sql_stats_row_, t_first_next.count());
 }
 
 }  // namespace trace_processor
