@@ -156,6 +156,42 @@ Check whether your target process is eligible to be profiled by consulting
 
 * Does not work on x86 platforms (including the Android cuttlefish emulator).
 
+## Ways to count memory
+
+When using heapprofd and interpreting results, it is important to know the
+precise meaning of the different memory metrics that can be obtained from the
+operating system.
+
+**heapprofd** gives you the number of bytes the target program
+requested from the allocator. If you are profiling a Java app from startup,
+allocations that happen early in the application's initialization will not be
+visibile to heapprofd. Native services that do not fork from the Zygote
+are not affected by this.
+
+**malloc\_info** is a libc function that gives you information about the
+allocator. This can be triggered on userdebug builds by using
+`am dumpheap -m <PID> /data/local/tmp/heap.txt`. This will in general be more
+than the memory seen by heapprofd, depending on the allocator not all memory
+is immediately freed. In particular, jemalloc retains some freed memory in
+thread caches.
+
+**Heap RSS** is the amount of memory requested from the operating system by the
+allocator. This is larger than the previous two numbers because memory can only
+be obtained in page size chunks, and fragmentation causes some of that memory to
+be wasted. This can be obtained by running `adb shell dumpsys meminfo <PID>` and
+looking at the "Private Dirty" column.
+
+|                     | heapprofd         | malloc\_info | RSS |
+|---------------------|-------------------|--------------|-----|
+| from native startup |          x        |      x       |  x  |
+| after zygote init   |          x        |      x       |  x  |
+| before zygote init  |                   |      x       |  x  |
+| thread caches       |                   |      x       |  x  |
+| fragmentation       |                   |              |  x  |
+
+If you observe high RSS or malloc\_info metrics but heapprofd does not match,
+there might be a problem with fragmentation or the allocator.
+
 ## Manual instructions
 *It is not recommended to use these instructions unless you have advanced
 requirements or are developing heapprofd. Proceed with caution*
