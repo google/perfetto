@@ -56,7 +56,7 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
   base::ScopedFile fd;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   bool is_memfd = false;
-  fd.reset(static_cast<int>(syscall(__NR_memfd_create, "heaprofd_ringbuf",
+  fd.reset(static_cast<int>(syscall(__NR_memfd_create, "heapprofd_ringbuf",
                                     MFD_CLOEXEC | MFD_ALLOW_SEALING)));
   is_memfd = !!fd;
 
