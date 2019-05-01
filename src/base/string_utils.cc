@@ -16,6 +16,8 @@
 
 #include "perfetto/base/string_utils.h"
 
+#include <algorithm>
+
 #include "perfetto/base/logging.h"
 
 namespace perfetto {
