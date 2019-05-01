@@ -150,7 +150,7 @@ accuracy in the resulting profile) by passing `--interval` to heap\_profile.
 
 ### Profile is empty
 Check whether your target process is eligible to be profiled by consulting
-[Target process](#Target_process) above.
+[Target processes](#target-processes) above.
 
 ## Known Issues
 
