@@ -27,10 +27,10 @@ genrule(
         "src/trace_processor/metrics/android/android_mem.sql",
         "src/trace_processor/metrics/android/android_mem_lmk.sql",
     ],
-    cmd = "$(location gen_merged_sql_metrics_py) --cpp_out=$@ $SRCS",
     outs = [
         "src/trace_processor/metrics/sql_metrics.h",
     ],
+    cmd = "$(location gen_merged_sql_metrics_py) --cpp_out=$@ $SRCS",
     tools = [
         "gen_merged_sql_metrics_py",
     ],
@@ -189,6 +189,7 @@ cc_library(
         "src/trace_processor/json_trace_utils.h",
         "src/trace_processor/metrics/metrics.cc",
         "src/trace_processor/metrics/metrics.h",
+        "src/trace_processor/metrics/sql_metrics.h",
         "src/trace_processor/null_term_string_view.h",
         "src/trace_processor/process_table.cc",
         "src/trace_processor/process_table.h",
@@ -437,6 +438,7 @@ cc_binary(
         "src/trace_processor/json_trace_utils.h",
         "src/trace_processor/metrics/metrics.cc",
         "src/trace_processor/metrics/metrics.h",
+        "src/trace_processor/metrics/sql_metrics.h",
         "src/trace_processor/null_term_string_view.h",
         "src/trace_processor/process_table.cc",
         "src/trace_processor/process_table.h",
@@ -641,6 +643,7 @@ cc_binary(
         "src/trace_processor/json_trace_utils.h",
         "src/trace_processor/metrics/metrics.cc",
         "src/trace_processor/metrics/metrics.h",
+        "src/trace_processor/metrics/sql_metrics.h",
         "src/trace_processor/null_term_string_view.h",
         "src/trace_processor/process_table.cc",
         "src/trace_processor/process_table.h",
@@ -779,6 +782,7 @@ gensignature(
 py_binary(
     name = "gen_merged_sql_metrics_py",
     srcs = [
-      "tools/gen_merged_sql_metrics"
+        "tools/gen_merged_sql_metrics.py"
     ]
+    main = "tools/gen_merged_sql_metrics.py"
 )

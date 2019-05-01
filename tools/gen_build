@@ -277,33 +277,6 @@ class Writer(object):
     else:
       self.line('{} = {},'.format(key, value), indent=1)
 
-  def rule(self, type, name, visibility=None, srcs=None, hdrs=None, deps=None, is_pbzero=False, **kwargs):
-    self.line('{}('.format(type))
-    self.variable('name', name)
-    if srcs:
-      self.variable('srcs', srcs)
-    if hdrs:
-      self.variable('hdrs', hdrs)
-
-    if type == 'proto_library' and not is_pbzero:
-      if srcs:
-        self.variable('has_services', 1)
-      self.variable('cc_api_version', 2)
-      if srcs:
-        self.variable('cc_generic_services', 1)
-
-    for key, value in kwargs.iteritems():
-      self.variable(key, value)
-
-    # Keep visibility and deps last.
-    if visibility:
-      self.variable('visibility', visibility)
-
-    if type != 'filegroup':
-      self.variable('deps', deps)
-
-    self.line(')')
-
   def header(self):
     self.output.write(header)
 
@@ -311,7 +284,7 @@ class Writer(object):
 class Target(object):
   """In-memory representation of a BUILD target."""
 
-  def __init__(self, type, name, gn_name=None, **kwargs):
+  def __init__(self, type, name, gn_name=None):
     assert type in ('cc_binary', 'cc_library', 'cc_proto_library',
                     'proto_library', 'filegroup', 'alias',
                     'pbzero_cc_proto_library', 'genrule', )
@@ -322,13 +295,41 @@ class Target(object):
     self.deps = set()
     self.visibility = set()
     self.gn_name = gn_name
-    self.args = kwargs
+    self.is_pbzero = False
+    self.src_proto_library = None
+    self.outs = set()
+    self.cmd = None
+    self.tools = set()
 
   def write(self, writer):
     if self.gn_name:
       writer.comment('GN target: {}'.format(self.gn_name))
-    writer.rule(self.type, self.name, visibility=self.visibility,
-                srcs=self.srcs, hdrs=self.hdrs, deps=self.deps, **self.args)
+
+    writer.line('{}('.format(self.type))
+    writer.variable('name', self.name)
+    writer.variable('srcs', self.srcs)
+    writer.variable('hdrs', self.hdrs)
+
+    if self.type == 'proto_library' and not self.is_pbzero:
+      if self.srcs:
+        writer.variable('has_services', 1)
+      writer.variable('cc_api_version', 2)
+      if self.srcs:
+        writer.variable('cc_generic_services', 1)
+
+    writer.variable('src_proto_library', self.src_proto_library)
+
+    writer.variable('outs', self.outs)
+    writer.variable('cmd', self.cmd)
+    writer.variable('tools', self.tools)
+
+    # Keep visibility and deps last.
+    writer.variable('visibility', self.visibility)
+
+    if type != 'filegroup':
+      writer.variable('deps', self.deps)
+
+    writer.line(')')
 
 
 class Build(object):
@@ -463,6 +464,9 @@ class BuildGenerator(object):
       if "gen_merged_sql_metrics" in dep_name:
         dep_target = self.create_merged_sql_metrics_target(dep_name)
         target.deps.add(Label("//third_party/perfetto:" + dep_target.name))
+
+        if target.type == 'cc_library' or target.type == 'cc_binary':
+          target.srcs.update(dep_target.outs)
       elif args[0].endswith('/protoc'):
         (proto_target, cc_target) = self.create_proto_target(dep_name)
         if target.type == 'proto_library':
@@ -495,15 +499,15 @@ class BuildGenerator(object):
       'genrule',
       'gen_merged_sql_metrics',
       gn_name=gn_target_name_no_toolchain,
-      outs=set(
-        Label(src[src.index('gen/') + len('gen/'):])
-        for src in target_desc.get('outputs', [])
-      ),
-      cmd = '$(location gen_merged_sql_metrics_py) --cpp_out=$@ $SRCS',
-      tools=[
-        'gen_merged_sql_metrics_py',
-      ],
     )
+    target.outs.update(
+      Label(src[src.index('gen/') + len('gen/'):])
+      for src in target_desc.get('outputs', [])
+    )
+    target.cmd = '$(location gen_merged_sql_metrics_py) --cpp_out=$@ $SRCS'
+    target.tools.update([
+      'gen_merged_sql_metrics_py',
+    ])
     target.srcs.update(
       Label(label_to_path(src))
       for src in target_desc.get('inputs', [])
@@ -516,7 +520,6 @@ class BuildGenerator(object):
     target_desc = self.desc[gn_target_name]
     args = target_desc['args']
 
-    is_pbzero = any("pbzero" in arg for arg in args)
     gn_target_name_no_toolchain = label_without_toolchain(gn_target_name)
     stripped_path = gn_target_name_no_toolchain.replace("protos/perfetto/", "")
     pretty_target_name = label_to_target_name_with_path(stripped_path)
@@ -526,21 +529,21 @@ class BuildGenerator(object):
     proto_target = Target(
       'proto_library',
       pretty_target_name,
-      gn_name=gn_target_name_no_toolchain,
-      is_pbzero=is_pbzero
+      gn_name=gn_target_name_no_toolchain
     )
+    proto_target.is_pbzero = any("pbzero" in arg for arg in args)
     proto_target.srcs.update([
       Label(label_to_path(src).replace('protos/', ''))
       for src in target_desc.get('sources', [])
     ])
-    if not is_pbzero:
+    if not proto_target.is_pbzero:
       proto_target.visibility.add("//visibility:public")
     self.proto_build.add_target(proto_target)
 
     for dep_name in self.resolve_dependencies(gn_target_name):
       self.apply_module_dependency(proto_target, dep_name)
 
-    if is_pbzero:
+    if proto_target.is_pbzero:
       # Remove all the protozero srcs from the proto_library.
       proto_target.srcs.difference_update(
           [src for src in proto_target.srcs if not src.label.endswith('.proto')])
@@ -548,21 +551,21 @@ class BuildGenerator(object):
       # Remove all the non-proto deps from the proto_library and add to the cc
       # library.
       cc_deps = [
-          dep for dep in proto_target.deps
-          if not dep.label.startswith('//third_party/perfetto/protos')
+        dep for dep in proto_target.deps
+        if not dep.label.startswith('//third_party/perfetto/protos')
       ]
       proto_target.deps.difference_update(cc_deps)
 
       cc_target_name = proto_target.name + "_cc_proto"
-      cc_target = Target('pbzero_cc_proto_library',
-                        cc_target_name, gn_name=gn_target_name_no_toolchain)
+      cc_target = Target('pbzero_cc_proto_library', cc_target_name,
+                         gn_name=gn_target_name_no_toolchain)
 
       cc_target.deps.add(Label('//third_party/perfetto:libprotozero'))
       cc_target.deps.update(cc_deps)
 
       # Add the proto_library to the cc_target.
-      cc_target.args['src_proto_library'] = "//third_party/perfetto/protos:" + \
-          proto_target.name
+      cc_target.src_proto_library = \
+          "//third_party/perfetto/protos:" + proto_target.name
 
       self.proto_build.add_target(cc_target)
     else:

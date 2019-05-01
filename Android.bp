@@ -20,12 +20,12 @@ genrule {
     "src/trace_processor/metrics/android/android_mem.sql",
     "src/trace_processor/metrics/android/android_mem_lmk.sql",
   ],
-  cmd: "$(location tools/gen_merged_sql_metrics) --cpp_out=$(out) $(in)",
+  cmd: "$(location tools/gen_merged_sql_metrics.py) --cpp_out=$(out) $(in)",
   out: [
     "src/trace_processor/metrics/sql_metrics.h",
   ],
   tool_files: [
-    "tools/gen_merged_sql_metrics",
+    "tools/gen_merged_sql_metrics.py",
   ],
 }
 
