@@ -32,7 +32,7 @@ package perfetto.protos;
 // The writer will emit new entries when it encounters new internable values
 // that aren't yet in the index. Data in current and subsequent TracePackets can
 // then refer to the entry by its position (interning ID, abbreviated "iid") in
-// its index.
+// its index. An interning ID with value 0 is considered invalid (not set).
 //
 // Because of the incremental build-up, the interning index will miss data when
 // TracePackets are lost, e.g. because a chunk was overridden in the central
