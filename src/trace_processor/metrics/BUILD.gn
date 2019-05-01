@@ -24,7 +24,7 @@ config("gen_config") {
 }
 
 action("gen_merged_sql_metrics") {
-  script = "../../../tools/gen_merged_sql_metrics"
+  script = "../../../tools/gen_merged_sql_metrics.py"
   generated_header = "${target_gen_dir}/sql_metrics.h"
   args = rebase_path(sql_files, root_build_dir) + [
            "--cpp_out",
