@@ -519,9 +519,13 @@ def create_merged_sql_metrics_target(blueprint, desc, gn_target_name):
         'gen_merged_sql_metrics',
     )
     module.tool_files = [
-        'tools/gen_merged_sql_metrics',
+        'tools/gen_merged_sql_metrics.py',
     ]
-    module.cmd = '$(location tools/gen_merged_sql_metrics) --cpp_out=$(out) $(in)'
+    module.cmd = ' '.join([
+        '$(location tools/gen_merged_sql_metrics.py)',
+        '--cpp_out=$(out)',
+        '$(in)',
+    ])
     module.out = set(
         src[src.index('gen/') + len('gen/'):]
         for src in target_desc.get('outputs', [])
