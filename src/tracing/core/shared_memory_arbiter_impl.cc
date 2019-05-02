@@ -301,6 +301,19 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
 void SharedMemoryArbiterImpl::BindStartupTraceWriterRegistry(
     std::unique_ptr<StartupTraceWriterRegistry> registry,
     BufferID target_buffer) {
+  if (!task_runner_->RunsTasksOnCurrentThread()) {
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+    auto* raw_reg = registry.release();
+    task_runner_->PostTask([weak_this, raw_reg, target_buffer]() {
+      std::unique_ptr<StartupTraceWriterRegistry> owned_reg(raw_reg);
+      if (!weak_this)
+        return;
+      weak_this->BindStartupTraceWriterRegistry(std::move(owned_reg),
+                                                target_buffer);
+    });
+    return;
+  }
+
   // The registry will be owned by the arbiter, so it's safe to capture |this|
   // in the callback.
   auto on_bound_callback = [this](StartupTraceWriterRegistry* bound_registry) {
