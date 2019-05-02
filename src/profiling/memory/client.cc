@@ -36,6 +36,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/thread_utils.h"
+#include "perfetto/base/time.h"
 #include "perfetto/base/unix_socket.h"
 #include "perfetto/base/utils.h"
 #include "src/profiling/memory/sampler.h"
@@ -272,6 +273,14 @@ bool Client::RecordMalloc(uint64_t alloc_size,
   metadata.sequence_number =
       1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel);
 
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC_COARSE, &ts) == 0) {
+    metadata.clock_monotonic_coarse_timestamp =
+        static_cast<uint64_t>(base::FromPosixTimespec(ts).count());
+  } else {
+    metadata.clock_monotonic_coarse_timestamp = 0;
+  }
+
   WireMessage msg{};
   msg.record_type = RecordType::Malloc;
   msg.alloc_header = &metadata;
@@ -314,6 +323,14 @@ bool Client::FlushFreesLocked() {
   WireMessage msg = {};
   msg.record_type = RecordType::Free;
   msg.free_header = &free_batch_;
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC_COARSE, &ts) == 0) {
+    free_batch_.clock_monotonic_coarse_timestamp =
+        static_cast<uint64_t>(base::FromPosixTimespec(ts).count());
+  } else {
+    free_batch_.clock_monotonic_coarse_timestamp = 0;
+  }
+
   if (!SendWireMessage(&shmem_, msg)) {
     PERFETTO_PLOG("Failed to write to shared ring buffer (FlushFreesLocked).");
     return false;
