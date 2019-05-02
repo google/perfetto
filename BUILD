@@ -772,16 +772,14 @@ cc_binary(
 )
 
 gensignature(
-    name = "trace_processor_shell_sig",
+    name = "trace_processor_sig",
     srcs = [
         ":trace_processor_shell",
-    ],
-)
-
-gensignature(
-    name = "trace_to_text_sig",
-    srcs = [
         ":trace_to_text",
+    ],
+    tags = [
+        "__TRACE_PROCESSOR_SIG_TAG1",
+        "__TRACE_PROCESSOR_SIG_TAG2",
     ],
 )
 
