@@ -22,6 +22,7 @@
 #include <google/protobuf/text_format.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/scoped_file.h"
 #include "tools/trace_to_text/proto_full_utils.h"
 #include "tools/trace_to_text/utils.h"
 
@@ -64,6 +65,16 @@ constexpr char kPacketSuffix[] = "}\n";
 }  // namespace
 
 int TraceToText(std::istream* input, std::ostream* output) {
+  const std::string proto_path = "protos/perfetto/trace/trace_packet.proto";
+
+  if (!base::OpenFile(proto_path, O_RDONLY)) {
+    PERFETTO_ELOG("Cannot open %s.", proto_path.c_str());
+    PERFETTO_ELOG(
+        "Text mode only works from the perfetto directory. Googlers, see "
+        "b/131425913");
+    return 1;
+  }
+
   DiskSourceTree dst;
   dst.MapPath("perfetto", "protos/perfetto");
   MultiFileErrorCollectorImpl mfe;
