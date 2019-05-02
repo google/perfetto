@@ -47,7 +47,8 @@ GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
 void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
                                uint64_t address,
                                uint64_t size,
-                               uint64_t sequence_number) {
+                               uint64_t sequence_number,
+                               uint64_t timestamp) {
   auto it = allocations_.find(address);
   if (it != allocations_.end()) {
     Allocation& alloc = it->second;
@@ -80,16 +81,17 @@ void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
                                     MaybeCreateCallstackAllocations(node)));
   }
 
-  RecordOperation(sequence_number, address);
+  RecordOperation(sequence_number, {address, timestamp});
 }
 
-void HeapTracker::RecordOperation(uint64_t sequence_number, uint64_t address) {
+void HeapTracker::RecordOperation(uint64_t sequence_number,
+                                  const PendingOperation& operation) {
   if (sequence_number != committed_sequence_number_ + 1) {
-    pending_operations_.emplace(sequence_number, address);
+    pending_operations_.emplace(sequence_number, operation);
     return;
   }
 
-  CommitOperation(sequence_number, address);
+  CommitOperation(sequence_number, operation);
 
   // At this point some other pending operations might be eligible to be
   // committed.
@@ -101,8 +103,12 @@ void HeapTracker::RecordOperation(uint64_t sequence_number, uint64_t address) {
   }
 }
 
-void HeapTracker::CommitOperation(uint64_t sequence_number, uint64_t address) {
+void HeapTracker::CommitOperation(uint64_t sequence_number,
+                                  const PendingOperation& operation) {
   committed_sequence_number_++;
+  committed_timestamp_ = operation.timestamp;
+
+  uint64_t address = operation.allocation_address;
 
   // We will see many frees for addresses we do not know about.
   auto leaf_it = allocations_.find(address);
@@ -147,12 +153,14 @@ void HeapTracker::Dump(
   ProfilePacket::ProcessHeapSamples* proto =
       dump_state->current_profile_packet->add_process_dumps();
   fill_process_header(proto);
+  proto->set_timestamp(committed_timestamp_);
   for (auto it = callstack_allocations_.begin();
        it != callstack_allocations_.end(); ++it) {
     if (dump_state->currently_written() > kPacketSizeThreshold) {
       dump_state->NewProfilePacket();
       proto = dump_state->current_profile_packet->add_process_dumps();
       fill_process_header(proto);
+      proto->set_timestamp(committed_timestamp_);
     }
 
     const CallstackAllocations& alloc = it->second;
