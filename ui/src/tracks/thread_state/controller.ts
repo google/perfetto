@@ -21,6 +21,7 @@ import {
 import {
   Config,
   Data,
+  groupBusyStates,
   THREAD_STATE_TRACK_KIND,
 } from './common';
 
@@ -40,17 +41,23 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
+    let minNs = 0;
+    if (groupBusyStates(resolution)) {
+      // Ns for 20px (the smallest state to display)
+      minNs = Math.round(resolution * 20 * 1e9);
+    }
+
 
     if (this.setup === false) {
       await this.query(`create view ${this.tableName('sched_wakeup')} AS
-        select
-          ts,
-          lead(ts, 1, (select end_ts from trace_bounds))
-            OVER(order by ts) - ts as dur,
-          ref as utid
-        from instants
-        where name = 'sched_wakeup'
-        and utid = ${this.config.utid}`);
+      select
+        ts,
+        lead(ts, 1, (select end_ts from trace_bounds))
+          OVER(order by ts) - ts as dur,
+        ref as utid
+      from instants
+      where name = 'sched_wakeup'
+      and utid = ${this.config.utid}`);
 
       await this.query(
           `create virtual table ${this.tableName('window')} using window;`);
@@ -60,14 +67,11 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       await this.query(`create view ${this.tableName('start')} as
       select min(ts) as ts from
         (select ts from ${this.tableName('sched_wakeup')} UNION
-         select ts from sched where utid = ${this.config.utid})`);
+        select ts from sched where utid = ${this.config.utid})`);
 
       // Create an entry from first ts to either the first sched_wakeup
       // or to the end if there are no sched wakeups. This means
       // we will show all information we have even with no sched_wakeup events.
-      // TODO(taylori): Once span outer join exists I should simplify this
-      // by outer joining sched_wakeup and sched and then left joining with
-      // window.
       await this.query(`create view ${this.tableName('fill')} AS
         select
         (select ts from ${this.tableName('start')}),
@@ -103,23 +107,56 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
         where utid = ${this.config.utid}
         window ${this.tableName('ordered')} as (order by ts)`);
 
+      await this.query(`create view ${this.tableName('long_states')} as
+      select * from ${this.tableName('span_view')} where dur >= ${minNs}`);
+
+      // Create a slice from the first ts to the end of the trace. To
+      // be span joined with the long states - This effectively combines all
+      // of the short states into a single 'Busy' state.
+      await this.query(`create view ${this.tableName('fill_gaps')} as select
+      (select min(ts) from ${this.tableName('span_view')}) as ts,
+      (select end_ts from trace_bounds) -
+      (select min(ts) from ${this.tableName('span_view')}) as dur,
+      ${this.config.utid} as utid`);
+
+      await this.query(`create virtual table ${this.tableName('summarized')}
+      using span_left_join(${this.tableName('fill_gaps')} partitioned utid,
+      ${this.tableName('long_states')} partitioned utid)`);
+
       await this.query(`create virtual table ${this.tableName('current')}
-        using span_join(
-          ${this.tableName('window')},
-          ${this.tableName('span_view')} partitioned utid)`);
+      using span_join(
+        ${this.tableName('window')},
+        ${this.tableName('summarized')} partitioned utid)`);
+
 
       this.setup = true;
     }
 
-    const windowDur = Math.max(1, endNs - startNs);
+    const windowDurNs = Math.max(1, endNs - startNs);
 
     this.query(`update ${this.tableName('window')} set
-      window_start = ${startNs},
-      window_dur = ${windowDur},
-      quantum = 0`);
+     window_start=${startNs},
+     window_dur=${windowDurNs},
+     quantum=0`);
+
+    this.query(`drop view if exists ${this.tableName('long_states')}`);
+    this.query(`drop view if exists ${this.tableName('fill_gaps')}`);
+
+    await this.query(`create view ${this.tableName('long_states')} as
+     select * from ${this.tableName('span_view')} where dur > ${minNs}`);
+
+    await this.query(`create view ${this.tableName('fill_gaps')} as select
+     (select min(ts) from ${this.tableName('span_view')}) as ts,
+     (select end_ts from trace_bounds) - (select min(ts) from ${
+                                                                this.tableName(
+                                                                    'span_view')
+                                                              }) as dur,
+     ${this.config.utid} as utid`);
 
     const query = `select ts, cast(dur as double), utid,
-      state from ${this.tableName('current')}`;
+    case when state is not null then state else 'Busy' end as state
+    from ${this.tableName('current')}`;
+
 
     const result = await this.query(query);
 
@@ -171,10 +208,13 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       this.query(`drop table ${this.tableName('window')}`);
       this.query(`drop table ${this.tableName('span')}`);
       this.query(`drop table ${this.tableName('current')}`);
+      this.query(`drop table ${this.tableName('summarized')}`);
       this.query(`drop view ${this.tableName('sched_wakeup')}`);
       this.query(`drop view ${this.tableName('fill')}`);
       this.query(`drop view ${this.tableName('full_sched_wakeup')}`);
       this.query(`drop view ${this.tableName('span_view')}`);
+      this.query(`drop view ${this.tableName('long_states')}`);
+      this.query(`drop view ${this.tableName('fill_gaps')}`);
       this.setup = false;
     }
   }
