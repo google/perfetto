@@ -26,6 +26,7 @@ import {trackRegistry} from '../../frontend/track_registry';
 import {
   Config,
   Data,
+  groupBusyStates,
   THREAD_STATE_TRACK_KIND,
 } from './common';
 
@@ -76,7 +77,10 @@ class ThreadStateTrack extends Track<Config, Data> {
         const rectEnd = timeScale.timeToPx(tEnd);
         const color = colorForState(state);
         ctx.fillStyle = `hsl(${color.h},${color.s}%,${color.l}%)`;
-        const rectWidth = rectEnd - rectStart;
+        let rectWidth = rectEnd - rectStart;
+        if (groupBusyStates(data.resolution) && rectWidth < 1) {
+          rectWidth = 1;
+        }
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
         // Don't render text when we have less than 5px to play with.
