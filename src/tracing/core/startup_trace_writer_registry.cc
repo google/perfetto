@@ -81,6 +81,10 @@ void StartupTraceWriterRegistry::BindToArbiter(
     arbiter_ = arbiter;
     target_buffer_ = target_buffer;
     task_runner_ = task_runner;
+    // Weakptrs should be valid on |task_runner|. For this, the factory needs to
+    // be created on |task_runner|, i.e. BindToArbiter must be called on
+    // |task_runner|.
+    PERFETTO_DCHECK(task_runner_->RunsTasksOnCurrentThread());
     weak_ptr_factory_.reset(
         new base::WeakPtrFactory<StartupTraceWriterRegistry>(this));
     on_bound_callback_ = std::move(on_bound_callback);
