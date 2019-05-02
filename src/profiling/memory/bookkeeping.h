@@ -208,6 +208,13 @@ struct DumpState {
     current_trace_packet = trace_writer->NewTracePacket();
     current_profile_packet = current_trace_packet->set_profile_packet();
     current_profile_packet->set_index((*next_index)++);
+
+    // Explicitly reserve intern ID 0 for the empty string, so unset string
+    // fields get mapped to this.
+    auto interned_string = current_profile_packet->add_strings();
+    constexpr const uint8_t kEmptyString[] = "";
+    interned_string->set_id(0);
+    interned_string->set_str(kEmptyString, 0);
   }
 
   void WriteMap(const Interned<Mapping> map);
