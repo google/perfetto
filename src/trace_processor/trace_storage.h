@@ -585,6 +585,133 @@ class TraceStorage {
   };
   using StatsMap = std::array<Stats, stats::kNumKeys>;
 
+  class HeapProfileFrames {
+   public:
+    int64_t FindOrInsert(StringId name_id,
+                         int64_t mapping_row,
+                         int64_t rel_pc) {
+      // TODO(fmayer): More efficiently search for existing entries.
+      for (size_t i = 0; i < names_.size(); ++i) {
+        if (name_id == names_[i] && mapping_row == mappings_[i] &&
+            rel_pc == rel_pcs_[i]) {
+          return static_cast<int64_t>(i);
+        }
+      }
+
+      names_.emplace_back(name_id);
+      mappings_.emplace_back(mapping_row);
+      rel_pcs_.emplace_back(rel_pc);
+      return static_cast<int64_t>(names_.size()) - 1;
+    }
+
+    const std::deque<StringId>& names() const { return names_; }
+    const std::deque<int64_t>& mappings() const { return mappings_; }
+    const std::deque<int64_t>& rel_pcs() const { return rel_pcs_; }
+
+   private:
+    std::deque<StringId> names_;
+    std::deque<int64_t> mappings_;
+    std::deque<int64_t> rel_pcs_;
+  };
+
+  class HeapProfileCallsites {
+   public:
+    int64_t FindOrInsert(int64_t depth, int64_t parent_id, int64_t frame_row) {
+      // TODO(fmayer): More efficiently search for existing entries.
+      for (size_t i = 0; i < frame_depths_.size(); ++i) {
+        if (depth == frame_depths_[i] && parent_id == parent_callsite_ids_[i] &&
+            frame_row == frame_ids_[i]) {
+          return static_cast<int64_t>(i);
+        }
+      }
+      frame_depths_.emplace_back(depth);
+      parent_callsite_ids_.emplace_back(parent_id);
+      frame_ids_.emplace_back(frame_row);
+      return static_cast<int64_t>(frame_depths_.size()) - 1;
+    }
+
+    const std::deque<int64_t>& frame_depths() const { return frame_depths_; }
+    const std::deque<int64_t>& parent_callsite_ids() const {
+      return parent_callsite_ids_;
+    }
+    const std::deque<int64_t>& frame_ids() const { return frame_ids_; }
+
+   private:
+    std::deque<int64_t> frame_depths_;
+    std::deque<int64_t> parent_callsite_ids_;
+    std::deque<int64_t> frame_ids_;
+  };
+
+  class HeapProfileMappings {
+   public:
+    int64_t FindOrInsert(StringId build_id,
+                         int64_t offset,
+                         int64_t start,
+                         int64_t end,
+                         int64_t load_bias,
+                         StringId name_id) {
+      // TODO(fmayer): More efficiently search for existing entries.
+      for (size_t i = 0; i < build_ids_.size(); ++i) {
+        if (build_id == build_ids_[i] && offset == offsets_[i] &&
+            start == starts_[i] && end == ends_[i] &&
+            load_bias == load_biases_[i] && name_id == names_[i]) {
+          return static_cast<int64_t>(i);
+        }
+      }
+
+      build_ids_.emplace_back(build_id);
+      offsets_.emplace_back(offset);
+      starts_.emplace_back(start);
+      ends_.emplace_back(end);
+      load_biases_.emplace_back(load_bias);
+      names_.emplace_back(name_id);
+      return static_cast<int64_t>(build_ids_.size()) - 1;
+    }
+
+    const std::deque<StringId>& build_ids() const { return build_ids_; }
+    const std::deque<int64_t>& offsets() const { return offsets_; }
+    const std::deque<int64_t>& starts() const { return starts_; }
+    const std::deque<int64_t>& ends() const { return ends_; }
+    const std::deque<int64_t>& load_biases() const { return load_biases_; }
+    const std::deque<StringId>& names() const { return names_; }
+
+   private:
+    std::deque<StringId> build_ids_;
+    std::deque<int64_t> offsets_;
+    std::deque<int64_t> starts_;
+    std::deque<int64_t> ends_;
+    std::deque<int64_t> load_biases_;
+    std::deque<StringId> names_;
+  };
+
+  class HeapProfileAllocations {
+   public:
+    void Insert(int64_t timestamp,
+                int64_t pid,
+                int64_t callsite_id,
+                int64_t count,
+                int64_t size) {
+      timestamps_.emplace_back(timestamp);
+      pids_.emplace_back(pid);
+      callsite_ids_.emplace_back(callsite_id);
+      counts_.emplace_back(count);
+      sizes_.emplace_back(size);
+    }
+
+    const std::deque<int64_t>& timestamps() const { return timestamps_; }
+    const std::deque<int64_t>& pids() const { return pids_; }
+    const std::deque<int64_t>& callsite_ids() const { return callsite_ids_; }
+    const std::deque<int64_t>& counts() const { return counts_; }
+    const std::deque<int64_t>& sizes() const { return sizes_; }
+
+   private:
+    std::deque<int64_t> timestamps_;
+    std::deque<int64_t> pids_;
+    std::deque<int64_t> callsite_ids_;
+    std::deque<int64_t> counts_;
+    std::deque<int64_t> sizes_;
+  };
+
   void ResetStorage();
 
   UniqueTid AddEmptyThread(uint32_t tid) {
@@ -626,6 +753,13 @@ class TraceStorage {
     PERFETTO_DCHECK(key < stats::kNumKeys);
     PERFETTO_DCHECK(stats::kTypes[key] == stats::kSingle);
     stats_[key].value += increment;
+  }
+
+  // Example usage: IncrementIndexedStats(stats::cpu_failure, 1);
+  void IncrementIndexedStats(size_t key, int index, int64_t increment = 1) {
+    PERFETTO_DCHECK(key < stats::kNumKeys);
+    PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
+    stats_[key].indexed_values[index] += increment;
   }
 
   // Example usage: SetIndexedStats(stats::cpu_failure, 1, 42);
@@ -694,6 +828,34 @@ class TraceStorage {
 
   const RawEvents& raw_events() const { return raw_events_; }
   RawEvents* mutable_raw_events() { return &raw_events_; }
+
+  const HeapProfileMappings& heap_profile_mappings() const {
+    return heap_profile_mappings_;
+  }
+  HeapProfileMappings* mutable_heap_profile_mappings() {
+    return &heap_profile_mappings_;
+  }
+
+  const HeapProfileFrames& heap_profile_frames() const {
+    return heap_profile_frames_;
+  }
+  HeapProfileFrames* mutable_heap_profile_frames() {
+    return &heap_profile_frames_;
+  }
+
+  const HeapProfileCallsites& heap_profile_callsites() const {
+    return heap_profile_callsites_;
+  }
+  HeapProfileCallsites* mutable_heap_profile_callsites() {
+    return &heap_profile_callsites_;
+  }
+
+  const HeapProfileAllocations& heap_profile_allocations() const {
+    return heap_profile_allocations_;
+  }
+  HeapProfileAllocations* mutable_heap_profile_allocations() {
+    return &heap_profile_allocations_;
+  }
 
   const StringPool& string_pool() const { return string_pool_; }
 
@@ -766,6 +928,11 @@ class TraceStorage {
   // trace.
   RawEvents raw_events_;
   AndroidLogs android_log_;
+
+  HeapProfileMappings heap_profile_mappings_;
+  HeapProfileFrames heap_profile_frames_;
+  HeapProfileCallsites heap_profile_callsites_;
+  HeapProfileAllocations heap_profile_allocations_;
 };
 
 }  // namespace trace_processor
