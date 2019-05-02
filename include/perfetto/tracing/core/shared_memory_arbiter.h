@@ -58,12 +58,12 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   //
   // All StartupTraceWriters created by the registry are bound to the arbiter
   // and the given target buffer. The writers may not be bound immediately if
-  // they are concurrently being written to. The registry will retry on the
-  // arbiter's TaskRunner until all writers were bound successfully.
+  // they are concurrently being written to or if this method isn't called on
+  // the arbiter's TaskRunner. The registry will retry on the arbiter's
+  // TaskRunner until all writers were bound successfully.
   //
-  // Should only be called on the passed TaskRunner's sequence. By calling this
-  // method, the registry's ownership is transferred to the arbiter. The arbiter
-  // will delete the registry once all writers were bound.
+  // By calling this method, the registry's ownership is transferred to the
+  // arbiter. The arbiter will delete the registry once all writers were bound.
   //
   // TODO(eseckler): Make target buffer assignment more flexible (i.e. per
   // writer). For now, embedders can use multiple registries instead.
