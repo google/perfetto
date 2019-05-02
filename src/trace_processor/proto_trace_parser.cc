@@ -31,6 +31,7 @@
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/ftrace_descriptors.h"
+#include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
@@ -1273,14 +1274,90 @@ void ProtoTraceParser::ParseFtraceStats(ConstBytes blob) {
 }
 
 void ProtoTraceParser::ParseProfilePacket(ConstBytes blob) {
+  uint64_t index = 0;
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
+
   for (auto it = packet.strings(); it; ++it) {
     protos::pbzero::ProfilePacket::InternedString::Decoder entry(it->data(),
                                                                  it->size());
 
     const char* str = reinterpret_cast<const char*>(entry.str().data);
-    context_->storage->InternString(base::StringView(str, entry.str().size));
+    auto str_id = context_->storage->InternString(
+        base::StringView(str, entry.str().size));
+    context_->heap_profile_tracker->AddString(index, entry.id(), str_id);
   }
+
+  for (auto it = packet.mappings(); it; ++it) {
+    protos::pbzero::ProfilePacket::Mapping::Decoder entry(it->data(),
+                                                          it->size());
+    HeapProfileTracker::SourceMapping src_mapping;
+    src_mapping.build_id = entry.build_id();
+    src_mapping.offset = entry.offset();
+    src_mapping.start = entry.start();
+    src_mapping.end = entry.end();
+    src_mapping.load_bias = entry.load_bias();
+    src_mapping.name_id = 0;
+    for (auto path_string_id_it = entry.path_string_ids(); path_string_id_it;
+         ++path_string_id_it)
+      src_mapping.name_id = path_string_id_it->as_uint64();
+    context_->heap_profile_tracker->AddMapping(index, entry.id(), src_mapping);
+  }
+
+  for (auto it = packet.frames(); it; ++it) {
+    protos::pbzero::ProfilePacket::Frame::Decoder entry(it->data(), it->size());
+    HeapProfileTracker::SourceFrame src_frame;
+    src_frame.name_id = entry.function_name_id();
+    src_frame.mapping_id = entry.mapping_id();
+    src_frame.rel_pc = entry.rel_pc();
+
+    context_->heap_profile_tracker->AddFrame(index, entry.id(), src_frame);
+  }
+
+  for (auto it = packet.callstacks(); it; ++it) {
+    protos::pbzero::ProfilePacket::Callstack::Decoder entry(it->data(),
+                                                            it->size());
+    HeapProfileTracker::SourceCallstack src_callstack;
+    for (auto frame_it = entry.frame_ids(); frame_it; ++frame_it)
+      src_callstack.emplace_back(frame_it->as_uint64());
+
+    context_->heap_profile_tracker->AddCallstack(index, entry.id(),
+                                                 src_callstack);
+  }
+
+  for (auto it = packet.process_dumps(); it; ++it) {
+    protos::pbzero::ProfilePacket::ProcessHeapSamples::Decoder entry(
+        it->data(), it->size());
+
+    int pid = static_cast<int>(entry.pid());
+
+    if (entry.buffer_corrupted())
+      context_->storage->IncrementIndexedStats(
+          stats::heapprofd_buffer_corrupted, pid);
+    if (entry.buffer_overran())
+      context_->storage->IncrementIndexedStats(stats::heapprofd_buffer_overran,
+                                               pid);
+    if (entry.rejected_concurrent())
+      context_->storage->IncrementIndexedStats(
+          stats::heapprofd_rejected_concurrent, pid);
+
+    for (auto sample_it = entry.samples(); sample_it; ++sample_it) {
+      protos::pbzero::ProfilePacket::HeapSample::Decoder sample(
+          sample_it->data(), sample_it->size());
+
+      HeapProfileTracker::SourceAllocation src_allocation;
+      src_allocation.pid = entry.pid();
+      src_allocation.timestamp = sample.timestamp();
+      src_allocation.callstack_id = sample.callstack_id();
+      src_allocation.self_allocated = sample.self_allocated();
+      src_allocation.self_freed = sample.self_freed();
+      src_allocation.alloc_count = sample.alloc_count();
+      src_allocation.free_count = sample.free_count();
+
+      context_->heap_profile_tracker->StoreAllocation(index, src_allocation);
+    }
+  }
+  if (!packet.continued())
+    index++;
 }
 
 void ProtoTraceParser::ParseSystemInfo(ConstBytes blob) {
