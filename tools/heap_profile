@@ -139,6 +139,9 @@ def main(argv):
                       "heapprofd. Default 8MiB. Needs to be a power of two "
                       "multiple of 4096, at least 8192.", type=int,
                       default=8 * 1048576)
+  parser.add_argument("--simpleperf", action="store_true",
+                      help="Get simpleperf profile of heapprofd. This is "
+                      "only for heapprofd development.")
 
   args = parser.parse_args()
 
@@ -210,6 +213,15 @@ def main(argv):
           ['adb', 'shell', 'setprop persist.heapprofd.enable 0'])
 
   user = subprocess.check_output(['adb', 'shell', 'whoami']).strip()
+
+  if args.simpleperf:
+    subprocess.check_call(
+        ['adb', 'shell',
+         'mkdir -p /data/local/tmp/heapprofd_profile && '
+         'cd /data/local/tmp/heapprofd_profile &&'
+         '(nohup simpleperf record -g -p $(pgrep heapprofd) 2>&1 &) '
+         '> /dev/null'])
+
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out', PERFETTO_CMD.format(cfg=cfg, user=user)]).strip()
   try:
@@ -234,6 +246,16 @@ def main(argv):
   if IS_INTERRUPTED:
     # Not check_call because it could have existed in the meantime.
     subprocess.call(['adb', 'shell', 'kill', '-INT', perfetto_pid])
+  if args.simpleperf:
+    subprocess.check_call(['adb', 'shell', 'killall', '-INT', 'simpleperf'])
+    print("Waiting for simpleperf to exit.")
+    while subprocess.call(
+        ['adb', 'shell', '[ -f /proc/$(pgrep simpleperf)/exe ]'],
+        **NOOUT) == 0:
+      time.sleep(1)
+    subprocess.check_call(['adb', 'pull', '/data/local/tmp/heapprofd_profile',
+                           '/tmp'])
+    print("Pulled simpleperf profile to /tmp/heapprofd_profile")
 
   # Wait for perfetto cmd to return.
   while exists:
