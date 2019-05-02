@@ -43,11 +43,12 @@ class SliceTracker {
                      StringId cat,
                      StringId name);
 
-  void Scoped(int64_t timestamp,
-              UniqueTid utid,
-              StringId cat,
-              StringId name,
-              int64_t duration);
+  // virtual for testing
+  virtual void Scoped(int64_t timestamp,
+                      UniqueTid utid,
+                      StringId cat,
+                      StringId name,
+                      int64_t duration);
 
   void EndAndroid(int64_t timestamp, uint32_t ftrace_tid, uint32_t atrace_tgid);
 

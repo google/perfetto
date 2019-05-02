@@ -25,6 +25,7 @@
 #include "perfetto/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/ftrace_descriptors.h"
+#include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
@@ -109,6 +110,10 @@ class ProtoTraceParser : public TraceParser {
   void ParseFtraceStats(ConstBytes);
   void ParseProfilePacket(ConstBytes);
   void ParseSystemInfo(ConstBytes);
+  void ParseTrackEvent(int64_t ts,
+                       int64_t tts,
+                       ProtoIncrementalState::PacketSequenceState*,
+                       ConstBytes);
 
  private:
   TraceProcessorContext* context_;
