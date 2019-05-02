@@ -36,6 +36,7 @@ namespace trace_processor {
 enum TraceType {
   kUnknownTraceType,
   kProtoTraceType,
+  kProtoWithTrackEventsTraceType,
   kJsonTraceType,
   kFuchsiaTraceType,
 };

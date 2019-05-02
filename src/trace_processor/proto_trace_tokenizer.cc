@@ -81,6 +81,27 @@ void InternMessage(TraceProcessorContext* context,
 
 }  // namespace
 
+// static
+TraceType ProtoTraceTokenizer::GuessProtoTraceType(const uint8_t* data,
+                                                   size_t size) {
+  // TODO(eseckler): Record some metrics to track the time we spend scanning the
+  // trace file here, and make them available via SQL.
+
+  // Scan at most the first 128MB for a track event packet.
+  constexpr size_t kMaxScanSize = 128 * 1024 * 1024;
+  protos::pbzero::Trace::Decoder decoder(data, std::min(size, kMaxScanSize));
+  if (!decoder.has_packet())
+    return TraceType::kUnknownTraceType;
+  for (auto it = decoder.packet(); it; ++it) {
+    ProtoDecoder packet_decoder(it->data(), it->size());
+    if (PERFETTO_UNLIKELY(packet_decoder.FindField(
+            protos::pbzero::TracePacket::kTrackEventFieldNumber))) {
+      return TraceType::kProtoWithTrackEventsTraceType;
+    }
+  }
+  return TraceType::kProtoTraceType;
+}
+
 ProtoTraceTokenizer::ProtoTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx) {}
 ProtoTraceTokenizer::~ProtoTraceTokenizer() = default;

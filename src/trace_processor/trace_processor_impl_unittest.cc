@@ -44,7 +44,7 @@ TEST(TraceProcessorImplTest, GuessTraceType_JsonMissingTraceEvents) {
 }
 
 TEST(TraceProcessorImplTest, GuessTraceType_Proto) {
-  const uint8_t prefix[] = {0x0a, 0x65, 0x18, 0x8f, 0x4e, 0x32, 0x60, 0x0a};
+  const uint8_t prefix[] = {0x0a, 0x00};  // An empty TracePacket.
   EXPECT_EQ(kProtoTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
 
