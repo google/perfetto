@@ -84,9 +84,6 @@ void InternMessage(TraceProcessorContext* context,
 // static
 TraceType ProtoTraceTokenizer::GuessProtoTraceType(const uint8_t* data,
                                                    size_t size) {
-  // TODO(eseckler): Record some metrics to track the time we spend scanning the
-  // trace file here, and make them available via SQL.
-
   // Scan at most the first 128MB for a track event packet.
   constexpr size_t kMaxScanSize = 128 * 1024 * 1024;
   protos::pbzero::Trace::Decoder decoder(data, std::min(size, kMaxScanSize));
