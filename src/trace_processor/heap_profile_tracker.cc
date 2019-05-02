@@ -47,12 +47,22 @@ void HeapProfileTracker::AddMapping(ProfileIndex pidx,
     return;
   const StringId build_id = opt_build_id.value();
 
-  int64_t cur_row =
-      context_->storage->mutable_heap_profile_mappings()->FindOrInsert(
-          build_id, static_cast<int64_t>(mapping.offset),
-          static_cast<int64_t>(mapping.start),
-          static_cast<int64_t>(mapping.end),
-          static_cast<int64_t>(mapping.load_bias), name_id);
+  TraceStorage::HeapProfileMappings::Row row{
+      build_id,
+      static_cast<int64_t>(mapping.offset),
+      static_cast<int64_t>(mapping.start),
+      static_cast<int64_t>(mapping.end),
+      static_cast<int64_t>(mapping.load_bias),
+      name_id};
+
+  int64_t cur_row;
+  auto it = mapping_idx_.find(row);
+  if (it != mapping_idx_.end()) {
+    cur_row = it->second;
+  } else {
+    cur_row = context_->storage->mutable_heap_profile_mappings()->Insert(row);
+    mapping_idx_.emplace(row, cur_row);
+  }
   mappings_.emplace(std::make_pair(pidx, id), cur_row);
 }
 
@@ -72,9 +82,17 @@ void HeapProfileTracker::AddFrame(ProfileIndex pidx,
   }
   int64_t mapping_row = mapping_it->second;
 
-  int64_t cur_row =
-      context_->storage->mutable_heap_profile_frames()->FindOrInsert(
-          str_id, mapping_row, static_cast<int64_t>(frame.rel_pc));
+  TraceStorage::HeapProfileFrames::Row row{str_id, mapping_row,
+                                           static_cast<int64_t>(frame.rel_pc)};
+
+  int64_t cur_row;
+  auto it = frame_idx_.find(row);
+  if (it != frame_idx_.end()) {
+    cur_row = it->second;
+  } else {
+    cur_row = context_->storage->mutable_heap_profile_frames()->Insert(row);
+    frame_idx_.emplace(row, cur_row);
+  }
   frames_.emplace(std::make_pair(pidx, id), cur_row);
 }
 
@@ -99,9 +117,19 @@ void HeapProfileTracker::AddCallstack(ProfileIndex pidx,
       return;
     }
     int64_t frame_row = it->second;
-    int64_t self_id =
-        context_->storage->mutable_heap_profile_callsites()->FindOrInsert(
-            static_cast<int64_t>(depth), parent_id, frame_row);
+
+    TraceStorage::HeapProfileCallsites::Row row{static_cast<int64_t>(depth),
+                                                parent_id, frame_row};
+
+    int64_t self_id;
+    auto callsite_it = callsite_idx_.find(row);
+    if (callsite_it != callsite_idx_.end()) {
+      self_id = callsite_it->second;
+    } else {
+      self_id =
+          context_->storage->mutable_heap_profile_callsites()->Insert(row);
+      callsite_idx_.emplace(row, self_id);
+    }
     parent_id = self_id;
   }
   callstacks_.emplace(std::make_pair(pidx, id), parent_id);
@@ -116,14 +144,19 @@ void HeapProfileTracker::AddAllocation(ProfileIndex pidx,
                     callstacks_.size());
     return;
   }
-  context_->storage->mutable_heap_profile_allocations()->Insert(
+
+  TraceStorage::HeapProfileAllocations::Row alloc_row{
       static_cast<int64_t>(alloc.timestamp), static_cast<int64_t>(alloc.pid),
       static_cast<int64_t>(it->second), static_cast<int64_t>(alloc.alloc_count),
-      static_cast<int64_t>(alloc.self_allocated));
-  context_->storage->mutable_heap_profile_allocations()->Insert(
+      static_cast<int64_t>(alloc.self_allocated)};
+
+  TraceStorage::HeapProfileAllocations::Row free_row{
       static_cast<int64_t>(alloc.timestamp), static_cast<int64_t>(alloc.pid),
       static_cast<int64_t>(it->second), -static_cast<int64_t>(alloc.free_count),
-      -static_cast<int64_t>(alloc.self_freed));
+      -static_cast<int64_t>(alloc.self_freed)};
+
+  context_->storage->mutable_heap_profile_allocations()->Insert(alloc_row);
+  context_->storage->mutable_heap_profile_allocations()->Insert(free_row);
 }
 
 void HeapProfileTracker::StoreAllocation(ProfileIndex pidx,

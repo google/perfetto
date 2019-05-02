@@ -587,20 +587,21 @@ class TraceStorage {
 
   class HeapProfileFrames {
    public:
-    int64_t FindOrInsert(StringId name_id,
-                         int64_t mapping_row,
-                         int64_t rel_pc) {
-      // TODO(fmayer): More efficiently search for existing entries.
-      for (size_t i = 0; i < names_.size(); ++i) {
-        if (name_id == names_[i] && mapping_row == mappings_[i] &&
-            rel_pc == rel_pcs_[i]) {
-          return static_cast<int64_t>(i);
-        }
-      }
+    struct Row {
+      StringId name_id;
+      int64_t mapping_row;
+      int64_t rel_pc;
 
-      names_.emplace_back(name_id);
-      mappings_.emplace_back(mapping_row);
-      rel_pcs_.emplace_back(rel_pc);
+      bool operator==(const Row& other) const {
+        return std::tie(name_id, mapping_row, rel_pc) ==
+               std::tie(other.name_id, other.mapping_row, other.rel_pc);
+      }
+    };
+
+    int64_t Insert(const Row& row) {
+      names_.emplace_back(row.name_id);
+      mappings_.emplace_back(row.mapping_row);
+      rel_pcs_.emplace_back(row.rel_pc);
       return static_cast<int64_t>(names_.size()) - 1;
     }
 
@@ -616,17 +617,21 @@ class TraceStorage {
 
   class HeapProfileCallsites {
    public:
-    int64_t FindOrInsert(int64_t depth, int64_t parent_id, int64_t frame_row) {
-      // TODO(fmayer): More efficiently search for existing entries.
-      for (size_t i = 0; i < frame_depths_.size(); ++i) {
-        if (depth == frame_depths_[i] && parent_id == parent_callsite_ids_[i] &&
-            frame_row == frame_ids_[i]) {
-          return static_cast<int64_t>(i);
-        }
+    struct Row {
+      int64_t depth;
+      int64_t parent_id;
+      int64_t frame_row;
+
+      bool operator==(const Row& other) const {
+        return std::tie(depth, parent_id, frame_row) ==
+               std::tie(other.depth, other.parent_id, other.frame_row);
       }
-      frame_depths_.emplace_back(depth);
-      parent_callsite_ids_.emplace_back(parent_id);
-      frame_ids_.emplace_back(frame_row);
+    };
+
+    int64_t Insert(const Row& row) {
+      frame_depths_.emplace_back(row.depth);
+      parent_callsite_ids_.emplace_back(row.parent_id);
+      frame_ids_.emplace_back(row.frame_row);
       return static_cast<int64_t>(frame_depths_.size()) - 1;
     }
 
@@ -644,27 +649,28 @@ class TraceStorage {
 
   class HeapProfileMappings {
    public:
-    int64_t FindOrInsert(StringId build_id,
-                         int64_t offset,
-                         int64_t start,
-                         int64_t end,
-                         int64_t load_bias,
-                         StringId name_id) {
-      // TODO(fmayer): More efficiently search for existing entries.
-      for (size_t i = 0; i < build_ids_.size(); ++i) {
-        if (build_id == build_ids_[i] && offset == offsets_[i] &&
-            start == starts_[i] && end == ends_[i] &&
-            load_bias == load_biases_[i] && name_id == names_[i]) {
-          return static_cast<int64_t>(i);
-        }
-      }
+    struct Row {
+      StringId build_id;
+      int64_t offset;
+      int64_t start;
+      int64_t end;
+      int64_t load_bias;
+      StringId name_id;
 
-      build_ids_.emplace_back(build_id);
-      offsets_.emplace_back(offset);
-      starts_.emplace_back(start);
-      ends_.emplace_back(end);
-      load_biases_.emplace_back(load_bias);
-      names_.emplace_back(name_id);
+      bool operator==(const Row& other) const {
+        return std::tie(build_id, offset, start, end, load_bias, name_id) ==
+               std::tie(other.build_id, other.offset, other.start, other.end,
+                        other.load_bias, other.name_id);
+      }
+    };
+
+    int64_t Insert(const Row& row) {
+      build_ids_.emplace_back(row.build_id);
+      offsets_.emplace_back(row.offset);
+      starts_.emplace_back(row.start);
+      ends_.emplace_back(row.end);
+      load_biases_.emplace_back(row.load_bias);
+      names_.emplace_back(row.name_id);
       return static_cast<int64_t>(build_ids_.size()) - 1;
     }
 
@@ -686,16 +692,20 @@ class TraceStorage {
 
   class HeapProfileAllocations {
    public:
-    void Insert(int64_t timestamp,
-                int64_t pid,
-                int64_t callsite_id,
-                int64_t count,
-                int64_t size) {
-      timestamps_.emplace_back(timestamp);
-      pids_.emplace_back(pid);
-      callsite_ids_.emplace_back(callsite_id);
-      counts_.emplace_back(count);
-      sizes_.emplace_back(size);
+    struct Row {
+      int64_t timestamp;
+      int64_t pid;
+      int64_t callsite_id;
+      int64_t count;
+      int64_t size;
+    };
+
+    void Insert(const Row& row) {
+      timestamps_.emplace_back(row.timestamp);
+      pids_.emplace_back(row.pid);
+      callsite_ids_.emplace_back(row.callsite_id);
+      counts_.emplace_back(row.count);
+      sizes_.emplace_back(row.size);
     }
 
     const std::deque<int64_t>& timestamps() const { return timestamps_; }
@@ -937,5 +947,49 @@ class TraceStorage {
 
 }  // namespace trace_processor
 }  // namespace perfetto
+
+namespace std {
+
+template <>
+struct hash<::perfetto::trace_processor::TraceStorage::HeapProfileFrames::Row> {
+  using argument_type =
+      ::perfetto::trace_processor::TraceStorage::HeapProfileFrames::Row;
+  using result_type = size_t;
+
+  result_type operator()(const argument_type& r) const {
+    return std::hash<::perfetto::trace_processor::StringId>{}(r.name_id) ^
+           std::hash<int64_t>{}(r.mapping_row) ^ std::hash<int64_t>{}(r.rel_pc);
+  }
+};
+
+template <>
+struct hash<
+    ::perfetto::trace_processor::TraceStorage::HeapProfileCallsites::Row> {
+  using argument_type =
+      ::perfetto::trace_processor::TraceStorage::HeapProfileCallsites::Row;
+  using result_type = size_t;
+
+  result_type operator()(const argument_type& r) const {
+    return std::hash<int64_t>{}(r.depth) ^ std::hash<int64_t>{}(r.parent_id) ^
+           std::hash<int64_t>{}(r.frame_row);
+  }
+};
+
+template <>
+struct hash<
+    ::perfetto::trace_processor::TraceStorage::HeapProfileMappings::Row> {
+  using argument_type =
+      ::perfetto::trace_processor::TraceStorage::HeapProfileMappings::Row;
+  using result_type = size_t;
+
+  result_type operator()(const argument_type& r) const {
+    return std::hash<::perfetto::trace_processor::StringId>{}(r.build_id) ^
+           std::hash<int64_t>{}(r.offset) ^ std::hash<int64_t>{}(r.start) ^
+           std::hash<int64_t>{}(r.end) ^ std::hash<int64_t>{}(r.load_bias) ^
+           std::hash<::perfetto::trace_processor::StringId>{}(r.name_id);
+  }
+};
+
+}  // namespace std
 
 #endif  // SRC_TRACE_PROCESSOR_TRACE_STORAGE_H_
