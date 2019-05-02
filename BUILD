@@ -782,7 +782,7 @@ gensignature(
 py_binary(
     name = "gen_merged_sql_metrics_py",
     srcs = [
-        "tools/gen_merged_sql_metrics.py"
-    ]
-    main = "tools/gen_merged_sql_metrics.py"
+        "tools/gen_merged_sql_metrics.py",
+    ],
+    main = "tools/gen_merged_sql_metrics.py",
 )
