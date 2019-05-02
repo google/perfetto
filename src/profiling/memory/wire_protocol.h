@@ -96,6 +96,7 @@ struct AllocMetadata {
   uint64_t stack_pointer;
   // Offset of the data at stack_pointer from the start of this record.
   uint64_t stack_pointer_offset;
+  uint64_t clock_monotonic_coarse_timestamp;
   alignas(uint64_t) char register_data[kMaxRegisterDataSize];
   // CPU architecture of the client. This determines the size of the
   // register data that follows this struct.
@@ -109,6 +110,7 @@ struct FreeBatchEntry {
 
 struct FreeBatch {
   uint64_t num_entries;
+  uint64_t clock_monotonic_coarse_timestamp;
   FreeBatchEntry entries[kFreeBatchSize];
 
   FreeBatch() { num_entries = 0; }

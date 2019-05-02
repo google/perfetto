@@ -820,7 +820,8 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
 
   heap_tracker.RecordMalloc(alloc_rec.frames, alloc_metadata.alloc_address,
                             alloc_metadata.total_size,
-                            alloc_metadata.sequence_number);
+                            alloc_metadata.sequence_number,
+                            alloc_metadata.clock_monotonic_coarse_timestamp);
 }
 
 void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
@@ -849,7 +850,8 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   }
   for (size_t i = 0; i < num_entries; ++i) {
     const FreeBatchEntry& entry = entries[i];
-    heap_tracker.RecordFree(entry.addr, entry.sequence_number);
+    heap_tracker.RecordFree(entry.addr, entry.sequence_number,
+                            free_batch.clock_monotonic_coarse_timestamp);
   }
 }
 

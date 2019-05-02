@@ -115,6 +115,18 @@ message ProfilePacket {
     // MEMORY CORRUPTION.
     optional bool buffer_corrupted = 8;
 
+    // Timestamp of the state of the target process that this dump represents.
+    // This can be different to the timestamp of the TracePackets for various
+    // reasons:
+    // * If disconnected is set above, this is the timestamp of last state
+    //   heapprofd had of the process before it disconnected.
+    // * Otherwise, if the rate of events produced by the process is high,
+    //   heapprofd might be behind.
+    //
+    // TODO(fmayer): This is MONOTONIC_COARSE. Refactor ClockSnapshot::Clock
+    //               to have a type enum that we can reuse here.
+    optional uint64 timestamp = 9;
+
     optional ProcessStats stats = 5;
 
     repeated HeapSample samples = 2;
