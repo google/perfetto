@@ -505,17 +505,23 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 TEST(SystraceParserTest, SystraceEvent) {
   SystraceTracePoint result{};
 
-  ASSERT_FALSE(ParseSystraceTracePoint(base::StringView(""), &result));
+  ASSERT_EQ(ParseSystraceTracePoint(base::StringView(""), &result),
+            SystraceParseResult::kFailure);
 
-  ASSERT_TRUE(ParseSystraceTracePoint(base::StringView("B|1|foo"), &result));
+  ASSERT_EQ(ParseSystraceTracePoint(base::StringView("B|1|foo"), &result),
+            SystraceParseResult::kSuccess);
   EXPECT_EQ(result, (SystraceTracePoint{'B', 1, base::StringView("foo"), 0}));
 
-  ASSERT_TRUE(ParseSystraceTracePoint(base::StringView("B|42|Bar"), &result));
+  ASSERT_EQ(ParseSystraceTracePoint(base::StringView("B|42|Bar"), &result),
+            SystraceParseResult::kSuccess);
   EXPECT_EQ(result, (SystraceTracePoint{'B', 42, base::StringView("Bar"), 0}));
 
-  ASSERT_TRUE(
-      ParseSystraceTracePoint(base::StringView("C|543|foo|8"), &result));
+  ASSERT_EQ(ParseSystraceTracePoint(base::StringView("C|543|foo|8"), &result),
+            SystraceParseResult::kSuccess);
   EXPECT_EQ(result, (SystraceTracePoint{'C', 543, base::StringView("foo"), 8}));
+
+  ASSERT_EQ(ParseSystraceTracePoint(base::StringView("S|"), &result),
+            SystraceParseResult::kUnsupported);
 }
 
 // TODO(eseckler): Add tests for TrackEvent tokenization + parsing once they are
