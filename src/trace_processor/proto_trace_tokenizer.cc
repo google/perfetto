@@ -68,7 +68,7 @@ void InternMessage(TraceProcessorContext* context,
 
   auto res = state->GetInternedDataMap<MessageType>()->emplace(
       iid,
-      ProtoIncrementalState::InternedDataView<MessageType>{std::move(message)});
+      ProtoIncrementalState::InternedDataView<MessageType>(std::move(message)));
   // If a message with this ID is already interned, its data should not have
   // changed (this is forbidden by the InternedData proto).
   // TODO(eseckler): This DCHECK assumes that the message is encoded the

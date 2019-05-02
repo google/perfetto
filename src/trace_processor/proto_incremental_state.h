@@ -22,8 +22,10 @@
 #include <map>
 #include <unordered_map>
 
+#include "perfetto/base/optional.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/trace_storage.h"
 
 #include "perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "perfetto/trace/track_event/task_execution.pbzero.h"
@@ -32,18 +34,60 @@
 namespace perfetto {
 namespace trace_processor {
 
+// Specialization of member types is forbidden inside their parent class, so
+// define the StorageReferences class outside in an internal namespace.
+namespace proto_incremental_state_internal {
+
+template <typename MessageType>
+struct StorageReferences;
+
+template <>
+struct StorageReferences<protos::pbzero::EventCategory> {
+  StringId name_id;
+};
+
+template <>
+struct StorageReferences<protos::pbzero::LegacyEventName> {
+  StringId name_id;
+};
+
+template <>
+struct StorageReferences<protos::pbzero::DebugAnnotationName> {
+  StringId name_id;
+};
+
+template <>
+struct StorageReferences<protos::pbzero::SourceLocation> {
+  StringId file_name_id;
+  StringId function_name_id;
+};
+
+}  // namespace proto_incremental_state_internal
+
 // Stores per-packet-sequence incremental state during trace parsing, such as
 // reference timestamps for delta timestamp calculation and interned messages.
 class ProtoIncrementalState {
  public:
+  template <typename MessageType>
+  using StorageReferences =
+      proto_incremental_state_internal::StorageReferences<MessageType>;
+
   // Entry in an interning index, refers to the interned message.
   template <typename MessageType>
   struct InternedDataView {
+    InternedDataView(TraceBlobView msg) : message(std::move(msg)) {}
+
     typename MessageType::Decoder CreateDecoder() {
       return typename MessageType::Decoder(message.data(), message.length());
     }
 
     TraceBlobView message;
+
+    // If the data in this entry was already stored into the trace storage, this
+    // field contains message-type-specific references into the storage which
+    // can be used to look up the entry's data (e.g. indexes of interned
+    // strings).
+    base::Optional<StorageReferences<MessageType>> storage_refs;
   };
 
   template <typename MessageType>
@@ -126,11 +170,17 @@ class ProtoIncrementalState {
   // If this is a new sequence which we haven't tracked before, initializes and
   // inserts a new PacketSequenceState into the state map.
   PacketSequenceState* GetOrCreateStateForPacketSequence(uint32_t sequence_id) {
-    return &packet_sequence_states_[sequence_id];
+    auto& ptr = packet_sequence_states_[sequence_id];
+    if (!ptr)
+      ptr.reset(new PacketSequenceState());
+    return ptr.get();
   }
 
  private:
-  std::map<uint32_t, PacketSequenceState> packet_sequence_states_;
+  // Stores unique_ptrs to ensure that pointers to a PacketSequenceState remain
+  // valid even if the map rehashes.
+  std::map<uint32_t, std::unique_ptr<PacketSequenceState>>
+      packet_sequence_states_;
 };
 
 template <>
