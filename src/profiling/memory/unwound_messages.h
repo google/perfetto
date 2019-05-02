@@ -41,6 +41,7 @@ struct AllocRecord {
   bool reparsed_map = false;
   uint64_t unwinding_time_us = 0;
   uint64_t data_source_instance_id;
+  uint64_t timestamp;
   AllocMetadata alloc_metadata;
   std::vector<FrameData> frames;
 };
@@ -49,6 +50,7 @@ struct AllocRecord {
 struct FreeRecord {
   pid_t pid;
   uint64_t data_source_instance_id;
+  uint64_t timestamp;
   FreeBatch free_batch;
 };
 
