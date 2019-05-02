@@ -49,12 +49,14 @@ namespace stats {
   F(ftrace_cpu_overrun_end,                     kIndexed, kError, kTrace),    \
   F(ftrace_cpu_read_events_begin,               kIndexed, kInfo,  kTrace),    \
   F(ftrace_cpu_read_events_end,                 kIndexed, kInfo,  kTrace),    \
+  F(guess_trace_type_duration_ns,               kSingle,  kInfo,  kAnalysis), \
   F(interned_data_tokenizer_errors,             kSingle,  kInfo,  kAnalysis), \
   F(invalid_clock_snapshots,                    kSingle,  kError, kAnalysis), \
   F(invalid_cpu_times,                          kSingle,  kError, kAnalysis), \
   F(meminfo_unknown_keys,                       kSingle,  kError, kAnalysis), \
   F(mismatched_sched_switch_tids,               kSingle,  kError, kAnalysis), \
   F(mm_unknown_type,                            kSingle,  kError, kAnalysis), \
+  F(parse_trace_duration_ns,                    kSingle,  kInfo,  kAnalysis), \
   F(power_rail_unknown_index,                   kSingle,  kError, kTrace), \
   F(proc_stat_unknown_counters,                 kSingle,  kError, kAnalysis), \
   F(rss_stat_unknown_keys,                      kSingle,  kError, kAnalysis), \

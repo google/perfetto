@@ -262,7 +262,12 @@ bool TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
   // If this is the first Parse() call, guess the trace type and create the
   // appropriate parser.
   if (!context_.chunk_reader) {
-    TraceType trace_type = GuessTraceType(data.get(), size);
+    TraceType trace_type;
+    {
+      auto scoped_trace = context_.storage->TraceExecutionTimeIntoStats(
+          stats::guess_trace_type_duration_ns);
+      trace_type = GuessTraceType(data.get(), size);
+    }
     int64_t window_size_ns = static_cast<int64_t>(cfg_.window_size_ns);
     switch (trace_type) {
       case kJsonTraceType:
@@ -298,6 +303,8 @@ bool TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
     }
   }
 
+  auto scoped_trace = context_.storage->TraceExecutionTimeIntoStats(
+      stats::parse_trace_duration_ns);
   bool res = context_.chunk_reader->Parse(std::move(data), size);
   unrecoverable_parse_error_ |= !res;
   return res;
