@@ -54,6 +54,7 @@
 #include "perfetto/trace/ftrace/sched.pbzero.h"
 #include "perfetto/trace/ftrace/signal.pbzero.h"
 #include "perfetto/trace/ftrace/task.pbzero.h"
+#include "perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "perfetto/trace/power/battery_counters.pbzero.h"
 #include "perfetto/trace/power/power_rails.pbzero.h"
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
@@ -63,6 +64,9 @@
 #include "perfetto/trace/system_info.pbzero.h"
 #include "perfetto/trace/trace.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
+#include "perfetto/trace/track_event/debug_annotation.pbzero.h"
+#include "perfetto/trace/track_event/task_execution.pbzero.h"
+#include "perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -319,6 +323,11 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_system_info())
     ParseSystemInfo(packet.system_info());
+
+  if (packet.has_track_event()) {
+    ParseTrackEvent(ts, ttp.thread_timestamp, ttp.packet_sequence_state,
+                    packet.track_event());
+  }
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
@@ -1382,6 +1391,166 @@ void ProtoTraceParser::ParseSystemInfo(ConstBytes blob) {
       context_->syscall_tracker->SetArchitecture(kX86_64);
     } else {
       PERFETTO_ELOG("Unknown architecture %s", machine.ToStdString().c_str());
+    }
+  }
+}
+
+void ProtoTraceParser::ParseTrackEvent(
+    int64_t ts,
+    int64_t /*tts*/,
+    ProtoIncrementalState::PacketSequenceState* sequence_state,
+    ConstBytes blob) {
+  protos::pbzero::TrackEvent::Decoder event(blob.data, blob.size);
+
+  const auto legacy_event_blob = event.legacy_event();
+  protos::pbzero::TrackEvent::LegacyEvent::Decoder legacy_event(
+      legacy_event_blob.data, legacy_event_blob.size);
+
+  // TODO(eseckler): This legacy event field will eventually be replaced by
+  // fields in TrackEvent itself.
+  if (PERFETTO_UNLIKELY(!legacy_event.has_phase())) {
+    PERFETTO_ELOG("TrackEvent without phase");
+    return;
+  }
+
+  ProcessTracker* procs = context_->process_tracker.get();
+  TraceStorage* storage = context_->storage.get();
+  SliceTracker* slice_tracker = context_->slice_tracker.get();
+
+  uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
+  uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
+  if (legacy_event.has_pid_override())
+    pid = static_cast<uint32_t>(legacy_event.pid_override());
+  if (legacy_event.has_tid_override())
+    tid = static_cast<uint32_t>(legacy_event.tid_override());
+  UniqueTid utid = procs->UpdateThread(tid, pid);
+
+  std::vector<uint32_t> category_iids;
+  for (auto it = event.category_iids(); it; ++it) {
+    category_iids.push_back(it->as_uint32());
+  }
+
+  StringId category_id = 0;
+
+  // If there's a single category, we can avoid building a concatenated string.
+  if (PERFETTO_LIKELY(category_iids.size() == 1)) {
+    auto* map =
+        sequence_state->GetInternedDataMap<protos::pbzero::EventCategory>();
+    auto cat_view_it = map->find(category_iids[0]);
+    if (cat_view_it == map->end()) {
+      PERFETTO_ELOG("Could not find category interning entry for ID %u",
+                    category_iids[0]);
+    } else {
+      // If the name is already in the pool, no need to decode it again.
+      if (cat_view_it->second.storage_refs) {
+        category_id = cat_view_it->second.storage_refs->name_id;
+      } else {
+        auto cat = cat_view_it->second.CreateDecoder();
+        category_id = storage->InternString(cat.name());
+        // Avoid having to decode & look up the name again in the future.
+        cat_view_it->second.storage_refs =
+            ProtoIncrementalState::StorageReferences<
+                protos::pbzero::EventCategory>{category_id};
+      }
+    }
+  } else if (category_iids.size() > 1) {
+    auto* map =
+        sequence_state->GetInternedDataMap<protos::pbzero::EventCategory>();
+    // We concatenate the category strings together since we currently only
+    // support a single "cat" column.
+    // TODO(eseckler): Support multi-category events in the table schema.
+    std::string categories;
+    for (uint32_t iid : category_iids) {
+      auto cat_view_it = map->find(iid);
+      if (cat_view_it == map->end()) {
+        PERFETTO_ELOG("Could not find category interning entry for ID %u", iid);
+        continue;
+      }
+      auto cat = cat_view_it->second.CreateDecoder();
+      base::StringView name = cat.name();
+      if (!categories.empty())
+        categories.append(",");
+      categories.append(name.data(), name.size());
+    }
+    if (!categories.empty())
+      category_id = storage->InternString(base::StringView(categories));
+  } else {
+    PERFETTO_ELOG("TrackEvent without category");
+  }
+
+  StringId name_id = 0;
+
+  if (PERFETTO_LIKELY(legacy_event.name_iid())) {
+    auto* map =
+        sequence_state->GetInternedDataMap<protos::pbzero::LegacyEventName>();
+    auto name_view_it = map->find(legacy_event.name_iid());
+    if (name_view_it == map->end()) {
+      PERFETTO_ELOG("Could not find event name interning entry for ID %u",
+                    legacy_event.name_iid());
+    } else {
+      // If the name is already in the pool, no need to decode it again.
+      if (name_view_it->second.storage_refs) {
+        name_id = name_view_it->second.storage_refs->name_id;
+      } else {
+        auto event_name = name_view_it->second.CreateDecoder();
+        name_id = storage->InternString(event_name.name());
+        // Avoid having to decode & look up the name again in the future.
+        name_view_it->second.storage_refs =
+            ProtoIncrementalState::StorageReferences<
+                protos::pbzero::LegacyEventName>{name_id};
+      }
+    }
+  }
+
+  // TODO(eseckler): Handle thread timestamp/duration, debug annotations, task
+  // souce locations, legacy event attributes, ...
+
+  int32_t phase = legacy_event.phase();
+  switch (static_cast<char>(phase)) {
+    case 'B': {  // TRACE_EVENT_PHASE_BEGIN.
+      slice_tracker->Begin(ts, utid, category_id, name_id);
+      break;
+    }
+    case 'E': {  // TRACE_EVENT_PHASE_END.
+      slice_tracker->End(ts, utid, category_id, name_id);
+      break;
+    }
+    case 'X': {  // TRACE_EVENT_PHASE_COMPLETE.
+      auto duration_ns = legacy_event.duration_us() * 1000;
+      if (duration_ns < 0)
+        return;
+      slice_tracker->Scoped(ts, utid, category_id, name_id, duration_ns);
+      break;
+    }
+    case 'M': {  // TRACE_EVENT_PHASE_METADATA (process and thread names).
+      // For now, we just compare the event name and assume there's a single
+      // argument in these events with the name of the process/thread.
+      // TODO(eseckler): Use names from process/thread descriptors instead.
+      NullTermStringView event_name = storage->GetString(name_id);
+      PERFETTO_DCHECK(event_name.data());
+      if (strcmp(event_name.c_str(), "thread_name") == 0) {
+        auto it = event.debug_annotations();
+        if (!it)
+          break;
+        protos::pbzero::DebugAnnotation::Decoder annotation(it->data(),
+                                                            it->size());
+        auto thread_name = annotation.string_value();
+        if (!thread_name.size)
+          break;
+        auto thread_name_id = context_->storage->InternString(thread_name);
+        procs->UpdateThreadName(tid, thread_name_id);
+      } else if (strcmp(event_name.c_str(), "process_name") == 0) {
+        auto it = event.debug_annotations();
+        if (!it)
+          break;
+        protos::pbzero::DebugAnnotation::Decoder annotation(it->data(),
+                                                            it->size());
+        auto process_name = annotation.string_value();
+        if (!process_name.size)
+          break;
+        procs->UpdateProcess(pid, base::nullopt, process_name);
+      }
+      break;
     }
   }
 }
