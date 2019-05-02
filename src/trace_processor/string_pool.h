@@ -83,7 +83,7 @@ class StringPool {
     return GetFromPtr(IdToPtr(id));
   }
 
-  Iterator CreateIterator() { return Iterator(this); }
+  Iterator CreateIterator() const { return Iterator(this); }
 
   size_t size() const { return string_index_.size(); }
 
