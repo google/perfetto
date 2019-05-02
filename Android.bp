@@ -3215,6 +3215,7 @@ cc_binary_host {
     "src/trace_processor/fuchsia_trace_parser.cc",
     "src/trace_processor/fuchsia_trace_tokenizer.cc",
     "src/trace_processor/fuchsia_trace_utils.cc",
+    "src/trace_processor/heap_profile_tracker.cc",
     "src/trace_processor/instants_table.cc",
     "src/trace_processor/metrics/metrics.cc",
     "src/trace_processor/process_table.cc",
