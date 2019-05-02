@@ -29,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/optional.h"
 #include "perfetto/base/string_view.h"
+#include "perfetto/base/time.h"
 #include "perfetto/base/utils.h"
 #include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/stats.h"
@@ -777,6 +778,45 @@ class TraceStorage {
     PERFETTO_DCHECK(key < stats::kNumKeys);
     PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
     stats_[key].indexed_values[index] = value;
+  }
+
+  class ScopedStatsTracer {
+   public:
+    ScopedStatsTracer(TraceStorage* storage, size_t key)
+        : storage_(storage), key_(key), start_ns_(base::GetWallTimeNs()) {}
+
+    ~ScopedStatsTracer() {
+      if (!storage_)
+        return;
+      auto delta_ns = base::GetWallTimeNs() - start_ns_;
+      storage_->IncrementStats(key_, delta_ns.count());
+    }
+
+    ScopedStatsTracer(ScopedStatsTracer&& other) noexcept { MoveImpl(&other); }
+
+    ScopedStatsTracer& operator=(ScopedStatsTracer&& other) {
+      MoveImpl(&other);
+      return *this;
+    }
+
+   private:
+    ScopedStatsTracer(const ScopedStatsTracer&) = delete;
+    ScopedStatsTracer& operator=(const ScopedStatsTracer&) = delete;
+
+    void MoveImpl(ScopedStatsTracer* other) {
+      storage_ = other->storage_;
+      key_ = other->key_;
+      start_ns_ = other->start_ns_;
+      other->storage_ = nullptr;
+    }
+
+    TraceStorage* storage_;
+    size_t key_;
+    base::TimeNanos start_ns_;
+  };
+
+  ScopedStatsTracer TraceExecutionTimeIntoStats(size_t key) {
+    return ScopedStatsTracer(this, key);
   }
 
   // Reading methods.
