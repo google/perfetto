@@ -26,3 +26,7 @@ export interface Data {
 }
 
 export interface Config { utid: number; }
+
+export function groupBusyStates(resolution: number) {
+  return resolution >= 0.0001;
+}
