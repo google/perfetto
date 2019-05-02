@@ -809,6 +809,7 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
   constexpr size_t kMessageSize = 32;
   protos::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_allow_user_build_tracing(true);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
   ds_config->mutable_for_testing()->set_message_count(kMessageCount);
