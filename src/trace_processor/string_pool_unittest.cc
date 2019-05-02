@@ -70,6 +70,20 @@ TEST(StringPoolTest, Iterator) {
   ASSERT_FALSE(++it);
 }
 
+TEST(StringPoolTest, ConstIterator) {
+  StringPool pool;
+  static char kString[] = "Test String";
+  pool.InternString(kString);
+
+  const StringPool& const_pool = pool;
+
+  auto it = const_pool.CreateIterator();
+  ASSERT_TRUE(it);
+  ASSERT_TRUE(++it);
+  ASSERT_STREQ(it.StringView().c_str(), kString);
+  ASSERT_FALSE(++it);
+}
+
 TEST(StringPoolTest, StressTest) {
   // First create a buffer with 8MB of random characters.
   constexpr size_t kBufferSize = 8 * 1024 * 1024;
