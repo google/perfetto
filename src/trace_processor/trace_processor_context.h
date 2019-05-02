@@ -32,6 +32,7 @@ class SyscallTracker;
 class TraceParser;
 class TraceStorage;
 class TraceSorter;
+class HeapProfileTracker;
 
 class TraceProcessorContext {
  public:
@@ -48,6 +49,7 @@ class TraceProcessorContext {
   std::unique_ptr<TraceParser> parser;
   std::unique_ptr<TraceSorter> sorter;
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
+  std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
 };
 
 }  // namespace trace_processor

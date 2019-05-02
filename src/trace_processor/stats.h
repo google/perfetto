@@ -91,7 +91,14 @@ namespace stats {
   F(vmstat_unknown_keys,                        kSingle,  kError, kAnalysis), \
   F(clock_sync_failure,                         kSingle,  kError, kAnalysis), \
   F(process_tracker_errors,                     kSingle,  kError, kAnalysis), \
-  F(json_tokenizer_failure,                     kSingle,  kError, kTrace)
+  F(json_tokenizer_failure,                     kSingle,  kError, kTrace),    \
+  F(heapprofd_buffer_corrupted,                 kIndexed, kError, kTrace),    \
+  F(heapprofd_buffer_overran,                   kIndexed, kError, kTrace),    \
+  F(heapprofd_rejected_concurrent,              kIndexed, kError, kTrace),    \
+  F(heapprofd_invalid_string_id,                kSingle,  kError, kTrace),    \
+  F(heapprofd_invalid_mapping_id,               kSingle,  kError, kTrace),    \
+  F(heapprofd_invalid_frame_id,                 kSingle,  kError, kTrace),    \
+  F(heapprofd_invalid_callstack_id,             kSingle,  kError, kTrace)
 // clang-format on
 
 enum Type {

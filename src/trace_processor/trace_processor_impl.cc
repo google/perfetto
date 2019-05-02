@@ -33,6 +33,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/fuchsia_trace_parser.h"
 #include "src/trace_processor/fuchsia_trace_tokenizer.h"
+#include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/instants_table.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/process_table.h"
@@ -230,6 +231,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) : cfg_(cfg) {
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.syscall_tracker.reset(new SyscallTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
+  context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
 
   ArgsTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
@@ -303,6 +305,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
 
   context_.sorter->ExtractEventsForced();
   context_.event_tracker->FlushPendingEvents();
+  context_.heap_profile_tracker->ApplyAllAllocations();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 }
 
