@@ -79,20 +79,24 @@ using Variadic = TraceStorage::Args::Variadic;
 // 2. B|1636|pokeUserActivity
 // 3. E|1636
 // 4. C|1636|wq:monitor|0
-bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
+SystraceParseResult ParseSystraceTracePoint(base::StringView str,
+                                            SystraceTracePoint* out) {
   // THIS char* IS NOT NULL TERMINATED.
   const char* s = str.data();
   size_t len = str.size();
 
   if (len < 2)
-    return false;
+    return SystraceParseResult::kFailure;
 
   // If str matches '[BEC]\|[0-9]+[\|\n]' set tgid_length to the length of
-  // the number. Otherwise return false.
+  // the number. Otherwise return kFailure.
   if (s[1] != '|' && s[1] != '\n')
-    return false;
-  if (s[0] != 'B' && s[0] != 'E' && s[0] != 'C')
-    return false;
+    return SystraceParseResult::kFailure;
+  if (s[0] != 'B' && s[0] != 'E' && s[0] != 'C') {
+    // TODO: support android async slices
+    return s[0] == 'S' || s[0] == 'F' ? SystraceParseResult::kUnsupported
+                                      : SystraceParseResult::kFailure;
+  }
   size_t tgid_length = 0;
   for (size_t i = 2; i < len; i++) {
     if (s[i] == '|' || s[i] == '\n') {
@@ -100,7 +104,7 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
       break;
     }
     if (s[i] < '0' || s[i] > '9')
-      return false;
+      return SystraceParseResult::kFailure;
   }
 
   if (tgid_length == 0) {
@@ -116,10 +120,10 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
       size_t name_index = 2 + tgid_length + 1;
       out->name = base::StringView(
           s + name_index, len - name_index - (s[len - 1] == '\n' ? 1 : 0));
-      return true;
+      return SystraceParseResult::kSuccess;
     }
     case 'E': {
-      return true;
+      return SystraceParseResult::kSuccess;
     }
     case 'C': {
       size_t name_index = 2 + tgid_length + 1;
@@ -136,15 +140,15 @@ bool ParseSystraceTracePoint(base::StringView str, SystraceTracePoint* out) {
       size_t value_len = len - value_index;
       char value_str[32];
       if (value_len >= sizeof(value_str)) {
-        return false;
+        return SystraceParseResult::kFailure;
       }
       memcpy(value_str, s + value_index, value_len);
       value_str[value_len] = 0;
       out->value = std::stod(value_str);
-      return true;
+      return SystraceParseResult::kSuccess;
     }
     default:
-      return false;
+      return SystraceParseResult::kFailure;
   }
 }
 
@@ -780,8 +784,11 @@ void ProtoTraceParser::ParsePrint(uint32_t,
                                   ConstBytes blob) {
   protos::pbzero::PrintFtraceEvent::Decoder evt(blob.data, blob.size);
   SystraceTracePoint point{};
-  if (!ParseSystraceTracePoint(evt.buf(), &point)) {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+  auto r = ParseSystraceTracePoint(evt.buf(), &point);
+  if (r != SystraceParseResult::kSuccess) {
+    if (r == SystraceParseResult::kFailure) {
+      context_->storage->IncrementStats(stats::systrace_parse_failure);
+    }
     return;
   }
 
