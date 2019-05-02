@@ -1363,8 +1363,10 @@ void ProtoTraceParser::ParseProfilePacket(ConstBytes blob) {
       context_->heap_profile_tracker->StoreAllocation(index, src_allocation);
     }
   }
-  if (!packet.continued())
+  if (!packet.continued()) {
+    context_->heap_profile_tracker->ApplyAllAllocations();
     index++;
+  }
 }
 
 void ProtoTraceParser::ParseSystemInfo(ConstBytes blob) {

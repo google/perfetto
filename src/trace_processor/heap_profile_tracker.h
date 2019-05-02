@@ -121,6 +121,12 @@ class HeapProfileTracker {
   std::unordered_map<std::pair<ProfileIndex, SourceCallstackId>, int64_t>
       callstacks_;
 
+  std::unordered_map<TraceStorage::HeapProfileMappings::Row, int64_t>
+      mapping_idx_;
+  std::unordered_map<TraceStorage::HeapProfileFrames::Row, int64_t> frame_idx_;
+  std::unordered_map<TraceStorage::HeapProfileCallsites::Row, int64_t>
+      callsite_idx_;
+
   std::vector<std::pair<ProfileIndex, SourceAllocation>> pending_allocs_;
 
   TraceProcessorContext* const context_;
