@@ -24,6 +24,7 @@
 
 #include "src/trace_processor/chunked_trace_reader.h"
 #include "src/trace_processor/proto_incremental_state.h"
+#include "src/trace_processor/trace_processor_impl.h"
 
 #include "perfetto/trace/trace_packet.pbzero.h"
 
@@ -39,6 +40,15 @@ class TraceStorage;
 // (or subfields, for the case of ftrace) with their timestamps.
 class ProtoTraceTokenizer : public ChunkedTraceReader {
  public:
+  // Scans the beginning of the trace for valid TracePackets to determine if the
+  // trace contains TrackEvents.
+  //
+  // TODO(eseckler): This is a pretty bad hack to enable us to choose a
+  // different sorting window size for traces with TrackEvents. We should
+  // reconsider and redesign our sorting strategy, so that we don't need to
+  // change global trace processor options if TrackEvents are present.
+  static TraceType GuessProtoTraceType(const uint8_t* data, size_t size);
+
   // |reader| is the abstract method of getting chunks of size |chunk_size_b|
   // from a trace file with these chunks parsed into |trace|.
   explicit ProtoTraceTokenizer(TraceProcessorContext*);

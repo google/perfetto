@@ -211,7 +211,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     if (first_word == kFuchsiaMagicNumber)
       return kFuchsiaTraceType;
   }
-  return kProtoTraceType;
+  return ProtoTraceTokenizer::GuessProtoTraceType(data, size);
 }
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) : cfg_(cfg) {
@@ -263,28 +263,34 @@ bool TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
   // appropriate parser.
   if (!context_.chunk_reader) {
     TraceType trace_type = GuessTraceType(data.get(), size);
+    int64_t window_size_ns = static_cast<int64_t>(cfg_.window_size_ns);
     switch (trace_type) {
       case kJsonTraceType:
         PERFETTO_DLOG("Legacy JSON trace detected");
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
         context_.chunk_reader.reset(new JsonTraceTokenizer(&context_));
-        context_.sorter.reset(
-            new TraceSorter(&context_, std::numeric_limits<int64_t>::max()));
+        // JSON traces have no guarantees about the order of events in them.
+        window_size_ns = std::numeric_limits<int64_t>::max();
+        context_.sorter.reset(new TraceSorter(&context_, window_size_ns));
         context_.parser.reset(new JsonTraceParser(&context_));
 #else
         PERFETTO_FATAL("JSON traces only supported in standalone mode.");
 #endif
         break;
+      case kProtoWithTrackEventsTraceType:
       case kProtoTraceType:
+        if (trace_type == kProtoWithTrackEventsTraceType) {
+          // TrackEvents can be ordered arbitrarily due to out-of-order absolute
+          // timestamps and cross-packet-sequence events (e.g. async events).
+          window_size_ns = std::numeric_limits<int64_t>::max();
+        }
         context_.chunk_reader.reset(new ProtoTraceTokenizer(&context_));
-        context_.sorter.reset(new TraceSorter(
-            &context_, static_cast<int64_t>(cfg_.window_size_ns)));
+        context_.sorter.reset(new TraceSorter(&context_, window_size_ns));
         context_.parser.reset(new ProtoTraceParser(&context_));
         break;
       case kFuchsiaTraceType:
         context_.chunk_reader.reset(new FuchsiaTraceTokenizer(&context_));
-        context_.sorter.reset(new TraceSorter(
-            &context_, static_cast<int64_t>(cfg_.window_size_ns)));
+        context_.sorter.reset(new TraceSorter(&context_, window_size_ns));
         context_.parser.reset(new FuchsiaTraceParser(&context_));
         break;
       case kUnknownTraceType:
