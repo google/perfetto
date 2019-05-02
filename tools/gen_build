@@ -504,7 +504,7 @@ class BuildGenerator(object):
       Label(src[src.index('gen/') + len('gen/'):])
       for src in target_desc.get('outputs', [])
     )
-    target.cmd = '$(location gen_merged_sql_metrics_py) --cpp_out=$@ $SRCS'
+    target.cmd = '$(location gen_merged_sql_metrics_py) --cpp_out=$@ $(SRCS)'
     target.tools.update([
       'gen_merged_sql_metrics_py',
     ])
