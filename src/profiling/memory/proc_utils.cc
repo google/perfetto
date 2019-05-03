@@ -16,6 +16,7 @@
 
 #include "src/profiling/memory/proc_utils.h"
 
+#include <inttypes.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -60,6 +61,7 @@ bool NormalizeCmdLine(char* cmdline, size_t size, std::string* name) {
   char* first_arg = static_cast<char*>(memchr(cmdline, '\0', size));
   if (first_arg == nullptr) {
     PERFETTO_DLOG("Overflow reading cmdline");
+    errno = EOVERFLOW;
     return false;
   }
   // For consistency with what we do with Java app cmdlines, trim everything
@@ -74,6 +76,7 @@ bool NormalizeCmdLine(char* cmdline, size_t size, std::string* name) {
   if (start == first_arg) {
     // The first argument ended in a slash.
     PERFETTO_DLOG("cmdline ends in /");
+    errno = EINVAL;
     return false;
   } else if (start == nullptr) {
     start = cmdline;
@@ -113,16 +116,27 @@ bool GetCmdlineForPID(pid_t pid, std::string* name) {
     PERFETTO_DLOG("Failed to open %s", filename.c_str());
     return false;
   }
-  char cmdline[128];
+  char cmdline[512];
   ssize_t rd = read(*fd, cmdline, sizeof(cmdline) - 1);
   if (rd == -1) {
     PERFETTO_DLOG("Failed to read %s", filename.c_str());
     return false;
   }
-  if (rd == sizeof(cmdline) - 1) {
-    PERFETTO_DLOG("Overflow reading cmdline");
+
+  if (rd == 0) {
+    PERFETTO_DLOG("Empty cmdline for %" PRIdMAX ". Skipping.",
+                  static_cast<intmax_t>(pid));
     return false;
   }
+
+  // We did not manage to read the first argument.
+  if (memchr(cmdline, '\0', static_cast<size_t>(rd)) == nullptr) {
+    PERFETTO_DLOG("Overflow reading cmdline for %" PRIdMAX,
+                  static_cast<intmax_t>(pid));
+    errno = EOVERFLOW;
+    return false;
+  }
+
   cmdline[rd] = '\0';
   return NormalizeCmdLine(cmdline, static_cast<size_t>(rd), name);
 }
@@ -148,7 +162,7 @@ void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
     if (pid == getpid())
       return;
     std::string process_cmdline;
-    process_cmdline.reserve(128);
+    process_cmdline.reserve(512);
     GetCmdlineForPID(pid, &process_cmdline);
     for (const std::string& cmdline : cmdlines) {
       if (process_cmdline == cmdline)
