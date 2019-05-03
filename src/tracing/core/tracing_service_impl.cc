@@ -1326,7 +1326,7 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     // If the consumer enabled tracing and asked to save the contents into the
     // passed file makes little sense to also try to read the buffers over IPC,
     // as that would just steal data from the periodic draining task.
-    PERFETTO_DFATAL("Consumer trying to read from write_to_file session.");
+    PERFETTO_DFATAL("Consumer trying to read from write_into_file session.");
     return;
   }
 
