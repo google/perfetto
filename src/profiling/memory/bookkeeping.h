@@ -24,6 +24,7 @@
 
 #include "perfetto/base/lookup_set.h"
 #include "perfetto/base/string_splitter.h"
+#include "perfetto/base/time.h"
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/tracing/core/trace_writer.h"
@@ -206,6 +207,8 @@ struct DumpState {
     last_written = trace_writer->written();
 
     current_trace_packet = trace_writer->NewTracePacket();
+    current_trace_packet->set_timestamp(
+        static_cast<uint64_t>(base::GetBootTimeNs().count()));
     current_profile_packet = current_trace_packet->set_profile_packet();
     current_profile_packet->set_index((*next_index)++);
 
@@ -243,6 +246,8 @@ struct DumpState {
 
     current_trace_packet->Finalize();
     current_trace_packet = trace_writer->NewTracePacket();
+    current_trace_packet->set_timestamp(
+        static_cast<uint64_t>(base::GetBootTimeNs().count()));
     current_profile_packet = current_trace_packet->set_profile_packet();
     current_profile_packet->set_index((*next_index)++);
   }
