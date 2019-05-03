@@ -634,7 +634,7 @@ void HeapprofdProducer::SocketDelegate::OnNewIncomingConnection(
   Process peer_process;
   peer_process.pid = new_connection->peer_pid();
   if (!GetCmdlineForPID(peer_process.pid, &peer_process.cmdline))
-    PERFETTO_ELOG("Failed to get cmdline for %d", peer_process.pid);
+    PERFETTO_PLOG("Failed to get cmdline for %d", peer_process.pid);
 
   producer_->HandleClientConnection(std::move(new_connection), peer_process);
 }
