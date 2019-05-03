@@ -568,7 +568,7 @@ SpanJoinOperatorTable::Query::StepToPartition(int64_t target_partition) {
   if (defn_->IsPartitioned()) {
     while (partition_ < target_partition) {
       if (IsFullPartitionShadowSlice() &&
-          target_partition < CursorPartition()) {
+          (cursor_eof_ || target_partition < CursorPartition())) {
         partition_ = target_partition;
         return StepRet(StepRet::Code::kRow);
       }
