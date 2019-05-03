@@ -96,6 +96,7 @@ data_sources {{
 }}
 
 duration_ms: {duration}
+write_into_file: true
 flush_timeout_ms: 30000
 '''
 
