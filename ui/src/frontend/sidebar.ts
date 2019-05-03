@@ -241,7 +241,10 @@ function navigateViewer(e: Event) {
 
 function dispatchCreatePermalink(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.createPermalink({}));
+  const result = confirm(
+      `Upload the trace and generate a permalink. ` +
+      `The trace will be accessible by anybody with the permalink.`);
+  if (result) globals.dispatch(Actions.createPermalink({}));
 }
 
 function downloadTrace(e: Event) {
