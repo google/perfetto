@@ -361,6 +361,8 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
       auto buffer_id = static_cast<BufferID>(cfg.target_buffer());
       auto trace_writer = endpoint_->CreateTraceWriter(buffer_id);
       auto trace_packet = trace_writer->NewTracePacket();
+      trace_packet->set_timestamp(
+          static_cast<uint64_t>(base::GetBootTimeNs().count()));
       auto profile_packet = trace_packet->set_profile_packet();
       auto process_dump = profile_packet->add_process_dumps();
       process_dump->set_pid(static_cast<uint64_t>(target_process_.pid));
