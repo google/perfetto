@@ -27,21 +27,21 @@ using ::testing::Contains;
 using ::testing::Not;
 
 TEST(ProcUtilsTest, NormalizeNoop) {
-  char kCmdline[] = "surfaceflinger";
+  char kCmdline[] = "surfaceflinger\0";
   std::string name;
   ASSERT_TRUE(NormalizeCmdLine(kCmdline, sizeof(kCmdline), &name));
   EXPECT_EQ(name, "surfaceflinger");
 }
 
 TEST(ProcUtilsTest, NormalizePath) {
-  char kCmdline[] = "/system/bin/surfaceflinger";
+  char kCmdline[] = "/system/bin/surfaceflinger\0";
   std::string name;
   ASSERT_TRUE(NormalizeCmdLine(kCmdline, sizeof(kCmdline), &name));
   EXPECT_EQ(name, "surfaceflinger");
 }
 
 TEST(ProcUtilsTest, NormalizeAt) {
-  char kCmdline[] = "some.app@2.0";
+  char kCmdline[] = "some.app@2.0\0";
   std::string name;
   ASSERT_TRUE(NormalizeCmdLine(kCmdline, sizeof(kCmdline), &name));
   EXPECT_EQ(name, "some.app");
