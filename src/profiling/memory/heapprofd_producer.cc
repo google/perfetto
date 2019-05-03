@@ -50,6 +50,7 @@ constexpr uint64_t kMaxShmemSize = 500 * 1048576;    // ~500 MB
 ClientConfiguration MakeClientConfiguration(const DataSourceConfig& cfg) {
   ClientConfiguration client_config;
   client_config.interval = cfg.heapprofd_config().sampling_interval_bytes();
+  client_config.block_client = cfg.heapprofd_config().block_client();
   return client_config;
 }
 
@@ -680,6 +681,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     for (size_t i = 0; i < kHandshakeSize; ++i)
       handoff_data.fds[i] = std::move(fds[i]);
     handoff_data.shmem = std::move(pending_process.shmem);
+    handoff_data.client_config = data_source.client_configuration;
 
     producer_->UnwinderForPID(self->peer_pid())
         .PostHandoffSocket(std::move(handoff_data));

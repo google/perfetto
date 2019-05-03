@@ -139,10 +139,13 @@ def main(argv):
                       "heapprofd. Default 8MiB. Needs to be a power of two "
                       "multiple of 4096, at least 8192.", type=int,
                       default=8 * 1048576)
+  parser.add_argument("--block-client", help="When buffer is full, block the "
+                      "client o wait for buffer space. Use with caution as "
+                      "this can significantly slow down the client",
+                      action="store_true")
   parser.add_argument("--simpleperf", action="store_true",
                       help="Get simpleperf profile of heapprofd. This is "
                       "only for heapprofd development.")
-
   args = parser.parse_args()
 
   fail = False
@@ -168,6 +171,8 @@ def main(argv):
     parser.print_help()
     return 1
   target_cfg = ""
+  if args.block_client:
+    target_cfg += "block_client: true\n"
   if args.pid:
     for pid in args.pid:
       target_cfg += '{}pid: {}\n'.format(CFG_IDENT, pid)
