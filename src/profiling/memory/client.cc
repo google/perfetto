@@ -49,6 +49,7 @@ namespace {
 
 const char kSingleByte[1] = {'x'};
 constexpr std::chrono::seconds kLockTimeout{1};
+constexpr auto kResendBackoffUs = 100;
 
 inline bool IsMainThread() {
   return getpid() == base::GetThreadId();
@@ -201,6 +202,10 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
   }
 
   PERFETTO_DCHECK(client_config.interval >= 1);
+  // TODO(fmayer): Always make this nonblocking.
+  // This is so that without block_client, we get the old behaviour that rate
+  // limits using the blocking socket. We do not want to change that for Q.
+  sock.SetBlocking(!client_config.block_client);
   Sampler sampler{client_config.interval};
   // note: the shared_ptr will retain a copy of the unhooked_allocator
   return std::allocate_shared<Client>(unhooked_allocator, std::move(sock),
@@ -287,11 +292,24 @@ bool Client::RecordMalloc(uint64_t alloc_size,
   msg.payload = const_cast<char*>(stacktop);
   msg.payload_size = static_cast<size_t>(stack_size);
 
-  if (!SendWireMessage(&shmem_, msg)) {
-    PERFETTO_PLOG("Failed to write to shared ring buffer (RecordMalloc).");
+  if (!SendWireMessageWithRetriesIfBlocking(msg))
+    return false;
+
+  return SendControlSocketByte();
+}
+
+bool Client::SendWireMessageWithRetriesIfBlocking(const WireMessage& msg) {
+  for (;;) {
+    if (PERFETTO_LIKELY(SendWireMessage(&shmem_, msg)))
+      return true;
+    // retry if in blocking mode and still connected
+    if (client_config_.block_client && base::IsAgain(errno) && IsConnected()) {
+      usleep(kResendBackoffUs);
+      continue;
+    }
+    PERFETTO_PLOG("Failed to write to shared ring buffer. Disconnecting.");
     return false;
   }
-  return SendControlSocketByte();
 }
 
 bool Client::RecordFree(const uint64_t alloc_address) {
@@ -331,15 +349,29 @@ bool Client::FlushFreesLocked() {
     free_batch_.clock_monotonic_coarse_timestamp = 0;
   }
 
-  if (!SendWireMessage(&shmem_, msg)) {
-    PERFETTO_PLOG("Failed to write to shared ring buffer (FlushFreesLocked).");
+  if (!SendWireMessageWithRetriesIfBlocking(msg))
     return false;
-  }
   return SendControlSocketByte();
 }
 
+bool Client::IsConnected() {
+  PERFETTO_DCHECK(!sock_.IsBlocking());
+  char buf[1];
+  ssize_t recv_bytes = sock_.Receive(buf, sizeof(buf), nullptr, 0);
+  if (recv_bytes == 0)
+    return false;
+  // This is not supposed to happen because currently heapprofd does not send
+  // data to the client. Here for generality's sake.
+  if (recv_bytes > 0)
+    return true;
+  return base::IsAgain(errno);
+}
+
 bool Client::SendControlSocketByte() {
-  if (sock_.Send(kSingleByte, sizeof(kSingleByte)) == -1) {
+  // TODO(fmayer): Fix the special casing that only block_client uses a
+  // nonblocking socket.
+  if (sock_.Send(kSingleByte, sizeof(kSingleByte)) == -1 &&
+      (!client_config_.block_client || !base::IsAgain(errno))) {
     PERFETTO_PLOG("Failed to send control socket byte.");
     return false;
   }

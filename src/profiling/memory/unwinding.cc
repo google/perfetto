@@ -300,7 +300,9 @@ void UnwindingWorker::HandleUnwindBatch(pid_t peer_pid) {
   SharedRingBuffer::Buffer buf;
 
   size_t i;
+  bool repost_task = false;
   for (i = 0; i < kUnwindBatchSize; ++i) {
+    uint64_t reparses_before = client_data.metadata.reparses;
     // TODO(fmayer): Allow spinlock acquisition to fail and repost Task if it
     // did.
     buf = shmem.BeginRead();
@@ -310,9 +312,21 @@ void UnwindingWorker::HandleUnwindBatch(pid_t peer_pid) {
                  client_data.data_source_instance_id,
                  client_data.sock->peer_pid(), delegate_);
     shmem.EndRead(std::move(buf));
+    // Reparsing takes time, so process the rest in a new batch to avoid timing
+    // out.
+    // TODO(fmayer): Do not special case blocking mode.
+    if (client_data.client_config.block_client &&
+        reparses_before < client_data.metadata.reparses) {
+      repost_task = true;
+      break;
+    }
   }
 
-  if (i == kUnwindBatchSize) {
+  // Always repost if we have gone through the whole batch.
+  if (i == kUnwindBatchSize)
+    repost_task = true;
+
+  if (repost_task) {
     thread_task_runner_.get()->PostTask(
         [this, peer_pid] { HandleUnwindBatch(peer_pid); });
   }
@@ -378,8 +392,11 @@ void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
                              std::move(handoff_data.fds[kHandshakeMaps]),
                              std::move(handoff_data.fds[kHandshakeMem]));
   ClientData client_data{
-      handoff_data.data_source_instance_id, std::move(sock),
-      std::move(metadata), std::move(handoff_data.shmem),
+      handoff_data.data_source_instance_id,
+      std::move(sock),
+      std::move(metadata),
+      std::move(handoff_data.shmem),
+      std::move(handoff_data.client_config),
   };
   client_data_.emplace(peer_pid, std::move(client_data));
 }
