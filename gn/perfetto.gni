@@ -106,3 +106,13 @@ assert(!(perfetto_build_with_android && perfetto_build_with_embedder))
 # If |build_with_chromium| is true then also |perfetto_build_with_embedder|
 # must be true
 assert(!build_with_chromium || perfetto_build_with_embedder)
+
+# Only perfetto itself (standalone or with android) and chromium should link
+# in the IPC layer.
+#
+# This includes building things that rely on POSIX sockets, this places
+# limitations on the supported operating systems.
+perfetto_build_with_ipc_layer =
+    (is_android || is_linux || is_mac) &&
+    (perfetto_build_standalone || perfetto_build_with_android ||
+     build_with_chromium)

@@ -41,15 +41,15 @@ base::Optional<Table::Schema> SqlStatsTable::Init(int, const char* const*) {
           Table::Column(Column::kQuery, "query", ColumnType::kString),
           Table::Column(Column::kTimeQueued, "queued", ColumnType::kLong),
           Table::Column(Column::kTimeStarted, "started", ColumnType::kLong),
+          Table::Column(Column::kTimeFirstNext, "first_next",
+                        ColumnType::kLong),
           Table::Column(Column::kTimeEnded, "ended", ColumnType::kLong),
       },
       {Column::kTimeQueued});
 }
 
-std::unique_ptr<Table::Cursor> SqlStatsTable::CreateCursor(
-    const QueryConstraints&,
-    sqlite3_value**) {
-  return std::unique_ptr<Table::Cursor>(new Cursor(storage_));
+std::unique_ptr<Table::Cursor> SqlStatsTable::CreateCursor() {
+  return std::unique_ptr<Table::Cursor>(new Cursor(this));
 }
 
 int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo* info) {
@@ -57,11 +57,16 @@ int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
-SqlStatsTable::Cursor::Cursor(const TraceStorage* storage) : storage_(storage) {
-  num_rows_ = storage->sql_stats().size();
-}
+SqlStatsTable::Cursor::Cursor(SqlStatsTable* table)
+    : Table::Cursor(table), storage_(table->storage_), table_(table) {}
 
 SqlStatsTable::Cursor::~Cursor() = default;
+
+int SqlStatsTable::Cursor::Filter(const QueryConstraints&, sqlite3_value**) {
+  *this = Cursor(table_);
+  num_rows_ = storage_->sql_stats().size();
+  return SQLITE_OK;
+}
 
 int SqlStatsTable::Cursor::Next() {
   row_++;
@@ -80,16 +85,16 @@ int SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
                           sqlite_utils::kSqliteStatic);
       break;
     case Column::kTimeQueued:
-      sqlite3_result_int64(context,
-                           static_cast<int64_t>(stats.times_queued()[row_]));
+      sqlite3_result_int64(context, stats.times_queued()[row_]);
       break;
     case Column::kTimeStarted:
-      sqlite3_result_int64(context,
-                           static_cast<int64_t>(stats.times_started()[row_]));
+      sqlite3_result_int64(context, stats.times_started()[row_]);
+      break;
+    case Column::kTimeFirstNext:
+      sqlite3_result_int64(context, stats.times_first_next()[row_]);
       break;
     case Column::kTimeEnded:
-      sqlite3_result_int64(context,
-                           static_cast<int64_t>(stats.times_ended()[row_]));
+      sqlite3_result_int64(context, stats.times_ended()[row_]);
       break;
   }
   return SQLITE_OK;

@@ -52,7 +52,7 @@ source_set("base") {
   if (is_android) {
     sources += [ "android_task_runner.h" ]
   }
-  if (perfetto_build_standalone || perfetto_build_with_android) {
+  if (perfetto_build_with_ipc_layer) {
     sources += [ "unix_socket.h" ]
   }
   public_deps = [

@@ -31,6 +31,31 @@ namespace trace_processor {
 class ThreadTable : public Table {
  public:
   enum Column { kUtid = 0, kUpid = 1, kName = 2, kTid = 3, kStartTs = 4 };
+  class Cursor : public Table::Cursor {
+   public:
+    Cursor(ThreadTable* table);
+
+    // Implementation of Table::Cursor.
+    int Filter(const QueryConstraints&, sqlite3_value**) override;
+    int Next() override;
+    int Eof() override;
+    int Column(sqlite3_context*, int N) override;
+
+   private:
+    Cursor(Cursor&) = delete;
+    Cursor& operator=(const Cursor&) = delete;
+
+    Cursor(Cursor&&) noexcept = default;
+    Cursor& operator=(Cursor&&) = default;
+
+    UniqueTid min;
+    UniqueTid max;
+    UniqueTid current;
+    bool desc;
+
+    const TraceStorage* storage_ = nullptr;
+    ThreadTable* table_ = nullptr;
+  };
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
@@ -38,30 +63,10 @@ class ThreadTable : public Table {
 
   // Table implementation.
   base::Optional<Table::Schema> Init(int, const char* const*) override;
-  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
-                                              sqlite3_value**) override;
+  std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-  class Cursor : public Table::Cursor {
-   public:
-    Cursor(const TraceStorage* storage,
-           const QueryConstraints&,
-           sqlite3_value**);
-
-    // Implementation of Table::Cursor.
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
-
-   private:
-    const TraceStorage* const storage_;
-    UniqueTid min;
-    UniqueTid max;
-    UniqueTid current;
-    bool desc;
-  };
-
   const TraceStorage* const storage_;
 };
 }  // namespace trace_processor

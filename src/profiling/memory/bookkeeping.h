@@ -208,6 +208,13 @@ struct DumpState {
     current_trace_packet = trace_writer->NewTracePacket();
     current_profile_packet = current_trace_packet->set_profile_packet();
     current_profile_packet->set_index((*next_index)++);
+
+    // Explicitly reserve intern ID 0 for the empty string, so unset string
+    // fields get mapped to this.
+    auto interned_string = current_profile_packet->add_strings();
+    constexpr const uint8_t kEmptyString[] = "";
+    interned_string->set_id(0);
+    interned_string->set_str(kEmptyString, 0);
   }
 
   void WriteMap(const Interned<Mapping> map);
@@ -256,16 +263,20 @@ class HeapTracker {
   void RecordMalloc(const std::vector<FrameData>& stack,
                     uint64_t address,
                     uint64_t size,
-                    uint64_t sequence_number);
+                    uint64_t sequence_number,
+                    uint64_t timestamp);
   void Dump(
       std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
           fill_process_header,
       DumpState* dump_state);
-  void RecordFree(uint64_t address, uint64_t sequence_number) {
-    RecordOperation(sequence_number, address);
+  void RecordFree(uint64_t address,
+                  uint64_t sequence_number,
+                  uint64_t timestamp) {
+    RecordOperation(sequence_number, {address, timestamp});
   }
 
   uint64_t GetSizeForTesting(const std::vector<FrameData>& stack);
+  uint64_t GetTimestampForTesting() { return committed_timestamp_; }
 
  private:
   // Sum of all the allocations for a given callstack.
@@ -323,6 +334,11 @@ class HeapTracker {
     CallstackAllocations* callstack_allocations;
   };
 
+  struct PendingOperation {
+    uint64_t allocation_address;
+    uint64_t timestamp;
+  };
+
   CallstackAllocations* MaybeCreateCallstackAllocations(
       GlobalCallstackTrie::Node* node) {
     auto callstack_allocations_it = callstack_allocations_.find(node);
@@ -336,7 +352,8 @@ class HeapTracker {
     return &callstack_allocations_it->second;
   }
 
-  void RecordOperation(uint64_t sequence_number, uint64_t address);
+  void RecordOperation(uint64_t sequence_number,
+                       const PendingOperation& operation);
 
   // Commits a malloc or free operation.
   // See comment of pending_operations_ for encoding of malloc and free
@@ -346,7 +363,8 @@ class HeapTracker {
   // CallstackAllocation::allocated.
   // Committing a free operation: Add the allocation's size to
   // CallstackAllocation::freed and delete the allocation.
-  void CommitOperation(uint64_t sequence_number, uint64_t address);
+  void CommitOperation(uint64_t sequence_number,
+                       const PendingOperation& operation);
 
   // We cannot use an interner here, because after the last allocation goes
   // away, we still need to keep the CallstackAllocations around until the next
@@ -366,9 +384,10 @@ class HeapTracker {
   //
   // If its seq_id is less than the sequence_number of the corresponding
   // allocation it could be either, but is ignored either way.
-  std::map<uint64_t /* seq_id */, uint64_t /* allocation address */>
+  std::map<uint64_t /* seq_id */, PendingOperation /* allocation address */>
       pending_operations_;
 
+  uint64_t committed_timestamp_ = 0;
   // The sequence number all mallocs and frees have been handled up to.
   uint64_t committed_sequence_number_ = 0;
   GlobalCallstackTrie* callsites_;

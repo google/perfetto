@@ -16,6 +16,10 @@
 
 #include "perfetto/base/string_utils.h"
 
+#include <algorithm>
+
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 namespace base {
 
@@ -43,6 +47,23 @@ std::string Join(const std::vector<std::string>& parts,
     }
   }
   return acc;
+}
+
+std::vector<std::string> SplitString(const std::string& text,
+                                     const std::string& delimiter) {
+  PERFETTO_CHECK(!delimiter.empty());
+
+  std::vector<std::string> output;
+  size_t start = 0;
+  size_t next;
+  for (;;) {
+    next = std::min(text.find(delimiter, start), text.size());
+    output.emplace_back(&text[start], next - start);
+    start = next + delimiter.size();
+    if (start >= text.size())
+      break;
+  }
+  return output;
 }
 
 }  // namespace base

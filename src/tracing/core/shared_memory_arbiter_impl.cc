@@ -67,6 +67,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
   unsigned stall_interval_us = 0;
   static const unsigned kMaxStallIntervalUs = 100000;
   static const int kLogAfterNStalls = 3;
+  static const int kFlushCommitsAfterEveryNStalls = 2;
 
   for (;;) {
     // TODO(primiano): Probably this lock is not really required and this code
@@ -116,7 +117,20 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // crash the process.
     if (stall_count++ == kLogAfterNStalls) {
       PERFETTO_ELOG("Shared memory buffer overrun! Stalling");
+    }
 
+    // If the IPC thread itself is stalled because the current process has
+    // filled up the SMB, we need to make sure that the service can process and
+    // purge the chunks written by our process, by flushing any pending commit
+    // requests. Because other threads in our process can continue to
+    // concurrently grab, fill and commit any chunks purged by the service, it
+    // is possible that the SMB remains full and the IPC thread remains stalled,
+    // needing to flush the concurrently queued up commits again. This is
+    // particularly likely with in-process perfetto service where the IPC thread
+    // is the service thread. To avoid remaining stalled forever in such a
+    // situation, we attempt to flush periodically after every N stalls.
+    if (stall_count % kFlushCommitsAfterEveryNStalls == 0 &&
+        task_runner_->RunsTasksOnCurrentThread()) {
       // TODO(primiano): sending the IPC synchronously is a temporary workaround
       // until the backpressure logic in probes_producer is sorted out. Until
       // then the risk is that we stall the message loop waiting for the tracing
@@ -125,12 +139,12 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
       // happen iff we are on the IPC thread, not doing this will cause
       // deadlocks, doing this on the wrong thread causes out-of-order data
       // commits (crbug.com/919187#c28).
-      if (task_runner_->RunsTasksOnCurrentThread())
-        FlushPendingCommitDataRequests();
+      FlushPendingCommitDataRequests();
+    } else {
+      base::SleepMicroseconds(stall_interval_us);
+      stall_interval_us =
+          std::min(kMaxStallIntervalUs, (stall_interval_us + 1) * 8);
     }
-    base::SleepMicroseconds(stall_interval_us);
-    stall_interval_us =
-        std::min(kMaxStallIntervalUs, (stall_interval_us + 1) * 8);
   }
 }
 
@@ -301,6 +315,19 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
 void SharedMemoryArbiterImpl::BindStartupTraceWriterRegistry(
     std::unique_ptr<StartupTraceWriterRegistry> registry,
     BufferID target_buffer) {
+  if (!task_runner_->RunsTasksOnCurrentThread()) {
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+    auto* raw_reg = registry.release();
+    task_runner_->PostTask([weak_this, raw_reg, target_buffer]() {
+      std::unique_ptr<StartupTraceWriterRegistry> owned_reg(raw_reg);
+      if (!weak_this)
+        return;
+      weak_this->BindStartupTraceWriterRegistry(std::move(owned_reg),
+                                                target_buffer);
+    });
+    return;
+  }
+
   // The registry will be owned by the arbiter, so it's safe to capture |this|
   // in the callback.
   auto on_bound_callback = [this](StartupTraceWriterRegistry* bound_registry) {

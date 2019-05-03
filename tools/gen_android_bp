@@ -213,6 +213,7 @@ class Module(object):
         self.include_dirs = []
         self.required = []
         self.user_debug_flag = False
+        self.tool_files = None
 
     def to_string(self, output):
         if self.comment:
@@ -235,6 +236,7 @@ class Module(object):
         self._output_field(output, 'local_include_dirs')
         self._output_field(output, 'include_dirs')
         self._output_field(output, 'required')
+        self._output_field(output, 'tool_files')
 
         disable_pdk = any(name in library_not_in_pdk for name in self.shared_libs)
         if self.user_debug_flag or disable_pdk:
@@ -365,12 +367,16 @@ def apply_module_dependency(blueprint, desc, module, dep_name):
 
     type = target['type']
     if type == 'action':
-        create_modules_from_target(blueprint, desc, dep_name)
-        # Depend both on the generated sources and headers -- see
-        # make_genrules_for_action.
-        module.srcs.append(':' + label_to_module_name(dep_name))
-        module.generated_headers.append(
-            label_to_module_name(dep_name) + '_headers')
+        if "gen_merged_sql_metrics" in dep_name:
+          dep_mod = create_merged_sql_metrics_target(blueprint, desc, dep_name)
+          module.generated_headers.append(dep_mod.name)
+        else:
+          create_modules_from_target(blueprint, desc, dep_name)
+          # Depend both on the generated sources and headers -- see
+          # make_genrules_for_action.
+          module.srcs.append(':' + label_to_module_name(dep_name))
+          module.generated_headers.append(
+              label_to_module_name(dep_name) + '_headers')
     elif type == 'static_library' and label_to_module_name(
             dep_name) != module.name:
         create_modules_from_target(blueprint, desc, dep_name)
@@ -506,6 +512,30 @@ def make_genrules_for_action(blueprint, desc, target_name):
         ]
     return source_module, header_module
 
+def create_merged_sql_metrics_target(blueprint, desc, gn_target_name):
+    target_desc = desc[gn_target_name]
+    module = Module(
+        'genrule',
+        'gen_merged_sql_metrics',
+    )
+    module.tool_files = [
+        'tools/gen_merged_sql_metrics.py',
+    ]
+    module.cmd = ' '.join([
+        '$(location tools/gen_merged_sql_metrics.py)',
+        '--cpp_out=$(out)',
+        '$(in)',
+    ])
+    module.out = set(
+        src[src.index('gen/') + len('gen/'):]
+        for src in target_desc.get('outputs', [])
+    )
+    module.srcs.extend(
+      label_to_path(src)
+      for src in target_desc.get('inputs', [])
+    )
+    blueprint.add_module(module)
+    return module
 
 def _get_cflags(target):
     cflags = set(flag for flag in target.get('cflags', [])

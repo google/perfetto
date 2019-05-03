@@ -31,17 +31,14 @@
 
 namespace perfetto {
 
-namespace protos {
-class RawQueryArgs;
-class RawQueryResult;
-}  // namespace protos
-
 namespace trace_processor {
 
 enum TraceType {
   kUnknownTraceType,
   kProtoTraceType,
+  kProtoWithTrackEventsTraceType,
   kJsonTraceType,
+  kFuchsiaTraceType,
 };
 
 TraceType GuessTraceType(const uint8_t* data, size_t size);
@@ -58,7 +55,8 @@ class TraceProcessorImpl : public TraceProcessor {
 
   void NotifyEndOfFile() override;
 
-  Iterator ExecuteQuery(const std::string& sql) override;
+  Iterator ExecuteQuery(const std::string& sql,
+                        int64_t time_queued = 0) override;
 
   int ComputeMetric(const std::vector<std::string>& metric_names,
                     std::vector<uint8_t>* metrics) override;
@@ -89,7 +87,8 @@ class TraceProcessor::IteratorImpl {
                sqlite3* db,
                ScopedStmt,
                uint32_t column_count,
-               base::Optional<std::string> error);
+               base::Optional<std::string> error,
+               uint32_t sql_stats_row);
   ~IteratorImpl();
 
   IteratorImpl(IteratorImpl&) noexcept = delete;
@@ -100,6 +99,13 @@ class TraceProcessor::IteratorImpl {
 
   // Methods called by TraceProcessor::Iterator.
   bool Next() {
+    // Delegate to the cc file to prevent trace_storage.h include in this
+    // file.
+    if (!called_next_) {
+      RecordFirstNextInSqlStats();
+      called_next_ = true;
+    }
+
     if (PERFETTO_UNLIKELY(error_.has_value()))
       return false;
 
@@ -148,11 +154,16 @@ class TraceProcessor::IteratorImpl {
   void Reset();
 
  private:
+  void RecordFirstNextInSqlStats();
+
   TraceProcessorImpl* trace_processor_;
   sqlite3* db_ = nullptr;
   ScopedStmt stmt_;
   uint32_t column_count_ = 0;
   base::Optional<std::string> error_;
+
+  uint32_t sql_stats_row_ = 0;
+  bool called_next_ = false;
 };
 
 }  // namespace trace_processor

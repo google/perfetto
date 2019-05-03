@@ -30,7 +30,9 @@ const states: {[key: string]: string} = {
 
 export function translateState(state: string|undefined) {
   if (state === undefined) return '';
-  if (state === 'Running' || state === 'Runnable') return state;
+  if (state === 'Running' || state === 'Runnable' || state === 'Busy') {
+    return state;
+  }
   let result = states[state[0]];
   for (let i = 1; i < state.length; i++) {
     result += state[i] === '+' ? ' ' : ' + ';

@@ -31,8 +31,11 @@
 
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "perfetto/trace/trace.pbzero.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "perfetto/trace/track_event/task_execution.pbzero.h"
+#include "perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include "perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -41,6 +44,60 @@ using protozero::ProtoDecoder;
 using protozero::proto_utils::MakeTagLengthDelimited;
 using protozero::proto_utils::MakeTagVarInt;
 using protozero::proto_utils::ParseVarInt;
+
+namespace {
+
+template <typename MessageType>
+void InternMessage(TraceProcessorContext* context,
+                   ProtoIncrementalState::PacketSequenceState* state,
+                   TraceBlobView message) {
+  constexpr auto kIidFieldNumber = MessageType::kIidFieldNumber;
+
+  uint32_t iid = 0;
+  auto message_start = message.data();
+  auto message_size = message.length();
+  protozero::ProtoDecoder decoder(message_start, message_size);
+
+  auto field = decoder.FindField(kIidFieldNumber);
+  if (PERFETTO_UNLIKELY(!field)) {
+    PERFETTO_ELOG("Interned message without interning_id");
+    context->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    return;
+  }
+  iid = field.as_uint32();
+
+  auto res = state->GetInternedDataMap<MessageType>()->emplace(
+      iid,
+      ProtoIncrementalState::InternedDataView<MessageType>(std::move(message)));
+  // If a message with this ID is already interned, its data should not have
+  // changed (this is forbidden by the InternedData proto).
+  // TODO(eseckler): This DCHECK assumes that the message is encoded the
+  // same way whenever it is re-emitted.
+  PERFETTO_DCHECK(res.second ||
+                  (res.first->second.message.length() == message_size &&
+                   memcmp(res.first->second.message.data(), message_start,
+                          message_size) == 0));
+}
+
+}  // namespace
+
+// static
+TraceType ProtoTraceTokenizer::GuessProtoTraceType(const uint8_t* data,
+                                                   size_t size) {
+  // Scan at most the first 128MB for a track event packet.
+  constexpr size_t kMaxScanSize = 128 * 1024 * 1024;
+  protos::pbzero::Trace::Decoder decoder(data, std::min(size, kMaxScanSize));
+  if (!decoder.has_packet())
+    return TraceType::kUnknownTraceType;
+  for (auto it = decoder.packet(); it; ++it) {
+    ProtoDecoder packet_decoder(it->data(), it->size());
+    if (PERFETTO_UNLIKELY(packet_decoder.FindField(
+            protos::pbzero::TracePacket::kTrackEventFieldNumber))) {
+      return TraceType::kProtoWithTrackEventsTraceType;
+    }
+  }
+  return TraceType::kProtoTraceType;
+}
 
 ProtoTraceTokenizer::ProtoTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx) {}
@@ -134,11 +191,24 @@ void ProtoTraceTokenizer::ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
 
 void ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   protos::pbzero::TracePacket::Decoder decoder(packet.data(), packet.length());
+  PERFETTO_DCHECK(!decoder.bytes_left());
 
   auto timestamp = decoder.has_timestamp()
                        ? static_cast<int64_t>(decoder.timestamp())
                        : latest_timestamp_;
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
+
+  if (decoder.incremental_state_cleared()) {
+    HandleIncrementalStateCleared(decoder);
+  } else if (decoder.previous_packet_dropped()) {
+    HandlePreviousPacketDropped(decoder);
+  }
+
+  if (decoder.has_interned_data()) {
+    auto field = decoder.interned_data();
+    const size_t offset = packet.offset_of(field.data);
+    ParseInternedData(decoder, packet.slice(offset, field.size));
+  }
 
   if (decoder.has_ftrace_events()) {
     auto ftrace_field = decoder.ftrace_events();
@@ -147,10 +217,182 @@ void ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     return;
   }
 
+  if (decoder.has_track_event()) {
+    ParseTrackEventPacket(decoder, std::move(packet));
+    return;
+  }
+
+  if (decoder.has_thread_descriptor()) {
+    ParseThreadDescriptorPacket(decoder);
+    return;
+  }
+
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
   context_->sorter->PushTracePacket(timestamp, std::move(packet));
-  PERFETTO_DCHECK(!decoder.bytes_left());
+}
+
+void ProtoTraceTokenizer::HandleIncrementalStateCleared(
+    const protos::pbzero::TracePacket::Decoder& packet_decoder) {
+  if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
+    PERFETTO_ELOG(
+        "incremental_state_cleared without trusted_packet_sequence_id");
+    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    return;
+  }
+  GetIncrementalStateForPacketSequence(
+      packet_decoder.trusted_packet_sequence_id())
+      ->OnIncrementalStateCleared();
+}
+
+void ProtoTraceTokenizer::HandlePreviousPacketDropped(
+    const protos::pbzero::TracePacket::Decoder& packet_decoder) {
+  if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
+    PERFETTO_ELOG("previous_packet_dropped without trusted_packet_sequence_id");
+    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    return;
+  }
+  GetIncrementalStateForPacketSequence(
+      packet_decoder.trusted_packet_sequence_id())
+      ->OnPacketLoss();
+}
+
+void ProtoTraceTokenizer::ParseInternedData(
+    const protos::pbzero::TracePacket::Decoder& packet_decoder,
+    TraceBlobView interned_data) {
+  if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
+    PERFETTO_ELOG("InternedData packet without trusted_packet_sequence_id");
+    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    return;
+  }
+
+  auto* state = GetIncrementalStateForPacketSequence(
+      packet_decoder.trusted_packet_sequence_id());
+
+  protos::pbzero::InternedData::Decoder interned_data_decoder(
+      interned_data.data(), interned_data.length());
+
+  // Store references to interned data submessages into the sequence's state.
+  for (auto it = interned_data_decoder.event_categories(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::EventCategory>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+
+  for (auto it = interned_data_decoder.legacy_event_names(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::LegacyEventName>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+
+  for (auto it = interned_data_decoder.debug_annotation_names(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::DebugAnnotationName>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+
+  for (auto it = interned_data_decoder.source_locations(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::SourceLocation>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+}
+
+void ProtoTraceTokenizer::ParseThreadDescriptorPacket(
+    const protos::pbzero::TracePacket::Decoder& packet_decoder) {
+  if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
+    PERFETTO_ELOG("ThreadDescriptor packet without trusted_packet_sequence_id");
+    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    return;
+  }
+
+  auto* state = GetIncrementalStateForPacketSequence(
+      packet_decoder.trusted_packet_sequence_id());
+
+  // TrackEvents will be ignored while incremental state is invalid. As a
+  // consequence, we should also ignore any ThreadDescriptors received in this
+  // state. Otherwise, any delta-encoded timestamps would be calculated
+  // incorrectly once we move out of the packet loss state. Instead, wait until
+  // the first subsequent descriptor after incremental state is cleared.
+  if (!state->IsIncrementalStateValid()) {
+    context_->storage->IncrementStats(
+        stats::track_event_tokenizer_skipped_packets);
+    return;
+  }
+
+  auto thread_descriptor_field = packet_decoder.thread_descriptor();
+  protos::pbzero::ThreadDescriptor::Decoder thread_descriptor_decoder(
+      thread_descriptor_field.data, thread_descriptor_field.size);
+
+  state->SetThreadDescriptor(
+      thread_descriptor_decoder.pid(), thread_descriptor_decoder.tid(),
+      thread_descriptor_decoder.reference_timestamp_us() * 1000,
+      thread_descriptor_decoder.reference_thread_time_us() * 1000);
+  // TODO(eseckler): Handle other thread_descriptor fields (e.g. thread
+  // name/type).
+}
+
+void ProtoTraceTokenizer::ParseTrackEventPacket(
+    const protos::pbzero::TracePacket::Decoder& packet_decoder,
+    TraceBlobView packet) {
+  constexpr auto kTimestampDeltaUsFieldNumber =
+      protos::pbzero::TrackEvent::kTimestampDeltaUsFieldNumber;
+  constexpr auto kTimestampAbsoluteUsFieldNumber =
+      protos::pbzero::TrackEvent::kTimestampAbsoluteUsFieldNumber;
+  constexpr auto kThreadTimeDeltaUsFieldNumber =
+      protos::pbzero::TrackEvent::kThreadTimeDeltaUsFieldNumber;
+  constexpr auto kThreadTimeAbsoluteUsFieldNumber =
+      protos::pbzero::TrackEvent::kThreadTimeAbsoluteUsFieldNumber;
+
+  if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
+    PERFETTO_ELOG("TrackEvent packet without trusted_packet_sequence_id");
+    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    return;
+  }
+
+  auto* state = GetIncrementalStateForPacketSequence(
+      packet_decoder.trusted_packet_sequence_id());
+
+  // TrackEvents can only be parsed correctly while incremental state for their
+  // sequence is valid and after a ThreadDescriptor has been parsed.
+  if (!state->IsTrackEventStateValid()) {
+    context_->storage->IncrementStats(
+        stats::track_event_tokenizer_skipped_packets);
+    return;
+  }
+
+  auto field = packet_decoder.track_event();
+  ProtoDecoder event_decoder(field.data, field.size);
+
+  int64_t timestamp;
+  int64_t thread_timestamp = 0;
+
+  if (auto ts_delta_field =
+          event_decoder.FindField(kTimestampDeltaUsFieldNumber)) {
+    timestamp = state->IncrementAndGetTrackEventTimeNs(
+        ts_delta_field.as_int64() * 1000);
+  } else if (auto ts_absolute_field =
+                 event_decoder.FindField(kTimestampAbsoluteUsFieldNumber)) {
+    // One-off absolute timestamps don't affect delta computation.
+    timestamp = ts_absolute_field.as_int64() * 1000;
+  } else {
+    PERFETTO_ELOG("TrackEvent without timestamp");
+    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    return;
+  }
+
+  if (auto tt_delta_field =
+          event_decoder.FindField(kThreadTimeDeltaUsFieldNumber)) {
+    thread_timestamp = state->IncrementAndGetTrackEventThreadTimeNs(
+        tt_delta_field.as_int64() * 1000);
+  } else if (auto tt_absolute_field =
+                 event_decoder.FindField(kThreadTimeAbsoluteUsFieldNumber)) {
+    // One-off absolute timestamps don't affect delta computation.
+    thread_timestamp = tt_absolute_field.as_int64() * 1000;
+  }
+
+  context_->sorter->PushTrackEventPacket(timestamp, thread_timestamp, state,
+                                         std::move(packet));
 }
 
 PERFETTO_ALWAYS_INLINE

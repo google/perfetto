@@ -35,6 +35,31 @@ class StringTable : public Table {
     kStringId = 0,
     kString = 1,
   };
+  // Implementation of the SQLite cursor interface.
+  class Cursor : public Table::Cursor {
+   public:
+    Cursor(StringTable*);
+    ~Cursor() override;
+
+    // Implementation of Table::Cursor.
+    int Filter(const QueryConstraints&, sqlite3_value**) override;
+    int Next() override;
+    int Eof() override;
+    int Column(sqlite3_context*, int N) override;
+
+   private:
+    Cursor(Cursor&) = delete;
+    Cursor& operator=(const Cursor&) = delete;
+
+    Cursor(Cursor&&) noexcept = default;
+    Cursor& operator=(Cursor&&) = default;
+
+    size_t row_ = 0;
+    size_t num_rows_ = 0;
+
+    const TraceStorage* storage_ = nullptr;
+    StringTable* table_ = nullptr;
+  };
 
   StringTable(sqlite3*, const TraceStorage* storage);
 
@@ -42,28 +67,10 @@ class StringTable : public Table {
 
   // Table implementation.
   base::Optional<Table::Schema> Init(int, const char* const*) override;
-  std::unique_ptr<Table::Cursor> CreateCursor(const QueryConstraints&,
-                                              sqlite3_value**) override;
+  std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-  // Implementation of the SQLite cursor interface.
-  class Cursor : public Table::Cursor {
-   public:
-    Cursor(const TraceStorage* storage);
-    ~Cursor() override;
-
-    // Implementation of Table::Cursor.
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
-
-   private:
-    size_t row_ = 0;
-    size_t num_rows_ = 0;
-    const TraceStorage* const storage_;
-  };
-
   const TraceStorage* const storage_;
 };
 

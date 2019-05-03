@@ -40,6 +40,18 @@ bool IsRequiredColumn(const std::string& name) {
   return name == kTsColumnName || name == kDurColumnName;
 }
 
+bool HasDuplicateColumns(const std::vector<Table::Column>& cols) {
+  std::set<std::string> names;
+  for (const auto& col : cols) {
+    if (names.count(col.name()) > 0) {
+      PERFETTO_ELOG("Column '%s' present in the output schema more than once.",
+                    col.name().c_str());
+      return true;
+    }
+    names.insert(col.name());
+  }
+  return false;
+}
 }  // namespace
 
 SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
@@ -123,6 +135,9 @@ base::Optional<Table::Schema> SpanJoinOperatorTable::Init(
   CreateSchemaColsForDefn(t1_defn_, &cols);
   CreateSchemaColsForDefn(t2_defn_, &cols);
 
+  if (HasDuplicateColumns(cols)) {
+    return base::nullopt;
+  }
   std::vector<size_t> primary_keys = {Column::kTimestamp};
   if (partitioning_ != PartitioningType::kNoPartitioning)
     primary_keys.push_back(Column::kPartition);
@@ -145,13 +160,8 @@ void SpanJoinOperatorTable::CreateSchemaColsForDefn(
   }
 }
 
-std::unique_ptr<Table::Cursor> SpanJoinOperatorTable::CreateCursor(
-    const QueryConstraints& qc,
-    sqlite3_value** argv) {
-  auto cursor =
-      std::unique_ptr<SpanJoinOperatorTable::Cursor>(new Cursor(this, db_));
-  int value = cursor->Initialize(qc, argv);
-  return value != SQLITE_OK ? nullptr : std::move(cursor);
+std::unique_ptr<Table::Cursor> SpanJoinOperatorTable::CreateCursor() {
+  return std::unique_ptr<SpanJoinOperatorTable::Cursor>(new Cursor(this, db_));
 }
 
 int SpanJoinOperatorTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
@@ -245,12 +255,13 @@ std::string SpanJoinOperatorTable::GetNameForGlobalColumnIndex(
 }
 
 SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
-    : t1_(table, &table->t1_defn_, db),
+    : Table::Cursor(table),
+      t1_(table, &table->t1_defn_, db),
       t2_(table, &table->t2_defn_, db),
       table_(table) {}
 
-int SpanJoinOperatorTable::Cursor::Initialize(const QueryConstraints& qc,
-                                              sqlite3_value** argv) {
+int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
+                                          sqlite3_value** argv) {
   int err = t1_.Initialize(qc, argv);
   if (err != SQLITE_OK)
     return err;
@@ -444,6 +455,7 @@ SpanJoinOperatorTable::Query::~Query() = default;
 
 int SpanJoinOperatorTable::Query::Initialize(const QueryConstraints& qc,
                                              sqlite3_value** argv) {
+  *this = Query(table_, definition(), db_);
   sql_query_ = CreateSqlQuery(
       table_->ComputeSqlConstraintsForDefinition(*defn_, qc, argv));
   return PrepareRawStmt();

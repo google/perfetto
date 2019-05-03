@@ -25,6 +25,7 @@
 #include "perfetto/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/ftrace_descriptors.h"
+#include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
@@ -51,20 +52,24 @@ inline bool operator==(const SystraceTracePoint& x,
          std::tie(y.phase, y.tgid, y.name, y.value);
 }
 
-bool ParseSystraceTracePoint(base::StringView, SystraceTracePoint* out);
+enum class SystraceParseResult { kFailure = 0, kUnsupported, kSuccess };
+
+SystraceParseResult ParseSystraceTracePoint(base::StringView,
+                                            SystraceTracePoint* out);
 
 class ProtoTraceParser : public TraceParser {
  public:
   using ConstBytes = protozero::ConstBytes;
   explicit ProtoTraceParser(TraceProcessorContext*);
-  virtual ~ProtoTraceParser();
+  ~ProtoTraceParser() override;
 
   // TraceParser implementation.
-  virtual void ParseTracePacket(int64_t timestamp,
-                                TraceSorter::TimestampedTracePiece);
-  virtual void ParseFtracePacket(uint32_t cpu,
-                                 int64_t timestamp,
-                                 TraceSorter::TimestampedTracePiece);
+  void ParseTracePacket(int64_t timestamp,
+                        TraceSorter::TimestampedTracePiece) override;
+  void ParseFtracePacket(uint32_t cpu,
+                         int64_t timestamp,
+                         TraceSorter::TimestampedTracePiece) override;
+
   void ParseProcessTree(ConstBytes);
   void ParseProcessStats(int64_t timestamp, ConstBytes);
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, ConstBytes);
@@ -105,6 +110,10 @@ class ProtoTraceParser : public TraceParser {
   void ParseFtraceStats(ConstBytes);
   void ParseProfilePacket(ConstBytes);
   void ParseSystemInfo(ConstBytes);
+  void ParseTrackEvent(int64_t ts,
+                       int64_t tts,
+                       ProtoIncrementalState::PacketSequenceState*,
+                       ConstBytes);
 
  private:
   TraceProcessorContext* context_;

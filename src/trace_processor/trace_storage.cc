@@ -48,7 +48,6 @@ std::vector<const char*> CreateRefTypeStringMap() {
   map[RefType::kRefIrq] = "irq";
   map[RefType::kRefSoftIrq] = "softirq";
   map[RefType::kRefUpid] = "upid";
-  map[RefType::kRefUtidLookupUpid] = "upid";
   return map;
 }
 
@@ -72,25 +71,44 @@ void TraceStorage::ResetStorage() {
   *this = TraceStorage();
 }
 
-void TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,
-                                              int64_t time_queued,
-                                              int64_t time_started) {
+uint32_t TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,
+                                                  int64_t time_queued,
+                                                  int64_t time_started) {
   if (queries_.size() >= kMaxLogEntries) {
     queries_.pop_front();
     times_queued_.pop_front();
     times_started_.pop_front();
+    times_first_next_.pop_front();
     times_ended_.pop_front();
+    popped_queries_++;
   }
   queries_.push_back(query);
   times_queued_.push_back(time_queued);
   times_started_.push_back(time_started);
+  times_first_next_.push_back(0);
   times_ended_.push_back(0);
+  return static_cast<uint32_t>(popped_queries_ + queries_.size() - 1);
 }
 
-void TraceStorage::SqlStats::RecordQueryEnd(int64_t time_ended) {
-  PERFETTO_DCHECK(!times_ended_.empty());
-  PERFETTO_DCHECK(times_ended_.back() == 0);
-  times_ended_.back() = time_ended;
+void TraceStorage::SqlStats::RecordQueryFirstNext(uint32_t row,
+                                                  int64_t time_first_next) {
+  // This means we've popped this query off the queue of queries before it had
+  // a chance to finish. Just silently drop this number.
+  if (popped_queries_ > row)
+    return;
+  uint32_t queue_row = row - popped_queries_;
+  PERFETTO_DCHECK(queue_row < queries_.size());
+  times_first_next_[queue_row] = time_first_next;
+}
+
+void TraceStorage::SqlStats::RecordQueryEnd(uint32_t row, int64_t time_ended) {
+  // This means we've popped this query off the queue of queries before it had
+  // a chance to finish. Just silently drop this number.
+  if (popped_queries_ > row)
+    return;
+  uint32_t queue_row = row - popped_queries_;
+  PERFETTO_DCHECK(queue_row < queries_.size());
+  times_ended_[queue_row] = time_ended;
 }
 
 std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {

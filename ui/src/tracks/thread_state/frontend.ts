@@ -26,6 +26,7 @@ import {trackRegistry} from '../../frontend/track_registry';
 import {
   Config,
   Data,
+  groupBusyStates,
   THREAD_STATE_TRACK_KIND,
 } from './common';
 
@@ -70,11 +71,16 @@ class ThreadStateTrack extends Track<Config, Data> {
         continue;
       }
       if (tStart && tEnd) {
+        // Don't display a slice for Task Dead.
+        if (state === 'x') continue;
         const rectStart = timeScale.timeToPx(tStart);
         const rectEnd = timeScale.timeToPx(tEnd);
         const color = colorForState(state);
         ctx.fillStyle = `hsl(${color.h},${color.s}%,${color.l}%)`;
-        const rectWidth = rectEnd - rectStart;
+        let rectWidth = rectEnd - rectStart;
+        if (groupBusyStates(data.resolution) && rectWidth < 1) {
+          rectWidth = 1;
+        }
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
         // Don't render text when we have less than 5px to play with.
@@ -82,7 +88,7 @@ class ThreadStateTrack extends Track<Config, Data> {
         ctx.textAlign = 'center';
         const title = cropText(translateState(state), charWidth, rectWidth);
         const rectXCenter = rectStart + rectWidth / 2;
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = color.l < 80 ? '#fff' : '#404040';
         ctx.font = '10px Google Sans';
         ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
       }

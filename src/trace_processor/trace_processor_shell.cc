@@ -17,6 +17,7 @@
 #include <aio.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -248,6 +249,7 @@ int RunMetrics(const std::vector<std::string>& metric_names) {
     PERFETTO_ELOG("Error when computing metrics");
     return 1;
   }
+  fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(), stdout);
   return 0;
 }
 
@@ -265,7 +267,7 @@ void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
         if (input[0] == 'q')
           break;
       } else {
-        t_end = base::GetWallTimeMs();
+        t_end = base::GetWallTimeNs();
       }
       for (uint32_t i = 0; i < it->ColumnCount(); i++)
         printf("%20s ", it->GetColumName(i).c_str());
