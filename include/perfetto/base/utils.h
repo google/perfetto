@@ -122,6 +122,10 @@ constexpr size_t AlignUp(size_t size) {
   return (size + alignment - 1) & ~(alignment - 1);
 }
 
+inline bool IsAgain(int err) {
+  return err == EAGAIN || err == EWOULDBLOCK;
+}
+
 }  // namespace base
 }  // namespace perfetto
 

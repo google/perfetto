@@ -44,6 +44,7 @@ struct ClientConfiguration {
   // If interval == 1, sample every allocation.
   // Must be >= 1.
   uint64_t interval;
+  bool block_client;
 };
 
 // Types needed for the wire format used for communication between the client
