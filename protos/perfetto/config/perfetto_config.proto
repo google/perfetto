@@ -497,7 +497,7 @@ message TestConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 20.
+// Next id: 21.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -540,6 +540,18 @@ message TraceConfig {
     repeated string producer_name_filter = 2;
   }
   repeated DataSource data_sources = 2;
+
+  // Config for builtin trace packets emitted by perfetto like trace stats,
+  // system info, etc.
+  message BuiltinDataSource {
+    // Disable emitting clock timestamps into the trace.
+    optional bool disable_clock_snapshotting = 1;
+
+    optional bool disable_trace_config = 2;
+
+    optional bool disable_system_info = 3;
+  }
+  optional BuiltinDataSource builtin_data_sources = 20;
 
   // If specified, the trace will be stopped |duration_ms| after starting.
   // However in case of traces with triggers, see
@@ -635,8 +647,7 @@ message TraceConfig {
   // Default 5s.
   optional uint32 flush_timeout_ms = 14;
 
-  // Disable emitting clock timestamps into the trace.
-  optional bool disable_clock_snapshotting = 15;
+  reserved 15;  // |disable_clock_snapshotting| moved.
 
   // Android-only. If set, sends an intent to the Traceur system app when the
   // trace ends to notify it about the trace readiness.
