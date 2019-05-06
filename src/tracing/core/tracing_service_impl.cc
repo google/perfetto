@@ -1339,12 +1339,17 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     SnapshotSyncMarker(&packets);
     SnapshotStats(tracing_session, &packets);
 
-    if (!tracing_session->config.disable_clock_snapshotting())
+    if (!tracing_session->config.builtin_data_sources()
+             .disable_clock_snapshotting()) {
       SnapshotClocks(&packets);
+    }
   }
-  MaybeEmitTraceConfig(tracing_session, &packets);
-  MaybeEmitSystemInfo(tracing_session, &packets);
-  MaybeEmitReceivedTriggers(tracing_session, &packets);
+  if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
+    MaybeEmitTraceConfig(tracing_session, &packets);
+    MaybeEmitReceivedTriggers(tracing_session, &packets);
+  }
+  if (!tracing_session->config.builtin_data_sources().disable_system_info())
+    MaybeEmitSystemInfo(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
   size_t total_slices = 0;   // SUM(#slices in |packets|).
