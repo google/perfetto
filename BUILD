@@ -26,6 +26,7 @@ genrule(
     srcs = [
         "src/trace_processor/metrics/android/android_mem.sql",
         "src/trace_processor/metrics/android/android_mem_lmk.sql",
+        "src/trace_processor/metrics/android/android_mem_proc_counters.sql",
     ],
     outs = [
         "src/trace_processor/metrics/sql_metrics.h",

@@ -87,20 +87,19 @@ def main():
   args = parser.parse_args()
 
   # Extract the SQL output from each file.
-  escaped_sql_outputs = {}
+  sql_outputs = {}
   for file_name in args.sql_files:
     with open(file_name, 'r') as f:
       basename = os.path.basename(file_name)
-
-      # Escape any quote characters.
-      escaped_sql_outputs[basename] = "".join(f.readlines())
+      sql_outputs[basename] = "".join(
+        x for x in f.readlines() if not x.startswith('--'))
 
   with open(args.cpp_out, 'w+') as output:
     output.write(REPLACEMENT_HEADER)
     output.write(NAMESPACE_BEGIN)
 
     # Create the C++ variable for each SQL file.
-    for name, sql in escaped_sql_outputs.items():
+    for name, sql in sql_outputs.items():
       variable = filename_to_variable(os.path.splitext(name)[0])
       output.write('\nconst char {}[] = R"gendelimiter(\n{})gendelimiter";\n'
         .format(variable, sql))
@@ -109,7 +108,7 @@ def main():
 
     # Create mapping of filename to variable name for each variable.
     output.write("\nconst FileToSql kFileToSql[] = {")
-    for name in escaped_sql_outputs.keys():
+    for name in sql_outputs.keys():
       variable = filename_to_variable(os.path.splitext(name)[0])
       output.write('\n  {{"{}", {}}},\n'.format(name, variable))
     output.write("};\n")

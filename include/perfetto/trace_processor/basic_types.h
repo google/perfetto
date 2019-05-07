@@ -19,9 +19,10 @@
 
 #include <stdint.h>
 
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 namespace trace_processor {
-
 
 struct Config {
   uint64_t window_size_ns = 180 * 1000 * 1000 * 1000ULL;  // 3 minutes.
@@ -36,6 +37,11 @@ struct SqlValue {
     kLong,
     kDouble,
   };
+
+  double AsDouble() {
+    PERFETTO_CHECK(type == kDouble);
+    return double_value;
+  }
 
   // Up to 1 of these fields can be accessed depending on |type|.
   union {

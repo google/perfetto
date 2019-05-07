@@ -14,17 +14,23 @@
 -- limitations under the License.
 --
 
--- Create all the views used to generate the Android Memory metrics proto.
-SELECT RUN_METRIC('android_mem_lmk.sql');
+CREATE VIEW {{table_name}}_span AS
+SELECT
+  ts,
+  LEAD(ts, 1, ts) OVER(PARTITION BY counter_id ORDER BY ts) - ts AS dur,
+  ref AS upid,
+  value
+FROM counters
+WHERE name IN {{counter_names}} AND ref IS NOT NULL AND ref_type = 'upid';
 
--- Generate the process counter metrics.
-SELECT RUN_METRIC('android_mem_proc_counters.sql',
-                  'table_name',
-                  'file_rss',
-                  'counter_names',
-                  '("mem.rss.anon")');
-SELECT RUN_METRIC('android_mem_proc_counters.sql',
-                  'table_name',
-                  'anon_rss',
-                  'counter_names',
-                  '("mem.rss.anon")');
+CREATE VIEW {{table_name}} AS
+SELECT
+  process.name,
+  MIN(span.value),
+  MAX(span.value),
+  SUM(span.value * span.dur) / SUM(span.dur)
+FROM {{table_name}}_span as span JOIN process USING(upid)
+WHERE NOT (process.name IS NULL OR process.name = '')
+GROUP BY 1
+HAVING SUM(span.dur) > 0
+ORDER BY 1;
