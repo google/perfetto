@@ -599,6 +599,8 @@ class TraceStorage {
       }
     };
 
+    uint32_t size() const { return static_cast<uint32_t>(names_.size()); }
+
     int64_t Insert(const Row& row) {
       names_.emplace_back(row.name_id);
       mappings_.emplace_back(row.mapping_row);
@@ -628,6 +630,8 @@ class TraceStorage {
                std::tie(other.depth, other.parent_id, other.frame_row);
       }
     };
+
+    uint32_t size() const { return static_cast<uint32_t>(frame_ids_.size()); }
 
     int64_t Insert(const Row& row) {
       frame_depths_.emplace_back(row.depth);
@@ -665,6 +669,8 @@ class TraceStorage {
       }
     };
 
+    uint32_t size() const { return static_cast<uint32_t>(names_.size()); }
+
     int64_t Insert(const Row& row) {
       build_ids_.emplace_back(row.build_id);
       offsets_.emplace_back(row.offset);
@@ -700,6 +706,8 @@ class TraceStorage {
       int64_t count;
       int64_t size;
     };
+
+    uint32_t size() const { return static_cast<uint32_t>(timestamps_.size()); }
 
     void Insert(const Row& row) {
       timestamps_.emplace_back(row.timestamp);
