@@ -284,7 +284,7 @@ function MemorySettings(cssClass: string) {
         title: 'High-frequency memory events',
         img: 'rec_mem_hifreq.png',
         descr: `Allows to track short memory spikes and transitories through
-                ftrace's mm_event, rss_stat and ion events. Avialable only
+                ftrace's mm_event, rss_stat and ion events. Available only
                 on recent Android Q+ kernels`,
         setEnabled: (cfg, val) => cfg.memHiFreq = val,
         isEnabled: (cfg) => cfg.memHiFreq
