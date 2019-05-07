@@ -979,6 +979,8 @@ TEST(SystraceParserTest, SystraceEvent) {
             SystraceParseResult::kSuccess);
   EXPECT_EQ(result, (SystraceTracePoint{'B', 42, base::StringView("Bar"), 0}));
 
+  ASSERT_EQ(ParseSystraceTracePoint(base::StringView("C|543|foo|"), &result),
+            SystraceParseResult::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint(base::StringView("C|543|foo|8"), &result),
             SystraceParseResult::kSuccess);
   EXPECT_EQ(result, (SystraceTracePoint{'C', 543, base::StringView("foo"), 8}));
