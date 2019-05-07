@@ -669,8 +669,10 @@ void ProtoTraceParser::ParseIonHeapGrowOrShrink(int64_t ts,
                                                 ConstBytes blob,
                                                 bool grow) {
   protos::pbzero::IonHeapGrowFtraceEvent::Decoder ion(blob.data, blob.size);
-  int64_t total_bytes = ion.total_allocated();
   int64_t change_bytes = static_cast<int64_t>(ion.len()) * (grow ? 1 : -1);
+  // The total_allocated ftrace event reports the value before the
+  // atomic_long_add / sub takes place.
+  int64_t total_bytes = ion.total_allocated() + change_bytes;
   StringId global_name_id = ion_total_unknown_id_;
   StringId change_name_id = ion_change_unknown_id_;
 
