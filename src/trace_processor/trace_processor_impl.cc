@@ -18,6 +18,7 @@
 
 #include <inttypes.h>
 #include <algorithm>
+#include <fstream>
 #include <functional>
 
 #include "perfetto/base/logging.h"
@@ -59,8 +60,9 @@
 #include "perfetto/metrics/android/mem_metric.pbzero.h"
 #include "perfetto/metrics/metrics.pbzero.h"
 
-// JSON parsing is only supported in the standalone build.
+// JSON parsing and exporting is only supported in the standalone build.
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#include "src/trace_processor/export_json.h"
 #include "src/trace_processor/json_trace_parser.h"
 #include "src/trace_processor/json_trace_tokenizer.h"
 #endif
@@ -191,6 +193,40 @@ void CreateMetricsFunctions(TraceProcessorImpl* tp, sqlite3* db) {
   }
 }
 
+// Exporting traces in legacy JSON format is only supported
+// in the standalone build so far.
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+void ExportJson(sqlite3_context* ctx, int /*argc*/, sqlite3_value** argv) {
+  TraceStorage* storage = static_cast<TraceStorage*>(sqlite3_user_data(ctx));
+  const char* filename =
+      reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+  FILE* output = fopen(filename, "w");
+  if (!output) {
+    sqlite3_result_error(ctx, "Couldn't open output file", -1);
+    return;
+  }
+
+  json::ResultCode result = json::ExportJson(storage, output);
+  switch (result) {
+    case json::kResultOk:
+      return;
+    case json::kResultWrongRefType:
+      sqlite3_result_error(ctx, "Encountered a slice with unsupported ref type",
+                           -1);
+      return;
+  }
+}
+
+void CreateJsonExportFunction(TraceStorage* ts, sqlite3* db) {
+  auto ret = sqlite3_create_function_v2(db, "EXPORT_JSON", 1, SQLITE_UTF8, ts,
+                                        ExportJson, nullptr, nullptr,
+                                        sqlite_utils::kSqliteStatic);
+  if (ret) {
+    PERFETTO_ELOG("Error initializing EXPORT_JSON");
+  }
+}
+#endif
+
 // Fuchsia traces have a magic number as documented here:
 // https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format/README.md#magic-number-record-trace-info-type-0
 constexpr uint64_t kFuchsiaMagicNumber = 0x0016547846040010;
@@ -232,6 +268,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) : cfg_(cfg) {
   context_.syscall_tracker.reset(new SyscallTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+  CreateJsonExportFunction(this->context_.storage.get(), db);
+#endif
 
   ArgsTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
