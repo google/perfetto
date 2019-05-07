@@ -17,6 +17,7 @@ import("../../../gn/perfetto.gni")
 sql_files = [
   "android/android_mem.sql",
   "android/android_mem_lmk.sql",
+  "android/android_mem_proc_counters.sql",
 ]
 
 config("gen_config") {
@@ -50,5 +51,18 @@ source_set("lib") {
     "../../../protos/perfetto/metrics:zero",
     "../../../protos/perfetto/metrics/android:zero",
     "../../protozero:protozero",
+  ]
+}
+
+source_set("unittests") {
+  testonly = true
+  sources = [
+    "metrics_unittest.cc",
+  ]
+  deps = [
+    ":lib",
+    "../../../buildtools:sqlite",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_deps",
   ]
 }

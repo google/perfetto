@@ -138,7 +138,10 @@ test("perfetto_unittests") {
     deps += [ "src/profiling/memory:unittests" ]
   }
   if (perfetto_build_standalone && !is_android) {
-    deps += [ "src/trace_processor:unittests" ]
+    deps += [
+      "src/trace_processor:unittests",
+      "src/trace_processor/metrics:unittests",
+    ]
   }
 }
 

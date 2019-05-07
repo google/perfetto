@@ -136,12 +136,15 @@ inline double ExtractSqliteValue(sqlite3_value* value) {
 // uint64_t at all given that SQLite doesn't support it.
 
 template <>
-inline std::string ExtractSqliteValue(sqlite3_value* value) {
+inline const char* ExtractSqliteValue(sqlite3_value* value) {
   auto type = sqlite3_value_type(value);
   PERFETTO_DCHECK(type == SQLITE_TEXT);
-  const auto* extracted =
-      reinterpret_cast<const char*>(sqlite3_value_text(value));
-  return std::string(extracted);
+  return reinterpret_cast<const char*>(sqlite3_value_text(value));
+}
+
+template <>
+inline std::string ExtractSqliteValue(sqlite3_value* value) {
+  return ExtractSqliteValue<const char*>(value);
 }
 
 template <typename T>
