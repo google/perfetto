@@ -19,6 +19,7 @@ genrule {
   srcs: [
     "src/trace_processor/metrics/android/android_mem.sql",
     "src/trace_processor/metrics/android/android_mem_lmk.sql",
+    "src/trace_processor/metrics/android/android_mem_proc_counters.sql",
   ],
   cmd: "$(location tools/gen_merged_sql_metrics.py) --cpp_out=$(out) $(in)",
   out: [
