@@ -33,6 +33,10 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/fuchsia_trace_parser.h"
 #include "src/trace_processor/fuchsia_trace_tokenizer.h"
+#include "src/trace_processor/heap_profile_allocation_table.h"
+#include "src/trace_processor/heap_profile_callsite_table.h"
+#include "src/trace_processor/heap_profile_frame_table.h"
+#include "src/trace_processor/heap_profile_mapping_table.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/instants_table.h"
 #include "src/trace_processor/metrics/metrics.h"
@@ -248,6 +252,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) : cfg_(cfg) {
   StatsTable::RegisterTable(*db_, context_.storage.get());
   AndroidLogsTable::RegisterTable(*db_, context_.storage.get());
   RawTable::RegisterTable(*db_, context_.storage.get());
+  HeapProfileAllocationTable::RegisterTable(*db_, context_.storage.get());
+  HeapProfileCallsiteTable::RegisterTable(*db_, context_.storage.get());
+  HeapProfileFrameTable::RegisterTable(*db_, context_.storage.get());
+  HeapProfileMappingTable::RegisterTable(*db_, context_.storage.get());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() {
