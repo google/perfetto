@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/string_splitter.h"
@@ -446,12 +447,40 @@ bool RunQueryAndPrintResult(const std::vector<std::string> queries,
   return !is_query_error;
 }
 
+int MaybePrintPerfFile(const char* perf_file_path,
+                       base::TimeNanos t_load,
+                       base::TimeNanos t_run) {
+  if (!perf_file_path)
+    return 0;
+
+  char buf[128];
+  int count = snprintf(buf, sizeof(buf), "%" PRId64 ",%" PRId64,
+                       static_cast<int64_t>(t_load.count()),
+                       static_cast<int64_t>(t_run.count()));
+  if (count < 0) {
+    PERFETTO_ELOG("Failed to write perf data");
+    return 1;
+  }
+
+  auto fd(base::OpenFile(perf_file_path, O_WRONLY | O_CREAT | O_TRUNC, 066));
+  if (!fd) {
+    PERFETTO_ELOG("Failed to open perf file");
+    return 1;
+  }
+  base::WriteAll(fd.get(), buf, static_cast<size_t>(count));
+  return 0;
+}
+
 void PrintUsage(char** argv) {
   PERFETTO_ELOG(
       "Interactive trace processor shell.\n"
       "Usage: %s [OPTIONS] trace_file.pb\n\n"
       "Options:\n"
       " -d                   Enable virtual table debugging.\n"
+      " -p FILE              Writes the time taken to ingest the trace and"
+      "execute the queries to the given file. Only valid with -q or "
+      "--run-metrics and the file will only be written if the execution is "
+      "successful\n"
       " -s FILE              Read and execute contents of file before "
       "launching an interactive shell.\n"
       " -q FILE              Read and execute an SQL query from a file.\n"
@@ -466,6 +495,7 @@ int TraceProcessorMain(int argc, char** argv) {
     PrintUsage(argv);
     return 1;
   }
+  const char* perf_file_path = nullptr;
   const char* trace_file_path = nullptr;
   const char* query_file_path = nullptr;
   const char* sqlite_file_path = nullptr;
@@ -479,8 +509,14 @@ int TraceProcessorMain(int argc, char** argv) {
     if (strcmp(argv[i], "-d") == 0) {
       EnableSQLiteVtableDebugging();
       continue;
-    }
-    if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "-s") == 0) {
+    } else if (strcmp(argv[i], "-p") == 0) {
+      if (++i == argc) {
+        PrintUsage(argv);
+        return 1;
+      }
+      perf_file_path = argv[i];
+      continue;
+    } else if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "-s") == 0) {
       launch_shell = strcmp(argv[i], "-s") == 0;
       if (++i == argc) {
         PrintUsage(argv);
@@ -500,6 +536,7 @@ int TraceProcessorMain(int argc, char** argv) {
         PrintUsage(argv);
         return 1;
       }
+      launch_shell = false;
       metric_names = argv[i];
       continue;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -513,6 +550,12 @@ int TraceProcessorMain(int argc, char** argv) {
   }
 
   if (trace_file_path == nullptr) {
+    PrintUsage(argv);
+    return 1;
+  }
+
+  // Only allow non-interactive queries to emit perf data.
+  if (perf_file_path && launch_shell) {
     PrintUsage(argv);
     return 1;
   }
@@ -548,7 +591,7 @@ int TraceProcessorMain(int argc, char** argv) {
   struct aiocb* aio_list[1] = {&cb};
 
   uint64_t file_size = 0;
-  auto t_load_start = base::GetWallTimeMs();
+  auto t_load_start = base::GetWallTimeNs();
   for (int i = 0;; i++) {
     if (i % 128 == 0)
       fprintf(stderr, "\rLoading trace: %.2f MB\r", file_size / 1E6);
@@ -577,9 +620,12 @@ int TraceProcessorMain(int argc, char** argv) {
     tp->Parse(std::move(buf), static_cast<size_t>(rsize));
   }
   tp->NotifyEndOfFile();
-  double t_load = (base::GetWallTimeMs() - t_load_start).count() / 1E3;
+
+  auto t_load = base::GetWallTimeNs() - t_load_start;
+  double t_load_s = t_load.count() / 1E9;
   double size_mb = file_size / 1E6;
-  PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb, size_mb / t_load);
+  PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb,
+                size_mb / t_load_s);
   g_tp = tp.get();
 
 #if PERFETTO_HAS_SIGNAL_H()
@@ -591,6 +637,8 @@ int TraceProcessorMain(int argc, char** argv) {
     return 1;
   }
 
+  auto t_run_start = base::GetWallTimeNs();
+
   // First, see if we have some metrics to run. If we do, just run them and
   // return.
   if (metric_names) {
@@ -598,7 +646,12 @@ int TraceProcessorMain(int argc, char** argv) {
     for (base::StringSplitter ss(metric_names, ','); ss.Next();) {
       metrics.emplace_back(ss.cur_token());
     }
-    return RunMetrics(std::move(metrics));
+    int ret = RunMetrics(std::move(metrics));
+    if (!ret) {
+      auto t_query = base::GetWallTimeNs() - t_run_start;
+      ret = MaybePrintPerfFile(perf_file_path, t_load, t_query);
+    }
+    return ret;
   }
 
   // If we were given a query file, load contents
@@ -618,17 +671,15 @@ int TraceProcessorMain(int argc, char** argv) {
     return 1;
   }
 
-  // After this we can dump the database and exit if needed.
   if (sqlite_file_path) {
     return ExportTraceToDatabase(sqlite_file_path);
   }
 
-  // If we ran an automated query, exit.
   if (!launch_shell) {
-    return 0;
+    auto t_query = base::GetWallTimeNs() - t_run_start;
+    return MaybePrintPerfFile(perf_file_path, t_load, t_query);
   }
 
-  // Otherwise start an interactive shell.
   return StartInteractiveShell();
 }
 
