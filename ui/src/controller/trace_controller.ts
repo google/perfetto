@@ -259,7 +259,9 @@ export class TraceController extends Controller<States> {
           cpu,
         }
       }));
+    }
 
+    for (let cpu = 0; cpu < numCpus; cpu++) {
       // Only add a cpu freq track if we have
       // cpu freq data.
       // TODO(taylori): Find a way to display cpu idle
