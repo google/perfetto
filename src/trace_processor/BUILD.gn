@@ -178,6 +178,8 @@ source_set("lib") {
   ]
   if (perfetto_build_standalone) {
     sources += [
+      "export_json.cc",
+      "export_json.h",
       "json_trace_parser.cc",
       "json_trace_parser.h",
       "json_trace_tokenizer.cc",
@@ -262,6 +264,7 @@ source_set("unittests") {
   ]
   if (perfetto_build_standalone) {
     sources += [
+      "export_json_unittest.cc",
       "json_trace_tokenizer_unittest.cc",
       "json_trace_utils_unittest.cc",
     ]
