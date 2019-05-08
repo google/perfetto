@@ -1,0 +1,7 @@
+android_mem {
+  system_metrics {
+    lmks {
+      total_count: 5
+    }
+  }
+}
