@@ -157,12 +157,12 @@ int ComputeMetrics(TraceProcessor* tp,
   PERFETTO_CHECK(has_next);
   PERFETTO_CHECK(it.Get(0).type == SqlValue::Type::kLong);
 
-  has_next = it.Next();
-  PERFETTO_DCHECK(!has_next);
-
   auto* memory = metrics.set_android_mem();
   memory->set_system_metrics()->set_lmks()->set_total_count(
       static_cast<int32_t>(it.Get(0).long_value));
+
+  has_next = it.Next();
+  PERFETTO_DCHECK(!has_next);
 
   it = tp->ExecuteQuery("SELECT * from anon_rss;");
   while (it.Next()) {
