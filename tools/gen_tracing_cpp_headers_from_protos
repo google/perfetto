@@ -55,7 +55,7 @@ def main():
     print('Usage: %s out/xxx' % sys.argv[0])
     return 1
   out_dir = sys.argv[1]
-  clang_format = ['clang-format', '-i', '--sort-includes']
+  clang_format = ['./buildtools/linux64/clang-format', '-i', '--sort-includes']
   tool = os.path.join(out_dir, 'proto_to_cpp')
   if not os.path.exists(tool):
     print('Could not find %s, run ninja -C %s proto_to_cpp' % (tool, out_dir))
