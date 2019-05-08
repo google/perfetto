@@ -177,7 +177,7 @@ TEST_F(HeapProfileTrackerDupTest, Callstack) {
   EXPECT_THAT(context.storage->heap_profile_callsites().frame_depths(),
               ElementsAre(0, 1));
   EXPECT_THAT(context.storage->heap_profile_callsites().parent_callsite_ids(),
-              ElementsAre(0, 0));
+              ElementsAre(-1, 0));
   EXPECT_THAT(context.storage->heap_profile_callsites().frame_ids(),
               ElementsAre(0, 0));
 }
@@ -292,7 +292,7 @@ TEST(HeapProfileTrackerTest, Functional) {
     hpt->AddCallstack(kPacket, i, callstacks[i]);
 
   for (size_t i = 0; i < base::ArraySize(callstacks); ++i) {
-    int64_t parent = 0;
+    int64_t parent = -1;
     const HeapProfileTracker::SourceCallstack& callstack = callstacks[i];
     for (size_t depth = 0; depth < callstack.size(); ++depth) {
       auto frame_id =
