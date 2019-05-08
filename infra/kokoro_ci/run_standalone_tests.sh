@@ -42,4 +42,7 @@ ${OUT_PATH}/perfetto_unittests
 ${OUT_PATH}/perfetto_integrationtests
 
 BENCHMARK_FUNCTIONAL_TEST_ONLY=true ${OUT_PATH}/perfetto_benchmarks
-tools/diff_test_trace_processor.py ${OUT_PATH}/trace_processor_shell
+tools/diff_test_trace_processor.py \
+  --test-type=queries ${OUT_PATH}/trace_processor_shell
+tools/diff_test_trace_processor.py \
+  --test-type=metrics ${OUT_PATH}/trace_processor_shell
