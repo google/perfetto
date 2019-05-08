@@ -124,10 +124,16 @@ class SharedRingBuffer {
   // Exposed for fuzzers.
   struct MetadataPage {
     alignas(uint64_t) std::atomic<bool> spinlock;
-    uint64_t read_pos;
-    uint64_t write_pos;
+    std::atomic<uint64_t> read_pos;
+    std::atomic<uint64_t> write_pos;
 
     std::atomic<uint64_t> failed_spinlocks;
+    // For stats that are only accessed by a single thread or under the
+    // spinlock, members of this struct are directly modified. Other stats use
+    // the atomics above this struct.
+    //
+    // When the user requests stats, the atomics above get copied into this
+    // struct, which is then returned.
     Stats stats;
   };
 
@@ -149,13 +155,16 @@ class SharedRingBuffer {
   void Initialize(base::ScopedFile mem_fd);
   bool IsCorrupt(const PointerPositions& pos);
 
-  inline base::Optional<PointerPositions> GetPointerPositions(
-      const ScopedSpinlock& lock) {
-    PERFETTO_DCHECK(lock.locked());
-
+  inline base::Optional<PointerPositions> GetPointerPositions() {
     PointerPositions pos;
-    pos.read_pos = meta_->read_pos;
-    pos.write_pos = meta_->write_pos;
+    // We need to acquire load the write_pos to make sure we observe a
+    // consistent ring buffer in BeginRead, otherwise it is possible that we
+    // observe the write_pos increment, but not the size field write of the
+    // payload.
+    //
+    // This is matched by a release at the end of BeginWrite.
+    pos.write_pos = meta_->write_pos.load(std::memory_order_acquire);
+    pos.read_pos = meta_->read_pos.load(std::memory_order_relaxed);
 
     base::Optional<PointerPositions> result;
     if (IsCorrupt(pos))

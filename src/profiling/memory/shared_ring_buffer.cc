@@ -174,7 +174,7 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginWrite(
   PERFETTO_DCHECK(spinlock.locked());
   Buffer result;
 
-  base::Optional<PointerPositions> opt_pos = GetPointerPositions(spinlock);
+  base::Optional<PointerPositions> opt_pos = GetPointerPositions();
   if (!opt_pos) {
     meta_->stats.num_writes_corrupt++;
     errno = EBADF;
@@ -201,13 +201,18 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginWrite(
 
   result.size = size;
   result.data = wr_ptr + kHeaderSize;
-  meta_->write_pos += size_with_header;
   meta_->stats.bytes_written += size;
   meta_->stats.num_writes_succeeded++;
-  // By making this a release store, we can save grabbing the spinlock in
-  // EndWrite.
+
+  // We can make this a relaxed store, as this gets picked up by the acquire
+  // load in GetPointerPositions (and the release store below).
   reinterpret_cast<std::atomic<uint32_t>*>(wr_ptr)->store(
-      0, std::memory_order_release);
+      0, std::memory_order_relaxed);
+
+  // This needs to happen after the store above, so the reader never observes an
+  // incorrect byte count. This is matched by the acquire load in
+  // GetPointerPositions.
+  meta_->write_pos.fetch_add(size_with_header, std::memory_order_release);
   return result;
 }
 
@@ -216,14 +221,18 @@ void SharedRingBuffer::EndWrite(Buffer buf) {
     return;
   uint8_t* wr_ptr = buf.data - kHeaderSize;
   PERFETTO_DCHECK(reinterpret_cast<uintptr_t>(wr_ptr) % kAlignment == 0);
+
+  // This needs to release to make sure the reader sees the payload written
+  // between the BeginWrite and EndWrite calls.
+  //
+  // This is matched by the acquire load in BeginRead where it reads the
+  // record's size.
   reinterpret_cast<std::atomic<uint32_t>*>(wr_ptr)->store(
       static_cast<uint32_t>(buf.size), std::memory_order_release);
 }
 
 SharedRingBuffer::Buffer SharedRingBuffer::BeginRead() {
-  ScopedSpinlock spinlock(&meta_->spinlock, ScopedSpinlock::Mode::Blocking);
-
-  base::Optional<PointerPositions> opt_pos = GetPointerPositions(spinlock);
+  base::Optional<PointerPositions> opt_pos = GetPointerPositions();
   if (!opt_pos) {
     meta_->stats.num_reads_corrupt++;
     errno = EBADF;
@@ -268,9 +277,8 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginRead() {
 void SharedRingBuffer::EndRead(Buffer buf) {
   if (!buf)
     return;
-  ScopedSpinlock spinlock(&meta_->spinlock, ScopedSpinlock::Mode::Blocking);
   size_t size_with_header = base::AlignUp<kAlignment>(buf.size + kHeaderSize);
-  meta_->read_pos += size_with_header;
+  meta_->read_pos.fetch_add(size_with_header, std::memory_order_relaxed);
   meta_->stats.num_reads_succeeded++;
 }
 
