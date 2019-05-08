@@ -33,7 +33,7 @@ std::string ReadFile(FILE* input) {
   fseek(input, 0, SEEK_SET);
   const int kBufSize = 1000;
   char buffer[kBufSize];
-  fread(buffer, sizeof(char), kBufSize, input);
+  EXPECT_GT(fread(buffer, sizeof(char), kBufSize, input), 0);
   return std::string(buffer);
 }
 
