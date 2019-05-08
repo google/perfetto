@@ -185,7 +185,9 @@ script:
         "out/dist/$TEST_TARGET"
       done
       BENCHMARK_FUNCTIONAL_TEST_ONLY=true out/dist/perfetto_benchmarks
-      tools/diff_test_trace_processor.py out/dist/trace_processor_shell
+
+      tools/diff_test_trace_processor.py --test-type=queries out/dist/trace_processor_shell
+      tools/diff_test_trace_processor.py --test-type=metrics out/dist/trace_processor_shell
     fi
 
 after_script:

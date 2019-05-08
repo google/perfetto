@@ -35,5 +35,9 @@ protozero_library("zero") {
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   sources = common_sources
+  if (perfetto_build_standalone) {
+    generate_descriptor =
+        "$perfetto_root_path/protos/perfetto/metrics/metrics.descriptor"
+  }
   generator_plugin_options = "wrapper_namespace=pbzero"
 }
