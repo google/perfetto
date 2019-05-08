@@ -24,6 +24,7 @@ source_set("perfetto_cmd") {
     ":trigger_producer",
     "../../buildtools:protobuf_lite",
     "../../gn:default_deps",
+    "../../protos/perfetto/common:lite",
     "../../protos/perfetto/config:lite",
     "../base",
     "../protozero",
@@ -84,7 +85,6 @@ proto_library("protos") {
   generate_python = false
   deps = []
   sources = [
-    "descriptor.proto",
     "perfetto_cmd_state.proto",
   ]
   proto_in_dir = perfetto_root_path

@@ -757,6 +757,7 @@ genrule {
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/commit_data_request.proto",
+    "protos/perfetto/common/descriptor.proto",
     "protos/perfetto/common/observable_events.proto",
     "protos/perfetto/common/sys_stats_counters.proto",
     "protos/perfetto/common/trace_stats.proto",
@@ -768,6 +769,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pb.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.pb.cc",
+    "external/perfetto/protos/perfetto/common/descriptor.pb.cc",
     "external/perfetto/protos/perfetto/common/observable_events.pb.cc",
     "external/perfetto/protos/perfetto/common/sys_stats_counters.pb.cc",
     "external/perfetto/protos/perfetto/common/trace_stats.pb.cc",
@@ -780,6 +782,7 @@ genrule {
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/commit_data_request.proto",
+    "protos/perfetto/common/descriptor.proto",
     "protos/perfetto/common/observable_events.proto",
     "protos/perfetto/common/sys_stats_counters.proto",
     "protos/perfetto/common/trace_stats.proto",
@@ -791,6 +794,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pb.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.pb.h",
+    "external/perfetto/protos/perfetto/common/descriptor.pb.h",
     "external/perfetto/protos/perfetto/common/observable_events.pb.h",
     "external/perfetto/protos/perfetto/common/sys_stats_counters.pb.h",
     "external/perfetto/protos/perfetto/common/trace_stats.pb.h",
@@ -806,6 +810,7 @@ genrule {
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/commit_data_request.proto",
+    "protos/perfetto/common/descriptor.proto",
     "protos/perfetto/common/observable_events.proto",
     "protos/perfetto/common/sys_stats_counters.proto",
     "protos/perfetto/common/trace_stats.proto",
@@ -818,6 +823,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pbzero.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.pbzero.cc",
+    "external/perfetto/protos/perfetto/common/descriptor.pbzero.cc",
     "external/perfetto/protos/perfetto/common/observable_events.pbzero.cc",
     "external/perfetto/protos/perfetto/common/sys_stats_counters.pbzero.cc",
     "external/perfetto/protos/perfetto/common/trace_stats.pbzero.cc",
@@ -830,6 +836,7 @@ genrule {
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/commit_data_request.proto",
+    "protos/perfetto/common/descriptor.proto",
     "protos/perfetto/common/observable_events.proto",
     "protos/perfetto/common/sys_stats_counters.proto",
     "protos/perfetto/common/trace_stats.proto",
@@ -842,6 +849,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pbzero.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.pbzero.h",
+    "external/perfetto/protos/perfetto/common/descriptor.pbzero.h",
     "external/perfetto/protos/perfetto/common/observable_events.pbzero.h",
     "external/perfetto/protos/perfetto/common/sys_stats_counters.pbzero.h",
     "external/perfetto/protos/perfetto/common/trace_stats.pbzero.h",
@@ -2413,7 +2421,6 @@ genrule {
 genrule {
   name: "perfetto_src_perfetto_cmd_protos_gen",
   srcs: [
-    "src/perfetto_cmd/descriptor.proto",
     "src/perfetto_cmd/perfetto_cmd_state.proto",
   ],
   tools: [
@@ -2421,7 +2428,6 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto/ $(in)",
   out: [
-    "external/perfetto/src/perfetto_cmd/descriptor.pb.cc",
     "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.pb.cc",
   ],
 }
@@ -2430,7 +2436,6 @@ genrule {
 genrule {
   name: "perfetto_src_perfetto_cmd_protos_gen_headers",
   srcs: [
-    "src/perfetto_cmd/descriptor.proto",
     "src/perfetto_cmd/perfetto_cmd_state.proto",
   ],
   tools: [
@@ -2438,7 +2443,6 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto/ $(in)",
   out: [
-    "external/perfetto/src/perfetto_cmd/descriptor.pb.h",
     "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.pb.h",
   ],
   export_include_dirs: [

@@ -41,6 +41,7 @@ action("gen_merged_sql_metrics") {
 source_set("lib") {
   sources = [
     "metrics.cc",
+    "metrics.descriptor.h",
     "metrics.h",
   ]
   deps = [
