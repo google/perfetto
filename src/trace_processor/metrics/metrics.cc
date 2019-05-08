@@ -131,12 +131,12 @@ int ComputeMetrics(TraceProcessor* tp,
   for (const auto& query : queries) {
     PERFETTO_DLOG("Executing query: %s", query.c_str());
     auto prep_it = tp->ExecuteQuery(query);
-    auto prep_has_next = prep_it.Next();
+    prep_it.Next();
+
     if (auto opt_error = prep_it.GetLastError()) {
       PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
       return 1;
     }
-    PERFETTO_DCHECK(!prep_has_next);
   }
 
   protozero::ScatteredHeapBuffer delegate;
