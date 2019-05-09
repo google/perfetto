@@ -209,6 +209,9 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   DataSource* GetDataSourceForProcess(const Process& proc);
   void RecordOtherSourcesAsRejected(DataSource* active_ds, const Process& proc);
 
+  void SetStartupProperties(DataSource* data_source);
+  void SignalRunningProcesses(DataSource* data_source);
+
   // Specific to mode_ == kCentral
   std::unique_ptr<base::UnixSocket> MakeListeningSocket();
 
