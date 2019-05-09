@@ -51,7 +51,7 @@ class TraceProcessorImpl : public TraceProcessor {
 
   ~TraceProcessorImpl() override;
 
-  bool Parse(std::unique_ptr<uint8_t[]>, size_t) override;
+  util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) override;
 
   void NotifyEndOfFile() override;
 
@@ -87,7 +87,7 @@ class TraceProcessor::IteratorImpl {
                sqlite3* db,
                ScopedStmt,
                uint32_t column_count,
-               base::Optional<std::string> error,
+               util::Status,
                uint32_t sql_stats_row);
   ~IteratorImpl();
 
@@ -106,12 +106,12 @@ class TraceProcessor::IteratorImpl {
       called_next_ = true;
     }
 
-    if (PERFETTO_UNLIKELY(error_.has_value()))
+    if (!status_.ok())
       return false;
 
     int ret = sqlite3_step(*stmt_);
     if (PERFETTO_UNLIKELY(ret != SQLITE_ROW && ret != SQLITE_DONE)) {
-      error_ = base::Optional<std::string>(sqlite3_errmsg(db_));
+      status_ = util::ErrStatus(sqlite3_errmsg(db_));
       return false;
     }
     return ret == SQLITE_ROW;
@@ -148,7 +148,7 @@ class TraceProcessor::IteratorImpl {
 
   uint32_t ColumnCount() { return column_count_; }
 
-  base::Optional<std::string> GetLastError() { return error_; }
+  util::Status Status() { return status_; }
 
   // Methods called by TraceProcessorImpl.
   void Reset();
@@ -160,7 +160,7 @@ class TraceProcessor::IteratorImpl {
   sqlite3* db_ = nullptr;
   ScopedStmt stmt_;
   uint32_t column_count_ = 0;
-  base::Optional<std::string> error_;
+  util::Status status_;
 
   uint32_t sql_stats_row_ = 0;
   bool called_next_ = false;
