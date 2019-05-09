@@ -84,4 +84,15 @@ message HeapprofdConfig {
   // trace. Use with caution as this will significantly slow down the target
   // process.
   optional bool block_client = 9;
+
+  // Do not profile processes from startup, only match already running
+  // processes.
+  //
+  // Can not be set at the same time as no_running.
+  optional bool no_startup = 10;
+
+  // Do not profile running processes. Only match processes on startup.
+  //
+  // Can not be set at the same time as no_startup.
+  optional bool no_running = 11;
 }

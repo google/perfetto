@@ -155,6 +155,12 @@ class PERFETTO_EXPORT HeapprofdConfig {
   bool block_client() const { return block_client_; }
   void set_block_client(bool value) { block_client_ = value; }
 
+  bool no_startup() const { return no_startup_; }
+  void set_no_startup(bool value) { no_startup_ = value; }
+
+  bool no_running() const { return no_running_; }
+  void set_no_running(bool value) { no_running_ = value; }
+
  private:
   uint64_t sampling_interval_bytes_ = {};
   std::vector<std::string> process_cmdline_;
@@ -164,6 +170,8 @@ class PERFETTO_EXPORT HeapprofdConfig {
   ContinuousDumpConfig continuous_dump_config_ = {};
   uint64_t shmem_size_bytes_ = {};
   bool block_client_ = {};
+  bool no_startup_ = {};
+  bool no_running_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
