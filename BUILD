@@ -836,3 +836,12 @@ cc_fuzz_target(
         "//third_party/perfetto/protos:trace_processor_cc_proto",
     ],
 )
+
+cc_fuzz_target(
+    name = "proto_decoder_fuzzer",
+    srcs = ["src/protozero/proto_decoder_fuzzer.cc"],
+    componentid = 323270,
+    deps = [
+        ":trace_processor",
+    ],
+)
