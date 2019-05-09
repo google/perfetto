@@ -65,10 +65,8 @@ class TraceProcessor {
     // even before calling |Next()|.
     uint32_t ColumnCount();
 
-    // Returns the error (if any) from the last call to next. If no error
-    // occurred, the returned value will be base::nullopt and implies that
-    // EOF was reached.
-    base::Optional<std::string> GetLastError();
+    // Returns the status of the iterator.
+    util::Status Status();
 
    private:
     std::unique_ptr<IteratorImpl> iterator_;
@@ -82,10 +80,11 @@ class TraceProcessor {
   // The entry point to push trace data into the processor. The trace format
   // will be automatically discovered on the first push call. It is possible
   // to make queries between two pushes.
-  // Returns true if parsing has been succeeding so far, false if some
-  // unrecoverable error happened. If this happens, the TraceProcessor will
-  // ignore the following Parse() requests and drop data on the floor.
-  virtual bool Parse(std::unique_ptr<uint8_t[]>, size_t) = 0;
+  // Returns the Ok status if parsing has been succeeding so far, and Error
+  // status if some unrecoverable error happened. If this happens, the
+  // TraceProcessor will ignore the following Parse() requests, drop data on the
+  // floor and return errors forever.
+  virtual util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) = 0;
 
   // When parsing a bounded file (as opposite to streaming from a device) this
   // function should be called when the last chunk of the file has been passed
