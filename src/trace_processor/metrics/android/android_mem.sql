@@ -22,9 +22,9 @@ SELECT RUN_METRIC('android_mem_proc_counters.sql',
                   'table_name',
                   'file_rss',
                   'counter_names',
-                  '("mem.rss.anon")');
+                  'mem.rss.file');
 SELECT RUN_METRIC('android_mem_proc_counters.sql',
                   'table_name',
                   'anon_rss',
                   'counter_names',
-                  '("mem.rss.anon")');
+                  'mem.rss.anon');

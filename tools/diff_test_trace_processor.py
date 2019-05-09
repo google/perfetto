@@ -24,7 +24,6 @@ import tempfile
 
 from google.protobuf import descriptor, descriptor_pb2, message_factory
 from google.protobuf import reflection, text_format
-from google.protobuf.pyext import _message
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -76,8 +75,12 @@ def run_metrics_test(trace_processor_path, gen_trace_path, trace_path, metric,
   actual_message = metrics_message_factory()
   actual_message.ParseFromString(actual)
 
+  # Convert both back to text format.
+  expected_text = text_format.MessageToString(expected_message)
+  actual_text = text_format.MessageToString(actual_message)
+
   # Do an equality check of the python messages
-  if expected_message == actual_message:
+  if expected_text == actual_text:
     return True
 
   # Write some metadata about the traces.
@@ -87,9 +90,7 @@ def run_metrics_test(trace_processor_path, gen_trace_path, trace_path, metric,
   sys.stderr.write("Expected file: {}\n".format(expected_path))
   sys.stderr.write("Command line: {}\n".format(' '.join(cmd)))
 
-  # Convert both back to text format and do a diff between the two.
-  expected_text = text_format.MessageToString(expected_message)
-  actual_text = text_format.MessageToString(actual_message)
+  # Print the diff between the two.
   write_diff(expected_text, actual_text)
 
   return False
