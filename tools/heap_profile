@@ -141,7 +141,7 @@ def main(argv):
                       "multiple of 4096, at least 8192.", type=int,
                       default=8 * 1048576)
   parser.add_argument("--block-client", help="When buffer is full, block the "
-                      "client o wait for buffer space. Use with caution as "
+                      "client to wait for buffer space. Use with caution as "
                       "this can significantly slow down the client",
                       action="store_true")
   parser.add_argument("--simpleperf", action="store_true",
