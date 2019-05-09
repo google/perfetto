@@ -50,7 +50,7 @@ class ThreadTaskRunner {
   //
   // Warning: do not call Quit() on the returned runner pointer, the termination
   // should be handled exclusively by this class' destructor.
-  UnixTaskRunner* get() { return task_runner_; }
+  UnixTaskRunner* get() const { return task_runner_; }
 
  private:
   ThreadTaskRunner();
