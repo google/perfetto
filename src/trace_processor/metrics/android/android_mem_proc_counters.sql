@@ -21,7 +21,7 @@ SELECT
   ref AS upid,
   value
 FROM counters
-WHERE name IN {{counter_names}} AND ref IS NOT NULL AND ref_type = 'upid';
+WHERE name = '{{counter_names}}' AND ref IS NOT NULL AND ref_type = 'upid';
 
 CREATE VIEW {{table_name}} AS
 SELECT
