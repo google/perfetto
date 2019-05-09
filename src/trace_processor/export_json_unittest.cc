@@ -33,8 +33,9 @@ std::string ReadFile(FILE* input) {
   fseek(input, 0, SEEK_SET);
   const int kBufSize = 1000;
   char buffer[kBufSize];
-  EXPECT_GT(fread(buffer, sizeof(char), kBufSize, input), 0);
-  return std::string(buffer);
+  size_t ret = fread(buffer, sizeof(char), kBufSize, input);
+  EXPECT_GT(ret, 0);
+  return std::string(buffer, ret);
 }
 
 TEST(ExportJsonTest, EmptyStorage) {
