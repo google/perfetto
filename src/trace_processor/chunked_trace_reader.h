@@ -22,6 +22,8 @@
 
 #include <memory>
 
+#include "perfetto/trace_processor/basic_types.h"
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -35,9 +37,7 @@ class ChunkedTraceReader {
   // caller to match line/protos boundaries. The parser class has to deal with
   // intermediate buffering lines/protos that span across different chunks.
   // The buffer size is guaranteed to be > 0.
-  // Returns true if the data has been succesfully parsed, false if some
-  // unrecoverable parsing error happened and no more chunks should be pushed.
-  virtual bool Parse(std::unique_ptr<uint8_t[]>, size_t) = 0;
+  virtual util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) = 0;
 };
 
 }  // namespace trace_processor

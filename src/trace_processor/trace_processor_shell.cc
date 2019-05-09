@@ -252,9 +252,9 @@ int ExportTraceToDatabase(const std::string& output_name) {
 
 int RunMetrics(const std::vector<std::string>& metric_names) {
   std::vector<uint8_t> metric_result;
-  int res = g_tp->ComputeMetric(metric_names, &metric_result);
-  if (res) {
-    PERFETTO_ELOG("Error when computing metrics");
+  util::Status status = g_tp->ComputeMetric(metric_names, &metric_result);
+  if (!status.ok()) {
+    PERFETTO_ELOG("Error when computing metrics: %s", status.c_message());
     return 1;
   }
   fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(), stdout);

@@ -58,8 +58,8 @@ class TraceProcessorImpl : public TraceProcessor {
   Iterator ExecuteQuery(const std::string& sql,
                         int64_t time_queued = 0) override;
 
-  int ComputeMetric(const std::vector<std::string>& metric_names,
-                    std::vector<uint8_t>* metrics) override;
+  util::Status ComputeMetric(const std::vector<std::string>& metric_names,
+                             std::vector<uint8_t>* metrics) override;
 
   void InterruptQuery() override;
 

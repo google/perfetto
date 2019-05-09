@@ -98,7 +98,8 @@ JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx) {}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
 
-bool JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
+util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
+                                       size_t size) {
   buffer_.insert(buffer_.end(), data.get(), data.get() + size);
   const char* buf = buffer_.data();
   const char* next = buf;
@@ -113,10 +114,8 @@ bool JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
     while (next != end && *next != '[') {
       next++;
     }
-    if (next == end) {
-      PERFETTO_ELOG("Failed to parse: first chunk missing opening [");
-      return false;
-    }
+    if (next == end)
+      return util::ErrStatus("Failed to parse: first chunk missing opening [");
     next++;
   }
 
@@ -126,7 +125,7 @@ bool JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
     std::unique_ptr<Json::Value> value(new Json::Value());
     const auto res = ReadOneJsonDict(next, end, value.get(), &next);
     if (res == kFatalError)
-      return false;
+      return util::ErrStatus("Encountered fatal error while parsing JSON");
     if (res == kEndOfTrace || res == kNeedsMoreData)
       break;
 
@@ -143,7 +142,7 @@ bool JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data, size_t size) {
 
   offset_ += static_cast<uint64_t>(next - buf);
   buffer_.erase(buffer_.begin(), buffer_.begin() + (next - buf));
-  return true;
+  return util::OkStatus();
 }
 
 }  // namespace trace_processor
