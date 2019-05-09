@@ -78,6 +78,7 @@ class PagedMemory {
 
   inline void* Get() const noexcept { return p_; }
   inline bool IsValid() const noexcept { return !!p_; }
+  inline size_t size() const noexcept { return size_; }
 
  private:
   PagedMemory(char* p, size_t size);
