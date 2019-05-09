@@ -100,10 +100,10 @@ class TraceProcessor {
   // Computes the given metrics on the loded portion of the trace. If
   // successful, the output argument |metrics_proto| will be filled with the
   // proto-encoded bytes for the message TraceMetrics in
-  // perfetto/metrics/metrics.proto. The return value will be 0 if no error
-  // occured or non-zero otherwise.
-  virtual int ComputeMetric(const std::vector<std::string>& metric_names,
-                            std::vector<uint8_t>* metrics_proto) = 0;
+  // perfetto/metrics/metrics.proto.
+  virtual util::Status ComputeMetric(
+      const std::vector<std::string>& metric_names,
+      std::vector<uint8_t>* metrics_proto) = 0;
 
   // Interrupts the current query. Typically used by Ctrl-C handler.
   virtual void InterruptQuery() = 0;
