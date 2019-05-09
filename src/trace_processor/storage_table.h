@@ -52,7 +52,7 @@ class StorageTable : public Table {
   virtual ~StorageTable() override;
 
   // Table implementation.
-  base::Optional<Table::Schema> Init(int, const char* const*) override final;
+  util::Status Init(int, const char* const*, Table::Schema*) override final;
   std::unique_ptr<Table::Cursor> CreateCursor() override;
 
   // Required methods for subclasses to implement.

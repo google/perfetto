@@ -61,7 +61,7 @@ class StatsTable : public Table {
   StatsTable(sqlite3*, const TraceStorage*);
 
   // Table implementation.
-  base::Optional<Table::Schema> Init(int, const char* const*) override;
+  util::Status Init(int, const char* const*, Table::Schema*) override;
   std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 

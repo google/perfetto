@@ -22,9 +22,10 @@ namespace trace_processor {
 StorageTable::StorageTable() = default;
 StorageTable::~StorageTable() = default;
 
-base::Optional<Table::Schema> StorageTable::Init(int, const char* const*) {
+util::Status StorageTable::Init(int, const char* const*, Schema* schema) {
   schema_ = CreateStorageSchema();
-  return schema_.ToTableSchema();
+  *schema = schema_.ToTableSchema();
+  return util::OkStatus();
 }
 
 std::unique_ptr<Table::Cursor> StorageTable::CreateCursor() {

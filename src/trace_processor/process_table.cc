@@ -36,8 +36,8 @@ void ProcessTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<ProcessTable>(db, storage, "process");
 }
 
-base::Optional<Table::Schema> ProcessTable::Init(int, const char* const*) {
-  return Schema(
+util::Status ProcessTable::Init(int, const char* const*, Schema* schema) {
+  *schema = Schema(
       {
           Table::Column(Column::kUpid, "upid", ColumnType::kInt),
           Table::Column(Column::kName, "name", ColumnType::kString),
@@ -45,6 +45,7 @@ base::Optional<Table::Schema> ProcessTable::Init(int, const char* const*) {
           Table::Column(Column::kStartTs, "start_ts", ColumnType::kLong),
       },
       {Column::kUpid});
+  return util::OkStatus();
 }
 
 std::unique_ptr<Table::Cursor> ProcessTable::CreateCursor() {
