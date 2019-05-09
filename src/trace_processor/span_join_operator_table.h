@@ -27,6 +27,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/table.h"
 
@@ -83,8 +84,8 @@ class SpanJoinOperatorTable : public Table {
 
   // Parsed version of a table descriptor.
   struct TableDescriptor {
-    static base::Optional<TableDescriptor> Parse(
-        const std::string& raw_descriptor);
+    static util::Status Parse(const std::string& raw_descriptor,
+                              TableDescriptor* descriptor);
 
     bool IsPartitioned() const { return !partition_col.empty(); }
 
@@ -251,7 +252,7 @@ class SpanJoinOperatorTable : public Table {
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
   // Table implementation.
-  base::Optional<Table::Schema> Init(int, const char* const*) override;
+  util::Status Init(int, const char* const*, Table::Schema*) override;
   std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;
 
@@ -270,9 +271,10 @@ class SpanJoinOperatorTable : public Table {
                                     : t2_defn_.partition_col();
   }
 
-  base::Optional<TableDefinition> CreateTableDefinition(
+  util::Status CreateTableDefinition(
       const TableDescriptor& desc,
-      bool emit_shadow_slices);
+      bool emit_shadow_slices,
+      SpanJoinOperatorTable::TableDefinition* defn);
 
   std::vector<std::string> ComputeSqlConstraintsForDefinition(
       const TableDefinition& defn,

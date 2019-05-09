@@ -36,13 +36,14 @@ void StringTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<StringTable>(db, storage, "strings");
 }
 
-base::Optional<Table::Schema> StringTable::Init(int, const char* const*) {
-  return Schema(
+util::Status StringTable::Init(int, const char* const*, Schema* schema) {
+  *schema = Schema(
       {
           Table::Column(Column::kStringId, "id", ColumnType::kUint),
           Table::Column(Column::kString, "str", ColumnType::kString),
       },
       {Column::kStringId});
+  return util::OkStatus();
 }
 
 std::unique_ptr<Table::Cursor> StringTable::CreateCursor() {
