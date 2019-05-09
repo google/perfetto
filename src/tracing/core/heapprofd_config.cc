@@ -46,7 +46,8 @@ bool HeapprofdConfig::operator==(const HeapprofdConfig& other) const {
          (all_ == other.all_) &&
          (skip_symbol_prefix_ == other.skip_symbol_prefix_) &&
          (continuous_dump_config_ == other.continuous_dump_config_) &&
-         (shmem_size_bytes_ == other.shmem_size_bytes_);
+         (shmem_size_bytes_ == other.shmem_size_bytes_) &&
+         (block_client_ == other.block_client_);
 }
 #pragma GCC diagnostic pop
 
@@ -94,6 +95,10 @@ void HeapprofdConfig::FromProto(
                 "size mismatch");
   shmem_size_bytes_ =
       static_cast<decltype(shmem_size_bytes_)>(proto.shmem_size_bytes());
+
+  static_assert(sizeof(block_client_) == sizeof(proto.block_client()),
+                "size mismatch");
+  block_client_ = static_cast<decltype(block_client_)>(proto.block_client());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -135,6 +140,11 @@ void HeapprofdConfig::ToProto(perfetto::protos::HeapprofdConfig* proto) const {
                 "size mismatch");
   proto->set_shmem_size_bytes(
       static_cast<decltype(proto->shmem_size_bytes())>(shmem_size_bytes_));
+
+  static_assert(sizeof(block_client_) == sizeof(proto->block_client()),
+                "size mismatch");
+  proto->set_block_client(
+      static_cast<decltype(proto->block_client())>(block_client_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

@@ -61,6 +61,7 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
     iovecs[1].iov_len = sizeof(*msg.free_header);
   } else {
     PERFETTO_DFATAL("Neither alloc_header nor free_header set.");
+    errno = EINVAL;
     return false;
   }
 
@@ -83,6 +84,7 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
     ScopedSpinlock lock = shmem->AcquireLock(ScopedSpinlock::Mode::Try);
     if (!lock.locked()) {
       PERFETTO_DLOG("Failed to acquire spinlock.");
+      errno = EAGAIN;
       return false;
     }
     buf = shmem->BeginWrite(lock, total_size);
@@ -90,6 +92,7 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
   if (!buf) {
     PERFETTO_DFATAL("Buffer overflow.");
     shmem->EndWrite(std::move(buf));
+    errno = EAGAIN;
     return false;
   }
 

@@ -98,6 +98,11 @@ class Client {
   // Flush the contents of free_batch_. Must hold free_batch_lock_.
   bool FlushFreesLocked();
   bool SendControlSocketByte();
+  bool SendWireMessageWithRetriesIfBlocking(const WireMessage&);
+
+  // This is only valid for non-blocking sockets. This is when
+  // client_config_.block_client is true.
+  bool IsConnected();
 
   ClientConfiguration client_config_;
   // sampler_ operations are not thread-safe.

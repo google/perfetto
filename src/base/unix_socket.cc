@@ -228,13 +228,12 @@ void UnixSocketRaw::Shutdown() {
 ssize_t UnixSocketRaw::SendMsgAll(struct msghdr* msg) {
   // This does not make sense on non-blocking sockets.
   PERFETTO_DCHECK(fd_);
-  PERFETTO_DCHECK(IsBlocking());
 
   ssize_t total_sent = 0;
   while (msg->msg_iov) {
     ssize_t sent = PERFETTO_EINTR(sendmsg(*fd_, msg, kNoSigPipe));
     if (sent <= 0) {
-      if (sent == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+      if (sent == -1 && IsAgain(errno))
         return total_sent;
       return sent;
     }
