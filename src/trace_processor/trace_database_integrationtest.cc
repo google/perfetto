@@ -35,7 +35,7 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
       : processor_(TraceProcessor::CreateInstance(Config())) {}
 
  protected:
-  bool LoadTrace(const char* name, int min_chunk_size = 512) {
+  util::Status LoadTrace(const char* name, int min_chunk_size = 512) {
     base::ScopedFstream f(fopen(base::GetTestDataPath(name).c_str(), "rb"));
     std::minstd_rand0 rnd_engine(0);
     std::uniform_int_distribution<> dist(min_chunk_size, 1024);
@@ -43,11 +43,12 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
       size_t chunk_size = static_cast<size_t>(dist(rnd_engine));
       std::unique_ptr<uint8_t[]> buf(new uint8_t[chunk_size]);
       auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, chunk_size, *f);
-      if (!processor_->Parse(std::move(buf), rsize))
-        return false;
+      auto status = processor_->Parse(std::move(buf), rsize);
+      if (!status.ok())
+        return status;
     }
     processor_->NotifyEndOfFile();
-    return true;
+    return util::OkStatus();
   }
 
   TraceProcessor::Iterator Query(const std::string& query) {
@@ -59,7 +60,7 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
 };
 
 TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb"));
+  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
   auto it = Query(
       "select count(*), max(ts) - min(ts) from sched "
       "where dur != 0 and utid != 0");
@@ -72,7 +73,7 @@ TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
-  ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")));
+  ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")).ok());
   auto it =
       Query("select count(*), max(ts) - min(ts) from slices where utid != 0");
   ASSERT_TRUE(it.Next());
@@ -84,7 +85,8 @@ TEST_F(TraceProcessorIntegrationTest, Sfgate) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, UnsortedTrace) {
-  ASSERT_TRUE(LoadTrace("unsorted_trace.json", strlen("{\"traceEvents\":[")));
+  ASSERT_TRUE(
+      LoadTrace("unsorted_trace.json", strlen("{\"traceEvents\":[")).ok());
   auto it = Query("select ts, depth from slices order by ts");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
@@ -100,7 +102,7 @@ TEST_F(TraceProcessorIntegrationTest, UnsortedTrace) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb"));
+  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
   auto it = Query("select start_ts, end_ts from trace_bounds");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
@@ -112,7 +114,7 @@ TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
 
 // TODO(hjd): Add trace to test_data.
 TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
-  ASSERT_TRUE(LoadTrace("android_build_trace.json", strlen("[\n{")));
+  ASSERT_TRUE(LoadTrace("android_build_trace.json", strlen("[\n{")).ok());
 }
 
 }  // namespace

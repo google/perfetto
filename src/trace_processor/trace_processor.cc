@@ -54,8 +54,8 @@ uint32_t TraceProcessor::Iterator::ColumnCount() {
   return iterator_->ColumnCount();
 }
 
-base::Optional<std::string> TraceProcessor::Iterator::GetLastError() {
-  return iterator_->GetLastError();
+util::Status TraceProcessor::Iterator::Status() {
+  return iterator_->Status();
 }
 
 // static
