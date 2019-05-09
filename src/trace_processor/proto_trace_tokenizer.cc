@@ -157,17 +157,24 @@ bool ProtoTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> owned_buf,
       size -= size_missing;
       partial_buf_.clear();
       uint8_t* buf_start = &buf[0];  // Note that buf is std::moved below.
-      ParseInternal(std::move(buf), buf_start, size_incl_header);
+      bool success = ParseInternal(std::move(buf), buf_start, size_incl_header);
+      if (PERFETTO_UNLIKELY(!success)) {
+        PERFETTO_ELOG(
+            "Failed to parse trace.  Check if the trace is corrupted.");
+        return false;
+      }
     } else {
       partial_buf_.insert(partial_buf_.end(), data, &data[size]);
       return true;
     }
   }
-  ParseInternal(std::move(owned_buf), data, size);
-  return true;
+  bool success = ParseInternal(std::move(owned_buf), data, size);
+  if (!success)
+    PERFETTO_ELOG("Failed to parse trace. Check if the trace is corrupted.");
+  return success;
 }
 
-void ProtoTraceTokenizer::ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
+bool ProtoTraceTokenizer::ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
                                         uint8_t* data,
                                         size_t size) {
   PERFETTO_DCHECK(data >= &owned_buf[0]);
@@ -178,7 +185,9 @@ void ProtoTraceTokenizer::ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
   protos::pbzero::Trace::Decoder decoder(data, size);
   for (auto it = decoder.packet(); it; ++it) {
     size_t field_offset = whole_buf.offset_of(it->data());
-    ParsePacket(whole_buf.slice(field_offset, it->size()));
+    bool success = ParsePacket(whole_buf.slice(field_offset, it->size()));
+    if (PERFETTO_UNLIKELY(!success))
+      return false;
   }
 
   const size_t bytes_left = decoder.bytes_left();
@@ -187,11 +196,13 @@ void ProtoTraceTokenizer::ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
     partial_buf_.insert(partial_buf_.end(), &data[decoder.read_offset()],
                         &data[decoder.read_offset() + bytes_left]);
   }
+  return true;
 }
 
-void ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
+bool ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   protos::pbzero::TracePacket::Decoder decoder(packet.data(), packet.length());
-  PERFETTO_DCHECK(!decoder.bytes_left());
+  if (PERFETTO_UNLIKELY(decoder.bytes_left()))
+    return false;
 
   auto timestamp = decoder.has_timestamp()
                        ? static_cast<int64_t>(decoder.timestamp())
@@ -214,22 +225,24 @@ void ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     auto ftrace_field = decoder.ftrace_events();
     const size_t fld_off = packet.offset_of(ftrace_field.data);
     ParseFtraceBundle(packet.slice(fld_off, ftrace_field.size));
-    return;
+    return true;
   }
 
   if (decoder.has_track_event()) {
     ParseTrackEventPacket(decoder, std::move(packet));
-    return;
+    return true;
   }
 
   if (decoder.has_thread_descriptor()) {
     ParseThreadDescriptorPacket(decoder);
-    return;
+    return true;
   }
 
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
   context_->sorter->PushTracePacket(timestamp, std::move(packet));
+
+  return true;
 }
 
 void ProtoTraceTokenizer::HandleIncrementalStateCleared(
