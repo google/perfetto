@@ -69,8 +69,8 @@ FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
 
 FuchsiaTraceTokenizer::~FuchsiaTraceTokenizer() = default;
 
-bool FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
-                                  size_t size) {
+util::Status FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
+                                          size_t size) {
   // The relevant internal state is |leftover_bytes_|. Each call to Parse should
   // maintain the following properties, unless a fatal error occurs in which
   // case it should return false and no assumptions should be made about the
@@ -96,7 +96,7 @@ bool FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
     // record, so just add the new bytes to |leftover_bytes_| and return.
     leftover_bytes_.insert(leftover_bytes_.end(), data.get() + byte_offset,
                            data.get() + size);
-    return true;
+    return util::OkStatus();
   }
   if (leftover_bytes_.size() > 0) {
     // There is a record starting from leftover bytes.
@@ -141,7 +141,7 @@ bool FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
       // have to leftover_bytes_ and wait for more.
       leftover_bytes_.insert(leftover_bytes_.end(), data.get() + byte_offset,
                              data.get() + byte_offset + size);
-      return true;
+      return util::OkStatus();
     }
   }
 
@@ -157,10 +157,8 @@ bool FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
     uint32_t record_len_bytes =
         fuchsia_trace_utils::ReadField<uint32_t>(header, 4, 15) *
         sizeof(uint64_t);
-    if (record_len_bytes == 0) {
-      PERFETTO_DLOG("Unexpected record of size 0");
-      return false;
-    }
+    if (record_len_bytes == 0)
+      return util::ErrStatus("Unexpected record of size 0");
 
     if (record_offset + record_len_bytes > size)
       break;
@@ -175,7 +173,7 @@ bool FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
   leftover_bytes_.insert(leftover_bytes_.end(),
                          full_view.data() + record_offset,
                          full_view.data() + size);
-  return true;
+  return util::OkStatus();
 }
 
 // Most record types are read and recorded in |TraceStorage| here directly.
