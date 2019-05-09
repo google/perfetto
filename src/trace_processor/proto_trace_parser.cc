@@ -907,10 +907,10 @@ void ProtoTraceParser::ParseOOMScoreAdjUpdate(int64_t ts, ConstBytes blob) {
   // The int16_t static cast is because older version of the on-device tracer
   // had a bug on negative varint encoding (b/120618641).
   int16_t oom_adj = static_cast<int16_t>(evt.oom_score_adj());
-  uint32_t pid = static_cast<uint32_t>(evt.pid());
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
-  context_->event_tracker->PushCounter(ts, oom_adj, oom_score_adj_id_, upid,
-                                       RefType::kRefUpid);
+  uint32_t tid = static_cast<uint32_t>(evt.pid());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+  context_->event_tracker->PushCounter(ts, oom_adj, oom_score_adj_id_, utid,
+                                       RefType::kRefUtid, true);
 }
 
 void ProtoTraceParser::ParseMmEventRecord(int64_t ts,
