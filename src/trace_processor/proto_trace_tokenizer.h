@@ -58,10 +58,10 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   bool Parse(std::unique_ptr<uint8_t[]>, size_t size) override;
 
  private:
-  void ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
+  bool ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
                      uint8_t* data,
                      size_t size);
-  void ParsePacket(TraceBlobView);
+  bool ParsePacket(TraceBlobView);
   void HandleIncrementalStateCleared(
       const protos::pbzero::TracePacket::Decoder& packet_decoder);
   void HandlePreviousPacketDropped(
