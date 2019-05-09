@@ -102,10 +102,11 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
     PERFETTO_DLOG("RUN_METRIC: Executing query: %s", buffer.c_str());
     auto it = tp->ExecuteQuery(buffer);
-    if (auto opt_error = it.GetLastError()) {
+    util::Status status = it.Status();
+    if (!status.ok()) {
       char* error =
           sqlite3_mprintf("RUN_METRIC: Error when running file %s: %s",
-                          filename, opt_error->c_str());
+                          filename, status.c_message());
       sqlite3_result_error(ctx, error, -1);
       sqlite3_free(error);
       return;
@@ -133,8 +134,9 @@ int ComputeMetrics(TraceProcessor* tp,
     auto prep_it = tp->ExecuteQuery(query);
     prep_it.Next();
 
-    if (auto opt_error = prep_it.GetLastError()) {
-      PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+    util::Status status = prep_it.Status();
+    if (!status.ok()) {
+      PERFETTO_ELOG("SQLite error: %s", status.c_message());
       return 1;
     }
   }
@@ -150,8 +152,9 @@ int ComputeMetrics(TraceProcessor* tp,
   // filling to ensure that the code above works.
   auto it = tp->ExecuteQuery("SELECT COUNT(*) from lmk_by_score;");
   auto has_next = it.Next();
-  if (auto opt_error = it.GetLastError()) {
-    PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+  util::Status status = it.Status();
+  if (!status.ok()) {
+    PERFETTO_ELOG("SQLite error: %s", status.c_message());
     return 1;
   }
   PERFETTO_CHECK(has_next);
@@ -176,8 +179,9 @@ int ComputeMetrics(TraceProcessor* tp,
     anon->set_max(it.Get(2).AsDouble());
     anon->set_avg(it.Get(3).AsDouble());
   }
-  if (auto opt_error = it.GetLastError()) {
-    PERFETTO_ELOG("SQLite error: %s", opt_error->c_str());
+  status = it.Status();
+  if (!status.ok()) {
+    PERFETTO_ELOG("SQLite error: %s", status.c_message());
     return 1;
   }
 
