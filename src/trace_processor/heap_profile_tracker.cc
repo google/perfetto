@@ -99,7 +99,8 @@ void HeapProfileTracker::AddFrame(ProfileIndex pidx,
 void HeapProfileTracker::AddCallstack(ProfileIndex pidx,
                                       SourceCallstackId id,
                                       const SourceCallstack& frame_ids) {
-  int64_t parent_id = 0;
+  // TODO(fmayer): This should be NULL.
+  int64_t parent_id = -1;
   for (size_t depth = 0; depth < frame_ids.size(); ++depth) {
     std::vector<uint64_t> frame_subset = frame_ids;
     frame_subset.resize(depth + 1);
