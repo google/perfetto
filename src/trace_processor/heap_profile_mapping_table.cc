@@ -32,10 +32,8 @@ StorageSchema HeapProfileMappingTable::CreateStorageSchema() {
   const auto& mappings = storage_->heap_profile_mappings();
   return StorageSchema::Builder()
       .AddGenericNumericColumn("id", RowAccessor())
-      // TODO(lalitm): we should hex encode this string before exposing as
-      // a column.
-      //.AddStringColumn("build_id", &mappings.build_ids(),
-      //                 &storage_->string_pool())
+      .AddStringColumn("build_id", &mappings.build_ids(),
+                       &storage_->string_pool())
       .AddNumericColumn("offset", &mappings.offsets())
       .AddNumericColumn("start", &mappings.starts())
       .AddNumericColumn("end", &mappings.ends())

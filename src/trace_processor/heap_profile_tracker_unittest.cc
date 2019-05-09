@@ -47,6 +47,8 @@ constexpr auto kMappingEnd = 345;
 constexpr auto kMappingLoadBias = 456;
 
 static constexpr auto kFrameRelPc = 567;
+static constexpr char kBuildIDName[] = "[build id]";
+static constexpr char kBuildIDHexName[] = "5b6275696c642069645d";
 
 using ::testing::ElementsAre;
 
@@ -57,7 +59,7 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
     context.heap_profile_tracker.reset(new HeapProfileTracker(&context));
 
     mapping_name = context.storage->InternString("[mapping]");
-    build = context.storage->InternString("[build id]");
+    build = context.storage->InternString(kBuildIDName);
     frame_name = context.storage->InternString("[frame]");
   }
 
@@ -143,7 +145,7 @@ TEST_F(HeapProfileTrackerDupTest, Mapping) {
   InsertMapping();
 
   EXPECT_THAT(context.storage->heap_profile_mappings().build_ids(),
-              ElementsAre(build));
+              ElementsAre(context.storage->InternString({kBuildIDHexName})));
   EXPECT_THAT(context.storage->heap_profile_mappings().offsets(),
               ElementsAre(kMappingOffset));
   EXPECT_THAT(context.storage->heap_profile_mappings().starts(),
