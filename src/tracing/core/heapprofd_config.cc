@@ -47,7 +47,9 @@ bool HeapprofdConfig::operator==(const HeapprofdConfig& other) const {
          (skip_symbol_prefix_ == other.skip_symbol_prefix_) &&
          (continuous_dump_config_ == other.continuous_dump_config_) &&
          (shmem_size_bytes_ == other.shmem_size_bytes_) &&
-         (block_client_ == other.block_client_);
+         (block_client_ == other.block_client_) &&
+         (no_startup_ == other.no_startup_) &&
+         (no_running_ == other.no_running_);
 }
 #pragma GCC diagnostic pop
 
@@ -99,6 +101,14 @@ void HeapprofdConfig::FromProto(
   static_assert(sizeof(block_client_) == sizeof(proto.block_client()),
                 "size mismatch");
   block_client_ = static_cast<decltype(block_client_)>(proto.block_client());
+
+  static_assert(sizeof(no_startup_) == sizeof(proto.no_startup()),
+                "size mismatch");
+  no_startup_ = static_cast<decltype(no_startup_)>(proto.no_startup());
+
+  static_assert(sizeof(no_running_) == sizeof(proto.no_running()),
+                "size mismatch");
+  no_running_ = static_cast<decltype(no_running_)>(proto.no_running());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -145,6 +155,16 @@ void HeapprofdConfig::ToProto(perfetto::protos::HeapprofdConfig* proto) const {
                 "size mismatch");
   proto->set_block_client(
       static_cast<decltype(proto->block_client())>(block_client_));
+
+  static_assert(sizeof(no_startup_) == sizeof(proto->no_startup()),
+                "size mismatch");
+  proto->set_no_startup(
+      static_cast<decltype(proto->no_startup())>(no_startup_));
+
+  static_assert(sizeof(no_running_) == sizeof(proto->no_running()),
+                "size mismatch");
+  proto->set_no_running(
+      static_cast<decltype(proto->no_running())>(no_running_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
