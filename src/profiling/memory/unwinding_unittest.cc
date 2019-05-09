@@ -95,7 +95,7 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   unwindstack::AsmGetRegs(metadata->register_data);
 
   if (stackbase < stacktop) {
-    PERFETTO_DFATAL("Stacktop >= stackbase.");
+    PERFETTO_FATAL("Stacktop >= stackbase.");
     return {nullptr, nullptr};
   }
   uint64_t stack_size = static_cast<uint64_t>(stackbase - stacktop);

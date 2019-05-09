@@ -116,7 +116,8 @@ void SystemProperties::ResetHeapprofdProperties() {
       nullptr);
   PERFETTO_DCHECK(r == 0);
 #else
-  PERFETTO_DFATAL("Cannot ResetHeapprofdProperties on out-of-tree builds.");
+  PERFETTO_DFATAL_OR_ELOG(
+      "Cannot ResetHeapprofdProperties on out-of-tree builds.");
 #endif
 }
 
@@ -141,7 +142,7 @@ bool SystemProperties::SetAndroidProperty(const std::string& name,
 void SystemProperties::UnsetProperty(const std::string& name) {
   auto it = properties_.find(name);
   if (it == properties_.end()) {
-    PERFETTO_DFATAL("Unsetting unknown property.");
+    PERFETTO_DFATAL_OR_ELOG("Unsetting unknown property.");
     return;
   }
   if (--(it->second) == 0) {
