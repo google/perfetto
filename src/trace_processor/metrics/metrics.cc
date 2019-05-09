@@ -118,15 +118,13 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   }
 }
 
-int ComputeMetrics(TraceProcessor* tp,
-                   const std::vector<std::string>& metric_names,
-                   std::vector<uint8_t>* metrics_proto) {
+util::Status ComputeMetrics(TraceProcessor* tp,
+                            const std::vector<std::string>& metric_names,
+                            std::vector<uint8_t>* metrics_proto) {
   // TODO(lalitm): stop hardcoding android.mem metric and read the proto
   // descriptor for this logic instead.
-  if (metric_names.size() != 1 || metric_names[0] != "android.mem") {
-    PERFETTO_ELOG("Only android.mem metric is currently supported");
-    return 1;
-  }
+  if (metric_names.size() != 1 || metric_names[0] != "android.mem")
+    return util::ErrStatus("Only android.mem metric is currently supported");
 
   auto queries = base::SplitString(sql_metrics::kAndroidMem, ";\n");
   for (const auto& query : queries) {
@@ -135,10 +133,8 @@ int ComputeMetrics(TraceProcessor* tp,
     prep_it.Next();
 
     util::Status status = prep_it.Status();
-    if (!status.ok()) {
-      PERFETTO_ELOG("SQLite error: %s", status.c_message());
-      return 1;
-    }
+    if (!status.ok())
+      return status;
   }
 
   protozero::ScatteredHeapBuffer delegate;
@@ -153,10 +149,9 @@ int ComputeMetrics(TraceProcessor* tp,
   auto it = tp->ExecuteQuery("SELECT COUNT(*) from lmk_by_score;");
   auto has_next = it.Next();
   util::Status status = it.Status();
-  if (!status.ok()) {
-    PERFETTO_ELOG("SQLite error: %s", status.c_message());
-    return 1;
-  }
+  if (!status.ok())
+    return status;
+
   PERFETTO_CHECK(has_next);
   PERFETTO_CHECK(it.Get(0).type == SqlValue::Type::kLong);
 
@@ -180,14 +175,12 @@ int ComputeMetrics(TraceProcessor* tp,
     anon->set_avg(it.Get(3).AsDouble());
   }
   status = it.Status();
-  if (!status.ok()) {
-    PERFETTO_ELOG("SQLite error: %s", status.c_message());
-    return 1;
-  }
+  if (!status.ok())
+    return status;
 
   metrics.Finalize();
   *metrics_proto = delegate.StitchSlices();
-  return 0;
+  return util::OkStatus();
 }
 
 }  // namespace metrics

@@ -357,10 +357,9 @@ util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
 
   auto scoped_trace = context_.storage->TraceExecutionTimeIntoStats(
       stats::parse_trace_duration_ns);
-  bool success = context_.chunk_reader->Parse(std::move(data), size);
-  unrecoverable_parse_error_ |= !success;
-  return success ? util::OkStatus()
-                 : util::ErrStatus("Failed to parse the trace");
+  util::Status status = context_.chunk_reader->Parse(std::move(data), size);
+  unrecoverable_parse_error_ |= !status.ok();
+  return status;
 }
 
 void TraceProcessorImpl::NotifyEndOfFile() {
@@ -404,7 +403,7 @@ void TraceProcessorImpl::InterruptQuery() {
   sqlite3_interrupt(db_.get());
 }
 
-int TraceProcessorImpl::ComputeMetric(
+util::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
   return metrics::ComputeMetrics(this, metric_names, metrics_proto);

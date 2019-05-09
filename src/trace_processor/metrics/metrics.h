@@ -40,9 +40,9 @@ int TemplateReplace(
 // This function implements the RUN_METRIC SQL function.
 void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 
-int ComputeMetrics(TraceProcessor* impl,
-                   const std::vector<std::string>& metric_names,
-                   std::vector<uint8_t>* metrics_proto);
+util::Status ComputeMetrics(TraceProcessor* impl,
+                            const std::vector<std::string>& metric_names,
+                            std::vector<uint8_t>* metrics_proto);
 
 }  // namespace metrics
 }  // namespace trace_processor

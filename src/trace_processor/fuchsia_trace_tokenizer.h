@@ -35,7 +35,7 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
   ~FuchsiaTraceTokenizer() override;
 
   // ChunkedTraceReader implementation
-  bool Parse(std::unique_ptr<uint8_t[]>, size_t) override;
+  util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) override;
 
  private:
   struct ProviderInfo {
