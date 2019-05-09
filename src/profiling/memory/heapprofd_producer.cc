@@ -398,6 +398,47 @@ bool HeapprofdProducer::IsPidProfiled(pid_t pid) {
   return false;
 }
 
+void HeapprofdProducer::SetStartupProperties(DataSource* data_source) {
+  const HeapprofdConfig& heapprofd_config = data_source->config;
+  if (heapprofd_config.all())
+    data_source->properties.emplace_back(properties_.SetAll());
+
+  for (std::string cmdline : data_source->normalized_cmdlines)
+    data_source->properties.emplace_back(
+        properties_.SetProperty(std::move(cmdline)));
+}
+
+void HeapprofdProducer::SignalRunningProcesses(DataSource* data_source) {
+  const HeapprofdConfig& heapprofd_config = data_source->config;
+
+  std::set<pid_t> pids;
+  if (heapprofd_config.all())
+    FindAllProfilablePids(&pids);
+  for (uint64_t pid : heapprofd_config.pid())
+    pids.emplace(static_cast<pid_t>(pid));
+
+  if (!data_source->normalized_cmdlines.empty())
+    FindPidsForCmdlines(data_source->normalized_cmdlines, &pids);
+
+  for (auto pid_it = pids.cbegin(); pid_it != pids.cend();) {
+    pid_t pid = *pid_it;
+    if (IsPidProfiled(pid)) {
+      PERFETTO_LOG("Rejecting concurrent session for %" PRIdMAX,
+                   static_cast<intmax_t>(pid));
+      data_source->rejected_pids.emplace(pid);
+      pid_it = pids.erase(pid_it);
+      continue;
+    }
+
+    PERFETTO_DLOG("Sending %d to %d", kHeapprofdSignal, pid);
+    if (kill(pid, kHeapprofdSignal) != 0) {
+      PERFETTO_DPLOG("kill");
+    }
+    ++pid_it;
+  }
+  data_source->signaled_pids = std::move(pids);
+}
+
 void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
                                         const DataSourceConfig& cfg) {
   PERFETTO_DLOG("Start DataSource");
@@ -418,39 +459,10 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
   // Central daemon - set system properties for any targets that start later,
   // and signal already-running targets to start the profiling client.
   if (mode_ == HeapprofdMode::kCentral) {
-    if (heapprofd_config.all())
-      data_source.properties.emplace_back(properties_.SetAll());
-
-    for (std::string cmdline : data_source.normalized_cmdlines)
-      data_source.properties.emplace_back(
-          properties_.SetProperty(std::move(cmdline)));
-
-    std::set<pid_t> pids;
-    if (heapprofd_config.all())
-      FindAllProfilablePids(&pids);
-    for (uint64_t pid : heapprofd_config.pid())
-      pids.emplace(static_cast<pid_t>(pid));
-
-    if (!data_source.normalized_cmdlines.empty())
-      FindPidsForCmdlines(data_source.normalized_cmdlines, &pids);
-
-    for (auto pid_it = pids.cbegin(); pid_it != pids.cend();) {
-      pid_t pid = *pid_it;
-      if (IsPidProfiled(pid)) {
-        PERFETTO_LOG("Rejecting concurrent session for %" PRIdMAX,
-                     static_cast<intmax_t>(pid));
-        data_source.rejected_pids.emplace(pid);
-        pid_it = pids.erase(pid_it);
-        continue;
-      }
-
-      PERFETTO_DLOG("Sending %d to %d", kHeapprofdSignal, pid);
-      if (kill(pid, kHeapprofdSignal) != 0) {
-        PERFETTO_DPLOG("kill");
-      }
-      ++pid_it;
-    }
-    data_source.signaled_pids = std::move(pids);
+    if (!heapprofd_config.no_startup())
+      SetStartupProperties(&data_source);
+    if (!heapprofd_config.no_running())
+      SignalRunningProcesses(&data_source);
   }
 
   const auto continuous_dump_config = heapprofd_config.continuous_dump_config();
