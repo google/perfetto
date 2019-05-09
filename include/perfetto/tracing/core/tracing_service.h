@@ -216,8 +216,8 @@ class ConsumerEndpoint {
 //   The service business logic in src/core/tracing_service_impl.cc.
 class PERFETTO_EXPORT TracingService {
  public:
-  using ProducerEndpoint = ProducerEndpoint;
-  using ConsumerEndpoint = ConsumerEndpoint;
+  using ProducerEndpoint = perfetto::ProducerEndpoint;
+  using ConsumerEndpoint = perfetto::ConsumerEndpoint;
 
   // Implemented in src/core/tracing_service_impl.cc .
   static std::unique_ptr<TracingService> CreateInstance(
