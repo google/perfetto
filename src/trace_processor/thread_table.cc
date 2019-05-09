@@ -36,8 +36,8 @@ void ThreadTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<ThreadTable>(db, storage, "thread");
 }
 
-base::Optional<Table::Schema> ThreadTable::Init(int, const char* const*) {
-  return Schema(
+util::Status ThreadTable::Init(int, const char* const*, Schema* schema) {
+  *schema = Schema(
       {
           Table::Column(Column::kUtid, "utid", ColumnType::kInt),
           Table::Column(Column::kUpid, "upid", ColumnType::kInt),
@@ -46,6 +46,7 @@ base::Optional<Table::Schema> ThreadTable::Init(int, const char* const*) {
           Table::Column(Column::kStartTs, "start_ts", ColumnType::kLong),
       },
       {Column::kUtid});
+  return util::OkStatus();
 }
 
 std::unique_ptr<Table::Cursor> ThreadTable::CreateCursor() {

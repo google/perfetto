@@ -111,7 +111,7 @@ class TraceProcessor::IteratorImpl {
 
     int ret = sqlite3_step(*stmt_);
     if (PERFETTO_UNLIKELY(ret != SQLITE_ROW && ret != SQLITE_DONE)) {
-      status_ = util::ErrStatus(sqlite3_errmsg(db_));
+      status_ = util::ErrStatus("%s", sqlite3_errmsg(db_));
       return false;
     }
     return ret == SQLITE_ROW;

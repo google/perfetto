@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/optional.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/query_constraints.h"
 
 namespace perfetto {
@@ -175,19 +176,19 @@ class Table : public sqlite3_vtab {
     memset(module, 0, sizeof(*module));
 
     auto create_fn = [](sqlite3* xdb, void* arg, int argc,
-                        const char* const* argv, sqlite3_vtab** tab, char**) {
+                        const char* const* argv, sqlite3_vtab** tab,
+                        char** pzErr) {
       const TableDescriptor* xdesc = static_cast<const TableDescriptor*>(arg);
       auto table = xdesc->factory(xdb, xdesc->storage);
       table->name_ = xdesc->name;
 
-      auto opt_schema = table->Init(argc, argv);
-      if (!opt_schema.has_value()) {
-        PERFETTO_ELOG("Failed to create schema (table %s)",
-                      xdesc->name.c_str());
+      Schema schema;
+      util::Status status = table->Init(argc, argv, &schema);
+      if (!status.ok()) {
+        *pzErr = sqlite3_mprintf("%s", status.c_message());
         return SQLITE_ERROR;
       }
 
-      const auto& schema = opt_schema.value();
       auto create_stmt = schema.ToCreateTableStmt();
       PERFETTO_DLOG("Create table statement: %s", create_stmt.c_str());
 
@@ -274,7 +275,7 @@ class Table : public sqlite3_vtab {
   }
 
   // Methods to be implemented by derived table classes.
-  virtual base::Optional<Schema> Init(int argc, const char* const* argv) = 0;
+  virtual util::Status Init(int argc, const char* const* argv, Schema*) = 0;
   virtual std::unique_ptr<Cursor> CreateCursor() = 0;
   virtual int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) = 0;
 
