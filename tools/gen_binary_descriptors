@@ -28,6 +28,8 @@ import textwrap
 SOURCE_TARGET = {
     'protos/perfetto/config/perfetto_config.proto':
             'src/perfetto_cmd/perfetto_config.descriptor.h',
+    'protos/perfetto/metrics/metrics.proto':
+            'src/trace_processor/metrics/metrics.descriptor.h',
 }
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -75,8 +77,9 @@ def generate(source, target, protoc_path):
   with tempfile.NamedTemporaryFile() as fdescriptor:
     subprocess.check_call([
         protoc_path,
+        '--include_imports',
         '--proto_path=protos',
-        '-o{}'.format(fdescriptor.name),
+        '--descriptor_set_out={}'.format(fdescriptor.name),
         source,
     ], cwd=ROOT_DIR)
 
