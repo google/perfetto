@@ -28,8 +28,8 @@ void StatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<StatsTable>(db, storage, "stats");
 }
 
-base::Optional<Table::Schema> StatsTable::Init(int, const char* const*) {
-  return Schema(
+util::Status StatsTable::Init(int, const char* const*, Schema* schema) {
+  *schema = Schema(
       {
           Table::Column(Column::kName, "name", ColumnType::kString),
           // Calling a column "index" causes sqlite to silently fail, hence idx.
@@ -39,6 +39,7 @@ base::Optional<Table::Schema> StatsTable::Init(int, const char* const*) {
           Table::Column(Column::kValue, "value", ColumnType::kLong),
       },
       {Column::kName});
+  return util::OkStatus();
 }
 
 std::unique_ptr<Table::Cursor> StatsTable::CreateCursor() {
