@@ -35,8 +35,8 @@ void SqlStatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   Table::Register<SqlStatsTable>(db, storage, "sqlstats");
 }
 
-base::Optional<Table::Schema> SqlStatsTable::Init(int, const char* const*) {
-  return Schema(
+util::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
+  *schema = Schema(
       {
           Table::Column(Column::kQuery, "query", ColumnType::kString),
           Table::Column(Column::kTimeQueued, "queued", ColumnType::kLong),
@@ -46,6 +46,7 @@ base::Optional<Table::Schema> SqlStatsTable::Init(int, const char* const*) {
           Table::Column(Column::kTimeEnded, "ended", ColumnType::kLong),
       },
       {Column::kTimeQueued});
+  return util::OkStatus();
 }
 
 std::unique_ptr<Table::Cursor> SqlStatsTable::CreateCursor() {

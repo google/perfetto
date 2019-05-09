@@ -75,7 +75,7 @@ class WindowOperatorTable : public Table {
   WindowOperatorTable(sqlite3*, const TraceStorage*);
 
   // Table implementation.
-  base::Optional<Table::Schema> Init(int, const char* const*) override;
+  util::Status Init(int, const char* const*, Schema* schema) override;
   std::unique_ptr<Table::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
   int Update(int, sqlite3_value**, sqlite3_int64*) override;

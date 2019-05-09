@@ -32,10 +32,11 @@ void WindowOperatorTable::RegisterTable(sqlite3* db,
   Table::Register<WindowOperatorTable>(db, storage, "window", true);
 }
 
-base::Optional<Table::Schema> WindowOperatorTable::Init(int,
-                                                        const char* const*) {
+util::Status WindowOperatorTable::Init(int,
+                                       const char* const*,
+                                       Schema* schema) {
   const bool kHidden = true;
-  return Schema(
+  *schema = Schema(
       {
           // These are the operator columns:
           Table::Column(Column::kRowId, "rowid", ColumnType::kLong, kHidden),
@@ -51,6 +52,7 @@ base::Optional<Table::Schema> WindowOperatorTable::Init(int,
           Table::Column(Column::kQuantumTs, "quantum_ts", ColumnType::kLong),
       },
       {Column::kRowId});
+  return util::OkStatus();
 }
 
 std::unique_ptr<Table::Cursor> WindowOperatorTable::CreateCursor() {

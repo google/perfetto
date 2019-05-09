@@ -380,7 +380,7 @@ TraceProcessor::Iterator TraceProcessorImpl::ExecuteQuery(
   util::Status status;
   uint32_t col_count = 0;
   if (err != SQLITE_OK) {
-    status = util::ErrStatus(sqlite3_errmsg(*db_));
+    status = util::ErrStatus("%s", sqlite3_errmsg(*db_));
   } else {
     col_count = static_cast<uint32_t>(sqlite3_column_count(raw_stmt));
   }

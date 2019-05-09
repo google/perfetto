@@ -40,18 +40,17 @@ bool IsRequiredColumn(const std::string& name) {
   return name == kTsColumnName || name == kDurColumnName;
 }
 
-bool HasDuplicateColumns(const std::vector<Table::Column>& cols) {
+base::Optional<std::string> HasDuplicateColumns(
+    const std::vector<Table::Column>& cols) {
   std::set<std::string> names;
   for (const auto& col : cols) {
-    if (names.count(col.name()) > 0) {
-      PERFETTO_ELOG("Column '%s' present in the output schema more than once.",
-                    col.name().c_str());
-      return true;
-    }
+    if (names.count(col.name()) > 0)
+      return col.name();
     names.insert(col.name());
   }
-  return false;
+  return base::nullopt;
 }
+
 }  // namespace
 
 SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
@@ -72,57 +71,56 @@ void SpanJoinOperatorTable::RegisterTable(sqlite3* db,
                                          /* requires_args */ true);
 }
 
-base::Optional<Table::Schema> SpanJoinOperatorTable::Init(
-    int argc,
-    const char* const* argv) {
+util::Status SpanJoinOperatorTable::Init(int argc,
+                                         const char* const* argv,
+                                         Schema* schema) {
   // argv[0] - argv[2] are SQLite populated fields which are always present.
-  if (argc < 5) {
-    PERFETTO_ELOG("SPAN JOIN expected at least 2 args, received %d", argc - 3);
-    return base::nullopt;
-  }
+  if (argc < 5)
+    return util::Status("SPAN_JOIN: expected at least 2 args");
 
-  auto maybe_t1_desc = TableDescriptor::Parse(
-      std::string(reinterpret_cast<const char*>(argv[3])));
-  if (!maybe_t1_desc.has_value())
-    return base::nullopt;
-  auto t1_desc = *maybe_t1_desc;
+  TableDescriptor t1_desc;
+  auto status = TableDescriptor::Parse(
+      std::string(reinterpret_cast<const char*>(argv[3])), &t1_desc);
+  if (!status.ok())
+    return status;
 
-  auto maybe_t2_desc = TableDescriptor::Parse(
-      std::string(reinterpret_cast<const char*>(argv[4])));
-  if (!maybe_t2_desc.has_value())
-    return base::nullopt;
-  auto t2_desc = *maybe_t2_desc;
+  TableDescriptor t2_desc;
+  status = TableDescriptor::Parse(
+      std::string(reinterpret_cast<const char*>(argv[4])), &t2_desc);
+  if (!status.ok())
+    return status;
 
+  // Check that the partition columns match between the two tables.
   if (t1_desc.partition_col == t2_desc.partition_col) {
     partitioning_ = t1_desc.IsPartitioned()
                         ? PartitioningType::kSamePartitioning
                         : PartitioningType::kNoPartitioning;
     if (partitioning_ == PartitioningType::kNoPartitioning && IsOuterJoin()) {
-      PERFETTO_ELOG("Outer join not supported for no partition tables");
-      return base::nullopt;
+      return util::ErrStatus(
+          "SPAN_JOIN: Outer join not supported for no partition tables");
     }
   } else if (t1_desc.IsPartitioned() && t2_desc.IsPartitioned()) {
-    PERFETTO_ELOG("Mismatching partitions (%s, %s)",
-                  t1_desc.partition_col.c_str(), t2_desc.partition_col.c_str());
-    return base::nullopt;
+    return util::ErrStatus(
+        "SPAN_JOIN: mismatching partitions between the two tables; "
+        "(partition %s in table %s, partition %s in table %s)",
+        t1_desc.partition_col.c_str(), t1_desc.name.c_str(),
+        t2_desc.partition_col.c_str(), t2_desc.name.c_str());
   } else {
     if (IsOuterJoin()) {
-      PERFETTO_ELOG("Outer join not supported for mixed partitioned tables");
-      return base::nullopt;
+      return util::ErrStatus(
+          "SPAN_JOIN: Outer join not supported for mixed partitioned tables");
     }
     partitioning_ = PartitioningType::kMixedPartitioning;
   }
 
-  auto maybe_t1_defn = CreateTableDefinition(t1_desc, IsOuterJoin());
-  if (!maybe_t1_defn.has_value())
-    return base::nullopt;
-  t1_defn_ = maybe_t1_defn.value();
+  status = CreateTableDefinition(t1_desc, IsOuterJoin(), &t1_defn_);
+  if (!status.ok())
+    return status;
 
-  auto maybe_t2_defn =
-      CreateTableDefinition(t2_desc, IsOuterJoin() || IsLeftJoin());
-  if (!maybe_t2_defn.has_value())
-    return base::nullopt;
-  t2_defn_ = maybe_t2_defn.value();
+  status =
+      CreateTableDefinition(t2_desc, IsOuterJoin() || IsLeftJoin(), &t2_defn_);
+  if (!status.ok())
+    return status;
 
   std::vector<Table::Column> cols;
   // Ensure the shared columns are consistently ordered and are not
@@ -135,13 +133,18 @@ base::Optional<Table::Schema> SpanJoinOperatorTable::Init(
   CreateSchemaColsForDefn(t1_defn_, &cols);
   CreateSchemaColsForDefn(t2_defn_, &cols);
 
-  if (HasDuplicateColumns(cols)) {
-    return base::nullopt;
+  if (auto opt_dupe_col = HasDuplicateColumns(cols)) {
+    return util::ErrStatus(
+        "SPAN_JOIN: column %s present in both tables %s and %s",
+        opt_dupe_col->c_str(), t1_defn_.name().c_str(),
+        t2_defn_.name().c_str());
   }
   std::vector<size_t> primary_keys = {Column::kTimestamp};
   if (partitioning_ != PartitioningType::kNoPartitioning)
     primary_keys.push_back(Column::kPartition);
-  return Schema(cols, primary_keys);
+  *schema = Schema(cols, primary_keys);
+
+  return util::OkStatus();
 }
 
 void SpanJoinOperatorTable::CreateSchemaColsForDefn(
@@ -194,9 +197,17 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
   return constraints;
 }
 
-base::Optional<SpanJoinOperatorTable::TableDefinition>
-SpanJoinOperatorTable::CreateTableDefinition(const TableDescriptor& desc,
-                                             bool emit_shadow_slices) {
+util::Status SpanJoinOperatorTable::CreateTableDefinition(
+    const TableDescriptor& desc,
+    bool emit_shadow_slices,
+    SpanJoinOperatorTable::TableDefinition* defn) {
+  if (desc.partition_col == kTsColumnName ||
+      desc.partition_col == kDurColumnName) {
+    return util::ErrStatus(
+        "SPAN_JOIN: partition column cannot be any of {ts, dur} for table %s",
+        desc.name.c_str());
+  }
+
   auto cols = sqlite_utils::GetColumnsForTable(db_, desc.name);
 
   uint32_t required_columns_found = 0;
@@ -209,8 +220,9 @@ SpanJoinOperatorTable::CreateTableDefinition(const TableDescriptor& desc,
       ++required_columns_found;
       if (col.type() != Table::ColumnType::kLong &&
           col.type() != Table::ColumnType::kUnknown) {
-        PERFETTO_ELOG("Invalid column type for %s", col.name().c_str());
-        return base::nullopt;
+        return util::ErrStatus(
+            "SPAN_JOIN: Invalid type for column %s in table %s",
+            col.name().c_str(), desc.name.c_str());
       }
     }
 
@@ -223,17 +235,20 @@ SpanJoinOperatorTable::CreateTableDefinition(const TableDescriptor& desc,
     }
   }
   if (required_columns_found != 2) {
-    PERFETTO_ELOG("Required columns not found (found %d)",
-                  required_columns_found);
-    return base::nullopt;
+    return util::ErrStatus(
+        "SPAN_JOIN: Missing one of columns {ts, dur} in table %s",
+        desc.name.c_str());
+  } else if (desc.IsPartitioned() && partition_idx >= cols.size()) {
+    return util::ErrStatus("SPAN_JOIN: Missing partition column %s in table %s",
+                           desc.partition_col.c_str(), desc.name.c_str());
   }
 
   PERFETTO_DCHECK(ts_idx < cols.size());
   PERFETTO_DCHECK(dur_idx < cols.size());
-  PERFETTO_DCHECK(desc.partition_col.empty() || partition_idx < cols.size());
 
-  return TableDefinition(desc.name, desc.partition_col, std::move(cols),
-                         emit_shadow_slices, ts_idx, dur_idx, partition_idx);
+  *defn = TableDefinition(desc.name, desc.partition_col, std::move(cols),
+                          emit_shadow_slices, ts_idx, dur_idx, partition_idx);
+  return util::OkStatus();
 }
 
 std::string SpanJoinOperatorTable::GetNameForGlobalColumnIndex(
@@ -680,33 +695,29 @@ SpanJoinOperatorTable::TableDefinition::TableDefinition(
       dur_idx_(dur_idx),
       partition_idx_(partition_idx) {}
 
-base::Optional<SpanJoinOperatorTable::TableDescriptor>
-SpanJoinOperatorTable::TableDescriptor::Parse(
-    const std::string& raw_descriptor) {
+util::Status SpanJoinOperatorTable::TableDescriptor::Parse(
+    const std::string& raw_descriptor,
+    SpanJoinOperatorTable::TableDescriptor* descriptor) {
   // Descriptors have one of the following forms:
   // table_name [PARTITIONED column_name]
 
   // Find the table name.
   base::StringSplitter splitter(raw_descriptor, ' ');
   if (!splitter.Next())
-    return base::nullopt;
+    return util::ErrStatus("SPAN_JOIN: Missing table name");
 
-  TableDescriptor descriptor;
-  descriptor.name = splitter.cur_token();
+  descriptor->name = splitter.cur_token();
   if (!splitter.Next())
-    return std::move(descriptor);
+    return util::OkStatus();
 
-  if (strcasecmp(splitter.cur_token(), "PARTITIONED") != 0) {
-    PERFETTO_ELOG("Invalid SPAN_JOIN token %s", splitter.cur_token());
-    return base::nullopt;
-  }
-  if (!splitter.Next()) {
-    PERFETTO_ELOG("Missing partitioning column");
-    return base::nullopt;
-  }
+  if (strcasecmp(splitter.cur_token(), "PARTITIONED") != 0)
+    return util::ErrStatus("SPAN_JOIN: Invalid token");
 
-  descriptor.partition_col = splitter.cur_token();
-  return std::move(descriptor);
+  if (!splitter.Next())
+    return util::ErrStatus("SPAN_JOIN: Missing partitioning column");
+
+  descriptor->partition_col = splitter.cur_token();
+  return util::OkStatus();
 }
 
 }  // namespace trace_processor
