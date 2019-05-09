@@ -22,12 +22,12 @@
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
 
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
-#include "src/perfetto_cmd/descriptor.pb.h"
 
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/string_view.h"
 #include "perfetto/base/utils.h"
+#include "perfetto/common/descriptor.pb.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
