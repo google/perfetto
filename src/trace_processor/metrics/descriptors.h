@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_METRICS_DESCRIPTORS_H_
 #define SRC_TRACE_PROCESSOR_METRICS_DESCRIPTORS_H_
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
