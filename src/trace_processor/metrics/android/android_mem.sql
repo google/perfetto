@@ -28,3 +28,21 @@ SELECT RUN_METRIC('android_mem_proc_counters.sql',
                   'anon_rss',
                   'counter_names',
                   'mem.rss.anon');
+
+CREATE VIEW AndroidMemOutput AS
+SELECT
+  TraceMetrics(
+    "android_mem",
+    AndroidMemoryMetric(
+      "system_metrics",
+      AndroidMemoryMetric_SystemMetrics(
+        "lmks",
+        AndroidMemoryMetric_LowMemoryKills(
+          "total_count",
+          lmks.count
+        )
+      )
+    )
+  )
+FROM
+  (SELECT COUNT(*) as count from lmk_by_score) as lmks;
