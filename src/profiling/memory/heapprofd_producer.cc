@@ -338,8 +338,8 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
 
   auto it = data_sources_.find(id);
   if (it != data_sources_.end()) {
-    PERFETTO_DFATAL("Received duplicated data source instance id: %" PRIu64,
-                    id);
+    PERFETTO_DFATAL_OR_ELOG(
+        "Received duplicated data source instance id: %" PRIu64, id);
     return;
   }
 
@@ -449,7 +449,7 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
     // This is expected in child heapprofd, where we reject uninteresting data
     // sources in SetupDataSource.
     if (mode_ == HeapprofdMode::kCentral) {
-      PERFETTO_DFATAL(
+      PERFETTO_DFATAL_OR_ELOG(
           "Received invalid data source instance to start: %" PRIu64, id);
     }
     return;
@@ -488,7 +488,8 @@ void HeapprofdProducer::StopDataSource(DataSourceInstanceID id) {
   auto it = data_sources_.find(id);
   if (it == data_sources_.end()) {
     if (mode_ == HeapprofdMode::kCentral)
-      PERFETTO_DFATAL("Trying to stop non existing data source: %" PRIu64, id);
+      PERFETTO_DFATAL_OR_ELOG(
+          "Trying to stop non existing data source: %" PRIu64, id);
     return;
   }
 
@@ -622,7 +623,8 @@ void HeapprofdProducer::Flush(FlushRequestID flush_id,
 void HeapprofdProducer::FinishDataSourceFlush(FlushRequestID flush_id) {
   auto it = flushes_in_progress_.find(flush_id);
   if (it == flushes_in_progress_.end()) {
-    PERFETTO_DFATAL("FinishDataSourceFlush id invalid: %" PRIu64, flush_id);
+    PERFETTO_DFATAL_OR_ELOG("FinishDataSourceFlush id invalid: %" PRIu64,
+                            flush_id);
     return;
   }
   size_t& flush_in_progress = it->second;
@@ -635,7 +637,7 @@ void HeapprofdProducer::FinishDataSourceFlush(FlushRequestID flush_id) {
 void HeapprofdProducer::SocketDelegate::OnDisconnect(base::UnixSocket* self) {
   auto it = producer_->pending_processes_.find(self->peer_pid());
   if (it == producer_->pending_processes_.end()) {
-    PERFETTO_DFATAL("Unexpected disconnect.");
+    PERFETTO_DFATAL_OR_ELOG("Unexpected disconnect.");
     return;
   }
 
@@ -658,7 +660,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     base::UnixSocket* self) {
   auto it = producer_->pending_processes_.find(self->peer_pid());
   if (it == producer_->pending_processes_.end()) {
-    PERFETTO_DFATAL("Unexpected data.");
+    PERFETTO_DFATAL_OR_ELOG("Unexpected data.");
     return;
   }
 
@@ -701,7 +703,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
         .PostHandoffSocket(std::move(handoff_data));
     producer_->pending_processes_.erase(it);
   } else if (fds[kHandshakeMaps] || fds[kHandshakeMem]) {
-    PERFETTO_DFATAL("%d: Received partial FDs.", self->peer_pid());
+    PERFETTO_DFATAL_OR_ELOG("%d: Received partial FDs.", self->peer_pid());
     producer_->pending_processes_.erase(it);
   } else {
     PERFETTO_DLOG("%d: Received no FDs.", self->peer_pid());
@@ -752,7 +754,7 @@ void HeapprofdProducer::HandleClientConnection(
 
   pid_t peer_pid = new_connection->peer_pid();
   if (peer_pid != process.pid) {
-    PERFETTO_DFATAL("Invalid PID connected.");
+    PERFETTO_DFATAL_OR_ELOG("Invalid PID connected.");
     return;
   }
 
@@ -861,7 +863,7 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   const FreeBatchEntry* entries = free_batch.entries;
   uint64_t num_entries = free_batch.num_entries;
   if (num_entries > kFreeBatchSize) {
-    PERFETTO_DFATAL("Malformed free page.");
+    PERFETTO_DFATAL_OR_ELOG("Malformed free page.");
     return;
   }
   for (size_t i = 0; i < num_entries; ++i) {
