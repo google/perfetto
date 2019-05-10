@@ -138,6 +138,12 @@ SELinux by running `adb shell su root setenforce 0` or by passing
 | profileable app         |            y           |     y     |  y   |
 | debugable app           |            y           |     y     |  y   |
 
+## DEDUPED frames
+If the name of a Java method includes `[DEDUPED]`, this means that multiple
+methods share the same code. ART only stores the name of a single one in its
+metadata, which is displayed here. This is not neccessarily the one that was
+called.
+
 ## Troubleshooting
 
 ### Buffer overrun
@@ -151,6 +157,11 @@ accuracy in the resulting profile) by passing `--interval` to heap\_profile.
 ### Profile is empty
 Check whether your target process is eligible to be profiled by consulting
 [Target processes](#target-processes) above.
+
+
+## Impossible callstacks
+If you see a callstack that seems to impossible from looking at the code, make
+sure no [DEDUPED frames](#deduped-frames) are involved.
 
 ## Known Issues
 
