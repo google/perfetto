@@ -30,7 +30,7 @@ template <typename Fn>
 void ForEachPid(Fn callback) {
   base::ScopedDir proc_dir(opendir("/proc"));
   if (!proc_dir) {
-    PERFETTO_DFATAL("Failed to open /proc");
+    PERFETTO_DFATAL_OR_ELOG("Failed to open /proc");
     return;
   }
   struct dirent* entry;

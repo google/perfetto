@@ -60,7 +60,7 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
     iovecs[1].iov_base = msg.free_header;
     iovecs[1].iov_len = sizeof(*msg.free_header);
   } else {
-    PERFETTO_DFATAL("Neither alloc_header nor free_header set.");
+    PERFETTO_DFATAL_OR_ELOG("Neither alloc_header nor free_header set.");
     errno = EINVAL;
     return false;
   }
@@ -90,7 +90,7 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
     buf = shmem->BeginWrite(lock, total_size);
   }
   if (!buf) {
-    PERFETTO_DFATAL("Buffer overflow.");
+    PERFETTO_DLOG("Buffer overflow.");
     shmem->EndWrite(std::move(buf));
     errno = EAGAIN;
     return false;
@@ -111,7 +111,7 @@ bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
   RecordType* record_type;
   char* end = buf + size;
   if (!ViewAndAdvance<RecordType>(&buf, &record_type, end)) {
-    PERFETTO_DFATAL("Cannot read record type.");
+    PERFETTO_DFATAL_OR_ELOG("Cannot read record type.");
     return false;
   }
 
@@ -121,22 +121,22 @@ bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
 
   if (*record_type == RecordType::Malloc) {
     if (!ViewAndAdvance<AllocMetadata>(&buf, &out->alloc_header, end)) {
-      PERFETTO_DFATAL("Cannot read alloc header.");
+      PERFETTO_DFATAL_OR_ELOG("Cannot read alloc header.");
       return false;
     }
     out->payload = buf;
     if (buf > end) {
-      PERFETTO_DFATAL("Buffer overflowed");
+      PERFETTO_DFATAL_OR_ELOG("Receive buffer overflowed");
       return false;
     }
     out->payload_size = static_cast<size_t>(end - buf);
   } else if (*record_type == RecordType::Free) {
     if (!ViewAndAdvance<FreeBatch>(&buf, &out->free_header, end)) {
-      PERFETTO_DFATAL("Cannot read free header.");
+      PERFETTO_DFATAL_OR_ELOG("Cannot read free header.");
       return false;
     }
   } else {
-    PERFETTO_DFATAL("Invalid record type.");
+    PERFETTO_DFATAL_OR_ELOG("Invalid record type.");
     return false;
   }
   return true;
