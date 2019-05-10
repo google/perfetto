@@ -42,7 +42,8 @@ void DescriptorPool::AddNestedProtoDescriptors(
         base::StringView(f_decoder.name()).ToStdString(),
         static_cast<uint32_t>(f_decoder.number()),
         static_cast<uint32_t>(f_decoder.type()),
-        base::StringView(f_decoder.type_name()).ToStdString());
+        base::StringView(f_decoder.type_name()).ToStdString(),
+        f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED);
     proto_descriptor.AddField(std::move(field));
   }
   descriptors_.emplace_back(std::move(proto_descriptor));
@@ -103,11 +104,13 @@ ProtoDescriptor::ProtoDescriptor(std::string package_name,
 FieldDescriptor::FieldDescriptor(std::string name,
                                  uint32_t number,
                                  uint32_t type,
-                                 std::string raw_type_name)
+                                 std::string raw_type_name,
+                                 bool is_repeated)
     : name_(std::move(name)),
       number_(number),
       type_(type),
-      raw_type_name_(std::move(raw_type_name)) {}
+      raw_type_name_(std::move(raw_type_name)),
+      is_repeated_(is_repeated) {}
 
 }  // namespace metrics
 }  // namespace trace_processor
