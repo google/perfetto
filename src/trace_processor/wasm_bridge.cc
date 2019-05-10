@@ -137,6 +137,9 @@ void trace_processor_rawQuery(RequestID id,
             break;
           case SqlValue::Type::kNull:
             break;
+          case SqlValue::Type::kBytes:
+            desc->set_type(ColumnDesc::STRING);
+            break;
         }
       }
 
@@ -164,8 +167,12 @@ void trace_processor_rawQuery(RequestID id,
           column->add_is_nulls(false);
           break;
         case ColumnDesc::STRING: {
-          PERFETTO_CHECK(cell.type == SqlValue::Type::kString);
-          column->add_string_values(cell.string_value);
+          if (cell.type == SqlValue::Type::kBytes) {
+            column->add_string_values("<bytes>");
+          } else {
+            PERFETTO_CHECK(cell.type == SqlValue::Type::kString);
+            column->add_string_values(cell.string_value);
+          }
           column->add_is_nulls(false);
           break;
         }
