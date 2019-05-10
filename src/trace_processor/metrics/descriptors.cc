@@ -38,11 +38,14 @@ void DescriptorPool::AddNestedProtoDescriptors(
   ProtoDescriptor proto_descriptor(package_name, full_name, parent_idx);
   for (auto it = decoder.field(); it; ++it) {
     FieldDescriptorProto::Decoder f_decoder(it->data(), it->size());
+    std::string type_name =
+        f_decoder.has_type_name()
+            ? base::StringView(f_decoder.type_name()).ToStdString()
+            : "";
     FieldDescriptor field(
         base::StringView(f_decoder.name()).ToStdString(),
         static_cast<uint32_t>(f_decoder.number()),
-        static_cast<uint32_t>(f_decoder.type()),
-        base::StringView(f_decoder.type_name()).ToStdString(),
+        static_cast<uint32_t>(f_decoder.type()), std::move(type_name),
         f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED);
     proto_descriptor.AddField(std::move(field));
   }
