@@ -300,7 +300,7 @@ def main(argv):
 
   symlink_path = os.path.join(os.path.dirname(profile_path),
                                         "heap_profile-latest")
-  if os.path.exists(symlink_path):
+  if os.path.lexists(symlink_path):
     os.unlink(symlink_path)
   os.symlink(profile_path, symlink_path)
 
