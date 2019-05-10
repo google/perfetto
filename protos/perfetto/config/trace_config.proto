@@ -29,7 +29,7 @@ package perfetto.protos;
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 21.
+// Next id: 22.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -246,6 +246,27 @@ message TraceConfig {
   // producer and send these triggers, potentially stopping or starting traces
   // that were previous configured to use a TriggerConfig.
   repeated string activate_triggers = 18;
+
+  // Configuration for trace contents that reference earlier trace data. For
+  // example, a data source might intern strings, and emit packets containing
+  // {interned id : string} pairs. Future packets from that data source can then
+  // use the interned ids instead of duplicating the raw string contents. The
+  // trace parser will then need to use that interning table to fully interpret
+  // the rest of the trace.
+  message IncrementalStateConfig {
+    // If nonzero, send a ClearIncrementalState ipc to all eligible data sources
+    // repeatedly, with the given period. The ipc is sent only to data sources
+    // that have |handles_incremental_state_clear| set in their
+    // DataSourceDescriptor. The ipc notifies the data source to stop referring
+    // to past trace contents. This is particularly useful when tracing in ring
+    // buffer mode, where it is not exceptional to overwrite old trace data.
+    //
+    // Warning: this time-based global clearing is likely to be removed in the
+    // future, to be replaced with a smarter way of sending the ipcs only when
+    // necessary.
+    optional uint32 clear_period_ms = 1;
+  }
+  optional IncrementalStateConfig incremental_state_config = 21;
 
   // Additional guardrail used by the Perfetto command line client.
   // On user builds when --dropbox is set perfetto will refuse to trace unless
