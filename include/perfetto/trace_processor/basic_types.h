@@ -39,6 +39,7 @@ struct SqlValue {
     kString,
     kLong,
     kDouble,
+    kBytes,
   };
 
   double AsDouble() {
@@ -53,7 +54,10 @@ struct SqlValue {
     const char* string_value;
     int64_t long_value;
     double double_value;
+    const void* bytes_value;
   };
+  // The size of bytes_value. Only valid when |type == kBytes|.
+  size_t bytes_count = 0;
   Type type = kNull;
 };
 
