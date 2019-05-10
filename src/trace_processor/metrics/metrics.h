@@ -23,6 +23,8 @@
 
 #include "perfetto/trace_processor/trace_processor.h"
 
+#include "src/trace_processor/metrics/descriptors.h"
+
 namespace perfetto {
 namespace trace_processor {
 namespace metrics {
@@ -39,6 +41,13 @@ int TemplateReplace(
 
 // This function implements the RUN_METRIC SQL function.
 void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+
+// Context struct for the below function.
+struct BuildProtoContext {
+  TraceProcessor* tp;
+  const DescriptorPool* pool;
+  const ProtoDescriptor* desc;
+};
 
 // This funciton implements all the proto creation functions.
 void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv);

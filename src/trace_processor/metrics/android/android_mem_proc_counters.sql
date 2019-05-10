@@ -26,9 +26,9 @@ WHERE name = '{{counter_names}}' AND ref IS NOT NULL AND ref_type = 'upid';
 CREATE VIEW {{table_name}} AS
 SELECT
   process.name,
-  MIN(span.value),
-  MAX(span.value),
-  SUM(span.value * span.dur) / SUM(span.dur)
+  MIN(span.value) as min,
+  MAX(span.value) as max,
+  SUM(span.value * span.dur) / SUM(span.dur) as avg
 FROM {{table_name}}_span as span JOIN process USING(upid)
 WHERE NOT (process.name IS NULL OR process.name = '')
 GROUP BY 1
