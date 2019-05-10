@@ -122,7 +122,7 @@ Depending on the build of Android that heapprofd is run on, some processes
 are not be eligible to be profiled.
 
 On user builds, only Java applications with either the profileable or the
-debugable manifest flag set can be profiled. Profiling requests for other
+debuggable manifest flag set can be profiled. Profiling requests for other
 processes will result in an empty profile.
 
 On userdebug builds, all processes except for a small blacklist of critical
@@ -136,12 +136,12 @@ SELinux by running `adb shell su root setenforce 0` or by passing
 | native service          |            y           |     y     |  n   |
 | app                     |            y           |     y     |  n   |
 | profileable app         |            y           |     y     |  y   |
-| debugable app           |            y           |     y     |  y   |
+| debuggable app          |            y           |     y     |  y   |
 
 ## DEDUPED frames
 If the name of a Java method includes `[DEDUPED]`, this means that multiple
 methods share the same code. ART only stores the name of a single one in its
-metadata, which is displayed here. This is not neccessarily the one that was
+metadata, which is displayed here. This is not necessarily the one that was
 called.
 
 ## Troubleshooting
@@ -176,7 +176,7 @@ operating system.
 **heapprofd** gives you the number of bytes the target program
 requested from the allocator. If you are profiling a Java app from startup,
 allocations that happen early in the application's initialization will not be
-visibile to heapprofd. Native services that do not fork from the Zygote
+visible to heapprofd. Native services that do not fork from the Zygote
 are not affected by this.
 
 **malloc\_info** is a libc function that gives you information about the
