@@ -417,10 +417,17 @@ util::Status TraceProcessorImpl::ComputeMetric(
     auto fn_name = desc.full_name().substr(desc.package_name().size() + 1);
     std::replace(fn_name.begin(), fn_name.end(), '.', '_');
 
-    auto* data_ptr = const_cast<void*>(static_cast<const void*>(&desc));
+    std::unique_ptr<metrics::BuildProtoContext> ctx(
+        new metrics::BuildProtoContext());
+    ctx->tp = this;
+    ctx->pool = &pool;
+    ctx->desc = &desc;
+
     auto ret = sqlite3_create_function_v2(
-        *db_, fn_name.c_str(), -1, SQLITE_UTF8, data_ptr, metrics::BuildProto,
-        nullptr, nullptr, sqlite_utils::kSqliteStatic);
+        *db_, fn_name.c_str(), -1, SQLITE_UTF8, ctx.release(),
+        metrics::BuildProto, nullptr, nullptr, [](void* ptr) {
+          delete static_cast<metrics::BuildProtoContext*>(ptr);
+        });
     if (ret != SQLITE_OK)
       return util::ErrStatus("%s", sqlite3_errmsg(*db_));
   }

@@ -31,12 +31,14 @@ class FieldDescriptor {
   FieldDescriptor(std::string name,
                   uint32_t number,
                   uint32_t type,
-                  std::string raw_type_name);
+                  std::string raw_type_name,
+                  bool is_repeated);
 
   const std::string& name() const { return name_; }
   uint32_t number() const { return number_; }
   uint32_t type() const { return type_; }
   const std::string& raw_type_name() const { return raw_type_name_; }
+  bool is_repeated() const { return is_repeated_; }
 
   void set_message_type_idx(uint32_t idx) { message_type_idx_ = idx; }
 
@@ -45,6 +47,8 @@ class FieldDescriptor {
   uint32_t number_;
   uint32_t type_;
   std::string raw_type_name_;
+  bool is_repeated_;
+
   base::Optional<uint32_t> message_type_idx_;
 };
 
