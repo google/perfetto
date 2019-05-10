@@ -21,16 +21,21 @@
 #include <vector>
 
 #include "perfetto/base/string_utils.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/metrics/descriptors.h"
+#include "src/trace_processor/metrics/metrics.descriptor.h"
+#include "src/trace_processor/metrics/sql_metrics.h"
+
+#include "perfetto/common/descriptor.pbzero.h"
 #include "perfetto/metrics/android/mem_metric.pbzero.h"
 #include "perfetto/metrics/metrics.pbzero.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/trace_processor/metrics/sql_metrics.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace metrics {
 
 namespace {
+
 // TODO(lalitm): delete this and use sqlite_utils when that is cleaned up of
 // trace processor dependencies.
 const char* ExtractSqliteValue(sqlite3_value* value) {
@@ -38,6 +43,7 @@ const char* ExtractSqliteValue(sqlite3_value* value) {
   PERFETTO_DCHECK(type == SQLITE_TEXT);
   return reinterpret_cast<const char*>(sqlite3_value_text(value));
 }
+
 }  // namespace
 
 int TemplateReplace(
@@ -62,6 +68,124 @@ int TemplateReplace(
   }
   out->insert(out->end(), start, raw_text.end());
   return 0;
+}
+
+// SQLite function implementation used to build a proto directly in SQL. The
+// proto to be built is given by the descriptor which is given as a context
+// parameter to this function and chosen when this function is first registed
+// with SQLite. The args of this function are key value pairs specifying the
+// name of the field and its value. Nested messages are expected to be passed
+// as byte blobs (as they were built recursively using this function).
+// The return value is the built proto or an error about why the proto could
+// not be built.
+void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  const auto* desc = static_cast<ProtoDescriptor*>(sqlite3_user_data(ctx));
+  if (argc % 2 != 0) {
+    sqlite3_result_error(ctx, "Invalid call to BuildProto", -1);
+    return;
+  }
+
+  protozero::ScatteredHeapBuffer delegate;
+  protozero::ScatteredStreamWriter writer(&delegate);
+  delegate.set_writer(&writer);
+
+  protozero::Message message;
+  message.Reset(&writer);
+
+  for (int i = 0; i < argc; i += 2) {
+    if (sqlite3_value_type(argv[i]) != SQLITE_TEXT) {
+      sqlite3_result_error(ctx, "BuildProto: Invalid args", -1);
+      return;
+    }
+
+    auto* key_str = reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
+    auto opt_field_idx = desc->FindFieldIdx(key_str);
+    const auto& field = desc->fields()[opt_field_idx.value()];
+
+    using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+    auto* value = argv[i + 1];
+    switch (field.type()) {
+      case FieldDescriptorProto::TYPE_INT32:
+      case FieldDescriptorProto::TYPE_INT64:
+      case FieldDescriptorProto::TYPE_UINT32:
+      case FieldDescriptorProto::TYPE_BOOL:
+        if (sqlite3_value_type(value) != SQLITE_INTEGER) {
+          sqlite3_result_error(ctx, "BuildProto: field has wrong type", -1);
+          return;
+        }
+        message.AppendVarInt(field.number(), sqlite3_value_int64(value));
+        break;
+      case FieldDescriptorProto::TYPE_SINT32:
+      case FieldDescriptorProto::TYPE_SINT64:
+        if (sqlite3_value_type(value) != SQLITE_INTEGER) {
+          sqlite3_result_error(ctx, "BuildProto: field has wrong type", -1);
+          return;
+        }
+        message.AppendSignedVarInt(field.number(), sqlite3_value_int64(value));
+        break;
+      case FieldDescriptorProto::TYPE_FIXED32:
+      case FieldDescriptorProto::TYPE_SFIXED32:
+      case FieldDescriptorProto::TYPE_FIXED64:
+      case FieldDescriptorProto::TYPE_SFIXED64:
+        if (sqlite3_value_type(value) != SQLITE_INTEGER) {
+          sqlite3_result_error(ctx, "BuildProto: field has wrong type", -1);
+          return;
+        }
+        message.AppendFixed(field.number(), sqlite3_value_int64(value));
+        break;
+      case FieldDescriptorProto::TYPE_FLOAT:
+      case FieldDescriptorProto::TYPE_DOUBLE: {
+        if (sqlite3_value_type(value) != SQLITE_FLOAT) {
+          sqlite3_result_error(ctx, "BuildProto: field has wrong type", -1);
+          return;
+        }
+        double real_val = sqlite3_value_double(value);
+        if (field.type() == FieldDescriptorProto::TYPE_FLOAT) {
+          message.AppendFixed(field.number(), static_cast<float>(real_val));
+        } else {
+          message.AppendFixed(field.number(), real_val);
+        }
+        break;
+      }
+      case FieldDescriptorProto::TYPE_STRING: {
+        if (sqlite3_value_type(value) != SQLITE_TEXT) {
+          sqlite3_result_error(ctx, "BuildProto: field has wrong type", -1);
+          return;
+        }
+        auto* text = reinterpret_cast<const char*>(sqlite3_value_text(value));
+        message.AppendString(field.number(), text);
+        break;
+      }
+      case FieldDescriptorProto::TYPE_MESSAGE: {
+        // TODO(lalitm): verify the type of the nested message.
+        if (sqlite3_value_type(value) != SQLITE_BLOB) {
+          sqlite3_result_error(ctx, "BuildProto: field has wrong type", -1);
+          return;
+        }
+        auto* blob = sqlite3_value_blob(value);
+        auto bytes = static_cast<size_t>(sqlite3_value_bytes(value));
+        message.AppendBytes(field.number(), blob, bytes);
+        break;
+      }
+      case FieldDescriptorProto::TYPE_UINT64:
+        sqlite3_result_error(ctx, "BuildProto: uint64_t unsupported", -1);
+        return;
+      case FieldDescriptorProto::TYPE_GROUP:
+        sqlite3_result_error(ctx, "BuildProto: groups unsupported", -1);
+        return;
+      case FieldDescriptorProto::TYPE_ENUM:
+        // TODO(lalit): add support for enums.
+        sqlite3_result_error(ctx, "BuildProto: enums unsupported", -1);
+        return;
+    }
+  }
+  message.Finalize();
+
+  auto slices = delegate.StitchSlices();
+  std::unique_ptr<uint8_t[]> data(static_cast<uint8_t*>(malloc(slices.size())));
+  memcpy(data.get(), slices.data(), slices.size());
+  sqlite3_result_blob(ctx, data.release(), static_cast<int>(slices.size()),
+                      free);
 }
 
 void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
@@ -137,50 +261,26 @@ util::Status ComputeMetrics(TraceProcessor* tp,
       return status;
   }
 
-  protozero::ScatteredHeapBuffer delegate;
-  protozero::ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-
-  protos::pbzero::TraceMetrics metrics;
-  metrics.Reset(&writer);
-
-  // TODO(lalitm): all the below is temporary hardcoded queries and proto
-  // filling to ensure that the code above works.
-  auto it = tp->ExecuteQuery("SELECT COUNT(*) from lmk_by_score;");
+  auto it = tp->ExecuteQuery("SELECT * from AndroidMemOutput;");
   auto has_next = it.Next();
   util::Status status = it.Status();
-  if (!status.ok())
+  if (!status.ok()) {
     return status;
+  } else if (!has_next) {
+    return util::ErrStatus("Output table should have at least one row");
+  } else if (it.ColumnCount() != 1) {
+    return util::ErrStatus("Output table should have exactly one column");
+  } else if (it.Get(0).type != SqlValue::kBytes) {
+    return util::ErrStatus("Output table column should have type bytes");
+  }
 
-  PERFETTO_CHECK(has_next);
-  PERFETTO_CHECK(it.Get(0).type == SqlValue::Type::kLong);
-
-  auto* memory = metrics.set_android_mem();
-  memory->set_system_metrics()->set_lmks()->set_total_count(
-      static_cast<int32_t>(it.Get(0).long_value));
+  const uint8_t* ptr = static_cast<const uint8_t*>(it.Get(0).bytes_value);
+  *metrics_proto = std::vector<uint8_t>(ptr, ptr + it.Get(0).bytes_count);
 
   has_next = it.Next();
-  PERFETTO_DCHECK(!has_next);
-
-  it = tp->ExecuteQuery("SELECT * from anon_rss;");
-  while (it.Next()) {
-    const char* name = it.Get(0).string_value;
-
-    auto* process = memory->add_process_metrics();
-    process->set_process_name(name);
-
-    auto* anon = process->set_overall_counters()->set_anon_rss();
-    anon->set_min(it.Get(1).AsDouble());
-    anon->set_max(it.Get(2).AsDouble());
-    anon->set_avg(it.Get(3).AsDouble());
-  }
-  status = it.Status();
-  if (!status.ok())
-    return status;
-
-  metrics.Finalize();
-  *metrics_proto = delegate.StitchSlices();
-  return util::OkStatus();
+  if (has_next)
+    return util::ErrStatus("Output table should only have one row");
+  return it.Status();
 }
 
 }  // namespace metrics

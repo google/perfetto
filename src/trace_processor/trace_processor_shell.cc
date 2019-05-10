@@ -176,6 +176,9 @@ bool PrintStats() {
         case SqlValue::Type::kString:
           fprintf(stderr, "%-40.40s", value.string_value);
           break;
+        case SqlValue::Type::kBytes:
+          printf("%-40.40s", "<raw bytes>");
+          break;
       }
       fprintf(stderr, " ");
     }
@@ -301,6 +304,9 @@ void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
         case SqlValue::Type::kString:
           printf("%-20.20s", value.string_value);
           break;
+        case SqlValue::Type::kBytes:
+          printf("%-20.20s", "<raw bytes>");
+          break;
       }
       printf(" ");
     }
@@ -383,6 +389,9 @@ void PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
           break;
         case SqlValue::Type::kString:
           fprintf(output, "\"%s\"", value.string_value);
+          break;
+        case SqlValue::Type::kBytes:
+          fprintf(output, "\"%s\"", "<raw bytes>");
           break;
       }
     }

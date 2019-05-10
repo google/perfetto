@@ -135,6 +135,12 @@ class TraceProcessor::IteratorImpl {
         value.type = SqlValue::kDouble;
         value.double_value = sqlite3_column_double(*stmt_, column);
         break;
+      case SQLITE_BLOB:
+        value.type = SqlValue::kBytes;
+        value.bytes_value = sqlite3_column_blob(*stmt_, column);
+        value.bytes_count =
+            static_cast<size_t>(sqlite3_column_bytes(*stmt_, column));
+        break;
       case SQLITE_NULL:
         value.type = SqlValue::kNull;
         break;

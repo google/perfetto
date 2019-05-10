@@ -40,6 +40,8 @@
 #include "src/trace_processor/heap_profile_mapping_table.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/instants_table.h"
+#include "src/trace_processor/metrics/descriptors.h"
+#include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/process_tracker.h"
@@ -406,6 +408,22 @@ void TraceProcessorImpl::InterruptQuery() {
 util::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
+  metrics::DescriptorPool pool;
+  pool.AddFromFileDescriptorSet(kMetricsDescriptor.data(),
+                                kMetricsDescriptor.size());
+  for (const auto& desc : pool.descriptors()) {
+    // Convert the full name (e.g. .perfetto.protos.TraceMetrics.SubMetric)
+    // into a function name of the form (TraceMetrics_SubMetric).
+    auto fn_name = desc.full_name().substr(desc.package_name().size() + 1);
+    std::replace(fn_name.begin(), fn_name.end(), '.', '_');
+
+    auto* data_ptr = const_cast<void*>(static_cast<const void*>(&desc));
+    auto ret = sqlite3_create_function_v2(
+        *db_, fn_name.c_str(), -1, SQLITE_UTF8, data_ptr, metrics::BuildProto,
+        nullptr, nullptr, sqlite_utils::kSqliteStatic);
+    if (ret != SQLITE_OK)
+      return util::ErrStatus("%s", sqlite3_errmsg(*db_));
+  }
   return metrics::ComputeMetrics(this, metric_names, metrics_proto);
 }
 

@@ -40,6 +40,8 @@ action("gen_merged_sql_metrics") {
 
 source_set("lib") {
   sources = [
+    "descriptors.cc",
+    "descriptors.h",
     "metrics.cc",
     "metrics.descriptor.h",
     "metrics.h",
@@ -49,6 +51,7 @@ source_set("lib") {
     "../../../buildtools:sqlite",
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
+    "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/metrics:zero",
     "../../../protos/perfetto/metrics/android:zero",
     "../../protozero:protozero",
