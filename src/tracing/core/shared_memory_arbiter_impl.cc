@@ -68,6 +68,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
   static const unsigned kMaxStallIntervalUs = 100000;
   static const int kLogAfterNStalls = 3;
   static const int kFlushCommitsAfterEveryNStalls = 2;
+  static const int kAssertAtNStalls = 100;
 
   for (;;) {
     // TODO(primiano): Probably this lock is not really required and this code
@@ -117,6 +118,11 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // crash the process.
     if (stall_count++ == kLogAfterNStalls) {
       PERFETTO_ELOG("Shared memory buffer overrun! Stalling");
+    }
+
+    if (stall_count == kAssertAtNStalls) {
+      PERFETTO_FATAL(
+          "Shared memory buffer max stall count exceeded; possible deadlock");
     }
 
     // If the IPC thread itself is stalled because the current process has
