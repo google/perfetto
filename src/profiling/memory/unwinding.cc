@@ -303,8 +303,6 @@ void UnwindingWorker::HandleUnwindBatch(pid_t peer_pid) {
   bool repost_task = false;
   for (i = 0; i < kUnwindBatchSize; ++i) {
     uint64_t reparses_before = client_data.metadata.reparses;
-    // TODO(fmayer): Allow spinlock acquisition to fail and repost Task if it
-    // did.
     buf = shmem.BeginRead();
     if (!buf)
       break;
