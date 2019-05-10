@@ -121,32 +121,33 @@ def main(argv):
   parser.add_argument("-i", "--interval", help="Sampling interval. "
                       "Default 4096 (4KiB)", type=int, default=4096)
   parser.add_argument("-d", "--duration", help="Duration of profile (ms). "
-                      "Default 7 days", type=int, default=604800000)
-  parser.add_argument("--no-start", help="Do not start heapprofd",
+                      "Default 7 days.", type=int, default=604800000)
+  parser.add_argument("--no-start", help="Do not start heapprofd.",
                       action='store_true')
-  parser.add_argument("-p", "--pid", help="PIDs to profile", nargs='+',
-                      type=int)
-  parser.add_argument("-n", "--name", help="Process names to profile",
-                      nargs='+')
-  parser.add_argument("-t", "--trace-to-text-binary",
-                      help="Path to local trace to text. For debugging.")
+  parser.add_argument("-p", "--pid", help="Comma-separated list of PIDs to "
+                      "profile.", metavar="PIDS")
+  parser.add_argument("-n", "--name", help="Comma-separated list of process "
+                      "names to profile.", metavar="NAMES")
   parser.add_argument("-c", "--continuous-dump",
                       help="Dump interval in ms. 0 to disable continuous dump.",
                       type=int, default=0)
   parser.add_argument("--disable-selinux", action="store_true",
                       help="Disable SELinux enforcement for duration of "
-                      "profile")
+                      "profile.")
   parser.add_argument("--shmem-size", help="Size of buffer between client and "
                       "heapprofd. Default 8MiB. Needs to be a power of two "
                       "multiple of 4096, at least 8192.", type=int,
                       default=8 * 1048576)
   parser.add_argument("--block-client", help="When buffer is full, block the "
                       "client to wait for buffer space. Use with caution as "
-                      "this can significantly slow down the client",
+                      "this can significantly slow down the client.",
                       action="store_true")
   parser.add_argument("--simpleperf", action="store_true",
                       help="Get simpleperf profile of heapprofd. This is "
                       "only for heapprofd development.")
+  parser.add_argument("--trace-to-text-binary",
+                      help="Path to local trace to text. For debugging.")
+
   args = parser.parse_args()
 
   fail = False
@@ -168,18 +169,25 @@ def main(argv):
   if args.shmem_size & (args.shmem_size - 1):
     print("FATAL: shmem-size is not a power of two.", file=sys.stderr)
     fail = True
-  if fail:
-    parser.print_help()
-    return 1
+
   target_cfg = ""
   if args.block_client:
     target_cfg += "block_client: true\n"
   if args.pid:
-    for pid in args.pid:
+    for pid in args.pid.split(','):
+      try:
+        pid = int(pid)
+      except ValueError:
+        print("FATAL: invalid PID %s" % pid, file=sys.stderr)
+        fail = True
       target_cfg += '{}pid: {}\n'.format(CFG_IDENT, pid)
   if args.name:
-    for name in args.name:
+    for name in args.name.split(','):
       target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_IDENT, name)
+
+  if fail:
+    parser.print_help()
+    return 1
 
   trace_to_text_binary = args.trace_to_text_binary
   if trace_to_text_binary is None:
