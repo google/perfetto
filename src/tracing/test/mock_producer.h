@@ -49,7 +49,8 @@ class MockProducer : public Producer {
                size_t shared_memory_size_hint_bytes = 0);
   void RegisterDataSource(const std::string& name,
                           bool ack_stop = false,
-                          bool ack_start = false);
+                          bool ack_start = false,
+                          bool handle_incremental_state_clear = false);
   void UnregisterDataSource(const std::string& name);
   void RegisterTraceWriter(uint32_t writer_id, uint32_t target_buffer);
   void UnregisterTraceWriter(uint32_t writer_id);
@@ -84,6 +85,8 @@ class MockProducer : public Producer {
   MOCK_METHOD0(OnTracingSetup, void());
   MOCK_METHOD3(Flush,
                void(FlushRequestID, const DataSourceInstanceID*, size_t));
+  MOCK_METHOD2(ClearIncrementalState,
+               void(const DataSourceInstanceID*, size_t));
 
  private:
   base::TestTaskRunner* const task_runner_;

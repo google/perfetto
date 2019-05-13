@@ -59,11 +59,13 @@ void MockProducer::Connect(TracingService* svc,
 
 void MockProducer::RegisterDataSource(const std::string& name,
                                       bool ack_stop,
-                                      bool ack_start) {
+                                      bool ack_start,
+                                      bool handle_incremental_state_clear) {
   DataSourceDescriptor ds_desc;
   ds_desc.set_name(name);
   ds_desc.set_will_notify_on_stop(ack_stop);
   ds_desc.set_will_notify_on_start(ack_start);
+  ds_desc.set_handles_incremental_state_clear(handle_incremental_state_clear);
   service_endpoint_->RegisterDataSource(ds_desc);
 }
 

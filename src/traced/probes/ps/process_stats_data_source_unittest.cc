@@ -18,20 +18,19 @@
 
 #include <dirent.h>
 
-#include "perfetto/base/temp_file.h"
-#include "src/base/test/test_task_runner.h"
-#include "src/tracing/core/trace_writer_for_testing.h"
-
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
+#include "perfetto/base/temp_file.h"
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
+#include "src/base/test/test_task_runner.h"
+#include "src/tracing/core/trace_writer_for_testing.h"
 
 using ::testing::_;
 using ::testing::ElementsAreArray;
 using ::testing::Invoke;
 using ::testing::Return;
+using ::testing::Truly;
 
 namespace perfetto {
 namespace {
@@ -74,16 +73,32 @@ TEST_F(ProcessStatsDataSourceTest, WriteOnceProcess) {
       .WillOnce(Return(std::string("foo\0bar\0baz\0", 12)));
 
   data_source->OnPids({42});
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet->has_process_tree());
-  ASSERT_EQ(packet->process_tree().processes_size(), 1);
-  auto first_process = packet->process_tree().processes(0);
+
+  std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
+  ASSERT_EQ(trace.size(), 1);
+  auto ps_tree = trace[0].process_tree();
+  ASSERT_EQ(ps_tree.processes_size(), 1);
+  auto first_process = ps_tree.processes(0);
   ASSERT_EQ(first_process.pid(), 42);
   ASSERT_EQ(first_process.ppid(), 17);
-  EXPECT_THAT(first_process.cmdline(), ElementsAreArray({"foo", "bar", "baz"}));
+  ASSERT_THAT(first_process.cmdline(), ElementsAreArray({"foo", "bar", "baz"}));
 }
 
 TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
+  // assertion helpers
+  auto expected_process = [](int pid) {
+    return [pid](protos::ProcessTree::Process process) {
+      return process.pid() == pid && process.cmdline_size() > 0 &&
+             process.cmdline(0) == "proc_" + std::to_string(pid);
+    };
+  };
+  auto expected_thread = [](int tid) {
+    return [tid](protos::ProcessTree::Thread thread) {
+      return thread.tid() == tid && thread.tgid() == tid / 10 * 10 &&
+             thread.name() == "thread_" + std::to_string(tid);
+    };
+  };
+
   DataSourceConfig config;
   config.mutable_process_stats_config()->set_record_thread_names(true);
   auto data_source = GetProcessStatsDataSource(config);
@@ -107,23 +122,32 @@ TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
   data_source->OnPids({30});
   data_source->OnPids({10, 30, 10, 31, 32});
 
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet->has_process_tree());
-  const auto& proceses = packet->process_tree().processes();
-  const auto& threads = packet->process_tree().threads();
-  ASSERT_EQ(proceses.size(), 3);
-  int tid_idx = 0;
-  for (int pid_idx = 0; pid_idx < 3; pid_idx++) {
-    int pid = (pid_idx + 1) * 10;
-    std::string proc_name = "proc_" + std::to_string(pid);
-    ASSERT_EQ(proceses.Get(pid_idx).pid(), pid);
-    ASSERT_EQ(proceses.Get(pid_idx).cmdline().Get(0), proc_name);
-    for (int tid = pid + 1; tid < pid + 3; tid++, tid_idx++) {
-      ASSERT_EQ(threads.Get(tid_idx).tid(), tid);
-      ASSERT_EQ(threads.Get(tid_idx).tgid(), pid);
-      ASSERT_EQ(threads.Get(tid_idx).name(), "thread_" + std::to_string(tid));
-    }
-  }
+  // check written contents
+  std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
+  EXPECT_EQ(trace.size(), 3);
+
+  // first packet - two unique processes, four threads
+  auto ps_tree = trace[0].process_tree();
+  EXPECT_THAT(ps_tree.processes(),
+              UnorderedElementsAre(Truly(expected_process(10)),
+                                   Truly(expected_process(20))));
+  EXPECT_THAT(ps_tree.threads(),
+              UnorderedElementsAre(
+                  Truly(expected_thread(11)), Truly(expected_thread(12)),
+                  Truly(expected_thread(21)), Truly(expected_thread(22))));
+
+  // second packet - one new process
+  ps_tree = trace[1].process_tree();
+  EXPECT_THAT(ps_tree.processes(),
+              UnorderedElementsAre(Truly(expected_process(30))));
+  EXPECT_EQ(ps_tree.threads_size(), 0);
+
+  // third packet - two threads that haven't been seen before
+  ps_tree = trace[2].process_tree();
+  EXPECT_EQ(ps_tree.processes_size(), 0);
+  EXPECT_THAT(ps_tree.threads(),
+              UnorderedElementsAre(Truly(expected_thread(31)),
+                                   Truly(expected_thread(32))));
 }
 
 TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
@@ -178,14 +202,16 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   task_runner_.RunUntilCheckpoint("all_done");
   data_source->Flush(1 /* FlushRequestId */, []() {});
 
-  // |packet| will contain the merge of all kNumIter packets written.
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet);
-  ASSERT_TRUE(packet->has_process_stats());
-  const auto& ps_stats = packet->process_stats();
-  ASSERT_EQ(ps_stats.processes_size(), kNumIters * base::ArraySize(kPids));
+  std::vector<protos::ProcessStats::Process> processes;
+  std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
+  for (const auto& packet : trace) {
+    for (const auto& process : packet.process_stats().processes()) {
+      processes.push_back(process);
+    }
+  }
+  ASSERT_EQ(processes.size(), kNumIters * base::ArraySize(kPids));
   iter = 0;
-  for (const auto& proc_counters : ps_stats.processes()) {
+  for (const auto& proc_counters : processes) {
     int32_t pid = proc_counters.pid();
     ASSERT_EQ(proc_counters.vm_size_kb(), pid * 100 + iter * 10 + 1);
     ASSERT_EQ(proc_counters.vm_rss_kb(), pid * 100 + iter * 10 + 2);
@@ -243,17 +269,19 @@ TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
   task_runner_.RunUntilCheckpoint("all_done");
   data_source->Flush(1 /* FlushRequestId */, []() {});
 
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet);
-  ASSERT_TRUE(packet->has_process_stats());
-  const auto& ps_stats = packet->process_stats();
-  ASSERT_EQ(ps_stats.processes_size(), 2);
-
+  std::vector<protos::ProcessStats::Process> processes;
+  std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
+  for (const auto& packet : trace) {
+    for (const auto& process : packet.process_stats().processes()) {
+      processes.push_back(process);
+    }
+  }
   // We should get two counter events because:
   // a) emissions happen at 0ms, 105ms, 210ms, 315ms
   // b) clear events happen at 220ms, 440ms...
   // Therefore, we should see the emissions at 0ms and 315ms.
-  for (const auto& proc_counters : ps_stats.processes()) {
+  ASSERT_EQ(processes.size(), 2);
+  for (const auto& proc_counters : processes) {
     ASSERT_EQ(proc_counters.pid(), kPid);
     ASSERT_EQ(proc_counters.vm_size_kb(), kPid * 100 + 1);
     ASSERT_EQ(proc_counters.vm_rss_kb(), kPid * 100 + 2);

@@ -38,6 +38,11 @@ message DataSourceDescriptor {
   // Android P in March 2019 and is not supported on older versions.
   optional bool will_notify_on_start = 3;
 
+  // If true, opt into receiving the ClearIncrementalState() IPC. This should be
+  // set if the data source writes packets that refer to previous trace
+  // contents, and knows how to stop referring to the already-emitted data.
+  optional bool handles_incremental_state_clear = 4;
+
   // TODO: this should have a structure to enable reflection of the proto
   // fields emitted (see go/perfetto-logging).
 }
