@@ -102,6 +102,7 @@ class TracingServiceImpl : public TracingService {
     void StopDataSource(DataSourceInstanceID);
     void Flush(FlushRequestID, const std::vector<DataSourceInstanceID>&);
     void OnFreeBuffers(const std::vector<BufferID>& target_buffers);
+    void ClearIncrementalState(const std::vector<DataSourceInstanceID>&);
 
     bool is_allowed_target_buffer(BufferID buffer_id) const {
       return allowed_target_buffers_.count(buffer_id);
@@ -289,12 +290,15 @@ class TracingServiceImpl : public TracingService {
                        const DataSourceConfig& cfg,
                        const std::string& ds_name,
                        bool notify_on_start,
-                       bool notify_on_stop)
+                       bool notify_on_stop,
+                       bool handles_incremental_state_invalidation)
         : instance_id(id),
           config(cfg),
           data_source_name(ds_name),
           will_notify_on_start(notify_on_start),
-          will_notify_on_stop(notify_on_stop) {}
+          will_notify_on_stop(notify_on_stop),
+          handles_incremental_state_clear(
+              handles_incremental_state_invalidation) {}
     DataSourceInstance(const DataSourceInstance&) = delete;
     DataSourceInstance& operator=(const DataSourceInstance&) = delete;
 
@@ -303,6 +307,7 @@ class TracingServiceImpl : public TracingService {
     std::string data_source_name;
     bool will_notify_on_start;
     bool will_notify_on_stop;
+    bool handles_incremental_state_clear;
 
     enum DataSourceInstanceState {
       CONFIGURED,
@@ -412,6 +417,9 @@ class TracingServiceImpl : public TracingService {
 
     // List of data source instances that have been enabled on the various
     // producers for this tracing session.
+    // TODO(rsavitski): at the time of writing, the map structure is unused
+    // (even when the calling code has a key). This is also an opportunity to
+    // consider an alternative data type, e.g. a map of vectors.
     std::multimap<ProducerID, DataSourceInstance> data_source_instances;
 
     // For each Flush(N) request, keeps track of the set of producers for which
@@ -498,6 +506,7 @@ class TracingServiceImpl : public TracingService {
                      bool success);
   void ScrapeSharedMemoryBuffers(TracingSession* tracing_session,
                                  ProducerEndpointImpl* producer);
+  void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
   void OnStartTriggersTimeout(TracingSessionID tsid);
 

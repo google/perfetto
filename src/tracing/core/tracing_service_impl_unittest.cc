@@ -1615,6 +1615,83 @@ TEST_F(TracingServiceImplTest, PeriodicFlush) {
   }
 }
 
+TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  // Incremental data source that expects to receive the clear.
+  producer->RegisterDataSource("ds_incremental1", false, false,
+                               /*handles_incremental_state_clear=*/true);
+
+  // Incremental data source that expects to receive the clear.
+  producer->RegisterDataSource("ds_incremental2", false, false,
+                               /*handles_incremental_state_clear=*/true);
+
+  // Data source that does *not* advertise itself as support incremental state
+  // clears.
+  producer->RegisterDataSource("ds_selfcontained", false, false,
+                               /*handles_incremental_state_clear=*/false);
+
+  // Incremental data source that is registered, but won't be active within the
+  // test's tracing session.
+  producer->RegisterDataSource("ds_inactive", false, false,
+                               /*handles_incremental_state_clear=*/true);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.mutable_incremental_state_config()->set_clear_period_ms(1);
+  trace_config.add_data_sources()->mutable_config()->set_name(
+      "ds_selfcontained");
+  trace_config.add_data_sources()->mutable_config()->set_name(
+      "ds_incremental1");
+  trace_config.add_data_sources()->mutable_config()->set_name(
+      "ds_incremental2");
+
+  // note: the mocking is very brittle, and has to assume a specific order of
+  // the data sources' setup/start.
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_selfcontained");
+  producer->WaitForDataSourceSetup("ds_incremental1");
+  producer->WaitForDataSourceSetup("ds_incremental2");
+  producer->WaitForDataSourceStart("ds_selfcontained");
+  producer->WaitForDataSourceStart("ds_incremental1");
+  producer->WaitForDataSourceStart("ds_incremental2");
+
+  DataSourceInstanceID ds_incremental1 =
+      producer->GetDataSourceInstanceId("ds_incremental1");
+  DataSourceInstanceID ds_incremental2 =
+      producer->GetDataSourceInstanceId("ds_incremental2");
+
+  const int kNumClears = 3;
+  std::function<void()> checkpoint =
+      task_runner.CreateCheckpoint("clears_received");
+  std::vector<std::vector<DataSourceInstanceID>> clears_seen;
+  EXPECT_CALL(*producer, ClearIncrementalState(_, _))
+      .WillRepeatedly(Invoke([&clears_seen, &checkpoint](
+                                 const DataSourceInstanceID* data_source_ids,
+                                 size_t num_data_sources) {
+        std::vector<DataSourceInstanceID> ds_ids;
+        for (size_t i = 0; i < num_data_sources; i++) {
+          ds_ids.push_back(*data_source_ids++);
+        }
+        clears_seen.push_back(ds_ids);
+        if (clears_seen.size() >= kNumClears)
+          checkpoint();
+      }));
+  task_runner.RunUntilCheckpoint("clears_received");
+
+  consumer->DisableTracing();
+
+  // Assert that the clears were only for the active incremental data sources.
+  ASSERT_EQ(clears_seen.size(), kNumClears);
+  for (const std::vector<DataSourceInstanceID>& ds_ids : clears_seen) {
+    ASSERT_THAT(ds_ids, ElementsAreArray({ds_incremental1, ds_incremental2}));
+  }
+}
+
 // Creates a tracing session where some of the data sources set the
 // |will_notify_on_stop| flag and checks that the OnTracingDisabled notification
 // to the consumer is delayed until the acks are received.
