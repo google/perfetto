@@ -29,6 +29,7 @@
 using ::testing::_;
 using ::testing::ElementsAreArray;
 using ::testing::Invoke;
+using ::testing::Mock;
 using ::testing::Return;
 using ::testing::Truly;
 
@@ -148,6 +149,62 @@ TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
   EXPECT_THAT(ps_tree.threads(),
               UnorderedElementsAre(Truly(expected_thread(31)),
                                    Truly(expected_thread(32))));
+}
+
+TEST_F(ProcessStatsDataSourceTest, IncrementalStateClear) {
+  auto data_source = GetProcessStatsDataSource(DataSourceConfig());
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "status"))
+      .WillOnce(Return("Name: foo\nTgid:\t42\nPid:   42\nPPid:  17\n"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "cmdline"))
+      .WillOnce(Return(std::string("first_cmdline\0", 14)));
+
+  data_source->OnPids({42});
+
+  {
+    std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
+    ASSERT_EQ(trace.size(), 1);
+    auto packet = trace[0].process_tree();
+    ASSERT_EQ(packet.processes_size(), 1);
+    ASSERT_EQ(packet.processes(0).pid(), 42);
+    ASSERT_EQ(packet.processes(0).ppid(), 17);
+    ASSERT_THAT(packet.processes(0).cmdline(),
+                ElementsAreArray({"first_cmdline"}));
+  }
+
+  // Look up the same pid, which shouldn't be re-emitted.
+  Mock::VerifyAndClearExpectations(data_source.get());
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "status")).Times(0);
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "cmdline")).Times(0);
+
+  data_source->OnPids({42});
+
+  {
+    std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
+    ASSERT_EQ(trace.size(), 1);
+  }
+
+  // Invalidate incremental state, and look up the same pid again, which should
+  // re-emit the proc tree info.
+  Mock::VerifyAndClearExpectations(data_source.get());
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "status"))
+      .WillOnce(Return("Name: foo\nTgid:\t42\nPid:   42\nPPid:  18\n"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "cmdline"))
+      .WillOnce(Return(std::string("second_cmdline\0", 15)));
+
+  data_source->ClearIncrementalState();
+  data_source->OnPids({42});
+
+  {
+    // Second packet with new proc information.
+    std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
+    ASSERT_EQ(trace.size(), 2);
+    auto ps_tree = trace[1].process_tree();
+    ASSERT_EQ(ps_tree.processes_size(), 1);
+    ASSERT_EQ(ps_tree.processes(0).pid(), 42);
+    ASSERT_EQ(ps_tree.processes(0).ppid(), 18);
+    ASSERT_THAT(ps_tree.processes(0).cmdline(),
+                ElementsAreArray({"second_cmdline"}));
+  }
 }
 
 TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
