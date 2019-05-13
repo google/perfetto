@@ -51,6 +51,13 @@ void SliceTracker::Begin(int64_t timestamp,
                          UniqueTid utid,
                          StringId cat,
                          StringId name) {
+  // At this stage all events should be globally timestamp ordered.
+  if (timestamp < prev_timestamp_) {
+    context_->storage->IncrementStats(stats::slice_out_of_order);
+    return;
+  }
+  prev_timestamp_ = timestamp;
+
   MaybeCloseStack(timestamp, &threads_[utid]);
   StartSlice(timestamp, kPendingDuration, utid, cat, name);
 }
@@ -60,6 +67,13 @@ void SliceTracker::Scoped(int64_t timestamp,
                           StringId cat,
                           StringId name,
                           int64_t duration) {
+  // At this stage all events should be globally timestamp ordered.
+  if (timestamp < prev_timestamp_) {
+    context_->storage->IncrementStats(stats::slice_out_of_order);
+    return;
+  }
+  prev_timestamp_ = timestamp;
+
   PERFETTO_DCHECK(duration >= 0);
   MaybeCloseStack(timestamp, &threads_[utid]);
   StartSlice(timestamp, duration, utid, cat, name);
@@ -113,6 +127,13 @@ void SliceTracker::End(int64_t timestamp,
                        UniqueTid utid,
                        StringId cat,
                        StringId name) {
+  // At this stage all events should be globally timestamp ordered.
+  if (timestamp < prev_timestamp_) {
+    context_->storage->IncrementStats(stats::slice_out_of_order);
+    return;
+  }
+  prev_timestamp_ = timestamp;
+
   MaybeCloseStack(timestamp, &threads_[utid]);
 
   const auto& stack = threads_[utid];
@@ -142,7 +163,7 @@ void SliceTracker::CompleteSlice(UniqueTid utid) {
 
 void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {
   const auto& slices = context_->storage->nestable_slices();
-  bool check_only = false;
+  bool pending_dur_descendent = false;
   for (int i = static_cast<int>(stack->size()) - 1; i >= 0; i--) {
     size_t slice_idx = (*stack)[static_cast<size_t>(i)];
 
@@ -150,12 +171,12 @@ void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {
     int64_t dur = slices.durations()[slice_idx];
     int64_t end_ts = start_ts + dur;
     if (dur == kPendingDuration) {
-      check_only = true;
+      pending_dur_descendent = true;
     }
 
-    if (check_only) {
-      PERFETTO_CHECK(ts >= start_ts);
-      PERFETTO_CHECK(dur == kPendingDuration || ts <= end_ts);
+    if (pending_dur_descendent) {
+      PERFETTO_DCHECK(ts >= start_ts);
+      PERFETTO_DCHECK(dur == kPendingDuration || ts <= end_ts);
       continue;
     }
 

@@ -71,6 +71,10 @@ class SliceTracker {
   void MaybeCloseStack(int64_t end_ts, SlicesStack*);
   int64_t GetStackHash(const SlicesStack&);
 
+  // Timestamp of the previous event. Used to discard events arriving out
+  // of order.
+  int64_t prev_timestamp_ = 0;
+
   TraceProcessorContext* const context_;
   std::unordered_map<UniqueTid, SlicesStack> threads_;
   std::unordered_map<uint32_t, uint32_t> ftrace_to_atrace_tgid_;
