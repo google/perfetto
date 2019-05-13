@@ -1629,8 +1629,8 @@ TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
   producer->RegisterDataSource("ds_incremental2", false, false,
                                /*handles_incremental_state_clear=*/true);
 
-  // Data source that does *not* advertise itself as support incremental state
-  // clears.
+  // Data source that does *not* advertise itself as supporting incremental
+  // state clears.
   producer->RegisterDataSource("ds_selfcontained", false, false,
                                /*handles_incremental_state_clear=*/false);
 

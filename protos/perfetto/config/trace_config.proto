@@ -21,7 +21,7 @@ import "perfetto/config/data_source_config.proto";
 
 package perfetto.protos;
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos
 // to reflect changes in the corresponding C++ headers.
 
 // The overall config that is used when starting a new tracing session through
@@ -254,16 +254,17 @@ message TraceConfig {
   // trace parser will then need to use that interning table to fully interpret
   // the rest of the trace.
   message IncrementalStateConfig {
-    // If nonzero, send a ClearIncrementalState ipc to all eligible data sources
-    // repeatedly, with the given period. The ipc is sent only to data sources
-    // that have |handles_incremental_state_clear| set in their
-    // DataSourceDescriptor. The ipc notifies the data source to stop referring
-    // to past trace contents. This is particularly useful when tracing in ring
-    // buffer mode, where it is not exceptional to overwrite old trace data.
+    // If nonzero, notify eligible data sources to clear their incremental state
+    // periodically, with the given period. The notification is sent only to
+    // data sources that have |handles_incremental_state_clear| set in their
+    // DataSourceDescriptor. The notification requests that the data source
+    // stops referring to past trace contents. This is particularly useful when
+    // tracing in ring buffer mode, where it is not exceptional to overwrite old
+    // trace data.
     //
     // Warning: this time-based global clearing is likely to be removed in the
-    // future, to be replaced with a smarter way of sending the ipcs only when
-    // necessary.
+    // future, to be replaced with a smarter way of sending the notifications
+    // only when necessary.
     optional uint32 clear_period_ms = 1;
   }
   optional IncrementalStateConfig incremental_state_config = 21;
