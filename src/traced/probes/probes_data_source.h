@@ -19,6 +19,7 @@
 
 #include <functional>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/tracing/core/basic_types.h"
 
 namespace perfetto {
@@ -32,6 +33,14 @@ class ProbesDataSource {
 
   virtual void Start() = 0;
   virtual void Flush(FlushRequestID, std::function<void()> callback) = 0;
+
+  // Only data sources that opt in via DataSourceDescriptor should receive this
+  // call.
+  virtual void ClearIncrementalState() {
+    PERFETTO_ELOG(
+        "ClearIncrementalState received by data source that doesn't provide "
+        "its own implementation.");
+  }
 
   const TracingSessionID tracing_session_id;
   const int type_id;

@@ -96,6 +96,7 @@ void ProbesProducer::OnConnect() {
   {
     DataSourceDescriptor desc;
     desc.set_name(kProcessStatsSourceName);
+    desc.set_handles_incremental_state_clear(true);
     endpoint_->RegisterDataSource(desc);
   }
 
@@ -394,6 +395,19 @@ void ProbesProducer::OnFlushTimeout(FlushRequestID flush_request_id) {
   PERFETTO_ELOG("Flush(%" PRIu64 ") timed out", flush_request_id);
   pending_flushes_.erase(flush_request_id);
   endpoint_->NotifyFlushComplete(flush_request_id);
+}
+
+void ProbesProducer::ClearIncrementalState(
+    const DataSourceInstanceID* data_source_ids,
+    size_t num_data_sources) {
+  for (size_t i = 0; i < num_data_sources; i++) {
+    DataSourceInstanceID ds_id = data_source_ids[i];
+    auto it = data_sources_.find(ds_id);
+    if (it == data_sources_.end() || !it->second->started)
+      continue;
+
+    it->second->ClearIncrementalState();
+  }
 }
 
 // This function is called by the FtraceController in batches, whenever it has
