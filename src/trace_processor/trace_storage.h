@@ -701,7 +701,7 @@ class TraceStorage {
    public:
     struct Row {
       int64_t timestamp;
-      int64_t pid;
+      UniquePid upid;
       int64_t callsite_id;
       int64_t count;
       int64_t size;
@@ -711,21 +711,21 @@ class TraceStorage {
 
     void Insert(const Row& row) {
       timestamps_.emplace_back(row.timestamp);
-      pids_.emplace_back(row.pid);
+      upids_.emplace_back(row.upid);
       callsite_ids_.emplace_back(row.callsite_id);
       counts_.emplace_back(row.count);
       sizes_.emplace_back(row.size);
     }
 
     const std::deque<int64_t>& timestamps() const { return timestamps_; }
-    const std::deque<int64_t>& pids() const { return pids_; }
+    const std::deque<UniquePid>& upids() const { return upids_; }
     const std::deque<int64_t>& callsite_ids() const { return callsite_ids_; }
     const std::deque<int64_t>& counts() const { return counts_; }
     const std::deque<int64_t>& sizes() const { return sizes_; }
 
    private:
     std::deque<int64_t> timestamps_;
-    std::deque<int64_t> pids_;
+    std::deque<UniquePid> upids_;
     std::deque<int64_t> callsite_ids_;
     std::deque<int64_t> counts_;
     std::deque<int64_t> sizes_;

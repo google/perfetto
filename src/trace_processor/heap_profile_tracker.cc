@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/heap_profile_tracker.h"
 
+#include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 
 #include "perfetto/base/logging.h"
@@ -170,13 +171,16 @@ void HeapProfileTracker::AddAllocation(ProfileIndex pidx,
     return;
   }
 
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+      static_cast<uint32_t>(alloc.pid));
+
   TraceStorage::HeapProfileAllocations::Row alloc_row{
-      static_cast<int64_t>(alloc.timestamp), static_cast<int64_t>(alloc.pid),
+      static_cast<int64_t>(alloc.timestamp), upid,
       static_cast<int64_t>(it->second), static_cast<int64_t>(alloc.alloc_count),
       static_cast<int64_t>(alloc.self_allocated)};
 
   TraceStorage::HeapProfileAllocations::Row free_row{
-      static_cast<int64_t>(alloc.timestamp), static_cast<int64_t>(alloc.pid),
+      static_cast<int64_t>(alloc.timestamp), upid,
       static_cast<int64_t>(it->second), -static_cast<int64_t>(alloc.free_count),
       -static_cast<int64_t>(alloc.self_freed)};
 
