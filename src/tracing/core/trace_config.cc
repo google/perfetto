@@ -60,6 +60,7 @@ bool TraceConfig::operator==(const TraceConfig& other) const {
          (notify_traceur_ == other.notify_traceur_) &&
          (trigger_config_ == other.trigger_config_) &&
          (activate_triggers_ == other.activate_triggers_) &&
+         (incremental_state_config_ == other.incremental_state_config_) &&
          (allow_user_build_tracing_ == other.allow_user_build_tracing_);
 }
 #pragma GCC diagnostic pop
@@ -151,6 +152,8 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
     activate_triggers_.back() =
         static_cast<decltype(activate_triggers_)::value_type>(field);
   }
+
+  incremental_state_config_.FromProto(proto.incremental_state_config());
 
   static_assert(sizeof(allow_user_build_tracing_) ==
                     sizeof(proto.allow_user_build_tracing()),
@@ -248,6 +251,8 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
     static_assert(sizeof(it) == sizeof(proto->activate_triggers(0)),
                   "size mismatch");
   }
+
+  incremental_state_config_.ToProto(proto->mutable_incremental_state_config());
 
   static_assert(sizeof(allow_user_build_tracing_) ==
                     sizeof(proto->allow_user_build_tracing()),
@@ -727,6 +732,45 @@ void TraceConfig::TriggerConfig::Trigger::ToProto(
                 "size mismatch");
   proto->set_stop_delay_ms(
       static_cast<decltype(proto->stop_delay_ms())>(stop_delay_ms_));
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+TraceConfig::IncrementalStateConfig::IncrementalStateConfig() = default;
+TraceConfig::IncrementalStateConfig::~IncrementalStateConfig() = default;
+TraceConfig::IncrementalStateConfig::IncrementalStateConfig(
+    const TraceConfig::IncrementalStateConfig&) = default;
+TraceConfig::IncrementalStateConfig& TraceConfig::IncrementalStateConfig::
+operator=(const TraceConfig::IncrementalStateConfig&) = default;
+TraceConfig::IncrementalStateConfig::IncrementalStateConfig(
+    TraceConfig::IncrementalStateConfig&&) noexcept = default;
+TraceConfig::IncrementalStateConfig& TraceConfig::IncrementalStateConfig::
+operator=(TraceConfig::IncrementalStateConfig&&) = default;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool TraceConfig::IncrementalStateConfig::operator==(
+    const TraceConfig::IncrementalStateConfig& other) const {
+  return (clear_period_ms_ == other.clear_period_ms_);
+}
+#pragma GCC diagnostic pop
+
+void TraceConfig::IncrementalStateConfig::FromProto(
+    const perfetto::protos::TraceConfig_IncrementalStateConfig& proto) {
+  static_assert(sizeof(clear_period_ms_) == sizeof(proto.clear_period_ms()),
+                "size mismatch");
+  clear_period_ms_ =
+      static_cast<decltype(clear_period_ms_)>(proto.clear_period_ms());
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void TraceConfig::IncrementalStateConfig::ToProto(
+    perfetto::protos::TraceConfig_IncrementalStateConfig* proto) const {
+  proto->Clear();
+
+  static_assert(sizeof(clear_period_ms_) == sizeof(proto->clear_period_ms()),
+                "size mismatch");
+  proto->set_clear_period_ms(
+      static_cast<decltype(proto->clear_period_ms())>(clear_period_ms_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

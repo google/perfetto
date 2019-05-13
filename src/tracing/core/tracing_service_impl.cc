@@ -684,6 +684,12 @@ bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   if (tracing_session->config.flush_period_ms())
     PeriodicFlushTask(tsid, /*post_next_only=*/true);
 
+  // Start the periodic incremental state clear tasks if the config specified a
+  // period.
+  if (tracing_session->config.incremental_state_config().clear_period_ms()) {
+    PeriodicClearIncrementalStateTask(tsid, /*post_next_only=*/true);
+  }
+
   for (auto& kv : tracing_session->data_source_instances) {
     ProducerID producer_id = kv.first;
     DataSourceInstance& data_source = kv.second;
@@ -1046,7 +1052,7 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   }
 
   // If there are no producers to flush (realistically this happens only in
-  // some tests) fire  OnFlushTimeout() straight away, without waiting.
+  // some tests) fire OnFlushTimeout() straight away, without waiting.
   if (flush_map.empty())
     timeout_ms = 0;
 
@@ -1280,11 +1286,58 @@ void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
   if (post_next_only)
     return;
 
-  PERFETTO_DLOG("Triggering periodic flush for %" PRIu64, tsid);
+  PERFETTO_DLOG("Triggering periodic flush for trace session %" PRIu64, tsid);
   Flush(tsid, 0, [](bool success) {
     if (!success)
       PERFETTO_ELOG("Periodic flush timed out");
   });
+}
+
+void TracingServiceImpl::PeriodicClearIncrementalStateTask(
+    TracingSessionID tsid,
+    bool post_next_only) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  TracingSession* tracing_session = GetTracingSession(tsid);
+  if (!tracing_session || tracing_session->state != TracingSession::STARTED)
+    return;
+
+  uint32_t clear_period_ms =
+      tracing_session->config.incremental_state_config().clear_period_ms();
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_this, tsid] {
+        if (weak_this)
+          weak_this->PeriodicClearIncrementalStateTask(
+              tsid, /*post_next_only=*/false);
+      },
+      clear_period_ms - (base::GetWallTimeMs().count() % clear_period_ms));
+
+  if (post_next_only)
+    return;
+
+  PERFETTO_DLOG(
+      "Performing periodic incremental state clear for trace session %" PRIu64,
+      tsid);
+
+  // Queue the IPCs to producers with active data sources that opted in.
+  std::map<ProducerID, std::vector<DataSourceInstanceID>> clear_map;
+  for (const auto& kv : tracing_session->data_source_instances) {
+    ProducerID producer_id = kv.first;
+    const DataSourceInstance& data_source = kv.second;
+    if (data_source.handles_incremental_state_clear)
+      clear_map[producer_id].push_back(data_source.instance_id);
+  }
+
+  for (const auto& kv : clear_map) {
+    ProducerID producer_id = kv.first;
+    const std::vector<DataSourceInstanceID>& data_sources = kv.second;
+    ProducerEndpointImpl* producer = GetProducer(producer_id);
+    if (!producer) {
+      PERFETTO_DFATAL("Producer does not exist.");
+      continue;
+    }
+    producer->ClearIncrementalState(data_sources);
+  }
 }
 
 // Note: when this is called to write into a file passed when starting tracing
@@ -1712,11 +1765,13 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   auto insert_iter = tracing_session->data_source_instances.emplace(
       std::piecewise_construct,  //
       std::forward_as_tuple(producer->id_),
-      std::forward_as_tuple(inst_id,
-                            cfg_data_source.config(),  //  Deliberate copy.
-                            data_source.descriptor.name(),
-                            data_source.descriptor.will_notify_on_start(),
-                            data_source.descriptor.will_notify_on_stop()));
+      std::forward_as_tuple(
+          inst_id,
+          cfg_data_source.config(),  //  Deliberate copy.
+          data_source.descriptor.name(),
+          data_source.descriptor.will_notify_on_start(),
+          data_source.descriptor.will_notify_on_stop(),
+          data_source.descriptor.handles_incremental_state_clear()));
   DataSourceInstance* ds_instance = &insert_iter->second;
 
   // New data source instance starts out in CONFIGURED state.
@@ -2625,6 +2680,18 @@ void TracingServiceImpl::ProducerEndpointImpl::OnFreeBuffers(
     return;
   for (BufferID buffer : target_buffers)
     allowed_target_buffers_.erase(buffer);
+}
+
+void TracingServiceImpl::ProducerEndpointImpl::ClearIncrementalState(
+    const std::vector<DataSourceInstanceID>& data_sources) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_this, data_sources] {
+    if (weak_this) {
+      weak_this->producer_->ClearIncrementalState(data_sources.data(),
+                                                  data_sources.size());
+    }
+  });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

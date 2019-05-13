@@ -47,7 +47,9 @@ DataSourceDescriptor& DataSourceDescriptor::operator=(DataSourceDescriptor&&) =
 bool DataSourceDescriptor::operator==(const DataSourceDescriptor& other) const {
   return (name_ == other.name_) &&
          (will_notify_on_stop_ == other.will_notify_on_stop_) &&
-         (will_notify_on_start_ == other.will_notify_on_start_);
+         (will_notify_on_start_ == other.will_notify_on_start_) &&
+         (handles_incremental_state_clear_ ==
+          other.handles_incremental_state_clear_);
 }
 #pragma GCC diagnostic pop
 
@@ -67,6 +69,13 @@ void DataSourceDescriptor::FromProto(
       "size mismatch");
   will_notify_on_start_ = static_cast<decltype(will_notify_on_start_)>(
       proto.will_notify_on_start());
+
+  static_assert(sizeof(handles_incremental_state_clear_) ==
+                    sizeof(proto.handles_incremental_state_clear()),
+                "size mismatch");
+  handles_incremental_state_clear_ =
+      static_cast<decltype(handles_incremental_state_clear_)>(
+          proto.handles_incremental_state_clear());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -90,6 +99,13 @@ void DataSourceDescriptor::ToProto(
   proto->set_will_notify_on_start(
       static_cast<decltype(proto->will_notify_on_start())>(
           will_notify_on_start_));
+
+  static_assert(sizeof(handles_incremental_state_clear_) ==
+                    sizeof(proto->handles_incremental_state_clear()),
+                "size mismatch");
+  proto->set_handles_incremental_state_clear(
+      static_cast<decltype(proto->handles_incremental_state_clear())>(
+          handles_incremental_state_clear_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
