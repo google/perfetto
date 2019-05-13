@@ -62,6 +62,7 @@ class TraceConfig_StatsdMetadata;
 class TraceConfig_GuardrailOverrides;
 class TraceConfig_TriggerConfig;
 class TraceConfig_TriggerConfig_Trigger;
+class TraceConfig_IncrementalStateConfig;
 }  // namespace protos
 }  // namespace perfetto
 
@@ -399,6 +400,34 @@ class PERFETTO_EXPORT TraceConfig {
     std::string unknown_fields_;
   };
 
+  class PERFETTO_EXPORT IncrementalStateConfig {
+   public:
+    IncrementalStateConfig();
+    ~IncrementalStateConfig();
+    IncrementalStateConfig(IncrementalStateConfig&&) noexcept;
+    IncrementalStateConfig& operator=(IncrementalStateConfig&&);
+    IncrementalStateConfig(const IncrementalStateConfig&);
+    IncrementalStateConfig& operator=(const IncrementalStateConfig&);
+    bool operator==(const IncrementalStateConfig&) const;
+    bool operator!=(const IncrementalStateConfig& other) const {
+      return !(*this == other);
+    }
+
+    // Conversion methods from/to the corresponding protobuf types.
+    void FromProto(const perfetto::protos::TraceConfig_IncrementalStateConfig&);
+    void ToProto(perfetto::protos::TraceConfig_IncrementalStateConfig*) const;
+
+    uint32_t clear_period_ms() const { return clear_period_ms_; }
+    void set_clear_period_ms(uint32_t value) { clear_period_ms_ = value; }
+
+   private:
+    uint32_t clear_period_ms_ = {};
+
+    // Allows to preserve unknown protobuf fields for compatibility
+    // with future versions of .proto files.
+    std::string unknown_fields_;
+  };
+
   TraceConfig();
   ~TraceConfig();
   TraceConfig(TraceConfig&&) noexcept;
@@ -512,6 +541,13 @@ class PERFETTO_EXPORT TraceConfig {
     return &activate_triggers_.back();
   }
 
+  const IncrementalStateConfig& incremental_state_config() const {
+    return incremental_state_config_;
+  }
+  IncrementalStateConfig* mutable_incremental_state_config() {
+    return &incremental_state_config_;
+  }
+
   bool allow_user_build_tracing() const { return allow_user_build_tracing_; }
   void set_allow_user_build_tracing(bool value) {
     allow_user_build_tracing_ = value;
@@ -536,6 +572,7 @@ class PERFETTO_EXPORT TraceConfig {
   bool notify_traceur_ = {};
   TriggerConfig trigger_config_ = {};
   std::vector<std::string> activate_triggers_;
+  IncrementalStateConfig incremental_state_config_ = {};
   bool allow_user_build_tracing_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility

@@ -164,11 +164,25 @@ void ProducerIPCClientImpl::OnServiceRequest(
     // uint64 and not stdint's uint64_t. On some 64 bit archs they differ on the
     // type (long vs long long) even though they have the same size.
     const auto* data_source_ids = cmd.flush().data_source_ids().data();
-    static_assert(sizeof(data_source_ids[0]) == sizeof(FlushRequestID),
+    static_assert(sizeof(data_source_ids[0]) == sizeof(DataSourceInstanceID),
                   "data_source_ids should be 64-bit");
-    producer_->Flush(cmd.flush().request_id(),
-                     reinterpret_cast<const FlushRequestID*>(data_source_ids),
-                     static_cast<size_t>(cmd.flush().data_source_ids().size()));
+    producer_->Flush(
+        cmd.flush().request_id(),
+        reinterpret_cast<const DataSourceInstanceID*>(data_source_ids),
+        static_cast<size_t>(cmd.flush().data_source_ids().size()));
+    return;
+  }
+
+  if (cmd.cmd_case() ==
+      protos::GetAsyncCommandResponse::kClearIncrementalState) {
+    const auto* data_source_ids =
+        cmd.clear_incremental_state().data_source_ids().data();
+    static_assert(sizeof(data_source_ids[0]) == sizeof(DataSourceInstanceID),
+                  "data_source_ids should be 64-bit");
+    producer_->ClearIncrementalState(
+        reinterpret_cast<const DataSourceInstanceID*>(data_source_ids),
+        static_cast<size_t>(
+            cmd.clear_incremental_state().data_source_ids().size()));
     return;
   }
 

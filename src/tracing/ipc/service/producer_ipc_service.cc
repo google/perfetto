@@ -397,4 +397,21 @@ void ProducerIPCService::RemoteProducer::Flush(
   async_producer_commands.Resolve(std::move(cmd));
 }
 
+void ProducerIPCService::RemoteProducer::ClearIncrementalState(
+    const DataSourceInstanceID* data_source_ids,
+    size_t num_data_sources) {
+  if (!async_producer_commands.IsBound()) {
+    PERFETTO_DLOG(
+        "The Service tried to request an incremental state invalidation, but "
+        "the remote Producer has not yet initialized the connection");
+    return;
+  }
+  auto cmd = ipc::AsyncResult<protos::GetAsyncCommandResponse>::Create();
+  cmd.set_has_more(true);
+  for (size_t i = 0; i < num_data_sources; i++)
+    cmd->mutable_clear_incremental_state()->add_data_source_ids(
+        data_source_ids[i]);
+  async_producer_commands.Resolve(std::move(cmd));
+}
+
 }  // namespace perfetto
