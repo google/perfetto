@@ -84,6 +84,8 @@ class MockProducer : public Producer {
   MOCK_METHOD0(OnTracingSetup, void());
   MOCK_METHOD3(Flush,
                void(FlushRequestID, const DataSourceInstanceID*, size_t));
+  MOCK_METHOD2(ClearIncrementalState,
+               void(const DataSourceInstanceID*, size_t));
 
  private:
   base::TestTaskRunner* const task_runner_;
