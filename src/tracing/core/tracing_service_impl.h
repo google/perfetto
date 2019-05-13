@@ -448,6 +448,11 @@ class TracingServiceImpl : public TracingService {
     // The number of received triggers we've emitted into the trace output.
     size_t num_triggers_emitted_into_trace = 0;
 
+    // Initial clock snapshot, captured at trace start time (when state goes
+    // to TracingSession::STARTED). Emitted into the trace when the consumer
+    // first begins reading the trace.
+    std::vector<TracePacket> initial_clock_snapshot_;
+
     State state = DISABLED;
 
     // If the consumer detached the session, this variable defines the key used
@@ -491,7 +496,7 @@ class TracingServiceImpl : public TracingService {
                                TracingSession* tracing_session,
                                DataSourceInstance* instance);
   void SnapshotSyncMarker(std::vector<TracePacket>*);
-  void SnapshotClocks(std::vector<TracePacket>*);
+  void SnapshotClocks(std::vector<TracePacket>*, bool set_timestamp = true);
   void SnapshotStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession* tracing_session);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);

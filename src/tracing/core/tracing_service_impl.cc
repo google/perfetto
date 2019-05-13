@@ -642,6 +642,11 @@ bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
 
   tracing_session->state = TracingSession::STARTED;
 
+  if (!tracing_session->config.builtin_data_sources()
+           .disable_clock_snapshotting()) {
+    SnapshotClocks(&tracing_session->initial_clock_snapshot_);
+  }
+
   // Trigger delayed task if the trace is time limited.
   const uint32_t trace_duration_ms = tracing_session->config.duration_ms();
   if (trace_duration_ms > 0) {
@@ -1386,6 +1391,11 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   std::vector<TracePacket> packets;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
 
+  std::move(tracing_session->initial_clock_snapshot_.begin(),
+            tracing_session->initial_clock_snapshot_.end(),
+            std::back_inserter(packets));
+  tracing_session->initial_clock_snapshot_.clear();
+
   base::TimeMillis now = base::GetWallTimeMs();
   if (now >= tracing_session->last_snapshot_time + kSnapshotsInterval) {
     tracing_session->last_snapshot_time = now;
@@ -1394,7 +1404,10 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
 
     if (!tracing_session->config.builtin_data_sources()
              .disable_clock_snapshotting()) {
-      SnapshotClocks(&packets);
+      // We don't want to put a root timestamp in this snapshot as the packet
+      // may be very out of order with respect to the actual trace packets
+      // since consuming the trace may happen at any point after it starts.
+      SnapshotClocks(&packets, /*set_timestamp*/ false);
     }
   }
   if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
@@ -2060,7 +2073,8 @@ void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
   packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
 }
 
-void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets) {
+void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
+                                        bool root_timestamp) {
   protos::TrustedPacket packet;
   protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
 
@@ -2096,6 +2110,11 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets) {
       PERFETTO_DLOG("clock_gettime failed for clock %d", clock.id);
   }
   for (auto& clock : clocks) {
+    if (root_timestamp &&
+        clock.type == protos::ClockSnapshot::Clock::BOOTTIME) {
+      packet.set_timestamp(
+          static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
+    };
     protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
     c->set_type(clock.type);
     c->set_timestamp(
