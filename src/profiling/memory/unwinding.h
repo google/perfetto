@@ -106,7 +106,7 @@ struct UnwindingMetadata {
             new unwindstack::DexFiles(fd_mem)))
 #endif
   {
-    PERFETTO_CHECK(maps.Parse());
+    PERFETTO_DCHECK(maps.Parse());
   }
   void ReparseMaps() {
     reparses++;
