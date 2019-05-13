@@ -487,4 +487,9 @@ bool ProcessStatsDataSource::WriteMemCounters(int32_t pid,
   return proc_status_has_mem_counters;
 }
 
+void ProcessStatsDataSource::ClearIncrementalState() {
+  PERFETTO_DLOG("ProcessStatsDataSource clearing incremental state.");
+  seen_pids_.clear();
+}
+
 }  // namespace perfetto
