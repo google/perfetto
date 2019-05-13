@@ -35,7 +35,7 @@ StorageSchema HeapProfileAllocationTable::CreateStorageSchema() {
   return StorageSchema::Builder()
       .AddGenericNumericColumn("id", RowAccessor())
       .AddOrderedNumericColumn("ts", &allocs.timestamps())
-      .AddNumericColumn("pid", &allocs.pids())
+      .AddNumericColumn("upid", &allocs.upids())
       .AddNumericColumn("callsite_id", &allocs.callsite_ids())
       .AddNumericColumn("count", &allocs.counts())
       .AddNumericColumn("size", &allocs.sizes())
