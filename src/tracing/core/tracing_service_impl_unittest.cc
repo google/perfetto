@@ -1315,11 +1315,14 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   producer->WaitForDataSourceStart("data_source");
 
   // The preamble packets are:
+  // Trace start clocksnapshot
   // Config
   // SystemInfo
-  // 3x unknown
-  static const int kNumPreamblePackets = 5;
-  static const int kNumTestPackets = 10;
+  // Trace read clocksnapshot
+  // Trace synchronisation
+  // Trace stats
+  static const int kNumPreamblePackets = 6;
+  static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
   std::unique_ptr<TraceWriter> writer =
