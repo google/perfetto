@@ -213,7 +213,18 @@ message GetAsyncCommandResponse {
     optional uint64 request_id = 2;
   }
 
-  // Next id: 7.
+  // Instructs the given data sources to stop referring to any trace contents
+  // emitted so far. Sent only to active data sources that set
+  // |handles_incremental_state_clear| in their DataSourceDescriptor.
+  //
+  // Added to perfetto tree in May 2019.
+  message ClearIncrementalState {
+    // The instance id (i.e. StartDataSource.new_instance_id) of the data
+    // sources that should clear their incremental state.
+    repeated uint64 data_source_ids = 1;
+  }
+
+  // Next id: 8.
   oneof cmd {
     SetupTracing setup_tracing = 3;
     SetupDataSource setup_data_source = 6;
@@ -221,5 +232,6 @@ message GetAsyncCommandResponse {
     StopDataSource stop_data_source = 2;
     // id == 4 was teardown_tracing, never implemented.
     Flush flush = 5;
+    ClearIncrementalState clear_incremental_state = 7;
   }
 }
