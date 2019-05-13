@@ -364,18 +364,18 @@ void FtraceController::OnFlushTimeout(FlushRequestID flush_request_id) {
   if (flush_request_id != cur_flush_request_id_)
     return;
 
-  uint64_t acks = 0;  // For debugging purposes only.
+  std::string acks;  // For debugging purposes only.
   {
     // Unlock the cpu readers and move on.
     std::unique_lock<std::mutex> lock(thread_sync_.mutex);
-    acks = thread_sync_.flush_acks.to_ulong();
+    acks = thread_sync_.flush_acks.to_string();
     thread_sync_.flush_acks.reset();
     if (thread_sync_.cmd == FtraceThreadSync::kFlush)
       IssueThreadSyncCmd(FtraceThreadSync::kRun, std::move(lock));
   }
 
-  PERFETTO_ELOG("Ftrace flush(%" PRIu64 ") timed out. Acked cpus: 0x%" PRIx64,
-                flush_request_id, acks);
+  PERFETTO_ELOG("Ftrace flush(%" PRIu64 ") timed out. Acked cpus mask: [%s]",
+                flush_request_id, acks.c_str());
   cur_flush_request_id_ = 0;
   NotifyFlushCompleteToStartedDataSources(flush_request_id);
 }
