@@ -22,13 +22,9 @@
 
 #include "perfetto/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/trace_processor/metrics/descriptors.h"
-#include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
 
 #include "perfetto/common/descriptor.pbzero.h"
-#include "perfetto/metrics/android/mem_metric.pbzero.h"
-#include "perfetto/metrics/metrics.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -296,44 +292,75 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 util::Status ComputeMetrics(TraceProcessor* tp,
+                            const ProtoDescriptor& root_descriptor,
                             const std::vector<std::string>& metric_names,
                             std::vector<uint8_t>* metrics_proto) {
-  // TODO(lalitm): stop hardcoding android.mem metric and read the proto
-  // descriptor for this logic instead.
-  if (metric_names.size() != 1 || metric_names[0] != "android.mem")
-    return util::ErrStatus("Only android.mem metric is currently supported");
+  protozero::ScatteredHeapBuffer delegate;
+  protozero::ScatteredStreamWriter writer(&delegate);
+  delegate.set_writer(&writer);
 
-  auto queries = base::SplitString(sql_metrics::kAndroidMem, ";\n");
-  for (const auto& query : queries) {
-    PERFETTO_DLOG("Executing query: %s", query.c_str());
-    auto prep_it = tp->ExecuteQuery(query);
-    prep_it.Next();
+  protozero::Message metrics;
+  metrics.Reset(&writer);
 
-    util::Status status = prep_it.Status();
+  for (const auto& metric_name : metric_names) {
+    auto underscore_name = metric_name;
+    std::replace(underscore_name.begin(), underscore_name.end(), '.', '_');
+
+    auto sql_filename = underscore_name + ".sql";
+    const char* sql = sql_metrics::GetBundledMetric(sql_filename.c_str());
+    if (!sql)
+      return util::ErrStatus("Metric with name %s not found",
+                             metric_name.c_str());
+
+    auto queries = base::SplitString(sql, ";\n");
+    for (const auto& query : queries) {
+      PERFETTO_DLOG("Executing query: %s", query.c_str());
+      auto prep_it = tp->ExecuteQuery(query);
+      prep_it.Next();
+
+      util::Status status = prep_it.Status();
+      if (!status.ok())
+        return status;
+    }
+
+    auto output_query = "SELECT * FROM " + underscore_name + "_output;";
+    auto it = tp->ExecuteQuery(output_query.c_str());
+    auto has_next = it.Next();
+    util::Status status = it.Status();
+    if (!status.ok()) {
+      return status;
+    } else if (!has_next) {
+      return util::ErrStatus("Output table should have at least one row");
+    } else if (it.ColumnCount() != 1) {
+      return util::ErrStatus("Output table should have exactly one column");
+    } else if (it.Get(0).type != SqlValue::kBytes) {
+      return util::ErrStatus("Output table column should have type bytes");
+    }
+
+    const auto& col = it.Get(0);
+
+    auto opt_idx = root_descriptor.FindFieldIdx(underscore_name);
+    if (!opt_idx.has_value())
+      return util::ErrStatus(
+          "Metric %s has no corresponding field in metrics proto",
+          metric_name.c_str());
+
+    const auto& field = root_descriptor.fields()[opt_idx.value()];
+    const uint8_t* ptr = static_cast<const uint8_t*>(col.bytes_value);
+    metrics.AppendBytes(field.number(), ptr, col.bytes_count);
+
+    has_next = it.Next();
+    if (has_next)
+      return util::ErrStatus("Output table should only have one row");
+
+    status = it.Status();
     if (!status.ok())
       return status;
   }
+  metrics.Finalize();
 
-  auto it = tp->ExecuteQuery("SELECT * from AndroidMemOutput;");
-  auto has_next = it.Next();
-  util::Status status = it.Status();
-  if (!status.ok()) {
-    return status;
-  } else if (!has_next) {
-    return util::ErrStatus("Output table should have at least one row");
-  } else if (it.ColumnCount() != 1) {
-    return util::ErrStatus("Output table should have exactly one column");
-  } else if (it.Get(0).type != SqlValue::kBytes) {
-    return util::ErrStatus("Output table column should have type bytes");
-  }
-
-  const uint8_t* ptr = static_cast<const uint8_t*>(it.Get(0).bytes_value);
-  *metrics_proto = std::vector<uint8_t>(ptr, ptr + it.Get(0).bytes_count);
-
-  has_next = it.Next();
-  if (has_next)
-    return util::ErrStatus("Output table should only have one row");
-  return it.Status();
+  *metrics_proto = delegate.StitchSlices();
+  return util::OkStatus();
 }
 
 }  // namespace metrics

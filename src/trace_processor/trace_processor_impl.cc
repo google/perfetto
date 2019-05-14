@@ -408,9 +408,13 @@ void TraceProcessorImpl::InterruptQuery() {
 util::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
+  // TODO(lalitm): add an API to allow callers to pass in the descriptor and
+  // the SQL and then extract the code below into its own file.
+  const auto& descriptor_bytes = kMetricsDescriptor;
+
   metrics::DescriptorPool pool;
-  pool.AddFromFileDescriptorSet(kMetricsDescriptor.data(),
-                                kMetricsDescriptor.size());
+  pool.AddFromFileDescriptorSet(descriptor_bytes.data(),
+                                descriptor_bytes.size());
   for (const auto& desc : pool.descriptors()) {
     // Convert the full name (e.g. .perfetto.protos.TraceMetrics.SubMetric)
     // into a function name of the form (TraceMetrics_SubMetric).
@@ -431,7 +435,14 @@ util::Status TraceProcessorImpl::ComputeMetric(
     if (ret != SQLITE_OK)
       return util::ErrStatus("%s", sqlite3_errmsg(*db_));
   }
-  return metrics::ComputeMetrics(this, metric_names, metrics_proto);
+
+  auto opt_idx = pool.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
+  if (!opt_idx.has_value())
+    return util::Status("Root metrics proto descriptor not found");
+
+  const auto& root_descriptor = pool.descriptors()[opt_idx.value()];
+  return metrics::ComputeMetrics(this, root_descriptor, metric_names,
+                                 metrics_proto);
 }
 
 TraceProcessor::IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,
