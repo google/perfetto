@@ -84,8 +84,12 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
       // We store the state as a uint16 as we only consider values up to 2048
       // when unpacking the information inside; this allows savings of 48 bits
       // per slice.
-      slices->set_end_state(slice_idx, ftrace_utils::TaskState(
-                                           static_cast<uint16_t>(prev_state)));
+      auto task_state =
+          ftrace_utils::TaskState(static_cast<uint16_t>(prev_state));
+      if (!task_state.is_valid()) {
+        context_->storage->IncrementStats(stats::task_state_invalid);
+      }
+      slices->set_end_state(slice_idx, task_state);
     } else {
       // If the pids ae not consistent, make a note of this.
       context_->storage->IncrementStats(stats::mismatched_sched_switch_tids);
