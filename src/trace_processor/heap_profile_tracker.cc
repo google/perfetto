@@ -55,13 +55,19 @@ void HeapProfileTracker::AddMapping(ProfileIndex pidx,
                                     SourceMappingId id,
                                     const SourceMapping& mapping) {
   auto opt_name_id = FindString(pidx, mapping.name_id);
-  if (!opt_name_id)
+  if (!opt_name_id) {
+    context_->storage->IncrementStats(stats::heapprofd_invalid_string_id);
+    PERFETTO_DFATAL("Invalid string.");
     return;
+  }
   const StringId name_id = opt_name_id.value();
 
   auto opt_build_id = FindString(pidx, mapping.build_id);
-  if (!opt_build_id)
+  if (!opt_build_id) {
+    context_->storage->IncrementStats(stats::heapprofd_invalid_string_id);
+    PERFETTO_DFATAL("Invalid string.");
     return;
+  }
   const StringId raw_build_id = opt_build_id.value();
   NullTermStringView raw_build_id_str =
       context_->storage->GetString(raw_build_id);
@@ -95,8 +101,11 @@ void HeapProfileTracker::AddFrame(ProfileIndex pidx,
                                   SourceFrameId id,
                                   const SourceFrame& frame) {
   auto opt_str_id = FindString(pidx, frame.name_id);
-  if (!opt_str_id)
+  if (!opt_str_id) {
+    context_->storage->IncrementStats(stats::heapprofd_invalid_string_id);
+    PERFETTO_DFATAL("Invalid string.");
     return;
+  }
   const StringId& str_id = opt_str_id.value();
 
   auto mapping_it = mappings_.find({pidx, frame.mapping_id});
