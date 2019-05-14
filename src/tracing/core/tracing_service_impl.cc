@@ -644,7 +644,8 @@ bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
 
   if (!tracing_session->config.builtin_data_sources()
            .disable_clock_snapshotting()) {
-    SnapshotClocks(&tracing_session->initial_clock_snapshot_);
+    SnapshotClocks(&tracing_session->initial_clock_snapshot_,
+                   /*set_root_timestamp=*/true);
   }
 
   // Trigger delayed task if the trace is time limited.
@@ -1407,7 +1408,7 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
       // We don't want to put a root timestamp in this snapshot as the packet
       // may be very out of order with respect to the actual trace packets
       // since consuming the trace may happen at any point after it starts.
-      SnapshotClocks(&packets, /*set_timestamp*/ false);
+      SnapshotClocks(&packets, /*set_root_timestamp=*/false);
     }
   }
   if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
@@ -2074,7 +2075,7 @@ void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
 }
 
 void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
-                                        bool root_timestamp) {
+                                        bool set_root_timestamp) {
   protos::TrustedPacket packet;
   protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
 
@@ -2110,7 +2111,7 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
       PERFETTO_DLOG("clock_gettime failed for clock %d", clock.id);
   }
   for (auto& clock : clocks) {
-    if (root_timestamp &&
+    if (set_root_timestamp &&
         clock.type == protos::ClockSnapshot::Clock::BOOTTIME) {
       packet.set_timestamp(
           static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
@@ -2121,9 +2122,12 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
         static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
   }
 #else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  auto wall_time_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
+  if (set_root_timestamp)
+    packet.set_timestamp(wall_time_ns);
   protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
   c->set_type(protos::ClockSnapshot::Clock::MONOTONIC);
-  c->set_timestamp(static_cast<uint64_t>(base::GetWallTimeNs().count()));
+  c->set_timestamp(wall_time_ns);
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 
   packet.set_trusted_uid(static_cast<int32_t>(uid_));
