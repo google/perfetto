@@ -553,6 +553,10 @@ void* HEAPPROFD_ADD_PREFIX(_realloc)(void* pointer, size_t size) {
   if (size == 0 || sampled_alloc_sz == 0)
     return addr;
 
+  // We do not reach this point without a valid client, because in that case
+  // sampled_alloc_sz == 0.
+  PERFETTO_DCHECK(client);
+
   if (!client->RecordMalloc(size, sampled_alloc_sz,
                             reinterpret_cast<uint64_t>(addr))) {
     ShutdownLazy();
