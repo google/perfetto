@@ -45,36 +45,33 @@ matrix:
 #      compiler: clang
 #      env: CFG=mac-clang-x86_64-ubsan GN_ARGS="is_debug=false is_ubsan=true"
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: false
-      # When setting compiler: clang Travis pull a newer version of clang than
-      # the version that is shipped with Trusty. This is good for all the other
-      # configs, but we want to keep at least one target in the matrix to match
-      # the default version of clang that we have on our workstations.
+      # Test the system-version of clang, not our own at least in this config.
       addons:
         apt:
           packages:
             - clang
       env: CFG=linux_trusty-clang-x86_64-debug GN_ARGS="is_debug=true is_hermetic_clang=false"
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: false
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-tsan GN_ARGS="is_debug=false is_tsan=true"
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: false
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-msan GN_ARGS="is_debug=false is_msan=true"
 # TODO(b/117093687): ubsan always times out in Travis.
 # Re-enable once that is fixed.
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: true
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-asan_lsan GN_ARGS="is_debug=false is_asan=true is_lsan=true"
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: false
       addons:
         apt:
@@ -84,27 +81,27 @@ matrix:
             - g++-7
       env: CFG=linux_trusty-gcc7-x86_64-release GN_ARGS="is_debug=false is_clang=false use_custom_libcxx=false cc=\"gcc-7\" cxx=\"g++-7\""
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: false
       compiler: clang
       env: CFG=android-clang-arm-release GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\""
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: true
       compiler: clang
       env: CFG=android-clang-arm-asan GN_ARGS="is_debug=false target_os=\"android\" target_cpu=\"arm\" is_asan=true"
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: true
       compiler: clang
       env: CFG=linux_trusty-clang-x86_64-libfuzzer GN_ARGS="is_clang=true is_debug=false is_fuzzer=true is_asan=true"
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: false
       compiler: clang
       env: CFG=ui-clang-x86_64-release GN_ARGS="is_debug=false is_clang=true"
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: false
       compiler: clang
       env: CFG=ui-clang-x86_64-debug GN_ARGS="is_debug=true is_clang=true"
