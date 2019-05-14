@@ -108,7 +108,7 @@ class ProtoTraceParser : public TraceParser {
                              ConstBytes view);
   void ParseTraceStats(ConstBytes);
   void ParseFtraceStats(ConstBytes);
-  void ParseProfilePacket(ConstBytes);
+  void ParseProfilePacket(int64_t ts, ConstBytes);
   void ParseSystemInfo(ConstBytes);
   void ParseTrackEvent(int64_t ts,
                        int64_t tts,

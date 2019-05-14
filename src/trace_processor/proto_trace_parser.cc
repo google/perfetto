@@ -318,7 +318,7 @@ void ProtoTraceParser::ParseTracePacket(
     ParseAndroidLogPacket(packet.android_log());
 
   if (packet.has_profile_packet())
-    ParseProfilePacket(packet.profile_packet());
+    ParseProfilePacket(ts, packet.profile_packet());
 
   if (packet.has_system_info())
     ParseSystemInfo(packet.system_info());
@@ -1290,8 +1290,8 @@ void ProtoTraceParser::ParseFtraceStats(ConstBytes blob) {
   }
 }
 
-void ProtoTraceParser::ParseProfilePacket(ConstBytes blob) {
-  uint64_t index = 0;
+void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
+  static uint64_t index = 0;
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
 
   for (auto it = packet.strings(); it; ++it) {
@@ -1363,7 +1363,7 @@ void ProtoTraceParser::ParseProfilePacket(ConstBytes blob) {
 
       HeapProfileTracker::SourceAllocation src_allocation;
       src_allocation.pid = entry.pid();
-      src_allocation.timestamp = sample.timestamp();
+      src_allocation.timestamp = ts;
       src_allocation.callstack_id = sample.callstack_id();
       src_allocation.self_allocated = sample.self_allocated();
       src_allocation.self_freed = sample.self_freed();

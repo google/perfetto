@@ -175,13 +175,13 @@ void HeapProfileTracker::AddAllocation(ProfileIndex pidx,
       static_cast<uint32_t>(alloc.pid));
 
   TraceStorage::HeapProfileAllocations::Row alloc_row{
-      static_cast<int64_t>(alloc.timestamp), upid,
-      static_cast<int64_t>(it->second), static_cast<int64_t>(alloc.alloc_count),
+      alloc.timestamp, upid, static_cast<int64_t>(it->second),
+      static_cast<int64_t>(alloc.alloc_count),
       static_cast<int64_t>(alloc.self_allocated)};
 
   TraceStorage::HeapProfileAllocations::Row free_row{
-      static_cast<int64_t>(alloc.timestamp), upid,
-      static_cast<int64_t>(it->second), -static_cast<int64_t>(alloc.free_count),
+      alloc.timestamp, upid, static_cast<int64_t>(it->second),
+      -static_cast<int64_t>(alloc.free_count),
       -static_cast<int64_t>(alloc.self_freed)};
 
   context_->storage->mutable_heap_profile_allocations()->Insert(alloc_row);
@@ -196,6 +196,7 @@ void HeapProfileTracker::StoreAllocation(ProfileIndex pidx,
 void HeapProfileTracker::ApplyAllAllocations() {
   for (const auto& p : pending_allocs_)
     AddAllocation(p.first, p.second);
+  pending_allocs_.clear();
 }
 
 int64_t HeapProfileTracker::GetDatabaseFrameIdForTesting(
