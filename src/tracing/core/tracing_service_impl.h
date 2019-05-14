@@ -496,7 +496,7 @@ class TracingServiceImpl : public TracingService {
                                TracingSession* tracing_session,
                                DataSourceInstance* instance);
   void SnapshotSyncMarker(std::vector<TracePacket>*);
-  void SnapshotClocks(std::vector<TracePacket>*, bool set_timestamp = true);
+  void SnapshotClocks(std::vector<TracePacket>*, bool set_root_timestamp);
   void SnapshotStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession* tracing_session);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
