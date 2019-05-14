@@ -1668,7 +1668,7 @@ TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
   DataSourceInstanceID ds_incremental2 =
       producer->GetDataSourceInstanceId("ds_incremental2");
 
-  const int kNumClears = 3;
+  const size_t kNumClears = 3;
   std::function<void()> checkpoint =
       task_runner.CreateCheckpoint("clears_received");
   std::vector<std::vector<DataSourceInstanceID>> clears_seen;
