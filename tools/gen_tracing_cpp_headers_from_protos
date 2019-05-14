@@ -40,7 +40,7 @@ PROTOS = (
 HEADER_PATH = 'include/perfetto/tracing/core'
 CPP_PATH = 'src/tracing/core'
 INCLUDE_PATH = 'perfetto/tracing/core'
-
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def run(cmd):
   print('\nRunning ' + ' '.join(cmd))
@@ -55,7 +55,9 @@ def main():
     print('Usage: %s out/xxx' % sys.argv[0])
     return 1
   out_dir = sys.argv[1]
-  clang_format = ['./buildtools/linux64/clang-format', '-i', '--sort-includes']
+  arch = 'mac' if sys.platform == 'darwin' else 'linux64'
+  clang_format_path = os.path.join(ROOT_DIR, 'buildtools', arch, 'clang-format')
+  clang_format = [clang_format_path, '-i', '--sort-includes']
   tool = os.path.join(out_dir, 'proto_to_cpp')
   if not os.path.exists(tool):
     print('Could not find %s, run ninja -C %s proto_to_cpp' % (tool, out_dir))
