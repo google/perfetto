@@ -53,6 +53,7 @@ struct BuildProtoContext {
 void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 
 util::Status ComputeMetrics(TraceProcessor* impl,
+                            const ProtoDescriptor& root_descriptor,
                             const std::vector<std::string>& metric_names,
                             std::vector<uint8_t>* metrics_proto);
 
