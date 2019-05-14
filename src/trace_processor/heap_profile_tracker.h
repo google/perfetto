@@ -84,7 +84,9 @@ class HeapProfileTracker {
 
   struct SourceAllocation {
     uint64_t pid = 0;
-    uint64_t timestamp = 0;
+    // This is int64_t, because we get this from the TraceSorter which also
+    // converts this for us.
+    int64_t timestamp = 0;
     SourceCallstackId callstack_id = 0;
     uint64_t self_allocated = 0;
     uint64_t self_freed = 0;
