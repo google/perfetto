@@ -70,16 +70,17 @@ def load_trace_to_text(platform):
   os.chmod(local_file, 0o755)
   return local_file
 
+PACKAGES_LIST_CFG='''data_sources {{
+  config {{
+    name: "android.packages_list"
+  }}
+}}
+'''
+
 
 CFG_IDENT = '      '
 CFG='''buffers {{
   size_kb: 32768
-}}
-
-data_sources {{
-  config {{
-    name: "android.packages_list"
-  }}
 }}
 
 data_sources {{
@@ -134,6 +135,8 @@ def main(argv):
   parser.add_argument("--disable-selinux", action="store_true",
                       help="Disable SELinux enforcement for duration of "
                       "profile.")
+  parser.add_argument("--no-versions", action="store_true",
+                      help="Do not get version information about APKs.")
   parser.add_argument("--shmem-size", help="Size of buffer between client and "
                       "heapprofd. Default 8MiB. Needs to be a power of two "
                       "multiple of 4096, at least 8192.", type=int,
@@ -147,6 +150,8 @@ def main(argv):
                       "only for heapprofd development.")
   parser.add_argument("--trace-to-text-binary",
                       help="Path to local trace to text. For debugging.")
+  parser.add_argument("--print-config", action="store_true",
+                      help="Print config instead of running. For debugging.")
 
   args = parser.parse_args()
 
@@ -210,6 +215,12 @@ def main(argv):
                    duration=args.duration, target_cfg=target_cfg,
                    continuous_dump_cfg=continuous_dump_cfg,
                    shmem_size=args.shmem_size)
+  if not args.no_versions:
+    cfg += PACKAGES_LIST_CFG
+
+  if args.print_config:
+    print(cfg)
+    return 0
 
   if args.disable_selinux:
     enforcing = subprocess.check_output(['adb', 'shell', 'getenforce'])
