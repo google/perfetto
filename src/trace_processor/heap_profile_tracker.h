@@ -35,6 +35,16 @@ struct hash<std::pair<uint64_t, uint64_t>> {
 };
 
 template <>
+struct hash<std::pair<uint32_t, int64_t>> {
+  using argument_type = std::pair<uint32_t, int64_t>;
+  using result_type = size_t;
+
+  result_type operator()(const argument_type& p) const {
+    return std::hash<uint32_t>{}(p.first) ^ std::hash<int64_t>{}(p.second);
+  }
+};
+
+template <>
 struct hash<std::pair<uint64_t, std::vector<uint64_t>>> {
   using argument_type = std::pair<uint64_t, std::vector<uint64_t>>;
   using result_type = size_t;
@@ -128,6 +138,13 @@ class HeapProfileTracker {
   std::unordered_map<TraceStorage::HeapProfileFrames::Row, int64_t> frame_idx_;
   std::unordered_map<TraceStorage::HeapProfileCallsites::Row, int64_t>
       callsite_idx_;
+
+  std::unordered_map<std::pair<UniquePid, int64_t>,
+                     TraceStorage::HeapProfileAllocations::Row>
+      prev_alloc_;
+  std::unordered_map<std::pair<UniquePid, int64_t>,
+                     TraceStorage::HeapProfileAllocations::Row>
+      prev_free_;
 
   std::vector<std::pair<ProfileIndex, SourceAllocation>> pending_allocs_;
 
