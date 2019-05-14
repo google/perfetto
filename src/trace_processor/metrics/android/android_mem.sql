@@ -50,22 +50,19 @@ SELECT
 FROM
   anon_rss;
 
-CREATE VIEW AndroidMemOutput AS
+CREATE VIEW android_mem_output AS
 SELECT
-  TraceMetrics(
-    'android_mem',
-    AndroidMemoryMetric(
-      'system_metrics',
-      AndroidMemoryMetric_SystemMetrics(
-        'lmks',
-        AndroidMemoryMetric_LowMemoryKills(
-          'total_count',
-          lmks.count
-        )
-      ),
-      'process_metrics',
-      'process_metrics_view'
-    )
+  AndroidMemoryMetric(
+    'system_metrics',
+    AndroidMemoryMetric_SystemMetrics(
+      'lmks',
+      AndroidMemoryMetric_LowMemoryKills(
+        'total_count',
+        lmks.count
+      )
+    ),
+    'process_metrics',
+    'process_metrics_view'
   )
 FROM
   (SELECT COUNT(*) as count from lmk_by_score) as lmks;
