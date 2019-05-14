@@ -163,11 +163,16 @@ TEST_F(ProcessStatsDataSourceTest, IncrementalStateClear) {
   {
     std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
     ASSERT_EQ(trace.size(), 1);
-    auto packet = trace[0].process_tree();
-    ASSERT_EQ(packet.processes_size(), 1);
-    ASSERT_EQ(packet.processes(0).pid(), 42);
-    ASSERT_EQ(packet.processes(0).ppid(), 17);
-    ASSERT_THAT(packet.processes(0).cmdline(),
+    auto packet = trace[0];
+    // First packet in the trace has no previous state, so the clear marker is
+    // emitted.
+    ASSERT_TRUE(packet.incremental_state_cleared());
+
+    auto ps_tree = packet.process_tree();
+    ASSERT_EQ(ps_tree.processes_size(), 1);
+    ASSERT_EQ(ps_tree.processes(0).pid(), 42);
+    ASSERT_EQ(ps_tree.processes(0).ppid(), 17);
+    ASSERT_THAT(ps_tree.processes(0).cmdline(),
                 ElementsAreArray({"first_cmdline"}));
   }
 
@@ -198,7 +203,10 @@ TEST_F(ProcessStatsDataSourceTest, IncrementalStateClear) {
     // Second packet with new proc information.
     std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
     ASSERT_EQ(trace.size(), 2);
-    auto ps_tree = trace[1].process_tree();
+    auto packet = trace[1];
+    ASSERT_TRUE(packet.incremental_state_cleared());
+
+    auto ps_tree = packet.process_tree();
     ASSERT_EQ(ps_tree.processes_size(), 1);
     ASSERT_EQ(ps_tree.processes(0).pid(), 42);
     ASSERT_EQ(ps_tree.processes(0).ppid(), 18);
