@@ -61,7 +61,7 @@ class TaskState {
   };
 
   TaskState() = default;
-  explicit TaskState(uint16_t raw_state) : state_(raw_state | kValid) {}
+  explicit TaskState(uint16_t raw_state);
   explicit TaskState(const char* state_str);
 
   // Returns if this TaskState has a valid representation.
