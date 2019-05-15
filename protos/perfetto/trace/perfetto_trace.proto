@@ -2561,7 +2561,6 @@ message PowerRails {
 // Begin of protos/perfetto/trace/profiling/profile_packet.proto
 
 message ProfilePacket {
-  // either a function or library name.
   repeated InternedString strings = 1;
   message InternedString {
     optional uint64 id = 1;
@@ -2598,12 +2597,15 @@ message ProfilePacket {
 
   message HeapSample {
     optional uint64 callstack_id = 1;
-    // bytes allocated at this frame.
+    // bytes allocated at this callstack.
     optional uint64 self_allocated = 2;
-    // bytes allocated at this frame that have been freed.
+    // bytes allocated at this callstack that have been freed.
     optional uint64 self_freed = 3;
     optional uint64 timestamp = 4;  // timestamp [opt]
+    // Number of allocations that were sampled at this callstack.
     optional uint64 alloc_count = 5;
+    // Number of allocations that were sampled at this callstack that have been
+    // freed.
     optional uint64 free_count = 6;
   }
 
