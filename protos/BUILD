@@ -333,6 +333,7 @@ cc_proto_library(
 proto_library(
     name = "trace_chrome",
     srcs = [
+        "perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "perfetto/trace/chrome/chrome_trace_event.proto",
     ],
     has_services = 1,
@@ -358,6 +359,7 @@ cc_proto_library(
 proto_library(
     name = "trace_chrome_zero",
     srcs = [
+        "perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "perfetto/trace/chrome/chrome_trace_event.proto",
     ],
     deps = [
