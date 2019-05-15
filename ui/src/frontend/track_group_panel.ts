@@ -56,7 +56,10 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
   view({attrs}: m.CVnode<Attrs>) {
     const collapsed = this.trackGroupState.collapsed;
-    const name = StripPathFromExecutable(this.trackGroupState.name);
+    let name = this.trackGroupState.name;
+    if (name[0] === '/') {
+      name = StripPathFromExecutable(name);
+    }
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
         m('.shell',
