@@ -18,11 +18,11 @@
 # synthesizes a combination of sched_switch, task_newtask, and process tree
 # packets (i.e. the result of the userspace /proc/pid scraper).
 
+
+from os import sys, path
+sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from synth_common import CLONE_THREAD
 import synth_common
-from os import sys, path
-
-sys.path.append(path.dirname(path.abspath(__file__)))
 
 trace = synth_common.create_trace()
 
