@@ -43,6 +43,7 @@
 #include "src/trace_processor/metrics/descriptors.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
+#include "src/trace_processor/metrics/sql_metrics.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
@@ -190,15 +191,6 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 }
 
-void CreateMetricsFunctions(TraceProcessorImpl* tp, sqlite3* db) {
-  auto ret = sqlite3_create_function_v2(db, "RUN_METRIC", -1, SQLITE_UTF8, tp,
-                                        metrics::RunMetric, nullptr, nullptr,
-                                        sqlite_utils::kSqliteStatic);
-  if (ret) {
-    PERFETTO_ELOG("Error initializing RUN_METRIC");
-  }
-}
-
 // Exporting traces in legacy JSON format is only supported
 // in the standalone build so far.
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
@@ -263,7 +255,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) : cfg_(cfg) {
   InitializeSqlite(db);
   CreateBuiltinTables(db);
   CreateBuiltinViews(db);
-  CreateMetricsFunctions(this, db);
   db_.reset(std::move(db));
 
   context_.storage.reset(new TraceStorage());
@@ -408,13 +399,53 @@ void TraceProcessorImpl::InterruptQuery() {
 util::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
-  // TODO(lalitm): add an API to allow callers to pass in the descriptor and
-  // the SQL and then extract the code below into its own file.
-  const auto& descriptor_bytes = kMetricsDescriptor;
+  std::vector<SqlMetric> metrics;
+  for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
+    std::string filename(file_to_sql.filename);
+    auto sql_idx = filename.rfind(".sql");
+    if (sql_idx == std::string::npos)
+      return util::ErrStatus("Missing .sql extension for metric file %s",
+                             filename.c_str());
+    auto no_ext_name = filename.substr(0, sql_idx);
+
+    SqlMetric metric;
+    metric.run_metric_name = filename;
+    metric.output_table_name = no_ext_name + "_output";
+    metric.sql = file_to_sql.sql;
+
+    auto it = std::find(metric_names.begin(), metric_names.end(), no_ext_name);
+    if (it != metric_names.end())
+      metric.proto_field_name = no_ext_name;
+
+    metrics.emplace_back(metric);
+  }
+  return ComputeMetric(metrics, kMetricsDescriptor.data(),
+                       kMetricsDescriptor.size(),
+                       ".perfetto.protos.TraceMetrics", metrics_proto);
+}
+
+util::Status TraceProcessorImpl::ComputeMetric(
+    const std::vector<SqlMetric>& metrics,
+    const uint8_t* file_descriptor_set_proto,
+    size_t file_descriptor_set_proto_size,
+    const std::string& metrics_proto_name,
+    std::vector<uint8_t>* metrics_proto) {
+  {
+    std::unique_ptr<metrics::RunMetricContext> ctx(
+        new metrics::RunMetricContext());
+    ctx->tp = this;
+    ctx->metrics = metrics;
+    auto ret = sqlite3_create_function_v2(
+        *db_, "RUN_METRIC", -1, SQLITE_UTF8, ctx.release(), metrics::RunMetric,
+        nullptr, nullptr,
+        [](void* ptr) { delete static_cast<metrics::RunMetricContext*>(ptr); });
+    if (ret)
+      return util::ErrStatus("Error initializing RUN_METRIC");
+  }
 
   metrics::DescriptorPool pool;
-  pool.AddFromFileDescriptorSet(descriptor_bytes.data(),
-                                descriptor_bytes.size());
+  pool.AddFromFileDescriptorSet(file_descriptor_set_proto,
+                                file_descriptor_set_proto_size);
   for (const auto& desc : pool.descriptors()) {
     // Convert the full name (e.g. .perfetto.protos.TraceMetrics.SubMetric)
     // into a function name of the form (TraceMetrics_SubMetric).
@@ -436,13 +467,12 @@ util::Status TraceProcessorImpl::ComputeMetric(
       return util::ErrStatus("%s", sqlite3_errmsg(*db_));
   }
 
-  auto opt_idx = pool.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
+  auto opt_idx = pool.FindDescriptorIdx(metrics_proto_name);
   if (!opt_idx.has_value())
     return util::Status("Root metrics proto descriptor not found");
 
   const auto& root_descriptor = pool.descriptors()[opt_idx.value()];
-  return metrics::ComputeMetrics(this, root_descriptor, metric_names,
-                                 metrics_proto);
+  return metrics::ComputeMetrics(this, metrics, root_descriptor, metrics_proto);
 }
 
 TraceProcessor::IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,
