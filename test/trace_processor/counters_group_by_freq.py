@@ -14,8 +14,7 @@
 # limitations under the License.
 
 from os import sys, path
-
-sys.path.append(path.dirname(path.abspath(__file__)))
+sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import synth_common
 
 trace = synth_common.create_trace()
