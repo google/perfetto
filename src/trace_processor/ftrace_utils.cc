@@ -163,6 +163,8 @@ void FormatSystracePrefix(int64_t timestamp,
   FtraceTime ftrace_time(timestamp);
   if (pid == 0) {
     name = "<idle>";
+  } else if (name == "") {
+    name = "<unknown>";
   }
 
   int64_t padding = 16 - static_cast<int64_t>(name.size());
