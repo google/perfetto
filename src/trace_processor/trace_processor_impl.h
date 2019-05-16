@@ -26,6 +26,7 @@
 #include "perfetto/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/metrics/descriptors.h"
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
 
@@ -60,6 +61,12 @@ class TraceProcessorImpl : public TraceProcessor {
 
   util::Status ComputeMetric(const std::vector<std::string>& metric_names,
                              std::vector<uint8_t>* metrics) override;
+
+  util::Status ComputeMetric(const std::vector<SqlMetric>& metrics,
+                             const uint8_t* file_descriptor_set_proto,
+                             size_t file_descriptor_set_proto_size,
+                             const std::string& metrics_proto_name,
+                             std::vector<uint8_t>* metrics_proto) override;
 
   void InterruptQuery() override;
 
