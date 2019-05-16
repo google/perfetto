@@ -66,6 +66,7 @@ default_targets = [
   '//protos/perfetto/config:merged_config_gen',
   '//protos/perfetto/trace:merged_trace_gen',
   '//protos/perfetto/trace_processor:lite_gen',
+  '//protos/perfetto/metrics:lite_gen'
 ]
 
 # Aliases to add to the BUILD file
