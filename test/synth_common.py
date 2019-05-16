@@ -25,7 +25,7 @@ class Trace(object):
   def __init__(self, trace):
     self.trace = trace
     self.proc_map = {}
-    self.proc_map[0] = "idle_thread"
+    self.proc_map[0] = 'idle_thread'
 
   def add_system_info(self, arch=None):
     self.packet = self.trace.packet.add()
@@ -54,13 +54,19 @@ class Trace(object):
     oom_score.oom_score_adj = oom_score_adj
     oom_score.pid = pid
 
-  def add_sched(self, ts, prev_pid, next_pid, prev_comm=None, next_comm=None):
+  def add_sched(self, ts, prev_pid, next_pid, prev_comm=None, next_comm=None,
+      prev_state=None):
     ftrace = self.__add_ftrace_event(ts, 0)
     ss = ftrace.sched_switch
     ss.prev_comm = prev_comm or self.proc_map[prev_pid]
     ss.prev_pid = prev_pid
     ss.next_pid = next_pid
     ss.next_comm = next_comm or self.proc_map[next_pid]
+    if prev_state:
+      if prev_state == 'R':
+        ss.prev_state = 0
+      else:
+        raise Exception('Invalid prev state {}'.format(prev_state))
 
   def add_cpufreq(self, ts, freq, cpu):
     ftrace = self.__add_ftrace_event(ts, 0)
@@ -90,6 +96,23 @@ class Trace(object):
     newtask.pid = new_tid
     newtask.comm = new_comm
     newtask.clone_flags = flags
+
+  def add_print(self, ts, tid, buf):
+    ftrace = self.__add_ftrace_event(ts, tid)
+    print_event = getattr(ftrace, 'print')
+    print_event.buf = buf
+
+  def add_atrace_begin(self, ts, tid, pid, buf):
+    self.add_print(ts, tid, 'B|{}|{}'.format(pid, buf))
+
+  def add_atrace_end(self, ts, tid, pid):
+    self.add_print(ts, tid, 'E|{}'.format(pid))
+
+  def add_atrace_async_begin(self, ts, tid, pid, buf):
+    self.add_print(ts, tid, 'S|{}|{}|0'.format(pid, buf))
+
+  def add_atrace_async_end(self, ts, tid, pid, buf):
+    self.add_print(ts, tid, 'F|{}|{}|0'.format(pid, buf))
 
   def add_process_tree_packet(self, ts=None):
     self.packet = self.trace.packet.add()
@@ -134,5 +157,5 @@ def create_trace():
       desc_by_path[desc.full_name] = desc
 
   trace = message_factory.MessageFactory().GetPrototype(
-      desc_by_path["perfetto.protos.Trace"])()
+      desc_by_path['perfetto.protos.Trace'])()
   return Trace(trace)

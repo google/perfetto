@@ -1,0 +1,58 @@
+/*
+ * Copyright (C) 2019 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package perfetto.protos;
+
+// A simplified view of the task state durations for a thread
+// and a span of time.
+message TaskStateBreakdown {
+  optional int64 running_dur_ns = 1;
+  optional int64 runnable_dur_ns = 2;
+  optional int64 uninterruptible_sleep_dur_ns = 3;
+  optional int64 interruptible_sleep_dur_ns = 4;
+}
+
+// Android app startup metrics.
+message AndroidStartupMetric {
+  // Timing information spanning the intent received by the
+  // activity manager to the first frame drawn.
+  // All times and durations in nanoseconds (ns).
+  message ToFirstFrame {
+    optional int64 dur_ns = 1;
+    optional TaskStateBreakdown main_thread_by_task_state = 2;
+  }
+
+  message Startup {
+    // Random id uniquely identifying an app startup in this trace.
+    optional uint32 startup_id = 1;
+
+    // Name of the package launched
+    optional string package_name = 2;
+
+    // Name of the process launched
+    optional string process_name = 3;
+
+    // Did we start a new process
+    optional bool started_new_process = 4;
+
+    optional ToFirstFrame to_first_frame = 5;
+  }
+
+  repeated Startup startup = 1;
+}
