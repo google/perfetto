@@ -59,17 +59,6 @@ struct FileToSql {
 };
 '''
 
-FIND_SQL_FN = '''
-inline const char* GetBundledMetric(const char* filename) {
-  for (const auto& filename_to_sql : sql_metrics::kFileToSql) {
-    if (strcmp(filename_to_sql.filename, filename) == 0) {
-      return filename_to_sql.sql;
-    }
-  }
-  return nullptr;
-}
-'''
-
 NAMESPACE_END = '''
 }  // namespace sql_metrics
 }  // namespace metrics
@@ -113,7 +102,6 @@ def main():
       output.write('\n  {{"{}", {}}},\n'.format(name, variable))
     output.write("};\n")
 
-    output.write(FIND_SQL_FN)
     output.write(NAMESPACE_END)
 
   return 0

@@ -1,2 +1,2 @@
-../data/lmk_userspace.pb android.mem android_mem_lmk.out
-../data/memory_counters.pb android.mem android_mem_counters.out
+../data/lmk_userspace.pb android_mem android_mem_lmk.out
+../data/memory_counters.pb android_mem android_mem_counters.out
