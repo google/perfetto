@@ -177,6 +177,7 @@ proto_library(
     name = "metrics_android_zero",
     srcs = [
         "perfetto/metrics/android/mem_metric.proto",
+        "perfetto/metrics/android/startup_metric.proto",
     ],
 )
 
