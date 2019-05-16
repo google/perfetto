@@ -2407,6 +2407,62 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   consumer->WaitForTracingDisabled();
 }
 
+TEST_F(TracingServiceImplTest, ScrapeBuffersFromAnotherThread) {
+  // This test verifies that there are no reported TSAN races while scraping
+  // buffers from a producer which is actively writing more trace data
+  // concurrently.
+  svc->SetSMBScrapingEnabled(true);
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  ProducerID producer_id = *last_producer_id();
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  consumer->StartTracing();
+
+  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
+      tracing_session()->buffers_index[0]);
+  WaitForTraceWritersChanged(producer_id);
+
+  constexpr int kPacketCount = 10;
+  std::atomic<int> packets_written{};
+  std::thread writer_thread([&] {
+    for (int i = 0; i < kPacketCount; i++) {
+      writer->NewTracePacket()->set_for_testing()->set_str("payload");
+      packets_written.store(i, std::memory_order_relaxed);
+    }
+  });
+
+  // Wait until the thread has had some time to write some packets.
+  while (packets_written.load(std::memory_order_relaxed) < kPacketCount / 2)
+    base::SleepMicroseconds(5000);
+
+  // Disabling tracing will trigger scraping.
+  consumer->DisableTracing();
+  writer_thread.join();
+
+  // Because we don't synchronize with the producer thread, we can't make any
+  // guarantees about the number of packets we will successfully read. We just
+  // verify that no TSAN races are reported.
+  consumer->ReadBuffers();
+
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
 // Test scraping on producer disconnect.
 TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
   svc->SetSMBScrapingEnabled(true);
