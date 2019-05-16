@@ -238,7 +238,7 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  auto* tp = static_cast<TraceProcessor*>(sqlite3_user_data(ctx));
+  auto* fn_ctx = static_cast<RunMetricContext*>(sqlite3_user_data(ctx));
   if (argc == 0 || sqlite3_value_type(argv[0]) != SQLITE_TEXT) {
     sqlite3_result_error(ctx, "RUN_METRIC: Invalid arguments", -1);
     return;
@@ -246,11 +246,15 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
   const char* filename =
       reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
-  const char* sql = sql_metrics::GetBundledMetric(filename);
-  if (!sql) {
+  auto metric_it = std::find_if(fn_ctx->metrics.begin(), fn_ctx->metrics.end(),
+                                [filename](const SqlMetric& metric) {
+                                  return metric.run_metric_name == filename;
+                                });
+  if (metric_it == fn_ctx->metrics.end()) {
     sqlite3_result_error(ctx, "RUN_METRIC: Unknown filename provided", -1);
     return;
   }
+  const auto& sql = metric_it->sql;
 
   std::unordered_map<std::string, std::string> substitutions;
   for (int i = 1; i < argc; i += 2) {
@@ -274,7 +278,7 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     }
 
     PERFETTO_DLOG("RUN_METRIC: Executing query: %s", buffer.c_str());
-    auto it = tp->ExecuteQuery(buffer);
+    auto it = fn_ctx->tp->ExecuteQuery(buffer);
     util::Status status = it.Status();
     if (!status.ok()) {
       char* error =
@@ -292,27 +296,22 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 util::Status ComputeMetrics(TraceProcessor* tp,
+                            const std::vector<SqlMetric>& sql_metrics,
                             const ProtoDescriptor& root_descriptor,
-                            const std::vector<std::string>& metric_names,
                             std::vector<uint8_t>* metrics_proto) {
   protozero::ScatteredHeapBuffer delegate;
   protozero::ScatteredStreamWriter writer(&delegate);
   delegate.set_writer(&writer);
 
-  protozero::Message metrics;
-  metrics.Reset(&writer);
+  protozero::Message metrics_message;
+  metrics_message.Reset(&writer);
 
-  for (const auto& metric_name : metric_names) {
-    auto underscore_name = metric_name;
-    std::replace(underscore_name.begin(), underscore_name.end(), '.', '_');
+  for (const auto& sql_metric : sql_metrics) {
+    // If there's no proto to fill in, then we don't need to do a query.
+    if (!sql_metric.proto_field_name.has_value())
+      continue;
 
-    auto sql_filename = underscore_name + ".sql";
-    const char* sql = sql_metrics::GetBundledMetric(sql_filename.c_str());
-    if (!sql)
-      return util::ErrStatus("Metric with name %s not found",
-                             metric_name.c_str());
-
-    auto queries = base::SplitString(sql, ";\n");
+    auto queries = base::SplitString(sql_metric.sql, ";\n");
     for (const auto& query : queries) {
       PERFETTO_DLOG("Executing query: %s", query.c_str());
       auto prep_it = tp->ExecuteQuery(query);
@@ -323,7 +322,9 @@ util::Status ComputeMetrics(TraceProcessor* tp,
         return status;
     }
 
-    auto output_query = "SELECT * FROM " + underscore_name + "_output;";
+    auto output_query = "SELECT * FROM " + sql_metric.output_table_name + ";";
+    PERFETTO_DLOG("Executing output query: %s", output_query.c_str());
+
     auto it = tp->ExecuteQuery(output_query.c_str());
     auto has_next = it.Next();
     util::Status status = it.Status();
@@ -339,15 +340,15 @@ util::Status ComputeMetrics(TraceProcessor* tp,
 
     const auto& col = it.Get(0);
 
-    auto opt_idx = root_descriptor.FindFieldIdx(underscore_name);
+    const auto& field_name = sql_metric.proto_field_name.value();
+    auto opt_idx = root_descriptor.FindFieldIdx(field_name);
     if (!opt_idx.has_value())
-      return util::ErrStatus(
-          "Metric %s has no corresponding field in metrics proto",
-          metric_name.c_str());
+      return util::ErrStatus("%s field not found in metrics proto",
+                             field_name.c_str());
 
     const auto& field = root_descriptor.fields()[opt_idx.value()];
     const uint8_t* ptr = static_cast<const uint8_t*>(col.bytes_value);
-    metrics.AppendBytes(field.number(), ptr, col.bytes_count);
+    metrics_message.AppendBytes(field.number(), ptr, col.bytes_count);
 
     has_next = it.Next();
     if (has_next)
@@ -357,7 +358,7 @@ util::Status ComputeMetrics(TraceProcessor* tp,
     if (!status.ok())
       return status;
   }
-  metrics.Finalize();
+  metrics_message.Finalize();
 
   *metrics_proto = delegate.StitchSlices();
   return util::OkStatus();
