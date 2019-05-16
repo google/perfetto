@@ -24,8 +24,10 @@ import {Panel, PanelSize} from './panel';
 import {Track} from './track';
 import {TrackContent} from './track_panel';
 import {trackRegistry} from './track_registry';
-import {drawVerticalSelection,
-        drawVerticalLineAtTime} from './vertical_line_helper';
+import {
+  drawVerticalLineAtTime,
+  drawVerticalSelection
+} from './vertical_line_helper';
 
 
 interface Attrs {

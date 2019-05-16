@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
+import {LIMIT} from '../../common/track_data';
+
 import {
   TrackController,
   trackControllerRegistry
@@ -155,8 +157,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
     const query = `select ts, cast(dur as double), utid,
     case when state is not null then state else 'Busy' end as state
-    from ${this.tableName('current')}`;
-
+    from ${this.tableName('current')} limit ${LIMIT}`;
 
     const result = await this.query(query);
 
@@ -166,6 +167,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       start,
       end,
       resolution,
+      length: numRows,
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
       strings: [],
