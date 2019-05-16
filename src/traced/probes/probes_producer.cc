@@ -53,7 +53,7 @@ namespace {
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 
-// Should be larger than FtraceController::kFlushTimeoutMs.
+// Should be larger than FtraceController::kControllerFlushTimeoutMs.
 constexpr uint32_t kFlushTimeoutMs = 1000;
 
 constexpr char kFtraceSourceName[] = "linux.ftrace";
