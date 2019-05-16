@@ -70,11 +70,11 @@ def load_trace_to_text(platform):
   os.chmod(local_file, 0o755)
   return local_file
 
-PACKAGES_LIST_CFG='''data_sources {{
-  config {{
+PACKAGES_LIST_CFG='''data_sources {
+  config {
     name: "android.packages_list"
-  }}
-}}
+  }
+}
 '''
 
 
