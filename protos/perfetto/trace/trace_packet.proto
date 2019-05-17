@@ -21,6 +21,7 @@ import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 import "perfetto/trace/android/android_log.proto";
 import "perfetto/trace/android/packages_list.proto";
+import "perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "perfetto/trace/chrome/chrome_trace_event.proto";
 import "perfetto/trace/clock_snapshot.proto";
 import "perfetto/trace/filesystem/inode_file_map.proto";
@@ -46,7 +47,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 47.
+// Next id: 49.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -75,6 +76,7 @@ message TracePacket {
     SystemInfo system_info = 45;
     Trigger trigger = 46;
     PackagesList packages_list = 47;
+    ChromeBenchmarkMetadata chrome_benchmark_metadata = 48;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
