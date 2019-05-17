@@ -25,6 +25,7 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/variadic.h"
 
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/sched.pbzero.h"
@@ -111,10 +112,8 @@ void EventTracker::PushSchedSwitch(uint32_t cpu,
   // Note: this ordering is important. The events should be pushed in the same
   // order as the order of fields in the proto; this is used by the raw table to
   // index these events using the field ids.
-  using Variadic = TraceStorage::Args::Variadic;
   using SS = protos::pbzero::SchedSwitchFtraceEvent;
-  auto add_raw_arg = [this](RowId row_id, int field_num,
-                            TraceStorage::Args::Variadic var) {
+  auto add_raw_arg = [this](RowId row_id, int field_num, Variadic var) {
     StringId key = sched_switch_field_ids_[static_cast<size_t>(field_num)];
     context_->args_tracker->AddArg(row_id, key, key, var);
   };
