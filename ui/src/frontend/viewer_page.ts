@@ -277,7 +277,7 @@ class TraceViewer implements m.ClassComponent {
         }));
       }
     }
-    scrollingPanels.unshift(m(QueryTable));
+    scrollingPanels.unshift(m(QueryTable, {key: 'query'}));
 
     const detailsPanels: AnyAttrsVnode[] = [];
     const curSelection = globals.state.currentSelection;
