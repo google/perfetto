@@ -172,6 +172,49 @@ pbzero_cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/metrics:lite_gen
+proto_library(
+    name = "metrics",
+    srcs = [
+        "perfetto/metrics/metrics.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:metrics_android",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics/android:lite_gen
+proto_library(
+    name = "metrics_android",
+    srcs = [
+        "perfetto/metrics/android/mem_metric.proto",
+        "perfetto/metrics/android/startup_metric.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics/android:lite_gen
+cc_proto_library(
+    name = "metrics_android_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:metrics_android",
+    ],
+)
+
 # GN target: //protos/perfetto/metrics/android:zero_gen
 proto_library(
     name = "metrics_android_zero",
@@ -188,6 +231,17 @@ pbzero_cc_proto_library(
     deps = [
         "//third_party/perfetto:libprotozero",
         "//third_party/perfetto/google:gtest_prod",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics:lite_gen
+cc_proto_library(
+    name = "metrics_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:metrics",
     ],
 )
 
