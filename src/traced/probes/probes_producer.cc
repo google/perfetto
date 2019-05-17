@@ -428,8 +428,13 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
     if (it == session_data_sources_.end() || it->first != last_session_id) {
       bool has_inodes = metadata && !metadata->inode_and_device.empty();
       bool has_pids = metadata && !metadata->pids.empty();
+      bool has_rename_pids = metadata && !metadata->rename_pids.empty();
       if (has_inodes && inode_data_source)
         inode_data_source->OnInodes(metadata->inode_and_device);
+      // Ordering the rename pids before the seen pids is important so that any
+      // renamed processes get scraped in the OnPids call.
+      if (has_rename_pids && ps_data_source)
+        ps_data_source->OnRenamePids(metadata->rename_pids);
       if (has_pids && ps_data_source)
         ps_data_source->OnPids(metadata->pids);
       if (metadata)
