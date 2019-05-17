@@ -30,6 +30,8 @@
 #include "perfetto/tracing/core/trace_writer.h"
 #include "perfetto/tracing/ipc/producer_ipc_client.h"
 
+#include "src/profiling/memory/bookkeeping_dump.h"
+
 namespace perfetto {
 namespace profiling {
 namespace {
@@ -533,23 +535,23 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
   DumpState dump_state(data_source.trace_writer.get(),
                        &data_source.next_index_);
 
-  for (pid_t rejected_pid : data_source.rejected_pids) {
-    ProfilePacket::ProcessHeapSamples* proto =
-        dump_state.current_profile_packet->add_process_dumps();
-    proto->set_pid(static_cast<uint64_t>(rejected_pid));
-    proto->set_rejected_concurrent(true);
-  }
+  for (pid_t rejected_pid : data_source.rejected_pids)
+    dump_state.RejectConcurrent(rejected_pid);
 
   for (std::pair<const pid_t, ProcessState>& pid_and_process_state :
        data_source.process_states) {
     pid_t pid = pid_and_process_state.first;
     ProcessState& process_state = pid_and_process_state.second;
     HeapTracker& heap_tracker = process_state.heap_tracker;
+
     bool from_startup =
         data_source.signaled_pids.find(pid) == data_source.signaled_pids.cend();
-    auto new_heapsamples = [pid, from_startup, &process_state](
+    uint64_t committed_timestamp = heap_tracker.committed_timestamp();
+    auto new_heapsamples = [pid, from_startup, committed_timestamp,
+                            &process_state](
                                ProfilePacket::ProcessHeapSamples* proto) {
       proto->set_pid(static_cast<uint64_t>(pid));
+      proto->set_timestamp(committed_timestamp);
       proto->set_from_startup(from_startup);
       proto->set_disconnected(process_state.disconnected);
       proto->set_buffer_overran(process_state.buffer_overran);
@@ -569,23 +571,16 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
         bucket->set_count(p.second);
       }
     };
-    heap_tracker.Dump(std::move(new_heapsamples), &dump_state);
+    dump_state.StartProcessDump(std::move(new_heapsamples));
+    heap_tracker.GetCallstackAllocations(
+        [&dump_state](const HeapTracker::CallstackAllocations& alloc) {
+          dump_state.WriteAllocation(alloc);
+        });
   }
 
-  for (GlobalCallstackTrie::Node* node : dump_state.callstacks_to_dump) {
-    // There need to be two separate loops over built_callstack because
-    // protozero cannot interleave different messages.
-    auto built_callstack = callsites_.BuildCallstack(node);
-    for (const Interned<Frame>& frame : built_callstack)
-      dump_state.WriteFrame(frame);
-    ProfilePacket::Callstack* callstack =
-        dump_state.current_profile_packet->add_callstacks();
-    callstack->set_id(node->id());
-    for (const Interned<Frame>& frame : built_callstack)
-      callstack->add_frame_ids(frame.id());
-  }
+  dump_state.DumpCallstacks(&callsites_);
+  dump_state.Finalize();
 
-  dump_state.current_trace_packet->Finalize();
   if (has_flush_id) {
     auto weak_producer = weak_factory_.GetWeakPtr();
     auto callback = [weak_producer, flush_id] {

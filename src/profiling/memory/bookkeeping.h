@@ -17,7 +17,6 @@
 #ifndef SRC_PROFILING_MEMORY_BOOKKEEPING_H_
 #define SRC_PROFILING_MEMORY_BOOKKEEPING_H_
 
-#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -25,9 +24,6 @@
 #include "perfetto/base/lookup_set.h"
 #include "perfetto/base/string_splitter.h"
 #include "perfetto/base/time.h"
-#include "perfetto/trace/profiling/profile_packet.pbzero.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
-#include "perfetto/tracing/core/trace_writer.h"
 #include "src/profiling/memory/interner.h"
 #include "src/profiling/memory/unwound_messages.h"
 
@@ -202,88 +198,10 @@ class GlobalCallstackTrie {
   Node root_{MakeRootFrame()};
 };
 
-struct DumpState {
-  DumpState(TraceWriter* tw, uint64_t* ni) : trace_writer(tw), next_index(ni) {
-    last_written = trace_writer->written();
-
-    current_trace_packet = trace_writer->NewTracePacket();
-    current_trace_packet->set_timestamp(
-        static_cast<uint64_t>(base::GetBootTimeNs().count()));
-    current_profile_packet = current_trace_packet->set_profile_packet();
-    current_profile_packet->set_index((*next_index)++);
-
-    // Explicitly reserve intern ID 0 for the empty string, so unset string
-    // fields get mapped to this.
-    auto interned_string = current_profile_packet->add_strings();
-    constexpr const uint8_t kEmptyString[] = "";
-    interned_string->set_id(0);
-    interned_string->set_str(kEmptyString, 0);
-  }
-
-  void WriteMap(const Interned<Mapping> map);
-  void WriteFrame(const Interned<Frame> frame);
-  void WriteString(const Interned<std::string>& str);
-
-  std::set<InternID> dumped_strings;
-  std::set<InternID> dumped_frames;
-  std::set<InternID> dumped_mappings;
-
-  std::set<GlobalCallstackTrie::Node*> callstacks_to_dump;
-
-  TraceWriter* trace_writer;
-  protos::pbzero::ProfilePacket* current_profile_packet;
-  TraceWriter::TracePacketHandle current_trace_packet;
-  uint64_t* next_index;
-  uint64_t last_written = 0;
-
-  void NewProfilePacket() {
-    PERFETTO_DLOG("New profile packet after %" PRIu64 " bytes. Total: %" PRIu64
-                  ", before %" PRIu64,
-                  trace_writer->written() - last_written,
-                  trace_writer->written(), last_written);
-    current_profile_packet->set_continued(true);
-    last_written = trace_writer->written();
-
-    current_trace_packet->Finalize();
-    current_trace_packet = trace_writer->NewTracePacket();
-    current_trace_packet->set_timestamp(
-        static_cast<uint64_t>(base::GetBootTimeNs().count()));
-    current_profile_packet = current_trace_packet->set_profile_packet();
-    current_profile_packet->set_index((*next_index)++);
-  }
-
-  uint64_t currently_written() {
-    return trace_writer->written() - last_written;
-  }
-};
-
 // Snapshot for memory allocations of a particular process. Shares callsites
 // with other processes.
 class HeapTracker {
  public:
-  // Caller needs to ensure that callsites outlives the HeapTracker.
-  explicit HeapTracker(GlobalCallstackTrie* callsites)
-      : callsites_(callsites) {}
-
-  void RecordMalloc(const std::vector<FrameData>& stack,
-                    uint64_t address,
-                    uint64_t size,
-                    uint64_t sequence_number,
-                    uint64_t timestamp);
-  void Dump(
-      std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
-          fill_process_header,
-      DumpState* dump_state);
-  void RecordFree(uint64_t address,
-                  uint64_t sequence_number,
-                  uint64_t timestamp) {
-    RecordOperation(sequence_number, {address, timestamp});
-  }
-
-  uint64_t GetSizeForTesting(const std::vector<FrameData>& stack);
-  uint64_t GetTimestampForTesting() { return committed_timestamp_; }
-
- private:
   // Sum of all the allocations for a given callstack.
   struct CallstackAllocations {
     CallstackAllocations(GlobalCallstackTrie::Node* n) : node(n) {}
@@ -304,6 +222,54 @@ class HeapTracker {
     }
   };
 
+  // Caller needs to ensure that callsites outlives the HeapTracker.
+  explicit HeapTracker(GlobalCallstackTrie* callsites)
+      : callsites_(callsites) {}
+
+  void RecordMalloc(const std::vector<FrameData>& stack,
+                    uint64_t address,
+                    uint64_t size,
+                    uint64_t sequence_number,
+                    uint64_t timestamp);
+
+  template <typename F>
+  void GetCallstackAllocations(F fn) {
+    // There are two reasons we remove the unused callstack allocations on the
+    // next iteration of Dump:
+    // * We need to remove them after the callstacks were dumped, which
+    //   currently happens after the allocations are dumped.
+    // * This way, we do not destroy and recreate callstacks as frequently.
+    for (auto it_and_alloc : dead_callstack_allocations_) {
+      auto& it = it_and_alloc.first;
+      uint64_t allocated = it_and_alloc.second;
+      const CallstackAllocations& alloc = it->second;
+      if (alloc.allocs == 0 && alloc.allocation_count == allocated)
+        callstack_allocations_.erase(it);
+    }
+    dead_callstack_allocations_.clear();
+
+    for (auto it = callstack_allocations_.begin();
+         it != callstack_allocations_.end(); ++it) {
+      const CallstackAllocations& alloc = it->second;
+      fn(alloc);
+
+      if (alloc.allocs == 0)
+        dead_callstack_allocations_.emplace_back(it, alloc.allocation_count);
+    }
+  }
+
+  void RecordFree(uint64_t address,
+                  uint64_t sequence_number,
+                  uint64_t timestamp) {
+    RecordOperation(sequence_number, {address, timestamp});
+  }
+
+  uint64_t committed_timestamp() { return committed_timestamp_; }
+
+  uint64_t GetSizeForTesting(const std::vector<FrameData>& stack);
+  uint64_t GetTimestampForTesting() { return committed_timestamp_; }
+
+ private:
   struct Allocation {
     Allocation(uint64_t size, uint64_t seq, CallstackAllocations* csa)
         : total_size(size), sequence_number(seq), callstack_allocations(csa) {
