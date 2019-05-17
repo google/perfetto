@@ -65,6 +65,10 @@ class Trace(object):
     if prev_state:
       if prev_state == 'R':
         ss.prev_state = 0
+      elif prev_state == 'S':
+        ss.prev_state = 1
+      elif prev_state == 'U':
+        ss.prev_state = 2
       else:
         raise Exception('Invalid prev state {}'.format(prev_state))
 

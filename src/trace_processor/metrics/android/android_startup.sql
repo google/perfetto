@@ -37,20 +37,21 @@ ON (launches.ts < zygote_fork_slices.ts
     AND zygote_fork_slices.process_name = launches.package
 );
 
-CREATE VIEW launch_main_thread AS
+CREATE VIEW launch_main_threads AS
 SELECT
   launches.ts AS ts,
   launches.dur AS dur,
   launches.id AS launch_id,
   thread.utid AS utid
 FROM launches
+JOIN launch_processes ON launches.id = launch_processes.launch_id
 JOIN process USING(upid)
 JOIN thread ON (process.upid = thread.upid AND process.pid = thread.tid)
 ORDER BY ts;
 
 CREATE VIRTUAL TABLE main_thread_state
 USING SPAN_JOIN(
-  launch_main_thread PARTITIONED utid,
+  launch_main_threads PARTITIONED utid,
   task_state PARTITIONED utid);
 
 CREATE VIEW launch_by_thread_state AS
@@ -63,8 +64,17 @@ SELECT
   AndroidStartupMetric_Startup(
     'startup_id', launches.id,
     'package_name', launches.package,
-    'process_name', process.name,
+    'process_name', (
+      SELECT name FROM process
+      WHERE upid IN (
+        SELECT upid FROM launch_processes
+        WHERE launch_id = launches.id
+        LIMIT 1)
+    ),
     'started_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
+    'activity_hosting_process_count', (
+      SELECT COUNT(1) FROM launch_processes WHERE launch_id = launches.id
+    ),
     'to_first_frame', AndroidStartupMetric_ToFirstFrame(
       'dur_ns', launches.dur,
       'main_thread_by_task_state', TaskStateBreakdown(
@@ -91,8 +101,7 @@ SELECT
       )
     )
   )
-FROM launches
-LEFT JOIN process USING(upid);
+FROM launches;
 
 CREATE VIEW android_startup_output AS
 SELECT AndroidStartupMetric('startup', 'startup_view');
