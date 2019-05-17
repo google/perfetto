@@ -4,13 +4,14 @@ android_startup {
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
     started_new_process: false
+    activity_hosting_process_count: 2
     to_first_frame {
       dur_ns: 108
       main_thread_by_task_state {
-        running_dur_ns: 51
+        running_dur_ns: 41
         runnable_dur_ns: 49
         uninterruptible_sleep_dur_ns: 0
-        interruptible_sleep_dur_ns: 0
+        interruptible_sleep_dur_ns: 10
       }
     }
   }

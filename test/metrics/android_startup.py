@@ -23,6 +23,7 @@ trace.add_process_tree_packet()
 trace.add_process(1, 0, 'init')
 trace.add_process(2, 1, 'system_server')
 trace.add_process(3, 1, 'com.google.android.calendar')
+trace.add_process(4, 1, 'com.google.android.calendar')
 
 trace.add_ftrace_packet(cpu=0)
 # Intent without any corresponding end state, will be ignored
@@ -39,9 +40,18 @@ trace.add_atrace_async_begin(ts=110, tid=2, pid=2,
     buf='launching: com.google.android.calendar')
 
 trace.add_sched(ts=110, prev_pid=0, next_pid=3)
-trace.add_sched(ts=160, prev_pid=3, next_pid=0, prev_state='R')
-trace.add_sched(ts=209, prev_pid=0, next_pid=3)
-trace.add_sched(ts=211, prev_pid=3, next_pid=0, prev_state='R')
+# P1: 10ns running
+trace.add_sched(ts=120, prev_pid=3, next_pid=0, prev_state='S')
+# P1: 10ns sleep
+trace.add_sched(ts=130, prev_pid=0, next_pid=3)
+
+trace.add_sched(ts=130, prev_pid=0, next_pid=4)
+# P2: 30ns running
+trace.add_sched(ts=160, prev_pid=4, next_pid=0, prev_state='R')
+# P2: 49ns runnable
+trace.add_sched(ts=209, prev_pid=0, next_pid=4)
+# P2: 1ns running
+trace.add_sched(ts=210, prev_pid=4, next_pid=0)
 
 trace.add_atrace_async_end(ts=210, tid=2, pid=2,
     buf='launching: com.google.android.calendar')
