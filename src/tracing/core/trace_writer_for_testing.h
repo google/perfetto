@@ -30,7 +30,6 @@ namespace perfetto {
 // See //include/perfetto/tracing/core/trace_writer.h for docs.
 class TraceWriterForTesting : public TraceWriter {
  public:
-  // TraceWriterForTesting(const protozero::ScatteredHeapBuffer& delegate);
   TraceWriterForTesting();
   ~TraceWriterForTesting() override;
 
