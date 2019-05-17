@@ -15,7 +15,10 @@
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/protozero_library.gni")
 
-chrome_proto_names = [ "chrome_trace_event.proto" ]
+chrome_proto_names = [
+  "chrome_trace_event.proto",
+  "chrome_benchmark_metadata.proto",
+]
 minimal_chrome_proto_names = [ "chrome_trace_packet.proto" ]
 
 proto_library("lite") {
