@@ -29,6 +29,8 @@ namespace base {
 
 class MetaTrace {
  public:
+  static constexpr uint32_t kMainThreadCpu = 255;
+
   MetaTrace(const char* evt_name, size_t cpu) : evt_name_(evt_name), cpu_(cpu) {
     WriteEvent('B', evt_name, cpu);
   }
