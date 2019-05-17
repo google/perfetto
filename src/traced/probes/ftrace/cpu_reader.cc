@@ -52,8 +52,6 @@ constexpr uint32_t kTypePadding = 29;
 constexpr uint32_t kTypeTimeExtend = 30;
 constexpr uint32_t kTypeTimeStamp = 31;
 
-constexpr uint32_t kMainThread = 255;  // for METATRACE
-
 struct PageHeader {
   uint64_t timestamp;
   uint64_t size;
@@ -401,7 +399,8 @@ void CpuReader::RunWorkerThread(size_t cpu,
 // first CPU wakes up from the blocking read()/splice().
 void CpuReader::Drain(const std::set<FtraceDataSource*>& data_sources) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_METATRACE("Drain(" + std::to_string(cpu_) + ")", kMainThread);
+  PERFETTO_METATRACE("Drain(" + std::to_string(cpu_) + ")",
+                     base::MetaTrace::kMainThreadCpu);
 
   auto page_blocks = pool_.BeginRead();
   for (const auto& page_block : page_blocks) {
