@@ -17,6 +17,7 @@
 #ifndef SRC_PROFILING_MEMORY_HEAPPROFD_PRODUCER_H_
 #define SRC_PROFILING_MEMORY_HEAPPROFD_PRODUCER_H_
 
+#include <array>
 #include <functional>
 #include <map>
 

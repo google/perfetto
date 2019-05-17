@@ -106,6 +106,8 @@ source_set("daemon") {
   sources = [
     "bookkeeping.cc",
     "bookkeeping.h",
+    "bookkeeping_dump.cc",
+    "bookkeeping_dump.h",
     "heapprofd_producer.cc",
     "heapprofd_producer.h",
     "interner.h",
