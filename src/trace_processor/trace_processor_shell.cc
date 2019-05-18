@@ -16,6 +16,7 @@
 
 #include <aio.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -465,10 +466,10 @@ bool RunQueryAndPrintResult(const std::vector<std::string> queries,
   return !is_query_error;
 }
 
-int MaybePrintPerfFile(const char* perf_file_path,
+int MaybePrintPerfFile(const std::string& perf_file_path,
                        base::TimeNanos t_load,
                        base::TimeNanos t_run) {
-  if (!perf_file_path)
+  if (perf_file_path.empty())
     return 0;
 
   char buf[128];
@@ -494,86 +495,107 @@ void PrintUsage(char** argv) {
       "Interactive trace processor shell.\n"
       "Usage: %s [OPTIONS] trace_file.pb\n\n"
       "Options:\n"
-      " -d                   Enable virtual table debugging.\n"
-      " -p FILE              Writes the time taken to ingest the trace and"
+      " -h|--help            Prints this usage.\n"
+      " -v|--version         Prints the version of trace processor.\n"
+      " -d|--debug           Enable virtual table debugging.\n"
+      " -p|--perf-file FILE  Writes the time taken to ingest the trace and"
       "execute the queries to the given file. Only valid with -q or "
       "--run-metrics and the file will only be written if the execution is "
       "successful\n"
-      " -s FILE              Read and execute contents of file before "
-      "launching an interactive shell.\n"
-      " -q FILE              Read and execute an SQL query from a file.\n"
-      " -e FILE              Export the trace into a SQLite database.\n"
-      " --run-metrics x,y,z   Runs a comma separated list of metrics and "
+      " -q|--query-file FILE Read and execute an SQL query from a file.\n"
+      " -i|--interactive     Starts interactive mode even after a query file "
+      "is specified with -q.\n"
+      " -e|--export FILE     Export the trace into a SQLite database.\n"
+      " --run-metrics x,y,z  Runs a comma separated list of metrics and "
       "prints the result as a TraceMetrics proto to stdout.\n",
       argv[0]);
 }
 
 int TraceProcessorMain(int argc, char** argv) {
-  if (argc < 2) {
+  enum LongOption {
+    OPT_RUN_METRICS = 1000,
+  };
+
+  static const struct option long_options[] = {
+      {"help", no_argument, nullptr, 'h'},
+      {"version", no_argument, nullptr, 'v'},
+      {"interactive", no_argument, nullptr, 'i'},
+      {"debug", no_argument, nullptr, 'd'},
+      {"perf-file", required_argument, nullptr, 'p'},
+      {"query-file", required_argument, nullptr, 'q'},
+      {"export", required_argument, nullptr, 'e'},
+      {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
+      {nullptr, 0, nullptr, 0}};
+
+  std::string perf_file_path;
+  std::string query_file_path;
+  std::string sqlite_file_path;
+  std::string metric_names;
+  bool explicit_interactive = false;
+  int option_index = 0;
+  for (;;) {
+    int option =
+        getopt_long(argc, argv, "hvidp:q:e:", long_options, &option_index);
+
+    if (option == -1)
+      break;  // EOF.
+
+    if (option == 'v') {
+      printf("%s\n", PERFETTO_GET_GIT_REVISION());
+      return 0;
+    }
+
+    if (option == 'i') {
+      explicit_interactive = true;
+      continue;
+    }
+
+    if (option == 'd') {
+      EnableSQLiteVtableDebugging();
+      continue;
+    }
+
+    if (option == 'p') {
+      perf_file_path = optarg;
+      continue;
+    }
+
+    if (option == 'q') {
+      query_file_path = optarg;
+      continue;
+    }
+
+    if (option == 'e') {
+      sqlite_file_path = optarg;
+      continue;
+    }
+
+    if (option == OPT_RUN_METRICS) {
+      metric_names = optarg;
+      continue;
+    }
+
+    PrintUsage(argv);
+    return option == 'h' ? 0 : 1;
+  }
+
+  // Ensure that we have the tracefile argument only at the end.
+  if (optind != argc - 1) {
     PrintUsage(argv);
     return 1;
   }
-  const char* perf_file_path = nullptr;
-  const char* trace_file_path = nullptr;
-  const char* query_file_path = nullptr;
-  const char* sqlite_file_path = nullptr;
-  const char* metric_names = nullptr;
-  bool launch_shell = true;
-  for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
-      printf("%s\n", PERFETTO_GET_GIT_REVISION());
-      exit(0);
-    }
-    if (strcmp(argv[i], "-d") == 0) {
-      EnableSQLiteVtableDebugging();
-      continue;
-    } else if (strcmp(argv[i], "-p") == 0) {
-      if (++i == argc) {
-        PrintUsage(argv);
-        return 1;
-      }
-      perf_file_path = argv[i];
-      continue;
-    } else if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "-s") == 0) {
-      launch_shell = strcmp(argv[i], "-s") == 0;
-      if (++i == argc) {
-        PrintUsage(argv);
-        return 1;
-      }
-      query_file_path = argv[i];
-      continue;
-    } else if (strcmp(argv[i], "-e") == 0) {
-      if (++i == argc) {
-        PrintUsage(argv);
-        return 1;
-      }
-      sqlite_file_path = argv[i];
-      continue;
-    } else if (strcmp(argv[i], "--run-metrics") == 0) {
-      if (++i == argc) {
-        PrintUsage(argv);
-        return 1;
-      }
-      launch_shell = false;
-      metric_names = argv[i];
-      continue;
-    } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-      PrintUsage(argv);
-      return 0;
-    } else if (argv[i][0] == '-') {
-      PERFETTO_ELOG("Unknown option: %s", argv[i]);
-      return 1;
-    }
-    trace_file_path = argv[i];
-  }
 
+  const char* trace_file_path = argv[optind];
   if (trace_file_path == nullptr) {
     PrintUsage(argv);
     return 1;
   }
 
+  bool launch_shell =
+      explicit_interactive || (metric_names.empty() && query_file_path.empty());
+
   // Only allow non-interactive queries to emit perf data.
-  if (perf_file_path && launch_shell) {
+  if (!perf_file_path.empty() && launch_shell) {
     PrintUsage(argv);
     return 1;
   }
@@ -663,7 +685,7 @@ int TraceProcessorMain(int argc, char** argv) {
 
   // First, see if we have some metrics to run. If we do, just run them and
   // return.
-  if (metric_names) {
+  if (!metric_names.empty()) {
     std::vector<std::string> metrics;
     for (base::StringSplitter ss(metric_names, ','); ss.Next();) {
       metrics.emplace_back(ss.cur_token());
@@ -678,10 +700,11 @@ int TraceProcessorMain(int argc, char** argv) {
 
   // If we were given a query file, load contents
   std::vector<std::string> queries;
-  if (query_file_path) {
-    base::ScopedFstream file(fopen(query_file_path, "r"));
+  if (!query_file_path.empty()) {
+    base::ScopedFstream file(fopen(query_file_path.c_str(), "r"));
     if (!file) {
-      PERFETTO_ELOG("Could not open query file (path: %s)", query_file_path);
+      PERFETTO_ELOG("Could not open query file (path: %s)",
+                    query_file_path.c_str());
       return 1;
     }
     if (!LoadQueries(file.get(), &queries)) {
@@ -693,7 +716,7 @@ int TraceProcessorMain(int argc, char** argv) {
     return 1;
   }
 
-  if (sqlite_file_path) {
+  if (!sqlite_file_path.empty()) {
     return ExportTraceToDatabase(sqlite_file_path);
   }
 
