@@ -34,6 +34,7 @@
 #include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/string_pool.h"
+#include "src/trace_processor/variadic.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -110,39 +111,6 @@ class TraceStorage {
   // Generic key value storage which can be referenced by other tables.
   class Args {
    public:
-    // Variadic type representing the possible values for the args table.
-    struct Variadic {
-      enum Type { kInt, kString, kReal };
-
-      static Variadic Integer(int64_t int_value) {
-        Variadic variadic;
-        variadic.type = Type::kInt;
-        variadic.int_value = int_value;
-        return variadic;
-      }
-
-      static Variadic String(StringId string_id) {
-        Variadic variadic;
-        variadic.type = Type::kString;
-        variadic.string_value = string_id;
-        return variadic;
-      }
-
-      static Variadic Real(double real_value) {
-        Variadic variadic;
-        variadic.type = Type::kReal;
-        variadic.real_value = real_value;
-        return variadic;
-      }
-
-      Type type;
-      union {
-        int64_t int_value;
-        StringId string_value;
-        double real_value;
-      };
-    };
-
     struct Arg {
       StringId flat_key = 0;
       StringId key = 0;
