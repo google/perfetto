@@ -96,22 +96,26 @@ CREATE TABLE launches(
   ts_end BIG INT,
   dur BIG INT,
   id INT,
-  package STRING,
-  upid BIG INT);
+  package STRING);
 
--- We make the (not always correct) simplification that process == package
 INSERT INTO launches
 SELECT
   ts,
   ts_end,
   dur,
   id,
-  package,
-  (
-    SELECT upid
-    FROM process
-    WHERE name = pls.package
-    AND (start_ts IS NULL OR start_ts < pls.ts_end)
-    ORDER BY start_ts DESC
-    LIMIT 1) AS upid
+  package
 FROM package_launches_succeeded AS pls;
+
+-- Maps a launch to the corresponding set of processes that handled the
+-- activity start. The vast majority of cases should be a single process.
+-- However it is possible that the process dies during the activity launch
+-- and is respawned.
+CREATE TABLE launch_processes(launch_id INT, upid BIG INT);
+
+-- We make the (not always correct) simplification that process == package
+INSERT INTO launch_processes
+SELECT launches.id, process.upid
+FROM launches JOIN process ON launches.package = process.name
+WHERE (process.start_ts IS NULL OR process.start_ts < launches.ts_end)
+ORDER BY start_ts DESC;

@@ -38,6 +38,7 @@ message AndroidStartupMetric {
     optional TaskStateBreakdown main_thread_by_task_state = 2;
   }
 
+  // Next id: 7
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -50,6 +51,11 @@ message AndroidStartupMetric {
 
     // Did we start a new process
     optional bool started_new_process = 4;
+
+    // Number of processes hosting the activity involved in the launch.
+    // This will usually be 1. If it is 0, it is indicative of a data / process
+    // error. If > 1, the process died during startup and the system respawned.
+    optional uint32 activity_hosting_process_count = 6;
 
     optional ToFirstFrame to_first_frame = 5;
   }
