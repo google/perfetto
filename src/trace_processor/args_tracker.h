@@ -19,6 +19,7 @@
 
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/variadic.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -27,8 +28,6 @@ namespace trace_processor {
 // allows args to pushed as a group into storage.
 class ArgsTracker {
  public:
-  using Variadic = TraceStorage::Args::Variadic;
-
   explicit ArgsTracker(TraceProcessorContext*);
 
   // Adds a arg for this row id with the given key and value.

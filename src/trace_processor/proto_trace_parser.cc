@@ -36,6 +36,7 @@
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/variadic.h"
 
 #include "perfetto/common/android_log_constants.pbzero.h"
 #include "perfetto/common/trace_stats.pbzero.h"
@@ -74,7 +75,6 @@ namespace trace_processor {
 namespace {
 
 using protozero::ProtoDecoder;
-using Variadic = TraceStorage::Args::Variadic;
 
 }  // namespace
 

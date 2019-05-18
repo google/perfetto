@@ -148,6 +148,7 @@ source_set("lib") {
     "trace_sorter.h",
     "trace_storage.cc",
     "trace_storage.h",
+    "variadic.h",
     "virtual_destructors.cc",
     "window_operator_table.cc",
     "window_operator_table.h",
@@ -227,6 +228,7 @@ copy("trace_processor_shell") {
 source_set("unittests") {
   testonly = true
   sources = [
+    "args_table_unittest.cc",
     "clock_tracker_unittest.cc",
     "event_tracker_unittest.cc",
     "filtered_row_index_unittest.cc",
