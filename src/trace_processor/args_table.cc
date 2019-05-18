@@ -34,9 +34,9 @@ StorageSchema ArgsTable::CreateStorageSchema() {
       .AddNumericColumn("arg_set_id", &args.set_ids())
       .AddStringColumn("flat_key", &args.flat_keys(), &storage_->string_pool())
       .AddStringColumn("key", &args.keys(), &storage_->string_pool())
-      .AddColumn<ValueColumn>("int_value", VariadicType::kInt, storage_)
-      .AddColumn<ValueColumn>("string_value", VariadicType::kString, storage_)
-      .AddColumn<ValueColumn>("real_value", VariadicType::kReal, storage_)
+      .AddColumn<ValueColumn>("int_value", Variadic::Type::kInt, storage_)
+      .AddColumn<ValueColumn>("string_value", Variadic::Type::kString, storage_)
+      .AddColumn<ValueColumn>("real_value", Variadic::Type::kReal, storage_)
       .Build({"arg_set_id", "key"});
 }
 
@@ -61,7 +61,7 @@ int ArgsTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
 }
 
 ArgsTable::ValueColumn::ValueColumn(std::string col_name,
-                                    VariadicType type,
+                                    Variadic::Type type,
                                     const TraceStorage* storage)
     : StorageColumn(col_name, false /* hidden */),
       type_(type),
@@ -76,13 +76,13 @@ void ArgsTable::ValueColumn::ReportResult(sqlite3_context* ctx,
   }
 
   switch (type_) {
-    case VariadicType::kInt:
+    case Variadic::Type::kInt:
       sqlite_utils::ReportSqliteResult(ctx, value.int_value);
       break;
-    case VariadicType::kReal:
+    case Variadic::Type::kReal:
       sqlite_utils::ReportSqliteResult(ctx, value.real_value);
       break;
-    case VariadicType::kString: {
+    case Variadic::Type::kString: {
       const char* str = storage_->GetString(value.string_value).c_str();
       sqlite3_result_text(ctx, str, -1, sqlite_utils::kSqliteStatic);
       break;
@@ -100,7 +100,7 @@ void ArgsTable::ValueColumn::Filter(int op,
                                     sqlite3_value* value,
                                     FilteredRowIndex* index) const {
   switch (type_) {
-    case VariadicType::kInt: {
+    case Variadic::Type::kInt: {
       bool op_is_null = sqlite_utils::IsOpIsNull(op);
       auto predicate = sqlite_utils::CreateNumericPredicate<int64_t>(op, value);
       index->FilterRows(
@@ -110,7 +110,7 @@ void ArgsTable::ValueColumn::Filter(int op,
           });
       break;
     }
-    case VariadicType::kReal: {
+    case Variadic::Type::kReal: {
       bool op_is_null = sqlite_utils::IsOpIsNull(op);
       auto predicate = sqlite_utils::CreateNumericPredicate<double>(op, value);
       index->FilterRows(
@@ -120,7 +120,7 @@ void ArgsTable::ValueColumn::Filter(int op,
           });
       break;
     }
-    case VariadicType::kString: {
+    case Variadic::Type::kString: {
       auto predicate = sqlite_utils::CreateStringPredicate(op, value);
       index->FilterRows([this,
                          &predicate](uint32_t row) PERFETTO_ALWAYS_INLINE {
@@ -148,12 +148,12 @@ int ArgsTable::ValueColumn::CompareRefsAsc(uint32_t f, uint32_t s) const {
 
   if (arg_f.type == type_ && arg_s.type == type_) {
     switch (type_) {
-      case VariadicType::kInt:
+      case Variadic::Type::kInt:
         return sqlite_utils::CompareValuesAsc(arg_f.int_value, arg_s.int_value);
-      case VariadicType::kReal:
+      case Variadic::Type::kReal:
         return sqlite_utils::CompareValuesAsc(arg_f.real_value,
                                               arg_s.real_value);
-      case VariadicType::kString: {
+      case Variadic::Type::kString: {
         const auto& f_str = storage_->GetString(arg_f.string_value);
         const auto& s_str = storage_->GetString(arg_s.string_value);
         return sqlite_utils::CompareValuesAsc(f_str, s_str);

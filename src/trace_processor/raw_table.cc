@@ -20,6 +20,7 @@
 
 #include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/sqlite_utils.h"
+#include "src/trace_processor/variadic.h"
 
 #include "perfetto/trace/ftrace/binder.pbzero.h"
 #include "perfetto/trace/ftrace/clk.pbzero.h"
@@ -83,17 +84,16 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
 
   auto start_row = static_cast<uint32_t>(std::distance(set_ids.begin(), lb));
 
-  using Variadic = TraceStorage::Args::Variadic;
   using ValueWriter = std::function<void(const Variadic&)>;
   auto write_value = [this, writer](const Variadic& value) {
     switch (value.type) {
-      case TraceStorage::Args::Variadic::kInt:
+      case Variadic::kInt:
         writer->AppendInt(value.int_value);
         break;
-      case TraceStorage::Args::Variadic::kReal:
+      case Variadic::kReal:
         writer->AppendDouble(value.real_value);
         break;
-      case TraceStorage::Args::Variadic::kString: {
+      case Variadic::kString: {
         const auto& str = storage_->GetString(value.string_value);
         writer->AppendString(str.c_str(), str.size());
       }
