@@ -13,9 +13,10 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
+import {LIMIT} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {Config, Data, SLICE_TRACK_KIND} from './common';
@@ -37,7 +38,6 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
     const endNs = Math.round(end * 1e9);
     // Ns in 1px width. We want all slices smaller than 1px to be grouped.
     const minNs = Math.round(resolution * 1e9);
-    const LIMIT = 10000;
     this.busy = true;
 
     if (!this.setup) {
@@ -51,8 +51,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
           `and ts >= ${startNs} - dur ` +
           `and ts <= ${endNs} ` +
           `and dur < ${minNs} ` +
-          `order by ts ` +
-          `limit ${LIMIT};`);
+          `order by ts;`);
 
       await this.query(`create virtual table ${this.tableName('span')} using
       span_join(${this.tableName('small')},
@@ -97,11 +96,10 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       cat,
       'Busy' as name
       from ${this.tableName('span')}
-      group by cat, depth, quantum_ts
-      limit ${LIMIT};`);
+      group by cat, depth, quantum_ts;`);
 
     const query = `select * from ${this.tableName('summary')} UNION ` +
-        `select * from ${this.tableName('big')} order by ts`;
+        `select * from ${this.tableName('big')} order by ts limit ${LIMIT}`;
 
     const rawResult = await this.query(query);
     this.busy = false;
@@ -116,6 +114,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       start,
       end,
       resolution,
+      length: numRows,
       strings: [],
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
@@ -142,9 +141,6 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       slices.depths[row] = +cols[2].longValues![row];
       slices.categories[row] = internString(cols[3].stringValues![row]);
       slices.titles[row] = internString(cols[4].stringValues![row]);
-    }
-    if (numRows === LIMIT) {
-      slices.end = slices.ends[slices.ends.length - 1];
     }
     this.publish(slices);
   }

@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TrackData} from '../../common/track_data';
+
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
 
-export interface Data {
-  start: number;
-  end: number;
-  resolution: number;
-
+export interface Data extends TrackData {
   // Total number of log events within [start, end], before any quantization.
   numEvents: number;
 

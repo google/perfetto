@@ -1,3 +1,4 @@
+
 // Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,13 +12,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+import {TrackData} from '../../common/track_data';
 
 export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
 
-export interface Data {
-  start: number;
-  end: number;
-  resolution: number;
+export interface Data extends TrackData {
   maximumValue: number;
   isQuantized: boolean;
 
