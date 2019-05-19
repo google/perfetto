@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
+import {LIMIT} from '../../common/track_data';
+
 import {
   TrackController,
   trackControllerRegistry
@@ -94,7 +96,8 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       quantum_ts as bucket,
       sum(dur)/cast(${bucketSizeNs} as float) as utilization
       from ${this.tableName('span')}
-      group by quantum_ts`;
+      group by quantum_ts
+      limit ${LIMIT}`;
 
     const rawResult = await this.query(query);
     const numRows = +rawResult.numRecords;
@@ -103,6 +106,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       start,
       end,
       resolution,
+      length: numRows,
       bucketSizeSeconds: fromNs(bucketSizeNs),
       utilizations: new Float64Array(numBuckets),
     };

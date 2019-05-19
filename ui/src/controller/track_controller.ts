@@ -17,15 +17,18 @@ import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {Registry} from '../common/registry';
 import {TrackState} from '../common/state';
+import {TrackData} from '../common/track_data';
 
 import {Controller} from './controller';
 import {ControllerFactory} from './controller';
 import {globals} from './globals';
 
+
 // TrackController is a base class overridden by track implementations (e.g.,
 // sched slices, nestable slices, counters).
-export abstract class TrackController<Config = {}, Data = {}> extends
-    Controller<'main'> {
+export abstract class TrackController<Config = {},
+                                      Data extends TrackData = TrackData>
+    extends Controller<'main'> {
   readonly trackId: string;
   readonly engine: Engine;
 

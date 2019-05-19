@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
+import {LIMIT} from '../../common/track_data';
+
 import {
   TrackController,
   trackControllerRegistry
@@ -84,7 +86,7 @@ class CounterTrackController extends TrackController<Config, Data> {
     let query = `select min(ts) as ts,
       max(value) as value
       from ${this.tableName('span')}
-      group by quantum_ts;`;
+      group by quantum_ts limit ${LIMIT};`;
 
     if (!isQuantized) {
       // TODO(hjd): Implement window clipping.
@@ -95,7 +97,7 @@ class CounterTrackController extends TrackController<Config, Data> {
           value
           from counters
           where name = '${this.config.name}' and ref = ${this.config.ref})
-      where ts <= ${endNs} and ${startNs} <= ts_end;`;
+      where ts <= ${endNs} and ${startNs} <= ts_end limit ${LIMIT};`;
     }
 
     const rawResult = await this.query(query);
@@ -105,6 +107,7 @@ class CounterTrackController extends TrackController<Config, Data> {
     const data: Data = {
       start,
       end,
+      length: numRows,
       isQuantized,
       maximumValue: this.maximumValue(),
       minimumValue: this.minimumValue(),

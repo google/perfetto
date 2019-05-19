@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
+import {LIMIT} from '../../common/track_data';
+
 import {
   TrackController,
   trackControllerRegistry
@@ -91,7 +93,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
         from ${this.tableName('span')}
         where cpu = ${this.config.cpu}
         and utid != 0
-        group by quantum_ts`;
+        group by quantum_ts limit ${LIMIT}`;
 
     const rawResult = await this.query(query);
     const numRows = +rawResult.numRecords;
@@ -101,6 +103,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       start,
       end,
       resolution,
+      length: numRows,
       bucketSizeSeconds: fromNs(bucketSizeNs),
       utilizations: new Float64Array(numBuckets),
     };
@@ -129,6 +132,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       start,
       end,
       resolution,
+      length: numRows,
       ids: new Float64Array(numRows),
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
