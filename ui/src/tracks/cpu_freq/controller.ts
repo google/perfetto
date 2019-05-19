@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
+import {LIMIT} from '../../common/track_data';
+
 import {
   TrackController,
   trackControllerRegistry
@@ -122,7 +124,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     // Cast as double to avoid problem where values are sometimes
     // doubles, sometimes longs.
     let query = `select ts, dur, cast(idle as DOUBLE), freq
-      from ${this.tableName('activity')}`;
+      from ${this.tableName('activity')} limit ${LIMIT}`;
 
     if (isQuantized) {
       query = `select
@@ -142,7 +144,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
           freq*dur as weighted_freq,
           idle
           from ${this.tableName('activity')})
-        group by quantum_ts`;
+        group by quantum_ts limit ${LIMIT}`;
     }
 
     const freqResult = await this.query(query);
@@ -151,8 +153,9 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     const data: Data = {
       start,
       end,
-      maximumValue: this.maximumValue(),
       resolution,
+      length: numRows,
+      maximumValue: this.maximumValue(),
       isQuantized,
       tsStarts: new Float64Array(numRows),
       tsEnds: new Float64Array(numRows),

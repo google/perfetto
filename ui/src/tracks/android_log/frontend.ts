@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
@@ -38,12 +37,6 @@ const MARGIN_TOP = 2;
 const RECT_HEIGHT = 35;
 const EVT_PX = 2;  // Width of an event tick in pixels.
 
-function getCurResolution() {
-  // Truncate the resolution to the closest power of 10.
-  const resolution =
-      globals.frontendLocalState.timeScale.deltaPxToDuration(EVT_PX);
-  return Math.pow(10, Math.floor(Math.log10(resolution)));
-}
 
 class AndroidLogTrack extends Track<Config, Data> {
   static readonly kind = ANDROID_LOGS_TRACK_KIND;
@@ -51,40 +44,20 @@ class AndroidLogTrack extends Track<Config, Data> {
     return new AndroidLogTrack(trackState);
   }
 
-  private reqPending = false;
-
   constructor(trackState: TrackState) {
     super(trackState);
-  }
-
-  reqDataDeferred() {
-    const {visibleWindowTime} = globals.frontendLocalState;
-    const reqStart = visibleWindowTime.start - visibleWindowTime.duration;
-    const reqEnd = visibleWindowTime.end + visibleWindowTime.duration;
-    const reqRes = getCurResolution();
-    this.reqPending = false;
-    globals.dispatch(Actions.reqTrackData({
-      trackId: this.trackState.id,
-      start: reqStart,
-      end: reqEnd,
-      resolution: reqRes
-    }));
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
 
     const data = this.data();
-    const inRange = data !== undefined &&
-        (visibleWindowTime.start >= data.start &&
-         visibleWindowTime.end <= data.end);
-    if (!inRange || data === undefined ||
-        data.resolution !== getCurResolution()) {
-      if (!this.reqPending) {
-        this.reqPending = true;
-        setTimeout(() => this.reqDataDeferred(), 50);
-      }
+
+    if (this.shouldRequestData(
+            data, visibleWindowTime.start, visibleWindowTime.end)) {
+      globals.requestTrackData(this.trackState.id);
     }
+
     if (data === undefined) return;  // Can't possibly draw anything.
 
     const dataStartPx = timeScale.timeToPx(data.start);
