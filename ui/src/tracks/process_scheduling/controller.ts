@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
+import {LIMIT} from '../../common/track_data';
+
 import {
   TrackController,
   trackControllerRegistry
@@ -104,7 +106,8 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
         where upid = ${this.config.upid}
         and utid != 0
         and cpu < ${this.numCpus}
-        group by quantum_ts`;
+        group by quantum_ts
+        limit ${LIMIT}`;
 
     const rawResult = await this.query(query);
     const numRows = +rawResult.numRecords;
@@ -114,6 +117,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       start,
       end,
       resolution,
+      length: numRows,
       bucketSizeSeconds: fromNs(bucketSizeNs),
       utilizations: new Float64Array(numBuckets),
     };
@@ -127,9 +131,6 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
 
   private async computeSlices(start: number, end: number, resolution: number):
       Promise<SliceData> {
-    // TODO(hjd): Remove LIMIT
-    const LIMIT = 10000;
-
     // cpu < numCpus improves perfomance a lot since the window table can
     // avoid generating many rows.
     const query = `select ts,dur,cpu,utid from ${this.tableName('span')}
@@ -145,14 +146,12 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     const rawResult = await this.query(query);
 
     const numRows = +rawResult.numRecords;
-    if (numRows === LIMIT) {
-      console.warn(`More than ${LIMIT} rows returned.`);
-    }
     const slices: SliceData = {
       kind: 'slice',
       start,
       end,
       resolution,
+      length: numRows,
       numCpus: this.numCpus,
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),

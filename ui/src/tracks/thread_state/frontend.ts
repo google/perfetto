@@ -52,13 +52,8 @@ class ThreadStateTrack extends Track<Config, Data> {
     const data = this.data();
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
-    // If there aren't enough cached slices data in |data| request more to
-    // the controller.
-    const inRange = data !== undefined &&
-        (visibleWindowTime.start >= data.start &&
-         visibleWindowTime.end <= data.end);
-    if (!inRange || data === undefined ||
-        data.resolution !== globals.getCurResolution()) {
+    if (this.shouldRequestData(
+            data, visibleWindowTime.start, visibleWindowTime.end)) {
       globals.requestTrackData(this.trackState.id);
     }
     if (data === undefined) return;  // Can't possibly draw anything.

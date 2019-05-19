@@ -12,22 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackData} from '../../common/track_data';
+// TODO(hjd): Refactor into method on TrackController
+export const LIMIT = 10000;
 
-export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
-
-export interface Config {
-  maxDepth: number;
-  upid: number;
-  utid: number;
-}
-
-export interface Data extends TrackData {
-  // Slices are stored in a columnar fashion. All fields have the same length.
-  strings: string[];
-  starts: Float64Array;
-  ends: Float64Array;
-  depths: Uint16Array;
-  titles: Uint16Array;      // Index in |strings|.
-  categories: Uint16Array;  // Index in |strings|.
+export interface TrackData {
+  start: number;
+  end: number;
+  resolution: number;
+  length: number;
 }

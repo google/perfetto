@@ -1,3 +1,4 @@
+
 // Copyright (C) 2018 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,13 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TrackData} from '../../common/track_data';
+
 export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
 // TODO(dproy): Consider deduping with CPU summary data.
-export interface Data {
-  start: number;
-  end: number;
-  resolution: number;
+export interface Data extends TrackData {
   bucketSizeSeconds: number;
   utilizations: Float64Array;
 }

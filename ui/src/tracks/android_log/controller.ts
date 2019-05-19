@@ -13,9 +13,10 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
+import {LIMIT} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {ANDROID_LOGS_TRACK_KIND, Config, Data} from './common';
@@ -47,7 +48,7 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
       from android_logs
       where ts >= ${startNs} and ts <= ${endNs}
       group by ts_quant, prio
-      order by ts_quant, prio;`);
+      order by ts_quant, prio limit ${LIMIT};`);
     this.busy = false;
 
     const rowCount = +rawResult.numRecords;
@@ -55,6 +56,7 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
       start,
       end,
       resolution,
+      length: rowCount,
       numEvents: 0,
       timestamps: new Float64Array(rowCount),
       priorities: new Uint8Array(rowCount),
