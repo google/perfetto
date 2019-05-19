@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {fromNs} from '../../common/time';
+import {LIMIT} from '../../common/track_data';
+
 import {
   TrackController,
   trackControllerRegistry
@@ -47,13 +49,14 @@ class VsyncTrackController extends TrackController<Config, Data> {
     const rawResult = await this.engine.query(`
       select ts from counters
         where name like "${this.config.counterName}%"
-        order by ts;`);
+        order by ts limit ${LIMIT};`);
     this.busy = false;
     const rowCount = +rawResult.numRecords;
     const result = {
       start,
       end,
       resolution,
+      length: rowCount,
       vsyncs: new Float64Array(rowCount),
     };
     const cols = rawResult.columns;

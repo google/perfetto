@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TrackData} from '../../common/track_data';
+
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
-export interface Data {
-  start: number;
-  end: number;
+export interface Data extends TrackData {
   isQuantized: boolean;
-  resolution: number;
   maximumValue: number;
   minimumValue: number;
 
