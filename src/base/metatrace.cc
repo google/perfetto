@@ -40,6 +40,8 @@ int MaybeOpenTraceFile() {
 }
 }  // namespace
 
+constexpr uint32_t MetaTrace::kMainThreadCpu;
+
 void MetaTrace::WriteEvent(char type, const char* evt_name, size_t cpu) {
   int fd = MaybeOpenTraceFile();
   if (fd == -1)
