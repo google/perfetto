@@ -553,6 +553,13 @@ class PERFETTO_EXPORT TraceConfig {
     allow_user_build_tracing_ = value;
   }
 
+  const std::string& unique_session_name() const {
+    return unique_session_name_;
+  }
+  void set_unique_session_name(const std::string& value) {
+    unique_session_name_ = value;
+  }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -574,6 +581,7 @@ class PERFETTO_EXPORT TraceConfig {
   std::vector<std::string> activate_triggers_;
   IncrementalStateConfig incremental_state_config_ = {};
   bool allow_user_build_tracing_ = {};
+  std::string unique_session_name_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
