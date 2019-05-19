@@ -61,7 +61,8 @@ bool TraceConfig::operator==(const TraceConfig& other) const {
          (trigger_config_ == other.trigger_config_) &&
          (activate_triggers_ == other.activate_triggers_) &&
          (incremental_state_config_ == other.incremental_state_config_) &&
-         (allow_user_build_tracing_ == other.allow_user_build_tracing_);
+         (allow_user_build_tracing_ == other.allow_user_build_tracing_) &&
+         (unique_session_name_ == other.unique_session_name_);
 }
 #pragma GCC diagnostic pop
 
@@ -160,6 +161,12 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
                 "size mismatch");
   allow_user_build_tracing_ = static_cast<decltype(allow_user_build_tracing_)>(
       proto.allow_user_build_tracing());
+
+  static_assert(
+      sizeof(unique_session_name_) == sizeof(proto.unique_session_name()),
+      "size mismatch");
+  unique_session_name_ =
+      static_cast<decltype(unique_session_name_)>(proto.unique_session_name());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -260,6 +267,13 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
   proto->set_allow_user_build_tracing(
       static_cast<decltype(proto->allow_user_build_tracing())>(
           allow_user_build_tracing_));
+
+  static_assert(
+      sizeof(unique_session_name_) == sizeof(proto->unique_session_name()),
+      "size mismatch");
+  proto->set_unique_session_name(
+      static_cast<decltype(proto->unique_session_name())>(
+          unique_session_name_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

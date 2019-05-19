@@ -362,6 +362,18 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     return false;
   }
 
+  if (!cfg.unique_session_name().empty()) {
+    const std::string& name = cfg.unique_session_name();
+    for (auto& kv : tracing_sessions_) {
+      if (kv.second.config.unique_session_name() == name) {
+        PERFETTO_ELOG(
+            "A trace wtih this unique session name (%s) already exists",
+            name.c_str());
+        return false;
+      }
+    }
+  }
+
   // TODO(primiano): This is a workaround to prevent that a producer gets stuck
   // in a state where it stalls by design by having more TraceWriterImpl
   // instances than free pages in the buffer. This is really a bug in

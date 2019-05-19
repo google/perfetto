@@ -186,6 +186,33 @@ class TracingServiceImplTest : public testing::Test {
   std::unique_ptr<TracingServiceImpl> svc;
 };
 
+TEST_F(TracingServiceImplTest, AtMostOneConfig) {
+  std::unique_ptr<MockConsumer> consumer_a = CreateMockConsumer();
+  std::unique_ptr<MockConsumer> consumer_b = CreateMockConsumer();
+
+  consumer_a->Connect(svc.get());
+  consumer_b->Connect(svc.get());
+
+  TraceConfig trace_config_a;
+  trace_config_a.add_buffers()->set_size_kb(128);
+  trace_config_a.set_duration_ms(0);
+  trace_config_a.set_unique_session_name("foo");
+
+  TraceConfig trace_config_b;
+  trace_config_b.add_buffers()->set_size_kb(128);
+  trace_config_b.set_duration_ms(0);
+  trace_config_b.set_unique_session_name("foo");
+
+  consumer_a->EnableTracing(trace_config_a);
+  consumer_b->EnableTracing(trace_config_b);
+
+  // This will stop immediately since it has the same unique session name.
+  consumer_b->WaitForTracingDisabled();
+
+  consumer_a->DisableTracing();
+  consumer_a->WaitForTracingDisabled();
+}
+
 TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
   std::unique_ptr<MockProducer> mock_producer_1 = CreateMockProducer();
   std::unique_ptr<MockProducer> mock_producer_2 = CreateMockProducer();
