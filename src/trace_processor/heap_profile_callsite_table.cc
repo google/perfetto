@@ -43,9 +43,10 @@ uint32_t HeapProfileCallsiteTable::RowCount() {
   return storage_->heap_profile_callsites().size();
 }
 
-int HeapProfileCallsiteTable::BestIndex(const QueryConstraints&,
+int HeapProfileCallsiteTable::BestIndex(const QueryConstraints& qc,
                                         BestIndexInfo* info) {
   info->order_by_consumed = true;
+  info->estimated_cost = HasEqConstraint(qc, "id") ? 1 : RowCount();
   return SQLITE_OK;
 }
 
