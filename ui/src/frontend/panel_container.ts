@@ -136,7 +136,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.attrs = attrs;
     const renderPanel = (panel: m.Vnode) => perfDebug() ?
         m('.panel', panel, m('.debug-panel-border')) :
-        m('.panel', panel);
+        m('.panel', {key: panel.key}, panel);
 
     return m(
         '.scroll-limiter',
