@@ -497,7 +497,9 @@ export class TraceController extends Controller<States> {
         ifnull(
           case when length(process.name) > 0 then process.name else null end,
           thread.name)
-        from thread left join process using(upid)`;
+        from (select * from thread order by upid) as thread
+        left join (select * from process order by upid) as process
+        using(upid)`;
     const threadRows = await assertExists(this.engine).query(sqlQuery);
     const threads: ThreadDesc[] = [];
     for (let i = 0; i < threadRows.numRecords; i++) {
