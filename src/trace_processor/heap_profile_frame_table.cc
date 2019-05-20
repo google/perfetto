@@ -42,9 +42,10 @@ uint32_t HeapProfileFrameTable::RowCount() {
   return storage_->heap_profile_frames().size();
 }
 
-int HeapProfileFrameTable::BestIndex(const QueryConstraints&,
+int HeapProfileFrameTable::BestIndex(const QueryConstraints& qc,
                                      BestIndexInfo* info) {
   info->order_by_consumed = true;
+  info->estimated_cost = HasEqConstraint(qc, "id") ? 1 : RowCount();
   return SQLITE_OK;
 }
 
