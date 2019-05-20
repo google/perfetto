@@ -27,9 +27,21 @@ let numResults = 0;
 let mode: 'search'|'command' = 'search';
 let omniboxValue = '';
 
-function clearOmniboxResults() {
+function enterCommandMode() {
+  if (mode === 'search') {
+    mode = 'command';
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+}
+
+function clearOmniboxResults(e: Event) {
   globals.queryResults.delete(QUERY_ID);
   globals.dispatch(Actions.deleteQuery({queryId: QUERY_ID}));
+  const txt = (e.target as HTMLInputElement);
+  if (txt.value.length <= 0) {
+    mode = 'search';
+    globals.rafScheduler.scheduleFullRedraw();
+  }
 }
 
 function onKeyDown(e: Event) {
@@ -44,23 +56,6 @@ function onKeyDown(e: Event) {
   }
   const txt = (e.target as HTMLInputElement);
   omniboxValue = txt.value;
-  if (key === ':' && txt.value === '') {
-    mode = 'command';
-    globals.rafScheduler.scheduleFullRedraw();
-    e.preventDefault();
-    return;
-  }
-  if (key === 'Escape' && mode === 'command') {
-    txt.value = '';
-    mode = 'search';
-    globals.rafScheduler.scheduleFullRedraw();
-    return;
-  }
-  if (key === 'Backspace' && txt.value.length === 0 && mode === 'command') {
-    mode = 'search';
-    globals.rafScheduler.scheduleFullRedraw();
-    return;
-  }
 }
 
 function onKeyUp(e: Event) {
@@ -77,15 +72,14 @@ function onKeyUp(e: Event) {
     return;
   }
   if (txt.value.length <= 0 || key === 'Escape') {
-    clearOmniboxResults();
+    globals.queryResults.delete(QUERY_ID);
+    globals.dispatch(Actions.deleteQuery({queryId: QUERY_ID}));
+    mode = 'search';
+    txt.value = '';
+    omniboxValue = txt.value;
+    txt.blur();
     globals.rafScheduler.scheduleFullRedraw();
     return;
-  }
-  if (mode === 'search') {
-    const name = txt.value.replace(/'/g, '\\\'').replace(/[*]/g, '%');
-    const query = `select str from strings where str like '%${name}%' limit 10`;
-    globals.dispatch(
-        Actions.executeQuery({engineId: '0', queryId: QUERY_ID, query}));
   }
   if (mode === 'command' && key === 'Enter') {
     globals.dispatch(Actions.executeQuery(
@@ -93,10 +87,11 @@ function onKeyUp(e: Event) {
   }
 }
 
-
 class Omnibox implements m.ClassComponent {
   oncreate(vnode: m.VnodeDOM) {
     const txt = vnode.dom.querySelector('input') as HTMLInputElement;
+    txt.addEventListener('focus', enterCommandMode);
+    txt.addEventListener('click', enterCommandMode);
     txt.addEventListener('blur', clearOmniboxResults);
     txt.addEventListener('keydown', onKeyDown);
     txt.addEventListener('keyup', onKeyUp);
@@ -130,8 +125,8 @@ class Omnibox implements m.ClassComponent {
       }
     }
     const placeholder = {
-      search: 'Search or type : to enter command mode',
-      command: 'e.g., select * from sched left join thread using(utid) limit 10'
+      search: 'Click to enter command mode',
+      command: 'e.g. select * from sched left join thread using(utid) limit 10'
     };
 
     const commandMode = mode === 'command';
