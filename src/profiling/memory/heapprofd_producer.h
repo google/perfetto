@@ -33,6 +33,7 @@
 #include "perfetto/tracing/core/tracing_service.h"
 
 #include "src/profiling/memory/bookkeeping.h"
+#include "src/profiling/memory/page_idle_checker.h"
 #include "src/profiling/memory/proc_utils.h"
 #include "src/profiling/memory/system_property.h"
 #include "src/profiling/memory/unwinding.h"
@@ -172,6 +173,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     uint64_t total_unwinding_time_us = 0;
     LogHistogram unwinding_time_us;
     HeapTracker heap_tracker;
+
+    base::Optional<PageIdleChecker> page_idle_checker;
   };
 
   struct DataSource {

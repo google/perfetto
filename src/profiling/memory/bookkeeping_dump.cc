@@ -86,6 +86,7 @@ void DumpState::StartProcessDump(
         fill_process_header) {
   current_process_fill_header_ = std::move(fill_process_header);
   current_process_heap_samples_ = nullptr;
+  current_process_idle_allocs_.clear();
 }
 
 void DumpState::WriteAllocation(
@@ -98,6 +99,10 @@ void DumpState::WriteAllocation(
   sample->set_self_freed(alloc.freed);
   sample->set_alloc_count(alloc.allocation_count);
   sample->set_free_count(alloc.free_count);
+
+  auto it = current_process_idle_allocs_.find(alloc.node->id());
+  if (it != current_process_idle_allocs_.end())
+    sample->set_self_idle(it->second);
 }
 
 void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
@@ -113,6 +118,10 @@ void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
     for (const Interned<Frame>& frame : built_callstack)
       callstack->add_frame_ids(frame.id());
   }
+}
+
+void DumpState::AddIdleBytes(uintptr_t callstack_id, uint64_t bytes) {
+  current_process_idle_allocs_[callstack_id] += bytes;
 }
 
 void DumpState::RejectConcurrent(pid_t pid) {
