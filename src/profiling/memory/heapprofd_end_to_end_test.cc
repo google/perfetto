@@ -783,7 +783,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
 
     // A brief sleep to allow the client to notice that the profiling session is
     // to be torn down (as it rejects concurrent sessions).
-    usleep(100 * kMsToUs);
+    usleep(500 * kMsToUs);
 
     PERFETTO_LOG("HeapprofdEndToEnd::Reinit: Starting second");
     helper = Trace(trace_config);
