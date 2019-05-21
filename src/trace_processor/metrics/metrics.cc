@@ -188,12 +188,7 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
 
-  protozero::ScatteredHeapBuffer delegate;
-  protozero::ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-
-  protozero::Message message;
-  message.Reset(&writer);
+  protozero::HeapBuffered<protozero::Message> message;
 
   for (int i = 0; i < argc; i += 2) {
     auto* value = argv[i + 1];
@@ -214,27 +209,27 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
         return;
       }
       auto* text = reinterpret_cast<const char*>(sqlite3_value_text(value));
-      auto status = BuildProtoRepeatedField(fn_ctx->tp, field, text, &message);
+      auto status =
+          BuildProtoRepeatedField(fn_ctx->tp, field, text, message.get());
       if (!status.ok()) {
         sqlite3_result_error(ctx, status.c_message(), -1);
         return;
       }
     } else {
       auto sql_value = SqlValueFromSqliteValue(value);
-      auto status = AppendValueToMessage(field, sql_value, &message);
+      auto status = AppendValueToMessage(field, sql_value, message.get());
       if (!status.ok()) {
         sqlite3_result_error(ctx, status.c_message(), -1);
         return;
       }
     }
   }
-  message.Finalize();
+  message->Finalize();
 
-  auto slices = delegate.StitchSlices();
-  std::unique_ptr<uint8_t[]> data(static_cast<uint8_t*>(malloc(slices.size())));
-  memcpy(data.get(), slices.data(), slices.size());
-  sqlite3_result_blob(ctx, data.release(), static_cast<int>(slices.size()),
-                      free);
+  std::vector<uint8_t> raw = message.SerializeAsArray();
+  std::unique_ptr<uint8_t[]> data(static_cast<uint8_t*>(malloc(raw.size())));
+  memcpy(data.get(), raw.data(), raw.size());
+  sqlite3_result_blob(ctx, data.release(), static_cast<int>(raw.size()), free);
 }
 
 void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
@@ -299,12 +294,7 @@ util::Status ComputeMetrics(TraceProcessor* tp,
                             const std::vector<SqlMetric>& sql_metrics,
                             const ProtoDescriptor& root_descriptor,
                             std::vector<uint8_t>* metrics_proto) {
-  protozero::ScatteredHeapBuffer delegate;
-  protozero::ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-
-  protozero::Message metrics_message;
-  metrics_message.Reset(&writer);
+  protozero::HeapBuffered<protozero::Message> metrics_message;
 
   for (const auto& sql_metric : sql_metrics) {
     // If there's no proto to fill in, then we don't need to do a query.
@@ -348,7 +338,7 @@ util::Status ComputeMetrics(TraceProcessor* tp,
 
     const auto& field = root_descriptor.fields()[opt_idx.value()];
     const uint8_t* ptr = static_cast<const uint8_t*>(col.bytes_value);
-    metrics_message.AppendBytes(field.number(), ptr, col.bytes_count);
+    metrics_message->AppendBytes(field.number(), ptr, col.bytes_count);
 
     has_next = it.Next();
     if (has_next)
@@ -358,9 +348,9 @@ util::Status ComputeMetrics(TraceProcessor* tp,
     if (!status.ok())
       return status;
   }
-  metrics_message.Finalize();
+  metrics_message->Finalize();
 
-  *metrics_proto = delegate.StitchSlices();
+  *metrics_proto = metrics_message.SerializeAsArray();
   return util::OkStatus();
 }
 
