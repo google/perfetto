@@ -76,6 +76,7 @@ void TraceSorter::Queue::Sort() {
 // time in a profiler.
 void TraceSorter::SortAndExtractEventsBeyondWindow(int64_t window_size_ns) {
   DCHECK_ftrace_batch_cpu(kNoBatch);
+
   constexpr int64_t kTsMax = std::numeric_limits<int64_t>::max();
   const bool was_empty = global_min_ts_ == kTsMax && global_max_ts_ == 0;
   int64_t extract_end_ts = global_max_ts_ - window_size_ns;

@@ -29,6 +29,7 @@
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/trace_storage.h"
 
+#include "perfetto/config/trace_config.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -80,24 +81,6 @@ void InternMessage(TraceProcessorContext* context,
 }
 
 }  // namespace
-
-// static
-TraceType ProtoTraceTokenizer::GuessProtoTraceType(const uint8_t* data,
-                                                   size_t size) {
-  // Scan at most the first 128MB for a track event packet.
-  constexpr size_t kMaxScanSize = 128 * 1024 * 1024;
-  protos::pbzero::Trace::Decoder decoder(data, std::min(size, kMaxScanSize));
-  if (!decoder.has_packet())
-    return TraceType::kUnknownTraceType;
-  for (auto it = decoder.packet(); it; ++it) {
-    ProtoDecoder packet_decoder(it->data(), it->size());
-    if (PERFETTO_UNLIKELY(packet_decoder.FindField(
-            protos::pbzero::TracePacket::kTrackEventFieldNumber))) {
-      return TraceType::kProtoWithTrackEventsTraceType;
-    }
-  }
-  return TraceType::kProtoTraceType;
-}
 
 ProtoTraceTokenizer::ProtoTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx) {}
@@ -234,6 +217,30 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   if (decoder.has_thread_descriptor()) {
     ParseThreadDescriptorPacket(decoder);
     return util::OkStatus();
+  }
+
+  if (decoder.has_trace_config()) {
+    auto config = decoder.trace_config();
+    protos::pbzero::TraceConfig::Decoder trace_config(config.data, config.size);
+
+    if (trace_config.write_into_file()) {
+      int64_t window_size_ns;
+      if (trace_config.has_flush_period_ms() &&
+          trace_config.flush_period_ms() > 0) {
+        // We use 2x the flush period as a margin of error to allow for any
+        // late flush responses to still be sorted correctly.
+        window_size_ns = trace_config.has_flush_period_ms() * 2 * 1000 * 1000;
+      } else {
+        constexpr uint64_t kDefaultWindowNs =
+            180 * 1000 * 1000 * 1000ULL;  // 3 minutes.
+        PERFETTO_ELOG(
+            "It is strongly recommended to have flush_period_ms set when "
+            "write_into_file is turned on. You will likely have many dropped "
+            "events because of inability to sort the events correctly.");
+        window_size_ns = static_cast<int64_t>(kDefaultWindowNs);
+      }
+      context_->sorter->SetWindowSizeNs(window_size_ns);
+    }
   }
 
   // Use parent data and length because we want to parse this again
