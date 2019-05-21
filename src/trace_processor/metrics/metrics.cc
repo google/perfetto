@@ -75,13 +75,18 @@ util::Status AppendValueToMessage(const FieldDescriptor& field,
     case FieldDescriptorProto::TYPE_UINT32:
     case FieldDescriptorProto::TYPE_BOOL:
       if (value.type != SqlValue::kLong)
-        return util::ErrStatus("BuildProto: field has wrong type");
+        return util::ErrStatus(
+            "BuildProto: field %s has wrong type (expected var int, was %d)",
+            field.name().c_str(), value.type);
       message->AppendVarInt(field.number(), value.long_value);
       break;
     case FieldDescriptorProto::TYPE_SINT32:
     case FieldDescriptorProto::TYPE_SINT64:
       if (value.type != SqlValue::kLong)
-        return util::ErrStatus("BuildProto: field has wrong type");
+        return util::ErrStatus(
+            "BuildProto: field %s has wrong type (expected signed var int, was "
+            "%d)",
+            field.name().c_str(), value.type);
       message->AppendSignedVarInt(field.number(), value.long_value);
       break;
     case FieldDescriptorProto::TYPE_FIXED32:
@@ -89,13 +94,17 @@ util::Status AppendValueToMessage(const FieldDescriptor& field,
     case FieldDescriptorProto::TYPE_FIXED64:
     case FieldDescriptorProto::TYPE_SFIXED64:
       if (value.type != SqlValue::kLong)
-        return util::ErrStatus("BuildProto: field has wrong type");
+        return util::ErrStatus(
+            "BuildProto: field %s has wrong type (expected fixed int, was %d)",
+            field.name().c_str(), value.type);
       message->AppendFixed(field.number(), value.long_value);
       break;
     case FieldDescriptorProto::TYPE_FLOAT:
     case FieldDescriptorProto::TYPE_DOUBLE: {
       if (value.type != SqlValue::kDouble)
-        return util::ErrStatus("BuildProto: field has wrong type");
+        return util::ErrStatus(
+            "BuildProto: field %s has wrong type (expected float, was %d)",
+            field.name().c_str(), value.type);
       double double_val = value.double_value;
       if (field.type() == FieldDescriptorProto::TYPE_FLOAT) {
         message->AppendFixed(field.number(), static_cast<float>(double_val));
@@ -106,14 +115,18 @@ util::Status AppendValueToMessage(const FieldDescriptor& field,
     }
     case FieldDescriptorProto::TYPE_STRING: {
       if (value.type != SqlValue::kString)
-        return util::ErrStatus("BuildProto: field has wrong type");
+        return util::ErrStatus(
+            "BuildProto: field %s has wrong type (expected string, was %d)",
+            field.name().c_str(), value.type);
       message->AppendString(field.number(), value.string_value);
       break;
     }
     case FieldDescriptorProto::TYPE_MESSAGE: {
       // TODO(lalitm): verify the type of the nested message.
       if (value.type != SqlValue::kBytes)
-        return util::ErrStatus("BuildProto: field has wrong type");
+        return util::ErrStatus(
+            "BuildProto: field %s has wrong type (expected proto, was %d)",
+            field.name().c_str(), value.type);
       message->AppendBytes(field.number(), value.bytes_value,
                            value.bytes_count);
       break;
