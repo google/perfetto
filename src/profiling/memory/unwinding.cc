@@ -50,6 +50,8 @@
 #include "perfetto/base/string_utils.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_task_runner.h"
+
+#include "src/profiling/memory/utils.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -100,22 +102,6 @@ std::unique_ptr<unwindstack::Regs> CreateFromRawData(unwindstack::ArchEnum arch,
   return ret;
 }
 
-// Behaves as a pread64, emulating it if not already exposed by the standard
-// library. Safe to use on 32bit platforms for addresses with the top bit set.
-// Clobbers the |fd| seek position if emulating.
-ssize_t ReadAtOffsetClobberSeekPos(int fd,
-                                   void* buf,
-                                   size_t count,
-                                   uint64_t addr) {
-#ifdef __BIONIC__
-  return pread64(fd, buf, count, static_cast<off64_t>(addr));
-#else
-  if (lseek64(fd, static_cast<off64_t>(addr), SEEK_SET) == -1)
-    return -1;
-  return read(fd, buf, count);
-#endif
-}
-
 }  // namespace
 
 StackOverlayMemory::StackOverlayMemory(std::shared_ptr<unwindstack::Memory> mem,
@@ -137,7 +123,8 @@ size_t StackOverlayMemory::Read(uint64_t addr, void* dst, size_t size) {
 FDMemory::FDMemory(base::ScopedFile mem_fd) : mem_fd_(std::move(mem_fd)) {}
 
 size_t FDMemory::Read(uint64_t addr, void* dst, size_t size) {
-  ssize_t rd = ReadAtOffsetClobberSeekPos(*mem_fd_, dst, size, addr);
+  ssize_t rd = ReadAtOffsetClobberSeekPos(*mem_fd_, dst, size,
+                                          static_cast<off64_t>(addr));
   if (rd == -1) {
     PERFETTO_DPLOG("read of %zu at offset %" PRIu64, size, addr);
     return 0;
@@ -386,9 +373,8 @@ void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
       base::SockType::kStream);
   pid_t peer_pid = sock->peer_pid();
 
-  UnwindingMetadata metadata(peer_pid,
-                             std::move(handoff_data.fds[kHandshakeMaps]),
-                             std::move(handoff_data.fds[kHandshakeMem]));
+  UnwindingMetadata metadata(peer_pid, std::move(handoff_data.maps_fd),
+                             std::move(handoff_data.mem_fd));
   ClientData client_data{
       handoff_data.data_source_instance_id,
       std::move(sock),

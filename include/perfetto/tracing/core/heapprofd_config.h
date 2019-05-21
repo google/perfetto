@@ -161,6 +161,9 @@ class PERFETTO_EXPORT HeapprofdConfig {
   bool no_running() const { return no_running_; }
   void set_no_running(bool value) { no_running_ = value; }
 
+  bool idle_allocations() const { return idle_allocations_; }
+  void set_idle_allocations(bool value) { idle_allocations_ = value; }
+
  private:
   uint64_t sampling_interval_bytes_ = {};
   std::vector<std::string> process_cmdline_;
@@ -172,6 +175,7 @@ class PERFETTO_EXPORT HeapprofdConfig {
   bool block_client_ = {};
   bool no_startup_ = {};
   bool no_running_ = {};
+  bool idle_allocations_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
