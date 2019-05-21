@@ -20,6 +20,7 @@
 #include <array>
 #include <functional>
 #include <map>
+#include <vector>
 
 #include "perfetto/base/optional.h"
 #include "perfetto/base/task_runner.h"
