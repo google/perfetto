@@ -55,6 +55,8 @@ class PERFETTO_EXPORT ChromeConfig {
   bool operator==(const ChromeConfig&) const;
   bool operator!=(const ChromeConfig& other) const { return !(*this == other); }
 
+  // Raw proto decoding.
+  void ParseRawProto(const std::string&);
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::ChromeConfig&);
   void ToProto(perfetto::protos::ChromeConfig*) const;

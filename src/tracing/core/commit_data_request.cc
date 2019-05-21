@@ -48,6 +48,12 @@ bool CommitDataRequest::operator==(const CommitDataRequest& other) const {
 }
 #pragma GCC diagnostic pop
 
+void CommitDataRequest::ParseRawProto(const std::string& raw) {
+  perfetto::protos::CommitDataRequest proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void CommitDataRequest::FromProto(
     const perfetto::protos::CommitDataRequest& proto) {
   chunks_to_move_.clear();
@@ -110,6 +116,12 @@ bool CommitDataRequest::ChunksToMove::operator==(
 }
 #pragma GCC diagnostic pop
 
+void CommitDataRequest::ChunksToMove::ParseRawProto(const std::string& raw) {
+  perfetto::protos::CommitDataRequest_ChunksToMove proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void CommitDataRequest::ChunksToMove::FromProto(
     const perfetto::protos::CommitDataRequest_ChunksToMove& proto) {
   static_assert(sizeof(page_) == sizeof(proto.page()), "size mismatch");
@@ -162,6 +174,12 @@ bool CommitDataRequest::ChunkToPatch::operator==(
          (has_more_patches_ == other.has_more_patches_);
 }
 #pragma GCC diagnostic pop
+
+void CommitDataRequest::ChunkToPatch::ParseRawProto(const std::string& raw) {
+  perfetto::protos::CommitDataRequest_ChunkToPatch proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void CommitDataRequest::ChunkToPatch::FromProto(
     const perfetto::protos::CommitDataRequest_ChunkToPatch& proto) {
@@ -236,6 +254,13 @@ bool CommitDataRequest::ChunkToPatch::Patch::operator==(
   return (offset_ == other.offset_) && (data_ == other.data_);
 }
 #pragma GCC diagnostic pop
+
+void CommitDataRequest::ChunkToPatch::Patch::ParseRawProto(
+    const std::string& raw) {
+  perfetto::protos::CommitDataRequest_ChunkToPatch_Patch proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void CommitDataRequest::ChunkToPatch::Patch::FromProto(
     const perfetto::protos::CommitDataRequest_ChunkToPatch_Patch& proto) {

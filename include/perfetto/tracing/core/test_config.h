@@ -60,6 +60,8 @@ class PERFETTO_EXPORT TestConfig {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TestConfig_DummyFields&);
     void ToProto(perfetto::protos::TestConfig_DummyFields*) const;
@@ -139,6 +141,8 @@ class PERFETTO_EXPORT TestConfig {
   bool operator==(const TestConfig&) const;
   bool operator!=(const TestConfig& other) const { return !(*this == other); }
 
+  // Raw proto decoding.
+  void ParseRawProto(const std::string&);
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::TestConfig&);
   void ToProto(perfetto::protos::TestConfig*) const;

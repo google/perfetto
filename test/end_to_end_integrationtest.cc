@@ -30,6 +30,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/pipe.h"
 #include "perfetto/base/temp_file.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/traced/traced.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
@@ -41,6 +42,7 @@
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
 
+#include "perfetto/config/power/android_power_config.pbzero.h"
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -93,9 +95,7 @@ class PerfettoTest : public ::testing::Test {
 
 class PerfettoCmdlineTest : public ::testing::Test {
  public:
-  void SetUp() override {
-    test_helper_.StartServiceIfRequired();
-  }
+  void SetUp() override { test_helper_.StartServiceIfRequired(); }
 
   void TearDown() override {}
 
@@ -254,9 +254,10 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
   ds_config->set_name("linux.ftrace");
   ds_config->set_target_buffer(0);
 
-  auto* ftrace_config = ds_config->mutable_ftrace_config();
-  *ftrace_config->add_ftrace_events() = "sched_switch";
-  *ftrace_config->add_ftrace_events() = "bar";
+  protos::FtraceConfig ftrace_config;
+  ftrace_config.add_ftrace_events("sched_switch");
+  ftrace_config.add_ftrace_events("bar");
+  ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
 
   helper.StartTracing(trace_config);
   helper.WaitForTracingDisabled();
@@ -297,8 +298,9 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("linux.ftrace");
 
-  auto* ftrace_config = ds_config->mutable_ftrace_config();
-  *ftrace_config->add_ftrace_events() = "print";
+  protos::FtraceConfig ftrace_config;
+  ftrace_config.add_ftrace_events("print");
+  ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
 
   helper.StartTracing(trace_config);
 
@@ -356,12 +358,15 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestBatteryTracing)) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.power");
   ds_config->set_target_buffer(0);
-  auto* power_config = ds_config->mutable_android_power_config();
+
+  using protos::pbzero::AndroidPowerConfig;
+  protozero::HeapBuffered<AndroidPowerConfig> power_config;
   power_config->set_battery_poll_ms(250);
-  *power_config->add_battery_counters() =
-      AndroidPowerConfig::BATTERY_COUNTER_CHARGE;
-  *power_config->add_battery_counters() =
-      AndroidPowerConfig::BATTERY_COUNTER_CAPACITY_PERCENT;
+  power_config->add_battery_counters(
+      AndroidPowerConfig::BATTERY_COUNTER_CHARGE);
+  power_config->add_battery_counters(
+      AndroidPowerConfig::BATTERY_COUNTER_CAPACITY_PERCENT);
+  ds_config->set_android_power_config_raw(power_config.SerializeAsString());
 
   helper.StartTracing(trace_config);
   helper.WaitForTracingDisabled();
