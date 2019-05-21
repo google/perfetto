@@ -73,7 +73,6 @@ int ProcessTable::Cursor::Filter(const QueryConstraints& qc,
   min = 0;
   max = static_cast<uint32_t>(storage_->process_count()) - 1;
   desc = false;
-  current = min;
 
   for (size_t j = 0; j < qc.constraints().size(); j++) {
     const auto& cs = qc.constraints()[j];
@@ -92,12 +91,14 @@ int ProcessTable::Cursor::Filter(const QueryConstraints& qc,
       }
     }
   }
+
   for (const auto& ob : qc.order_by()) {
     if (ob.iColumn == Column::kUpid) {
       desc = ob.desc;
-      current = desc ? max : min;
     }
   }
+  current = desc ? max : min;
+
   return SQLITE_OK;
 }
 
