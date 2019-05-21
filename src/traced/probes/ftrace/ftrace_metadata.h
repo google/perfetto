@@ -44,11 +44,13 @@ struct FtraceMetadata {
   // A vector not a set to keep the writer_fast.
   std::vector<std::pair<Inode, BlockDeviceID>> inode_and_device;
   std::vector<int32_t> pids;
+  std::vector<int32_t> rename_pids;
 
   void AddDevice(BlockDeviceID);
   void AddInode(Inode);
   void AddPid(int32_t);
   void AddCommonPid(int32_t);
+  void AddRenamePid(int32_t);
   void Clear();
   void FinishEvent();
 };

@@ -215,6 +215,71 @@ TEST_F(ProcessStatsDataSourceTest, IncrementalStateClear) {
   }
 }
 
+TEST_F(ProcessStatsDataSourceTest, RenamePids) {
+  // assertion helpers
+  auto expected_old_process = [](int pid) {
+    return [pid](protos::ProcessTree::Process process) {
+      return process.pid() == pid && process.cmdline_size() > 0 &&
+             process.cmdline(0) == "proc_" + std::to_string(pid);
+    };
+  };
+  auto expected_new_process = [](int pid) {
+    return [pid](protos::ProcessTree::Process process) {
+      return process.pid() == pid && process.cmdline_size() > 0 &&
+             process.cmdline(0) == "new_" + std::to_string(pid);
+    };
+  };
+
+  DataSourceConfig config;
+  auto data_source = GetProcessStatsDataSource(config);
+  for (int p : {10, 20}) {
+    EXPECT_CALL(*data_source, ReadProcPidFile(p, "status"))
+        .WillRepeatedly(Invoke([](int32_t pid, const std::string&) {
+          return "Name: \tthread_" + std::to_string(pid) +
+                 "\nTgid:  " + std::to_string(pid) +
+                 "\nPid:   " + std::to_string(pid) + "\nPPid:  1\n";
+        }));
+
+    std::string old_proc_name = "proc_" + std::to_string(p);
+    old_proc_name.resize(old_proc_name.size() + 1);  // Add a trailing \0.
+
+    std::string new_proc_name = "new_" + std::to_string(p);
+    new_proc_name.resize(new_proc_name.size() + 1);  // Add a trailing \0.
+    EXPECT_CALL(*data_source, ReadProcPidFile(p, "cmdline"))
+        .WillOnce(Return(old_proc_name))
+        .WillOnce(Return(new_proc_name));
+  }
+
+  data_source->OnPids({10, 20});
+  data_source->OnRenamePids({10});
+  data_source->OnPids({10, 20});
+  data_source->OnRenamePids({20});
+  data_source->OnPids({10, 20});
+
+  // check written contents
+  std::vector<protos::TracePacket> trace = writer_raw_->GetAllTracePackets();
+  EXPECT_EQ(trace.size(), 3);
+
+  // first packet - two unique processes
+  auto ps_tree = trace[0].process_tree();
+  EXPECT_THAT(ps_tree.processes(),
+              UnorderedElementsAre(Truly(expected_old_process(10)),
+                                   Truly(expected_old_process(20))));
+  EXPECT_EQ(ps_tree.threads_size(), 0);
+
+  // second packet - one new process
+  ps_tree = trace[1].process_tree();
+  EXPECT_THAT(ps_tree.processes(),
+              UnorderedElementsAre(Truly(expected_new_process(10))));
+  EXPECT_EQ(ps_tree.threads_size(), 0);
+
+  // third packet - two threads that haven't been seen before
+  ps_tree = trace[2].process_tree();
+  EXPECT_THAT(ps_tree.processes(),
+              UnorderedElementsAre(Truly(expected_new_process(20))));
+  EXPECT_EQ(ps_tree.threads_size(), 0);
+}
+
 TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   DataSourceConfig cfg;
   cfg.mutable_process_stats_config()->set_proc_stats_poll_ms(1);

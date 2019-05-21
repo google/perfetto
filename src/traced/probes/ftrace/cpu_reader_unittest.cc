@@ -902,6 +902,33 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
               Contains(Pair(99u, k64BitUserspaceBlockDeviceId)));
 }
 
+TEST(CpuReaderTest, TaskRenameEvent) {
+  BundleProvider bundle_provider(base::kPageSize);
+
+  BinaryWriter writer;
+  ProtoTranslationTable* table = GetTable("android_seed_N2F62_3.10.49");
+
+  constexpr uint32_t kTaskRenameId = 19;
+
+  writer.Write<int32_t>(1001);             // Common field.
+  writer.Write<int32_t>(9999);             // Common pid
+  writer.Write<int32_t>(9999);             // Pid
+  writer.WriteFixedString(16, "Hello");    // Old Comm
+  writer.WriteFixedString(16, "Goodbye");  // New Comm
+  writer.Write<uint64_t>(10);              // flags
+  writer.Write<int16_t>(10);               // oom_score_adj
+
+  auto input = writer.GetCopy();
+  auto length = writer.written();
+  FtraceMetadata metadata{};
+
+  ASSERT_TRUE(CpuReader::ParseEvent(kTaskRenameId, input.get(),
+                                    input.get() + length, table,
+                                    bundle_provider.writer(), &metadata));
+  EXPECT_THAT(metadata.rename_pids, Contains(9999));
+  EXPECT_THAT(metadata.pids, Contains(9999));
+}
+
 TEST(CpuReaderTest, TranslateBlockDeviceIDToUserspace) {
   const uint32_t kKernelBlockDeviceId = 271581216;
   const BlockDeviceID kUserspaceBlockDeviceId = 66336;

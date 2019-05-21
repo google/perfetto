@@ -176,6 +176,19 @@ void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
   FinalizeCurPacket();
 }
 
+void ProcessStatsDataSource::OnRenamePids(const std::vector<int32_t>& pids) {
+  PERFETTO_METATRACE("OnRenamePids", 0);
+  if (!enable_on_demand_dumps_)
+    return;
+  PERFETTO_DCHECK(!cur_ps_tree_);
+  for (int32_t pid : pids) {
+    auto pid_it = seen_pids_.find(pid);
+    if (pid_it == seen_pids_.end())
+      continue;
+    seen_pids_.erase(pid_it);
+  }
+}
+
 void ProcessStatsDataSource::Flush(FlushRequestID,
                                    std::function<void()> callback) {
   // We shouldn't get this in the middle of WriteAllProcesses() or OnPids().

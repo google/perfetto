@@ -57,6 +57,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
   void WriteAllProcesses();
   void OnPids(const std::vector<int32_t>& pids);
+  void OnRenamePids(const std::vector<int32_t>& pids);
 
   // ProbesDataSource implementation.
   void Start() override;
