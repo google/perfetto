@@ -221,8 +221,21 @@ class TraceSorter {
     SortAndExtractEventsBeyondWindow(/*window_size_ns=*/0);
   }
 
-  void set_window_ns_for_testing(int64_t window_size_ns) {
+  // Sets the window size to be the size specified (which should be lower than
+  // any previous window size specified) and flushes any data beyond
+  // this window size.
+  // It is undefined to call this function with a window size greater than than
+  // the current size.
+  void SetWindowSizeNs(int64_t window_size_ns) {
+    PERFETTO_DCHECK(window_size_ns <= window_size_ns_);
+
+    PERFETTO_DLOG("Setting window size to be %" PRId64 " ns", window_size_ns);
     window_size_ns_ = window_size_ns;
+
+    // Fast path: if, globally, we are within the window size, then just exit.
+    if (global_max_ts_ - global_min_ts_ < window_size_ns)
+      return;
+    SortAndExtractEventsBeyondWindow(window_size_ns_);
   }
 
  private:
@@ -280,9 +293,9 @@ class TraceSorter {
     global_max_ts_ = std::max(global_max_ts_, queue->max_ts_);
     global_min_ts_ = std::min(global_min_ts_, queue->min_ts_);
 
+    // Fast path: if, globally, we are within the window size, then just exit.
     if (global_max_ts_ - global_min_ts_ < window_size_ns_)
       return;
-
     SortAndExtractEventsBeyondWindow(window_size_ns_);
   }
 

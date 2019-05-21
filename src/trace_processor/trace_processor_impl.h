@@ -37,7 +37,6 @@ namespace trace_processor {
 enum TraceType {
   kUnknownTraceType,
   kProtoTraceType,
-  kProtoWithTrackEventsTraceType,
   kJsonTraceType,
   kFuchsiaTraceType,
 };
@@ -83,8 +82,6 @@ class TraceProcessorImpl : public TraceProcessor {
   // This is atomic because it is set by the CTRL-C signal handler and we need
   // to prevent single-flow compiler optimizations in ExecuteQuery().
   std::atomic<bool> query_interrupted_{false};
-
-  const Config cfg_;
 };
 
 // The pointer implementation of TraceProcessor::Iterator.
