@@ -46,9 +46,10 @@ uint32_t HeapProfileMappingTable::RowCount() {
   return storage_->heap_profile_mappings().size();
 }
 
-int HeapProfileMappingTable::BestIndex(const QueryConstraints&,
+int HeapProfileMappingTable::BestIndex(const QueryConstraints& qc,
                                        BestIndexInfo* info) {
   info->order_by_consumed = true;
+  info->estimated_cost = HasEqConstraint(qc, "id") ? 1 : RowCount();
   return SQLITE_OK;
 }
 
