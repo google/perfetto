@@ -572,6 +572,22 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
       }
     };
     dump_state.StartProcessDump(std::move(new_heapsamples));
+
+    if (process_state.page_idle_checker) {
+      PageIdleChecker& page_idle_checker = *process_state.page_idle_checker;
+      heap_tracker.GetAllocations([&dump_state, &page_idle_checker](
+                                      uint64_t addr, uint64_t size,
+                                      uintptr_t callstack_id) {
+        int64_t idle = page_idle_checker.OnIdlePage(addr, size);
+        if (idle < 0) {
+          PERFETTO_PLOG("OnIdlePage.");
+          return;
+        }
+        if (idle > 0)
+          dump_state.AddIdleBytes(callstack_id, static_cast<uint64_t>(idle));
+      });
+    }
+
     heap_tracker.GetCallstackAllocations(
         [&dump_state](const HeapTracker::CallstackAllocations& alloc) {
           dump_state.WriteAllocation(alloc);
@@ -665,8 +681,8 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
   char buf[1];
   self->Receive(buf, sizeof(buf), fds, base::ArraySize(fds));
 
-  static_assert(kHandshakeSize == 2, "change if below.");
-  if (fds[kHandshakeMaps] && fds[kHandshakeMem]) {
+  static_assert(kHandshakeSize == 3, "change if and else if below.");
+  if (fds[kHandshakeMaps] && fds[kHandshakeMem] && fds[kHandshakePageMap]) {
     auto ds_it =
         producer_->data_sources_.find(pending_process.data_source_instance_id);
     if (ds_it == producer_->data_sources_.end()) {
@@ -675,8 +691,19 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     }
 
     DataSource& data_source = ds_it->second;
-    data_source.process_states.emplace(self->peer_pid(),
-                                       &producer_->callsites_);
+    auto it_and_inserted = data_source.process_states.emplace(
+        self->peer_pid(), &producer_->callsites_);
+
+    ProcessState& process_state = it_and_inserted.first->second;
+    if (data_source.config.idle_allocations()) {
+      base::ScopedFile kpageflags(base::OpenFile("/proc/kpageflags", O_RDONLY));
+      if (kpageflags) {
+        process_state.page_idle_checker = PageIdleChecker(
+            std::move(fds[kHandshakePageMap]), std::move(kpageflags));
+      } else {
+        PERFETTO_DFATAL_OR_ELOG("Failed to open /proc/kpageflags");
+      }
+    }
 
     PERFETTO_DLOG("%d: Received FDs.", self->peer_pid());
     int raw_fd = pending_process.shmem.fd();
@@ -689,15 +716,16 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     handoff_data.data_source_instance_id =
         pending_process.data_source_instance_id;
     handoff_data.sock = self->ReleaseSocket();
-    for (size_t i = 0; i < kHandshakeSize; ++i)
-      handoff_data.fds[i] = std::move(fds[i]);
+    handoff_data.maps_fd = std::move(fds[kHandshakeMaps]);
+    handoff_data.mem_fd = std::move(fds[kHandshakeMem]);
     handoff_data.shmem = std::move(pending_process.shmem);
     handoff_data.client_config = data_source.client_configuration;
 
     producer_->UnwinderForPID(self->peer_pid())
         .PostHandoffSocket(std::move(handoff_data));
     producer_->pending_processes_.erase(it);
-  } else if (fds[kHandshakeMaps] || fds[kHandshakeMem]) {
+  } else if (fds[kHandshakeMaps] || fds[kHandshakeMem] ||
+             fds[kHandshakePageMap]) {
     PERFETTO_DFATAL_OR_ELOG("%d: Received partial FDs.", self->peer_pid());
     producer_->pending_processes_.erase(it);
   } else {
