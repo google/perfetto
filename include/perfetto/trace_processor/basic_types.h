@@ -28,7 +28,6 @@ namespace perfetto {
 namespace trace_processor {
 
 struct Config {
-  uint64_t window_size_ns = 180 * 1000 * 1000 * 1000ULL;  // 3 minutes.
 };
 
 // Represents a dynamically typed value returned by SQL.

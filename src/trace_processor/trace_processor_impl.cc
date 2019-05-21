@@ -246,10 +246,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     if (first_word == kFuchsiaMagicNumber)
       return kFuchsiaTraceType;
   }
-  return ProtoTraceTokenizer::GuessProtoTraceType(data, size);
+  return kProtoTraceType;
 }
 
-TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) : cfg_(cfg) {
+TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   sqlite3* db = nullptr;
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   InitializeSqlite(db);
@@ -257,6 +257,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) : cfg_(cfg) {
   CreateBuiltinViews(db);
   db_.reset(std::move(db));
 
+  context_.config = cfg;
   context_.storage.reset(new TraceStorage());
   context_.args_tracker.reset(new ArgsTracker(&context_));
   context_.slice_tracker.reset(new SliceTracker(&context_));
@@ -313,36 +314,37 @@ util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
           stats::guess_trace_type_duration_ns);
       trace_type = GuessTraceType(data.get(), size);
     }
-    int64_t window_size_ns = static_cast<int64_t>(cfg_.window_size_ns);
     switch (trace_type) {
-      case kJsonTraceType:
+      case kJsonTraceType: {
         PERFETTO_DLOG("Legacy JSON trace detected");
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
         context_.chunk_reader.reset(new JsonTraceTokenizer(&context_));
         // JSON traces have no guarantees about the order of events in them.
-        window_size_ns = std::numeric_limits<int64_t>::max();
+        int64_t window_size_ns = std::numeric_limits<int64_t>::max();
         context_.sorter.reset(new TraceSorter(&context_, window_size_ns));
         context_.parser.reset(new JsonTraceParser(&context_));
 #else
         PERFETTO_FATAL("JSON traces only supported in standalone mode.");
 #endif
         break;
-      case kProtoWithTrackEventsTraceType:
-      case kProtoTraceType:
-        if (trace_type == kProtoWithTrackEventsTraceType) {
-          // TrackEvents can be ordered arbitrarily due to out-of-order absolute
-          // timestamps and cross-packet-sequence events (e.g. async events).
-          window_size_ns = std::numeric_limits<int64_t>::max();
-        }
+      }
+      case kProtoTraceType: {
+        // This will be reduced once we read the trace config and we see flush
+        // period being set.
+        int64_t window_size_ns = std::numeric_limits<int64_t>::max();
         context_.chunk_reader.reset(new ProtoTraceTokenizer(&context_));
         context_.sorter.reset(new TraceSorter(&context_, window_size_ns));
         context_.parser.reset(new ProtoTraceParser(&context_));
         break;
-      case kFuchsiaTraceType:
+      }
+      case kFuchsiaTraceType: {
+        constexpr uint64_t kDefaultWindowNs =
+            180 * 1000 * 1000 * 1000ULL;  // 3 minutes.
         context_.chunk_reader.reset(new FuchsiaTraceTokenizer(&context_));
-        context_.sorter.reset(new TraceSorter(&context_, window_size_ns));
+        context_.sorter.reset(new TraceSorter(&context_, kDefaultWindowNs));
         context_.parser.reset(new FuchsiaTraceParser(&context_));
         break;
+      }
       case kUnknownTraceType:
         return util::ErrStatus("Unknown trace type provided");
     }
