@@ -50,6 +50,9 @@ class DumpState {
   void StartProcessDump(
       std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
           fill_process_header);
+
+  void AddIdleBytes(uintptr_t callstack_id, uint64_t bytes);
+
   void WriteAllocation(const HeapTracker::CallstackAllocations& alloc);
   void DumpCallstacks(GlobalCallstackTrie* callsites);
   void RejectConcurrent(pid_t pid);
@@ -98,6 +101,8 @@ class DumpState {
       current_process_heap_samples_ = nullptr;
   std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
       current_process_fill_header_;
+
+  std::map<uintptr_t /* callstack_id */, uint64_t> current_process_idle_allocs_;
 
   uint64_t* next_index_;
   uint64_t last_written_ = 0;

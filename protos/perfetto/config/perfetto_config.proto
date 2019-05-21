@@ -828,6 +828,18 @@ message HeapprofdConfig {
   //
   // Can not be set at the same time as no_startup.
   optional bool no_running = 11;
+
+  // Gather information on how many bytes of allocations are on non-referenced
+  // pages. The way to use this generally is:
+  // 1. Start profile of app.
+  // 2. Start app.
+  // 3. echo 1 > /proc/$APP_PID/clear_refs.
+  // 4. Do operations.
+  // 5. End profile.
+  //
+  // You can then find the allocations that were not used for the operations you
+  // did in step 4.
+  optional bool idle_allocations = 12;
 }
 
 // End of protos/perfetto/config/profiling/heapprofd_config.proto
