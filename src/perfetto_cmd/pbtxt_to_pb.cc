@@ -661,17 +661,12 @@ std::vector<uint8_t> PbtxtToPb(const std::string& input,
   const DescriptorProto* descriptor = name_to_descriptor[kConfigProtoName];
   PERFETTO_CHECK(descriptor);
 
-  protozero::ScatteredHeapBuffer stream_delegate(base::kPageSize);
-  protozero::ScatteredStreamWriter stream(&stream_delegate);
-  stream_delegate.set_writer(&stream);
-
-  protozero::Message message;
-  message.Reset(&stream);
-  ParserDelegate delegate(descriptor, &message, reporter,
+  protozero::HeapBuffered<protozero::Message> message;
+  ParserDelegate delegate(descriptor, message.get(), reporter,
                           std::move(name_to_descriptor),
                           std::move(name_to_enum));
   Parse(input, &delegate);
-  return stream_delegate.StitchSlices();
+  return message.SerializeAsArray();
 }
 
 }  // namespace perfetto
