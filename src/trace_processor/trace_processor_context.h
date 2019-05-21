@@ -19,6 +19,8 @@
 
 #include <memory>
 
+#include "perfetto/trace_processor/basic_types.h"
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -39,6 +41,7 @@ class TraceProcessorContext {
   TraceProcessorContext();
   ~TraceProcessorContext();
 
+  Config config;
   std::unique_ptr<ArgsTracker> args_tracker;
   std::unique_ptr<SliceTracker> slice_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;

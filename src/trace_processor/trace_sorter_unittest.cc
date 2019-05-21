@@ -33,6 +33,7 @@ namespace {
 using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Invoke;
+using ::testing::MockFunction;
 using ::testing::NiceMock;
 
 class MockTraceParser : public ProtoTraceParser {
@@ -117,7 +118,7 @@ TEST_F(TraceSorterTest, Ordering) {
   EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1100, view_3.data(), 3));
   EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(2, 1200, view_4.data(), 4));
 
-  context_.sorter->set_window_ns_for_testing(200);
+  context_.sorter->SetWindowSizeNs(200);
   context_.sorter->PushFtraceEvent(2 /*cpu*/, 1200 /*timestamp*/,
                                    std::move(view_4));
   context_.sorter->FinalizeFtraceEventBatch(2);
@@ -127,6 +128,52 @@ TEST_F(TraceSorterTest, Ordering) {
                                    std::move(view_1));
 
   context_.sorter->FinalizeFtraceEventBatch(0);
+  context_.sorter->ExtractEventsForced();
+}
+
+TEST_F(TraceSorterTest, SetWindowSize) {
+  TraceBlobView view_1 = test_buffer_.slice(0, 1);
+  TraceBlobView view_2 = test_buffer_.slice(0, 2);
+  TraceBlobView view_3 = test_buffer_.slice(0, 3);
+  TraceBlobView view_4 = test_buffer_.slice(0, 4);
+
+  MockFunction<void(std::string check_point_name)> check;
+
+  {
+    InSequence s;
+
+    EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(0, 1000, view_1.data(), 1));
+    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1001, view_2.data(), 2));
+    EXPECT_CALL(check, Call("1"));
+    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1100, view_3.data(), 3));
+    EXPECT_CALL(check, Call("2"));
+    EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(2, 1200, view_4.data(), 4));
+  }
+
+  context_.sorter->SetWindowSizeNs(200);
+  context_.sorter->PushFtraceEvent(2 /*cpu*/, 1200 /*timestamp*/,
+                                   std::move(view_4));
+  context_.sorter->FinalizeFtraceEventBatch(2);
+  context_.sorter->PushTracePacket(1001, std::move(view_2));
+  context_.sorter->PushTracePacket(1100, std::move(view_3));
+
+  context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
+                                   std::move(view_1));
+  context_.sorter->FinalizeFtraceEventBatch(0);
+
+  // At this point, we should just flush the 1000 and 1001 packets.
+  context_.sorter->SetWindowSizeNs(101);
+
+  // Inform the mock about where we are.
+  check.Call("1");
+
+  // Now we should flush the 1100 packet.
+  context_.sorter->SetWindowSizeNs(99);
+
+  // Inform the mock about where we are.
+  check.Call("2");
+
+  // Now we should flush the 1200 packet.
   context_.sorter->ExtractEventsForced();
 }
 
