@@ -403,8 +403,15 @@ void PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
 bool IsBlankLine(char* buffer) {
   size_t buf_size = strlen(buffer);
   for (size_t i = 0; i < buf_size; ++i) {
-    if (buffer[i] != ' ' && buffer[i] != '\t' && buffer[i] != '\n')
+    // We can index into buffer[i+1], because strlen does not include the
+    // trailing \0, so even if \r is the last character, this is not out
+    // of bound.
+    if (buffer[i] == '\r') {
+      if (buffer[i + 1] != '\n')
+        return false;
+    } else if (buffer[i] != ' ' && buffer[i] != '\t' && buffer[i] != '\n') {
       return false;
+    }
   }
   return true;
 }
