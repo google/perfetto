@@ -23,7 +23,20 @@ source_set("public") {
     "../../include/perfetto/public",
   ]
   sources = [
+    "data_source.cc",
+    "internal/in_process_tracing_backend.cc",
+    "internal/in_process_tracing_backend.h",
+    "platform.cc",
+    "tracing.cc",
     "virtual_destructors.cc",
+  ]
+
+  # TODO there should be an option to compile this out. This pulls IPC
+  # dependencies and bloats binary size.
+  deps += [ "../tracing:ipc" ]
+  sources += [
+    "internal/system_tracing_backend.cc",
+    "internal/system_tracing_backend.h",
   ]
 }
 

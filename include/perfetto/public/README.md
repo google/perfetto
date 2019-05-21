@@ -87,13 +87,15 @@ Usage example
 
 2. Define and register one or more data sources, like this:
 ```cpp
-  #include "perfetto/public/data_source.h"
+  #include "perfetto/public/tracing.h"
 
   class MyDataSource : public perfetto::DataSource<MyDataSource> {
     void OnSetup(SetupArgs) override {}
     void OnStart(StartArgs) override {}
     void OnStop(StopArgs) override {}
   };
+  ...
+  PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MyDataSource);
   ...
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name("my_data_source");
