@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#include <string>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -34,6 +36,7 @@ struct ConstChars {
   // Allow implicit conversion to perfetto's base::StringView without depending
   // on perfetto/base or viceversa.
   static constexpr bool kConvertibleToStringView = true;
+  std::string ToStdString() const { return std::string(data, size); }
 
   const char* data;
   size_t size;
@@ -111,6 +114,8 @@ class Field {
                     type() == proto_utils::ProtoWireType::kLengthDelimited);
     return ConstChars{reinterpret_cast<const char*>(data()), size_};
   }
+
+  inline std::string as_std_string() const { return as_string().ToStdString(); }
 
   inline ConstBytes as_bytes() const {
     PERFETTO_DCHECK(!valid() ||
