@@ -32,19 +32,12 @@ using ::testing::Invoke;
 using namespace proto_utils;
 
 TEST(ProtoDecoderTest, ReadString) {
-  Message message;
-  ScatteredHeapBuffer delegate(512, 512);
-  ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-  message.Reset(&writer);
+  HeapBuffered<Message> message;
 
   static constexpr char kTestString[] = "test";
-  message.AppendString(1, kTestString);
-
-  delegate.AdjustUsedSizeOfCurrentSlice();
-  auto used_range = delegate.slices()[0].GetUsedRange();
-
-  TypedProtoDecoder<32, false> decoder(used_range.begin, used_range.size());
+  message->AppendString(1, kTestString);
+  std::vector<uint8_t> proto = message.SerializeAsArray();
+  TypedProtoDecoder<32, false> decoder(proto.data(), proto.size());
 
   const auto& field = decoder.Get(1);
   ASSERT_EQ(field.type(), ProtoWireType::kLengthDelimited);
