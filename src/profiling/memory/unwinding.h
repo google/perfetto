@@ -147,7 +147,8 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   struct HandoffData {
     DataSourceInstanceID data_source_instance_id;
     base::UnixSocketRaw sock;
-    base::ScopedFile fds[kHandshakeSize];
+    base::ScopedFile maps_fd;
+    base::ScopedFile mem_fd;
     SharedRingBuffer shmem;
     ClientConfiguration client_config;
   };

@@ -49,7 +49,8 @@ bool HeapprofdConfig::operator==(const HeapprofdConfig& other) const {
          (shmem_size_bytes_ == other.shmem_size_bytes_) &&
          (block_client_ == other.block_client_) &&
          (no_startup_ == other.no_startup_) &&
-         (no_running_ == other.no_running_);
+         (no_running_ == other.no_running_) &&
+         (idle_allocations_ == other.idle_allocations_);
 }
 #pragma GCC diagnostic pop
 
@@ -109,6 +110,11 @@ void HeapprofdConfig::FromProto(
   static_assert(sizeof(no_running_) == sizeof(proto.no_running()),
                 "size mismatch");
   no_running_ = static_cast<decltype(no_running_)>(proto.no_running());
+
+  static_assert(sizeof(idle_allocations_) == sizeof(proto.idle_allocations()),
+                "size mismatch");
+  idle_allocations_ =
+      static_cast<decltype(idle_allocations_)>(proto.idle_allocations());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -165,6 +171,11 @@ void HeapprofdConfig::ToProto(perfetto::protos::HeapprofdConfig* proto) const {
                 "size mismatch");
   proto->set_no_running(
       static_cast<decltype(proto->no_running())>(no_running_));
+
+  static_assert(sizeof(idle_allocations_) == sizeof(proto->idle_allocations()),
+                "size mismatch");
+  proto->set_idle_allocations(
+      static_cast<decltype(proto->idle_allocations())>(idle_allocations_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

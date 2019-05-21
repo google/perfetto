@@ -258,6 +258,15 @@ class HeapTracker {
     }
   }
 
+  template <typename F>
+  void GetAllocations(F fn) {
+    for (const auto& addr_and_allocation : allocations_) {
+      const Allocation& alloc = addr_and_allocation.second;
+      fn(addr_and_allocation.first, alloc.total_size,
+         alloc.callstack_allocations->node->id());
+    }
+  }
+
   void RecordFree(uint64_t address,
                   uint64_t sequence_number,
                   uint64_t timestamp) {
