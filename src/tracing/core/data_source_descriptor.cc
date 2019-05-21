@@ -53,6 +53,12 @@ bool DataSourceDescriptor::operator==(const DataSourceDescriptor& other) const {
 }
 #pragma GCC diagnostic pop
 
+void DataSourceDescriptor::ParseRawProto(const std::string& raw) {
+  perfetto::protos::DataSourceDescriptor proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void DataSourceDescriptor::FromProto(
     const perfetto::protos::DataSourceDescriptor& proto) {
   static_assert(sizeof(name_) == sizeof(proto.name()), "size mismatch");

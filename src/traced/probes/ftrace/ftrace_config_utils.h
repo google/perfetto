@@ -14,24 +14,27 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/ftrace_config_utils.h"
+#ifndef SRC_TRACED_PROBES_FTRACE_FTRACE_CONFIG_UTILS_H_
+#define SRC_TRACED_PROBES_FTRACE_FTRACE_CONFIG_UTILS_H_
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <set>
+#include <string>
 
-using testing::Contains;
+#include "src/traced/probes/ftrace/ftrace_config.h"
 
 namespace perfetto {
-namespace {
 
-TEST(ConfigTest, CreateFtraceConfig) {
-  FtraceConfig config = CreateFtraceConfig({
-      "aaa", "bbb",
-  });
+// 0 is invalid.
+using FtraceConfigId = uint64_t;
 
-  EXPECT_THAT(config.ftrace_events(), Contains("aaa"));
-  EXPECT_THAT(config.ftrace_events(), Contains("bbb"));
-}
+// Utility method for the common case where we don't care about atrace events.
+FtraceConfig CreateFtraceConfig(std::set<std::string> names);
 
-}  // namespace
+// Returns true iff the config has any atrace categories or apps.
+bool RequiresAtrace(const FtraceConfig&);
+
+bool ValidConfig(const FtraceConfig& config);
+
 }  // namespace perfetto
+
+#endif  // SRC_TRACED_PROBES_FTRACE_FTRACE_CONFIG_UTILS_H_

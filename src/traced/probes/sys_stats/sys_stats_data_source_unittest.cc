@@ -19,12 +19,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/temp_file.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 
-#include "perfetto/config/sys_stats/sys_stats_config.pb.h"
-#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/common/sys_stats_counters.pbzero.h"
+#include "perfetto/config/data_source_config.pbzero.h"
+#include "perfetto/config/sys_stats/sys_stats_config.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
 using ::testing::_;
@@ -232,19 +234,17 @@ class SysStatsDataSourceTest : public ::testing::Test {
 };
 
 TEST_F(SysStatsDataSourceTest, Meminfo) {
-  using C = protos::MeminfoCounters;
-  protos::DataSourceConfig config;
-  config.mutable_sys_stats_config()->set_meminfo_period_ms(1);
-  config.mutable_sys_stats_config()->add_meminfo_counters(C::MEMINFO_MEM_TOTAL);
-  config.mutable_sys_stats_config()->add_meminfo_counters(C::MEMINFO_MEM_FREE);
-  config.mutable_sys_stats_config()->add_meminfo_counters(
-      C::MEMINFO_ACTIVE_ANON);
-  config.mutable_sys_stats_config()->add_meminfo_counters(
-      C::MEMINFO_INACTIVE_FILE);
-  config.mutable_sys_stats_config()->add_meminfo_counters(C::MEMINFO_CMA_FREE);
-  DataSourceConfig config_obj;
-  config_obj.FromProto(config);
-  auto data_source = GetSysStatsDataSource(config_obj);
+  using C = protos::pbzero::MeminfoCounters;
+  DataSourceConfig config;
+  protozero::HeapBuffered<protos::pbzero::SysStatsConfig> sys_cfg;
+  sys_cfg->set_meminfo_period_ms(1);
+  sys_cfg->add_meminfo_counters(C::MEMINFO_MEM_TOTAL);
+  sys_cfg->add_meminfo_counters(C::MEMINFO_MEM_FREE);
+  sys_cfg->add_meminfo_counters(C::MEMINFO_ACTIVE_ANON);
+  sys_cfg->add_meminfo_counters(C::MEMINFO_INACTIVE_FILE);
+  sys_cfg->add_meminfo_counters(C::MEMINFO_CMA_FREE);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
 
   WaitTick(data_source.get());
 
@@ -268,17 +268,15 @@ TEST_F(SysStatsDataSourceTest, Meminfo) {
 }
 
 TEST_F(SysStatsDataSourceTest, Vmstat) {
-  using C = protos::VmstatCounters;
-  protos::DataSourceConfig config;
-  config.mutable_sys_stats_config()->set_vmstat_period_ms(1);
-  config.mutable_sys_stats_config()->add_vmstat_counters(
-      C::VMSTAT_NR_FREE_PAGES);
-  config.mutable_sys_stats_config()->add_vmstat_counters(C::VMSTAT_PGACTIVATE);
-  config.mutable_sys_stats_config()->add_vmstat_counters(
-      C::VMSTAT_PGMIGRATE_FAIL);
-  DataSourceConfig config_obj;
-  config_obj.FromProto(config);
-  auto data_source = GetSysStatsDataSource(config_obj);
+  using C = protos::pbzero::VmstatCounters;
+  DataSourceConfig config;
+  protozero::HeapBuffered<protos::pbzero::SysStatsConfig> sys_cfg;
+  sys_cfg->set_vmstat_period_ms(1);
+  sys_cfg->add_vmstat_counters(C::VMSTAT_NR_FREE_PAGES);
+  sys_cfg->add_vmstat_counters(C::VMSTAT_PGACTIVATE);
+  sys_cfg->add_vmstat_counters(C::VMSTAT_PGMIGRATE_FAIL);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
 
   WaitTick(data_source.get());
 
@@ -299,16 +297,17 @@ TEST_F(SysStatsDataSourceTest, Vmstat) {
 }
 
 TEST_F(SysStatsDataSourceTest, StatAll) {
-  using C = protos::SysStatsConfig;
-  protos::DataSourceConfig config;
-  config.mutable_sys_stats_config()->set_stat_period_ms(1);
-  config.mutable_sys_stats_config()->add_stat_counters(C::STAT_CPU_TIMES);
-  config.mutable_sys_stats_config()->add_stat_counters(C::STAT_IRQ_COUNTS);
-  config.mutable_sys_stats_config()->add_stat_counters(C::STAT_SOFTIRQ_COUNTS);
-  config.mutable_sys_stats_config()->add_stat_counters(C::STAT_FORK_COUNT);
-  DataSourceConfig config_obj;
-  config_obj.FromProto(config);
-  auto data_source = GetSysStatsDataSource(config_obj);
+  using C = protos::pbzero::SysStatsConfig;
+
+  DataSourceConfig config;
+  protozero::HeapBuffered<protos::pbzero::SysStatsConfig> sys_cfg;
+  sys_cfg->set_stat_period_ms(1);
+  sys_cfg->add_stat_counters(C::STAT_CPU_TIMES);
+  sys_cfg->add_stat_counters(C::STAT_IRQ_COUNTS);
+  sys_cfg->add_stat_counters(C::STAT_SOFTIRQ_COUNTS);
+  sys_cfg->add_stat_counters(C::STAT_FORK_COUNT);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
 
   WaitTick(data_source.get());
 

@@ -27,15 +27,8 @@
 
 #include "perfetto/tracing/core/data_source_config.h"
 
-#include "perfetto/config/android/android_log_config.pb.h"
 #include "perfetto/config/chrome/chrome_config.pb.h"
 #include "perfetto/config/data_source_config.pb.h"
-#include "perfetto/config/ftrace/ftrace_config.pb.h"
-#include "perfetto/config/inode_file/inode_file_config.pb.h"
-#include "perfetto/config/power/android_power_config.pb.h"
-#include "perfetto/config/process_stats/process_stats_config.pb.h"
-#include "perfetto/config/profiling/heapprofd_config.pb.h"
-#include "perfetto/config/sys_stats/sys_stats_config.pb.h"
 #include "perfetto/config/test_config.pb.h"
 
 namespace perfetto {
@@ -56,17 +49,23 @@ bool DataSourceConfig::operator==(const DataSourceConfig& other) const {
          (enable_extra_guardrails_ == other.enable_extra_guardrails_) &&
          (tracing_session_id_ == other.tracing_session_id_) &&
          (ftrace_config_ == other.ftrace_config_) &&
-         (chrome_config_ == other.chrome_config_) &&
          (inode_file_config_ == other.inode_file_config_) &&
          (process_stats_config_ == other.process_stats_config_) &&
          (sys_stats_config_ == other.sys_stats_config_) &&
          (heapprofd_config_ == other.heapprofd_config_) &&
          (android_power_config_ == other.android_power_config_) &&
          (android_log_config_ == other.android_log_config_) &&
+         (chrome_config_ == other.chrome_config_) &&
          (legacy_config_ == other.legacy_config_) &&
          (for_testing_ == other.for_testing_);
 }
 #pragma GCC diagnostic pop
+
+void DataSourceConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::DataSourceConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void DataSourceConfig::FromProto(
     const perfetto::protos::DataSourceConfig& proto) {
@@ -94,21 +93,21 @@ void DataSourceConfig::FromProto(
   tracing_session_id_ =
       static_cast<decltype(tracing_session_id_)>(proto.tracing_session_id());
 
-  ftrace_config_.FromProto(proto.ftrace_config());
+  ftrace_config_ = proto.ftrace_config().SerializeAsString();
+
+  inode_file_config_ = proto.inode_file_config().SerializeAsString();
+
+  process_stats_config_ = proto.process_stats_config().SerializeAsString();
+
+  sys_stats_config_ = proto.sys_stats_config().SerializeAsString();
+
+  heapprofd_config_ = proto.heapprofd_config().SerializeAsString();
+
+  android_power_config_ = proto.android_power_config().SerializeAsString();
+
+  android_log_config_ = proto.android_log_config().SerializeAsString();
 
   chrome_config_.FromProto(proto.chrome_config());
-
-  inode_file_config_.FromProto(proto.inode_file_config());
-
-  process_stats_config_.FromProto(proto.process_stats_config());
-
-  sys_stats_config_.FromProto(proto.sys_stats_config());
-
-  heapprofd_config_.FromProto(proto.heapprofd_config());
-
-  android_power_config_.FromProto(proto.android_power_config());
-
-  android_log_config_.FromProto(proto.android_log_config());
 
   static_assert(sizeof(legacy_config_) == sizeof(proto.legacy_config()),
                 "size mismatch");
@@ -149,21 +148,21 @@ void DataSourceConfig::ToProto(
   proto->set_tracing_session_id(
       static_cast<decltype(proto->tracing_session_id())>(tracing_session_id_));
 
-  ftrace_config_.ToProto(proto->mutable_ftrace_config());
+  proto->mutable_ftrace_config()->ParseFromString(ftrace_config_);
+
+  proto->mutable_inode_file_config()->ParseFromString(inode_file_config_);
+
+  proto->mutable_process_stats_config()->ParseFromString(process_stats_config_);
+
+  proto->mutable_sys_stats_config()->ParseFromString(sys_stats_config_);
+
+  proto->mutable_heapprofd_config()->ParseFromString(heapprofd_config_);
+
+  proto->mutable_android_power_config()->ParseFromString(android_power_config_);
+
+  proto->mutable_android_log_config()->ParseFromString(android_log_config_);
 
   chrome_config_.ToProto(proto->mutable_chrome_config());
-
-  inode_file_config_.ToProto(proto->mutable_inode_file_config());
-
-  process_stats_config_.ToProto(proto->mutable_process_stats_config());
-
-  sys_stats_config_.ToProto(proto->mutable_sys_stats_config());
-
-  heapprofd_config_.ToProto(proto->mutable_heapprofd_config());
-
-  android_power_config_.ToProto(proto->mutable_android_power_config());
-
-  android_log_config_.ToProto(proto->mutable_android_log_config());
 
   static_assert(sizeof(legacy_config_) == sizeof(proto->legacy_config()),
                 "size mismatch");

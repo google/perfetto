@@ -27,7 +27,9 @@
 #include "perfetto/base/string_splitter.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
+#include "perfetto/tracing/core/data_source_config.h"
 
+#include "perfetto/config/process_stats/process_stats_config.pbzero.h"
 #include "perfetto/trace/ps/process_stats.pbzero.h"
 #include "perfetto/trace/ps/process_tree.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -88,20 +90,22 @@ ProcessStatsDataSource::ProcessStatsDataSource(
     base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer,
-    const DataSourceConfig& config)
+    const DataSourceConfig& ds_config)
     : ProbesDataSource(session_id, kTypeId),
       task_runner_(task_runner),
       writer_(std::move(writer)),
-      record_thread_names_(config.process_stats_config().record_thread_names()),
-      dump_all_procs_on_start_(
-          config.process_stats_config().scan_all_processes_on_start()),
       weak_factory_(this) {
-  const auto& ps_config = config.process_stats_config();
-  const auto& quirks = ps_config.quirks();
-  enable_on_demand_dumps_ =
-      (std::find(quirks.begin(), quirks.end(),
-                 ProcessStatsConfig::DISABLE_ON_DEMAND) == quirks.end());
-  poll_period_ms_ = ps_config.proc_stats_poll_ms();
+  using protos::pbzero::ProcessStatsConfig;
+  ProcessStatsConfig::Decoder cfg(ds_config.process_stats_config_raw());
+  record_thread_names_ = cfg.record_thread_names();
+  dump_all_procs_on_start_ = cfg.scan_all_processes_on_start();
+  enable_on_demand_dumps_ = true;
+  for (auto quirk = cfg.quirks(); quirk; ++quirk) {
+    if (quirk->as_int32() == ProcessStatsConfig::DISABLE_ON_DEMAND)
+      enable_on_demand_dumps_ = false;
+  }
+
+  poll_period_ms_ = cfg.proc_stats_poll_ms();
   if (poll_period_ms_ > 0 && poll_period_ms_ < 100) {
     PERFETTO_ILOG("proc_stats_poll_ms %" PRIu32
                   " is less than minimum of 100ms. Increasing to 100ms.",
@@ -110,7 +114,7 @@ ProcessStatsDataSource::ProcessStatsDataSource(
   }
 
   if (poll_period_ms_ > 0) {
-    auto proc_stats_ttl_ms = ps_config.proc_stats_cache_ttl_ms();
+    auto proc_stats_ttl_ms = cfg.proc_stats_cache_ttl_ms();
     process_stats_cache_ttl_ticks_ =
         std::max(proc_stats_ttl_ms / poll_period_ms_, 1u);
   }

@@ -65,6 +65,8 @@ class PERFETTO_EXPORT ObservableEvents {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::
                        ObservableEvents_DataSourceInstanceStateChange&);
@@ -104,6 +106,8 @@ class PERFETTO_EXPORT ObservableEvents {
     return !(*this == other);
   }
 
+  // Raw proto decoding.
+  void ParseRawProto(const std::string&);
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::ObservableEvents&);
   void ToProto(perfetto::protos::ObservableEvents*) const;

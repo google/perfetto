@@ -49,6 +49,12 @@ bool TestConfig::operator==(const TestConfig& other) const {
 }
 #pragma GCC diagnostic pop
 
+void TestConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TestConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void TestConfig::FromProto(const perfetto::protos::TestConfig& proto) {
   static_assert(sizeof(message_count_) == sizeof(proto.message_count()),
                 "size mismatch");
@@ -141,6 +147,12 @@ bool TestConfig::DummyFields::operator==(
          (field_bytes_ == other.field_bytes_);
 }
 #pragma GCC diagnostic pop
+
+void TestConfig::DummyFields::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TestConfig_DummyFields proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void TestConfig::DummyFields::FromProto(
     const perfetto::protos::TestConfig_DummyFields& proto) {

@@ -21,6 +21,7 @@
 #include "perfetto/base/optional.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/string_splitter.h"
+#include "perfetto/base/string_view.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/base/unix_socket.h"
@@ -28,12 +29,17 @@
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/trace_writer.h"
 
+#include "perfetto/common/android_log_constants.pbzero.h"
+#include "perfetto/config/android/android_log_config.pbzero.h"
 #include "perfetto/trace/android/android_log.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
 namespace {
+
+using protos::pbzero::AndroidLogConfig;
+using protos::pbzero::AndroidLogId;
 
 constexpr size_t kBufSize = base::kPageSize;
 const char kLogTagsPath[] = "/system/etc/event-log-tags";
@@ -87,18 +93,21 @@ AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
       task_runner_(task_runner),
       writer_(std::move(writer)),
       weak_factory_(this) {
-  const auto& cfg = ds_config.android_log_config();
+  AndroidLogConfig::Decoder cfg(ds_config.android_log_config_raw());
+
   std::vector<uint32_t> log_ids;
-  for (uint32_t id : cfg.log_ids())
-    log_ids.push_back(id);
+  for (auto id = cfg.log_ids(); id; ++id)
+    log_ids.push_back(id->as_uint32());
+
   if (log_ids.empty()) {
     // If no log id is specified, add the most popular ones.
-    log_ids.push_back(AndroidLogConfig::AndroidLogId::LID_DEFAULT);
-    log_ids.push_back(AndroidLogConfig::AndroidLogId::LID_EVENTS);
-    log_ids.push_back(AndroidLogConfig::AndroidLogId::LID_SYSTEM);
-    log_ids.push_back(AndroidLogConfig::AndroidLogId::LID_CRASH);
-    log_ids.push_back(AndroidLogConfig::AndroidLogId::LID_KERNEL);
+    log_ids.push_back(AndroidLogId::LID_DEFAULT);
+    log_ids.push_back(AndroidLogId::LID_EVENTS);
+    log_ids.push_back(AndroidLogId::LID_SYSTEM);
+    log_ids.push_back(AndroidLogId::LID_CRASH);
+    log_ids.push_back(AndroidLogId::LID_KERNEL);
   }
+
   // Build the command string that will be sent to the logdr socket on Start(),
   // which looks like "stream lids=1,2,3,4" (lids == log buffer id(s)).
   mode_ = "stream tail=1 lids";
@@ -114,7 +123,8 @@ AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
   // This is to avoid copying strings of tags for the only sake of checking for
   // their existence in the set.
   std::vector<std::pair<size_t, size_t>> tag_boundaries;
-  for (const std::string& tag : cfg.filter_tags()) {
+  for (auto it = cfg.filter_tags(); it; ++it) {
+    base::StringView tag(it->as_string());
     const size_t begin = filter_tags_strbuf_.size();
     filter_tags_strbuf_.insert(filter_tags_strbuf_.end(), tag.begin(),
                                tag.end());
@@ -254,7 +264,7 @@ void AndroidLogDataSource::ReadLogSocket() {
 
     protos::pbzero::AndroidLogPacket::LogEvent* evt = nullptr;
 
-    if (entry.lid == AndroidLogConfig::AndroidLogId::LID_EVENTS) {
+    if (entry.lid == AndroidLogId::LID_EVENTS) {
       // Entries in the EVENTS buffer are special, they are binary encoded.
       // See https://developer.android.com/reference/android/util/EventLog.
       if (!ParseBinaryEvent(buf, end, log_packet, &evt)) {
