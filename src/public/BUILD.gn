@@ -26,6 +26,7 @@ source_set("public") {
     "data_source.cc",
     "internal/in_process_tracing_backend.cc",
     "internal/in_process_tracing_backend.h",
+    "internal/tracing_muxer_impl.cc",
     "platform.cc",
     "tracing.cc",
     "virtual_destructors.cc",
