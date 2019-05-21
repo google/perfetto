@@ -400,12 +400,21 @@ void PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
   }
 }
 
+bool IsBlankLine(char* buffer) {
+  size_t buf_size = strlen(buffer);
+  for (size_t i = 0; i < buf_size; ++i) {
+    if (buffer[i] != ' ' && buffer[i] != '\t' && buffer[i] != '\n')
+      return false;
+  }
+  return true;
+}
+
 bool LoadQueries(FILE* input, std::vector<std::string>* output) {
   char buffer[4096];
   while (!feof(input) && !ferror(input)) {
     std::string sql_query;
     while (fgets(buffer, sizeof(buffer), input)) {
-      if (strncmp(buffer, "\n", sizeof(buffer)) == 0)
+      if (IsBlankLine(buffer))
         break;
       sql_query.append(buffer);
     }
