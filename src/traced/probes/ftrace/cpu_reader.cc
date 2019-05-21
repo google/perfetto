@@ -582,6 +582,15 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
     }
   }
 
+  if (PERFETTO_UNLIKELY(info.proto_field_id ==
+                        protos::pbzero::FtraceEvent::kTaskRenameFieldNumber)) {
+    // For task renames, we want to store that the pid was renamed. We use the
+    // common pid to reduce code complexity as in all the cases we care about,
+    // the common pid is the same as the renamed pid (the pid inside the event).
+    PERFETTO_DCHECK(metadata->last_seen_common_pid);
+    metadata->AddRenamePid(metadata->last_seen_common_pid);
+  }
+
   // This finalizes |nested| and |proto_field| automatically.
   message->Finalize();
   metadata->FinishEvent();
