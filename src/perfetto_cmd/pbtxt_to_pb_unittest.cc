@@ -22,7 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include "perfetto/config/trace_config.pb.h"
 
 namespace perfetto {

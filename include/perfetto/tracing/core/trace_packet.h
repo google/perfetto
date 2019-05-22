@@ -18,11 +18,10 @@
 #define INCLUDE_PERFETTO_TRACING_CORE_TRACE_PACKET_H_
 
 #include <stddef.h>
-
 #include <memory>
 #include <tuple>
 
-#include "google/protobuf/io/zero_copy_stream.h"
+#include <google/protobuf/io/zero_copy_stream.h>
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/tracing/core/slice.h"
