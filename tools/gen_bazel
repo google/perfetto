@@ -25,15 +25,14 @@
 
 from __future__ import print_function
 import argparse
-import errno
 import functools
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 import textwrap
+
+import gn_utils
 
 # Copyright header for generated code.
 header = """# Copyright (C) 2019 The Android Open Source Project
@@ -128,72 +127,8 @@ builtin_deps = {
 # ----------------------------------------------------------------------------
 
 
-def check_output(cmd, cwd):
-  try:
-    output = subprocess.check_output(
-        cmd, stderr=subprocess.STDOUT, cwd=cwd)
-  except subprocess.CalledProcessError as e:
-    print('Cmd "{}" failed in {}:'.format(
-        ' '.join(cmd), cwd), file=sys.stderr)
-    print(e.output)
-    exit(1)
-  else:
-    return output
-
-
 class Error(Exception):
   pass
-
-
-def repo_root():
-  """Returns an absolute path to the repository root."""
-  return os.path.join(
-      os.path.realpath(os.path.dirname(__file__)), os.path.pardir)
-
-
-def create_build_description(repo_root):
-  """Creates the JSON build description by running GN."""
-
-  out = os.path.join(repo_root, 'out', 'tmp.gen_build')
-  try:
-    try:
-      os.makedirs(out)
-    except OSError as e:
-      if e.errno != errno.EEXIST:
-        raise
-    check_output(
-        ['gn', 'gen', out, '--args=%s' % gn_args], repo_root)
-    desc = check_output(
-        ['gn', 'desc', out, '--format=json', '--all-toolchains', '//*'],
-        repo_root)
-    return json.loads(desc)
-  finally:
-    shutil.rmtree(out)
-
-
-def label_to_path(label):
-  """Turn a GN output label (e.g., //some_dir/file.cc) into a path."""
-  assert label.startswith('//')
-  return label[2:]
-
-
-def label_to_target_name_with_path(label):
-  """
-  Turn a GN label into a target name involving the full path.
-  e.g., //src/perfetto:tests -> src_perfetto_tests
-  """
-  name = re.sub(r'^//:?', '', label)
-  name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
-  return name
-
-
-def label_without_toolchain(label):
-  """Strips the toolchain from a GN label.
-
-  Return a GN label (e.g //buildtools:protobuf(//gn/standalone/toolchain:
-  gcc_like_host) without the parenthesised toolchain part.
-  """
-  return label.split('(')[0]
 
 
 def is_public_header(label):
@@ -411,7 +346,7 @@ class BuildGenerator(object):
         A set of transitive dependencies in the form of GN targets.
     """
 
-    if label_without_toolchain(target_name) in builtin_deps:
+    if gn_utils.label_without_toolchain(target_name) in builtin_deps:
       return set()
     target = self.desc[target_name]
     resolved_deps = set()
@@ -428,7 +363,7 @@ class BuildGenerator(object):
         visibility: Whether the module is visible with respect to the target.
     """
     for src in module_desc['sources']:
-      label = Label(label_to_path(src))
+      label = Label(gn_utils.label_to_path(src))
       if target.type == 'cc_library' and is_public_header(src):
         target.hdrs.add(label)
       else:
@@ -446,7 +381,7 @@ class BuildGenerator(object):
     """
     # If the dependency refers to a library which we can replace with an internal
     # equivalent, stop recursing and patch the dependency in.
-    dep_name_no_toolchain = label_without_toolchain(dep_name)
+    dep_name_no_toolchain = gn_utils.label_without_toolchain(dep_name)
     if dep_name_no_toolchain in builtin_deps:
       builtin_deps[dep_name_no_toolchain](target)
       return
@@ -497,7 +432,8 @@ class BuildGenerator(object):
 
   def create_merged_sql_metrics_target(self, gn_target_name):
     target_desc = self.desc[gn_target_name]
-    gn_target_name_no_toolchain = label_without_toolchain(gn_target_name)
+    gn_target_name_no_toolchain = gn_utils.label_without_toolchain(
+        gn_target_name)
     target = Target(
       'genrule',
       'gen_merged_sql_metrics',
@@ -512,7 +448,7 @@ class BuildGenerator(object):
       'gen_merged_sql_metrics_py',
     ])
     target.srcs.update(
-      Label(label_to_path(src))
+      Label(gn_utils.label_to_path(src))
       for src in target_desc.get('inputs', [])
       if src not in self.action_generated_files
     )
@@ -523,9 +459,10 @@ class BuildGenerator(object):
     target_desc = self.desc[gn_target_name]
     args = target_desc['args']
 
-    gn_target_name_no_toolchain = label_without_toolchain(gn_target_name)
+    gn_target_name_no_toolchain = gn_utils.label_without_toolchain(
+        gn_target_name)
     stripped_path = gn_target_name_no_toolchain.replace("protos/perfetto/", "")
-    pretty_target_name = label_to_target_name_with_path(stripped_path)
+    pretty_target_name = gn_utils.label_to_target_name_with_path(stripped_path)
     pretty_target_name = pretty_target_name.replace("_lite_gen", "")
     pretty_target_name = pretty_target_name.replace("_zero_gen", "_zero")
 
@@ -536,7 +473,7 @@ class BuildGenerator(object):
     )
     proto_target.is_pbzero = any("pbzero" in arg for arg in args)
     proto_target.srcs.update([
-      Label(label_to_path(src).replace('protos/', ''))
+      Label(gn_utils.label_to_path(src).replace('protos/', ''))
       for src in target_desc.get('sources', [])
     ])
     if not proto_target.is_pbzero:
@@ -612,12 +549,12 @@ class BuildGenerator(object):
     else:
       raise Error('Unknown target type: %s' % target_desc['type'])
 
-    label_no_toolchain = label_without_toolchain(gn_target_name)
-    target_name_path = label_to_target_name_with_path(label_no_toolchain)
+    label_no_toolchain = gn_utils.label_without_toolchain(gn_target_name)
+    target_name_path = gn_utils.label_to_target_name_with_path(label_no_toolchain)
     target_name = alias_targets.get(label_no_toolchain, target_name_path)
     target = Target(target_type, target_name, gn_name=label_no_toolchain)
     target.srcs.update(
-        Label(label_to_path(src))
+        Label(gn_utils.label_to_path(src))
         for src in target_desc.get('sources', [])
         if src not in self.action_generated_files
     )
@@ -638,22 +575,22 @@ def main():
   parser.add_argument(
       '--repo-root',
       help='Standalone Perfetto repository to generate a GN description',
-      default=repo_root(),
+      default=gn_utils.repo_root(),
   )
   parser.add_argument(
       '--extras',
       help='Extra targets to include at the end of the BUILD file',
-      default=os.path.join(repo_root(), 'BUILD.extras'),
+      default=os.path.join(gn_utils.repo_root(), 'BUILD.extras'),
   )
   parser.add_argument(
       '--output',
       help='BUILD file to create',
-      default=os.path.join(repo_root(), 'BUILD'),
+      default=os.path.join(gn_utils.repo_root(), 'BUILD'),
   )
   parser.add_argument(
       '--output-proto',
       help='Proto BUILD file to create',
-      default=os.path.join(repo_root(), 'protos', 'BUILD'),
+      default=os.path.join(gn_utils.repo_root(), 'protos', 'BUILD'),
   )
   parser.add_argument(
       'targets',
@@ -665,7 +602,7 @@ def main():
     with open(args.desc) as f:
       desc = json.load(f)
   else:
-    desc = create_build_description(args.repo_root)
+    desc = gn_utils.create_build_description(gn_args, args.repo_root)
 
   build_generator = BuildGenerator(desc)
   build, proto_build = build_generator.create_build_for_targets(
