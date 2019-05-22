@@ -60,6 +60,8 @@ class PERFETTO_EXPORT TraceStats {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceStats_BufferStats&);
     void ToProto(perfetto::protos::TraceStats_BufferStats*) const;
@@ -162,6 +164,8 @@ class PERFETTO_EXPORT TraceStats {
   bool operator==(const TraceStats&) const;
   bool operator!=(const TraceStats& other) const { return !(*this == other); }
 
+  // Raw proto decoding.
+  void ParseRawProto(const std::string&);
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::TraceStats&);
   void ToProto(perfetto::protos::TraceStats*) const;

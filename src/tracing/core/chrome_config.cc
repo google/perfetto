@@ -46,6 +46,12 @@ bool ChromeConfig::operator==(const ChromeConfig& other) const {
 }
 #pragma GCC diagnostic pop
 
+void ChromeConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::ChromeConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void ChromeConfig::FromProto(const perfetto::protos::ChromeConfig& proto) {
   static_assert(sizeof(trace_config_) == sizeof(proto.trace_config()),
                 "size mismatch");
