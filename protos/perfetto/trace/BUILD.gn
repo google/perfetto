@@ -14,6 +14,7 @@
 
 import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
+import("../../../gn/proto_descriptor.gni")
 import("../../../gn/protozero_library.gni")
 
 # Common protos used by both the ":minimal_lite" target (for the service) and
@@ -70,12 +71,18 @@ proto_library("lite") {
     "sys_stats:lite",
     "track_event:lite",
   ]
-  if (perfetto_build_standalone) {
-    generate_descriptor = "$perfetto_root_path/protos/trace/trace.descriptor"
-  }
   sources = proto_sources
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
+}
+
+if (perfetto_build_standalone) {
+  proto_descriptor("descriptor") {
+    sources = proto_sources
+    generate_descriptor = "$perfetto_root_path/protos/trace/trace.descriptor"
+    proto_in_dir = "$perfetto_root_path/protos"
+    proto_out_dir = "$perfetto_root_path/protos"
+  }
 }
 
 # Contains the subprotos of TracePacket that all targets need.
