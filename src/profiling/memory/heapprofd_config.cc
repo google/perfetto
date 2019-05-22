@@ -25,7 +25,7 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#include "perfetto/tracing/core/heapprofd_config.h"
+#include "src/profiling/memory/heapprofd_config.h"
 
 #include "perfetto/config/profiling/heapprofd_config.pb.h"
 
@@ -53,6 +53,12 @@ bool HeapprofdConfig::operator==(const HeapprofdConfig& other) const {
          (idle_allocations_ == other.idle_allocations_);
 }
 #pragma GCC diagnostic pop
+
+void HeapprofdConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::HeapprofdConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void HeapprofdConfig::FromProto(
     const perfetto::protos::HeapprofdConfig& proto) {
@@ -198,6 +204,13 @@ bool HeapprofdConfig::ContinuousDumpConfig::operator==(
          (dump_interval_ms_ == other.dump_interval_ms_);
 }
 #pragma GCC diagnostic pop
+
+void HeapprofdConfig::ContinuousDumpConfig::ParseRawProto(
+    const std::string& raw) {
+  perfetto::protos::HeapprofdConfig_ContinuousDumpConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void HeapprofdConfig::ContinuousDumpConfig::FromProto(
     const perfetto::protos::HeapprofdConfig_ContinuousDumpConfig& proto) {

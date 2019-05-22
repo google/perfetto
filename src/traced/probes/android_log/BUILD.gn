@@ -21,6 +21,7 @@ source_set("android_log") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/traced",
     "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/trace/android:zero",
     "../../../base",
   ]
@@ -36,7 +37,8 @@ source_set("unittests") {
     ":android_log",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_deps",
-    "../../../../protos/perfetto/trace:lite",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/config:zero",
     "../../../../src/base:test_support",
     "../../../../src/tracing:test_support",
   ]

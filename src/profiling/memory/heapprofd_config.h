@@ -25,8 +25,8 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#ifndef INCLUDE_PERFETTO_TRACING_CORE_HEAPPROFD_CONFIG_H_
-#define INCLUDE_PERFETTO_TRACING_CORE_HEAPPROFD_CONFIG_H_
+#ifndef SRC_PROFILING_MEMORY_HEAPPROFD_CONFIG_H_
+#define SRC_PROFILING_MEMORY_HEAPPROFD_CONFIG_H_
 
 #include <stdint.h>
 #include <string>
@@ -60,6 +60,8 @@ class PERFETTO_EXPORT HeapprofdConfig {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(
         const perfetto::protos::HeapprofdConfig_ContinuousDumpConfig&);
@@ -91,6 +93,8 @@ class PERFETTO_EXPORT HeapprofdConfig {
     return !(*this == other);
   }
 
+  // Raw proto decoding.
+  void ParseRawProto(const std::string&);
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::HeapprofdConfig&);
   void ToProto(perfetto::protos::HeapprofdConfig*) const;
@@ -184,4 +188,4 @@ class PERFETTO_EXPORT HeapprofdConfig {
 
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_TRACING_CORE_HEAPPROFD_CONFIG_H_
+#endif  // SRC_PROFILING_MEMORY_HEAPPROFD_CONFIG_H_

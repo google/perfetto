@@ -66,6 +66,12 @@ bool TraceConfig::operator==(const TraceConfig& other) const {
 }
 #pragma GCC diagnostic pop
 
+void TraceConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
   buffers_.clear();
   for (const auto& field : proto.buffers()) {
@@ -296,6 +302,12 @@ bool TraceConfig::BufferConfig::operator==(
 }
 #pragma GCC diagnostic pop
 
+void TraceConfig::BufferConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceConfig_BufferConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void TraceConfig::BufferConfig::FromProto(
     const perfetto::protos::TraceConfig_BufferConfig& proto) {
   static_assert(sizeof(size_kb_) == sizeof(proto.size_kb()), "size mismatch");
@@ -339,6 +351,12 @@ bool TraceConfig::DataSource::operator==(
          (producer_name_filter_ == other.producer_name_filter_);
 }
 #pragma GCC diagnostic pop
+
+void TraceConfig::DataSource::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceConfig_DataSource proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void TraceConfig::DataSource::FromProto(
     const perfetto::protos::TraceConfig_DataSource& proto) {
@@ -391,6 +409,12 @@ bool TraceConfig::BuiltinDataSource::operator==(
          (disable_system_info_ == other.disable_system_info_);
 }
 #pragma GCC diagnostic pop
+
+void TraceConfig::BuiltinDataSource::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceConfig_BuiltinDataSource proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void TraceConfig::BuiltinDataSource::FromProto(
     const perfetto::protos::TraceConfig_BuiltinDataSource& proto) {
@@ -463,6 +487,12 @@ bool TraceConfig::ProducerConfig::operator==(
 }
 #pragma GCC diagnostic pop
 
+void TraceConfig::ProducerConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceConfig_ProducerConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void TraceConfig::ProducerConfig::FromProto(
     const perfetto::protos::TraceConfig_ProducerConfig& proto) {
   static_assert(sizeof(producer_name_) == sizeof(proto.producer_name()),
@@ -521,6 +551,12 @@ bool TraceConfig::StatsdMetadata::operator==(
          (triggering_subscription_id_ == other.triggering_subscription_id_);
 }
 #pragma GCC diagnostic pop
+
+void TraceConfig::StatsdMetadata::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceConfig_StatsdMetadata proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void TraceConfig::StatsdMetadata::FromProto(
     const perfetto::protos::TraceConfig_StatsdMetadata& proto) {
@@ -604,6 +640,12 @@ bool TraceConfig::GuardrailOverrides::operator==(
 }
 #pragma GCC diagnostic pop
 
+void TraceConfig::GuardrailOverrides::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceConfig_GuardrailOverrides proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void TraceConfig::GuardrailOverrides::FromProto(
     const perfetto::protos::TraceConfig_GuardrailOverrides& proto) {
   static_assert(sizeof(max_upload_per_day_bytes_) ==
@@ -647,6 +689,12 @@ bool TraceConfig::TriggerConfig::operator==(
          (trigger_timeout_ms_ == other.trigger_timeout_ms_);
 }
 #pragma GCC diagnostic pop
+
+void TraceConfig::TriggerConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceConfig_TriggerConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void TraceConfig::TriggerConfig::FromProto(
     const perfetto::protos::TraceConfig_TriggerConfig& proto) {
@@ -711,6 +759,13 @@ bool TraceConfig::TriggerConfig::Trigger::operator==(
 }
 #pragma GCC diagnostic pop
 
+void TraceConfig::TriggerConfig::Trigger::ParseRawProto(
+    const std::string& raw) {
+  perfetto::protos::TraceConfig_TriggerConfig_Trigger proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void TraceConfig::TriggerConfig::Trigger::FromProto(
     const perfetto::protos::TraceConfig_TriggerConfig_Trigger& proto) {
   static_assert(sizeof(name_) == sizeof(proto.name()), "size mismatch");
@@ -767,6 +822,13 @@ bool TraceConfig::IncrementalStateConfig::operator==(
   return (clear_period_ms_ == other.clear_period_ms_);
 }
 #pragma GCC diagnostic pop
+
+void TraceConfig::IncrementalStateConfig::ParseRawProto(
+    const std::string& raw) {
+  perfetto::protos::TraceConfig_IncrementalStateConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void TraceConfig::IncrementalStateConfig::FromProto(
     const perfetto::protos::TraceConfig_IncrementalStateConfig& proto) {
