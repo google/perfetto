@@ -18,7 +18,7 @@
 
 #include <utility>
 
-#include "google/protobuf/message_lite.h"
+#include <google/protobuf/message_lite.h>
 #include "perfetto/base/logging.h"
 #include "perfetto/base/weak_ptr.h"
 #include "perfetto/ipc/service_descriptor.h"

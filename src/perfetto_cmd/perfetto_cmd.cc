@@ -49,7 +49,7 @@
 
 #include "src/tracing/ipc/default_socket.h"
 
-#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include <android/os/DropBoxManager.h>

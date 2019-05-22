@@ -21,7 +21,7 @@
 
 #include <stdint.h>
 
-#include "google/protobuf/io/zero_copy_stream.h"
+#include <google/protobuf/io/zero_copy_stream.h>
 
 namespace perfetto {
 

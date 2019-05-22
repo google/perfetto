@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "google/protobuf/compiler/plugin.h"
+#include <google/protobuf/compiler/plugin.h>
 #include "src/ipc/protoc_plugin/ipc_generator.h"
 
 int main(int argc, char* argv[]) {
