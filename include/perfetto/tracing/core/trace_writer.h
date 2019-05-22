@@ -21,6 +21,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/protozero/message_handle.h"
+#include "perfetto/public/trace_writer_base.h"
 #include "perfetto/tracing/core/basic_types.h"
 
 namespace perfetto {
@@ -45,20 +46,20 @@ class TracePacket;
 // Otherwise if the shared memory buffer goes away (e.g. the Service crashes)
 // the TraceWriter will keep writing into unmapped memory.
 
-class PERFETTO_EXPORT TraceWriter {
+class PERFETTO_EXPORT TraceWriter : public TraceWriterBase {
  public:
   using TracePacketHandle =
       protozero::MessageHandle<protos::pbzero::TracePacket>;
 
   TraceWriter();
-  virtual ~TraceWriter();
+  ~TraceWriter() override;
 
   // Returns a handle to the root proto message for the trace. The message will
   // be finalized either by calling directly handle.Finalize() or by letting the
   // handle go out of scope. The returned handle can be std::move()'d but cannot
   // be used after either: (i) the TraceWriter instance is destroyed, (ii) a
   // subsequence NewTracePacket() call is made on the same TraceWriter instance.
-  virtual TracePacketHandle NewTracePacket() = 0;
+  TracePacketHandle NewTracePacket() override = 0;
 
   // Commits the data pending for the current chunk into the shared memory
   // buffer and sends a CommitDataRequest() to the service. This can be called
