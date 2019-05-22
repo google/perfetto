@@ -3150,7 +3150,7 @@ message ThreadDescriptor {
 // messages in separate TracePackets instead.
 //
 // Next reserved id: 7 (up to 15).
-// Next id: 20.
+// Next id: 21.
 message TrackEvent {
   // Timestamp in microseconds (usually CLOCK_MONOTONIC).
   oneof timestamp {
@@ -3176,6 +3176,9 @@ message TrackEvent {
     // but shouldn't be required anymore when we split them into begin/end.
     int64 thread_time_absolute_us = 17;
   }
+
+  // Elapsed retired instruction count during the event.
+  optional int64 thread_instruction_delta = 20;
 
   // We intend to add a binary symbol version of this in the future.
   repeated uint32 category_iids = 3;  // interned EventCategoryName.
