@@ -44,16 +44,7 @@ class TraceConfig;
 class TraceConfig_BufferConfig;
 class TraceConfig_DataSource;
 class DataSourceConfig;
-class FtraceConfig;
 class ChromeConfig;
-class InodeFileConfig;
-class InodeFileConfig_MountPointMappingEntry;
-class ProcessStatsConfig;
-class SysStatsConfig;
-class HeapprofdConfig;
-class HeapprofdConfig_ContinuousDumpConfig;
-class AndroidPowerConfig;
-class AndroidLogConfig;
 class TestConfig;
 class TestConfig_DummyFields;
 class TraceConfig_BuiltinDataSource;
@@ -88,6 +79,8 @@ class PERFETTO_EXPORT TraceConfig {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_BufferConfig&);
     void ToProto(perfetto::protos::TraceConfig_BufferConfig*) const;
@@ -118,6 +111,8 @@ class PERFETTO_EXPORT TraceConfig {
     bool operator==(const DataSource&) const;
     bool operator!=(const DataSource& other) const { return !(*this == other); }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_DataSource&);
     void ToProto(perfetto::protos::TraceConfig_DataSource*) const;
@@ -162,6 +157,8 @@ class PERFETTO_EXPORT TraceConfig {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_BuiltinDataSource&);
     void ToProto(perfetto::protos::TraceConfig_BuiltinDataSource*) const;
@@ -208,6 +205,8 @@ class PERFETTO_EXPORT TraceConfig {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_ProducerConfig&);
     void ToProto(perfetto::protos::TraceConfig_ProducerConfig*) const;
@@ -244,6 +243,8 @@ class PERFETTO_EXPORT TraceConfig {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_StatsdMetadata&);
     void ToProto(perfetto::protos::TraceConfig_StatsdMetadata*) const;
@@ -294,6 +295,8 @@ class PERFETTO_EXPORT TraceConfig {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_GuardrailOverrides&);
     void ToProto(perfetto::protos::TraceConfig_GuardrailOverrides*) const;
@@ -332,6 +335,8 @@ class PERFETTO_EXPORT TraceConfig {
       bool operator==(const Trigger&) const;
       bool operator!=(const Trigger& other) const { return !(*this == other); }
 
+      // Raw proto decoding.
+      void ParseRawProto(const std::string&);
       // Conversion methods from/to the corresponding protobuf types.
       void FromProto(
           const perfetto::protos::TraceConfig_TriggerConfig_Trigger&);
@@ -371,6 +376,8 @@ class PERFETTO_EXPORT TraceConfig {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_TriggerConfig&);
     void ToProto(perfetto::protos::TraceConfig_TriggerConfig*) const;
@@ -413,6 +420,8 @@ class PERFETTO_EXPORT TraceConfig {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::TraceConfig_IncrementalStateConfig&);
     void ToProto(perfetto::protos::TraceConfig_IncrementalStateConfig*) const;
@@ -437,6 +446,8 @@ class PERFETTO_EXPORT TraceConfig {
   bool operator==(const TraceConfig&) const;
   bool operator!=(const TraceConfig& other) const { return !(*this == other); }
 
+  // Raw proto decoding.
+  void ParseRawProto(const std::string&);
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::TraceConfig&);
   void ToProto(perfetto::protos::TraceConfig*) const;

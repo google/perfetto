@@ -18,13 +18,14 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-
 #include <sys/system_properties.h>
 
 #include "gtest/gtest.h"
 #include "perfetto/base/logging.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/test_helper.h"
+
+#include "perfetto/config/profiling/heapprofd_config.pb.h"
 
 namespace perfetto {
 namespace {
@@ -134,10 +135,11 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   ds_config->set_name("android.heapprofd");
   ds_config->set_target_buffer(0);
 
-  auto* heapprofd_config = ds_config->mutable_heapprofd_config();
-  heapprofd_config->set_sampling_interval_bytes(kTestSamplingInterval);
-  *heapprofd_config->add_process_cmdline() = app_name.c_str();
-  heapprofd_config->set_all(false);
+  protos::HeapprofdConfig heapprofd_config;
+  heapprofd_config.set_sampling_interval_bytes(kTestSamplingInterval);
+  heapprofd_config.add_process_cmdline(app_name.c_str());
+  heapprofd_config.set_all(false);
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
   // start tracing
   helper.StartTracing(trace_config);
@@ -169,10 +171,11 @@ std::vector<protos::TracePacket> ProfileStartup(std::string app_name) {
   ds_config->set_name("android.heapprofd");
   ds_config->set_target_buffer(0);
 
-  auto* heapprofd_config = ds_config->mutable_heapprofd_config();
-  heapprofd_config->set_sampling_interval_bytes(kTestSamplingInterval);
-  *heapprofd_config->add_process_cmdline() = app_name.c_str();
-  heapprofd_config->set_all(false);
+  protos::HeapprofdConfig heapprofd_config;
+  heapprofd_config.set_sampling_interval_bytes(kTestSamplingInterval);
+  heapprofd_config.add_process_cmdline(app_name.c_str());
+  heapprofd_config.set_all(false);
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
   // start tracing
   helper.StartTracing(trace_config);

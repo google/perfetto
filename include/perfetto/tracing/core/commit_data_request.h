@@ -62,6 +62,8 @@ class PERFETTO_EXPORT CommitDataRequest {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::CommitDataRequest_ChunksToMove&);
     void ToProto(perfetto::protos::CommitDataRequest_ChunksToMove*) const;
@@ -98,6 +100,8 @@ class PERFETTO_EXPORT CommitDataRequest {
       bool operator==(const Patch&) const;
       bool operator!=(const Patch& other) const { return !(*this == other); }
 
+      // Raw proto decoding.
+      void ParseRawProto(const std::string&);
       // Conversion methods from/to the corresponding protobuf types.
       void FromProto(
           const perfetto::protos::CommitDataRequest_ChunkToPatch_Patch&);
@@ -133,6 +137,8 @@ class PERFETTO_EXPORT CommitDataRequest {
       return !(*this == other);
     }
 
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
     // Conversion methods from/to the corresponding protobuf types.
     void FromProto(const perfetto::protos::CommitDataRequest_ChunkToPatch&);
     void ToProto(perfetto::protos::CommitDataRequest_ChunkToPatch*) const;
@@ -181,6 +187,8 @@ class PERFETTO_EXPORT CommitDataRequest {
     return !(*this == other);
   }
 
+  // Raw proto decoding.
+  void ParseRawProto(const std::string&);
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::CommitDataRequest&);
   void ToProto(perfetto::protos::CommitDataRequest*) const;

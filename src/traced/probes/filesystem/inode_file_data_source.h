@@ -107,11 +107,6 @@ class InodeFileDataSource : public ProbesDataSource,
   void RemoveFromNextMissingInodes(BlockDeviceID block_device_id,
                                    Inode inode_number);
 
-  uint32_t GetScanIntervalMs() const;
-  uint32_t GetScanDelayMs() const;
-  uint32_t GetScanBatchSize() const;
-
-  const DataSourceConfig source_config_;
   std::set<std::string> scan_mount_points_;
   std::map<std::string, std::vector<std::string>> mount_point_mapping_;
 
@@ -128,6 +123,10 @@ class InodeFileDataSource : public ProbesDataSource,
   InodeFileMap* current_file_map_;
   bool has_current_trace_packet_ = false;
   bool scan_running_ = false;
+  bool do_not_scan_ = false;
+  uint32_t scan_interval_ms_ = 0;
+  uint32_t scan_delay_ms_ = 0;
+  uint32_t scan_batch_size_ = 0;
   std::unique_ptr<FileScanner> file_scanner_;
   base::WeakPtrFactory<InodeFileDataSource> weak_factory_;  // Keep last.
 };

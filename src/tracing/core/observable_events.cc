@@ -46,6 +46,12 @@ bool ObservableEvents::operator==(const ObservableEvents& other) const {
 }
 #pragma GCC diagnostic pop
 
+void ObservableEvents::ParseRawProto(const std::string& raw) {
+  perfetto::protos::ObservableEvents proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void ObservableEvents::FromProto(
     const perfetto::protos::ObservableEvents& proto) {
   instance_state_changes_.clear();
@@ -91,6 +97,13 @@ bool ObservableEvents::DataSourceInstanceStateChange::operator==(
          (state_ == other.state_);
 }
 #pragma GCC diagnostic pop
+
+void ObservableEvents::DataSourceInstanceStateChange::ParseRawProto(
+    const std::string& raw) {
+  perfetto::protos::ObservableEvents_DataSourceInstanceStateChange proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void ObservableEvents::DataSourceInstanceStateChange::FromProto(
     const perfetto::protos::ObservableEvents_DataSourceInstanceStateChange&

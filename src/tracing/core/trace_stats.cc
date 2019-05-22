@@ -53,6 +53,12 @@ bool TraceStats::operator==(const TraceStats& other) const {
 }
 #pragma GCC diagnostic pop
 
+void TraceStats::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceStats proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
 void TraceStats::FromProto(const perfetto::protos::TraceStats& proto) {
   buffer_stats_.clear();
   for (const auto& field : proto.buffer_stats()) {
@@ -194,6 +200,12 @@ bool TraceStats::BufferStats::operator==(
          (abi_violations_ == other.abi_violations_);
 }
 #pragma GCC diagnostic pop
+
+void TraceStats::BufferStats::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceStats_BufferStats proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
 
 void TraceStats::BufferStats::FromProto(
     const perfetto::protos::TraceStats_BufferStats& proto) {
