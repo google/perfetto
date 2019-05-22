@@ -58,6 +58,7 @@ group("all") {
       "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
       "protos/perfetto/trace:merged_trace",  # For syntax-checking the proto.
       "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
+      "src/public",
       "tools:protoc_helper",
     ]
     if (perfetto_build_standalone) {
