@@ -20,20 +20,19 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
-#include "src/traced/probes/ftrace/ftrace_config.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
+#include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-
-#include "perfetto/trace/trace_packet.pb.h"
 
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_stats.pbzero.h"
+#include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
 using testing::_;

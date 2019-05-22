@@ -49,13 +49,6 @@ constexpr uint32_t kChildModeWatchdogPeriodMs = 10 * 1000;
 constexpr uint64_t kDefaultShmemSize = 8 * 1048576;  // ~8 MB
 constexpr uint64_t kMaxShmemSize = 500 * 1048576;    // ~500 MB
 
-ClientConfiguration MakeClientConfiguration(const DataSourceConfig& cfg) {
-  ClientConfiguration client_config;
-  client_config.interval = cfg.heapprofd_config().sampling_interval_bytes();
-  client_config.block_client = cfg.heapprofd_config().block_client();
-  return client_config;
-}
-
 std::vector<UnwindingWorker> MakeUnwindingWorkers(HeapprofdProducer* delegate,
                                                   size_t n) {
   std::vector<UnwindingWorker> ret;
@@ -320,20 +313,22 @@ __attribute__((noreturn)) void HeapprofdProducer::TerminateProcess(
 void HeapprofdProducer::OnTracingSetup() {}
 
 void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
-                                        const DataSourceConfig& cfg) {
+                                        const DataSourceConfig& ds_config) {
   PERFETTO_DLOG("Setting up data source.");
-  if (mode_ == HeapprofdMode::kChild && cfg.enable_extra_guardrails()) {
+  if (mode_ == HeapprofdMode::kChild && ds_config.enable_extra_guardrails()) {
     PERFETTO_ELOG("enable_extra_guardrails is not supported on user.");
     return;
   }
 
-  const HeapprofdConfig& heapprofd_config = cfg.heapprofd_config();
+  HeapprofdConfig heapprofd_config;
+  heapprofd_config.ParseRawProto(ds_config.heapprofd_config_raw());
+
   if (heapprofd_config.all() && !heapprofd_config.pid().empty())
     PERFETTO_ELOG("No point setting all and pid");
   if (heapprofd_config.all() && !heapprofd_config.process_cmdline().empty())
     PERFETTO_ELOG("No point setting all and process_cmdline");
 
-  if (cfg.name() != kHeapprofdDataSource) {
+  if (ds_config.name() != kHeapprofdDataSource) {
     PERFETTO_DLOG("Invalid data source name.");
     return;
   }
@@ -361,7 +356,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
       PERFETTO_LOG("Child mode skipping concurrent data source.");
 
       // Manually write one ProfilePacket about the rejected session.
-      auto buffer_id = static_cast<BufferID>(cfg.target_buffer());
+      auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
       auto trace_writer = endpoint_->CreateTraceWriter(buffer_id);
       auto trace_packet = trace_writer->NewTracePacket();
       trace_packet->set_timestamp(
@@ -378,9 +373,11 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
 
   DataSource data_source;
   data_source.id = id;
-  data_source.client_configuration = MakeClientConfiguration(cfg);
+  auto& cli_config = data_source.client_configuration;
+  cli_config.interval = heapprofd_config.sampling_interval_bytes();
+  cli_config.block_client = heapprofd_config.block_client();
   data_source.config = heapprofd_config;
-  auto buffer_id = static_cast<BufferID>(cfg.target_buffer());
+  auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
   data_source.trace_writer = endpoint_->CreateTraceWriter(buffer_id);
   data_source.normalized_cmdlines = std::move(normalized_cmdlines);
 
@@ -442,9 +439,8 @@ void HeapprofdProducer::SignalRunningProcesses(DataSource* data_source) {
 }
 
 void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
-                                        const DataSourceConfig& cfg) {
+                                        const DataSourceConfig&) {
   PERFETTO_DLOG("Start DataSource");
-  const HeapprofdConfig& heapprofd_config = cfg.heapprofd_config();
 
   auto it = data_sources_.find(id);
   if (it == data_sources_.end()) {
@@ -456,7 +452,9 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
     }
     return;
   }
+
   DataSource& data_source = it->second;
+  const HeapprofdConfig& heapprofd_config = data_source.config;
 
   // Central daemon - set system properties for any targets that start later,
   // and signal already-running targets to start the profiling client.

@@ -3354,14 +3354,21 @@ message DataSourceConfig {
   // Keeep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
-  optional FtraceConfig ftrace_config = 100;
+  // All data source config fields must be marked as [lazy=true]. This prevents
+  // the proto-to-cpp generator from recursing into those when generating the
+  // cpp classes and polluting tracing/core with data-source-specific classes.
+  // Instead they are treated as opaque strings containing raw proto bytes.
+
+  optional FtraceConfig ftrace_config = 100 [lazy = true];
+  optional InodeFileConfig inode_file_config = 102 [lazy = true];
+  optional ProcessStatsConfig process_stats_config = 103 [lazy = true];
+  optional SysStatsConfig sys_stats_config = 104 [lazy = true];
+  optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
+  optional AndroidPowerConfig android_power_config = 106 [lazy = true];
+  optional AndroidLogConfig android_log_config = 107 [lazy = true];
+
+  // TODO(primiano): Figure out how to deal with this, needs a multi-side patch.
   optional ChromeConfig chrome_config = 101;
-  optional InodeFileConfig inode_file_config = 102;
-  optional ProcessStatsConfig process_stats_config = 103;
-  optional SysStatsConfig sys_stats_config = 104;
-  optional HeapprofdConfig heapprofd_config = 105;
-  optional AndroidPowerConfig android_power_config = 106;
-  optional AndroidLogConfig android_log_config = 107;
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that

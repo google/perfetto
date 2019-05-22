@@ -34,7 +34,6 @@
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
 
-#include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {

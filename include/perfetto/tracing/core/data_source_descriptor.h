@@ -57,6 +57,8 @@ class PERFETTO_EXPORT DataSourceDescriptor {
     return !(*this == other);
   }
 
+  // Raw proto decoding.
+  void ParseRawProto(const std::string&);
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::DataSourceDescriptor&);
   void ToProto(perfetto::protos::DataSourceDescriptor*) const;

@@ -21,6 +21,7 @@ source_set("filesystem") {
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/traced",
+    "../../../../protos/perfetto/config:zero",
     "../../../base",
   ]
   sources = [
@@ -45,6 +46,8 @@ source_set("unittests") {
     ":filesystem",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_deps",
+    "../../../../include/perfetto/protozero",
+    "../../../../protos/perfetto/config:zero",
     "../../../../src/base:test_support",
   ]
   sources = [

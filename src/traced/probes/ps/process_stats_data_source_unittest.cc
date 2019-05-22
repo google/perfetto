@@ -21,10 +21,13 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "perfetto/base/temp_file.h"
-#include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
+
+#include "perfetto/config/process_stats/process_stats_config.pbzero.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 
 using ::testing::_;
 using ::testing::ElementsAreArray;
@@ -32,6 +35,7 @@ using ::testing::Invoke;
 using ::testing::Mock;
 using ::testing::Return;
 using ::testing::Truly;
+using ::perfetto::protos::pbzero::ProcessStatsConfig;
 
 namespace perfetto {
 namespace {
@@ -100,9 +104,11 @@ TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
     };
   };
 
-  DataSourceConfig config;
-  config.mutable_process_stats_config()->set_record_thread_names(true);
-  auto data_source = GetProcessStatsDataSource(config);
+  DataSourceConfig ds_config;
+  protozero::HeapBuffered<ProcessStatsConfig> cfg;
+  cfg->set_record_thread_names(true);
+  ds_config.set_process_stats_config_raw(cfg.SerializeAsString());
+  auto data_source = GetProcessStatsDataSource(ds_config);
   for (int p : {10, 11, 12, 20, 21, 22, 30, 31, 32}) {
     EXPECT_CALL(*data_source, ReadProcPidFile(p, "status"))
         .WillOnce(Invoke([](int32_t pid, const std::string&) {
@@ -281,11 +287,12 @@ TEST_F(ProcessStatsDataSourceTest, RenamePids) {
 }
 
 TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
-  DataSourceConfig cfg;
-  cfg.mutable_process_stats_config()->set_proc_stats_poll_ms(1);
-  *(cfg.mutable_process_stats_config()->add_quirks()) =
-      perfetto::ProcessStatsConfig::DISABLE_ON_DEMAND;
-  auto data_source = GetProcessStatsDataSource(cfg);
+  DataSourceConfig ds_config;
+  protozero::HeapBuffered<ProcessStatsConfig> cfg;
+  cfg->set_proc_stats_poll_ms(1);
+  cfg->add_quirks(ProcessStatsConfig::DISABLE_ON_DEMAND);
+  ds_config.set_process_stats_config_raw(cfg.SerializeAsString());
+  auto data_source = GetProcessStatsDataSource(ds_config);
 
   // Populate a fake /proc/ directory.
   auto fake_proc = base::TempDir::Create();
@@ -356,12 +363,13 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
 }
 
 TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
-  DataSourceConfig cfg;
-  cfg.mutable_process_stats_config()->set_proc_stats_poll_ms(105);
-  cfg.mutable_process_stats_config()->set_proc_stats_cache_ttl_ms(220);
-  *(cfg.mutable_process_stats_config()->add_quirks()) =
-      perfetto::ProcessStatsConfig::DISABLE_ON_DEMAND;
-  auto data_source = GetProcessStatsDataSource(cfg);
+  DataSourceConfig ds_config;
+  protozero::HeapBuffered<ProcessStatsConfig> cfg;
+  cfg->set_proc_stats_poll_ms(105);
+  cfg->set_proc_stats_cache_ttl_ms(220);
+  cfg->add_quirks(ProcessStatsConfig::DISABLE_ON_DEMAND);
+  ds_config.set_process_stats_config_raw(cfg.SerializeAsString());
+  auto data_source = GetProcessStatsDataSource(ds_config);
 
   // Populate a fake /proc/ directory.
   auto fake_proc = base::TempDir::Create();

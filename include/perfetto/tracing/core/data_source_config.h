@@ -35,30 +35,14 @@
 
 #include "perfetto/base/export.h"
 
-#include "perfetto/tracing/core/android_log_config.h"
-#include "perfetto/tracing/core/android_power_config.h"
 #include "perfetto/tracing/core/chrome_config.h"
-#include "perfetto/tracing/core/ftrace_config.h"
-#include "perfetto/tracing/core/heapprofd_config.h"
-#include "perfetto/tracing/core/inode_file_config.h"
-#include "perfetto/tracing/core/process_stats_config.h"
-#include "perfetto/tracing/core/sys_stats_config.h"
 #include "perfetto/tracing/core/test_config.h"
 
 // Forward declarations for protobuf types.
 namespace perfetto {
 namespace protos {
 class DataSourceConfig;
-class FtraceConfig;
 class ChromeConfig;
-class InodeFileConfig;
-class InodeFileConfig_MountPointMappingEntry;
-class ProcessStatsConfig;
-class SysStatsConfig;
-class HeapprofdConfig;
-class HeapprofdConfig_ContinuousDumpConfig;
-class AndroidPowerConfig;
-class AndroidLogConfig;
 class TestConfig;
 class TestConfig_DummyFields;
 }  // namespace protos
@@ -79,6 +63,8 @@ class PERFETTO_EXPORT DataSourceConfig {
     return !(*this == other);
   }
 
+  // Raw proto decoding.
+  void ParseRawProto(const std::string&);
   // Conversion methods from/to the corresponding protobuf types.
   void FromProto(const perfetto::protos::DataSourceConfig&);
   void ToProto(perfetto::protos::DataSourceConfig*) const;
@@ -100,43 +86,49 @@ class PERFETTO_EXPORT DataSourceConfig {
   uint64_t tracing_session_id() const { return tracing_session_id_; }
   void set_tracing_session_id(uint64_t value) { tracing_session_id_ = value; }
 
-  const FtraceConfig& ftrace_config() const { return ftrace_config_; }
-  FtraceConfig* mutable_ftrace_config() { return &ftrace_config_; }
+  const std::string& ftrace_config_raw() const { return ftrace_config_; }
+  void set_ftrace_config_raw(const std::string& raw) { ftrace_config_ = raw; }
+
+  const std::string& inode_file_config_raw() const {
+    return inode_file_config_;
+  }
+  void set_inode_file_config_raw(const std::string& raw) {
+    inode_file_config_ = raw;
+  }
+
+  const std::string& process_stats_config_raw() const {
+    return process_stats_config_;
+  }
+  void set_process_stats_config_raw(const std::string& raw) {
+    process_stats_config_ = raw;
+  }
+
+  const std::string& sys_stats_config_raw() const { return sys_stats_config_; }
+  void set_sys_stats_config_raw(const std::string& raw) {
+    sys_stats_config_ = raw;
+  }
+
+  const std::string& heapprofd_config_raw() const { return heapprofd_config_; }
+  void set_heapprofd_config_raw(const std::string& raw) {
+    heapprofd_config_ = raw;
+  }
+
+  const std::string& android_power_config_raw() const {
+    return android_power_config_;
+  }
+  void set_android_power_config_raw(const std::string& raw) {
+    android_power_config_ = raw;
+  }
+
+  const std::string& android_log_config_raw() const {
+    return android_log_config_;
+  }
+  void set_android_log_config_raw(const std::string& raw) {
+    android_log_config_ = raw;
+  }
 
   const ChromeConfig& chrome_config() const { return chrome_config_; }
   ChromeConfig* mutable_chrome_config() { return &chrome_config_; }
-
-  const InodeFileConfig& inode_file_config() const {
-    return inode_file_config_;
-  }
-  InodeFileConfig* mutable_inode_file_config() { return &inode_file_config_; }
-
-  const ProcessStatsConfig& process_stats_config() const {
-    return process_stats_config_;
-  }
-  ProcessStatsConfig* mutable_process_stats_config() {
-    return &process_stats_config_;
-  }
-
-  const SysStatsConfig& sys_stats_config() const { return sys_stats_config_; }
-  SysStatsConfig* mutable_sys_stats_config() { return &sys_stats_config_; }
-
-  const HeapprofdConfig& heapprofd_config() const { return heapprofd_config_; }
-  HeapprofdConfig* mutable_heapprofd_config() { return &heapprofd_config_; }
-
-  const AndroidPowerConfig& android_power_config() const {
-    return android_power_config_;
-  }
-  AndroidPowerConfig* mutable_android_power_config() {
-    return &android_power_config_;
-  }
-
-  const AndroidLogConfig& android_log_config() const {
-    return android_log_config_;
-  }
-  AndroidLogConfig* mutable_android_log_config() {
-    return &android_log_config_;
-  }
 
   const std::string& legacy_config() const { return legacy_config_; }
   void set_legacy_config(const std::string& value) { legacy_config_ = value; }
@@ -150,14 +142,14 @@ class PERFETTO_EXPORT DataSourceConfig {
   uint32_t trace_duration_ms_ = {};
   bool enable_extra_guardrails_ = {};
   uint64_t tracing_session_id_ = {};
-  FtraceConfig ftrace_config_ = {};
+  std::string ftrace_config_ = {};         // [lazy=true]
+  std::string inode_file_config_ = {};     // [lazy=true]
+  std::string process_stats_config_ = {};  // [lazy=true]
+  std::string sys_stats_config_ = {};      // [lazy=true]
+  std::string heapprofd_config_ = {};      // [lazy=true]
+  std::string android_power_config_ = {};  // [lazy=true]
+  std::string android_log_config_ = {};    // [lazy=true]
   ChromeConfig chrome_config_ = {};
-  InodeFileConfig inode_file_config_ = {};
-  ProcessStatsConfig process_stats_config_ = {};
-  SysStatsConfig sys_stats_config_ = {};
-  HeapprofdConfig heapprofd_config_ = {};
-  AndroidPowerConfig android_power_config_ = {};
-  AndroidLogConfig android_log_config_ = {};
   std::string legacy_config_ = {};
   TestConfig for_testing_ = {};
 

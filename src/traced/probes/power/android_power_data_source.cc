@@ -31,6 +31,7 @@
 #include "src/android_internal/health_hal.h"
 #include "src/android_internal/power_stats_hal.h"
 
+#include "perfetto/config/power/android_power_config.pbzero.h"
 #include "perfetto/trace/power/battery_counters.pbzero.h"
 #include "perfetto/trace/power/power_rails.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -126,21 +127,23 @@ AndroidPowerDataSource::AndroidPowerDataSource(
     std::unique_ptr<TraceWriter> writer)
     : ProbesDataSource(session_id, kTypeId),
       task_runner_(task_runner),
-      poll_rate_ms_(cfg.android_power_config().battery_poll_ms()),
-      rails_collection_enabled_(
-          cfg.android_power_config().collect_power_rails()),
       rail_descriptors_logged_(false),
       writer_(std::move(writer)),
       weak_factory_(this) {
+  using protos::pbzero::AndroidPowerConfig;
+  AndroidPowerConfig::Decoder pcfg(cfg.android_power_config_raw());
+  poll_rate_ms_ = pcfg.battery_poll_ms();
+  rails_collection_enabled_ = pcfg.collect_power_rails();
+
   if (poll_rate_ms_ < kMinPollRateMs) {
     PERFETTO_ELOG("Battery poll interval of %" PRIu32
                   " ms is too low. Capping to %" PRIu32 " ms",
                   poll_rate_ms_, kMinPollRateMs);
     poll_rate_ms_ = kMinPollRateMs;
   }
-  for (auto counter : cfg.android_power_config().battery_counters()) {
+  for (auto counter = pcfg.battery_counters(); counter; ++counter) {
     auto hal_id = android_internal::BatteryCounter::kUnspecified;
-    switch (counter) {
+    switch (counter->as_int32()) {
       case AndroidPowerConfig::BATTERY_COUNTER_UNSPECIFIED:
         break;
       case AndroidPowerConfig::BATTERY_COUNTER_CHARGE:

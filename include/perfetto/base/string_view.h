@@ -62,6 +62,8 @@ class StringView {
   bool empty() const { return size_ == 0; }
   size_t size() const { return size_; }
   const char* data() const { return data_; }
+  const char* begin() const { return data_; }
+  const char* end() const { return data_ + size_; }
 
   char at(size_t pos) const {
     PERFETTO_DCHECK(pos < size_);
