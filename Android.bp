@@ -1883,6 +1883,41 @@ genrule {
   ],
 }
 
+// GN target: //protos/perfetto/trace_processor:metrics_impl_zero_gen
+genrule {
+  name: "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen",
+  srcs: [
+    "protos/perfetto/trace_processor/metrics_impl.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/protos $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/trace_processor/metrics_impl.pbzero.cc",
+  ],
+}
+
+// GN target: //protos/perfetto/trace_processor:metrics_impl_zero_gen
+genrule {
+  name: "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
+  srcs: [
+    "protos/perfetto/trace_processor/metrics_impl.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protoc_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/protos $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/trace_processor/metrics_impl.pbzero.h",
+  ],
+  export_include_dirs: [
+    "protos",
+  ],
+}
+
 // GN target: //protos/perfetto/trace/profiling:lite_gen
 genrule {
   name: "perfetto_protos_perfetto_trace_profiling_lite_gen",
@@ -3170,6 +3205,7 @@ cc_binary_host {
     ":perfetto_protos_perfetto_trace_minimal_lite_gen",
     ":perfetto_protos_perfetto_trace_power_lite_gen",
     ":perfetto_protos_perfetto_trace_power_zero_gen",
+    ":perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen",
     ":perfetto_protos_perfetto_trace_profiling_lite_gen",
     ":perfetto_protos_perfetto_trace_profiling_zero_gen",
     ":perfetto_protos_perfetto_trace_ps_lite_gen",
@@ -3290,6 +3326,7 @@ cc_binary_host {
     "perfetto_protos_perfetto_trace_minimal_lite_gen_headers",
     "perfetto_protos_perfetto_trace_power_lite_gen_headers",
     "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+    "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
     "perfetto_protos_perfetto_trace_profiling_lite_gen_headers",
     "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
     "perfetto_protos_perfetto_trace_ps_lite_gen_headers",

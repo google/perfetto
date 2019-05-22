@@ -758,6 +758,24 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace_processor:metrics_impl_zero_gen
+proto_library(
+    name = "trace_processor_metrics_impl_zero",
+    srcs = [
+        "perfetto/trace_processor/metrics_impl.proto",
+    ],
+)
+
+# GN target: //protos/perfetto/trace_processor:metrics_impl_zero_gen
+pbzero_cc_proto_library(
+    name = "trace_processor_metrics_impl_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:trace_processor_metrics_impl_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+        "//third_party/perfetto/google:gtest_prod",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/profiling:lite_gen
 proto_library(
     name = "trace_profiling",
