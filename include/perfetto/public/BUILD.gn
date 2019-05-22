@@ -22,9 +22,12 @@ source_set("public") {
   ]
   sources = [
     "compiler.h",
+    "data_source.h",
     "internal/basic_types.h",
     "internal/data_source_internal.h",
+    "internal/tracing_muxer.h",
     "internal/tracing_tls.h",
+    "locked_handle.h",
     "platform.h",
     "trace_writer_base.h",
     "tracing.h",

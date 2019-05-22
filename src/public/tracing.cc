@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-#include "perfetto/public/internal/tracing_tls.h"
 #include "perfetto/public/tracing.h"
-#include "perfetto/public/tracing_backend.h"
-
-// This translation unit contains the definitions for the destructor of pure
-// virtual interfaces for the src/public:public target. The alternative would be
-// introducing a one-liner .cc file for each pure virtual interface, which is
-// overkill. This is for compliance with -Wweak-vtables.
 
 namespace perfetto {
-namespace internal {
 
-TracingTLS::~TracingTLS() = default;
+// static
+void Tracing::Initialize(const TracingInitArgs& args) {
+  base::ignore_result(args);
+  // TOOD(primiano): Fill in next CL, forward call to
+  // internal::TracingMuxerImpl::InitializeInstance(args);
+}
 
-}  // namespace internal
-
-TracingBackend::~TracingBackend() = default;
-TracingSession::~TracingSession() = default;
+//  static
+std::unique_ptr<TracingSession> Tracing::NewTrace(BackendType backend) {
+  base::ignore_result(backend);
+  return nullptr;
+  // TOOD(primiano): Fill in next CL, forward call to
+  // internal::TracingMuxerImpl::CreateTracingSession().
+}
 
 }  // namespace perfetto
