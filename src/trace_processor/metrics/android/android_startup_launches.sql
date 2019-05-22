@@ -45,6 +45,12 @@ CREATE VIEW activity_intent_received AS
 SELECT ts FROM slices
 WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 
+-- Successful activity launch. The end of the 'launching' event is not related
+-- to whether it actually succeeded or not.
+CREATE VIEW activity_intent_launch_successful AS
+SELECT ts FROM slices
+WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
+
 -- We partition the trace into spans based on posted activity intents.
 -- We will refine these progressively in the next steps to only encompass
 -- activity starts.
@@ -61,7 +67,7 @@ ORDER BY ts;
 
 -- Filter activity_intent_recv_spans, keeping only the ones that triggered
 -- a launch.
-CREATE VIEW launches_started AS
+CREATE VIEW launch_partitions AS
 SELECT * FROM activity_intent_recv_spans
 WHERE 1 = (
   SELECT COUNT(1)
@@ -72,25 +78,6 @@ WHERE 1 = (
     AND ts < activity_intent_recv_spans.ts + activity_intent_recv_spans.dur);
 
 -- All activity launches in the trace, keyed by ID.
-CREATE TABLE package_launches_succeeded(
-  ts BIG INT,
-  ts_end BIG INT,
-  dur BIG INT,
-  id INT,
-  package STRING);
-
-INSERT INTO package_launches_succeeded
-SELECT
-  started.ts AS ts,
-  finished.ts AS ts_end,
-  finished.ts - started.ts AS dur,
-  started.id AS id,
-  finished.package_name AS package
-FROM launches_started AS started
-JOIN (SELECT * FROM launching_events WHERE type = 'F') AS finished
-ON started.ts < finished.ts AND finished.ts <= started.ts + started.dur;
-
--- Base launches table. A launch is uniquely identified by its id.
 CREATE TABLE launches(
   ts BIG INT,
   ts_end BIG INT,
@@ -98,14 +85,22 @@ CREATE TABLE launches(
   id INT,
   package STRING);
 
+-- Use the starting event package name. The finish event package name
+-- is not reliable in the case of failed launches.
 INSERT INTO launches
 SELECT
-  ts,
-  ts_end,
-  dur,
-  id,
-  package
-FROM package_launches_succeeded AS pls;
+  lpart.ts AS ts,
+  finish_event.ts AS ts_end,
+  finish_event.ts - lpart.ts AS dur,
+  lpart.id AS id,
+  start_event.package_name AS package
+FROM launch_partitions AS lpart
+JOIN (SELECT * FROM launching_events WHERE type = 'S') AS start_event
+  ON lpart.ts < start_event.ts AND start_event.ts < lpart.ts + lpart.dur
+JOIN (SELECT * FROM launching_events WHERE type = 'F') AS finish_event
+  ON lpart.ts < finish_event.ts AND finish_event.ts <= lpart.ts + lpart.dur
+JOIN activity_intent_launch_successful successful
+  ON (lpart.ts < successful.ts AND successful.ts <= lpart.ts + lpart.dur);
 
 -- Maps a launch to the corresponding set of processes that handled the
 -- activity start. The vast majority of cases should be a single process.
@@ -114,6 +109,7 @@ FROM package_launches_succeeded AS pls;
 CREATE TABLE launch_processes(launch_id INT, upid BIG INT);
 
 -- We make the (not always correct) simplification that process == package
+-- TODO: We should also take process death into account here.
 INSERT INTO launch_processes
 SELECT launches.id, process.upid
 FROM launches JOIN process ON launches.package = process.name
