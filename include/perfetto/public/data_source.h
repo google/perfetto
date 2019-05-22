@@ -241,6 +241,11 @@ class DataSource : public DataSourceBase {
   // Can return false to signal failure if attemping to register more than
   // kMaxDataSources (32) data sources types.
   static bool Register(const DataSourceDescriptor& descriptor) {
+    // Silences -Wunused-variable warning in case the trace method is not used
+    // by the translation unit that declares the data source.
+    (void)static_state_;
+    (void)tls_state_;
+
     auto factory = [] {
       return std::unique_ptr<DataSourceBase>(new DataSourceType());
     };

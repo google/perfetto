@@ -15,22 +15,19 @@
  */
 
 #include "perfetto/public/tracing.h"
+#include "src/public/internal/tracing_muxer_impl.h"
 
 namespace perfetto {
 
 // static
 void Tracing::Initialize(const TracingInitArgs& args) {
-  base::ignore_result(args);
-  // TOOD(primiano): Fill in next CL, forward call to
-  // internal::TracingMuxerImpl::InitializeInstance(args);
+  internal::TracingMuxerImpl::InitializeInstance(args);
 }
 
 //  static
 std::unique_ptr<TracingSession> Tracing::NewTrace(BackendType backend) {
-  base::ignore_result(backend);
-  return nullptr;
-  // TOOD(primiano): Fill in next CL, forward call to
-  // internal::TracingMuxerImpl::CreateTracingSession().
+  return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
+      ->CreateTracingSession(backend);
 }
 
 }  // namespace perfetto
