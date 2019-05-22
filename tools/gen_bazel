@@ -225,7 +225,8 @@ class Target(object):
   def __init__(self, type, name, gn_name=None):
     assert type in ('cc_binary', 'cc_library', 'cc_proto_library',
                     'proto_library', 'filegroup', 'alias',
-                    'pbzero_cc_proto_library', 'genrule', )
+                    'pbzero_cc_proto_library', 'genrule',
+                    'transitive_descriptor_set', )
     self.type = type
     self.name = name
     self.srcs = set()
@@ -233,7 +234,7 @@ class Target(object):
     self.deps = set()
     self.visibility = set()
     self.gn_name = gn_name
-    self.is_pbzero = False
+    self.cc_proto_fields = False
     self.src_proto_library = None
     self.outs = set()
     self.cmd = None
@@ -248,7 +249,8 @@ class Target(object):
     writer.variable('srcs', self.srcs)
     writer.variable('hdrs', self.hdrs)
 
-    if self.type == 'proto_library' and not self.is_pbzero:
+    if self.cc_proto_fields:
+      assert(self.type == 'proto_library')
       if self.srcs:
         writer.variable('has_services', 1)
       writer.variable('cc_api_version', 2)
@@ -462,28 +464,50 @@ class BuildGenerator(object):
     gn_target_name_no_toolchain = gn_utils.label_without_toolchain(
         gn_target_name)
     stripped_path = gn_target_name_no_toolchain.replace("protos/perfetto/", "")
+
+    is_descriptor = any('descriptor_set_out' in arg for arg in args)
+    is_pbzero = any("pbzero" in arg for arg in args)
+    is_proto_lite = not is_pbzero and not is_descriptor
+
     pretty_target_name = gn_utils.label_to_target_name_with_path(stripped_path)
     pretty_target_name = pretty_target_name.replace("_lite_gen", "")
     pretty_target_name = pretty_target_name.replace("_zero_gen", "_zero")
+    if is_descriptor:
+      pretty_target_name = pretty_target_name.replace("_gen", "")
+      proto_target_name = pretty_target_name + "_proto"
+    else:
+      proto_target_name = pretty_target_name
 
     proto_target = Target(
       'proto_library',
-      pretty_target_name,
+      proto_target_name,
       gn_name=gn_target_name_no_toolchain
     )
-    proto_target.is_pbzero = any("pbzero" in arg for arg in args)
+    proto_target.cc_proto_fields = is_proto_lite
     proto_target.srcs.update([
       Label(gn_utils.label_to_path(src).replace('protos/', ''))
       for src in target_desc.get('sources', [])
     ])
-    if not proto_target.is_pbzero:
+    if is_proto_lite:
       proto_target.visibility.add("//visibility:public")
     self.proto_build.add_target(proto_target)
 
     for dep_name in self.resolve_dependencies(gn_target_name):
       self.apply_module_dependency(proto_target, dep_name)
 
-    if proto_target.is_pbzero:
+    if is_descriptor:
+      descriptor_set_target = Target(
+        'transitive_descriptor_set',
+        pretty_target_name,
+        gn_name=gn_target_name_no_toolchain
+      )
+      descriptor_set_target.deps.update([
+        "//third_party/perfetto/protos:{}".format(proto_target.name)
+      ])
+      self.proto_build.add_target(descriptor_set_target)
+
+      return (descriptor_set_target, descriptor_set_target)
+    elif is_pbzero:
       # Remove all the protozero srcs from the proto_library.
       proto_target.srcs.difference_update(
           [src for src in proto_target.srcs if not src.label.endswith('.proto')])
