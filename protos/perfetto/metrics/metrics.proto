@@ -42,6 +42,6 @@ message TraceMetrics {
   // Startup metrics on Android (owned by the Android Telemetry team).
   optional AndroidStartupMetric android_startup = 2;
 
-  // Trace statistics (applicable to all traces).
-  optional TraceStatistics trace_statistics = 3;
+  // Error statistics (applicable to all traces).
+  optional TraceStatistics error_statistics = 3;
 }

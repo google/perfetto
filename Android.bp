@@ -23,7 +23,7 @@ genrule {
     "src/trace_processor/metrics/android/android_startup.sql",
     "src/trace_processor/metrics/android/android_startup_launches.sql",
     "src/trace_processor/metrics/android/android_task_state.sql",
-    "src/trace_processor/metrics/trace_statistics.sql",
+    "src/trace_processor/metrics/error_statistics.sql",
   ],
   cmd: "$(location tools/gen_merged_sql_metrics.py) --cpp_out=$(out) $(in)",
   out: [
