@@ -3258,6 +3258,7 @@ cc_binary_host {
     "src/trace_processor/heap_profile_mapping_table.cc",
     "src/trace_processor/heap_profile_tracker.cc",
     "src/trace_processor/instants_table.cc",
+    "src/trace_processor/metadata_table.cc",
     "src/trace_processor/metrics/descriptors.cc",
     "src/trace_processor/metrics/metrics.cc",
     "src/trace_processor/process_table.cc",
