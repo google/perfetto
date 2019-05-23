@@ -144,7 +144,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     uid_t uid,
                                     const std::string& producer_name,
                                     size_t shared_memory_size_hint_bytes,
-                                    bool in_process) {
+                                    bool in_process,
+                                    ProducerSMBScrapingMode smb_scraping_mode) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   if (lockdown_mode_ && uid != geteuid()) {
@@ -160,8 +161,21 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   const ProducerID id = GetNextProducerID();
   PERFETTO_DLOG("Producer %" PRIu16 " connected", id);
 
+  bool smb_scraping_enabled = smb_scraping_enabled_;
+  switch (smb_scraping_mode) {
+    case ProducerSMBScrapingMode::kDefault:
+      break;
+    case ProducerSMBScrapingMode::kEnabled:
+      smb_scraping_enabled = true;
+      break;
+    case ProducerSMBScrapingMode::kDisabled:
+      smb_scraping_enabled = false;
+      break;
+  }
+
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
-      id, uid, this, task_runner_, producer, producer_name, in_process));
+      id, uid, this, task_runner_, producer, producer_name, in_process,
+      smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -1147,7 +1161,7 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
 void TracingServiceImpl::ScrapeSharedMemoryBuffers(
     TracingSession* tracing_session,
     ProducerEndpointImpl* producer) {
-  if (!smb_scraping_enabled_)
+  if (!producer->smb_scraping_enabled_)
     return;
 
   // Can't copy chunks if we don't know about any trace writers.
@@ -2480,7 +2494,8 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     base::TaskRunner* task_runner,
     Producer* producer,
     const std::string& producer_name,
-    bool in_process)
+    bool in_process,
+    bool smb_scraping_enabled)
     : id_(id),
       uid_(uid),
       service_(service),
@@ -2488,6 +2503,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
       producer_(producer),
       name_(producer_name),
       in_process_(in_process),
+      smb_scraping_enabled_(smb_scraping_enabled),
       weak_ptr_factory_(this) {}
 
 TracingServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
