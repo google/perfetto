@@ -22,6 +22,18 @@ package perfetto.protos;
 import "perfetto/metrics/android/mem_metric.proto";
 import "perfetto/metrics/android/startup_metric.proto";
 
+// Trace processor statistics (taken from the stats table schema and contents).
+// TODO: perhaps add the other columns once we have enum support
+message TraceStatistics {
+  message Entry {
+    optional string name = 1;
+    optional uint32 idx = 2;
+    optional int64 value = 3;
+  }
+
+  repeated Entry entry = 1;
+}
+
 // Root message for all Perfetto-based metrics.
 message TraceMetrics {
   // Memory metrics on Android (owned by the Android Telemetry team).
@@ -29,4 +41,7 @@ message TraceMetrics {
 
   // Startup metrics on Android (owned by the Android Telemetry team).
   optional AndroidStartupMetric android_startup = 2;
+
+  // Trace statistics (applicable to all traces).
+  optional TraceStatistics trace_statistics = 3;
 }
