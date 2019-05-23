@@ -25,6 +25,7 @@
 #include "src/trace_processor/metrics/sql_metrics.h"
 
 #include "perfetto/common/descriptor.pbzero.h"
+#include "perfetto/trace_processor/metrics_impl.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -63,6 +64,47 @@ SqlValue SqlValueFromSqliteValue(sqlite3_value* value) {
       break;
   }
   return sql_value;
+}
+
+util::Status AppendNestedFieldToMessage(const FieldDescriptor& field,
+                                        const void* bytes_value,
+                                        size_t bytes_count,
+                                        protozero::Message* message) {
+  const auto* data = static_cast<const uint8_t*>(bytes_value);
+  protos::pbzero::ProtoBuilderResult::Decoder decoder(data, bytes_count);
+  if (decoder.is_repeated())
+    return util::ErrStatus("BuildProto: no support for nested repeated fields");
+
+  if (decoder.type() != field.type()) {
+    return util::ErrStatus(
+        "BuildProto: field %s has wrong type (expected %u, was %u)",
+        field.name().c_str(), field.type(), decoder.type());
+  }
+
+  auto actual_type_name = decoder.type_name().ToStdString();
+  if (actual_type_name != field.raw_type_name()) {
+    return util::ErrStatus(
+        "BuildProto: field %s has wrong type (expected %s, was %s)",
+        field.name().c_str(), actual_type_name.c_str(),
+        field.raw_type_name().c_str());
+  }
+
+  if (!decoder.has_nested_message()) {
+    return util::ErrStatus("BuildProto: field %s has no nested message",
+                           field.name().c_str());
+  }
+
+  // We disallow 0 size fields here as they should have been reported as null
+  // one layer down.
+  auto bytes = decoder.nested_message();
+  if (bytes.size == 0) {
+    return util::ErrStatus(
+        "BuildProto: unexpected to see field %s with zero size",
+        field.name().c_str());
+  }
+
+  message->AppendBytes(field.number(), bytes.data, bytes.size);
+  return util::OkStatus();
 }
 
 util::Status AppendValueToMessage(const FieldDescriptor& field,
@@ -122,14 +164,17 @@ util::Status AppendValueToMessage(const FieldDescriptor& field,
       break;
     }
     case FieldDescriptorProto::TYPE_MESSAGE: {
-      // TODO(lalitm): verify the type of the nested message.
-      if (value.type != SqlValue::kBytes)
+      if (value.type == SqlValue::kNull) {
+        // If this we get a null message, we can simply treat it as the proto
+        // field being absent.
+        return util::OkStatus();
+      } else if (value.type != SqlValue::kBytes) {
         return util::ErrStatus(
             "BuildProto: field %s has wrong type (expected proto, was %d)",
             field.name().c_str(), value.type);
-      message->AppendBytes(field.number(), value.bytes_value,
-                           value.bytes_count);
-      break;
+      }
+      return AppendNestedFieldToMessage(field, value.bytes_value,
+                                        value.bytes_count, message);
     }
     case FieldDescriptorProto::TYPE_UINT64:
       return util::ErrStatus("BuildProto: uint64_t unsupported");
@@ -202,7 +247,6 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   }
 
   protozero::HeapBuffered<protozero::Message> message;
-
   for (int i = 0; i < argc; i += 2) {
     auto* value = argv[i + 1];
     if (sqlite3_value_type(argv[i]) != SQLITE_TEXT) {
@@ -239,7 +283,26 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   }
   message->Finalize();
 
-  std::vector<uint8_t> raw = message.SerializeAsArray();
+  // If the the serialized message size is just empty, there's no point
+  // emitting a message at all so just return null.
+  std::vector<uint8_t> serialized = message.SerializeAsArray();
+  if (serialized.empty()) {
+    sqlite3_result_null(ctx);
+    return;
+  }
+
+  protozero::HeapBuffered<protos::pbzero::ProtoBuilderResult> result;
+  result->set_is_repeated(false);
+  result->set_type(protos::pbzero::FieldDescriptorProto_Type_TYPE_MESSAGE);
+
+  const auto& type_name = fn_ctx->desc->full_name();
+  result->set_type_name(type_name.c_str(), type_name.size());
+
+  result->set_nested_message(serialized.data(), serialized.size());
+
+  result->Finalize();
+
+  std::vector<uint8_t> raw = result.SerializeAsArray();
   std::unique_ptr<uint8_t[]> data(static_cast<uint8_t*>(malloc(raw.size())));
   memcpy(data.get(), raw.data(), raw.size());
   sqlite3_result_blob(ctx, data.release(), static_cast<int>(raw.size()), free);
@@ -345,13 +408,21 @@ util::Status ComputeMetrics(TraceProcessor* tp,
 
     const auto& field_name = sql_metric.proto_field_name.value();
     auto opt_idx = root_descriptor.FindFieldIdx(field_name);
-    if (!opt_idx.has_value())
+    if (!opt_idx.has_value()) {
       return util::ErrStatus("%s field not found in metrics proto",
                              field_name.c_str());
+    }
 
     const auto& field = root_descriptor.fields()[opt_idx.value()];
-    const uint8_t* ptr = static_cast<const uint8_t*>(col.bytes_value);
-    metrics_message->AppendBytes(field.number(), ptr, col.bytes_count);
+    if (col.type != SqlValue::kBytes) {
+      return util::ErrStatus("%s field should be a Message type",
+                             field_name.c_str());
+    }
+
+    status = AppendNestedFieldToMessage(field, col.bytes_value, col.bytes_count,
+                                        metrics_message.get());
+    if (!status.ok())
+      return status;
 
     has_next = it.Next();
     if (has_next)
