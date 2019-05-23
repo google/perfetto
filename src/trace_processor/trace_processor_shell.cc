@@ -144,7 +144,7 @@ char* GetLine(const char* prompt) {
 bool PrintStats() {
   auto it = g_tp->ExecuteQuery(
       "SELECT name, idx, source, value from stats "
-      "where severity = 'error' and value > 0");
+      "where severity IN ('error', 'data_loss') and value > 0");
 
   bool first = true;
   for (uint32_t rows = 0; it.Next(); rows++) {
