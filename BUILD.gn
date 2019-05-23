@@ -151,6 +151,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     deps = [
       "gn:default_deps",
       "gn:gtest_main",
+      "src/public:integrationtests",
       "src/traced/probes/ftrace:integrationtests",
       "test:end_to_end_integrationtests",
     ]
