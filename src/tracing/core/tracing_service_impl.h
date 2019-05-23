@@ -76,7 +76,8 @@ class TracingServiceImpl : public TracingService {
                          base::TaskRunner*,
                          Producer*,
                          const std::string& producer_name,
-                         bool in_process);
+                         bool in_process,
+                         bool smb_scraping_enabled);
     ~ProducerEndpointImpl() override;
 
     // TracingService::ProducerEndpoint implementation.
@@ -118,6 +119,7 @@ class TracingServiceImpl : public TracingService {
    private:
     friend class TracingServiceImpl;
     friend class TracingServiceImplTest;
+    friend class TracingIntegrationTest;
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
 
@@ -132,6 +134,7 @@ class TracingServiceImpl : public TracingService {
     size_t shmem_size_hint_bytes_ = 0;
     const std::string name_;
     bool in_process_;
+    bool smb_scraping_enabled_;
 
     // Set of the global target_buffer IDs that the producer is configured to
     // write into in any active tracing session.
@@ -260,12 +263,16 @@ class TracingServiceImpl : public TracingService {
       uid_t uid,
       const std::string& producer_name,
       size_t shared_memory_size_hint_bytes = 0,
-      bool in_process = false) override;
+      bool in_process = false,
+      ProducerSMBScrapingMode smb_scraping_mode =
+          ProducerSMBScrapingMode::kDefault) override;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
       uid_t) override;
 
+  // Set whether SMB scraping should be enabled by default or not. Producers can
+  // override this setting for their own SMBs.
   void SetSMBScrapingEnabled(bool enabled) override {
     smb_scraping_enabled_ = enabled;
   }
@@ -278,6 +285,7 @@ class TracingServiceImpl : public TracingService {
 
  private:
   friend class TracingServiceImplTest;
+  friend class TracingIntegrationTest;
 
   struct RegisteredDataSource {
     ProducerID producer_id;

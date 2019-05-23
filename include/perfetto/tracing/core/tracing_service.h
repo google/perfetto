@@ -219,6 +219,20 @@ class PERFETTO_EXPORT TracingService {
   using ProducerEndpoint = perfetto::ProducerEndpoint;
   using ConsumerEndpoint = perfetto::ConsumerEndpoint;
 
+  enum class ProducerSMBScrapingMode {
+    // Use service's default setting for SMB scraping. Currently, the default
+    // mode is to disable SMB scraping, but this may change in the future.
+    kDefault,
+
+    // Enable scraping of uncommitted chunks in producers' shared memory
+    // buffers.
+    kEnabled,
+
+    // Disable scraping of uncommitted chunks in producers' shared memory
+    // buffers.
+    kDisabled
+  };
+
   // Implemented in src/core/tracing_service_impl.cc .
   static std::unique_ptr<TracingService> CreateInstance(
       std::unique_ptr<SharedMemory::Factory>,
@@ -252,7 +266,9 @@ class PERFETTO_EXPORT TracingService {
       uid_t uid,
       const std::string& name,
       size_t shared_memory_size_hint_bytes = 0,
-      bool in_process = false) = 0;
+      bool in_process = false,
+      ProducerSMBScrapingMode smb_scraping_mode =
+          ProducerSMBScrapingMode::kDefault) = 0;
 
   // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.
