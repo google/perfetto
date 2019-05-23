@@ -1,3 +1,4 @@
 ../data/lmk_userspace.pb android_mem android_mem_lmk.out
 ../data/memory_counters.pb android_mem android_mem_counters.out
 android_startup.py android_startup android_startup.out
+../data/memory_counters.pb trace_statistics trace_statistics.out
