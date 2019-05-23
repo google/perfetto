@@ -95,6 +95,22 @@ message InitializeConnectionRequest {
   // Required to match the producer config set by the service to the correct
   // producer.
   optional string producer_name = 3;
+
+  enum ProducerSMBScrapingMode {
+    // Use the service's default setting for SMB scraping.
+    SMB_SCRAPING_UNSPECIFIED = 0;
+
+    // Enable scraping of uncommitted chunks from the producer's shared memory
+    // buffer.
+    SMB_SCRAPING_ENABLED = 1;
+
+    // Disable scraping of uncommitted chunks from the producer's shared memory
+    // buffer.
+    SMB_SCRAPING_DISABLED = 2;
+  }
+
+  // If provided, overrides the service's SMB scraping setting for the producer.
+  optional ProducerSMBScrapingMode smb_scraping_mode = 4;
 }
 
 message InitializeConnectionResponse {

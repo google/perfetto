@@ -41,21 +41,25 @@ std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
     const char* service_sock_name,
     Producer* producer,
     const std::string& producer_name,
-    base::TaskRunner* task_runner) {
+    base::TaskRunner* task_runner,
+    TracingService::ProducerSMBScrapingMode smb_scraping_mode) {
   return std::unique_ptr<TracingService::ProducerEndpoint>(
       new ProducerIPCClientImpl(service_sock_name, producer, producer_name,
-                                task_runner));
+                                task_runner, smb_scraping_mode));
 }
 
-ProducerIPCClientImpl::ProducerIPCClientImpl(const char* service_sock_name,
-                                             Producer* producer,
-                                             const std::string& producer_name,
-                                             base::TaskRunner* task_runner)
+ProducerIPCClientImpl::ProducerIPCClientImpl(
+    const char* service_sock_name,
+    Producer* producer,
+    const std::string& producer_name,
+    base::TaskRunner* task_runner,
+    TracingService::ProducerSMBScrapingMode smb_scraping_mode)
     : producer_(producer),
       task_runner_(task_runner),
       ipc_channel_(ipc::Client::CreateInstance(service_sock_name, task_runner)),
       producer_port_(this /* event_listener */),
-      name_(producer_name) {
+      name_(producer_name),
+      smb_scraping_mode_(smb_scraping_mode) {
   ipc_channel_->BindService(producer_port_.GetWeakPtr());
   PERFETTO_DCHECK_THREAD(thread_checker_);
 }
@@ -77,6 +81,20 @@ void ProducerIPCClientImpl::OnConnect() {
       });
   protos::InitializeConnectionRequest req;
   req.set_producer_name(name_);
+  switch (smb_scraping_mode_) {
+    case TracingService::ProducerSMBScrapingMode::kDefault:
+      // No need to set the mode, it defaults to use the service default if
+      // unspecified.
+      break;
+    case TracingService::ProducerSMBScrapingMode::kEnabled:
+      req.set_smb_scraping_mode(
+          protos::InitializeConnectionRequest::SMB_SCRAPING_ENABLED);
+      break;
+    case TracingService::ProducerSMBScrapingMode::kDisabled:
+      req.set_smb_scraping_mode(
+          protos::InitializeConnectionRequest::SMB_SCRAPING_DISABLED);
+      break;
+  }
   producer_port_.InitializeConnection(req, std::move(on_init));
 
   // Create the back channel to receive commands from the Service.
