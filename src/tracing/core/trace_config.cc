@@ -44,6 +44,7 @@ TraceConfig& TraceConfig::operator=(TraceConfig&&) = default;
 bool TraceConfig::operator==(const TraceConfig& other) const {
   return (buffers_ == other.buffers_) &&
          (data_sources_ == other.data_sources_) &&
+         (builtin_data_sources_ == other.builtin_data_sources_) &&
          (duration_ms_ == other.duration_ms_) &&
          (enable_extra_guardrails_ == other.enable_extra_guardrails_) &&
          (lockdown_mode_ == other.lockdown_mode_) &&
@@ -56,11 +57,12 @@ bool TraceConfig::operator==(const TraceConfig& other) const {
          (deferred_start_ == other.deferred_start_) &&
          (flush_period_ms_ == other.flush_period_ms_) &&
          (flush_timeout_ms_ == other.flush_timeout_ms_) &&
-         (disable_clock_snapshotting_ == other.disable_clock_snapshotting_) &&
          (notify_traceur_ == other.notify_traceur_) &&
          (trigger_config_ == other.trigger_config_) &&
          (activate_triggers_ == other.activate_triggers_) &&
-         (allow_user_build_tracing_ == other.allow_user_build_tracing_);
+         (incremental_state_config_ == other.incremental_state_config_) &&
+         (allow_user_build_tracing_ == other.allow_user_build_tracing_) &&
+         (unique_session_name_ == other.unique_session_name_);
 }
 #pragma GCC diagnostic pop
 
@@ -76,6 +78,8 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
     data_sources_.emplace_back();
     data_sources_.back().FromProto(field);
   }
+
+  builtin_data_sources_.FromProto(proto.builtin_data_sources());
 
   static_assert(sizeof(duration_ms_) == sizeof(proto.duration_ms()),
                 "size mismatch");
@@ -133,13 +137,6 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
   flush_timeout_ms_ =
       static_cast<decltype(flush_timeout_ms_)>(proto.flush_timeout_ms());
 
-  static_assert(sizeof(disable_clock_snapshotting_) ==
-                    sizeof(proto.disable_clock_snapshotting()),
-                "size mismatch");
-  disable_clock_snapshotting_ =
-      static_cast<decltype(disable_clock_snapshotting_)>(
-          proto.disable_clock_snapshotting());
-
   static_assert(sizeof(notify_traceur_) == sizeof(proto.notify_traceur()),
                 "size mismatch");
   notify_traceur_ =
@@ -157,11 +154,19 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
         static_cast<decltype(activate_triggers_)::value_type>(field);
   }
 
+  incremental_state_config_.FromProto(proto.incremental_state_config());
+
   static_assert(sizeof(allow_user_build_tracing_) ==
                     sizeof(proto.allow_user_build_tracing()),
                 "size mismatch");
   allow_user_build_tracing_ = static_cast<decltype(allow_user_build_tracing_)>(
       proto.allow_user_build_tracing());
+
+  static_assert(
+      sizeof(unique_session_name_) == sizeof(proto.unique_session_name()),
+      "size mismatch");
+  unique_session_name_ =
+      static_cast<decltype(unique_session_name_)>(proto.unique_session_name());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -177,6 +182,8 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
     auto* entry = proto->add_data_sources();
     it.ToProto(entry);
   }
+
+  builtin_data_sources_.ToProto(proto->mutable_builtin_data_sources());
 
   static_assert(sizeof(duration_ms_) == sizeof(proto->duration_ms()),
                 "size mismatch");
@@ -238,13 +245,6 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
   proto->set_flush_timeout_ms(
       static_cast<decltype(proto->flush_timeout_ms())>(flush_timeout_ms_));
 
-  static_assert(sizeof(disable_clock_snapshotting_) ==
-                    sizeof(proto->disable_clock_snapshotting()),
-                "size mismatch");
-  proto->set_disable_clock_snapshotting(
-      static_cast<decltype(proto->disable_clock_snapshotting())>(
-          disable_clock_snapshotting_));
-
   static_assert(sizeof(notify_traceur_) == sizeof(proto->notify_traceur()),
                 "size mismatch");
   proto->set_notify_traceur(
@@ -259,12 +259,21 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
                   "size mismatch");
   }
 
+  incremental_state_config_.ToProto(proto->mutable_incremental_state_config());
+
   static_assert(sizeof(allow_user_build_tracing_) ==
                     sizeof(proto->allow_user_build_tracing()),
                 "size mismatch");
   proto->set_allow_user_build_tracing(
       static_cast<decltype(proto->allow_user_build_tracing())>(
           allow_user_build_tracing_));
+
+  static_assert(
+      sizeof(unique_session_name_) == sizeof(proto->unique_session_name()),
+      "size mismatch");
+  proto->set_unique_session_name(
+      static_cast<decltype(proto->unique_session_name())>(
+          unique_session_name_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
@@ -359,6 +368,77 @@ void TraceConfig::DataSource::ToProto(
     static_assert(sizeof(it) == sizeof(proto->producer_name_filter(0)),
                   "size mismatch");
   }
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+TraceConfig::BuiltinDataSource::BuiltinDataSource() = default;
+TraceConfig::BuiltinDataSource::~BuiltinDataSource() = default;
+TraceConfig::BuiltinDataSource::BuiltinDataSource(
+    const TraceConfig::BuiltinDataSource&) = default;
+TraceConfig::BuiltinDataSource& TraceConfig::BuiltinDataSource::operator=(
+    const TraceConfig::BuiltinDataSource&) = default;
+TraceConfig::BuiltinDataSource::BuiltinDataSource(
+    TraceConfig::BuiltinDataSource&&) noexcept = default;
+TraceConfig::BuiltinDataSource& TraceConfig::BuiltinDataSource::operator=(
+    TraceConfig::BuiltinDataSource&&) = default;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool TraceConfig::BuiltinDataSource::operator==(
+    const TraceConfig::BuiltinDataSource& other) const {
+  return (disable_clock_snapshotting_ == other.disable_clock_snapshotting_) &&
+         (disable_trace_config_ == other.disable_trace_config_) &&
+         (disable_system_info_ == other.disable_system_info_);
+}
+#pragma GCC diagnostic pop
+
+void TraceConfig::BuiltinDataSource::FromProto(
+    const perfetto::protos::TraceConfig_BuiltinDataSource& proto) {
+  static_assert(sizeof(disable_clock_snapshotting_) ==
+                    sizeof(proto.disable_clock_snapshotting()),
+                "size mismatch");
+  disable_clock_snapshotting_ =
+      static_cast<decltype(disable_clock_snapshotting_)>(
+          proto.disable_clock_snapshotting());
+
+  static_assert(
+      sizeof(disable_trace_config_) == sizeof(proto.disable_trace_config()),
+      "size mismatch");
+  disable_trace_config_ = static_cast<decltype(disable_trace_config_)>(
+      proto.disable_trace_config());
+
+  static_assert(
+      sizeof(disable_system_info_) == sizeof(proto.disable_system_info()),
+      "size mismatch");
+  disable_system_info_ =
+      static_cast<decltype(disable_system_info_)>(proto.disable_system_info());
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void TraceConfig::BuiltinDataSource::ToProto(
+    perfetto::protos::TraceConfig_BuiltinDataSource* proto) const {
+  proto->Clear();
+
+  static_assert(sizeof(disable_clock_snapshotting_) ==
+                    sizeof(proto->disable_clock_snapshotting()),
+                "size mismatch");
+  proto->set_disable_clock_snapshotting(
+      static_cast<decltype(proto->disable_clock_snapshotting())>(
+          disable_clock_snapshotting_));
+
+  static_assert(
+      sizeof(disable_trace_config_) == sizeof(proto->disable_trace_config()),
+      "size mismatch");
+  proto->set_disable_trace_config(
+      static_cast<decltype(proto->disable_trace_config())>(
+          disable_trace_config_));
+
+  static_assert(
+      sizeof(disable_system_info_) == sizeof(proto->disable_system_info()),
+      "size mismatch");
+  proto->set_disable_system_info(
+      static_cast<decltype(proto->disable_system_info())>(
+          disable_system_info_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
@@ -666,6 +746,45 @@ void TraceConfig::TriggerConfig::Trigger::ToProto(
                 "size mismatch");
   proto->set_stop_delay_ms(
       static_cast<decltype(proto->stop_delay_ms())>(stop_delay_ms_));
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+TraceConfig::IncrementalStateConfig::IncrementalStateConfig() = default;
+TraceConfig::IncrementalStateConfig::~IncrementalStateConfig() = default;
+TraceConfig::IncrementalStateConfig::IncrementalStateConfig(
+    const TraceConfig::IncrementalStateConfig&) = default;
+TraceConfig::IncrementalStateConfig& TraceConfig::IncrementalStateConfig::
+operator=(const TraceConfig::IncrementalStateConfig&) = default;
+TraceConfig::IncrementalStateConfig::IncrementalStateConfig(
+    TraceConfig::IncrementalStateConfig&&) noexcept = default;
+TraceConfig::IncrementalStateConfig& TraceConfig::IncrementalStateConfig::
+operator=(TraceConfig::IncrementalStateConfig&&) = default;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool TraceConfig::IncrementalStateConfig::operator==(
+    const TraceConfig::IncrementalStateConfig& other) const {
+  return (clear_period_ms_ == other.clear_period_ms_);
+}
+#pragma GCC diagnostic pop
+
+void TraceConfig::IncrementalStateConfig::FromProto(
+    const perfetto::protos::TraceConfig_IncrementalStateConfig& proto) {
+  static_assert(sizeof(clear_period_ms_) == sizeof(proto.clear_period_ms()),
+                "size mismatch");
+  clear_period_ms_ =
+      static_cast<decltype(clear_period_ms_)>(proto.clear_period_ms());
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void TraceConfig::IncrementalStateConfig::ToProto(
+    perfetto::protos::TraceConfig_IncrementalStateConfig* proto) const {
+  proto->Clear();
+
+  static_assert(sizeof(clear_period_ms_) == sizeof(proto->clear_period_ms()),
+                "size mismatch");
+  proto->set_clear_period_ms(
+      static_cast<decltype(proto->clear_period_ms())>(clear_period_ms_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

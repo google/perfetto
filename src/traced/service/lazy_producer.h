@@ -47,6 +47,8 @@ class LazyProducer : public Producer {
              size_t) override {
     endpoint_->NotifyFlushComplete(flush_id);
   }
+  void ClearIncrementalState(const DataSourceInstanceID* /*data_source_ids*/,
+                             size_t /*num_data_sources*/) override {}
 
   void OnConnect() override;
   void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&) override;

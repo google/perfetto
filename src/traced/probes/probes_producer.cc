@@ -53,7 +53,7 @@ namespace {
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 
-// Should be larger than FtraceController::kFlushTimeoutMs.
+// Should be larger than FtraceController::kControllerFlushTimeoutMs.
 constexpr uint32_t kFlushTimeoutMs = 1000;
 
 constexpr char kFtraceSourceName[] = "linux.ftrace";
@@ -96,6 +96,7 @@ void ProbesProducer::OnConnect() {
   {
     DataSourceDescriptor desc;
     desc.set_name(kProcessStatsSourceName);
+    desc.set_handles_incremental_state_clear(true);
     endpoint_->RegisterDataSource(desc);
   }
 
@@ -396,6 +397,19 @@ void ProbesProducer::OnFlushTimeout(FlushRequestID flush_request_id) {
   endpoint_->NotifyFlushComplete(flush_request_id);
 }
 
+void ProbesProducer::ClearIncrementalState(
+    const DataSourceInstanceID* data_source_ids,
+    size_t num_data_sources) {
+  for (size_t i = 0; i < num_data_sources; i++) {
+    DataSourceInstanceID ds_id = data_source_ids[i];
+    auto it = data_sources_.find(ds_id);
+    if (it == data_sources_.end() || !it->second->started)
+      continue;
+
+    it->second->ClearIncrementalState();
+  }
+}
+
 // This function is called by the FtraceController in batches, whenever it has
 // read one or more pages from one or more cpus and written that into the
 // userspace tracing buffer. If more than one ftrace data sources are active,
@@ -414,8 +428,13 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
     if (it == session_data_sources_.end() || it->first != last_session_id) {
       bool has_inodes = metadata && !metadata->inode_and_device.empty();
       bool has_pids = metadata && !metadata->pids.empty();
+      bool has_rename_pids = metadata && !metadata->rename_pids.empty();
       if (has_inodes && inode_data_source)
         inode_data_source->OnInodes(metadata->inode_and_device);
+      // Ordering the rename pids before the seen pids is important so that any
+      // renamed processes get scraped in the OnPids call.
+      if (has_rename_pids && ps_data_source)
+        ps_data_source->OnRenamePids(metadata->rename_pids);
       if (has_pids && ps_data_source)
         ps_data_source->OnPids(metadata->pids);
       if (metadata)

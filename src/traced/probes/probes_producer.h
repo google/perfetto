@@ -54,6 +54,8 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   void Flush(FlushRequestID,
              const DataSourceInstanceID* data_source_ids,
              size_t num_data_sources) override;
+  void ClearIncrementalState(const DataSourceInstanceID* data_source_ids,
+                             size_t num_data_sources) override;
 
   // FtraceController::Observer implementation.
   void OnFtraceDataWrittenIntoDataSourceBuffers() override;
