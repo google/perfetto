@@ -76,7 +76,8 @@ class TraceSorterTest : public ::testing::Test {
       : test_buffer_(std::unique_ptr<uint8_t[]>(new uint8_t[8]), 0, 8) {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
-    context_.sorter.reset(new TraceSorter(&context_, 0 /*window_size*/));
+    context_.sorter.reset(new TraceSorter(
+        &context_, std::numeric_limits<int64_t>::max() /*window_size*/));
     parser_ = new MockTraceParser(&context_);
     context_.parser.reset(parser_);
   }
