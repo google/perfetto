@@ -3,7 +3,7 @@ android_startup {
     startup_id: 2
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
-    started_new_process: false
+    zygote_new_process: false
     activity_hosting_process_count: 2
     to_first_frame {
       dur_ns: 108
@@ -13,6 +13,7 @@ android_startup {
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 10
       }
+      other_processes_spawned_count: 1
     }
   }
 }

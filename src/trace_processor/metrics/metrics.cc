@@ -256,6 +256,13 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
     auto* key_str = reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
     auto opt_field_idx = fn_ctx->desc->FindFieldIdx(key_str);
+    if (!opt_field_idx.has_value()) {
+      auto error =
+          std::string("BuildProto: could not find field ").append(key_str);
+      sqlite3_result_error(ctx, error.c_str(),
+                           static_cast<int32_t>(error.length()));
+      return;
+    }
     const auto& field = fn_ctx->desc->fields()[opt_field_idx.value()];
     if (field.is_repeated()) {
       if (sqlite3_value_type(value) != SQLITE_TEXT) {
