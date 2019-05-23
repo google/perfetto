@@ -32,6 +32,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/base/utils.h"
 #include "src/trace_processor/ftrace_utils.h"
+#include "src/trace_processor/metadata.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/string_pool.h"
 #include "src/trace_processor/variadic.h"
@@ -554,6 +555,8 @@ class TraceStorage {
   };
   using StatsMap = std::array<Stats, stats::kNumKeys>;
 
+  using MetadataMap = std::array<std::vector<Variadic>, metadata::kNumKeys>;
+
   class HeapProfileFrames {
    public:
     struct Row {
@@ -756,6 +759,26 @@ class TraceStorage {
     stats_[key].indexed_values[index] = value;
   }
 
+  // Example usage:
+  // SetMetadata(metadata::benchmark_name,
+  //             Variadic::String(storage->InternString("foo"));
+  void SetMetadata(size_t key, Variadic value) {
+    PERFETTO_DCHECK(key < metadata::kNumKeys);
+    PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kSingle);
+    PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
+    metadata_[key] = {value};
+  }
+
+  // Example usage:
+  // AppendMetadata(metadata::benchmark_story_tags,
+  //                Variadic::String(storage->InternString("bar"));
+  void AppendMetadata(size_t key, Variadic value) {
+    PERFETTO_DCHECK(key < metadata::kNumKeys);
+    PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kMulti);
+    PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
+    metadata_[key].push_back(value);
+  }
+
   class ScopedStatsTracer {
    public:
     ScopedStatsTracer(TraceStorage* storage, size_t key)
@@ -849,6 +872,8 @@ class TraceStorage {
 
   const StatsMap& stats() const { return stats_; }
 
+  const MetadataMap& metadata() const { return metadata_; }
+
   const Args& args() const { return args_; }
   Args* mutable_args() { return &args_; }
 
@@ -913,6 +938,9 @@ class TraceStorage {
 
   // Stats about parsing the trace.
   StatsMap stats_{};
+
+  // Trace metadata from chrome and benchmarking infrastructure.
+  MetadataMap metadata_{};
 
   // One entry for each CPU in the trace.
   Slices slices_;
