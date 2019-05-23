@@ -577,7 +577,9 @@ void TracingMuxerImpl::DestroyTracingSession(
     auto pred = [session_id](const std::unique_ptr<ConsumerImpl>& consumer) {
       return consumer->session_id_ == session_id;
     };
-    std::remove_if(backend.consumers.begin(), backend.consumers.end(), pred);
+    backend.consumers.erase(std::remove_if(backend.consumers.begin(),
+                                           backend.consumers.end(), pred),
+                            backend.consumers.end());
   }
 }
 
