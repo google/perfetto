@@ -445,6 +445,14 @@ util::Status TraceProcessorImpl::ComputeMetric(
       return util::ErrStatus("Error initializing RUN_METRIC");
   }
 
+  {
+    auto ret = sqlite3_create_function_v2(
+        *db_, "RepeatedField", 1, SQLITE_UTF8, nullptr, nullptr,
+        metrics::RepeatedFieldStep, metrics::RepeatedFieldFinal, nullptr);
+    if (ret)
+      return util::ErrStatus("Error initializing RUN_METRIC");
+  }
+
   metrics::DescriptorPool pool;
   pool.AddFromFileDescriptorSet(file_descriptor_set_proto,
                                 file_descriptor_set_proto_size);
