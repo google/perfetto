@@ -762,7 +762,8 @@ class TraceStorage {
   // Example usage:
   // SetMetadata(metadata::benchmark_name,
   //             Variadic::String(storage->InternString("foo"));
-  void SetMetadata(size_t key, Variadic value) {
+  // Virtual for testing.
+  virtual void SetMetadata(size_t key, Variadic value) {
     PERFETTO_DCHECK(key < metadata::kNumKeys);
     PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kSingle);
     PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
@@ -772,7 +773,8 @@ class TraceStorage {
   // Example usage:
   // AppendMetadata(metadata::benchmark_story_tags,
   //                Variadic::String(storage->InternString("bar"));
-  void AppendMetadata(size_t key, Variadic value) {
+  // Virtual for testing.
+  virtual void AppendMetadata(size_t key, Variadic value) {
     PERFETTO_DCHECK(key < metadata::kNumKeys);
     PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kMulti);
     PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
