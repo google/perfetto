@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "google/protobuf/compiler/plugin.h"
+#include <google/protobuf/compiler/plugin.h>
 #include "src/protozero/protoc_plugin/protozero_generator.h"
 
 int main(int argc, char* argv[]) {

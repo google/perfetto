@@ -22,7 +22,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
 
