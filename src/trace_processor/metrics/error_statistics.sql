@@ -20,9 +20,10 @@ SELECT TraceStatistics_Entry(
   'idx', idx,
   'value', value) as entry
 FROM stats
-WHERE name NOT IN ('guess_trace_type_duration_ns', 'parse_trace_duration_ns');
+WHERE severity IN ('data_loss', 'error')
+AND value > 0;
 
-CREATE VIEW trace_statistics_output AS
+CREATE VIEW error_statistics_output AS
 SELECT TraceStatistics(
   'entry', (
     select RepeatedField(entry) from stats_view
