@@ -18,9 +18,13 @@ CREATE VIEW stats_view AS
 SELECT TraceStatistics_Entry(
   'name', name,
   'idx', idx,
-  'value', value)
+  'value', value) as entry
 FROM stats
 WHERE name NOT IN ('guess_trace_type_duration_ns', 'parse_trace_duration_ns');
 
 CREATE VIEW trace_statistics_output AS
-SELECT TraceStatistics('entry', 'stats_view');
+SELECT TraceStatistics(
+  'entry', (
+    select RepeatedField(entry) from stats_view
+  )
+);

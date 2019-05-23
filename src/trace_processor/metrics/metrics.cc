@@ -68,9 +68,8 @@ SqlValue SqlValueFromSqliteValue(sqlite3_value* value) {
 
 }  // namespace
 
-ProtoBuilder::ProtoBuilder(TraceProcessor* tp,
-                           const ProtoDescriptor* descriptor)
-    : tp_(tp), descriptor_(descriptor) {}
+ProtoBuilder::ProtoBuilder(const ProtoDescriptor* descriptor)
+    : descriptor_(descriptor) {}
 
 util::Status ProtoBuilder::AppendSqlValue(const std::string& field_name,
                                           const SqlValue& value) {
@@ -106,7 +105,7 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
   const auto& field = descriptor_->fields()[field_idx.value()];
   if (field.is_repeated()) {
     return util::ErrStatus(
-        "Unexpected scalar value for repeated field %s in proto type %s",
+        "Unexpected long value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
   }
 
@@ -150,7 +149,7 @@ util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
   const auto& field = descriptor_->fields()[field_idx.value()];
   if (field.is_repeated()) {
     return util::ErrStatus(
-        "Unexpected scalar value for repeated field %s in proto type %s",
+        "Unexpected double value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
   }
 
@@ -187,21 +186,13 @@ util::Status ProtoBuilder::AppendBytesInternal(const std::string& field_name,
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   const auto& field = descriptor_->fields()[field_idx.value()];
-  if (field.is_repeated() && !is_inside_repeated_query_) {
+  if (field.is_repeated()) {
     if (is_string) {
-      // Prevent nested repeated field by setting |is_inside_repeated_query_|
-      // while handling the repeated query.
-      is_inside_repeated_query_ = true;
-      auto status = AppendRepeated(
-          field_name,
-          base::StringView(reinterpret_cast<const char*>(ptr), size));
-      is_inside_repeated_query_ = false;
-      return status;
-    } else {
       return util::ErrStatus(
-          "Unexpected scalar value for repeated field %s in proto type %s",
+          "Unexpected string value for repeated field %s in proto type %s",
           field_name.c_str(), descriptor_->full_name().c_str());
     }
+    return AppendRepeated(field, ptr, size);
   }
 
   switch (field.type()) {
@@ -210,7 +201,7 @@ util::Status ProtoBuilder::AppendBytesInternal(const std::string& field_name,
       break;
     }
     case FieldDescriptorProto::TYPE_MESSAGE:
-      return AppendNestedMessage(field, ptr, size);
+      return AppendSingleMessage(field, ptr, size);
     default: {
       return util::ErrStatus(
           "Tried to write value of type long into field %s (in proto type %s) "
@@ -221,19 +212,19 @@ util::Status ProtoBuilder::AppendBytesInternal(const std::string& field_name,
   return util::OkStatus();
 }
 
-util::Status ProtoBuilder::AppendNestedMessage(const FieldDescriptor& field,
+util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
                                                const uint8_t* ptr,
                                                size_t size) {
   protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
   if (decoder.is_repeated())
-    return util::ErrStatus(
-        "AppendNestedMessage: cannot handle nested repeated field");
+    return util::ErrStatus("Cannot handle nested repeated messages in field %s",
+                           field.name().c_str());
 
   const auto& single_field = decoder.single();
   protos::pbzero::SingleBuilderResult::Decoder single(single_field.data,
                                                       single_field.size);
 
-  if (field.type() != single.type()) {
+  if (single.type() != field.type()) {
     return util::ErrStatus("Field %s has wrong type (expected %u, was %u)",
                            field.name().c_str(), field.type(), single.type());
   }
@@ -261,19 +252,41 @@ util::Status ProtoBuilder::AppendNestedMessage(const FieldDescriptor& field,
   return util::OkStatus();
 }
 
-util::Status ProtoBuilder::AppendRepeated(const std::string& field_name,
-                                          base::StringView table_name) {
-  std::string query = "SELECT * FROM " + table_name.ToStdString() + ";";
-  auto it = tp_->ExecuteQuery(query);
-  while (it.Next()) {
-    if (it.ColumnCount() != 1)
-      return util::ErrStatus("Repeated table should have exactly one column");
+util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
+                                          const uint8_t* ptr,
+                                          size_t size) {
+  protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
+  if (!decoder.is_repeated()) {
+    return util::ErrStatus(
+        "Unexpected message value for repeated field %s in proto type %s",
+        field.name().c_str(), descriptor_->full_name().c_str());
+  }
 
-    util::Status status = AppendSqlValue(field_name, it.Get(0));
+  const auto& rep = decoder.repeated();
+  protos::pbzero::RepeatedBuilderResult::Decoder repeated(rep.data, rep.size);
+  for (auto it = repeated.value(); it; ++it) {
+    protos::pbzero::RepeatedBuilderResult::Value::Decoder value(it->data(),
+                                                                it->size());
+    util::Status status;
+    if (value.has_int_value()) {
+      status = AppendLong(field.name(), value.int_value());
+    } else if (value.has_double_value()) {
+      status = AppendDouble(field.name(), value.double_value());
+    } else if (value.has_string_value()) {
+      status =
+          AppendString(field.name(), base::StringView(value.string_value()));
+    } else if (value.has_bytes_value()) {
+      // TODO(lalitm): think about whether to add support for bytes fields.
+      const auto& bytes = value.bytes_value();
+      status = AppendSingleMessage(field, bytes.data, bytes.size);
+    } else {
+      status = util::ErrStatus("Unknown type in repeated field");
+    }
+
     if (!status.ok())
       return status;
   }
-  return it.Status();
+  return util::OkStatus();
 }
 
 std::vector<uint8_t> ProtoBuilder::SerializeToProtoBuilderResult() {
@@ -295,6 +308,61 @@ std::vector<uint8_t> ProtoBuilder::SerializeToProtoBuilderResult() {
 }
 
 std::vector<uint8_t> ProtoBuilder::SerializeRaw() {
+  message_->Finalize();
+  return message_.SerializeAsArray();
+}
+
+RepeatedFieldBuilder::RepeatedFieldBuilder() {
+  repeated_ = message_->set_repeated();
+}
+
+util::Status RepeatedFieldBuilder::AddSqlValue(SqlValue value) {
+  switch (value.type) {
+    case SqlValue::kLong:
+      AddLong(value.long_value);
+      break;
+    case SqlValue::kDouble:
+      AddDouble(value.double_value);
+      break;
+    case SqlValue::kString:
+      AddString(value.string_value);
+      break;
+    case SqlValue::kBytes:
+      AddBytes(static_cast<const uint8_t*>(value.bytes_value),
+               value.bytes_count);
+      break;
+    case SqlValue::kNull:
+      return util::ErrStatus("Unexpected null value in repeated field");
+  }
+  return util::OkStatus();
+}
+
+void RepeatedFieldBuilder::AddLong(int64_t value) {
+  has_data_ = true;
+  repeated_->add_value()->set_int_value(value);
+}
+
+void RepeatedFieldBuilder::AddDouble(double value) {
+  has_data_ = true;
+  repeated_->add_value()->set_double_value(value);
+}
+
+void RepeatedFieldBuilder::AddString(base::StringView value) {
+  has_data_ = true;
+  repeated_->add_value()->set_string_value(value.data(), value.size());
+}
+
+void RepeatedFieldBuilder::AddBytes(const uint8_t* data, size_t size) {
+  has_data_ = true;
+  repeated_->add_value()->set_bytes_value(data, size);
+}
+
+std::vector<uint8_t> RepeatedFieldBuilder::SerializeToProtoBuilderResult() {
+  repeated_ = nullptr;
+  if (!has_data_)
+    return std::vector<uint8_t>();
+
+  message_->set_is_repeated(true);
   message_->Finalize();
   return message_.SerializeAsArray();
 }
@@ -323,6 +391,61 @@ int TemplateReplace(
   return 0;
 }
 
+void RepeatedFieldStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  if (argc != 1) {
+    sqlite3_result_error(ctx, "RepeatedField: only expected one arg", -1);
+    return;
+  }
+
+  // We use a double indirection here so we can use new and delete without
+  // needing to do dangerous dances with placement new and checking
+  // initalization.
+  auto** builder_ptr_ptr = static_cast<RepeatedFieldBuilder**>(
+      sqlite3_aggregate_context(ctx, sizeof(RepeatedFieldBuilder*)));
+
+  // The memory returned from sqlite3_aggregate_context is zeroed on its first
+  // invocation so *builder_ptr_ptr will be nullptr on the first invocation of
+  // RepeatedFieldStep.
+  bool needs_init = *builder_ptr_ptr == nullptr;
+  if (needs_init) {
+    *builder_ptr_ptr = new RepeatedFieldBuilder();
+  }
+
+  auto value = SqlValueFromSqliteValue(argv[0]);
+  RepeatedFieldBuilder* builder = *builder_ptr_ptr;
+  auto status = builder->AddSqlValue(value);
+  if (!status.ok()) {
+    sqlite3_result_error(ctx, status.c_message(), -1);
+  }
+}
+
+void RepeatedFieldFinal(sqlite3_context* ctx) {
+  // Note: we choose the size intentionally to be zero because we don't want to
+  // allocate if the Step has never been called.
+  auto** builder_ptr_ptr =
+      static_cast<RepeatedFieldBuilder**>(sqlite3_aggregate_context(ctx, 0));
+
+  // If Step has never been called, |builder_ptr_ptr| will be null.
+  if (builder_ptr_ptr == nullptr) {
+    sqlite3_result_null(ctx);
+    return;
+  }
+
+  // Capture the context pointer so that it will be freed at the end of this
+  // function.
+  std::unique_ptr<RepeatedFieldBuilder> builder(*builder_ptr_ptr);
+  std::vector<uint8_t> raw = builder->SerializeToProtoBuilderResult();
+  if (raw.empty()) {
+    sqlite3_result_null(ctx);
+    return;
+  }
+
+  std::unique_ptr<uint8_t[], base::FreeDeleter> data(
+      static_cast<uint8_t*>(malloc(raw.size())));
+  memcpy(data.get(), raw.data(), raw.size());
+  sqlite3_result_blob(ctx, data.release(), static_cast<int>(raw.size()), free);
+}
+
 // SQLite function implementation used to build a proto directly in SQL. The
 // proto to be built is given by the descriptor which is given as a context
 // parameter to this function and chosen when this function is first registed
@@ -339,7 +462,7 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
 
-  ProtoBuilder builder(fn_ctx->tp, fn_ctx->desc);
+  ProtoBuilder builder(fn_ctx->desc);
   for (int i = 0; i < argc; i += 2) {
     if (sqlite3_value_type(argv[i]) != SQLITE_TEXT) {
       sqlite3_result_error(ctx, "BuildProto: Invalid args", -1);
@@ -361,7 +484,8 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
 
-  std::unique_ptr<uint8_t[]> data(static_cast<uint8_t*>(malloc(raw.size())));
+  std::unique_ptr<uint8_t[], base::FreeDeleter> data(
+      static_cast<uint8_t*>(malloc(raw.size())));
   memcpy(data.get(), raw.data(), raw.size());
   sqlite3_result_blob(ctx, data.release(), static_cast<int>(raw.size()), free);
 }
@@ -428,7 +552,7 @@ util::Status ComputeMetrics(TraceProcessor* tp,
                             const std::vector<SqlMetric>& sql_metrics,
                             const ProtoDescriptor& root_descriptor,
                             std::vector<uint8_t>* metrics_proto) {
-  ProtoBuilder metric_builder(tp, &root_descriptor);
+  ProtoBuilder metric_builder(&root_descriptor);
   for (const auto& sql_metric : sql_metrics) {
     // If there's no proto to fill in, then we don't need to do a query.
     if (!sql_metric.proto_field_name.has_value())
