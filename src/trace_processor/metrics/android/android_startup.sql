@@ -71,7 +71,7 @@ SELECT
         WHERE launch_id = launches.id
         LIMIT 1)
     ),
-    'started_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
+    'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
     'activity_hosting_process_count', (
       SELECT COUNT(1) FROM launch_processes WHERE launch_id = launches.id
     ),
@@ -98,6 +98,11 @@ SELECT
             SELECT dur FROM launch_by_thread_state
             WHERE launch_id = launches.id AND state = 'interruptible'
             ), 0)
+      ),
+      'other_processes_spawned_count', (
+        SELECT COUNT(1) FROM process
+        WHERE (process.name IS NULL OR process.name != launches.package)
+        AND process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur
       )
     )
   )
