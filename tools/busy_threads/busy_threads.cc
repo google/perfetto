@@ -15,6 +15,7 @@
  */
 
 #include <getopt.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <unistd.h>
 
@@ -29,25 +30,37 @@
 namespace perfetto {
 namespace {
 
-__attribute__((noreturn)) void BusyWait(long busy_us, long sleep_us) {
-  while (1) {
-    base::TimeNanos start = base::GetWallTimeNs();
-    while ((base::GetWallTimeNs() - start).count() < busy_us * 1000) {
+__attribute__((noreturn)) void BusyWait(int64_t tstart,
+                                        int64_t period_us,
+                                        int64_t busy_us) {
+  int64_t tbusy = tstart;
+  int64_t tnext = tstart;
+  for (;;) {
+    tbusy = tnext + busy_us * 1000;
+    tnext += period_us * 1000;
+    while (base::GetWallTimeNs().count() < tbusy) {
       for (int i = 0; i < 10000; i++) {
         asm volatile("" ::: "memory");
       }
     }
-    if (sleep_us > 0)
-      base::SleepMicroseconds(static_cast<unsigned>(sleep_us));
-    else
+    auto tnow = base::GetWallTimeNs().count();
+    if (tnow >= tnext) {
       std::this_thread::yield();
+      continue;
+    }
+
+    while (tnow < tnext) {
+      // +1 to prevent sleeping twice when there is truncation.
+      base::SleepMicroseconds(static_cast<uint32_t>((tnext - tnow) / 1000) + 1);
+      tnow = base::GetWallTimeNs().count();
+    }
   }
 }
 
 int BusyThreadsMain(int argc, char** argv) {
-  long num_threads = -1;
-  long period_us = -1;
-  long duty_cycle = -1;
+  int64_t num_threads = -1;
+  int64_t period_us = -1;
+  int64_t duty_cycle = -1;
 
   static struct option long_options[] = {
       {"threads", required_argument, nullptr, 't'},
@@ -77,14 +90,15 @@ int BusyThreadsMain(int argc, char** argv) {
     return 1;
   }
 
-  long busy_us = period_us * duty_cycle / 100;
-  long sleep_us = period_us - busy_us;
+  int64_t busy_us = static_cast<int64_t>(period_us * (duty_cycle / 100.0));
 
-  PERFETTO_LOG(
-      "Spawning %ld threads; wait duration: %ldus; sleep duration: %ldus.",
-      num_threads, busy_us, sleep_us);
+  PERFETTO_LOG("Spawning %" PRId64 " threads; period duration: %" PRId64
+               "us; busy duration: %" PRId64 "us.",
+               num_threads, period_us, busy_us);
+
+  int64_t tstart = base::GetWallTimeNs().count();
   for (int i = 0; i < num_threads; i++) {
-    std::thread th(BusyWait, busy_us, sleep_us);
+    std::thread th(BusyWait, tstart, period_us, busy_us);
     th.detach();
   }
   PERFETTO_LOG("Threads spawned, Ctrl-C to stop.");
