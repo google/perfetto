@@ -66,145 +66,233 @@ SqlValue SqlValueFromSqliteValue(sqlite3_value* value) {
   return sql_value;
 }
 
-util::Status AppendNestedFieldToMessage(const FieldDescriptor& field,
-                                        const void* bytes_value,
-                                        size_t bytes_count,
-                                        protozero::Message* message) {
-  const auto* data = static_cast<const uint8_t*>(bytes_value);
-  protos::pbzero::ProtoBuilderResult::Decoder decoder(data, bytes_count);
-  if (decoder.is_repeated())
-    return util::ErrStatus("BuildProto: no support for nested repeated fields");
+}  // namespace
 
-  if (decoder.type() != field.type()) {
-    return util::ErrStatus(
-        "BuildProto: field %s has wrong type (expected %u, was %u)",
-        field.name().c_str(), field.type(), decoder.type());
+ProtoBuilder::ProtoBuilder(TraceProcessor* tp,
+                           const ProtoDescriptor* descriptor)
+    : tp_(tp), descriptor_(descriptor) {}
+
+util::Status ProtoBuilder::AppendSqlValue(const std::string& field_name,
+                                          const SqlValue& value) {
+  switch (value.type) {
+    case SqlValue::kLong:
+      return AppendLong(field_name, value.long_value);
+    case SqlValue::kDouble:
+      return AppendDouble(field_name, value.double_value);
+    case SqlValue::kString:
+      return AppendString(field_name, value.string_value);
+    case SqlValue::kBytes:
+      return AppendBytes(field_name,
+                         static_cast<const uint8_t*>(value.bytes_value),
+                         value.bytes_count);
+    case SqlValue::kNull:
+      // If the value is null, it's treated as the field being absent so we
+      // don't append anything.
+      return util::OkStatus();
   }
-
-  auto actual_type_name = decoder.type_name().ToStdString();
-  if (actual_type_name != field.raw_type_name()) {
-    return util::ErrStatus(
-        "BuildProto: field %s has wrong type (expected %s, was %s)",
-        field.name().c_str(), actual_type_name.c_str(),
-        field.raw_type_name().c_str());
-  }
-
-  if (!decoder.has_nested_message()) {
-    return util::ErrStatus("BuildProto: field %s has no nested message",
-                           field.name().c_str());
-  }
-
-  // We disallow 0 size fields here as they should have been reported as null
-  // one layer down.
-  auto bytes = decoder.nested_message();
-  if (bytes.size == 0) {
-    return util::ErrStatus(
-        "BuildProto: unexpected to see field %s with zero size",
-        field.name().c_str());
-  }
-
-  message->AppendBytes(field.number(), bytes.data, bytes.size);
-  return util::OkStatus();
+  PERFETTO_FATAL("For GCC");
 }
 
-util::Status AppendValueToMessage(const FieldDescriptor& field,
-                                  const SqlValue& value,
-                                  protozero::Message* message) {
+util::Status ProtoBuilder::AppendLong(const std::string& field_name,
+                                      int64_t value) {
+  auto field_idx = descriptor_->FindFieldIdx(field_name);
+  if (!field_idx.has_value()) {
+    return util::ErrStatus("Field with name %s not found in proto type %s",
+                           field_name.c_str(),
+                           descriptor_->full_name().c_str());
+  }
+
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  const auto& field = descriptor_->fields()[field_idx.value()];
+  if (field.is_repeated()) {
+    return util::ErrStatus(
+        "Unexpected scalar value for repeated field %s in proto type %s",
+        field_name.c_str(), descriptor_->full_name().c_str());
+  }
+
   switch (field.type()) {
     case FieldDescriptorProto::TYPE_INT32:
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_UINT32:
     case FieldDescriptorProto::TYPE_BOOL:
-      if (value.type != SqlValue::kLong)
-        return util::ErrStatus(
-            "BuildProto: field %s has wrong type (expected var int, was %d)",
-            field.name().c_str(), value.type);
-      message->AppendVarInt(field.number(), value.long_value);
+      message_->AppendVarInt(field.number(), value);
       break;
     case FieldDescriptorProto::TYPE_SINT32:
     case FieldDescriptorProto::TYPE_SINT64:
-      if (value.type != SqlValue::kLong)
-        return util::ErrStatus(
-            "BuildProto: field %s has wrong type (expected signed var int, was "
-            "%d)",
-            field.name().c_str(), value.type);
-      message->AppendSignedVarInt(field.number(), value.long_value);
+      message_->AppendSignedVarInt(field.number(), value);
       break;
     case FieldDescriptorProto::TYPE_FIXED32:
     case FieldDescriptorProto::TYPE_SFIXED32:
     case FieldDescriptorProto::TYPE_FIXED64:
     case FieldDescriptorProto::TYPE_SFIXED64:
-      if (value.type != SqlValue::kLong)
-        return util::ErrStatus(
-            "BuildProto: field %s has wrong type (expected fixed int, was %d)",
-            field.name().c_str(), value.type);
-      message->AppendFixed(field.number(), value.long_value);
+      message_->AppendFixed(field.number(), value);
       break;
-    case FieldDescriptorProto::TYPE_FLOAT:
-    case FieldDescriptorProto::TYPE_DOUBLE: {
-      if (value.type != SqlValue::kDouble)
-        return util::ErrStatus(
-            "BuildProto: field %s has wrong type (expected float, was %d)",
-            field.name().c_str(), value.type);
-      double double_val = value.double_value;
-      if (field.type() == FieldDescriptorProto::TYPE_FLOAT) {
-        message->AppendFixed(field.number(), static_cast<float>(double_val));
-      } else {
-        message->AppendFixed(field.number(), double_val);
-      }
-      break;
+    default: {
+      return util::ErrStatus(
+          "Tried to write value of type long into field %s (in proto type %s) "
+          "which has type %d",
+          field.name().c_str(), descriptor_->full_name().c_str(), field.type());
     }
-    case FieldDescriptorProto::TYPE_STRING: {
-      if (value.type != SqlValue::kString)
-        return util::ErrStatus(
-            "BuildProto: field %s has wrong type (expected string, was %d)",
-            field.name().c_str(), value.type);
-      message->AppendString(field.number(), value.string_value);
-      break;
-    }
-    case FieldDescriptorProto::TYPE_MESSAGE: {
-      if (value.type == SqlValue::kNull) {
-        // If this we get a null message, we can simply treat it as the proto
-        // field being absent.
-        return util::OkStatus();
-      } else if (value.type != SqlValue::kBytes) {
-        return util::ErrStatus(
-            "BuildProto: field %s has wrong type (expected proto, was %d)",
-            field.name().c_str(), value.type);
-      }
-      return AppendNestedFieldToMessage(field, value.bytes_value,
-                                        value.bytes_count, message);
-    }
-    case FieldDescriptorProto::TYPE_UINT64:
-      return util::ErrStatus("BuildProto: uint64_t unsupported");
-    case FieldDescriptorProto::TYPE_GROUP:
-      return util::ErrStatus("BuildProto: groups unsupported");
-    case FieldDescriptorProto::TYPE_ENUM:
-      // TODO(lalitm): add support for enums.
-      return util::ErrStatus("BuildProto: enums unsupported");
   }
   return util::OkStatus();
 }
 
-util::Status BuildProtoRepeatedField(TraceProcessor* tp,
-                                     const FieldDescriptor& field,
-                                     const std::string table_name,
-                                     protozero::Message* message) {
-  std::string query = "SELECT * FROM " + table_name + ";";
-  auto it = tp->ExecuteQuery(query);
+util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
+                                        double value) {
+  auto field_idx = descriptor_->FindFieldIdx(field_name);
+  if (!field_idx.has_value()) {
+    return util::ErrStatus("Field with name %s not found in proto type %s",
+                           field_name.c_str(),
+                           descriptor_->full_name().c_str());
+  }
+
+  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  const auto& field = descriptor_->fields()[field_idx.value()];
+  if (field.is_repeated()) {
+    return util::ErrStatus(
+        "Unexpected scalar value for repeated field %s in proto type %s",
+        field_name.c_str(), descriptor_->full_name().c_str());
+  }
+
+  switch (field.type()) {
+    case FieldDescriptorProto::TYPE_FLOAT:
+    case FieldDescriptorProto::TYPE_DOUBLE: {
+      if (field.type() == FieldDescriptorProto::TYPE_FLOAT) {
+        message_->AppendFixed(field.number(), static_cast<float>(value));
+      } else {
+        message_->AppendFixed(field.number(), value);
+      }
+      break;
+    }
+    default: {
+      return util::ErrStatus(
+          "Tried to write value of type double into field %s (in proto type "
+          "%s) which has type %d",
+          field.name().c_str(), descriptor_->full_name().c_str(), field.type());
+    }
+  }
+  return util::OkStatus();
+}
+
+util::Status ProtoBuilder::AppendBytesInternal(const std::string& field_name,
+                                               const uint8_t* ptr,
+                                               size_t size,
+                                               bool is_string) {
+  auto field_idx = descriptor_->FindFieldIdx(field_name);
+  if (!field_idx.has_value()) {
+    return util::ErrStatus("Field with name %s not found in proto type %s",
+                           field_name.c_str(),
+                           descriptor_->full_name().c_str());
+  }
+
+  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  const auto& field = descriptor_->fields()[field_idx.value()];
+  if (field.is_repeated() && !is_inside_repeated_query_) {
+    if (is_string) {
+      // Prevent nested repeated field by setting |is_inside_repeated_query_|
+      // while handling the repeated query.
+      is_inside_repeated_query_ = true;
+      auto status = AppendRepeated(
+          field_name,
+          base::StringView(reinterpret_cast<const char*>(ptr), size));
+      is_inside_repeated_query_ = false;
+      return status;
+    } else {
+      return util::ErrStatus(
+          "Unexpected scalar value for repeated field %s in proto type %s",
+          field_name.c_str(), descriptor_->full_name().c_str());
+    }
+  }
+
+  switch (field.type()) {
+    case FieldDescriptorProto::TYPE_STRING: {
+      message_->AppendBytes(field.number(), ptr, size);
+      break;
+    }
+    case FieldDescriptorProto::TYPE_MESSAGE:
+      return AppendNestedMessage(field, ptr, size);
+    default: {
+      return util::ErrStatus(
+          "Tried to write value of type long into field %s (in proto type %s) "
+          "which has type %d",
+          field.name().c_str(), descriptor_->full_name().c_str(), field.type());
+    }
+  }
+  return util::OkStatus();
+}
+
+util::Status ProtoBuilder::AppendNestedMessage(const FieldDescriptor& field,
+                                               const uint8_t* ptr,
+                                               size_t size) {
+  protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
+  if (decoder.is_repeated())
+    return util::ErrStatus(
+        "AppendNestedMessage: cannot handle nested repeated field");
+
+  if (decoder.type() != field.type()) {
+    return util::ErrStatus("Field %s has wrong type (expected %u, was %u)",
+                           field.name().c_str(), field.type(), decoder.type());
+  }
+
+  auto actual_type_name = decoder.type_name().ToStdString();
+  if (actual_type_name != field.raw_type_name()) {
+    return util::ErrStatus("Field %s has wrong type (expected %s, was %s)",
+                           field.name().c_str(), actual_type_name.c_str(),
+                           field.raw_type_name().c_str());
+  }
+
+  if (!decoder.has_protobuf()) {
+    return util::ErrStatus("Field %s has no nested message",
+                           field.name().c_str());
+  }
+
+  // We disallow 0 size fields here as they should have been reported as null
+  // one layer down.
+  auto bytes = decoder.protobuf();
+  if (bytes.size == 0) {
+    return util::ErrStatus("Unexpected to see field %s with zero size",
+                           field.name().c_str());
+  }
+
+  message_->AppendBytes(field.number(), bytes.data, bytes.size);
+  return util::OkStatus();
+}
+
+util::Status ProtoBuilder::AppendRepeated(const std::string& field_name,
+                                          base::StringView table_name) {
+  std::string query = "SELECT * FROM " + table_name.ToStdString() + ";";
+  auto it = tp_->ExecuteQuery(query);
   while (it.Next()) {
     if (it.ColumnCount() != 1)
       return util::ErrStatus("Repeated table should have exactly one column");
 
-    util::Status status = AppendValueToMessage(field, it.Get(0), message);
+    util::Status status = AppendSqlValue(field_name, it.Get(0));
     if (!status.ok())
       return status;
   }
   return it.Status();
 }
 
-}  // namespace
+std::vector<uint8_t> ProtoBuilder::SerializeToProtoBuilderResult() {
+  std::vector<uint8_t> serialized = SerializeRaw();
+  if (serialized.empty())
+    return serialized;
+
+  const auto& type_name = descriptor_->full_name();
+
+  protozero::HeapBuffered<protos::pbzero::ProtoBuilderResult> result;
+  result->set_is_repeated(false);
+  result->set_type(protos::pbzero::FieldDescriptorProto_Type_TYPE_MESSAGE);
+  result->set_type_name(type_name.c_str(), type_name.size());
+  result->set_protobuf(serialized.data(), serialized.size());
+  result->Finalize();
+  return result.SerializeAsArray();
+}
+
+std::vector<uint8_t> ProtoBuilder::SerializeRaw() {
+  message_->Finalize();
+  return message_.SerializeAsArray();
+}
 
 int TemplateReplace(
     const std::string& raw_text,
@@ -246,70 +334,28 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
 
-  protozero::HeapBuffered<protozero::Message> message;
+  ProtoBuilder builder(fn_ctx->tp, fn_ctx->desc);
   for (int i = 0; i < argc; i += 2) {
-    auto* value = argv[i + 1];
     if (sqlite3_value_type(argv[i]) != SQLITE_TEXT) {
       sqlite3_result_error(ctx, "BuildProto: Invalid args", -1);
       return;
     }
 
-    auto* key_str = reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
-    auto opt_field_idx = fn_ctx->desc->FindFieldIdx(key_str);
-    if (!opt_field_idx.has_value()) {
-      auto error =
-          std::string("BuildProto: could not find field ").append(key_str);
-      sqlite3_result_error(ctx, error.c_str(),
-                           static_cast<int32_t>(error.length()));
+    auto* key = reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
+    auto value = SqlValueFromSqliteValue(argv[i + 1]);
+    auto status = builder.AppendSqlValue(key, value);
+    if (!status.ok()) {
+      sqlite3_result_error(ctx, status.c_message(), -1);
       return;
     }
-    const auto& field = fn_ctx->desc->fields()[opt_field_idx.value()];
-    if (field.is_repeated()) {
-      if (sqlite3_value_type(value) != SQLITE_TEXT) {
-        sqlite3_result_error(
-            ctx,
-            "BuildProto: repeated field should have a table name as a value",
-            -1);
-        return;
-      }
-      auto* text = reinterpret_cast<const char*>(sqlite3_value_text(value));
-      auto status =
-          BuildProtoRepeatedField(fn_ctx->tp, field, text, message.get());
-      if (!status.ok()) {
-        sqlite3_result_error(ctx, status.c_message(), -1);
-        return;
-      }
-    } else {
-      auto sql_value = SqlValueFromSqliteValue(value);
-      auto status = AppendValueToMessage(field, sql_value, message.get());
-      if (!status.ok()) {
-        sqlite3_result_error(ctx, status.c_message(), -1);
-        return;
-      }
-    }
   }
-  message->Finalize();
 
-  // If the the serialized message size is just empty, there's no point
-  // emitting a message at all so just return null.
-  std::vector<uint8_t> serialized = message.SerializeAsArray();
-  if (serialized.empty()) {
+  std::vector<uint8_t> raw = builder.SerializeToProtoBuilderResult();
+  if (raw.empty()) {
     sqlite3_result_null(ctx);
     return;
   }
 
-  protozero::HeapBuffered<protos::pbzero::ProtoBuilderResult> result;
-  result->set_is_repeated(false);
-  result->set_type(protos::pbzero::FieldDescriptorProto_Type_TYPE_MESSAGE);
-
-  const auto& type_name = fn_ctx->desc->full_name();
-  result->set_type_name(type_name.c_str(), type_name.size());
-
-  result->set_nested_message(serialized.data(), serialized.size());
-
-  result->Finalize();
-
-  std::vector<uint8_t> raw = result.SerializeAsArray();
   std::unique_ptr<uint8_t[]> data(static_cast<uint8_t*>(malloc(raw.size())));
   memcpy(data.get(), raw.data(), raw.size());
   sqlite3_result_blob(ctx, data.release(), static_cast<int>(raw.size()), free);
@@ -377,8 +423,7 @@ util::Status ComputeMetrics(TraceProcessor* tp,
                             const std::vector<SqlMetric>& sql_metrics,
                             const ProtoDescriptor& root_descriptor,
                             std::vector<uint8_t>* metrics_proto) {
-  protozero::HeapBuffered<protozero::Message> metrics_message;
-
+  ProtoBuilder metric_builder(tp, &root_descriptor);
   for (const auto& sql_metric : sql_metrics) {
     // If there's no proto to fill in, then we don't need to do a query.
     if (!sql_metric.proto_field_name.has_value())
@@ -411,23 +456,9 @@ util::Status ComputeMetrics(TraceProcessor* tp,
       return util::ErrStatus("Output table column should have type bytes");
     }
 
-    const auto& col = it.Get(0);
-
     const auto& field_name = sql_metric.proto_field_name.value();
-    auto opt_idx = root_descriptor.FindFieldIdx(field_name);
-    if (!opt_idx.has_value()) {
-      return util::ErrStatus("%s field not found in metrics proto",
-                             field_name.c_str());
-    }
-
-    const auto& field = root_descriptor.fields()[opt_idx.value()];
-    if (col.type != SqlValue::kBytes) {
-      return util::ErrStatus("%s field should be a Message type",
-                             field_name.c_str());
-    }
-
-    status = AppendNestedFieldToMessage(field, col.bytes_value, col.bytes_count,
-                                        metrics_message.get());
+    const auto& col = it.Get(0);
+    status = metric_builder.AppendSqlValue(field_name, col);
     if (!status.ok())
       return status;
 
@@ -439,9 +470,7 @@ util::Status ComputeMetrics(TraceProcessor* tp,
     if (!status.ok())
       return status;
   }
-  metrics_message->Finalize();
-
-  *metrics_proto = metrics_message.SerializeAsArray();
+  *metrics_proto = metric_builder.SerializeRaw();
   return util::OkStatus();
 }
 

@@ -38,12 +38,12 @@ message ProtoBuilderResult {
   // a) If is_repeated is false:
   //   * type will always be either be Type::MESSAGE or Type::ENUM.
   //   * type_name will always be set.
-  //   * nested_message will always be present.
+  //   * protobuf will always be present.
   //   * repeated_values will always be empty.
   // b) If is_repeated is true:
   //   * type can be any valid FieldDescriptorProto::Type
   //   * type_name will be set for type == Type::MESSAGE or type == Type::ENUM.
-  //   * nested_message will always be absent.
+  //   * protobuf will always be absent.
   //   * repeated values will have values equal to the number of repeated
   //     results returned. This can be empty if there are no values.
   optional bool is_repeated = 1;
@@ -55,8 +55,8 @@ message ProtoBuilderResult {
   // The type name of the result if the result is a message or enum type.
   optional string type_name = 3;
 
-  // The raw proto bytes of a nested message. Only set if is_repeated is false.
-  optional bytes nested_message = 4;
+  // The raw proto bytes of a message. Only set if is_repeated is false.
+  optional bytes protobuf = 4;
 
   // The values for repeated fields. Empty if is_repeated is false but may still
   // be empty otherwise when there are no repeated fields.
