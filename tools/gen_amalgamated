@@ -48,10 +48,6 @@ lib_blacklist = r'^(c|gcc_eh)$'
 # Macros which aren't filtered out.
 define_whitelist = r'^(PERFETTO.*|GOOGLE_PROTOBUF.*)$'
 
-# Include files which will be never attemped to expanded into the amalgamated
-# header. TODO(skyostil): Fix the includes so this isn't needed.
-includes_to_ignore = r'^(google/protobuf).*$'
-
 # Includes which will be removed from the generated source.
 includes_to_remove = r'^(gtest).*$'
 
@@ -339,11 +335,9 @@ class AmalgamatedProject(object):
                 continue
             elif re.match(includes_to_remove, m.group(1)):
                 result.append('// %s removed: %s' % (tool_name, line))
-            elif not re.match(includes_to_ignore, m.group(1)):
+            else:
                 result.append('// %s expanded: %s' % (tool_name, line))
                 self._add_header(include_dirs, allowed_files, m.group(1))
-            else:
-                result.append(line)
         return result
 
     def generate(self):
