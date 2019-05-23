@@ -36,6 +36,10 @@ message AndroidStartupMetric {
   message ToFirstFrame {
     optional int64 dur_ns = 1;
     optional TaskStateBreakdown main_thread_by_task_state = 2;
+
+    // In this timespan, how many processes (apart from the main activity) were
+    // spawned.
+    optional uint32 other_processes_spawned_count = 3;
   }
 
   // Next id: 7
@@ -49,8 +53,8 @@ message AndroidStartupMetric {
     // Name of the process launched
     optional string process_name = 3;
 
-    // Did we start a new process
-    optional bool started_new_process = 4;
+    // Did we ask the zygote for a new process
+    optional bool zygote_new_process = 4;
 
     // Number of processes hosting the activity involved in the launch.
     // This will usually be 1. If it is 0, it is indicative of a data / process

@@ -68,14 +68,13 @@ ORDER BY ts;
 -- Filter activity_intent_recv_spans, keeping only the ones that triggered
 -- a launch.
 CREATE VIEW launch_partitions AS
-SELECT * FROM activity_intent_recv_spans
+SELECT * FROM activity_intent_recv_spans AS spans
 WHERE 1 = (
   SELECT COUNT(1)
   FROM launching_events
   WHERE TRUE
     AND type = 'S'
-    AND activity_intent_recv_spans.ts < ts
-    AND ts < activity_intent_recv_spans.ts + activity_intent_recv_spans.dur);
+    AND ts BETWEEN spans.ts AND spans.ts + spans.dur);
 
 -- All activity launches in the trace, keyed by ID.
 CREATE TABLE launches(
@@ -96,11 +95,11 @@ SELECT
   start_event.package_name AS package
 FROM launch_partitions AS lpart
 JOIN (SELECT * FROM launching_events WHERE type = 'S') AS start_event
-  ON lpart.ts < start_event.ts AND start_event.ts < lpart.ts + lpart.dur
+  ON start_event.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
 JOIN (SELECT * FROM launching_events WHERE type = 'F') AS finish_event
-  ON lpart.ts < finish_event.ts AND finish_event.ts <= lpart.ts + lpart.dur
-JOIN activity_intent_launch_successful successful
-  ON (lpart.ts < successful.ts AND successful.ts <= lpart.ts + lpart.dur);
+  ON finish_event.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
+JOIN activity_intent_launch_successful AS successful
+  ON successful.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur;
 
 -- Maps a launch to the corresponding set of processes that handled the
 -- activity start. The vast majority of cases should be a single process.

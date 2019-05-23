@@ -46,6 +46,10 @@ trace.add_sched(ts=120, prev_pid=3, next_pid=0, prev_state='S')
 trace.add_sched(ts=130, prev_pid=0, next_pid=3)
 
 trace.add_sched(ts=130, prev_pid=0, next_pid=4)
+
+# Create an unrelated task
+trace.add_newtask(ts=155, tid=1, new_tid=5, new_comm='', flags=0)
+
 # P2: 30ns running
 trace.add_sched(ts=160, prev_pid=4, next_pid=0, prev_state='R')
 # P2: 49ns runnable
