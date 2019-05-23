@@ -18,14 +18,15 @@
 # equivalent program. The tool also outputs the necessary compiler and linker
 # flags needed to compile the resulting source code.
 
+from __future__ import print_function
 import argparse
-import errno
-import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+
+import gn_utils
 
 # Default targets to include in the result.
 default_targets = [
@@ -264,7 +265,7 @@ class AmalgamatedProject(object):
             target = self.desc[target_name]
             if 'include_dirs' in target:
                 include_dirs.update(
-                    [label_to_path(d) for d in target['include_dirs']])
+                    [gn_utils.label_to_path(d) for d in target['include_dirs']])
         return include_dirs
 
     def _add_header(self, include_dirs, allowed_files, header_name):
@@ -351,7 +352,7 @@ class AmalgamatedProject(object):
             target = self.desc[node.target_name]
             if not 'sources' in target:
                 continue
-            sources = [(node.target_name, label_to_path(s))
+            sources = [(node.target_name, gn_utils.label_to_path(s))
                         for s in target['sources'] if s.endswith('.cc')]
             source_files.extend(sources)
         for target_name, source_name in source_files:
@@ -404,12 +405,6 @@ Example build command:
 
 
 
-def label_to_path(label):
-    """Turn a GN output label (e.g., //some_dir/file.cc) into a path."""
-    assert label.startswith('//')
-    return label[2:]
-
-
 def create_amalgamated_project_for_targets(desc, targets, source_deps):
     """Generate an amalgamated project for a list of GN targets."""
     project = AmalgamatedProject(desc, source_deps)
@@ -419,75 +414,6 @@ def create_amalgamated_project_for_targets(desc, targets, source_deps):
     return project
 
 
-def repo_root():
-    """Returns an absolute path to the repository root."""
-    return os.path.join(
-        os.path.realpath(os.path.dirname(__file__)), os.path.pardir)
-
-
-def _tool_path(name):
-    return os.path.join(repo_root(), 'tools', name)
-
-
-def prepare_out_directory(gn_args):
-    """Creates the JSON build description by running GN.
-
-    Returns (path, desc) where |path| is the location of the output directory
-    and |desc| is the JSON build description.
-    """
-    out = os.path.join(repo_root(), 'out', 'tmp.gen_amalgamated')
-    try:
-        os.makedirs(out)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-    subprocess.check_output(
-        [_tool_path('gn'), 'gen', out, '--args=%s' % gn_args], cwd=repo_root())
-    return out
-
-
-def load_build_description(out):
-    """Creates the JSON build description by running GN."""
-    desc = subprocess.check_output(
-        [_tool_path('gn'), 'desc', out, '--format=json',
-         '--all-toolchains', '//*'],
-        cwd=repo_root())
-    return json.loads(desc)
-
-
-def build_targets(out, targets):
-    """Runs ninja to build a list of GN targets in the given out directory.
-
-    Compiling these targets is required so that we can include any generated
-    source files in the amalgamated result.
-    """
-    targets = [t.replace('//', '') for t in targets]
-    subprocess.check_call([_tool_path('ninja')] + targets, cwd=out)
-
-
-def compute_source_dependencies(out):
-    """For each source file, computes a set of headers it depends on."""
-    ninja_deps = subprocess.check_output(
-        [_tool_path('ninja'), '-t', 'deps'], cwd=out)
-    deps = {}
-    current_source = None
-    for line in ninja_deps.split('\n'):
-        filename = os.path.relpath(os.path.join(out, line.strip()))
-        if not line or line[0] != ' ':
-            current_source = None
-            continue
-        elif not current_source:
-            # We're assuming the source file is always listed before the
-            # headers.
-            assert os.path.splitext(line)[1] in ['.c', '.cc', '.cpp', '.S']
-            current_source = filename
-            deps[current_source] = []
-        else:
-            assert current_source
-            deps[current_source].append(filename)
-    return deps
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='Generate an amalgamated header/source pair from a GN '
@@ -495,7 +421,7 @@ def main():
     parser.add_argument(
         '--output',
         help='Base name of files to create. A .cc/.h extension will be added',
-        default=os.path.join(repo_root(), 'perfetto'))
+        default=os.path.join(gn_utils.repo_root(), 'perfetto'))
     parser.add_argument(
         '--gn_args', help='GN arguments used to prepare the output directory',
         default=gn_args)
@@ -515,20 +441,21 @@ def main():
     try:
         sys.stdout.write('Building project...')
         sys.stdout.flush()
-        out = prepare_out_directory(args.gn_args)
-        desc = load_build_description(out)
+        out = gn_utils.prepare_out_directory(
+            args.gn_args, 'tmp.gen_amalgamated')
+        desc = gn_utils.load_build_description(out)
         # We need to build everything first so that the necessary header
         # dependencies get generated.
-        build_targets(out, targets)
-        source_deps = compute_source_dependencies(out)
+        gn_utils.build_targets(out, targets)
+        source_deps = gn_utils.compute_source_dependencies(out)
         project = create_amalgamated_project_for_targets(
             desc, targets, source_deps)
-        print project.save(args.output)
+        print(project.save(args.output))
         if args.build:
             sys.stdout.write('Building amalgamated project...')
             sys.stdout.flush()
             subprocess.check_call(project.get_build_command(args.output))
-            print 'done'
+            print('done')
     finally:
         if not args.keep:
             shutil.rmtree(out)
