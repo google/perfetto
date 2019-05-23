@@ -229,26 +229,29 @@ util::Status ProtoBuilder::AppendNestedMessage(const FieldDescriptor& field,
     return util::ErrStatus(
         "AppendNestedMessage: cannot handle nested repeated field");
 
-  if (decoder.type() != field.type()) {
+  const auto& single_field = decoder.single();
+  protos::pbzero::SingleBuilderResult::Decoder single(single_field.data,
+                                                      single_field.size);
+
+  if (field.type() != single.type()) {
     return util::ErrStatus("Field %s has wrong type (expected %u, was %u)",
-                           field.name().c_str(), field.type(), decoder.type());
+                           field.name().c_str(), field.type(), single.type());
   }
 
-  auto actual_type_name = decoder.type_name().ToStdString();
+  auto actual_type_name = single.type_name().ToStdString();
   if (actual_type_name != field.raw_type_name()) {
     return util::ErrStatus("Field %s has wrong type (expected %s, was %s)",
                            field.name().c_str(), actual_type_name.c_str(),
                            field.raw_type_name().c_str());
   }
 
-  if (!decoder.has_protobuf()) {
-    return util::ErrStatus("Field %s has no nested message",
-                           field.name().c_str());
+  if (!single.has_protobuf()) {
+    return util::ErrStatus("Field %s has no proto bytes", field.name().c_str());
   }
 
   // We disallow 0 size fields here as they should have been reported as null
   // one layer down.
-  auto bytes = decoder.protobuf();
+  auto bytes = single.protobuf();
   if (bytes.size == 0) {
     return util::ErrStatus("Unexpected to see field %s with zero size",
                            field.name().c_str());
@@ -282,9 +285,11 @@ std::vector<uint8_t> ProtoBuilder::SerializeToProtoBuilderResult() {
 
   protozero::HeapBuffered<protos::pbzero::ProtoBuilderResult> result;
   result->set_is_repeated(false);
-  result->set_type(protos::pbzero::FieldDescriptorProto_Type_TYPE_MESSAGE);
-  result->set_type_name(type_name.c_str(), type_name.size());
-  result->set_protobuf(serialized.data(), serialized.size());
+
+  auto* single = result->set_single();
+  single->set_type(protos::pbzero::FieldDescriptorProto_Type_TYPE_MESSAGE);
+  single->set_type_name(type_name.c_str(), type_name.size());
+  single->set_protobuf(serialized.data(), serialized.size());
   result->Finalize();
   return result.SerializeAsArray();
 }

@@ -19,10 +19,23 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-// The result of a builder function for a metric proto in trace processor. This
+// The wrapping result of any metric builder function in trace processor. This
 // is an internal implementation detail of trace processor so should not be
 // relied on.
 message ProtoBuilderResult {
+  // Whether the result is a singular proto builder result or the result of
+  // a repeated field builder.
+  optional bool is_repeated = 1;
+  oneof result {
+    SingleBuilderResult single = 2;
+    RepeatedBuilderResult repeated = 3;
+  }
+}
+
+// The result of a repeated field function for a metric proto in trace
+// processor. This is an internal implementation detail of trace processor so
+// should not be relied on.
+message RepeatedBuilderResult {
   message Value {
     oneof data {
       int64 int_value = 1;
@@ -31,34 +44,20 @@ message ProtoBuilderResult {
       bytes bytes_value = 4;
     }
   }
+  repeated Value value = 1;
+}
 
-  // Whether this result proto represents the result of a repeated field
-  // builder function. Depending on the value of is_repeated, the interpretation
-  // of the rest of this function changes.
-  // a) If is_repeated is false:
-  //   * type will always be either be Type::MESSAGE or Type::ENUM.
-  //   * type_name will always be set.
-  //   * protobuf will always be present.
-  //   * repeated_values will always be empty.
-  // b) If is_repeated is true:
-  //   * type can be any valid FieldDescriptorProto::Type
-  //   * type_name will be set for type == Type::MESSAGE or type == Type::ENUM.
-  //   * protobuf will always be absent.
-  //   * repeated values will have values equal to the number of repeated
-  //     results returned. This can be empty if there are no values.
-  optional bool is_repeated = 1;
-
+// The result of a builder function for a metric proto in trace processor. This
+// is an internal implementation detail of trace processor so should not be
+// relied on.
+message SingleBuilderResult {
   // The type of the result. The possible values are given by
   // FieldDescriptorProto::Type.
-  optional uint32 type = 2;
+  optional uint32 type = 1;
 
   // The type name of the result if the result is a message or enum type.
-  optional string type_name = 3;
+  optional string type_name = 2;
 
-  // The raw proto bytes of a message. Only set if is_repeated is false.
-  optional bytes protobuf = 4;
-
-  // The values for repeated fields. Empty if is_repeated is false but may still
-  // be empty otherwise when there are no repeated fields.
-  repeated Value repeated_values = 5;
+  // The raw proto bytes of a message.
+  optional bytes protobuf = 3;
 }
