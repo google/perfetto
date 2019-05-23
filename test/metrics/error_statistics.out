@@ -1,0 +1,6 @@
+error_statistics {
+  entry {
+    name: "mismatched_sched_switch_tids"
+    value: 5
+  }
+}
