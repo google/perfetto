@@ -69,6 +69,11 @@ template("proto_library") {
   cc_out_dir = "$root_gen_dir/" + proto_out_dir
   rel_cc_out_dir = rebase_path(cc_out_dir, root_build_dir)
 
+  # Prevent unused errors when generating descriptor only.
+  if (generate_descriptor != "") {
+    not_needed([ "rel_cc_out_dir" ])
+  }
+
   protos = rebase_path(proto_sources, proto_in_dir)
   protogens = []
 
@@ -80,6 +85,11 @@ template("proto_library") {
     proto_dir = get_path_info(proto, "dir")
     proto_name = get_path_info(proto, "name")
     proto_path = proto_dir + "/" + proto_name
+
+    # Prevent unused errors when generating descriptor only.
+    if (generate_descriptor != "") {
+      not_needed([ "proto_path" ])
+    }
 
     if (generate_cc) {
       protogens += [
