@@ -17,6 +17,9 @@
 #include "perfetto/public/tracing.h"
 #include "src/public/internal/tracing_muxer_impl.h"
 
+#include <condition_variable>
+#include <mutex>
+
 namespace perfetto {
 
 // static
@@ -28,6 +31,27 @@ void Tracing::Initialize(const TracingInitArgs& args) {
 std::unique_ptr<TracingSession> Tracing::NewTrace(BackendType backend) {
   return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
       ->CreateTracingSession(backend);
+}
+
+std::vector<char> TracingSession::ReadTraceBlocking() {
+  std::vector<char> raw_trace;
+  std::mutex mutex;
+  std::condition_variable cv;
+  bool all_read = false;
+
+  ReadTrace([&mutex, &raw_trace, &all_read, &cv](ReadTraceCallbackArgs cb) {
+    raw_trace.insert(raw_trace.end(), cb.data, cb.data + cb.size);
+    std::unique_lock<std::mutex> lock(mutex);
+    all_read = !cb.has_more;
+    if (all_read)
+      cv.notify_one();
+  });
+
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    cv.wait(lock, [&all_read] { return all_read; });
+  }
+  return raw_trace;
 }
 
 }  // namespace perfetto
