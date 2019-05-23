@@ -40,6 +40,7 @@
 #include "src/trace_processor/heap_profile_mapping_table.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/instants_table.h"
+#include "src/trace_processor/metadata_table.h"
 #include "src/trace_processor/metrics/descriptors.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
@@ -290,6 +291,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   HeapProfileCallsiteTable::RegisterTable(*db_, context_.storage.get());
   HeapProfileFrameTable::RegisterTable(*db_, context_.storage.get());
   HeapProfileMappingTable::RegisterTable(*db_, context_.storage.get());
+  MetadataTable::RegisterTable(*db_, context_.storage.get());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() {
