@@ -29,6 +29,8 @@
 
 #include "src/trace_processor/metrics/descriptors.h"
 
+#include "perfetto/trace_processor/metrics_impl.pbzero.h"
+
 namespace perfetto {
 namespace trace_processor {
 namespace metrics {
@@ -38,7 +40,7 @@ namespace metrics {
 // Visible for testing.
 class ProtoBuilder {
  public:
-  ProtoBuilder(TraceProcessor* tp, const ProtoDescriptor*);
+  ProtoBuilder(const ProtoDescriptor*);
 
   util::Status AppendSqlValue(const std::string& field_name,
                               const SqlValue& value);
@@ -89,20 +91,43 @@ class ProtoBuilder {
                                    size_t size,
                                    bool is_string);
 
-  util::Status AppendNestedMessage(const FieldDescriptor& field,
+  util::Status AppendSingleMessage(const FieldDescriptor& field,
                                    const uint8_t* ptr,
                                    size_t size);
 
-  util::Status AppendRepeated(const std::string& field_name,
-                              base::StringView table_name);
+  util::Status AppendRepeated(const FieldDescriptor& field,
+                              const uint8_t* ptr,
+                              size_t size);
 
-  TraceProcessor* tp_ = nullptr;
   const ProtoDescriptor* descriptor_ = nullptr;
   protozero::HeapBuffered<protozero::Message> message_;
+};
 
-  // Used to prevent reentrancy of repeated fields.
-  // TODO(lalitm): remove this once the proper repeated field support is ready.
-  bool is_inside_repeated_query_ = false;
+// Helper class to combine a set of repeated fields into a single proto blob
+// to return to SQLite.
+// Visible for testing.
+class RepeatedFieldBuilder {
+ public:
+  RepeatedFieldBuilder();
+
+  util::Status AddSqlValue(SqlValue value);
+
+  void AddLong(int64_t value);
+  void AddDouble(double value);
+  void AddString(base::StringView value);
+  void AddBytes(const uint8_t* data, size_t size);
+
+  // Returns the serialized |protos::ProtoBuilderResult| with the set of
+  // repeated fields as |repeated_values| in the proto.
+  // Note: no other functions should be called on this class after this method
+  // is called.
+  std::vector<uint8_t> SerializeToProtoBuilderResult();
+
+ private:
+  bool has_data_ = false;
+
+  protozero::HeapBuffered<protos::pbzero::ProtoBuilderResult> message_;
+  protos::pbzero::RepeatedBuilderResult* repeated_ = nullptr;
 };
 
 // Replaces templated variables inside |raw_text| using the substitution given
@@ -114,6 +139,10 @@ int TemplateReplace(
     const std::string& raw_text,
     const std::unordered_map<std::string, std::string>& substitutions,
     std::string* out);
+
+// These functions implement the RepeatedField SQL aggregate functions.
+void RepeatedFieldStep(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+void RepeatedFieldFinal(sqlite3_context* ctx);
 
 // Context struct for the below function.
 struct BuildProtoContext {

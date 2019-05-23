@@ -46,7 +46,7 @@ SELECT
         anon_rss.avg
       )
     )
-  )
+  ) as metric
 FROM
   anon_rss;
 
@@ -58,11 +58,9 @@ SELECT
       'lmks',
       AndroidMemoryMetric_LowMemoryKills(
         'total_count',
-        lmks.count
+        (SELECT COUNT(*) FROM lmk_by_score)
       )
     ),
     'process_metrics',
-    'process_metrics_view'
-  )
-FROM
-  (SELECT COUNT(*) as count from lmk_by_score) as lmks;
+    (SELECT RepeatedField(metric) FROM process_metrics_view)
+  );
