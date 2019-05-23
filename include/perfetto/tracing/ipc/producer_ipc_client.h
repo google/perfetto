@@ -45,7 +45,9 @@ class ProducerIPCClient {
       const char* service_sock_name,
       Producer*,
       const std::string& producer_name,
-      base::TaskRunner*);
+      base::TaskRunner*,
+      TracingService::ProducerSMBScrapingMode smb_scraping_mode =
+          TracingService::ProducerSMBScrapingMode::kDefault);
 
  protected:
   ProducerIPCClient() = delete;
