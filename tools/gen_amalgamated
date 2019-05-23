@@ -25,6 +25,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import gn_utils
 
@@ -426,10 +427,15 @@ def main():
         '--gn_args', help='GN arguments used to prepare the output directory',
         default=gn_args)
     parser.add_argument(
-        '--keep', help='Don\'t delete the output directory at exit',
+        '--keep', help='Don\'t delete the GN output directory at exit',
         action='store_true')
     parser.add_argument(
         '--build', help='Also compile the generated files',
+        action='store_true')
+    parser.add_argument(
+        '--check', help='Don\'t keep the generated files',
+        action='store_true')
+    parser.add_argument('--quiet', help='Only report errors',
         action='store_true')
     parser.add_argument(
         'targets',
@@ -438,9 +444,13 @@ def main():
     args = parser.parse_args()
     targets = args.targets or default_targets
 
+    output = args.output
+    if args.check:
+        output = os.path.join(tempfile.mkdtemp(), 'perfetto_amalgamated')
+
     try:
-        sys.stdout.write('Building project...')
-        sys.stdout.flush()
+        if not args.quiet:
+            print('Building project...')
         out = gn_utils.prepare_out_directory(
             args.gn_args, 'tmp.gen_amalgamated')
         desc = gn_utils.load_build_description(out)
@@ -450,15 +460,21 @@ def main():
         source_deps = gn_utils.compute_source_dependencies(out)
         project = create_amalgamated_project_for_targets(
             desc, targets, source_deps)
-        print(project.save(args.output))
+        result = project.save(output)
+        if not args.quiet:
+            print(result)
         if args.build:
-            sys.stdout.write('Building amalgamated project...')
-            sys.stdout.flush()
-            subprocess.check_call(project.get_build_command(args.output))
-            print('done')
+            if not args.quiet:
+                sys.stdout.write('Building amalgamated project...')
+                sys.stdout.flush()
+            subprocess.check_call(project.get_build_command(output))
+            if not args.quiet:
+                print('done')
     finally:
         if not args.keep:
             shutil.rmtree(out)
+        if args.check:
+            shutil.rmtree(os.path.dirname(output))
 
 if __name__ == '__main__':
     sys.exit(main())
