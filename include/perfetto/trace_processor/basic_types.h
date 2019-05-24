@@ -60,26 +60,6 @@ struct SqlValue {
   Type type = kNull;
 };
 
-// A description of a SQL metric in C++.
-struct SqlMetric {
-  // The argument referring to this proto which will be passed to RUN_METRIC.
-  std::string run_metric_name;
-
-  // The field in the output proto which will be filled by the result of
-  // querying the table specified by |output_table_name|.
-  // Optional because not all protos need to have a field associated with them
-  // in the root proto; most files will be just be run using RUN_METRIC by
-  // other files.
-  base::Optional<std::string> proto_field_name;
-
-  // The table name which will be created by the SQL below to read the proto
-  // bytes from.
-  std::string output_table_name;
-
-  // The SQL run by this metric.
-  std::string sql;
-};
-
 // Status and related methods are inside util for consistency with embedders of
 // trace processor.
 namespace util {
