@@ -233,16 +233,20 @@ void SetupMetrics(TraceProcessor* tp,
   pool->AddFromFileDescriptorSet(kMetricsDescriptor.data(),
                                  kMetricsDescriptor.size());
   for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
-    std::string filename(file_to_sql.filename);
-    auto sql_idx = filename.rfind(".sql");
+    std::string path(file_to_sql.path);
+    auto sep_idx = path.rfind("/");
+    std::string basename =
+        sep_idx == std::string::npos ? path : path.substr(sep_idx + 1);
+
+    auto sql_idx = basename.rfind(".sql");
     if (sql_idx == std::string::npos) {
       PERFETTO_LOG("Unable to find .sql extension for metric");
       continue;
     }
-    auto no_ext_name = filename.substr(0, sql_idx);
+    auto no_ext_name = basename.substr(0, sql_idx);
 
     metrics::SqlMetricFile metric;
-    metric.path = filename;
+    metric.path = path;
     metric.proto_field_name = no_ext_name;
     metric.output_table_name = no_ext_name + "_output";
     metric.sql = file_to_sql.sql;
