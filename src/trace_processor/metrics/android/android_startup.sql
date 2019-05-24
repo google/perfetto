@@ -15,8 +15,8 @@
 --
 
 -- Create the base tables and views containing the launch spans.
-SELECT RUN_METRIC('android_startup_launches.sql');
-SELECT RUN_METRIC('android_task_state.sql');
+SELECT RUN_METRIC('android/android_startup_launches.sql');
+SELECT RUN_METRIC('android/android_task_state.sql');
 
 -- Slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
