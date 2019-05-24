@@ -228,29 +228,11 @@ void CreateJsonExportFunction(TraceStorage* ts, sqlite3* db) {
 
 void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
-                  metrics::DescriptorPool* pool,
                   std::vector<metrics::SqlMetricFile>* sql_metrics) {
-  pool->AddFromFileDescriptorSet(kMetricsDescriptor.data(),
-                                 kMetricsDescriptor.size());
+  tp->ExtendMetricsProto(kMetricsDescriptor.data(), kMetricsDescriptor.size());
+
   for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
-    std::string path(file_to_sql.path);
-    auto sep_idx = path.rfind("/");
-    std::string basename =
-        sep_idx == std::string::npos ? path : path.substr(sep_idx + 1);
-
-    auto sql_idx = basename.rfind(".sql");
-    if (sql_idx == std::string::npos) {
-      PERFETTO_LOG("Unable to find .sql extension for metric");
-      continue;
-    }
-    auto no_ext_name = basename.substr(0, sql_idx);
-
-    metrics::SqlMetricFile metric;
-    metric.path = path;
-    metric.proto_field_name = no_ext_name;
-    metric.output_table_name = no_ext_name + "_output";
-    metric.sql = file_to_sql.sql;
-    sql_metrics->emplace_back(metric);
+    tp->RegisterMetric(file_to_sql.path, file_to_sql.sql);
   }
 
   {
@@ -321,7 +303,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   CreateJsonExportFunction(this->context_.storage.get(), db);
 #endif
 
-  SetupMetrics(this, *db_, &pool_, &sql_metrics_);
+  SetupMetrics(this, *db_, &sql_metrics_);
 
   ArgsTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
@@ -449,6 +431,33 @@ void TraceProcessorImpl::InterruptQuery() {
     return;
   query_interrupted_.store(true);
   sqlite3_interrupt(db_.get());
+}
+
+util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
+                                                const std::string& sql) {
+  auto sep_idx = path.rfind("/");
+  std::string basename =
+      sep_idx == std::string::npos ? path : path.substr(sep_idx + 1);
+
+  auto sql_idx = basename.rfind(".sql");
+  if (sql_idx == std::string::npos) {
+    return util::ErrStatus("Unable to find .sql extension for metric");
+  }
+  auto no_ext_name = basename.substr(0, sql_idx);
+
+  metrics::SqlMetricFile metric;
+  metric.path = path;
+  metric.proto_field_name = no_ext_name;
+  metric.output_table_name = no_ext_name + "_output";
+  metric.sql = sql;
+  sql_metrics_.emplace_back(metric);
+  return util::OkStatus();
+}
+
+util::Status TraceProcessorImpl::ExtendMetricsProto(const uint8_t* data,
+                                                    size_t size) {
+  pool_.AddFromFileDescriptorSet(data, size);
+  return util::OkStatus();
 }
 
 util::Status TraceProcessorImpl::ComputeMetric(
