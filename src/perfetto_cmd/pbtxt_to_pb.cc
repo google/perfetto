@@ -21,7 +21,7 @@
 
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
 
-#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
