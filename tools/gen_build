@@ -54,7 +54,8 @@ header = """# Copyright (C) 2019 The Android Open Source Project
 """.format(__file__)
 
 # Arguments for the GN output directory.
-gn_args = 'target_os="linux" is_debug=false'
+# host_os="linux" is to generate the right build files from Mac OS.
+gn_args = 'target_os="linux" is_debug=false host_os="linux"'
 
 # Default targets to translate to the blueprint file.
 default_targets = [

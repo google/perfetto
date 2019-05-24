@@ -87,4 +87,10 @@ void TriggerProducer::Flush(FlushRequestID,
   PERFETTO_DFATAL("Attempted to Flush() on commandline producer");
 }
 
+void TriggerProducer::ClearIncrementalState(const DataSourceInstanceID*,
+                                            size_t) {
+  PERFETTO_DFATAL(
+      "Attempted to ClearIncrementalState() on commandline producer");
+}
+
 }  // namespace perfetto

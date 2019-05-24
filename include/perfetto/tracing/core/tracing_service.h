@@ -45,6 +45,165 @@ class TraceWriter;
 // TODO: for the moment this assumes that all the calls happen on the same
 // thread/sequence. Not sure this will be the case long term in Chrome.
 
+// The API for the Producer port of the Service.
+// Subclassed by:
+// 1. The tracing_service_impl.cc business logic when returning it in response
+//    to the ConnectProducer() method.
+// 2. The transport layer (e.g., src/ipc) when the producer and
+//    the service don't talk locally but via some IPC mechanism.
+class PERFETTO_EXPORT ProducerEndpoint {
+ public:
+  virtual ~ProducerEndpoint();
+
+  // Called by the Producer to (un)register data sources. Data sources are
+  // identified by their name (i.e. DataSourceDescriptor.name)
+  virtual void RegisterDataSource(const DataSourceDescriptor&) = 0;
+  virtual void UnregisterDataSource(const std::string& name) = 0;
+
+  // Associate the trace writer with the given |writer_id| with
+  // |target_buffer|. The service may use this information to retrieve and
+  // copy uncommitted chunks written by the trace writer into its associated
+  // buffer, e.g. when a producer process crashes or when a flush is
+  // necessary.
+  virtual void RegisterTraceWriter(uint32_t writer_id,
+                                   uint32_t target_buffer) = 0;
+
+  // Remove the association of the trace writer previously created via
+  // RegisterTraceWriter.
+  virtual void UnregisterTraceWriter(uint32_t writer_id) = 0;
+
+  // Called by the Producer to signal that some pages in the shared memory
+  // buffer (shared between Service and Producer) have changed.
+  // When the Producer and the Service are hosted in the same process and
+  // hence potentially live on the same task runner, This method must call
+  // TracingServiceImpl's CommitData synchronously, without any PostTask()s,
+  // if on the same thread. This is to avoid a deadlock where the Producer
+  // exhausts its SMB and stalls waiting for the service to catch up with
+  // reads, but the Service never gets to that because it lives on the same
+  // thread.
+  using CommitDataCallback = std::function<void()>;
+  virtual void CommitData(const CommitDataRequest&,
+                          CommitDataCallback callback = {}) = 0;
+
+  virtual SharedMemory* shared_memory() const = 0;
+
+  // Size of shared memory buffer pages. It's always a multiple of 4K.
+  // See shared_memory_abi.h
+  virtual size_t shared_buffer_page_size_kb() const = 0;
+
+  // Creates a trace writer, which allows to create events, handling the
+  // underying shared memory buffer and signalling to the Service. This method
+  // is thread-safe but the returned object is not. A TraceWriter should be
+  // used only from a single thread, or the caller has to handle sequencing
+  // via a mutex or equivalent. This method can only be called if
+  // TracingService::ConnectProducer was called with |in_process=true|.
+  // Args:
+  // |target_buffer| is the target buffer ID where the data produced by the
+  // writer should be stored by the tracing service. This value is passed
+  // upon creation of the data source (StartDataSource()) in the
+  // DataSourceConfig.target_buffer().
+  virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
+      BufferID target_buffer) = 0;
+
+  // If TracingService::ConnectProducer is called with |in_process=true|,
+  // this returns the producer's SharedMemoryArbiter which can be used
+  // to create TraceWriters which is able to directly commit chunks
+  // without going through an IPC layer.
+  virtual SharedMemoryArbiter* GetInProcessShmemArbiter() = 0;
+
+  // Called in response to a Producer::Flush(request_id) call after all data
+  // for the flush request has been committed.
+  virtual void NotifyFlushComplete(FlushRequestID) = 0;
+
+  // Called in response to one or more Producer::StartDataSource(),
+  // if the data source registered setting the flag
+  // DataSourceDescriptor.will_notify_on_start.
+  virtual void NotifyDataSourceStarted(DataSourceInstanceID) = 0;
+
+  // Called in response to one or more Producer::StopDataSource(),
+  // if the data source registered setting the flag
+  // DataSourceDescriptor.will_notify_on_stop.
+  virtual void NotifyDataSourceStopped(DataSourceInstanceID) = 0;
+
+  // This informs the service to activate any of these triggers if any tracing
+  // session was waiting for them.
+  virtual void ActivateTriggers(const std::vector<std::string>&) = 0;
+};  // class ProducerEndpoint.
+
+// The API for the Consumer port of the Service.
+// Subclassed by:
+// 1. The tracing_service_impl.cc business logic when returning it in response
+// to
+//    the ConnectConsumer() method.
+// 2. The transport layer (e.g., src/ipc) when the consumer and
+//    the service don't talk locally but via some IPC mechanism.
+class ConsumerEndpoint {
+ public:
+  virtual ~ConsumerEndpoint();
+
+  // Enables tracing with the given TraceConfig. The ScopedFile argument is
+  // used only when TraceConfig.write_into_file == true.
+  // If TraceConfig.deferred_start == true data sources are configured via
+  // SetupDataSource() but are not started until StartTracing() is called.
+  // This is to support pre-initialization and fast triggering of traces.
+  // The ScopedFile argument is used only when TraceConfig.write_into_file
+  // == true.
+  virtual void EnableTracing(const TraceConfig&,
+                             base::ScopedFile = base::ScopedFile()) = 0;
+
+  // Update the trace config of an existing tracing session; only a subset
+  // of options can be changed mid-session. Currently the only
+  // supported functionality is expanding the list of producer_name_filters()
+  // (or removing the filter entirely) for existing data sources.
+  virtual void ChangeTraceConfig(const TraceConfig&) = 0;
+
+  // Starts all data sources configured in the trace config. This is used only
+  // after calling EnableTracing() with TraceConfig.deferred_start=true.
+  // It's a no-op if called after a regular EnableTracing(), without setting
+  // deferred_start.
+  virtual void StartTracing() = 0;
+
+  virtual void DisableTracing() = 0;
+
+  // Requests all data sources to flush their data immediately and invokes the
+  // passed callback once all of them have acked the flush (in which case
+  // the callback argument |success| will be true) or |timeout_ms| are elapsed
+  // (in which case |success| will be false).
+  // If |timeout_ms| is 0 the TraceConfig's flush_timeout_ms is used, or,
+  // if that one is not set (or is set to 0), kDefaultFlushTimeoutMs (5s) is
+  // used.
+  using FlushCallback = std::function<void(bool /*success*/)>;
+  virtual void Flush(uint32_t timeout_ms, FlushCallback) = 0;
+
+  // Tracing data will be delivered invoking Consumer::OnTraceData().
+  virtual void ReadBuffers() = 0;
+
+  virtual void FreeBuffers() = 0;
+
+  // Will call OnDetach().
+  virtual void Detach(const std::string& key) = 0;
+
+  // Will call OnAttach().
+  virtual void Attach(const std::string& key) = 0;
+
+  // Will call OnTraceStats().
+  virtual void GetTraceStats() = 0;
+
+  enum ObservableEventType : uint32_t {
+    kNone = 0,
+    kDataSourceInstances = 1 << 0
+  };
+
+  // Start or stop observing events of selected types. |enabled_event_types|
+  // specifies the types of events to observe in a bitmask (see
+  // ObservableEventType enum). To disable observing, pass
+  // ObservableEventType::kNone. Will call OnObservableEvents() repeatedly
+  // whenever an event of an enabled ObservableEventType occurs.
+  //
+  // TODO(eseckler): Extend this to support producers & data sources.
+  virtual void ObserveEvents(uint32_t enabled_event_types) = 0;
+};  // class ConsumerEndpoint.
+
 // The public API of the tracing Service business logic.
 //
 // Exposed to:
@@ -57,164 +216,8 @@ class TraceWriter;
 //   The service business logic in src/core/tracing_service_impl.cc.
 class PERFETTO_EXPORT TracingService {
  public:
-  // The API for the Producer port of the Service.
-  // Subclassed by:
-  // 1. The tracing_service_impl.cc business logic when returning it in response
-  //    to the ConnectProducer() method.
-  // 2. The transport layer (e.g., src/ipc) when the producer and
-  //    the service don't talk locally but via some IPC mechanism.
-  class PERFETTO_EXPORT ProducerEndpoint {
-   public:
-    virtual ~ProducerEndpoint();
-
-    // Called by the Producer to (un)register data sources. Data sources are
-    // identified by their name (i.e. DataSourceDescriptor.name)
-    virtual void RegisterDataSource(const DataSourceDescriptor&) = 0;
-    virtual void UnregisterDataSource(const std::string& name) = 0;
-
-    // Associate the trace writer with the given |writer_id| with
-    // |target_buffer|. The service may use this information to retrieve and
-    // copy uncommitted chunks written by the trace writer into its associated
-    // buffer, e.g. when a producer process crashes or when a flush is
-    // necessary.
-    virtual void RegisterTraceWriter(uint32_t writer_id,
-                                     uint32_t target_buffer) = 0;
-
-    // Remove the association of the trace writer previously created via
-    // RegisterTraceWriter.
-    virtual void UnregisterTraceWriter(uint32_t writer_id) = 0;
-
-    // Called by the Producer to signal that some pages in the shared memory
-    // buffer (shared between Service and Producer) have changed.
-    // When the Producer and the Service are hosted in the same process and
-    // hence potentially live on the same task runner, This method must call
-    // TracingServiceImpl's CommitData synchronously, without any PostTask()s,
-    // if on the same thread. This is to avoid a deadlock where the Producer
-    // exhausts its SMB and stalls waiting for the service to catch up with
-    // reads, but the Service never gets to that because it lives on the same
-    // thread.
-    using CommitDataCallback = std::function<void()>;
-    virtual void CommitData(const CommitDataRequest&,
-                            CommitDataCallback callback = {}) = 0;
-
-    virtual SharedMemory* shared_memory() const = 0;
-
-    // Size of shared memory buffer pages. It's always a multiple of 4K.
-    // See shared_memory_abi.h
-    virtual size_t shared_buffer_page_size_kb() const = 0;
-
-    // Creates a trace writer, which allows to create events, handling the
-    // underying shared memory buffer and signalling to the Service. This method
-    // is thread-safe but the returned object is not. A TraceWriter should be
-    // used only from a single thread, or the caller has to handle sequencing
-    // via a mutex or equivalent. This method can only be called if
-    // TracingService::ConnectProducer was called with |in_process=true|.
-    // Args:
-    // |target_buffer| is the target buffer ID where the data produced by the
-    // writer should be stored by the tracing service. This value is passed
-    // upon creation of the data source (StartDataSource()) in the
-    // DataSourceConfig.target_buffer().
-    virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
-        BufferID target_buffer) = 0;
-
-    // If TracingService::ConnectProducer is called with |in_process=true|,
-    // this returns the producer's SharedMemoryArbiter which can be used
-    // to create TraceWriters which is able to directly commit chunks
-    // without going through an IPC layer.
-    virtual SharedMemoryArbiter* GetInProcessShmemArbiter() = 0;
-
-    // Called in response to a Producer::Flush(request_id) call after all data
-    // for the flush request has been committed.
-    virtual void NotifyFlushComplete(FlushRequestID) = 0;
-
-    // Called in response to one or more Producer::StartDataSource(),
-    // if the data source registered setting the flag
-    // DataSourceDescriptor.will_notify_on_start.
-    virtual void NotifyDataSourceStarted(DataSourceInstanceID) = 0;
-
-    // Called in response to one or more Producer::StopDataSource(),
-    // if the data source registered setting the flag
-    // DataSourceDescriptor.will_notify_on_stop.
-    virtual void NotifyDataSourceStopped(DataSourceInstanceID) = 0;
-
-    // This informs the service to activate any of these triggers if any tracing
-    // session was waiting for them.
-    virtual void ActivateTriggers(const std::vector<std::string>&) = 0;
-  };  // class ProducerEndpoint.
-
-  // The API for the Consumer port of the Service.
-  // Subclassed by:
-  // 1. The tracing_service_impl.cc business logic when returning it in response
-  // to
-  //    the ConnectConsumer() method.
-  // 2. The transport layer (e.g., src/ipc) when the consumer and
-  //    the service don't talk locally but via some IPC mechanism.
-  class ConsumerEndpoint {
-   public:
-    virtual ~ConsumerEndpoint();
-
-    // Enables tracing with the given TraceConfig. The ScopedFile argument is
-    // used only when TraceConfig.write_into_file == true.
-    // If TraceConfig.deferred_start == true data sources are configured via
-    // SetupDataSource() but are not started until StartTracing() is called.
-    // This is to support pre-initialization and fast triggering of traces.
-    // The ScopedFile argument is used only when TraceConfig.write_into_file
-    // == true.
-    virtual void EnableTracing(const TraceConfig&,
-                               base::ScopedFile = base::ScopedFile()) = 0;
-
-    // Update the trace config of an existing tracing session; only a subset
-    // of options can be changed mid-session. Currently the only
-    // supported functionality is expanding the list of producer_name_filters()
-    // (or removing the filter entirely) for existing data sources.
-    virtual void ChangeTraceConfig(const TraceConfig&) = 0;
-
-    // Starts all data sources configured in the trace config. This is used only
-    // after calling EnableTracing() with TraceConfig.deferred_start=true.
-    // It's a no-op if called after a regular EnableTracing(), without setting
-    // deferred_start.
-    virtual void StartTracing() = 0;
-
-    virtual void DisableTracing() = 0;
-
-    // Requests all data sources to flush their data immediately and invokes the
-    // passed callback once all of them have acked the flush (in which case
-    // the callback argument |success| will be true) or |timeout_ms| are elapsed
-    // (in which case |success| will be false).
-    // If |timeout_ms| is 0 the TraceConfig's flush_timeout_ms is used, or,
-    // if that one is not set (or is set to 0), kDefaultFlushTimeoutMs (5s) is
-    // used.
-    using FlushCallback = std::function<void(bool /*success*/)>;
-    virtual void Flush(uint32_t timeout_ms, FlushCallback) = 0;
-
-    // Tracing data will be delivered invoking Consumer::OnTraceData().
-    virtual void ReadBuffers() = 0;
-
-    virtual void FreeBuffers() = 0;
-
-    // Will call OnDetach().
-    virtual void Detach(const std::string& key) = 0;
-
-    // Will call OnAttach().
-    virtual void Attach(const std::string& key) = 0;
-
-    // Will call OnTraceStats().
-    virtual void GetTraceStats() = 0;
-
-    enum ObservableEventType : uint32_t {
-      kNone = 0,
-      kDataSourceInstances = 1 << 0
-    };
-
-    // Start or stop observing events of selected types. |enabled_event_types|
-    // specifies the types of events to observe in a bitmask (see
-    // ObservableEventType enum). To disable observing, pass
-    // ObservableEventType::kNone. Will call OnObservableEvents() repeatedly
-    // whenever an event of an enabled ObservableEventType occurs.
-    //
-    // TODO(eseckler): Extend this to support producers & data sources.
-    virtual void ObserveEvents(uint32_t enabled_event_types) = 0;
-  };  // class ConsumerEndpoint.
+  using ProducerEndpoint = perfetto::ProducerEndpoint;
+  using ConsumerEndpoint = perfetto::ConsumerEndpoint;
 
   // Implemented in src/core/tracing_service_impl.cc .
   static std::unique_ptr<TracingService> CreateInstance(

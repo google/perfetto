@@ -186,6 +186,33 @@ class TracingServiceImplTest : public testing::Test {
   std::unique_ptr<TracingServiceImpl> svc;
 };
 
+TEST_F(TracingServiceImplTest, AtMostOneConfig) {
+  std::unique_ptr<MockConsumer> consumer_a = CreateMockConsumer();
+  std::unique_ptr<MockConsumer> consumer_b = CreateMockConsumer();
+
+  consumer_a->Connect(svc.get());
+  consumer_b->Connect(svc.get());
+
+  TraceConfig trace_config_a;
+  trace_config_a.add_buffers()->set_size_kb(128);
+  trace_config_a.set_duration_ms(0);
+  trace_config_a.set_unique_session_name("foo");
+
+  TraceConfig trace_config_b;
+  trace_config_b.add_buffers()->set_size_kb(128);
+  trace_config_b.set_duration_ms(0);
+  trace_config_b.set_unique_session_name("foo");
+
+  consumer_a->EnableTracing(trace_config_a);
+  consumer_b->EnableTracing(trace_config_b);
+
+  // This will stop immediately since it has the same unique session name.
+  consumer_b->WaitForTracingDisabled();
+
+  consumer_a->DisableTracing();
+  consumer_a->WaitForTracingDisabled();
+}
+
 TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
   std::unique_ptr<MockProducer> mock_producer_1 = CreateMockProducer();
   std::unique_ptr<MockProducer> mock_producer_2 = CreateMockProducer();
@@ -1315,11 +1342,14 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   producer->WaitForDataSourceStart("data_source");
 
   // The preamble packets are:
+  // Trace start clocksnapshot
   // Config
   // SystemInfo
-  // 3x unknown
-  static const int kNumPreamblePackets = 5;
-  static const int kNumTestPackets = 10;
+  // Trace read clocksnapshot
+  // Trace synchronisation
+  // Trace stats
+  static const int kNumPreamblePackets = 6;
+  static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
   std::unique_ptr<TraceWriter> writer =
@@ -1612,6 +1642,83 @@ TEST_F(TracingServiceImplTest, PeriodicFlush) {
                 Contains(Property(&protos::TracePacket::for_testing,
                                   Property(&protos::TestEvent::str,
                                            Eq("f_" + std::to_string(i))))));
+  }
+}
+
+TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  // Incremental data source that expects to receive the clear.
+  producer->RegisterDataSource("ds_incremental1", false, false,
+                               /*handles_incremental_state_clear=*/true);
+
+  // Incremental data source that expects to receive the clear.
+  producer->RegisterDataSource("ds_incremental2", false, false,
+                               /*handles_incremental_state_clear=*/true);
+
+  // Data source that does *not* advertise itself as supporting incremental
+  // state clears.
+  producer->RegisterDataSource("ds_selfcontained", false, false,
+                               /*handles_incremental_state_clear=*/false);
+
+  // Incremental data source that is registered, but won't be active within the
+  // test's tracing session.
+  producer->RegisterDataSource("ds_inactive", false, false,
+                               /*handles_incremental_state_clear=*/true);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.mutable_incremental_state_config()->set_clear_period_ms(1);
+  trace_config.add_data_sources()->mutable_config()->set_name(
+      "ds_selfcontained");
+  trace_config.add_data_sources()->mutable_config()->set_name(
+      "ds_incremental1");
+  trace_config.add_data_sources()->mutable_config()->set_name(
+      "ds_incremental2");
+
+  // note: the mocking is very brittle, and has to assume a specific order of
+  // the data sources' setup/start.
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_selfcontained");
+  producer->WaitForDataSourceSetup("ds_incremental1");
+  producer->WaitForDataSourceSetup("ds_incremental2");
+  producer->WaitForDataSourceStart("ds_selfcontained");
+  producer->WaitForDataSourceStart("ds_incremental1");
+  producer->WaitForDataSourceStart("ds_incremental2");
+
+  DataSourceInstanceID ds_incremental1 =
+      producer->GetDataSourceInstanceId("ds_incremental1");
+  DataSourceInstanceID ds_incremental2 =
+      producer->GetDataSourceInstanceId("ds_incremental2");
+
+  const size_t kNumClears = 3;
+  std::function<void()> checkpoint =
+      task_runner.CreateCheckpoint("clears_received");
+  std::vector<std::vector<DataSourceInstanceID>> clears_seen;
+  EXPECT_CALL(*producer, ClearIncrementalState(_, _))
+      .WillRepeatedly(Invoke([&clears_seen, &checkpoint](
+                                 const DataSourceInstanceID* data_source_ids,
+                                 size_t num_data_sources) {
+        std::vector<DataSourceInstanceID> ds_ids;
+        for (size_t i = 0; i < num_data_sources; i++) {
+          ds_ids.push_back(*data_source_ids++);
+        }
+        clears_seen.push_back(ds_ids);
+        if (clears_seen.size() >= kNumClears)
+          checkpoint();
+      }));
+  task_runner.RunUntilCheckpoint("clears_received");
+
+  consumer->DisableTracing();
+
+  // Assert that the clears were only for the active incremental data sources.
+  ASSERT_EQ(clears_seen.size(), kNumClears);
+  for (const std::vector<DataSourceInstanceID>& ds_ids : clears_seen) {
+    ASSERT_THAT(ds_ids, ElementsAreArray({ds_incremental1, ds_incremental2}));
   }
 }
 
@@ -2323,6 +2430,62 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
                                                       Eq("payload5"))))));
 
   consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ScrapeBuffersFromAnotherThread) {
+  // This test verifies that there are no reported TSAN races while scraping
+  // buffers from a producer which is actively writing more trace data
+  // concurrently.
+  svc->SetSMBScrapingEnabled(true);
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  ProducerID producer_id = *last_producer_id();
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  consumer->StartTracing();
+
+  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
+      tracing_session()->buffers_index[0]);
+  WaitForTraceWritersChanged(producer_id);
+
+  constexpr int kPacketCount = 10;
+  std::atomic<int> packets_written{};
+  std::thread writer_thread([&] {
+    for (int i = 0; i < kPacketCount; i++) {
+      writer->NewTracePacket()->set_for_testing()->set_str("payload");
+      packets_written.store(i, std::memory_order_relaxed);
+    }
+  });
+
+  // Wait until the thread has had some time to write some packets.
+  while (packets_written.load(std::memory_order_relaxed) < kPacketCount / 2)
+    base::SleepMicroseconds(5000);
+
+  // Disabling tracing will trigger scraping.
+  consumer->DisableTracing();
+  writer_thread.join();
+
+  // Because we don't synchronize with the producer thread, we can't make any
+  // guarantees about the number of packets we will successfully read. We just
+  // verify that no TSAN races are reported.
+  consumer->ReadBuffers();
+
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
 }

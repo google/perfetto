@@ -48,10 +48,9 @@ namespace perfetto {
 namespace {
 
 constexpr int kDefaultDrainPeriodMs = 100;
-constexpr int kFlushTimeoutMs = 500;
+constexpr int kControllerFlushTimeoutMs = 500;
 constexpr int kMinDrainPeriodMs = 1;
 constexpr int kMaxDrainPeriodMs = 1000 * 60;
-constexpr uint32_t kMainThread = 255;  // for METATRACE
 
 uint32_t ClampDrainPeriodMs(uint32_t drain_period_ms) {
   if (drain_period_ms == 0) {
@@ -220,7 +219,7 @@ void FtraceController::OnCpuReaderFlush(size_t cpu,
 
 void FtraceController::DrainCPUs(int generation) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_METATRACE("DrainCPUs()", kMainThread);
+  PERFETTO_METATRACE("DrainCPUs()", base::MetaTrace::kMainThreadCpu);
 
   if (generation != generation_)
     return;
@@ -279,7 +278,7 @@ void FtraceController::DrainCPUs(int generation) {
 }
 
 void FtraceController::UnblockReaders() {
-  PERFETTO_METATRACE("UnblockReaders()", kMainThread);
+  PERFETTO_METATRACE("UnblockReaders()", base::MetaTrace::kMainThreadCpu);
 
   // If a flush or a quit is pending, do nothing.
   std::unique_lock<std::mutex> lock(thread_sync_.mutex);
@@ -357,25 +356,25 @@ void FtraceController::Flush(FlushRequestID flush_id) {
         if (weak_this)
           weak_this->OnFlushTimeout(flush_id);
       },
-      kFlushTimeoutMs);
+      kControllerFlushTimeoutMs);
 }
 
 void FtraceController::OnFlushTimeout(FlushRequestID flush_request_id) {
   if (flush_request_id != cur_flush_request_id_)
     return;
 
-  uint64_t acks = 0;  // For debugging purposes only.
+  std::string acks;  // For debugging purposes only.
   {
     // Unlock the cpu readers and move on.
     std::unique_lock<std::mutex> lock(thread_sync_.mutex);
-    acks = thread_sync_.flush_acks.to_ulong();
+    acks = thread_sync_.flush_acks.to_string();
     thread_sync_.flush_acks.reset();
     if (thread_sync_.cmd == FtraceThreadSync::kFlush)
       IssueThreadSyncCmd(FtraceThreadSync::kRun, std::move(lock));
   }
 
-  PERFETTO_ELOG("Ftrace flush(%" PRIu64 ") timed out. Acked cpus: 0x%" PRIx64,
-                flush_request_id, acks);
+  PERFETTO_ELOG("Ftrace flush(%" PRIu64 ") timed out. Acked cpus mask: [%s]",
+                flush_request_id, acks.c_str());
   cur_flush_request_id_ = 0;
   NotifyFlushCompleteToStartedDataSources(flush_request_id);
 }

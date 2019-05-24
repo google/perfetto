@@ -85,6 +85,7 @@ cc_library(
         "include/perfetto/base/string_writer.h",
         "include/perfetto/base/task_runner.h",
         "include/perfetto/base/temp_file.h",
+        "include/perfetto/base/thread_annotations.h",
         "include/perfetto/base/thread_checker.h",
         "include/perfetto/base/thread_task_runner.h",
         "include/perfetto/base/thread_utils.h",
@@ -283,6 +284,7 @@ cc_library(
         "include/perfetto/base/string_writer.h",
         "include/perfetto/base/task_runner.h",
         "include/perfetto/base/temp_file.h",
+        "include/perfetto/base/thread_annotations.h",
         "include/perfetto/base/thread_checker.h",
         "include/perfetto/base/thread_task_runner.h",
         "include/perfetto/base/thread_utils.h",
@@ -357,6 +359,7 @@ cc_binary(
         "include/perfetto/base/string_writer.h",
         "include/perfetto/base/task_runner.h",
         "include/perfetto/base/temp_file.h",
+        "include/perfetto/base/thread_annotations.h",
         "include/perfetto/base/thread_checker.h",
         "include/perfetto/base/thread_task_runner.h",
         "include/perfetto/base/thread_utils.h",
@@ -564,6 +567,7 @@ cc_binary(
         "include/perfetto/base/string_writer.h",
         "include/perfetto/base/task_runner.h",
         "include/perfetto/base/temp_file.h",
+        "include/perfetto/base/thread_annotations.h",
         "include/perfetto/base/thread_checker.h",
         "include/perfetto/base/thread_task_runner.h",
         "include/perfetto/base/thread_utils.h",
@@ -789,4 +793,25 @@ py_binary(
         "tools/gen_merged_sql_metrics.py",
     ],
     main = "tools/gen_merged_sql_metrics.py",
+)
+
+load("//security/fuzzing/blaze:cc_fuzz_target.bzl", "cc_fuzz_target")
+
+cc_fuzz_target(
+    name = "trace_parsing_fuzzer",
+    srcs = ["src/trace_processor/trace_parsing_fuzzer.cc"],
+    componentid = 323270,
+    deps = [
+        ":trace_processor",
+        "//third_party/perfetto/protos:trace_processor_cc_proto",
+    ],
+)
+
+cc_fuzz_target(
+    name = "proto_decoder_fuzzer",
+    srcs = ["src/protozero/proto_decoder_fuzzer.cc"],
+    componentid = 323270,
+    deps = [
+        ":trace_processor",
+    ],
 )

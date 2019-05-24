@@ -16,6 +16,8 @@
 #ifndef SRC_TRACING_CORE_TRACE_WRITER_FOR_TESTING_H_
 #define SRC_TRACING_CORE_TRACE_WRITER_FOR_TESTING_H_
 
+#include <vector>
+
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace/trace_packet.pb.h"
@@ -28,7 +30,6 @@ namespace perfetto {
 // See //include/perfetto/tracing/core/trace_writer.h for docs.
 class TraceWriterForTesting : public TraceWriter {
  public:
-  // TraceWriterForTesting(const protozero::ScatteredHeapBuffer& delegate);
   TraceWriterForTesting();
   ~TraceWriterForTesting() override;
 
@@ -37,6 +38,8 @@ class TraceWriterForTesting : public TraceWriter {
   TracePacketHandle NewTracePacket() override;
   void Flush(std::function<void()> callback = {}) override;
 
+  std::vector<protos::TracePacket> GetAllTracePackets();
+  // TODO(rsavitski): rewrite as "get only packet".
   std::unique_ptr<protos::TracePacket> ParseProto();
 
   WriterID writer_id() const override;

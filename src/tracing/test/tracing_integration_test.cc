@@ -50,6 +50,7 @@ using testing::_;
 constexpr char kProducerSockName[] = TEST_SOCK_NAME("tracing_test-producer");
 constexpr char kConsumerSockName[] = TEST_SOCK_NAME("tracing_test-consumer");
 
+// TODO(rsavitski): consider using src/tracing/test/mock_producer.h.
 class MockProducer : public Producer {
  public:
   ~MockProducer() override {}
@@ -66,6 +67,8 @@ class MockProducer : public Producer {
   MOCK_METHOD0(OnTracingSetup, void());
   MOCK_METHOD3(Flush,
                void(FlushRequestID, const DataSourceInstanceID*, size_t));
+  MOCK_METHOD2(ClearIncrementalState,
+               void(const DataSourceInstanceID*, size_t));
 };
 
 class MockConsumer : public Consumer {

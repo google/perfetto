@@ -176,6 +176,19 @@ void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
   FinalizeCurPacket();
 }
 
+void ProcessStatsDataSource::OnRenamePids(const std::vector<int32_t>& pids) {
+  PERFETTO_METATRACE("OnRenamePids", 0);
+  if (!enable_on_demand_dumps_)
+    return;
+  PERFETTO_DCHECK(!cur_ps_tree_);
+  for (int32_t pid : pids) {
+    auto pid_it = seen_pids_.find(pid);
+    if (pid_it == seen_pids_.end())
+      continue;
+    seen_pids_.erase(pid_it);
+  }
+}
+
 void ProcessStatsDataSource::Flush(FlushRequestID,
                                    std::function<void()> callback) {
   // We shouldn't get this in the middle of WriteAllProcesses() or OnPids().
@@ -269,6 +282,11 @@ void ProcessStatsDataSource::StartNewPacketIfNeeded() {
   cur_packet_ = writer_->NewTracePacket();
   uint64_t now = static_cast<uint64_t>(base::GetBootTimeNs().count());
   cur_packet_->set_timestamp(now);
+
+  if (did_clear_incremental_state_) {
+    cur_packet_->set_incremental_state_cleared(true);
+    did_clear_incremental_state_ = false;
+  }
 }
 
 protos::pbzero::ProcessTree* ProcessStatsDataSource::GetOrCreatePsTree() {
@@ -320,8 +338,8 @@ void ProcessStatsDataSource::Tick(
   thiz.WriteAllProcessStats();
 
   // We clear the cache every process_stats_cache_ttl_ticks_ ticks.
-  if (++thiz.ticks_ == thiz.process_stats_cache_ttl_ticks_) {
-    thiz.ticks_ = 0;
+  if (++thiz.cache_ticks_ == thiz.process_stats_cache_ttl_ticks_) {
+    thiz.cache_ticks_ = 0;
     thiz.process_stats_cache_.clear();
   }
 }
@@ -485,6 +503,18 @@ bool ProcessStatsDataSource::WriteMemCounters(int32_t pid,
     }
   }
   return proc_status_has_mem_counters;
+}
+
+void ProcessStatsDataSource::ClearIncrementalState() {
+  PERFETTO_DLOG("ProcessStatsDataSource clearing incremental state.");
+  seen_pids_.clear();
+  skip_stats_for_pids_.clear();
+
+  cache_ticks_ = 0;
+  process_stats_cache_.clear();
+
+  // Set the relevant flag in the next packet.
+  did_clear_incremental_state_ = true;
 }
 
 }  // namespace perfetto

@@ -104,6 +104,23 @@ class PERFETTO_EXPORT Producer {
   virtual void Flush(FlushRequestID,
                      const DataSourceInstanceID* data_source_ids,
                      size_t num_data_sources) = 0;
+
+  // Called by the service to instruct the given data sources to stop referring
+  // to any trace contents emitted so far. The intent is that after processing
+  // this call, the rest of the trace should be parsable even if all of the
+  // packets emitted so far have been lost (for example due to ring buffer
+  // overwrites).
+  //
+  // Called only for Producers with active data sources that have opted in by
+  // setting |handles_incremental_state_clear| in their DataSourceDescriptor.
+  //
+  // The way this call is handled is up to the individual Producer
+  // implementation. Some might wish to emit invalidation markers in the trace
+  // (see TracePacket.incremental_state_cleared for an existing field), and
+  // handle them when parsing the trace.
+  virtual void ClearIncrementalState(
+      const DataSourceInstanceID* data_source_ids,
+      size_t num_data_sources) = 0;
 };
 
 }  // namespace perfetto
