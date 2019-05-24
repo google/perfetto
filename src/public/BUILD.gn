@@ -67,3 +67,21 @@ source_set("common") {
     "trace_writer_base.cc",
   ]
 }
+
+source_set("integrationtests") {
+  testonly = true
+  deps = [
+    ":platform_posix",
+    ":public",
+    "../../gn:default_deps",
+    "../../gn:gtest_deps",
+    "../../protos/perfetto/trace:lite",
+    "../base",
+
+    # TODO(primiano): move DataSourceConfig to /public/ and remove this.
+    "../../include/perfetto/tracing/core",
+  ]
+  sources = [
+    "api_integrationtest.cc",
+  ]
+}
