@@ -226,6 +226,51 @@ void CreateJsonExportFunction(TraceStorage* ts, sqlite3* db) {
 }
 #endif
 
+void SetupMetrics(TraceProcessor* tp,
+                  sqlite3* db,
+                  metrics::DescriptorPool* pool,
+                  std::vector<metrics::SqlMetricFile>* sql_metrics) {
+  pool->AddFromFileDescriptorSet(kMetricsDescriptor.data(),
+                                 kMetricsDescriptor.size());
+  for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
+    std::string filename(file_to_sql.filename);
+    auto sql_idx = filename.rfind(".sql");
+    if (sql_idx == std::string::npos) {
+      PERFETTO_LOG("Unable to find .sql extension for metric");
+      continue;
+    }
+    auto no_ext_name = filename.substr(0, sql_idx);
+
+    metrics::SqlMetricFile metric;
+    metric.path = filename;
+    metric.proto_field_name = no_ext_name;
+    metric.output_table_name = no_ext_name + "_output";
+    metric.sql = file_to_sql.sql;
+    sql_metrics->emplace_back(metric);
+  }
+
+  {
+    std::unique_ptr<metrics::RunMetricContext> ctx(
+        new metrics::RunMetricContext());
+    ctx->tp = tp;
+    ctx->metrics = sql_metrics;
+    auto ret = sqlite3_create_function_v2(
+        db, "RUN_METRIC", -1, SQLITE_UTF8, ctx.release(), metrics::RunMetric,
+        nullptr, nullptr,
+        [](void* ptr) { delete static_cast<metrics::RunMetricContext*>(ptr); });
+    if (ret)
+      PERFETTO_ELOG("Error initializing RUN_METRIC");
+  }
+
+  {
+    auto ret = sqlite3_create_function_v2(
+        db, "RepeatedField", 1, SQLITE_UTF8, nullptr, nullptr,
+        metrics::RepeatedFieldStep, metrics::RepeatedFieldFinal, nullptr);
+    if (ret)
+      PERFETTO_ELOG("Error initializing RepeatedField");
+  }
+}
+
 // Fuchsia traces have a magic number as documented here:
 // https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format/README.md#magic-number-record-trace-info-type-0
 constexpr uint64_t kFuchsiaMagicNumber = 0x0016547846040010;
@@ -271,6 +316,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
   CreateJsonExportFunction(this->context_.storage.get(), db);
 #endif
+
+  SetupMetrics(this, *db_, &pool_, &sql_metrics_);
 
   ArgsTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
@@ -403,62 +450,7 @@ void TraceProcessorImpl::InterruptQuery() {
 util::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
-  std::vector<SqlMetric> metrics;
-  for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
-    std::string filename(file_to_sql.filename);
-    auto sql_idx = filename.rfind(".sql");
-    if (sql_idx == std::string::npos)
-      return util::ErrStatus("Missing .sql extension for metric file %s",
-                             filename.c_str());
-    auto no_ext_name = filename.substr(0, sql_idx);
-
-    SqlMetric metric;
-    metric.run_metric_name = filename;
-    metric.output_table_name = no_ext_name + "_output";
-    metric.sql = file_to_sql.sql;
-
-    auto it = std::find(metric_names.begin(), metric_names.end(), no_ext_name);
-    if (it != metric_names.end())
-      metric.proto_field_name = no_ext_name;
-
-    metrics.emplace_back(metric);
-  }
-  return ComputeMetric(metrics, kMetricsDescriptor.data(),
-                       kMetricsDescriptor.size(),
-                       ".perfetto.protos.TraceMetrics", metrics_proto);
-}
-
-util::Status TraceProcessorImpl::ComputeMetric(
-    const std::vector<SqlMetric>& metrics,
-    const uint8_t* file_descriptor_set_proto,
-    size_t file_descriptor_set_proto_size,
-    const std::string& metrics_proto_name,
-    std::vector<uint8_t>* metrics_proto) {
-  {
-    std::unique_ptr<metrics::RunMetricContext> ctx(
-        new metrics::RunMetricContext());
-    ctx->tp = this;
-    ctx->metrics = metrics;
-    auto ret = sqlite3_create_function_v2(
-        *db_, "RUN_METRIC", -1, SQLITE_UTF8, ctx.release(), metrics::RunMetric,
-        nullptr, nullptr,
-        [](void* ptr) { delete static_cast<metrics::RunMetricContext*>(ptr); });
-    if (ret)
-      return util::ErrStatus("Error initializing RUN_METRIC");
-  }
-
-  {
-    auto ret = sqlite3_create_function_v2(
-        *db_, "RepeatedField", 1, SQLITE_UTF8, nullptr, nullptr,
-        metrics::RepeatedFieldStep, metrics::RepeatedFieldFinal, nullptr);
-    if (ret)
-      return util::ErrStatus("Error initializing RUN_METRIC");
-  }
-
-  metrics::DescriptorPool pool;
-  pool.AddFromFileDescriptorSet(file_descriptor_set_proto,
-                                file_descriptor_set_proto_size);
-  for (const auto& desc : pool.descriptors()) {
+  for (const auto& desc : pool_.descriptors()) {
     // Convert the full name (e.g. .perfetto.protos.TraceMetrics.SubMetric)
     // into a function name of the form (TraceMetrics_SubMetric).
     auto fn_name = desc.full_name().substr(desc.package_name().size() + 1);
@@ -467,7 +459,7 @@ util::Status TraceProcessorImpl::ComputeMetric(
     std::unique_ptr<metrics::BuildProtoContext> ctx(
         new metrics::BuildProtoContext());
     ctx->tp = this;
-    ctx->pool = &pool;
+    ctx->pool = &pool_;
     ctx->desc = &desc;
 
     auto ret = sqlite3_create_function_v2(
@@ -479,12 +471,13 @@ util::Status TraceProcessorImpl::ComputeMetric(
       return util::ErrStatus("%s", sqlite3_errmsg(*db_));
   }
 
-  auto opt_idx = pool.FindDescriptorIdx(metrics_proto_name);
+  auto opt_idx = pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
   if (!opt_idx.has_value())
     return util::Status("Root metrics proto descriptor not found");
 
-  const auto& root_descriptor = pool.descriptors()[opt_idx.value()];
-  return metrics::ComputeMetrics(this, metrics, root_descriptor, metrics_proto);
+  const auto& root_descriptor = pool_.descriptors()[opt_idx.value()];
+  return metrics::ComputeMetrics(this, metric_names, sql_metrics_,
+                                 root_descriptor, metrics_proto);
 }
 
 TraceProcessor::IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,

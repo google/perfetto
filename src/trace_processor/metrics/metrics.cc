@@ -497,13 +497,11 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
 
-  const char* filename =
-      reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
-  auto metric_it = std::find_if(fn_ctx->metrics.begin(), fn_ctx->metrics.end(),
-                                [filename](const SqlMetric& metric) {
-                                  return metric.run_metric_name == filename;
-                                });
-  if (metric_it == fn_ctx->metrics.end()) {
+  const char* path = reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+  auto metric_it = std::find_if(
+      fn_ctx->metrics->begin(), fn_ctx->metrics->end(),
+      [path](const SqlMetricFile& metric) { return metric.path == path; });
+  if (metric_it == fn_ctx->metrics->end()) {
     sqlite3_result_error(ctx, "RUN_METRIC: Unknown filename provided", -1);
     return;
   }
@@ -535,8 +533,8 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     util::Status status = it.Status();
     if (!status.ok()) {
       char* error =
-          sqlite3_mprintf("RUN_METRIC: Error when running file %s: %s",
-                          filename, status.c_message());
+          sqlite3_mprintf("RUN_METRIC: Error when running file %s: %s", path,
+                          status.c_message());
       sqlite3_result_error(ctx, error, -1);
       sqlite3_free(error);
       return;
@@ -549,15 +547,20 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 util::Status ComputeMetrics(TraceProcessor* tp,
-                            const std::vector<SqlMetric>& sql_metrics,
+                            const std::vector<std::string> metrics_to_compute,
+                            const std::vector<SqlMetricFile>& sql_metrics,
                             const ProtoDescriptor& root_descriptor,
                             std::vector<uint8_t>* metrics_proto) {
   ProtoBuilder metric_builder(&root_descriptor);
-  for (const auto& sql_metric : sql_metrics) {
-    // If there's no proto to fill in, then we don't need to do a query.
-    if (!sql_metric.proto_field_name.has_value())
-      continue;
+  for (const auto& name : metrics_to_compute) {
+    auto metric_it =
+        std::find_if(sql_metrics.begin(), sql_metrics.end(),
+                     [&name](const SqlMetricFile& metric) {
+                       return metric.proto_field_name.has_value() &&
+                              name == metric.proto_field_name.value();
+                     });
 
+    const auto& sql_metric = *metric_it;
     auto queries = base::SplitString(sql_metric.sql, ";\n");
     for (const auto& query : queries) {
       PERFETTO_DLOG("Executing query: %s", query.c_str());
@@ -569,7 +572,8 @@ util::Status ComputeMetrics(TraceProcessor* tp,
         return status;
     }
 
-    auto output_query = "SELECT * FROM " + sql_metric.output_table_name + ";";
+    auto output_query =
+        "SELECT * FROM " + sql_metric.output_table_name.value() + ";";
     PERFETTO_DLOG("Executing output query: %s", output_query.c_str());
 
     auto it = tp->ExecuteQuery(output_query.c_str());
