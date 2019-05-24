@@ -117,12 +117,19 @@ class TracingSession {
     bool has_more = false;
   };
 
-  // Reads back the trace data. Can be called at any point during the trace.
-  // Typically, but not necessarily, after stopping. Reading the trace data
-  // is a destructive operation (w.r.t. content of the trace buffer) and is not
-  // idempotent. A single ReadTrace() call can yield >1 callback invocations.
+  // Reads back the trace data (raw protobuf-encoded bytes) asynchronously.
+  // Can be called at any point during the trace, typically but not necessarily,
+  // after stopping. Reading the trace data is a destructive operation w.r.t.
+  // contents of the trace buffer and is not idempotent.
+  // A single ReadTrace() call can yield >1 callback invocations, until
+  // |has_more| is true.
   using ReadTraceCallback = std::function<void(ReadTraceCallbackArgs)>;
   virtual void ReadTrace(ReadTraceCallback) = 0;
+
+  // Synchronous version of ReadTrace(). It blocks the calling thread until all
+  // the trace contents are read. This is slow and inefficient (involves more
+  // copies) and is mainly intended for testing.
+  std::vector<char> ReadTraceBlocking();
 };
 
 }  // namespace perfetto
