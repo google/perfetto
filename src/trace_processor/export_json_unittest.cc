@@ -127,6 +127,84 @@ TEST(ExportJsonTest, WrongRefType) {
   EXPECT_EQ(code, kResultWrongRefType);
 }
 
+TEST(ExportJsonTest, StorageWithMetadata) {
+  const char* kDescription = "description";
+  const char* kBenchmarkName = "benchmark name";
+  const char* kStoryName = "story name";
+  const char* kStoryTag1 = "tag1";
+  const char* kStoryTag2 = "tag2";
+  const int64_t kBenchmarkStart = 1000000;
+  const int64_t kStoryStart = 2000000;
+  const bool kHadFailures = true;
+
+  TraceStorage storage;
+
+  StringId desc_id = storage.InternString(base::StringView(kDescription));
+  Variadic description = Variadic::String(desc_id);
+  storage.SetMetadata(metadata::benchmark_description, description);
+
+  StringId benchmark_name_id =
+      storage.InternString(base::StringView(kBenchmarkName));
+  Variadic benchmark_name = Variadic::String(benchmark_name_id);
+  storage.SetMetadata(metadata::benchmark_name, benchmark_name);
+
+  StringId story_name_id = storage.InternString(base::StringView(kStoryName));
+  Variadic story_name = Variadic::String(story_name_id);
+  storage.SetMetadata(metadata::benchmark_story_name, story_name);
+
+  StringId tag1_id = storage.InternString(base::StringView(kStoryTag1));
+  StringId tag2_id = storage.InternString(base::StringView(kStoryTag2));
+  Variadic tag1 = Variadic::String(tag1_id);
+  Variadic tag2 = Variadic::String(tag2_id);
+  storage.AppendMetadata(metadata::benchmark_story_tags, tag1);
+  storage.AppendMetadata(metadata::benchmark_story_tags, tag2);
+
+  Variadic benchmark_start = Variadic::Integer(kBenchmarkStart);
+  storage.SetMetadata(metadata::benchmark_start_time_us, benchmark_start);
+
+  Variadic story_start = Variadic::Integer(kStoryStart);
+  storage.SetMetadata(metadata::benchmark_story_run_time_us, story_start);
+
+  Variadic had_failures = Variadic::Integer(kHadFailures);
+  storage.SetMetadata(metadata::benchmark_had_failures, had_failures);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_TRUE(result.isMember("metadata"));
+  EXPECT_TRUE(result["metadata"].isMember("telemetry"));
+  Json::Value telemetry_metadata = result["metadata"]["telemetry"];
+
+  EXPECT_EQ(telemetry_metadata["benchmarkDescriptions"].size(), 1);
+  EXPECT_EQ(telemetry_metadata["benchmarkDescriptions"][0].asString(),
+            kDescription);
+
+  EXPECT_EQ(telemetry_metadata["benchmarks"].size(), 1);
+  EXPECT_EQ(telemetry_metadata["benchmarks"][0].asString(), kBenchmarkName);
+
+  EXPECT_EQ(telemetry_metadata["stories"].size(), 1);
+  EXPECT_EQ(telemetry_metadata["stories"][0].asString(), kStoryName);
+
+  EXPECT_EQ(telemetry_metadata["storyTags"].size(), 2);
+  EXPECT_EQ(telemetry_metadata["storyTags"][0].asString(), kStoryTag1);
+  EXPECT_EQ(telemetry_metadata["storyTags"][1].asString(), kStoryTag2);
+
+  EXPECT_EQ(telemetry_metadata["benchmarkStart"].asInt(),
+            kBenchmarkStart / 1000.0);
+
+  EXPECT_EQ(telemetry_metadata["traceStart"].asInt(), kStoryStart / 1000.0);
+
+  EXPECT_EQ(telemetry_metadata["hadFailures"].size(), 1);
+  EXPECT_EQ(telemetry_metadata["hadFailures"][0].asBool(), kHadFailures);
+}
+
 }  // namespace
 }  // namespace json
 }  // namespace trace_processor

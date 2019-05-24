@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/export_json.h"
+#include "src/trace_processor/metadata.h"
 
 #include <json/value.h>
 #include <json/writer.h>
@@ -78,16 +79,36 @@ class TraceFormatWriter {
     first_event_ = false;
   }
 
+  void AppendTelemetryMetadataString(const char* key, const char* value) {
+    metadata_["telemetry"][key].append(value);
+  }
+
+  void AppendTelemetryMetadataInt(const char* key, int64_t value) {
+    metadata_["telemetry"][key].append(Json::Int64(value));
+  }
+
+  void AppendTelemetryMetadataBool(const char* key, bool value) {
+    metadata_["telemetry"][key].append(value);
+  }
+
+  void SetTelemetryMetadataTimestamp(const char* key, int64_t value) {
+    metadata_["telemetry"][key] = value / 1000.0;
+  }
+
  private:
   void WriteHeader() { fputs("{\"traceEvents\":[\n", output_); }
 
   void WriteFooter() {
-    fputs("]}\n", output_);
+    fputs("],\n\"metadata\":", output_);
+    Json::FastWriter writer;
+    fputs(writer.write(metadata_).c_str(), output_);
+    fputs("\n}", output_);
     fflush(output_);
   }
 
   FILE* output_;
   bool first_event_;
+  Json::Value metadata_;
 };
 
 }  // anonymous namespace
@@ -138,6 +159,57 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
       return kResultWrongRefType;
     }
   }
+
+  // Add metadata to be written in the footer
+  const auto& trace_metadata = storage->metadata();
+  if (!trace_metadata[metadata::benchmark_description].empty()) {
+    auto desc_id =
+        trace_metadata[metadata::benchmark_description][0].string_value;
+    writer.AppendTelemetryMetadataString("benchmarkDescriptions",
+                                         string_pool.Get(desc_id).c_str());
+  }
+  if (!trace_metadata[metadata::benchmark_name].empty()) {
+    auto name_id = trace_metadata[metadata::benchmark_name][0].string_value;
+    writer.AppendTelemetryMetadataString("benchmarks",
+                                         string_pool.Get(name_id).c_str());
+  }
+  if (!trace_metadata[metadata::benchmark_start_time_us].empty()) {
+    auto start_ts =
+        trace_metadata[metadata::benchmark_start_time_us][0].int_value;
+    writer.SetTelemetryMetadataTimestamp("benchmarkStart", start_ts);
+  }
+  if (!trace_metadata[metadata::benchmark_had_failures].empty()) {
+    auto had_failures =
+        trace_metadata[metadata::benchmark_had_failures][0].int_value;
+    writer.AppendTelemetryMetadataBool("hadFailures", had_failures);
+  }
+  if (!trace_metadata[metadata::benchmark_label].empty()) {
+    auto label_id = trace_metadata[metadata::benchmark_label][0].string_value;
+    writer.AppendTelemetryMetadataString("labels",
+                                         string_pool.Get(label_id).c_str());
+  }
+  if (!trace_metadata[metadata::benchmark_story_name].empty()) {
+    auto name_id =
+        trace_metadata[metadata::benchmark_story_name][0].string_value;
+    writer.AppendTelemetryMetadataString("stories",
+                                         string_pool.Get(name_id).c_str());
+  }
+  if (!trace_metadata[metadata::benchmark_story_run_index].empty()) {
+    auto run_index =
+        trace_metadata[metadata::benchmark_story_run_index][0].int_value;
+    writer.AppendTelemetryMetadataInt("storysetRepeats", run_index);
+  }
+  if (!trace_metadata[metadata::benchmark_story_run_time_us].empty()) {
+    auto story_ts =
+        trace_metadata[metadata::benchmark_story_run_time_us][0].int_value;
+    writer.SetTelemetryMetadataTimestamp("traceStart", story_ts);
+  }
+  for (auto tag : trace_metadata[metadata::benchmark_story_tags]) {
+    auto tag_id = tag.string_value;
+    writer.AppendTelemetryMetadataString("storyTags",
+                                         string_pool.Get(tag_id).c_str());
+  }
+
   return kResultOk;
 }
 
