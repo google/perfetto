@@ -59,6 +59,11 @@ class TraceProcessorImpl : public TraceProcessor {
   Iterator ExecuteQuery(const std::string& sql,
                         int64_t time_queued = 0) override;
 
+  util::Status RegisterMetric(const std::string& path,
+                              const std::string& sql) override;
+
+  util::Status ExtendMetricsProto(const uint8_t* data, size_t size) override;
+
   util::Status ComputeMetric(const std::vector<std::string>& metric_names,
                              std::vector<uint8_t>* metrics) override;
 
