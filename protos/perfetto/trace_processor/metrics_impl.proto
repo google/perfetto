@@ -1,0 +1,64 @@
+/*
+ * Copyright (C) 2018 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package perfetto.protos;
+
+// The result of a builder function for a metric proto in trace processor. This
+// is an internal implementation detail of trace processor so should not be
+// relied on.
+message ProtoBuilderResult {
+  message Value {
+    oneof data {
+      int64 int_value = 1;
+      string string_value = 2;
+      double double_value = 3;
+      bytes bytes_value = 4;
+    }
+  }
+
+  // Whether this result proto represents the result of a repeated field
+  // builder function. Depending on the value of is_repeated, the interpretation
+  // of the rest of this function changes.
+  // a) If is_repeated is false:
+  //   * type will always be either be Type::MESSAGE or Type::ENUM.
+  //   * type_name will always be set.
+  //   * nested_message will always be present.
+  //   * repeated_values will always be empty.
+  // b) If is_repeated is true:
+  //   * type can be any valid FieldDescriptorProto::Type
+  //   * type_name will be set for type == Type::MESSAGE or type == Type::ENUM.
+  //   * nested_message will always be absent.
+  //   * repeated values will have values equal to the number of repeated
+  //     results returned. This can be empty if there are no values.
+  optional bool is_repeated = 1;
+
+  // The type of the result. The possible values are given by
+  // FieldDescriptorProto::Type.
+  optional uint32 type = 2;
+
+  // The type name of the result if the result is a message or enum type.
+  optional string type_name = 3;
+
+  // The raw proto bytes of a nested message. Only set if is_repeated is false.
+  optional bytes nested_message = 4;
+
+  // The values for repeated fields. Empty if is_repeated is false but may still
+  // be empty otherwise when there are no repeated fields.
+  repeated Value repeated_values = 5;
+}

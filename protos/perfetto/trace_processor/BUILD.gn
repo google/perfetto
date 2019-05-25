@@ -14,6 +14,7 @@
 
 import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
+import("../../../gn/protozero_library.gni")
 import("proto_files.gni")
 
 proto_library("lite") {
@@ -24,4 +25,13 @@ proto_library("lite") {
   }
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
+}
+
+protozero_library("metrics_impl_zero") {
+  sources = [
+    "metrics_impl.proto",
+  ]
+  proto_in_dir = "$perfetto_root_path/protos"
+  proto_out_dir = "$perfetto_root_path/protos"
+  generator_plugin_options = "wrapper_namespace=pbzero"
 }
