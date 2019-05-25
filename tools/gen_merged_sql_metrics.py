@@ -54,7 +54,7 @@ namespace sql_metrics {
 
 FILE_TO_SQL_STRUCT = '''
 struct FileToSql {
-  const char* filename;
+  const char* path;
   const char* sql;
 };
 '''
@@ -75,12 +75,15 @@ def main():
   parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
 
+  root_path = os.path.commonprefix(
+    [os.path.abspath(x) for x in args.sql_files])
+
   # Extract the SQL output from each file.
   sql_outputs = {}
   for file_name in args.sql_files:
     with open(file_name, 'r') as f:
-      basename = os.path.basename(file_name)
-      sql_outputs[basename] = "".join(
+      relpath = os.path.relpath(file_name, root_path)
+      sql_outputs[relpath] = "".join(
         x for x in f.readlines() if not x.startswith('--'))
 
   with open(args.cpp_out, 'w+') as output:
@@ -88,7 +91,8 @@ def main():
     output.write(NAMESPACE_BEGIN)
 
     # Create the C++ variable for each SQL file.
-    for name, sql in sql_outputs.items():
+    for path, sql in sql_outputs.items():
+      name = os.path.basename(path)
       variable = filename_to_variable(os.path.splitext(name)[0])
       output.write('\nconst char {}[] = R"gendelimiter(\n{})gendelimiter";\n'
         .format(variable, sql))
@@ -97,9 +101,10 @@ def main():
 
     # Create mapping of filename to variable name for each variable.
     output.write("\nconst FileToSql kFileToSql[] = {")
-    for name in sql_outputs.keys():
+    for path in sql_outputs.keys():
+      name = os.path.basename(path)
       variable = filename_to_variable(os.path.splitext(name)[0])
-      output.write('\n  {{"{}", {}}},\n'.format(name, variable))
+      output.write('\n  {{"{}", {}}},\n'.format(path, variable))
     output.write("};\n")
 
     output.write(NAMESPACE_END)
