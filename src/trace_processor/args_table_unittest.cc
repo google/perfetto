@@ -22,8 +22,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include <iostream>
-
 namespace perfetto {
 namespace trace_processor {
 namespace {
