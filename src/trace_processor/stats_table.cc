@@ -76,6 +76,9 @@ int StatsTable::Cursor::Column(sqlite3_context* ctx, int N) {
         case stats::kInfo:
           sqlite3_result_text(ctx, "info", -1, kSqliteStatic);
           break;
+        case stats::kDataLoss:
+          sqlite3_result_text(ctx, "data_loss", -1, kSqliteStatic);
+          break;
         case stats::kError:
           sqlite3_result_text(ctx, "error", -1, kSqliteStatic);
           break;
