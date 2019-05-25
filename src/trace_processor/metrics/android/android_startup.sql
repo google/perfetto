@@ -105,8 +105,13 @@ SELECT
         AND process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur
       )
     )
-  )
+  ) as startup
 FROM launches;
 
 CREATE VIEW android_startup_output AS
-SELECT AndroidStartupMetric('startup', 'startup_view');
+SELECT
+  AndroidStartupMetric(
+    'startup', (
+      SELECT RepeatedField(startup) FROM startup_view
+    )
+  );
