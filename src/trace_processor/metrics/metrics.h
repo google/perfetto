@@ -35,6 +35,27 @@ namespace perfetto {
 namespace trace_processor {
 namespace metrics {
 
+// A description of a SQL metric in C++.
+struct SqlMetricFile {
+  // The path of this file with the root at the metrics root.
+  std::string path;
+
+  // The field in the output proto which will be filled by the result of
+  // querying the table specified by |output_table_name|.
+  // Optional because not all protos need to have a field associated with them
+  // in the root proto; most files will be just be run using RUN_METRIC by
+  // other files.
+  base::Optional<std::string> proto_field_name;
+
+  // The table name which will be created by the SQL below to read the proto
+  // bytes from.
+  // Should only be set when |proto_field_name| is set.
+  base::Optional<std::string> output_table_name;
+
+  // The SQL run by this metric.
+  std::string sql;
+};
+
 // Helper class to build a nested (metric) proto checking the schema against
 // a descriptor.
 // Visible for testing.
@@ -157,14 +178,15 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 // Context struct for the below function.
 struct RunMetricContext {
   TraceProcessor* tp;
-  std::vector<SqlMetric> metrics;
+  std::vector<SqlMetricFile>* metrics;
 };
 
 // This function implements the RUN_METRIC SQL function.
 void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 
 util::Status ComputeMetrics(TraceProcessor* impl,
-                            const std::vector<SqlMetric>& metrics,
+                            const std::vector<std::string> metrics_to_compute,
+                            const std::vector<SqlMetricFile>& metrics,
                             const ProtoDescriptor& root_descriptor,
                             std::vector<uint8_t>* metrics_proto);
 
