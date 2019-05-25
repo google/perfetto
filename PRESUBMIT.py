@@ -51,7 +51,7 @@ def CheckBuild(input_api, output_api):
     # If no GN files were modified, bail out.
     def build_file_filter(x): return input_api.FilterSourceFile(
         x,
-        white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'tools/gen_build'))
+        white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'tools/gen_bazel'))
     if not input_api.AffectedSourceFiles(build_file_filter):
         return []
 
@@ -59,18 +59,18 @@ def CheckBuild(input_api, output_api):
         current_build = f.read()
 
     new_build = subprocess.check_output(
-        ['tools/gen_build', '--output', '/dev/stdout', '--output-proto', '/dev/null'])
+        ['tools/gen_bazel', '--output', '/dev/stdout', '--output-proto', '/dev/null'])
 
     with open('protos/BUILD') as f:
         current_proto_build = f.read()
 
     new_proto_build = subprocess.check_output(
-        ['tools/gen_build', '--output', '/dev/null', '--output-proto', '/dev/stdout'])
+        ['tools/gen_bazel', '--output', '/dev/null', '--output-proto', '/dev/stdout'])
 
     if current_build != new_build or current_proto_build != new_proto_build:
         return [
             output_api.PresubmitError(
-                'BUILD and/or protos/BUILD is out of date. Please run tools/gen_build '
+                'BUILD and/or protos/BUILD is out of date. Please run tools/gen_bazel '
                 'to update it.')
         ]
     return []
