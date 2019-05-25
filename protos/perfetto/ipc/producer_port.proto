@@ -95,6 +95,22 @@ message InitializeConnectionRequest {
   // Required to match the producer config set by the service to the correct
   // producer.
   optional string producer_name = 3;
+
+  enum ProducerSMBScrapingMode {
+    // Use the service's default setting for SMB scraping.
+    SMB_SCRAPING_UNSPECIFIED = 0;
+
+    // Enable scraping of uncommitted chunks from the producer's shared memory
+    // buffer.
+    SMB_SCRAPING_ENABLED = 1;
+
+    // Disable scraping of uncommitted chunks from the producer's shared memory
+    // buffer.
+    SMB_SCRAPING_DISABLED = 2;
+  }
+
+  // If provided, overrides the service's SMB scraping setting for the producer.
+  optional ProducerSMBScrapingMode smb_scraping_mode = 4;
 }
 
 message InitializeConnectionResponse {
@@ -213,7 +229,18 @@ message GetAsyncCommandResponse {
     optional uint64 request_id = 2;
   }
 
-  // Next id: 7.
+  // Instructs the given data sources to stop referring to any trace contents
+  // emitted so far. Sent only to active data sources that set
+  // |handles_incremental_state_clear| in their DataSourceDescriptor.
+  //
+  // Added to perfetto tree in May 2019.
+  message ClearIncrementalState {
+    // The instance id (i.e. StartDataSource.new_instance_id) of the data
+    // sources that should clear their incremental state.
+    repeated uint64 data_source_ids = 1;
+  }
+
+  // Next id: 8.
   oneof cmd {
     SetupTracing setup_tracing = 3;
     SetupDataSource setup_data_source = 6;
@@ -221,5 +248,6 @@ message GetAsyncCommandResponse {
     StopDataSource stop_data_source = 2;
     // id == 4 was teardown_tracing, never implemented.
     Flush flush = 5;
+    ClearIncrementalState clear_incremental_state = 7;
   }
 }

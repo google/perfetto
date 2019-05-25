@@ -65,10 +65,24 @@ void ProducerIPCService::InitializeConnection(
   // Create a new entry.
   std::unique_ptr<RemoteProducer> producer(new RemoteProducer());
 
+  TracingService::ProducerSMBScrapingMode smb_scraping_mode =
+      TracingService::ProducerSMBScrapingMode::kDefault;
+  switch (req.smb_scraping_mode()) {
+    case protos::InitializeConnectionRequest::SMB_SCRAPING_UNSPECIFIED:
+      break;
+    case protos::InitializeConnectionRequest::SMB_SCRAPING_DISABLED:
+      smb_scraping_mode = TracingService::ProducerSMBScrapingMode::kDisabled;
+      break;
+    case protos::InitializeConnectionRequest::SMB_SCRAPING_ENABLED:
+      smb_scraping_mode = TracingService::ProducerSMBScrapingMode::kEnabled;
+      break;
+  }
+
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
       producer.get(), client_info.uid(), req.producer_name(),
-      req.shared_memory_size_hint_bytes());
+      req.shared_memory_size_hint_bytes(), /*in_process=*/false,
+      smb_scraping_mode);
 
   // Could happen if the service has too many producers connected.
   if (!producer->service_endpoint)
@@ -394,6 +408,23 @@ void ProducerIPCService::RemoteProducer::Flush(
   for (size_t i = 0; i < num_data_sources; i++)
     cmd->mutable_flush()->add_data_source_ids(data_source_ids[i]);
   cmd->mutable_flush()->set_request_id(flush_request_id);
+  async_producer_commands.Resolve(std::move(cmd));
+}
+
+void ProducerIPCService::RemoteProducer::ClearIncrementalState(
+    const DataSourceInstanceID* data_source_ids,
+    size_t num_data_sources) {
+  if (!async_producer_commands.IsBound()) {
+    PERFETTO_DLOG(
+        "The Service tried to request an incremental state invalidation, but "
+        "the remote Producer has not yet initialized the connection");
+    return;
+  }
+  auto cmd = ipc::AsyncResult<protos::GetAsyncCommandResponse>::Create();
+  cmd.set_has_more(true);
+  for (size_t i = 0; i < num_data_sources; i++)
+    cmd->mutable_clear_incremental_state()->add_data_source_ids(
+        data_source_ids[i]);
   async_producer_commands.Resolve(std::move(cmd));
 }
 

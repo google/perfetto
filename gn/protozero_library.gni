@@ -49,6 +49,7 @@ template("protozero_library") {
                              "sources",
                              "testonly",
                              "visibility",
+                             "generate_descriptor",
                            ])
   }
 }

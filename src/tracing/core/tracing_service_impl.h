@@ -76,7 +76,8 @@ class TracingServiceImpl : public TracingService {
                          base::TaskRunner*,
                          Producer*,
                          const std::string& producer_name,
-                         bool in_process);
+                         bool in_process,
+                         bool smb_scraping_enabled);
     ~ProducerEndpointImpl() override;
 
     // TracingService::ProducerEndpoint implementation.
@@ -102,6 +103,7 @@ class TracingServiceImpl : public TracingService {
     void StopDataSource(DataSourceInstanceID);
     void Flush(FlushRequestID, const std::vector<DataSourceInstanceID>&);
     void OnFreeBuffers(const std::vector<BufferID>& target_buffers);
+    void ClearIncrementalState(const std::vector<DataSourceInstanceID>&);
 
     bool is_allowed_target_buffer(BufferID buffer_id) const {
       return allowed_target_buffers_.count(buffer_id);
@@ -117,6 +119,7 @@ class TracingServiceImpl : public TracingService {
    private:
     friend class TracingServiceImpl;
     friend class TracingServiceImplTest;
+    friend class TracingIntegrationTest;
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
 
@@ -131,6 +134,7 @@ class TracingServiceImpl : public TracingService {
     size_t shmem_size_hint_bytes_ = 0;
     const std::string name_;
     bool in_process_;
+    bool smb_scraping_enabled_;
 
     // Set of the global target_buffer IDs that the producer is configured to
     // write into in any active tracing session.
@@ -259,12 +263,16 @@ class TracingServiceImpl : public TracingService {
       uid_t uid,
       const std::string& producer_name,
       size_t shared_memory_size_hint_bytes = 0,
-      bool in_process = false) override;
+      bool in_process = false,
+      ProducerSMBScrapingMode smb_scraping_mode =
+          ProducerSMBScrapingMode::kDefault) override;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
       uid_t) override;
 
+  // Set whether SMB scraping should be enabled by default or not. Producers can
+  // override this setting for their own SMBs.
   void SetSMBScrapingEnabled(bool enabled) override {
     smb_scraping_enabled_ = enabled;
   }
@@ -277,6 +285,7 @@ class TracingServiceImpl : public TracingService {
 
  private:
   friend class TracingServiceImplTest;
+  friend class TracingIntegrationTest;
 
   struct RegisteredDataSource {
     ProducerID producer_id;
@@ -289,12 +298,15 @@ class TracingServiceImpl : public TracingService {
                        const DataSourceConfig& cfg,
                        const std::string& ds_name,
                        bool notify_on_start,
-                       bool notify_on_stop)
+                       bool notify_on_stop,
+                       bool handles_incremental_state_invalidation)
         : instance_id(id),
           config(cfg),
           data_source_name(ds_name),
           will_notify_on_start(notify_on_start),
-          will_notify_on_stop(notify_on_stop) {}
+          will_notify_on_stop(notify_on_stop),
+          handles_incremental_state_clear(
+              handles_incremental_state_invalidation) {}
     DataSourceInstance(const DataSourceInstance&) = delete;
     DataSourceInstance& operator=(const DataSourceInstance&) = delete;
 
@@ -303,6 +315,7 @@ class TracingServiceImpl : public TracingService {
     std::string data_source_name;
     bool will_notify_on_start;
     bool will_notify_on_stop;
+    bool handles_incremental_state_clear;
 
     enum DataSourceInstanceState {
       CONFIGURED,
@@ -412,6 +425,9 @@ class TracingServiceImpl : public TracingService {
 
     // List of data source instances that have been enabled on the various
     // producers for this tracing session.
+    // TODO(rsavitski): at the time of writing, the map structure is unused
+    // (even when the calling code has a key). This is also an opportunity to
+    // consider an alternative data type, e.g. a map of vectors.
     std::multimap<ProducerID, DataSourceInstance> data_source_instances;
 
     // For each Flush(N) request, keeps track of the set of producers for which
@@ -439,6 +455,11 @@ class TracingServiceImpl : public TracingService {
 
     // The number of received triggers we've emitted into the trace output.
     size_t num_triggers_emitted_into_trace = 0;
+
+    // Initial clock snapshot, captured at trace start time (when state goes
+    // to TracingSession::STARTED). Emitted into the trace when the consumer
+    // first begins reading the trace.
+    std::vector<TracePacket> initial_clock_snapshot_;
 
     State state = DISABLED;
 
@@ -483,7 +504,7 @@ class TracingServiceImpl : public TracingService {
                                TracingSession* tracing_session,
                                DataSourceInstance* instance);
   void SnapshotSyncMarker(std::vector<TracePacket>*);
-  void SnapshotClocks(std::vector<TracePacket>*);
+  void SnapshotClocks(std::vector<TracePacket>*, bool set_root_timestamp);
   void SnapshotStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession* tracing_session);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
@@ -498,6 +519,7 @@ class TracingServiceImpl : public TracingService {
                      bool success);
   void ScrapeSharedMemoryBuffers(TracingSession* tracing_session,
                                  ProducerEndpointImpl* producer);
+  void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
   void OnStartTriggersTimeout(TracingSessionID tsid);
 

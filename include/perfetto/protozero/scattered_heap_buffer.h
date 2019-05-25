@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_PROTOZERO_SCATTERED_HEAP_BUFFER_H_
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "perfetto/base/export.h"
@@ -25,6 +26,8 @@
 #include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace protozero {
+
+class Message;
 
 class PERFETTO_EXPORT ScatteredHeapBuffer
     : public protozero::ScatteredStreamWriter::Delegate {
@@ -84,6 +87,48 @@ class PERFETTO_EXPORT ScatteredHeapBuffer
   const size_t maximum_slice_size_;
   protozero::ScatteredStreamWriter* writer_ = nullptr;
   std::vector<Slice> slices_;
+};
+
+// Helper function to create heap-based protozero messages in one line.
+// This is a convenience wrapper, mostly for tests, to avoid having to do:
+//   MyMessage msg;
+//   ScatteredHeapBuffer shb;
+//   ScatteredStreamWriter writer(&shb);
+//   shb.set_writer(&writer);
+//   msg.Reset(&shb);
+// Just to get an easily serializable message. Instead this allows simply:
+//   HeapBuffered<MyMessage> msg;
+//   msg->set_stuff(...);
+//   msg->SerializeAsString();
+template <typename T = ::protozero::Message>
+class HeapBuffered {
+ public:
+  HeapBuffered() : shb_(4096, 4096), writer_(&shb_) {
+    shb_.set_writer(&writer_);
+    msg_.Reset(&writer_);
+  }
+
+  // This can't be neither copied nor moved because Message hands out pointers
+  // to itself when creating submessages.
+  HeapBuffered(const HeapBuffered&) = delete;
+  HeapBuffered& operator=(const HeapBuffered&) = delete;
+  HeapBuffered(HeapBuffered&&) = delete;
+  HeapBuffered& operator=(HeapBuffered&&) = delete;
+
+  T* get() { return &msg_; }
+  T* operator->() { return &msg_; }
+
+  std::vector<uint8_t> SerializeAsArray() { return shb_.StitchSlices(); }
+
+  std::string SerializeAsString() {
+    auto vec = SerializeAsArray();
+    return std::string(reinterpret_cast<const char*>(vec.data()), vec.size());
+  }
+
+ private:
+  ScatteredHeapBuffer shb_;
+  ScatteredStreamWriter writer_;
+  T msg_;
 };
 
 }  // namespace protozero

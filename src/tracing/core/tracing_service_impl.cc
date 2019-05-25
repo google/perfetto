@@ -144,7 +144,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     uid_t uid,
                                     const std::string& producer_name,
                                     size_t shared_memory_size_hint_bytes,
-                                    bool in_process) {
+                                    bool in_process,
+                                    ProducerSMBScrapingMode smb_scraping_mode) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   if (lockdown_mode_ && uid != geteuid()) {
@@ -160,8 +161,21 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   const ProducerID id = GetNextProducerID();
   PERFETTO_DLOG("Producer %" PRIu16 " connected", id);
 
+  bool smb_scraping_enabled = smb_scraping_enabled_;
+  switch (smb_scraping_mode) {
+    case ProducerSMBScrapingMode::kDefault:
+      break;
+    case ProducerSMBScrapingMode::kEnabled:
+      smb_scraping_enabled = true;
+      break;
+    case ProducerSMBScrapingMode::kDisabled:
+      smb_scraping_enabled = false;
+      break;
+  }
+
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
-      id, uid, this, task_runner_, producer, producer_name, in_process));
+      id, uid, this, task_runner_, producer, producer_name, in_process,
+      smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -360,6 +374,18 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (cfg.buffers_size() > kMaxBuffersPerConsumer) {
     PERFETTO_DLOG("Too many buffers configured (%d)", cfg.buffers_size());
     return false;
+  }
+
+  if (!cfg.unique_session_name().empty()) {
+    const std::string& name = cfg.unique_session_name();
+    for (auto& kv : tracing_sessions_) {
+      if (kv.second.config.unique_session_name() == name) {
+        PERFETTO_ELOG(
+            "A trace wtih this unique session name (%s) already exists",
+            name.c_str());
+        return false;
+      }
+    }
   }
 
   // TODO(primiano): This is a workaround to prevent that a producer gets stuck
@@ -642,6 +668,12 @@ bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
 
   tracing_session->state = TracingSession::STARTED;
 
+  if (!tracing_session->config.builtin_data_sources()
+           .disable_clock_snapshotting()) {
+    SnapshotClocks(&tracing_session->initial_clock_snapshot_,
+                   /*set_root_timestamp=*/true);
+  }
+
   // Trigger delayed task if the trace is time limited.
   const uint32_t trace_duration_ms = tracing_session->config.duration_ms();
   if (trace_duration_ms > 0) {
@@ -683,6 +715,12 @@ bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   // Start the periodic flush tasks if the config specified a flush period.
   if (tracing_session->config.flush_period_ms())
     PeriodicFlushTask(tsid, /*post_next_only=*/true);
+
+  // Start the periodic incremental state clear tasks if the config specified a
+  // period.
+  if (tracing_session->config.incremental_state_config().clear_period_ms()) {
+    PeriodicClearIncrementalStateTask(tsid, /*post_next_only=*/true);
+  }
 
   for (auto& kv : tracing_session->data_source_instances) {
     ProducerID producer_id = kv.first;
@@ -1046,7 +1084,7 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   }
 
   // If there are no producers to flush (realistically this happens only in
-  // some tests) fire  OnFlushTimeout() straight away, without waiting.
+  // some tests) fire OnFlushTimeout() straight away, without waiting.
   if (flush_map.empty())
     timeout_ms = 0;
 
@@ -1123,7 +1161,7 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
 void TracingServiceImpl::ScrapeSharedMemoryBuffers(
     TracingSession* tracing_session,
     ProducerEndpointImpl* producer) {
-  if (!smb_scraping_enabled_)
+  if (!producer->smb_scraping_enabled_)
     return;
 
   // Can't copy chunks if we don't know about any trace writers.
@@ -1280,11 +1318,58 @@ void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
   if (post_next_only)
     return;
 
-  PERFETTO_DLOG("Triggering periodic flush for %" PRIu64, tsid);
+  PERFETTO_DLOG("Triggering periodic flush for trace session %" PRIu64, tsid);
   Flush(tsid, 0, [](bool success) {
     if (!success)
       PERFETTO_ELOG("Periodic flush timed out");
   });
+}
+
+void TracingServiceImpl::PeriodicClearIncrementalStateTask(
+    TracingSessionID tsid,
+    bool post_next_only) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  TracingSession* tracing_session = GetTracingSession(tsid);
+  if (!tracing_session || tracing_session->state != TracingSession::STARTED)
+    return;
+
+  uint32_t clear_period_ms =
+      tracing_session->config.incremental_state_config().clear_period_ms();
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_this, tsid] {
+        if (weak_this)
+          weak_this->PeriodicClearIncrementalStateTask(
+              tsid, /*post_next_only=*/false);
+      },
+      clear_period_ms - (base::GetWallTimeMs().count() % clear_period_ms));
+
+  if (post_next_only)
+    return;
+
+  PERFETTO_DLOG(
+      "Performing periodic incremental state clear for trace session %" PRIu64,
+      tsid);
+
+  // Queue the IPCs to producers with active data sources that opted in.
+  std::map<ProducerID, std::vector<DataSourceInstanceID>> clear_map;
+  for (const auto& kv : tracing_session->data_source_instances) {
+    ProducerID producer_id = kv.first;
+    const DataSourceInstance& data_source = kv.second;
+    if (data_source.handles_incremental_state_clear)
+      clear_map[producer_id].push_back(data_source.instance_id);
+  }
+
+  for (const auto& kv : clear_map) {
+    ProducerID producer_id = kv.first;
+    const std::vector<DataSourceInstanceID>& data_sources = kv.second;
+    ProducerEndpointImpl* producer = GetProducer(producer_id);
+    if (!producer) {
+      PERFETTO_DFATAL("Producer does not exist.");
+      continue;
+    }
+    producer->ClearIncrementalState(data_sources);
+  }
 }
 
 // Note: when this is called to write into a file passed when starting tracing
@@ -1326,12 +1411,17 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     // If the consumer enabled tracing and asked to save the contents into the
     // passed file makes little sense to also try to read the buffers over IPC,
     // as that would just steal data from the periodic draining task.
-    PERFETTO_DFATAL("Consumer trying to read from write_to_file session.");
+    PERFETTO_DFATAL("Consumer trying to read from write_into_file session.");
     return;
   }
 
   std::vector<TracePacket> packets;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
+
+  std::move(tracing_session->initial_clock_snapshot_.begin(),
+            tracing_session->initial_clock_snapshot_.end(),
+            std::back_inserter(packets));
+  tracing_session->initial_clock_snapshot_.clear();
 
   base::TimeMillis now = base::GetWallTimeMs();
   if (now >= tracing_session->last_snapshot_time + kSnapshotsInterval) {
@@ -1339,12 +1429,20 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     SnapshotSyncMarker(&packets);
     SnapshotStats(tracing_session, &packets);
 
-    if (!tracing_session->config.disable_clock_snapshotting())
-      SnapshotClocks(&packets);
+    if (!tracing_session->config.builtin_data_sources()
+             .disable_clock_snapshotting()) {
+      // We don't want to put a root timestamp in this snapshot as the packet
+      // may be very out of order with respect to the actual trace packets
+      // since consuming the trace may happen at any point after it starts.
+      SnapshotClocks(&packets, /*set_root_timestamp=*/false);
+    }
   }
-  MaybeEmitTraceConfig(tracing_session, &packets);
-  MaybeEmitSystemInfo(tracing_session, &packets);
-  MaybeEmitReceivedTriggers(tracing_session, &packets);
+  if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
+    MaybeEmitTraceConfig(tracing_session, &packets);
+    MaybeEmitReceivedTriggers(tracing_session, &packets);
+  }
+  if (!tracing_session->config.builtin_data_sources().disable_system_info())
+    MaybeEmitSystemInfo(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
   size_t total_slices = 0;   // SUM(#slices in |packets|).
@@ -1707,11 +1805,13 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   auto insert_iter = tracing_session->data_source_instances.emplace(
       std::piecewise_construct,  //
       std::forward_as_tuple(producer->id_),
-      std::forward_as_tuple(inst_id,
-                            cfg_data_source.config(),  //  Deliberate copy.
-                            data_source.descriptor.name(),
-                            data_source.descriptor.will_notify_on_start(),
-                            data_source.descriptor.will_notify_on_stop()));
+      std::forward_as_tuple(
+          inst_id,
+          cfg_data_source.config(),  //  Deliberate copy.
+          data_source.descriptor.name(),
+          data_source.descriptor.will_notify_on_start(),
+          data_source.descriptor.will_notify_on_stop(),
+          data_source.descriptor.handles_incremental_state_clear()));
   DataSourceInstance* ds_instance = &insert_iter->second;
 
   // New data source instance starts out in CONFIGURED state.
@@ -2000,7 +2100,8 @@ void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
   packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
 }
 
-void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets) {
+void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
+                                        bool set_root_timestamp) {
   protos::TrustedPacket packet;
   protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
 
@@ -2036,15 +2137,23 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets) {
       PERFETTO_DLOG("clock_gettime failed for clock %d", clock.id);
   }
   for (auto& clock : clocks) {
+    if (set_root_timestamp &&
+        clock.type == protos::ClockSnapshot::Clock::BOOTTIME) {
+      packet.set_timestamp(
+          static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
+    };
     protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
     c->set_type(clock.type);
     c->set_timestamp(
         static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
   }
 #else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  auto wall_time_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
+  if (set_root_timestamp)
+    packet.set_timestamp(wall_time_ns);
   protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
   c->set_type(protos::ClockSnapshot::Clock::MONOTONIC);
-  c->set_timestamp(static_cast<uint64_t>(base::GetWallTimeNs().count()));
+  c->set_timestamp(wall_time_ns);
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 
   packet.set_trusted_uid(static_cast<int32_t>(uid_));
@@ -2385,7 +2494,8 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     base::TaskRunner* task_runner,
     Producer* producer,
     const std::string& producer_name,
-    bool in_process)
+    bool in_process,
+    bool smb_scraping_enabled)
     : id_(id),
       uid_(uid),
       service_(service),
@@ -2393,6 +2503,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
       producer_(producer),
       name_(producer_name),
       in_process_(in_process),
+      smb_scraping_enabled_(smb_scraping_enabled),
       weak_ptr_factory_(this) {}
 
 TracingServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
@@ -2620,6 +2731,18 @@ void TracingServiceImpl::ProducerEndpointImpl::OnFreeBuffers(
     return;
   for (BufferID buffer : target_buffers)
     allowed_target_buffers_.erase(buffer);
+}
+
+void TracingServiceImpl::ProducerEndpointImpl::ClearIncrementalState(
+    const std::vector<DataSourceInstanceID>& data_sources) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_this, data_sources] {
+    if (weak_this) {
+      weak_this->producer_->ClearIncrementalState(data_sources.data(),
+                                                  data_sources.size());
+    }
+  });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

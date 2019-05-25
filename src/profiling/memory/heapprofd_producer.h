@@ -115,6 +115,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void Flush(FlushRequestID,
              const DataSourceInstanceID* data_source_ids,
              size_t num_data_sources) override;
+  void ClearIncrementalState(const DataSourceInstanceID* /*data_source_ids*/,
+                             size_t /*num_data_sources*/) override {}
 
   // TODO(fmayer): Refactor once/if we have generic reconnect logic.
   void ConnectWithRetries(const char* socket_name);

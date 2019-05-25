@@ -52,8 +52,6 @@ constexpr uint32_t kTypePadding = 29;
 constexpr uint32_t kTypeTimeExtend = 30;
 constexpr uint32_t kTypeTimeStamp = 31;
 
-constexpr uint32_t kMainThread = 255;  // for METATRACE
-
 struct PageHeader {
   uint64_t timestamp;
   uint64_t size;
@@ -401,7 +399,8 @@ void CpuReader::RunWorkerThread(size_t cpu,
 // first CPU wakes up from the blocking read()/splice().
 void CpuReader::Drain(const std::set<FtraceDataSource*>& data_sources) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_METATRACE("Drain(" + std::to_string(cpu_) + ")", kMainThread);
+  PERFETTO_METATRACE("Drain(" + std::to_string(cpu_) + ")",
+                     base::MetaTrace::kMainThreadCpu);
 
   auto page_blocks = pool_.BeginRead();
   for (const auto& page_block : page_blocks) {
@@ -581,6 +580,15 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
     for (const Field& field : info.fields) {
       success &= ParseField(field, start, end, nested, metadata);
     }
+  }
+
+  if (PERFETTO_UNLIKELY(info.proto_field_id ==
+                        protos::pbzero::FtraceEvent::kTaskRenameFieldNumber)) {
+    // For task renames, we want to store that the pid was renamed. We use the
+    // common pid to reduce code complexity as in all the cases we care about,
+    // the common pid is the same as the renamed pid (the pid inside the event).
+    PERFETTO_DCHECK(metadata->last_seen_common_pid);
+    metadata->AddRenamePid(metadata->last_seen_common_pid);
   }
 
   // This finalizes |nested| and |proto_field| automatically.
