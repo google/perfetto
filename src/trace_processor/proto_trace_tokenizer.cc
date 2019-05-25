@@ -229,7 +229,8 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
           trace_config.flush_period_ms() > 0) {
         // We use 2x the flush period as a margin of error to allow for any
         // late flush responses to still be sorted correctly.
-        window_size_ns = trace_config.flush_period_ms() * 2 * 1000 * 1000;
+        window_size_ns = static_cast<int64_t>(trace_config.flush_period_ms()) *
+                         2 * 1000 * 1000;
       } else {
         constexpr uint64_t kDefaultWindowNs =
             180 * 1000 * 1000 * 1000ULL;  // 3 minutes.
