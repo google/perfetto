@@ -43,9 +43,9 @@ message FileDescriptorProto {
   // All top-level definitions in this file.
   repeated DescriptorProto message_type = 4;
   repeated EnumDescriptorProto enum_type = 5;
+  repeated FieldDescriptorProto extension = 7;
 
   reserved 6;
-  reserved 7;
   reserved 8;
   reserved 9;
   reserved 12;
@@ -137,7 +137,9 @@ message FieldDescriptorProto {
   // namespace).
   optional string type_name = 6;
 
-  reserved 2;
+  // For extensions, this is the name of the type being extended.  It is
+  // resolved in the same manner as type_name.
+  optional string extendee = 2;
 
   // For numeric types, contains the original text representation of the value.
   // For booleans, "true" or "false".
