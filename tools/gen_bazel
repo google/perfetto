@@ -327,9 +327,14 @@ class BuildGenerator(object):
     self.build = Build(public=True)
 
     proto_cc_import = 'load("//tools/build_defs/proto/cpp:cc_proto_library.bzl", "cc_proto_library")'
+    descriptor_set_import = 'load("//tools/build_defs/proto:descriptor_set.bzl", "transitive_descriptor_set")'
     pbzero_cc_import = 'load("//third_party/perfetto/google:build_defs.bzl", "pbzero_cc_proto_library")'
-    self.proto_build = Build(public=False, header_lines=[
-                        proto_cc_import, pbzero_cc_import])
+    self.proto_build = Build(public=False,
+                             header_lines=[
+                               proto_cc_import,
+                               descriptor_set_import,
+                               pbzero_cc_import,
+                             ])
 
     for target in targets:
       self.create_target(target)
