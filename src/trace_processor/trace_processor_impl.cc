@@ -456,8 +456,7 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
 
 util::Status TraceProcessorImpl::ExtendMetricsProto(const uint8_t* data,
                                                     size_t size) {
-  pool_.AddFromFileDescriptorSet(data, size);
-  return util::OkStatus();
+  return pool_.AddFromFileDescriptorSet(data, size);
 }
 
 util::Status TraceProcessorImpl::ComputeMetric(
