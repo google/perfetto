@@ -480,6 +480,7 @@ cc_binary {
     "libprotobuf-cpp-lite",
     "libservices",
     "libutils",
+    "libz",
   ],
   static_libs: [
     "libgtest_prod",
@@ -3132,6 +3133,7 @@ cc_test {
     "libservices",
     "libunwindstack",
     "libutils",
+    "libz",
   ],
   static_libs: [
     "libgmock",
@@ -3483,6 +3485,7 @@ cc_binary {
   shared_libs: [
     "liblog",
     "libprotobuf-cpp-lite",
+    "libz",
   ],
   static_libs: [
     "libgtest_prod",

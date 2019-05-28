@@ -674,6 +674,38 @@ source_set("lzma") {
   ]
 }
 
+source_set("zlib") {
+  defines = [
+    "ZLIB_CONST",
+    "USE_MMAP",
+    "HAVE_HIDDEN",
+  ]
+  sources = [
+    "zlib/src/adler32.c",
+    "zlib/src/compress.c",
+    "zlib/src/crc32.c",
+    "zlib/src/deflate.c",
+    "zlib/src/gzclose.c",
+    "zlib/src/gzlib.c",
+    "zlib/src/gzread.c",
+    "zlib/src/gzwrite.c",
+    "zlib/src/infback.c",
+    "zlib/src/inffast.c",
+    "zlib/src/inflate.c",
+    "zlib/src/inftrees.c",
+    "zlib/src/trees.c",
+    "zlib/src/uncompr.c",
+    "zlib/src/zutil.c",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  cflags = []
+  public_configs = [ ":zlib_config" ]
+}
+
+config("zlib_config") {
+  include_dirs = [ "zlib/src" ]
+}
+
 source_set("libunwindstack") {
   include_dirs = [
     "android-core/libunwindstack/include",
