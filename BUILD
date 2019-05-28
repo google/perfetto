@@ -30,6 +30,7 @@ genrule(
         "src/trace_processor/metrics/android/android_startup.sql",
         "src/trace_processor/metrics/android/android_startup_launches.sql",
         "src/trace_processor/metrics/android/android_task_state.sql",
+        "src/trace_processor/metrics/android/heap_profile.sql",
         "src/trace_processor/metrics/error_statistics.sql",
     ],
     outs = [
