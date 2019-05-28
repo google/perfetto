@@ -108,6 +108,7 @@ if (perfetto_build_standalone) {
     deps = [
       "src/trace_processor:trace_processor_shell",
     ]
+    testonly = true  # We need this for proto full.
   }
 }
 
