@@ -584,6 +584,8 @@ util::Status ComputeMetrics(TraceProcessor* tp,
                        return metric.proto_field_name.has_value() &&
                               name == metric.proto_field_name.value();
                      });
+    if (metric_it == sql_metrics.end())
+      return util::ErrStatus("Unknown metric %s", name.c_str());
 
     const auto& sql_metric = *metric_it;
     auto queries = base::SplitString(sql_metric.sql, ";\n");
