@@ -47,6 +47,21 @@ struct Variadic {
     return variadic;
   }
 
+  // Used in tests.
+  bool operator==(const Variadic& other) const {
+    if (type == other.type) {
+      switch (type) {
+        case kInt:
+          return int_value == other.int_value;
+        case kString:
+          return string_value == other.string_value;
+        case kReal:
+          return std::equal_to<double>()(real_value, other.real_value);
+      }
+    }
+    return false;
+  }
+
   Type type;
   union {
     int64_t int_value;
