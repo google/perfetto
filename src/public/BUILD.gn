@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/perfetto.gni")
+
 source_set("public") {
   deps = [
     ":common",
@@ -68,20 +70,22 @@ source_set("common") {
   ]
 }
 
-source_set("integrationtests") {
-  testonly = true
-  deps = [
-    ":platform_posix",
-    ":public",
-    "../../gn:default_deps",
-    "../../gn:gtest_deps",
-    "../../protos/perfetto/trace:lite",
-    "../base",
+if (!perfetto_build_with_embedder) {
+  source_set("integrationtests") {
+    testonly = true
+    deps = [
+      ":platform_posix",
+      ":public",
+      "../../gn:default_deps",
+      "../../gn:gtest_deps",
+      "../../protos/perfetto/trace:lite",
+      "../base",
 
-    # TODO(primiano): move DataSourceConfig to /public/ and remove this.
-    "../../include/perfetto/tracing/core",
-  ]
-  sources = [
-    "api_integrationtest.cc",
-  ]
+      # TODO(primiano): move DataSourceConfig to /public/ and remove this.
+      "../../include/perfetto/tracing/core",
+    ]
+    sources = [
+      "api_integrationtest.cc",
+    ]
+  }
 }

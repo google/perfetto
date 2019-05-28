@@ -526,7 +526,7 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
               all_packets_rx();
           }));
   task_runner_->RunUntilCheckpoint("all_packets_rx");
-  ASSERT_EQ(2, num_test_pack_rx);
+  ASSERT_EQ(2u, num_test_pack_rx);
 
   // Disable tracing.
   consumer_endpoint_->DisableTracing();
