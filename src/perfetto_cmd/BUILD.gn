@@ -74,6 +74,7 @@ source_set("trigger_producer") {
   ]
   deps = [
     "../../buildtools:protobuf_lite",
+    "../../buildtools:zlib",
     "../../gn:default_deps",
     "../../protos/perfetto/config:lite",
     "../base",
