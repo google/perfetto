@@ -205,6 +205,7 @@ if (current_toolchain == host_toolchain) {
       "../../gn:default_deps",
       "../../gn:protobuf_full_deps",
       "../base",
+      "metrics:lib",
     ]
     if (perfetto_build_standalone) {
       deps += [
