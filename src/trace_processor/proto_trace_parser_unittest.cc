@@ -22,12 +22,14 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_sorter.h"
 
 #include "perfetto/common/sys_stats_counters.pbzero.h"
+#include "perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -102,6 +104,8 @@ class MockTraceStorage : public TraceStorage {
   MockTraceStorage() : TraceStorage() {}
 
   MOCK_METHOD1(InternString, StringId(base::StringView));
+  MOCK_METHOD2(SetMetadata, void(size_t, Variadic));
+  MOCK_METHOD2(AppendMetadata, void(size_t, Variadic));
 };
 
 class MockArgsTracker : public ArgsTracker {
@@ -987,6 +991,38 @@ TEST(SystraceParserTest, SystraceEvent) {
 
   ASSERT_EQ(ParseSystraceTracePoint(base::StringView("S|"), &result),
             SystraceParseResult::kUnsupported);
+}
+
+TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
+  static const char kName[] = "name";
+  static const char kTag2[] = "tag1";
+  static const char kTag1[] = "tag2";
+
+  InitStorage();
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+
+  auto* metadata = trace_.add_packet()->set_chrome_benchmark_metadata();
+  metadata->set_benchmark_name(kName);
+  metadata->add_story_tags(kTag1);
+  metadata->add_story_tags(kTag2);
+
+  Tokenize();
+
+  EXPECT_CALL(*storage_, InternString(base::StringView(kName)))
+      .WillOnce(Return(1));
+  EXPECT_CALL(*storage_, InternString(base::StringView(kTag1)))
+      .WillOnce(Return(2));
+  EXPECT_CALL(*storage_, InternString(base::StringView(kTag2)))
+      .WillOnce(Return(3));
+  EXPECT_CALL(*storage_,
+              SetMetadata(metadata::benchmark_name, Variadic::String(1)));
+  EXPECT_CALL(*storage_, AppendMetadata(metadata::benchmark_story_tags,
+                                        Variadic::String(2)));
+  EXPECT_CALL(*storage_, AppendMetadata(metadata::benchmark_story_tags,
+                                        Variadic::String(3)));
+
+  context_.sorter->ExtractEventsForced();
 }
 
 }  // namespace
