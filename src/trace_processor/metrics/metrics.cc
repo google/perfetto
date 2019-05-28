@@ -483,7 +483,10 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   const auto* fn_ctx =
       static_cast<const BuildProtoContext*>(sqlite3_user_data(ctx));
   if (argc % 2 != 0) {
-    sqlite3_result_error(ctx, "Invalid call to BuildProto", -1);
+    util::Status error =
+        util::ErrStatus("Invalid number of args to %s BuildProto (got %d)",
+                        fn_ctx->desc->full_name().c_str(), argc);
+    sqlite3_result_error(ctx, error.c_message(), -1);
     return;
   }
 

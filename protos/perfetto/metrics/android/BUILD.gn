@@ -19,6 +19,7 @@ import("../../../../gn/protozero_library.gni")
 common_sources = [
   "mem_metric.proto",
   "startup_metric.proto",
+  "heap_profile.proto",
 ]
 
 proto_library("lite") {
