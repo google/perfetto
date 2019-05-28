@@ -577,6 +577,8 @@ cc_binary(
         "//third_party/perfetto/protos:trace_sys_stats_zero_cc_proto",
         "//third_party/perfetto/protos:trace_track_event_zero_cc_proto",
         "//third_party/perfetto/protos:trace_zero_cc_proto",
+        "//third_party/protobuf",
+        "//third_party/protobuf:libprotoc",
         "//third_party/sqlite",
         "//third_party/sqlite:sqlite_ext_percentile",
     ],

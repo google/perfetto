@@ -22,6 +22,7 @@
 #include <functional>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/string_splitter.h"
 #include "perfetto/base/string_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -445,11 +446,19 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   }
   auto no_ext_name = basename.substr(0, sql_idx);
 
+  std::string stripped_sql;
+  for (base::StringSplitter sp(sql, '\n'); sp.Next();) {
+    if (strncmp(sp.cur_token(), "--", 2) != 0) {
+      stripped_sql.append(sp.cur_token());
+      stripped_sql.push_back('\n');
+    }
+  }
+
   metrics::SqlMetricFile metric;
   metric.path = path;
   metric.proto_field_name = no_ext_name;
   metric.output_table_name = no_ext_name + "_output";
-  metric.sql = sql;
+  metric.sql = stripped_sql;
   sql_metrics_.emplace_back(metric);
   return util::OkStatus();
 }
