@@ -29,6 +29,7 @@ namespace trace_processor {
 class ArgsTracker {
  public:
   explicit ArgsTracker(TraceProcessorContext*);
+  virtual ~ArgsTracker();
 
   // Adds a arg for this row id with the given key and value.
   void AddArg(RowId row_id, StringId flat_key, StringId key, Variadic);
