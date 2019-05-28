@@ -23,6 +23,10 @@ namespace trace_processor {
 
 ArgsTracker::ArgsTracker(TraceProcessorContext* context) : context_(context) {}
 
+ArgsTracker::~ArgsTracker() {
+  Flush();
+}
+
 void ArgsTracker::AddArg(RowId row_id,
                          StringId flat_key,
                          StringId key,
@@ -38,6 +42,9 @@ void ArgsTracker::AddArg(RowId row_id,
 
 void ArgsTracker::Flush() {
   using Arg = TraceStorage::Args::Arg;
+
+  if (args_.empty())
+    return;
 
   // We sort here because a single packet may add multiple args with different
   // rowids.
@@ -66,6 +73,9 @@ void ArgsTracker::Flush() {
         break;
       case TableId::kInstants:
         storage->mutable_instants()->set_arg_set_id(pair.second, set_id);
+        break;
+      case TableId::kNestableSlices:
+        storage->mutable_nestable_slices()->set_arg_set_id(pair.second, set_id);
         break;
       default:
         PERFETTO_FATAL("Unsupported table to insert args into");

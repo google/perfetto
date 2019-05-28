@@ -41,6 +41,7 @@ StorageSchema SliceTable::CreateStorageSchema() {
       .AddNumericColumn("depth", &slices.depths())
       .AddNumericColumn("stack_id", &slices.stack_ids())
       .AddNumericColumn("parent_stack_id", &slices.parent_stack_ids())
+      .AddNumericColumn("arg_set_id", &slices.arg_set_ids())
       .Build({"slice_id"});
 }
 
