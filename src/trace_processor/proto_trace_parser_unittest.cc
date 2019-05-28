@@ -121,18 +121,25 @@ class MockSliceTracker : public SliceTracker {
  public:
   MockSliceTracker(TraceProcessorContext* context) : SliceTracker(context) {}
 
-  MOCK_METHOD4(
-      Begin,
-      void(int64_t timestamp, UniqueTid utid, StringId cat, StringId name));
-  MOCK_METHOD4(
-      End,
-      void(int64_t timestamp, UniqueTid utid, StringId cat, StringId name));
-  MOCK_METHOD5(Scoped,
+  MOCK_METHOD5(Begin,
                void(int64_t timestamp,
                     UniqueTid utid,
                     StringId cat,
                     StringId name,
-                    int64_t duration));
+                    SetArgsCallback args_callback));
+  MOCK_METHOD5(End,
+               void(int64_t timestamp,
+                    UniqueTid utid,
+                    StringId cat,
+                    StringId name,
+                    SetArgsCallback args_callback));
+  MOCK_METHOD6(Scoped,
+               void(int64_t timestamp,
+                    UniqueTid utid,
+                    StringId cat,
+                    StringId name,
+                    int64_t duration,
+                    SetArgsCallback args_callback));
 };
 
 class ProtoTraceParserTest : public ::testing::Test {
@@ -594,9 +601,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
       .WillRepeatedly(Return(1));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_, Scoped(1005000, 1, 0, 0, 23000));
-  EXPECT_CALL(*slice_, Begin(1010000, 1, 0, 0));
-  EXPECT_CALL(*slice_, End(1020000, 1, 0, 0));
+  EXPECT_CALL(*slice_, Scoped(1005000, 1, 0, 0, 23000, _));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, 0, 0, _));
+  EXPECT_CALL(*slice_, End(1020000, 1, 0, 0, _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -684,15 +691,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Scoped(1005000, 1, 1, 2, 23000));
+  EXPECT_CALL(*slice_, Scoped(1005000, 1, 1, 2, 23000, _));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(4));
-  EXPECT_CALL(*slice_, Begin(1010000, 1, 3, 4));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, 3, 4, _));
 
-  EXPECT_CALL(*slice_, End(1020000, 1, 3, 4));
+  EXPECT_CALL(*slice_, End(1020000, 1, 3, 4, _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -726,7 +733,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
 
   Tokenize();
 
-  EXPECT_CALL(*slice_, Begin(_, _, _, _)).Times(0);
+  EXPECT_CALL(*slice_, Begin(_, _, _, _, _)).Times(0);
   context_.sorter->ExtractEventsForced();
 }
 
@@ -751,7 +758,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
 
   Tokenize();
 
-  EXPECT_CALL(*slice_, Begin(_, _, _, _)).Times(0);
+  EXPECT_CALL(*slice_, Begin(_, _, _, _, _)).Times(0);
   context_.sorter->ExtractEventsForced();
 }
 
@@ -847,8 +854,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
       .WillRepeatedly(Return(1));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_, Begin(1010000, 1, 0, 0));
-  EXPECT_CALL(*slice_, End(2010000, 1, 0, 0));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, 0, 0, _));
+  EXPECT_CALL(*slice_, End(2010000, 1, 0, 0, _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -955,16 +962,16 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(2));
 
-  EXPECT_CALL(*slice_, Begin(1005000, 2, 1, 2));
+  EXPECT_CALL(*slice_, Begin(1005000, 2, 1, 2, _));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(3));
 
-  EXPECT_CALL(*slice_, Begin(1010000, 1, 1, 3));
-  EXPECT_CALL(*slice_, End(1015000, 2, 1, 2));
-  EXPECT_CALL(*slice_, End(1020000, 1, 1, 3));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, 1, 3, _));
+  EXPECT_CALL(*slice_, End(1015000, 2, 1, 2, _));
+  EXPECT_CALL(*slice_, End(1020000, 1, 1, 3, _));
 
   context_.sorter->ExtractEventsForced();
 }

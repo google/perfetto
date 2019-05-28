@@ -24,10 +24,13 @@
 namespace perfetto {
 namespace trace_processor {
 
+class ArgsTracker;
 class TraceProcessorContext;
 
 class SliceTracker {
  public:
+  using SetArgsCallback = std::function<void(ArgsTracker*, RowId row_id)>;
+
   explicit SliceTracker(TraceProcessorContext*);
   virtual ~SliceTracker();
 
@@ -41,14 +44,16 @@ class SliceTracker {
   virtual void Begin(int64_t timestamp,
                      UniqueTid utid,
                      StringId cat,
-                     StringId name);
+                     StringId name,
+                     SetArgsCallback args_callback = SetArgsCallback());
 
   // virtual for testing
   virtual void Scoped(int64_t timestamp,
                       UniqueTid utid,
                       StringId cat,
                       StringId name,
-                      int64_t duration);
+                      int64_t duration,
+                      SetArgsCallback args_callback = SetArgsCallback());
 
   void EndAndroid(int64_t timestamp, uint32_t ftrace_tid, uint32_t atrace_tgid);
 
@@ -56,16 +61,18 @@ class SliceTracker {
   virtual void End(int64_t timestamp,
                    UniqueTid utid,
                    StringId opt_cat = {},
-                   StringId opt_name = {});
+                   StringId opt_name = {},
+                   SetArgsCallback args_callback = SetArgsCallback());
 
  private:
-  using SlicesStack = std::vector<size_t>;
+  using SlicesStack = std::vector<std::pair<uint32_t /* row */, ArgsTracker>>;
 
   void StartSlice(int64_t timestamp,
                   int64_t duration,
                   UniqueTid utid,
                   StringId cat,
-                  StringId name);
+                  StringId name,
+                  SetArgsCallback args_callback);
   void CompleteSlice(UniqueTid tid);
 
   void MaybeCloseStack(int64_t end_ts, SlicesStack*);
