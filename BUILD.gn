@@ -72,6 +72,10 @@ group("all") {
         "tools/proto_to_cpp",
         "tools/trace_to_text",
         "tools/trace_to_text:trace_to_text_lite_host($host_toolchain)",
+
+        # The diff testing framework depends on these descriptors.
+        "protos/perfetto/metrics:descriptor",
+        "protos/perfetto/trace:descriptor",
       ]
       if (is_linux || is_android) {
         deps += [ "tools/skippy" ]

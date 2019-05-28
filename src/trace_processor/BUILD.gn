@@ -212,12 +212,6 @@ if (current_toolchain == host_toolchain) {
         "../../buildtools:linenoise",
         "../../gn/standalone:gen_git_revision",
       ]
-
-      # Build the descriptors as the diff testing framework depends on this.
-      deps += [
-        "../../protos/perfetto/metrics:descriptor",
-        "../../protos/perfetto/trace:descriptor",
-      ]
     }
 
     sources = [
