@@ -93,7 +93,8 @@ util::Status ProtoBuilder::AppendSqlValue(const std::string& field_name,
 }
 
 util::Status ProtoBuilder::AppendLong(const std::string& field_name,
-                                      int64_t value) {
+                                      int64_t value,
+                                      bool is_inside_repeated) {
   auto field_idx = descriptor_->FindFieldIdx(field_name);
   if (!field_idx.has_value()) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
@@ -103,7 +104,7 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   const auto& field = descriptor_->fields()[field_idx.value()];
-  if (field.is_repeated()) {
+  if (field.is_repeated() && !is_inside_repeated) {
     return util::ErrStatus(
         "Unexpected long value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
@@ -137,7 +138,8 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
 }
 
 util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
-                                        double value) {
+                                        double value,
+                                        bool is_inside_repeated) {
   auto field_idx = descriptor_->FindFieldIdx(field_name);
   if (!field_idx.has_value()) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
@@ -147,7 +149,7 @@ util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   const auto& field = descriptor_->fields()[field_idx.value()];
-  if (field.is_repeated()) {
+  if (field.is_repeated() && !is_inside_repeated) {
     return util::ErrStatus(
         "Unexpected double value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
@@ -173,10 +175,9 @@ util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
   return util::OkStatus();
 }
 
-util::Status ProtoBuilder::AppendBytesInternal(const std::string& field_name,
-                                               const uint8_t* ptr,
-                                               size_t size,
-                                               bool is_string) {
+util::Status ProtoBuilder::AppendString(const std::string& field_name,
+                                        base::StringView data,
+                                        bool is_inside_repeated) {
   auto field_idx = descriptor_->FindFieldIdx(field_name);
   if (!field_idx.has_value()) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
@@ -186,39 +187,64 @@ util::Status ProtoBuilder::AppendBytesInternal(const std::string& field_name,
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   const auto& field = descriptor_->fields()[field_idx.value()];
-  if (field.is_repeated()) {
-    if (is_string) {
-      return util::ErrStatus(
-          "Unexpected string value for repeated field %s in proto type %s",
-          field_name.c_str(), descriptor_->full_name().c_str());
-    }
-    return AppendRepeated(field, ptr, size);
+  if (field.is_repeated() && !is_inside_repeated) {
+    return util::ErrStatus(
+        "Unexpected string value for repeated field %s in proto type %s",
+        field_name.c_str(), descriptor_->full_name().c_str());
   }
 
   switch (field.type()) {
     case FieldDescriptorProto::TYPE_STRING: {
-      message_->AppendBytes(field.number(), ptr, size);
+      message_->AppendBytes(field.number(), data.data(), data.size());
       break;
     }
-    case FieldDescriptorProto::TYPE_MESSAGE:
-      return AppendSingleMessage(field, ptr, size);
     default: {
       return util::ErrStatus(
-          "Tried to write value of type long into field %s (in proto type %s) "
-          "which has type %d",
+          "Tried to write value of type string into field %s (in proto type "
+          "%s) which has type %d",
           field.name().c_str(), descriptor_->full_name().c_str(), field.type());
     }
   }
   return util::OkStatus();
 }
 
+util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
+                                       const uint8_t* ptr,
+                                       size_t size,
+                                       bool is_inside_repeated) {
+  auto field_idx = descriptor_->FindFieldIdx(field_name);
+  if (!field_idx.has_value()) {
+    return util::ErrStatus("Field with name %s not found in proto type %s",
+                           field_name.c_str(),
+                           descriptor_->full_name().c_str());
+  }
+
+  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  const auto& field = descriptor_->fields()[field_idx.value()];
+  if (field.is_repeated() && !is_inside_repeated)
+    return AppendRepeated(field, ptr, size);
+
+  switch (field.type()) {
+    case FieldDescriptorProto::TYPE_MESSAGE:
+      return AppendSingleMessage(field, ptr, size);
+    default: {
+      return util::ErrStatus(
+          "Tried to write value of type bytes into field %s (in proto type %s) "
+          "which has type %d",
+          field.name().c_str(), descriptor_->full_name().c_str(), field.type());
+    }
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
                                                const uint8_t* ptr,
                                                size_t size) {
   protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
-  if (decoder.is_repeated())
+  if (decoder.is_repeated()) {
     return util::ErrStatus("Cannot handle nested repeated messages in field %s",
                            field.name().c_str());
+  }
 
   const auto& single_field = decoder.single();
   protos::pbzero::SingleBuilderResult::Decoder single(single_field.data,
@@ -269,16 +295,15 @@ util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
                                                                 it->size());
     util::Status status;
     if (value.has_int_value()) {
-      status = AppendLong(field.name(), value.int_value());
+      status = AppendLong(field.name(), value.int_value(), true);
     } else if (value.has_double_value()) {
-      status = AppendDouble(field.name(), value.double_value());
+      status = AppendDouble(field.name(), value.double_value(), true);
     } else if (value.has_string_value()) {
-      status =
-          AppendString(field.name(), base::StringView(value.string_value()));
+      status = AppendString(field.name(),
+                            base::StringView(value.string_value()), true);
     } else if (value.has_bytes_value()) {
-      // TODO(lalitm): think about whether to add support for bytes fields.
       const auto& bytes = value.bytes_value();
-      status = AppendSingleMessage(field, bytes.data, bytes.size);
+      status = AppendBytes(field.name(), bytes.data, bytes.size, true);
     } else {
       status = util::ErrStatus("Unknown type in repeated field");
     }
