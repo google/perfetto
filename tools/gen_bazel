@@ -413,7 +413,10 @@ class BuildGenerator(object):
         if target.type == 'cc_library' or target.type == 'cc_binary':
           target.srcs.update(dep_target.outs)
       elif args[0].endswith('/protoc'):
-        (proto_target, cc_target) = self.create_proto_target(dep_name)
+        result = self.create_proto_target(dep_name);
+        if result is None:
+          return
+        (proto_target, cc_target) = result
         if target.type == 'proto_library':
           dep_target_name = proto_target.name
         else:
@@ -471,17 +474,16 @@ class BuildGenerator(object):
     stripped_path = gn_target_name_no_toolchain.replace("protos/perfetto/", "")
 
     is_descriptor = any('descriptor_set_out' in arg for arg in args)
+    if is_descriptor:
+      return None
+
     is_pbzero = any("pbzero" in arg for arg in args)
     is_proto_lite = not is_pbzero and not is_descriptor
 
     pretty_target_name = gn_utils.label_to_target_name_with_path(stripped_path)
     pretty_target_name = pretty_target_name.replace("_lite_gen", "")
     pretty_target_name = pretty_target_name.replace("_zero_gen", "_zero")
-    if is_descriptor:
-      pretty_target_name = pretty_target_name.replace("_gen", "")
-      proto_target_name = pretty_target_name + "_proto"
-    else:
-      proto_target_name = pretty_target_name
+    proto_target_name = pretty_target_name
 
     proto_target = Target(
       'proto_library',
@@ -500,19 +502,7 @@ class BuildGenerator(object):
     for dep_name in self.resolve_dependencies(gn_target_name):
       self.apply_module_dependency(proto_target, dep_name)
 
-    if is_descriptor:
-      descriptor_set_target = Target(
-        'transitive_descriptor_set',
-        pretty_target_name,
-        gn_name=gn_target_name_no_toolchain
-      )
-      descriptor_set_target.deps.update([
-        "//third_party/perfetto/protos:{}".format(proto_target.name)
-      ])
-      self.proto_build.add_target(descriptor_set_target)
-
-      return (descriptor_set_target, descriptor_set_target)
-    elif is_pbzero:
+    if is_pbzero:
       # Remove all the protozero srcs from the proto_library.
       proto_target.srcs.difference_update(
           [src for src in proto_target.srcs if not src.label.endswith('.proto')])

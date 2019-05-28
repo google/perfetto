@@ -246,22 +246,6 @@ cc_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/metrics:descriptor_gen
-transitive_descriptor_set(
-    name = "metrics_descriptor",
-    deps = [
-        "//third_party/perfetto/protos:metrics_descriptor_proto",
-    ],
-)
-
-# GN target: //protos/perfetto/metrics:descriptor_gen
-proto_library(
-    name = "metrics_descriptor_proto",
-    srcs = [
-        "perfetto/metrics/metrics.proto",
-    ],
-)
-
 # GN target: //protos/perfetto/metrics:zero_gen
 proto_library(
     name = "metrics_zero",
@@ -447,24 +431,6 @@ pbzero_cc_proto_library(
     deps = [
         "//third_party/perfetto:libprotozero",
         "//third_party/perfetto/google:gtest_prod",
-    ],
-)
-
-# GN target: //protos/perfetto/trace:descriptor_gen
-transitive_descriptor_set(
-    name = "trace_descriptor",
-    deps = [
-        "//third_party/perfetto/protos:trace_descriptor_proto",
-    ],
-)
-
-# GN target: //protos/perfetto/trace:descriptor_gen
-proto_library(
-    name = "trace_descriptor_proto",
-    srcs = [
-        "perfetto/trace/test_event.proto",
-        "perfetto/trace/trace.proto",
-        "perfetto/trace/trace_packet.proto",
     ],
 )
 
