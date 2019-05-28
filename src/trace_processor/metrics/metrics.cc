@@ -256,10 +256,10 @@ util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
   }
 
   auto actual_type_name = single.type_name().ToStdString();
-  if (actual_type_name != field.raw_type_name()) {
+  if (actual_type_name != field.resolved_type_name()) {
     return util::ErrStatus("Field %s has wrong type (expected %s, was %s)",
                            field.name().c_str(), actual_type_name.c_str(),
-                           field.raw_type_name().c_str());
+                           field.resolved_type_name().c_str());
   }
 
   if (!single.has_protobuf()) {

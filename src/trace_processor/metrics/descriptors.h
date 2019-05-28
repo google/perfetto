@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/optional.h"
+#include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -39,18 +40,20 @@ class FieldDescriptor {
   uint32_t number() const { return number_; }
   uint32_t type() const { return type_; }
   const std::string& raw_type_name() const { return raw_type_name_; }
+  const std::string& resolved_type_name() const { return resolved_type_name_; }
   bool is_repeated() const { return is_repeated_; }
 
-  void set_message_type_idx(uint32_t idx) { message_type_idx_ = idx; }
+  void set_resolved_type_name(const std::string& resolved_type_name) {
+    resolved_type_name_ = resolved_type_name;
+  }
 
  private:
   std::string name_;
   uint32_t number_;
   uint32_t type_;
   std::string raw_type_name_;
+  std::string resolved_type_name_;
   bool is_repeated_;
-
-  base::Optional<uint32_t> message_type_idx_;
 };
 
 class ProtoDescriptor {
@@ -87,8 +90,9 @@ class ProtoDescriptor {
 
 class DescriptorPool {
  public:
-  void AddFromFileDescriptorSet(const uint8_t* file_descriptor_set_proto,
-                                size_t size);
+  util::Status AddFromFileDescriptorSet(
+      const uint8_t* file_descriptor_set_proto,
+      size_t size);
 
   base::Optional<uint32_t> FindDescriptorIdx(
       const std::string& full_name) const;
@@ -102,6 +106,15 @@ class DescriptorPool {
                                  base::Optional<uint32_t> parent_idx,
                                  const uint8_t* descriptor_proto,
                                  size_t size);
+
+  util::Status AddExtensionField(const std::string& package_name,
+                                 const uint8_t* field_desc_proto,
+                                 size_t size);
+
+  // Recursively searches for the the given short type in all parent messages
+  // and packages.
+  base::Optional<uint32_t> ResolveShortType(const std::string& parent_path,
+                                            const std::string& short_type);
 
   std::vector<ProtoDescriptor> descriptors_;
 };
