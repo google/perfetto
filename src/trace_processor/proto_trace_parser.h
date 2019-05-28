@@ -114,6 +114,7 @@ class ProtoTraceParser : public TraceParser {
                        int64_t tts,
                        ProtoIncrementalState::PacketSequenceState*,
                        ConstBytes);
+  void ParseChromeBenchmarkMetadata(ConstBytes);
 
  private:
   TraceProcessorContext* context_;
@@ -175,7 +176,6 @@ class ProtoTraceParser : public TraceParser {
   // Keep kMmEventCounterSize equal to mm_event_type::MM_TYPE_NUM in the kernel.
   static constexpr size_t kMmEventCounterSize = 7;
   std::array<MmEventCounterNames, kMmEventCounterSize> mm_event_counter_names_;
-
 };
 
 }  // namespace trace_processor
