@@ -607,22 +607,28 @@ util::Status ComputeMetrics(TraceProcessor* tp,
     if (!status.ok()) {
       return status;
     } else if (!has_next) {
-      return util::ErrStatus("Output table should have at least one row");
+      return util::ErrStatus("Output table %s should have at least one row",
+                             sql_metric.output_table_name.value().c_str());
     } else if (it.ColumnCount() != 1) {
-      return util::ErrStatus("Output table should have exactly one column");
-    } else if (it.Get(0).type != SqlValue::kBytes) {
-      return util::ErrStatus("Output table column should have type bytes");
+      return util::ErrStatus("Output table %s should have exactly one column",
+                             sql_metric.output_table_name.value().c_str());
     }
 
-    const auto& field_name = sql_metric.proto_field_name.value();
-    const auto& col = it.Get(0);
-    status = metric_builder.AppendSqlValue(field_name, col);
-    if (!status.ok())
-      return status;
+    if (it.Get(0).type == SqlValue::kBytes) {
+      const auto& field_name = sql_metric.proto_field_name.value();
+      const auto& col = it.Get(0);
+      status = metric_builder.AppendSqlValue(field_name, col);
+      if (!status.ok())
+        return status;
+    } else if (it.Get(0).type != SqlValue::kNull) {
+      return util::ErrStatus("Output table %s column has invalid type",
+                             sql_metric.output_table_name.value().c_str());
+    }
 
     has_next = it.Next();
     if (has_next)
-      return util::ErrStatus("Output table should only have one row");
+      return util::ErrStatus("Output table %s should only have one row",
+                             sql_metric.output_table_name.value().c_str());
 
     status = it.Status();
     if (!status.ok())
