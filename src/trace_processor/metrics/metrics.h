@@ -66,31 +66,22 @@ class ProtoBuilder {
   util::Status AppendSqlValue(const std::string& field_name,
                               const SqlValue& value);
 
-  util::Status AppendLong(const std::string& field_name, int64_t value);
-  util::Status AppendDouble(const std::string& field_name, double value);
+  // Note: all external callers to these functions should not
+  // |is_inside_repeated| to this function and instead rely on the default
+  // value.
+  util::Status AppendLong(const std::string& field_name,
+                          int64_t value,
+                          bool is_inside_repeated = false);
+  util::Status AppendDouble(const std::string& field_name,
+                            double value,
+                            bool is_inside_repeated = false);
   util::Status AppendString(const std::string& field_name,
-                            base::StringView value) {
-    const auto* data = reinterpret_cast<const uint8_t*>(value.data());
-    return AppendBytesInternal(field_name, data, value.size(), true);
-  }
-
-  // Appends the contents of the bytes to the proto being built.
-  // Note: when the asssociated field is a message the bytes provided should be
-  // a |protos::ProtoBuilderResult|. In this case, type-checking will be
-  // performed to ensure the message type match the type of the field.
-  // The |protos::ProtoBuilderResult| can be a repeated field; in this case each
-  // value in the result will be appended to the message in the usual proto
-  // fashion.
-  util::Status AppendBytes(const std::string& field_name,
-                           protozero::ConstBytes bytes) {
-    return AppendBytes(field_name, bytes.data, bytes.size);
-  }
-
+                            base::StringView value,
+                            bool is_inside_repeated = false);
   util::Status AppendBytes(const std::string& field_name,
                            const uint8_t* data,
-                           size_t size) {
-    return AppendBytesInternal(field_name, data, size, false);
-  }
+                           size_t size,
+                           bool is_inside_repeated = false);
 
   // Returns the serialized |protos::ProtoBuilderResult| with the built proto
   // as the nested |protobuf| message.
@@ -107,11 +98,6 @@ class ProtoBuilder {
   std::vector<uint8_t> SerializeRaw();
 
  private:
-  util::Status AppendBytesInternal(const std::string& field_name,
-                                   const uint8_t* ptr,
-                                   size_t size,
-                                   bool is_string);
-
   util::Status AppendSingleMessage(const FieldDescriptor& field,
                                    const uint8_t* ptr,
                                    size_t size);
