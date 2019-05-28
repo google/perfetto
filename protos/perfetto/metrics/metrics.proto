@@ -44,4 +44,10 @@ message TraceMetrics {
 
   // Error statistics (applicable to all traces).
   optional TraceStatistics error_statistics = 3;
+
+  // Demo extensions.
+  extensions 450 to 499;
+
+  // Vendor extensions.
+  extensions 500 to 1000;
 }
