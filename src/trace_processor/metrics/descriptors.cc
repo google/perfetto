@@ -145,6 +145,9 @@ util::Status DescriptorPool::AddFromFileDescriptorSet(
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   for (auto& descriptor : descriptors_) {
     for (auto& field : *descriptor.mutable_fields()) {
+      if (!field.resolved_type_name().empty())
+        continue;
+
       if (field.type() == FieldDescriptorProto::TYPE_MESSAGE ||
           field.type() == FieldDescriptorProto::TYPE_ENUM) {
         auto opt_desc =
