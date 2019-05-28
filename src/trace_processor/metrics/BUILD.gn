@@ -75,5 +75,6 @@ source_set("unittests") {
     "../../../buildtools:sqlite",
     "../../../gn:default_deps",
     "../../../gn:gtest_deps",
+    "../../../protos/perfetto/common:zero",
   ]
 }
