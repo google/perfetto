@@ -180,6 +180,12 @@ BUILD_DEPS_HOST = [
    'all'
   ),
 
+  ('buildtools/zlib',
+   'https://android.googlesource.com/platform/external/zlib.git',
+   'dfa0646a03b4e1707469e04dc931b09774968fe6',
+   'all'
+  ),
+
   ('buildtools/bionic',
    'https://android.googlesource.com/platform/bionic.git',
    'a60488109cda997dfd83832731c8527feaa2825e',
