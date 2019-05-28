@@ -27,7 +27,9 @@
 #include <vector>
 
 #include <google/protobuf/compiler/parser.h>
+#include <google/protobuf/dynamic_message.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
+#include <google/protobuf/text_format.h>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/file_utils.h"
@@ -36,6 +38,7 @@
 #include "perfetto/base/string_splitter.h"
 #include "perfetto/base/time.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/metrics/metrics.descriptor.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
@@ -280,7 +283,8 @@ util::Status RegisterMetric(const std::string& register_metric) {
   return g_tp->RegisterMetric(path, sql);
 }
 
-util::Status ExtendMetricsProto(const std::string& extend_metrics_proto) {
+util::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
+                                google::protobuf::DescriptorPool* pool) {
   google::protobuf::FileDescriptorSet desc_set;
 
   base::ScopedFile file(base::OpenFile(extend_metrics_proto, O_RDONLY));
@@ -293,6 +297,13 @@ util::Status ExtendMetricsProto(const std::string& extend_metrics_proto) {
   google::protobuf::compiler::Parser parser;
   parser.Parse(&tokenizer, proto);
 
+  auto basename_idx = extend_metrics_proto.rfind('/');
+  auto basename = basename_idx == std::string::npos
+                      ? extend_metrics_proto
+                      : extend_metrics_proto.substr(basename_idx + 1);
+  proto->set_name(basename);
+  pool->BuildFile(*proto);
+
   std::vector<uint8_t> metric_proto;
   metric_proto.resize(static_cast<size_t>(desc_set.ByteSize()));
   desc_set.SerializeToArray(metric_proto.data(),
@@ -301,14 +312,29 @@ util::Status ExtendMetricsProto(const std::string& extend_metrics_proto) {
   return g_tp->ExtendMetricsProto(metric_proto.data(), metric_proto.size());
 }
 
-int RunMetrics(const std::vector<std::string>& metric_names) {
+int RunMetrics(const std::vector<std::string>& metric_names,
+               bool metrics_textproto,
+               const google::protobuf::DescriptorPool& pool) {
   std::vector<uint8_t> metric_result;
   util::Status status = g_tp->ComputeMetric(metric_names, &metric_result);
   if (!status.ok()) {
     PERFETTO_ELOG("Error when computing metrics: %s", status.c_message());
     return 1;
   }
-  fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(), stdout);
+  if (metrics_textproto) {
+    google::protobuf::DynamicMessageFactory factory(&pool);
+    auto* descriptor =
+        pool.FindMessageTypeByName("perfetto.protos.TraceMetrics");
+    std::unique_ptr<google::protobuf::Message> metrics(
+        factory.GetPrototype(descriptor)->New());
+    metrics->ParseFromArray(metric_result.data(),
+                            static_cast<int>(metric_result.size()));
+    std::string out;
+    google::protobuf::TextFormat::PrintToString(*metrics, &out);
+    fwrite(out.c_str(), sizeof(char), out.size(), stdout);
+  } else {
+    fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(), stdout);
+  }
   return 0;
 }
 
@@ -568,8 +594,8 @@ void PrintUsage(char** argv) {
       "successful\n"
       " -q|--query-file FILE               Read and execute an SQL query from "
       "a file.\n"
-      " -i|--interactive                   Starts interactive mode even after "
-      "a query file is specified with -q.\n"
+      " -i|--interactive                           Starts interactive mode "
+      "even after a query file is specified with -q or --run-metrics.\n"
       " -e|--export FILE                   Export the trace into a SQLite "
       "database.\n"
       " --run-metrics x,y,z                Runs a comma separated list of "
@@ -577,7 +603,9 @@ void PrintUsage(char** argv) {
       " --register-metric FILE             Registers the given SQL file with "
       "trace processor to allow this file to be run as a metric.\n"
       " --extend-metrics-proto FILE        Extends the TraceMetrics proto "
-      "using the extensions in the given proto file.\n",
+      "using the extensions in the given proto file.\n"
+      " --metric-textproto                 Ouputs the result of --run-metrics "
+      "as a textual proto rather than as serialized bytes.",
       argv[0]);
 }
 
@@ -586,6 +614,7 @@ int TraceProcessorMain(int argc, char** argv) {
     OPT_RUN_METRICS = 1000,
     OPT_REGISTER_METRIC,
     OPT_EXTEND_METRICS_PROTO,
+    OPT_METRICS_TEXTPROTO,
   };
 
   static const struct option long_options[] = {
@@ -600,6 +629,7 @@ int TraceProcessorMain(int argc, char** argv) {
       {"register-metric", required_argument, nullptr, OPT_REGISTER_METRIC},
       {"extend-metrics-proto", required_argument, nullptr,
        OPT_EXTEND_METRICS_PROTO},
+      {"metric-textproto", no_argument, nullptr, OPT_METRICS_TEXTPROTO},
       {nullptr, 0, nullptr, 0}};
 
   std::string perf_file_path;
@@ -609,6 +639,7 @@ int TraceProcessorMain(int argc, char** argv) {
   std::string register_metric;
   std::string extend_metrics_proto;
   bool explicit_interactive = false;
+  bool metrics_textproto = false;
   int option_index = 0;
   for (;;) {
     int option =
@@ -659,6 +690,11 @@ int TraceProcessorMain(int argc, char** argv) {
 
     if (option == OPT_EXTEND_METRICS_PROTO) {
       extend_metrics_proto = optarg;
+      continue;
+    }
+
+    if (option == OPT_METRICS_TEXTPROTO) {
+      metrics_textproto = true;
       continue;
     }
 
@@ -770,8 +806,17 @@ int TraceProcessorMain(int argc, char** argv) {
 
   auto t_run_start = base::GetWallTimeNs();
 
+  // Descriptor pool used for printing output as textproto.
+  google::protobuf::DescriptorPool pool;
+  google::protobuf::FileDescriptorSet root_desc_set;
+  root_desc_set.ParseFromArray(kMetricsDescriptor.data(),
+                               kMetricsDescriptor.size());
+  for (const auto& desc : root_desc_set.file()) {
+    pool.BuildFile(desc);
+  }
+
   if (!extend_metrics_proto.empty()) {
-    util::Status status = ExtendMetricsProto(extend_metrics_proto);
+    util::Status status = ExtendMetricsProto(extend_metrics_proto, &pool);
     if (!status.ok()) {
       PERFETTO_ELOG("Error when extending proto: %s", status.c_message());
       return 1;
@@ -791,30 +836,31 @@ int TraceProcessorMain(int argc, char** argv) {
     for (base::StringSplitter ss(metric_names, ','); ss.Next();) {
       metrics.emplace_back(ss.cur_token());
     }
-    int ret = RunMetrics(std::move(metrics));
+    int ret = RunMetrics(std::move(metrics), metrics_textproto, pool);
     if (!ret) {
       auto t_query = base::GetWallTimeNs() - t_run_start;
       ret = MaybePrintPerfFile(perf_file_path, t_load, t_query);
     }
-    return ret;
-  }
+    if (ret)
+      return ret;
+  } else {
+    // If we were given a query file, load contents
+    std::vector<std::string> queries;
+    if (!query_file_path.empty()) {
+      base::ScopedFstream file(fopen(query_file_path.c_str(), "r"));
+      if (!file) {
+        PERFETTO_ELOG("Could not open query file (path: %s)",
+                      query_file_path.c_str());
+        return 1;
+      }
+      if (!LoadQueries(file.get(), &queries)) {
+        return 1;
+      }
+    }
 
-  // If we were given a query file, load contents
-  std::vector<std::string> queries;
-  if (!query_file_path.empty()) {
-    base::ScopedFstream file(fopen(query_file_path.c_str(), "r"));
-    if (!file) {
-      PERFETTO_ELOG("Could not open query file (path: %s)",
-                    query_file_path.c_str());
+    if (!RunQueryAndPrintResult(queries, stdout)) {
       return 1;
     }
-    if (!LoadQueries(file.get(), &queries)) {
-      return 1;
-    }
-  }
-
-  if (!RunQueryAndPrintResult(queries, stdout)) {
-    return 1;
   }
 
   if (!sqlite_file_path.empty()) {
