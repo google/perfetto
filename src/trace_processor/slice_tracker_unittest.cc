@@ -16,6 +16,7 @@
 
 #include <vector>
 
+#include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
@@ -68,6 +69,45 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   EXPECT_EQ(slices.refs()[0], 42);
   EXPECT_EQ(slices.types()[0], kRefUtid);
   EXPECT_EQ(slices.depths()[0], 0);
+  EXPECT_EQ(slices.arg_set_ids()[0], kInvalidArgSetId);
+}
+
+TEST(SliceTrackerTest, OneSliceWithArgs) {
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  SliceTracker tracker(&context);
+
+  tracker.Begin(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/,
+                [](ArgsTracker* args_tracker, RowId row) {
+                  args_tracker->AddArg(row, /*flat_key=*/1, /*key=*/2,
+                                       /*value=*/Variadic::Integer(10));
+                });
+  tracker.End(10 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/,
+              [](ArgsTracker* args_tracker, RowId row) {
+                args_tracker->AddArg(row, /*flat_key=*/3, /*key=*/4,
+                                     /*value=*/Variadic::Integer(20));
+              });
+
+  auto slices = context.storage->nestable_slices();
+  EXPECT_EQ(slices.slice_count(), 1);
+  EXPECT_EQ(slices.start_ns()[0], 2);
+  EXPECT_EQ(slices.durations()[0], 8);
+  EXPECT_EQ(slices.cats()[0], 0);
+  EXPECT_EQ(slices.names()[0], 1);
+  EXPECT_EQ(slices.refs()[0], 42);
+  EXPECT_EQ(slices.types()[0], kRefUtid);
+  EXPECT_EQ(slices.depths()[0], 0);
+  auto set_id = slices.arg_set_ids()[0];
+
+  auto args = context.storage->args();
+  EXPECT_EQ(args.set_ids()[0], set_id);
+  EXPECT_EQ(args.flat_keys()[0], 1);
+  EXPECT_EQ(args.keys()[0], 2);
+  EXPECT_EQ(args.arg_values()[0], Variadic::Integer(10));
+  EXPECT_EQ(args.set_ids()[1], set_id);
+  EXPECT_EQ(args.flat_keys()[1], 3);
+  EXPECT_EQ(args.keys()[1], 4);
+  EXPECT_EQ(args.arg_values()[1], Variadic::Integer(20));
 }
 
 TEST(SliceTrackerTest, TwoSliceDetailed) {

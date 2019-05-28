@@ -60,6 +60,7 @@ enum TableId : uint8_t {
   kRawEvents = 2,
   kInstants = 3,
   kSched = 4,
+  kNestableSlices = 5,
 };
 
 // The top 8 bits are set to the TableId and the bottom 32 to the row of the
@@ -252,15 +253,15 @@ class TraceStorage {
 
   class NestableSlices {
    public:
-    inline size_t AddSlice(int64_t start_ns,
-                           int64_t duration_ns,
-                           int64_t ref,
-                           RefType type,
-                           StringId cat,
-                           StringId name,
-                           uint8_t depth,
-                           int64_t stack_id,
-                           int64_t parent_stack_id) {
+    inline uint32_t AddSlice(int64_t start_ns,
+                             int64_t duration_ns,
+                             int64_t ref,
+                             RefType type,
+                             StringId cat,
+                             StringId name,
+                             uint8_t depth,
+                             int64_t stack_id,
+                             int64_t parent_stack_id) {
       start_ns_.emplace_back(start_ns);
       durations_.emplace_back(duration_ns);
       refs_.emplace_back(ref);
@@ -270,18 +271,26 @@ class TraceStorage {
       depths_.emplace_back(depth);
       stack_ids_.emplace_back(stack_id);
       parent_stack_ids_.emplace_back(parent_stack_id);
+      arg_set_ids_.emplace_back(kInvalidArgSetId);
       return slice_count() - 1;
     }
 
-    void set_duration(size_t index, int64_t duration_ns) {
+    void set_duration(uint32_t index, int64_t duration_ns) {
       durations_[index] = duration_ns;
     }
 
-    void set_stack_id(size_t index, int64_t stack_id) {
+    void set_stack_id(uint32_t index, int64_t stack_id) {
       stack_ids_[index] = stack_id;
     }
 
-    size_t slice_count() const { return start_ns_.size(); }
+    void set_arg_set_id(uint32_t index, ArgSetId id) {
+      arg_set_ids_[index] = id;
+    }
+
+    uint32_t slice_count() const {
+      return static_cast<uint32_t>(start_ns_.size());
+    }
+
     const std::deque<int64_t>& start_ns() const { return start_ns_; }
     const std::deque<int64_t>& durations() const { return durations_; }
     const std::deque<int64_t>& refs() const { return refs_; }
@@ -293,6 +302,7 @@ class TraceStorage {
     const std::deque<int64_t>& parent_stack_ids() const {
       return parent_stack_ids_;
     }
+    const std::deque<ArgSetId>& arg_set_ids() const { return arg_set_ids_; }
 
    private:
     std::deque<int64_t> start_ns_;
@@ -304,6 +314,7 @@ class TraceStorage {
     std::deque<uint8_t> depths_;
     std::deque<int64_t> stack_ids_;
     std::deque<int64_t> parent_stack_ids_;
+    std::deque<ArgSetId> arg_set_ids_;
   };
 
   class CounterDefinitions {
