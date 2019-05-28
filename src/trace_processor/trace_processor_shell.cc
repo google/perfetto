@@ -26,6 +26,9 @@
 #include <iostream>
 #include <vector>
 
+#include <google/protobuf/compiler/parser.h>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
@@ -252,6 +255,50 @@ int ExportTraceToDatabase(const std::string& output_name) {
     return 1;
   }
   return 0;
+}
+
+class ErrorPrinter : public google::protobuf::io::ErrorCollector {
+  void AddError(int line, int col, const std::string& msg) override {
+    PERFETTO_ELOG("%d:%d: %s", line, col, msg.c_str());
+  }
+
+  void AddWarning(int line, int col, const std::string& msg) override {
+    PERFETTO_ILOG("%d:%d: %s", line, col, msg.c_str());
+  }
+};
+
+util::Status RegisterMetric(const std::string& register_metric) {
+  std::string sql;
+  base::ReadFile(register_metric, &sql);
+
+  std::string path = "shell/";
+  auto slash_idx = register_metric.rfind('/');
+  path += slash_idx == std::string::npos
+              ? register_metric
+              : register_metric.substr(slash_idx + 1);
+
+  return g_tp->RegisterMetric(path, sql);
+}
+
+util::Status ExtendMetricsProto(const std::string& extend_metrics_proto) {
+  google::protobuf::FileDescriptorSet desc_set;
+
+  base::ScopedFile file(base::OpenFile(extend_metrics_proto, O_RDONLY));
+
+  google::protobuf::io::FileInputStream stream(file.get());
+  ErrorPrinter printer;
+  google::protobuf::io::Tokenizer tokenizer(&stream, &printer);
+
+  auto* proto = desc_set.add_file();
+  google::protobuf::compiler::Parser parser;
+  parser.Parse(&tokenizer, proto);
+
+  std::vector<uint8_t> metric_proto;
+  metric_proto.resize(static_cast<size_t>(desc_set.ByteSize()));
+  desc_set.SerializeToArray(metric_proto.data(),
+                            static_cast<int>(metric_proto.size()));
+
+  return g_tp->ExtendMetricsProto(metric_proto.data(), metric_proto.size());
 }
 
 int RunMetrics(const std::vector<std::string>& metric_names) {
@@ -511,25 +558,34 @@ void PrintUsage(char** argv) {
       "Interactive trace processor shell.\n"
       "Usage: %s [OPTIONS] trace_file.pb\n\n"
       "Options:\n"
-      " -h|--help            Prints this usage.\n"
-      " -v|--version         Prints the version of trace processor.\n"
-      " -d|--debug           Enable virtual table debugging.\n"
-      " -p|--perf-file FILE  Writes the time taken to ingest the trace and"
-      "execute the queries to the given file. Only valid with -q or "
+      " -h|--help                          Prints this usage.\n"
+      " -v|--version                       Prints the version of trace "
+      "processor.\n"
+      " -d|--debug                         Enable virtual table debugging.\n"
+      " -p|--perf-file FILE                Writes the time taken to ingest the "
+      "trace and execute the queries to the given file. Only valid with -q or "
       "--run-metrics and the file will only be written if the execution is "
       "successful\n"
-      " -q|--query-file FILE Read and execute an SQL query from a file.\n"
-      " -i|--interactive     Starts interactive mode even after a query file "
-      "is specified with -q.\n"
-      " -e|--export FILE     Export the trace into a SQLite database.\n"
-      " --run-metrics x,y,z  Runs a comma separated list of metrics and "
-      "prints the result as a TraceMetrics proto to stdout.\n",
+      " -q|--query-file FILE               Read and execute an SQL query from "
+      "a file.\n"
+      " -i|--interactive                   Starts interactive mode even after "
+      "a query file is specified with -q.\n"
+      " -e|--export FILE                   Export the trace into a SQLite "
+      "database.\n"
+      " --run-metrics x,y,z                Runs a comma separated list of "
+      "metrics and prints the result as a TraceMetrics proto to stdout.\n"
+      " --register-metric FILE             Registers the given SQL file with "
+      "trace processor to allow this file to be run as a metric.\n"
+      " --extend-metrics-proto FILE        Extends the TraceMetrics proto "
+      "using the extensions in the given proto file.\n",
       argv[0]);
 }
 
 int TraceProcessorMain(int argc, char** argv) {
   enum LongOption {
     OPT_RUN_METRICS = 1000,
+    OPT_REGISTER_METRIC,
+    OPT_EXTEND_METRICS_PROTO,
   };
 
   static const struct option long_options[] = {
@@ -541,12 +597,17 @@ int TraceProcessorMain(int argc, char** argv) {
       {"query-file", required_argument, nullptr, 'q'},
       {"export", required_argument, nullptr, 'e'},
       {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
+      {"register-metric", required_argument, nullptr, OPT_REGISTER_METRIC},
+      {"extend-metrics-proto", required_argument, nullptr,
+       OPT_EXTEND_METRICS_PROTO},
       {nullptr, 0, nullptr, 0}};
 
   std::string perf_file_path;
   std::string query_file_path;
   std::string sqlite_file_path;
   std::string metric_names;
+  std::string register_metric;
+  std::string extend_metrics_proto;
   bool explicit_interactive = false;
   int option_index = 0;
   for (;;) {
@@ -588,6 +649,16 @@ int TraceProcessorMain(int argc, char** argv) {
 
     if (option == OPT_RUN_METRICS) {
       metric_names = optarg;
+      continue;
+    }
+
+    if (option == OPT_REGISTER_METRIC) {
+      register_metric = optarg;
+      continue;
+    }
+
+    if (option == OPT_EXTEND_METRICS_PROTO) {
+      extend_metrics_proto = optarg;
       continue;
     }
 
@@ -699,8 +770,22 @@ int TraceProcessorMain(int argc, char** argv) {
 
   auto t_run_start = base::GetWallTimeNs();
 
-  // First, see if we have some metrics to run. If we do, just run them and
-  // return.
+  if (!extend_metrics_proto.empty()) {
+    util::Status status = ExtendMetricsProto(extend_metrics_proto);
+    if (!status.ok()) {
+      PERFETTO_ELOG("Error when extending proto: %s", status.c_message());
+      return 1;
+    }
+  }
+
+  if (!register_metric.empty()) {
+    util::Status status = RegisterMetric(register_metric);
+    if (!status.ok()) {
+      PERFETTO_ELOG("Error when registering metric: %s", status.c_message());
+      return 1;
+    }
+  }
+
   if (!metric_names.empty()) {
     std::vector<std::string> metrics;
     for (base::StringSplitter ss(metric_names, ','); ss.Next();) {
