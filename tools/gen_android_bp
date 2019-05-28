@@ -155,6 +155,9 @@ def enable_libunwind(module):
 def enable_sqlite(module):
     module.static_libs.append('libsqlite')
 
+def enable_zlib(module):
+    module.shared_libs.append('libz')
+
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
@@ -168,6 +171,7 @@ builtin_deps = {
     '//buildtools:protoc_lib': enable_protoc_lib,
     '//buildtools:libunwindstack': enable_libunwindstack,
     '//buildtools:sqlite': enable_sqlite,
+    '//buildtools:zlib': enable_zlib,
 }
 
 # ----------------------------------------------------------------------------
