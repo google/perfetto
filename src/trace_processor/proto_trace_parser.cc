@@ -32,6 +32,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/heap_profile_tracker.h"
+#include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
@@ -41,6 +42,7 @@
 #include "perfetto/common/android_log_constants.pbzero.h"
 #include "perfetto/common/trace_stats.pbzero.h"
 #include "perfetto/trace/android/android_log.pbzero.h"
+#include "perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "perfetto/trace/clock_snapshot.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -326,6 +328,10 @@ void ProtoTraceParser::ParseTracePacket(
   if (packet.has_track_event()) {
     ParseTrackEvent(ts, ttp.thread_timestamp, ttp.packet_sequence_state,
                     packet.track_event());
+  }
+
+  if (packet.has_chrome_benchmark_metadata()) {
+    ParseChromeBenchmarkMetadata(packet.chrome_benchmark_metadata());
   }
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
@@ -1553,6 +1559,52 @@ void ProtoTraceParser::ParseTrackEvent(
       }
       break;
     }
+  }
+}
+
+void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {
+  TraceStorage* storage = context_->storage.get();
+  protos::pbzero::ChromeBenchmarkMetadata::Decoder packet(blob.data, blob.size);
+  if (packet.has_benchmark_name()) {
+    auto benchmark_name_id = storage->InternString(packet.benchmark_name());
+    storage->SetMetadata(metadata::benchmark_name,
+                         Variadic::String(benchmark_name_id));
+  }
+  if (packet.has_benchmark_description()) {
+    auto benchmark_description_id =
+        storage->InternString(packet.benchmark_description());
+    storage->SetMetadata(metadata::benchmark_description,
+                         Variadic::String(benchmark_description_id));
+  }
+  if (packet.has_label()) {
+    auto label_id = storage->InternString(packet.label());
+    storage->SetMetadata(metadata::benchmark_label, Variadic::String(label_id));
+  }
+  if (packet.has_story_name()) {
+    auto story_name_id = storage->InternString(packet.story_name());
+    storage->SetMetadata(metadata::benchmark_story_name,
+                         Variadic::String(story_name_id));
+  }
+  for (auto it = packet.story_tags(); it; ++it) {
+    auto story_tag_id = storage->InternString(it->as_string());
+    storage->AppendMetadata(metadata::benchmark_story_tags,
+                            Variadic::String(story_tag_id));
+  }
+  if (packet.has_benchmark_start_time_us()) {
+    storage->SetMetadata(metadata::benchmark_start_time_us,
+                         Variadic::Integer(packet.benchmark_start_time_us()));
+  }
+  if (packet.has_story_run_time_us()) {
+    storage->SetMetadata(metadata::benchmark_story_run_time_us,
+                         Variadic::Integer(packet.story_run_time_us()));
+  }
+  if (packet.has_story_run_index()) {
+    storage->SetMetadata(metadata::benchmark_story_run_index,
+                         Variadic::Integer(packet.story_run_index()));
+  }
+  if (packet.has_had_failures()) {
+    storage->SetMetadata(metadata::benchmark_had_failures,
+                         Variadic::Integer(packet.had_failures()));
   }
 }
 
