@@ -148,6 +148,10 @@ SELECT
       'time_before_start_process', (
         SELECT AndroidStartupMetric_Slice('dur_ns', ts - launches.ts)
         FROM zygote_forks_by_id WHERE id = launches.id
+      ),
+      'time_during_start_process', (
+        SELECT AndroidStartupMetric_Slice('dur_ns', dur)
+        FROM zygote_forks_by_id WHERE id = launches.id
       )
     )
   ) as startup

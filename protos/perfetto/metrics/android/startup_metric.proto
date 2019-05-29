@@ -57,6 +57,8 @@ message AndroidStartupMetric {
     // If we are starting a new process, record the time until we communicate
     // with zygote.
     optional Slice time_before_start_process = 10;
+    // The actual duration of the process start (based on the zygote slice).
+    optional Slice time_during_start_process = 11;
   }
 
   // Next id: 7
