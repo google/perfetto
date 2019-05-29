@@ -37,20 +37,20 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
-// Notifies the registry about the destruction of a StartupTraceWriter, provided
-// the registry itself wasn't deleted yet. The indirection via the handle is
-// necessary to avoid potential deadlocks caused by lock order inversion. These
-// issues are avoided by locking on the handle's common lock in the destructors
-// of the registry and writer.
+// Used to return a StartupTraceWriter back to its registry when the writer's
+// thread is destroyed, provided the registry itself wasn't deleted yet. The
+// indirection via the handle is necessary to avoid potential deadlocks caused
+// by lock order inversion. These issues are avoided by locking on the handle's
+// common lock.
 class StartupTraceWriterRegistryHandle {
  public:
   explicit StartupTraceWriterRegistryHandle(StartupTraceWriterRegistry*);
 
-  // Called by StartupTraceWriter destructor.
-  void OnWriterDestroyed(StartupTraceWriter*);
-
   // Called by StartupTraceWriterRegistry destructor.
   void OnRegistryDestroyed();
+
+  // Called by StartupTraceWriter::ReturnToRegistry.
+  void ReturnWriterToRegistry(std::unique_ptr<StartupTraceWriter> writer);
 
  private:
   StartupTraceWriterRegistryHandle(const StartupTraceWriterRegistryHandle&) =
@@ -70,17 +70,10 @@ class PERFETTO_EXPORT StartupTraceWriterRegistry {
   ~StartupTraceWriterRegistry();
 
   // Returns a new unbound StartupTraceWriter. Should only be called while
-  // unbound. Usually called on a writer thread.
+  // unbound. Usually called on a writer thread. The writer should never be
+  // destroyed by the caller directly, but instead returned to the registry by
+  // calling StartupTraceWriter::ReturnToRegistry.
   std::unique_ptr<StartupTraceWriter> CreateUnboundTraceWriter();
-
-  // Return an unbound StartupTraceWriter back to the registry before it could
-  // be bound (usually called when the writer's thread is destroyed). The
-  // registry will keep this writer alive until the registry is bound to an
-  // arbiter (or destroyed itself). This way, its buffered data is retained.
-  // Should only be called while unbound. All packets written to the passed
-  // writer should have been completed and it should no longer be used to write
-  // data after calling this method.
-  void ReturnUnboundTraceWriter(std::unique_ptr<StartupTraceWriter>);
 
   // Binds all StartupTraceWriters created by this registry to the given arbiter
   // and target buffer. Should only be called once and on the passed
@@ -107,15 +100,16 @@ class PERFETTO_EXPORT StartupTraceWriterRegistry {
   StartupTraceWriterRegistry& operator=(const StartupTraceWriterRegistry&) =
       delete;
 
-  // Called by StartupTraceWriterRegistryHandle.
-  void OnStartupTraceWriterDestroyed(StartupTraceWriter*);
-
   // Try to bind the remaining unbound writers and post a continuation to
   // |task_runner_| if any writers could not be bound.
   void TryBindWriters();
 
   // Notifies the arbiter when we have bound all writers. May delete |this|.
   void OnUnboundWritersRemovedLocked();
+
+  // Return a StartupTraceWriter back to the registry, see
+  // StartupTraceWriter::ReturnToRegistry.
+  void ReturnTraceWriter(std::unique_ptr<StartupTraceWriter>);
 
   std::shared_ptr<StartupTraceWriterRegistryHandle> handle_;
 

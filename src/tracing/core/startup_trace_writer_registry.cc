@@ -31,11 +31,11 @@ StartupTraceWriterRegistryHandle::StartupTraceWriterRegistryHandle(
     StartupTraceWriterRegistry* registry)
     : registry_(registry) {}
 
-void StartupTraceWriterRegistryHandle::OnWriterDestroyed(
-    StartupTraceWriter* writer) {
+void StartupTraceWriterRegistryHandle::ReturnWriterToRegistry(
+    std::unique_ptr<StartupTraceWriter> writer) {
   std::lock_guard<std::mutex> lock(lock_);
   if (registry_)
-    registry_->OnStartupTraceWriterDestroyed(writer);
+    registry_->ReturnTraceWriter(std::move(writer));
 }
 
 void StartupTraceWriterRegistryHandle::OnRegistryDestroyed() {
@@ -59,11 +59,29 @@ StartupTraceWriterRegistry::CreateUnboundTraceWriter() {
   return writer;
 }
 
-void StartupTraceWriterRegistry::ReturnUnboundTraceWriter(
+void StartupTraceWriterRegistry::ReturnTraceWriter(
     std::unique_ptr<StartupTraceWriter> trace_writer) {
   std::lock_guard<std::mutex> lock(lock_);
-  PERFETTO_DCHECK(!arbiter_);  // Should only be called while unbound.
   PERFETTO_DCHECK(!trace_writer->write_in_progress_);
+
+  // If the registry is already bound, but the writer wasn't, bind it now.
+  if (arbiter_) {
+    auto it = unbound_writers_.find(trace_writer.get());
+    if (it == unbound_writers_.end()) {
+      // Nothing to do, the writer was already bound.
+      return;
+    }
+
+    // This should succeed since nobody can write to this writer concurrently.
+    bool success = trace_writer->BindToArbiter(arbiter_, target_buffer_);
+    PERFETTO_DCHECK(success);
+    unbound_writers_.erase(it);
+
+    OnUnboundWritersRemovedLocked();
+    return;
+  }
+
+  // If the registry was not bound yet, keep the writer alive until it is.
   PERFETTO_DCHECK(unbound_writers_.count(trace_writer.get()));
   unbound_writers_.erase(trace_writer.get());
   unbound_owned_writers_.push_back(std::move(trace_writer));
@@ -122,13 +140,6 @@ void StartupTraceWriterRegistry::TryBindWriters() {
     });
   }
   OnUnboundWritersRemovedLocked();
-}
-
-void StartupTraceWriterRegistry::OnStartupTraceWriterDestroyed(
-    StartupTraceWriter* trace_writer) {
-  std::lock_guard<std::mutex> lock(lock_);
-  if (unbound_writers_.erase(trace_writer) > 0)
-    OnUnboundWritersRemovedLocked();
 }
 
 void StartupTraceWriterRegistry::OnUnboundWritersRemovedLocked() {
