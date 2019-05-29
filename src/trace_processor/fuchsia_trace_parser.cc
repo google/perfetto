@@ -115,7 +115,10 @@ void FuchsiaTraceParser::ParseTracePacket(
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
-          slices->End(ts, utid, cat, name);
+          // TODO(b/131181693): |cat| and |name| are not passed here so that
+          // if two slices end at the same timestep, the slices get closed in
+          // the correct order regardless of which end event is processed first.
+          slices->End(ts, utid);
           break;
         }
         case kDurationComplete: {
