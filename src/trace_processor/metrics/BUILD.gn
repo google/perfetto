@@ -52,8 +52,8 @@ source_set("lib") {
     "metrics.h",
   ]
   deps = [
-    "../../../buildtools:sqlite",
     "../../../gn:default_deps",
+    "../../../gn:sqlite",
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/metrics:zero",
@@ -73,9 +73,9 @@ source_set("unittests") {
   ]
   deps = [
     ":lib",
-    "../../../buildtools:sqlite",
     "../../../gn:default_deps",
     "../../../gn:gtest_deps",
+    "../../../gn:sqlite",
     "../../../protos/perfetto/common:zero",
   ]
 }
