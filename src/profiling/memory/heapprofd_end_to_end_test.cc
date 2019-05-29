@@ -15,7 +15,6 @@
  */
 
 #include <fcntl.h>
-#include <sys/system_properties.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -30,11 +29,19 @@
 #include "test/test_helper.h"
 
 #include "perfetto/config/profiling/heapprofd_config.pbzero.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/system_properties.h>
+#endif
 
 // This test only works when run on Android using an Android Q version of
 // Bionic.
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#error "This test can only be used on Android."
+// TODO(b/118428762): look into unwinding issues on x86.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||                        \
+    PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS) || defined(__i386__) || \
+    defined(__x86_64__)
+#define MAYBE_SKIP(x) DISABLED_##x
+#else
+#define MAYBE_SKIP(x) x
 #endif
 
 namespace perfetto {
@@ -63,8 +70,9 @@ class HeapprofdDelegate : public ThreadDelegate {
   std::unique_ptr<HeapprofdProducer> producer_;
 };
 
-constexpr const char* kEnableHeapprofdProperty = "persist.heapprofd.enable";
 constexpr const char* kHeapprofdModeProperty = "heapprofd.userdebug.mode";
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 std::string ReadProperty(const std::string& name, std::string def) {
   const prop_info* pi = __system_property_find(name.c_str());
@@ -79,7 +87,7 @@ std::string ReadProperty(const std::string& name, std::string def) {
   return def;
 }
 
-int __attribute__((unused)) SetModeProperty(std::string* value) {
+int SetModeProperty(std::string* value) {
   if (value) {
     __system_property_set(kHeapprofdModeProperty, value->c_str());
     delete value;
@@ -101,13 +109,24 @@ base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
       new std::string(prev_property_value));
 }
 
-int __attribute__((unused)) SetEnableProperty(std::string* value) {
-  if (value) {
-    __system_property_set(kEnableHeapprofdProperty, value->c_str());
-    delete value;
-  }
-  return 0;
+#else
+std::string ReadProperty(const std::string&, std::string) {
+  PERFETTO_FATAL("Only works on Android.");
 }
+
+int SetModeProperty(std::string*) {
+  PERFETTO_FATAL("Only works on Android.");
+}
+
+base::ScopedResource<std::string*, SetModeProperty, nullptr> EnableFork() {
+  PERFETTO_FATAL("Only works on Android.");
+}
+
+base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
+  PERFETTO_FATAL("Only works on Android.");
+}
+
+#endif
 
 constexpr size_t kStartupAllocSize = 10;
 
@@ -931,13 +950,6 @@ class HeapprofdEndToEnd : public ::testing::Test {
     EXPECT_GT(total_allocated, 0);
   }
 };
-
-// TODO(b/118428762): look into unwinding issues on x86.
-#if defined(__i386__) || defined(__x86_64__)
-#define MAYBE_SKIP(x) DISABLED_##x
-#else
-#define MAYBE_SKIP(x) x
-#endif
 
 TEST_F(HeapprofdEndToEnd, MAYBE_SKIP(Smoke_Central)) {
   auto prop = DisableFork();
