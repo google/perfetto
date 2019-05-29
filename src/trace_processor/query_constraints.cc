@@ -16,10 +16,10 @@
 
 #include "src/trace_processor/query_constraints.h"
 
-#include <sqlite3.h>
 #include <string>
 
 #include "perfetto/base/string_splitter.h"
+#include "src/trace_processor/sqlite.h"
 
 namespace perfetto {
 namespace trace_processor {

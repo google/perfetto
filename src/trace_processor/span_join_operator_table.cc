@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/span_join_operator_table.h"
 
-#include <sqlite3.h>
 #include <string.h>
 #include <algorithm>
 #include <set>
@@ -26,6 +25,7 @@
 #include "perfetto/base/string_splitter.h"
 #include "perfetto/base/string_utils.h"
 #include "perfetto/base/string_view.h"
+#include "src/trace_processor/sqlite.h"
 #include "src/trace_processor/sqlite_utils.h"
 
 namespace perfetto {
@@ -710,7 +710,7 @@ util::Status SpanJoinOperatorTable::TableDescriptor::Parse(
   if (!splitter.Next())
     return util::OkStatus();
 
-  if (strcasecmp(splitter.cur_token(), "PARTITIONED") != 0)
+  if (!base::CaseInsensitiveEqual(splitter.cur_token(), "PARTITIONED"))
     return util::ErrStatus("SPAN_JOIN: Invalid token");
 
   if (!splitter.Next())

@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_TABLE_H_
 #define SRC_TRACE_PROCESSOR_TABLE_H_
 
-#include <sqlite3.h>
-
 #include <functional>
 #include <memory>
 #include <string>
@@ -27,6 +25,7 @@
 #include "perfetto/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/query_constraints.h"
+#include "src/trace_processor/sqlite.h"
 
 namespace perfetto {
 namespace trace_processor {

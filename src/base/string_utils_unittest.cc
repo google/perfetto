@@ -47,6 +47,15 @@ TEST(StringUtilsTest, EndsWith) {
   EXPECT_FALSE(EndsWith("", "c"));
 }
 
+TEST(StringUtilsTest, CaseInsensitiveEqual) {
+  EXPECT_TRUE(CaseInsensitiveEqual("", ""));
+  EXPECT_TRUE(CaseInsensitiveEqual("abc", "abc"));
+  EXPECT_TRUE(CaseInsensitiveEqual("ABC", "abc"));
+  EXPECT_TRUE(CaseInsensitiveEqual("abc", "ABC"));
+  EXPECT_FALSE(CaseInsensitiveEqual("abc", "AB"));
+  EXPECT_FALSE(CaseInsensitiveEqual("ab", "ABC"));
+}
+
 TEST(StringUtilsTest, SplitString) {
   EXPECT_THAT(SplitString("", ":"), ElementsAre(""));
   EXPECT_THAT(SplitString("a:b:c", ":"), ElementsAre("a", "b", "c"));

@@ -16,13 +16,13 @@
 
 #include "src/trace_processor/string_table.h"
 
-#include <sqlite3.h>
 #include <string.h>
 
 #include <algorithm>
 #include <bitset>
 #include <numeric>
 
+#include "src/trace_processor/sqlite.h"
 #include "src/trace_processor/sqlite_utils.h"
 #include "src/trace_processor/trace_storage.h"
 
