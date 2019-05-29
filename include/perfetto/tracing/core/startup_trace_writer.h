@@ -75,6 +75,20 @@ class PERFETTO_EXPORT StartupTraceWriter
 
   ~StartupTraceWriter() override;
 
+  // Return the given writer back to its registry if it is associated with a
+  // registry and the registry was not yet deleted. Otherwise, the writer is
+  // destroyed synchronously.
+  //
+  // Usually called when the writer's thread is destroyed. Can be called on any
+  // thread. The passed writer may still be unbound or already be bound. If
+  // unbound, the registry will ensure that it is bound before destroying it,
+  // keeping it alive until the registry is bound if necessary. This way, its
+  // buffered data is retained.
+  //
+  // All packets written to the passed writer should have been completed and it
+  // should no longer be used to write data after calling this method.
+  static void ReturnToRegistry(std::unique_ptr<StartupTraceWriter> writer);
+
   // TraceWriter implementation. These methods should only be called on the
   // writer thread.
   TracePacketHandle NewTracePacket() override;
