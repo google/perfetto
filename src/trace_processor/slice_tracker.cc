@@ -30,7 +30,7 @@ namespace {
 // Slices which have been opened but haven't been closed yet will be marked
 // with this duration placeholder.
 constexpr int64_t kPendingDuration = -1;
-};  // namespace
+}  // namespace
 
 SliceTracker::SliceTracker(TraceProcessorContext* context)
     : context_(context) {}

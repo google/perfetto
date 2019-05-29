@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_UTILS_H_
 
 #include <math.h>
-#include <sqlite3.h>
 
 #include <functional>
 #include <limits>
@@ -27,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/optional.h"
 #include "src/trace_processor/scoped_db.h"
+#include "src/trace_processor/sqlite.h"
 #include "src/trace_processor/table.h"
 
 namespace perfetto {
