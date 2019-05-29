@@ -135,8 +135,18 @@ StartupTraceWriter::StartupTraceWriter(
     : was_bound_(true), trace_writer_(std::move(trace_writer)) {}
 
 StartupTraceWriter::~StartupTraceWriter() {
-  if (registry_handle_)
-    registry_handle_->OnWriterDestroyed(this);
+  // Should have been returned to the registry before destruction.
+  PERFETTO_DCHECK(!registry_handle_);
+}
+
+// static
+void StartupTraceWriter::ReturnToRegistry(
+    std::unique_ptr<StartupTraceWriter> writer) {
+  auto registry_handle = std::move(writer->registry_handle_);
+  if (registry_handle) {
+    // May destroy |writer|.
+    registry_handle->ReturnWriterToRegistry(std::move(writer));
+  }
 }
 
 bool StartupTraceWriter::BindToArbiter(SharedMemoryArbiterImpl* arbiter,
