@@ -59,6 +59,20 @@ SELECT launch_id, state, SUM(dur) AS dur
 FROM main_thread_state
 GROUP BY 1, 2;
 
+-- Tracks all slices for the main process threads
+CREATE TABLE main_process_slices AS
+SELECT
+  launches.id AS launch_id,
+  slices.name AS name,
+  AndroidStartupMetric_Slice('dur_ns', SUM(slices.dur)) AS slice_proto
+FROM launches
+JOIN launch_processes ON (launches.id = launch_processes.launch_id)
+JOIN thread ON (launch_processes.upid = thread.upid)
+JOIN slices ON (
+  slices.utid = thread.utid
+  AND slices.ts BETWEEN launches.ts AND launches.ts + launches.dur)
+GROUP BY 1, 2;
+
 CREATE VIEW startup_view AS
 SELECT
   AndroidStartupMetric_Startup(
@@ -103,6 +117,37 @@ SELECT
         SELECT COUNT(1) FROM process
         WHERE (process.name IS NULL OR process.name != launches.package)
         AND process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur
+      ),
+      'time_activity_manager', AndroidStartupMetric_Slice(
+        'dur_ns', (
+          SELECT launching_events.ts - launches.ts FROM launching_events
+          WHERE launching_events.type = 'S'
+          AND launching_events.ts BETWEEN launches.ts AND launches.ts + launches.dur
+        )
+      ),
+      'time_activity_thread_main', (
+        SELECT slice_proto FROM main_process_slices
+        WHERE launch_id = launches.id AND name = 'ActivityThreadMain'
+      ),
+      'time_bind_application', (
+        SELECT slice_proto FROM main_process_slices
+        WHERE launch_id = launches.id AND name = 'bindApplication'
+      ),
+      'time_activity_start', (
+        SELECT slice_proto FROM main_process_slices
+        WHERE launch_id = launches.id AND name = 'activityStart'
+      ),
+      'time_activity_resume', (
+        SELECT slice_proto FROM main_process_slices
+        WHERE launch_id = launches.id AND name = 'activityResume'
+      ),
+      'time_choreographer', (
+        SELECT slice_proto FROM main_process_slices
+        WHERE launch_id = launches.id AND name = 'Choreographer#doFrame'
+      ),
+      'time_before_start_process', (
+        SELECT AndroidStartupMetric_Slice('dur_ns', ts - launches.ts)
+        FROM zygote_forks_by_id WHERE id = launches.id
       )
     )
   ) as startup
