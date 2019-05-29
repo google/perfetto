@@ -16,21 +16,23 @@ import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/wasm.gni")
 
-wasm_lib("trace_processor_wasm") {
-  name = "trace_processor"
-  sources = [
-    "wasm_bridge.cc",
-  ]
+if (perfetto_build_standalone) {
+  wasm_lib("trace_processor_wasm") {
+    name = "trace_processor"
+    sources = [
+      "wasm_bridge.cc",
+    ]
 
-  # All the deps below are implicitly xxx($wasm_toolchain) because of the
-  # outer "is_wasm" block.
-  deps = [
-    ":lib",
-    "../../buildtools:sqlite",
-    "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../protos/perfetto/trace_processor:lite",
-  ]
+    # All the deps below are implicitly xxx($wasm_toolchain) because of the
+    # outer "is_wasm" block.
+    deps = [
+      ":lib",
+      "../../buildtools:sqlite",
+      "../../gn:default_deps",
+      "../../include/perfetto/base",
+      "../../protos/perfetto/trace_processor:lite",
+    ]
+  }
 }
 
 # The library which eases processing of Perfetto traces by exposing reading
@@ -158,8 +160,8 @@ source_set("lib") {
   ]
 
   deps = [
-    "../../buildtools:sqlite",
     "../../gn:default_deps",
+    "../../gn:sqlite",
     "../../include/perfetto/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:zero",
@@ -268,9 +270,9 @@ source_set("unittests") {
   ]
   deps = [
     ":lib",
-    "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
+    "../../gn:sqlite",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/chrome:zero",
@@ -299,9 +301,9 @@ source_set("integrationtests") {
   ]
   deps = [
     ":lib",
-    "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
+    "../../gn:sqlite",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace_processor:lite",
     "../base",
