@@ -37,6 +37,12 @@ bool Contains(const std::string& haystack, const std::string& needle) {
   return haystack.find(needle) != std::string::npos;
 }
 
+bool CaseInsensitiveEqual(const std::string& first, const std::string& second) {
+  return first.size() == second.size() &&
+         std::equal(first.begin(), first.end(), second.begin(),
+                    [](char a, char b) { return tolower(a) == tolower(b); });
+}
+
 std::string Join(const std::vector<std::string>& parts,
                  const std::string& delim) {
   std::string acc;

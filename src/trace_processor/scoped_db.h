@@ -18,12 +18,13 @@
 #define SRC_TRACE_PROCESSOR_SCOPED_DB_H_
 
 #include "perfetto/base/scoped_file.h"
+#include "src/trace_processor/sqlite.h"
 
 extern "C" {
 struct sqlite3;
 struct sqlite3_stmt;
-extern int sqlite3_close(sqlite3*);
-extern int sqlite3_finalize(sqlite3_stmt* pStmt);
+SQLITE_API extern int sqlite3_close(sqlite3*);
+SQLITE_API extern int sqlite3_finalize(sqlite3_stmt* pStmt);
 }
 
 namespace perfetto {

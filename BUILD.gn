@@ -47,6 +47,7 @@ group("all") {
   deps = [
     ":perfetto_unittests",
     "src/protozero/protoc_plugin($host_toolchain)",
+    "src/trace_processor:trace_processor",
   ]
   if (perfetto_build_standalone || perfetto_build_with_android) {
     deps += [
