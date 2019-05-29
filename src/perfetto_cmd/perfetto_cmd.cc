@@ -518,9 +518,10 @@ int PerfettoCmd::Main(int argc, char** argv) {
       trace_config_->guardrail_overrides().max_upload_per_day_bytes();
 #endif
 
-  if ((trace_config_->duration_ms() == 0) && args.is_dropbox &&
-      !args.ignore_guardrails) {
-    PERFETTO_ELOG("Can't trace indefinitely when uploading via Dropbox.");
+  if (args.is_dropbox && !args.ignore_guardrails &&
+      (trace_config_->duration_ms() == 0 &&
+       trace_config_->trigger_config().trigger_timeout_ms() == 0)) {
+    PERFETTO_ELOG("Can't trace indefinitely when tracing to Dropbox.");
     return 1;
   }
 
