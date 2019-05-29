@@ -88,6 +88,18 @@ group("gtest_main") {
   }
 }
 
+group("sqlite") {
+  if (perfetto_build_standalone || perfetto_build_with_android) {
+    public_deps = [
+      "//buildtools:sqlite",
+    ]
+  } else {
+    public_deps = [
+      "//third_party/sqlite:sqlite",
+    ]
+  }
+}
+
 # protoc compiler library, for building protoc plugins on the host.
 if (current_toolchain == host_toolchain) {
   group("protoc_lib_deps") {
