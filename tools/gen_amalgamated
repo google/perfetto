@@ -53,6 +53,12 @@ define_whitelist = r'^(PERFETTO.*|GOOGLE_PROTOBUF.*)$'
 # Includes which will be removed from the generated source.
 includes_to_remove = r'^(gtest).*$'
 
+default_cflags = [
+    # Since we're expanding header files into the generated source file, some
+    # constant may remain unused.
+    '-Wno-unused-const-variable'
+]
+
 # Build flags to satisfy a protobuf (lite or full) dependency.
 protobuf_cflags = [
     # Note that these point to the local copy of protobuf in buildtools. In
@@ -183,13 +189,15 @@ class AmalgamatedProject(object):
         self.source_deps = source_deps
         self.header = []
         self.source = []
-        self.cflags = set()  # Note that we don't support multi-arg flags.
+        # Note that we don't support multi-arg flags.
+        self.cflags = set(default_cflags)
         self.ldflags = set()
         self.defines = set()
         self.libs = set()
         self._dependency_tree = DependencyTree()
-        self._included_sources = set()
-        self._included_headers = set()
+        self._processed_sources = set()
+        self._processed_headers = set()
+        self._processed_source_headers = set()  # Header files included from .cc
         self._include_re = re.compile(r'#include "(.*)"')
 
     def add_target(self, target_name):
@@ -197,6 +205,7 @@ class AmalgamatedProject(object):
         self._dependency_tree.add_dependency(None, target_name)
         self._add_target_dependencies(target_name)
         self._add_target_flags(target_name)
+        self._add_target_headers(target_name)
 
     def _iterate_dep_edges(self, target_name):
         target = self.desc[target_name]
@@ -260,6 +269,15 @@ class AmalgamatedProject(object):
             self.defines.update(
                 apply_whitelist(define_whitelist, target.get('defines', [])))
 
+    def _add_target_headers(self, target_name):
+        target = self.desc[target_name]
+        if not 'sources' in target:
+            return
+        headers = [gn_utils.label_to_path(s)
+                   for s in target['sources'] if s.endswith('.h')]
+        for header in headers:
+            self._add_header(target_name, header)
+
     def _get_include_dirs(self, target_name):
         include_dirs = set()
         for target_name in self._iterate_target_and_deps(target_name):
@@ -269,28 +287,30 @@ class AmalgamatedProject(object):
                     [gn_utils.label_to_path(d) for d in target['include_dirs']])
         return include_dirs
 
-    def _add_header(self, include_dirs, allowed_files, header_name):
-        if header_name in self._included_headers:
+    def _add_source_included_header(
+            self, include_dirs, allowed_files, header_name):
+        if header_name in self._processed_source_headers:
             return
-        self._included_headers.add(header_name)
+        self._processed_source_headers.add(header_name)
         for include_dir in include_dirs:
             full_path = os.path.join(include_dir, header_name)
             if os.path.exists(full_path):
                 if not full_path in allowed_files:
                     return
                 with open(full_path) as f:
-                    self.header.append(
+                    self.source.append(
                         '// %s begin header: %s' % (tool_name, full_path))
-                    self.header.extend(self._patch_header(
-                        self._process_includes(include_dirs, allowed_files, f)))
+                    self.source.extend(self._patch_header(
+                        self._process_source_includes(
+                            include_dirs, allowed_files, f)))
                 return
         msg = 'Looked in %s' % ', '.join('"%s"' % d for d in include_dirs)
         raise Error('Header file %s not found. %s' % (header_name, msg))
 
     def _add_source(self, target_name, source_name):
-        if source_name in self._included_sources:
+        if source_name in self._processed_sources:
             return
-        self._included_sources.add(source_name)
+        self._processed_sources.add(source_name)
         include_dirs = self._get_include_dirs(target_name)
         deps = self.source_deps[source_name]
         if not os.path.exists(source_name):
@@ -300,10 +320,43 @@ class AmalgamatedProject(object):
                 '// %s begin source: %s' % (tool_name, source_name))
             try:
                 self.source.extend(self._patch_source(source_name,
-                    self._process_includes(include_dirs, deps, f)))
+                    self._process_source_includes(include_dirs, deps, f)))
             except Error as e:
                 raise Error(
                     'Failed adding source %s: %s' % (source_name, e.message))
+
+    def _add_header_included_header(self, include_dirs, header_name):
+        if header_name in self._processed_headers:
+            return
+        self._processed_headers.add(header_name)
+        for include_dir in include_dirs:
+            full_path = os.path.join(include_dir, header_name)
+            if os.path.exists(full_path):
+                with open(full_path) as f:
+                    self.header.append(
+                        '// %s begin header: %s' % (tool_name, full_path))
+                    self.header.extend(self._patch_header(
+                        self._process_header_includes(include_dirs, f)))
+                return
+        msg = 'Looked in %s' % ', '.join('"%s"' % d for d in include_dirs)
+        raise Error('Header file %s not found. %s' % (header_name, msg))
+
+    def _add_header(self, target_name, header_name):
+        if header_name in self._processed_headers:
+            return
+        self._processed_headers.add(header_name)
+        include_dirs = self._get_include_dirs(target_name)
+        if not os.path.exists(header_name):
+            raise Error('Header file %s not found' % source_name)
+        with open(header_name) as f:
+            self.header.append(
+                '// %s begin header: %s' % (tool_name, header_name))
+            try:
+                self.header.extend(self._patch_header(
+                    self._process_header_includes(include_dirs, f)))
+            except Error as e:
+                raise Error(
+                    'Failed adding header %s: %s' % (header_name, e.message))
 
     def _patch_header(self, lines):
         result = []
@@ -327,7 +380,7 @@ class AmalgamatedProject(object):
             result.append(line)
         return result
 
-    def _process_includes(self, include_dirs, allowed_files, file):
+    def _process_source_includes(self, include_dirs, allowed_files, file):
         result = []
         for line in file:
             line = line.rstrip('\n')
@@ -339,7 +392,23 @@ class AmalgamatedProject(object):
                 result.append('// %s removed: %s' % (tool_name, line))
             else:
                 result.append('// %s expanded: %s' % (tool_name, line))
-                self._add_header(include_dirs, allowed_files, m.group(1))
+                self._add_source_included_header(
+                    include_dirs, allowed_files, m.group(1))
+        return result
+
+    def _process_header_includes(self, include_dirs, file):
+        result = []
+        for line in file:
+            line = line.rstrip('\n')
+            m = self._include_re.match(line)
+            if not m:
+                result.append(line)
+                continue
+            elif re.match(includes_to_remove, m.group(1)):
+                result.append('// %s removed: %s' % (tool_name, line))
+            else:
+                result.append('// %s expanded: %s' % (tool_name, line))
+                self._add_header_included_header(include_dirs, m.group(1))
         return result
 
     def generate(self):
