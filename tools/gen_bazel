@@ -117,7 +117,6 @@ builtin_deps = {
     '//buildtools:protoc': disable_module,
     '//buildtools:sqlite': enable_sqlite,
     '//gn:default_deps': disable_module,
-    '//gn:gtest_prod_config': enable_gtest_prod,
     '//gn:protoc_lib_deps': enable_protobuf_full,
     '//gn/standalone:gen_git_revision': enable_perfetto_version,
 }

@@ -76,7 +76,6 @@ cc_library(
         "include/perfetto/base/event.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/file_utils.h",
-        "include/perfetto/base/gtest_prod_util.h",
         "include/perfetto/base/hash.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/metatrace.h",
@@ -113,9 +112,6 @@ cc_library(
         "include/perfetto/protozero/scattered_heap_buffer.h",
         "include/perfetto/protozero/scattered_stream_null_delegate.h",
         "include/perfetto/protozero/scattered_stream_writer.h",
-    ],
-    deps = [
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -292,7 +288,6 @@ cc_library(
         "include/perfetto/base/event.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/file_utils.h",
-        "include/perfetto/base/gtest_prod_util.h",
         "include/perfetto/base/hash.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/metatrace.h",
@@ -335,7 +330,6 @@ cc_library(
     ],
     deps = [
         "//third_party/perfetto:gen_merged_sql_metrics",
-        "//third_party/perfetto/google:gtest_prod",
         "//third_party/perfetto/google:jsoncpp",
         "//third_party/perfetto/protos:common_zero_cc_proto",
         "//third_party/perfetto/protos:config_zero_cc_proto",
@@ -368,7 +362,6 @@ cc_binary(
         "include/perfetto/base/event.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/file_utils.h",
-        "include/perfetto/base/gtest_prod_util.h",
         "include/perfetto/base/hash.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/metatrace.h",
@@ -559,7 +552,6 @@ cc_binary(
     ],
     deps = [
         "//third_party/perfetto:gen_merged_sql_metrics",
-        "//third_party/perfetto/google:gtest_prod",
         "//third_party/perfetto/google:jsoncpp",
         "//third_party/perfetto/google:linenoise",
         "//third_party/perfetto/google:perfetto_version",
@@ -596,7 +588,6 @@ cc_binary(
         "include/perfetto/base/event.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/file_utils.h",
-        "include/perfetto/base/gtest_prod_util.h",
         "include/perfetto/base/hash.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/metatrace.h",
@@ -797,7 +788,6 @@ cc_binary(
     ],
     deps = [
         "//third_party/perfetto:gen_merged_sql_metrics",
-        "//third_party/perfetto/google:gtest_prod",
         "//third_party/perfetto/google:jsoncpp",
         "//third_party/perfetto/google:perfetto_version",
         "//third_party/perfetto/protos:common_cc_proto",

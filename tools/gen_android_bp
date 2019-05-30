@@ -163,7 +163,6 @@ def enable_zlib(module):
 builtin_deps = {
     '//buildtools:gmock': enable_gmock,
     '//buildtools:gtest': enable_gtest,
-    '//gn:gtest_prod_config': enable_gtest_prod,
     '//buildtools:gtest_main': enable_gtest,
     '//buildtools:libunwind': enable_libunwind,
     '//buildtools:protobuf_full': enable_protobuf_full,
