@@ -599,22 +599,19 @@ void PrintUsage(char** argv) {
       " -e|--export FILE                   Export the trace into a SQLite "
       "database.\n"
       " --run-metrics x,y,z                Runs a comma separated list of "
-      "metrics and prints the result as a TraceMetrics proto to stdout.\n"
-      " --register-metric FILE             Registers the given SQL file with "
-      "trace processor to allow this file to be run as a metric.\n"
-      " --extend-metrics-proto FILE        Extends the TraceMetrics proto "
-      "using the extensions in the given proto file.\n"
-      " --metric-textproto                 Ouputs the result of --run-metrics "
-      "as a textual proto rather than as serialized bytes.",
+      "metrics and prints the result as a TraceMetrics proto to stdout. The "
+      "metrics specified can either be in-built metrics or SQL/proto files of "
+      "extension metrics.\n"
+      " --metrics-output=[binary|text]      Allows the output of --run-metrics "
+      "to be specified in either proto binary or proto text format (default: "
+      "text)",
       argv[0]);
 }
 
 int TraceProcessorMain(int argc, char** argv) {
   enum LongOption {
     OPT_RUN_METRICS = 1000,
-    OPT_REGISTER_METRIC,
-    OPT_EXTEND_METRICS_PROTO,
-    OPT_METRICS_TEXTPROTO,
+    OPT_METRICS_OUTPUT,
   };
 
   static const struct option long_options[] = {
@@ -626,20 +623,15 @@ int TraceProcessorMain(int argc, char** argv) {
       {"query-file", required_argument, nullptr, 'q'},
       {"export", required_argument, nullptr, 'e'},
       {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
-      {"register-metric", required_argument, nullptr, OPT_REGISTER_METRIC},
-      {"extend-metrics-proto", required_argument, nullptr,
-       OPT_EXTEND_METRICS_PROTO},
-      {"metric-textproto", no_argument, nullptr, OPT_METRICS_TEXTPROTO},
+      {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {nullptr, 0, nullptr, 0}};
 
   std::string perf_file_path;
   std::string query_file_path;
   std::string sqlite_file_path;
   std::string metric_names;
-  std::string register_metric;
-  std::string extend_metrics_proto;
+  std::string metric_output;
   bool explicit_interactive = false;
-  bool metrics_textproto = false;
   int option_index = 0;
   for (;;) {
     int option =
@@ -683,18 +675,8 @@ int TraceProcessorMain(int argc, char** argv) {
       continue;
     }
 
-    if (option == OPT_REGISTER_METRIC) {
-      register_metric = optarg;
-      continue;
-    }
-
-    if (option == OPT_EXTEND_METRICS_PROTO) {
-      extend_metrics_proto = optarg;
-      continue;
-    }
-
-    if (option == OPT_METRICS_TEXTPROTO) {
-      metrics_textproto = true;
+    if (option == OPT_METRICS_OUTPUT) {
+      metric_output = optarg;
       continue;
     }
 
@@ -815,27 +797,45 @@ int TraceProcessorMain(int argc, char** argv) {
     pool.BuildFile(desc);
   }
 
-  if (!extend_metrics_proto.empty()) {
-    util::Status status = ExtendMetricsProto(extend_metrics_proto, &pool);
-    if (!status.ok()) {
-      PERFETTO_ELOG("Error when extending proto: %s", status.c_message());
-      return 1;
-    }
-  }
-
-  if (!register_metric.empty()) {
-    util::Status status = RegisterMetric(register_metric);
-    if (!status.ok()) {
-      PERFETTO_ELOG("Error when registering metric: %s", status.c_message());
-      return 1;
-    }
-  }
-
   if (!metric_names.empty()) {
     std::vector<std::string> metrics;
     for (base::StringSplitter ss(metric_names, ','); ss.Next();) {
       metrics.emplace_back(ss.cur_token());
     }
+
+    // For all metrics which are files, register them and extend the metrics
+    // proto.
+    for (size_t i = 0; i < metrics.size(); ++i) {
+      const std::string& metric_or_path = metrics[i];
+
+      // If there is no extension, we assume it is a builtin metric.
+      auto ext_idx = metric_or_path.rfind(".");
+      if (ext_idx == std::string::npos)
+        continue;
+
+      std::string no_ext_name = metric_or_path.substr(0, ext_idx);
+      util::Status status = RegisterMetric(no_ext_name + ".sql");
+      if (!status.ok()) {
+        PERFETTO_ELOG("Unable to register metric %s: %s",
+                      metric_or_path.c_str(), status.c_message());
+        return 1;
+      }
+
+      status = ExtendMetricsProto(no_ext_name + ".proto", &pool);
+      if (!status.ok()) {
+        PERFETTO_ELOG("Unable to extend metrics proto %s: %s",
+                      metric_or_path.c_str(), status.c_message());
+        return 1;
+      }
+
+      auto slash_idx = no_ext_name.rfind('/');
+      std::string basename = slash_idx == std::string::npos
+                                 ? no_ext_name
+                                 : no_ext_name.substr(slash_idx + 1);
+      metrics[i] = basename;
+    }
+
+    bool metrics_textproto = metric_output != "binary";
     int ret = RunMetrics(std::move(metrics), metrics_textproto, pool);
     if (!ret) {
       auto t_query = base::GetWallTimeNs() - t_run_start;
