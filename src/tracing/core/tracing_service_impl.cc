@@ -2095,7 +2095,7 @@ void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
     PERFETTO_CHECK(packet.SerializeToArray(dst, size_left));
     sync_marker_packet_size_ += static_cast<size_t>(packet.ByteSize());
     PERFETTO_CHECK(sync_marker_packet_size_ <= sizeof(sync_marker_packet_));
-  };
+  }
   packets->emplace_back();
   packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
 }
@@ -2141,7 +2141,7 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
         clock.type == protos::ClockSnapshot::Clock::BOOTTIME) {
       packet.set_timestamp(
           static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
-    };
+    }
     protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
     c->set_type(clock.type);
     c->set_timestamp(
