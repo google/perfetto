@@ -26,7 +26,7 @@ namespace ipc {
 namespace {
 
 #if PERFETTO_DCHECK_IS_ON()
-#define EXPECT_DCHECK(x) EXPECT_DEATH_IF_SUPPORTED((x), ".*");
+#define EXPECT_DCHECK(x) EXPECT_DEATH_IF_SUPPORTED((x), ".*")
 #else
 #define EXPECT_DCHECK(x) x
 #endif
