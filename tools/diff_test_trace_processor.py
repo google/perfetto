@@ -62,7 +62,13 @@ def run_metrics_test(trace_processor_path, gen_trace_path, trace_path, metric,
   with open(expected_path, "r") as expected_file:
     expected = expected_file.read()
 
-  cmd = [trace_processor_path, '--run-metrics', metric, gen_trace_path]
+  cmd = [
+    trace_processor_path,
+    '--run-metrics',
+    metric,
+    '--metrics-output=binary',
+    gen_trace_path,
+  ]
   actual = subprocess.check_output(cmd)
 
   # Expected will be in text proto format and we'll need to parse it to a real
