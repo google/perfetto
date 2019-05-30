@@ -137,6 +137,11 @@ def main(argv):
                       "profile.")
   parser.add_argument("--no-versions", action="store_true",
                       help="Do not get version information about APKs.")
+  parser.add_argument("--no-running", action="store_true",
+                      help="Do not target already running processes.")
+  parser.add_argument("--no-startup", action="store_true",
+                      help="Do not target processes that start during "
+                      "the profile.")
   parser.add_argument("--shmem-size", help="Size of buffer between client and "
                       "heapprofd. Default 8MiB. Needs to be a power of two "
                       "multiple of 4096, at least 8192.", type=int,
@@ -183,6 +188,10 @@ def main(argv):
     target_cfg += "block_client: true\n"
   if args.idle_allocations:
     target_cfg += "idle_allocations: true\n"
+  if args.no_startup:
+    target_cfg += "no_startup: true\n"
+  if args.no_running:
+    target_cfg += "no_running: true\n"
   if args.pid:
     for pid in args.pid.split(','):
       try:
