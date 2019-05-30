@@ -60,6 +60,7 @@
 #include "src/trace_processor/stats_table.h"
 #include "src/trace_processor/string_table.h"
 #include "src/trace_processor/syscall_tracker.h"
+#include "src/trace_processor/systrace_trace_parser.h"
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/thread_table.h"
 #include "src/trace_processor/trace_blob_view.h"
@@ -279,6 +280,20 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     if (first_word == kFuchsiaMagicNumber)
       return kFuchsiaTraceType;
   }
+
+  // Systrace with header but no leading HTML.
+  if (base::StartsWith(start, "# tracer"))
+    return kSystraceTraceType;
+
+  // Systrace with leading HTML.
+  if (base::StartsWith(start, "<!DOCTYPE html>") ||
+      base::StartsWith(start, "<html>"))
+    return kSystraceTraceType;
+
+  // Systrace with no header or leading HTML.
+  if (base::StartsWith(start, " "))
+    return kSystraceTraceType;
+
   return kProtoTraceType;
 }
 
@@ -381,6 +396,9 @@ util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
         context_.parser.reset(new FuchsiaTraceParser(&context_));
         break;
       }
+      case kSystraceTraceType:
+        context_.chunk_reader.reset(new SystraceTraceParser(&context_));
+        break;
       case kUnknownTraceType:
         return util::ErrStatus("Unknown trace type provided");
     }
@@ -397,7 +415,8 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   if (unrecoverable_parse_error_ || !context_.chunk_reader)
     return;
 
-  context_.sorter->ExtractEventsForced();
+  if (context_.sorter)
+    context_.sorter->ExtractEventsForced();
   context_.event_tracker->FlushPendingEvents();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 }
