@@ -596,7 +596,7 @@ class TraceBuffer {
       // to read (assuming a well-behaving client), but the risk of introducing
       // a bug that way outweighs the benefit.
       PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(
-          src, size, "Benign race when copying chunk from shared memory.");
+          src, size, "Benign race when copying chunk from shared memory.")
       memcpy(wptr + sizeof(record), src, size);
     } else {
       PERFETTO_DCHECK(size == record.size - sizeof(record));

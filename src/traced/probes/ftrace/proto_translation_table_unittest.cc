@@ -172,7 +172,6 @@ format:
 	field:u32 field_e;	offset:32;	size:4;	signed:0;
 
 print fmt: "some format")"));
-  ;
 
   EXPECT_CALL(ftrace, ReadPageHeaderFormat()).Times(AnyNumber());
   EXPECT_CALL(ftrace, ReadEventFormat(_, _)).Times(AnyNumber());
