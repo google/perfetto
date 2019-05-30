@@ -36,6 +36,7 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
+#include "src/trace_processor/systrace_utils.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/variadic.h"
 
@@ -79,83 +80,6 @@ namespace {
 using protozero::ProtoDecoder;
 
 }  // namespace
-
-// We have to handle trace_marker events of a few different types:
-// 1. some random text
-// 2. B|1636|pokeUserActivity
-// 3. E|1636
-// 4. C|1636|wq:monitor|0
-SystraceParseResult ParseSystraceTracePoint(base::StringView str,
-                                            SystraceTracePoint* out) {
-  // THIS char* IS NOT NULL TERMINATED.
-  const char* s = str.data();
-  size_t len = str.size();
-
-  if (len < 2)
-    return SystraceParseResult::kFailure;
-
-  // If str matches '[BEC]\|[0-9]+[\|\n]' set tgid_length to the length of
-  // the number. Otherwise return kFailure.
-  if (s[1] != '|' && s[1] != '\n')
-    return SystraceParseResult::kFailure;
-  if (s[0] != 'B' && s[0] != 'E' && s[0] != 'C') {
-    // TODO: support android async slices
-    return s[0] == 'S' || s[0] == 'F' ? SystraceParseResult::kUnsupported
-                                      : SystraceParseResult::kFailure;
-  }
-  size_t tgid_length = 0;
-  for (size_t i = 2; i < len; i++) {
-    if (s[i] == '|' || s[i] == '\n') {
-      tgid_length = i - 2;
-      break;
-    }
-    if (s[i] < '0' || s[i] > '9')
-      return SystraceParseResult::kFailure;
-  }
-
-  if (tgid_length == 0) {
-    out->tgid = 0;
-  } else {
-    std::string tgid_str(s + 2, tgid_length);
-    out->tgid = static_cast<uint32_t>(std::stoi(tgid_str.c_str()));
-  }
-
-  out->phase = s[0];
-  switch (s[0]) {
-    case 'B': {
-      size_t name_index = 2 + tgid_length + 1;
-      out->name = base::StringView(
-          s + name_index, len - name_index - (s[len - 1] == '\n' ? 1 : 0));
-      return SystraceParseResult::kSuccess;
-    }
-    case 'E': {
-      return SystraceParseResult::kSuccess;
-    }
-    case 'C': {
-      size_t name_index = 2 + tgid_length + 1;
-      base::Optional<size_t> name_length;
-      for (size_t i = name_index; i < len; i++) {
-        if (s[i] == '|') {
-          name_length = i - name_index;
-          break;
-        }
-      }
-      if (!name_length.has_value())
-        return SystraceParseResult::kFailure;
-      out->name = base::StringView(s + name_index, name_length.value());
-
-      size_t value_index = name_index + name_length.value() + 1;
-      size_t value_len = len - value_index;
-      if (value_len == 0)
-        return SystraceParseResult::kFailure;
-      std::string value_str(s + value_index, value_len);
-      out->value = std::stod(value_str.c_str());
-      return SystraceParseResult::kSuccess;
-    }
-    default:
-      return SystraceParseResult::kFailure;
-  }
-}
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     : context_(context),
@@ -799,10 +723,10 @@ void ProtoTraceParser::ParsePrint(uint32_t,
                                   uint32_t pid,
                                   ConstBytes blob) {
   protos::pbzero::PrintFtraceEvent::Decoder evt(blob.data, blob.size);
-  SystraceTracePoint point{};
+  systrace_utils::SystraceTracePoint point{};
   auto r = ParseSystraceTracePoint(evt.buf(), &point);
-  if (r != SystraceParseResult::kSuccess) {
-    if (r == SystraceParseResult::kFailure) {
+  if (r != systrace_utils::SystraceParseResult::kSuccess) {
+    if (r == systrace_utils::SystraceParseResult::kFailure) {
       context_->storage->IncrementStats(stats::systrace_parse_failure);
     }
     return;
