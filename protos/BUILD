@@ -73,7 +73,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:common_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -169,7 +168,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:config_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -233,7 +231,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:metrics_android_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -265,7 +262,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:metrics_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -372,7 +368,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_android_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -432,7 +427,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_chrome_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -475,7 +469,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_filesystem_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -580,7 +573,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_ftrace_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -629,7 +621,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_interned_data_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -730,7 +721,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_power_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -775,7 +765,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_processor_metrics_impl_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -818,7 +807,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_profiling_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -863,7 +851,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_ps_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -912,7 +899,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_sys_stats_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -963,7 +949,6 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_track_event_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )
 
@@ -1000,6 +985,5 @@ pbzero_cc_proto_library(
     src_proto_library = "//third_party/perfetto/protos:trace_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
-        "//third_party/perfetto/google:gtest_prod",
     ],
 )

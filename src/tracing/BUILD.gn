@@ -27,7 +27,6 @@ source_set("tracing") {
   ]
   deps = [
     "../../gn:default_deps",
-    "../../gn:gtest_prod_config",
     "../../include/perfetto/public",
     "../../protos/perfetto/config:lite",
     "../base",
