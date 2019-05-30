@@ -32,8 +32,10 @@ FieldDescriptor CreateFieldFromDecoder(
           ? base::StringView(f_decoder.type_name()).ToStdString()
           : "";
   // TODO(lalitm): add support for enums here.
-  uint32_t type = f_decoder.has_type() ? static_cast<uint32_t>(f_decoder.type())
-                                       : FieldDescriptorProto::TYPE_MESSAGE;
+  uint32_t type =
+      f_decoder.has_type()
+          ? static_cast<uint32_t>(f_decoder.type())
+          : static_cast<uint32_t>(FieldDescriptorProto::TYPE_MESSAGE);
   return FieldDescriptor(
       base::StringView(f_decoder.name()).ToStdString(),
       static_cast<uint32_t>(f_decoder.number()), type, std::move(type_name),

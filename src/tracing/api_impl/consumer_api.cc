@@ -350,7 +350,7 @@ void TracingController::StartTracing(Handle handle) {
   if (it == sessions_.end()) {
     PERFETTO_ELOG("StartTracing(): Invalid tracing session handle");
     return;
-  };
+  }
   TracingSession* session = it->second.get();
   task_runner_->PostTask([session] { session->StartTracing(); });
 }
