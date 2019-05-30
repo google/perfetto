@@ -58,4 +58,9 @@ message ProcessTree {
   // #2 { processes: [{pid: 20, ...}], threads: [{pid: 13, tgid: 10}] }
   repeated Process processes = 1;
   repeated Thread threads = 2;
+
+  // The time at which we finish collecting this process tree;
+  // the top-level packet timestamp is the time at which
+  // we begin collection.
+  optional uint64 collection_end_timestamp = 3;
 }
