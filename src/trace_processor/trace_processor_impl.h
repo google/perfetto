@@ -40,6 +40,7 @@ enum TraceType {
   kProtoTraceType,
   kJsonTraceType,
   kFuchsiaTraceType,
+  kSystraceTraceType,
 };
 
 TraceType GuessTraceType(const uint8_t* data, size_t size);
