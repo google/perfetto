@@ -43,22 +43,27 @@ message AndroidStartupMetric {
     // spawned.
     optional uint32 other_processes_spawned_count = 3;
 
-    // The app startup goes through a number of phases which we can break down.
-
     // Total time spent in activity manager between the initial intent
     // and the end of the activity starter.
     optional Slice time_activity_manager = 4;
+
+    // The following slices follow the typical steps post-fork.
     optional Slice time_activity_thread_main = 5;
     optional Slice time_bind_application = 6;
     optional Slice time_activity_start = 7;
     optional Slice time_activity_resume = 8;
     optional Slice time_choreographer = 9;
 
-    // If we are starting a new process, record the time until we communicate
-    // with zygote.
+    // If we are starting a new process, record the duration from the
+    // intent being received to the time we call the zygote.
     optional Slice time_before_start_process = 10;
+
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
+
+    // The ratio between the cpu time of the activity process
+    // to all other processes in the system.
+    optional double other_process_to_activity_cpu_ratio = 12;
   }
 
   // Next id: 7
@@ -77,7 +82,8 @@ message AndroidStartupMetric {
 
     // Number of processes hosting the activity involved in the launch.
     // This will usually be 1. If it is 0, it is indicative of a data / process
-    // error. If > 1, the process died during startup and the system respawned.
+    // error. If > 1, the process died during startup and the system respawned
+    // it.
     optional uint32 activity_hosting_process_count = 6;
 
     optional ToFirstFrame to_first_frame = 5;
