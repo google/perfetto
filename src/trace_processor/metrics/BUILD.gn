@@ -53,8 +53,8 @@ source_set("lib") {
     "metrics.h",
   ]
   deps = [
+    "../:sqlite",
     "../../../gn:default_deps",
-    "../../../gn:sqlite",
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/metrics:zero",
