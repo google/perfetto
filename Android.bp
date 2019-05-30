@@ -131,7 +131,6 @@ cc_binary {
     "libunwindstack",
   ],
   static_libs: [
-    "libgtest_prod",
     "perfetto_src_tracing_ipc",
   ],
   init_rc: [
@@ -202,7 +201,6 @@ cc_library_shared {
   ],
   static_libs: [
     "libasync_safe",
-    "libgtest_prod",
   ],
   defaults: [
     "perfetto_defaults",
@@ -329,7 +327,6 @@ cc_library_shared {
     "libprotobuf-cpp-lite",
   ],
   static_libs: [
-    "libgtest_prod",
     "perfetto_src_tracing_ipc",
   ],
   generated_headers: [
@@ -485,7 +482,6 @@ cc_binary {
     "libz",
   ],
   static_libs: [
-    "libgtest_prod",
     "perfetto_src_tracing_ipc",
   ],
   generated_headers: [
@@ -703,7 +699,6 @@ cc_test {
   ],
   static_libs: [
     "libgmock",
-    "libgtest_prod",
     "perfetto_src_tracing_ipc",
   ],
   generated_headers: [
@@ -2767,9 +2762,6 @@ cc_library_static {
   shared_libs: [
     "libprotobuf-cpp-lite",
   ],
-  static_libs: [
-    "libgtest_prod",
-  ],
   export_include_dirs: [
     "include",
   ],
@@ -3143,7 +3135,6 @@ cc_test {
   ],
   static_libs: [
     "libgmock",
-    "libgtest_prod",
     "perfetto_src_tracing_ipc",
   ],
   generated_headers: [
@@ -3321,7 +3312,6 @@ cc_binary_host {
     "libprotobuf-cpp-lite",
   ],
   static_libs: [
-    "libgtest_prod",
     "libsqlite",
   ],
   generated_headers: [
@@ -3495,7 +3485,6 @@ cc_binary {
     "libz",
   ],
   static_libs: [
-    "libgtest_prod",
     "perfetto_src_tracing_ipc",
   ],
   generated_headers: [

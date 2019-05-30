@@ -24,7 +24,6 @@
 #include <set>
 #include <vector>
 
-#include "perfetto/base/gtest_prod_util.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/optional.h"
 #include "perfetto/base/time.h"

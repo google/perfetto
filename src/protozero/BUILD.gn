@@ -24,7 +24,6 @@ source_set("protozero") {
   ]
   deps = [
     "../../gn:default_deps",
-    "../../gn:gtest_prod_config",
     "../base",
   ]
   sources = [
