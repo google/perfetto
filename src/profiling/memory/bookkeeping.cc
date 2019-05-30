@@ -28,14 +28,6 @@
 namespace perfetto {
 namespace profiling {
 
-GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
-    const Interned<Frame>& loc) {
-  Node* child = children_.Get(loc);
-  if (!child)
-    child = children_.Emplace(loc, this);
-  return child;
-}
-
 void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
                                uint64_t address,
                                uint64_t size,
@@ -134,6 +126,14 @@ uint64_t HeapTracker::GetSizeForTesting(const std::vector<FrameData>& stack) {
   }
   const CallstackAllocations& alloc = it->second;
   return alloc.allocated - alloc.freed;
+}
+
+GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
+    const Interned<Frame>& loc) {
+  Node* child = children_.Get(loc);
+  if (!child)
+    child = children_.Emplace(loc, this);
+  return child;
 }
 
 std::vector<Interned<Frame>> GlobalCallstackTrie::BuildCallstack(
