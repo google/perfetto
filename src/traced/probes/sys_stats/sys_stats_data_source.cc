@@ -175,6 +175,9 @@ void SysStatsDataSource::ReadSysStats() {
   if (stat_ticks_ && tick_ % stat_ticks_ == 0)
     ReadStat(sys_stats);
 
+  sys_stats->set_collection_end_timestamp(
+      static_cast<uint64_t>(base::GetBootTimeNs().count()));
+
   tick_++;
 }
 
