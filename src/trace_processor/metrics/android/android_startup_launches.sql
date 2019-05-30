@@ -34,10 +34,12 @@ SELECT
   package_name,
   type
 FROM raw
-JOIN launching_events_helper USING(arg_set_id)
+CROSS JOIN launching_events_helper
 JOIN thread USING(utid)
 JOIN process USING(upid)
-WHERE raw.name = 'print' AND process.name = 'system_server';
+WHERE raw.arg_set_id = launching_events_helper.arg_set_id
+AND raw.name = 'print'
+AND process.name = 'system_server';
 
 -- Marks the beginning of the trace and is equivalent to when the statsd launch
 -- logging begins.

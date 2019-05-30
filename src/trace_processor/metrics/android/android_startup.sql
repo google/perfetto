@@ -17,6 +17,7 @@
 -- Create the base tables and views containing the launch spans.
 SELECT RUN_METRIC('android/android_startup_launches.sql');
 SELECT RUN_METRIC('android/android_task_state.sql');
+SELECT RUN_METRIC('android/android_startup_cpu.sql');
 
 -- Slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
@@ -71,6 +72,13 @@ JOIN thread ON (launch_processes.upid = thread.upid)
 JOIN slices ON (
   slices.utid = thread.utid
   AND slices.ts BETWEEN launches.ts AND launches.ts + launches.dur)
+WHERE slices.name IN (
+  'ActivityThreadMain',
+  'bindApplication',
+  'activityStart',
+  'activityResume',
+  'Choreographer#doFrame',
+  'inflate')
 GROUP BY 1, 2;
 
 CREATE VIEW startup_view AS
@@ -152,6 +160,9 @@ SELECT
       'time_during_start_process', (
         SELECT AndroidStartupMetric_Slice('dur_ns', dur)
         FROM zygote_forks_by_id WHERE id = launches.id
+      ),
+      'other_process_to_activity_cpu_ratio', (
+        SELECT cpu_ratio FROM launch_cpu WHERE launch_id = launches.id
       )
     )
   ) as startup
