@@ -105,10 +105,25 @@ class ProcessStatsDataSource : public ProbesDataSource {
   void WriteAllProcessStats();
   bool WriteMemCounters(int32_t pid, const std::string& proc_status);
 
+  // Read and "latch" the current procfs scan-start timestamp, which
+  // we reset only in FinalizeCurPacket.
+  uint64_t CacheProcFsScanStartTimestamp();
+
   // Common fields used for both process/tree relationships and stats/counters.
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
   TraceWriter::TracePacketHandle cur_packet_;
+
+  // Cached before-scan timestamp; zero means cached time is absent.
+  // By the time we create the trace packet into which we dump procfs
+  // scan results, we've already read at least one bit of data from
+  // procfs, and by that point, it's too late to snap a timestamp from
+  // before we started looking at procfs at all, which is what trace
+  // analysis wants.  To solve this problem, we record the scan-start
+  // timestamp here when we first open something in procfs and use
+  // that time when we create the packet.
+  // We reset this field after each FinalizeCurPacket().
+  uint64_t cur_procfs_scan_start_timestamp_ = 0;
 
   // Fields for keeping track of the state of process/tree relationships.
   protos::pbzero::ProcessTree* cur_ps_tree_ = nullptr;
