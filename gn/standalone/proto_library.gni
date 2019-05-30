@@ -105,8 +105,12 @@ template("proto_library") {
   }
 
   config_name = "${target_name}_config"
-  action_name = "${target_name}_gen"
-  source_set_name = target_name
+  if (generate_descriptor == "") {
+    action_name = "${target_name}_gen"
+    source_set_name = target_name
+  } else {
+    action_name = target_name
+  }
 
   config(config_name) {
     include_dirs = [ cc_out_dir ]
@@ -114,7 +118,9 @@ template("proto_library") {
 
   # The XXX_gen action that generates the .pb.{cc,h} files.
   action(action_name) {
-    visibility = [ ":$source_set_name" ]
+    if (generate_descriptor == "") {
+      visibility = [ ":$source_set_name" ]
+    }
     script = "//gn/standalone/build_tool_wrapper.py"
     sources = proto_sources
     outputs = get_path_info(protogens, "abspath")
@@ -184,50 +190,52 @@ template("proto_library") {
     if (defined(invoker.deps)) {
       deps += invoker.deps
     }
-  }  # action "${target_name}_gen"
+  }  # action(action_name)
 
   # The source_set that builds the generated .pb.cc files.
-  source_set(target_name) {
-    forward_variables_from(invoker,
-                           [
-                             "defines",
-                             "include_dirs",
-                             "public_configs",
-                             "testonly",
-                             "visibility",
-                           ])
+  if (generate_descriptor == "") {
+    source_set(source_set_name) {
+      forward_variables_from(invoker,
+                             [
+                               "defines",
+                               "include_dirs",
+                               "public_configs",
+                               "testonly",
+                               "visibility",
+                             ])
 
-    sources = get_target_outputs(":$action_name")
+      sources = get_target_outputs(":$action_name")
 
-    configs -= [ "//gn/standalone:extra_warnings" ]
-    if (defined(invoker.extra_configs)) {
-      configs += invoker.extra_configs
-    }
+      configs -= [ "//gn/standalone:extra_warnings" ]
+      if (defined(invoker.extra_configs)) {
+        configs += invoker.extra_configs
+      }
 
-    if (!defined(invoker.public_configs)) {
-      public_configs = []
-    }
+      if (!defined(invoker.public_configs)) {
+        public_configs = []
+      }
 
-    public_configs += [
-      "//buildtools:protobuf_gen_config",
-      ":$config_name",
-    ]
-
-    # Use protobuf_full only for tests.
-    if (defined(invoker.use_protobuf_full) &&
-        invoker.use_protobuf_full == true) {
-      deps = [
-        "//buildtools:protobuf_full",
+      public_configs += [
+        "//buildtools:protobuf_gen_config",
+        ":$config_name",
       ]
-    } else {
-      deps = [
-        "//buildtools:protobuf_lite",
-      ]
-    }
 
-    deps += [ ":$action_name" ]
-    if (defined(invoker.deps)) {
-      deps += invoker.deps
-    }
-  }  # source_set(target_name)
+      # Use protobuf_full only for tests.
+      if (defined(invoker.use_protobuf_full) &&
+          invoker.use_protobuf_full == true) {
+        deps = [
+          "//buildtools:protobuf_full",
+        ]
+      } else {
+        deps = [
+          "//buildtools:protobuf_lite",
+        ]
+      }
+
+      deps += [ ":$action_name" ]
+      if (defined(invoker.deps)) {
+        deps += invoker.deps
+      }
+    }  # source_set(source_set_name)
+  }
 }  # template
