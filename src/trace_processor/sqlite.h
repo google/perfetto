@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_H_
 
+#include "perfetto/base/build_config.h"
+
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) || \
     PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include <sqlite3.h>
