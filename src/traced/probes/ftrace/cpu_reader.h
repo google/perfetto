@@ -26,7 +26,6 @@
 #include <set>
 #include <thread>
 
-#include "perfetto/base/gtest_prod_util.h"
 #include "perfetto/base/paged_memory.h"
 #include "perfetto/base/pipe.h"
 #include "perfetto/base/scoped_file.h"

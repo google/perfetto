@@ -88,10 +88,6 @@ system_library_map = {
         'cflags': protobuf_cflags,
     },
     '//buildtools:protoc_lib': {'libs': ['protoc']},
-    # This prevents us from expanding the prod-only gtest header into a full
-    # gtest dependency. This also requires some patching in headers -- see
-    # AmalgamatedProject._patch_header() below.
-    '//gn:gtest_prod_config': {},
 }
 
 # ----------------------------------------------------------------------------
@@ -300,9 +296,9 @@ class AmalgamatedProject(object):
                 with open(full_path) as f:
                     self.source.append(
                         '// %s begin header: %s' % (tool_name, full_path))
-                    self.source.extend(self._patch_header(
+                    self.source.extend(
                         self._process_source_includes(
-                            include_dirs, allowed_files, f)))
+                            include_dirs, allowed_files, f))
                 return
         msg = 'Looked in %s' % ', '.join('"%s"' % d for d in include_dirs)
         raise Error('Header file %s not found. %s' % (header_name, msg))
@@ -335,8 +331,8 @@ class AmalgamatedProject(object):
                 with open(full_path) as f:
                     self.header.append(
                         '// %s begin header: %s' % (tool_name, full_path))
-                    self.header.extend(self._patch_header(
-                        self._process_header_includes(include_dirs, f)))
+                    self.header.extend(
+                        self._process_header_includes(include_dirs, f))
                 return
         msg = 'Looked in %s' % ', '.join('"%s"' % d for d in include_dirs)
         raise Error('Header file %s not found. %s' % (header_name, msg))
@@ -352,21 +348,11 @@ class AmalgamatedProject(object):
             self.header.append(
                 '// %s begin header: %s' % (tool_name, header_name))
             try:
-                self.header.extend(self._patch_header(
-                    self._process_header_includes(include_dirs, f)))
+                self.header.extend(
+                    self._process_header_includes(include_dirs, f))
             except Error as e:
                 raise Error(
                     'Failed adding header %s: %s' % (header_name, e.message))
-
-    def _patch_header(self, lines):
-        result = []
-        for line in lines:
-            # We don't want to propagate any gtest dependencies into the
-            # result, so remove any macros used from gtest_prod_util.h.
-            if 'FRIEND_TEST' in line:
-                continue
-            result.append(line)
-        return result
 
     def _patch_source(self, source_name, lines):
         result = []
