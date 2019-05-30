@@ -75,11 +75,11 @@ PagedMemory PagedMemory::Allocate(size_t size, int flags) {
 
 PagedMemory::PagedMemory() {}
 
-PagedMemory::PagedMemory(char* p, size_t size) : p_(p), size_(size) {
-  ANNOTATE_NEW_BUFFER(p_, size_, committed_size_);
-}
+PagedMemory::PagedMemory(char* p, size_t size)
+    : p_(p),
+      size_(size){ANNOTATE_NEW_BUFFER(p_, size_, committed_size_)}
 
-PagedMemory::PagedMemory(PagedMemory&& other) noexcept {
+      PagedMemory::PagedMemory(PagedMemory && other) noexcept {
   *this = other;
   other.p_ = nullptr;
 }
@@ -103,7 +103,7 @@ PagedMemory::~PagedMemory() {
   int res = munmap(start, outer_size);
   PERFETTO_CHECK(res == 0);
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  ANNOTATE_DELETE_BUFFER(p_, size_, committed_size_);
+  ANNOTATE_DELETE_BUFFER(p_, size_, committed_size_)
 }
 
 bool PagedMemory::AdviseDontNeed(void* p, size_t size) {
@@ -141,12 +141,12 @@ void PagedMemory::EnsureCommitted(size_t committed_size) {
                            PAGE_READWRITE);
   PERFETTO_CHECK(res);
   ANNOTATE_CHANGE_SIZE(p_, size_, committed_size_,
-                       committed_size_ + commit_size);
+                       committed_size_ + commit_size
   committed_size_ += commit_size;
 #else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // mmap commits automatically as needed, so we only track here for ASAN.
   committed_size = std::max(committed_size_, committed_size);
-  ANNOTATE_CHANGE_SIZE(p_, size_, committed_size_, committed_size);
+  ANNOTATE_CHANGE_SIZE(p_, size_, committed_size_, committed_size)
   committed_size_ = committed_size;
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }

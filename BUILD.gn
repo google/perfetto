@@ -47,7 +47,6 @@ group("all") {
   deps = [
     ":perfetto_unittests",
     "src/protozero/protoc_plugin($host_toolchain)",
-    "src/trace_processor:trace_processor",
   ]
   if (perfetto_build_standalone || perfetto_build_with_android) {
     deps += [
@@ -87,6 +86,13 @@ group("all") {
         deps += [ ":fuzzers" ]
       }
     }
+  }
+
+  # TODO(khokhlov): Remove this once the chrome dep is added. This is a
+  # temporary target to make sure that we don't regress trace processor support
+  # for the Windows build.
+  if (build_with_chromium) {
+    deps += [ "src/trace_processor:lib" ]
   }
 }
 
