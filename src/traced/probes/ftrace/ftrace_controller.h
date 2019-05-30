@@ -27,7 +27,6 @@
 #include <set>
 #include <string>
 
-#include "perfetto/base/gtest_prod_util.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/utils.h"
 #include "perfetto/base/weak_ptr.h"
@@ -100,7 +99,6 @@ class FtraceController {
 
  private:
   friend class TestFtraceController;
-  FRIEND_TEST(FtraceControllerIntegrationTest, EnableDisableEvent);
 
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;

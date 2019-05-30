@@ -26,17 +26,6 @@ config("asan_instrumentation") {
   }
 }
 
-# Used by base/gtest_prod_util.h for the FRIEND_TEST_* macros. Note that other
-# production targets (i.e. testonly == false) should use base/gtest_prod_util.h
-# instead.
-group("gtest_prod_config") {
-  if (perfetto_build_standalone || perfetto_build_with_android) {
-    public_configs = [ "//buildtools:googletest_prod_config" ]
-  } else {
-    public_configs = [ ":gtest_config" ]
-  }
-}
-
 config("gtest_config") {
   if (perfetto_build_with_embedder) {
     include_dirs = [ "//testing/gtest/include" ]
