@@ -19,6 +19,7 @@ import * as uuidv4 from 'uuid/v4';
 import {assertExists, assertTrue} from '../base/logging';
 import {
   Actions,
+  AddTrackArgs,
   DeferredAction,
 } from '../common/actions';
 import {Engine} from '../common/engine';
@@ -47,7 +48,6 @@ import {
 import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
 
 type States = 'init'|'loading_trace'|'ready';
-
 
 declare interface FileReaderSync { readAsArrayBuffer(blob: Blob): ArrayBuffer; }
 
@@ -221,8 +221,8 @@ export class TraceController extends Controller<States> {
     this.updateStatus('Loading tracks');
 
     const engine = assertExists<Engine>(this.engine);
-    const addToTrackActions: DeferredAction[] = [];
     const numCpus = await engine.getNumberOfCpus();
+    const tracksToAdd: AddTrackArgs[] = [];
 
     // TODO(hjd): Renable Vsync tracks when fixed.
     //// TODO(hjd): Move this code out of TraceController.
@@ -250,7 +250,7 @@ export class TraceController extends Controller<States> {
     `);
 
     for (let cpu = 0; cpu < numCpus; cpu++) {
-      addToTrackActions.push(Actions.addTrack({
+      tracksToAdd.push({
         engineId: this.engineId,
         kind: CPU_SLICE_TRACK_KIND,
         name: `Cpu ${cpu}`,
@@ -258,7 +258,7 @@ export class TraceController extends Controller<States> {
         config: {
           cpu,
         }
-      }));
+      });
     }
 
     for (let cpu = 0; cpu < numCpus; cpu++) {
@@ -273,7 +273,7 @@ export class TraceController extends Controller<States> {
         limit 1;
       `);
       if (freqExists.numRecords > 0) {
-        addToTrackActions.push(Actions.addTrack({
+        tracksToAdd.push({
           engineId: this.engineId,
           kind: CPU_FREQ_TRACK_KIND,
           name: `Cpu ${cpu} Frequency`,
@@ -282,42 +282,49 @@ export class TraceController extends Controller<States> {
             cpu,
             maximumValue: +maxFreq.columns[0].doubleValues![0],
           }
-        }));
+        });
       }
     }
 
     const counters = await engine.query(`
-      select name, ref, ref_type, count(ref_type)
+      select name, ref, ref_type
       from counter_definitions
       where ref is not null
       group by name, ref, ref_type
       order by ref_type desc
     `);
-    const counterUpids = new Set<number>();
-    const counterUtids = new Set<number>();
-    for (let i = 0; i < counters.numRecords; i++) {
-      const ref = +counters.columns[1].longValues![i];
-      const refType = counters.columns[2].stringValues![i];
-      if (refType === 'upid') counterUpids.add(ref);
-      if (refType === 'utid') counterUtids.add(ref);
+
+    interface CounterMap {
+      [index: number]: string[];
     }
 
-    // Add all the global counter tracks that are not bound to any pid/tid,
-    // the ones for which refType == NULL.
+    const counterUpids: CounterMap = new Array();
+    const counterUtids: CounterMap = new Array();
     for (let i = 0; i < counters.numRecords; i++) {
       const name = counters.columns[0].stringValues![i];
+      const ref = +counters.columns[1].longValues![i];
       const refType = counters.columns[2].stringValues![i];
-      if (refType !== '[NULL]') continue;
-      addToTrackActions.push(Actions.addTrack({
-        engineId: this.engineId,
-        kind: 'CounterTrack',
-        name,
-        trackGroup: SCROLLING_TRACK_GROUP,
-        config: {
+      if (refType === 'upid') {
+        const el = counterUpids[ref];
+        el === undefined ? counterUpids[ref] = [name] :
+                           counterUpids[ref].push(name);
+      } else if (refType === 'utid') {
+        const el = counterUtids[ref];
+        el === undefined ? counterUtids[ref] = [name] :
+                           counterUtids[ref].push(name);
+      } else if (refType === '[NULL]') {
+        // Add global counter tracks that are not bound to any pid/tid.
+        tracksToAdd.push({
+          engineId: this.engineId,
+          kind: 'CounterTrack',
           name,
-          ref: 0,
-        }
-      }));
+          trackGroup: SCROLLING_TRACK_GROUP,
+          config: {
+            name,
+            ref: 0,
+          }
+        });
+      }
     }
 
     // Local experiments shows getting maxDepth separately is ~2x faster than
@@ -357,7 +364,6 @@ export class TraceController extends Controller<States> {
 
     const upidToUuid = new Map<number, string>();
     const utidToUuid = new Map<number, string>();
-    const addSummaryTrackActions: DeferredAction[] = [];
     const addTrackGroupActions: DeferredAction[] = [];
 
     for (const row of rawQueryToRows(threadQuery, {
@@ -382,13 +388,14 @@ export class TraceController extends Controller<States> {
 
       const maxDepth = utid === null ? undefined : utidToMaxDepth.get(utid);
       if (maxDepth === undefined &&
-          (upid === null || !counterUpids.has(upid)) &&
-          !counterUtids.has(utid) && !threadHasSched) {
+          (upid === null || counterUpids[upid] === undefined) &&
+          counterUtids[utid] === undefined && !threadHasSched) {
         continue;
       }
 
       // Group by upid if present else by utid.
       let pUuid = upid === null ? utidToUuid.get(utid) : upidToUuid.get(upid);
+      // These should only happen once for each track group.
       if (pUuid === undefined) {
         pUuid = uuidv4();
         const summaryTrackId = uuidv4();
@@ -401,13 +408,14 @@ export class TraceController extends Controller<States> {
         const pidForColor = pid || tid || upid || utid || 0;
         const kind = hasSchedEvents ? PROCESS_SCHEDULING_TRACK_KIND :
                                       PROCESS_SUMMARY_TRACK;
-        addSummaryTrackActions.push(Actions.addTrack({
+
+        tracksToAdd.push({
           id: summaryTrackId,
           engineId: this.engineId,
           kind,
           name: `${upid === null ? tid : pid} summary`,
           config: {pidForColor, upid, utid},
-        }));
+        });
 
         addTrackGroupActions.push(Actions.addTrackGroup({
           engineId: this.engineId,
@@ -418,77 +426,73 @@ export class TraceController extends Controller<States> {
           collapsed: true,
         }));
 
-        for (let i = 0; i < counters.numRecords; i++) {
-          const name = counters.columns[0].stringValues![i];
-          const ref = counters.columns[1].longValues![i];
-          const refType = counters.columns[2].stringValues![i];
-          if (refType !== 'upid' || ref !== upid) continue;
-          addTrackGroupActions.push(Actions.addTrack({
-            engineId: this.engineId,
-            kind: 'CounterTrack',
-            name,
-            trackGroup: pUuid,
-            config: {
-              name,
-              ref,
-            }
-          }));
+        if (upid !== null) {
+          const counterNames = counterUpids[upid];
+          if (counterNames !== undefined) {
+            counterNames.forEach(element => {
+              tracksToAdd.push({
+                engineId: this.engineId,
+                kind: 'CounterTrack',
+                name: element,
+                trackGroup: pUuid,
+                config: {
+                  name: element,
+                  ref: upid,
+                }
+              });
+            });
+          }
         }
       }
-
-      for (let i = 0; i < counters.numRecords; i++) {
-        const name = counters.columns[0].stringValues![i];
-        const ref = counters.columns[1].longValues![i];
-        const refType = counters.columns[2].stringValues![i];
-
-        if (refType !== 'utid' || ref !== utid) continue;
-        addTrackGroupActions.push(Actions.addTrack({
-          engineId: this.engineId,
-          kind: 'CounterTrack',
-          name,
-          trackGroup: pUuid,
-          config: {
-            name,
-            ref,
-          }
-        }));
+      const counterThreadNames = counterUtids[utid];
+      if (counterThreadNames !== undefined) {
+        counterThreadNames.forEach(element => {
+          tracksToAdd.push({
+            engineId: this.engineId,
+            kind: 'CounterTrack',
+            name: element,
+            trackGroup: pUuid,
+            config: {
+              name: element,
+              ref: utid,
+            }
+          });
+        });
       }
-
       if (threadHasSched) {
-        addToTrackActions.push(Actions.addTrack({
+        tracksToAdd.push({
           engineId: this.engineId,
           kind: THREAD_STATE_TRACK_KIND,
           name: `${threadName} [${tid}]`,
           trackGroup: pUuid,
           config: {utid}
-        }));
+        });
       }
 
       if (maxDepth !== undefined) {
-        addToTrackActions.push(Actions.addTrack({
+        tracksToAdd.push({
           engineId: this.engineId,
           kind: SLICE_TRACK_KIND,
           name: `${threadName} [${tid}]`,
           trackGroup: pUuid,
           config: {upid, utid, maxDepth},
-        }));
+        });
       }
     }
 
     const logCount = await engine.query(`select count(1) from android_logs`);
     if (logCount.columns[0].longValues![0] > 0) {
-      addToTrackActions.push(Actions.addTrack({
+      tracksToAdd.push({
         engineId: this.engineId,
         kind: ANDROID_LOGS_TRACK_KIND,
         name: 'Android logs',
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {}
-      }));
+      });
     }
 
-    const allActions =
-        addSummaryTrackActions.concat(addTrackGroupActions, addToTrackActions);
-    globals.dispatchMultiple(allActions);
+    addTrackGroupActions.push(Actions.addTracks({tracks: tracksToAdd}));
+    globals.dispatchMultiple(addTrackGroupActions);
   }
 
   private async listThreads() {
