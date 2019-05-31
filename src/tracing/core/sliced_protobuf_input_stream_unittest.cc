@@ -16,7 +16,7 @@
 
 #include "src/tracing/core/sliced_protobuf_input_stream.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/utils.h"
 
 namespace perfetto {

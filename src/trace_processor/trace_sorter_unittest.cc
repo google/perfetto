@@ -19,8 +19,8 @@
 #include <random>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/trace_processor_context.h"

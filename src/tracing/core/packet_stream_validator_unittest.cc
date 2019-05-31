@@ -18,7 +18,7 @@
 
 #include <string>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 #include "perfetto/trace/trace_packet.pb.h"
 

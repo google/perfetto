@@ -18,7 +18,7 @@
 
 #include <thread>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/thread_checker.h"
 
 namespace perfetto {

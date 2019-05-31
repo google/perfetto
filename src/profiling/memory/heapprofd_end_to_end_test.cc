@@ -18,8 +18,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/pipe.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"

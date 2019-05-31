@@ -16,7 +16,7 @@
 
 #include "src/tracing/core/trace_writer_impl.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/trace_writer.h"

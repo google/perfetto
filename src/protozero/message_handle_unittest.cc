@@ -16,7 +16,7 @@
 
 #include "perfetto/protozero/message_handle.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/protozero/message.h"
 
 namespace protozero {

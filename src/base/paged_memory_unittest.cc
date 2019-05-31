@@ -18,7 +18,7 @@
 
 #include <stdint.h>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "src/base/test/vm_test_utils.h"
 

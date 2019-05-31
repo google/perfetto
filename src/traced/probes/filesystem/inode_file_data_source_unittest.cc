@@ -24,8 +24,8 @@
 #include "perfetto/config/inode_file/inode_file_config.pbzero.h"
 #include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 namespace perfetto {
 namespace {

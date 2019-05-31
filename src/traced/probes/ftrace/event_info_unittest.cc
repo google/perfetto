@@ -17,7 +17,7 @@
 #include "src/traced/probes/ftrace/event_info.h"
 #include "perfetto/protozero/proto_utils.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 namespace perfetto {
 namespace {
