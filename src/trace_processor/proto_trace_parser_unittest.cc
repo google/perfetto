@@ -257,15 +257,15 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
 
   Tokenize();
   const auto& raw = context_.storage->raw_events();
-  ASSERT_EQ(raw.raw_event_count(), 2);
+  ASSERT_EQ(raw.raw_event_count(), 2u);
   const auto& args = context_.storage->args();
-  ASSERT_EQ(args.args_count(), 6);
+  ASSERT_EQ(args.args_count(), 6u);
   ASSERT_EQ(args.arg_values()[0].int_value, 123);
-  ASSERT_EQ(args.arg_values()[1].string_value, 0);
+  ASSERT_EQ(args.arg_values()[1].string_value, 0u);
   ASSERT_EQ(args.arg_values()[2].int_value, 12);
   ASSERT_EQ(args.arg_values()[3].int_value, 15);
   ASSERT_EQ(args.arg_values()[4].int_value, 20);
-  ASSERT_EQ(args.arg_values()[5].string_value, 0);
+  ASSERT_EQ(args.arg_values()[5].string_value, 0u);
 
   // TODO(taylori): Add test ftrace event with all field types
   // and test here.
@@ -308,9 +308,9 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
 
   const auto& raw = storage_->raw_events();
 
-  ASSERT_EQ(raw.raw_event_count(), 1);
+  ASSERT_EQ(raw.raw_event_count(), 1u);
   ASSERT_EQ(raw.timestamps().back(), 100);
-  ASSERT_EQ(storage_->GetThread(raw.utids().back()).tid, 10);
+  ASSERT_EQ(storage_->GetThread(raw.utids().back()).tid, 10u);
 
   auto set_id = raw.arg_set_ids().back();
 
