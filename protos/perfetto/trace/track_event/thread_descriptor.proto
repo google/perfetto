@@ -23,7 +23,7 @@ package perfetto.protos;
 // thread, i.e. all events in the same packet sequence. Valid for all subsequent
 // events in the same sequence.
 //
-// Next id: 8.
+// Next id: 9.
 message ThreadDescriptor {
   optional int32 pid = 1;
   optional int32 tid = 2;
@@ -45,4 +45,5 @@ message ThreadDescriptor {
   // encoding size.
   optional int64 reference_timestamp_us = 6;
   optional int64 reference_thread_time_us = 7;
+  optional int64 reference_thread_instruction_count = 8;
 }
