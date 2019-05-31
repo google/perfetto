@@ -104,7 +104,8 @@ def main():
     for path in sql_outputs.keys():
       name = os.path.basename(path)
       variable = filename_to_variable(os.path.splitext(name)[0])
-      output.write('\n  {{"{}", {}}},\n'.format(path, variable))
+      path_escaped = path.encode('string_escape')
+      output.write('\n  {{"{}", {}}},\n'.format(path_escaped, variable))
     output.write("};\n")
 
     output.write(NAMESPACE_END)
