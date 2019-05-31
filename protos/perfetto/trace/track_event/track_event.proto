@@ -39,7 +39,7 @@ package perfetto.protos;
 // association) are emitted as part of ProcessDescriptor and ThreadDescriptor
 // messages in separate TracePackets instead.
 //
-// Next reserved id: 7 (up to 15).
+// Next reserved id: 8 (up to 15).
 // Next id: 21.
 message TrackEvent {
   // Timestamp in microseconds (usually CLOCK_MONOTONIC).
@@ -67,8 +67,16 @@ message TrackEvent {
     int64 thread_time_absolute_us = 17;
   }
 
-  // Elapsed retired instruction count during the event.
-  optional int64 thread_instruction_delta = 20;
+  // Value of the instruction counter for the current thread.
+  oneof thread_instruction_count {
+    // Same encoding as |timestamp| fields above.
+    int64 thread_instruction_count_delta = 8;
+    // TODO(eseckler): Consider removing absolute thread instruction count
+    // support. It's currently required to support writing PHASE_COMPLETE events
+    // out-of-order, but shouldn't be required anymore when we split them into
+    // begin/end.
+    int64 thread_instruction_count_absolute = 20;
+  }
 
   // We intend to add a binary symbol version of this in the future.
   repeated uint32 category_iids = 3;  // interned EventCategoryName.
@@ -89,13 +97,16 @@ message TrackEvent {
   // features in TrackEvent (e.g. async + flow events), or deprecate them
   // without replacement where transition is unsuitable.
   //
-  // Next reserved id: 15 (up to 16).
+  // Next reserved id: 16 (up to 16).
   // Next id: 20.
   message LegacyEvent {
     optional uint32 name_iid = 1;  // interned LegacyEventName.
     optional int32 phase = 2;
     optional int64 duration_us = 3;
     optional int64 thread_duration_us = 4;
+
+    // Elapsed retired instruction count during the event.
+    optional int64 thread_instruction_delta = 15;
 
     reserved 5;  // used to be |flags|.
 
