@@ -18,8 +18,8 @@
 
 #include <sys/stat.h>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 

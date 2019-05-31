@@ -22,7 +22,7 @@
 #include <thread>
 #include <unordered_map>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/optional.h"
 
 namespace perfetto {

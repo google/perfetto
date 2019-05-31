@@ -16,7 +16,7 @@
 
 #include "src/tracing/core/id_allocator.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 namespace perfetto {
 namespace {

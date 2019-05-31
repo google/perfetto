@@ -16,7 +16,7 @@
 
 #include "src/profiling/memory/client.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/unix_socket.h"
 

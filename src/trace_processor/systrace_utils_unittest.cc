@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/systrace_utils.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 namespace perfetto {
 namespace trace_processor {

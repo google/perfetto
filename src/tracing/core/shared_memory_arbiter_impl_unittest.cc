@@ -16,8 +16,8 @@
 
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/commit_data_request.h"
