@@ -21,8 +21,8 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include "perfetto/common/android_log_constants.pbzero.h"
 #include "perfetto/config/android/android_log_config.pbzero.h"

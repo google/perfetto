@@ -32,7 +32,7 @@
 #include <sys/stat.h>
 #endif
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 
 namespace perfetto {

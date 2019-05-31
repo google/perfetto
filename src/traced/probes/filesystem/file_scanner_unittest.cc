@@ -16,8 +16,8 @@
 
 #include "src/traced/probes/filesystem/file_scanner.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include <sys/stat.h>
 #include <memory>

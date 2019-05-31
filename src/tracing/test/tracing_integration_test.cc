@@ -17,8 +17,8 @@
 #include <inttypes.h>
 #include <unistd.h>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "perfetto/base/temp_file.h"
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/data_source_config.h"

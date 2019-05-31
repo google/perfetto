@@ -22,8 +22,8 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/temp_file.h"

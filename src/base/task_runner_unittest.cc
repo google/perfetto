@@ -16,7 +16,7 @@
 
 #include "perfetto/base/unix_task_runner.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/scoped_file.h"
 

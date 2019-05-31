@@ -16,7 +16,7 @@
 
 #include "perfetto/tracing/core/startup_trace_writer.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/tracing/core/startup_trace_writer_registry.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/tracing_service.h"

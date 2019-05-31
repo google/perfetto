@@ -16,8 +16,8 @@
 
 #include "src/trace_processor/trace_processor_impl.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 namespace perfetto {
 namespace trace_processor {

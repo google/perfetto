@@ -16,7 +16,7 @@
 
 #include "perfetto/ipc/deferred.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/logging.h"
 
 #include "src/ipc/test/deferred_unittest_messages.pb.h"

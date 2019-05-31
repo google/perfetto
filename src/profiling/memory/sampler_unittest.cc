@@ -16,7 +16,7 @@
 
 #include "src/profiling/memory/sampler.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 #include <thread>
 
