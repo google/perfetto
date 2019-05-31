@@ -90,6 +90,11 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
     ftraceEvents.add('power/suspend_resume');
   }
 
+  if (uiCfg.cpuSyscall) {
+    ftraceEvents.add('raw_syscalls/sys_enter');
+    ftraceEvents.add('raw_syscalls/sys_exit');
+  }
+
   if (procThreadAssociationFtrace) {
     ftraceEvents.add('sched/sched_process_exit');
     ftraceEvents.add('sched/sched_process_free');
