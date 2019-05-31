@@ -25,10 +25,19 @@ import {
   State,
   Status,
   TraceTime,
+  TrackState,
 } from './state';
 
 type StateDraft = Draft<State>;
 
+export interface AddTrackArgs {
+  id?: string;
+  engineId: string;
+  kind: string;
+  name: string;
+  trackGroup?: string;
+  config: {};
+}
 
 function clearTraceState(state: StateDraft) {
   const nextId = state.nextId;
@@ -73,7 +82,20 @@ export const StateActions = {
     state.route = `/viewer`;
   },
 
-  addTrack(state: StateDraft, args: {
+  addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
+    args.tracks.forEach(track => {
+      const id = track.id === undefined ? `${state.nextId++}` : track.id;
+      track.id = id;
+      state.tracks[id] = track as TrackState;
+      if (track.trackGroup === SCROLLING_TRACK_GROUP) {
+        state.scrollingTracks.push(id);
+      } else if (track.trackGroup !== undefined) {
+        assertExists(state.trackGroups[track.trackGroup]).tracks.push(id);
+      }
+    });
+  },
+
+  addTrack(state: State, args: {
     id?: string; engineId: string; kind: string; name: string;
     trackGroup?: string;
     config: {};
