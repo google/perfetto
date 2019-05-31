@@ -237,6 +237,12 @@ function CpuSettings(cssClass: string) {
                 task Y that X's transition (e.g. posting a semaphore).`,
         setEnabled: (cfg, val) => cfg.cpuLatency = val,
         isEnabled: (cfg) => cfg.cpuLatency
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'Syscalls',
+        descr: `Tracks the enter and exit of all syscalls.`,
+        setEnabled: (cfg, val) => cfg.cpuSyscall = val,
+        isEnabled: (cfg) => cfg.cpuSyscall
       } as ProbeAttrs));
 }
 
