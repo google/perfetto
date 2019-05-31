@@ -69,4 +69,9 @@ message SysStats {
   // Populated only if SOFTIRQ_COUNTS in config.stat_counters.
   optional uint64 num_softirq_total = 7;    // Total num of softirqs since boot.
   repeated InterruptCount num_softirq = 8;  // Per-softirq count.
+
+  // The time at which we finish collecting this set of samples;
+  // the top-level packet timestamp is the time at which
+  // we begin collection.
+  optional uint64 collection_end_timestamp = 9;
 }
