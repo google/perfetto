@@ -18,8 +18,8 @@
 
 #include <string.h>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/temp_file.h"
 #include "perfetto/base/utils.h"

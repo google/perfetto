@@ -18,7 +18,7 @@
 
 #include <vector>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 #include "perfetto/common/descriptor.pbzero.h"
 
