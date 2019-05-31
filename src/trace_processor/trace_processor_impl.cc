@@ -299,6 +299,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   sqlite3* db = nullptr;
+  PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK);
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   InitializeSqlite(db);
   CreateBuiltinTables(db);
