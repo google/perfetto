@@ -23,8 +23,8 @@
 #include "perfetto/base/temp_file.h"
 #include "perfetto/base/utils.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 using testing::_;
 using testing::NiceMock;

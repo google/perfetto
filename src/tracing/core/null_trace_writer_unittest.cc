@@ -16,8 +16,8 @@
 
 #include "src/tracing/core/null_trace_writer.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "perfetto/base/utils.h"
 #include "perfetto/tracing/core/trace_writer.h"
 

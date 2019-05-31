@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/pipe.h"

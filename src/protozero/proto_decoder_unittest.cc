@@ -16,8 +16,8 @@
 
 #include "perfetto/protozero/proto_decoder.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "perfetto/base/utils.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"

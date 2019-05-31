@@ -21,8 +21,8 @@
 #include <mutex>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include "perfetto/public/tracing.h"
 #include "perfetto/trace/test_event.pbzero.h"

@@ -23,7 +23,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/file_utils.h"
 #include "perfetto/base/scoped_file.h"

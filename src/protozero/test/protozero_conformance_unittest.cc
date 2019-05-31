@@ -18,7 +18,7 @@
 #include <memory>
 #include <vector>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/protozero/message_handle.h"
 #include "src/protozero/test/fake_scattered_buffer.h"
 
