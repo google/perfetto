@@ -240,6 +240,7 @@ function CpuSettings(cssClass: string) {
       } as ProbeAttrs),
       m(Probe, {
         title: 'Syscalls',
+        img: '',
         descr: `Tracks the enter and exit of all syscalls.`,
         setEnabled: (cfg, val) => cfg.cpuSyscall = val,
         isEnabled: (cfg) => cfg.cpuSyscall
