@@ -17,6 +17,8 @@
 #ifndef SRC_PROFILING_MEMORY_PAGE_IDLE_CHECKER_H_
 #define SRC_PROFILING_MEMORY_PAGE_IDLE_CHECKER_H_
 
+#include <set>
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -30,18 +32,25 @@ uint64_t GetLastPageShare(uint64_t addr, size_t size);
 
 class PageIdleChecker {
  public:
-  PageIdleChecker(base::ScopedFile pagemap_fd, base::ScopedFile kpageflags_fd)
-      : pagemap_fd_(std::move(pagemap_fd)),
-        kpageflags_fd_(std::move(kpageflags_fd)) {}
+  PageIdleChecker(base::ScopedFile pagemap_fd, base::ScopedFile bitmap_fd)
+      : pagemap_fd_(std::move(pagemap_fd)), bitmap_fd_(std::move(bitmap_fd)) {}
 
   // Return number of bytes of allocation of size bytes starting at alloc that
   // are on unreferenced pages.
   // Return -1 on error.
   int64_t OnIdlePage(uint64_t addr, size_t size);
 
+  void MarkPagesIdle();
+
  private:
+  void MarkPageIdle(uint64_t phys_page_nr);
+  // Return 1 if page is idle, 0 if it is not idle, or -1 on error.
+  int IsPageIdle(uint64_t phys_page_nr);
+
+  std::set<uint64_t> touched_phys_page_nrs_;
+
   base::ScopedFile pagemap_fd_;
-  base::ScopedFile kpageflags_fd_;
+  base::ScopedFile bitmap_fd_;
 };
 
 }  // namespace profiling

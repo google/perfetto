@@ -87,6 +87,22 @@ size_t Log2LessThan(uint64_t value) {
   return i;
 }
 
+base::Optional<PageIdleChecker> MakePageIdleChecker(base::ScopedFile pagemap) {
+  base::Optional<PageIdleChecker> res;
+  if (!pagemap) {
+    PERFETTO_PLOG("Invalid pagemap.");
+    return res;
+  }
+  base::ScopedFile bitmap(
+      base::OpenFile("/sys/kernel/mm/page_idle/bitmap", O_RDWR));
+  if (!bitmap) {
+    PERFETTO_PLOG("Failed to open /sys/kernel/mm/page_idle/bitmap.");
+    return res;
+  }
+  res = PageIdleChecker(std::move(pagemap), std::move(bitmap));
+  return res;
+}
+
 }  // namespace
 
 const uint64_t LogHistogram::kMaxBucket = 0;
@@ -590,6 +606,8 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
         [&dump_state](const HeapTracker::CallstackAllocations& alloc) {
           dump_state.WriteAllocation(alloc);
         });
+    if (process_state.page_idle_checker)
+      process_state.page_idle_checker->MarkPagesIdle();
   }
 
   dump_state.DumpCallstacks(&callsites_);
@@ -679,8 +697,8 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
   char buf[1];
   self->Receive(buf, sizeof(buf), fds, base::ArraySize(fds));
 
-  static_assert(kHandshakeSize == 3, "change if and else if below.");
-  if (fds[kHandshakeMaps] && fds[kHandshakeMem] && fds[kHandshakePageMap]) {
+  static_assert(kHandshakeSize == 2, "change if and else if below.");
+  if (fds[kHandshakeMaps] && fds[kHandshakeMem]) {
     auto ds_it =
         producer_->data_sources_.find(pending_process.data_source_instance_id);
     if (ds_it == producer_->data_sources_.end()) {
@@ -694,13 +712,17 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
 
     ProcessState& process_state = it_and_inserted.first->second;
     if (data_source.config.idle_allocations()) {
-      base::ScopedFile kpageflags(base::OpenFile("/proc/kpageflags", O_RDONLY));
-      if (kpageflags) {
-        process_state.page_idle_checker = PageIdleChecker(
-            std::move(fds[kHandshakePageMap]), std::move(kpageflags));
-      } else {
-        PERFETTO_DFATAL_OR_ELOG("Failed to open /proc/kpageflags");
-      }
+      // We have to open this here, because reading the PFN requires
+      // the process that opened the file to have CAP_SYS_ADMIN. We can work
+      // around this by making this a setenforce 0 only feature, giving
+      // heapprofd very broad capabilities (CAP_SYS_ADMIN and CAP_SYS_PTRACE)
+      // which will get rejected by SELinux on real builds.
+      std::string procfs_path =
+          "/proc/" + std::to_string(self->peer_pid()) + "/pagemap";
+      base::ScopedFile pagemap_fd(
+          base::OpenFile(procfs_path.c_str(), O_RDONLY));
+      process_state.page_idle_checker =
+          MakePageIdleChecker(std::move(pagemap_fd));
     }
 
     PERFETTO_DLOG("%d: Received FDs.", self->peer_pid());
@@ -722,8 +744,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     producer_->UnwinderForPID(self->peer_pid())
         .PostHandoffSocket(std::move(handoff_data));
     producer_->pending_processes_.erase(it);
-  } else if (fds[kHandshakeMaps] || fds[kHandshakeMem] ||
-             fds[kHandshakePageMap]) {
+  } else if (fds[kHandshakeMaps] || fds[kHandshakeMem]) {
     PERFETTO_DFATAL_OR_ELOG("%d: Received partial FDs.", self->peer_pid());
     producer_->pending_processes_.erase(it);
   } else {
