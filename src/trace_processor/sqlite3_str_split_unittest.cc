@@ -21,7 +21,7 @@
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/sqlite.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 namespace perfetto {
 namespace trace_processor {

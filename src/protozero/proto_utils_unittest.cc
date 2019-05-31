@@ -18,7 +18,7 @@
 
 #include <limits>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/logging.h"
 #include "perfetto/base/utils.h"
 

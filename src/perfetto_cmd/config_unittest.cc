@@ -16,8 +16,8 @@
 
 #include "src/perfetto_cmd/config.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include "perfetto/config/trace_config.pb.h"
 

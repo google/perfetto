@@ -16,7 +16,7 @@
 
 #include "perfetto/base/watchdog.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/logging.h"
 #include "perfetto/base/paged_memory.h"
 #include "perfetto/base/scoped_file.h"

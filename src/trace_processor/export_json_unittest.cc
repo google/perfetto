@@ -18,8 +18,8 @@
 
 #include "perfetto/base/temp_file.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include <json/reader.h>
 #include <json/value.h>

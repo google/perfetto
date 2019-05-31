@@ -20,8 +20,8 @@
 
 #include "perfetto/tracing/core/data_source_config.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 namespace perfetto {
 namespace {

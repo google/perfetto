@@ -15,7 +15,7 @@
  */
 
 #include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 namespace perfetto {
 namespace {

@@ -15,8 +15,8 @@
  */
 
 #include "src/trace_processor/query_constraints.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "perfetto/base/logging.h"
 
 using testing::ElementsAreArray;
