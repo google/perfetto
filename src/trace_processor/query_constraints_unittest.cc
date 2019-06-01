@@ -58,8 +58,8 @@ TEST(QueryConstraintsTest, CheckEmptyConstraints) {
 
   QueryConstraints qc_result =
       QueryConstraints::FromString(string_result.get());
-  ASSERT_EQ(qc_result.constraints().size(), 0);
-  ASSERT_EQ(qc_result.order_by().size(), 0);
+  ASSERT_EQ(qc_result.constraints().size(), 0u);
+  ASSERT_EQ(qc_result.order_by().size(), 0u);
 }
 
 TEST(QueryConstraintsTest, OnlyOrderBy) {
