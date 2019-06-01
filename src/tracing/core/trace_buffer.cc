@@ -19,6 +19,7 @@
 #include <limits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
