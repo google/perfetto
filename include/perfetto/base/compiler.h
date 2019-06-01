@@ -55,4 +55,13 @@
 #define PERFETTO_IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
 #endif
 
+namespace perfetto {
+namespace base {
+
+template <typename... T>
+inline void ignore_result(const T&...) {}
+
+}  // namespace base
+}  // namespace perfetto
+
 #endif  // INCLUDE_PERFETTO_BASE_COMPILER_H_

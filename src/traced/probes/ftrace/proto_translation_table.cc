@@ -34,8 +34,8 @@ namespace perfetto {
 
 namespace {
 
-using protozero::proto_utils::ProtoSchemaType;
 using protos::pbzero::GenericFtraceEvent;
+using protozero::proto_utils::ProtoSchemaType;
 
 ProtoTranslationTable::FtracePageHeaderSpec MakeFtracePageHeaderSpec(
     const std::vector<FtraceEvent::Field>& fields) {
@@ -74,8 +74,9 @@ ProtoTranslationTable::FtracePageHeaderSpec GuessFtracePageHeaderSpec() {
   if (commit_size < 8 && uname(&sysinfo) == 0) {
     // Arm returns armv# for its machine type. The first (and only currently)
     // arm processor that supports 64bit is the armv8 series.
-    commit_size = strstr(sysinfo.machine, "64") ||
-                  strstr(sysinfo.machine, "armv8") ? 8 : 4;
+    commit_size =
+        strstr(sysinfo.machine, "64") || strstr(sysinfo.machine, "armv8") ? 8
+                                                                          : 4;
   }
 #endif
 

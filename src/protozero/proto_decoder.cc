@@ -17,6 +17,7 @@
 #include "perfetto/protozero/proto_decoder.h"
 
 #include <string.h>
+#include <limits>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"

@@ -15,6 +15,7 @@
  */
 
 #include "src/profiling/memory/page_idle_checker.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/profiling/memory/utils.h"
 
 #include <vector>
