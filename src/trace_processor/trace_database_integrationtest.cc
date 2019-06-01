@@ -20,7 +20,7 @@
 
 #include <gtest/gtest.h>
 #include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/base/test/utils.h"
 #include "src/trace_processor/json_trace_parser.h"

@@ -15,6 +15,7 @@
 source_set("trace_processor") {
   sources = [
     "basic_types.h",
+    "status.h",
     "trace_processor.h",
   ]
 }

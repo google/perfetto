@@ -20,7 +20,7 @@
 #include <functional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 
 namespace perfetto {
 

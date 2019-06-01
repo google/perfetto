@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "perfetto/base/string_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
 

@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/export_json.h"
 
-#include "perfetto/base/temp_file.h"
+#include "perfetto/ext/base/temp_file.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

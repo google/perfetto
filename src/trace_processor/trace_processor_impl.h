@@ -22,8 +22,9 @@
 #include <memory>
 #include <vector>
 
-#include "perfetto/base/string_view.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/descriptors.h"
 #include "src/trace_processor/metrics/metrics.h"

@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SCOPED_DB_H_
 #define SRC_TRACE_PROCESSOR_SCOPED_DB_H_
 
-#include "perfetto/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "src/trace_processor/sqlite.h"
 
 extern "C" {

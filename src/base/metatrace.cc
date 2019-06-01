@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/metatrace.h"
+#include "perfetto/ext/base/metatrace.h"
 
 #include <fcntl.h>
 #include <stdlib.h>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/file_utils.h"
-#include "perfetto/base/time.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/time.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <corecrt_io.h>

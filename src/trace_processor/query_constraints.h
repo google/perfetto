@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include "perfetto/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "src/trace_processor/sqlite.h"
 
 namespace perfetto {

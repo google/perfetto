@@ -23,7 +23,7 @@
 // one-off case.
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 
-#include "perfetto/base/watchdog_posix.h"
+#include "perfetto/ext/base/watchdog_posix.h"
 
 #include <fcntl.h>
 #include <inttypes.h>
@@ -35,8 +35,8 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/thread_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/thread_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_EMBEDDER_BUILD)
 #error perfetto::base::Watchdog should not be used in Chromium or embedders

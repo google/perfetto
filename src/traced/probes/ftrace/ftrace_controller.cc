@@ -29,11 +29,11 @@
 #include <utility>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/metatrace.h"
-#include "perfetto/base/time.h"
-#include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/time.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"

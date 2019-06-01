@@ -22,8 +22,9 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/base/optional.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/query_constraints.h"
 #include "src/trace_processor/sqlite.h"
 

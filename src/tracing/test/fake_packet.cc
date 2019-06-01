@@ -19,8 +19,8 @@
 #include <ostream>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/tracing/core/shared_memory_abi.h"
 #include "src/tracing/core/trace_buffer.h"
 
 using protozero::proto_utils::ParseVarInt;

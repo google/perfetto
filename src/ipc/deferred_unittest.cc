@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/ipc/deferred.h"
+#include "perfetto/ext/ipc/deferred.h"
 
 #include <gtest/gtest.h>
 #include "perfetto/base/logging.h"

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/paged_memory.h"
+#include "perfetto/ext/base/paged_memory.h"
 
 #include <stdint.h>
 

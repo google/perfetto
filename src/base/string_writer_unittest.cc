@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/string_writer.h"
+#include "perfetto/ext/base/string_writer.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

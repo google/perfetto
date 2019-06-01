@@ -16,12 +16,12 @@
 
 #include <signal.h>
 
-#include "perfetto/base/file_utils.h"
-#include "perfetto/base/string_splitter.h"
-#include "perfetto/base/string_utils.h"
-#include "perfetto/base/string_writer.h"
-#include "perfetto/base/unix_task_runner.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_writer.h"
+#include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 namespace {

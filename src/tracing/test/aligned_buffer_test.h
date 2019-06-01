@@ -21,8 +21,8 @@
 
 #include <memory>
 
-#include "gtest/gtest.h"
-#include "perfetto/base/utils.h"
+#include <gtest/gtest.h>
+#include "perfetto/ext/base/utils.h"
 #include "src/tracing/test/test_shared_memory.h"
 
 namespace perfetto {

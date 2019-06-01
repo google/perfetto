@@ -23,9 +23,9 @@
 #include <utility>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/utils.h"
-#include "perfetto/ipc/service_descriptor.h"
-#include "perfetto/ipc/service_proxy.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/ipc/service_descriptor.h"
+#include "perfetto/ext/ipc/service_proxy.h"
 
 // TODO(primiano): Add ThreadChecker everywhere.
 

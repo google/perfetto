@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "perfetto/ipc/client.h"
-#include "perfetto/ipc/host.h"
-#include "perfetto/ipc/service.h"
-#include "perfetto/ipc/service_proxy.h"
+#include "perfetto/ext/ipc/client.h"
+#include "perfetto/ext/ipc/host.h"
+#include "perfetto/ext/ipc/service.h"
+#include "perfetto/ext/ipc/service_proxy.h"
 
 // This translation unit contains the definitions for the destructor of pure
 // virtual interfaces for the current build target. The alternative would be

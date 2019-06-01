@@ -23,7 +23,7 @@
 
 #include <algorithm>
 
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 
 namespace perfetto {

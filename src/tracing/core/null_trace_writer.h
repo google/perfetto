@@ -17,9 +17,9 @@
 #ifndef SRC_TRACING_CORE_NULL_TRACE_WRITER_H_
 #define SRC_TRACING_CORE_NULL_TRACE_WRITER_H_
 
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_stream_null_delegate.h"
-#include "perfetto/tracing/core/trace_writer.h"
 
 namespace perfetto {
 

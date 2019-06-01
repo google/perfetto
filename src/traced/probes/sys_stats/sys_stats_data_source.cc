@@ -24,14 +24,14 @@
 #include <limits>
 #include <utility>
 
-#include "perfetto/base/file_utils.h"
-#include "perfetto/base/metatrace.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/string_splitter.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/time.h"
-#include "perfetto/base/utils.h"
-#include "perfetto/traced/sys_stats_counters.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/time.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/traced/sys_stats_counters.h"
 
 #include "perfetto/common/sys_stats_counters.pbzero.h"
 #include "perfetto/config/sys_stats/sys_stats_config.pbzero.h"

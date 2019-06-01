@@ -22,12 +22,12 @@
 #include <set>
 #include <vector>
 
-#include "perfetto/base/thread_checker.h"
-#include "perfetto/ipc/service_proxy.h"
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/shared_memory.h"
-#include "perfetto/tracing/core/tracing_service.h"
-#include "perfetto/tracing/ipc/producer_ipc_client.h"
+#include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/ipc/service_proxy.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/shared_memory.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 
 #include "perfetto/ipc/producer_port.ipc.h"
 

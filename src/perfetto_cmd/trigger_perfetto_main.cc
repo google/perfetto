@@ -15,7 +15,7 @@
  */
 
 #include <stdio.h>
-#include "perfetto/traced/traced.h"
+#include "perfetto/ext/traced/traced.h"
 
 int main(int argc, char** argv) {
   return perfetto::TriggerPerfettoMain(argc, argv);

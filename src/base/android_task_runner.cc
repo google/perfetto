@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/android_task_runner.h"
+#include "perfetto/ext/base/android_task_runner.h"
 
 #include <errno.h>
 #include <sys/timerfd.h>
+
+#include "perfetto/ext/base/watchdog.h"
 
 namespace perfetto {
 namespace base {
@@ -96,7 +98,7 @@ void AndroidTaskRunner::RunImmediateTask() {
   if (has_next)
     ScheduleImmediateWakeUp();
   errno = 0;
-  RunTask(immediate_task);
+  RunTaskWithWatchdogGuard(immediate_task);
 }
 
 void AndroidTaskRunner::RunDelayedTask() {
@@ -122,7 +124,7 @@ void AndroidTaskRunner::RunDelayedTask() {
   if (next_wake_up.count())
     ScheduleDelayedWakeUp(next_wake_up);
   errno = 0;
-  RunTask(delayed_task);
+  RunTaskWithWatchdogGuard(delayed_task);
 }
 
 void AndroidTaskRunner::ScheduleImmediateWakeUp() {
@@ -200,7 +202,7 @@ bool AndroidTaskRunner::OnFileDescriptorEvent(int signalled_fd, int events) {
     task = it->second;
   }
   errno = 0;
-  RunTask(task);
+  RunTaskWithWatchdogGuard(task);
   return true;
 }
 

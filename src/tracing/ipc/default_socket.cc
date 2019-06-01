@@ -17,8 +17,8 @@
 #include "src/tracing/ipc/default_socket.h"
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ipc/basic_types.h"
-#include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/ext/ipc/basic_types.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 
 #include <stdlib.h>
 

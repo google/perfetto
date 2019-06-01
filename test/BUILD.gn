@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//build_overrides/build.gni")
 import("../gn/fuzzer.gni")
 import("../gn/perfetto.gni")
-import("//build_overrides/build.gni")
 
 source_set("end_to_end_integrationtests") {
   testonly = true
@@ -24,8 +24,8 @@ source_set("end_to_end_integrationtests") {
     ":test_helper",
     "../gn:default_deps",
     "../gn:gtest_deps",
+    "../include/perfetto/ext/traced",
     "../include/perfetto/protozero",
-    "../include/perfetto/traced",
     "../protos/perfetto/config:zero",
     "../protos/perfetto/trace:lite",
     "../protos/perfetto/trace:zero",
@@ -36,7 +36,8 @@ source_set("end_to_end_integrationtests") {
   sources = [
     "end_to_end_integrationtest.cc",
   ]
-  if (is_android && (perfetto_build_standalone || perfetto_build_with_android)) {
+  if (is_android &&
+      (perfetto_build_standalone || perfetto_build_with_android)) {
     deps += [ "../src/base:android_task_runner" ]
   }
   if (start_daemons_for_testing) {
@@ -88,7 +89,7 @@ source_set("task_runner_thread_delegates") {
   deps = [
     ":task_runner_thread",
     "../gn:default_deps",
-    "../include/perfetto/traced",
+    "../include/perfetto/ext/traced",
     "../src/base:test_support",
     "../src/traced/probes:probes_src",
     "../src/tracing:ipc",
@@ -109,7 +110,7 @@ source_set("test_helper") {
     ":task_runner_thread",
     ":task_runner_thread_delegates",
     "../gn:default_deps",
-    "../include/perfetto/traced",
+    "../include/perfetto/ext/traced",
     "../protos/perfetto/trace:lite",
     "../protos/perfetto/trace:zero",
     "../src/base:test_support",
@@ -130,10 +131,10 @@ if (perfetto_build_standalone) {
       ":task_runner_thread",
       ":task_runner_thread_delegates",
       ":test_helper",
-      "../../gn:default_deps",
       "../buildtools:benchmark",
+      "../gn:default_deps",
       "../gn:gtest_deps",
-      "../include/perfetto/traced",
+      "../include/perfetto/ext/traced",
       "../protos/perfetto/trace:lite",
       "../protos/perfetto/trace:zero",
       "../src/base:test_support",
@@ -152,8 +153,8 @@ if (perfetto_build_standalone) {
   source_set("benchmark_main") {
     testonly = true
     deps = [
-      "../../gn:default_deps",
       "../buildtools:benchmark",
+      "../gn:default_deps",
     ]
     sources = [
       "benchmark_main.cc",

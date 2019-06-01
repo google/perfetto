@@ -16,9 +16,9 @@
 
 #include "src/tracing/test/mock_producer.h"
 
-#include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/data_source_descriptor.h"
-#include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/core/data_source_config.h"
+#include "perfetto/ext/tracing/core/data_source_descriptor.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/base/test/test_task_runner.h"
 
 using ::testing::_;

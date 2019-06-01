@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/pipe.h"
+#include "perfetto/ext/base/pipe.h"
 
 #include <sys/types.h>
 #include <unistd.h>

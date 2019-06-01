@@ -23,17 +23,17 @@
 #include <random>
 #include <thread>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/pipe.h"
-#include "perfetto/base/temp_file.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/core/trace_config.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "perfetto/traced/traced.h"
-#include "perfetto/tracing/core/trace_config.h"
-#include "perfetto/tracing/core/trace_packet.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"

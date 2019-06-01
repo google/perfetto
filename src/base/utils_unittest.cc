@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 
 #include <fcntl.h>
 #include <signal.h>
@@ -23,8 +23,8 @@
 
 #include <gtest/gtest.h>
 
-#include "perfetto/base/file_utils.h"
-#include "perfetto/base/pipe.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/pipe.h"
 
 namespace perfetto {
 namespace base {

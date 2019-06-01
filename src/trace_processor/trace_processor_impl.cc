@@ -22,9 +22,9 @@
 #include <functional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/string_splitter.h"
-#include "perfetto/base/string_utils.h"
-#include "perfetto/base/time.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/time.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"

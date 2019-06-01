@@ -19,7 +19,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/event_tracker.h"

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/unix_socket.h"
+#include "perfetto/ext/base/unix_socket.h"
 
 #include <signal.h>
 #include <sys/mman.h>
@@ -27,11 +27,11 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/pipe.h"
-#include "perfetto/base/temp_file.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/test/test_socket.h"
 

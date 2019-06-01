@@ -19,16 +19,16 @@
 #include <inttypes.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ipc/basic_types.h"
-#include "perfetto/ipc/host.h"
-#include "perfetto/tracing/core/shared_memory_abi.h"
-#include "perfetto/tracing/core/slice.h"
-#include "perfetto/tracing/core/trace_config.h"
-#include "perfetto/tracing/core/trace_packet.h"
-#include "perfetto/tracing/core/trace_stats.h"
-#include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/ipc/basic_types.h"
+#include "perfetto/ext/ipc/host.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/slice.h"
+#include "perfetto/ext/tracing/core/trace_config.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/trace_stats.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 
 namespace perfetto {
 

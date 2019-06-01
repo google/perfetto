@@ -22,7 +22,7 @@
 #include <thread>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/time.h"
+#include "perfetto/ext/base/time.h"
 
 // Spawns the requested number threads that alternate between busy-waiting and
 // sleeping.

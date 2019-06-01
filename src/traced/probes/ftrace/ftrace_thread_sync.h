@@ -23,8 +23,8 @@
 #include <condition_variable>
 #include <mutex>
 
-#include "perfetto/base/utils.h"
-#include "perfetto/base/weak_ptr.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/weak_ptr.h"
 
 namespace perfetto {
 

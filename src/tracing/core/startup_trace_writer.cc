@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#include "perfetto/tracing/core/startup_trace_writer.h"
+#include "perfetto/ext/tracing/core/startup_trace_writer.h"
 
 #include <numeric>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/startup_trace_writer_registry.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
-#include "perfetto/tracing/core/shared_memory_abi.h"
-#include "perfetto/tracing/core/startup_trace_writer_registry.h"
 #include "src/tracing/core/patch_list.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 

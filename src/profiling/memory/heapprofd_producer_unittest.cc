@@ -19,9 +19,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/commit_data_request.h"
-#include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
+#include "perfetto/ext/tracing/core/data_source_descriptor.h"
 
 #include "src/base/test/test_task_runner.h"
 

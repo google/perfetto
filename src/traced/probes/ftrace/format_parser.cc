@@ -25,8 +25,8 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/string_splitter.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 namespace {
