@@ -29,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/string_writer.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
 // When running in Web Assembly, fflush() is a no-op and the stdio buffering
