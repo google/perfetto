@@ -202,7 +202,7 @@ source_set("lib") {
   }
 }
 
-if (current_toolchain == host_toolchain) {
+if (!perfetto_build_with_embedder && current_toolchain == host_toolchain) {
   executable("trace_processor_shell_host") {
     testonly = true  # We need this for proto full.
     deps = [
@@ -225,19 +225,22 @@ if (current_toolchain == host_toolchain) {
   }
 }
 
-copy("trace_processor_shell") {
-  testonly = true  # We need this for proto full.
-  host_out_dir_ = get_label_info(":trace_processor_shell_host($host_toolchain)",
-                                 "root_out_dir")
-  deps = [
-    ":trace_processor_shell_host($host_toolchain)",
-  ]
-  sources = [
-    "${host_out_dir_}/trace_processor_shell_host",
-  ]
-  outputs = [
-    "${root_out_dir}/trace_processor_shell",
-  ]
+if (!perfetto_build_with_embedder) {
+  copy("trace_processor_shell") {
+    testonly = true  # We need this for proto full.
+    host_out_dir_ =
+        get_label_info(":trace_processor_shell_host($host_toolchain)",
+                       "root_out_dir")
+    deps = [
+      ":trace_processor_shell_host($host_toolchain)",
+    ]
+    sources = [
+      "${host_out_dir_}/trace_processor_shell_host",
+    ]
+    outputs = [
+      "${root_out_dir}/trace_processor_shell",
+    ]
+  }
 }
 
 source_set("unittests") {
