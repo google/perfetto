@@ -57,7 +57,7 @@ TEST_F(EventTrackerTest, InsertSecondSched) {
   context.event_tracker->PushSchedSwitch(cpu, timestamp, pid_1, kCommProc2,
                                          prio, prev_state, pid_2, kCommProc1,
                                          prio);
-  ASSERT_EQ(timestamps.size(), 1);
+  ASSERT_EQ(timestamps.size(), 1u);
 
   context.event_tracker->PushSchedSwitch(cpu, timestamp + 1, pid_2, kCommProc1,
                                          prio, prev_state, pid_1, kCommProc2,
@@ -69,7 +69,7 @@ TEST_F(EventTrackerTest, InsertSecondSched) {
   ASSERT_STREQ(
       context.storage->GetString(context.storage->GetThread(1).name_id).c_str(),
       kCommProc1);
-  ASSERT_EQ(context.storage->slices().utids().front(), 1);
+  ASSERT_EQ(context.storage->slices().utids().front(), 1u);
   ASSERT_EQ(context.storage->slices().durations().front(), 1);
 }
 
@@ -85,7 +85,7 @@ TEST_F(EventTrackerTest, InsertThirdSched_SameThread) {
   context.event_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/4, kCommProc2,
                                          prio, prev_state,
                                          /*tid=*/2, kCommProc1, prio);
-  ASSERT_EQ(timestamps.size(), 1);
+  ASSERT_EQ(timestamps.size(), 1u);
 
   context.event_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/2,
                                          kCommProc1, prio, prev_state,
