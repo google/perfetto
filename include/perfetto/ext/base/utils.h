@@ -61,9 +61,6 @@ constexpr size_t ArraySize(const T& array) {
   return sizeof(array) / sizeof(array[0]);
 }
 
-template <typename... T>
-inline void ignore_result(const T&...) {}
-
 // Function object which invokes 'free' on its parameter, which must be
 // a pointer. Can be used to store malloc-allocated pointers in std::unique_ptr:
 //
