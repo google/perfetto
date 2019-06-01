@@ -49,7 +49,7 @@ TEST(StringPoolTest, NullPointerHandling) {
   StringPool pool;
 
   auto id = pool.InternString(NullTermStringView());
-  ASSERT_EQ(id, 0);
+  ASSERT_EQ(id, 0u);
   ASSERT_EQ(pool.Get(id).c_str(), nullptr);
 }
 
@@ -119,7 +119,7 @@ TEST(StringPoolTest, StressTest) {
     }
     string_map.erase(it_pair.first, it_pair.second);
   }
-  ASSERT_EQ(string_map.size(), 0);
+  ASSERT_EQ(string_map.size(), 0u);
 }
 
 }  // namespace
