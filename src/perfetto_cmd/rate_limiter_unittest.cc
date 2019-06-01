@@ -18,10 +18,10 @@
 
 #include <stdio.h>
 
-#include "perfetto/base/file_utils.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/temp_file.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

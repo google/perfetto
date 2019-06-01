@@ -17,7 +17,7 @@
 #ifndef TEST_TASK_RUNNER_THREAD_DELEGATES_H_
 #define TEST_TASK_RUNNER_THREAD_DELEGATES_H_
 
-#include "perfetto/tracing/ipc/service_ipc_host.h"
+#include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "src/traced/probes/probes_producer.h"
 #include "test/fake_producer.h"
 #include "test/task_runner_thread.h"

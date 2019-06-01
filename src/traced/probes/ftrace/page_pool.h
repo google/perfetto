@@ -23,10 +23,10 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/optional.h"
-#include "perfetto/base/paged_memory.h"
-#include "perfetto/base/thread_checker.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/paged_memory.h"
+#include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 

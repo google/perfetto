@@ -18,7 +18,7 @@
 
 #include <string>
 
-#include "perfetto/base/string_splitter.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "src/trace_processor/sqlite.h"
 
 namespace perfetto {

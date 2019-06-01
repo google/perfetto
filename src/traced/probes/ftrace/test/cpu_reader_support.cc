@@ -16,7 +16,7 @@
 
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
 
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 
 #include <string.h>

@@ -23,6 +23,7 @@
 #include <memory>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/status.h"
 
 namespace perfetto {
 namespace trace_processor {

@@ -23,10 +23,10 @@
 #include <vector>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/thread_checker.h"
-#include "perfetto/base/unix_socket.h"
-#include "perfetto/ipc/deferred.h"
-#include "perfetto/ipc/host.h"
+#include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/ext/ipc/deferred.h"
+#include "perfetto/ext/ipc/host.h"
 #include "src/ipc/buffered_frame_deserializer.h"
 
 namespace perfetto {

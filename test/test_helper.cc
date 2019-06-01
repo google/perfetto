@@ -16,9 +16,9 @@
 
 #include "test/test_helper.h"
 
-#include "gtest/gtest.h"
-#include "perfetto/traced/traced.h"
-#include "perfetto/tracing/core/trace_packet.h"
+#include <gtest/gtest.h>
+#include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "test/task_runner_thread_delegates.h"
 
 #include "src/tracing/ipc/default_socket.h"

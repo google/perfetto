@@ -25,7 +25,7 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#include "perfetto/tracing/core/test_config.h"
+#include "perfetto/ext/tracing/core/test_config.h"
 
 #include "perfetto/config/test_config.pb.h"
 

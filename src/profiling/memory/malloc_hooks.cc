@@ -31,9 +31,9 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/no_destructor.h"
-#include "perfetto/base/unix_socket.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/no_destructor.h"
+#include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/proc_utils.h"
 #include "src/profiling/memory/scoped_spinlock.h"

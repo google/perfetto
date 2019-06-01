@@ -23,12 +23,12 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "perfetto/base/file_utils.h"
-#include "perfetto/base/temp_file.h"
-#include "perfetto/base/unix_socket.h"
-#include "perfetto/base/utils.h"
-#include "perfetto/ipc/service_descriptor.h"
-#include "perfetto/ipc/service_proxy.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/ipc/service_descriptor.h"
+#include "perfetto/ext/ipc/service_proxy.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/buffered_frame_deserializer.h"
 #include "src/ipc/test/test_socket.h"

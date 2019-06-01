@@ -20,7 +20,7 @@
 #include <algorithm>
 #include <limits>
 
-#include "perfetto/base/no_destructor.h"
+#include "perfetto/ext/base/no_destructor.h"
 
 namespace perfetto {
 namespace trace_processor {

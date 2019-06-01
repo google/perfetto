@@ -18,7 +18,7 @@
 #define SRC_PROFILING_MEMORY_SCOPED_SPINLOCK_H_
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 
 #include <atomic>
 #include <new>

@@ -23,11 +23,11 @@
 #include <fstream>
 #include <regex>
 
-#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/pipe.h"
-#include "perfetto/base/string_splitter.h"
-#include "perfetto/base/string_utils.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 

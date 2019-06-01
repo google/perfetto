@@ -17,11 +17,11 @@
 #ifndef SRC_TRACING_CORE_TRACE_WRITER_IMPL_H_
 #define SRC_TRACING_CORE_TRACE_WRITER_IMPL_H_
 
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/shared_memory_abi.h"
-#include "perfetto/tracing/core/trace_writer.h"
 #include "src/tracing/core/patch_list.h"
 
 namespace perfetto {

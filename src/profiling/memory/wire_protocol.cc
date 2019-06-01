@@ -17,8 +17,8 @@
 #include "src/profiling/memory/wire_protocol.h"
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/unix_socket.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/ext/base/utils.h"
 
 #include <sys/socket.h>
 #include <sys/types.h>

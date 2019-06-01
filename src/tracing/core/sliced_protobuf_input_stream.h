@@ -17,7 +17,7 @@
 #ifndef SRC_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
 #define SRC_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
 
-#include "perfetto/tracing/core/slice.h"
+#include "perfetto/ext/tracing/core/slice.h"
 
 #include <stdint.h>
 

@@ -24,8 +24,8 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/trace/ftrace/ftrace_stats.pb.h"
-#include "perfetto/traced/sys_stats_counters.h"
 
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"

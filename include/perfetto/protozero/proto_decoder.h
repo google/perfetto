@@ -22,9 +22,8 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/string_view.h"
-#include "perfetto/base/utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_utils.h"
 

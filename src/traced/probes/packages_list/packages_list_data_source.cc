@@ -16,11 +16,11 @@
 
 #include "src/traced/probes/packages_list/packages_list_data_source.h"
 
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/string_splitter.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_splitter.h"
 
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
-#include "perfetto/tracing/core/trace_writer.h"
 
 namespace perfetto {
 

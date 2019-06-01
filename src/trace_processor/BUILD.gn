@@ -29,7 +29,7 @@ if (perfetto_build_standalone) {
       ":lib",
       "../../buildtools:sqlite",
       "../../gn:default_deps",
-      "../../include/perfetto/base",
+      "../../include/perfetto/ext/base",
       "../../protos/perfetto/trace_processor:lite",
     ]
   }
@@ -166,7 +166,7 @@ source_set("lib") {
   deps = [
     ":sqlite",
     "../../gn:default_deps",
-    "../../include/perfetto/traced:sys_stats_counters",
+    "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:zero",
     "../../protos/perfetto/metrics:zero",
@@ -333,8 +333,8 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
   ]
   deps = [
     ":lib",
-    "../../../../gn:default_deps",
     "../../buildtools:sqlite",
+    "../../gn:default_deps",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
     "../../protos/perfetto/trace:lite",

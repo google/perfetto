@@ -22,8 +22,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
-#include "perfetto/base/utils.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
 
 namespace protozero {

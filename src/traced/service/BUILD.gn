@@ -14,7 +14,7 @@
 
 source_set("service") {
   public_deps = [
-    "../../../include/perfetto/traced",
+    "../../../include/perfetto/ext/traced",
   ]
   deps = [
     "../../../gn:default_deps",

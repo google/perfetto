@@ -19,7 +19,7 @@
 
 #include <stdint.h>
 
-#include "perfetto/base/optional.h"
+#include "perfetto/ext/base/optional.h"
 
 namespace Json {
 class Value;

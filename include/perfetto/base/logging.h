@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>  // For strerror.
 
+#include "perfetto/base/build_config.h"
+
 #if defined(NDEBUG) && !defined(DCHECK_ALWAYS_ON)
 #define PERFETTO_DCHECK_IS_ON() 0
 #else
@@ -35,7 +37,7 @@
 #endif
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 
 #if defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG)
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \

@@ -14,7 +14,7 @@
 
 source_set("probes") {
   public_deps = [
-    "../../../include/perfetto/traced",
+    "../../../include/perfetto/ext/traced",
   ]
   deps = [
     ":probes_src",
@@ -33,7 +33,7 @@ source_set("probes_src") {
   deps = [
     ":data_source",
     "../../../gn:default_deps",
-    "../../../include/perfetto/traced",
+    "../../../include/perfetto/ext/traced",
     "../../../protos/perfetto/trace/ps:zero",
     "../../base",
     "../../tracing:ipc",

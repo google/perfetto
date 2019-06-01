@@ -26,8 +26,8 @@
 #include <unistd.h>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/temp_file.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "src/profiling/memory/scoped_spinlock.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
