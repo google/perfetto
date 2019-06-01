@@ -38,6 +38,7 @@ if (perfetto_build_standalone) {
 # The library which eases processing of Perfetto traces by exposing reading
 # friendly APIs.
 static_library("trace_processor") {
+  complete_static_lib = true
   deps = [
     ":lib",
   ]
