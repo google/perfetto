@@ -17,6 +17,7 @@
 #include "src/profiling/memory/system_property.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>

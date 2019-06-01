@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/utils.h"
 
 using ::testing::ElementsAre;
 
