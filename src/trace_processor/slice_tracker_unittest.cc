@@ -61,11 +61,11 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   tracker.End(10 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/);
 
   auto slices = context.storage->nestable_slices();
-  EXPECT_EQ(slices.slice_count(), 1);
+  EXPECT_EQ(slices.slice_count(), 1u);
   EXPECT_EQ(slices.start_ns()[0], 2);
   EXPECT_EQ(slices.durations()[0], 8);
-  EXPECT_EQ(slices.cats()[0], 0);
-  EXPECT_EQ(slices.names()[0], 1);
+  EXPECT_EQ(slices.cats()[0], 0u);
+  EXPECT_EQ(slices.names()[0], 1u);
   EXPECT_EQ(slices.refs()[0], 42);
   EXPECT_EQ(slices.types()[0], kRefUtid);
   EXPECT_EQ(slices.depths()[0], 0);
@@ -89,11 +89,11 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
               });
 
   auto slices = context.storage->nestable_slices();
-  EXPECT_EQ(slices.slice_count(), 1);
+  EXPECT_EQ(slices.slice_count(), 1u);
   EXPECT_EQ(slices.start_ns()[0], 2);
   EXPECT_EQ(slices.durations()[0], 8);
-  EXPECT_EQ(slices.cats()[0], 0);
-  EXPECT_EQ(slices.names()[0], 1);
+  EXPECT_EQ(slices.cats()[0], 0u);
+  EXPECT_EQ(slices.names()[0], 1u);
   EXPECT_EQ(slices.refs()[0], 42);
   EXPECT_EQ(slices.types()[0], kRefUtid);
   EXPECT_EQ(slices.depths()[0], 0);
@@ -101,12 +101,12 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
 
   auto args = context.storage->args();
   EXPECT_EQ(args.set_ids()[0], set_id);
-  EXPECT_EQ(args.flat_keys()[0], 1);
-  EXPECT_EQ(args.keys()[0], 2);
+  EXPECT_EQ(args.flat_keys()[0], 1u);
+  EXPECT_EQ(args.keys()[0], 2u);
   EXPECT_EQ(args.arg_values()[0], Variadic::Integer(10));
   EXPECT_EQ(args.set_ids()[1], set_id);
-  EXPECT_EQ(args.flat_keys()[1], 3);
-  EXPECT_EQ(args.keys()[1], 4);
+  EXPECT_EQ(args.flat_keys()[1], 3u);
+  EXPECT_EQ(args.keys()[1], 4u);
   EXPECT_EQ(args.arg_values()[1], Variadic::Integer(20));
 }
 
@@ -122,21 +122,21 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
 
   auto slices = context.storage->nestable_slices();
 
-  EXPECT_EQ(slices.slice_count(), 2);
+  EXPECT_EQ(slices.slice_count(), 2u);
 
   size_t idx = 0;
   EXPECT_EQ(slices.start_ns()[idx], 2);
   EXPECT_EQ(slices.durations()[idx], 8);
-  EXPECT_EQ(slices.cats()[idx], 0);
-  EXPECT_EQ(slices.names()[idx], 1);
+  EXPECT_EQ(slices.cats()[idx], 0u);
+  EXPECT_EQ(slices.names()[idx], 1u);
   EXPECT_EQ(slices.refs()[idx], 42);
   EXPECT_EQ(slices.types()[idx], kRefUtid);
   EXPECT_EQ(slices.depths()[idx++], 0);
 
   EXPECT_EQ(slices.start_ns()[idx], 3);
   EXPECT_EQ(slices.durations()[idx], 2);
-  EXPECT_EQ(slices.cats()[idx], 0);
-  EXPECT_EQ(slices.names()[idx], 2);
+  EXPECT_EQ(slices.cats()[idx], 0u);
+  EXPECT_EQ(slices.names()[idx], 2u);
   EXPECT_EQ(slices.refs()[idx], 42);
   EXPECT_EQ(slices.types()[idx], kRefUtid);
   EXPECT_EQ(slices.depths()[idx], 1);
