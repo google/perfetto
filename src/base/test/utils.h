@@ -19,7 +19,7 @@
 
 #include <string>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/base/logging.h"
 
 #if defined(GTEST_HAS_DEATH_TEST)

@@ -19,7 +19,7 @@ source_set("ps") {
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/traced",
+    "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/trace/ps:zero",
     "../../../base",

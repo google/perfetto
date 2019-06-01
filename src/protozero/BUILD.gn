@@ -24,7 +24,8 @@ source_set("protozero") {
   ]
   deps = [
     "../../gn:default_deps",
-    "../base",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",  # TODO(primiano): remove this
   ]
   sources = [
     "message.cc",
@@ -97,5 +98,6 @@ perfetto_fuzzer_test("protozero_decoder_fuzzer") {
   deps = [
     ":protozero",
     "../../gn:default_deps",
+    "../base",
   ]
 }

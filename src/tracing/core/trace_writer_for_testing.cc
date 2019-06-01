@@ -17,7 +17,7 @@
 #include "src/tracing/core/trace_writer_for_testing.h"
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace.pbzero.h"

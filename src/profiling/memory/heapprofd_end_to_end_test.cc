@@ -21,7 +21,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/pipe.h"
+#include "perfetto/ext/base/pipe.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/profiling/memory/heapprofd_producer.h"

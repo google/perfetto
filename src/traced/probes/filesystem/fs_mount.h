@@ -21,7 +21,7 @@
 #include <map>
 #include <string>
 #include <vector>
-#include "perfetto/traced/data_source_types.h"
+#include "perfetto/ext/traced/data_source_types.h"
 
 namespace perfetto {
 

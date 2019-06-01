@@ -58,7 +58,7 @@ group("all") {
       "protos/perfetto/config:merged_config",  # For syntax-checking the proto.
       "protos/perfetto/trace:merged_trace",  # For syntax-checking the proto.
       "src/ipc/protoc_plugin:ipc_plugin($host_toolchain)",
-      "src/public",
+      "src/tracing:client_api",
       "tools:protoc_helper",
     ]
     if (perfetto_build_standalone) {
@@ -163,8 +163,8 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     deps = [
       "gn:default_deps",
       "gn:gtest_main",
-      "src/public:integrationtests",
       "src/traced/probes/ftrace:integrationtests",
+      "src/tracing:client_api_integrationtests",
       "test:end_to_end_integrationtests",
     ]
     if (perfetto_build_standalone && !is_android) {
@@ -188,7 +188,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
       "gn:default_deps",
       "src/traced/probes",
       "src/traced/service",
-      "src/tracing:api",
+      "src/tracing:consumer_api_deprecated",
     ]
   }
 
@@ -199,7 +199,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     deps = [
       ":libperfetto",
       "gn:default_deps",
-      "include/perfetto/traced",
+      "include/perfetto/ext/traced",
     ]
     sources = [
       "src/traced/service/main.cc",
@@ -212,7 +212,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     deps = [
       ":libperfetto",
       "gn:default_deps",
-      "include/perfetto/traced",
+      "include/perfetto/ext/traced",
     ]
     sources = [
       "src/traced/probes/main.cc",
@@ -288,7 +288,7 @@ if (perfetto_build_with_embedder) {
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
     public_deps = [
-      "include/perfetto/tracing/core",
+      "include/perfetto/ext/tracing/core",
       "protos/perfetto/trace:zero",
       "protos/perfetto/trace/chrome:zero",
       "protos/perfetto/trace/interned_data:zero",

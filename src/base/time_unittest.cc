@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/time.h"
+#include "perfetto/ext/base/time.h"
 
 #include <gtest/gtest.h>
 

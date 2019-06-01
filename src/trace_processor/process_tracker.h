@@ -19,7 +19,7 @@
 
 #include <tuple>
 
-#include "perfetto/base/string_view.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
 

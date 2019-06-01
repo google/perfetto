@@ -25,7 +25,7 @@
 #include <mutex>
 #include <vector>
 
-#include "perfetto/base/unix_socket.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "src/profiling/memory/sampler.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/unhooked_allocator.h"

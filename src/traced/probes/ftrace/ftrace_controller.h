@@ -28,9 +28,9 @@
 #include <string>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/utils.h"
-#include "perfetto/base/weak_ptr.h"
-#include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_thread_sync.h"
 

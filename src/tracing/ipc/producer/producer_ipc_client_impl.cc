@@ -20,14 +20,14 @@
 #include <string.h>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ipc/client.h"
-#include "perfetto/tracing/core/commit_data_request.h"
-#include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/data_source_descriptor.h"
-#include "perfetto/tracing/core/producer.h"
-#include "perfetto/tracing/core/shared_memory_arbiter.h"
-#include "perfetto/tracing/core/trace_config.h"
-#include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/ext/ipc/client.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
+#include "perfetto/ext/tracing/core/data_source_config.h"
+#include "perfetto/ext/tracing/core/data_source_descriptor.h"
+#include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
+#include "perfetto/ext/tracing/core/trace_config.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
 
 // TODO(fmayer): think to what happens when ProducerIPCClientImpl gets destroyed

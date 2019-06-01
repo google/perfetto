@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/optional.h"
+#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace trace_processor {

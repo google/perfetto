@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
 #include <random>
 
-#include "benchmark/benchmark.h"
-#include "perfetto/base/time.h"
-#include "perfetto/traced/traced.h"
-#include "perfetto/tracing/core/trace_config.h"
-#include "perfetto/tracing/core/trace_packet.h"
+#include <benchmark/benchmark.h>
+#include <gtest/gtest.h>
+
+#include "perfetto/ext/base/time.h"
+#include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/core/trace_config.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"

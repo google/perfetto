@@ -18,16 +18,16 @@ import("../../gn/perfetto.gni")
 # Core tracing library, platform independent, no transport layer.
 source_set("tracing") {
   public_deps = [
-    "../../include/perfetto/tracing/core",
+    ":common",
+    "../../include/perfetto/ext/tracing/core",
     "../../protos/perfetto/common:lite",
     "../../protos/perfetto/trace:minimal_lite",
     "../../protos/perfetto/trace:trusted_lite",
     "../../protos/perfetto/trace:zero",
-    "../public:common",
   ]
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/public",
+    "../../include/perfetto/tracing",
     "../../protos/perfetto/config:lite",
     "../base",
     "../protozero",
@@ -127,7 +127,7 @@ if (perfetto_build_standalone || perfetto_build_with_android ||
 source_set("test_support") {
   testonly = true
   public_deps = [
-    "../../include/perfetto/tracing/core",
+    "../../include/perfetto/ext/tracing/core",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace:zero",
     "../protozero",
@@ -141,8 +141,9 @@ source_set("test_support") {
 if (perfetto_build_standalone || perfetto_build_with_android) {
   executable("consumer_api_test") {
     deps = [
-      ":api",
+      ":consumer_api_deprecated",
       "../../gn:default_deps",
+      "../../include/perfetto/public",
       "../../protos/perfetto/config:lite",
       "../../protos/perfetto/trace:lite",
       "../base",
@@ -165,11 +166,14 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
 
   # Imlementation of the public-facing consumer API in libperfetto.so (only for
   # Android builds).
-  source_set("api") {
+  # TODO(primiano): remove this. This is a legacy and deprecated API. The only
+  # uses should be moved to the perfetto Client API.
+  source_set("consumer_api_deprecated") {
     deps = [
       ":ipc",
       ":tracing",
       "../../gn:default_deps",
+      "../../include/perfetto/public",
       "../../protos/perfetto/config:lite",
       "../base",
     ]
@@ -184,8 +188,8 @@ if (perfetto_build_with_ipc_layer) {
   # Provides an IPC transport over a UNIX domain socket.
   static_library("ipc") {
     public_deps = [
-      "../../include/perfetto/tracing/core",
-      "../../include/perfetto/tracing/ipc",
+      "../../include/perfetto/ext/tracing/core",
+      "../../include/perfetto/ext/tracing/ipc",
     ]
     sources = [
       "ipc/consumer/consumer_ipc_client_impl.cc",
@@ -209,6 +213,86 @@ if (perfetto_build_with_ipc_layer) {
       "../../protos/perfetto/ipc",
       "../base",
       "../ipc",
+    ]
+  }
+}
+
+if (perfetto_build_with_ipc_layer) {
+  source_set("client_api") {
+    deps = [
+      ":common",
+      "../../gn:default_deps",
+      "../base",
+      "../tracing",
+    ]
+    public_deps = [
+      "../../include/perfetto/tracing",
+    ]
+    sources = [
+      "data_source.cc",
+      "internal/in_process_tracing_backend.cc",
+      "internal/in_process_tracing_backend.h",
+      "internal/tracing_muxer_impl.cc",
+      "platform.cc",
+      "tracing.cc",
+      "virtual_destructors.cc",
+    ]
+
+    # TODO there should be an option to compile this out. This pulls IPC
+    # dependencies and bloats binary size.
+    deps += [ "../tracing:ipc" ]
+    sources += [
+      "internal/system_tracing_backend.cc",
+      "internal/system_tracing_backend.h",
+    ]
+  }
+}
+
+# Separate target because the embedder might not want this (e.g. on Windows).
+if (is_linux || is_mac || is_android) {
+  source_set("platform_posix") {
+    deps = [
+      "../../gn:default_deps",
+      "../../include/perfetto/tracing",
+      "../base",
+    ]
+    sources = [
+      "platform_posix.cc",
+    ]
+  }
+}
+
+# Code that both public headers and other non-public sources (e.g.
+# src/tracing/core) need to depend on. It cannot be in the root :tracing target
+# otherwise there would be a cyclic dependency because public itself needs to
+# depend on tracing.
+source_set("common") {
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/tracing",
+  ]
+  sources = [
+    "trace_writer_base.cc",
+  ]
+}
+
+if (!perfetto_build_with_embedder) {
+  source_set("client_api_integrationtests") {
+    testonly = true
+    deps = [
+      ":client_api",
+      ":platform_posix",
+      "../../gn:default_deps",
+      "../../gn:gtest_deps",
+      "../../protos/perfetto/trace:lite",
+      "../../protos/perfetto/trace:zero",
+      "../base",
+
+      # TODO(primiano): move DataSourceConfig to /include/ and remove this.
+      "../../include/perfetto/ext/tracing/core",
+    ]
+    sources = [
+      "api_integrationtest.cc",
     ]
   }
 }

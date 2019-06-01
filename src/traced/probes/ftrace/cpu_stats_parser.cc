@@ -16,8 +16,8 @@
 
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 
-#include "perfetto/base/string_splitter.h"
-#include "perfetto/base/string_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"

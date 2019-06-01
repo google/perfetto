@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_NULL_TERM_STRING_VIEW_H_
 #define SRC_TRACE_PROCESSOR_NULL_TERM_STRING_VIEW_H_
 
-#include "perfetto/base/string_view.h"
+#include "perfetto/ext/base/string_view.h"
 
 namespace perfetto {
 namespace trace_processor {

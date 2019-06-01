@@ -26,13 +26,13 @@
 #include <set>
 #include <thread>
 
-#include "perfetto/base/paged_memory.h"
-#include "perfetto/base/pipe.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/thread_checker.h"
+#include "perfetto/ext/base/paged_memory.h"
+#include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/traced/data_source_types.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
-#include "perfetto/traced/data_source_types.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/page_pool.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"

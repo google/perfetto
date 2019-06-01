@@ -25,17 +25,17 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/optional.h"
-#include "perfetto/base/time.h"
-#include "perfetto/base/weak_ptr.h"
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/commit_data_request.h"
-#include "perfetto/tracing/core/data_source_descriptor.h"
-#include "perfetto/tracing/core/observable_events.h"
-#include "perfetto/tracing/core/shared_memory_abi.h"
-#include "perfetto/tracing/core/trace_config.h"
-#include "perfetto/tracing/core/trace_stats.h"
-#include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/time.h"
+#include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
+#include "perfetto/ext/tracing/core/data_source_descriptor.h"
+#include "perfetto/ext/tracing/core/observable_events.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/trace_config.h"
+#include "perfetto/ext/tracing/core/trace_stats.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/tracing/core/id_allocator.h"
 
 namespace perfetto {

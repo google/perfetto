@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/unix_socket.h"
+#include "perfetto/ext/base/unix_socket.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -32,7 +32,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 #include <sys/ucred.h>

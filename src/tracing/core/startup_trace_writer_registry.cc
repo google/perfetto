@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include "perfetto/tracing/core/startup_trace_writer_registry.h"
+#include "perfetto/ext/tracing/core/startup_trace_writer_registry.h"
 
 #include <functional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/tracing/core/startup_trace_writer.h"
+#include "perfetto/ext/tracing/core/startup_trace_writer.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
 using ChunkHeader = perfetto::SharedMemoryABI::ChunkHeader;

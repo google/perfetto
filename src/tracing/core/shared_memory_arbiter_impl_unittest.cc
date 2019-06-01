@@ -18,11 +18,11 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "perfetto/base/utils.h"
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/commit_data_request.h"
-#include "perfetto/tracing/core/shared_memory_abi.h"
-#include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/base/test/gtest_test_suite.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/patch_list.h"

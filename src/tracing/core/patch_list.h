@@ -21,8 +21,8 @@
 #include <forward_list>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
 
 namespace perfetto {
 

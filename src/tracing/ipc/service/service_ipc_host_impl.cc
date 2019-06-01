@@ -18,8 +18,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ipc/host.h"
-#include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/ext/ipc/host.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
 #include "src/tracing/ipc/service/consumer_ipc_service.h"
 #include "src/tracing/ipc/service/producer_ipc_service.h"

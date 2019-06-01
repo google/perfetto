@@ -20,8 +20,8 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/unix_task_runner.h"
-#include "perfetto/traced/traced.h"
+#include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/traced/traced.h"
 
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/probes_producer.h"

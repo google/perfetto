@@ -22,13 +22,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "perfetto/base/file_utils.h"
-#include "perfetto/base/string_utils.h"
-#include "perfetto/base/thread_task_runner.h"
-#include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/data_source_descriptor.h"
-#include "perfetto/tracing/core/trace_writer.h"
-#include "perfetto/tracing/ipc/producer_ipc_client.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/thread_task_runner.h"
+#include "perfetto/ext/tracing/core/data_source_config.h"
+#include "perfetto/ext/tracing/core/data_source_descriptor.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 
 #include "src/profiling/memory/bookkeeping_dump.h"
 

@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_STRING_POOL_H_
 #define SRC_TRACE_PROCESSOR_STRING_POOL_H_
 
-#include "perfetto/base/paged_memory.h"
+#include "perfetto/ext/base/paged_memory.h"
 #include "src/trace_processor/null_term_string_view.h"
 
 #include <unordered_map>

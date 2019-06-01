@@ -25,8 +25,8 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/string_view.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/json_trace_utils.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"

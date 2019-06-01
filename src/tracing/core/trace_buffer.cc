@@ -19,9 +19,9 @@
 #include <limits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/tracing/core/shared_memory_abi.h"
-#include "perfetto/tracing/core/trace_packet.h"
 
 #define TRACE_BUFFER_VERBOSE_LOGGING() 0  // Set to 1 when debugging unittests.
 #if TRACE_BUFFER_VERBOSE_LOGGING()

@@ -23,11 +23,11 @@
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
-#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/string_view.h"
-#include "perfetto/base/utils.h"
 #include "perfetto/common/descriptor.pb.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"

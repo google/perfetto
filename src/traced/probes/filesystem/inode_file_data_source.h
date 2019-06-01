@@ -26,11 +26,11 @@
 #include <unordered_map>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/weak_ptr.h"
-#include "perfetto/traced/data_source_types.h"
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/ext/traced/data_source_types.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/data_source_config.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/traced/probes/filesystem/file_scanner.h"
 #include "src/traced/probes/filesystem/fs_mount.h"
 #include "src/traced/probes/filesystem/lru_inode_cache.h"

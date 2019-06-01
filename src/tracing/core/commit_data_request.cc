@@ -25,7 +25,7 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#include "perfetto/tracing/core/commit_data_request.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
 
 #include "perfetto/common/commit_data_request.pb.h"
 

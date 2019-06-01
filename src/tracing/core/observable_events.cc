@@ -25,7 +25,7 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#include "perfetto/tracing/core/observable_events.h"
+#include "perfetto/ext/tracing/core/observable_events.h"
 
 #include "perfetto/common/observable_events.pb.h"
 
