@@ -22,7 +22,7 @@
 #include <map>
 #include <unordered_map>
 
-#include "perfetto/base/optional.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_storage.h"

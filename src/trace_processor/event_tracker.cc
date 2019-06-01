@@ -18,7 +18,7 @@
 
 #include <math.h>
 
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/ftrace_utils.h"

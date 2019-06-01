@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/unix_task_runner.h"
+#include "perfetto/ext/base/unix_task_runner.h"
 
 #include "perfetto/base/build_config.h"
 
@@ -23,6 +23,8 @@
 #include <unistd.h>
 
 #include <limits>
+
+#include "perfetto/ext/base/watchdog.h"
 
 namespace perfetto {
 namespace base {
@@ -114,10 +116,10 @@ void UnixTaskRunner::RunImmediateAndDelayedTask() {
 
   errno = 0;
   if (immediate_task)
-    RunTask(immediate_task);
+    RunTaskWithWatchdogGuard(immediate_task);
   errno = 0;
   if (delayed_task)
-    RunTask(delayed_task);
+    RunTaskWithWatchdogGuard(delayed_task);
 }
 
 void UnixTaskRunner::PostFileDescriptorWatches() {
@@ -163,7 +165,7 @@ void UnixTaskRunner::RunFileDescriptorWatch(int fd) {
     task = it->second.callback;
   }
   errno = 0;
-  RunTask(task);
+  RunTaskWithWatchdogGuard(task);
 }
 
 int UnixTaskRunner::GetDelayMsToNextTaskLocked() const {

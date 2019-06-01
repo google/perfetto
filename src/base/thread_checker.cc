@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/thread_checker.h"
+#include "perfetto/ext/base/thread_checker.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>

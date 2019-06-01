@@ -26,9 +26,9 @@
 
 #include "tools/trace_to_text/utils.h"
 
-#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/temp_file.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 
 #include "perfetto/trace/profiling/profile_packet.pb.h"
 #include "perfetto/trace/trace.pb.h"

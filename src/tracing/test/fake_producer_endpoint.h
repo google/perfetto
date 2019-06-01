@@ -17,8 +17,8 @@
 #ifndef SRC_TRACING_TEST_FAKE_PRODUCER_ENDPOINT_H_
 #define SRC_TRACING_TEST_FAKE_PRODUCER_ENDPOINT_H_
 
-#include "perfetto/tracing/core/commit_data_request.h"
-#include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 
 namespace perfetto {
 

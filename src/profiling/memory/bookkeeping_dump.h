@@ -25,7 +25,7 @@
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
-#include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/interner.h"

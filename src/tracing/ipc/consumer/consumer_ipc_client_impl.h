@@ -21,13 +21,13 @@
 
 #include <vector>
 
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/weak_ptr.h"
-#include "perfetto/ipc/service_proxy.h"
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/trace_packet.h"
-#include "perfetto/tracing/core/tracing_service.h"
-#include "perfetto/tracing/ipc/consumer_ipc_client.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/ext/ipc/service_proxy.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 
 #include "perfetto/ipc/consumer_port.ipc.h"
 

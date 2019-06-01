@@ -23,15 +23,15 @@
 #include <getopt.h>
 #include <signal.h>
 
-#include "perfetto/base/event.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/unix_socket.h"
-#include "perfetto/base/watchdog.h"
+#include "perfetto/ext/base/event.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/ext/base/watchdog.h"
 #include "src/profiling/memory/heapprofd_producer.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "src/tracing/ipc/default_socket.h"
 
-#include "perfetto/base/unix_task_runner.h"
+#include "perfetto/ext/base/unix_task_runner.h"
 
 // TODO(rsavitski): the task runner watchdog spawns a thread (normally for
 // tracking cpu/mem usage) that we don't strictly need.

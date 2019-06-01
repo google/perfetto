@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/paged_memory.h"
+#include "perfetto/ext/base/paged_memory.h"
 
 #include <algorithm>
 #include <cmath>
@@ -26,7 +26,8 @@
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/container_annotations.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 namespace base {
@@ -37,7 +38,7 @@ constexpr size_t kGuardSize = kPageSize;
 
 #if TRACK_COMMITTED_SIZE()
 constexpr size_t kCommitChunkSize = kPageSize * 1024;  // 4mB
-#endif  // TRACK_COMMITTED_SIZE()
+#endif                                                 // TRACK_COMMITTED_SIZE()
 
 }  // namespace
 

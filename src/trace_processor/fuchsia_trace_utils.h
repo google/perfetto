@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include <functional>
 
-#include "perfetto/base/string_view.h"
+#include "perfetto/ext/base/string_view.h"
 
 namespace perfetto {
 namespace trace_processor {

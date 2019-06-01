@@ -23,9 +23,9 @@
 #include <condition_variable>
 #include <thread>
 
-#include "perfetto/base/file_utils.h"
-#include "perfetto/base/string_splitter.h"
-#include "perfetto/base/time.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/time.h"
 #include "test/task_runner_thread.h"
 
 namespace perfetto {

@@ -23,7 +23,6 @@
 #include <type_traits>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/utils.h"
 
 namespace protozero {
 namespace proto_utils {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/string_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

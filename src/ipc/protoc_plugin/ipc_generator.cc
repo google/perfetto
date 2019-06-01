@@ -250,14 +250,14 @@ bool IPCGenerator::Generate(const FileDescriptor* file,
   h_printer.Print(kBanner);
   h_printer.Print("#ifndef $guard$\n#define $guard$\n\n", "guard", guard);
   h_printer.Print("#include \"$h$\"\n", "h", StripName(*file) + ".pb.h");
-  h_printer.Print("#include \"perfetto/ipc/deferred.h\"\n");
-  h_printer.Print("#include \"perfetto/ipc/service.h\"\n");
-  h_printer.Print("#include \"perfetto/ipc/service_descriptor.h\"\n");
-  h_printer.Print("#include \"perfetto/ipc/service_proxy.h\"\n\n");
+  h_printer.Print("#include \"perfetto/ext/ipc/deferred.h\"\n");
+  h_printer.Print("#include \"perfetto/ext/ipc/service.h\"\n");
+  h_printer.Print("#include \"perfetto/ext/ipc/service_descriptor.h\"\n");
+  h_printer.Print("#include \"perfetto/ext/ipc/service_proxy.h\"\n\n");
 
   cc_printer.Print(kBanner);
   cc_printer.Print("#include \"$h$\"\n", "h", GetStubName(*file) + ".h");
-  cc_printer.Print("#include \"perfetto/ipc/codegen_helpers.h\"\n\n");
+  cc_printer.Print("#include \"perfetto/ext/ipc/codegen_helpers.h\"\n\n");
   cc_printer.Print("#include <memory>\n");
 
   for (int i = 0; i < file->service_count(); i++) {

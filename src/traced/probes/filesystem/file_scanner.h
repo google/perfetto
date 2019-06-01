@@ -20,10 +20,10 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/base/scoped_file.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/weak_ptr.h"
-#include "perfetto/traced/data_source_types.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/ext/traced/data_source_types.h"
 
 namespace perfetto {
 

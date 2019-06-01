@@ -21,8 +21,8 @@
 #include <array>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/string_view.h"
-#include "perfetto/base/string_writer.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/string_writer.h"
 
 namespace perfetto {
 namespace trace_processor {

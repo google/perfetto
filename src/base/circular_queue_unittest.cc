@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/circular_queue.h"
+#include "perfetto/ext/base/circular_queue.h"
 
 #include <random>
 

@@ -24,9 +24,9 @@
 
 #include <sys/mman.h>
 
-#include "perfetto/base/paged_memory.h"
-#include "perfetto/base/utils.h"
-#include "perfetto/ipc/basic_types.h"
+#include "perfetto/ext/base/paged_memory.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/ipc/basic_types.h"
 
 namespace perfetto {
 namespace ipc {

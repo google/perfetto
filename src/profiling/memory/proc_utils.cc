@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "perfetto/base/file_utils.h"
+#include "perfetto/ext/base/file_utils.h"
 
 namespace perfetto {
 namespace profiling {

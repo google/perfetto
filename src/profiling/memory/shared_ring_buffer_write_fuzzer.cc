@@ -17,8 +17,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "perfetto/base/file_utils.h"
-#include "perfetto/base/temp_file.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 
 namespace perfetto {
