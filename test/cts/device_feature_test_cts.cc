@@ -16,7 +16,7 @@
 
 #include <sys/sysinfo.h>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 namespace perfetto {
 

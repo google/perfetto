@@ -22,7 +22,7 @@
 #include <array>
 #include <memory>
 
-#include "perfetto/base/string_view.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/proto_incremental_state.h"

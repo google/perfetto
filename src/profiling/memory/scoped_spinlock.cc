@@ -20,7 +20,7 @@
 
 #include <atomic>
 
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace {
 // Wait for ~1s before timing out (+- spurious wakeups from the sleeps).

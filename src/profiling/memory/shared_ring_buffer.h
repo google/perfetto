@@ -17,9 +17,9 @@
 #ifndef SRC_PROFILING_MEMORY_SHARED_RING_BUFFER_H_
 #define SRC_PROFILING_MEMORY_SHARED_RING_BUFFER_H_
 
-#include "perfetto/base/optional.h"
-#include "perfetto/base/unix_socket.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/profiling/memory/scoped_spinlock.h"
 
 #include <atomic>

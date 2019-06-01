@@ -19,7 +19,7 @@ source_set("android_log") {
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/traced",
+    "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/trace/android:zero",

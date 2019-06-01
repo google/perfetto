@@ -15,7 +15,7 @@
  */
 
 #include "src/profiling/memory/unwinding.h"
-#include "perfetto/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/wire_protocol.h"
 

@@ -17,7 +17,7 @@ import os
 import subprocess
 import sys
 
-CORE_H = 'include/perfetto/tracing/core'
+CORE_H = 'include/perfetto/ext/tracing/core'
 CORE_CPP = 'src/tracing/core'
 
 PROTOS = (
@@ -40,9 +40,9 @@ PROTOS = (
 )
 
 
-HEADER_PATH = 'include/perfetto/tracing/core'
+HEADER_PATH = 'include/perfetto/ext/tracing/core'
 CPP_PATH = 'src/tracing/core'
-INCLUDE_PATH = 'perfetto/tracing/core'
+INCLUDE_PATH = 'perfetto/ext/tracing/core'
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 

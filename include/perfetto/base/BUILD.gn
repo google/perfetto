@@ -17,43 +17,9 @@ import("../../../gn/perfetto.gni")
 source_set("base") {
   sources = [
     "build_config.h",
-    "circular_queue.h",
-    "container_annotations.h",
-    "event.h",
+    "compiler.h",
     "export.h",
-    "file_utils.h",
-    "hash.h",
     "logging.h",
-    "metatrace.h",
-    "no_destructor.h",
-    "optional.h",
-    "paged_memory.h",
-    "pipe.h",
-    "scoped_file.h",
-    "small_set.h",
-    "string_splitter.h",
-    "string_utils.h",
-    "string_view.h",
-    "string_writer.h",
     "task_runner.h",
-    "temp_file.h",
-    "thread_annotations.h",
-    "thread_checker.h",
-    "thread_task_runner.h",
-    "thread_utils.h",
-    "time.h",
-    "unix_task_runner.h",
-    "utils.h",
-    "watchdog.h",
-    "watchdog_noop.h",
-    "watchdog_posix.h",
-    "weak_ptr.h",
   ]
-  if (is_android) {
-    sources += [ "android_task_runner.h" ]
-  }
-  if (perfetto_build_with_ipc_layer) {
-    sources += [ "unix_socket.h" ]
-  }
-  public_configs = [ "../../../gn:asan_instrumentation" ]
 }

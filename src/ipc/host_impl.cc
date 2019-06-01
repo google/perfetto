@@ -22,9 +22,9 @@
 #include <utility>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/utils.h"
-#include "perfetto/ipc/service.h"
-#include "perfetto/ipc/service_descriptor.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/ipc/service.h"
+#include "perfetto/ext/ipc/service_descriptor.h"
 
 #include "src/ipc/wire_protocol.pb.h"
 

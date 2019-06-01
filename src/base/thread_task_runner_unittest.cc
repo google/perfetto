@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/thread_task_runner.h"
+#include "perfetto/ext/base/thread_task_runner.h"
 
 #include <thread>
 
 #include <gtest/gtest.h>
-#include "perfetto/base/thread_checker.h"
+#include "perfetto/ext/base/thread_checker.h"
 
 namespace perfetto {
 namespace base {

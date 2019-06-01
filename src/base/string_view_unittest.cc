@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/string_view.h"
+#include "perfetto/ext/base/string_view.h"
 
 #include <forward_list>
 #include <unordered_map>

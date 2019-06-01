@@ -22,16 +22,16 @@
 #include <map>
 #include <vector>
 
-#include "perfetto/base/optional.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/unix_socket.h"
-#include "perfetto/base/unix_task_runner.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/ext/base/unix_task_runner.h"
 
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/producer.h"
-#include "perfetto/tracing/core/trace_writer.h"
-#include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/data_source_config.h"
+#include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/heapprofd_config.h"

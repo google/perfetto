@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/temp_file.h"
+#include "perfetto/ext/base/temp_file.h"
 
 #include <sys/stat.h>
 #include <unistd.h>

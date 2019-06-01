@@ -18,10 +18,10 @@
 
 #include <vector>
 
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/tracing/core/trace_writer.h"
 
 namespace perfetto {
 

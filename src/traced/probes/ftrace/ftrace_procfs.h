@@ -21,7 +21,7 @@
 #include <set>
 #include <string>
 
-#include "perfetto/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_file.h"
 
 namespace perfetto {
 

@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto.gni")
 import("../../gn/fuzzer.gni")
 import("../../gn/ipc_library.gni")
+import("../../gn/perfetto.gni")
 import("../../gn/proto_library.gni")
 
 # For use_libfuzzer.
@@ -31,7 +31,7 @@ assert(perfetto_build_with_ipc_layer)
 source_set("ipc") {
   public_configs = [ "../../gn:default_config" ]
   public_deps = [
-    "../../include/perfetto/ipc",
+    "../../include/perfetto/ext/ipc",
     "../base:unix_socket",
   ]
   deps = [

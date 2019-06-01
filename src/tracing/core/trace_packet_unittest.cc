@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
 
 #include <string>
 

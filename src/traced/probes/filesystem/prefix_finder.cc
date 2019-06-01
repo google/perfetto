@@ -16,7 +16,7 @@
 
 #include "src/traced/probes/filesystem/prefix_finder.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/string_splitter.h"
+#include "perfetto/ext/base/string_splitter.h"
 
 namespace perfetto {
 

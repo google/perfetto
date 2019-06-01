@@ -24,9 +24,9 @@
 #include <unordered_map>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/tracing/core/trace_packet.h"
-#include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 
 #include "perfetto/config/inode_file/inode_file_config.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"

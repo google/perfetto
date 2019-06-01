@@ -21,8 +21,9 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/base/optional.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/status.h"
 
 namespace perfetto {
 namespace trace_processor {

@@ -22,9 +22,9 @@
 
 #include "perfetto/base/task_runner.h"
 
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/data_source_config.h"
 #include "perfetto/trace/android/packages_list.pbzero.h"
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/data_source_config.h"
 
 #include "src/traced/probes/probes_data_source.h"
 

@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 
 namespace perfetto {
 

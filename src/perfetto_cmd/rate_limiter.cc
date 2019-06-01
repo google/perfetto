@@ -20,10 +20,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)

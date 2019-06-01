@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/lookup_set.h"
+#include "perfetto/ext/base/lookup_set.h"
 
 namespace perfetto {
 

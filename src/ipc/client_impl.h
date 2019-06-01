@@ -17,10 +17,10 @@
 #ifndef SRC_IPC_CLIENT_IMPL_H_
 #define SRC_IPC_CLIENT_IMPL_H_
 
-#include "perfetto/base/scoped_file.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/unix_socket.h"
-#include "perfetto/ipc/client.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/ext/ipc/client.h"
 #include "src/ipc/buffered_frame_deserializer.h"
 
 #include "src/ipc/wire_protocol.pb.h"

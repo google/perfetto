@@ -19,7 +19,7 @@ source_set("packages_list") {
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/traced",
+    "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace/android:zero",
     "../../../base",

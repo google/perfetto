@@ -20,8 +20,8 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/unix_task_runner.h"
-#include "perfetto/traced/traced.h"
+#include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/traced/traced.h"
 #include "src/perfetto_cmd/trigger_producer.h"
 
 namespace perfetto {
