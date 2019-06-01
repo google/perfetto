@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 
-#include "perfetto/base/small_set.h"
+#include "perfetto/ext/base/small_set.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/filesystem/prefix_finder.h"
 

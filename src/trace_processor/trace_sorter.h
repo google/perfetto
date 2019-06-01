@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include "perfetto/base/circular_queue.h"
+#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/fuchsia_provider_view.h"
 #include "src/trace_processor/proto_incremental_state.h"

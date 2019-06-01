@@ -22,6 +22,7 @@ source_set("base") {
   ]
   public_deps = [
     "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
   ]
   sources = [
     "file_utils.cc",
@@ -82,7 +83,8 @@ if (is_debug && perfetto_build_standalone && !is_wasm) {
     ]
     deps = [
       "../../gn:default_deps",
-      "../../include/perfetto/base",
+      "../../include/perfetto/ext/base",
+      "../../include/perfetto/ext/base",
     ]
     if (is_linux || is_android) {
       deps += [ "../../buildtools:libbacktrace" ]
@@ -96,7 +98,8 @@ if (perfetto_build_with_ipc_layer) {
   source_set("unix_socket") {
     deps = [
       "../../gn:default_deps",
-      "../../include/perfetto/base",
+      "../../include/perfetto/ext/base",
+      "../../include/perfetto/ext/base",
     ]
     sources = [
       "unix_socket.cc",
@@ -136,7 +139,8 @@ source_set("unittests") {
     "../../gn:gtest_deps",
   ]
 
-  if (is_android && (perfetto_build_standalone || perfetto_build_with_android)) {
+  if (is_android &&
+      (perfetto_build_standalone || perfetto_build_with_android)) {
     deps += [ ":android_task_runner" ]
   }
   sources = [

@@ -21,11 +21,11 @@
 #include <string>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/weak_ptr.h"
+#include "perfetto/ext/base/weak_ptr.h"
 
-#include "perfetto/tracing/core/basic_types.h"
-#include "perfetto/tracing/core/producer.h"
-#include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 
 namespace perfetto {
 

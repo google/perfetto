@@ -26,9 +26,9 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/metatrace.h"
-#include "perfetto/base/optional.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_thread_sync.h"

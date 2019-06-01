@@ -27,9 +27,9 @@
 #include <unwindstack/JitDebug.h>
 #endif
 
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/thread_task_runner.h"
-#include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/thread_task_runner.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"

@@ -18,7 +18,7 @@ import("../../gn/proto_library.gni")
 source_set("perfetto_cmd") {
   public_deps = [
     ":protos",
-    "../../include/perfetto/traced",
+    "../../include/perfetto/ext/traced",
   ]
   deps = [
     ":trigger_producer",
@@ -54,7 +54,7 @@ source_set("perfetto_cmd") {
 source_set("trigger_perfetto_cmd") {
   public_deps = [
     ":protos",
-    "../../include/perfetto/traced",
+    "../../include/perfetto/ext/traced",
   ]
   deps = [
     ":trigger_producer",
@@ -99,7 +99,7 @@ source_set("unittests") {
     ":perfetto_cmd",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
-    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
     "../../protos/perfetto/config:lite",
   ]
   sources = [

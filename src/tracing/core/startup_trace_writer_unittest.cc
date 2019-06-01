@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "perfetto/tracing/core/startup_trace_writer.h"
+#include "perfetto/ext/tracing/core/startup_trace_writer.h"
 
 #include <gtest/gtest.h>
-#include "perfetto/tracing/core/startup_trace_writer_registry.h"
-#include "perfetto/tracing/core/trace_packet.h"
-#include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/core/startup_trace_writer_registry.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/base/test/gtest_test_suite.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"

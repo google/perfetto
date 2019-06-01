@@ -22,7 +22,7 @@
 #include <atomic>
 #include <random>
 
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 namespace profiling {

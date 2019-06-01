@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/sqlite.h"
 #include "src/trace_processor/table.h"

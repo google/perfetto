@@ -19,7 +19,7 @@
 #include <string.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 
 namespace protozero {

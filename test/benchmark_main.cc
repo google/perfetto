@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "benchmark/benchmark.h"
+#include <benchmark/benchmark.h>
 
 BENCHMARK_MAIN();

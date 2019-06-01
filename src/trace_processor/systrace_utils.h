@@ -19,8 +19,8 @@
 
 #include <string>
 
-#include "perfetto/base/optional.h"
-#include "perfetto/base/string_view.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_view.h"
 
 namespace perfetto {
 namespace trace_processor {

@@ -60,6 +60,7 @@ source_set("lib") {
     "../../../protos/perfetto/metrics:zero",
     "../../../protos/perfetto/metrics/android:zero",
     "../../../protos/perfetto/trace_processor:metrics_impl_zero",
+    "../../base",
     "../../protozero:protozero",
   ]
   public_deps = [

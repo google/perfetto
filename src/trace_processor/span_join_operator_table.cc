@@ -22,9 +22,9 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/string_splitter.h"
-#include "perfetto/base/string_utils.h"
-#include "perfetto/base/string_view.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/sqlite.h"
 #include "src/trace_processor/sqlite_utils.h"
 

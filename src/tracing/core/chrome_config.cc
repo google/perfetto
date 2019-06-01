@@ -25,7 +25,7 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#include "perfetto/tracing/core/chrome_config.h"
+#include "perfetto/ext/tracing/core/chrome_config.h"
 
 #include "perfetto/config/chrome/chrome_config.pb.h"
 

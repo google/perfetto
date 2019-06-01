@@ -28,7 +28,7 @@
 #include <unwind.h>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/file_utils.h"
+#include "perfetto/ext/base/file_utils.h"
 
 // Some glibc headers hit this when using signals.
 #pragma GCC diagnostic push

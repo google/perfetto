@@ -44,12 +44,12 @@
 
 #include <procinfo/process_map.h>
 
-#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/string_utils.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/thread_task_runner.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/thread_task_runner.h"
 
 #include "src/profiling/memory/utils.h"
 #include "src/profiling/memory/wire_protocol.h"

@@ -32,11 +32,11 @@
 #include <google/protobuf/text_format.h>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/file_utils.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/scoped_file.h"
-#include "perfetto/base/string_splitter.h"
-#include "perfetto/base/time.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/time.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 

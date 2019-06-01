@@ -16,8 +16,8 @@
 
 #include "src/trace_processor/systrace_trace_parser.h"
 
-#include "perfetto/base/string_splitter.h"
-#include "perfetto/base/string_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"

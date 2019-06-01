@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/string_splitter.h"
+#include "perfetto/ext/base/string_splitter.h"
 
 #include <utility>
 

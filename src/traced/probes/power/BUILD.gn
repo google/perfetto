@@ -20,7 +20,7 @@ source_set("power") {
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/traced",
+    "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/trace/power:zero",
     "../../../android_internal:headers",

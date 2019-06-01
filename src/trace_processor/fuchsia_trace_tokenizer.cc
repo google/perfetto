@@ -20,7 +20,7 @@
 #include <unordered_map>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/string_view.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/fuchsia_provider_view.h"
 #include "src/trace_processor/process_tracker.h"

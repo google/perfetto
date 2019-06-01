@@ -17,13 +17,11 @@
 #ifndef INCLUDE_PERFETTO_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
 
-#include <functional>
 #include <memory>
-#include <unordered_map>
 #include <vector>
 
-#include "perfetto/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/status.h"
 
 namespace perfetto {
 

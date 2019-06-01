@@ -25,12 +25,12 @@
 #include <string>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/thread_checker.h"
-#include "perfetto/base/unix_task_runner.h"
+#include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/base/unix_task_runner.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
     !PERFETTO_BUILDFLAG(PERFETTO_EMBEDDER_BUILD)
-#include "perfetto/base/android_task_runner.h"
+#include "perfetto/ext/base/android_task_runner.h"
 #endif
 
 namespace perfetto {

@@ -21,11 +21,11 @@
 #include <random>
 #include <string>
 
-#include "perfetto/base/thread_checker.h"
-#include "perfetto/tracing/core/data_source_descriptor.h"
-#include "perfetto/tracing/core/producer.h"
-#include "perfetto/tracing/core/trace_config.h"
-#include "perfetto/tracing/ipc/producer_ipc_client.h"
+#include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/tracing/core/data_source_descriptor.h"
+#include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/core/trace_config.h"
+#include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "src/base/test/test_task_runner.h"
 
 namespace perfetto {
