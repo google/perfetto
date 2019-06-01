@@ -141,7 +141,7 @@ void PagedMemory::EnsureCommitted(size_t committed_size) {
                            PAGE_READWRITE);
   PERFETTO_CHECK(res);
   ANNOTATE_CHANGE_SIZE(p_, size_, committed_size_,
-                       committed_size_ + commit_size
+                       committed_size_ + commit_size)
   committed_size_ += commit_size;
 #else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // mmap commits automatically as needed, so we only track here for ASAN.
