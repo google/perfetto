@@ -32,8 +32,29 @@ message ThreadDescriptor {
   optional int32 legacy_sort_index = 3;
 
   enum ChromeThreadType {
-    THREAD_UNSPECIFIED = 0;
-    // TODO(eseckler): Add thread types.
+    THREAD_TYPE_UNSPECIFIED = 0;
+
+    THREAD_TYPE_MAIN = 1;
+    THREAD_TYPE_IO = 2;
+
+    // Scheduler:
+    THREAD_TYPE_THREAD_POOL_BG_WORKER = 3;
+    THREAD_TYPE_THREAD_POOL_FG_WORKER = 4;
+    THREAD_TYPE_THREAD_POOL_FB_BLOCKING = 5;
+    THREAD_TYPE_THREAD_POOL_BG_BLOCKING = 6;
+    THREAD_TYPE_THREAD_POOL_SERVICE = 7;
+
+    // Compositor:
+    THREAD_TYPE_COMPOSITOR = 8;
+    THREAD_TYPE_VIZ_COMPOSITOR = 9;
+    THREAD_TYPE_COMPOSITOR_WORKER = 10;
+
+    // Renderer:
+    THREAD_TYPE_SERVICE_WORKER = 11;
+
+    // Tracing related threads:
+    THREAD_TYPE_MEMORY_INFRA = 50;
+    THREAD_TYPE_SAMPLING_PROFILER = 51;
   };
   optional ChromeThreadType chrome_thread_type = 4;
 
