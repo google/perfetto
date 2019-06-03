@@ -225,7 +225,7 @@ class Target(object):
     assert type in ('cc_binary', 'cc_library', 'cc_proto_library',
                     'proto_library', 'filegroup', 'alias',
                     'pbzero_cc_proto_library', 'genrule',
-                    'transitive_descriptor_set', )
+                    'transitive_descriptor_set', 'java_proto_library' )
     self.type = type
     self.name = name
     self.srcs = set()
@@ -535,6 +535,15 @@ class BuildGenerator(object):
       cc_target.deps.add(
           Label("//third_party/perfetto/protos:" + proto_target.name))
       self.proto_build.add_target(cc_target)
+
+      java_target_name = proto_target.name + "_java_proto"
+      java_target = Target('java_proto_library',
+                           java_target_name,
+                           gn_name=gn_target_name_no_toolchain)
+      java_target.visibility.add("//visibility:public")
+      java_target.deps.add(
+          Label("//third_party/perfetto/protos:" + proto_target.name))
+      self.proto_build.add_target(java_target)
 
     return (proto_target, cc_target)
 
