@@ -77,7 +77,7 @@ class ProtoIncrementalState {
   struct InternedDataView {
     InternedDataView(TraceBlobView msg) : message(std::move(msg)) {}
 
-    typename MessageType::Decoder CreateDecoder() {
+    typename MessageType::Decoder CreateDecoder() const {
       return typename MessageType::Decoder(message.data(), message.length());
     }
 
