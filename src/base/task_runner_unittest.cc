@@ -29,6 +29,7 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/base/test/gtest_test_suite.h"
 
 namespace perfetto {
