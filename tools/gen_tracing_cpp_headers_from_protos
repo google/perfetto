@@ -22,11 +22,12 @@ CORE_CPP = 'src/tracing/core'
 
 PROTOS = (
     ('perfetto/common/commit_data_request.proto', CORE_H, CORE_CPP),
+    ('perfetto/common/data_source_descriptor.proto', CORE_H, CORE_CPP),
     ('perfetto/common/observable_events.proto', CORE_H, CORE_CPP),
+    ('perfetto/common/tracing_service_state.proto', CORE_H, CORE_CPP),
     ('perfetto/common/trace_stats.proto', CORE_H, CORE_CPP),
     ('perfetto/config/chrome/chrome_config.proto', CORE_H, CORE_CPP),
     ('perfetto/config/data_source_config.proto', CORE_H, CORE_CPP),
-    ('perfetto/config/data_source_descriptor.proto', CORE_H, CORE_CPP),
     ('perfetto/config/test_config.proto', CORE_H, CORE_CPP),
     ('perfetto/config/trace_config.proto', CORE_H, CORE_CPP),
 
