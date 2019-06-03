@@ -187,7 +187,9 @@ template("proto_library") {
                              "visibility",
                            ])
 
+    set_sources_assignment_filter([ "*\.descriptor" ])
     sources = get_target_outputs(":$action_name")
+    set_sources_assignment_filter([])
 
     configs -= [ "//gn/standalone:extra_warnings" ]
     if (defined(invoker.extra_configs)) {

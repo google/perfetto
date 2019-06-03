@@ -29,6 +29,7 @@
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/trace_stats.h"
 #include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 
 namespace perfetto {
 
@@ -187,6 +188,22 @@ void ConsumerIPCService::ObserveEvents(const protos::ObserveEventsRequest& req,
     remote_consumer->CloseObserveEventsResponseStream();
 }
 
+// Called by the IPC layer.
+void ConsumerIPCService::QueryServiceState(
+    const protos::QueryServiceStateRequest&,
+    DeferredQueryServiceStateResponse resp) {
+  RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
+  auto it = pending_query_service_responses_.insert(
+      pending_query_service_responses_.end(), std::move(resp));
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  auto callback = [weak_this, it](bool success,
+                                  const TracingServiceState& svc_state) {
+    if (weak_this)
+      weak_this->OnQueryServiceCallback(success, svc_state, std::move(it));
+  };
+  remote_consumer->service_endpoint->QueryServiceState(callback);
+}
+
 // Called by the service in response to a service_endpoint->Flush() request.
 void ConsumerIPCService::OnFlushCallback(
     bool success,
@@ -195,6 +212,22 @@ void ConsumerIPCService::OnFlushCallback(
   pending_flush_responses_.erase(pending_response_it);
   if (success) {
     response.Resolve(ipc::AsyncResult<protos::FlushResponse>::Create());
+  } else {
+    response.Reject();
+  }
+}
+
+// Called by the service in response to service_endpoint->QueryServiceState().
+void ConsumerIPCService::OnQueryServiceCallback(
+    bool success,
+    const TracingServiceState& svc_state,
+    PendingQuerySvcResponses::iterator pending_response_it) {
+  DeferredQueryServiceStateResponse response(std::move(*pending_response_it));
+  pending_query_service_responses_.erase(pending_response_it);
+  if (success) {
+    auto resp = ipc::AsyncResult<protos::QueryServiceStateResponse>::Create();
+    svc_state.ToProto(resp->mutable_service_state());
+    response.Resolve(std::move(resp));
   } else {
     response.Reject();
   }

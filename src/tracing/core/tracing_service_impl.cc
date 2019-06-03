@@ -48,6 +48,7 @@
 #include "perfetto/tracing/core/shared_memory_abi.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/tracing/core/packet_stream_validator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_buffer.h"
@@ -2484,6 +2485,36 @@ TracingServiceImpl::ConsumerEndpointImpl::AddObservableEvents() {
     });
   }
   return observable_events_.get();
+}
+
+void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
+    QueryServiceStateCallback callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  TracingServiceState svc_state;
+
+  const auto& sessions = service_->tracing_sessions_;
+  svc_state.set_num_sessions(static_cast<int>(sessions.size()));
+
+  int num_started = 0;
+  for (const auto& kv : sessions)
+    num_started += kv.second.state == TracingSession::State::STARTED ? 1 : 0;
+  svc_state.set_num_sessions_started(static_cast<int>(num_started));
+
+  for (const auto& kv : service_->producers_) {
+    auto* producer = svc_state.add_producers();
+    producer->set_id(static_cast<int>(kv.first));
+    producer->set_name(kv.second->name_);
+    producer->set_uid(static_cast<int32_t>(producer->uid()));
+  }
+
+  for (const auto& kv : service_->data_sources_) {
+    const auto& registered_data_source = kv.second;
+    auto* data_source = svc_state.add_data_sources();
+    *data_source->mutable_descriptor() = registered_data_source.descriptor;
+    data_source->set_producer_id(
+        static_cast<int>(registered_data_source.producer_id));
+  }
+  callback(/*success=*/true, svc_state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

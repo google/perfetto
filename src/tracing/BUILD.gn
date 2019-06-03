@@ -69,6 +69,7 @@ source_set("tracing") {
     "core/trace_writer_impl.h",
     "core/tracing_service_impl.cc",
     "core/tracing_service_impl.h",
+    "core/tracing_service_state.cc",
     "core/virtual_destructors.cc",
   ]
 }

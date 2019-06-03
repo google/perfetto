@@ -25,6 +25,7 @@
 #include "perfetto/tracing/core/observable_events.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_stats.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 
 // TODO(fmayer): Add a test to check to what happens when ConsumerIPCClientImpl
 // gets destroyed w.r.t. the Consumer pointer. Also think to lifetime of the
@@ -326,6 +327,27 @@ void ConsumerIPCClientImpl::ObserveEvents(uint32_t enabled_event_types) {
         consumer_->OnObservableEvents(events);
       });
   consumer_port_.ObserveEvents(req, std::move(async_response));
+}
+
+void ConsumerIPCClientImpl::QueryServiceState(
+    QueryServiceStateCallback callback) {
+  if (!connected_) {
+    PERFETTO_DLOG(
+        "Cannot QueryServiceState(), not connected to tracing service");
+    return;
+  }
+
+  protos::QueryServiceStateRequest req;
+  ipc::Deferred<protos::QueryServiceStateResponse> async_response;
+  async_response.Bind(
+      [callback](ipc::AsyncResult<protos::QueryServiceStateResponse> response) {
+        if (!response)
+          callback(false, TracingServiceState());
+        TracingServiceState svc_state;
+        svc_state.FromProto(response->service_state());
+        callback(true, svc_state);
+      });
+  consumer_port_.QueryServiceState(req, std::move(async_response));
 }
 
 }  // namespace perfetto

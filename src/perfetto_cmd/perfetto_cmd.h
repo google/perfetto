@@ -72,6 +72,7 @@ class PerfettoCmd : public Consumer {
   void SetupCtrlCSignalHandler();
   void FinalizeTraceAndExit();
   int PrintUsage(const char* argv0);
+  void PrintServiceState(bool success, const TracingServiceState&);
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
   bool is_attach() const { return !attach_key_.empty(); }
@@ -105,6 +106,8 @@ class PerfettoCmd : public Consumer {
   std::string attach_key_;
   bool stop_trace_once_attached_ = false;
   bool redetach_once_attached_ = false;
+  bool query_service_ = false;
+  bool query_service_output_raw_ = false;
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;

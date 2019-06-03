@@ -601,10 +601,10 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
 
   EXPECT_EQ(1,
             ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--attach=foo"}, cfg));
-  EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
+  EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
 
   EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "-o", "-", "--attach=foo"}, cfg));
-  EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
+  EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
 
   EXPECT_EQ(1, ExecPerfetto({"--attach"}, cfg));
   EXPECT_THAT(stderr_, ContainsRegex("option.*--attach.*requires an argument"));
@@ -614,6 +614,12 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
 
   EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "--detach=foo"}, cfg));
   EXPECT_THAT(stderr_, HasSubstr("--out or --dropbox is required"));
+
+  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "--query"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
+
+  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "--query"}, cfg));
+  EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(TxtConfig)) {
@@ -996,6 +1002,11 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
       << "stderr: " << stderr_;
 
   EXPECT_FALSE(base::ReadFile(path, &trace_str));
+}
+
+TEST_F(PerfettoCmdlineTest, NoSanitizers(Query)) {
+  EXPECT_EQ(0, ExecPerfetto({"--query"})) << stderr_;
+  EXPECT_EQ(0, ExecPerfetto({"--query-raw"})) << stderr_;
 }
 
 }  // namespace perfetto
