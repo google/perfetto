@@ -28,6 +28,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/thread_annotations.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"

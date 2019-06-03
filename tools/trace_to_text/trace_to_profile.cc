@@ -29,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 
 #include "perfetto/trace/profiling/profile_packet.pb.h"
 #include "perfetto/trace/trace.pb.h"

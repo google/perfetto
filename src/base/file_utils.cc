@@ -20,6 +20,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/utils.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
