@@ -844,7 +844,7 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
   background_trace.join();
 
   EXPECT_THAT(stderr_,
-              ::testing::HasSubstr("Skipping upload to dropbox. Empty trace."));
+              ::testing::HasSubstr("Skipping write to dropbox. Empty trace."));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {

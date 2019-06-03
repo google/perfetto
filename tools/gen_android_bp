@@ -82,6 +82,7 @@ library_whitelist = [
     'hidlbase',
     'hidltransport',
     'hwbinder',
+    'incident',
     'log',
     'services',
     'utils',
