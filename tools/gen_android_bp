@@ -47,6 +47,7 @@ default_targets = [
     '//:heapprofd_client',
     '//:heapprofd',
     '//:trigger_perfetto',
+    '//:idle_alloc',
 ]
 
 # Defines a custom init_rc argument to be applied to the corresponding output
