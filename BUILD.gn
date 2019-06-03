@@ -364,3 +364,9 @@ if (should_build_heapprofd) {
     ]
   }
 }
+
+executable("idle_alloc") {
+  sources = [
+    "tools/idle_alloc.cc",
+  ]
+}
