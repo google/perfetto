@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/fuchsia_trace_parser.h"
 
+#include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 
@@ -27,9 +29,26 @@ namespace {
 constexpr uint32_t kEvent = 4;
 
 // Event Types
+constexpr uint32_t kInstant = 0;
 constexpr uint32_t kDurationBegin = 2;
 constexpr uint32_t kDurationEnd = 3;
 constexpr uint32_t kDurationComplete = 4;
+
+// Argument Types
+constexpr uint32_t kNull = 0;
+constexpr uint32_t kInt32 = 1;
+constexpr uint32_t kUint32 = 2;
+constexpr uint32_t kInt64 = 3;
+constexpr uint32_t kUint64 = 4;
+constexpr uint32_t kDouble = 5;
+constexpr uint32_t kString = 6;
+constexpr uint32_t kPointer = 7;
+constexpr uint32_t kKoid = 8;
+
+struct Arg {
+  StringId name;
+  fuchsia_trace_utils::ArgValue value;
+};
 }  // namespace
 
 FuchsiaTraceParser::FuchsiaTraceParser(TraceProcessorContext* context)
@@ -94,16 +113,95 @@ void FuchsiaTraceParser::ParseTracePacket(
         name = provider_view->GetString(name_ref);
       }
 
-      // Skip over all the args, so that the |ReadTimestamp| call for complete
-      // durations has the pointer in the right place.
+      // Read arguments
+      std::vector<Arg> args;
       for (uint32_t i = 0; i < n_args; i++) {
-        uint64_t arg_header = *current;
+        const uint64_t* arg_base = current;
+        uint64_t arg_header = *current++;
+        uint32_t arg_type =
+            fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 0, 3);
         uint32_t arg_size_words =
             fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 4, 15);
-        current += arg_size_words;
+        uint32_t arg_name_ref =
+            fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 16, 31);
+        Arg arg;
+        if (fuchsia_trace_utils::IsInlineString(arg_name_ref)) {
+          arg.name = context_->storage->InternString(
+              fuchsia_trace_utils::ReadInlineString(&current, arg_name_ref));
+        } else {
+          arg.name = provider_view->GetString(arg_name_ref);
+        }
+
+        switch (arg_type) {
+          case kNull:
+            arg.value = fuchsia_trace_utils::ArgValue::Null();
+            break;
+          case kInt32:
+            arg.value = fuchsia_trace_utils::ArgValue::Int32(
+                fuchsia_trace_utils::ReadField<int32_t>(arg_header, 32, 63));
+            break;
+          case kUint32:
+            arg.value = fuchsia_trace_utils::ArgValue::Uint32(
+                fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 32, 63));
+            break;
+          case kInt64:
+            arg.value = fuchsia_trace_utils::ArgValue::Int64(
+                static_cast<int64_t>(*current++));
+            break;
+          case kUint64:
+            arg.value = fuchsia_trace_utils::ArgValue::Uint64(*current++);
+            break;
+          case kDouble: {
+            double value;
+            memcpy(&value, current, sizeof(double));
+            current++;
+            arg.value = fuchsia_trace_utils::ArgValue::Double(value);
+            break;
+          }
+          case kString: {
+            uint32_t arg_value_ref =
+                fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 32, 47);
+            StringId value;
+            if (fuchsia_trace_utils::IsInlineString(arg_value_ref)) {
+              value = context_->storage->InternString(
+                  fuchsia_trace_utils::ReadInlineString(&current,
+                                                        arg_value_ref));
+            } else {
+              value = provider_view->GetString(arg_value_ref);
+            }
+            arg.value = fuchsia_trace_utils::ArgValue::String(value);
+            break;
+          }
+          case kPointer:
+            arg.value = fuchsia_trace_utils::ArgValue::Pointer(*current++);
+            break;
+          case kKoid:
+            arg.value = fuchsia_trace_utils::ArgValue::Koid(*current++);
+            break;
+          default:
+            arg.value = fuchsia_trace_utils::ArgValue::Unknown();
+            break;
+        }
+
+        args.push_back(arg);
+        current = arg_base + arg_size_words;
       }
 
       switch (event_type) {
+        case kInstant: {
+          UniqueTid utid =
+              procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
+                                  static_cast<uint32_t>(tinfo.pid));
+          RowId row = context_->event_tracker->PushInstant(ts, name, 0, utid,
+                                                           RefType::kRefUtid);
+          for (const Arg& arg : args) {
+            context_->args_tracker->AddArg(
+                row, arg.name, arg.name,
+                arg.value.ToStorageVariadic(context_->storage.get()));
+          }
+          context_->args_tracker->Flush();
+          break;
+        }
         case kDurationBegin: {
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),

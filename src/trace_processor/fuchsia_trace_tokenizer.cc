@@ -59,6 +59,7 @@ constexpr uint32_t kZxObjTypeProcess = 1;
 constexpr uint32_t kZxObjTypeThread = 2;
 
 // Argument types
+constexpr uint32_t kArgString = 6;
 constexpr uint32_t kArgKernelObject = 8;
 }  // namespace
 
@@ -287,6 +288,41 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       } else {
         provider_view->InsertString(name_ref,
                                     current_provider_->string_table[name_ref]);
+      }
+
+      uint32_t n_args =
+          fuchsia_trace_utils::ReadField<uint32_t>(header, 20, 23);
+      for (uint32_t i = 0; i < n_args; i++) {
+        const uint64_t* arg_base = current;
+        uint64_t arg_header = *current++;
+        uint32_t arg_type =
+            fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 0, 3);
+        uint32_t arg_size_words =
+            fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 4, 15);
+        uint32_t arg_name_ref =
+            fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 16, 31);
+
+        if (fuchsia_trace_utils::IsInlineString(arg_name_ref)) {
+          // Skip over inline string
+          fuchsia_trace_utils::ReadInlineString(&current, arg_name_ref);
+        } else {
+          provider_view->InsertString(
+              arg_name_ref, current_provider_->string_table[arg_name_ref]);
+        }
+
+        if (arg_type == kArgString) {
+          uint32_t arg_value_ref =
+              fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 32, 47);
+          if (fuchsia_trace_utils::IsInlineString(arg_value_ref)) {
+            // Skip over inline string
+            fuchsia_trace_utils::ReadInlineString(&current, arg_value_ref);
+          } else {
+            provider_view->InsertString(
+                arg_value_ref, current_provider_->string_table[arg_value_ref]);
+          }
+        }
+
+        current = arg_base + arg_size_words;
       }
 
       sorter->PushFuchsiaRecord(ts, std::move(tbv), std::move(provider_view));
