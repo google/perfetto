@@ -26,16 +26,6 @@ import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# TODO(primiano): fix violation from protozero -> base/logging.h .
-WHITELIST = [('include/perfetto/protozero/.*', 'perfetto/ext/base/logging.h')]
-
-
-def whitelisted(rel_path, incl):
-  for path_regex, incl_regex in WHITELIST:
-    if re.match(path_regex, rel_path) and re.match(incl_regex, incl):
-      return True
-  return False
-
 
 def main():
   errors = 0
@@ -69,10 +59,13 @@ def main():
             errors += 1
             continue
 
+          # Ignore lines marked with nogncheck.
+          if '// nogncheck' in line:
+            continue
+
           # Public (non-/ext/) headers cannot include /ext/ headers.
           if (not rel_path.startswith('include/perfetto/ext/') and
-                  incl.startswith('perfetto/ext/') and
-                  not whitelisted(rel_path, incl)):
+                  incl.startswith('perfetto/ext/')):
             sys.stderr.write(('Public header %s cannot include the non-public' +
                               '/ext/ header %s.\n') % (rel_path, incl))
             errors += 1
