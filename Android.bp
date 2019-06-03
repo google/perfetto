@@ -214,6 +214,20 @@ cc_library_shared {
   ],
 }
 
+// GN target: //:idle_alloc
+cc_binary {
+  name: "idle_alloc",
+  srcs: [
+    "tools/idle_alloc.cc",
+  ],
+  shared_libs: [
+    "liblog",
+  ],
+  defaults: [
+    "perfetto_defaults",
+  ],
+}
+
 // GN target: //:libperfetto
 cc_library_shared {
   name: "libperfetto",
