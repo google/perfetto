@@ -376,6 +376,7 @@ cc_library_shared {
   srcs: [
     "src/android_internal/atrace_hal.cc",
     "src/android_internal/health_hal.cc",
+    "src/android_internal/incident_service.cc",
     "src/android_internal/power_stats_hal.cc",
   ],
   shared_libs: [
@@ -383,10 +384,13 @@ cc_library_shared {
     "android.hardware.health@2.0",
     "android.hardware.power.stats@1.0",
     "libbase",
+    "libbinder",
     "libhidlbase",
     "libhidltransport",
     "libhwbinder",
+    "libincident",
     "liblog",
+    "libservices",
     "libutils",
   ],
   static_libs: [
@@ -398,6 +402,11 @@ cc_library_shared {
   cflags: [
     "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
+  product_variables: {
+    pdk: {
+      enabled: false,
+    },
+  },
 }
 
 // GN target: //:libperfetto_client_experimental

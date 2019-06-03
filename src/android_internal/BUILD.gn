@@ -21,6 +21,7 @@ source_set("headers") {
   sources = [
     "atrace_hal.h",
     "health_hal.h",
+    "incident_service.h",
     "power_stats_hal.h",
   ]
 }
@@ -37,6 +38,7 @@ source_set("android_internal") {
     sources = [
       "atrace_hal.cc",
       "health_hal.cc",
+      "incident_service.cc",
       "power_stats_hal.cc",
     ]
     libs = [
@@ -44,10 +46,13 @@ source_set("android_internal") {
       "android.hardware.power.stats@1.0",
       "android.hardware.atrace@1.0",
       "base",
+      "binder",
       "log",
       "hidlbase",
       "hidltransport",
       "hwbinder",
+      "incident",
+      "services",
       "utils",
     ]
   }
