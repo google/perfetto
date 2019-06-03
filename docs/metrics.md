@@ -21,7 +21,7 @@ root-causing when a regression is detected.
 The Perfetto Metrics Platform
 ----------
 The metrics platform (powered by the
-[trace processor](docs/trace-processor.md)) allows metrics authors to write
+[trace processor](trace-processor.md)) allows metrics authors to write
 SQL queries to generate metrics in the form of protobuf messages or proto text.
 
 We strongly encourage all metrics derived on Perfetto traces to be added to the
@@ -68,7 +68,7 @@ this folder will be referred to using the env variable `$WORKSPACE` in Step 4.
 
 The other thing you'll need is trace processor shell. You can download this
 [here](https://get.perfetto.dev/trace_processor) or you can build from source
-using the instructions [here](docs/trace-processor.md). Whichever method is
+using the instructions [here](trace-processor.md). Whichever method is
 chosen, $TRACE_PROCESSOR env variable will be used to refer to the location of
 the binary in Step 4.
 
@@ -333,7 +333,7 @@ That finishes the introductory guide to writing an metric using the Perfetto
 metrics platform! For more information about where to go next, the following
 links may be useful:
 * To understand what data is available to you and how the SQL tables are
-  structured see the [trace processor](docs/trace-processor.md) docs.
+  structured see the [trace processor](trace-processor.md) docs.
 * To see how you can use the RUN_METRIC function to extract common snippets of
   SQL and reuse them for writing bigger metrics, continue reading!
 * To see how you can add your own metrics to the platform or edit an existing
