@@ -54,6 +54,17 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/common:lite_gen
+java_proto_library(
+    name = "common_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:common",
+    ],
+)
+
 # GN target: //protos/perfetto/common:zero_gen
 proto_library(
     name = "common_zero",
@@ -115,6 +126,17 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/config:lite_gen
+java_proto_library(
+    name = "config_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config",
+    ],
+)
+
 # GN target: //protos/perfetto/config:merged_config_gen
 proto_library(
     name = "config_merged_config_gen",
@@ -132,6 +154,17 @@ proto_library(
 # GN target: //protos/perfetto/config:merged_config_gen
 cc_proto_library(
     name = "config_merged_config_gen_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_merged_config_gen",
+    ],
+)
+
+# GN target: //protos/perfetto/config:merged_config_gen
+java_proto_library(
+    name = "config_merged_config_gen_java_proto",
     visibility = [
         "//visibility:public",
     ],
@@ -215,6 +248,17 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/metrics/android:lite_gen
+java_proto_library(
+    name = "metrics_android_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:metrics_android",
+    ],
+)
+
 # GN target: //protos/perfetto/metrics/android:zero_gen
 proto_library(
     name = "metrics_android_zero",
@@ -237,6 +281,17 @@ pbzero_cc_proto_library(
 # GN target: //protos/perfetto/metrics:lite_gen
 cc_proto_library(
     name = "metrics_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:metrics",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics:lite_gen
+java_proto_library(
+    name = "metrics_java_proto",
     visibility = [
         "//visibility:public",
     ],
@@ -282,6 +337,17 @@ proto_library(
 # GN target: //protos/third_party/pprof:lite_gen
 cc_proto_library(
     name = "protos_third_party_pprof_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:protos_third_party_pprof",
+    ],
+)
+
+# GN target: //protos/third_party/pprof:lite_gen
+java_proto_library(
+    name = "protos_third_party_pprof_java_proto",
     visibility = [
         "//visibility:public",
     ],
@@ -350,6 +416,17 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/android:lite_gen
+java_proto_library(
+    name = "trace_android_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_android",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/android:zero_gen
 proto_library(
     name = "trace_android_zero",
@@ -408,6 +485,17 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/chrome:lite_gen
+java_proto_library(
+    name = "trace_chrome_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_chrome",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/chrome:zero_gen
 proto_library(
     name = "trace_chrome_zero",
@@ -447,6 +535,17 @@ proto_library(
 # GN target: //protos/perfetto/trace/filesystem:lite_gen
 cc_proto_library(
     name = "trace_filesystem_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_filesystem",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/filesystem:lite_gen
+java_proto_library(
+    name = "trace_filesystem_java_proto",
     visibility = [
         "//visibility:public",
     ],
@@ -520,6 +619,17 @@ proto_library(
 # GN target: //protos/perfetto/trace/ftrace:lite_gen
 cc_proto_library(
     name = "trace_ftrace_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_ftrace",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/ftrace:lite_gen
+java_proto_library(
+    name = "trace_ftrace_java_proto",
     visibility = [
         "//visibility:public",
     ],
@@ -604,6 +714,17 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/interned_data:lite_gen
+java_proto_library(
+    name = "trace_interned_data_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_interned_data",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/interned_data:zero_gen
 proto_library(
     name = "trace_interned_data_zero",
@@ -624,6 +745,17 @@ pbzero_cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace:lite_gen
+java_proto_library(
+    name = "trace_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace",
+    ],
+)
+
 # GN target: //protos/perfetto/trace:merged_trace_gen
 proto_library(
     name = "trace_merged_trace_gen",
@@ -641,6 +773,17 @@ proto_library(
 # GN target: //protos/perfetto/trace:merged_trace_gen
 cc_proto_library(
     name = "trace_merged_trace_gen_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_merged_trace_gen",
+    ],
+)
+
+# GN target: //protos/perfetto/trace:merged_trace_gen
+java_proto_library(
+    name = "trace_merged_trace_gen_java_proto",
     visibility = [
         "//visibility:public",
     ],
@@ -680,6 +823,17 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace:minimal_lite_gen
+java_proto_library(
+    name = "trace_minimal_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_minimal",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/power:lite_gen
 proto_library(
     name = "trace_power",
@@ -698,6 +852,17 @@ proto_library(
 # GN target: //protos/perfetto/trace/power:lite_gen
 cc_proto_library(
     name = "trace_power_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_power",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/power:lite_gen
+java_proto_library(
+    name = "trace_power_java_proto",
     visibility = [
         "//visibility:public",
     ],
@@ -751,6 +916,17 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace_processor:lite_gen
+java_proto_library(
+    name = "trace_processor_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_processor",
+    ],
+)
+
 # GN target: //protos/perfetto/trace_processor:metrics_impl_zero_gen
 proto_library(
     name = "trace_processor_metrics_impl_zero",
@@ -785,6 +961,17 @@ proto_library(
 # GN target: //protos/perfetto/trace/profiling:lite_gen
 cc_proto_library(
     name = "trace_profiling_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_profiling",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/profiling:lite_gen
+java_proto_library(
+    name = "trace_profiling_java_proto",
     visibility = [
         "//visibility:public",
     ],
@@ -828,6 +1015,17 @@ proto_library(
 # GN target: //protos/perfetto/trace/ps:lite_gen
 cc_proto_library(
     name = "trace_ps_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_ps",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/ps:lite_gen
+java_proto_library(
+    name = "trace_ps_java_proto",
     visibility = [
         "//visibility:public",
     ],
@@ -882,6 +1080,17 @@ cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/sys_stats:lite_gen
+java_proto_library(
+    name = "trace_sys_stats_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_sys_stats",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/sys_stats:zero_gen
 proto_library(
     name = "trace_sys_stats_zero",
@@ -923,6 +1132,17 @@ proto_library(
 # GN target: //protos/perfetto/trace/track_event:lite_gen
 cc_proto_library(
     name = "trace_track_event_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_track_event",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/track_event:lite_gen
+java_proto_library(
+    name = "trace_track_event_java_proto",
     visibility = [
         "//visibility:public",
     ],
