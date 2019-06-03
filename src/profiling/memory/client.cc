@@ -152,11 +152,6 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
     PERFETTO_DFATAL_OR_ELOG("Failed to open /proc/self/mem");
     return nullptr;
   }
-  base::ScopedFile pagemap(base::OpenFile("/proc/self/pagemap", O_RDONLY));
-  if (!pagemap) {
-    PERFETTO_DFATAL_OR_ELOG("Failed to open /proc/self/pagemap");
-    return nullptr;
-  }
 
   // Restore original dumpability value if we overrode it.
   unset_dumpable.reset();
@@ -164,7 +159,6 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
   int fds[kHandshakeSize];
   fds[kHandshakeMaps] = *maps;
   fds[kHandshakeMem] = *mem;
-  fds[kHandshakePageMap] = *pagemap;
 
   // Send an empty record to transfer fds for /proc/self/maps and
   // /proc/self/mem.
