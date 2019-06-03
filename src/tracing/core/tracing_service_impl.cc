@@ -829,15 +829,12 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
 
   tracing_session->state = TracingSession::DISABLING_WAITING_STOP_ACKS;
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  auto timeout_ms = override_data_source_test_timeout_ms_for_testing
-                        ? override_data_source_test_timeout_ms_for_testing
-                        : kDataSourceStopTimeoutMs;
   task_runner_->PostDelayedTask(
       [weak_this, tsid] {
         if (weak_this)
           weak_this->OnDisableTracingTimeout(tsid);
       },
-      timeout_ms);
+      tracing_session->data_source_stop_timeout_ms());
 
   // Deliberately NOT removing the session from |tracing_session_|, it's still
   // needed to call ReadBuffers(). FreeBuffers() will erase() the session.

@@ -280,8 +280,6 @@ class TracingServiceImpl : public TracingService {
   size_t num_producers() const { return producers_.size(); }
   ProducerEndpointImpl* GetProducer(ProducerID) const;
 
-  uint32_t override_data_source_test_timeout_ms_for_testing = 0;
-
  private:
   friend class TracingServiceImplTest;
   friend class TracingIntegrationTest;
@@ -355,6 +353,11 @@ class TracingServiceImpl : public TracingService {
     uint32_t flush_timeout_ms() {
       uint32_t timeout_ms = config.flush_timeout_ms();
       return timeout_ms ? timeout_ms : kDefaultFlushTimeoutMs;
+    }
+
+    uint32_t data_source_stop_timeout_ms() {
+      uint32_t timeout_ms = config.data_source_stop_timeout_ms();
+      return timeout_ms ? timeout_ms : kDataSourceStopTimeoutMs;
     }
 
     PacketSequenceID GetPacketSequenceID(ProducerID producer_id,
