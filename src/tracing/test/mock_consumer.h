@@ -23,6 +23,7 @@
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/core/tracing_service_state.h"
 
 #include "perfetto/trace/trace_packet.pb.h"
 
@@ -57,6 +58,7 @@ class MockConsumer : public Consumer {
   std::vector<protos::TracePacket> ReadBuffers();
   void GetTraceStats();
   void WaitForTraceStats(bool success);
+  TracingServiceState QueryServiceState();
   void ObserveEvents(uint32_t enabled_event_types);
   ObservableEvents WaitForObservableEvents();
 

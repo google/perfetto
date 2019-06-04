@@ -2758,4 +2758,55 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
   consumer->WaitForTracingDisabled();
 }
 
+TEST_F(TracingServiceImplTest, QueryServiceState) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "producer1");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "producer2");
+
+  producer1->RegisterDataSource("common_ds");
+  producer2->RegisterDataSource("common_ds");
+
+  producer1->RegisterDataSource("p1_ds");
+  producer2->RegisterDataSource("p2_ds");
+
+  TracingServiceState svc_state = consumer->QueryServiceState();
+
+  EXPECT_EQ(svc_state.producers_size(), 2u);
+  EXPECT_EQ(svc_state.producers().at(0).id(), 1);
+  EXPECT_EQ(svc_state.producers().at(0).name(), "producer1");
+  EXPECT_EQ(svc_state.producers().at(1).id(), 2);
+  EXPECT_EQ(svc_state.producers().at(1).name(), "producer2");
+
+  EXPECT_EQ(svc_state.data_sources_size(), 4u);
+
+  EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 1);
+  EXPECT_EQ(svc_state.data_sources().at(0).descriptor().name(), "common_ds");
+
+  EXPECT_EQ(svc_state.data_sources().at(1).producer_id(), 2);
+  EXPECT_EQ(svc_state.data_sources().at(1).descriptor().name(), "common_ds");
+
+  EXPECT_EQ(svc_state.data_sources().at(2).producer_id(), 1);
+  EXPECT_EQ(svc_state.data_sources().at(2).descriptor().name(), "p1_ds");
+
+  EXPECT_EQ(svc_state.data_sources().at(3).producer_id(), 2);
+  EXPECT_EQ(svc_state.data_sources().at(3).descriptor().name(), "p2_ds");
+
+  // Test that descriptors are cleared when a producer disconnects.
+  producer1.reset();
+  svc_state = consumer->QueryServiceState();
+
+  EXPECT_EQ(svc_state.producers_size(), 1u);
+  EXPECT_EQ(svc_state.data_sources_size(), 2u);
+
+  EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 2);
+  EXPECT_EQ(svc_state.data_sources().at(0).descriptor().name(), "common_ds");
+  EXPECT_EQ(svc_state.data_sources().at(1).producer_id(), 2);
+  EXPECT_EQ(svc_state.data_sources().at(1).descriptor().name(), "p2_ds");
+}
+
 }  // namespace perfetto
