@@ -2,7 +2,8 @@
 
 Googlers, for design doc see: http://go/heapprofd-design
 
-**heapprofd requires Android Q.**
+> [!NOTE]
+> **heapprofd requires Android Q.**
 
 heapprofd is a tool that tracks native heap allocations & deallocations of an
 Android process within a given time period. The resulting profile can be used
@@ -38,14 +39,17 @@ This will create a pprof-compatible heap dump when Ctrl+C is pressed.
 
 The resulting profile proto contains four views on the data
 
-* space: how many bytes were allocated but not freed at this callstack the
+* **space**: how many bytes were allocated but not freed at this callstack the
   moment the dump was created.
-* alloc\_space: how many bytes were allocated (including ones freed at the
+* **alloc\_space**: how many bytes were allocated (including ones freed at the
   moment of the dump) at this callstack
-* objects: how many allocations without matching frees were done at this
+* **idle\_space**: if [idle page tracking](#idle-page-tracking) is being used,
+  the number of bytes that were allocated at this callstack and are on pages
+  that have not been touched since the last dump.
+* **objects**: how many allocations without matching frees were done at this
   callstack.
-* alloc\_objects: how many allocations (including ones with matching frees) were
-  done at this callstack.
+* **alloc\_objects**: how many allocations (including ones with matching frees)
+  were done at this callstack.
 
 **Googlers:** Head to http://pprof/ and upload the gzipped protos to get a
 visualization. *Tip: you might want to put `libart.so` as a "Hide regex" when
@@ -155,6 +159,47 @@ usage of the target in a specific state.
 This dump will show up in addition to the dump at the end of the profile that is
 always produced. You can create multiple of these dumps, and they will be
 enumerated in the output directory.
+
+## Idle page tracking
+> [!NOTE]
+> This is only available in Android versions newer than Q.
+
+Idle page tracking allows you to analyze which allocations made by your
+program are being used by a workload. This can be useful for finding leaks
+as well as unused cached values.
+
+> [!DANGER|style:flat]
+> **Do not follow these instructions on devices containing valuable data.**
+> They require you turn off SELinux on your device, significantly lowering
+> your device's security level.
+
+Use the following command to profile the next startup of your program with idle
+tracking enabled.
+
+1. `$ adb root`
+2. `$ tools/heap_profile -n ${NAME} --no-running --disable-selinux
+--idle-allocations`
+
+Then run the following commands in a separate shell.
+
+1. `$ adb shell killall ${ROOT}` to restart your program.
+2. Wait for your program to finish starting.
+3. `adb shell killall -USR1 heapprofd` to trigger the first dump (see
+[Manual Dumping](#manual-dumping) above). This will mark all allocations as
+idle.
+4. Interact with your program.
+
+Once you are done interacting, `Ctrl-C` the invokation of
+`tools/heap_profile`, and upload the `heap_dump.2.*.pb.gz` file to pprof.
+You can then see the memory that was idle in the `idle_space` tab.
+
+This will show allocations that are on pages that have not been touched since
+the last dump. Small allocations that are not touched might not show up, as
+they might share a page with an allocation that was.
+
+If heapprofd is operating in sampling mode (i.e. `--interval` is larger than 1),
+the values in `idle_space` will not correct for the sampling, so they are not
+comparable to values in `space` and `alloc_space`, which do.
 
 ## Troubleshooting
 
