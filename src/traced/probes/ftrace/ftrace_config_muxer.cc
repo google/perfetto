@@ -123,6 +123,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         events.insert(GroupAndName("sched", "sched_cpu_hotplug"));
         events.insert(GroupAndName("sched", "sched_pi_setprio"));
         events.insert(GroupAndName("sched", "sched_process_exit"));
+        events.insert(GroupAndName("systrace", "0"));
         AddEventGroup(table, "cgroup", &events);
         events.insert(GroupAndName("oom", "oom_score_adj_update"));
         events.insert(GroupAndName("task", "task_rename"));

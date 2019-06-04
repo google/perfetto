@@ -29,6 +29,7 @@ import "perfetto/trace/ftrace/regulator.proto";
 import "perfetto/trace/ftrace/sched.proto";
 import "perfetto/trace/ftrace/signal.proto";
 import "perfetto/trace/ftrace/sync.proto";
+import "perfetto/trace/ftrace/systrace.proto";
 import "perfetto/trace/ftrace/task.proto";
 import "perfetto/trace/ftrace/vmscan.proto";
 import "perfetto/trace/ftrace/workqueue.proto";
@@ -392,5 +393,6 @@ message FtraceEvent {
     MmEventRecordFtraceEvent mm_event_record = 328;
     SysEnterFtraceEvent sys_enter = 329;
     SysExitFtraceEvent sys_exit = 330;
+    ZeroFtraceEvent zero = 331;
   }
 }

@@ -66,6 +66,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/ftrace/raw_syscalls.proto',
   'protos/perfetto/trace/ftrace/sched.proto',
   'protos/perfetto/trace/ftrace/signal.proto',
+  'protos/perfetto/trace/ftrace/systrace.proto',
   'protos/perfetto/trace/ftrace/task.proto',
   'protos/perfetto/trace/ftrace/vmscan.proto',
   'protos/perfetto/trace/interned_data/interned_data.proto',
