@@ -737,6 +737,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     base::Pipe signal_pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
     base::Pipe ack_pipe = base::Pipe::Create(base::Pipe::kBothBlock);
 
+    setsid();
     pid_t pid = fork();
     switch (pid) {
       case -1:
@@ -868,6 +869,7 @@ class HeapprofdEndToEnd : public ::testing::Test {
     constexpr uint64_t kTestAllocSize = 128;
     base::Pipe start_pipe = base::Pipe::Create(base::Pipe::kBothBlock);
 
+    setsid();
     pid_t pid = fork();
     if (pid == 0) {  // child
       start_pipe.rd.reset();
