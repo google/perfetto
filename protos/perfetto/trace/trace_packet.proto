@@ -90,6 +90,11 @@ message TracePacket {
     // efficiently partition long traces without having to fully parse them.
     bytes synchronization_marker = 36;
 
+    // Zero or more proto encoded trace packets compressed using deflate.
+    // Each compressed_packets TracePacket (including the two field ids and
+    // sizes) should be less than 512KB.
+    bytes compressed_packets = 49;
+
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
     // This caused many problems:
