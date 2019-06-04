@@ -112,7 +112,7 @@ class DescriptorPool {
                                  const uint8_t* field_desc_proto,
                                  size_t size);
 
-  // Recursively searches for the the given short type in all parent messages
+  // Recursively searches for the given short type in all parent messages
   // and packages.
   base::Optional<uint32_t> ResolveShortType(const std::string& parent_path,
                                             const std::string& short_type);

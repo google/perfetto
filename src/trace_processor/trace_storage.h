@@ -988,7 +988,7 @@ class TraceStorage {
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
   NestableSlices nestable_slices_;
 
-  // The type of counters in the trace. Can be thought of the the "metadata".
+  // The type of counters in the trace. Can be thought of as the "metadata".
   CounterDefinitions counter_definitions_;
 
   // The values from the Counter events from the trace. This includes CPU
