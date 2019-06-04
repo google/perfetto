@@ -25,6 +25,8 @@ import {
   uint8ArrayToBase64
 } from './record_controller';
 
+import {assertExists} from '../base/logging';
+
 test('uint8ArrayToBase64', () => {
   const bytes = [...'Hello, world'].map(c => c.charCodeAt(0));
   const buffer = new Uint8Array(bytes);
@@ -36,6 +38,18 @@ test('encodeConfig', () => {
   config.durationSeconds = 10;
   const result = TraceConfig.decode(genConfigProto(config));
   expect(result.durationMs).toBe(10000);
+});
+
+test('SysConfig', () => {
+  const config = createEmptyRecordConfig();
+  config.cpuSyscall = true;
+  const result = TraceConfig.decode(genConfigProto(config));
+  const sources = assertExists(result.dataSources);
+  const srcConfig = assertExists(sources[0].config);
+  const ftraceConfig = assertExists(srcConfig.ftraceConfig);
+  const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
+  expect(ftraceEvents.includes('raw_syscalls/sys_enter')).toBe(true);
+  expect(ftraceEvents.includes('raw_syscalls/sys_exit')).toBe(true);
 });
 
 test('toPbtxt', () => {
