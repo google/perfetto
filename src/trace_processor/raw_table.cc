@@ -90,12 +90,27 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
       case Variadic::kInt:
         writer->AppendInt(value.int_value);
         break;
-      case Variadic::kReal:
-        writer->AppendDouble(value.real_value);
+      case Variadic::kUint:
+        writer->AppendUnsignedInt(value.uint_value);
         break;
       case Variadic::kString: {
         const auto& str = storage_->GetString(value.string_value);
         writer->AppendString(str.c_str(), str.size());
+        break;
+      }
+      case Variadic::kReal:
+        writer->AppendDouble(value.real_value);
+        break;
+      case Variadic::kPointer:
+        writer->AppendUnsignedInt(value.pointer_value);
+        break;
+      case Variadic::kBool:
+        writer->AppendBool(value.bool_value);
+        break;
+      case Variadic::kJson: {
+        const auto& str = storage_->GetString(value.json_value);
+        writer->AppendString(str.c_str(), str.size());
+        break;
       }
     }
   };

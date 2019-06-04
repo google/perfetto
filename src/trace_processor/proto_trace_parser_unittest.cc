@@ -104,6 +104,7 @@ class MockTraceStorage : public TraceStorage {
   MockTraceStorage() : TraceStorage() {}
 
   MOCK_METHOD1(InternString, StringId(base::StringView));
+  MOCK_CONST_METHOD1(GetString, NullTermStringView(StringId));
   MOCK_METHOD2(SetMetadata, void(size_t, Variadic));
   MOCK_METHOD2(AppendMetadata, void(size_t, Variadic));
 };
@@ -147,8 +148,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   ProtoTraceParserTest() {
     nice_storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(nice_storage_);
-    args_ = new MockArgsTracker(&context_);
-    context_.args_tracker.reset(args_);
+    context_.args_tracker.reset(new ArgsTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     process_ = new MockProcessTracker(&context_);
@@ -189,7 +189,6 @@ class ProtoTraceParserTest : public ::testing::Test {
   std::unique_ptr<protozero::ScatteredStreamWriter> stream_writer_;
   protos::pbzero::Trace trace_;
   TraceProcessorContext context_;
-  MockArgsTracker* args_;
   MockEventTracker* event_;
   MockProcessTracker* process_;
   MockSliceTracker* slice_;
@@ -972,6 +971,264 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   EXPECT_CALL(*slice_, Begin(1010000, 1, 1, 3, _));
   EXPECT_CALL(*slice_, End(1015000, 2, 1, 2, _));
   EXPECT_CALL(*slice_, End(1020000, 1, 1, 3, _));
+
+  context_.sorter->ExtractEventsForced();
+}
+
+TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
+  InitStorage();
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+  MockArgsTracker args(&context_);
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1000);
+    thread_desc->set_reference_thread_time_us(2000);
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_thread_time_delta_us(5);  // absolute: 2005.
+    event->add_category_iids(1);
+    auto* annotation1 = event->add_debug_annotations();
+    annotation1->set_name_iid(1);
+    annotation1->set_uint_value(10u);
+    auto* annotation2 = event->add_debug_annotations();
+    annotation2->set_name_iid(2);
+    auto* nested = annotation2->set_nested_value();
+    nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+    nested->add_dict_keys("child1");
+    nested->add_dict_keys("child2");
+    auto* child1 = nested->add_dict_values();
+    child1->set_nested_type(
+        protos::pbzero::DebugAnnotation::NestedValue::UNSPECIFIED);
+    child1->set_bool_value(true);
+    auto* child2 = nested->add_dict_values();
+    child2->set_nested_type(
+        protos::pbzero::DebugAnnotation::NestedValue::ARRAY);
+    auto* child21 = child2->add_array_values();
+    child21->set_nested_type(
+        protos::pbzero::DebugAnnotation::NestedValue::UNSPECIFIED);
+    child21->set_string_value("child21");
+    auto* child22 = child2->add_array_values();
+    child22->set_nested_type(
+        protos::pbzero::DebugAnnotation::NestedValue::UNSPECIFIED);
+    child22->set_double_value(2.2);
+    auto* child23 = child2->add_array_values();
+    child23->set_nested_type(
+        protos::pbzero::DebugAnnotation::NestedValue::UNSPECIFIED);
+    child23->set_int_value(23);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(1);
+    legacy_event->set_phase('B');
+
+    auto* interned_data = packet->set_interned_data();
+    auto cat1 = interned_data->add_event_categories();
+    cat1->set_iid(1);
+    cat1->set_name("cat1");
+    auto ev1 = interned_data->add_legacy_event_names();
+    ev1->set_iid(1);
+    ev1->set_name("ev1");
+    auto an1 = interned_data->add_debug_annotation_names();
+    an1->set_iid(1);
+    an1->set_name("an1");
+    auto an2 = interned_data->add_debug_annotation_names();
+    an2->set_iid(2);
+    an2->set_name("an2");
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_delta_us(10);   // absolute: 1020.
+    event->set_thread_time_delta_us(5);  // absolute: 2010.
+    event->add_category_iids(1);
+    auto* annotation3 = event->add_debug_annotations();
+    annotation3->set_name_iid(3);
+    annotation3->set_int_value(-3);
+    auto* annotation4 = event->add_debug_annotations();
+    annotation4->set_name_iid(4);
+    annotation4->set_bool_value(true);
+    auto* annotation5 = event->add_debug_annotations();
+    annotation5->set_name_iid(5);
+    annotation5->set_double_value(-5.5);
+    auto* annotation6 = event->add_debug_annotations();
+    annotation6->set_name_iid(6);
+    annotation6->set_pointer_value(20u);
+    auto* annotation7 = event->add_debug_annotations();
+    annotation7->set_name_iid(7);
+    annotation7->set_string_value("val7");
+    auto* annotation8 = event->add_debug_annotations();
+    annotation8->set_name_iid(8);
+    annotation8->set_legacy_json_value("val8");
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(1);
+    legacy_event->set_phase('E');
+
+    auto* interned_data = packet->set_interned_data();
+    auto an3 = interned_data->add_debug_annotation_names();
+    an3->set_iid(3);
+    an3->set_name("an3");
+    auto an4 = interned_data->add_debug_annotation_names();
+    an4->set_iid(4);
+    an4->set_name("an4");
+    auto an5 = interned_data->add_debug_annotation_names();
+    an5->set_iid(5);
+    an5->set_name("an5");
+    auto an6 = interned_data->add_debug_annotation_names();
+    an6->set_iid(6);
+    an6->set_name("an6");
+    auto an7 = interned_data->add_debug_annotation_names();
+    an7->set_iid(7);
+    an7->set_name("an7");
+    auto an8 = interned_data->add_debug_annotation_names();
+    an8->set_iid(8);
+    an8->set_name("an8");
+  }
+
+  Tokenize();
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15))
+      .Times(2)
+      .WillRepeatedly(Return(1));
+
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
+      .WillOnce(Return(1));
+  EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
+      .WillOnce(Return(2));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, 1, 2, _))
+      .WillOnce(testing::InvokeArgument<4>(&args, 1u));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an1")))
+      .WillOnce(Return(3));
+  EXPECT_CALL(args, AddArg(1u, 3, 3, Variadic::UnsignedInteger(10u)));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2")))
+      .WillOnce(Return(4));
+  EXPECT_CALL(*storage_, GetString(4)).WillOnce(Return("debug.an2"));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child1")))
+      .Times(2)
+      .WillRepeatedly(Return(5));
+  EXPECT_CALL(args, AddArg(1u, 5, 5, Variadic::Boolean(true)));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2")))
+      .WillOnce(Return(6));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2[0]")))
+      .WillOnce(Return(7));
+  EXPECT_CALL(*storage_, InternString(base::StringView("child21")))
+      .WillOnce(Return(8));
+  EXPECT_CALL(args, AddArg(1u, 6, 7, Variadic::String(8)));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2")))
+      .WillOnce(Return(6));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2[1]")))
+      .WillOnce(Return(9));
+  EXPECT_CALL(args, AddArg(1u, 6, 9, Variadic::Real(2.2)));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2")))
+      .WillOnce(Return(6));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2[2]")))
+      .WillOnce(Return(10));
+  EXPECT_CALL(args, AddArg(1u, 6, 10, Variadic::Integer(23)));
+
+  EXPECT_CALL(*slice_, End(1020000, 1, 1, 2, _))
+      .WillOnce(testing::InvokeArgument<4>(&args, 1u));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an3")))
+      .WillOnce(Return(11));
+  EXPECT_CALL(args, AddArg(1u, 11, 11, Variadic::Integer(-3)));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an4")))
+      .WillOnce(Return(12));
+  EXPECT_CALL(args, AddArg(1u, 12, 12, Variadic::Boolean(true)));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an5")))
+      .WillOnce(Return(13));
+  EXPECT_CALL(args, AddArg(1u, 13, 13, Variadic::Real(-5.5)));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an6")))
+      .WillOnce(Return(14));
+  EXPECT_CALL(args, AddArg(1u, 14, 14, Variadic::Pointer(20u)));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an7")))
+      .WillOnce(Return(15));
+  EXPECT_CALL(*storage_, InternString(base::StringView("val7")))
+      .WillOnce(Return(16));
+  EXPECT_CALL(args, AddArg(1u, 15, 15, Variadic::String(16)));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an8")))
+      .WillOnce(Return(17));
+  EXPECT_CALL(*storage_, InternString(base::StringView("val8")))
+      .WillOnce(Return(18));
+  EXPECT_CALL(args, AddArg(1u, 17, 17, Variadic::String(18)));
+
+  context_.sorter->ExtractEventsForced();
+}
+
+TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
+  InitStorage();
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+  MockArgsTracker args(&context_);
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1000);
+    thread_desc->set_reference_thread_time_us(2000);
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_thread_time_delta_us(5);  // absolute: 2005.
+    event->add_category_iids(1);
+    auto* task_execution = event->set_task_execution();
+    task_execution->set_posted_from_iid(1);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(1);
+    legacy_event->set_phase('B');
+
+    auto* interned_data = packet->set_interned_data();
+    auto cat1 = interned_data->add_event_categories();
+    cat1->set_iid(1);
+    cat1->set_name("cat1");
+    auto ev1 = interned_data->add_legacy_event_names();
+    ev1->set_iid(1);
+    ev1->set_name("ev1");
+    auto loc1 = interned_data->add_source_locations();
+    loc1->set_iid(1);
+    loc1->set_file_name("file1");
+    loc1->set_function_name("func1");
+  }
+
+  Tokenize();
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
+
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
+      .WillOnce(Return(1));
+  EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
+      .WillOnce(Return(2));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, 1, 2, _))
+      .WillOnce(testing::InvokeArgument<4>(&args, 1u));
+  EXPECT_CALL(*storage_, InternString(base::StringView("file1")))
+      .WillOnce(Return(3));
+  EXPECT_CALL(*storage_, InternString(base::StringView("func1")))
+      .WillOnce(Return(4));
+  EXPECT_CALL(args, AddArg(1u, _, _, Variadic::String(3)));
+  EXPECT_CALL(args, AddArg(1u, _, _, Variadic::String(4)));
 
   context_.sorter->ExtractEventsForced();
 }

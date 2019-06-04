@@ -131,11 +131,23 @@ class TraceStorage {
           case Variadic::Type::kInt:
             hash.Update(arg.value.int_value);
             break;
+          case Variadic::Type::kUint:
+            hash.Update(arg.value.uint_value);
+            break;
           case Variadic::Type::kString:
             hash.Update(arg.value.string_value);
             break;
           case Variadic::Type::kReal:
             hash.Update(arg.value.real_value);
+            break;
+          case Variadic::Type::kPointer:
+            hash.Update(arg.value.pointer_value);
+            break;
+          case Variadic::Type::kBool:
+            hash.Update(arg.value.bool_value);
+            break;
+          case Variadic::Type::kJson:
+            hash.Update(arg.value.json_value);
             break;
         }
         return hash.digest();
@@ -832,7 +844,8 @@ class TraceStorage {
   }
 
   // Reading methods.
-  NullTermStringView GetString(StringId id) const {
+  // Virtual for testing.
+  virtual NullTermStringView GetString(StringId id) const {
     return string_pool_.Get(id);
   }
 
