@@ -118,7 +118,11 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
       ion_total_unknown_id_(context->storage->InternString("mem.ion.unknown")),
       ion_change_unknown_id_(
-          context->storage->InternString("mem.ion_change.unknown")) {
+          context->storage->InternString("mem.ion_change.unknown")),
+      task_file_name_args_key_id_(
+          context->storage->InternString("task.posted_from.file_name")),
+      task_function_name_args_key_id_(
+          context->storage->InternString("task.posted_from.function_name")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
     meminfo_strs_id_.emplace_back(context->storage->InternString(name));
   }
@@ -1436,21 +1440,35 @@ void ProtoTraceParser::ParseTrackEvent(
   // TODO(eseckler): Handle thread timestamp/duration, debug annotations, task
   // souce locations, legacy event attributes, ...
 
+  auto args_callback = [this, &event, &sequence_state](
+                           ArgsTracker* args_tracker, RowId row) {
+    for (auto it = event.debug_annotations(); it; ++it) {
+      ParseDebugAnnotationArgs(it->as_bytes(), sequence_state, args_tracker,
+                               row);
+    }
+
+    if (event.has_task_execution()) {
+      ParseTaskExecutionArgs(event.task_execution(), sequence_state,
+                             args_tracker, row);
+    }
+  };
+
   int32_t phase = legacy_event.phase();
   switch (static_cast<char>(phase)) {
     case 'B': {  // TRACE_EVENT_PHASE_BEGIN.
-      slice_tracker->Begin(ts, utid, category_id, name_id);
+      slice_tracker->Begin(ts, utid, category_id, name_id, args_callback);
       break;
     }
     case 'E': {  // TRACE_EVENT_PHASE_END.
-      slice_tracker->End(ts, utid, category_id, name_id);
+      slice_tracker->End(ts, utid, category_id, name_id, args_callback);
       break;
     }
     case 'X': {  // TRACE_EVENT_PHASE_COMPLETE.
       auto duration_ns = legacy_event.duration_us() * 1000;
       if (duration_ns < 0)
         return;
-      slice_tracker->Scoped(ts, utid, category_id, name_id, duration_ns);
+      slice_tracker->Scoped(ts, utid, category_id, name_id, duration_ns,
+                            args_callback);
       break;
     }
     case 'M': {  // TRACE_EVENT_PHASE_METADATA (process and thread names).
@@ -1484,6 +1502,176 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
   }
+}
+
+void ProtoTraceParser::ParseDebugAnnotationArgs(
+    ConstBytes debug_annotation,
+    ProtoIncrementalState::PacketSequenceState* sequence_state,
+    ArgsTracker* args_tracker,
+    RowId row) {
+  protos::pbzero::DebugAnnotation::Decoder annotation(debug_annotation.data,
+                                                      debug_annotation.size);
+  uint32_t iid = annotation.name_iid();
+  if (!iid)
+    return;
+
+  auto* map =
+      sequence_state->GetInternedDataMap<protos::pbzero::DebugAnnotationName>();
+  auto name_view_it = map->find(iid);
+  if (name_view_it == map->end()) {
+    PERFETTO_ELOG(
+        "Could not find debug annotation name interning entry for ID %u", iid);
+    return;
+  }
+
+  TraceStorage* storage = context_->storage.get();
+
+  StringId name_id = 0;
+
+  // If the name is already in the pool, no need to decode it again.
+  if (name_view_it->second.storage_refs) {
+    name_id = name_view_it->second.storage_refs->name_id;
+  } else {
+    auto name = name_view_it->second.CreateDecoder();
+    std::string name_prefixed = "debug." + name.name().ToStdString();
+    name_id = storage->InternString(base::StringView(name_prefixed));
+    // Avoid having to decode & look up the name again in the future.
+    name_view_it->second.storage_refs =
+        ProtoIncrementalState::StorageReferences<
+            protos::pbzero::DebugAnnotationName>{name_id};
+  }
+
+  if (annotation.has_bool_value()) {
+    args_tracker->AddArg(row, name_id, name_id,
+                         Variadic::Boolean(annotation.bool_value()));
+  } else if (annotation.has_uint_value()) {
+    args_tracker->AddArg(row, name_id, name_id,
+                         Variadic::UnsignedInteger(annotation.uint_value()));
+  } else if (annotation.has_int_value()) {
+    args_tracker->AddArg(row, name_id, name_id,
+                         Variadic::Integer(annotation.int_value()));
+  } else if (annotation.has_double_value()) {
+    args_tracker->AddArg(row, name_id, name_id,
+                         Variadic::Real(annotation.double_value()));
+  } else if (annotation.has_string_value()) {
+    args_tracker->AddArg(
+        row, name_id, name_id,
+        Variadic::String(storage->InternString(annotation.string_value())));
+  } else if (annotation.has_pointer_value()) {
+    args_tracker->AddArg(row, name_id, name_id,
+                         Variadic::Pointer(annotation.pointer_value()));
+  } else if (annotation.has_legacy_json_value()) {
+    args_tracker->AddArg(row, name_id, name_id,
+                         Variadic::String(storage->InternString(
+                             annotation.legacy_json_value())));
+  } else if (annotation.has_nested_value()) {
+    auto name = storage->GetString(name_id);
+    ParseNestedValueArgs(annotation.nested_value(), name, name, args_tracker,
+                         row);
+  }
+}
+
+void ProtoTraceParser::ParseNestedValueArgs(ConstBytes nested_value,
+                                            base::StringView flat_key,
+                                            base::StringView key,
+                                            ArgsTracker* args_tracker,
+                                            RowId row) {
+  protos::pbzero::DebugAnnotation::NestedValue::Decoder value(
+      nested_value.data, nested_value.size);
+  switch (value.nested_type()) {
+    case protos::pbzero::DebugAnnotation::NestedValue::UNSPECIFIED: {
+      auto flat_key_id = context_->storage->InternString(flat_key);
+      auto key_id = context_->storage->InternString(key);
+      // Leaf value.
+      if (value.has_bool_value()) {
+        args_tracker->AddArg(row, flat_key_id, key_id,
+                             Variadic::Boolean(value.bool_value()));
+      } else if (value.has_int_value()) {
+        args_tracker->AddArg(row, flat_key_id, key_id,
+                             Variadic::Integer(value.int_value()));
+      } else if (value.has_double_value()) {
+        args_tracker->AddArg(row, flat_key_id, key_id,
+                             Variadic::Real(value.double_value()));
+      } else if (value.has_string_value()) {
+        args_tracker->AddArg(row, flat_key_id, key_id,
+                             Variadic::String(context_->storage->InternString(
+                                 value.string_value())));
+      }
+      break;
+    }
+    case protos::pbzero::DebugAnnotation::NestedValue::DICT: {
+      auto key_it = value.dict_keys();
+      auto value_it = value.dict_values();
+      for (; key_it && value_it; ++key_it, ++value_it) {
+        std::string child_name = key_it->as_std_string();
+        std::string child_flat_key = flat_key.ToStdString() + "." + child_name;
+        std::string child_key = key.ToStdString() + "." + child_name;
+        ParseNestedValueArgs(value_it->as_bytes(),
+                             base::StringView(child_flat_key),
+                             base::StringView(child_key), args_tracker, row);
+      }
+      break;
+    }
+    case protos::pbzero::DebugAnnotation::NestedValue::ARRAY: {
+      int child_index = 0;
+      std::string child_flat_key = flat_key.ToStdString();
+      for (auto value_it = value.array_values(); value_it;
+           ++value_it, ++child_index) {
+        std::string child_key =
+            key.ToStdString() + "[" + std::to_string(child_index) + "]";
+        ParseNestedValueArgs(value_it->as_bytes(),
+                             base::StringView(child_flat_key),
+                             base::StringView(child_key), args_tracker, row);
+      }
+      break;
+    }
+  }
+}
+
+void ProtoTraceParser::ParseTaskExecutionArgs(
+    ConstBytes task_execution,
+    ProtoIncrementalState::PacketSequenceState* sequence_state,
+    ArgsTracker* args_tracker,
+    RowId row) {
+  protos::pbzero::TaskExecution::Decoder task(task_execution.data,
+                                              task_execution.size);
+  uint32_t iid = task.posted_from_iid();
+  if (!iid)
+    return;
+
+  auto* map =
+      sequence_state->GetInternedDataMap<protos::pbzero::SourceLocation>();
+  auto location_view_it = map->find(iid);
+  if (location_view_it == map->end()) {
+    PERFETTO_ELOG("Could not find source location interning entry for ID %u",
+                  iid);
+    return;
+  }
+
+  StringId file_name_id = 0;
+  StringId function_name_id = 0;
+
+  // If the names are already in the pool, no need to decode them again.
+  if (location_view_it->second.storage_refs) {
+    file_name_id = location_view_it->second.storage_refs->file_name_id;
+    function_name_id = location_view_it->second.storage_refs->function_name_id;
+  } else {
+    TraceStorage* storage = context_->storage.get();
+    auto location = location_view_it->second.CreateDecoder();
+    file_name_id = storage->InternString(location.file_name());
+    function_name_id = storage->InternString(location.function_name());
+    // Avoid having to decode & look up the names again in the future.
+    location_view_it->second.storage_refs =
+        ProtoIncrementalState::StorageReferences<
+            protos::pbzero::SourceLocation>{file_name_id, function_name_id};
+  }
+
+  args_tracker->AddArg(row, task_file_name_args_key_id_,
+                       task_file_name_args_key_id_,
+                       Variadic::String(file_name_id));
+  args_tracker->AddArg(row, task_function_name_args_key_id_,
+                       task_function_name_args_key_id_,
+                       Variadic::String(function_name_id));
 }
 
 void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {
