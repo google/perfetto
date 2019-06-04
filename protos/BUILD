@@ -381,6 +381,7 @@ proto_library(
         "//third_party/perfetto/protos:trace_ftrace",
         "//third_party/perfetto/protos:trace_interned_data",
         "//third_party/perfetto/protos:trace_minimal",
+        "//third_party/perfetto/protos:trace_perfetto",
         "//third_party/perfetto/protos:trace_power",
         "//third_party/perfetto/protos:trace_profiling",
         "//third_party/perfetto/protos:trace_ps",
@@ -836,6 +837,59 @@ java_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/perfetto:lite_gen
+proto_library(
+    name = "trace_perfetto",
+    srcs = [
+        "perfetto/trace/perfetto/perfetto_metatrace.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/perfetto:lite_gen
+cc_proto_library(
+    name = "trace_perfetto_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_perfetto",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/perfetto:lite_gen
+java_proto_library(
+    name = "trace_perfetto_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_perfetto",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/perfetto:zero_gen
+proto_library(
+    name = "trace_perfetto_zero",
+    srcs = [
+        "perfetto/trace/perfetto/perfetto_metatrace.proto",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/perfetto:zero_gen
+pbzero_cc_proto_library(
+    name = "trace_perfetto_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:trace_perfetto_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/power:lite_gen
 proto_library(
     name = "trace_power",
@@ -1193,6 +1247,7 @@ proto_library(
         "//third_party/perfetto/protos:trace_filesystem_zero",
         "//third_party/perfetto/protos:trace_ftrace_zero",
         "//third_party/perfetto/protos:trace_interned_data_zero",
+        "//third_party/perfetto/protos:trace_perfetto_zero",
         "//third_party/perfetto/protos:trace_power_zero",
         "//third_party/perfetto/protos:trace_profiling_zero",
         "//third_party/perfetto/protos:trace_ps_zero",

@@ -40,6 +40,7 @@ source_set("probes_src") {
     "../../tracing:tracing",
     "android_log",
     "filesystem",
+    "metatrace",
     "packages_list",
     "power",
     "ps",
