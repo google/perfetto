@@ -38,6 +38,12 @@ function is_mac {
   return $?
 }
 
+function tmux_ensure_bash {
+  if [[ $SHELL == *"fish" ]]; then
+    tmux send-keys "bash" Enter
+  fi
+}
+
 function reset_tracing {
   if is_android $OUT; then
     adb shell 'echo 0 > /d/tracing/tracing_on'
@@ -197,16 +203,19 @@ fi
 sleep 2
 
 tmux select-pane -t 1
+tmux_ensure_bash
 tmux send-keys "PS1='[traced_probes]$ '" Enter
 tmux send-keys "cd $DIR" Enter
 tmux send-keys "$PREFIX ./traced $POSTFIX" Enter
 
 tmux select-pane -t 0
+tmux_ensure_bash
 tmux send-keys "PS1='[traced]$ '" Enter
 tmux send-keys "cd $DIR" Enter
 tmux send-keys "$PREFIX PERFETTO_METATRACE_FILE=mtrace ./traced_probes $POSTFIX" Enter
 
 tmux select-pane -t 2
+tmux_ensure_bash
 tmux send-keys "PS1='[consumer]$ '" Enter
 tmux send-keys "cd $DIR" Enter
 tmux send-keys "$PREFIX ./perfetto $CMD_OPTS -c $CONFIG_DEVICE_PATH -o trace $POSTFIX"
