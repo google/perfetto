@@ -22,6 +22,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -59,6 +60,7 @@
 #include "perfetto/trace/ftrace/signal.pbzero.h"
 #include "perfetto/trace/ftrace/task.pbzero.h"
 #include "perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "perfetto/trace/power/battery_counters.pbzero.h"
 #include "perfetto/trace/power/power_rails.pbzero.h"
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
@@ -119,6 +121,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       ion_total_unknown_id_(context->storage->InternString("mem.ion.unknown")),
       ion_change_unknown_id_(
           context->storage->InternString("mem.ion_change.unknown")),
+      metatrace_id_(context->storage->InternString("metatrace")),
       task_file_name_args_key_id_(
           context->storage->InternString("task.posted_from.file_name")),
       task_function_name_args_key_id_(
@@ -260,6 +263,10 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_chrome_benchmark_metadata()) {
     ParseChromeBenchmarkMetadata(packet.chrome_benchmark_metadata());
+  }
+
+  if (packet.has_perfetto_metatrace()) {
+    ParseMetatraceEvent(ts, packet.perfetto_metatrace());
   }
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
@@ -1718,6 +1725,40 @@ void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {
     storage->SetMetadata(metadata::benchmark_had_failures,
                          Variadic::Integer(packet.had_failures()));
   }
+}
+
+void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
+  protos::pbzero::PerfettoMetatrace::Decoder event(blob.data, blob.size);
+  auto utid = context_->process_tracker->GetOrCreateThread(event.thread_id());
+
+  StringId cat_id = metatrace_id_;
+  StringId name_id = 0;
+  char fallback[64];
+
+  if (event.has_event_id()) {
+    auto eid = event.event_id();
+    if (eid < metatrace::EVENTS_MAX) {
+      name_id = context_->storage->InternString(metatrace::kEventNames[eid]);
+    } else {
+      sprintf(fallback, "Event %d", eid);
+      name_id = context_->storage->InternString(fallback);
+    }
+    context_->slice_tracker->Scoped(ts, utid, cat_id, name_id,
+                                    event.event_duration_ns());
+  } else if (event.has_counter_id()) {
+    auto cid = event.counter_id();
+    if (cid < metatrace::COUNTERS_MAX) {
+      name_id = context_->storage->InternString(metatrace::kCounterNames[cid]);
+    } else {
+      sprintf(fallback, "Counter %d", cid);
+      name_id = context_->storage->InternString(fallback);
+    }
+    context_->event_tracker->PushCounter(ts, event.counter_value(), name_id,
+                                         utid, RefType::kRefUtid);
+  }
+
+  if (event.has_overruns())
+    context_->storage->IncrementStats(stats::metatrace_overruns);
 }
 
 }  // namespace trace_processor

@@ -16,48 +16,125 @@
 
 #include "perfetto/ext/base/metatrace.h"
 
-#include <fcntl.h>
-#include <stdlib.h>
-
-#include "perfetto/base/build_config.h"
+#include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/time.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <corecrt_io.h>
-#endif
-
 namespace perfetto {
-namespace base {
+namespace metatrace {
+
+std::atomic<uint32_t> g_enabled_tags{0};
+std::atomic<uint64_t> g_enabled_timestamp{0};
+
+// static members
+constexpr size_t RingBuffer::kCapacity;
+std::array<Record, RingBuffer::kCapacity> RingBuffer::records_;
+std::atomic<bool> RingBuffer::read_task_queued_;
+std::atomic<uint64_t> RingBuffer::wr_index_;
+std::atomic<uint64_t> RingBuffer::rd_index_;
+std::atomic<bool> RingBuffer::has_overruns_;
+Record RingBuffer::bankruptcy_record_;
+
+constexpr uint16_t Record::kTypeMask;
+constexpr uint16_t Record::kTypeCounter;
+constexpr uint16_t Record::kTypeEvent;
 
 namespace {
-int MaybeOpenTraceFile() {
-  static const char* tracing_path = getenv("PERFETTO_METATRACE_FILE");
-  if (tracing_path == nullptr)
-    return -1;
-  static int fd = open(tracing_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  return fd;
-}
+
+// std::function<> is not trivially de/constructible. This struct wraps it in a
+// heap-allocated struct to avoid static initializers.
+struct Delegate {
+  static Delegate* GetInstance() {
+    static Delegate* instance = new Delegate();
+    return instance;
+  }
+
+  base::TaskRunner* task_runner = nullptr;
+  std::function<void()> read_task;
+};
+
 }  // namespace
 
-constexpr uint32_t MetaTrace::kMainThreadCpu;
+bool Enable(std::function<void()> read_task,
+            base::TaskRunner* task_runner,
+            uint32_t tags) {
+  PERFETTO_DCHECK(read_task);
+  PERFETTO_DCHECK(task_runner->RunsTasksOnCurrentThread());
+  if (g_enabled_tags.load(std::memory_order_acquire))
+    return false;
 
-void MetaTrace::WriteEvent(char type, const char* evt_name, size_t cpu) {
-  int fd = MaybeOpenTraceFile();
-  if (fd == -1)
-    return;
-
-  // The JSON event format expects both "pid" and "tid" fields to create
-  // per-process tracks. Here what we really want to achieve is having one track
-  // per cpu. So we just pretend that each CPU is its own process with
-  // pid == tid == cpu.
-  char json[256];
-  int len = sprintf(json,
-                    "{\"ts\": %f, \"cat\": \"PERF\", \"ph\": \"%c\", \"name\": "
-                    "\"%s\", \"pid\": %zu, \"tid\": %zu},\n",
-                    GetWallTimeNs().count() / 1000.0, type, evt_name, cpu, cpu);
-  ignore_result(WriteAll(fd, json, static_cast<size_t>(len)));
+  Delegate* dg = Delegate::GetInstance();
+  dg->task_runner = task_runner;
+  dg->read_task = std::move(read_task);
+  RingBuffer::Reset();
+  g_enabled_timestamp.store(TraceTimeNowNs(), std::memory_order_relaxed);
+  g_enabled_tags.store(tags, std::memory_order_release);
+  return true;
 }
 
-}  // namespace base
+void Disable() {
+  g_enabled_tags.store(0, std::memory_order_release);
+  Delegate* dg = Delegate::GetInstance();
+  PERFETTO_DCHECK(!dg->task_runner ||
+                  dg->task_runner->RunsTasksOnCurrentThread());
+  dg->task_runner = nullptr;
+  dg->read_task = nullptr;
+}
+
+// static
+void RingBuffer::Reset() {
+  static_assert(std::is_trivially_constructible<Record>::value &&
+                    std::is_trivially_destructible<Record>::value,
+                "Record must be trivial");
+  memset(&records_[0], 0, sizeof(records_));
+  memset(&bankruptcy_record_, 0, sizeof(bankruptcy_record_));
+  wr_index_ = 0;
+  rd_index_ = 0;
+  has_overruns_ = false;
+  read_task_queued_ = false;
+}
+
+// static
+Record* RingBuffer::AppendNewRecord() {
+  auto wr_index = wr_index_.fetch_add(1, std::memory_order_acq_rel);
+
+  // rd_index can only monotonically increase, we don't care if we read an
+  // older value, we'll just hit the slow-path a bit earlier if it happens.
+  auto rd_index = rd_index_.load(std::memory_order_relaxed);
+
+  PERFETTO_DCHECK(wr_index >= rd_index);
+  auto size = wr_index - rd_index;
+  if (PERFETTO_LIKELY(size < kCapacity / 2))
+    return At(wr_index);
+
+  // Slow-path: Enqueue the read task and handle overruns.
+  bool expected = false;
+  if (RingBuffer::read_task_queued_.compare_exchange_strong(expected, true)) {
+    Delegate* dg = Delegate::GetInstance();
+    if (dg->task_runner) {
+      dg->task_runner->PostTask([] {
+        // Meta-tracing might have been disabled in the meantime.
+        auto read_task = Delegate::GetInstance()->read_task;
+        if (read_task)
+          read_task();
+        RingBuffer::read_task_queued_ = false;
+      });
+    }
+  }
+
+  if (PERFETTO_LIKELY(size < kCapacity))
+    return At(wr_index);
+
+  has_overruns_.store(true, std::memory_order_release);
+  wr_index_.fetch_sub(1, std::memory_order_acq_rel);
+  return &bankruptcy_record_;
+}
+
+// static
+bool RingBuffer::IsOnValidTaskRunner() {
+  auto* task_runner = Delegate::GetInstance()->task_runner;
+  return task_runner && task_runner->RunsTasksOnCurrentThread();
+}
+
+}  // namespace metatrace
 }  // namespace perfetto

@@ -138,7 +138,7 @@ base::WeakPtr<ProcessStatsDataSource> ProcessStatsDataSource::GetWeakPtr()
 }
 
 void ProcessStatsDataSource::WriteAllProcesses() {
-  PERFETTO_METATRACE("WriteAllProcesses", 0);
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, PS_WRITE_ALL_PROCESSES);
   PERFETTO_DCHECK(!cur_ps_tree_);
 
   CacheProcFsScanStartTimestamp();
@@ -171,20 +171,23 @@ void ProcessStatsDataSource::WriteAllProcesses() {
 }
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
-  PERFETTO_METATRACE("OnPids", 0);
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, PS_ON_PIDS);
   if (!enable_on_demand_dumps_)
     return;
   PERFETTO_DCHECK(!cur_ps_tree_);
+  int pids_scanned = 0;
   for (int32_t pid : pids) {
     if (seen_pids_.count(pid) || pid == 0)
       continue;
     WriteProcessOrThread(pid);
+    pids_scanned++;
   }
   FinalizeCurPacket();
+  PERFETTO_METATRACE_COUNTER(TAG_PROC_POLLERS, PS_PIDS_SCANNED, pids_scanned);
 }
 
 void ProcessStatsDataSource::OnRenamePids(const std::vector<int32_t>& pids) {
-  PERFETTO_METATRACE("OnRenamePids", 0);
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, PS_ON_RENAME_PIDS);
   if (!enable_on_demand_dumps_)
     return;
   PERFETTO_DCHECK(!cur_ps_tree_);
@@ -367,7 +370,7 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
   // proc files over and over. Same for non-whitelist processes (see above).
 
   CacheProcFsScanStartTimestamp();
-  PERFETTO_METATRACE("WriteAllProcessStats", 0);
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, PS_WRITE_ALL_PROCESS_STATS);
   base::ScopedDir proc_dir = OpenProcDir();
   if (!proc_dir)
     return;
