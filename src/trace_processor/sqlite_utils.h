@@ -132,6 +132,13 @@ inline double ExtractSqliteValue(sqlite3_value* value) {
   return sqlite3_value_double(value);
 }
 
+template <>
+inline bool ExtractSqliteValue(sqlite3_value* value) {
+  auto type = sqlite3_value_type(value);
+  PERFETTO_DCHECK(type == SQLITE_INTEGER);
+  return static_cast<bool>(sqlite3_value_int(value));
+}
+
 // Do not add a uint64_t version of ExtractSqliteValue. You should not be using
 // uint64_t at all given that SQLite doesn't support it.
 
@@ -362,6 +369,11 @@ inline void ReportSqliteResult(sqlite3_context* ctx, uint32_t value) {
 }
 
 template <>
+inline void ReportSqliteResult(sqlite3_context* ctx, bool value) {
+  sqlite3_result_int(ctx, value);
+}
+
+template <>
 inline void ReportSqliteResult(sqlite3_context* ctx, double value) {
   sqlite3_result_double(ctx, value);
 }
@@ -430,6 +442,8 @@ inline std::vector<Table::Column> GetColumnsForTable(
       type = Table::ColumnType::kString;
     } else if (strcmp(raw_type, "DOUBLE") == 0) {
       type = Table::ColumnType::kDouble;
+    } else if (strcmp(raw_type, "BOOLEAN") == 0) {
+      type = Table::ColumnType::kBool;
     } else if (!*raw_type) {
       PERFETTO_DLOG("Unknown column type for %s %s", raw_table_name.c_str(),
                     name);

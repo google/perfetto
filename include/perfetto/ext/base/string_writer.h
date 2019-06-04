@@ -68,34 +68,20 @@ class StringWriter {
   // digits of the integer is less than |padding|.
   template <char padchar, uint64_t padding>
   void AppendPaddedInt(int64_t sign_value) {
-    // Need to add 2 to the number of digits to account for minus sign and
-    // rounding down of digits10.
-    constexpr auto kMaxDigits = std::numeric_limits<uint64_t>::digits10 + 2;
-    constexpr auto kSizeNeeded = kMaxDigits > padding ? kMaxDigits : padding;
-    PERFETTO_DCHECK(pos_ + kSizeNeeded <= size_);
-
-    char data[kSizeNeeded];
     const bool negate = signbit(static_cast<double>(sign_value));
-    uint64_t value = static_cast<uint64_t>(std::abs(sign_value));
+    uint64_t absolute_value = static_cast<uint64_t>(std::abs(sign_value));
+    AppendPaddedInt<padchar, padding>(absolute_value, negate);
+  }
 
-    size_t idx;
-    for (idx = kSizeNeeded - 1; value >= 10;) {
-      char digit = value % 10;
-      value /= 10;
-      data[idx--] = digit + '0';
-    }
-    data[idx--] = static_cast<char>(value) + '0';
+  void AppendUnsignedInt(uint64_t value) {
+    AppendPaddedUnsignedInt<'0', 0>(value);
+  }
 
-    if (padding > 0) {
-      size_t num_digits = kSizeNeeded - 1 - idx;
-      for (size_t i = num_digits; i < padding; i++) {
-        data[idx--] = padchar;
-      }
-    }
-
-    if (negate)
-      buffer_[pos_++] = '-';
-    AppendString(&data[idx + 1], kSizeNeeded - idx - 1);
+  // Appends an unsigned integer to the buffer, padding with |padchar| if the
+  // number of digits of the integer is less than |padding|.
+  template <char padchar, uint64_t padding>
+  void AppendPaddedUnsignedInt(uint64_t value) {
+    AppendPaddedInt<padchar, padding>(value, false);
   }
 
   // Appends a hex integer to the buffer.
@@ -118,6 +104,14 @@ class StringWriter {
     pos_ += res;
   }
 
+  void AppendBool(bool value) {
+    if (value) {
+      AppendLiteral("true");
+      return;
+    }
+    AppendLiteral("false");
+  }
+
   StringView GetStringView() {
     PERFETTO_DCHECK(pos_ <= size_);
     return StringView(buffer_, pos_);
@@ -137,6 +131,36 @@ class StringWriter {
   void reset() { pos_ = 0; }
 
  private:
+  template <char padchar, uint64_t padding>
+  void AppendPaddedInt(uint64_t absolute_value, bool negate) {
+    // Need to add 2 to the number of digits to account for minus sign and
+    // rounding down of digits10.
+    constexpr auto kMaxDigits = std::numeric_limits<uint64_t>::digits10 + 2;
+    constexpr auto kSizeNeeded = kMaxDigits > padding ? kMaxDigits : padding;
+    PERFETTO_DCHECK(pos_ + kSizeNeeded <= size_);
+
+    char data[kSizeNeeded];
+
+    size_t idx;
+    for (idx = kSizeNeeded - 1; absolute_value >= 10;) {
+      char digit = absolute_value % 10;
+      absolute_value /= 10;
+      data[idx--] = digit + '0';
+    }
+    data[idx--] = static_cast<char>(absolute_value) + '0';
+
+    if (padding > 0) {
+      size_t num_digits = kSizeNeeded - 1 - idx;
+      for (size_t i = num_digits; i < padding; i++) {
+        data[idx--] = padchar;
+      }
+    }
+
+    if (negate)
+      buffer_[pos_++] = '-';
+    AppendString(&data[idx + 1], kSizeNeeded - idx - 1);
+  }
+
   char* buffer_ = nullptr;
   size_t size_ = 0;
   size_t pos_ = 0;

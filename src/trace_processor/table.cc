@@ -39,6 +39,8 @@ std::string TypeToString(Table::ColumnType type) {
       return "INT";
     case Table::ColumnType::kDouble:
       return "DOUBLE";
+    case Table::ColumnType::kBool:
+      return "BOOLEAN";
     case Table::ColumnType::kUnknown:
       PERFETTO_FATAL("Cannot map unknown column type");
   }

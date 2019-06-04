@@ -32,10 +32,12 @@ class ArgsTracker {
   virtual ~ArgsTracker();
 
   // Adds a arg for this row id with the given key and value.
-  void AddArg(RowId row_id, StringId flat_key, StringId key, Variadic);
+  // Virtual for testing.
+  virtual void AddArg(RowId row_id, StringId flat_key, StringId key, Variadic);
 
   // Commits the added args to storage.
-  void Flush();
+  // Virtual for testing.
+  virtual void Flush();
 
  private:
   std::vector<TraceStorage::Args::Arg> args_;
