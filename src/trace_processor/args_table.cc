@@ -79,14 +79,30 @@ void ArgsTable::ValueColumn::ReportResult(sqlite3_context* ctx,
     case Variadic::Type::kInt:
       sqlite_utils::ReportSqliteResult(ctx, value.int_value);
       break;
-    case Variadic::Type::kReal:
-      sqlite_utils::ReportSqliteResult(ctx, value.real_value);
+    case Variadic::Type::kUint:
+      // BEWARE: uint64 is handled as signed int64 for SQLite operations.
+      sqlite_utils::ReportSqliteResult(ctx,
+                                       static_cast<int64_t>(value.uint_value));
       break;
     case Variadic::Type::kString: {
       const char* str = storage_->GetString(value.string_value).c_str();
       sqlite3_result_text(ctx, str, -1, sqlite_utils::kSqliteStatic);
       break;
     }
+    case Variadic::Type::kReal:
+      sqlite_utils::ReportSqliteResult(ctx, value.real_value);
+      break;
+    case Variadic::Type::kPointer:
+      // BEWARE: pointers are handled as signed int64 for SQLite operations.
+      sqlite_utils::ReportSqliteResult(
+          ctx, static_cast<int64_t>(value.pointer_value));
+      break;
+    case Variadic::Type::kBool:
+      sqlite_utils::ReportSqliteResult(ctx, value.bool_value);
+      break;
+    case Variadic::Type::kJson:
+      sqlite_utils::ReportSqliteResult(ctx, value.json_value);
+      break;
   }
 }
 
@@ -110,13 +126,16 @@ void ArgsTable::ValueColumn::Filter(int op,
           });
       break;
     }
-    case Variadic::Type::kReal: {
+    case Variadic::Type::kUint: {
       bool op_is_null = sqlite_utils::IsOpIsNull(op);
-      auto predicate = sqlite_utils::CreateNumericPredicate<double>(op, value);
+      // BEWARE: uint64 is handled as signed int64 for SQLite operations.
+      auto predicate = sqlite_utils::CreateNumericPredicate<int64_t>(op, value);
       index->FilterRows(
           [this, predicate, op_is_null](uint32_t row) PERFETTO_ALWAYS_INLINE {
             const auto& arg = storage_->args().arg_values()[row];
-            return arg.type == type_ ? predicate(arg.real_value) : op_is_null;
+            return arg.type == type_
+                       ? predicate(static_cast<int64_t>(arg.uint_value))
+                       : op_is_null;
           });
       break;
     }
@@ -127,6 +146,50 @@ void ArgsTable::ValueColumn::Filter(int op,
         const auto& arg = storage_->args().arg_values()[row];
         return arg.type == type_
                    ? predicate(storage_->GetString(arg.string_value).c_str())
+                   : predicate(nullptr);
+      });
+      break;
+    }
+    case Variadic::Type::kReal: {
+      bool op_is_null = sqlite_utils::IsOpIsNull(op);
+      auto predicate = sqlite_utils::CreateNumericPredicate<double>(op, value);
+      index->FilterRows(
+          [this, predicate, op_is_null](uint32_t row) PERFETTO_ALWAYS_INLINE {
+            const auto& arg = storage_->args().arg_values()[row];
+            return arg.type == type_ ? predicate(arg.real_value) : op_is_null;
+          });
+      break;
+    }
+    case Variadic::Type::kPointer: {
+      bool op_is_null = sqlite_utils::IsOpIsNull(op);
+      // BEWARE: pointers are handled as signed int64 for SQLite operations.
+      auto predicate = sqlite_utils::CreateNumericPredicate<int64_t>(op, value);
+      index->FilterRows(
+          [this, predicate, op_is_null](uint32_t row) PERFETTO_ALWAYS_INLINE {
+            const auto& arg = storage_->args().arg_values()[row];
+            return arg.type == type_
+                       ? predicate(static_cast<int64_t>(arg.pointer_value))
+                       : op_is_null;
+          });
+      break;
+    }
+    case Variadic::Type::kBool: {
+      bool op_is_null = sqlite_utils::IsOpIsNull(op);
+      auto predicate = sqlite_utils::CreateNumericPredicate<bool>(op, value);
+      index->FilterRows(
+          [this, predicate, op_is_null](uint32_t row) PERFETTO_ALWAYS_INLINE {
+            const auto& arg = storage_->args().arg_values()[row];
+            return arg.type == type_ ? predicate(arg.bool_value) : op_is_null;
+          });
+      break;
+    }
+    case Variadic::Type::kJson: {
+      auto predicate = sqlite_utils::CreateStringPredicate(op, value);
+      index->FilterRows([this,
+                         &predicate](uint32_t row) PERFETTO_ALWAYS_INLINE {
+        const auto& arg = storage_->args().arg_values()[row];
+        return arg.type == type_
+                   ? predicate(storage_->GetString(arg.json_value).c_str())
                    : predicate(nullptr);
       });
       break;
@@ -150,12 +213,30 @@ int ArgsTable::ValueColumn::CompareRefsAsc(uint32_t f, uint32_t s) const {
     switch (type_) {
       case Variadic::Type::kInt:
         return sqlite_utils::CompareValuesAsc(arg_f.int_value, arg_s.int_value);
-      case Variadic::Type::kReal:
-        return sqlite_utils::CompareValuesAsc(arg_f.real_value,
-                                              arg_s.real_value);
+      case Variadic::Type::kUint:
+        // BEWARE: uint64 is handled as signed int64 for SQLite operations.
+        return sqlite_utils::CompareValuesAsc(
+            static_cast<int64_t>(arg_f.uint_value),
+            static_cast<int64_t>(arg_s.uint_value));
       case Variadic::Type::kString: {
         const auto& f_str = storage_->GetString(arg_f.string_value);
         const auto& s_str = storage_->GetString(arg_s.string_value);
+        return sqlite_utils::CompareValuesAsc(f_str, s_str);
+      }
+      case Variadic::Type::kReal:
+        return sqlite_utils::CompareValuesAsc(arg_f.real_value,
+                                              arg_s.real_value);
+      case Variadic::Type::kPointer:
+        // BEWARE: pointers are handled as signed int64 for SQLite operations.
+        return sqlite_utils::CompareValuesAsc(
+            static_cast<int64_t>(arg_f.pointer_value),
+            static_cast<int64_t>(arg_s.pointer_value));
+      case Variadic::Type::kBool:
+        return sqlite_utils::CompareValuesAsc(arg_f.bool_value,
+                                              arg_s.bool_value);
+      case Variadic::Type::kJson: {
+        const auto& f_str = storage_->GetString(arg_f.json_value);
+        const auto& s_str = storage_->GetString(arg_s.json_value);
         return sqlite_utils::CompareValuesAsc(f_str, s_str);
       }
     }

@@ -33,6 +33,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class ArgsTracker;
 class TraceProcessorContext;
 
 class ProtoTraceParser : public TraceParser {
@@ -92,6 +93,21 @@ class ProtoTraceParser : public TraceParser {
                        int64_t tts,
                        ProtoIncrementalState::PacketSequenceState*,
                        ConstBytes);
+  void ParseDebugAnnotationArgs(
+      ConstBytes debug_annotation,
+      ProtoIncrementalState::PacketSequenceState* sequence_state,
+      ArgsTracker* args_tracker,
+      RowId row);
+  void ParseNestedValueArgs(ConstBytes nested_value,
+                            base::StringView flat_key,
+                            base::StringView key,
+                            ArgsTracker* args_tracker,
+                            RowId row);
+  void ParseTaskExecutionArgs(
+      ConstBytes task_execution,
+      ProtoIncrementalState::PacketSequenceState* sequence_state,
+      ArgsTracker* args_tracker,
+      RowId row);
   void ParseChromeBenchmarkMetadata(ConstBytes);
 
  private:
@@ -123,6 +139,8 @@ class ProtoTraceParser : public TraceParser {
   const StringId oom_score_adj_id_;
   const StringId ion_total_unknown_id_;
   const StringId ion_change_unknown_id_;
+  const StringId task_file_name_args_key_id_;
+  const StringId task_function_name_args_key_id_;
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
