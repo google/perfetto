@@ -3545,6 +3545,7 @@ cc_binary_host {
     "src/trace_processor/fuchsia_trace_parser.cc",
     "src/trace_processor/fuchsia_trace_tokenizer.cc",
     "src/trace_processor/fuchsia_trace_utils.cc",
+    "src/trace_processor/gzip_trace_parser.cc",
     "src/trace_processor/heap_profile_allocation_table.cc",
     "src/trace_processor/heap_profile_callsite_table.cc",
     "src/trace_processor/heap_profile_frame_table.cc",
@@ -3595,6 +3596,7 @@ cc_binary_host {
     "liblog",
     "libprotobuf-cpp-full",
     "libprotobuf-cpp-lite",
+    "libz",
   ],
   static_libs: [
     "libsqlite",
@@ -3641,7 +3643,10 @@ cc_binary_host {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DHAVE_HIDDEN",
     "-DPERFETTO_BUILD_WITH_ANDROID",
+    "-DUSE_MMAP",
+    "-DZLIB_CONST",
   ],
 }
 
