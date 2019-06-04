@@ -1843,7 +1843,6 @@ TEST_F(TracingServiceImplTest, OnDataSourceAddedWhilePendingDisableAcks) {
 // skips the ack and checks that the service invokes the OnTracingDisabled()
 // after the timeout.
 TEST_F(TracingServiceImplTest, OnTracingDisabledCalledAnywaysInCaseOfTimeout) {
-  svc->override_data_source_test_timeout_ms_for_testing = 1;
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -1855,6 +1854,7 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledCalledAnywaysInCaseOfTimeout) {
   trace_config.add_buffers()->set_size_kb(128);
   trace_config.add_data_sources()->mutable_config()->set_name("data_source");
   trace_config.set_duration_ms(1);
+  trace_config.set_data_source_stop_timeout_ms(1);
 
   consumer->EnableTracing(trace_config);
   producer->WaitForTracingSetup();
