@@ -19,9 +19,11 @@ import("../../../gn/protozero_library.gni")
 common_sources = [
   "android_log_constants.proto",
   "commit_data_request.proto",
+  "data_source_descriptor.proto",
   "descriptor.proto",
   "observable_events.proto",
   "sys_stats_counters.proto",
+  "tracing_service_state.proto",
   "trace_stats.proto",
 ]
 

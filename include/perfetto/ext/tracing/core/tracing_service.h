@@ -39,6 +39,7 @@ class Consumer;
 class DataSourceDescriptor;
 class Producer;
 class SharedMemoryArbiter;
+class TracingServiceState;
 class TraceConfig;
 class TraceWriter;
 
@@ -202,6 +203,12 @@ class ConsumerEndpoint {
   //
   // TODO(eseckler): Extend this to support producers & data sources.
   virtual void ObserveEvents(uint32_t enabled_event_types) = 0;
+
+  // Used to obtain the list of connected data sources and other info about
+  // the tracing service.
+  using QueryServiceStateCallback =
+      std::function<void(bool success, const TracingServiceState&)>;
+  virtual void QueryServiceState(QueryServiceStateCallback) = 0;
 };  // class ConsumerEndpoint.
 
 // The public API of the tracing Service business logic.

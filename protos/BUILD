@@ -30,10 +30,12 @@ proto_library(
     srcs = [
         "perfetto/common/android_log_constants.proto",
         "perfetto/common/commit_data_request.proto",
+        "perfetto/common/data_source_descriptor.proto",
         "perfetto/common/descriptor.proto",
         "perfetto/common/observable_events.proto",
         "perfetto/common/sys_stats_counters.proto",
         "perfetto/common/trace_stats.proto",
+        "perfetto/common/tracing_service_state.proto",
     ],
     has_services = 1,
     cc_api_version = 2,
@@ -71,10 +73,12 @@ proto_library(
     srcs = [
         "perfetto/common/android_log_constants.proto",
         "perfetto/common/commit_data_request.proto",
+        "perfetto/common/data_source_descriptor.proto",
         "perfetto/common/descriptor.proto",
         "perfetto/common/observable_events.proto",
         "perfetto/common/sys_stats_counters.proto",
         "perfetto/common/trace_stats.proto",
+        "perfetto/common/tracing_service_state.proto",
     ],
 )
 
@@ -94,7 +98,6 @@ proto_library(
         "perfetto/config/android/android_log_config.proto",
         "perfetto/config/chrome/chrome_config.proto",
         "perfetto/config/data_source_config.proto",
-        "perfetto/config/data_source_descriptor.proto",
         "perfetto/config/ftrace/ftrace_config.proto",
         "perfetto/config/inode_file/inode_file_config.proto",
         "perfetto/config/power/android_power_config.proto",
@@ -180,7 +183,6 @@ proto_library(
         "perfetto/config/android/android_log_config.proto",
         "perfetto/config/chrome/chrome_config.proto",
         "perfetto/config/data_source_config.proto",
-        "perfetto/config/data_source_descriptor.proto",
         "perfetto/config/ftrace/ftrace_config.proto",
         "perfetto/config/inode_file/inode_file_config.proto",
         "perfetto/config/power/android_power_config.proto",
