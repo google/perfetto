@@ -29,6 +29,7 @@ source_set("tracing") {
     "../../gn:default_deps",
     "../../include/perfetto/tracing",
     "../../protos/perfetto/config:lite",
+    "../../protos/perfetto/trace/perfetto:zero",  # For MetatraceWriter.
     "../base",
     "../protozero",
   ]
@@ -39,6 +40,8 @@ source_set("tracing") {
     "core/data_source_descriptor.cc",
     "core/id_allocator.cc",
     "core/id_allocator.h",
+    "core/metatrace_writer.cc",
+    "core/metatrace_writer.h",
     "core/null_trace_writer.cc",
     "core/null_trace_writer.h",
     "core/observable_events.cc",

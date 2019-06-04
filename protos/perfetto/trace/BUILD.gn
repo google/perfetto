@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
-import("../../../gn/proto_library.gni")
 import("../../../gn/proto_descriptor.gni")
+import("../../../gn/proto_library.gni")
 import("../../../gn/protozero_library.gni")
 
 # Common protos used by both the ":minimal_lite" target (for the service) and
@@ -42,6 +42,7 @@ protozero_library("zero") {
     "filesystem:zero",
     "ftrace:zero",
     "interned_data:zero",
+    "perfetto:zero",
     "power:zero",
     "profiling:zero",
     "ps:zero",
@@ -65,6 +66,7 @@ proto_library("lite") {
     "filesystem:lite",
     "ftrace:lite",
     "interned_data:lite",
+    "perfetto:lite",
     "power:lite",
     "profiling:lite",
     "ps:lite",
