@@ -486,6 +486,7 @@ cc_library_static {
     "src/tracing/core/trace_stats.cc",
     "src/tracing/core/trace_writer_impl.cc",
     "src/tracing/core/tracing_service_impl.cc",
+    "src/tracing/core/tracing_service_state.cc",
     "src/tracing/core/virtual_destructors.cc",
     "src/tracing/data_source.cc",
     "src/tracing/internal/in_process_tracing_backend.cc",
@@ -610,6 +611,7 @@ cc_binary {
     "src/ipc/virtual_destructors.cc",
     "src/perfetto_cmd/config.cc",
     "src/perfetto_cmd/main.cc",
+    "src/perfetto_cmd/packet_writer.cc",
     "src/perfetto_cmd/pbtxt_to_pb.cc",
     "src/perfetto_cmd/perfetto_cmd.cc",
     "src/perfetto_cmd/rate_limiter.cc",
@@ -686,7 +688,10 @@ cc_binary {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DHAVE_HIDDEN",
     "-DPERFETTO_BUILD_WITH_ANDROID",
+    "-DUSE_MMAP",
+    "-DZLIB_CONST",
   ],
   product_variables: {
     pdk: {
@@ -3243,6 +3248,8 @@ cc_test {
     "src/ipc/virtual_destructors.cc",
     "src/perfetto_cmd/config.cc",
     "src/perfetto_cmd/config_unittest.cc",
+    "src/perfetto_cmd/packet_writer.cc",
+    "src/perfetto_cmd/packet_writer_unittest.cc",
     "src/perfetto_cmd/pbtxt_to_pb.cc",
     "src/perfetto_cmd/pbtxt_to_pb_unittest.cc",
     "src/perfetto_cmd/perfetto_cmd.cc",
@@ -3454,7 +3461,10 @@ cc_test {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DHAVE_HIDDEN",
     "-DPERFETTO_BUILD_WITH_ANDROID",
+    "-DUSE_MMAP",
+    "-DZLIB_CONST",
   ],
   product_variables: {
     pdk: {
@@ -3762,7 +3772,6 @@ cc_binary {
   shared_libs: [
     "liblog",
     "libprotobuf-cpp-lite",
-    "libz",
   ],
   static_libs: [
     "perfetto_src_tracing_ipc",
