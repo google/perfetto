@@ -531,6 +531,13 @@ class PERFETTO_EXPORT TraceConfig {
   uint32_t flush_timeout_ms() const { return flush_timeout_ms_; }
   void set_flush_timeout_ms(uint32_t value) { flush_timeout_ms_ = value; }
 
+  uint32_t data_source_stop_timeout_ms() const {
+    return data_source_stop_timeout_ms_;
+  }
+  void set_data_source_stop_timeout_ms(uint32_t value) {
+    data_source_stop_timeout_ms_ = value;
+  }
+
   bool notify_traceur() const { return notify_traceur_; }
   void set_notify_traceur(bool value) { notify_traceur_ = value; }
 
@@ -587,6 +594,7 @@ class PERFETTO_EXPORT TraceConfig {
   bool deferred_start_ = {};
   uint32_t flush_period_ms_ = {};
   uint32_t flush_timeout_ms_ = {};
+  uint32_t data_source_stop_timeout_ms_ = {};
   bool notify_traceur_ = {};
   TriggerConfig trigger_config_ = {};
   std::vector<std::string> activate_triggers_;
