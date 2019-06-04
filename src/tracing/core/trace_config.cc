@@ -57,6 +57,7 @@ bool TraceConfig::operator==(const TraceConfig& other) const {
          (deferred_start_ == other.deferred_start_) &&
          (flush_period_ms_ == other.flush_period_ms_) &&
          (flush_timeout_ms_ == other.flush_timeout_ms_) &&
+         (data_source_stop_timeout_ms_ == other.data_source_stop_timeout_ms_) &&
          (notify_traceur_ == other.notify_traceur_) &&
          (trigger_config_ == other.trigger_config_) &&
          (activate_triggers_ == other.activate_triggers_) &&
@@ -142,6 +143,13 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
                 "size mismatch");
   flush_timeout_ms_ =
       static_cast<decltype(flush_timeout_ms_)>(proto.flush_timeout_ms());
+
+  static_assert(sizeof(data_source_stop_timeout_ms_) ==
+                    sizeof(proto.data_source_stop_timeout_ms()),
+                "size mismatch");
+  data_source_stop_timeout_ms_ =
+      static_cast<decltype(data_source_stop_timeout_ms_)>(
+          proto.data_source_stop_timeout_ms());
 
   static_assert(sizeof(notify_traceur_) == sizeof(proto.notify_traceur()),
                 "size mismatch");
@@ -250,6 +258,13 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
                 "size mismatch");
   proto->set_flush_timeout_ms(
       static_cast<decltype(proto->flush_timeout_ms())>(flush_timeout_ms_));
+
+  static_assert(sizeof(data_source_stop_timeout_ms_) ==
+                    sizeof(proto->data_source_stop_timeout_ms()),
+                "size mismatch");
+  proto->set_data_source_stop_timeout_ms(
+      static_cast<decltype(proto->data_source_stop_timeout_ms())>(
+          data_source_stop_timeout_ms_));
 
   static_assert(sizeof(notify_traceur_) == sizeof(proto->notify_traceur()),
                 "size mismatch");
