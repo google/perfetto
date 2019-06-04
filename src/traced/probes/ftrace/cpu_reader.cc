@@ -240,12 +240,15 @@ void CpuReader::RunWorkerThread(size_t cpu,
   // This lambda function reads the ftrace raw pipe using either read() or
   // splice(), either in blocking or non-blocking mode.
   // Returns the number of ftrace bytes read, or -1 in case of failure.
-  auto read_ftrace_pipe = [&sync_pipe, trace_fd, pool, cpu, header_size_len](
+  auto read_ftrace_pipe = [&sync_pipe, trace_fd, pool, header_size_len](
                               ReadMode mode, Block block) -> int {
-    static const char* const kModesStr[] = {"read-nonblock", "read-block",
-                                            "splice-nonblock", "splice-block"};
-    const char* mode_str = kModesStr[(mode == kSplice) * 2 + (block == kBlock)];
-    PERFETTO_METATRACE(mode_str, cpu);
+    auto eid = mode == kRead
+                   ? (block == kNonBlock ? metatrace::FTRACE_CPU_READ_NONBLOCK
+                                         : metatrace::FTRACE_CPU_READ_BLOCK)
+                   : (block == kNonBlock ? metatrace::FTRACE_CPU_SPLICE_NONBLOCK
+                                         : metatrace::FTRACE_CPU_SPLICE_BLOCK);
+    metatrace::ScopedEvent evt(metatrace::TAG_FTRACE, eid);
+
     uint8_t* pool_page = pool->BeginWrite();
     PERFETTO_DCHECK(pool_page);
 
@@ -322,7 +325,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
     // Commands are tagged with an ID, every new command has a new |cmd_id|, so
     // we can distinguish spurious wakeups from actual cmd requests.
     {
-      PERFETTO_METATRACE("wait cmd", cpu);
+      PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_CPU_WAIT_CMD);
       std::unique_lock<std::mutex> lock(thread_sync->mutex);
       while (thread_sync->cmd_id == last_cmd_id)
         thread_sync->cond.wait(lock);
@@ -345,7 +348,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
         break;
 
       case FtraceThreadSync::kRun: {
-        PERFETTO_METATRACE(cur_mode == kRead ? "read" : "splice", cpu);
+        PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_CPU_RUN_CYCLE);
 
         // Do a blocking read/splice. This can fail for a variety of reasons:
         // - FtraceController interrupts us with a signal for a new cmd
@@ -367,17 +370,19 @@ void CpuReader::RunWorkerThread(size_t cpu,
         // Do as many non-blocking read/splice as we can.
         while (read_ftrace_pipe(cur_mode, kNonBlock) > kRoughlyAPage) {
         }
-        pool->CommitWrittenPages();
+        size_t num_pages = pool->CommitWrittenPages();
+        PERFETTO_METATRACE_COUNTER(TAG_FTRACE, FTRACE_PAGES_DRAINED, num_pages);
         FtraceController::OnCpuReaderRead(cpu, generation, thread_sync);
         break;
       }
 
       case FtraceThreadSync::kFlush: {
-        PERFETTO_METATRACE("flush", cpu);
+        PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_CPU_FLUSH);
         cur_mode = kRead;
         while (read_ftrace_pipe(cur_mode, kNonBlock) > kRoughlyAPage) {
         }
-        pool->CommitWrittenPages();
+        size_t num_pages = pool->CommitWrittenPages();
+        PERFETTO_METATRACE_COUNTER(TAG_FTRACE, FTRACE_PAGES_DRAINED, num_pages);
         FtraceController::OnCpuReaderFlush(cpu, generation, thread_sync);
         break;
       }
@@ -399,8 +404,7 @@ void CpuReader::RunWorkerThread(size_t cpu,
 // first CPU wakes up from the blocking read()/splice().
 void CpuReader::Drain(const std::set<FtraceDataSource*>& data_sources) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_METATRACE("Drain(" + std::to_string(cpu_) + ")",
-                     base::MetaTrace::kMainThreadCpu);
+  PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_CPU_DRAIN);
 
   auto page_blocks = pool_.BeginRead();
   for (const auto& page_block : page_blocks) {

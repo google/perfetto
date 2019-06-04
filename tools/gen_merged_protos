@@ -69,6 +69,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/ftrace/task.proto',
   'protos/perfetto/trace/ftrace/vmscan.proto',
   'protos/perfetto/trace/interned_data/interned_data.proto',
+  'protos/perfetto/trace/perfetto/perfetto_metatrace.proto',
   'protos/perfetto/trace/power/battery_counters.proto',
   'protos/perfetto/trace/power/power_rails.proto',
   'protos/perfetto/trace/profiling/profile_packet.proto',
