@@ -28,6 +28,7 @@ import "perfetto/trace/filesystem/inode_file_map.proto";
 import "perfetto/trace/ftrace/ftrace_event_bundle.proto";
 import "perfetto/trace/ftrace/ftrace_stats.proto";
 import "perfetto/trace/interned_data/interned_data.proto";
+import "perfetto/trace/perfetto/perfetto_metatrace.proto";
 import "perfetto/trace/power/battery_counters.proto";
 import "perfetto/trace/power/power_rails.proto";
 import "perfetto/trace/profiling/profile_packet.proto";
@@ -47,7 +48,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 49.
+// Next id: 50.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -77,6 +78,7 @@ message TracePacket {
     Trigger trigger = 46;
     PackagesList packages_list = 47;
     ChromeBenchmarkMetadata chrome_benchmark_metadata = 48;
+    PerfettoMetatrace perfetto_metatrace = 49;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;

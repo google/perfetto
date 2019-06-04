@@ -140,13 +140,16 @@ class PagePool {
   }
 
   // Makes all written pages available to the reader.
-  void CommitWrittenPages() {
+  // Returns an upper bound on the number of pages written.
+  size_t CommitWrittenPages() {
     PERFETTO_DCHECK_THREAD(writer_thread_);
+    size_t size = write_queue_.size() * PagePool::PageBlock::kPagesPerBlock;
     std::lock_guard<std::mutex> lock(mutex_);
     read_queue_.insert(read_queue_.end(),
                        std::make_move_iterator(write_queue_.begin()),
                        std::make_move_iterator(write_queue_.end()));
     write_queue_.clear();
+    return size;
   }
 
   // Moves ownership of all the page blocks in the read queue to the caller.

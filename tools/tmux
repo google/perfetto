@@ -204,7 +204,7 @@ tmux send-keys "$PREFIX ./traced $POSTFIX" Enter
 tmux select-pane -t 0
 tmux send-keys "PS1='[traced]$ '" Enter
 tmux send-keys "cd $DIR" Enter
-tmux send-keys "$PREFIX PERFETTO_METATRACE_FILE=mtrace ./traced_probes $POSTFIX" Enter
+tmux send-keys "$PREFIX ./traced_probes $POSTFIX" Enter
 
 tmux select-pane -t 2
 tmux send-keys "PS1='[consumer]$ '" Enter
@@ -228,8 +228,3 @@ $OUT/trace_to_text text < /tmp/trace.protobuf > $TRACE.pbtext
 echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
 $OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE.json
 # Keep this last so it can fail.
-pull mtrace /tmp/mtrace.json
-# Add [ to beginning of file and replace trailing , with ] to turn into valid
-# JSON array.
-sed -i -e '$ s/.$/]/' /tmp/mtrace.json
-sed -i -e '1s/^/[/' /tmp/mtrace.json

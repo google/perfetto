@@ -164,8 +164,7 @@ uint64_t FtraceController::NowMs() const {
 void FtraceController::OnCpuReaderRead(size_t cpu,
                                        int generation,
                                        FtraceThreadSync* thread_sync) {
-  PERFETTO_METATRACE("OnCpuReaderRead()", cpu);
-
+  PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_CPU_READER_READ);
   {
     std::lock_guard<std::mutex> lock(thread_sync->mutex);
     // If this was the first CPU to wake up, schedule a drain for the next
@@ -219,7 +218,7 @@ void FtraceController::OnCpuReaderFlush(size_t cpu,
 
 void FtraceController::DrainCPUs(int generation) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_METATRACE("DrainCPUs()", base::MetaTrace::kMainThreadCpu);
+  PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_DRAIN_CPUS);
 
   if (generation != generation_)
     return;
@@ -278,7 +277,7 @@ void FtraceController::DrainCPUs(int generation) {
 }
 
 void FtraceController::UnblockReaders() {
-  PERFETTO_METATRACE("UnblockReaders()", base::MetaTrace::kMainThreadCpu);
+  PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_UNBLOCK_READERS);
 
   // If a flush or a quit is pending, do nothing.
   std::unique_lock<std::mutex> lock(thread_sync_.mutex);
