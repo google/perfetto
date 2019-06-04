@@ -28,6 +28,7 @@ namespace perfetto {
 class TraceConfig;
 class TracePacket;
 class TraceStats;
+class TracingServiceState;
 
 class PERFETTO_EXPORT Consumer {
  public:

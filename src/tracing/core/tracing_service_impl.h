@@ -115,6 +115,8 @@ class TracingServiceImpl : public TracingService {
       return base::nullopt;
     }
 
+    uid_t uid() const { return uid_; }
+
    private:
     friend class TracingServiceImpl;
     friend class TracingServiceImplTest;
@@ -181,6 +183,7 @@ class TracingServiceImpl : public TracingService {
     void Attach(const std::string& key) override;
     void GetTraceStats() override;
     void ObserveEvents(uint32_t enabled_event_types) override;
+    void QueryServiceState(QueryServiceStateCallback) override;
 
     // If |observe_data_source_instances == true|, will queue a task to notify
     // the consumer about the state change.
