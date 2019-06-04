@@ -62,7 +62,8 @@ bool TraceConfig::operator==(const TraceConfig& other) const {
          (activate_triggers_ == other.activate_triggers_) &&
          (incremental_state_config_ == other.incremental_state_config_) &&
          (allow_user_build_tracing_ == other.allow_user_build_tracing_) &&
-         (unique_session_name_ == other.unique_session_name_);
+         (unique_session_name_ == other.unique_session_name_) &&
+         (compression_type_ == other.compression_type_);
 }
 #pragma GCC diagnostic pop
 
@@ -167,6 +168,11 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
       "size mismatch");
   unique_session_name_ =
       static_cast<decltype(unique_session_name_)>(proto.unique_session_name());
+
+  static_assert(sizeof(compression_type_) == sizeof(proto.compression_type()),
+                "size mismatch");
+  compression_type_ =
+      static_cast<decltype(compression_type_)>(proto.compression_type());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -274,6 +280,11 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
   proto->set_unique_session_name(
       static_cast<decltype(proto->unique_session_name())>(
           unique_session_name_));
+
+  static_assert(sizeof(compression_type_) == sizeof(proto->compression_type()),
+                "size mismatch");
+  proto->set_compression_type(
+      static_cast<decltype(proto->compression_type())>(compression_type_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
