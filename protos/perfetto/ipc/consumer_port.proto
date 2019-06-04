@@ -18,6 +18,7 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "perfetto/common/observable_events.proto";
+import "perfetto/common/tracing_service_state.proto";
 import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 
@@ -99,7 +100,13 @@ service ConsumerPort {
   rpc ObserveEvents(ObserveEventsRequest)
       returns (stream ObserveEventsResponse) {}
 
-  // TODO rpc ListDataSources(), for the UI.
+  // ----------------------------------------------------
+  // All methods below have been introduced in Android R.
+  // ----------------------------------------------------
+
+  // Allows to obtain the list of data sources connected and their descriptors.
+  rpc QueryServiceState(QueryServiceStateRequest)
+      returns (stream QueryServiceStateResponse) {}
 }
 
 // Arguments for rpc EnableTracing().
@@ -212,4 +219,11 @@ message ObserveEventsRequest {
 
 message ObserveEventsResponse {
   optional ObservableEvents events = 1;
+}
+
+// Arguments for rpc QueryServiceState
+message QueryServiceStateRequest {}
+
+message QueryServiceStateResponse {
+  optional TracingServiceState service_state = 1;
 }

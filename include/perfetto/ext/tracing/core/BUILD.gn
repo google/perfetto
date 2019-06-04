@@ -35,5 +35,6 @@ source_set("core") {
     "trace_stats.h",
     "trace_writer.h",
     "tracing_service.h",
+    "tracing_service_state.h",
   ]
 }
