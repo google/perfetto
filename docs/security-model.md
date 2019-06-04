@@ -16,7 +16,7 @@ consumers.
 **Producers**  
 Producers are never trusted. We assume they will try their best to DoS / crash /
 exploit the tracing service. We do so at the
-[core/service_impl.cc](/src/tracing/core/service_impl.cc) so that the the same
+[core/service_impl.cc](/src/tracing/core/service_impl.cc) so that the same
 level of security and testing is applied regardless of the embedder and the IPC
 transport.
 
