@@ -36,6 +36,7 @@ import gn_utils
 # Default targets to translate to the blueprint file.
 default_targets = [
     '//:libperfetto',
+    '//:libperfetto_client_experimental',
     '//:libperfetto_android_internal',
     '//:perfetto_integrationtests',
     '//:perfetto_trace_protos',
