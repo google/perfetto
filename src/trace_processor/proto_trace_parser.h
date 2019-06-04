@@ -109,6 +109,7 @@ class ProtoTraceParser : public TraceParser {
       ArgsTracker* args_tracker,
       RowId row);
   void ParseChromeBenchmarkMetadata(ConstBytes);
+  void ParseMetatraceEvent(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* context_;
@@ -139,6 +140,7 @@ class ProtoTraceParser : public TraceParser {
   const StringId oom_score_adj_id_;
   const StringId ion_total_unknown_id_;
   const StringId ion_change_unknown_id_;
+  const StringId metatrace_id_;
   const StringId task_file_name_args_key_id_;
   const StringId task_function_name_args_key_id_;
   std::vector<StringId> meminfo_strs_id_;

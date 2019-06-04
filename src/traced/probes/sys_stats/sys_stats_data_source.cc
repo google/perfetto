@@ -160,7 +160,7 @@ void SysStatsDataSource::Tick(base::WeakPtr<SysStatsDataSource> weak_this) {
 SysStatsDataSource::~SysStatsDataSource() = default;
 
 void SysStatsDataSource::ReadSysStats() {
-  PERFETTO_METATRACE("ReadSysStats", 0);
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, READ_SYS_STATS);
   auto packet = writer_->NewTracePacket();
 
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
