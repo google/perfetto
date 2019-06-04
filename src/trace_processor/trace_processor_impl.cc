@@ -77,9 +77,9 @@
 #include "src/trace_processor/json_trace_tokenizer.h"
 #endif
 
-// In Android tree builds, we don't have the percentile module.
+// In Android and Chromium tree builds, we don't have the percentile module.
 // Just don't include it.
-#if !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 // defined in sqlite_src/ext/misc/percentile.c
 extern "C" int sqlite3_percentile_init(sqlite3* db,
                                        char** error,
@@ -105,7 +105,7 @@ void InitializeSqlite(sqlite3* db) {
   sqlite3_str_split_init(db);
 // In Android tree builds, we don't have the percentile module.
 // Just don't include it.
-#if !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
   sqlite3_percentile_init(db, &error, nullptr);
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);

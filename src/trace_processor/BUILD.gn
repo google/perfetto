@@ -203,7 +203,7 @@ source_set("lib") {
   }
 }
 
-if (!perfetto_build_with_embedder && current_toolchain == host_toolchain) {
+if (current_toolchain == host_toolchain) {
   executable("trace_processor_shell_host") {
     testonly = true  # We need this for proto full.
     deps = [
@@ -226,20 +226,24 @@ if (!perfetto_build_with_embedder && current_toolchain == host_toolchain) {
   }
 }
 
-if (!perfetto_build_with_embedder) {
+if (perfetto_build_standalone || build_with_chromium) {
   copy("trace_processor_shell") {
     testonly = true  # We need this for proto full.
     host_out_dir_ =
         get_label_info(":trace_processor_shell_host($host_toolchain)",
                        "root_out_dir")
+    extension_ = ""
+    if (is_win) {
+      extension_ = ".exe"
+    }
     deps = [
       ":trace_processor_shell_host($host_toolchain)",
     ]
     sources = [
-      "${host_out_dir_}/trace_processor_shell_host",
+      "${host_out_dir_}/trace_processor_shell_host${extension_}",
     ]
     outputs = [
-      "${root_out_dir}/trace_processor_shell",
+      "${root_out_dir}/trace_processor_shell${extension_}",
     ]
   }
 }
