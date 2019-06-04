@@ -136,6 +136,22 @@ class Trace(object):
     thread.tgid = tgid
     self.proc_map[tid] = cmdline
 
+  def add_battery_counters(self, ts, charge_uah, cap_prct, curr_ua, curr_avg_ua):
+    self.packet = self.trace.packet.add()
+    self.packet.timestamp = ts
+    battery_count = self.packet.battery
+    battery_count.charge_counter_uah = charge_uah
+    battery_count.capacity_percent = cap_prct
+    battery_count.current_ua = curr_ua
+    battery_count.current_avg_ua = curr_avg_ua
+
+  def add_battery_counters_no_curr_ua(self, ts, charge_uah, cap_prct, curr_avg_ua):
+    self.packet = self.trace.packet.add()
+    self.packet.timestamp = ts
+    battery_count = self.packet.battery
+    battery_count.charge_counter_uah = charge_uah
+    battery_count.capacity_percent = cap_prct
+    battery_count.current_avg_ua = curr_avg_ua
 
 def create_trace():
   parser = argparse.ArgumentParser()
