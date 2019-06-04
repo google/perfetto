@@ -178,3 +178,12 @@ group("jsoncpp_deps") {
     ]
   }
 }
+
+group("zlib_deps") {
+  if (perfetto_build_standalone || perfetto_build_with_android) {
+    public_configs = [ "//buildtools:zlib_config" ]
+    public_deps = [
+      "//buildtools:zlib",
+    ]
+  }
+}

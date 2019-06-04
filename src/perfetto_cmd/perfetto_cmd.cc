@@ -44,6 +44,7 @@
 #include "perfetto/ext/tracing/core/tracing_service_state.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/perfetto_cmd/config.h"
+#include "src/perfetto_cmd/packet_writer.h"
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
 #include "src/perfetto_cmd/trigger_producer.h"
 
@@ -507,8 +508,12 @@ int PerfettoCmd::Main(int argc, char** argv) {
         "TraceConfig's write_into_file must be true when using --detach");
     return 1;
   }
-  if (open_out_file && !OpenOutputFile())
-    return 1;
+  if (open_out_file) {
+    if (!OpenOutputFile())
+      return 1;
+    if (!trace_config_->write_into_file())
+      packet_writer_ = CreateFilePacketWriter(trace_out_stream_.get());
+  }
 
   if (background) {
     pid_t pid;
@@ -555,6 +560,15 @@ int PerfettoCmd::Main(int argc, char** argv) {
         ConsumerIPCClient::Connect(GetConsumerSocket(), this, &task_runner_);
     task_runner_.Run();
     return 1;  // We can legitimately get here if the service disconnects.
+  }
+
+  if (trace_config_->compression_type() ==
+      perfetto::TraceConfig::COMPRESSION_TYPE_DEFLATE) {
+    if (packet_writer_) {
+      packet_writer_ = CreateZipPacketWriter(std::move(packet_writer_));
+    } else {
+      PERFETTO_ELOG("Cannot compress when tracing directly to file.");
+    }
   }
 
   RateLimiter::Args args{};
@@ -640,21 +654,9 @@ void PerfettoCmd::OnTimeout() {
 }
 
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
-  for (TracePacket& packet : packets) {
-    uint8_t preamble[16];
-    uint8_t* pos = preamble;
-    // ID of the |packet| field in trace.proto. Hardcoded as this we not depend
-    // on protos/trace:lite for binary size saving reasons.
-    static constexpr uint32_t kPacketFieldNumber = 1;
-    pos = WriteVarInt(MakeTagLengthDelimited(kPacketFieldNumber), pos);
-    pos = WriteVarInt(static_cast<uint32_t>(packet.size()), pos);
-    bytes_written_ +=
-        fwrite(reinterpret_cast<const char*>(preamble), 1,
-               static_cast<size_t>(pos - preamble), trace_out_stream_.get());
-    for (const Slice& slice : packet.slices()) {
-      bytes_written_ += fwrite(reinterpret_cast<const char*>(slice.start), 1,
-                               slice.size, trace_out_stream_.get());
-    }
+  if (!packet_writer_->WritePackets(packets)) {
+    PERFETTO_ELOG("Failed to write packets");
+    FinalizeTraceAndExit();
   }
 
   if (!has_more)
@@ -673,7 +675,15 @@ void PerfettoCmd::OnTracingDisabled() {
 }
 
 void PerfettoCmd::FinalizeTraceAndExit() {
-  fflush(*trace_out_stream_);
+  packet_writer_.reset();
+
+  if (trace_out_stream_) {
+    fseek(*trace_out_stream_, 0, SEEK_END);
+    off_t sz = ftell(*trace_out_stream_);
+    if (sz > 0)
+      bytes_written_ = static_cast<size_t>(sz);
+  }
+
   if (dropbox_tag_.empty()) {
     trace_out_stream_.reset();
     did_process_full_trace_ = true;
