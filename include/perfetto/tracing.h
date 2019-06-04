@@ -28,4 +28,9 @@
 #include "perfetto/tracing/tracing.h"
 #include "perfetto/tracing/tracing_backend.h"
 
+// TODO(primiano): move these generated classes from /ext/ into public. Right
+// now these are a layering violation.
+#include "perfetto/ext/tracing/core/data_source_descriptor.h"  // nogncheck
+#include "perfetto/ext/tracing/core/trace_config.h"            // nogncheck
+
 #endif  // INCLUDE_PERFETTO_TRACING_H_
