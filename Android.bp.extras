@@ -64,3 +64,29 @@ java_library_host {
     "protos/perfetto/config/perfetto_config.proto",
   ],
 }
+
+// This sample target shows how to use the perfetto client API from within the
+// Android tree.
+cc_binary {
+  name: "libperfetto_client_example",
+  srcs: [
+    "test/android_client_api_example.cc",
+  ],
+  static_libs: [
+    "libperfetto_client_experimental",
+    "perfetto_src_tracing_ipc",
+    "perfetto_trace_protos",
+  ],
+  shared_libs: [
+    "libprotobuf-cpp-lite",
+    "liblog",
+  ],
+  local_include_dirs: [
+    "include",
+  ],
+  cflags: [
+    "-DGOOGLE_PROTOBUF_NO_RTTI",
+    "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    "-DPERFETTO_BUILD_WITH_ANDROID",
+  ],
+}
