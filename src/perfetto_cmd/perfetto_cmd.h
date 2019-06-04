@@ -39,6 +39,8 @@
 
 namespace perfetto {
 
+class PacketWriter;
+
 // Temporary directory for DropBox traces. Note that this is automatically
 // created by the system by setting setprop persist.traced.enable=1.
 extern const char* kTempDropBoxTraceDir;
@@ -79,7 +81,10 @@ class PerfettoCmd : public Consumer {
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
+
+  std::unique_ptr<PacketWriter> packet_writer_;
   base::ScopedFstream trace_out_stream_;
+
   std::string trace_out_path_;
   base::Event ctrl_c_evt_;
   std::string dropbox_tag_;
