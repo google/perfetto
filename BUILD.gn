@@ -48,6 +48,9 @@ group("all") {
     ":perfetto_unittests",
     "src/protozero/protoc_plugin($host_toolchain)",
   ]
+  if (perfetto_build_standalone || build_with_chromium) {
+    deps += [ ":trace_processor" ]
+  }
   if (perfetto_build_standalone || perfetto_build_with_android) {
     deps += [
       ":perfetto",
@@ -64,7 +67,6 @@ group("all") {
     if (perfetto_build_standalone) {
       deps += [
         ":perfetto_benchmarks",
-        ":trace_processor",
         "src/profiling/memory:ring_buffer",
         "src/tracing:consumer_api_test",
         "test/configs",
@@ -87,13 +89,6 @@ group("all") {
       }
     }
   }
-
-  # TODO(khokhlov): Remove this once the chrome dep is added. This is a
-  # temporary target to make sure that we don't regress trace processor support
-  # for the Windows build.
-  if (build_with_chromium) {
-    deps += [ "src/trace_processor:lib" ]
-  }
 }
 
 # TODO(primiano): temporary workaround to:
@@ -106,20 +101,22 @@ group("default") {
   ]
 }
 
-if (perfetto_build_standalone) {
-  group("ui") {
-    deps = [
-      "ui",
-    ]
-  }
-
-  # The trace processor shell executable. An interactive shell that allows to
-  # make queries on the trace using the terminal.
+# The trace processor shell executable. An interactive shell that allows to
+# make queries on the trace using the terminal.
+if (perfetto_build_standalone || build_with_chromium) {
   group("trace_processor") {
     deps = [
       "src/trace_processor:trace_processor_shell",
     ]
     testonly = true  # We need this for proto full.
+  }
+}
+
+if (perfetto_build_standalone) {
+  group("ui") {
+    deps = [
+      "ui",
+    ]
   }
 }
 
