@@ -127,6 +127,12 @@ Record* RingBuffer::AppendNewRecord() {
 
   has_overruns_.store(true, std::memory_order_release);
   wr_index_.fetch_sub(1, std::memory_order_acq_rel);
+
+  // In the case of overflows, threads will race writing on the same memory
+  // location and TSan will rightly complain. This is fine though because nobody
+  // will read the bankruptcy record and it's designed to contain garbage.
+  PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(&bankruptcy_record_, sizeof(Record),
+                                      "nothing reads bankruptcy_record_")
   return &bankruptcy_record_;
 }
 
