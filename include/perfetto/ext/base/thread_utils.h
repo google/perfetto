@@ -22,6 +22,7 @@
 #include "perfetto/base/build_config.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
 #include <processthreadsapi.h>
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 #include <zircon/process.h>
@@ -61,7 +62,7 @@ inline PlatformThreadID GetThreadId() {
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using PlatformThreadID = uint64_t;
 inline PlatformThreadID GetThreadId() {
-  return static_cast<uint64_t>(GetCurrentThreadID());
+  return static_cast<uint64_t>(GetCurrentThreadId());
 }
 #else  // Default to pthreads in case no OS is set.
 using PlatformThreadID = pthread_t;
