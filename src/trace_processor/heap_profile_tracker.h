@@ -19,6 +19,7 @@
 
 #include <deque>
 
+#include "perfetto/trace/profiling/profile_common.pbzero.h"
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/trace_processor/trace_storage.h"
 

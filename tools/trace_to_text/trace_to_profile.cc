@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 
+#include "perfetto/trace/profiling/profile_common.pb.h"
 #include "perfetto/trace/profiling/profile_packet.pb.h"
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
@@ -60,6 +61,9 @@ std::string GetTemp() {
   return tmp;
 }
 
+using ::perfetto::protos::Callstack;
+using ::perfetto::protos::Frame;
+using ::perfetto::protos::Mapping;
 using ::perfetto::protos::ProfilePacket;
 
 using GLine = ::perftools::profiles::Line;
@@ -103,7 +107,7 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
 
   std::map<uint64_t, const std::vector<uint64_t>> callstack_lookup;
   for (const ProfilePacket& packet : packet_fragments) {
-    for (const ProfilePacket::Callstack& callstack : packet.callstacks()) {
+    for (const Callstack& callstack : packet.callstacks()) {
       std::vector<uint64_t> frame_ids(
           static_cast<size_t>(callstack.frame_ids().size()));
       std::reverse_copy(callstack.frame_ids().cbegin(),
@@ -145,7 +149,7 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
   value_type->set_unit(kBytes);
 
   for (const ProfilePacket& packet : packet_fragments) {
-    for (const ProfilePacket::Mapping& mapping : packet.mappings()) {
+    for (const Mapping& mapping : packet.mappings()) {
       GMapping* gmapping = profile.add_mapping();
       gmapping->set_id(mapping.id());
       gmapping->set_memory_start(mapping.start());
@@ -181,7 +185,7 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
 
   std::set<uint64_t> functions_to_dump;
   for (const ProfilePacket& packet : packet_fragments) {
-    for (const ProfilePacket::Frame& frame : packet.frames()) {
+    for (const Frame& frame : packet.frames()) {
       GLocation* glocation = profile.add_location();
       glocation->set_id(frame.id());
       glocation->set_mapping_id(frame.mapping_id());
