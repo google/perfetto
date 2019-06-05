@@ -75,6 +75,8 @@ source_set("lib") {
     "fuchsia_trace_tokenizer.h",
     "fuchsia_trace_utils.cc",
     "fuchsia_trace_utils.h",
+    "gzip_trace_parser.cc",
+    "gzip_trace_parser.h",
     "heap_profile_allocation_table.cc",
     "heap_profile_allocation_table.h",
     "heap_profile_callsite_table.cc",
@@ -165,6 +167,7 @@ source_set("lib") {
 
   deps = [
     ":sqlite",
+    "../../buildtools:zlib",
     "../../gn:default_deps",
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
