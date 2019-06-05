@@ -154,7 +154,7 @@ TEST_F(MetatraceTest, HandleOverruns) {
     for (auto it = m::RingBuffer::GetReadIterator(); it; ++it)
       ASSERT_EQ(it->counter_value, exp_cnt++);
 
-    ASSERT_EQ(m::RingBuffer::GetSizeForTesting(), 0);
+    ASSERT_EQ(m::RingBuffer::GetSizeForTesting(), 0u);
 
     task_runner_.RunUntilCheckpoint(checkpoint_name);
     m::Disable();
@@ -172,6 +172,8 @@ TEST_F(MetatraceTest, InterleavedReadWrites) {
   auto read_task = [&last_value_read] {
     int last = last_value_read;
     for (auto it = m::RingBuffer::GetReadIterator(); it; ++it) {
+      if (it->type_and_id.load(std::memory_order_acquire) == 0)
+        break;
       EXPECT_EQ(it->counter_value, last + 1);
       last = it->counter_value;
     }
@@ -221,8 +223,9 @@ TEST_F(MetatraceTest, ThreadRaces) {
         m::TraceCounter(/*tag=*/1, thd_idx, static_cast<int>(i));
     };
 
-    std::array<std::thread, 8> threads;
-    for (size_t thd_idx = 0; thd_idx < threads.size(); thd_idx++)
+    constexpr size_t kNumThreads = 8;
+    std::array<std::thread, kNumThreads> threads;
+    for (size_t thd_idx = 0; thd_idx < kNumThreads; thd_idx++)
       threads[thd_idx] = std::thread(thread_main, thd_idx);
 
     for (auto& t : threads)
@@ -231,8 +234,10 @@ TEST_F(MetatraceTest, ThreadRaces) {
     task_runner_.RunUntilCheckpoint(checkpoint_name);
     ASSERT_EQ(m::RingBuffer::GetSizeForTesting(), m::RingBuffer::kCapacity);
 
-    std::array<int, threads.size()> last_val{};  // Last value for each thread.
+    std::array<int, kNumThreads> last_val{};  // Last value for each thread.
     for (auto it = m::RingBuffer::GetReadIterator(); it; ++it) {
+      if (it->type_and_id.load(std::memory_order_acquire) == 0)
+        break;
       using Record = m::Record;
       ASSERT_EQ(it->type_and_id & Record::kTypeMask, Record::kTypeCounter);
       auto thd_idx = static_cast<size_t>(it->type_and_id & ~Record::kTypeMask);
