@@ -30,7 +30,7 @@ logfile_maxbytes=2MB
 
 [program:gitbot]
 directory=/home/gitbot
-command=python mirror_aosp_to_ghub_repo.py
+command=python mirror_aosp_to_ghub_repo.py --push
 user=gitbot
 autorestart=true
 startretries=10
