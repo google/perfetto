@@ -2776,13 +2776,13 @@ TEST_F(TracingServiceImplTest, QueryServiceState) {
 
   TracingServiceState svc_state = consumer->QueryServiceState();
 
-  EXPECT_EQ(svc_state.producers_size(), 2u);
+  EXPECT_EQ(svc_state.producers_size(), 2);
   EXPECT_EQ(svc_state.producers().at(0).id(), 1);
   EXPECT_EQ(svc_state.producers().at(0).name(), "producer1");
   EXPECT_EQ(svc_state.producers().at(1).id(), 2);
   EXPECT_EQ(svc_state.producers().at(1).name(), "producer2");
 
-  EXPECT_EQ(svc_state.data_sources_size(), 4u);
+  EXPECT_EQ(svc_state.data_sources_size(), 4);
 
   EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 1);
   EXPECT_EQ(svc_state.data_sources().at(0).descriptor().name(), "common_ds");
@@ -2800,8 +2800,8 @@ TEST_F(TracingServiceImplTest, QueryServiceState) {
   producer1.reset();
   svc_state = consumer->QueryServiceState();
 
-  EXPECT_EQ(svc_state.producers_size(), 1u);
-  EXPECT_EQ(svc_state.data_sources_size(), 2u);
+  EXPECT_EQ(svc_state.producers_size(), 1);
+  EXPECT_EQ(svc_state.data_sources_size(), 2);
 
   EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 2);
   EXPECT_EQ(svc_state.data_sources().at(0).descriptor().name(), "common_ds");
