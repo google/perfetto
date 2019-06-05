@@ -70,8 +70,10 @@
 #include "perfetto/metrics/android/mem_metric.pbzero.h"
 #include "perfetto/metrics/metrics.pbzero.h"
 
-// JSON parsing and exporting is only supported in the standalone build.
-#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+// JSON parsing and exporting is only supported in the standalone and
+// Chromium builds.
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) || \
+    PERFETTO_BUILD_WITH_CHROMIUM
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/json_trace_parser.h"
 #include "src/trace_processor/json_trace_tokenizer.h"
@@ -195,8 +197,9 @@ void CreateBuiltinViews(sqlite3* db) {
 }
 
 // Exporting traces in legacy JSON format is only supported
-// in the standalone build so far.
-#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+// in the standalone and Chromium builds so far.
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) || \
+    PERFETTO_BUILD_WITH_CHROMIUM
 void ExportJson(sqlite3_context* ctx, int /*argc*/, sqlite3_value** argv) {
   TraceStorage* storage = static_cast<TraceStorage*>(sqlite3_user_data(ctx));
   const char* filename =
@@ -316,7 +319,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
 
-#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) || \
+    PERFETTO_BUILD_WITH_CHROMIUM
   CreateJsonExportFunction(this->context_.storage.get(), db);
 #endif
 
@@ -369,14 +373,15 @@ util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
     switch (trace_type) {
       case kJsonTraceType: {
         PERFETTO_DLOG("Legacy JSON trace detected");
-#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) || \
+    PERFETTO_BUILD_WITH_CHROMIUM
         context_.chunk_reader.reset(new JsonTraceTokenizer(&context_));
         // JSON traces have no guarantees about the order of events in them.
         int64_t window_size_ns = std::numeric_limits<int64_t>::max();
         context_.sorter.reset(new TraceSorter(&context_, window_size_ns));
         context_.parser.reset(new JsonTraceParser(&context_));
 #else
-        PERFETTO_FATAL("JSON traces only supported in standalone mode.");
+        PERFETTO_FATAL("JSON traces not supported.");
 #endif
         break;
       }

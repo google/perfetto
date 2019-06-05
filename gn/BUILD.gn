@@ -168,13 +168,17 @@ config("public_config") {
   }
 }
 
-# For now JsonCpp is supported only in standalone builds outside of Android or
-# Chromium.
+# For now JsonCpp is supported only in standalone and Chrome builds,
+# not in Android.
 group("jsoncpp_deps") {
   if (perfetto_build_standalone) {
     public_configs = [ "//buildtools:jsoncpp_config" ]
     public_deps = [
       "//buildtools:jsoncpp",
+    ]
+  } else if (build_with_chromium) {
+    public_deps = [
+      "//third_party/jsoncpp:jsoncpp",
     ]
   }
 }
