@@ -675,6 +675,11 @@ source_set("lzma") {
 }
 
 source_set("zlib") {
+  defines = [
+    "ZLIB_CONST",
+    "USE_MMAP",
+    "HAVE_HIDDEN",
+  ]
   sources = [
     "zlib/src/adler32.c",
     "zlib/src/compress.c",
@@ -698,18 +703,7 @@ source_set("zlib") {
 }
 
 config("zlib_config") {
-  defines = [
-    "ZLIB_CONST",
-    "USE_MMAP",
-    "HAVE_HIDDEN",
-  ]
-  cflags = [
-    # Using -isystem instead of include_dirs (-I), so we don't need to suppress
-    # warnings coming from third-party headers. Doing so would mask warnings in
-    # our own code.
-    "-isystem",
-    rebase_path("zlib/src", root_build_dir),
-  ]
+  include_dirs = [ "zlib/src" ]
 }
 
 source_set("libunwindstack") {
