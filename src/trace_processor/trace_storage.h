@@ -321,6 +321,8 @@ class TraceStorage {
     std::deque<int64_t> durations_;
     std::deque<int64_t> refs_;
     std::deque<RefType> types_;
+    // TODO(eseckler): Remove this column and store the category in the args
+    // table instead, similar to what we do for instant events.
     std::deque<StringId> cats_;
     std::deque<StringId> names_;
     std::deque<uint8_t> depths_;

@@ -84,6 +84,14 @@ class MockEventTracker : public EventTracker {
                      int64_t ref,
                      RefType ref_type,
                      bool resolve_utid_to_upid));
+
+  MOCK_METHOD6(PushInstant,
+               RowId(int64_t timestamp,
+                     StringId name_id,
+                     double value,
+                     int64_t ref,
+                     RefType ref_type,
+                     bool resolve_utid_to_upid));
 };
 
 class MockProcessTracker : public ProcessTracker {
@@ -645,6 +653,17 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
+    event->set_timestamp_absolute_us(1040);
+    event->set_thread_time_absolute_us(2030);
+    event->add_category_iids(1);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(1);
+    legacy_event->set_phase('I');
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1020.
     event->set_thread_time_delta_us(5);  // absolute: 2010.
     event->add_category_iids(1);
@@ -681,7 +700,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .Times(3)
+      .Times(4)
       .WillRepeatedly(Return(1));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
@@ -699,6 +718,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   EXPECT_CALL(*slice_, Begin(1010000, 1, 3, 4, _));
 
   EXPECT_CALL(*slice_, End(1020000, 1, 3, 4, _));
+
+  EXPECT_CALL(*event_, PushInstant(1040000, 4, 0, 1, RefType::kRefUtid, false))
+      .WillOnce(Return(TraceStorage::CreateRowId(TableId::kInstants, 1)));
+
+  // Add the event to the storage so that the parser can add arguments to it.
+  storage_->mutable_instants()->AddInstantEvent(1040000, 4, 0, 1,
+                                                RefType::kRefUtid);
 
   context_.sorter->ExtractEventsForced();
 }
