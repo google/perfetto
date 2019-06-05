@@ -227,7 +227,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     ctx.restore();
 
     const localState = globals.frontendLocalState;
-    // Draw vertical line when hovering on the the notes panel.
+    // Draw vertical line when hovering on the notes panel.
     if (localState.showNotePreview) {
       drawVerticalLineAtTime(ctx,
                              localState.timeScale,
