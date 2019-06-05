@@ -163,8 +163,9 @@ void TestHelper::WaitForTracingDisabled(uint32_t timeout_ms) {
   RunUntilCheckpoint("stop.tracing", timeout_ms);
 }
 
-void TestHelper::WaitForReadData(uint32_t read_count) {
-  RunUntilCheckpoint("readback.complete." + std::to_string(read_count));
+void TestHelper::WaitForReadData(uint32_t read_count, uint32_t timeout_ms) {
+  RunUntilCheckpoint("readback.complete." + std::to_string(read_count),
+                     timeout_ms);
 }
 
 std::function<void()> TestHelper::WrapTask(

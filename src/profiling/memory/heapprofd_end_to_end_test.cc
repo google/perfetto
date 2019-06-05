@@ -40,6 +40,9 @@ namespace {
 
 constexpr useconds_t kMsToUs = 1000;
 
+constexpr auto kTracingDisabledTimeoutMs = 30000;
+constexpr auto kWaitForReadDataTimeoutMs = 10000;
+
 using ::testing::AnyOf;
 using ::testing::Bool;
 using ::testing::Eq;
@@ -217,10 +220,10 @@ class HeapprofdEndToEnd : public ::testing::TestWithParam<bool> {
     auto helper = GetHelper(&task_runner);
 
     helper->StartTracing(trace_config);
-    helper->WaitForTracingDisabled(20000);
+    helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
 
     helper->ReadData();
-    helper->WaitForReadData();
+    helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
     return helper;
   }
 
@@ -462,10 +465,10 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
       break;
   }
 
-  helper->WaitForTracingDisabled(20000);
+  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
 
   helper->ReadData();
-  helper->WaitForReadData();
+  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
   PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
@@ -543,10 +546,10 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
       break;
   }
 
-  helper->WaitForTracingDisabled(20000);
+  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
 
   helper->ReadData();
-  helper->WaitForReadData();
+  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
   PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
@@ -620,10 +623,10 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
   sleep(1);
 
   helper->StartTracing(trace_config);
-  helper->WaitForTracingDisabled(20000);
+  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
 
   helper->ReadData();
-  helper->WaitForReadData();
+  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
   PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
@@ -697,10 +700,10 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   sleep(1);
 
   helper->StartTracing(trace_config);
-  helper->WaitForTracingDisabled(20000);
+  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
 
   helper->ReadData();
-  helper->WaitForReadData();
+  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
   PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
   PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
@@ -843,9 +846,9 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   auto helper_concurrent = GetHelper(&task_runner);
   helper_concurrent->StartTracing(trace_config);
 
-  helper->WaitForTracingDisabled(20000);
+  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
   helper->ReadData();
-  helper->WaitForReadData();
+  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
   PrintStats(helper.get());
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
@@ -853,9 +856,9 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   ValidateRejectedConcurrent(helper_concurrent.get(),
                              static_cast<uint64_t>(pid), false);
 
-  helper_concurrent->WaitForTracingDisabled(20000);
+  helper_concurrent->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
   helper_concurrent->ReadData();
-  helper_concurrent->WaitForReadData();
+  helper_concurrent->WaitForReadData(0, kWaitForReadDataTimeoutMs);
   PrintStats(helper.get());
   ValidateOnlyPID(helper_concurrent.get(), static_cast<uint64_t>(pid));
   ValidateRejectedConcurrent(helper_concurrent.get(),
@@ -926,9 +929,9 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   // Assert that we did profile the process.
   helper->FlushAndWait(2000);
   helper->DisableTracing();
-  helper->WaitForTracingDisabled(10000);
+  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
   helper->ReadData();
-  helper->WaitForReadData();
+  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
