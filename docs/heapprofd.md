@@ -189,7 +189,7 @@ Then run the following commands in a separate shell.
 idle.
 4. Interact with your program.
 
-Once you are done interacting, `Ctrl-C` the invocation of
+Once you are done interacting, `Ctrl-C` the invokation of
 `tools/heap_profile`, and upload the `heap_dump.2.*.pb.gz` file to pprof.
 You can then see the memory that was idle in the `idle_space` tab.
 
