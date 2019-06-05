@@ -17,6 +17,8 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_METATRACE_EVENTS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_METATRACE_EVENTS_H_
 
+#include <stdint.h>
+
 namespace perfetto {
 namespace metatrace {
 
