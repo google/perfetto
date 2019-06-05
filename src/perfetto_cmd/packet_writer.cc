@@ -27,6 +27,7 @@
 #include <zlib.h>
 
 #include "perfetto/ext/base/paged_memory.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
 
@@ -229,7 +230,7 @@ void ZipPacketWriter::CheckEq(int actual_code, int expected_code) {
 
 void ZipPacketWriter::Deflate(const uint8_t* ptr, size_t size) {
   PERFETTO_CHECK(is_compressing_);
-  stream_.next_in = ptr;
+  stream_.next_in = const_cast<uint8_t*>(ptr);
   stream_.avail_in = static_cast<unsigned int>(size);
   CheckEq(deflate(&stream_, Z_NO_FLUSH), Z_OK);
   PERFETTO_CHECK(stream_.avail_in == 0);
