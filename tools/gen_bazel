@@ -103,6 +103,10 @@ def enable_perfetto_version(module):
   module.deps.add(Label('//third_party/perfetto/google:perfetto_version'))
 
 
+def enable_zlib(module):
+  module.deps.add(Label('//third_party/zlib'))
+
+
 def disable_module(module):
   pass
 
@@ -116,6 +120,7 @@ builtin_deps = {
     '//buildtools:protobuf_full': enable_protobuf_full,
     '//buildtools:protoc': disable_module,
     '//buildtools:sqlite': enable_sqlite,
+    '//buildtools:zlib': enable_zlib,
     '//gn:default_deps': disable_module,
     '//gn:protoc_lib_deps': enable_protobuf_full,
     '//gn/standalone:gen_git_revision': enable_perfetto_version,
