@@ -192,7 +192,7 @@ source_set("lib") {
   public_deps = [
     "../../include/perfetto/trace_processor",
   ]
-  if (perfetto_build_standalone) {
+  if (perfetto_build_standalone || build_with_chromium) {
     sources += [
       "export_json.cc",
       "export_json.h",
@@ -294,7 +294,7 @@ source_set("unittests") {
     "../base",
     "../protozero",
   ]
-  if (perfetto_build_standalone) {
+  if (perfetto_build_standalone || build_with_chromium) {
     sources += [
       "export_json_unittest.cc",
       "json_trace_tokenizer_unittest.cc",
@@ -329,7 +329,7 @@ source_set("integrationtests") {
     "../base",
     "../base:test_support",
   ]
-  if (perfetto_build_standalone) {
+  if (perfetto_build_standalone || build_with_chromium) {
     deps += [ "../../gn:jsoncpp_deps" ]
   }
 }
