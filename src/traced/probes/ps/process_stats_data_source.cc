@@ -27,7 +27,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/time.h"
-#include "perfetto/ext/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/data_source_config.h"
 
 #include "perfetto/config/process_stats/process_stats_config.pbzero.h"
 #include "perfetto/trace/ps/process_stats.pbzero.h"

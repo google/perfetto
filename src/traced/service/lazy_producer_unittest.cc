@@ -18,7 +18,7 @@
 
 #include "src/base/test/test_task_runner.h"
 
-#include "perfetto/ext/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/data_source_config.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

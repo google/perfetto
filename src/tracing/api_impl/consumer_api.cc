@@ -40,9 +40,9 @@
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/consumer.h"
-#include "perfetto/ext/tracing/core/trace_config.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
+#include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/ipc/default_socket.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)

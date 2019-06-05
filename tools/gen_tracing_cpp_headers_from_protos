@@ -17,35 +17,33 @@ import os
 import subprocess
 import sys
 
-CORE_H = 'include/perfetto/ext/tracing/core'
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PUB_CORE_H = 'include/perfetto/tracing/core'
+CORE_H   = 'include/perfetto/ext/tracing/core'
 CORE_CPP = 'src/tracing/core'
 
 PROTOS = (
-    ('perfetto/common/commit_data_request.proto', CORE_H, CORE_CPP),
-    ('perfetto/common/data_source_descriptor.proto', CORE_H, CORE_CPP),
-    ('perfetto/common/observable_events.proto', CORE_H, CORE_CPP),
-    ('perfetto/common/tracing_service_state.proto', CORE_H, CORE_CPP),
-    ('perfetto/common/trace_stats.proto', CORE_H, CORE_CPP),
-    ('perfetto/config/chrome/chrome_config.proto', CORE_H, CORE_CPP),
-    ('perfetto/config/data_source_config.proto', CORE_H, CORE_CPP),
-    ('perfetto/config/test_config.proto', CORE_H, CORE_CPP),
-    ('perfetto/config/trace_config.proto', CORE_H, CORE_CPP),
+    # Classes that are exposed as part of the public API surface.
+    ('perfetto/common/data_source_descriptor.proto', PUB_CORE_H, CORE_CPP),
+    ('perfetto/common/tracing_service_state.proto', PUB_CORE_H, CORE_CPP),
+    ('perfetto/config/chrome/chrome_config.proto', PUB_CORE_H, CORE_CPP),
+    ('perfetto/config/data_source_config.proto', PUB_CORE_H, CORE_CPP),
+    ('perfetto/config/test_config.proto', PUB_CORE_H, CORE_CPP),
+    ('perfetto/config/trace_config.proto', PUB_CORE_H, CORE_CPP),
 
-    # Generate ftrace cpp/h files into their own directory.
+    # Classes that are exposes only in the /ext/ (unstable) API surface.
+    ('perfetto/common/commit_data_request.proto', CORE_H, CORE_CPP),
+    ('perfetto/common/observable_events.proto', CORE_H, CORE_CPP),
+    ('perfetto/common/trace_stats.proto', CORE_H, CORE_CPP),
+
+    # Generate ftrace cpp/h files into the src/traced/probes/ directory.
     ('perfetto/config/ftrace/ftrace_config.proto',
         'src/traced/probes/ftrace', 'src/traced/probes/ftrace'),
 
-    # Generate profiling cpp/h files into their own directory.
+    # Generate profiling cpp/h files into the src/profiling/memory/ directory.
     ('perfetto/config/profiling/heapprofd_config.proto',
         'src/profiling/memory', 'src/profiling/memory'),
 )
-
-
-HEADER_PATH = 'include/perfetto/ext/tracing/core'
-CPP_PATH = 'src/tracing/core'
-INCLUDE_PATH = 'perfetto/ext/tracing/core'
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 
 def run(cmd):
   print('\nRunning ' + ' '.join(cmd))
