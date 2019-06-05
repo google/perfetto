@@ -62,7 +62,7 @@ class TestHelper : public Consumer {
   void WaitForProducerSetup();
   void WaitForProducerEnabled();
   void WaitForTracingDisabled(uint32_t timeout_ms = 5000);
-  void WaitForReadData(uint32_t read_count = 0);
+  void WaitForReadData(uint32_t read_count = 0, uint32_t timeout_ms = 5000);
 
   std::string AddID(const std::string& checkpoint) {
     return checkpoint + "." + std::to_string(instance_num_);
