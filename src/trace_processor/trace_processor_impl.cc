@@ -35,6 +35,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/fuchsia_trace_parser.h"
 #include "src/trace_processor/fuchsia_trace_tokenizer.h"
+#include "src/trace_processor/gzip_trace_parser.h"
 #include "src/trace_processor/heap_profile_allocation_table.h"
 #include "src/trace_processor/heap_profile_callsite_table.h"
 #include "src/trace_processor/heap_profile_frame_table.h"
@@ -294,6 +295,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::StartsWith(start, " "))
     return kSystraceTraceType;
 
+  // Ctrace is GZIPed systrace with no headers.
+  if (base::StartsWith(start, "TRACE:"))
+    return kCtraceTraceType;
+
   return kProtoTraceType;
 }
 
@@ -399,6 +404,9 @@ util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
       }
       case kSystraceTraceType:
         context_.chunk_reader.reset(new SystraceTraceParser(&context_));
+        break;
+      case kCtraceTraceType:
+        context_.chunk_reader.reset(new GzipTraceParser(&context_));
         break;
       case kUnknownTraceType:
         return util::ErrStatus("Unknown trace type provided");
