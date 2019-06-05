@@ -50,6 +50,7 @@ refs/changes/496420
 
 """
 
+import argparse
 import collections
 import logging
 import os
@@ -77,7 +78,7 @@ MIN_CL_NUM = 913796
 
 # Max number of concurrent git subprocesses that can be run while generating
 # per-CL branches.
-GIT_SUBPROCESS_CONCURRENCY = 10
+NUM_JOBS = 10
 
 # Min delay (in seconds) between two consecutive git poll cycles. This is to
 # avoid hitting gerrit API quota limits.
@@ -98,8 +99,10 @@ def GitCmd(*args, **kwargs):
 
 
 # Create a git repo that mirrors both the upstream and the mirror repos.
-def Setup():
+def Setup(args):
   if os.path.exists(WORKDIR):
+    if args.no_clean:
+      return
     shutil.rmtree(WORKDIR)
   os.makedirs(WORKDIR)
   GitCmd('init', '--bare', '--quiet')
@@ -117,11 +120,11 @@ def GetTreeSize(tree_sha1):
 def GetCommit(commit_sha1):
   raw = GitCmd('cat-file', 'commit', commit_sha1)
   return {
-    'tree': re.search(r'^tree\s(\w+)$', raw, re.M).group(1),
-    'parent': re.search(r'^parent\s(\w+)$', raw, re.M).group(1),
-    'author': re.search(r'^author\s(.+)$', raw, re.M).group(1),
-    'committer': re.search(r'^committer\s(.+)$', raw, re.M).group(1),
-    'message': re.search(r'\n\n(.+)', raw, re.M | re.DOTALL).group(1),
+      'tree': re.search(r'^tree\s(\w+)$', raw, re.M).group(1),
+      'parent': re.search(r'^parent\s(\w+)$', raw, re.M).group(1),
+      'author': re.search(r'^author\s(.+)$', raw, re.M).group(1),
+      'committer': re.search(r'^committer\s(.+)$', raw, re.M).group(1),
+      'message': re.search(r'\n\n(.+)', raw, re.M | re.DOTALL).group(1),
   }
 
 
@@ -140,6 +143,7 @@ def TranslateClIntoBranch(packed_args):
   if cl_num < MIN_CL_NUM:
     return
   parent_sha1 = None
+  dbg = 'Translating CL %d\n' % cl_num
   for patchset_num, commit_sha1 in sorted(patchsets.items(), key=lambda x:x[0]):
     patchset_data = GetCommit(commit_sha1)
     # Skip Cls that are too big as they would be rejected by GitHub.
@@ -156,10 +160,13 @@ def TranslateClIntoBranch(packed_args):
         committer=patchset_data['committer'],
         message='[Patchset %d] %s' % (patchset_num, patchset_data['message']))
     parent_sha1 = forged_sha1
-    return 'refs/heads/changes/%d' % cl_num, forged_sha1
+    dbg += '  %s : patchet %d\n' % (forged_sha1[0:8], patchset_num)
+  dbg += '  Final SHA1: %s' % parent_sha1
+  logging.debug(dbg)
+  return 'refs/heads/changes/%d' % cl_num, parent_sha1
 
 
-def Sync():
+def Sync(args):
   logging.info('Fetching git remotes')
   GitCmd('fetch', '--all', '--quiet')
   all_refs = GitCmd('show-ref')
@@ -203,7 +210,7 @@ def Sync():
   # Forging commits is mostly fork() + exec() and I/O bound, parallelism helps
   # significantly to hide those latencies.
   logging.info('Forging per-CL branches')
-  pool = ThreadPool(processes=GIT_SUBPROCESS_CONCURRENCY)
+  pool = ThreadPool(processes=args.jobs)
   for res in pool.imap_unordered(TranslateClIntoBranch, changes.iteritems()):
     if res is None:
       continue
@@ -225,28 +232,38 @@ def Sync():
   for ref_to_update, ref_sha1 in future_heads.iteritems():
     if current_heads.get(ref_to_update) != ref_sha1:
       update_ref_cmd += 'update %s %s\n' % (ref_to_update, ref_sha1)
-  print update_ref_cmd
 
-  logging.info('Pushing updates')
-  # Update objects and push.
   GitCmd('update-ref', '--stdin', stdin=update_ref_cmd)
-  GitCmd('push', 'mirror', '--all', '--prune', '--force')
-  GitCmd('gc', '--prune=all', '--aggressive', '--quiet')
+
+  if args.push:
+    logging.info('Pushing updates')
+    GitCmd('push', 'mirror', '--all', '--prune', '--force')
+    GitCmd('gc', '--prune=all', '--aggressive', '--quiet')
+  else:
+    logging.info('Dry-run mode, skipping git push. Pass --push for prod mode.')
 
 
 def Main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--push', default=False, action='store_true')
+  parser.add_argument('--no-clean', default=False, action='store_true')
+  parser.add_argument('-j', dest='jobs', default=NUM_JOBS, type=int)
+  parser.add_argument('-v', dest='verbose', default=False, action='store_true')
+  args = parser.parse_args()
+
+  logging.basicConfig(
+      format='%(asctime)s %(levelname)-8s %(message)s',
+      level=logging.DEBUG if args.verbose else logging.INFO,
+      datefmt='%Y-%m-%d %H:%M:%S')
+
   logging.info('Setting up git repo one-off')
-  Setup()
+  Setup(args)
   while True:
     logging.info('------- BEGINNING OF SYNC CYCLE -------')
-    Sync()
+    Sync(args)
     logging.info('------- END OF SYNC CYCLE -------')
     time.sleep(POLL_PERIOD_SEC)
 
 
 if __name__ == '__main__':
-  logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S')
   sys.exit(Main())
