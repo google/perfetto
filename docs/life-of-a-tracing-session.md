@@ -44,7 +44,7 @@ during a tracing session, with references to code and IPC requests / responses.
     service, requesting it to move some chunks of the shared memory buffer into
     the final trace buffer.
 17. If one or more long `TracePacket` were fragmented over several chunks, it is
-    possible that some of these chunks are gone from the the shared memory
+    possible that some of these chunks are gone from the shared memory
     buffer and committed into the final trace buffer (step 16). In this case,
     the `SharedMemoryArbiter` will send an other `CommitDataRequest` IPC message
     to request the out-of-band patching of the chunk data into the final trace

@@ -285,7 +285,7 @@ TEST_F(HostImplTest, InvokeMethodDropReply) {
 
   // OnFakeMethod1 will:
   // - Do nothing on the 1st call, when |drop_reply| == true.
-  // - Reply on the the 2nd call, when |drop_reply| == false.
+  // - Reply on the 2nd call, when |drop_reply| == false.
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
       .Times(2)
       .WillRepeatedly(Invoke([](const RequestProto& req, DeferredBase* reply) {
