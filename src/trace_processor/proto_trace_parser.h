@@ -143,6 +143,7 @@ class ProtoTraceParser : public TraceParser {
   const StringId metatrace_id_;
   const StringId task_file_name_args_key_id_;
   const StringId task_function_name_args_key_id_;
+  const StringId category_name_id_;
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
