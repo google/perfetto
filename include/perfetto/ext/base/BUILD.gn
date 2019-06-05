@@ -22,6 +22,7 @@ source_set("base") {
     "file_utils.h",
     "hash.h",
     "metatrace.h",
+    "metatrace_events.h",
     "no_destructor.h",
     "optional.h",
     "paged_memory.h",
