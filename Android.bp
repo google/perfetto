@@ -218,20 +218,6 @@ cc_library_shared {
   ],
 }
 
-// GN target: //:idle_alloc
-cc_binary {
-  name: "idle_alloc",
-  srcs: [
-    "tools/idle_alloc.cc",
-  ],
-  shared_libs: [
-    "liblog",
-  ],
-  defaults: [
-    "perfetto_defaults",
-  ],
-}
-
 // GN target: //:libperfetto
 cc_library_shared {
   name: "libperfetto",
@@ -486,6 +472,7 @@ cc_library_static {
     "src/tracing/core/trace_stats.cc",
     "src/tracing/core/trace_writer_impl.cc",
     "src/tracing/core/tracing_service_impl.cc",
+    "src/tracing/core/tracing_service_state.cc",
     "src/tracing/core/virtual_destructors.cc",
     "src/tracing/data_source.cc",
     "src/tracing/internal/in_process_tracing_backend.cc",
