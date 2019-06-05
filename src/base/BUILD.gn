@@ -145,7 +145,6 @@ source_set("unittests") {
   }
   sources = [
     "circular_queue_unittest.cc",
-    "metatrace_unittest.cc",
     "no_destructor_unittest.cc",
     "optional_unittest.cc",
     "paged_memory_unittest.cc",
@@ -161,6 +160,7 @@ source_set("unittests") {
   # TODO(brucedawson): Enable these for Windows when possible.
   if (!is_win) {
     sources += [
+      "metatrace_unittest.cc",
       "task_runner_unittest.cc",
       "temp_file_unittest.cc",
       "thread_checker_unittest.cc",
