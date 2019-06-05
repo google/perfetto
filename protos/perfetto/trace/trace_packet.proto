@@ -48,7 +48,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 49.
+// Next id: 51.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -89,6 +89,11 @@ message TracePacket {
     // {82477a76-b28d-42ba-81dc-33326d57a079}. This is used to be able to
     // efficiently partition long traces without having to fully parse them.
     bytes synchronization_marker = 36;
+
+    // Zero or more proto encoded trace packets compressed using deflate.
+    // Each compressed_packets TracePacket (including the two field ids and
+    // sizes) should be less than 512KB.
+    bytes compressed_packets = 50;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

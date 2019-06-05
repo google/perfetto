@@ -60,6 +60,10 @@ bool ReadFileDescriptor(int fd, std::string* out) {
   }
 }
 
+bool ReadFileStream(FILE* f, std::string* out) {
+  return ReadFileDescriptor(fileno(f), out);
+}
+
 bool ReadFile(const std::string& path, std::string* out) {
   base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
   if (!fd)
