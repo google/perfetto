@@ -98,7 +98,7 @@ StringPool::Iterator& StringPool::Iterator::operator++() {
   auto str_size = GetSize(block.Get(block_offset_));
   block_offset_ += kMetadataSize + str_size;
 
-  // If we're out of bounds for this block, go the the start of the next block.
+  // If we're out of bounds for this block, go to the start of the next block.
   if (block.pos() <= block_offset_) {
     block_id_++;
     block_offset_ = 0;
