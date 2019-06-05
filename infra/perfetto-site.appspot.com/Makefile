@@ -25,7 +25,6 @@ static: node_modules/.stamp
 	cp node_modules/prismjs/components/prism-bash.min.js static/
 	cp node_modules/prismjs/components/prism-protobuf.min.js static/
 	cp node_modules/prismjs/components/prism-sql.min.js static/
-	cp node_modules/docsify-plugin-flexible-alerts/dist/docsify-plugin-flexible-alerts.min.js static/
 
 deploy: static
 	gcloud app deploy app.yaml --project perfetto-site
