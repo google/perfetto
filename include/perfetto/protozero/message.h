@@ -189,7 +189,7 @@ class PERFETTO_EXPORT Message {
   }
 
   // Only POD fields are allowed. This class's dtor is never called.
-  // See the comment on the static_assert in the the corresponding .cc file.
+  // See the comment on the static_assert in the corresponding .cc file.
 
   // The stream writer interface used for the serialization.
   ScatteredStreamWriter* stream_writer_;

@@ -623,7 +623,7 @@ bool UnixSocket::Send(const void* msg,
     return false;
   }
 
-  // Either the the other endpoint disconnect (ECONNRESET) or some other error
+  // Either the other endpoint disconnected (ECONNRESET) or some other error
   // happened.
   last_error_ = saved_errno;
   PERFETTO_DPLOG("sendmsg() failed");
