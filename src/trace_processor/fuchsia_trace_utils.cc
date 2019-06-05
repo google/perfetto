@@ -64,6 +64,31 @@ int64_t TicksToNs(uint64_t ticks, uint64_t ticks_per_second) {
   return static_cast<int64_t>(ticks * uint64_t(1000000000) / ticks_per_second);
 }
 
+Variadic ArgValue::ToStorageVariadic(TraceStorage* storage) const {
+  switch (type_) {
+    case Type::kNull:
+      return Variadic::String(storage->InternString("null"));
+    case Type::kInt32:
+      return Variadic::Integer(static_cast<int64_t>(int32_));
+    case Type::kUint32:
+      return Variadic::Integer(static_cast<int64_t>(uint32_));
+    case Type::kInt64:
+      return Variadic::Integer(int64_);
+    case Type::kUint64:
+      return Variadic::Integer(static_cast<int64_t>(uint64_));
+    case Type::kDouble:
+      return Variadic::Real(double_);
+    case Type::kString:
+      return Variadic::String(string_);
+    case Type::kPointer:
+      return Variadic::Integer(static_cast<int64_t>(pointer_));
+    case Type::kKoid:
+      return Variadic::Integer(static_cast<int64_t>(koid_));
+    case Type::kUnknown:
+      return Variadic::String(storage->InternString("unknown"));
+  }
+}
+
 }  // namespace fuchsia_trace_utils
 }  // namespace trace_processor
 }  // namespace perfetto
