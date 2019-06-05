@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/metatrace_events.h"
+#include "perfetto/ext/base/thread_annotations.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/time.h"
 #include "perfetto/ext/base/utils.h"
