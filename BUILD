@@ -171,6 +171,8 @@ cc_library(
         "src/trace_processor/fuchsia_trace_tokenizer.h",
         "src/trace_processor/fuchsia_trace_utils.cc",
         "src/trace_processor/fuchsia_trace_utils.h",
+        "src/trace_processor/gzip_trace_parser.cc",
+        "src/trace_processor/gzip_trace_parser.h",
         "src/trace_processor/heap_profile_allocation_table.cc",
         "src/trace_processor/heap_profile_allocation_table.h",
         "src/trace_processor/heap_profile_callsite_table.cc",
@@ -342,6 +344,7 @@ cc_library(
         "//third_party/perfetto/protos:trace_zero_cc_proto",
         "//third_party/sqlite",
         "//third_party/sqlite:sqlite_ext_percentile",
+        "//third_party/zlib",
     ],
 )
 
@@ -448,6 +451,8 @@ cc_binary(
         "src/trace_processor/fuchsia_trace_tokenizer.h",
         "src/trace_processor/fuchsia_trace_utils.cc",
         "src/trace_processor/fuchsia_trace_utils.h",
+        "src/trace_processor/gzip_trace_parser.cc",
+        "src/trace_processor/gzip_trace_parser.h",
         "src/trace_processor/heap_profile_allocation_table.cc",
         "src/trace_processor/heap_profile_allocation_table.h",
         "src/trace_processor/heap_profile_callsite_table.cc",
@@ -575,6 +580,7 @@ cc_binary(
         "//third_party/protobuf:libprotoc",
         "//third_party/sqlite",
         "//third_party/sqlite:sqlite_ext_percentile",
+        "//third_party/zlib",
     ],
 )
 
@@ -681,6 +687,8 @@ cc_binary(
         "src/trace_processor/fuchsia_trace_tokenizer.h",
         "src/trace_processor/fuchsia_trace_utils.cc",
         "src/trace_processor/fuchsia_trace_utils.h",
+        "src/trace_processor/gzip_trace_parser.cc",
+        "src/trace_processor/gzip_trace_parser.h",
         "src/trace_processor/heap_profile_allocation_table.cc",
         "src/trace_processor/heap_profile_allocation_table.h",
         "src/trace_processor/heap_profile_callsite_table.cc",
@@ -833,6 +841,7 @@ cc_binary(
         "//third_party/protobuf:libprotoc",
         "//third_party/sqlite",
         "//third_party/sqlite:sqlite_ext_percentile",
+        "//third_party/zlib",
     ],
 )
 
