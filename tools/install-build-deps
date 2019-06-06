@@ -20,6 +20,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib
 import zipfile
 
@@ -360,6 +361,7 @@ def CheckoutGitRepo(path, git_url, revision):
   assert(IsGitRepoCheckoutOutAtRevision(path, revision))
   return True
 
+
 def InstallNodeModules():
   ui_dir = os.path.join(ROOT_DIR, 'ui')
   logging.info("Running npm install in {0}".format(ui_dir))
@@ -367,11 +369,36 @@ def InstallNodeModules():
     [os.path.join(ui_dir, 'npm'), 'install', '--no-save'],
     cwd=os.path.join(ROOT_DIR, 'ui'))
 
+
+def CheckHashes():
+  for deps in [BUILD_DEPS_HOST,
+               BUILD_DEPS_ANDROID,
+               TEST_DEPS_ANDROID,
+               UI_DEPS]:
+    for rel_path, url, expected_sha1, platform in deps:
+      if url.endswith('.git'):
+        continue
+      logging.info('Downloading %s from %s', rel_path, url)
+      with tempfile.NamedTemporaryFile(delete=False) as f:
+        f.close()
+        urllib.urlretrieve(url, f.name)
+        actual_sha1 = HashLocalFile(f.name)
+        os.unlink(f.name)
+        if (actual_sha1 != expected_sha1):
+          logging.fatal('SHA1 mismatch for {} expected {} was {}'.format(
+              url, expected_sha1, actual_sha1))
+
+
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--no-android', action='store_true')
   parser.add_argument('--ui', action='store_true')
+  parser.add_argument('--check-hashes', help='Check hashes for all URLs',
+                      action='store_true')
   args = parser.parse_args()
+  if args.check_hashes:
+    CheckHashes()
+    return 0
   deps = BUILD_DEPS_HOST
   if not args.no_android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
