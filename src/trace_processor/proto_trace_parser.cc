@@ -63,6 +63,7 @@
 #include "perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "perfetto/trace/power/battery_counters.pbzero.h"
 #include "perfetto/trace/power/power_rails.pbzero.h"
+#include "perfetto/trace/profiling/profile_common.pbzero.h"
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "perfetto/trace/ps/process_stats.pbzero.h"
 #include "perfetto/trace/ps/process_tree.pbzero.h"
@@ -1247,8 +1248,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
   }
 
   for (auto it = packet.mappings(); it; ++it) {
-    protos::pbzero::ProfilePacket::Mapping::Decoder entry(it->data(),
-                                                          it->size());
+    protos::pbzero::Mapping::Decoder entry(it->data(), it->size());
     HeapProfileTracker::SourceMapping src_mapping;
     src_mapping.build_id = entry.build_id();
     src_mapping.offset = entry.offset();
@@ -1263,7 +1263,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
   }
 
   for (auto it = packet.frames(); it; ++it) {
-    protos::pbzero::ProfilePacket::Frame::Decoder entry(it->data(), it->size());
+    protos::pbzero::Frame::Decoder entry(it->data(), it->size());
     HeapProfileTracker::SourceFrame src_frame;
     src_frame.name_id = entry.function_name_id();
     src_frame.mapping_id = entry.mapping_id();
@@ -1273,8 +1273,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
   }
 
   for (auto it = packet.callstacks(); it; ++it) {
-    protos::pbzero::ProfilePacket::Callstack::Decoder entry(it->data(),
-                                                            it->size());
+    protos::pbzero::Callstack::Decoder entry(it->data(), it->size());
     HeapProfileTracker::SourceCallstack src_callstack;
     for (auto frame_it = entry.frame_ids(); frame_it; ++frame_it)
       src_callstack.emplace_back(frame_it->as_uint64());
