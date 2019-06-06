@@ -24,6 +24,7 @@ exports_files(["LICENSE"])
 genrule(
     name = "gen_merged_sql_metrics",
     srcs = [
+        "src/trace_processor/metrics/android/android_batt.sql",
         "src/trace_processor/metrics/android/android_mem.sql",
         "src/trace_processor/metrics/android/android_mem_lmk.sql",
         "src/trace_processor/metrics/android/android_mem_proc_counters.sql",
