@@ -87,6 +87,7 @@ Variadic ArgValue::ToStorageVariadic(TraceStorage* storage) const {
     case Type::kUnknown:
       return Variadic::String(storage->InternString("unknown"));
   }
+  PERFETTO_FATAL("Not reached");  // Make GCC happy.
 }
 
 }  // namespace fuchsia_trace_utils
