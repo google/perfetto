@@ -28,7 +28,7 @@ group("protoc_helper") {
     ":copy_protoc_helper",
   ]
   deps = [
-    "../buildtools:protoc($host_toolchain)",
+    "../gn:protoc($host_toolchain)",
   ]
 }
 

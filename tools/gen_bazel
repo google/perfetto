@@ -114,15 +114,15 @@ def disable_module(module):
 # Internal equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
-    '//gn:jsoncpp_deps': enable_jsoncpp,
     '//buildtools:linenoise': enable_linenoise,
-    '//buildtools:protobuf_lite': disable_module,
     '//buildtools:protobuf_full': enable_protobuf_full,
+    '//buildtools:protobuf_lite': disable_module,
     '//buildtools:protoc': disable_module,
     '//buildtools:sqlite': enable_sqlite,
     '//buildtools:zlib': enable_zlib,
     '//gn:default_deps': disable_module,
-    '//gn:protoc_lib_deps': enable_protobuf_full,
+    '//gn:jsoncpp': enable_jsoncpp,
+    '//gn:protoc_lib': enable_protobuf_full,
     '//gn/standalone:gen_git_revision': enable_perfetto_version,
 }
 

@@ -21,7 +21,7 @@ if (current_toolchain == host_toolchain) {
     ]
     deps = [
       "../../../gn:default_deps",
-      "../../../gn:protoc_lib_deps",
+      "../../../gn:protoc_lib",
     ]
   }
 }  # host_toolchain

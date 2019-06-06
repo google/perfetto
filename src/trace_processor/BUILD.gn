@@ -27,8 +27,8 @@ if (perfetto_build_standalone) {
     # outer "is_wasm" block.
     deps = [
       ":lib",
-      "../../buildtools:sqlite",
       "../../gn:default_deps",
+      "../../gn:sqlite",
       "../../include/perfetto/ext/base",
       "../../protos/perfetto/trace_processor:lite",
     ]
@@ -169,7 +169,7 @@ source_set("lib") {
   deps = [
     ":sqlite",
     "../../gn:default_deps",
-    "../../gn:zlib_deps",
+    "../../gn:zlib",
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:zero",
@@ -204,7 +204,7 @@ source_set("lib") {
       "json_trace_utils.cc",
       "json_trace_utils.h",
     ]
-    deps += [ "../../gn:jsoncpp_deps" ]
+    deps += [ "../../gn:jsoncpp" ]
   }
 }
 
@@ -214,13 +214,13 @@ if (current_toolchain == host_toolchain) {
     deps = [
       ":lib",
       "../../gn:default_deps",
-      "../../gn:protobuf_full_deps",
+      "../../gn:protobuf_full",
       "../base",
       "metrics:lib",
     ]
     if (perfetto_build_standalone) {
       deps += [
-        "../../buildtools:linenoise",
+        "../../gn:linenoise",
         "../../gn/standalone:gen_git_revision",
       ]
     }
@@ -283,7 +283,7 @@ source_set("unittests") {
     ":lib",
     ":sqlite",
     "../../gn:default_deps",
-    "../../gn:gtest_deps",
+    "../../gn:gtest_and_gmock",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/chrome:zero",
@@ -301,7 +301,7 @@ source_set("unittests") {
       "json_trace_tokenizer_unittest.cc",
       "json_trace_utils_unittest.cc",
     ]
-    deps += [ "../../gn:jsoncpp_deps" ]
+    deps += [ "../../gn:jsoncpp" ]
   }
 }
 
@@ -324,14 +324,14 @@ source_set("integrationtests") {
     ":lib",
     ":sqlite",
     "../../gn:default_deps",
-    "../../gn:gtest_deps",
+    "../../gn:gtest_and_gmock",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace_processor:lite",
     "../base",
     "../base:test_support",
   ]
   if (perfetto_build_standalone || build_with_chromium) {
-    deps += [ "../../gn:jsoncpp_deps" ]
+    deps += [ "../../gn:jsoncpp" ]
   }
 }
 
@@ -342,10 +342,10 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
   ]
   deps = [
     ":lib",
-    "../../buildtools:sqlite",
     "../../gn:default_deps",
     "../../gn:default_deps",
-    "../../gn:gtest_deps",
+    "../../gn:gtest_and_gmock",
+    "../../gn:sqlite",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace_processor:lite",
     "../base",

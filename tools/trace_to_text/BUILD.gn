@@ -64,7 +64,7 @@ source_set("full") {
   deps = [
     ":common",
     "../../gn:default_deps",
-    "../../gn:protobuf_full_deps",
+    "../../gn:protobuf_full",
   ]
   sources = [
     "proto_full_utils.cc",

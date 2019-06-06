@@ -125,7 +125,7 @@ template("proto_library") {
     sources = proto_sources
     outputs = get_path_info(protogens, "abspath")
 
-    protoc_label = "//buildtools:protoc($host_toolchain)"
+    protoc_label = "//gn:protoc($host_toolchain)"
     protoc_path = get_label_info(protoc_label, "root_out_dir") + "/protoc"
     args = [
       # Path should be rebased because |root_build_dir| for current toolchain
@@ -224,11 +224,11 @@ template("proto_library") {
       if (defined(invoker.use_protobuf_full) &&
           invoker.use_protobuf_full == true) {
         deps = [
-          "//buildtools:protobuf_full",
+          "//gn:protobuf_full",
         ]
       } else {
         deps = [
-          "//buildtools:protobuf_lite",
+          "//gn:protobuf_lite",
         ]
       }
 

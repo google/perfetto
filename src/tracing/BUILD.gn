@@ -78,7 +78,7 @@ if (perfetto_build_standalone || perfetto_build_with_android ||
       ":test_support",
       ":tracing",
       "../../gn:default_deps",
-      "../../gn:gtest_deps",
+      "../../gn:gtest_and_gmock",
       "../../protos/perfetto/config:lite",
       "../../protos/perfetto/trace:lite",
       "../../protos/perfetto/trace:zero",
@@ -154,17 +154,6 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     ]
     sources = [
       "api_impl/consumer_api_test.cc",
-    ]
-  }
-
-  source_set("tracing_benchmarks") {
-    testonly = true
-    deps = [
-      "../../gn:default_deps",
-      "//buildtools:benchmark",
-    ]
-    sources = [
-      "test/hello_world_benchmark.cc",
     ]
   }
 
@@ -287,7 +276,7 @@ if (!perfetto_build_with_embedder) {
       ":client_api",
       ":platform_posix",
       "../../gn:default_deps",
-      "../../gn:gtest_deps",
+      "../../gn:gtest_and_gmock",
       "../../protos/perfetto/trace:lite",
       "../../protos/perfetto/trace:zero",
       "../base",
