@@ -59,6 +59,7 @@ class ProtoTraceParser : public TraceParser {
   void ParseCpuFreq(int64_t timestamp, ConstBytes);
   void ParseCpuIdle(int64_t timestamp, ConstBytes);
   void ParsePrint(uint32_t cpu, int64_t timestamp, uint32_t pid, ConstBytes);
+  void ParseZero(uint32_t cpu, int64_t timestamp, uint32_t pid, ConstBytes);
   void ParseSysStats(int64_t ts, ConstBytes);
   void ParseRssStat(int64_t ts, uint32_t pid, ConstBytes);
   void ParseIonHeapGrowOrShrink(int64_t ts,

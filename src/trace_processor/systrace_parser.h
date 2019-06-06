@@ -14,18 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SYSTRACE_UTILS_H_
-#define SRC_TRACE_PROCESSOR_SYSTRACE_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_SYSTRACE_PARSER_H_
+#define SRC_TRACE_PROCESSOR_SYSTRACE_PARSER_H_
 
-#include <string>
+#include "src/trace_processor/trace_processor_context.h"
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
+
 namespace systrace_utils {
 
+// Visible for unittesting.
+enum class SystraceParseResult { kFailure = 0, kUnsupported, kSuccess };
+
+// Visible for unittesting.
 struct SystraceTracePoint {
   SystraceTracePoint() {}
 
@@ -44,19 +49,12 @@ struct SystraceTracePoint {
   double value = 0;
 };
 
-inline bool operator==(const SystraceTracePoint& x,
-                       const SystraceTracePoint& y) {
-  return std::tie(x.phase, x.tgid, x.name, x.value) ==
-         std::tie(y.phase, y.tgid, y.name, y.value);
-}
-
-enum class SystraceParseResult { kFailure = 0, kUnsupported, kSuccess };
-
 // We have to handle trace_marker events of a few different types:
 // 1. some random text
 // 2. B|1636|pokeUserActivity
 // 3. E|1636
 // 4. C|1636|wq:monitor|0
+// Visible for unittesting.
 inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
                                                    SystraceTracePoint* out) {
   const char* s = str.data();
@@ -128,8 +126,38 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
   }
 }
 
+// Visible for unittesting.
+inline bool operator==(const SystraceTracePoint& x,
+                       const SystraceTracePoint& y) {
+  return std::tie(x.phase, x.tgid, x.name, x.value) ==
+         std::tie(y.phase, y.tgid, y.name, y.value);
+}
+
 }  // namespace systrace_utils
+
+class SystraceParser {
+ public:
+  explicit SystraceParser(TraceProcessorContext*);
+
+  void ParsePrintEvent(int64_t ts, uint32_t pid, base::StringView event);
+
+  void ParseZeroEvent(int64_t ts,
+                      uint32_t pid,
+                      int32_t flag,
+                      base::StringView name,
+                      uint32_t tgid,
+                      int64_t value);
+
+ private:
+  void ParseSystracePoint(int64_t ts,
+                          uint32_t pid,
+                          systrace_utils::SystraceTracePoint event);
+
+  TraceProcessorContext* const context_;
+  const StringId lmk_id_;
+};
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SYSTRACE_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_SYSTRACE_PARSER_H_

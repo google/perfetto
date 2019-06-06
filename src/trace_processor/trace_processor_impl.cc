@@ -61,6 +61,7 @@
 #include "src/trace_processor/stats_table.h"
 #include "src/trace_processor/string_table.h"
 #include "src/trace_processor/syscall_tracker.h"
+#include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/systrace_trace_parser.h"
 #include "src/trace_processor/table.h"
 #include "src/trace_processor/thread_table.h"
@@ -323,6 +324,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.syscall_tracker.reset(new SyscallTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
+  context_.systrace_parser.reset(new SystraceParser(&context_));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) || \
     PERFETTO_BUILD_WITH_CHROMIUM
