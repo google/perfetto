@@ -205,6 +205,9 @@ const KeyAndId kVmstatKeys[] = {
      protos::pbzero::VmstatCounters::VMSTAT_UNEVICTABLE_PGS_CLEARED},
     {"unevictable_pgs_stranded",
      protos::pbzero::VmstatCounters::VMSTAT_UNEVICTABLE_PGS_STRANDED},
+    {"nr_zspages", protos::pbzero::VmstatCounters::VMSTAT_NR_ZSPAGES},
+    {"nr_ion_heap", protos::pbzero::VmstatCounters::VMSTAT_NR_ION_HEAP},
+    {"nr_gpu_heap", protos::pbzero::VmstatCounters::VMSTAT_NR_GPU_HEAP},
 };
 
 // Returns a lookup table of meminfo counter names addressable by counter id.
