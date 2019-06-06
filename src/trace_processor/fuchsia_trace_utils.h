@@ -66,6 +66,7 @@ class ArgValue {
   static ArgValue Null() {
     ArgValue v;
     v.type_ = Type::kNull;
+    v.int32_ = 0;
     return v;
   }
 
@@ -128,6 +129,7 @@ class ArgValue {
   static ArgValue Unknown() {
     ArgValue v;
     v.type_ = Type::kUnknown;
+    v.int32_ = 0;
     return v;
   }
 
