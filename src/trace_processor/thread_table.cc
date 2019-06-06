@@ -44,6 +44,7 @@ util::Status ThreadTable::Init(int, const char* const*, Schema* schema) {
           Table::Column(Column::kName, "name", ColumnType::kString),
           Table::Column(Column::kTid, "tid", ColumnType::kInt),
           Table::Column(Column::kStartTs, "start_ts", ColumnType::kLong),
+          Table::Column(Column::kEndTs, "end_ts", ColumnType::kLong),
       },
       {Column::kUtid});
   return util::OkStatus();
@@ -134,6 +135,14 @@ int ThreadTable::Cursor::Column(sqlite3_context* context, int N) {
     case Column::kStartTs: {
       if (thread.start_ns != 0) {
         sqlite3_result_int64(context, thread.start_ns);
+      } else {
+        sqlite3_result_null(context);
+      }
+      break;
+    }
+    case Column::kEndTs: {
+      if (thread.end_ns != 0) {
+        sqlite3_result_int64(context, thread.end_ns);
       } else {
         sqlite3_result_null(context);
       }
