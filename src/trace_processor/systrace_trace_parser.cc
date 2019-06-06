@@ -22,7 +22,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
-#include "src/trace_processor/systrace_utils.h"
+#include "src/trace_processor/systrace_parser.h"
 
 #include <inttypes.h>
 #include <string>
@@ -162,32 +162,8 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
         static_cast<uint32_t>(cpu), ts, static_cast<uint32_t>(prev_pid),
         prev_comm, prev_prio, prev_state, static_cast<uint32_t>(next_pid),
         next_comm, next_prio);
-  } else if (fn == "tracing_mark_write") {
-    systrace_utils::SystraceTracePoint point;
-    auto result = ParseSystraceTracePoint(args_str.c_str(), &point);
-    if (result == systrace_utils::SystraceParseResult::kSuccess) {
-      switch (point.phase) {
-        case 'B': {
-          StringId name_id = context_->storage->InternString(point.name);
-          context_->slice_tracker->BeginAndroid(ts, pid, point.tgid,
-                                                0 /*cat_id*/, name_id);
-          break;
-        }
-        case 'E': {
-          context_->slice_tracker->EndAndroid(ts, pid, point.tgid);
-          break;
-        }
-        case 'C': {
-          // This is per upid on purpose. Some counters are pushed from
-          // arbitrary threads but are really per process.
-          UniquePid upid =
-              context_->process_tracker->GetOrCreateProcess(point.tgid);
-          StringId name_id = context_->storage->InternString(point.name);
-          context_->event_tracker->PushCounter(ts, point.value, name_id, upid,
-                                               RefType::kRefUpid);
-        }
-      }
-    }
+  } else if (fn == "tracing_mark_write" || fn == "0" || fn == "print") {
+    context_->systrace_parser->ParsePrintEvent(ts, pid, args_str.c_str());
   } else if (fn == "sched_wakeup") {
     auto comm = args["comm"];
     uint32_t wakee_pid = static_cast<uint32_t>(std::stoi(args["pid"]));

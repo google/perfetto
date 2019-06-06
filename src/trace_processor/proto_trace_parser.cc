@@ -37,7 +37,7 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
-#include "src/trace_processor/systrace_utils.h"
+#include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/variadic.h"
 
@@ -58,6 +58,7 @@
 #include "perfetto/trace/ftrace/raw_syscalls.pbzero.h"
 #include "perfetto/trace/ftrace/sched.pbzero.h"
 #include "perfetto/trace/ftrace/signal.pbzero.h"
+#include "perfetto/trace/ftrace/systrace.pbzero.h"
 #include "perfetto/trace/ftrace/task.pbzero.h"
 #include "perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
@@ -489,6 +490,10 @@ void ProtoTraceParser::ParseFtracePacket(
         ParsePrint(cpu, ts, pid, data);
         break;
       }
+      case protos::pbzero::FtraceEvent::kZeroFieldNumber: {
+        ParseZero(cpu, ts, pid, data);
+        break;
+      }
       case protos::pbzero::FtraceEvent::kRssStatFieldNumber: {
         ParseRssStat(ts, pid, data);
         break;
@@ -735,54 +740,17 @@ void ProtoTraceParser::ParsePrint(uint32_t,
                                   uint32_t pid,
                                   ConstBytes blob) {
   protos::pbzero::PrintFtraceEvent::Decoder evt(blob.data, blob.size);
-  systrace_utils::SystraceTracePoint point{};
-  auto r = ParseSystraceTracePoint(evt.buf(), &point);
-  if (r != systrace_utils::SystraceParseResult::kSuccess) {
-    if (r == systrace_utils::SystraceParseResult::kFailure) {
-      context_->storage->IncrementStats(stats::systrace_parse_failure);
-    }
-    return;
-  }
+  context_->systrace_parser->ParsePrintEvent(ts, pid, evt.buf());
+}
 
-  switch (point.phase) {
-    case 'B': {
-      StringId name_id = context_->storage->InternString(point.name);
-      context_->slice_tracker->BeginAndroid(ts, pid, point.tgid, 0 /*cat_id*/,
-                                            name_id);
-      break;
-    }
-
-    case 'E': {
-      context_->slice_tracker->EndAndroid(ts, pid, point.tgid);
-      break;
-    }
-
-    case 'C': {
-      // LMK events from userspace are hacked as counter events with the "value"
-      // of the counter representing the pid of the killed process which is
-      // reset to 0 once the kill is complete.
-      // Homogenise this with kernel LMK events as an instant event, ignoring
-      // the resets to 0.
-      if (point.name == "kill_one_process") {
-        auto killed_pid = static_cast<uint32_t>(point.value);
-        if (killed_pid != 0) {
-          UniquePid killed_upid =
-              context_->process_tracker->GetOrCreateProcess(killed_pid);
-          context_->event_tracker->PushInstant(ts, lmk_id_, 0, killed_upid,
-                                               RefType::kRefUpid);
-        }
-        // TODO(lalitm): we should not add LMK events to the counters table
-        // once the UI has support for displaying instants.
-      }
-      // This is per upid on purpose. Some counters are pushed from arbitrary
-      // threads but are really per process.
-      UniquePid upid =
-          context_->process_tracker->GetOrCreateProcess(point.tgid);
-      StringId name_id = context_->storage->InternString(point.name);
-      context_->event_tracker->PushCounter(ts, point.value, name_id, upid,
-                                           RefType::kRefUpid);
-    }
-  }
+void ProtoTraceParser::ParseZero(uint32_t,
+                                 int64_t ts,
+                                 uint32_t pid,
+                                 ConstBytes blob) {
+  protos::pbzero::ZeroFtraceEvent::Decoder evt(blob.data, blob.size);
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  context_->systrace_parser->ParseZeroEvent(ts, pid, evt.flag(), evt.name(),
+                                            tgid, evt.value());
 }
 
 void ProtoTraceParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
