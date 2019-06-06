@@ -153,11 +153,8 @@ HeapprofdProducer::~HeapprofdProducer() {
 
 std::unique_ptr<base::UnixSocket> HeapprofdProducer::MakeListeningSocket() {
   const char* sock_fd = getenv(kHeapprofdSocketEnvVar);
-  if (sock_fd == nullptr) {
-    unlink(kHeapprofdSocketFile);
-    return base::UnixSocket::Listen(kHeapprofdSocketFile, &socket_delegate_,
-                                    task_runner_);
-  }
+  if (sock_fd == nullptr)
+    PERFETTO_FATAL("Did not inherit socket from init.");
   char* end;
   int raw_fd = static_cast<int>(strtol(sock_fd, &end, 10));
   if (*end != '\0')
