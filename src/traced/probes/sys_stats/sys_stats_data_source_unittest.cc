@@ -237,7 +237,7 @@ TEST_F(SysStatsDataSourceTest, Meminfo) {
   using C = protos::pbzero::MeminfoCounters;
   DataSourceConfig config;
   protozero::HeapBuffered<protos::pbzero::SysStatsConfig> sys_cfg;
-  sys_cfg->set_meminfo_period_ms(1);
+  sys_cfg->set_meminfo_period_ms(10);
   sys_cfg->add_meminfo_counters(C::MEMINFO_MEM_TOTAL);
   sys_cfg->add_meminfo_counters(C::MEMINFO_MEM_FREE);
   sys_cfg->add_meminfo_counters(C::MEMINFO_ACTIVE_ANON);
@@ -267,11 +267,28 @@ TEST_F(SysStatsDataSourceTest, Meminfo) {
                                    KV{C::MEMINFO_CMA_FREE, 60}));
 }
 
+TEST_F(SysStatsDataSourceTest, MeminfoAll) {
+  DataSourceConfig config;
+  protozero::HeapBuffered<protos::pbzero::SysStatsConfig> sys_cfg;
+  sys_cfg->set_meminfo_period_ms(10);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
+
+  WaitTick(data_source.get());
+
+  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
+  ASSERT_TRUE(packet->has_sys_stats());
+  const auto& sys_stats = packet->sys_stats();
+  EXPECT_EQ(sys_stats.vmstat_size(), 0);
+  EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
+  EXPECT_GE(sys_stats.meminfo_size(), 10);
+}
+
 TEST_F(SysStatsDataSourceTest, Vmstat) {
   using C = protos::pbzero::VmstatCounters;
   DataSourceConfig config;
   protozero::HeapBuffered<protos::pbzero::SysStatsConfig> sys_cfg;
-  sys_cfg->set_vmstat_period_ms(1);
+  sys_cfg->set_vmstat_period_ms(10);
   sys_cfg->add_vmstat_counters(C::VMSTAT_NR_FREE_PAGES);
   sys_cfg->add_vmstat_counters(C::VMSTAT_PGACTIVATE);
   sys_cfg->add_vmstat_counters(C::VMSTAT_PGMIGRATE_FAIL);
@@ -296,16 +313,27 @@ TEST_F(SysStatsDataSourceTest, Vmstat) {
                                         KV{C::VMSTAT_PGMIGRATE_FAIL, 3439}));
 }
 
-TEST_F(SysStatsDataSourceTest, StatAll) {
-  using C = protos::pbzero::SysStatsConfig;
-
+TEST_F(SysStatsDataSourceTest, VmstatAll) {
   DataSourceConfig config;
   protozero::HeapBuffered<protos::pbzero::SysStatsConfig> sys_cfg;
-  sys_cfg->set_stat_period_ms(1);
-  sys_cfg->add_stat_counters(C::STAT_CPU_TIMES);
-  sys_cfg->add_stat_counters(C::STAT_IRQ_COUNTS);
-  sys_cfg->add_stat_counters(C::STAT_SOFTIRQ_COUNTS);
-  sys_cfg->add_stat_counters(C::STAT_FORK_COUNT);
+  sys_cfg->set_vmstat_period_ms(10);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
+
+  WaitTick(data_source.get());
+
+  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
+  ASSERT_TRUE(packet->has_sys_stats());
+  const auto& sys_stats = packet->sys_stats();
+  EXPECT_EQ(sys_stats.meminfo_size(), 0);
+  EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
+  EXPECT_GE(sys_stats.vmstat_size(), 10);
+}
+
+TEST_F(SysStatsDataSourceTest, StatAll) {
+  DataSourceConfig config;
+  protozero::HeapBuffered<protos::pbzero::SysStatsConfig> sys_cfg;
+  sys_cfg->set_stat_period_ms(10);
   config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
   auto data_source = GetSysStatsDataSource(config);
 
@@ -329,10 +357,12 @@ TEST_F(SysStatsDataSourceTest, StatAll) {
   EXPECT_EQ(sys_stats.num_forks(), 243320);
 
   EXPECT_EQ(sys_stats.num_irq_total(), 238128517);
-  ASSERT_EQ(sys_stats.num_irq_size(), 793);
-  EXPECT_EQ(sys_stats.num_irq(0).count(), 0);
-  EXPECT_EQ(sys_stats.num_irq(3).count(), 63500984);
-  EXPECT_EQ(sys_stats.num_irq(790).count(), 680);
+  ASSERT_EQ(sys_stats.num_irq_size(), 102);
+  EXPECT_EQ(sys_stats.num_irq(0).count(), 63500984);
+  EXPECT_EQ(sys_stats.num_irq(0).irq(), 3);
+  EXPECT_EQ(sys_stats.num_irq(1).count(), 6253792);
+  EXPECT_EQ(sys_stats.num_irq(1).irq(), 5);
+  EXPECT_EQ(sys_stats.num_irq(101).count(), 680);
 
   EXPECT_EQ(sys_stats.num_softirq_total(), 84611084);
   ASSERT_EQ(sys_stats.num_softirq_size(), 10);
@@ -345,7 +375,7 @@ TEST_F(SysStatsDataSourceTest, StatAll) {
 TEST_F(SysStatsDataSourceTest, StatForksOnly) {
   using C = protos::SysStatsConfig;
   protos::DataSourceConfig config;
-  config.mutable_sys_stats_config()->set_stat_period_ms(1);
+  config.mutable_sys_stats_config()->set_stat_period_ms(10);
   config.mutable_sys_stats_config()->add_stat_counters(C::STAT_FORK_COUNT);
   DataSourceConfig config_obj;
   config_obj.FromProto(config);
