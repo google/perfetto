@@ -176,6 +176,9 @@ enum VmstatCounters {
   VMSTAT_UNEVICTABLE_PGS_MUNLOCKED = 90;
   VMSTAT_UNEVICTABLE_PGS_CLEARED = 91;
   VMSTAT_UNEVICTABLE_PGS_STRANDED = 92;
+  VMSTAT_NR_ZSPAGES = 93;
+  VMSTAT_NR_ION_HEAP = 94;
+  VMSTAT_NR_GPU_HEAP = 95;
 }
 // End of protos/perfetto/common/sys_stats_counters.proto
 
@@ -3625,7 +3628,8 @@ message SysStatsConfig {
   // Cost: 0.3 ms [read] + 0.07 ms [parse + trace injection]
   optional uint32 meminfo_period_ms = 1;
 
-  // Only the counters specified below are reported.
+  // If empty all known counters are reported. Otherwise, only the counters
+  // specified below are reported.
   repeated MeminfoCounters meminfo_counters = 2;
 
   // Polls /proc/vmstat every X ms, if non-zero.
