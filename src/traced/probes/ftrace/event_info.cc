@@ -3909,6 +3909,18 @@ std::vector<Event> GetStaticEventInfo() {
   {
     events.emplace_back(Event{});
     Event* event = &events.back();
+    event->name = "0";
+    event->group = "systrace";
+    event->proto_field_id = 331;
+    event->fields.push_back(MakeField("flag", 1, ProtoSchemaType::kInt32));
+    event->fields.push_back(MakeField("name", 2, ProtoSchemaType::kString));
+    event->fields.push_back(MakeField("pid", 3, ProtoSchemaType::kInt32));
+    event->fields.push_back(MakeField("value", 4, ProtoSchemaType::kInt64));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
     event->name = "task_newtask";
     event->group = "task";
     event->proto_field_id = 235;
