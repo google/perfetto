@@ -80,8 +80,6 @@ class TracingSession {
   virtual ~TracingSession();
 
   // Configure the session passing the trace config.
-  // TODO(primiano): like in DataSourceConfig case, this requires the caller to
-  // include a header outside of public. Move TraceConfig into /public/.
   // TODO(primiano): add an error callback.
   virtual void Setup(const TraceConfig&) = 0;
 

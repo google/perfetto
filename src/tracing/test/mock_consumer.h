@@ -23,7 +23,7 @@
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-#include "perfetto/ext/tracing/core/tracing_service_state.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 
 #include "perfetto/trace/trace_packet.pb.h"
 

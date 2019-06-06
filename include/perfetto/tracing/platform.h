@@ -64,10 +64,6 @@ class Platform {
   using ThreadLocalObject = ::perfetto::PlatformThreadLocalObject;
   virtual ThreadLocalObject* GetOrCreateThreadLocalObject() = 0;
 
-  // TODO(primiano): move base::TaskRunner into public. Right now the embedder
-  // needs to depend on non-public headers to actually implement this. It's fine
-  // because the only use cases we have are whitelisted and use already the full
-  // API surface.
   // Creates a sequenced task runner. The easiest implementation is to create
   // a new thread (e.g. use base::ThreadTaskRunner) but this can also be
   // implemented in some more clever way (e.g. using chromiums's scheduler).

@@ -25,8 +25,8 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_TRACING_CORE_DATA_SOURCE_CONFIG_H_
-#define INCLUDE_PERFETTO_EXT_TRACING_CORE_DATA_SOURCE_CONFIG_H_
+#ifndef INCLUDE_PERFETTO_TRACING_CORE_DATA_SOURCE_CONFIG_H_
+#define INCLUDE_PERFETTO_TRACING_CORE_DATA_SOURCE_CONFIG_H_
 
 #include <stdint.h>
 #include <string>
@@ -35,8 +35,8 @@
 
 #include "perfetto/base/export.h"
 
-#include "perfetto/ext/tracing/core/chrome_config.h"
-#include "perfetto/ext/tracing/core/test_config.h"
+#include "perfetto/tracing/core/chrome_config.h"
+#include "perfetto/tracing/core/test_config.h"
 
 // Forward declarations for protobuf types.
 namespace perfetto {
@@ -160,4 +160,4 @@ class PERFETTO_EXPORT DataSourceConfig {
 
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_TRACING_CORE_DATA_SOURCE_CONFIG_H_
+#endif  // INCLUDE_PERFETTO_TRACING_CORE_DATA_SOURCE_CONFIG_H_
