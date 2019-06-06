@@ -19,6 +19,7 @@
 namespace perfetto {
 namespace profiling {
 namespace {
+using ::perfetto::protos::pbzero::Callstack;
 using ::perfetto::protos::pbzero::ProfilePacket;
 // This needs to be lower than the maximum acceptable chunk size, because this
 // is checked *before* writing another submessage. We conservatively assume
@@ -112,8 +113,7 @@ void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
     auto built_callstack = callsites->BuildCallstack(node);
     for (const Interned<Frame>& frame : built_callstack)
       WriteFrame(frame);
-    ProfilePacket::Callstack* callstack =
-        current_profile_packet_->add_callstacks();
+    Callstack* callstack = current_profile_packet_->add_callstacks();
     callstack->set_id(node->id());
     for (const Interned<Frame>& frame : built_callstack)
       callstack->add_frame_ids(frame.id());

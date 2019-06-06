@@ -16,7 +16,10 @@ import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
 import("../../../../gn/protozero_library.gni")
 
-profiling_proto_names = [ "profile_packet.proto" ]
+profiling_proto_names = [
+  "profile_common.proto",
+  "profile_packet.proto",
+]
 
 proto_library("lite") {
   generate_python = false
