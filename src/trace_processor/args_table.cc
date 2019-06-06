@@ -31,7 +31,7 @@ void ArgsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 StorageSchema ArgsTable::CreateStorageSchema() {
   const auto& args = storage_->args();
   return StorageSchema::Builder()
-      .AddNumericColumn("arg_set_id", &args.set_ids())
+      .AddOrderedNumericColumn("arg_set_id", &args.set_ids())
       .AddStringColumn("flat_key", &args.flat_keys(), &storage_->string_pool())
       .AddStringColumn("key", &args.keys(), &storage_->string_pool())
       .AddColumn<ValueColumn>("int_value", Variadic::Type::kInt, storage_)
@@ -45,18 +45,11 @@ uint32_t ArgsTable::RowCount() {
 }
 
 int ArgsTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
-  // In the case of an id equality filter, we can do a very efficient lookup.
-  if (qc.constraints().size() == 1) {
-    auto id = static_cast<int>(schema().ColumnIndexFromName("arg_set_id"));
-    const auto& cs = qc.constraints().back();
-    if (cs.iColumn == id && sqlite_utils::IsOpEq(cs.op)) {
-      info->estimated_cost = 1;
-      return SQLITE_OK;
-    }
+  if (HasEqConstraint(qc, "arg_set_id")) {
+    info->estimated_cost = 1;
+  } else {
+    info->estimated_cost = static_cast<uint32_t>(storage_->args().args_count());
   }
-
-  // Otherwise, just give the worst case scenario.
-  info->estimated_cost = static_cast<uint32_t>(storage_->args().args_count());
   return SQLITE_OK;
 }
 
