@@ -44,30 +44,34 @@ UniqueTid ProcessTracker::StartNewThread(int64_t timestamp,
   return new_utid;
 }
 
+void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid, uint32_t pid) {
+  UniqueTid utid = UpdateThread(tid, pid);
+  TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
+  thread->end_ns = timestamp;
+}
+
 UniqueTid ProcessTracker::GetOrCreateThread(uint32_t tid) {
   auto pair_it = tids_.equal_range(tid);
   if (pair_it.first != pair_it.second) {
-    return std::prev(pair_it.second)->second;
+    auto prev_utid = std::prev(pair_it.second)->second;
+    TraceStorage::Thread* thread =
+        context_->storage->GetMutableThread(prev_utid);
+
+    // Only return alive threads.
+    if (thread->end_ns == 0)
+      return prev_utid;
   }
   return StartNewThread(0, tid, 0);
 }
 
 UniqueTid ProcessTracker::UpdateThreadName(uint32_t tid,
                                            StringId thread_name_id) {
-  auto pair_it = tids_.equal_range(tid);
-
-  // If a utid exists for the tid, find it and update the name.
-  if (pair_it.first != pair_it.second) {
-    auto prev_utid = std::prev(pair_it.second)->second;
-    TraceStorage::Thread* thread =
-        context_->storage->GetMutableThread(prev_utid);
-    if (thread_name_id)
-      thread->name_id = thread_name_id;
-    return prev_utid;
+  auto utid = GetOrCreateThread(tid);
+  if (thread_name_id) {
+    TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
+    thread->name_id = thread_name_id;
   }
-
-  // If none exist, assign a new utid and store it.
-  return StartNewThread(0, tid, thread_name_id);
+  return utid;
 }
 
 UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
@@ -79,6 +83,11 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   for (auto it = tids_pair.first; it != tids_pair.second; it++) {
     UniqueTid iter_utid = it->second;
     auto* iter_thread = context_->storage->GetMutableThread(iter_utid);
+    if (iter_thread->end_ns != 0) {
+      // If the thread is already dead, don't bother choosing it as the
+      // thread for this process.
+      continue;
+    }
     if (!iter_thread->upid.has_value()) {
       // We haven't discovered the parent process for the thread. Assign it
       // now and use this thread.
