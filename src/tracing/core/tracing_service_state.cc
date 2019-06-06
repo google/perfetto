@@ -25,7 +25,7 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#include "perfetto/ext/tracing/core/tracing_service_state.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 
 #include "perfetto/common/data_source_descriptor.pb.h"
 #include "perfetto/common/tracing_service_state.pb.h"
