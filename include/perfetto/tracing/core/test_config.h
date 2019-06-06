@@ -25,8 +25,8 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_TRACING_CORE_TEST_CONFIG_H_
-#define INCLUDE_PERFETTO_EXT_TRACING_CORE_TEST_CONFIG_H_
+#ifndef INCLUDE_PERFETTO_TRACING_CORE_TEST_CONFIG_H_
+#define INCLUDE_PERFETTO_TRACING_CORE_TEST_CONFIG_H_
 
 #include <stdint.h>
 #include <string>
@@ -184,4 +184,4 @@ class PERFETTO_EXPORT TestConfig {
 
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_TRACING_CORE_TEST_CONFIG_H_
+#endif  // INCLUDE_PERFETTO_TRACING_CORE_TEST_CONFIG_H_

@@ -27,8 +27,8 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "perfetto/ext/tracing/core/data_source_config.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {

@@ -33,8 +33,8 @@
 // header public -> non-public dependency while building this file.
 
 // TODO(primiano): move these generated classes to /public/.
-#include "perfetto/ext/tracing/core/data_source_descriptor.h"
-#include "perfetto/ext/tracing/core/trace_config.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/trace_config.h"
 
 namespace {
 

@@ -25,9 +25,9 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/time.h"
 #include "perfetto/ext/base/unix_socket.h"
-#include "perfetto/ext/tracing/core/data_source_config.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/tracing/core/data_source_config.h"
 
 #include "perfetto/common/android_log_constants.pbzero.h"
 #include "perfetto/config/android/android_log_config.pbzero.h"

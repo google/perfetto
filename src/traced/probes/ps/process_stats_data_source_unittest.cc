@@ -21,8 +21,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "perfetto/ext/base/temp_file.h"
-#include "perfetto/ext/tracing/core/data_source_config.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 

@@ -25,7 +25,7 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#include "perfetto/ext/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
 
 #include "perfetto/common/data_source_descriptor.pb.h"
 

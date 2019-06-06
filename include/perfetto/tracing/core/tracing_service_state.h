@@ -25,8 +25,8 @@
  * ./tools/gen_tracing_cpp_headers_from_protos
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_TRACING_CORE_TRACING_SERVICE_STATE_H_
-#define INCLUDE_PERFETTO_EXT_TRACING_CORE_TRACING_SERVICE_STATE_H_
+#ifndef INCLUDE_PERFETTO_TRACING_CORE_TRACING_SERVICE_STATE_H_
+#define INCLUDE_PERFETTO_TRACING_CORE_TRACING_SERVICE_STATE_H_
 
 #include <stdint.h>
 #include <string>
@@ -35,7 +35,7 @@
 
 #include "perfetto/base/export.h"
 
-#include "perfetto/ext/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
 
 // Forward declarations for protobuf types.
 namespace perfetto {
@@ -177,4 +177,4 @@ class PERFETTO_EXPORT TracingServiceState {
 
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_TRACING_CORE_TRACING_SERVICE_STATE_H_
+#endif  // INCLUDE_PERFETTO_TRACING_CORE_TRACING_SERVICE_STATE_H_
