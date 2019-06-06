@@ -325,15 +325,30 @@ class GeneratorJob {
     if (enumeration->containing_type() != nullptr)
       value_name_prefix = GetCppClassName(enumeration) + "_";
 
+    std::string min_name, max_name;
+    int min_val = std::numeric_limits<int>::max();
+    int max_val = -1;
     for (int i = 0; i < enumeration->value_count(); ++i) {
       const EnumValueDescriptor* value = enumeration->value(i);
       stub_h_->Print("$name$ = $number$,\n", "name",
                      value_name_prefix + value->name(), "number",
                      std::to_string(value->number()));
+      if (value->number() < min_val) {
+        min_val = value->number();
+        min_name = value_name_prefix + value->name();
+      }
+      if (value->number() > max_val) {
+        max_val = value->number();
+        max_name = value_name_prefix + value->name();
+      }
     }
-
     stub_h_->Outdent();
     stub_h_->Print("};\n\n");
+    stub_h_->Print("const $class$ $class$_MIN = $min$;\n", "class",
+                   GetCppClassName(enumeration), "min", min_name);
+    stub_h_->Print("const $class$ $class$_MAX = $max$;\n", "class",
+                   GetCppClassName(enumeration), "max", max_name);
+    stub_h_->Print("\n");
   }
 
   void GenerateSimpleFieldDescriptor(const FieldDescriptor* field) {

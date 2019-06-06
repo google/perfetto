@@ -39,7 +39,8 @@ message SysStatsConfig {
   // Cost: 0.3 ms [read] + 0.07 ms [parse + trace injection]
   optional uint32 meminfo_period_ms = 1;
 
-  // Only the counters specified below are reported.
+  // If empty all known counters are reported. Otherwise, only the counters
+  // specified below are reported.
   repeated MeminfoCounters meminfo_counters = 2;
 
   // Polls /proc/vmstat every X ms, if non-zero.
