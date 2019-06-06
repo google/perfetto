@@ -698,11 +698,7 @@ source_set("zlib") {
 }
 
 config("zlib_config") {
-  defines = [
-    "ZLIB_CONST",
-    "USE_MMAP",
-    "HAVE_HIDDEN",
-  ]
+  defines = [ "HAVE_HIDDEN" ]
   cflags = [
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from third-party headers. Doing so would mask warnings in
