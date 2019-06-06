@@ -477,6 +477,10 @@ void ProtoTraceParser::ParseFtracePacket(
         ParseSchedWakeup(ts, data);
         break;
       }
+      case protos::pbzero::FtraceEvent::kSchedProcessExitFieldNumber: {
+        ParseSchedProcessExit(ts, data);
+        break;
+      }
       case protos::pbzero::FtraceEvent::kCpuFrequencyFieldNumber: {
         ParseCpuFreq(ts, data);
         break;
@@ -696,6 +700,13 @@ void ProtoTraceParser::ParseSchedWakeup(int64_t ts, ConstBytes blob) {
   auto utid = context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
   context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_, 0 /* value */,
                                        utid, RefType::kRefUtid);
+}
+
+void ProtoTraceParser::ParseSchedProcessExit(int64_t ts, ConstBytes blob) {
+  protos::pbzero::SchedProcessExitFtraceEvent::Decoder ex(blob.data, blob.size);
+  uint32_t pid = static_cast<uint32_t>(ex.pid());
+  uint32_t tgid = static_cast<uint32_t>(ex.tgid());
+  context_->process_tracker->EndThread(ts, pid, tgid);
 }
 
 void ProtoTraceParser::ParseTaskNewTask(int64_t ts,
