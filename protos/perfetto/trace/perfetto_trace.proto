@@ -434,6 +434,64 @@ message ChromeBenchmarkMetadata {
 
 // End of protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto
 
+// Begin of protos/perfetto/trace/chrome/chrome_metadata.proto
+
+// Metadata for chrome traces.
+message ChromeMetadataPacket {
+  optional BackgroundTracingMetadata background_tracing_metadata = 1;
+}
+
+// Metadata related to background tracing scenarios, states and triggers.
+message BackgroundTracingMetadata {
+  // Information about a trigger rule defined in the experiment config.
+  message TriggerRule {
+    enum TriggerType {
+      TRIGGER_UNSPECIFIED = 0;
+
+      // Traces are triggered by specific range of values of an UMA histogram.
+      MONITOR_AND_DUMP_WHEN_SPECIFIC_HISTOGRAM_AND_VALUE = 1;
+
+      // Traces are triggered by specific named events in chromium codebase,
+      // like "second-update-failure".
+      MONITOR_AND_DUMP_WHEN_TRIGGER_NAMED = 2;
+    }
+    optional TriggerType trigger_type = 1;
+
+    // Configuration of histogram trigger.
+    message HistogramRule {
+      // UMA histogram name hash, same as HistogramEventProto.name_hash.
+      optional fixed64 histogram_name_hash = 1;
+
+      // Range of values of the histogram that activates trigger.
+      optional int64 histogram_min_trigger = 2;
+      optional int64 histogram_max_trigger = 3;
+    }
+    optional HistogramRule histogram_rule = 2;
+
+    // Configuration of named trigger.
+    message NamedRule {
+      enum EventType {
+        UNSPECIFIED = 0;
+        SESSION_RESTORE = 1;
+        NAVIGATION = 2;
+        STARTUP = 3;
+
+        TEST_RULE = 1000;
+      }
+      optional EventType event_type = 1;
+    }
+    optional NamedRule named_rule = 3;
+  }
+
+  // Specifies the rule that caused the trace to be uploaded.
+  optional TriggerRule triggered_rule = 1;
+
+  // List of all active triggers in current session, when trace was triggered.
+  repeated TriggerRule active_rules = 2;
+}
+
+// End of protos/perfetto/trace/chrome/chrome_metadata.proto
+
 // Begin of protos/perfetto/trace/clock_snapshot.proto
 
 // A snapshot of clock readings to allow for trace alignment.
@@ -2954,7 +3012,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 51.
+// Next id: 52.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -2985,6 +3043,7 @@ message TracePacket {
     PackagesList packages_list = 47;
     ChromeBenchmarkMetadata chrome_benchmark_metadata = 48;
     PerfettoMetatrace perfetto_metatrace = 49;
+    ChromeMetadataPacket chrome_metadata = 51;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
