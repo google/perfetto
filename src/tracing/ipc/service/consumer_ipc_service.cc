@@ -25,11 +25,11 @@
 #include "perfetto/ext/ipc/host.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/slice.h"
-#include "perfetto/ext/tracing/core/trace_config.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-#include "perfetto/ext/tracing/core/tracing_service_state.h"
+#include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 
 namespace perfetto {
 

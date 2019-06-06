@@ -18,8 +18,8 @@
 
 #include "perfetto/base/build_config.h"
 
-#include "perfetto/ext/tracing/core/data_source_config.h"
-#include "perfetto/ext/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>

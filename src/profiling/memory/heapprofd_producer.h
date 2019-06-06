@@ -28,10 +28,10 @@
 #include "perfetto/ext/base/unix_task_runner.h"
 
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "perfetto/ext/tracing/core/data_source_config.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/core/data_source_config.h"
 
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/heapprofd_config.h"
