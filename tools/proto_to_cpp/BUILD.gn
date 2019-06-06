@@ -17,7 +17,7 @@ if (current_toolchain == host_toolchain) {
     testonly = true
     deps = [
       "../../gn:default_deps",
-      "../../gn:protobuf_full_deps",
+      "../../gn:protobuf_full",
       "../../src/base",
     ]
     sources = [

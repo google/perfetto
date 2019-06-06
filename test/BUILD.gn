@@ -23,7 +23,7 @@ source_set("end_to_end_integrationtests") {
     ":task_runner_thread_delegates",
     ":test_helper",
     "../gn:default_deps",
-    "../gn:gtest_deps",
+    "../gn:gtest_and_gmock",
     "../include/perfetto/ext/traced",
     "../include/perfetto/protozero",
     "../protos/perfetto/config:zero",
@@ -131,9 +131,9 @@ if (perfetto_build_standalone) {
       ":task_runner_thread",
       ":task_runner_thread_delegates",
       ":test_helper",
-      "../buildtools:benchmark",
+      "../gn:benchmark",
       "../gn:default_deps",
-      "../gn:gtest_deps",
+      "../gn:gtest_and_gmock",
       "../include/perfetto/ext/traced",
       "../protos/perfetto/trace:lite",
       "../protos/perfetto/trace:zero",
@@ -153,7 +153,7 @@ if (perfetto_build_standalone) {
   source_set("benchmark_main") {
     testonly = true
     deps = [
-      "../buildtools:benchmark",
+      "../gn:benchmark",
       "../gn:default_deps",
     ]
     sources = [

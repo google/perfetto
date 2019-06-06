@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
-import("../../../gn/fuzzer.gni")
 import("//build_overrides/build.gni")
+import("../../../gn/fuzzer.gni")
+import("../../../gn/perfetto.gni")
 
 # For use_libfuzzer.
 if (!build_with_chromium) {
@@ -24,10 +24,11 @@ if (!build_with_chromium) {
 }
 
 source_set("wire_protocol") {
-  public_configs = [ "../../../buildtools:libunwindstack_config" ]
+  public_deps = [
+    "../../../gn:libunwindstack",
+  ]
   deps = [
     ":ring_buffer",
-    "../../../buildtools:libunwindstack",
     "../../../gn:default_deps",
     "../../base",
     "../../base:unix_socket",
@@ -77,7 +78,7 @@ source_set("ring_buffer_unittests") {
   deps = [
     ":ring_buffer",
     "../../../gn:default_deps",
-    "../../../gn:gtest_deps",
+    "../../../gn:gtest_and_gmock",
     "../../base",
   ]
   sources = [
@@ -86,13 +87,11 @@ source_set("ring_buffer_unittests") {
 }
 
 source_set("daemon") {
-  public_configs = [ "../../../buildtools:libunwindstack_config" ]
   deps = [
     ":proc_utils",
     ":ring_buffer",
     ":scoped_spinlock",
     ":wire_protocol",
-    "../../../buildtools:libunwindstack",
     "../../../gn:default_deps",
     "../../../protos/perfetto/config:lite",
     "../../base",
@@ -101,6 +100,7 @@ source_set("daemon") {
     "../../tracing:ipc",
   ]
   public_deps = [
+    "../../../gn:libunwindstack",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/profiling:zero",
   ]
@@ -127,14 +127,13 @@ source_set("daemon") {
 }
 
 source_set("client") {
-  public_configs = [ "../../../buildtools:libunwindstack_config" ]
   deps = [
     ":proc_utils",
     ":ring_buffer",
     ":scoped_spinlock",
     ":wire_protocol",
-    "../../../buildtools:libunwindstack",
     "../../../gn:default_deps",
+    "../../../gn:libunwindstack",
     "../../base",
     "../../base:unix_socket",
   ]
@@ -146,7 +145,6 @@ source_set("client") {
 }
 
 source_set("unittests") {
-  public_configs = [ "../../../buildtools:libunwindstack_config" ]
   testonly = true
   deps = [
     ":client",
@@ -154,7 +152,8 @@ source_set("unittests") {
     ":proc_utils",
     ":wire_protocol",
     "../../../gn:default_deps",
-    "../../../gn:gtest_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../gn:libunwindstack",
     "../../base",
     "../../base:test_support",
     "../../tracing",
@@ -174,14 +173,14 @@ source_set("unittests") {
 }
 
 source_set("end_to_end_tests") {
-  public_configs = [ "../../../buildtools:libunwindstack_config" ]
   testonly = true
   deps = [
     ":client",
     ":daemon",
     ":wire_protocol",
     "../../../gn:default_deps",
-    "../../../gn:gtest_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../gn:libunwindstack",
     "../../../include/perfetto/protozero",
     "../../../protos/perfetto/config:zero",
     "../../../test:test_helper",

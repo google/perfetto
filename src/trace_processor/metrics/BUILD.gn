@@ -77,7 +77,7 @@ source_set("unittests") {
   deps = [
     ":lib",
     "../../../gn:default_deps",
-    "../../../gn:gtest_deps",
+    "../../../gn:gtest_and_gmock",
     "../../../gn:sqlite",
     "../../../protos/perfetto/common:zero",
   ]

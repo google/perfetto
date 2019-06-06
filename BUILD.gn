@@ -313,7 +313,6 @@ if (perfetto_build_standalone) {
     deps = [
       "gn:default_deps",
       "src/traced/probes/ftrace:benchmarks",
-      "src/tracing:tracing_benchmarks",
       "test:benchmark_main",
       "test:end_to_end_benchmarks",
     ]
