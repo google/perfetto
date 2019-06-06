@@ -1008,6 +1008,7 @@ pbzero_cc_proto_library(
 proto_library(
     name = "trace_profiling",
     srcs = [
+        "perfetto/trace/profiling/profile_common.proto",
         "perfetto/trace/profiling/profile_packet.proto",
     ],
     has_services = 1,
@@ -1044,6 +1045,7 @@ java_proto_library(
 proto_library(
     name = "trace_profiling_zero",
     srcs = [
+        "perfetto/trace/profiling/profile_common.proto",
         "perfetto/trace/profiling/profile_packet.proto",
     ],
 )
