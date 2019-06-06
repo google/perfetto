@@ -125,8 +125,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       task_file_name_args_key_id_(
           context->storage->InternString("task.posted_from.file_name")),
       task_function_name_args_key_id_(
-          context->storage->InternString("task.posted_from.function_name")),
-      category_name_id_(context->storage->InternString("category")) {
+          context->storage->InternString("task.posted_from.function_name")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
     meminfo_strs_id_.emplace_back(context->storage->InternString(name));
   }
@@ -1480,12 +1479,11 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
     case 'I': {  // TRACE_EVENT_PHASE_INSTANT.
-      RowId row_id = context_->event_tracker->PushInstant(
-          ts, name_id, /*value=*/0, utid, RefType::kRefUtid);
-      ArgsTracker args_tracker(context_);
-      args_tracker.AddArg(row_id, category_name_id_, category_name_id_,
-                          Variadic::String(category_id));
-      args_callback(&args_tracker, row_id);
+      // Handle instant events as slices with zero duration, so that they end up
+      // nested underneath their parent slices.
+      int64_t duration_ns = 0;
+      slice_tracker->Scoped(ts, utid, category_id, name_id, duration_ns,
+                            args_callback);
       break;
     }
     case 'M': {  // TRACE_EVENT_PHASE_METADATA (process and thread names).

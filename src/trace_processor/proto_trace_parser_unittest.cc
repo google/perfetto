@@ -719,12 +719,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   EXPECT_CALL(*slice_, End(1020000, 1, 3, 4, _));
 
-  EXPECT_CALL(*event_, PushInstant(1040000, 4, 0, 1, RefType::kRefUtid, false))
-      .WillOnce(Return(TraceStorage::CreateRowId(TableId::kInstants, 1)));
-
-  // Add the event to the storage so that the parser can add arguments to it.
-  storage_->mutable_instants()->AddInstantEvent(1040000, 4, 0, 1,
-                                                RefType::kRefUtid);
+  EXPECT_CALL(*slice_, Scoped(1040000, 1, 3, 4, 0, _));
 
   context_.sorter->ExtractEventsForced();
 }
