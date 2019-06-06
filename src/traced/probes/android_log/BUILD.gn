@@ -36,7 +36,7 @@ source_set("unittests") {
   deps = [
     ":android_log",
     "../../../../gn:default_deps",
-    "../../../../gn:gtest_deps",
+    "../../../../gn:gtest_and_gmock",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config:zero",
     "../../../../src/base:test_support",
