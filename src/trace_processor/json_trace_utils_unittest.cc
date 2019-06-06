@@ -27,8 +27,8 @@ namespace json_trace_utils {
 namespace {
 
 TEST(JsonTraceUtilsTest, CoerceToUint32) {
-  ASSERT_EQ(CoerceToUint32(Json::Value(42)).value_or(0), 42);
-  ASSERT_EQ(CoerceToUint32(Json::Value("42")).value_or(0), 42);
+  ASSERT_EQ(CoerceToUint32(Json::Value(42)).value_or(0), 42u);
+  ASSERT_EQ(CoerceToUint32(Json::Value("42")).value_or(0), 42u);
   ASSERT_EQ(CoerceToInt64(Json::Value(42.1)).value_or(-1), 42);
 }
 

@@ -676,8 +676,6 @@ cc_binary {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
     "-DPERFETTO_BUILD_WITH_ANDROID",
-    "-DUSE_MMAP",
-    "-DZLIB_CONST",
   ],
   product_variables: {
     pdk: {
@@ -3449,8 +3447,6 @@ cc_test {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
     "-DPERFETTO_BUILD_WITH_ANDROID",
-    "-DUSE_MMAP",
-    "-DZLIB_CONST",
   ],
   product_variables: {
     pdk: {
@@ -3631,8 +3627,6 @@ cc_binary_host {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
     "-DPERFETTO_BUILD_WITH_ANDROID",
-    "-DUSE_MMAP",
-    "-DZLIB_CONST",
   ],
 }
 

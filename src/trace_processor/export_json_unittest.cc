@@ -34,7 +34,7 @@ std::string ReadFile(FILE* input) {
   const int kBufSize = 1000;
   char buffer[kBufSize];
   size_t ret = fread(buffer, sizeof(char), kBufSize, input);
-  EXPECT_GT(ret, 0);
+  EXPECT_GT(ret, 0u);
   return std::string(buffer, ret);
 }
 
@@ -51,7 +51,7 @@ TEST(ExportJsonTest, EmptyStorage) {
   Json::Value result;
 
   EXPECT_TRUE(reader.parse(ReadFile(output), result));
-  EXPECT_EQ(result["traceEvents"].size(), 0);
+  EXPECT_EQ(result["traceEvents"].size(), 0u);
 }
 
 TEST(ExportJsonTest, StorageWithOneSlice) {
@@ -77,7 +77,7 @@ TEST(ExportJsonTest, StorageWithOneSlice) {
   Json::Reader reader;
   Json::Value result;
   EXPECT_TRUE(reader.parse(ReadFile(output), result));
-  EXPECT_EQ(result["traceEvents"].size(), 1);
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["ph"].asString(), "X");
@@ -106,7 +106,7 @@ TEST(ExportJsonTest, StorageWithThreadName) {
   Json::Reader reader;
   Json::Value result;
   EXPECT_TRUE(reader.parse(ReadFile(output), result));
-  EXPECT_EQ(result["traceEvents"].size(), 1);
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["ph"].asString(), "M");
@@ -182,17 +182,17 @@ TEST(ExportJsonTest, StorageWithMetadata) {
   EXPECT_TRUE(result["metadata"].isMember("telemetry"));
   Json::Value telemetry_metadata = result["metadata"]["telemetry"];
 
-  EXPECT_EQ(telemetry_metadata["benchmarkDescriptions"].size(), 1);
+  EXPECT_EQ(telemetry_metadata["benchmarkDescriptions"].size(), 1u);
   EXPECT_EQ(telemetry_metadata["benchmarkDescriptions"][0].asString(),
             kDescription);
 
-  EXPECT_EQ(telemetry_metadata["benchmarks"].size(), 1);
+  EXPECT_EQ(telemetry_metadata["benchmarks"].size(), 1u);
   EXPECT_EQ(telemetry_metadata["benchmarks"][0].asString(), kBenchmarkName);
 
-  EXPECT_EQ(telemetry_metadata["stories"].size(), 1);
+  EXPECT_EQ(telemetry_metadata["stories"].size(), 1u);
   EXPECT_EQ(telemetry_metadata["stories"][0].asString(), kStoryName);
 
-  EXPECT_EQ(telemetry_metadata["storyTags"].size(), 2);
+  EXPECT_EQ(telemetry_metadata["storyTags"].size(), 2u);
   EXPECT_EQ(telemetry_metadata["storyTags"][0].asString(), kStoryTag1);
   EXPECT_EQ(telemetry_metadata["storyTags"][1].asString(), kStoryTag2);
 
@@ -201,7 +201,7 @@ TEST(ExportJsonTest, StorageWithMetadata) {
 
   EXPECT_EQ(telemetry_metadata["traceStart"].asInt(), kStoryStart / 1000.0);
 
-  EXPECT_EQ(telemetry_metadata["hadFailures"].size(), 1);
+  EXPECT_EQ(telemetry_metadata["hadFailures"].size(), 1u);
   EXPECT_EQ(telemetry_metadata["hadFailures"][0].asBool(), kHadFailures);
 }
 
