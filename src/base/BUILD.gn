@@ -87,7 +87,7 @@ if (is_debug && perfetto_build_standalone && !is_wasm) {
       "../../include/perfetto/ext/base",
     ]
     if (is_linux || is_android) {
-      deps += [ "../../buildtools:libbacktrace" ]
+      deps += [ "../../gn:libbacktrace" ]
     }
     cflags = [ "-Wno-deprecated" ]
   }
@@ -112,7 +112,7 @@ source_set("test_support") {
   deps = [
     ":base",
     "../../gn:default_deps",
-    "../../gn:gtest_deps",
+    "../../gn:gtest_and_gmock",
   ]
   sources = [
     "test/utils.cc",
@@ -136,7 +136,7 @@ source_set("unittests") {
     ":base",
     ":test_support",
     "../../gn:default_deps",
-    "../../gn:gtest_deps",
+    "../../gn:gtest_and_gmock",
   ]
 
   if (is_android &&
