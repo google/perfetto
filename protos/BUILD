@@ -227,6 +227,7 @@ proto_library(
 proto_library(
     name = "metrics_android",
     srcs = [
+        "perfetto/metrics/android/batt_metric.proto",
         "perfetto/metrics/android/heap_profile.proto",
         "perfetto/metrics/android/mem_metric.proto",
         "perfetto/metrics/android/startup_metric.proto",
@@ -265,6 +266,7 @@ java_proto_library(
 proto_library(
     name = "metrics_android_zero",
     srcs = [
+        "perfetto/metrics/android/batt_metric.proto",
         "perfetto/metrics/android/heap_profile.proto",
         "perfetto/metrics/android/mem_metric.proto",
         "perfetto/metrics/android/startup_metric.proto",
