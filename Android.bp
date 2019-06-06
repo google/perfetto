@@ -3578,6 +3578,7 @@ cc_binary_host {
     "src/trace_processor/string_pool.cc",
     "src/trace_processor/string_table.cc",
     "src/trace_processor/syscall_tracker.cc",
+    "src/trace_processor/systrace_parser.cc",
     "src/trace_processor/systrace_trace_parser.cc",
     "src/trace_processor/table.cc",
     "src/trace_processor/thread_table.cc",
