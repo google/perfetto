@@ -53,6 +53,10 @@ class ProcessTracker {
                            uint32_t tid,
                            StringId thread_name_id);
 
+  // Called when sched_process_exit is observed. This forces the tracker to
+  // end the thread lifetime for the utid associated with the given tid.
+  void EndThread(int64_t timestamp, uint32_t tid, uint32_t pid);
+
   // Returns the thread utid (or creates a new entry if not present)
   UniqueTid GetOrCreateThread(uint32_t tid);
 
