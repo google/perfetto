@@ -178,6 +178,11 @@ sure no [DEDUPED frames](#deduped-frames) are involved.
 ## Known Issues
 
 * Does not work on x86 platforms (including the Android cuttlefish emulator).
+* If heapprofd is run standalone (by running `heapprofd` in a root shell, rather
+  than through init), `/dev/socket/heapprofd` get assigned an incorrect SELinux
+  domain. You will not be able to profile any processes unless you disable
+  SELinux enforcement.
+  Run `restorecon /dev/socket/heapprofd` in a root shell to resolve.
 
 ## Ways to count memory
 
