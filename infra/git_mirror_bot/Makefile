@@ -35,7 +35,7 @@ start: deploy_key
 		--project $(PROJECT) \
 		instances create $(VM_NAME) \
 		--zone $(ZONE) \
-		--machine-type "f1-micro" \
+		--machine-type "n1-highcpu-16" \
 		--subnet "default" \
 		--maintenance-policy "MIGRATE" \
 		--image "debian-9-stretch-v20170918" \
