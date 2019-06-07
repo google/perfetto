@@ -78,6 +78,7 @@ enum RefType {
   kRefIrq = 3,
   kRefSoftIrq = 4,
   kRefUpid = 5,
+  kRefGpuId = 6,
   kRefMax
 };
 

@@ -91,6 +91,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
+      gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       comm_name_id_(context->storage->InternString("comm")),
       num_forks_name_id_(context->storage->InternString("num_forks")),
       num_irq_total_name_id_(context->storage->InternString("num_irq_total")),
@@ -486,6 +487,10 @@ void ProtoTraceParser::ParseFtracePacket(
         ParseCpuFreq(ts, data);
         break;
       }
+      case protos::pbzero::FtraceEvent::kGpuFrequencyFieldNumber: {
+        ParseGpuFreq(ts, data);
+        break;
+      }
       case protos::pbzero::FtraceEvent::kCpuIdleFieldNumber: {
         ParseCpuIdle(ts, data);
         break;
@@ -684,6 +689,14 @@ void ProtoTraceParser::ParseCpuIdle(int64_t ts, ConstBytes blob) {
   uint32_t new_state = idle.state();
   context_->event_tracker->PushCounter(ts, new_state, cpu_idle_name_id_, cpu,
                                        RefType::kRefCpuId);
+}
+
+void ProtoTraceParser::ParseGpuFreq(int64_t ts, ConstBytes blob) {
+  protos::pbzero::GpuFrequencyFtraceEvent::Decoder freq(blob.data, blob.size);
+  uint32_t gpu = freq.gpu_id();
+  uint32_t new_freq = freq.state();
+  context_->event_tracker->PushCounter(ts, new_freq, gpu_freq_name_id_, gpu,
+                                       RefType::kRefGpuId);
 }
 
 PERFETTO_ALWAYS_INLINE
@@ -1352,7 +1365,8 @@ void ProtoTraceParser::ParseTrackEvent(
 
   StringId category_id = 0;
 
-  // If there's a single category, we can avoid building a concatenated string.
+  // If there's a single category, we can avoid building a concatenated
+  // string.
   if (PERFETTO_LIKELY(category_iids.size() == 1)) {
     auto* map =
         sequence_state->GetInternedDataMap<protos::pbzero::EventCategory>();
@@ -1422,8 +1436,8 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   }
 
-  // TODO(eseckler): Handle thread timestamp/duration, legacy event attributes,
-  // async events, ...
+  // TODO(eseckler): Handle thread timestamp/duration, legacy event
+  // attributes, async events, ...
 
   auto args_callback = [this, &event, &sequence_state](
                            ArgsTracker* args_tracker, RowId row) {
@@ -1457,8 +1471,8 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
     case 'I': {  // TRACE_EVENT_PHASE_INSTANT.
-      // Handle instant events as slices with zero duration, so that they end up
-      // nested underneath their parent slices.
+      // Handle instant events as slices with zero duration, so that they end
+      // up nested underneath their parent slices.
       int64_t duration_ns = 0;
       slice_tracker->Scoped(ts, utid, category_id, name_id, duration_ns,
                             args_callback);

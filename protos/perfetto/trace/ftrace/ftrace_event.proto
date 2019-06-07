@@ -394,5 +394,6 @@ message FtraceEvent {
     SysEnterFtraceEvent sys_enter = 329;
     SysExitFtraceEvent sys_exit = 330;
     ZeroFtraceEvent zero = 331;
+    GpuFrequencyFtraceEvent gpu_frequency = 332;
   }
 }
