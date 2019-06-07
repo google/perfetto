@@ -22,6 +22,7 @@
 
 #include <inttypes.h>
 
+#include "perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "perfetto/trace/profiling/profile_common.pbzero.h"
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -44,7 +45,7 @@ class DumpState {
     // fields get mapped to this.
     auto interned_string = current_profile_packet_->add_strings();
     constexpr const uint8_t kEmptyString[] = "";
-    interned_string->set_id(0);
+    interned_string->set_iid(0);
     interned_string->set_str(kEmptyString, 0);
   }
 
