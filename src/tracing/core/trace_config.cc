@@ -64,7 +64,8 @@ bool TraceConfig::operator==(const TraceConfig& other) const {
          (incremental_state_config_ == other.incremental_state_config_) &&
          (allow_user_build_tracing_ == other.allow_user_build_tracing_) &&
          (unique_session_name_ == other.unique_session_name_) &&
-         (compression_type_ == other.compression_type_);
+         (compression_type_ == other.compression_type_) &&
+         (incident_report_config_ == other.incident_report_config_);
 }
 #pragma GCC diagnostic pop
 
@@ -187,6 +188,8 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
                 "size mismatch");
   compression_type_ =
       static_cast<decltype(compression_type_)>(proto.compression_type());
+
+  incident_report_config_.FromProto(proto.incident_report_config());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -306,6 +309,8 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
                 "size mismatch");
   proto->set_compression_type(
       static_cast<decltype(proto->compression_type())>(compression_type_));
+
+  incident_report_config_.ToProto(proto->mutable_incident_report_config());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
@@ -873,6 +878,86 @@ void TraceConfig::IncrementalStateConfig::ToProto(
                 "size mismatch");
   proto->set_clear_period_ms(
       static_cast<decltype(proto->clear_period_ms())>(clear_period_ms_));
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+TraceConfig::IncidentReportConfig::IncidentReportConfig() = default;
+TraceConfig::IncidentReportConfig::~IncidentReportConfig() = default;
+TraceConfig::IncidentReportConfig::IncidentReportConfig(
+    const TraceConfig::IncidentReportConfig&) = default;
+TraceConfig::IncidentReportConfig& TraceConfig::IncidentReportConfig::operator=(
+    const TraceConfig::IncidentReportConfig&) = default;
+TraceConfig::IncidentReportConfig::IncidentReportConfig(
+    TraceConfig::IncidentReportConfig&&) noexcept = default;
+TraceConfig::IncidentReportConfig& TraceConfig::IncidentReportConfig::operator=(
+    TraceConfig::IncidentReportConfig&&) = default;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool TraceConfig::IncidentReportConfig::operator==(
+    const TraceConfig::IncidentReportConfig& other) const {
+  return (destination_package_ == other.destination_package_) &&
+         (destination_class_ == other.destination_class_) &&
+         (privacy_level_ == other.privacy_level_) &&
+         (skip_dropbox_ == other.skip_dropbox_);
+}
+#pragma GCC diagnostic pop
+
+void TraceConfig::IncidentReportConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::TraceConfig_IncidentReportConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
+void TraceConfig::IncidentReportConfig::FromProto(
+    const perfetto::protos::TraceConfig_IncidentReportConfig& proto) {
+  static_assert(
+      sizeof(destination_package_) == sizeof(proto.destination_package()),
+      "size mismatch");
+  destination_package_ =
+      static_cast<decltype(destination_package_)>(proto.destination_package());
+
+  static_assert(sizeof(destination_class_) == sizeof(proto.destination_class()),
+                "size mismatch");
+  destination_class_ =
+      static_cast<decltype(destination_class_)>(proto.destination_class());
+
+  static_assert(sizeof(privacy_level_) == sizeof(proto.privacy_level()),
+                "size mismatch");
+  privacy_level_ = static_cast<decltype(privacy_level_)>(proto.privacy_level());
+
+  static_assert(sizeof(skip_dropbox_) == sizeof(proto.skip_dropbox()),
+                "size mismatch");
+  skip_dropbox_ = static_cast<decltype(skip_dropbox_)>(proto.skip_dropbox());
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void TraceConfig::IncidentReportConfig::ToProto(
+    perfetto::protos::TraceConfig_IncidentReportConfig* proto) const {
+  proto->Clear();
+
+  static_assert(
+      sizeof(destination_package_) == sizeof(proto->destination_package()),
+      "size mismatch");
+  proto->set_destination_package(
+      static_cast<decltype(proto->destination_package())>(
+          destination_package_));
+
+  static_assert(
+      sizeof(destination_class_) == sizeof(proto->destination_class()),
+      "size mismatch");
+  proto->set_destination_class(
+      static_cast<decltype(proto->destination_class())>(destination_class_));
+
+  static_assert(sizeof(privacy_level_) == sizeof(proto->privacy_level()),
+                "size mismatch");
+  proto->set_privacy_level(
+      static_cast<decltype(proto->privacy_level())>(privacy_level_));
+
+  static_assert(sizeof(skip_dropbox_) == sizeof(proto->skip_dropbox()),
+                "size mismatch");
+  proto->set_skip_dropbox(
+      static_cast<decltype(proto->skip_dropbox())>(skip_dropbox_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
