@@ -1,5 +1,5 @@
-This directory contains code that accesses Android (hw)binder interfaces
-and is dynamically loaded and used by traced_probes.
+This directory contains code that accesses Android (hw)binder interfaces and is
+dynamically loaded and used by traced_probes / perfetto command line client.
 The code in this directory is built as a separate .so library and can depend on
 on Android internals.
 
