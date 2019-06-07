@@ -18,12 +18,16 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "perfetto/trace/profiling/profile_common.proto";
-import "perfetto/trace/interned_data/interned_data.proto";
 
 package perfetto.protos;
 
 message ProfilePacket {
   repeated InternedString strings = 1;
+  message InternedString {
+    optional uint64 id = 1;
+    optional bytes str = 2;
+  }
+
   repeated Mapping mappings = 4;
   repeated Frame frames = 2;
   repeated Callstack callstacks = 3;
