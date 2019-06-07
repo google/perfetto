@@ -512,6 +512,7 @@ proto_library(
     ],
     deps = [
         "//third_party/perfetto/protos:trace_interned_data_zero",
+        "//third_party/perfetto/protos:trace_profiling_zero",
         "//third_party/perfetto/protos:trace_track_event_zero",
     ],
 )
@@ -708,6 +709,7 @@ proto_library(
         "//visibility:public",
     ],
     deps = [
+        "//third_party/perfetto/protos:trace_profiling",
         "//third_party/perfetto/protos:trace_track_event",
     ],
 )
@@ -741,6 +743,7 @@ proto_library(
         "perfetto/trace/interned_data/interned_data.proto",
     ],
     deps = [
+        "//third_party/perfetto/protos:trace_profiling_zero",
         "//third_party/perfetto/protos:trace_track_event_zero",
     ],
 )

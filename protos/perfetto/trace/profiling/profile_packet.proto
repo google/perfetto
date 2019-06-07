@@ -23,11 +23,6 @@ package perfetto.protos;
 
 message ProfilePacket {
   repeated InternedString strings = 1;
-  message InternedString {
-    optional uint64 id = 1;
-    optional bytes str = 2;
-  }
-
   repeated Mapping mappings = 4;
   repeated Frame frames = 2;
   repeated Callstack callstacks = 3;
