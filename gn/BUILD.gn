@@ -247,3 +247,14 @@ group("libunwindstack") {
     ]
   }
 }
+
+# Used by fuzzers.
+if (use_libfuzzer) {
+  group("libfuzzer") {
+    if (perfetto_build_standalone) {
+      public_deps = [
+        "//buildtools:libfuzzer",
+      ]
+    }
+  }
+}
