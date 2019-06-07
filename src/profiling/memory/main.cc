@@ -45,6 +45,18 @@ int StartChildHeapprofd(pid_t target_pid,
                         base::ScopedFile inherited_sock_fd);
 int StartCentralHeapprofd();
 
+int GetListeningSocket() {
+  const char* sock_fd = getenv(kHeapprofdSocketEnvVar);
+  if (sock_fd == nullptr)
+    PERFETTO_FATAL("Did not inherit socket from init.");
+  char* end;
+  int raw_fd = static_cast<int>(strtol(sock_fd, &end, 10));
+  if (*end != '\0')
+    PERFETTO_FATAL("Invalid %s. Expected decimal integer.",
+                   kHeapprofdSocketEnvVar);
+  return raw_fd;
+}
+
 base::Event* g_dump_evt = nullptr;
 
 int HeapprofdMain(int argc, char** argv) {
@@ -144,6 +156,11 @@ int StartCentralHeapprofd() {
   base::UnixTaskRunner task_runner;
   base::Watchdog::GetInstance()->Start();  // crash on exceedingly long tasks
   HeapprofdProducer producer(HeapprofdMode::kCentral, &task_runner);
+
+  int listening_raw_socket = GetListeningSocket();
+  auto listening_socket =
+      base::UnixSocket::Listen(base::ScopedFile(listening_raw_socket),
+                               &producer.socket_delegate(), &task_runner);
 
   struct sigaction action = {};
   action.sa_handler = [](int) { g_dump_evt->Notify(); };
