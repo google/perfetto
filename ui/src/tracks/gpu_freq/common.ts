@@ -1,4 +1,5 @@
-// Copyright (C) 2018 The Android Open Source Project
+
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,16 +12,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+import {TrackData} from '../../common/track_data';
 
-// Import all currently implemented tracks. After implemeting a new track, an
-// import statement for it needs to be added here.
-import './android_log/controller';
-import './chrome_slices/controller';
-import './counter/controller';
-import './cpu_freq/controller';
-import './gpu_freq/controller';
-import './cpu_slices/controller';
-import './process_scheduling/controller';
-import './process_summary/controller';
-import './thread_state/controller';
-import './vsync/controller';
+export const GPU_FREQ_TRACK_KIND = 'GpuFreqTrack';
+
+export interface Data extends TrackData {
+  maximumValue: number;
+  isQuantized: boolean;
+
+  tsStarts: Float64Array;
+  tsEnds: Float64Array;
+  freqKHz: Uint32Array;
+}
+
+export interface Config {
+  gpu: number;
+  maximumValue?: number;
+  minimumValue?: number;}
