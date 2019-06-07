@@ -128,11 +128,12 @@ uint64_t HeapTracker::GetSizeForTesting(const std::vector<FrameData>& stack) {
   return alloc.allocated - alloc.freed;
 }
 
-GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
+GlobalCallstackTrie::Node* GlobalCallstackTrie::GetOrCreateChild(
+    Node* self,
     const Interned<Frame>& loc) {
-  Node* child = children_.Get(loc);
+  Node* child = self->children_.Get(loc);
   if (!child)
-    child = children_.Emplace(loc, this);
+    child = self->children_.Emplace(loc, ++next_callstack_id_, self);
   return child;
 }
 
@@ -150,7 +151,7 @@ GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
     const std::vector<FrameData>& callstack) {
   Node* node = &root_;
   for (const FrameData& loc : callstack) {
-    node = node->GetOrCreateChild(InternCodeLocation(loc));
+    node = GetOrCreateChild(node, InternCodeLocation(loc));
   }
   return node;
 }
