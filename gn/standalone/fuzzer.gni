@@ -20,7 +20,7 @@ template("perfetto_fuzzer_test") {
   if (is_fuzzer) {
     executable(target_name) {
       if (use_libfuzzer) {
-        deps += [ "//buildtools:libfuzzer" ]
+        deps += [ "//gn:libfuzzer" ]
       } else {
         ldflags = [ link_fuzzer ]
       }
