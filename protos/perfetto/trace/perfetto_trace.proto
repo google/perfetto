@@ -2602,7 +2602,7 @@ message MmVmscanKswapdSleepFtraceEvent {
 // refers to them (since the last reset of interning state). They may also be
 // emitted proactively in advance of referring to them in later packets.
 //
-// Next id: 5.
+// Next id: 8.
 message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
@@ -2615,7 +2615,22 @@ message InternedData {
   repeated LegacyEventName legacy_event_names = 2;
   repeated DebugAnnotationName debug_annotation_names = 3;
   repeated SourceLocation source_locations = 4;
+
   // Note: field IDs up to 15 should be used for frequent data only.
+
+  // Build IDs of exectuable files.
+  repeated InternedString build_ids = 16;
+  // Paths to executable files.
+  repeated InternedString mapping_paths = 17;
+  // Names of functions used in frames below.
+  repeated InternedString function_names = 5;
+
+  // Executable files mapped into processes.
+  repeated Mapping mappings = 19;
+  // Frames of callstacks of a program.
+  repeated Frame frames = 6;
+  // A callstack of a program.
+  repeated Callstack callstacks = 7;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -2700,8 +2715,14 @@ message PowerRails {
 
 // Begin of protos/perfetto/trace/profiling/profile_common.proto
 
+// TODO(fmayer): Move to a common location.
+message InternedString {
+  optional uint64 iid = 1;
+  optional bytes str = 2;
+}
+
 message Mapping {
-  optional uint64 id = 1;        // Interning key.
+  optional uint64 iid = 1;       // Interning key.
   optional uint64 build_id = 2;  // Interning key.
   optional uint64 offset = 3;
   optional uint64 start = 4;
@@ -2712,7 +2733,7 @@ message Mapping {
 }
 
 message Frame {
-  optional uint64 id = 1;  // Interning key
+  optional uint64 iid = 1;  // Interning key
   // E.g. "fopen"
   optional uint64 function_name_id = 2;  // id of string.
   optional uint64 mapping_id = 3;
@@ -2720,7 +2741,7 @@ message Frame {
 }
 
 message Callstack {
-  optional uint64 id = 1;
+  optional uint64 iid = 1;
   // Frames of this callstack. Bottom frame first.
   repeated uint64 frame_ids = 2;
 }
@@ -2731,11 +2752,6 @@ message Callstack {
 
 message ProfilePacket {
   repeated InternedString strings = 1;
-  message InternedString {
-    optional uint64 id = 1;
-    optional bytes str = 2;
-  }
-
   repeated Mapping mappings = 4;
   repeated Frame frames = 2;
   repeated Callstack callstacks = 3;

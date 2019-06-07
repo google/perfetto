@@ -1229,13 +1229,12 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
 
   for (auto it = packet.strings(); it; ++it) {
-    protos::pbzero::ProfilePacket::InternedString::Decoder entry(it->data(),
-                                                                 it->size());
+    protos::pbzero::InternedString::Decoder entry(it->data(), it->size());
 
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     auto str_id = context_->storage->InternString(
         base::StringView(str, entry.str().size));
-    context_->heap_profile_tracker->AddString(index, entry.id(), str_id);
+    context_->heap_profile_tracker->AddString(index, entry.iid(), str_id);
   }
 
   for (auto it = packet.mappings(); it; ++it) {
@@ -1250,7 +1249,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
     for (auto path_string_id_it = entry.path_string_ids(); path_string_id_it;
          ++path_string_id_it)
       src_mapping.name_id = path_string_id_it->as_uint64();
-    context_->heap_profile_tracker->AddMapping(index, entry.id(), src_mapping);
+    context_->heap_profile_tracker->AddMapping(index, entry.iid(), src_mapping);
   }
 
   for (auto it = packet.frames(); it; ++it) {
@@ -1260,7 +1259,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
     src_frame.mapping_id = entry.mapping_id();
     src_frame.rel_pc = entry.rel_pc();
 
-    context_->heap_profile_tracker->AddFrame(index, entry.id(), src_frame);
+    context_->heap_profile_tracker->AddFrame(index, entry.iid(), src_frame);
   }
 
   for (auto it = packet.callstacks(); it; ++it) {
@@ -1269,7 +1268,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
     for (auto frame_it = entry.frame_ids(); frame_it; ++frame_it)
       src_callstack.emplace_back(frame_it->as_uint64());
 
-    context_->heap_profile_tracker->AddCallstack(index, entry.id(),
+    context_->heap_profile_tracker->AddCallstack(index, entry.iid(),
                                                  src_callstack);
   }
 
