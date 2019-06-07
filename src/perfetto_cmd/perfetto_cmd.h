@@ -25,6 +25,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/event.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -76,6 +77,8 @@ class PerfettoCmd : public Consumer {
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
   bool is_attach() const { return !attach_key_.empty(); }
+  void SaveOutputToDropboxOrCrash();
+  void SaveOutputToIncidentTraceOrCrash();
 
   PlatformTaskRunner task_runner_;
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
