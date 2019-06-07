@@ -106,7 +106,6 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
       if (category == "gfx") {
         AddEventGroup(table, "mdss", &events);
         AddEventGroup(table, "sde", &events);
-        AddEventGroup(table, "mali_systrace", &events);
         continue;
       }
 
@@ -166,6 +165,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
 
       if (category == "freq") {
         events.insert(GroupAndName("power", "cpu_frequency"));
+        events.insert(GroupAndName("power", "gpu_frequency"));
         events.insert(GroupAndName("power", "clock_set_rate"));
         events.insert(GroupAndName("power", "clock_disable"));
         events.insert(GroupAndName("power", "clock_enable"));
