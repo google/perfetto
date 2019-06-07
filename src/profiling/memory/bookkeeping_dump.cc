@@ -40,7 +40,7 @@ void DumpState::WriteMap(const Interned<Mapping> map) {
       NewProfilePacket();
 
     auto mapping = current_profile_packet_->add_mappings();
-    mapping->set_id(map.id());
+    mapping->set_iid(map.id());
     mapping->set_offset(map->offset);
     mapping->set_start(map->start);
     mapping->set_end(map->end);
@@ -61,7 +61,7 @@ void DumpState::WriteFrame(Interned<Frame> frame) {
       NewProfilePacket();
 
     auto frame_proto = current_profile_packet_->add_frames();
-    frame_proto->set_id(frame.id());
+    frame_proto->set_iid(frame.id());
     frame_proto->set_function_name_id(frame->function_name.id());
     frame_proto->set_mapping_id(frame->mapping.id());
     frame_proto->set_rel_pc(frame->rel_pc);
@@ -76,7 +76,7 @@ void DumpState::WriteString(const Interned<std::string>& str) {
       NewProfilePacket();
 
     auto interned_string = current_profile_packet_->add_strings();
-    interned_string->set_id(str.id());
+    interned_string->set_iid(str.id());
     interned_string->set_str(reinterpret_cast<const uint8_t*>(str->c_str()),
                              str->size());
   }
@@ -114,7 +114,7 @@ void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
     for (const Interned<Frame>& frame : built_callstack)
       WriteFrame(frame);
     Callstack* callstack = current_profile_packet_->add_callstacks();
-    callstack->set_id(node->id());
+    callstack->set_iid(node->id());
     for (const Interned<Frame>& frame : built_callstack)
       callstack->add_frame_ids(frame.id());
   }
