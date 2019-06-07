@@ -20,6 +20,7 @@ event_proto_names = [ "interned_data.proto" ]
 
 proto_library("lite") {
   deps = [
+    "../profiling:lite",
     "../track_event:lite",
   ]
   generate_python = false
@@ -30,6 +31,7 @@ proto_library("lite") {
 
 protozero_library("zero") {
   deps = [
+    "../profiling:zero",
     "../track_event:zero",
   ]
   sources = event_proto_names

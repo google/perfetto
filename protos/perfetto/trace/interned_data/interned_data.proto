@@ -21,6 +21,8 @@ import "perfetto/trace/track_event/debug_annotation.proto";
 import "perfetto/trace/track_event/task_execution.proto";
 import "perfetto/trace/track_event/track_event.proto";
 
+import "perfetto/trace/profiling/profile_common.proto";
+
 package perfetto.protos;
 
 // ------------------------------ DATA INTERNING: ------------------------------
@@ -49,7 +51,7 @@ package perfetto.protos;
 // refers to them (since the last reset of interning state). They may also be
 // emitted proactively in advance of referring to them in later packets.
 //
-// Next id: 5.
+// Next id: 8.
 message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
@@ -62,5 +64,20 @@ message InternedData {
   repeated LegacyEventName legacy_event_names = 2;
   repeated DebugAnnotationName debug_annotation_names = 3;
   repeated SourceLocation source_locations = 4;
+
   // Note: field IDs up to 15 should be used for frequent data only.
+
+  // Build IDs of exectuable files.
+  repeated InternedString build_ids = 16;
+  // Paths to executable files.
+  repeated InternedString mapping_paths = 17;
+  // Names of functions used in frames below.
+  repeated InternedString function_names = 5;
+
+  // Executable files mapped into processes.
+  repeated Mapping mappings = 19;
+  // Frames of callstacks of a program.
+  repeated Frame frames = 6;
+  // A callstack of a program.
+  repeated Callstack callstacks = 7;
 }
