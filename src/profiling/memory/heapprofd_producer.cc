@@ -137,32 +137,9 @@ HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
       mode_(mode),
       unwinding_workers_(MakeUnwindingWorkers(this, kUnwinderThreads)),
       socket_delegate_(this),
-      weak_factory_(this) {
-  if (mode == HeapprofdMode::kCentral) {
-    listening_socket_ = MakeListeningSocket();
-  }
-}
+      weak_factory_(this) {}
 
-HeapprofdProducer::~HeapprofdProducer() {
-  // We only borrowed this from the environment variable.
-  // UnixSocket always owns the socket, so we need to manually release it
-  // here.
-  if (mode_ == HeapprofdMode::kCentral && bool(listening_socket_))
-    listening_socket_->ReleaseSocket().ReleaseFd().release();
-}
-
-std::unique_ptr<base::UnixSocket> HeapprofdProducer::MakeListeningSocket() {
-  const char* sock_fd = getenv(kHeapprofdSocketEnvVar);
-  if (sock_fd == nullptr)
-    PERFETTO_FATAL("Did not inherit socket from init.");
-  char* end;
-  int raw_fd = static_cast<int>(strtol(sock_fd, &end, 10));
-  if (*end != '\0')
-    PERFETTO_FATAL("Invalid %s. Expected decimal integer.",
-                   kHeapprofdSocketEnvVar);
-  return base::UnixSocket::Listen(base::ScopedFile(raw_fd), &socket_delegate_,
-                                  task_runner_);
-}
+HeapprofdProducer::~HeapprofdProducer() = default;
 
 void HeapprofdProducer::SetTargetProcess(pid_t target_pid,
                                          std::string target_cmdline,
