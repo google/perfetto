@@ -1435,8 +1435,10 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   }
 
-  // TODO(eseckler): Handle thread timestamp/duration, legacy event
-  // attributes, async events, ...
+  // TODO(eseckler): Handle thread timestamp/duration, legacy event attributes,
+  // legacy event types (async S, T, p, F phases, flow events, sample events,
+  // object events, metadata events, memory dumps, mark events, clock sync
+  // events, context events, counter events), ...
 
   auto args_callback = [this, &event, &sequence_state](
                            ArgsTracker* args_tracker, RowId row) {
@@ -1453,16 +1455,32 @@ void ProtoTraceParser::ParseTrackEvent(
 
   using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
 
+  int64_t id = 0;
+  RefType async_ref_type = RefType::kRefGlobalAsyncTrack;
+  if (legacy_event.has_unscoped_id()) {
+    id = static_cast<int64_t>(legacy_event.unscoped_id());
+  } else if (legacy_event.has_global_id()) {
+    id = static_cast<int64_t>(legacy_event.global_id());
+  } else if (legacy_event.has_local_id()) {
+    id = static_cast<int64_t>(legacy_event.local_id());
+    async_ref_type = RefType::kRefProcessAsyncTrack;
+  }
+
+  StringId scope_id = 0;
+  if (legacy_event.has_id_scope()) {
+    scope_id = storage->InternString(legacy_event.id_scope());
+  }
+
   int32_t phase = legacy_event.phase();
   switch (static_cast<char>(phase)) {
     case 'B': {  // TRACE_EVENT_PHASE_BEGIN.
       slice_tracker->Begin(ts, utid, RefType::kRefUtid, category_id, name_id,
-                           args_callback);
+                           /*ref_scope=*/0, args_callback);
       break;
     }
     case 'E': {  // TRACE_EVENT_PHASE_END.
       slice_tracker->End(ts, utid, RefType::kRefUtid, category_id, name_id,
-                         args_callback);
+                         /*ref_scope=*/0, args_callback);
       break;
     }
     case 'X': {  // TRACE_EVENT_PHASE_COMPLETE.
@@ -1470,7 +1488,7 @@ void ProtoTraceParser::ParseTrackEvent(
       if (duration_ns < 0)
         return;
       slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id, name_id,
-                            duration_ns, args_callback);
+                            duration_ns, /*ref_scope=*/0, args_callback);
       break;
     }
     case 'i':
@@ -1483,22 +1501,42 @@ void ProtoTraceParser::ParseTrackEvent(
         case LegacyEvent::SCOPE_UNSPECIFIED:
         case LegacyEvent::SCOPE_THREAD:
           slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id,
-                                name_id, duration_ns, args_callback);
+                                name_id, duration_ns, /*ref_scope=*/0,
+                                args_callback);
           break;
         case LegacyEvent::SCOPE_GLOBAL:
           slice_tracker->Scoped(ts, /*ref=*/0, RefType::kRefNoRef, category_id,
-                                name_id, duration_ns, args_callback);
+                                name_id, duration_ns, /*ref_scope=*/0,
+                                args_callback);
           break;
         case LegacyEvent::SCOPE_PROCESS:
           slice_tracker->Scoped(ts, procs->GetOrCreateProcess(pid),
                                 RefType::kRefUpid, category_id, name_id,
-                                duration_ns, args_callback);
+                                duration_ns, /*ref_scope=*/0, args_callback);
           break;
         default:
           PERFETTO_FATAL("Unknown instant event scope: %u",
                          legacy_event.instant_event_scope());
           break;
       }
+      break;
+    }
+    case 'b': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_BEGIN
+      slice_tracker->Begin(ts, id, async_ref_type, category_id, name_id,
+                           scope_id, args_callback);
+      break;
+    }
+    case 'e': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_END
+      slice_tracker->End(ts, id, async_ref_type, category_id, name_id, scope_id,
+                         args_callback);
+      break;
+    }
+    case 'n': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_INSTANT
+      // Handle instant events as slices with zero duration, so that they end up
+      // nested underneath their parent slices.
+      int64_t duration_ns = 0;
+      slice_tracker->Scoped(ts, id, async_ref_type, category_id, name_id,
+                            duration_ns, scope_id, args_callback);
       break;
     }
     case 'M': {  // TRACE_EVENT_PHASE_METADATA (process and thread names).
