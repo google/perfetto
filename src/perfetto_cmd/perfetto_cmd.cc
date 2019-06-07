@@ -265,6 +265,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         ds_config->mutable_ftrace_config()->add_ftrace_events("sched_switch");
         ds_config->mutable_ftrace_config()->add_ftrace_events("cpu_idle");
         ds_config->mutable_ftrace_config()->add_ftrace_events("cpu_frequency");
+        ds_config->mutable_ftrace_config()->add_ftrace_events("gpu_frequency");
         ds_config->set_target_buffer(0);
         test_config.SerializeToString(&trace_config_raw);
       } else {
