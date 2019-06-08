@@ -26,6 +26,7 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/slice_tracker.h"
+#include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
 
 #include "perfetto/common/sys_stats_counters.pbzero.h"
@@ -165,6 +166,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.slice_tracker.reset(slice_);
     context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
     context_.parser.reset(new ProtoTraceParser(&context_));
+    context_.systrace_parser.reset(new SystraceParser(&context_));
   }
 
   void ResetTraceBuffers() {
@@ -456,7 +458,6 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   sched_switch->set_next_comm(kProcName2);
   sched_switch->set_next_pid(10);
   sched_switch->set_next_prio(512);
-
 
   EXPECT_CALL(*event_,
               PushSchedSwitch(10, 1001, 100, base::StringView(kProcName1), 256,
