@@ -57,8 +57,8 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  tracker.Begin(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/);
-  tracker.End(10 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/);
+  tracker.Begin(2 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/);
+  tracker.End(10 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/);
 
   auto slices = context.storage->nestable_slices();
   EXPECT_EQ(slices.slice_count(), 1u);
@@ -77,12 +77,12 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  tracker.Begin(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/,
+  tracker.Begin(2 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/,
                 [](ArgsTracker* args_tracker, RowId row) {
                   args_tracker->AddArg(row, /*flat_key=*/1, /*key=*/2,
                                        /*value=*/Variadic::Integer(10));
                 });
-  tracker.End(10 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/,
+  tracker.End(10 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/,
               [](ArgsTracker* args_tracker, RowId row) {
                 args_tracker->AddArg(row, /*flat_key=*/3, /*key=*/4,
                                      /*value=*/Variadic::Integer(20));
@@ -115,10 +115,10 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  tracker.Begin(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/);
-  tracker.Begin(3 /*ts*/, 42 /*tid*/, 0 /*cat*/, 2 /*name*/);
-  tracker.End(5 /*ts*/, 42 /*tid*/);
-  tracker.End(10 /*ts*/, 42 /*tid*/);
+  tracker.Begin(2 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/);
+  tracker.Begin(3 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 2 /*name*/);
+  tracker.End(5 /*ts*/, 42 /*ref*/, RefType::kRefUtid);
+  tracker.End(10 /*ts*/, 42 /*ref*/, RefType::kRefUtid);
 
   auto slices = context.storage->nestable_slices();
 
@@ -151,11 +151,11 @@ TEST(SliceTrackerTest, Scoped) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  tracker.Begin(0 /*ts*/, 42 /*tid*/, 0, 0);
-  tracker.Begin(1 /*ts*/, 42 /*tid*/, 0, 0);
-  tracker.Scoped(2 /*ts*/, 42 /*tid*/, 0, 0, 6);
-  tracker.End(9 /*ts*/, 42 /*tid*/);
-  tracker.End(10 /*ts*/, 42 /*tid*/);
+  tracker.Begin(0 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0, 0);
+  tracker.Begin(1 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0, 0);
+  tracker.Scoped(2 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0, 0, 6);
+  tracker.End(9 /*ts*/, 42 /*ref*/, RefType::kRefUtid);
+  tracker.End(10 /*ts*/, 42 /*ref*/, RefType::kRefUtid);
 
   auto slices = ToSliceInfo(context.storage->nestable_slices());
   EXPECT_THAT(slices,
@@ -167,10 +167,10 @@ TEST(SliceTrackerTest, IgnoreMismatchedEnds) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  tracker.Begin(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/);
-  tracker.End(3 /*ts*/, 42 /*tid*/, 1 /*cat*/, 1 /*name*/);
-  tracker.End(4 /*ts*/, 42 /*tid*/, 0 /*cat*/, 2 /*name*/);
-  tracker.End(5 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/);
+  tracker.Begin(2 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/);
+  tracker.End(3 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 1 /*cat*/, 1 /*name*/);
+  tracker.End(4 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 2 /*name*/);
+  tracker.End(5 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/);
 
   auto slices = ToSliceInfo(context.storage->nestable_slices());
   EXPECT_THAT(slices, ElementsAre(SliceInfo{2, 3}));
@@ -184,14 +184,36 @@ TEST(SliceTrackerTest, ZeroLengthScoped) {
   // Bug scenario: the second zero-length scoped slice prevents the first slice
   // from being closed, leading to an inconsistency when we try to insert the
   // final slice and it doesn't intersect with the still pending first slice.
-  tracker.Scoped(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/, 10 /* dur */);
-  tracker.Scoped(2 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/, 0 /* dur */);
-  tracker.Scoped(12 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/, 1 /* dur */);
-  tracker.Scoped(13 /*ts*/, 42 /*tid*/, 0 /*cat*/, 1 /*name*/, 1 /* dur */);
+  tracker.Scoped(2 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/,
+                 10 /* dur */);
+  tracker.Scoped(2 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/,
+                 0 /* dur */);
+  tracker.Scoped(12 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/,
+                 1 /*name*/, 1 /* dur */);
+  tracker.Scoped(13 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/,
+                 1 /*name*/, 1 /* dur */);
 
   auto slices = ToSliceInfo(context.storage->nestable_slices());
   EXPECT_THAT(slices, ElementsAre(SliceInfo{2, 10}, SliceInfo{2, 0},
                                   SliceInfo{12, 1}, SliceInfo{13, 1}));
+}
+
+TEST(SliceTrackerTest, DifferentRefTypes) {
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  SliceTracker tracker(&context);
+
+  tracker.Begin(0 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0, 0);
+  tracker.Scoped(2 /*ts*/, 42 /*ref*/, RefType::kRefUpid, 0, 0, 6);
+  tracker.End(10 /*ts*/, 42 /*ref*/, RefType::kRefUtid);
+
+  auto slices = ToSliceInfo(context.storage->nestable_slices());
+  EXPECT_THAT(slices, ElementsAre(SliceInfo{0, 10}, SliceInfo{2, 6}));
+
+  EXPECT_EQ(context.storage->nestable_slices().types()[0], RefType::kRefUtid);
+  EXPECT_EQ(context.storage->nestable_slices().types()[1], RefType::kRefUpid);
+  EXPECT_EQ(context.storage->nestable_slices().depths()[0], 0);
+  EXPECT_EQ(context.storage->nestable_slices().depths()[1], 0);
 }
 
 }  // namespace
