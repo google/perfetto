@@ -33,7 +33,8 @@ constexpr int64_t kPendingDuration = -1;
 }  // namespace
 
 SliceTracker::SliceTracker(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      ref_scope_id_(context_->storage->InternString("ref_scope")) {}
 
 SliceTracker::~SliceTracker() = default;
 
@@ -53,6 +54,7 @@ void SliceTracker::Begin(int64_t timestamp,
                          RefType ref_type,
                          StringId cat,
                          StringId name,
+                         StringId ref_scope,
                          SetArgsCallback args_callback) {
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
@@ -61,8 +63,8 @@ void SliceTracker::Begin(int64_t timestamp,
   }
   prev_timestamp_ = timestamp;
 
-  MaybeCloseStack(timestamp, &stacks_[std::make_pair(ref, ref_type)]);
-  StartSlice(timestamp, kPendingDuration, ref, ref_type, cat, name,
+  MaybeCloseStack(timestamp, &stacks_[{ref, ref_type, ref_scope}]);
+  StartSlice(timestamp, kPendingDuration, ref, ref_type, cat, name, ref_scope,
              args_callback);
 }
 
@@ -72,6 +74,7 @@ void SliceTracker::Scoped(int64_t timestamp,
                           StringId cat,
                           StringId name,
                           int64_t duration,
+                          StringId ref_scope,
                           SetArgsCallback args_callback) {
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
@@ -81,8 +84,9 @@ void SliceTracker::Scoped(int64_t timestamp,
   prev_timestamp_ = timestamp;
 
   PERFETTO_DCHECK(duration >= 0);
-  MaybeCloseStack(timestamp, &stacks_[std::make_pair(ref, ref_type)]);
-  StartSlice(timestamp, duration, ref, ref_type, cat, name, args_callback);
+  MaybeCloseStack(timestamp, &stacks_[{ref, ref_type, ref_scope}]);
+  StartSlice(timestamp, duration, ref, ref_type, cat, name, ref_scope,
+             args_callback);
 }
 
 void SliceTracker::StartSlice(int64_t timestamp,
@@ -91,8 +95,9 @@ void SliceTracker::StartSlice(int64_t timestamp,
                               RefType ref_type,
                               StringId cat,
                               StringId name,
+                              StringId ref_scope,
                               SetArgsCallback args_callback) {
-  auto* stack = &stacks_[std::make_pair(ref, ref_type)];
+  auto* stack = &stacks_[{ref, ref_type, ref_scope}];
   auto* slices = context_->storage->mutable_nestable_slices();
 
   const uint8_t depth = static_cast<uint8_t>(stack->size());
@@ -105,6 +110,15 @@ void SliceTracker::StartSlice(int64_t timestamp,
   uint32_t slice_idx = slices->AddSlice(timestamp, duration, ref, ref_type, cat,
                                         name, depth, 0, parent_stack_id);
   stack->emplace_back(std::make_pair(slice_idx, ArgsTracker(context_)));
+
+  if (ref_scope) {
+    // TODO(eseckler): Consider whether ref_scope should be a column in slices
+    // instead. For now, store it as an arg to save space, since most events
+    // won't have a ref_scope.
+    stack->back().second.AddArg(
+        TraceStorage::CreateRowId(TableId::kNestableSlices, slice_idx),
+        ref_scope_id_, ref_scope_id_, Variadic::String(ref_scope));
+  }
 
   if (args_callback) {
     args_callback(
@@ -142,6 +156,7 @@ void SliceTracker::End(int64_t timestamp,
                        RefType ref_type,
                        StringId cat,
                        StringId name,
+                       StringId ref_scope,
                        SetArgsCallback args_callback) {
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
@@ -150,10 +165,10 @@ void SliceTracker::End(int64_t timestamp,
   }
   prev_timestamp_ = timestamp;
 
-  auto ref_and_type = std::make_pair(ref, ref_type);
-  MaybeCloseStack(timestamp, &stacks_[ref_and_type]);
+  StackMapKey stack_key = {ref, ref_type, ref_scope};
+  MaybeCloseStack(timestamp, &stacks_[stack_key]);
 
-  auto& stack = stacks_[ref_and_type];
+  auto& stack = stacks_[stack_key];
   if (stack.empty())
     return;
 
@@ -176,12 +191,23 @@ void SliceTracker::End(int64_t timestamp,
         TraceStorage::CreateRowId(TableId::kNestableSlices, slice_idx));
   }
 
-  CompleteSlice(ref_and_type);
+  CompleteSlice(stack_key);
   // TODO(primiano): auto-close B slices left open at the end.
 }
 
-void SliceTracker::CompleteSlice(StackMapKey ref_and_type) {
-  stacks_[ref_and_type].pop_back();
+void SliceTracker::FlushPendingSlices() {
+  // Clear the remaining stack entries. This ensures that any pending args are
+  // written to the storage. We don't close any slices with kPendingDuration so
+  // that the UI can still distinguish such "incomplete" slices.
+  //
+  // TODO(eseckler): Reconsider whether we want to close pending slices by
+  // setting their duration to |trace_end - event_start|. Might still want some
+  // additional way of flagging these events as "incomplete" to the UI.
+  stacks_.clear();
+}
+
+void SliceTracker::CompleteSlice(StackMapKey stack_key) {
+  stacks_[stack_key].pop_back();
 }
 
 void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {

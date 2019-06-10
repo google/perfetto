@@ -434,6 +434,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   if (context_.sorter)
     context_.sorter->ExtractEventsForced();
   context_.event_tracker->FlushPendingEvents();
+  context_.slice_tracker->FlushPendingSlices();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 }
 

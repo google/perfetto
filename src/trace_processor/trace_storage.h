@@ -79,6 +79,8 @@ enum RefType {
   kRefSoftIrq = 4,
   kRefUpid = 5,
   kRefGpuId = 6,
+  kRefGlobalAsyncTrack = 7,
+  kRefProcessAsyncTrack = 8,
   kRefMax
 };
 
