@@ -42,14 +42,16 @@ class SliceTracker {
 
   // virtual for testing
   virtual void Begin(int64_t timestamp,
-                     UniqueTid utid,
+                     int64_t ref,
+                     RefType ref_type,
                      StringId cat,
                      StringId name,
                      SetArgsCallback args_callback = SetArgsCallback());
 
   // virtual for testing
   virtual void Scoped(int64_t timestamp,
-                      UniqueTid utid,
+                      int64_t ref,
+                      RefType ref_type,
                       StringId cat,
                       StringId name,
                       int64_t duration,
@@ -59,7 +61,8 @@ class SliceTracker {
 
   // virtual for testing
   virtual void End(int64_t timestamp,
-                   UniqueTid utid,
+                   int64_t ref,
+                   RefType ref_type,
                    StringId opt_cat = {},
                    StringId opt_name = {},
                    SetArgsCallback args_callback = SetArgsCallback());
@@ -67,13 +70,25 @@ class SliceTracker {
  private:
   using SlicesStack = std::vector<std::pair<uint32_t /* row */, ArgsTracker>>;
 
+  using StackMapKey = std::pair<int64_t, RefType>;
+  struct StackMapHash {
+    size_t operator()(const StackMapKey& p) const {
+      base::Hash hash;
+      hash.Update(p.first);
+      hash.Update(p.second);
+      return static_cast<size_t>(hash.digest());
+    }
+  };
+  using StackMap = std::unordered_map<StackMapKey, SlicesStack, StackMapHash>;
+
   void StartSlice(int64_t timestamp,
                   int64_t duration,
-                  UniqueTid utid,
+                  int64_t ref,
+                  RefType ref_type,
                   StringId cat,
                   StringId name,
                   SetArgsCallback args_callback);
-  void CompleteSlice(UniqueTid tid);
+  void CompleteSlice(StackMapKey ref_and_type);
 
   void MaybeCloseStack(int64_t end_ts, SlicesStack*);
   int64_t GetStackHash(const SlicesStack&);
@@ -83,7 +98,7 @@ class SliceTracker {
   int64_t prev_timestamp_ = 0;
 
   TraceProcessorContext* const context_;
-  std::unordered_map<UniqueTid, SlicesStack> threads_;
+  StackMap stacks_;
   std::unordered_map<uint32_t, uint32_t> ftrace_to_atrace_tgid_;
 };
 
