@@ -238,7 +238,7 @@ if (perfetto_build_standalone || build_with_chromium) {
         get_label_info(":trace_processor_shell_host($host_toolchain)",
                        "root_out_dir")
     extension_ = ""
-    if (is_win) {
+    if (host_os == "win") {
       extension_ = ".exe"
     }
     deps = [
