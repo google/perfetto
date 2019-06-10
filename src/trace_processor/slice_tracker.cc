@@ -45,11 +45,12 @@ void SliceTracker::BeginAndroid(int64_t timestamp,
   UniqueTid utid =
       context_->process_tracker->UpdateThread(ftrace_tid, atrace_tgid);
   ftrace_to_atrace_tgid_[ftrace_tid] = atrace_tgid;
-  Begin(timestamp, utid, cat, name);
+  Begin(timestamp, utid, RefType::kRefUtid, cat, name);
 }
 
 void SliceTracker::Begin(int64_t timestamp,
-                         UniqueTid utid,
+                         int64_t ref,
+                         RefType ref_type,
                          StringId cat,
                          StringId name,
                          SetArgsCallback args_callback) {
@@ -60,12 +61,14 @@ void SliceTracker::Begin(int64_t timestamp,
   }
   prev_timestamp_ = timestamp;
 
-  MaybeCloseStack(timestamp, &threads_[utid]);
-  StartSlice(timestamp, kPendingDuration, utid, cat, name, args_callback);
+  MaybeCloseStack(timestamp, &stacks_[std::make_pair(ref, ref_type)]);
+  StartSlice(timestamp, kPendingDuration, ref, ref_type, cat, name,
+             args_callback);
 }
 
 void SliceTracker::Scoped(int64_t timestamp,
-                          UniqueTid utid,
+                          int64_t ref,
+                          RefType ref_type,
                           StringId cat,
                           StringId name,
                           int64_t duration,
@@ -78,17 +81,18 @@ void SliceTracker::Scoped(int64_t timestamp,
   prev_timestamp_ = timestamp;
 
   PERFETTO_DCHECK(duration >= 0);
-  MaybeCloseStack(timestamp, &threads_[utid]);
-  StartSlice(timestamp, duration, utid, cat, name, args_callback);
+  MaybeCloseStack(timestamp, &stacks_[std::make_pair(ref, ref_type)]);
+  StartSlice(timestamp, duration, ref, ref_type, cat, name, args_callback);
 }
 
 void SliceTracker::StartSlice(int64_t timestamp,
                               int64_t duration,
-                              UniqueTid utid,
+                              int64_t ref,
+                              RefType ref_type,
                               StringId cat,
                               StringId name,
                               SetArgsCallback args_callback) {
-  auto* stack = &threads_[utid];
+  auto* stack = &stacks_[std::make_pair(ref, ref_type)];
   auto* slices = context_->storage->mutable_nestable_slices();
 
   const uint8_t depth = static_cast<uint8_t>(stack->size());
@@ -98,9 +102,8 @@ void SliceTracker::StartSlice(int64_t timestamp,
   }
   int64_t parent_stack_id =
       depth == 0 ? 0 : slices->stack_ids()[stack->back().first];
-  uint32_t slice_idx =
-      slices->AddSlice(timestamp, duration, utid, RefType::kRefUtid, cat, name,
-                       depth, 0, parent_stack_id);
+  uint32_t slice_idx = slices->AddSlice(timestamp, duration, ref, ref_type, cat,
+                                        name, depth, 0, parent_stack_id);
   stack->emplace_back(std::make_pair(slice_idx, ArgsTracker(context_)));
 
   if (args_callback) {
@@ -131,11 +134,12 @@ void SliceTracker::EndAndroid(int64_t timestamp,
   }
   UniqueTid utid =
       context_->process_tracker->UpdateThread(ftrace_tid, actual_tgid);
-  End(timestamp, utid);
+  End(timestamp, utid, RefType::kRefUtid);
 }
 
 void SliceTracker::End(int64_t timestamp,
-                       UniqueTid utid,
+                       int64_t ref,
+                       RefType ref_type,
                        StringId cat,
                        StringId name,
                        SetArgsCallback args_callback) {
@@ -146,9 +150,10 @@ void SliceTracker::End(int64_t timestamp,
   }
   prev_timestamp_ = timestamp;
 
-  MaybeCloseStack(timestamp, &threads_[utid]);
+  auto ref_and_type = std::make_pair(ref, ref_type);
+  MaybeCloseStack(timestamp, &stacks_[ref_and_type]);
 
-  auto& stack = threads_[utid];
+  auto& stack = stacks_[ref_and_type];
   if (stack.empty())
     return;
 
@@ -171,12 +176,12 @@ void SliceTracker::End(int64_t timestamp,
         TraceStorage::CreateRowId(TableId::kNestableSlices, slice_idx));
   }
 
-  CompleteSlice(utid);
+  CompleteSlice(ref_and_type);
   // TODO(primiano): auto-close B slices left open at the end.
 }
 
-void SliceTracker::CompleteSlice(UniqueTid utid) {
-  threads_[utid].pop_back();
+void SliceTracker::CompleteSlice(StackMapKey ref_and_type) {
+  stacks_[ref_and_type].pop_back();
 }
 
 void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {

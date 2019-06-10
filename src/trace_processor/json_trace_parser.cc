@@ -90,11 +90,11 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
 
   switch (phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
-      slice_tracker->Begin(timestamp, utid, cat_id, name_id);
+      slice_tracker->Begin(timestamp, utid, RefType::kRefUtid, cat_id, name_id);
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
-      slice_tracker->End(timestamp, utid, cat_id, name_id);
+      slice_tracker->End(timestamp, utid, RefType::kRefUtid, cat_id, name_id);
       break;
     }
     case 'X': {  // TRACE_EVENT (scoped event).
@@ -102,7 +102,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
           json_trace_utils::CoerceToNs(value["dur"]);
       if (!opt_dur.has_value())
         return;
-      slice_tracker->Scoped(timestamp, utid, cat_id, name_id, opt_dur.value());
+      slice_tracker->Scoped(timestamp, utid, RefType::kRefUtid, cat_id, name_id,
+                            opt_dur.value());
       break;
     }
     case 'M': {  // Metadata events (process and thread names).

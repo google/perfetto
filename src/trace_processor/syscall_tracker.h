@@ -49,14 +49,18 @@ class SyscallTracker {
 
   void Enter(int64_t ts, UniqueTid utid, uint32_t syscall_num) {
     StringId name = SyscallNumberToStringId(syscall_num);
-    if (name)
-      context_->slice_tracker->Begin(ts, utid, 0 /* cat */, name);
+    if (name) {
+      context_->slice_tracker->Begin(ts, utid, RefType::kRefUtid, 0 /* cat */,
+                                     name);
+    }
   }
 
   void Exit(int64_t ts, UniqueTid utid, uint32_t syscall_num) {
     StringId name = SyscallNumberToStringId(syscall_num);
-    if (name)
-      context_->slice_tracker->End(ts, utid, 0 /* cat */, name);
+    if (name) {
+      context_->slice_tracker->End(ts, utid, RefType::kRefUtid, 0 /* cat */,
+                                   name);
+    }
   }
 
  private:
