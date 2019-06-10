@@ -428,6 +428,10 @@ class PERFETTO_EXPORT TraceConfig {
     std::string unknown_fields_;
   };
 
+  enum CompressionType {
+    COMPRESSION_TYPE_UNSPECIFIED = 0,
+    COMPRESSION_TYPE_DEFLATE = 1,
+  };
   TraceConfig();
   ~TraceConfig();
   TraceConfig(TraceConfig&&) noexcept;
@@ -560,6 +564,11 @@ class PERFETTO_EXPORT TraceConfig {
     unique_session_name_ = value;
   }
 
+  CompressionType compression_type() const { return compression_type_; }
+  void set_compression_type(CompressionType value) {
+    compression_type_ = value;
+  }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -582,6 +591,7 @@ class PERFETTO_EXPORT TraceConfig {
   IncrementalStateConfig incremental_state_config_ = {};
   bool allow_user_build_tracing_ = {};
   std::string unique_session_name_ = {};
+  CompressionType compression_type_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

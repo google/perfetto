@@ -674,6 +674,44 @@ source_set("lzma") {
   ]
 }
 
+source_set("zlib") {
+  sources = [
+    "zlib/src/adler32.c",
+    "zlib/src/compress.c",
+    "zlib/src/crc32.c",
+    "zlib/src/deflate.c",
+    "zlib/src/gzclose.c",
+    "zlib/src/gzlib.c",
+    "zlib/src/gzread.c",
+    "zlib/src/gzwrite.c",
+    "zlib/src/infback.c",
+    "zlib/src/inffast.c",
+    "zlib/src/inflate.c",
+    "zlib/src/inftrees.c",
+    "zlib/src/trees.c",
+    "zlib/src/uncompr.c",
+    "zlib/src/zutil.c",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  cflags = []
+  public_configs = [ ":zlib_config" ]
+}
+
+config("zlib_config") {
+  defines = [
+    "ZLIB_CONST",
+    "USE_MMAP",
+    "HAVE_HIDDEN",
+  ]
+  cflags = [
+    # Using -isystem instead of include_dirs (-I), so we don't need to suppress
+    # warnings coming from third-party headers. Doing so would mask warnings in
+    # our own code.
+    "-isystem",
+    rebase_path("zlib/src", root_build_dir),
+  ]
+}
+
 source_set("libunwindstack") {
   include_dirs = [
     "android-core/libunwindstack/include",
