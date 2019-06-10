@@ -1451,30 +1451,54 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   };
 
+  using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
+
   int32_t phase = legacy_event.phase();
   switch (static_cast<char>(phase)) {
     case 'B': {  // TRACE_EVENT_PHASE_BEGIN.
-      slice_tracker->Begin(ts, utid, category_id, name_id, args_callback);
+      slice_tracker->Begin(ts, utid, RefType::kRefUtid, category_id, name_id,
+                           args_callback);
       break;
     }
     case 'E': {  // TRACE_EVENT_PHASE_END.
-      slice_tracker->End(ts, utid, category_id, name_id, args_callback);
+      slice_tracker->End(ts, utid, RefType::kRefUtid, category_id, name_id,
+                         args_callback);
       break;
     }
     case 'X': {  // TRACE_EVENT_PHASE_COMPLETE.
       auto duration_ns = legacy_event.duration_us() * 1000;
       if (duration_ns < 0)
         return;
-      slice_tracker->Scoped(ts, utid, category_id, name_id, duration_ns,
-                            args_callback);
+      slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id, name_id,
+                            duration_ns, args_callback);
       break;
     }
+    case 'i':
     case 'I': {  // TRACE_EVENT_PHASE_INSTANT.
       // Handle instant events as slices with zero duration, so that they end
       // up nested underneath their parent slices.
       int64_t duration_ns = 0;
-      slice_tracker->Scoped(ts, utid, category_id, name_id, duration_ns,
-                            args_callback);
+
+      switch (legacy_event.instant_event_scope()) {
+        case LegacyEvent::SCOPE_UNSPECIFIED:
+        case LegacyEvent::SCOPE_THREAD:
+          slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id,
+                                name_id, duration_ns, args_callback);
+          break;
+        case LegacyEvent::SCOPE_GLOBAL:
+          slice_tracker->Scoped(ts, /*ref=*/0, RefType::kRefNoRef, category_id,
+                                name_id, duration_ns, args_callback);
+          break;
+        case LegacyEvent::SCOPE_PROCESS:
+          slice_tracker->Scoped(ts, procs->GetOrCreateProcess(pid),
+                                RefType::kRefUpid, category_id, name_id,
+                                duration_ns, args_callback);
+          break;
+        default:
+          PERFETTO_FATAL("Unknown instant event scope: %u",
+                         legacy_event.instant_event_scope());
+          break;
+      }
       break;
     }
     case 'M': {  // TRACE_EVENT_PHASE_METADATA (process and thread names).
@@ -1742,8 +1766,8 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       sprintf(fallback, "Event %d", eid);
       name_id = context_->storage->InternString(fallback);
     }
-    context_->slice_tracker->Scoped(ts, utid, cat_id, name_id,
-                                    event.event_duration_ns());
+    context_->slice_tracker->Scoped(ts, utid, RefType::kRefUtid, cat_id,
+                                    name_id, event.event_duration_ns());
   } else if (event.has_counter_id()) {
     auto cid = event.counter_id();
     if (cid < metatrace::COUNTERS_MAX) {
