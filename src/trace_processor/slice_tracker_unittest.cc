@@ -220,7 +220,7 @@ TEST(SliceTrackerTest, DifferentRefTypesOrScopes) {
   EXPECT_EQ(context.storage->nestable_slices().depths()[0], 0);
   EXPECT_EQ(context.storage->nestable_slices().depths()[1], 0);
   EXPECT_EQ(context.storage->nestable_slices().depths()[2], 0);
-  EXPECT_NE(context.storage->nestable_slices().arg_set_ids()[2], 0);
+  EXPECT_NE(context.storage->nestable_slices().arg_set_ids()[2], 0u);
 }
 
 }  // namespace
