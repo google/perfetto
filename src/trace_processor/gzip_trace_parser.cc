@@ -31,7 +31,10 @@ GzipTraceParser::GzipTraceParser(TraceProcessorContext* context)
   inflateInit(z_stream_.get());
 }
 
-GzipTraceParser::~GzipTraceParser() = default;
+GzipTraceParser::~GzipTraceParser() {
+  // Ensure the call to inflateEnd to prevent leaks of internal state.
+  inflateEnd(z_stream_.get());
+}
 
 util::Status GzipTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
                                     size_t size) {
