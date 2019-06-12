@@ -1,0 +1,75 @@
+/*
+ * Copyright (C) 2019 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package perfetto.protos;
+
+message GpuRenderStageEvent {
+  // required. Unique ID for the event.
+  optional uint64 event_id = 1;
+
+  // required. Start time of event in GPU clock.
+  optional uint64 start_time = 2;
+
+  // optional. Duration in GPU clock.  If unset, this is a single time point
+  // event.
+  optional uint64 duration = 3;
+
+  // required. ID to a hardware queue description in the specifications.
+  optional int32 hw_queue_id = 4;
+
+  // required. ID to a render stage description in the specifications.
+  optional int32 stage_id = 5;
+
+  // required. GL context/VK device.
+  optional uint64 context = 6;
+
+  // optional.  Additional data for the user. This may include attribs for
+  // the event like resource ids, shaders etc
+  message ExtraData {
+    optional string name = 1;
+    optional string value = 2;
+  }
+  repeated ExtraData extra_data = 7;
+
+  // The first trace packet of each session should include a Specifications
+  // to enumerate all IDs that will be used.
+  message Specifications {
+    message ContextSpec {
+      optional uint64 context = 1;
+      optional int32 pid = 2;
+    }
+    optional ContextSpec context_spec = 1;
+
+    message Description {
+      optional int32 id = 1;
+      optional string name = 2;
+      optional string description = 3;
+    }
+
+    // Labels to categorize the hw Queue this event goes on
+    repeated Description hw_queue = 2;
+
+    // Labels to categorize render stage(binning, render, compute etc)
+    repeated Description stage = 3;
+  }
+  optional Specifications specifications = 8;
+
+  // Extension for vendor's custom proto.
+  extensions 100 to 200;
+}
