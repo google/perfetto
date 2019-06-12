@@ -22,6 +22,7 @@ package perfetto.protos;
 import "perfetto/config/android/android_log_config.proto";
 import "perfetto/config/chrome/chrome_config.proto";
 import "perfetto/config/ftrace/ftrace_config.proto";
+import "perfetto/config/gpu/gpu_counter_config.proto";
 import "perfetto/config/inode_file/inode_file_config.proto";
 import "perfetto/config/power/android_power_config.proto";
 import "perfetto/config/process_stats/process_stats_config.proto";
@@ -78,6 +79,7 @@ message DataSourceConfig {
   optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
+  optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would

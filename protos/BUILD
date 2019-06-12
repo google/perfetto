@@ -99,6 +99,7 @@ proto_library(
         "perfetto/config/chrome/chrome_config.proto",
         "perfetto/config/data_source_config.proto",
         "perfetto/config/ftrace/ftrace_config.proto",
+        "perfetto/config/gpu/gpu_counter_config.proto",
         "perfetto/config/inode_file/inode_file_config.proto",
         "perfetto/config/power/android_power_config.proto",
         "perfetto/config/process_stats/process_stats_config.proto",
@@ -184,6 +185,7 @@ proto_library(
         "perfetto/config/chrome/chrome_config.proto",
         "perfetto/config/data_source_config.proto",
         "perfetto/config/ftrace/ftrace_config.proto",
+        "perfetto/config/gpu/gpu_counter_config.proto",
         "perfetto/config/inode_file/inode_file_config.proto",
         "perfetto/config/power/android_power_config.proto",
         "perfetto/config/process_stats/process_stats_config.proto",
@@ -381,6 +383,7 @@ proto_library(
         "//third_party/perfetto/protos:trace_chrome",
         "//third_party/perfetto/protos:trace_filesystem",
         "//third_party/perfetto/protos:trace_ftrace",
+        "//third_party/perfetto/protos:trace_gpu",
         "//third_party/perfetto/protos:trace_interned_data",
         "//third_party/perfetto/protos:trace_minimal",
         "//third_party/perfetto/protos:trace_perfetto",
@@ -691,6 +694,67 @@ proto_library(
 pbzero_cc_proto_library(
     name = "trace_ftrace_zero_cc_proto",
     src_proto_library = "//third_party/perfetto/protos:trace_ftrace_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/gpu:lite_gen
+proto_library(
+    name = "trace_gpu",
+    srcs = [
+        "perfetto/trace/gpu/gpu_counter_event.proto",
+        "perfetto/trace/gpu/gpu_render_stage_event.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:common",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/gpu:lite_gen
+cc_proto_library(
+    name = "trace_gpu_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_gpu",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/gpu:lite_gen
+java_proto_library(
+    name = "trace_gpu_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_gpu",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/gpu:zero_gen
+proto_library(
+    name = "trace_gpu_zero",
+    srcs = [
+        "perfetto/trace/gpu/gpu_counter_event.proto",
+        "perfetto/trace/gpu/gpu_render_stage_event.proto",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:common_zero",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/gpu:zero_gen
+pbzero_cc_proto_library(
+    name = "trace_gpu_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:trace_gpu_zero",
     deps = [
         "//third_party/perfetto:libprotozero",
     ],
@@ -1257,6 +1321,7 @@ proto_library(
         "//third_party/perfetto/protos:trace_chrome_zero",
         "//third_party/perfetto/protos:trace_filesystem_zero",
         "//third_party/perfetto/protos:trace_ftrace_zero",
+        "//third_party/perfetto/protos:trace_gpu_zero",
         "//third_party/perfetto/protos:trace_interned_data_zero",
         "//third_party/perfetto/protos:trace_perfetto_zero",
         "//third_party/perfetto/protos:trace_power_zero",
