@@ -28,6 +28,8 @@ import "perfetto/trace/clock_snapshot.proto";
 import "perfetto/trace/filesystem/inode_file_map.proto";
 import "perfetto/trace/ftrace/ftrace_event_bundle.proto";
 import "perfetto/trace/ftrace/ftrace_stats.proto";
+import "perfetto/trace/gpu/gpu_counter_event.proto";
+import "perfetto/trace/gpu/gpu_render_stage_event.proto";
 import "perfetto/trace/interned_data/interned_data.proto";
 import "perfetto/trace/perfetto/perfetto_metatrace.proto";
 import "perfetto/trace/power/battery_counters.proto";
@@ -49,7 +51,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 52.
+// Next id: 54.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -81,6 +83,8 @@ message TracePacket {
     ChromeBenchmarkMetadata chrome_benchmark_metadata = 48;
     PerfettoMetatrace perfetto_metatrace = 49;
     ChromeMetadataPacket chrome_metadata = 51;
+    GpuCounterEvent gpu_counter_event = 52;
+    GpuRenderStageEvent gpu_render_stage_event = 53;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
