@@ -23,12 +23,10 @@ package perfetto.protos;
 // to reflect changes in the corresponding C++ headers.
 
 message GpuCounterConfig {
-
   // Desired sampling interval for counters.
   optional uint64 counter_period_ns = 1;
 
-  // List of counters to be sampled.  Counter IDs correspond to the ones described in GpuCounterSpec
-  // in the data source descriptor.
+  // List of counters to be sampled. Counter IDs correspond to the ones
+  // described in GpuCounterSpec in the data source descriptor.
   repeated uint32 counter_ids = 2;
 }
-
