@@ -30,6 +30,7 @@ import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq/common';
+import {GPU_FREQ_TRACK_KIND} from '../tracks/gpu_freq/common';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
 import {
   PROCESS_SCHEDULING_TRACK_KIND
@@ -222,6 +223,7 @@ export class TraceController extends Controller<States> {
 
     const engine = assertExists<Engine>(this.engine);
     const numCpus = await engine.getNumberOfCpus();
+    const numGpus = await engine.getNumberOfGpus();
     const tracksToAdd: AddTrackArgs[] = [];
 
     // TODO(hjd): Renable Vsync tracks when fixed.
@@ -243,7 +245,7 @@ export class TraceController extends Controller<States> {
     //    }
     //  }));
     //}
-    const maxFreq = await engine.query(`
+    const maxCpuFreq = await engine.query(`
      select max(value)
      from counters
      where name = 'cpufreq';
@@ -280,11 +282,41 @@ export class TraceController extends Controller<States> {
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
             cpu,
-            maximumValue: +maxFreq.columns[0].doubleValues![0],
+            maximumValue: +maxCpuFreq.columns[0].doubleValues![0],
           }
         });
       }
     }
+
+    const maxGpuFreq = await engine.query(`
+     select max(value)
+     from counters
+     where name = 'gpufreq';
+    `);
+
+    for (let gpu = 0; gpu < numGpus; gpu++) {
+      // Only add a gpu freq track if we have
+      // gpu freq data.
+      const freqExists = await engine.query(`
+        select value
+        from counters
+        where name = 'gpufreq' and ref = ${gpu}
+        limit 1;
+      `);
+      if (freqExists.numRecords > 0) {
+        tracksToAdd.push({
+          engineId: this.engineId,
+          kind: GPU_FREQ_TRACK_KIND,
+          name: `Gpu ${gpu} Frequency`,
+          trackGroup: SCROLLING_TRACK_GROUP,
+          config: {
+            gpu,
+            maximumValue: +maxGpuFreq.columns[0].doubleValues![0],
+          }
+        });
+      }
+    }
+
 
     const counters = await engine.query(`
       select name, ref, ref_type
