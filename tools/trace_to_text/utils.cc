@@ -91,6 +91,7 @@ void ForEachPacketInTrace(
         }
         f(packet);
       });
+  fprintf(stderr, "\n");
 }
 
 }  // namespace trace_to_text
