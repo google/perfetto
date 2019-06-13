@@ -73,6 +73,8 @@ message InternedData {
   repeated InternedString mapping_paths = 17;
   // Names of functions used in frames below.
   repeated InternedString function_names = 5;
+  // Symbol tables added to the end of the trace, for the current sequence.
+  repeated InternedModuleSymbol module_symbols = 20;
 
   // Executable files mapped into processes.
   repeated Mapping mappings = 19;
