@@ -215,7 +215,7 @@ Check whether your target process is eligible to be profiled by consulting
 Also check the [Known Issues](#known-issues).
 
 
-## Impossible callstacks
+### Impossible callstacks
 If you see a callstack that seems to impossible from looking at the code, make
 sure no [DEDUPED frames](#deduped-frames) are involved.
 
