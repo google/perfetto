@@ -2845,6 +2845,13 @@ message ProfilePacket {
   optional uint64 index = 7;
 }
 
+// Message used to represent individual stack samples sampled at discrete
+// points in time, rather than aggregated over an interval.
+message StreamingProfilePacket {
+  repeated uint64 callstack_iid = 1;  // Index into InternedData.callstacks
+  repeated int64 timestamp_delta_us = 2;
+}
+
 // End of protos/perfetto/trace/profiling/profile_packet.proto
 
 // Begin of protos/perfetto/trace/ps/process_stats.proto
@@ -3067,6 +3074,7 @@ message TracePacket {
     ChromeMetadataPacket chrome_metadata = 51;
     GpuCounterEvent gpu_counter_event = 52;
     GpuRenderStageEvent gpu_render_stage_event = 53;
+    StreamingProfilePacket streaming_profile_packet = 54;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
@@ -3225,6 +3233,7 @@ message ProcessDescriptor {
     PROCESS_PPAPI_BROKER = 8;
   }
   optional ChromeProcessType chrome_process_type = 4;
+  optional int32 process_priority = 5;
 }
 
 // End of protos/perfetto/trace/track_event/process_descriptor.proto

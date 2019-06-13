@@ -115,3 +115,10 @@ message ProfilePacket {
   optional bool continued = 6;
   optional uint64 index = 7;
 }
+
+// Message used to represent individual stack samples sampled at discrete
+// points in time, rather than aggregated over an interval.
+message StreamingProfilePacket {
+  repeated uint64 callstack_iid = 1;  // Index into InternedData.callstacks
+  repeated int64 timestamp_delta_us = 2;
+}
