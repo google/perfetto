@@ -180,6 +180,8 @@ export interface RecordConfig {
   cpuCoarsePollMs: number;
   cpuSyscall: boolean;
 
+  gpuFreq: boolean;
+
   ftrace: boolean;
   atrace: boolean;
   ftraceEvents: string[];
@@ -222,6 +224,8 @@ export function createEmptyRecordConfig(): RecordConfig {
     cpuLatency: false,
     cpuFreq: false,
     cpuSyscall: false,
+
+    gpuFreq: false,
 
     ftrace: false,
     atrace: false,
