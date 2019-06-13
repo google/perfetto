@@ -318,6 +318,9 @@ def main(argv):
   profile_files = os.listdir(profile_path)
   if not profile_files:
     print("No profiles generated", file=sys.stderr)
+    print("If this is unexpected, check "
+          "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.",
+          file=sys.stderr)
     return 1
 
   subprocess.check_call(['gzip'] + [os.path.join(profile_path, x) for x in
