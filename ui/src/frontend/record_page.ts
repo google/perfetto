@@ -195,6 +195,18 @@ function PowerSettings(cssClass: string) {
       } as ProbeAttrs));
 }
 
+function GpuSettings(cssClass: string) {
+  return m(
+      `.record-section${cssClass}`,
+      m(Probe, {
+        title: 'GPU frequency',
+        img: 'rec_cpu_freq.png',
+        descr: 'Records gpu frequency via ftrace',
+        setEnabled: (cfg, val) => cfg.gpuFreq = val,
+        isEnabled: (cfg) => cfg.gpuFreq
+      } as ProbeAttrs));
+}
+
 function CpuSettings(cssClass: string) {
   return m(
       `.record-section${cssClass}`,
@@ -523,6 +535,7 @@ export const RecordPage = createPage({
       buffers: RecSettings,
       instructions: Instructions,
       cpu: CpuSettings,
+      gpu: GpuSettings,
       power: PowerSettings,
       memory: MemorySettings,
       android: AndroidSettings,
@@ -562,6 +575,11 @@ export const RecordPage = createPage({
                   m('i.material-icons', 'subtitles'),
                   m('.title', 'CPU'),
                   m('.sub', 'CPU usage, scheduling, wakeups'))),
+              m('a[href="#!/record?p=gpu"]',
+                m(`li${routePage === 'gpu' ? '.active' : ''}`,
+                  m('i.material-icons', 'subtitles'),
+                  m('.title', 'GPU'),
+                  m('.sub', 'GPU frequency'))),
               m('a[href="#!/record?p=power"]',
                 m(`li${routePage === 'power' ? '.active' : ''}`,
                   m('i.material-icons', 'battery_charging_full'),

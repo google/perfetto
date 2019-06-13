@@ -29,6 +29,7 @@ import {TimeSpan} from './time';
 export abstract class Engine {
   abstract readonly id: string;
   private _numCpus?: number;
+  private _numGpus?: number;
 
   /**
    * Push trace data into the engine. The engine is supposed to automatically
@@ -70,6 +71,15 @@ export abstract class Engine {
       this._numCpus = +result.columns[0].longValues![0];
     }
     return this._numCpus;
+  }
+
+  async getNumberOfGpus(): Promise<number> {
+    if (!this._numGpus) {
+      const result = await this.query(
+          'select count(distinct(arg_set_id)) as gpuCount from counters where name = "gpufreq";');
+      this._numGpus = +result.columns[0].longValues![0];
+    }
+    return this._numGpus;
   }
 
   // TODO: This should live in code that's more specific to chrome, instead of
