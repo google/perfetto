@@ -86,9 +86,12 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
 
   if (uiCfg.cpuFreq) {
     ftraceEvents.add('power/cpu_frequency');
-    ftraceEvents.add('power/gpu_frequency');
     ftraceEvents.add('power/cpu_idle');
     ftraceEvents.add('power/suspend_resume');
+  }
+
+  if (uiCfg.gpuFreq) {
+    ftraceEvents.add('power/gpu_frequency');
   }
 
   if (uiCfg.cpuSyscall) {
