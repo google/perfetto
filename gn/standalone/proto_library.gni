@@ -226,10 +226,12 @@ template("proto_library") {
         deps = [
           "//gn:protobuf_full",
         ]
-      } else {
+      } else if (generate_cc) {
         deps = [
           "//gn:protobuf_lite",
         ]
+      } else {
+        deps = []
       }
 
       deps += [ ":$action_name" ]
