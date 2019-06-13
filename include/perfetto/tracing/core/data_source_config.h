@@ -127,6 +127,13 @@ class PERFETTO_EXPORT DataSourceConfig {
     android_log_config_ = raw;
   }
 
+  const std::string& gpu_counter_config_raw() const {
+    return gpu_counter_config_;
+  }
+  void set_gpu_counter_config_raw(const std::string& raw) {
+    gpu_counter_config_ = raw;
+  }
+
   const ChromeConfig& chrome_config() const { return chrome_config_; }
   ChromeConfig* mutable_chrome_config() { return &chrome_config_; }
 
@@ -149,6 +156,7 @@ class PERFETTO_EXPORT DataSourceConfig {
   std::string heapprofd_config_ = {};      // [lazy=true]
   std::string android_power_config_ = {};  // [lazy=true]
   std::string android_log_config_ = {};    // [lazy=true]
+  std::string gpu_counter_config_ = {};    // [lazy=true]
   ChromeConfig chrome_config_ = {};
   std::string legacy_config_ = {};
   TestConfig for_testing_ = {};

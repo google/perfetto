@@ -20,7 +20,6 @@ option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 message GpuCounterEvent {
-
   // The first trace packet of each session should include counter_spec.
   message GpuCounterSpec {
     optional uint32 counter_id = 1;
