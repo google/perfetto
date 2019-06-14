@@ -210,27 +210,27 @@ if (perfetto_build_with_ipc_layer) {
   }
 }
 
-if (perfetto_build_with_ipc_layer) {
-  source_set("client_api") {
-    deps = [
-      ":common",
-      "../../gn:default_deps",
-      "../base",
-      "../tracing",
-    ]
-    public_deps = [
-      "../../include/perfetto/tracing",
-    ]
-    sources = [
-      "data_source.cc",
-      "internal/in_process_tracing_backend.cc",
-      "internal/in_process_tracing_backend.h",
-      "internal/tracing_muxer_impl.cc",
-      "platform.cc",
-      "tracing.cc",
-      "virtual_destructors.cc",
-    ]
+source_set("client_api") {
+  deps = [
+    ":common",
+    "../../gn:default_deps",
+    "../base",
+    "../tracing",
+  ]
+  public_deps = [
+    "../../include/perfetto/tracing",
+  ]
+  sources = [
+    "data_source.cc",
+    "internal/in_process_tracing_backend.cc",
+    "internal/in_process_tracing_backend.h",
+    "internal/tracing_muxer_impl.cc",
+    "platform.cc",
+    "tracing.cc",
+    "virtual_destructors.cc",
+  ]
 
+  if (perfetto_build_with_ipc_layer) {
     # TODO there should be an option to compile this out. This pulls IPC
     # dependencies and bloats binary size.
     deps += [ "../tracing:ipc" ]
