@@ -329,12 +329,10 @@ std::vector<uint8_t> ProtoBuilder::SerializeToProtoBuilderResult() {
   single->set_type(protos::pbzero::FieldDescriptorProto_Type_TYPE_MESSAGE);
   single->set_type_name(type_name.c_str(), type_name.size());
   single->set_protobuf(serialized.data(), serialized.size());
-  result->Finalize();
   return result.SerializeAsArray();
 }
 
 std::vector<uint8_t> ProtoBuilder::SerializeRaw() {
-  message_->Finalize();
   return message_.SerializeAsArray();
 }
 
@@ -389,7 +387,6 @@ std::vector<uint8_t> RepeatedFieldBuilder::SerializeToProtoBuilderResult() {
     return std::vector<uint8_t>();
 
   message_->set_is_repeated(true);
-  message_->Finalize();
   return message_.SerializeAsArray();
 }
 
