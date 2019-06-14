@@ -43,4 +43,5 @@ message ProcessDescriptor {
     PROCESS_PPAPI_BROKER = 8;
   }
   optional ChromeProcessType chrome_process_type = 4;
+  optional int32 process_priority = 5;
 }
