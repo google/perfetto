@@ -38,7 +38,8 @@ std::unique_ptr<ProducerEndpoint> SystemTracingBackend::ConnectProducer(
   PERFETTO_DCHECK(args.task_runner->RunsTasksOnCurrentThread());
 
   auto endpoint = ProducerIPCClient::Connect(
-      GetProducerSocket(), args.producer, args.producer_name, args.task_runner);
+      GetProducerSocket(), args.producer, args.producer_name, args.task_runner,
+      TracingService::ProducerSMBScrapingMode::kEnabled);
   PERFETTO_CHECK(endpoint);
   return endpoint;
 }
