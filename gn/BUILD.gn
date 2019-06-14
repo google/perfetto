@@ -143,7 +143,7 @@ group("sqlite") {
     public_deps = [
       "//buildtools:sqlite",
     ]
-  } else {
+  } else if (build_with_chromium) {
     public_deps = [
       "//third_party/sqlite:sqlite",
     ]
@@ -199,7 +199,7 @@ group("zlib") {
     public_deps = [
       "//buildtools:zlib",
     ]
-  } else {
+  } else if (build_with_chromium) {
     public_configs = [ "//third_party/zlib:zlib_config" ]
     public_deps = [
       "//third_party/zlib",
