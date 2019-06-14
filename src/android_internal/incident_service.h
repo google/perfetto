@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_ANDROID_INTERNAL_ATRACE_HAL_H_
-#define SRC_ANDROID_INTERNAL_ATRACE_HAL_H_
+#ifndef SRC_ANDROID_INTERNAL_INCIDENT_SERVICE_H_
+#define SRC_ANDROID_INTERNAL_INCIDENT_SERVICE_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -29,24 +29,16 @@
 namespace perfetto {
 namespace android_internal {
 
-struct TracingVendorCategory {
-  // The name identifying the category.
-  char name[64];
-
-  // A longer description of the category.
-  char description[256];
-};
-
 extern "C" {
 
-// These functions are not thread safe unless specified otherwise.
-
 bool __attribute__((visibility("default")))
-GetCategories(TracingVendorCategory*, size_t* size_of_arr);
+StartIncidentReport(const char* dest_pkg,
+                    const char* dest_class,
+                    int privacy_level);
 
 }  // extern "C"
 
 }  // namespace android_internal
 }  // namespace perfetto
 
-#endif  // SRC_ANDROID_INTERNAL_ATRACE_HAL_H_
+#endif  // SRC_ANDROID_INTERNAL_INCIDENT_SERVICE_H_

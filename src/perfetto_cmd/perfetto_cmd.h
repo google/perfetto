@@ -75,6 +75,8 @@ class PerfettoCmd : public Consumer {
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
   bool is_attach() const { return !attach_key_.empty(); }
+  void SaveOutputToDropboxOrCrash();
+  void SaveOutputToIncidentTraceOrCrash();
 
   PlatformTaskRunner task_runner_;
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
