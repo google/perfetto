@@ -1,0 +1,78 @@
+android_cpu {
+      process_info {
+        name:"Process1"
+        threads {
+          name : "Process1"
+          cpu {
+            id: 0
+            max_freq_khz: 5
+            min_freq_khz: 5
+            avg_freq_khz: 5
+            duration_ns: 2
+          }
+        }
+        threads {
+          name: "p1-t2"
+          cpu {
+            id: 0
+            max_freq_khz: 14
+            min_freq_khz: 14
+            avg_freq_khz: 14
+            duration_ns: 1
+          }
+        }
+      }
+      process_info {
+        name: "Process2"
+        threads {
+          name: "p2-t2"
+          cpu {
+            id: 1
+            max_freq_khz: 20
+            min_freq_khz: 20
+            avg_freq_khz: 20
+            duration_ns: 2
+          }
+        }
+        threads {
+          name: "p2-t3"
+          cpu {
+            id: 1
+            max_freq_khz: 80
+            min_freq_khz: 20
+            avg_freq_khz: 40
+            duration_ns: 3
+          }
+        }
+        threads {
+          name: "Process2"
+          cpu {
+            id: 0
+            max_freq_khz: 25
+            min_freq_khz: 25
+            avg_freq_khz: 25
+            duration_ns: 2
+          }
+        }
+      }
+      process_info {
+        name: "Process3"
+        threads {
+          name: "Process3"
+          cpu {
+            id: 0
+            max_freq_khz: 14
+            min_freq_khz: 5
+            avg_freq_khz: 7
+            duration_ns: 4
+          }
+          cpu {
+            id: 1
+            max_freq_khz: 80
+            min_freq_khz: 80
+            avg_freq_khz: 80
+            duration_ns: 2
+          }
+        }
+      }
+}

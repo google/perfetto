@@ -20,6 +20,7 @@ option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 import "perfetto/metrics/android/batt_metric.proto";
+import "perfetto/metrics/android/cpu_metric.proto";
 import "perfetto/metrics/android/mem_metric.proto";
 import "perfetto/metrics/android/startup_metric.proto";
 import "perfetto/metrics/android/heap_profile.proto";
@@ -40,6 +41,9 @@ message TraceStatistics {
 message TraceMetrics {
   // Battery counters metric on Android.
   optional AndroidBatteryMetric android_batt = 5;
+
+  // CPU usage per trace, process and thread.
+  optional AndroidCpuMetric android_cpu = 6;
 
   // Memory metrics on Android (owned by the Android Telemetry team).
   optional AndroidMemoryMetric android_mem = 1;
