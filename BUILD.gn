@@ -244,6 +244,23 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     ]
   }
 
+  # Client library target for the Android tree.
+  # Still in experimental stage and not API stable yet.
+  # See "libperfetto_client_example" (in Android.bp.extras) for an example
+  # on how to use the Perfetto Client API from the android tree.
+  static_library("libperfetto_client_experimental") {
+    complete_static_lib = true
+    deps = [
+      "gn:default_deps",
+      "src/tracing",
+      "src/tracing:client_api",
+      "src/tracing:platform_posix",
+    ]
+    sources = [
+      "include/perfetto/tracing.h",
+    ]
+  }
+
   if (perfetto_build_with_android) {
     executable("trace_to_text") {
       testonly = true
@@ -266,19 +283,6 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
       deps = [
         "gn:default_deps",
         "src/android_internal",
-      ]
-    }
-
-    # Client library target for the Android tree.
-    # Still in experimental stage and not API stable yet.
-    # See "libperfetto_client_example" (in Android.bp.extras) for an example
-    # on how to use the Perfetto Client API from the android tree.
-    static_library("libperfetto_client_experimental") {
-      complete_static_lib = true
-      deps = [
-        "gn:default_deps",
-        "src/tracing:client_api",
-        "src/tracing:platform_posix",
       ]
     }
   }  # if (perfetto_build_with_android)

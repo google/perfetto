@@ -888,6 +888,7 @@ cc_test {
   ],
   static_libs: [
     "libgmock",
+    "libperfetto_client_experimental",
     "perfetto_src_tracing_ipc",
   ],
   generated_headers: [
