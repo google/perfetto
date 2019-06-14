@@ -35,6 +35,7 @@ PROTOS = (
   'perfetto/config/sys_stats/sys_stats_config.proto',
   'perfetto/config/test_config.proto',
   'perfetto/config/trace_config.proto',
+  'perfetto/config/android/packages_list_config.proto',
 )
 
 HEADER_PATH = 'include/perfetto/tracing/core'

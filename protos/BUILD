@@ -81,6 +81,7 @@ proto_library(
     name = "config",
     srcs = [
         "perfetto/config/android/android_log_config.proto",
+        "perfetto/config/android/packages_list_config.proto",
         "perfetto/config/chrome/chrome_config.proto",
         "perfetto/config/data_source_config.proto",
         "perfetto/config/data_source_descriptor.proto",
@@ -145,6 +146,7 @@ proto_library(
     name = "config_zero",
     srcs = [
         "perfetto/config/android/android_log_config.proto",
+        "perfetto/config/android/packages_list_config.proto",
         "perfetto/config/chrome/chrome_config.proto",
         "perfetto/config/data_source_config.proto",
         "perfetto/config/data_source_descriptor.proto",
