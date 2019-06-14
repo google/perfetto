@@ -118,7 +118,10 @@ class HeapBuffered {
   T* get() { return &msg_; }
   T* operator->() { return &msg_; }
 
-  std::vector<uint8_t> SerializeAsArray() { return shb_.StitchSlices(); }
+  std::vector<uint8_t> SerializeAsArray() {
+    msg_.Finalize();
+    return shb_.StitchSlices();
+  }
 
   std::string SerializeAsString() {
     auto vec = SerializeAsArray();
