@@ -28,6 +28,7 @@ proto_library("lite") {
   ]
   sources = [
     "android/android_log_config.proto",
+    "android/packages_list_config.proto",
     "chrome/chrome_config.proto",
     "data_source_config.proto",
     "ftrace/ftrace_config.proto",
@@ -53,6 +54,7 @@ protozero_library("zero") {
   ]
   sources = [
     "android/android_log_config.proto",
+    "android/packages_list_config.proto",
     "chrome/chrome_config.proto",
     "data_source_config.proto",
     "ftrace/ftrace_config.proto",

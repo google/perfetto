@@ -309,7 +309,7 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreatePackagesListDataSource(
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
   return std::unique_ptr<ProbesDataSource>(new PackagesListDataSource(
-      session_id, endpoint_->CreateTraceWriter(buffer_id)));
+      config, session_id, endpoint_->CreateTraceWriter(buffer_id)));
 }
 
 std::unique_ptr<ProbesDataSource> ProbesProducer::CreateSysStatsDataSource(
