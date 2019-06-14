@@ -7,3 +7,4 @@
 android_startup.py android_startup android_startup.out
 android_startup_breakdown.py android_startup android_startup_breakdown.out
 android_startup_battery.py android_batt android_batt_counters.out
+android_startup_cpu.py android_cpu android_startup_cpu.out
