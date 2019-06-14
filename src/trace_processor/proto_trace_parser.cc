@@ -1225,7 +1225,6 @@ void ProtoTraceParser::ParseFtraceStats(ConstBytes blob) {
 }
 
 void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
-  static uint64_t index = 0;
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
 
   for (auto it = packet.strings(); it; ++it) {
@@ -1234,7 +1233,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     auto str_id = context_->storage->InternString(
         base::StringView(str, entry.str().size));
-    context_->heap_profile_tracker->AddString(index, entry.iid(), str_id);
+    context_->heap_profile_tracker->AddString(entry.iid(), str_id);
   }
 
   for (auto it = packet.mappings(); it; ++it) {
@@ -1249,7 +1248,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
     for (auto path_string_id_it = entry.path_string_ids(); path_string_id_it;
          ++path_string_id_it)
       src_mapping.name_id = path_string_id_it->as_uint64();
-    context_->heap_profile_tracker->AddMapping(index, entry.iid(), src_mapping);
+    context_->heap_profile_tracker->AddMapping(entry.iid(), src_mapping);
   }
 
   for (auto it = packet.frames(); it; ++it) {
@@ -1259,7 +1258,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
     src_frame.mapping_id = entry.mapping_id();
     src_frame.rel_pc = entry.rel_pc();
 
-    context_->heap_profile_tracker->AddFrame(index, entry.iid(), src_frame);
+    context_->heap_profile_tracker->AddFrame(entry.iid(), src_frame);
   }
 
   for (auto it = packet.callstacks(); it; ++it) {
@@ -1268,8 +1267,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
     for (auto frame_it = entry.frame_ids(); frame_it; ++frame_it)
       src_callstack.emplace_back(frame_it->as_uint64());
 
-    context_->heap_profile_tracker->AddCallstack(index, entry.iid(),
-                                                 src_callstack);
+    context_->heap_profile_tracker->AddCallstack(entry.iid(), src_callstack);
   }
 
   for (auto it = packet.process_dumps(); it; ++it) {
@@ -1301,12 +1299,11 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
       src_allocation.alloc_count = sample.alloc_count();
       src_allocation.free_count = sample.free_count();
 
-      context_->heap_profile_tracker->StoreAllocation(index, src_allocation);
+      context_->heap_profile_tracker->StoreAllocation(src_allocation);
     }
   }
   if (!packet.continued()) {
-    context_->heap_profile_tracker->ApplyAllAllocations();
-    index++;
+    context_->heap_profile_tracker->FinalizeProfile();
   }
 }
 
