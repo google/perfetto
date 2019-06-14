@@ -17,6 +17,8 @@ import("../../../gn/perfetto.gni")
 sql_files = [
   "error_statistics.sql",
   "android/android_batt.sql",
+  "android/android_cpu.sql",
+  "android/android_cpu_agg.sql",
   "android/android_mem.sql",
   "android/android_mem_lmk.sql",
   "android/android_mem_proc_counters.sql",
