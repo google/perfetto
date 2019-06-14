@@ -17,6 +17,15 @@
 #include "src/traced/probes/packages_list/packages_list_data_source.h"
 
 #include <gtest/gtest.h>
+#include <stdio.h>
+
+#include <set>
+#include <string>
+
+#include "perfetto/ext/base/pipe.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace/android/packages_list.pb.h"
+#include "perfetto/trace/android/packages_list.pbzero.h"
 
 namespace perfetto {
 namespace {
@@ -67,6 +76,78 @@ TEST(PackagesListDataSourceTest, ParseLineProfileDebug) {
   EXPECT_EQ(pkg.debuggable, true);
   EXPECT_EQ(pkg.profileable_from_shell, true);
   EXPECT_EQ(pkg.version_code, 1111);
+}
+
+TEST(PackagesListDataSourceTest, EmptyNameFilterIncludesAll) {
+  char buf[] =
+      "com.test.one 1000 0 /data/user/0/com.test.one "
+      "default:targetSdkVersion=10 none 0 10\n"
+      "com.test.two 1001 0 /data/user/0/com.test.two "
+      "default:targetSdkVersion=10 1065,3002 0 20\n"
+      "com.test.three 1002 0 /data/user/0/com.test.three "
+      "default:targetSdkVersion=10 1065,3002 0 30\n";
+
+  // Create a stream from |buf|, up to the null byte. Avoid fmemopen as it
+  // requires a higher target API (23) than we use for portability.
+  auto pipe = base::Pipe::Create();
+  PERFETTO_CHECK(write(pipe.wr.get(), buf, sizeof(buf) - 1) == sizeof(buf) - 1);
+  pipe.wr.reset();
+  auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
+  pipe.rd.release();  // now owned by |fs|
+
+  protozero::HeapBuffered<protos::pbzero::PackagesList> packages_list;
+  std::set<std::string> filter{};
+
+  ASSERT_TRUE(ParsePackagesListStream(packages_list.get(), fs, filter));
+
+  protos::PackagesList parsed_list;
+  parsed_list.ParseFromString(packages_list.SerializeAsString());
+
+  EXPECT_FALSE(parsed_list.read_error());
+  EXPECT_FALSE(parsed_list.parse_error());
+  // all entries
+  EXPECT_EQ(parsed_list.packages_size(), 3);
+  EXPECT_EQ(parsed_list.packages(0).name(), "com.test.one");
+  EXPECT_EQ(parsed_list.packages(0).version_code(), 10);
+  EXPECT_EQ(parsed_list.packages(1).name(), "com.test.two");
+  EXPECT_EQ(parsed_list.packages(1).version_code(), 20);
+  EXPECT_EQ(parsed_list.packages(2).name(), "com.test.three");
+  EXPECT_EQ(parsed_list.packages(2).version_code(), 30);
+}
+
+TEST(PackagesListDataSourceTest, NameFilter) {
+  char buf[] =
+      "com.test.one 1000 0 /data/user/0/com.test.one "
+      "default:targetSdkVersion=10 none 0 10\n"
+      "com.test.two 1001 0 /data/user/0/com.test.two "
+      "default:targetSdkVersion=10 1065,3002 0 20\n"
+      "com.test.three 1002 0 /data/user/0/com.test.three "
+      "default:targetSdkVersion=10 1065,3002 0 30\n";
+
+  // Create a stream from |buf|, up to the null byte. Avoid fmemopen as it
+  // requires a higher target API (23) than we use for portability.
+  auto pipe = base::Pipe::Create();
+  PERFETTO_CHECK(write(pipe.wr.get(), buf, sizeof(buf) - 1) == sizeof(buf) - 1);
+  pipe.wr.reset();
+  auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
+  pipe.rd.release();  // now owned by |fs|
+
+  protozero::HeapBuffered<protos::pbzero::PackagesList> packages_list;
+  std::set<std::string> filter{"com.test.one", "com.test.three"};
+
+  ASSERT_TRUE(ParsePackagesListStream(packages_list.get(), fs, filter));
+
+  protos::PackagesList parsed_list;
+  parsed_list.ParseFromString(packages_list.SerializeAsString());
+
+  EXPECT_FALSE(parsed_list.read_error());
+  EXPECT_FALSE(parsed_list.parse_error());
+  // two named entries
+  EXPECT_EQ(parsed_list.packages_size(), 2);
+  EXPECT_EQ(parsed_list.packages(0).name(), "com.test.one");
+  EXPECT_EQ(parsed_list.packages(0).version_code(), 10);
+  EXPECT_EQ(parsed_list.packages(1).name(), "com.test.three");
+  EXPECT_EQ(parsed_list.packages(1).version_code(), 30);
 }
 
 }  // namespace

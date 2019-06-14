@@ -38,6 +38,7 @@ CONFIG_PROTOS = (
   'protos/perfetto/config/trace_config.proto',
   'protos/perfetto/config/profiling/heapprofd_config.proto',
   'protos/perfetto/config/gpu/gpu_counter_config.proto',
+  'protos/perfetto/config/android/packages_list_config.proto',
 )
 
 MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'
