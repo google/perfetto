@@ -19,10 +19,28 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-// TODO(fmayer): Move to a common location.
+// The interning fields in this file can refer to 2 different intern tables,
+// depending on the message they are used in. If the interned fields are present
+// in ProfilePacket proto, then the intern tables included in the ProfilePacket
+// should be used. If the intered fields are present in the
+// StreamingProfilePacket proto, then the intern tables included in all of the
+// previous InternedData message with same sequence ID should be used.
+// TODO(fmayer): Move to the intern tables to a common location.
 message InternedString {
   optional uint64 iid = 1;
   optional bytes str = 2;
+}
+
+// A symbol field that is emitted after the trace is written. These tables would
+// be appended as the last packets in the trace that the profiler will use, so
+// that the actual trace need not be rewritten to symbolize the profiles.
+message InternedModuleSymbol {
+  // Use the frame id as the interning key for the symbols.
+  optional int64 frame_id = 1;
+
+  optional int64 function_name_id = 2;  // key to InternedString
+  optional int64 file_name_id = 3;      // key to InternedString
+  optional int32 line_number = 4;
 }
 
 message Mapping {
