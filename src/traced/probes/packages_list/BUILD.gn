@@ -21,6 +21,7 @@ source_set("packages_list") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/trace/android:zero",
     "../../../base",
   ]
@@ -36,7 +37,8 @@ source_set("unittests") {
     ":packages_list",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/trace:lite",
+    "../../../../protos/perfetto/trace/android:lite",
+    "../../../../protos/perfetto/trace/android:zero",
     "../../../../src/base:test_support",
     "../../../../src/tracing:test_support",
   ]
