@@ -85,6 +85,7 @@ message TracePacket {
     ChromeMetadataPacket chrome_metadata = 51;
     GpuCounterEvent gpu_counter_event = 52;
     GpuRenderStageEvent gpu_render_stage_event = 53;
+    StreamingProfilePacket streaming_profile_packet = 54;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
