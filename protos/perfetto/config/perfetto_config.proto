@@ -266,6 +266,7 @@ message DataSourceConfig {
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
+  optional PackagesListConfig packages_list_config = 109 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
@@ -901,3 +902,15 @@ message GpuCounterConfig {
 }
 
 // End of protos/perfetto/config/gpu/gpu_counter_config.proto
+
+// Begin of protos/perfetto/config/android/packages_list_config.proto
+
+// Data source that lists details (such as version code) about packages on an
+// Android device.
+message PackagesListConfig {
+  // If not empty, emit info about only the following list of package names
+  // (exact match, no regex). Otherwise, emit info about all packages.
+  repeated string package_name_filter = 1;
+}
+
+// End of protos/perfetto/config/android/packages_list_config.proto
