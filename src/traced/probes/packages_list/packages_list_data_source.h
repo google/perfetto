@@ -19,9 +19,12 @@
 
 #include <functional>
 #include <memory>
+#include <set>
 
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/scoped_file.h"
 
+#include "perfetto/config/android/packages_list_config.pbzero.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/trace/android/packages_list.pbzero.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -41,11 +44,15 @@ struct Package {
 };
 
 bool ReadPackagesListLine(char* line, Package* package);
+bool ParsePackagesListStream(protos::pbzero::PackagesList* packages_list,
+                             const base::ScopedFstream& fs,
+                             const std::set<std::string>& package_name_filter);
 
 class PackagesListDataSource : public ProbesDataSource {
  public:
   static constexpr int kTypeId = 7;
-  PackagesListDataSource(TracingSessionID session_id,
+  PackagesListDataSource(const DataSourceConfig& ds_config,
+                         TracingSessionID session_id,
                          std::unique_ptr<TraceWriter> writer);
   // ProbesDataSource implementation.
   void Start() override;
@@ -54,6 +61,10 @@ class PackagesListDataSource : public ProbesDataSource {
   ~PackagesListDataSource() override;
 
  private:
+  // If empty, include all package names. std::set over std::unordered_set as
+  // this should be trivially small (or empty) in practice, and the latter uses
+  // ever so slightly more memory.
+  std::set<std::string> package_name_filter_;
   std::unique_ptr<TraceWriter> writer_;
 };
 
