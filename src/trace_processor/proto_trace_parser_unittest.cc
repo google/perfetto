@@ -105,6 +105,8 @@ class MockProcessTracker : public ProcessTracker {
                          base::Optional<uint32_t> ppid,
                          base::StringView process_name));
 
+  MOCK_METHOD2(UpdateThreadName,
+               UniqueTid(uint32_t tid, StringId thread_name_id));
   MOCK_METHOD2(UpdateThread, UniqueTid(uint32_t tid, uint32_t tgid));
 
   MOCK_METHOD1(GetOrCreateProcess, UniquePid(uint32_t pid));
@@ -556,6 +558,61 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 
   EXPECT_CALL(*process_, UpdateThread(1, 2));
   Tokenize();
+}
+
+TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
+  InitStorage();
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1000);
+    thread_desc->set_reference_thread_time_us(2000);
+    thread_desc->set_thread_name("OldThreadName");
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1000);
+    thread_desc->set_reference_thread_time_us(2000);
+    thread_desc->set_thread_name("NewThreadName");
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(2);
+    packet->set_incremental_state_cleared(true);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(11);
+    thread_desc->set_reference_timestamp_us(1000);
+    thread_desc->set_reference_thread_time_us(2000);
+    thread_desc->set_thread_name("DifferentThreadName");
+  }
+
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("OldThreadName")))
+      .WillOnce(Return(1));
+  EXPECT_CALL(*process_, UpdateThreadName(16, 1));
+  // Packet with same thread, but different name should update the name.
+  EXPECT_CALL(*storage_, InternString(base::StringView("NewThreadName")))
+      .WillOnce(Return(2));
+  EXPECT_CALL(*process_, UpdateThreadName(16, 2));
+  EXPECT_CALL(*storage_, InternString(base::StringView("DifferentThreadName")))
+      .WillOnce(Return(3));
+  EXPECT_CALL(*process_, UpdateThreadName(11, 3));
+
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
