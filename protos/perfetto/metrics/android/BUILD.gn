@@ -18,6 +18,7 @@ import("../../../../gn/protozero_library.gni")
 
 common_sources = [
   "batt_metric.proto",
+  "cpu_metric.proto",
   "mem_metric.proto",
   "startup_metric.proto",
   "heap_profile.proto",
