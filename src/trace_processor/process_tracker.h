@@ -63,7 +63,7 @@ class ProcessTracker {
   // Called when a sched switch event is seen in the trace. Retrieves the
   // UniqueTid that matches the tid or assigns a new UniqueTid and stores
   // the thread_name_id.
-  UniqueTid UpdateThreadName(uint32_t tid, StringId thread_name_id);
+  virtual UniqueTid UpdateThreadName(uint32_t tid, StringId thread_name_id);
 
   // Called when a thread is seen the process tree. Retrieves the matching utid
   // for the tid and the matching upid for the tgid and stores both.
