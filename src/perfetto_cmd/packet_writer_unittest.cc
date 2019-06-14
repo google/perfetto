@@ -45,7 +45,6 @@ template <typename F>
 TracePacket CreateTracePacket(F fill_function) {
   protozero::HeapBuffered<TracePacketZero> msg;
   fill_function(msg.get());
-  msg->Finalize();
   std::vector<uint8_t> buf = msg.SerializeAsArray();
   Slice slice = Slice::Allocate(buf.size());
   memcpy(slice.own_data(), buf.data(), buf.size());
