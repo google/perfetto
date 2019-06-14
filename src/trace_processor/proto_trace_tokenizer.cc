@@ -347,8 +347,64 @@ void ProtoTraceTokenizer::ParseThreadDescriptorPacket(
       thread_descriptor_decoder.pid(), thread_descriptor_decoder.tid(),
       thread_descriptor_decoder.reference_timestamp_us() * 1000,
       thread_descriptor_decoder.reference_thread_time_us() * 1000);
-  // TODO(eseckler): Handle other thread_descriptor fields (e.g. thread
-  // name/type).
+
+  base::StringView name;
+  if (thread_descriptor_decoder.has_thread_name()) {
+    name = thread_descriptor_decoder.thread_name();
+  } else if (thread_descriptor_decoder.has_chrome_thread_type()) {
+    using protos::pbzero::ThreadDescriptor;
+    switch (thread_descriptor_decoder.chrome_thread_type()) {
+      case ThreadDescriptor::CHROME_THREAD_MAIN:
+        name = "CrProcessMain";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_IO:
+        name = "ChromeIOThread";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_POOL_FG_WORKER:
+        name = "ThreadPoolForegroundWorker&";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_POOL_BG_WORKER:
+        name = "ThreadPoolBackgroundWorker&";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_POOL_FB_BLOCKING:
+        name = "ThreadPoolSingleThreadForegroundBlocking&";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_POOL_BG_BLOCKING:
+        name = "ThreadPoolSingleThreadBackgroundBlocking&";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_POOL_SERVICE:
+        name = "ThreadPoolService";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_COMPOSITOR_WORKER:
+        name = "CompositorTileWorker&";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_COMPOSITOR:
+        name = "Compositor";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_VIZ_COMPOSITOR:
+        name = "VizCompositorThread";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_SERVICE_WORKER:
+        name = "ServiceWorkerThread&";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_MEMORY_INFRA:
+        name = "MemoryInfra";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_SAMPLING_PROFILER:
+        name = "StackSamplingProfiler";
+        break;
+      case ThreadDescriptor::CHROME_THREAD_UNSPECIFIED:
+        name = "ChromeUnspecified";
+        break;
+    }
+  }
+
+  if (!name.empty()) {
+    auto thread_name_id = context_->storage->InternString(name);
+    ProcessTracker* procs = context_->process_tracker.get();
+    procs->UpdateThreadName(
+        static_cast<uint32_t>(thread_descriptor_decoder.tid()), thread_name_id);
+  }
 }
 
 void ProtoTraceTokenizer::ParseTrackEventPacket(
