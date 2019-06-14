@@ -269,20 +269,19 @@ source_set("common") {
   ]
 }
 
-if (!perfetto_build_with_embedder) {
+if (perfetto_build_standalone || perfetto_build_with_android) {
   source_set("client_api_integrationtests") {
     testonly = true
     deps = [
       ":client_api",
       ":platform_posix",
+      "../../:libperfetto_client_experimental",
       "../../gn:default_deps",
       "../../gn:gtest_and_gmock",
+      "../../include/perfetto/tracing/core",
       "../../protos/perfetto/trace:lite",
       "../../protos/perfetto/trace:zero",
       "../base",
-
-      # TODO(primiano): move DataSourceConfig to /include/ and remove this.
-      "../../include/perfetto/ext/tracing/core",
     ]
     sources = [
       "api_integrationtest.cc",
