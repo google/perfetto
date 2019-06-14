@@ -30,6 +30,7 @@ constexpr uint32_t kEvent = 4;
 
 // Event Types
 constexpr uint32_t kInstant = 0;
+constexpr uint32_t kCounter = 1;
 constexpr uint32_t kDurationBegin = 2;
 constexpr uint32_t kDurationEnd = 3;
 constexpr uint32_t kDurationComplete = 4;
@@ -200,6 +201,61 @@ void FuchsiaTraceParser::ParseTracePacket(
                 arg.value.ToStorageVariadic(context_->storage.get()));
           }
           context_->args_tracker->Flush();
+          break;
+        }
+        case kCounter: {
+          UniqueTid utid =
+              procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
+                                  static_cast<uint32_t>(tinfo.pid));
+          std::string name_str =
+              context_->storage->GetString(name).ToStdString();
+          // Note: In the Fuchsia trace format, counter values are stored in the
+          // arguments for the record, with the data series defined by both the
+          // record name and the argument name. In Perfetto, counters only have
+          // one name, so we combine both names into one here.
+          for (const Arg& arg : args) {
+            std::string counter_name_str = name_str + ":";
+            counter_name_str += context_->storage->GetString(arg.name).c_str();
+            bool is_valid_value = false;
+            double counter_value = -1;
+            switch (arg.value.Type()) {
+              case fuchsia_trace_utils::ArgValue::kInt32:
+                is_valid_value = true;
+                counter_value = static_cast<double>(arg.value.Int32());
+                break;
+              case fuchsia_trace_utils::ArgValue::kUint32:
+                is_valid_value = true;
+                counter_value = static_cast<double>(arg.value.Uint32());
+                break;
+              case fuchsia_trace_utils::ArgValue::kInt64:
+                is_valid_value = true;
+                counter_value = static_cast<double>(arg.value.Int64());
+                break;
+              case fuchsia_trace_utils::ArgValue::kUint64:
+                is_valid_value = true;
+                counter_value = static_cast<double>(arg.value.Uint64());
+                break;
+              case fuchsia_trace_utils::ArgValue::kDouble:
+                is_valid_value = true;
+                counter_value = arg.value.Double();
+                break;
+              case fuchsia_trace_utils::ArgValue::kNull:
+              case fuchsia_trace_utils::ArgValue::kString:
+              case fuchsia_trace_utils::ArgValue::kPointer:
+              case fuchsia_trace_utils::ArgValue::kKoid:
+              case fuchsia_trace_utils::ArgValue::kUnknown:
+                context_->storage->IncrementStats(
+                    stats::fuchsia_non_numeric_counters);
+                break;
+            }
+            if (is_valid_value) {
+              context_->event_tracker->PushCounter(
+                  ts, counter_value,
+                  context_->storage->InternString(
+                      base::StringView(counter_name_str)),
+                  utid, kRefUtid);
+            }
+          }
           break;
         }
         case kDurationBegin: {

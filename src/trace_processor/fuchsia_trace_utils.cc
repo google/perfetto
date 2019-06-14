@@ -66,25 +66,25 @@ int64_t TicksToNs(uint64_t ticks, uint64_t ticks_per_second) {
 
 Variadic ArgValue::ToStorageVariadic(TraceStorage* storage) const {
   switch (type_) {
-    case Type::kNull:
+    case ArgType::kNull:
       return Variadic::String(storage->InternString("null"));
-    case Type::kInt32:
+    case ArgType::kInt32:
       return Variadic::Integer(static_cast<int64_t>(int32_));
-    case Type::kUint32:
+    case ArgType::kUint32:
       return Variadic::Integer(static_cast<int64_t>(uint32_));
-    case Type::kInt64:
+    case ArgType::kInt64:
       return Variadic::Integer(int64_);
-    case Type::kUint64:
+    case ArgType::kUint64:
       return Variadic::Integer(static_cast<int64_t>(uint64_));
-    case Type::kDouble:
+    case ArgType::kDouble:
       return Variadic::Real(double_);
-    case Type::kString:
+    case ArgType::kString:
       return Variadic::String(string_);
-    case Type::kPointer:
+    case ArgType::kPointer:
       return Variadic::Integer(static_cast<int64_t>(pointer_));
-    case Type::kKoid:
+    case ArgType::kKoid:
       return Variadic::Integer(static_cast<int64_t>(koid_));
-    case Type::kUnknown:
+    case ArgType::kUnknown:
       return Variadic::String(storage->InternString("unknown"));
   }
   PERFETTO_FATAL("Not reached");  // Make GCC happy.
