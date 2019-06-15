@@ -27,6 +27,7 @@ source_set("perfetto_cmd") {
     "../../gn:zlib_deps",
     "../../protos/perfetto/common:lite",
     "../../protos/perfetto/config:lite",
+    "../android_internal:headers",
     "../base",
     "../protozero",
     "../tracing:ipc",

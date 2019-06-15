@@ -63,6 +63,7 @@ class TraceConfig_GuardrailOverrides;
 class TraceConfig_TriggerConfig;
 class TraceConfig_TriggerConfig_Trigger;
 class TraceConfig_IncrementalStateConfig;
+class TraceConfig_IncidentReportConfig;
 }  // namespace protos
 }  // namespace perfetto
 
@@ -432,6 +433,53 @@ class PERFETTO_EXPORT TraceConfig {
     COMPRESSION_TYPE_UNSPECIFIED = 0,
     COMPRESSION_TYPE_DEFLATE = 1,
   };
+
+  class PERFETTO_EXPORT IncidentReportConfig {
+   public:
+    IncidentReportConfig();
+    ~IncidentReportConfig();
+    IncidentReportConfig(IncidentReportConfig&&) noexcept;
+    IncidentReportConfig& operator=(IncidentReportConfig&&);
+    IncidentReportConfig(const IncidentReportConfig&);
+    IncidentReportConfig& operator=(const IncidentReportConfig&);
+    bool operator==(const IncidentReportConfig&) const;
+    bool operator!=(const IncidentReportConfig& other) const {
+      return !(*this == other);
+    }
+
+    // Conversion methods from/to the corresponding protobuf types.
+    void FromProto(const perfetto::protos::TraceConfig_IncidentReportConfig&);
+    void ToProto(perfetto::protos::TraceConfig_IncidentReportConfig*) const;
+
+    const std::string& destination_package() const {
+      return destination_package_;
+    }
+    void set_destination_package(const std::string& value) {
+      destination_package_ = value;
+    }
+
+    const std::string& destination_class() const { return destination_class_; }
+    void set_destination_class(const std::string& value) {
+      destination_class_ = value;
+    }
+
+    int32_t privacy_level() const { return privacy_level_; }
+    void set_privacy_level(int32_t value) { privacy_level_ = value; }
+
+    bool skip_dropbox() const { return skip_dropbox_; }
+    void set_skip_dropbox(bool value) { skip_dropbox_ = value; }
+
+   private:
+    std::string destination_package_ = {};
+    std::string destination_class_ = {};
+    int32_t privacy_level_ = {};
+    bool skip_dropbox_ = {};
+
+    // Allows to preserve unknown protobuf fields for compatibility
+    // with future versions of .proto files.
+    std::string unknown_fields_;
+  };
+
   TraceConfig();
   ~TraceConfig();
   TraceConfig(TraceConfig&&) noexcept;
@@ -569,6 +617,13 @@ class PERFETTO_EXPORT TraceConfig {
     compression_type_ = value;
   }
 
+  const IncidentReportConfig& incident_report_config() const {
+    return incident_report_config_;
+  }
+  IncidentReportConfig* mutable_incident_report_config() {
+    return &incident_report_config_;
+  }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -592,6 +647,7 @@ class PERFETTO_EXPORT TraceConfig {
   bool allow_user_build_tracing_ = {};
   std::string unique_session_name_ = {};
   CompressionType compression_type_ = {};
+  IncidentReportConfig incident_report_config_ = {};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
