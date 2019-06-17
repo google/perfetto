@@ -35,6 +35,10 @@ class Trace(object):
     self.packet = self.trace.packet.add()
     self.packet.ftrace_events.cpu = cpu
 
+  def add_packet(self):
+    self.packet = self.trace.packet.add()
+    return self.packet
+
   def __add_ftrace_event(self, ts, tid):
     ftrace = self.packet.ftrace_events.event.add()
     ftrace.timestamp = ts
@@ -152,6 +156,19 @@ class Trace(object):
     battery_count.charge_counter_uah = charge_uah
     battery_count.capacity_percent = cap_prct
     battery_count.current_avg_ua = curr_avg_ua
+
+  def add_power_rails_desc(self, index_val, name):
+    power_rails = self.packet.power_rails
+    descriptor = power_rails.rail_descriptor.add()
+    descriptor.index = index_val
+    descriptor.rail_name = name
+
+  def add_power_rails_data(self, ts, index_val, value):
+    power_rails = self.packet.power_rails
+    energy_data = power_rails.energy_data.add()
+    energy_data.index = index_val
+    energy_data.timestamp_ms = ts
+    energy_data.energy = value
 
 def create_trace():
   parser = argparse.ArgumentParser()
