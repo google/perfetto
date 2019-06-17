@@ -22,6 +22,7 @@ sql_files = [
   "android/android_mem.sql",
   "android/android_mem_lmk.sql",
   "android/android_mem_proc_counters.sql",
+  "android/android_powrails.sql",
   "android/android_startup_launches.sql",
   "android/android_task_state.sql",
   "android/android_startup.sql",
