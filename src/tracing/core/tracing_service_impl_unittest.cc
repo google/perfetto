@@ -2785,16 +2785,16 @@ TEST_F(TracingServiceImplTest, QueryServiceState) {
   EXPECT_EQ(svc_state.data_sources_size(), 4);
 
   EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 1);
-  EXPECT_EQ(svc_state.data_sources().at(0).descriptor().name(), "common_ds");
+  EXPECT_EQ(svc_state.data_sources().at(0).ds_descriptor().name(), "common_ds");
 
   EXPECT_EQ(svc_state.data_sources().at(1).producer_id(), 2);
-  EXPECT_EQ(svc_state.data_sources().at(1).descriptor().name(), "common_ds");
+  EXPECT_EQ(svc_state.data_sources().at(1).ds_descriptor().name(), "common_ds");
 
   EXPECT_EQ(svc_state.data_sources().at(2).producer_id(), 1);
-  EXPECT_EQ(svc_state.data_sources().at(2).descriptor().name(), "p1_ds");
+  EXPECT_EQ(svc_state.data_sources().at(2).ds_descriptor().name(), "p1_ds");
 
   EXPECT_EQ(svc_state.data_sources().at(3).producer_id(), 2);
-  EXPECT_EQ(svc_state.data_sources().at(3).descriptor().name(), "p2_ds");
+  EXPECT_EQ(svc_state.data_sources().at(3).ds_descriptor().name(), "p2_ds");
 
   // Test that descriptors are cleared when a producer disconnects.
   producer1.reset();
@@ -2804,9 +2804,9 @@ TEST_F(TracingServiceImplTest, QueryServiceState) {
   EXPECT_EQ(svc_state.data_sources_size(), 2);
 
   EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 2);
-  EXPECT_EQ(svc_state.data_sources().at(0).descriptor().name(), "common_ds");
+  EXPECT_EQ(svc_state.data_sources().at(0).ds_descriptor().name(), "common_ds");
   EXPECT_EQ(svc_state.data_sources().at(1).producer_id(), 2);
-  EXPECT_EQ(svc_state.data_sources().at(1).descriptor().name(), "p2_ds");
+  EXPECT_EQ(svc_state.data_sources().at(1).ds_descriptor().name(), "p2_ds");
 }
 
 }  // namespace perfetto

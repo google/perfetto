@@ -951,7 +951,7 @@ void PerfettoCmd::PrintServiceState(bool success,
     printf("data_sources: {\n");
     printf("  producer_id: %d\n", ds.producer_id());
     printf("  descriptor: {\n");
-    printf("    name: \"%s\"\n", ds.descriptor().name().c_str());
+    printf("    name: \"%s\"\n", ds.ds_descriptor().name().c_str());
     printf("  }\n");
     printf("}\n");
   }

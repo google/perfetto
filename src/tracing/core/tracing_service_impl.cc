@@ -2506,7 +2506,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
   for (const auto& kv : service_->data_sources_) {
     const auto& registered_data_source = kv.second;
     auto* data_source = svc_state.add_data_sources();
-    *data_source->mutable_descriptor() = registered_data_source.descriptor;
+    *data_source->mutable_ds_descriptor() = registered_data_source.descriptor;
     data_source->set_producer_id(
         static_cast<int>(registered_data_source.producer_id));
   }
