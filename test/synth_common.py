@@ -110,6 +110,9 @@ class Trace(object):
     print_event = getattr(ftrace, 'print')
     print_event.buf = buf
 
+  def add_atrace_counter(self, ts, pid, tid, buf, cnt):
+    self.add_print(ts, tid, 'C|{}|{}|{}'.format(pid, buf, cnt))
+
   def add_atrace_begin(self, ts, tid, pid, buf):
     self.add_print(ts, tid, 'B|{}|{}'.format(pid, buf))
 
