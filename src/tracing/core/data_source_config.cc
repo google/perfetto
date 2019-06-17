@@ -28,6 +28,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 
 #include "perfetto/config/android/android_log_config.pb.h"
+#include "perfetto/config/android/packages_list_config.pb.h"
 #include "perfetto/config/chrome/chrome_config.pb.h"
 #include "perfetto/config/data_source_config.pb.h"
 #include "perfetto/config/ftrace/ftrace_config.pb.h"
@@ -63,6 +64,7 @@ bool DataSourceConfig::operator==(const DataSourceConfig& other) const {
          (heapprofd_config_ == other.heapprofd_config_) &&
          (android_power_config_ == other.android_power_config_) &&
          (android_log_config_ == other.android_log_config_) &&
+         (packages_list_config_ == other.packages_list_config_) &&
          (legacy_config_ == other.legacy_config_) &&
          (for_testing_ == other.for_testing_);
 }
@@ -109,6 +111,8 @@ void DataSourceConfig::FromProto(
   android_power_config_.FromProto(proto.android_power_config());
 
   android_log_config_.FromProto(proto.android_log_config());
+
+  packages_list_config_.FromProto(proto.packages_list_config());
 
   static_assert(sizeof(legacy_config_) == sizeof(proto.legacy_config()),
                 "size mismatch");
@@ -164,6 +168,8 @@ void DataSourceConfig::ToProto(
   android_power_config_.ToProto(proto->mutable_android_power_config());
 
   android_log_config_.ToProto(proto->mutable_android_log_config());
+
+  packages_list_config_.ToProto(proto->mutable_packages_list_config());
 
   static_assert(sizeof(legacy_config_) == sizeof(proto->legacy_config()),
                 "size mismatch");

@@ -41,6 +41,7 @@
 #include "perfetto/tracing/core/ftrace_config.h"
 #include "perfetto/tracing/core/heapprofd_config.h"
 #include "perfetto/tracing/core/inode_file_config.h"
+#include "perfetto/tracing/core/packages_list_config.h"
 #include "perfetto/tracing/core/process_stats_config.h"
 #include "perfetto/tracing/core/sys_stats_config.h"
 #include "perfetto/tracing/core/test_config.h"
@@ -59,6 +60,7 @@ class HeapprofdConfig;
 class HeapprofdConfig_ContinuousDumpConfig;
 class AndroidPowerConfig;
 class AndroidLogConfig;
+class PackagesListConfig;
 class TestConfig;
 class TestConfig_DummyFields;
 }  // namespace protos
@@ -138,6 +140,13 @@ class PERFETTO_EXPORT DataSourceConfig {
     return &android_log_config_;
   }
 
+  const PackagesListConfig& packages_list_config() const {
+    return packages_list_config_;
+  }
+  PackagesListConfig* mutable_packages_list_config() {
+    return &packages_list_config_;
+  }
+
   const std::string& legacy_config() const { return legacy_config_; }
   void set_legacy_config(const std::string& value) { legacy_config_ = value; }
 
@@ -158,6 +167,7 @@ class PERFETTO_EXPORT DataSourceConfig {
   HeapprofdConfig heapprofd_config_ = {};
   AndroidPowerConfig android_power_config_ = {};
   AndroidLogConfig android_log_config_ = {};
+  PackagesListConfig packages_list_config_ = {};
   std::string legacy_config_ = {};
   TestConfig for_testing_ = {};
 
