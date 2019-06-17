@@ -39,7 +39,7 @@ message TracingServiceState {
   // regardless of the fact that they are being used or not.
   message DataSource {
     // Descriptor passed by the data source when calling RegisterDataSource().
-    optional DataSourceDescriptor descriptor = 1;
+    optional DataSourceDescriptor ds_descriptor = 1;
 
     // ID of the producer, as per Producer.id.
     optional int32 producer_id = 2;
