@@ -16,6 +16,7 @@
 
 #include "perfetto/ext/base/metatrace.h"
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/time.h"
@@ -83,7 +84,7 @@ void Disable() {
 
 // static
 void RingBuffer::Reset() {
-  static_assert(std::is_trivially_constructible<Record>::value &&
+  static_assert(PERFETTO_IS_TRIVIALLY_CONSTRUCTIBLE(Record) &&
                     std::is_trivially_destructible<Record>::value,
                 "Record must be trivial");
   memset(&records_[0], 0, sizeof(records_));
