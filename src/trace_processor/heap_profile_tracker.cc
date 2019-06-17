@@ -45,16 +45,13 @@ HeapProfileTracker::HeapProfileTracker(TraceProcessorContext* context)
 
 HeapProfileTracker::~HeapProfileTracker() = default;
 
-void HeapProfileTracker::AddString(ProfileIndex pidx,
-                                   SourceStringId id,
-                                   StringId str) {
-  string_map_.emplace(std::make_pair(pidx, id), str);
+void HeapProfileTracker::AddString(SourceStringId id, StringId str) {
+  string_map_.emplace(id, str);
 }
 
-void HeapProfileTracker::AddMapping(ProfileIndex pidx,
-                                    SourceMappingId id,
+void HeapProfileTracker::AddMapping(SourceMappingId id,
                                     const SourceMapping& mapping) {
-  auto opt_name_id = FindString(pidx, mapping.name_id);
+  auto opt_name_id = FindString(mapping.name_id);
   if (!opt_name_id) {
     context_->storage->IncrementStats(stats::heapprofd_invalid_string_id);
     PERFETTO_DFATAL("Invalid string.");
@@ -62,7 +59,7 @@ void HeapProfileTracker::AddMapping(ProfileIndex pidx,
   }
   const StringId name_id = opt_name_id.value();
 
-  auto opt_build_id = FindString(pidx, mapping.build_id);
+  auto opt_build_id = FindString(mapping.build_id);
   if (!opt_build_id) {
     context_->storage->IncrementStats(stats::heapprofd_invalid_string_id);
     PERFETTO_DFATAL("Invalid string.");
@@ -94,13 +91,11 @@ void HeapProfileTracker::AddMapping(ProfileIndex pidx,
     cur_row = context_->storage->mutable_heap_profile_mappings()->Insert(row);
     mapping_idx_.emplace(row, cur_row);
   }
-  mappings_.emplace(std::make_pair(pidx, id), cur_row);
+  mappings_.emplace(id, cur_row);
 }
 
-void HeapProfileTracker::AddFrame(ProfileIndex pidx,
-                                  SourceFrameId id,
-                                  const SourceFrame& frame) {
-  auto opt_str_id = FindString(pidx, frame.name_id);
+void HeapProfileTracker::AddFrame(SourceFrameId id, const SourceFrame& frame) {
+  auto opt_str_id = FindString(frame.name_id);
   if (!opt_str_id) {
     context_->storage->IncrementStats(stats::heapprofd_invalid_string_id);
     PERFETTO_DFATAL("Invalid string.");
@@ -108,7 +103,7 @@ void HeapProfileTracker::AddFrame(ProfileIndex pidx,
   }
   const StringId& str_id = opt_str_id.value();
 
-  auto mapping_it = mappings_.find({pidx, frame.mapping_id});
+  auto mapping_it = mappings_.find(frame.mapping_id);
   if (mapping_it == mappings_.end()) {
     context_->storage->IncrementStats(stats::heapprofd_invalid_mapping_id);
     PERFETTO_DFATAL("Invalid mapping.");
@@ -127,25 +122,24 @@ void HeapProfileTracker::AddFrame(ProfileIndex pidx,
     cur_row = context_->storage->mutable_heap_profile_frames()->Insert(row);
     frame_idx_.emplace(row, cur_row);
   }
-  frames_.emplace(std::make_pair(pidx, id), cur_row);
+  frames_.emplace(id, cur_row);
 }
 
-void HeapProfileTracker::AddCallstack(ProfileIndex pidx,
-                                      SourceCallstackId id,
+void HeapProfileTracker::AddCallstack(SourceCallstackId id,
                                       const SourceCallstack& frame_ids) {
   // TODO(fmayer): This should be NULL.
   int64_t parent_id = -1;
   for (size_t depth = 0; depth < frame_ids.size(); ++depth) {
     std::vector<uint64_t> frame_subset = frame_ids;
     frame_subset.resize(depth + 1);
-    auto self_it = callstacks_from_frames_.find({pidx, frame_subset});
+    auto self_it = callstacks_from_frames_.find(frame_subset);
     if (self_it != callstacks_from_frames_.end()) {
       parent_id = self_it->second;
       continue;
     }
 
     uint64_t frame_id = frame_ids[depth];
-    auto it = frames_.find({pidx, frame_id});
+    auto it = frames_.find(frame_id);
     if (it == frames_.end()) {
       context_->storage->IncrementStats(stats::heapprofd_invalid_frame_id);
       PERFETTO_DFATAL("Unknown frames.");
@@ -167,12 +161,11 @@ void HeapProfileTracker::AddCallstack(ProfileIndex pidx,
     }
     parent_id = self_id;
   }
-  callstacks_.emplace(std::make_pair(pidx, id), parent_id);
+  callstacks_.emplace(id, parent_id);
 }
 
-void HeapProfileTracker::AddAllocation(ProfileIndex pidx,
-                                       const SourceAllocation& alloc) {
-  auto it = callstacks_.find({pidx, alloc.callstack_id});
+void HeapProfileTracker::AddAllocation(const SourceAllocation& alloc) {
+  auto it = callstacks_.find(alloc.callstack_id);
   if (it == callstacks_.end()) {
     context_->storage->IncrementStats(stats::heapprofd_invalid_callstack_id);
     PERFETTO_DFATAL("Unknown callstack %" PRIu64 " : %zu", alloc.callstack_id,
@@ -229,21 +222,29 @@ void HeapProfileTracker::AddAllocation(ProfileIndex pidx,
   prev_free = free_row;
 }
 
-void HeapProfileTracker::StoreAllocation(ProfileIndex pidx,
-                                         SourceAllocation alloc) {
-  pending_allocs_.emplace_back(pidx, std::move(alloc));
+void HeapProfileTracker::StoreAllocation(SourceAllocation alloc) {
+  pending_allocs_.emplace_back(std::move(alloc));
 }
 
-void HeapProfileTracker::ApplyAllAllocations() {
+void HeapProfileTracker::CommitAllocations() {
   for (const auto& p : pending_allocs_)
-    AddAllocation(p.first, p.second);
+    AddAllocation(p);
   pending_allocs_.clear();
 }
 
+void HeapProfileTracker::FinalizeProfile() {
+  CommitAllocations();
+
+  string_map_.clear();
+  mappings_.clear();
+  frames_.clear();
+  callstacks_from_frames_.clear();
+  callstacks_.clear();
+}
+
 int64_t HeapProfileTracker::GetDatabaseFrameIdForTesting(
-    ProfileIndex pidx,
     SourceFrameId frame_id) {
-  auto it = frames_.find({pidx, frame_id});
+  auto it = frames_.find(frame_id);
   if (it == frames_.end()) {
     PERFETTO_DFATAL("Invalid frame.");
     return -1;
@@ -251,15 +252,14 @@ int64_t HeapProfileTracker::GetDatabaseFrameIdForTesting(
   return it->second;
 }
 
-base::Optional<StringId> HeapProfileTracker::FindString(ProfileIndex pidx,
-                                                        SourceStringId id) {
+base::Optional<StringId> HeapProfileTracker::FindString(SourceStringId id) {
   base::Optional<StringId> res;
   if (id == 0) {
     res = empty_;
     return res;
   }
 
-  auto it = string_map_.find({pidx, id});
+  auto it = string_map_.find(id);
   if (it == string_map_.end()) {
     context_->storage->IncrementStats(stats::heapprofd_invalid_string_id);
     PERFETTO_DFATAL("Invalid string.");
