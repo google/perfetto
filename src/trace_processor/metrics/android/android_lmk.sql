@@ -15,10 +15,11 @@
 --
 
 -- Create all the views used to for LMK related stuff.
-CREATE VIEW lmk_events AS
-SELECT ts, ref AS upid
+CREATE TABLE lmk_events AS
+SELECT ref AS upid, MIN(ts) AS ts
 FROM instants
-WHERE name = 'mem.lmk' AND ref_type = 'upid';
+WHERE name = 'mem.lmk' AND ref_type = 'upid'
+GROUP BY 1;
 
 CREATE VIEW oom_scores AS
 SELECT
@@ -31,10 +32,28 @@ FROM counter_definitions JOIN counter_values USING(counter_id)
 WHERE name = 'oom_score_adj' AND ref IS NOT NULL AND ref_type = 'upid';
 
 CREATE VIEW lmk_by_score AS
-SELECT lmk_events.upid, CAST(oom_scores.score AS INT)
+SELECT lmk_events.upid, CAST(oom_scores.score AS INT) AS score
 FROM lmk_events
 LEFT JOIN oom_scores
   ON (lmk_events.upid = oom_scores.upid AND
       lmk_events.ts >= oom_scores.ts AND
       lmk_events.ts < oom_scores.ts_end)
 ORDER BY lmk_events.upid;
+
+CREATE VIEW lmk_counts AS
+SELECT score, COUNT(1) AS count
+FROM lmk_by_score
+GROUP BY score;
+
+CREATE VIEW android_lmk_output AS
+SELECT AndroidLmkMetric(
+  'total_count', (SELECT COUNT(1) FROM lmk_events),
+  'by_oom_score', (
+    SELECT
+      RepeatedField(AndroidLmkMetric_ByOomScore(
+        'oom_score_adj', score,
+        'count', count
+      ))
+    FROM lmk_counts
+  )
+);

@@ -1,7 +1,7 @@
-android_mem {
-  system_metrics {
-    lmks {
-      total_count: 4
-    }
+android_lmk {
+  total_count: 1
+    by_oom_score {
+    oom_score_adj: 900
+    count: 1
   }
 }
