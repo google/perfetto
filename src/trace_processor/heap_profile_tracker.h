@@ -26,16 +26,6 @@
 namespace std {
 
 template <>
-struct hash<std::pair<uint64_t, uint64_t>> {
-  using argument_type = std::pair<uint64_t, uint64_t>;
-  using result_type = size_t;
-
-  result_type operator()(const argument_type& p) const {
-    return std::hash<uint64_t>{}(p.first) ^ std::hash<uint64_t>{}(p.second);
-  }
-};
-
-template <>
 struct hash<std::pair<uint32_t, int64_t>> {
   using argument_type = std::pair<uint32_t, int64_t>;
   using result_type = size_t;
@@ -46,13 +36,13 @@ struct hash<std::pair<uint32_t, int64_t>> {
 };
 
 template <>
-struct hash<std::pair<uint64_t, std::vector<uint64_t>>> {
-  using argument_type = std::pair<uint64_t, std::vector<uint64_t>>;
+struct hash<std::vector<uint64_t>> {
+  using argument_type = std::vector<uint64_t>;
   using result_type = size_t;
 
   result_type operator()(const argument_type& p) const {
-    auto h = std::hash<uint64_t>{}(p.first);
-    for (auto v : p.second)
+    size_t h = 0u;
+    for (auto v : p)
       h = h ^ std::hash<uint64_t>{}(v);
     return h;
   }
@@ -66,11 +56,6 @@ class TraceProcessorContext;
 
 class HeapProfileTracker {
  public:
-  // Not the same as ProfilePacket.index. This gets only gets incremented when
-  // encountering a ProfilePacket that is not continued.
-  // This namespaces all other Source*Ids.
-  using ProfileIndex = uint64_t;
-
   using SourceStringId = uint64_t;
 
   struct SourceMapping {
@@ -107,32 +92,34 @@ class HeapProfileTracker {
 
   explicit HeapProfileTracker(TraceProcessorContext* context);
 
-  void AddString(ProfileIndex, SourceStringId, StringId);
-  void AddMapping(ProfileIndex, SourceMappingId, const SourceMapping&);
-  void AddFrame(ProfileIndex, SourceFrameId, const SourceFrame&);
-  void AddCallstack(ProfileIndex, SourceCallstackId, const SourceCallstack&);
+  void AddString(SourceStringId, StringId);
+  void AddMapping(SourceMappingId, const SourceMapping&);
+  void AddFrame(SourceFrameId, const SourceFrame&);
+  void AddCallstack(SourceCallstackId, const SourceCallstack&);
 
-  void StoreAllocation(ProfileIndex, SourceAllocation);
-  void ApplyAllAllocations();
-
-  int64_t GetDatabaseFrameIdForTesting(ProfileIndex, SourceFrameId);
+  void StoreAllocation(SourceAllocation);
+  // Call after the last profile packet of a dump to commit the allocations
+  // that had been stored using StoreAllocation and clear internal indicies
+  // for that dump.
+  void FinalizeProfile();
+  // Only commit the allocations that had been stored using StoreAllocations.
+  // This is only needed in tests, use FinalizeProfile instead.
+  void CommitAllocations();
+  int64_t GetDatabaseFrameIdForTesting(SourceFrameId);
 
   ~HeapProfileTracker();
 
  private:
-  void AddAllocation(ProfileIndex, const SourceAllocation&);
+  void AddAllocation(const SourceAllocation&);
 
-  base::Optional<StringId> FindString(ProfileIndex, SourceStringId);
+  base::Optional<StringId> FindString(SourceStringId);
 
-  std::unordered_map<std::pair<ProfileIndex, SourceStringId>, StringId>
-      string_map_;
-  std::unordered_map<std::pair<ProfileIndex, SourceMappingId>, int64_t>
-      mappings_;
-  std::unordered_map<std::pair<ProfileIndex, SourceFrameId>, int64_t> frames_;
-  std::unordered_map<std::pair<ProfileIndex, SourceCallstack>, int64_t>
-      callstacks_from_frames_;
-  std::unordered_map<std::pair<ProfileIndex, SourceCallstackId>, int64_t>
-      callstacks_;
+  std::unordered_map<SourceStringId, StringId> string_map_;
+  std::unordered_map<SourceMappingId, int64_t> mappings_;
+  std::unordered_map<SourceFrameId, int64_t> frames_;
+  std::unordered_map<SourceCallstack, int64_t> callstacks_from_frames_;
+  std::unordered_map<SourceCallstackId, int64_t> callstacks_;
+  std::vector<SourceAllocation> pending_allocs_;
 
   std::unordered_map<TraceStorage::HeapProfileMappings::Row, int64_t>
       mapping_idx_;
@@ -146,8 +133,6 @@ class HeapProfileTracker {
   std::unordered_map<std::pair<UniquePid, int64_t>,
                      TraceStorage::HeapProfileAllocations::Row>
       prev_free_;
-
-  std::vector<std::pair<ProfileIndex, SourceAllocation>> pending_allocs_;
 
   TraceProcessorContext* const context_;
   const StringId empty_;
