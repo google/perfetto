@@ -414,9 +414,9 @@ function AdvancedSettings(cssClass: string) {
         {
           title: 'Advanced ftrace config',
           img: 'rec_ftrace.png',
-          descr: `Tunes the kernel-tracing (ftrace) module and allows to
-                    enable extra events. The events enabled here are on top
-                    of the ones derived when enabling the other probes.`,
+          descr: `Enable individual events and tune the kernel-tracing (ftrace)
+                  module. The events enabled here are in addition to those from
+                  enabled by other probes.`,
           setEnabled: (cfg, val) => cfg.ftrace = val,
           isEnabled: (cfg) => cfg.ftrace
         } as ProbeAttrs,
