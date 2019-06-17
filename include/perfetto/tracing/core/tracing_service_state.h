@@ -104,14 +104,14 @@ class PERFETTO_EXPORT TracingServiceState {
     void FromProto(const perfetto::protos::TracingServiceState_DataSource&);
     void ToProto(perfetto::protos::TracingServiceState_DataSource*) const;
 
-    const DataSourceDescriptor& descriptor() const { return descriptor_; }
-    DataSourceDescriptor* mutable_descriptor() { return &descriptor_; }
+    const DataSourceDescriptor& ds_descriptor() const { return ds_descriptor_; }
+    DataSourceDescriptor* mutable_ds_descriptor() { return &ds_descriptor_; }
 
     int32_t producer_id() const { return producer_id_; }
     void set_producer_id(int32_t value) { producer_id_ = value; }
 
    private:
-    DataSourceDescriptor descriptor_ = {};
+    DataSourceDescriptor ds_descriptor_ = {};
     int32_t producer_id_ = {};
 
     // Allows to preserve unknown protobuf fields for compatibility
