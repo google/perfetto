@@ -261,6 +261,7 @@ source_set("unittests") {
     "event_tracker_unittest.cc",
     "filtered_row_index_unittest.cc",
     "ftrace_utils_unittest.cc",
+    "fuchsia_trace_utils_unittest.cc",
     "heap_profile_tracker_unittest.cc",
     "metadata_table_unittest.cc",
     "null_term_string_view_unittest.cc",
