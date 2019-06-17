@@ -1,9 +1,9 @@
 # Real traces
-../data/lmk_userspace.pb android_mem android_mem_lmk.out
 ../data/memory_counters.pb android_mem android_mem_counters.out
 ../data/memory_counters.pb error_statistics error_statistics.out
 
 # Synthetic traces
+android_lmk.py android_lmk android_mem_lmk.out
 android_startup.py android_startup android_startup.out
 android_startup_breakdown.py android_startup android_startup_breakdown.out
 android_startup_battery.py android_batt android_batt_counters.out
