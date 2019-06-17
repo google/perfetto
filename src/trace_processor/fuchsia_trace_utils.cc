@@ -60,8 +60,29 @@ int64_t ReadTimestamp(const uint64_t** current_ptr, uint64_t ticks_per_second) {
   return TicksToNs(ticks, ticks_per_second);
 }
 
+// Converts a tick count to nanoseconds. Returns -1 if the result would not
+// fit in a nonnegative int64_t. Negative timestamps are not allowed by the
+// Fuchsia trace format.
 int64_t TicksToNs(uint64_t ticks, uint64_t ticks_per_second) {
-  return static_cast<int64_t>(ticks * uint64_t(1000000000) / ticks_per_second);
+  uint64_t ticks_hi = ticks >> 32;
+  uint64_t ticks_lo = ticks & ((uint64_t(1) << 32) - 1);
+  uint64_t ns_per_sec = 1000000000;
+  // This multiplication may overflow.
+  uint64_t result_hi = ticks_hi * ((ns_per_sec << 32) / ticks_per_second);
+  if (ticks_hi != 0 &&
+      result_hi / ticks_hi != ((ns_per_sec << 32) / ticks_per_second)) {
+    return -1;
+  }
+  // This computation never overflows, because ticks_lo is less than 2^32, and
+  // ns_per_sec = 10^9 < 2^32.
+  uint64_t result_lo = ticks_lo * ns_per_sec / ticks_per_second;
+  // Performing addition before the cast avoids undefined behavior.
+  int64_t result = static_cast<int64_t>(result_hi + result_lo);
+  // Check for addition overflow.
+  if (result < 0) {
+    return -1;
+  }
+  return result;
 }
 
 Variadic ArgValue::ToStorageVariadic(TraceStorage* storage) const {

@@ -265,6 +265,10 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       uint64_t ticks = *current++;
       int64_t ts = fuchsia_trace_utils::TicksToNs(
           ticks, current_provider_->ticks_per_second);
+      if (ts < 0) {
+        storage->IncrementStats(stats::fuchsia_timestamp_overflow);
+        break;
+      }
 
       if (fuchsia_trace_utils::IsInlineThread(thread_ref)) {
         // Skip over inline thread
