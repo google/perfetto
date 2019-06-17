@@ -57,6 +57,9 @@ class ProcessTracker {
   // end the thread lifetime for the utid associated with the given tid.
   void EndThread(int64_t timestamp, uint32_t tid, uint32_t pid);
 
+  // Returns the thread utid or base::nullopt if it doesn't exist.
+  base::Optional<UniqueTid> GetThreadOrNull(uint32_t tid);
+
   // Returns the thread utid (or creates a new entry if not present)
   UniqueTid GetOrCreateThread(uint32_t tid);
 
