@@ -46,6 +46,7 @@ source_set("tracing") {
     "core/null_trace_writer.cc",
     "core/null_trace_writer.h",
     "core/observable_events.cc",
+    "core/packages_list_config.cc",
     "core/packet_stream_validator.cc",
     "core/packet_stream_validator.h",
     "core/patch_list.h",
