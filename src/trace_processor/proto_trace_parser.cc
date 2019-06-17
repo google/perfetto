@@ -590,9 +590,15 @@ void ProtoTraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
 
   // Store the pid of the event that is lmk-ed.
   auto pid = static_cast<uint32_t>(lmk.pid());
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  auto row_id = context_->event_tracker->PushInstant(ts, lmk_id_, 0, utid,
-                                                     RefType::kRefUtid, true);
+  auto opt_utid = context_->process_tracker->GetThreadOrNull(pid);
+
+  // Don't add LMK events for threads we've never seen before. This works around
+  // the case where we get an LMK event after a thread has already been killed.
+  if (!opt_utid)
+    return;
+
+  auto row_id = context_->event_tracker->PushInstant(
+      ts, lmk_id_, 0, opt_utid.value(), RefType::kRefUtid, true);
 
   // Store the comm as an arg.
   auto comm_id = context_->storage->InternString(

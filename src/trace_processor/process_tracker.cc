@@ -50,7 +50,7 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid, uint32_t pid) {
   thread->end_ns = timestamp;
 }
 
-UniqueTid ProcessTracker::GetOrCreateThread(uint32_t tid) {
+base::Optional<UniqueTid> ProcessTracker::GetThreadOrNull(uint32_t tid) {
   auto pair_it = tids_.equal_range(tid);
   if (pair_it.first != pair_it.second) {
     auto prev_utid = std::prev(pair_it.second)->second;
@@ -61,7 +61,12 @@ UniqueTid ProcessTracker::GetOrCreateThread(uint32_t tid) {
     if (thread->end_ns == 0)
       return prev_utid;
   }
-  return StartNewThread(0, tid, 0);
+  return base::nullopt;
+}
+
+UniqueTid ProcessTracker::GetOrCreateThread(uint32_t tid) {
+  auto utid = GetThreadOrNull(tid);
+  return utid ? utid.value() : StartNewThread(0, tid, 0);
 }
 
 UniqueTid ProcessTracker::UpdateThreadName(uint32_t tid,
