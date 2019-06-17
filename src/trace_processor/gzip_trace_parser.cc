@@ -72,7 +72,7 @@ util::Status GzipTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
         return util::ErrStatus("Error decompressing ctrace file");
     }
 
-    size_t read = size * 64 - z_stream_->avail_out;
+    size_t read = kUncompressedBufferSize - z_stream_->avail_out;
     util::Status status = inner_->Parse(std::move(buffer), read);
     if (!status.ok())
       return status;
