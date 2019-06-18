@@ -91,7 +91,8 @@ SELECT
       WHERE upid IN (
         SELECT upid FROM launch_processes
         WHERE launch_id = launches.id
-        LIMIT 1)
+        LIMIT 1
+      )
     ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
     'activity_hosting_process_count', (
@@ -99,7 +100,7 @@ SELECT
     ),
     'to_first_frame', AndroidStartupMetric_ToFirstFrame(
       'dur_ns', launches.dur,
-      'main_thread_by_task_state', TaskStateBreakdown(
+      'main_thread_by_task_state', AndroidStartupMetric_TaskStateBreakdown(
         'running_dur_ns', IFNULL(
             (
             SELECT dur FROM launch_by_thread_state
