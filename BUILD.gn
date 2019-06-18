@@ -48,8 +48,9 @@ group("all") {
     ":perfetto_unittests",
     "src/protozero/protoc_plugin($host_toolchain)",
   ]
-  if (perfetto_build_standalone || build_with_chromium) {
-    deps += [ ":trace_processor" ]
+  if (perfetto_build_standalone || perfetto_build_with_android ||
+      build_with_chromium) {
+    deps += [ ":trace_processor_shell" ]
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
     deps += [
@@ -103,9 +104,11 @@ group("default") {
 
 # The trace processor shell executable. An interactive shell that allows to
 # make queries on the trace using the terminal.
-if (perfetto_build_standalone || build_with_chromium) {
-  group("trace_processor") {
+if (perfetto_build_standalone || perfetto_build_with_android ||
+    build_with_chromium) {
+  executable("trace_processor_shell") {
     deps = [
+      "gn:default_deps",
       "src/trace_processor:trace_processor_shell",
     ]
     testonly = true  # We need this for proto full.
