@@ -650,32 +650,32 @@ uint64_t ReadTrace(TraceProcessor* tp, int file_descriptor) {
 
 #else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 void PrintUsage(char** argv) {
-  PERFETTO_ELOG(
-      "Interactive trace processor shell.\n"
-      "Usage: %s [OPTIONS] trace_file.pb\n\n"
-      "Options:\n"
-      " -h|--help                          Prints this usage.\n"
-      " -v|--version                       Prints the version of trace "
-      "processor.\n"
-      " -d|--debug                         Enable virtual table debugging.\n"
-      " -p|--perf-file FILE                Writes the time taken to ingest the "
-      "trace and execute the queries to the given file. Only valid with -q or "
-      "--run-metrics and the file will only be written if the execution is "
-      "successful\n"
-      " -q|--query-file FILE               Read and execute an SQL query from "
-      "a file.\n"
-      " -i|--interactive                           Starts interactive mode "
-      "even after a query file is specified with -q or --run-metrics.\n"
-      " -e|--export FILE                   Export the trace into a SQLite "
-      "database.\n"
-      " --run-metrics x,y,z                Runs a comma separated list of "
-      "metrics and prints the result as a TraceMetrics proto to stdout. The "
-      "metrics specified can either be in-built metrics or SQL/proto files of "
-      "extension metrics.\n"
-      " --metrics-output=[binary|text]      Allows the output of --run-metrics "
-      "to be specified in either proto binary or proto text format (default: "
-      "text)",
-      argv[0]);
+  PERFETTO_ELOG(R"(
+Interactive trace processor shell.
+Usage: %s [OPTIONS] trace_file.pb
+
+Options:
+ -h, --help                      Prints this guide.
+ -v, --version                   Prints the version of trace processor.
+ -d, --debug                     Enable virtual table debugging.
+ -p, --perf-file FILE            Writes the time taken to ingest the trace and
+                                 execute the queries to the given file. Only
+                                 valid with -q or --run-metrics and the file
+                                 will only be written if the execution
+                                 is successful.
+ -q, --query-file FILE           Read and execute an SQL query from a file.
+ -i, --interactive               Starts interactive mode even after a query file
+                                 is specified with -q or --run-metrics.
+ -e, --export FILE               Export the trace into a SQLite database.
+ --run-metrics x,y,z             Runs a comma separated list of metrics and
+                                 prints the result as a TraceMetrics proto to
+                                 stdout. The specified can either be in-built
+                                 metrics or SQL/proto files of extension
+                                 metrics.
+ --metrics-output=[binary|text]  Allows the output of --run-metrics to be
+                                 specified in either proto binary or proto
+                                 text format (default: text).)",
+                argv[0]);
 }
 
 uint64_t ReadTrace(TraceProcessor* tp, int file_descriptor) {
