@@ -332,6 +332,7 @@ cc_library(
     deps = [
         "//third_party/perfetto:gen_merged_sql_metrics",
         "//third_party/perfetto/google:jsoncpp",
+        "//third_party/perfetto/google:zlib",
         "//third_party/perfetto/protos:common_zero_cc_proto",
         "//third_party/perfetto/protos:config_zero_cc_proto",
         "//third_party/perfetto/protos:metrics_android_zero_cc_proto",
@@ -352,7 +353,6 @@ cc_library(
         "//third_party/perfetto/protos:trace_zero_cc_proto",
         "//third_party/sqlite",
         "//third_party/sqlite:sqlite_ext_percentile",
-        "//third_party/zlib",
     ],
 )
 
@@ -569,6 +569,7 @@ cc_binary(
         "//third_party/perfetto/google:jsoncpp",
         "//third_party/perfetto/google:linenoise",
         "//third_party/perfetto/google:perfetto_version",
+        "//third_party/perfetto/google:zlib",
         "//third_party/perfetto/protos:common_zero_cc_proto",
         "//third_party/perfetto/protos:config_zero_cc_proto",
         "//third_party/perfetto/protos:metrics_android_zero_cc_proto",
@@ -591,7 +592,6 @@ cc_binary(
         "//third_party/protobuf:libprotoc",
         "//third_party/sqlite",
         "//third_party/sqlite:sqlite_ext_percentile",
-        "//third_party/zlib",
     ],
 )
 
@@ -817,6 +817,7 @@ cc_binary(
         "//third_party/perfetto:gen_merged_sql_metrics",
         "//third_party/perfetto/google:jsoncpp",
         "//third_party/perfetto/google:perfetto_version",
+        "//third_party/perfetto/google:zlib",
         "//third_party/perfetto/protos:common_cc_proto",
         "//third_party/perfetto/protos:common_zero_cc_proto",
         "//third_party/perfetto/protos:config_cc_proto",
@@ -856,7 +857,6 @@ cc_binary(
         "//third_party/protobuf:libprotoc",
         "//third_party/sqlite",
         "//third_party/sqlite:sqlite_ext_percentile",
-        "//third_party/zlib",
     ],
 )
 
