@@ -104,7 +104,7 @@ def enable_perfetto_version(module):
 
 
 def enable_zlib(module):
-  module.deps.add(Label('//third_party/zlib'))
+  module.deps.add(Label('//third_party/perfetto/google:zlib'))
 
 
 def disable_module(module):
