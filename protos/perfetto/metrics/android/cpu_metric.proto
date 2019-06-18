@@ -20,7 +20,6 @@ option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 message AndroidCpuMetric {
-
   // CPU frequency information for one CPU and per thread.
   message CpuFrequencyData {
     optional uint32 id = 1;
@@ -44,7 +43,7 @@ message AndroidCpuMetric {
     optional string name = 1;
     repeated Thread threads = 2;
   }
- 
+
   // Process name and CPU frequency data aggregated by thread and cpu.
   repeated Process process_info = 1;
 }

@@ -47,11 +47,16 @@ ORDER BY ts;
 
 CREATE VIEW android_batt_output AS
 SELECT AndroidBatteryMetric(
-       'battery_counters', (
-                  SELECT RepeatedField(BatteryCounters(
-                  'timestamp_ns', ts,
-                  'charge_counter_uah', charge_uah,
-                  'capacity_percent', capacity_percent,
-                  'current_ua', current_ua,
-                  'current_avg_ua', current_avg_ua)) FROM battery_view)
-                  );
+  'battery_counters', (
+    SELECT RepeatedField(
+      AndroidBatteryMetric_BatteryCounters(
+            'timestamp_ns', ts,
+            'charge_counter_uah', charge_uah,
+            'capacity_percent', capacity_percent,
+            'current_ua', current_ua,
+            'current_avg_ua', current_avg_ua
+      )
+    )
+    FROM battery_view
+  )
+);
