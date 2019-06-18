@@ -19,17 +19,17 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-// A simplified view of the task state durations for a thread
-// and a span of time.
-message TaskStateBreakdown {
-  optional int64 running_dur_ns = 1;
-  optional int64 runnable_dur_ns = 2;
-  optional int64 uninterruptible_sleep_dur_ns = 3;
-  optional int64 interruptible_sleep_dur_ns = 4;
-}
-
 // Android app startup metrics.
 message AndroidStartupMetric {
+  // A simplified view of the task state durations for a thread
+  // and a span of time.
+  message TaskStateBreakdown {
+    optional int64 running_dur_ns = 1;
+    optional int64 runnable_dur_ns = 2;
+    optional int64 uninterruptible_sleep_dur_ns = 3;
+    optional int64 interruptible_sleep_dur_ns = 4;
+  }
+
   message Slice { optional int64 dur_ns = 1; }
 
   // Timing information spanning the intent received by the

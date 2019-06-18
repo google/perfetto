@@ -19,7 +19,8 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-message BatteryCounters {
+message AndroidBatteryMetric {
+  message BatteryCounters {
     // Timestamp measured from boot time [ns].
     optional int64 timestamp_ns = 1;
     // Fields 2-5 are the same as in BatteryCounters proto in TracePacket.
@@ -27,9 +28,8 @@ message BatteryCounters {
     optional float capacity_percent = 3;
     optional double current_ua = 4;
     optional double current_avg_ua = 5;
-}
+  }
 
-message AndroidBatteryMetric {
    // Battery counters info for each ts of the trace. This should only be
    // extracted for short traces.
   repeated BatteryCounters battery_counters = 1;
