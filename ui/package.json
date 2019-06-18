@@ -11,12 +11,14 @@
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "@types/mithril": "^1.1.16",
-    "@types/uuid": "^3.4.4",
     "@types/color-convert": "^1.9.0",
+    "@types/mithril": "^1.1.16",
+    "@types/pako": "^1.0.1",
+    "@types/uuid": "^3.4.4",
     "color-convert": "^2.0.0",
     "immer": "^1.12.1",
     "mithril": "^1.1.6",
+    "pako": "^1.0.10",
     "protobufjs": "^6.8.8",
     "uuid": "^3.3.2"
   },
