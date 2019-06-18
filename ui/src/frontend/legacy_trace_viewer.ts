@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {inflate} from 'pako';
+
 import {assertTrue} from '../base/logging';
+
 import {globals} from './globals';
 
 export function isLegacyTrace(fileName: string): boolean {
@@ -36,12 +39,14 @@ export function openFileWithLegacyTraceViewer(file: File) {
   reader.onerror = err => {
     console.error(err);
   };
-  if (file.name.endsWith('.gz') || file.name.endsWith('.zip')) {
+  if (file.name.endsWith('.gz') || file.name.endsWith('.zip') ||
+      file.name.endsWith('.ctrace')) {
     reader.readAsArrayBuffer(file);
   } else {
     reader.readAsText(file);
   }
 }
+
 
 export function openBufferWithLegacyTraceViewer(
     name: string, data: ArrayBuffer|string, size: number) {
@@ -50,7 +55,15 @@ export function openBufferWithLegacyTraceViewer(
     if (size !== data.byteLength) {
       data = data.slice(0, size);
     }
+
+    // Handle .ctrace files.
+    const enc = new TextDecoder('utf-8');
+    const header = enc.decode(data.slice(0, 7));
+    if (header === 'TRACE:\n') {
+      data = inflate(new Uint8Array(data.slice(7, size)), {to: 'string'});
+    }
   }
+
   document.body.style.transition =
       'filter 1s ease, transform 1s cubic-bezier(0.985, 0.005, 1.000, 0.225)';
   document.body.style.filter = 'grayscale(1) blur(10px) opacity(0)';
