@@ -18,11 +18,41 @@
 
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/base/string_splitter.h"
-
+#include "perfetto/config/android/packages_list_config.pbzero.h"
+#include "perfetto/trace/android/packages_list.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/packages_list_config.h"
 #include "perfetto/tracing/core/trace_writer.h"
 
+using perfetto::protos::pbzero::PackagesListConfig;
+
 namespace perfetto {
+
+bool ParsePackagesListStream(protos::pbzero::PackagesList* packages_list_packet,
+                             const base::ScopedFstream& fs,
+                             const std::set<std::string>& package_name_filter) {
+  bool parsed_fully = true;
+  char line[2048];
+  while (fgets(line, sizeof(line), *fs) != nullptr) {
+    Package pkg_struct;
+    if (!ReadPackagesListLine(line, &pkg_struct)) {
+      parsed_fully = false;
+      continue;
+    }
+    if (!package_name_filter.empty() &&
+        package_name_filter.count(pkg_struct.name) == 0) {
+      continue;
+    }
+    auto* package = packages_list_packet->add_packages();
+    package->set_name(pkg_struct.name.c_str(), pkg_struct.name.size());
+    package->set_uid(pkg_struct.uid);
+    package->set_debuggable(pkg_struct.debuggable);
+    package->set_profileable_from_shell(pkg_struct.profileable_from_shell);
+    package->set_version_code(pkg_struct.version_code);
+  }
+  return parsed_fully;
+}
 
 bool ReadPackagesListLine(char* line, Package* package) {
   size_t idx = 0;
@@ -79,9 +109,15 @@ bool ReadPackagesListLine(char* line, Package* package) {
 }
 
 PackagesListDataSource::PackagesListDataSource(
+    const DataSourceConfig& ds_config,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, kTypeId), writer_(std::move(writer)) {}
+    : ProbesDataSource(session_id, kTypeId), writer_(std::move(writer)) {
+  for (const auto& name :
+       ds_config.packages_list_config().package_name_filter()) {
+    package_name_filter_.emplace(name);
+  }
+}
 
 void PackagesListDataSource::Start() {
   base::ScopedFstream fs(fopen("/data/system/packages.list", "r"));
@@ -94,23 +130,10 @@ void PackagesListDataSource::Start() {
     writer_->Flush();
     return;
   }
-  bool parse_error = false;
-  char line[2048];
-  while (fgets(line, sizeof(line), *fs) != nullptr) {
-    Package pkg_struct;
-    if (ReadPackagesListLine(line, &pkg_struct)) {
-      auto* package = packages_list_packet->add_packages();
-      package->set_name(pkg_struct.name.c_str(), pkg_struct.name.size());
-      package->set_uid(pkg_struct.uid);
-      package->set_debuggable(pkg_struct.debuggable);
-      package->set_profileable_from_shell(pkg_struct.profileable_from_shell);
-      package->set_version_code(pkg_struct.version_code);
-    } else {
-      parse_error = true;
-    }
-  }
 
-  if (parse_error)
+  bool parsed_fully =
+      ParsePackagesListStream(packages_list_packet, fs, package_name_filter_);
+  if (!parsed_fully)
     packages_list_packet->set_parse_error(true);
 
   if (ferror(*fs))
