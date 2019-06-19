@@ -29,6 +29,9 @@
 
 namespace perfetto {
 
+std::string EventNameToProtoName(const std::string&);
+std::string EventNameToProtoFieldName(const std::string&);
+
 void PrintFtraceEventProtoAdditions(const std::set<std::string>& events);
 void PrintEventFormatterMain(const std::set<std::string>& events);
 void PrintEventFormatterUsingStatements(const std::set<std::string>& events);

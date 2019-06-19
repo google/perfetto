@@ -34,6 +34,14 @@ namespace perfetto {
 using base::StartsWith;
 using base::Contains;
 
+std::string EventNameToProtoFieldName(const std::string& name) {
+  return (name == "0") ? "zero" : name;
+}
+
+std::string EventNameToProtoName(const std::string& name) {
+  return ToCamelCase(EventNameToProtoFieldName(name)) + "FtraceEvent";
+}
+
 std::vector<FtraceEventName> ReadWhitelist(const std::string& filename) {
   std::string line;
   std::vector<FtraceEventName> lines;
@@ -97,7 +105,7 @@ void PrintEventFormatterFunctions(const std::set<std::string>& events) {
 }
 
 bool GenerateProto(const FtraceEvent& format, Proto* proto_out) {
-  proto_out->name = ToCamelCase(format.name) + "FtraceEvent";
+  proto_out->name = EventNameToProtoName(format.name);
   proto_out->event_name = format.name;
   std::set<std::string> seen;
   // TODO(hjd): We should be cleverer about id assignment.
@@ -163,19 +171,20 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
       continue;
     }
 
-    std::string typeName = ToCamelCase(event.name()) + "FtraceEvent";
+    std::string field_name = EventNameToProtoFieldName(event.name());
+    std::string type_name = EventNameToProtoName(event.name());
 
     // "    " (indent) + TypeName + " " + field_name + " = " + 123 + ";"
-    if (4 + typeName.size() + 1 + event.name().size() + 3 + 3 + 1 <= 80) {
+    if (4 + type_name.size() + 1 + field_name.size() + 3 + 3 + 1 <= 80) {
       // Everything fits in one line:
-      *fout << "    " << typeName << " " << event.name() << " = " << i << ";\n";
-    } else if (4 + typeName.size() + 1 + event.name().size() + 2 <= 80) {
+      *fout << "    " << type_name << " " << field_name << " = " << i << ";\n";
+    } else if (4 + type_name.size() + 1 + field_name.size() + 2 <= 80) {
       // Everything fits except the field id:
-      *fout << "    " << typeName << " " << event.name() << " =\n        " << i
+      *fout << "    " << type_name << " " << field_name << " =\n        " << i
             << ";\n";
     } else {
       // Nothing fits:
-      *fout << "    " << typeName << "\n        " << event.name() << " = " << i
+      *fout << "    " << type_name << "\n        " << field_name << " = " << i
             << ";\n";
     }
     ++i;
