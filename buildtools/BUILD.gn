@@ -852,6 +852,7 @@ source_set("linenoise") {
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":linenoise_config" ]
+  cflags = [ "-Wno-tautological-unsigned-zero-compare" ]
 }
 
 if (use_libfuzzer) {
