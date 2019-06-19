@@ -23,22 +23,11 @@ package perfetto.protos;
 message AndroidMemoryMetric {
   // Next id: 6
   message SystemMetrics {
-    reserved 3;
+    reserved 3, 5;
 
     optional Counter anon_pages = 1;
     optional Counter mmaped_pages = 2;
     repeated NamedCounter ion_buffers = 4;
-    optional LowMemoryKills lmks = 5;
-  }
-
-  message LowMemoryKills {
-    message LowMemoryKillBreakdown {
-      optional int32 oom_score_adj = 1;
-      optional int32 count = 2;
-    }
-
-    optional int32 total_count = 1;
-    repeated LowMemoryKillBreakdown breakdown = 2;
   }
 
   // Next id: 14
