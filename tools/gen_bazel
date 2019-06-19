@@ -58,9 +58,9 @@ gn_args = 'target_os="linux" is_debug=false host_os="linux"'
 
 # Default targets to translate to the blueprint file.
 default_targets = [
+  '//:trace_processor_shell',
   '//src/protozero:libprotozero',
   '//src/trace_processor:trace_processor',
-  '//src/trace_processor:trace_processor_shell_host(//gn/standalone/toolchain:gcc_like_host)',
   '//tools/trace_to_text:trace_to_text_host(//gn/standalone/toolchain:gcc_like_host)',
   '//protos/perfetto/config:merged_config_gen',
   '//protos/perfetto/trace:merged_trace_gen',
@@ -72,7 +72,6 @@ default_targets = [
 alias_targets = {
   '//src/protozero:libprotozero': 'libprotozero',
   '//src/trace_processor:trace_processor': 'trace_processor',
-  '//src/trace_processor:trace_processor_shell_host': 'trace_processor_shell',
   '//tools/trace_to_text:trace_to_text_host': 'trace_to_text',
 }
 
