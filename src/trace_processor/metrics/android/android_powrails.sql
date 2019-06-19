@@ -20,20 +20,26 @@ SELECT value, ts/1000000 AS ts, name FROM counters WHERE name LIKE 'power.%';
 
 CREATE VIEW power_rails_view AS
 WITH RECURSIVE name AS (SELECT DISTINCT name FROM power_rails_counters)
-SELECT name,
-       ts,
-       AndroidPowerRails_PowerRails('name',
-                                    name,
-                                    'energy_data',
-                                    RepeatedField(
-                                    AndroidPowerRails_EnergyData(
-                                                           'timestamp_ms', ts,
-                                                           'energy_uws', value))
-                                    ) AS power_rails_proto
+SELECT
+  name,
+  ts,
+  AndroidPowerRails_PowerRails(
+    'name', name,
+    'energy_data', RepeatedField(
+      AndroidPowerRails_EnergyData(
+        'timestamp_ms', ts,
+        'energy_uws', value
+      )
+    )
+  ) AS power_rails_proto
 FROM power_rails_counters
 GROUP BY name
 ORDER BY ts ASC;
 
 CREATE VIEW android_powrails_output AS
-SELECT AndroidPowerRails('power_rails', (SELECT RepeatedField(power_rails_proto)
-                                         FROM power_rails_view));
+SELECT AndroidPowerRails(
+  'power_rails', (
+    SELECT RepeatedField(power_rails_proto)
+    FROM power_rails_view
+  )
+);
