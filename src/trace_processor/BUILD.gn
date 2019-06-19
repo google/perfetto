@@ -208,49 +208,25 @@ source_set("lib") {
   }
 }
 
-if (current_toolchain == host_toolchain) {
-  executable("trace_processor_shell_host") {
-    testonly = true  # We need this for proto full.
-    deps = [
-      ":lib",
-      "../../gn:default_deps",
-      "../../gn:protobuf_full",
-      "../base",
-      "metrics:lib",
-    ]
-    if (perfetto_build_standalone) {
-      deps += [
-        "../../gn:linenoise",
-        "../../gn/standalone:gen_git_revision",
-      ]
-    }
-
-    sources = [
-      "trace_processor_shell.cc",
+source_set("trace_processor_shell") {
+  testonly = true  # We need this for proto full.
+  deps = [
+    ":lib",
+    "../../gn:default_deps",
+    "../../gn:protobuf_full",
+    "../base",
+    "metrics:lib",
+  ]
+  if (perfetto_build_standalone) {
+    deps += [
+      "../../gn:linenoise",
+      "../../gn/standalone:gen_git_revision",
     ]
   }
-}
 
-if (perfetto_build_standalone || build_with_chromium) {
-  copy("trace_processor_shell") {
-    testonly = true  # We need this for proto full.
-    host_out_dir_ =
-        get_label_info(":trace_processor_shell_host($host_toolchain)",
-                       "root_out_dir")
-    extension_ = ""
-    if (host_os == "win") {
-      extension_ = ".exe"
-    }
-    deps = [
-      ":trace_processor_shell_host($host_toolchain)",
-    ]
-    sources = [
-      "${host_out_dir_}/trace_processor_shell_host${extension_}",
-    ]
-    outputs = [
-      "${root_out_dir}/trace_processor_shell${extension_}",
-    ]
-  }
+  sources = [
+    "trace_processor_shell.cc",
+  ]
 }
 
 source_set("unittests") {
