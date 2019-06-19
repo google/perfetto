@@ -20,29 +20,31 @@ SELECT
   capacity_percent,
   charge_uah,
   current_ua
-FROM (SELECT distinct(ts) AS ts
-      FROM counters
-      WHERE name LIKE 'batt.%') AS all_ts
-      LEFT JOIN(
-         SELECT ts, value AS current_avg_ua
-         FROM counters
-         WHERE name='batt.current.avg_ua')
-      USING(ts)
-      LEFT JOIN(
-         SELECT ts, value AS capacity_percent
-         FROM counters
-         WHERE name='batt.capacity_pct')
-      USING(ts)
-      LEFT JOIN(
-         SELECT ts, value AS charge_uah
-         FROM counters
-         WHERE name='batt.charge_uah')
-      USING(ts)
-      LEFT JOIN(
-         SELECT ts, value AS current_ua
-         FROM counters
-         WHERE name='batt.current_ua')
-      USING(ts)
+FROM (
+  SELECT distinct(ts) AS ts
+  FROM counters
+  WHERE name LIKE 'batt.%'
+) AS all_ts
+LEFT JOIN (
+  SELECT ts, value AS current_avg_ua
+  FROM counters
+  WHERE name='batt.current.avg_ua'
+) USING(ts)
+LEFT JOIN (
+  SELECT ts, value AS capacity_percent
+  FROM counters
+  WHERE name='batt.capacity_pct'
+) USING(ts)
+LEFT JOIN (
+  SELECT ts, value AS charge_uah
+  FROM counters
+  WHERE name='batt.charge_uah'
+) USING(ts)
+LEFT JOIN (
+  SELECT ts, value AS current_ua
+  FROM counters
+  WHERE name='batt.current_ua'
+) USING(ts)
 ORDER BY ts;
 
 CREATE VIEW android_batt_output AS
@@ -50,11 +52,11 @@ SELECT AndroidBatteryMetric(
   'battery_counters', (
     SELECT RepeatedField(
       AndroidBatteryMetric_BatteryCounters(
-            'timestamp_ns', ts,
-            'charge_counter_uah', charge_uah,
-            'capacity_percent', capacity_percent,
-            'current_ua', current_ua,
-            'current_avg_ua', current_avg_ua
+        'timestamp_ns', ts,
+        'charge_counter_uah', charge_uah,
+        'capacity_percent', capacity_percent,
+        'current_ua', current_ua,
+        'current_avg_ua', current_avg_ua
       )
     )
     FROM battery_view
