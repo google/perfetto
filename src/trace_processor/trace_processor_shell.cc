@@ -45,6 +45,13 @@
 #define PERFETTO_HAS_SIGNAL_H() 0
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#define PERFETTO_HAS_AIO_H() 1
+#else
+#define PERFETTO_HAS_AIO_H() 0
+#endif
+
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 #include <linenoise.h>
 #include <pwd.h>
@@ -58,10 +65,13 @@
 #include <signal.h>
 #endif
 
+#if PERFETTO_HAS_AIO_H()
+#include <aio.h>
+#endif
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #define ftruncate _chsize
 #else
-#include <aio.h>
 #include <getopt.h>
 #endif
 
@@ -593,91 +603,7 @@ struct CommandLineOptions {
   bool launch_shell = false;
 };
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-void PrintUsage(char** argv) {
-  PERFETTO_ELOG(
-      "Interactive trace processor shell.\n"
-      "Usage: %s [-q query_file] trace_file.pb",
-      argv[0]);
-}
-
-CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
-  CommandLineOptions command_line_options;
-
-  if (argc == 2) {
-    command_line_options.trace_file_path = argv[1];
-  } else if (argc == 4) {
-    if (strcmp(argv[1], "-q") != 0) {
-      PrintUsage(argv);
-      exit(1);
-    }
-    command_line_options.query_file_path = argv[2];
-    command_line_options.trace_file_path = argv[3];
-  } else {
-    PrintUsage(argv);
-    exit(1);
-  }
-
-  return command_line_options;
-}
-
-uint64_t ReadTrace(TraceProcessor* tp, int file_descriptor) {
-  // Load the trace in chunks using ordinary read().
-  // This version is used on Windows, since there's no aio library.
-
-  constexpr size_t kChunkSize = 1024 * 1024;
-  uint64_t file_size = 0;
-
-  for (int i = 0;; i++) {
-    if (i % 128 == 0)
-      fprintf(stderr, "\rLoading trace: %.2f MB\r", file_size / 1E6);
-
-    std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);
-    auto rsize = read(file_descriptor, buf.get(), kChunkSize);
-    if (rsize <= 0)
-      break;
-    file_size += static_cast<uint64_t>(rsize);
-
-    util::Status status = tp->Parse(std::move(buf), static_cast<size_t>(rsize));
-    if (PERFETTO_UNLIKELY(!status.ok())) {
-      PERFETTO_ELOG("Fatal error while parsing trace: %s", status.c_message());
-      exit(1);
-    }
-  }
-  tp->NotifyEndOfFile();
-  return file_size;
-}
-
-#else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-void PrintUsage(char** argv) {
-  PERFETTO_ELOG(R"(
-Interactive trace processor shell.
-Usage: %s [OPTIONS] trace_file.pb
-
-Options:
- -h, --help                      Prints this guide.
- -v, --version                   Prints the version of trace processor.
- -d, --debug                     Enable virtual table debugging.
- -p, --perf-file FILE            Writes the time taken to ingest the trace and
-                                 execute the queries to the given file. Only
-                                 valid with -q or --run-metrics and the file
-                                 will only be written if the execution
-                                 is successful.
- -q, --query-file FILE           Read and execute an SQL query from a file.
- -i, --interactive               Starts interactive mode even after a query file
-                                 is specified with -q or --run-metrics.
- -e, --export FILE               Export the trace into a SQLite database.
- --run-metrics x,y,z             Runs a comma separated list of metrics and
-                                 prints the result as a TraceMetrics proto to
-                                 stdout. The specified can either be in-built
-                                 metrics or SQL/proto files of extension
-                                 metrics.
- --metrics-output=[binary|text]  Allows the output of --run-metrics to be
-                                 specified in either proto binary or proto
-                                 text format (default: text).)",
-                argv[0]);
-}
-
+#if PERFETTO_HAS_AIO_H()
 uint64_t ReadTrace(TraceProcessor* tp, int file_descriptor) {
   // Load the trace in chunks using async IO. We create a simple pipeline where,
   // at each iteration, we parse the current chunk and asynchronously start
@@ -735,6 +661,92 @@ uint64_t ReadTrace(TraceProcessor* tp, int file_descriptor) {
   }
   tp->NotifyEndOfFile();
   return file_size;
+}
+#else   // PERFETTO_HAS_AIO_H()
+uint64_t ReadTrace(TraceProcessor* tp, int file_descriptor) {
+  // Load the trace in chunks using ordinary read().
+  // This version is used on Windows, since there's no aio library.
+
+  constexpr size_t kChunkSize = 1024 * 1024;
+  uint64_t file_size = 0;
+
+  for (int i = 0;; i++) {
+    if (i % 128 == 0)
+      fprintf(stderr, "\rLoading trace: %.2f MB\r", file_size / 1E6);
+
+    std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);
+    auto rsize = read(file_descriptor, buf.get(), kChunkSize);
+    if (rsize <= 0)
+      break;
+    file_size += static_cast<uint64_t>(rsize);
+
+    util::Status status = tp->Parse(std::move(buf), static_cast<size_t>(rsize));
+    if (PERFETTO_UNLIKELY(!status.ok())) {
+      PERFETTO_ELOG("Fatal error while parsing trace: %s", status.c_message());
+      exit(1);
+    }
+  }
+  tp->NotifyEndOfFile();
+  return file_size;
+}
+#endif  // PERFETTO_HAS_AIO_H()
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+void PrintUsage(char** argv) {
+  PERFETTO_ELOG(
+      "Interactive trace processor shell.\n"
+      "Usage: %s [-q query_file] trace_file.pb",
+      argv[0]);
+}
+
+CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
+  CommandLineOptions command_line_options;
+
+  if (argc == 2) {
+    command_line_options.trace_file_path = argv[1];
+  } else if (argc == 4) {
+    if (strcmp(argv[1], "-q") != 0) {
+      PrintUsage(argv);
+      exit(1);
+    }
+    command_line_options.query_file_path = argv[2];
+    command_line_options.trace_file_path = argv[3];
+  } else {
+    PrintUsage(argv);
+    exit(1);
+  }
+
+  return command_line_options;
+}
+
+#else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+void PrintUsage(char** argv) {
+  PERFETTO_ELOG(R"(
+Interactive trace processor shell.
+Usage: %s [OPTIONS] trace_file.pb
+
+Options:
+ -h, --help                      Prints this guide.
+ -v, --version                   Prints the version of trace processor.
+ -d, --debug                     Enable virtual table debugging.
+ -p, --perf-file FILE            Writes the time taken to ingest the trace and
+                                 execute the queries to the given file. Only
+                                 valid with -q or --run-metrics and the file
+                                 will only be written if the execution
+                                 is successful.
+ -q, --query-file FILE           Read and execute an SQL query from a file.
+ -i, --interactive               Starts interactive mode even after a query file
+                                 is specified with -q or --run-metrics.
+ -e, --export FILE               Export the trace into a SQLite database.
+ --run-metrics x,y,z             Runs a comma separated list of metrics and
+                                 prints the result as a TraceMetrics proto to
+                                 stdout. The specified can either be in-built
+                                 metrics or SQL/proto files of extension
+                                 metrics.
+ --metrics-output=[binary|text]  Allows the output of --run-metrics to be
+                                 specified in either proto binary or proto
+                                 text format (default: text).)",
+                argv[0]);
 }
 
 CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {

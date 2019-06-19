@@ -356,7 +356,7 @@ cc_library(
     ],
 )
 
-# GN target: //src/trace_processor:trace_processor_shell_host
+# GN target: //:trace_processor_shell
 cc_binary(
     name = "trace_processor_shell",
     srcs = [
