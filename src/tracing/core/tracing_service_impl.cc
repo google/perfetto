@@ -1426,8 +1426,13 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   base::TimeMillis now = base::GetWallTimeMs();
   if (now >= tracing_session->last_snapshot_time + kSnapshotsInterval) {
     tracing_session->last_snapshot_time = now;
+    // Don't emit the stats immediately, but instead wait until no more trace
+    // data is available to read. That way, any problems that occur while
+    // reading from the buffers are reflected in the emitted stats. This is
+    // particularly important for use cases where ReadBuffers is only ever
+    // called after the tracing session is stopped.
+    tracing_session->should_emit_stats = true;
     SnapshotSyncMarker(&packets);
-    SnapshotStats(tracing_session, &packets);
 
     if (!tracing_session->config.builtin_data_sources()
              .disable_clock_snapshotting()) {
@@ -1530,6 +1535,19 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     }  // for(packets...)
   }    // for(buffers...)
 
+  const bool has_more = did_hit_threshold;
+  if (!has_more && tracing_session->should_emit_stats) {
+    size_t prev_packets_size = packets.size();
+    SnapshotStats(tracing_session, &packets);
+    tracing_session->should_emit_stats = false;
+
+    // Add sizes of packets emitted by SnapshotStats.
+    for (size_t i = prev_packets_size; i < packets.size(); ++i) {
+      packets_bytes += packets[i].size();
+      total_slices += packets[i].slices().size();
+    }
+  }
+
   // If the caller asked us to write into a file by setting
   // |write_into_file| == true in the trace config, drain the packets read
   // (if any) into the given file descriptor.
@@ -1614,7 +1632,6 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     return;
   }  // if (tracing_session->write_into_file)
 
-  const bool has_more = did_hit_threshold;
   if (has_more) {
     auto weak_consumer = consumer->GetWeakPtr();
     auto weak_this = weak_ptr_factory_.GetWeakPtr();
