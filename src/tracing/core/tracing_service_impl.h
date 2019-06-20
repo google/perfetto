@@ -452,6 +452,10 @@ class TracingServiceImpl : public TracingService {
     // the output stream.
     base::TimeMillis last_snapshot_time = {};
 
+    // Whether we should emit the trace stats next time we reach EOF while
+    // performing ReadBuffers.
+    bool should_emit_stats = false;
+
     // Whether we mirrored the trace config back to the trace output yet.
     bool did_emit_config = false;
 
