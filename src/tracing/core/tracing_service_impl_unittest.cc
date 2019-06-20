@@ -1347,8 +1347,7 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   // SystemInfo
   // Trace read clocksnapshot
   // Trace synchronisation
-  // Trace stats
-  static const int kNumPreamblePackets = 6;
+  static const int kNumPreamblePackets = 5;
   static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
