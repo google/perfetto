@@ -34,9 +34,9 @@ message InternedString {
 // A symbol field that is emitted after the trace is written. These tables would
 // be appended as the last packets in the trace that the profiler will use, so
 // that the actual trace need not be rewritten to symbolize the profiles.
-message InternedModuleSymbol {
+message ProfiledFrameSymbols {
   // Use the frame id as the interning key for the symbols.
-  optional int64 frame_id = 1;
+  optional int64 frame_iid = 1;
 
   optional int64 function_name_id = 2;  // key to InternedString
   optional int64 file_name_id = 3;      // key to InternedString

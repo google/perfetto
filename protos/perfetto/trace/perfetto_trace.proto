@@ -2602,7 +2602,8 @@ message MmVmscanKswapdSleepFtraceEvent {
 // refers to them (since the last reset of interning state). They may also be
 // emitted proactively in advance of referring to them in later packets.
 //
-// Next id: 8.
+// Next reserved id: 8 (up to 15).
+// Next id: 20.
 message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
@@ -2624,8 +2625,6 @@ message InternedData {
   repeated InternedString mapping_paths = 17;
   // Names of functions used in frames below.
   repeated InternedString function_names = 5;
-  // Symbol tables added to the end of the trace, for the current sequence.
-  repeated InternedModuleSymbol module_symbols = 20;
 
   // Executable files mapped into processes.
   repeated Mapping mappings = 19;
@@ -2732,9 +2731,9 @@ message InternedString {
 // A symbol field that is emitted after the trace is written. These tables would
 // be appended as the last packets in the trace that the profiler will use, so
 // that the actual trace need not be rewritten to symbolize the profiles.
-message InternedModuleSymbol {
+message ProfiledFrameSymbols {
   // Use the frame id as the interning key for the symbols.
-  optional int64 frame_id = 1;
+  optional int64 frame_iid = 1;
 
   optional int64 function_name_id = 2;  // key to InternedString
   optional int64 file_name_id = 3;      // key to InternedString
@@ -3060,7 +3059,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 54.
+// Next id: 56.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -3095,6 +3094,9 @@ message TracePacket {
     GpuCounterEvent gpu_counter_event = 52;
     GpuRenderStageEvent gpu_render_stage_event = 53;
     StreamingProfilePacket streaming_profile_packet = 54;
+
+    // Only used in profile packets.
+    ProfiledFrameSymbols profiled_frame_symbols = 55;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
