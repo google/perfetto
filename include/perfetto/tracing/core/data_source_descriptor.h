@@ -81,11 +81,19 @@ class PERFETTO_EXPORT DataSourceDescriptor {
     handles_incremental_state_clear_ = value;
   }
 
+  const std::string& gpu_counter_descriptor_raw() const {
+    return gpu_counter_descriptor_;
+  }
+  void set_gpu_counter_descriptor_raw(const std::string& raw) {
+    gpu_counter_descriptor_ = raw;
+  }
+
  private:
   std::string name_{};
   bool will_notify_on_stop_{};
   bool will_notify_on_start_{};
   bool handles_incremental_state_clear_{};
+  std::string gpu_counter_descriptor_;  // [lazy=true]
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

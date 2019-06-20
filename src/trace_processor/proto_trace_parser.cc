@@ -42,6 +42,7 @@
 #include "src/trace_processor/variadic.h"
 
 #include "perfetto/common/android_log_constants.pbzero.h"
+#include "perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "perfetto/common/trace_stats.pbzero.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace/android/android_log.pbzero.h"
@@ -1948,9 +1949,10 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
 
+  protos::pbzero::GpuCounterDescriptor::Decoder desc(event.counter_descriptor());
   // Add counter spec to ID map.
-  for (auto it = event.counter_specs(); it; ++it) {
-    protos::pbzero::GpuCounterEvent_GpuCounterSpec::Decoder spec(it->data(), it->size());
+  for (auto it = desc.specs(); it; ++it) {
+    protos::pbzero::GpuCounterDescriptor_GpuCounterSpec::Decoder spec(it->data(), it->size());
     if (!spec.has_counter_id()) {
       PERFETTO_ELOG("Counter spec missing counter id");
       context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
@@ -1978,9 +1980,8 @@ void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
 
   for (auto it = event.counters(); it; ++it) {
     protos::pbzero::GpuCounterEvent_GpuCounter::Decoder counter(it->data(), it->size());
-    if (counter.has_counter_id() && counter.has_value()) {
+    if (counter.has_counter_id() && (counter.has_int_value() || counter.has_double_value())) {
       auto counter_id = counter.counter_id();
-      auto value = counter.value();
       // Check missing counter_id
       if (gpu_counter_ids_.find(counter_id) == gpu_counter_ids_.end()) {
         char buffer[64];
@@ -1993,8 +1994,13 @@ void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
             context_->storage->InternString(writer.GetStringView()));
         context_->storage->IncrementStats(stats::gpu_counters_missing_spec);
       }
-      context_->event_tracker->PushCounter(
-          ts, value, gpu_counter_ids_[counter_id], 0, RefType::kRefGpuId);
+      if (counter.has_int_value()) {
+        context_->event_tracker->PushCounter(
+            ts, counter.int_value(), gpu_counter_ids_[counter_id], 0, RefType::kRefGpuId);
+      } else {
+        context_->event_tracker->PushCounter(
+            ts, counter.double_value(), gpu_counter_ids_[counter_id], 0, RefType::kRefGpuId);
+      }
     }
   }
 }
