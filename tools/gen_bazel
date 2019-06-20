@@ -94,8 +94,8 @@ def enable_gtest_prod(module):
 
 
 def enable_protobuf_full(module):
-  module.deps.add(Label('//third_party/protobuf:libprotoc'))
-  module.deps.add(Label('//third_party/protobuf'))
+  module.deps.add(Label('//third_party/protobuf:libprotoc_legacy'))
+  module.deps.add(Label('//third_party/protobuf:protobuf_legacy'))
 
 
 def enable_perfetto_version(module):
