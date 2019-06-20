@@ -115,8 +115,8 @@ cc_binary(
         "src/protozero/protoc_plugin/protozero_plugin.cc",
     ],
     deps = [
-        "//third_party/protobuf",
-        "//third_party/protobuf:libprotoc",
+        "//third_party/protobuf:libprotoc_legacy",
+        "//third_party/protobuf:protobuf_legacy",
     ],
 )
 
@@ -587,8 +587,8 @@ cc_binary(
         "//third_party/perfetto/protos:trace_sys_stats_zero_cc_proto",
         "//third_party/perfetto/protos:trace_track_event_zero_cc_proto",
         "//third_party/perfetto/protos:trace_zero_cc_proto",
-        "//third_party/protobuf",
-        "//third_party/protobuf:libprotoc",
+        "//third_party/protobuf:libprotoc_legacy",
+        "//third_party/protobuf:protobuf_legacy",
         "//third_party/sqlite",
         "//third_party/sqlite:sqlite_ext_percentile",
         "//third_party/zlib:zlibsystem",
@@ -852,8 +852,8 @@ cc_binary(
         "//third_party/perfetto/protos:trace_track_event_cc_proto",
         "//third_party/perfetto/protos:trace_track_event_zero_cc_proto",
         "//third_party/perfetto/protos:trace_zero_cc_proto",
-        "//third_party/protobuf",
-        "//third_party/protobuf:libprotoc",
+        "//third_party/protobuf:libprotoc_legacy",
+        "//third_party/protobuf:protobuf_legacy",
         "//third_party/sqlite",
         "//third_party/sqlite:sqlite_ext_percentile",
         "//third_party/zlib:zlibsystem",
