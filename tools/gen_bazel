@@ -62,6 +62,7 @@ default_targets = [
   '//src/protozero:libprotozero',
   '//src/trace_processor:trace_processor',
   '//tools/trace_to_text:trace_to_text_host(//gn/standalone/toolchain:gcc_like_host)',
+  '//tools/trace_to_text:libpprofbuilder',
   '//protos/perfetto/config:merged_config_gen',
   '//protos/perfetto/trace:merged_trace_gen',
   '//protos/perfetto/trace_processor:lite_gen',
