@@ -16,9 +16,50 @@ import("../../gn/perfetto.gni")
 import("../../gn/proto_library.gni")
 import("../../gn/wasm.gni")
 
+source_set("utils") {
+  public_deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/traced:sys_stats_counters",
+    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace/ftrace:lite",
+  ]
+  sources = [
+    "utils.cc",
+    "utils.h",
+  ]
+}
+
+source_set("pprofbuilder") {
+  deps = [
+    ":utils",
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace/profiling:lite",
+    "../../protos/third_party/pprof:lite",
+  ]
+  sources = [
+    "pprof_builder.cc",
+    "pprof_builder.h",
+  ]
+}
+
+if (perfetto_build_standalone) {
+  static_library("libpprofbuilder") {
+    deps = [
+      ":pprofbuilder",
+    ]
+  }
+}
+
 # The core source files that are used both by the "full" version (the host
 # executable) and by the "lite" version (the WASM module for the UI).
 source_set("common") {
+  deps = [
+    ":pprofbuilder",
+    ":utils",
+  ]
   public_deps = [
     "../../gn:default_deps",
     "../../include/perfetto/base",
@@ -26,7 +67,6 @@ source_set("common") {
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/ftrace:lite",
     "../../protos/perfetto/trace/profiling:lite",
-    "../../protos/third_party/pprof:lite",
     "../../src/base",
     "../../src/trace_processor:lib",
   ]
@@ -37,13 +77,9 @@ source_set("common") {
     "trace_to_systrace.cc",
     "trace_to_systrace.h",
     "trace_to_text.h",
-    "utils.cc",
-    "utils.h",
   ]
   if (perfetto_build_standalone) {
-    deps = [
-      "../../gn/standalone:gen_git_revision",
-    ]
+    deps += [ "../../gn/standalone:gen_git_revision" ]
   }
 }
 
@@ -63,6 +99,7 @@ source_set("full") {
   testonly = true
   deps = [
     ":common",
+    ":utils",
     "../../gn:default_deps",
     "../../gn:protobuf_full",
   ]
