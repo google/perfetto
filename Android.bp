@@ -3892,6 +3892,7 @@ cc_binary_host {
     "src/trace_processor/virtual_destructors.cc",
     "src/trace_processor/window_operator_table.cc",
     "tools/trace_to_text/main.cc",
+    "tools/trace_to_text/pprof_builder.cc",
     "tools/trace_to_text/proto_full_utils.cc",
     "tools/trace_to_text/trace_to_profile.cc",
     "tools/trace_to_text/trace_to_systrace.cc",
