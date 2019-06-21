@@ -589,7 +589,8 @@ export class TraceController extends Controller<States> {
         `select bucket, upid, sum(utid_sum) / cast(${stepSecNs} as float) ` +
         `as upid_sum from thread inner join ` +
         `(select cast((ts - ${traceStartNs})/${stepSecNs} as int) as bucket, ` +
-        `sum(dur) as utid_sum, utid from slices group by bucket, utid) ` +
+        `sum(dur) as utid_sum, ref as utid from internal_slice ` +
+        `where ref_type = 'utid' group by bucket, ref) ` +
         `using(utid) group by bucket, upid`);
 
     const slicesData: {[key: string]: QuantizedLoad[]} = {};
