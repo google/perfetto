@@ -66,6 +66,7 @@ source_set("common") {
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/ftrace:lite",
+    "../../protos/perfetto/trace/interned_data:lite",
     "../../protos/perfetto/trace/profiling:lite",
     "../../src/base",
     "../../src/trace_processor:lib",
