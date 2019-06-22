@@ -55,6 +55,7 @@ using ::perfetto::protos::Frame;
 using ::perfetto::protos::InternedString;
 using ::perfetto::protos::Mapping;
 using ::perfetto::protos::ProfilePacket;
+using ::perfetto::protos::InternedData;
 
 using GLine = ::perftools::profiles::Line;
 using GMapping = ::perftools::profiles::Mapping;
@@ -84,149 +85,123 @@ enum Strings : int64_t {
   kIdleSpace,
 };
 
-void DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
-                       std::vector<SerializedProfile>* output) {
-  std::map<uint64_t, std::string> string_lookup;
-  // A profile packet can be split into multiple fragments. We need to iterate
-  // over all of them to reconstruct the original packet.
-  for (const ProfilePacket& packet : packet_fragments) {
-    for (const InternedString& interned_string : packet.strings())
-      string_lookup.emplace(interned_string.iid(), interned_string.str());
+class GProfileWriter {
+ public:
+  GProfileWriter() {
+    GValueType* value_type = profile_.add_sample_type();
+    value_type->set_type(kObjects);
+    value_type->set_unit(kCount);
+
+    value_type = profile_.add_sample_type();
+    value_type->set_type(kAllocObjects);
+    value_type->set_unit(kCount);
+
+    value_type = profile_.add_sample_type();
+    value_type->set_type(kIdleSpace);
+    value_type->set_unit(kBytes);
+
+    value_type = profile_.add_sample_type();
+    value_type->set_type(kAllocSpace);
+    value_type->set_unit(kBytes);
+
+    // The last value is the default one selected.
+    value_type = profile_.add_sample_type();
+    value_type->set_type(kSpace);
+    value_type->set_unit(kBytes);
   }
 
-  std::map<uint64_t, const std::vector<uint64_t>> callstack_lookup;
-  for (const ProfilePacket& packet : packet_fragments) {
-    for (const Callstack& callstack : packet.callstacks()) {
-      std::vector<uint64_t> frame_ids(
-          static_cast<size_t>(callstack.frame_ids().size()));
-      std::reverse_copy(callstack.frame_ids().cbegin(),
-                        callstack.frame_ids().cend(), frame_ids.begin());
-      callstack_lookup.emplace(callstack.iid(), std::move(frame_ids));
-    }
+  void AddInternedString(const InternedString& interned_string) {
+    string_lookup_.emplace(interned_string.iid(), interned_string.str());
   }
 
-  std::map<std::string, uint64_t> string_table;
-  string_table[""] = kEmpty;
-  string_table["objects"] = kObjects;
-  string_table["alloc_objects"] = kAllocObjects;
-  string_table["count"] = kCount;
-  string_table["space"] = kSpace;
-  string_table["alloc_space"] = kAllocSpace;
-  string_table["bytes"] = kBytes;
-  string_table["idle_space"] = kIdleSpace;
+  void AddCallstack(const Callstack& callstack) {
+    std::vector<uint64_t> frame_ids(
+        static_cast<size_t>(callstack.frame_ids().size()));
+    std::reverse_copy(callstack.frame_ids().cbegin(),
+                      callstack.frame_ids().cend(), frame_ids.begin());
+    callstack_lookup_.emplace(callstack.iid(), std::move(frame_ids));
+  }
 
-  GProfile profile;
-  GValueType* value_type = profile.add_sample_type();
-  value_type->set_type(kObjects);
-  value_type->set_unit(kCount);
-
-  value_type = profile.add_sample_type();
-  value_type->set_type(kAllocObjects);
-  value_type->set_unit(kCount);
-
-  value_type = profile.add_sample_type();
-  value_type->set_type(kIdleSpace);
-  value_type->set_unit(kBytes);
-
-  value_type = profile.add_sample_type();
-  value_type->set_type(kAllocSpace);
-  value_type->set_unit(kBytes);
-
-  // The last value is the default one selected.
-  value_type = profile.add_sample_type();
-  value_type->set_type(kSpace);
-  value_type->set_unit(kBytes);
-
-  for (const ProfilePacket& packet : packet_fragments) {
-    for (const Mapping& mapping : packet.mappings()) {
-      GMapping* gmapping = profile.add_mapping();
-      gmapping->set_id(mapping.iid());
-      gmapping->set_memory_start(mapping.start());
-      gmapping->set_memory_limit(mapping.end());
-      gmapping->set_file_offset(mapping.offset());
-      std::string filename;
-      for (uint64_t str_id : mapping.path_string_ids()) {
-        auto it = string_lookup.find(str_id);
-        if (it == string_lookup.end()) {
-          PERFETTO_ELOG("Mapping %" PRIu64
-                        " referring to invalid string_id %" PRIu64 ".",
-                        static_cast<uint64_t>(mapping.iid()), str_id);
-          continue;
-        }
-
-        filename += "/" + it->second;
+  void AddMapping(const Mapping& mapping) {
+    GMapping* gmapping = profile_.add_mapping();
+    gmapping->set_id(mapping.iid());
+    gmapping->set_memory_start(mapping.start());
+    gmapping->set_memory_limit(mapping.end());
+    gmapping->set_file_offset(mapping.offset());
+    std::string filename;
+    for (uint64_t str_id : mapping.path_string_ids()) {
+      auto it = string_lookup_.find(str_id);
+      if (it == string_lookup_.end()) {
+        PERFETTO_ELOG("Mapping %" PRIu64
+                      " referring to invalid string_id %" PRIu64 ".",
+                      static_cast<uint64_t>(mapping.iid()), str_id);
+        continue;
       }
 
-      decltype(string_table)::iterator it;
-      std::tie(it, std::ignore) =
-          string_table.emplace(filename, string_table.size());
-      gmapping->set_filename(static_cast<int64_t>(it->second));
-
-      auto str_it = string_lookup.find(mapping.build_id());
-      if (str_it != string_lookup.end()) {
-        const std::string& build_id = str_it->second;
-        std::tie(it, std::ignore) =
-            string_table.emplace(ToHex(build_id), string_table.size());
-        gmapping->set_build_id(static_cast<int64_t>(it->second));
-      }
+      filename += "/" + it->second;
     }
-  }
 
-  std::set<uint64_t> functions_to_dump;
-  for (const ProfilePacket& packet : packet_fragments) {
-    for (const Frame& frame : packet.frames()) {
-      GLocation* glocation = profile.add_location();
-      glocation->set_id(frame.iid());
-      glocation->set_mapping_id(frame.mapping_id());
-      // TODO(fmayer): This is probably incorrect. Probably should be abs pc.
-      glocation->set_address(frame.rel_pc());
-      GLine* gline = glocation->add_line();
-      gline->set_function_id(frame.function_name_id());
-      functions_to_dump.emplace(frame.function_name_id());
-    }
-  }
-
-  for (uint64_t function_name_id : functions_to_dump) {
-    auto str_it = string_lookup.find(function_name_id);
-    if (str_it == string_lookup.end()) {
-      PERFETTO_ELOG("Function referring to invalid string id %" PRIu64,
-                    function_name_id);
-      continue;
-    }
-    decltype(string_table)::iterator it;
-    std::string function_name = str_it->second;
-    // This assumes both the device that captured the trace and the host
-    // machine use the same mangling scheme. This is a reasonable
-    // assumption as the Itanium ABI is the de-facto standard for mangling.
-    MaybeDemangle(&function_name);
+    decltype(string_table_)::iterator it;
     std::tie(it, std::ignore) =
-        string_table.emplace(std::move(function_name), string_table.size());
-    GFunction* gfunction = profile.add_function();
-    gfunction->set_id(function_name_id);
-    gfunction->set_name(static_cast<int64_t>(it->second));
-  }
+        string_table_.emplace(filename, string_table_.size());
+    gmapping->set_filename(static_cast<int64_t>(it->second));
 
-  // We keep the interning table as string -> uint64_t for fast and easy
-  // lookup. When dumping, we need to turn it into a uint64_t -> string
-  // table so we get it sorted by key order.
-  std::map<uint64_t, std::string> inverted_string_table;
-  for (const auto& p : string_table)
-    inverted_string_table[p.second] = p.first;
-  for (const auto& p : inverted_string_table)
-    profile.add_string_table(p.second);
-
-  std::map<uint64_t, std::vector<const ProfilePacket::ProcessHeapSamples*>>
-      heap_samples;
-  for (const ProfilePacket& packet : packet_fragments) {
-    for (const ProfilePacket::ProcessHeapSamples& samples :
-         packet.process_dumps()) {
-      heap_samples[samples.pid()].emplace_back(&samples);
+    auto str_it = string_lookup_.find(mapping.build_id());
+    if (str_it != string_lookup_.end()) {
+      const std::string& build_id = str_it->second;
+      std::tie(it, std::ignore) =
+          string_table_.emplace(ToHex(build_id), string_table_.size());
+      gmapping->set_build_id(static_cast<int64_t>(it->second));
     }
   }
-  for (const auto& p : heap_samples) {
-    GProfile cur_profile = profile;
-    uint64_t pid = p.first;
-    for (const ProfilePacket::ProcessHeapSamples* samples : p.second) {
+
+  void AddFrame(const Frame& frame) {
+    GLocation* glocation = profile_.add_location();
+    glocation->set_id(frame.iid());
+    glocation->set_mapping_id(frame.mapping_id());
+    glocation->set_address(frame.rel_pc());
+    GLine* gline = glocation->add_line();
+    gline->set_function_id(frame.function_name_id());
+    functions_to_dump_.emplace(frame.function_name_id());
+  }
+
+  void Finalize() {
+    for (uint64_t function_name_id : functions_to_dump_) {
+      auto str_it = string_lookup_.find(function_name_id);
+      if (str_it == string_lookup_.end()) {
+        PERFETTO_ELOG("Function referring to invalid string id %" PRIu64,
+                      function_name_id);
+        continue;
+      }
+      decltype(string_table_)::iterator it;
+      std::string function_name = str_it->second;
+      // This assumes both the device that captured the trace and the host
+      // machine use the same mangling scheme. This is a reasonable
+      // assumption as the Itanium ABI is the de-facto standard for mangling.
+      MaybeDemangle(&function_name);
+      std::tie(it, std::ignore) =
+          string_table_.emplace(std::move(function_name), string_table_.size());
+      GFunction* gfunction = profile_.add_function();
+      gfunction->set_id(function_name_id);
+      gfunction->set_name(static_cast<int64_t>(it->second));
+    }
+
+    // We keep the interning table as string -> uint64_t for fast and easy
+    // lookup. When dumping, we need to turn it into a uint64_t -> string
+    // table so we get it sorted by key order.
+    std::map<uint64_t, std::string> inverted_string_table;
+    for (const auto& p : string_table_)
+      inverted_string_table[p.second] = p.first;
+    for (const auto& p : inverted_string_table)
+      profile_.add_string_table(p.second);
+  }
+
+  void WriteProfileForProcess(
+      uint64_t pid,
+      const std::vector<const ProfilePacket::ProcessHeapSamples*>& proc_samples,
+      std::string* serialized) {
+    GProfile cur_profile = profile_;
+    for (const ProfilePacket::ProcessHeapSamples* samples : proc_samples) {
       if (samples->rejected_concurrent()) {
         PERFETTO_ELOG("WARNING: The profile for %" PRIu64
                       " was rejected due to a concurrent profile.",
@@ -247,8 +222,8 @@ void DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
 
       for (const ProfilePacket::HeapSample& sample : samples->samples()) {
         GSample* gsample = cur_profile.add_sample();
-        auto it = callstack_lookup.find(sample.callstack_id());
-        if (it == callstack_lookup.end()) {
+        auto it = callstack_lookup_.find(sample.callstack_id());
+        if (it == callstack_lookup_.end()) {
           PERFETTO_ELOG("Callstack referring to invalid callstack id %" PRIu64,
                         static_cast<uint64_t>(sample.callstack_id()));
           continue;
@@ -264,7 +239,86 @@ void DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
                                                 sample.self_freed()));
       }
     }
-    output->push_back({pid, cur_profile.SerializeAsString()});
+    *serialized = cur_profile.SerializeAsString();
+  }
+
+ private:
+  GProfile profile_;
+
+  std::set<uint64_t> functions_to_dump_;
+  std::map<uint64_t, const std::vector<uint64_t>> callstack_lookup_;
+  std::map<uint64_t, std::string> string_lookup_;
+  std::map<std::string, uint64_t> string_table_{
+      {"", kEmpty},
+      {"objects", kObjects},
+      {"alloc_objects", kAllocObjects},
+      {"count", kCount},
+      {"space", kSpace},
+      {"alloc_space", kAllocSpace},
+      {"bytes", kBytes},
+      {"idle_space", kIdleSpace}};
+};
+
+void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
+                       std::vector<InternedData>& interned_data,
+                       std::vector<SerializedProfile>* output) {
+  GProfileWriter writer;
+  // A profile packet can be split into multiple fragments. We need to iterate
+  // over all of them to reconstruct the original packet.
+  for (const ProfilePacket& packet : packet_fragments) {
+    for (const InternedString& interned_string : packet.strings())
+      writer.AddInternedString(interned_string);
+  }
+  for (const InternedData& data : interned_data) {
+    for (const InternedString& interned_string : data.build_ids())
+      writer.AddInternedString(interned_string);
+    for (const InternedString& interned_string : data.mapping_paths())
+      writer.AddInternedString(interned_string);
+    for (const InternedString& interned_string : data.function_names())
+      writer.AddInternedString(interned_string);
+  }
+
+  for (const ProfilePacket& packet : packet_fragments) {
+    for (const Callstack& callstack : packet.callstacks())
+      writer.AddCallstack(callstack);
+  }
+  for (const InternedData& data : interned_data) {
+    for (const Callstack& callstack : data.callstacks())
+      writer.AddCallstack(callstack);
+  }
+
+  for (const ProfilePacket& packet : packet_fragments) {
+    for (const Mapping& mapping : packet.mappings())
+      writer.AddMapping(mapping);
+  }
+  for (const InternedData& data : interned_data) {
+    for (const Mapping& callstack : data.mappings())
+      writer.AddMapping(callstack);
+  }
+
+  for (const ProfilePacket& packet : packet_fragments) {
+    for (const Frame& frame : packet.frames())
+      writer.AddFrame(frame);
+  }
+  for (const InternedData& data : interned_data) {
+    for (const Frame& frame : data.frames())
+      writer.AddFrame(frame);
+  }
+
+  writer.Finalize();
+
+  std::map<uint64_t, std::vector<const ProfilePacket::ProcessHeapSamples*>>
+      heap_samples;
+  for (const ProfilePacket& packet : packet_fragments) {
+    for (const ProfilePacket::ProcessHeapSamples& samples :
+         packet.process_dumps()) {
+      heap_samples[samples.pid()].emplace_back(&samples);
+    }
+  }
+  for (const auto& p : heap_samples) {
+    std::string serialized;
+    writer.WriteProfileForProcess(p.first, p.second, &serialized);
+    output->emplace_back(SerializedProfile{p.first, std::move(serialized)});
   }
 }
 
@@ -272,10 +326,15 @@ void DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
 
 void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
   std::vector<ProfilePacket> rolling_profile_packets;
-  ForEachPacketInTrace(input, [output, &rolling_profile_packets](
-                                  const protos::TracePacket& packet) {
+  std::vector<InternedData> rolling_interned_data;
+  ForEachPacketInTrace(input, [&rolling_profile_packets, &rolling_interned_data,
+                               &output](const protos::TracePacket& packet) {
+    if (packet.has_interned_data())
+      rolling_interned_data.emplace_back(packet.interned_data());
+
     if (!packet.has_profile_packet())
       return;
+
     rolling_profile_packets.emplace_back(packet.profile_packet());
     if (!packet.profile_packet().continued()) {
       for (size_t i = 1; i < rolling_profile_packets.size(); ++i) {
@@ -283,7 +342,8 @@ void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
         PERFETTO_CHECK(rolling_profile_packets[i - 1].index() + 1 ==
                        rolling_profile_packets[i].index());
       }
-      DumpProfilePacket(rolling_profile_packets, output);
+      DumpProfilePacket(rolling_profile_packets, rolling_interned_data, output);
+      // We do not clear rolling_interned_data, as it is globally scoped.
       rolling_profile_packets.clear();
     }
   });
