@@ -20,6 +20,7 @@
 #include "perfetto/ext/base/time.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/tracing/core/test_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/task_runner_thread.h"

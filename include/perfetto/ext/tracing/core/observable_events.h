@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/copyable_ptr.h"
 #include "perfetto/base/export.h"
 
 // Forward declarations for protobuf types.
@@ -44,6 +45,7 @@ class ObservableEvents_DataSourceInstanceStateChange;
 }  // namespace perfetto
 
 namespace perfetto {
+class ObservableEvents;
 
 class PERFETTO_EXPORT ObservableEvents {
  public:
@@ -86,9 +88,9 @@ class PERFETTO_EXPORT ObservableEvents {
     void set_state(DataSourceInstanceState value) { state_ = value; }
 
    private:
-    std::string producer_name_ = {};
-    std::string data_source_name_ = {};
-    DataSourceInstanceState state_ = {};
+    std::string producer_name_{};
+    std::string data_source_name_{};
+    DataSourceInstanceState state_{};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
