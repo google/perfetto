@@ -46,7 +46,7 @@ group("all") {
   testonly = true  # allow to build also test targets
   deps = [
     ":perfetto_unittests",
-    "src/protozero/protoc_plugin($host_toolchain)",
+    "src/protozero/protoc_plugin:protozero_plugin($host_toolchain)",
   ]
   if (perfetto_build_standalone || perfetto_build_with_android ||
       build_with_chromium) {
