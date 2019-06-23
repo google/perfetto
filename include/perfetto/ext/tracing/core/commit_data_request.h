@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/copyable_ptr.h"
 #include "perfetto/base/export.h"
 
 // Forward declarations for protobuf types.
@@ -46,6 +47,7 @@ class CommitDataRequest_ChunkToPatch_Patch;
 }  // namespace perfetto
 
 namespace perfetto {
+class CommitDataRequest;
 
 class PERFETTO_EXPORT CommitDataRequest {
  public:
@@ -78,9 +80,9 @@ class PERFETTO_EXPORT CommitDataRequest {
     void set_target_buffer(uint32_t value) { target_buffer_ = value; }
 
    private:
-    uint32_t page_ = {};
-    uint32_t chunk_ = {};
-    uint32_t target_buffer_ = {};
+    uint32_t page_{};
+    uint32_t chunk_{};
+    uint32_t target_buffer_{};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
@@ -118,8 +120,8 @@ class PERFETTO_EXPORT CommitDataRequest {
       }
 
      private:
-      uint32_t offset_ = {};
-      std::string data_ = {};
+      uint32_t offset_{};
+      std::string data_{};
 
       // Allows to preserve unknown protobuf fields for compatibility
       // with future versions of .proto files.
@@ -165,11 +167,11 @@ class PERFETTO_EXPORT CommitDataRequest {
     void set_has_more_patches(bool value) { has_more_patches_ = value; }
 
    private:
-    uint32_t target_buffer_ = {};
-    uint32_t writer_id_ = {};
-    uint32_t chunk_id_ = {};
+    uint32_t target_buffer_{};
+    uint32_t writer_id_{};
+    uint32_t chunk_id_{};
     std::vector<Patch> patches_;
-    bool has_more_patches_ = {};
+    bool has_more_patches_{};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
@@ -229,7 +231,7 @@ class PERFETTO_EXPORT CommitDataRequest {
  private:
   std::vector<ChunksToMove> chunks_to_move_;
   std::vector<ChunkToPatch> chunks_to_patch_;
-  uint64_t flush_request_id_ = {};
+  uint64_t flush_request_id_{};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

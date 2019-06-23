@@ -18,6 +18,7 @@ source_set("base") {
   sources = [
     "build_config.h",
     "compiler.h",
+    "copyable_ptr.h",
     "export.h",
     "logging.h",
     "task_runner.h",

@@ -27,8 +27,10 @@
 
 #include "perfetto/tracing/core/tracing_service_state.h"
 
-#include "perfetto/common/data_source_descriptor.pb.h"
 #include "perfetto/common/tracing_service_state.pb.h"
+
+#include "perfetto/common/data_source_descriptor.pb.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
 
 namespace perfetto {
 
@@ -193,7 +195,7 @@ void TracingServiceState::DataSource::ParseRawProto(const std::string& raw) {
 
 void TracingServiceState::DataSource::FromProto(
     const perfetto::protos::TracingServiceState_DataSource& proto) {
-  ds_descriptor_.FromProto(proto.ds_descriptor());
+  ds_descriptor_->FromProto(proto.ds_descriptor());
 
   static_assert(sizeof(producer_id_) == sizeof(proto.producer_id()),
                 "size mismatch");
@@ -205,7 +207,7 @@ void TracingServiceState::DataSource::ToProto(
     perfetto::protos::TracingServiceState_DataSource* proto) const {
   proto->Clear();
 
-  ds_descriptor_.ToProto(proto->mutable_ds_descriptor());
+  ds_descriptor_->ToProto(proto->mutable_ds_descriptor());
 
   static_assert(sizeof(producer_id_) == sizeof(proto->producer_id()),
                 "size mismatch");

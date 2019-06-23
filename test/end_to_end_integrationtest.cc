@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -23,8 +25,6 @@
 #include <random>
 #include <thread>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -33,6 +33,7 @@
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/tracing/core/test_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
