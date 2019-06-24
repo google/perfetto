@@ -123,6 +123,8 @@ class GProfileWriter {
   }
 
   void AddMapping(const Mapping& mapping) {
+    mapping_base_.emplace(mapping.iid(), mapping.start() - mapping.load_bias() -
+                                             mapping.offset());
     GMapping* gmapping = profile_.add_mapping();
     gmapping->set_id(mapping.iid());
     gmapping->set_memory_start(mapping.start());
@@ -156,10 +158,18 @@ class GProfileWriter {
   }
 
   void AddFrame(const Frame& frame) {
+    auto it = mapping_base_.find(frame.mapping_id());
+    if (it == mapping_base_.end()) {
+      PERFETTO_ELOG("Frame referring to invalid mapping ID %" PRIu64,
+                    static_cast<uint64_t>(frame.mapping_id()));
+      return;
+    }
+    uint64_t mapping_base = it->second;
+
     GLocation* glocation = profile_.add_location();
     glocation->set_id(frame.iid());
     glocation->set_mapping_id(frame.mapping_id());
-    glocation->set_address(frame.rel_pc());
+    glocation->set_address(frame.rel_pc() + mapping_base);
     GLine* gline = glocation->add_line();
     gline->set_function_id(frame.function_name_id());
     functions_to_dump_.emplace(frame.function_name_id());
@@ -245,6 +255,7 @@ class GProfileWriter {
  private:
   GProfile profile_;
 
+  std::map<uint64_t, uint64_t> mapping_base_;
   std::set<uint64_t> functions_to_dump_;
   std::map<uint64_t, const std::vector<uint64_t>> callstack_lookup_;
   std::map<uint64_t, std::string> string_lookup_;
