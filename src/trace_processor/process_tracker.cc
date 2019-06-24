@@ -45,7 +45,7 @@ UniqueTid ProcessTracker::StartNewThread(int64_t timestamp,
 }
 
 void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid, uint32_t pid) {
-  UniqueTid utid = UpdateThread(tid, pid);
+  UniqueTid utid = pid == 0 ? GetOrCreateThread(tid) : UpdateThread(tid, pid);
   TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
   thread->end_ns = timestamp;
 }
