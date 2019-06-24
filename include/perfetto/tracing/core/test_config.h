@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/copyable_ptr.h"
 #include "perfetto/base/export.h"
 
 // Forward declarations for protobuf types.
@@ -44,6 +45,7 @@ class TestConfig_DummyFields;
 }  // namespace perfetto
 
 namespace perfetto {
+class TestConfig;
 
 class PERFETTO_EXPORT TestConfig {
  public:
@@ -112,20 +114,20 @@ class PERFETTO_EXPORT TestConfig {
     }
 
    private:
-    uint32_t field_uint32_ = {};
-    int32_t field_int32_ = {};
-    uint64_t field_uint64_ = {};
-    int64_t field_int64_ = {};
-    uint64_t field_fixed64_ = {};
-    int64_t field_sfixed64_ = {};
-    uint32_t field_fixed32_ = {};
-    int32_t field_sfixed32_ = {};
-    double field_double_ = {};
-    float field_float_ = {};
-    int64_t field_sint64_ = {};
-    int32_t field_sint32_ = {};
-    std::string field_string_ = {};
-    std::string field_bytes_ = {};
+    uint32_t field_uint32_{};
+    int32_t field_int32_{};
+    uint64_t field_uint64_{};
+    int64_t field_int64_{};
+    uint64_t field_fixed64_{};
+    int64_t field_sfixed64_{};
+    uint32_t field_fixed32_{};
+    int32_t field_sfixed32_{};
+    double field_double_{};
+    float field_float_{};
+    int64_t field_sint64_{};
+    int32_t field_sint32_{};
+    std::string field_string_{};
+    std::string field_bytes_{};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
@@ -166,16 +168,16 @@ class PERFETTO_EXPORT TestConfig {
     send_batch_on_register_ = value;
   }
 
-  const DummyFields& dummy_fields() const { return dummy_fields_; }
-  DummyFields* mutable_dummy_fields() { return &dummy_fields_; }
+  const DummyFields& dummy_fields() const { return *dummy_fields_; }
+  DummyFields* mutable_dummy_fields() { return dummy_fields_.get(); }
 
  private:
-  uint32_t message_count_ = {};
-  uint32_t max_messages_per_second_ = {};
-  uint32_t seed_ = {};
-  uint32_t message_size_ = {};
-  bool send_batch_on_register_ = {};
-  DummyFields dummy_fields_ = {};
+  uint32_t message_count_{};
+  uint32_t max_messages_per_second_{};
+  uint32_t seed_{};
+  uint32_t message_size_{};
+  bool send_batch_on_register_{};
+  ::perfetto::base::CopyablePtr<DummyFields> dummy_fields_;
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

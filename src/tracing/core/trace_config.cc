@@ -27,8 +27,10 @@
 
 #include "perfetto/tracing/core/trace_config.h"
 
-#include "perfetto/config/data_source_config.pb.h"
 #include "perfetto/config/trace_config.pb.h"
+
+#include "perfetto/config/data_source_config.pb.h"
+#include "perfetto/tracing/core/data_source_config.h"
 
 namespace perfetto {
 
@@ -88,7 +90,7 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
     data_sources_.back().FromProto(field);
   }
 
-  builtin_data_sources_.FromProto(proto.builtin_data_sources());
+  builtin_data_sources_->FromProto(proto.builtin_data_sources());
 
   static_assert(sizeof(duration_ms_) == sizeof(proto.duration_ms()),
                 "size mismatch");
@@ -110,7 +112,7 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
     producers_.back().FromProto(field);
   }
 
-  statsd_metadata_.FromProto(proto.statsd_metadata());
+  statsd_metadata_->FromProto(proto.statsd_metadata());
 
   static_assert(sizeof(write_into_file_) == sizeof(proto.write_into_file()),
                 "size mismatch");
@@ -129,7 +131,7 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
   max_file_size_bytes_ =
       static_cast<decltype(max_file_size_bytes_)>(proto.max_file_size_bytes());
 
-  guardrail_overrides_.FromProto(proto.guardrail_overrides());
+  guardrail_overrides_->FromProto(proto.guardrail_overrides());
 
   static_assert(sizeof(deferred_start_) == sizeof(proto.deferred_start()),
                 "size mismatch");
@@ -158,7 +160,7 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
   notify_traceur_ =
       static_cast<decltype(notify_traceur_)>(proto.notify_traceur());
 
-  trigger_config_.FromProto(proto.trigger_config());
+  trigger_config_->FromProto(proto.trigger_config());
 
   activate_triggers_.clear();
   for (const auto& field : proto.activate_triggers()) {
@@ -170,7 +172,7 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
         static_cast<decltype(activate_triggers_)::value_type>(field);
   }
 
-  incremental_state_config_.FromProto(proto.incremental_state_config());
+  incremental_state_config_->FromProto(proto.incremental_state_config());
 
   static_assert(sizeof(allow_user_build_tracing_) ==
                     sizeof(proto.allow_user_build_tracing()),
@@ -189,7 +191,7 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
   compression_type_ =
       static_cast<decltype(compression_type_)>(proto.compression_type());
 
-  incident_report_config_.FromProto(proto.incident_report_config());
+  incident_report_config_->FromProto(proto.incident_report_config());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -206,7 +208,7 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
     it.ToProto(entry);
   }
 
-  builtin_data_sources_.ToProto(proto->mutable_builtin_data_sources());
+  builtin_data_sources_->ToProto(proto->mutable_builtin_data_sources());
 
   static_assert(sizeof(duration_ms_) == sizeof(proto->duration_ms()),
                 "size mismatch");
@@ -230,7 +232,7 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
     it.ToProto(entry);
   }
 
-  statsd_metadata_.ToProto(proto->mutable_statsd_metadata());
+  statsd_metadata_->ToProto(proto->mutable_statsd_metadata());
 
   static_assert(sizeof(write_into_file_) == sizeof(proto->write_into_file()),
                 "size mismatch");
@@ -251,7 +253,7 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
       static_cast<decltype(proto->max_file_size_bytes())>(
           max_file_size_bytes_));
 
-  guardrail_overrides_.ToProto(proto->mutable_guardrail_overrides());
+  guardrail_overrides_->ToProto(proto->mutable_guardrail_overrides());
 
   static_assert(sizeof(deferred_start_) == sizeof(proto->deferred_start()),
                 "size mismatch");
@@ -280,7 +282,7 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
   proto->set_notify_traceur(
       static_cast<decltype(proto->notify_traceur())>(notify_traceur_));
 
-  trigger_config_.ToProto(proto->mutable_trigger_config());
+  trigger_config_->ToProto(proto->mutable_trigger_config());
 
   for (const auto& it : activate_triggers_) {
     proto->add_activate_triggers(
@@ -289,7 +291,7 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
                   "size mismatch");
   }
 
-  incremental_state_config_.ToProto(proto->mutable_incremental_state_config());
+  incremental_state_config_->ToProto(proto->mutable_incremental_state_config());
 
   static_assert(sizeof(allow_user_build_tracing_) ==
                     sizeof(proto->allow_user_build_tracing()),
@@ -310,7 +312,7 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
   proto->set_compression_type(
       static_cast<decltype(proto->compression_type())>(compression_type_));
 
-  incident_report_config_.ToProto(proto->mutable_incident_report_config());
+  incident_report_config_->ToProto(proto->mutable_incident_report_config());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
@@ -391,7 +393,7 @@ void TraceConfig::DataSource::ParseRawProto(const std::string& raw) {
 
 void TraceConfig::DataSource::FromProto(
     const perfetto::protos::TraceConfig_DataSource& proto) {
-  config_.FromProto(proto.config());
+  config_->FromProto(proto.config());
 
   producer_name_filter_.clear();
   for (const auto& field : proto.producer_name_filter()) {
@@ -409,7 +411,7 @@ void TraceConfig::DataSource::ToProto(
     perfetto::protos::TraceConfig_DataSource* proto) const {
   proto->Clear();
 
-  config_.ToProto(proto->mutable_config());
+  config_->ToProto(proto->mutable_config());
 
   for (const auto& it : producer_name_filter_) {
     proto->add_producer_name_filter(

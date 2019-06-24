@@ -33,10 +33,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/copyable_ptr.h"
 #include "perfetto/base/export.h"
-
-#include "perfetto/tracing/core/chrome_config.h"
-#include "perfetto/tracing/core/test_config.h"
 
 // Forward declarations for protobuf types.
 namespace perfetto {
@@ -49,6 +47,9 @@ class TestConfig_DummyFields;
 }  // namespace perfetto
 
 namespace perfetto {
+class DataSourceConfig;
+class ChromeConfig;
+class TestConfig;
 
 class PERFETTO_EXPORT DataSourceConfig {
  public:
@@ -141,33 +142,33 @@ class PERFETTO_EXPORT DataSourceConfig {
     packages_list_config_ = raw;
   }
 
-  const ChromeConfig& chrome_config() const { return chrome_config_; }
-  ChromeConfig* mutable_chrome_config() { return &chrome_config_; }
+  const ChromeConfig& chrome_config() const { return *chrome_config_; }
+  ChromeConfig* mutable_chrome_config() { return chrome_config_.get(); }
 
   const std::string& legacy_config() const { return legacy_config_; }
   void set_legacy_config(const std::string& value) { legacy_config_ = value; }
 
-  const TestConfig& for_testing() const { return for_testing_; }
-  TestConfig* mutable_for_testing() { return &for_testing_; }
+  const TestConfig& for_testing() const { return *for_testing_; }
+  TestConfig* mutable_for_testing() { return for_testing_.get(); }
 
  private:
-  std::string name_ = {};
-  uint32_t target_buffer_ = {};
-  uint32_t trace_duration_ms_ = {};
-  bool enable_extra_guardrails_ = {};
-  uint64_t tracing_session_id_ = {};
-  std::string ftrace_config_ = {};         // [lazy=true]
-  std::string inode_file_config_ = {};     // [lazy=true]
-  std::string process_stats_config_ = {};  // [lazy=true]
-  std::string sys_stats_config_ = {};      // [lazy=true]
-  std::string heapprofd_config_ = {};      // [lazy=true]
-  std::string android_power_config_ = {};  // [lazy=true]
-  std::string android_log_config_ = {};    // [lazy=true]
-  std::string gpu_counter_config_ = {};    // [lazy=true]
-  std::string packages_list_config_ = {};  // [lazy=true]
-  ChromeConfig chrome_config_ = {};
-  std::string legacy_config_ = {};
-  TestConfig for_testing_ = {};
+  std::string name_{};
+  uint32_t target_buffer_{};
+  uint32_t trace_duration_ms_{};
+  bool enable_extra_guardrails_{};
+  uint64_t tracing_session_id_{};
+  std::string ftrace_config_;         // [lazy=true]
+  std::string inode_file_config_;     // [lazy=true]
+  std::string process_stats_config_;  // [lazy=true]
+  std::string sys_stats_config_;      // [lazy=true]
+  std::string heapprofd_config_;      // [lazy=true]
+  std::string android_power_config_;  // [lazy=true]
+  std::string android_log_config_;    // [lazy=true]
+  std::string gpu_counter_config_;    // [lazy=true]
+  std::string packages_list_config_;  // [lazy=true]
+  ::perfetto::base::CopyablePtr<ChromeConfig> chrome_config_;
+  std::string legacy_config_{};
+  ::perfetto::base::CopyablePtr<TestConfig> for_testing_;
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

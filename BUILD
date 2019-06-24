@@ -61,6 +61,7 @@ cc_library(
     hdrs = [
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/compiler.h",
+        "include/perfetto/base/copyable_ptr.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/task_runner.h",
@@ -138,6 +139,7 @@ cc_library(
     hdrs = [
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/compiler.h",
+        "include/perfetto/base/copyable_ptr.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/task_runner.h",
@@ -366,6 +368,7 @@ cc_library(
     hdrs = [
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/compiler.h",
+        "include/perfetto/base/copyable_ptr.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/task_runner.h",
@@ -446,6 +449,7 @@ cc_binary(
     srcs = [
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/compiler.h",
+        "include/perfetto/base/copyable_ptr.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/task_runner.h",
@@ -685,6 +689,7 @@ cc_binary(
     srcs = [
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/compiler.h",
+        "include/perfetto/base/copyable_ptr.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/task_runner.h",

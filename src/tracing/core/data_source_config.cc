@@ -27,9 +27,13 @@
 
 #include "perfetto/tracing/core/data_source_config.h"
 
-#include "perfetto/config/chrome/chrome_config.pb.h"
 #include "perfetto/config/data_source_config.pb.h"
+
+#include "perfetto/config/chrome/chrome_config.pb.h"
+#include "perfetto/tracing/core/chrome_config.h"
+
 #include "perfetto/config/test_config.pb.h"
+#include "perfetto/tracing/core/test_config.h"
 
 namespace perfetto {
 
@@ -113,13 +117,13 @@ void DataSourceConfig::FromProto(
 
   packages_list_config_ = proto.packages_list_config().SerializeAsString();
 
-  chrome_config_.FromProto(proto.chrome_config());
+  chrome_config_->FromProto(proto.chrome_config());
 
   static_assert(sizeof(legacy_config_) == sizeof(proto.legacy_config()),
                 "size mismatch");
   legacy_config_ = static_cast<decltype(legacy_config_)>(proto.legacy_config());
 
-  for_testing_.FromProto(proto.for_testing());
+  for_testing_->FromProto(proto.for_testing());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -172,14 +176,14 @@ void DataSourceConfig::ToProto(
 
   proto->mutable_packages_list_config()->ParseFromString(packages_list_config_);
 
-  chrome_config_.ToProto(proto->mutable_chrome_config());
+  chrome_config_->ToProto(proto->mutable_chrome_config());
 
   static_assert(sizeof(legacy_config_) == sizeof(proto->legacy_config()),
                 "size mismatch");
   proto->set_legacy_config(
       static_cast<decltype(proto->legacy_config())>(legacy_config_));
 
-  for_testing_.ToProto(proto->mutable_for_testing());
+  for_testing_->ToProto(proto->mutable_for_testing());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
