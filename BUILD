@@ -107,12 +107,10 @@ cc_library(
     ],
 )
 
-# GN target: //src/protozero/protoc_plugin:protoc_plugin
+# GN target: //src/protozero/protoc_plugin:protozero_plugin
 cc_binary(
-    name = "src_protozero_protoc_plugin_protoc_plugin",
+    name = "src_protozero_protoc_plugin_protozero_plugin",
     srcs = [
-        "src/protozero/protoc_plugin/protozero_generator.cc",
-        "src/protozero/protoc_plugin/protozero_generator.h",
         "src/protozero/protoc_plugin/protozero_plugin.cc",
     ],
     deps = [
