@@ -145,6 +145,7 @@ source_set("unittests") {
   }
   sources = [
     "circular_queue_unittest.cc",
+    "copyable_ptr_unittest.cc",
     "no_destructor_unittest.cc",
     "optional_unittest.cc",
     "paged_memory_unittest.cc",

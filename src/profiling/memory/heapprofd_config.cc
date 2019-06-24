@@ -98,7 +98,7 @@ void HeapprofdConfig::FromProto(
         static_cast<decltype(skip_symbol_prefix_)::value_type>(field);
   }
 
-  continuous_dump_config_.FromProto(proto.continuous_dump_config());
+  continuous_dump_config_->FromProto(proto.continuous_dump_config());
 
   static_assert(sizeof(shmem_size_bytes_) == sizeof(proto.shmem_size_bytes()),
                 "size mismatch");
@@ -156,7 +156,7 @@ void HeapprofdConfig::ToProto(perfetto::protos::HeapprofdConfig* proto) const {
                   "size mismatch");
   }
 
-  continuous_dump_config_.ToProto(proto->mutable_continuous_dump_config());
+  continuous_dump_config_->ToProto(proto->mutable_continuous_dump_config());
 
   static_assert(sizeof(shmem_size_bytes_) == sizeof(proto->shmem_size_bytes()),
                 "size mismatch");

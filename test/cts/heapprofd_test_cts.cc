@@ -22,6 +22,7 @@
 #include <sys/wait.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/test_helper.h"
 

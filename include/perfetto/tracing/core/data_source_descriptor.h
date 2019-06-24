@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/copyable_ptr.h"
 #include "perfetto/base/export.h"
 
 // Forward declarations for protobuf types.
@@ -43,6 +44,7 @@ class DataSourceDescriptor;
 }  // namespace perfetto
 
 namespace perfetto {
+class DataSourceDescriptor;
 
 class PERFETTO_EXPORT DataSourceDescriptor {
  public:
@@ -80,10 +82,10 @@ class PERFETTO_EXPORT DataSourceDescriptor {
   }
 
  private:
-  std::string name_ = {};
-  bool will_notify_on_stop_ = {};
-  bool will_notify_on_start_ = {};
-  bool handles_incremental_state_clear_ = {};
+  std::string name_{};
+  bool will_notify_on_stop_{};
+  bool will_notify_on_start_{};
+  bool handles_incremental_state_clear_{};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
