@@ -58,52 +58,6 @@ std::vector<FtraceEventName> ReadWhitelist(const std::string& filename) {
   return lines;
 }
 
-void PrintEventFormatterMain(const std::set<std::string>& events) {
-  printf(
-      "\nAdd output to FormatEventText in "
-      "tools/trace_to_text/ftrace_event_formatter.cc\n");
-  for (auto event : events) {
-    printf(
-        "else if (event.has_%s()) {\nconst auto& inner = event.%s();\nreturn "
-        "Format%s(inner);\n} ",
-        event.c_str(), event.c_str(), ToCamelCase(event).c_str());
-  }
-}
-
-// Add output to ParseInode in ftrace_inode_handler
-void PrintInodeHandlerMain(const std::string& event_name,
-                           const perfetto::Proto& proto) {
-  for (const auto& p : proto.fields) {
-    const Proto::Field& field = p.second;
-    if (Contains(field.name, "ino") && !Contains(field.name, "minor"))
-      printf(
-          "else if (event.has_%s() && event.%s().%s()) {\n*inode = "
-          "static_cast<uint64_t>(event.%s().%s());\n return true;\n} ",
-          event_name.c_str(), event_name.c_str(), field.name.c_str(),
-          event_name.c_str(), field.name.c_str());
-  }
-}
-
-void PrintEventFormatterUsingStatements(const std::set<std::string>& events) {
-  printf("\nAdd output to tools/trace_to_text/ftrace_event_formatter.cc\n");
-  for (auto event : events) {
-    printf("using protos::%sFtraceEvent;\n", ToCamelCase(event).c_str());
-  }
-}
-
-void PrintEventFormatterFunctions(const std::set<std::string>& events) {
-  printf(
-      "\nAdd output to tools/trace_to_text/ftrace_event_formatter.cc and "
-      "then manually go through format files to match fields\n");
-  for (auto event : events) {
-    printf(
-        "std::string Format%s(const %sFtraceEvent& event) {"
-        "\nchar line[2048];"
-        "\nsprintf(line,\"%s: );\nreturn std::string(line);\n}\n",
-        ToCamelCase(event).c_str(), ToCamelCase(event).c_str(), event.c_str());
-  }
-}
-
 bool GenerateProto(const FtraceEvent& format, Proto* proto_out) {
   proto_out->name = EventNameToProtoName(format.name);
   proto_out->event_name = format.name;
