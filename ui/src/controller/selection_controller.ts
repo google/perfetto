@@ -69,8 +69,19 @@ export class SelectionController extends Controller<'main'> {
   }
 
   async schedulingDetails(ts: number, utid: number|Long) {
+    let event = 'sched_waking';
+    const waking = await this.args.engine.query(
+        `select * from instants where name = 'sched_waking' limit 1`);
+    const wakeup = await this.args.engine.query(
+        `select * from instants where name = 'sched_wakeup' limit 1`);
+    if (waking.numRecords === 0) {
+      if (wakeup.numRecords === 0) return undefined;
+      // Only use sched_wakeup if waking is not in the trace.
+      event = 'sched_wakeup';
+    }
+
     // Find the ts of the first sched_wakeup before the current slice.
-    const queryWakeupTs = `select ts from instants where name = 'sched_wakeup'
+    const queryWakeupTs = `select ts from instants where name = '${event}'
     and ref = ${utid} and ts < ${ts} order by ts desc limit 1`;
     const wakeupRow = await this.args.engine.queryOneRow(queryWakeupTs);
     // Find the previous sched slice for the current utid.
@@ -86,7 +97,7 @@ export class SelectionController extends Controller<'main'> {
     // Find the sched slice with the utid of the waker running when the
     // sched wakeup occurred. This is the waker.
     const queryWaker = `select utid, cpu from sched where utid =
-    (select utid from raw where name = 'sched_wakeup' and ts = ${wakeupTs})
+    (select utid from raw where name = '${event}' and ts = ${wakeupTs})
     and ts < ${wakeupTs} and ts + dur >= ${wakeupTs};`;
     const wakerRow = await this.args.engine.queryOneRow(queryWaker);
     if (wakerRow) {

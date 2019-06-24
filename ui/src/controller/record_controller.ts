@@ -80,6 +80,7 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
     if (uiCfg.cpuLatency) {
       ftraceEvents.add('sched/sched_wakeup');
       ftraceEvents.add('sched/sched_wakeup_new');
+      ftraceEvents.add('sched/sched_waking');
       ftraceEvents.add('power/suspend_resume');
     }
   }

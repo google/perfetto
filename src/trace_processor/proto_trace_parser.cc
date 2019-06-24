@@ -89,6 +89,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     : context_(context),
       utid_name_id_(context->storage->InternString("utid")),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
+      sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
@@ -479,6 +480,10 @@ void ProtoTraceParser::ParseFtracePacket(
         ParseSchedWakeup(ts, data);
         break;
       }
+      case protos::pbzero::FtraceEvent::kSchedWakingFieldNumber: {
+        ParseSchedWaking(ts, data);
+        break;
+      }
       case protos::pbzero::FtraceEvent::kSchedProcessExitFieldNumber: {
         ParseSchedProcessExit(ts, data);
         break;
@@ -723,6 +728,15 @@ void ProtoTraceParser::ParseSchedWakeup(int64_t ts, ConstBytes blob) {
   StringId name_id = context_->storage->InternString(sw.comm());
   auto utid = context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
   context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_, 0 /* value */,
+                                       utid, RefType::kRefUtid);
+}
+
+void ProtoTraceParser::ParseSchedWaking(int64_t ts, ConstBytes blob) {
+  protos::pbzero::SchedWakingFtraceEvent::Decoder sw(blob.data, blob.size);
+  uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
+  StringId name_id = context_->storage->InternString(sw.comm());
+  auto utid = context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
+  context_->event_tracker->PushInstant(ts, sched_waking_name_id_, 0 /* value */,
                                        utid, RefType::kRefUtid);
 }
 
