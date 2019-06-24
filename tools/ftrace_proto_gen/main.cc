@@ -137,15 +137,6 @@ int main(int argc, char** argv) {
     perfetto::GenerateFtraceEventProto(whitelist, groups, out.get());
   }
 
-  if (!new_events.empty()) {
-    perfetto::PrintEventFormatterMain(new_events);
-    perfetto::PrintEventFormatterUsingStatements(new_events);
-    perfetto::PrintEventFormatterFunctions(new_events);
-    printf(
-        "\nAdd output to ParseInode in "
-        "tools/ftrace_proto_gen/ftrace_inode_handler.cc\n");
-  }
-
   for (const std::string& group : groups) {
     std::string proto_file_name = group + ".proto";
     std::string output_path = output_dir + std::string("/") + proto_file_name;
@@ -197,9 +188,6 @@ int main(int argc, char** argv) {
         }
         proto.MergeFrom(event_proto);
       }
-
-      if (!new_events.empty())
-        PrintInodeHandlerMain(proto.name, proto);
 
       uint32_t i = 0;
       for (; it->second != &whitelist[i]; i++)
