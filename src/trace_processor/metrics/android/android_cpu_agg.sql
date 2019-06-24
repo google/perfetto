@@ -18,25 +18,16 @@
 -- View with start and end ts for each cpu frequency, per cpu.
 CREATE VIEW cpu_freq_view AS
 SELECT
-  ref as cpu_id,
-  ts as start_ts,
-  LEAD(ts, 1, end_ts) OVER (PARTITION by ref ORDER BY ts) AS end_ts,
-  LEAD(ts, 1, end_ts) OVER (PARTITION by ref ORDER BY ts) - ts AS dur,
+  ref as cpu,
+  ts,
+  LEAD(ts, 1, (SELECT end_ts from trace_bounds))
+    OVER (PARTITION by ref ORDER BY ts) AS end_ts,
+  LEAD(ts, 1, (SELECT end_ts from trace_bounds))
+    OVER (PARTITION by ref ORDER BY ts) - ts AS dur,
   value as freq
-FROM counters,
-     trace_bounds
-WHERE name='cpufreq';
+FROM counters
+WHERE name = 'cpufreq';
 
--- View that maps threads with schduling events and processes.
-CREATE VIEW thread_view AS
-SELECT ts,
-       ts_end,
-       cpu,
-       upid,
-       utid,
-       pid,
-       thread.name AS thread_name,
-       process.name AS process_name
-FROM thread
-LEFT JOIN sched USING(utid)
-JOIN process USING(upid); -- Not a left join, to exclude idle threads.
+-- View that joins the cpufreq table with the slice table.
+CREATE VIRTUAL TABLE cpu_freq_sched_per_thread
+USING SPAN_LEFT_JOIN(sched PARTITIONED cpu, cpu_freq_view PARTITIONED cpu);
