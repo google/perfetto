@@ -39,10 +39,10 @@ gsutil acl ch -u AllUsers:R gs://perfetto/$NEW_TEST_DATA
 
 echo ""
 echo "SHA1 of file $NEW_TEST_DATA is"
-if which shasum; then
-NEW_SHA=$(shasum /tmp/$NEW_TEST_DATA)  # Mac OS
+if which shasum > /dev/null; then
+NEW_SHA=$(shasum /tmp/$NEW_TEST_DATA | cut -c1-40)  # Mac OS
 else
-NEW_SHA=$(sha1sum /tmp/$NEW_TEST_DATA)  # Linux
+NEW_SHA=$(sha1sum /tmp/$NEW_TEST_DATA | cut -c1-40)  # Linux
 fi
 echo $NEW_SHA
 
@@ -56,10 +56,15 @@ rm /tmp/$NEW_TEST_DATA
 echo ""
 echo "Updating tools/install-build-deps"
 echo ""
-OLD_URL="https://\(.*/perfetto\)/test-data-.*.zip"
-NEW_URL="https://\1/$NEW_TEST_DATA"
-OLD_SHA="\w*"
-SED_MAGIC="s|'$OLD_URL',\n\(\s*\)'$OLD_SHA'|'$NEW_URL',\n\2'$NEW_SHA'|g"
-sed -i '' -z -e "$SED_MAGIC" tools/install-build-deps
+
+OLD_SHA=$(cat tools/install-build-deps | grep '/test-data-.*.zip' -A1 | tail -n1 | cut -c5-44)
+
+# Cannot easily use sed -i, it has different syntax on Linux vs Mac.
+cat tools/install-build-deps \
+  | sed -e 's|/test-data-.*.zip|/'$NEW_TEST_DATA'|g' \
+  | sed -e 's|'$OLD_SHA'|'$NEW_SHA'|g' \
+  > tools/install-build-deps.tmp
+
+mv -f tools/install-build-deps.tmp tools/install-build-deps
 
 echo "All done!"
