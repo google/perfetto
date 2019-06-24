@@ -83,6 +83,112 @@ namespace {
 
 using protozero::ProtoDecoder;
 
+HeapProfileTracker::SourceMapping MakeSourceMapping(
+    const protos::pbzero::Mapping::Decoder& entry) {
+  HeapProfileTracker::SourceMapping src_mapping{};
+  src_mapping.build_id = entry.build_id();
+  src_mapping.offset = entry.offset();
+  src_mapping.start = entry.start();
+  src_mapping.end = entry.end();
+  src_mapping.load_bias = entry.load_bias();
+  src_mapping.name_id = 0;
+  for (auto path_string_id_it = entry.path_string_ids(); path_string_id_it;
+       ++path_string_id_it)
+    src_mapping.name_id = path_string_id_it->as_uint32();
+  return src_mapping;
+}
+
+HeapProfileTracker::SourceFrame MakeSourceFrame(
+    const protos::pbzero::Frame::Decoder& entry) {
+  HeapProfileTracker::SourceFrame src_frame;
+  src_frame.name_id = entry.function_name_id();
+  src_frame.mapping_id = entry.mapping_id();
+  src_frame.rel_pc = entry.rel_pc();
+  return src_frame;
+}
+
+HeapProfileTracker::SourceCallstack MakeSourceCallstack(
+    const protos::pbzero::Callstack::Decoder& entry) {
+  HeapProfileTracker::SourceCallstack src_callstack;
+  for (auto frame_it = entry.frame_ids(); frame_it; ++frame_it)
+    src_callstack.emplace_back(frame_it->as_uint64());
+  return src_callstack;
+}
+
+class ProfilePacketInternLookup : public HeapProfileTracker::InternLookup {
+ public:
+  ProfilePacketInternLookup(
+      ProtoIncrementalState::PacketSequenceState* seq_state,
+      TraceStorage* storage)
+      : seq_state_(seq_state), storage_(storage) {}
+
+  base::Optional<StringId> GetString(
+      HeapProfileTracker::SourceStringId iid) const override {
+    base::Optional<StringId> res;
+    auto* map =
+        seq_state_->GetInternedDataMap<protos::pbzero::InternedString>();
+    auto it = map->find(iid);
+    if (it == map->end()) {
+      PERFETTO_DLOG("Did not find string %" PRIu64 " in %zu elems", iid,
+                    map->size());
+      return res;
+    }
+    auto entry = it->second.CreateDecoder();
+    const char* str = reinterpret_cast<const char*>(entry.str().data);
+    res = storage_->InternString(base::StringView(str, entry.str().size));
+    return res;
+  }
+
+  base::Optional<HeapProfileTracker::SourceMapping> GetMapping(
+      HeapProfileTracker::SourceMappingId iid) const override {
+    base::Optional<HeapProfileTracker::SourceMapping> res;
+    auto* map = seq_state_->GetInternedDataMap<protos::pbzero::Mapping>();
+    auto it = map->find(iid);
+    if (it == map->end()) {
+      PERFETTO_DLOG("Did not find mapping %" PRIu64 " in %zu elems", iid,
+                    map->size());
+      return res;
+    }
+    auto entry = it->second.CreateDecoder();
+    res = MakeSourceMapping(entry);
+    return res;
+  }
+
+  base::Optional<HeapProfileTracker::SourceFrame> GetFrame(
+      HeapProfileTracker::SourceFrameId iid) const override {
+    base::Optional<HeapProfileTracker::SourceFrame> res;
+    auto* map = seq_state_->GetInternedDataMap<protos::pbzero::Frame>();
+    auto it = map->find(iid);
+    if (it == map->end()) {
+      PERFETTO_DLOG("Did not find frame %" PRIu64 " in %zu elems", iid,
+                    map->size());
+      return res;
+    }
+    auto entry = it->second.CreateDecoder();
+    res = MakeSourceFrame(entry);
+    return res;
+  }
+
+  base::Optional<HeapProfileTracker::SourceCallstack> GetCallstack(
+      HeapProfileTracker::SourceCallstackId iid) const override {
+    base::Optional<HeapProfileTracker::SourceCallstack> res;
+    auto* map = seq_state_->GetInternedDataMap<protos::pbzero::Callstack>();
+    auto it = map->find(iid);
+    if (it == map->end()) {
+      PERFETTO_DLOG("Did not find callstack %" PRIu64 " in %zu elems", iid,
+                    map->size());
+      return res;
+    }
+    auto entry = it->second.CreateDecoder();
+    res = MakeSourceCallstack(entry);
+    return res;
+  }
+
+ private:
+  ProtoIncrementalState::PacketSequenceState* seq_state_;
+  TraceStorage* storage_;
+};
+
 }  // namespace
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
@@ -255,7 +361,7 @@ void ProtoTraceParser::ParseTracePacket(
     ParseAndroidLogPacket(packet.android_log());
 
   if (packet.has_profile_packet())
-    ParseProfilePacket(ts, packet.profile_packet());
+    ParseProfilePacket(ts, ttp.packet_sequence_state, packet.profile_packet());
 
   if (packet.has_system_info())
     ParseSystemInfo(packet.system_info());
@@ -1244,7 +1350,10 @@ void ProtoTraceParser::ParseFtraceStats(ConstBytes blob) {
   }
 }
 
-void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
+void ProtoTraceParser::ParseProfilePacket(
+    int64_t ts,
+    ProtoIncrementalState::PacketSequenceState* sequence_state,
+    ConstBytes blob) {
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
 
   for (auto it = packet.strings(); it; ++it) {
@@ -1258,35 +1367,20 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
 
   for (auto it = packet.mappings(); it; ++it) {
     protos::pbzero::Mapping::Decoder entry(it->data(), it->size());
-    HeapProfileTracker::SourceMapping src_mapping;
-    src_mapping.build_id = entry.build_id();
-    src_mapping.offset = entry.offset();
-    src_mapping.start = entry.start();
-    src_mapping.end = entry.end();
-    src_mapping.load_bias = entry.load_bias();
-    src_mapping.name_id = 0;
-    for (auto path_string_id_it = entry.path_string_ids(); path_string_id_it;
-         ++path_string_id_it)
-      src_mapping.name_id = path_string_id_it->as_uint64();
+    HeapProfileTracker::SourceMapping src_mapping = MakeSourceMapping(entry);
     context_->heap_profile_tracker->AddMapping(entry.iid(), src_mapping);
   }
 
   for (auto it = packet.frames(); it; ++it) {
     protos::pbzero::Frame::Decoder entry(it->data(), it->size());
-    HeapProfileTracker::SourceFrame src_frame;
-    src_frame.name_id = entry.function_name_id();
-    src_frame.mapping_id = entry.mapping_id();
-    src_frame.rel_pc = entry.rel_pc();
-
+    HeapProfileTracker::SourceFrame src_frame = MakeSourceFrame(entry);
     context_->heap_profile_tracker->AddFrame(entry.iid(), src_frame);
   }
 
   for (auto it = packet.callstacks(); it; ++it) {
     protos::pbzero::Callstack::Decoder entry(it->data(), it->size());
-    HeapProfileTracker::SourceCallstack src_callstack;
-    for (auto frame_it = entry.frame_ids(); frame_it; ++frame_it)
-      src_callstack.emplace_back(frame_it->as_uint64());
-
+    HeapProfileTracker::SourceCallstack src_callstack =
+        MakeSourceCallstack(entry);
     context_->heap_profile_tracker->AddCallstack(entry.iid(), src_callstack);
   }
 
@@ -1323,7 +1417,10 @@ void ProtoTraceParser::ParseProfilePacket(int64_t ts, ConstBytes blob) {
     }
   }
   if (!packet.continued()) {
-    context_->heap_profile_tracker->FinalizeProfile();
+    PERFETTO_CHECK(sequence_state);
+    ProfilePacketInternLookup intern_lookup(sequence_state,
+                                            context_->storage.get());
+    context_->heap_profile_tracker->FinalizeProfile(&intern_lookup);
   }
 }
 
@@ -1374,9 +1471,9 @@ void ProtoTraceParser::ParseTrackEvent(
     tid = static_cast<uint32_t>(legacy_event.tid_override());
   UniqueTid utid = procs->UpdateThread(tid, pid);
 
-  std::vector<uint32_t> category_iids;
+  std::vector<uint64_t> category_iids;
   for (auto it = event.category_iids(); it; ++it) {
-    category_iids.push_back(it->as_uint32());
+    category_iids.push_back(it->as_uint64());
   }
 
   StringId category_id = 0;
@@ -1388,7 +1485,7 @@ void ProtoTraceParser::ParseTrackEvent(
         sequence_state->GetInternedDataMap<protos::pbzero::EventCategory>();
     auto cat_view_it = map->find(category_iids[0]);
     if (cat_view_it == map->end()) {
-      PERFETTO_ELOG("Could not find category interning entry for ID %u",
+      PERFETTO_ELOG("Could not find category interning entry for ID %" PRIu64,
                     category_iids[0]);
     } else {
       // If the name is already in the pool, no need to decode it again.
@@ -1410,10 +1507,11 @@ void ProtoTraceParser::ParseTrackEvent(
     // support a single "cat" column.
     // TODO(eseckler): Support multi-category events in the table schema.
     std::string categories;
-    for (uint32_t iid : category_iids) {
+    for (uint64_t iid : category_iids) {
       auto cat_view_it = map->find(iid);
       if (cat_view_it == map->end()) {
-        PERFETTO_ELOG("Could not find category interning entry for ID %u", iid);
+        PERFETTO_ELOG("Could not find category interning entry for ID %" PRIu64,
+                      iid);
         continue;
       }
       auto cat = cat_view_it->second.CreateDecoder();
@@ -1435,7 +1533,7 @@ void ProtoTraceParser::ParseTrackEvent(
         sequence_state->GetInternedDataMap<protos::pbzero::LegacyEventName>();
     auto name_view_it = map->find(legacy_event.name_iid());
     if (name_view_it == map->end()) {
-      PERFETTO_ELOG("Could not find event name interning entry for ID %u",
+      PERFETTO_ELOG("Could not find event name interning entry for ID %" PRIu64,
                     legacy_event.name_iid());
     } else {
       // If the name is already in the pool, no need to decode it again.
@@ -1596,7 +1694,7 @@ void ProtoTraceParser::ParseDebugAnnotationArgs(
     RowId row) {
   protos::pbzero::DebugAnnotation::Decoder annotation(debug_annotation.data,
                                                       debug_annotation.size);
-  uint32_t iid = annotation.name_iid();
+  uint64_t iid = annotation.name_iid();
   if (!iid)
     return;
 
@@ -1605,7 +1703,8 @@ void ProtoTraceParser::ParseDebugAnnotationArgs(
   auto name_view_it = map->find(iid);
   if (name_view_it == map->end()) {
     PERFETTO_ELOG(
-        "Could not find debug annotation name interning entry for ID %u", iid);
+        "Could not find debug annotation name interning entry for ID %" PRIu64,
+        iid);
     return;
   }
 
@@ -1720,7 +1819,7 @@ void ProtoTraceParser::ParseTaskExecutionArgs(
     RowId row) {
   protos::pbzero::TaskExecution::Decoder task(task_execution.data,
                                               task_execution.size);
-  uint32_t iid = task.posted_from_iid();
+  uint64_t iid = task.posted_from_iid();
   if (!iid)
     return;
 
@@ -1728,8 +1827,8 @@ void ProtoTraceParser::ParseTaskExecutionArgs(
       sequence_state->GetInternedDataMap<protos::pbzero::SourceLocation>();
   auto location_view_it = map->find(iid);
   if (location_view_it == map->end()) {
-    PERFETTO_ELOG("Could not find source location interning entry for ID %u",
-                  iid);
+    PERFETTO_ELOG(
+        "Could not find source location interning entry for ID %" PRIu64, iid);
     return;
   }
 

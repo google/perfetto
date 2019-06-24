@@ -79,7 +79,7 @@ message TrackEvent {
   }
 
   // We intend to add a binary symbol version of this in the future.
-  repeated uint32 category_iids = 3;  // interned EventCategoryName.
+  repeated uint64 category_iids = 3;  // interned EventCategoryName.
 
   // TODO(eseckler): May also want a debug_name for untyped debug-only events.
 
@@ -100,7 +100,7 @@ message TrackEvent {
   // Next reserved id: 16 (up to 16).
   // Next id: 20.
   message LegacyEvent {
-    optional uint32 name_iid = 1;  // interned LegacyEventName.
+    optional uint64 name_iid = 1;  // interned LegacyEventName.
     optional int32 phase = 2;
     optional int64 duration_us = 3;
     optional int64 thread_duration_us = 4;
@@ -159,11 +159,11 @@ message TrackEvent {
 // --------------------
 
 message EventCategory {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
   optional string name = 2;
 }
 
 message LegacyEventName {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
   optional string name = 2;
 }
