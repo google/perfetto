@@ -501,12 +501,10 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
 
 util::Status TraceProcessorImpl::ExtendMetricsProto(const uint8_t* data,
                                                     size_t size) {
-  return pool_.AddFromFileDescriptorSet(data, size);
-}
+  util::Status status = pool_.AddFromFileDescriptorSet(data, size);
+  if (!status.ok())
+    return status;
 
-util::Status TraceProcessorImpl::ComputeMetric(
-    const std::vector<std::string>& metric_names,
-    std::vector<uint8_t>* metrics_proto) {
   for (const auto& desc : pool_.descriptors()) {
     // Convert the full name (e.g. .perfetto.protos.TraceMetrics.SubMetric)
     // into a function name of the form (TraceMetrics_SubMetric).
@@ -527,7 +525,12 @@ util::Status TraceProcessorImpl::ComputeMetric(
     if (ret != SQLITE_OK)
       return util::ErrStatus("%s", sqlite3_errmsg(*db_));
   }
+  return util::OkStatus();
+}
 
+util::Status TraceProcessorImpl::ComputeMetric(
+    const std::vector<std::string>& metric_names,
+    std::vector<uint8_t>* metrics_proto) {
   auto opt_idx = pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
   if (!opt_idx.has_value())
     return util::Status("Root metrics proto descriptor not found");
