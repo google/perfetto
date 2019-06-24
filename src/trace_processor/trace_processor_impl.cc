@@ -472,6 +472,24 @@ void TraceProcessorImpl::InterruptQuery() {
 
 util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
+  std::string stripped_sql;
+  for (base::StringSplitter sp(sql, '\n'); sp.Next();) {
+    if (strncmp(sp.cur_token(), "--", 2) != 0) {
+      stripped_sql.append(sp.cur_token());
+      stripped_sql.push_back('\n');
+    }
+  }
+
+  // Check if the metric with the given path already exists and if it does, just
+  // update the SQL associated with it.
+  auto it = std::find_if(
+      sql_metrics_.begin(), sql_metrics_.end(),
+      [&path](const metrics::SqlMetricFile& m) { return m.path == path; });
+  if (it != sql_metrics_.end()) {
+    it->sql = stripped_sql;
+    return util::OkStatus();
+  }
+
   auto sep_idx = path.rfind("/");
   std::string basename =
       sep_idx == std::string::npos ? path : path.substr(sep_idx + 1);
@@ -481,14 +499,6 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
     return util::ErrStatus("Unable to find .sql extension for metric");
   }
   auto no_ext_name = basename.substr(0, sql_idx);
-
-  std::string stripped_sql;
-  for (base::StringSplitter sp(sql, '\n'); sp.Next();) {
-    if (strncmp(sp.cur_token(), "--", 2) != 0) {
-      stripped_sql.append(sp.cur_token());
-      stripped_sql.push_back('\n');
-    }
-  }
 
   metrics::SqlMetricFile metric;
   metric.path = path;

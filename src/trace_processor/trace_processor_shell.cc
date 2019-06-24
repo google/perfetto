@@ -72,6 +72,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #define ftruncate _chsize
 #else
+#include <dirent.h>
 #include <getopt.h>
 #endif
 
@@ -302,6 +303,10 @@ util::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
   google::protobuf::FileDescriptorSet desc_set;
 
   base::ScopedFile file(base::OpenFile(extend_metrics_proto, O_RDONLY));
+  if (file.get() == -1) {
+    return util::ErrStatus("Failed to open proto file %s",
+                           extend_metrics_proto.c_str());
+  }
 
   google::protobuf::io::FileInputStream stream(file.get());
   ErrorPrinter printer;
@@ -599,6 +604,7 @@ struct CommandLineOptions {
   std::string sqlite_file_path;
   std::string metric_names;
   std::string metric_output;
+  std::string metric_extra;
   std::string trace_file_path;
   bool launch_shell = false;
 };
@@ -719,7 +725,12 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   return command_line_options;
 }
 
+util::Status RegisterExtraMetrics(const std::string&, const std::string&) {
+  return util::ErrStatus("RegisterExtraMetrics not implemented on Windows");
+}
+
 #else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 void PrintUsage(char** argv) {
   PERFETTO_ELOG(R"(
 Interactive trace processor shell.
@@ -745,7 +756,10 @@ Options:
                                  metrics.
  --metrics-output=[binary|text]  Allows the output of --run-metrics to be
                                  specified in either proto binary or proto
-                                 text format (default: text).)",
+                                 text format (default: text).
+ --extra-metrics PATH            Registers all SQL files at the given path to
+                                 the trace processor and extends the builtin
+                                 metrics proto with $PATH/metrics-ext.proto.)",
                 argv[0]);
 }
 
@@ -754,6 +768,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   enum LongOption {
     OPT_RUN_METRICS = 1000,
     OPT_METRICS_OUTPUT,
+    OPT_EXTRA_METRICS,
   };
 
   static const struct option long_options[] = {
@@ -766,6 +781,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"export", required_argument, nullptr, 'e'},
       {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
+      {"extra-metrics", required_argument, nullptr, OPT_EXTRA_METRICS},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -817,6 +833,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_EXTRA_METRICS) {
+      command_line_options.metric_extra = optarg;
+      continue;
+    }
+
     PrintUsage(argv);
     exit(option == 'h' ? 0 : 1);
   }
@@ -842,6 +863,44 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
   return command_line_options;
 }
+
+util::Status RegisterExtraMetric(const std::string& parent_path,
+                                 const std::string& path) {
+  // Silently ignore any non-SQL files.
+  if (path.find(".sql") == std::string::npos)
+    return util::OkStatus();
+
+  std::string sql;
+  base::ReadFile(parent_path + "/" + path, &sql);
+  return g_tp->RegisterMetric(path, sql);
+}
+
+util::Status RegisterExtraMetrics(const std::string& path,
+                                  const std::string& group) {
+  std::string full_path = path + "/" + group;
+  DIR* dir = opendir(full_path.c_str());
+  if (dir == nullptr) {
+    return util::ErrStatus(
+        "Failed to open directory %s to register extra metrics",
+        full_path.c_str());
+  }
+
+  for (auto* dirent = readdir(dir); dirent != nullptr; dirent = readdir(dir)) {
+    util::Status status = util::OkStatus();
+    if (strcmp(dirent->d_name, ".") == 0 || strcmp(dirent->d_name, "..") == 0)
+      continue;
+
+    if (dirent->d_type == DT_DIR) {
+      status = RegisterExtraMetrics(path, group + dirent->d_name + "/");
+    } else if (dirent->d_type == DT_REG) {
+      status = RegisterExtraMetric(path, group + dirent->d_name);
+    }
+    if (!status.ok())
+      return status;
+  }
+  return util::OkStatus();
+}
+
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 int TraceProcessorMain(int argc, char** argv) {
@@ -884,6 +943,25 @@ int TraceProcessorMain(int argc, char** argv) {
                                kMetricsDescriptor.size());
   for (const auto& desc : root_desc_set.file()) {
     pool.BuildFile(desc);
+  }
+
+  if (!options.metric_extra.empty()) {
+    util::Status status = RegisterExtraMetrics(options.metric_extra, "");
+    if (!status.ok()) {
+      PERFETTO_ELOG("Failed to register extra metrics: %s", status.c_message());
+      return 1;
+    }
+
+    auto ext_proto = options.metric_extra + "/metrics-ext.proto";
+    // Check if the file exists
+    base::ScopedFile file(base::OpenFile(ext_proto, O_RDONLY));
+    if (file.get() != -1) {
+      status = ExtendMetricsProto(ext_proto, &pool);
+      if (!status.ok()) {
+        PERFETTO_ELOG("Failed to extend metrics proto: %s", status.c_message());
+        return 1;
+      }
+    }
   }
 
   if (!options.metric_names.empty()) {
