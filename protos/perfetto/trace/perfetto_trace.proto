@@ -2770,6 +2770,13 @@ message Callstack {
 // Begin of protos/perfetto/trace/profiling/profile_packet.proto
 
 message ProfilePacket {
+  // The following interning tables are only used in Android version Q.
+  // In newer versions, these tables are in InternedData
+  // (see protos/perfetto/trace/interned_data) and are shared across
+  // multiple ProfilePackets.
+  // For backwards compatibility, consumers need to first look up interned
+  // data in the tables within the ProfilePacket, and then, if they are empty,
+  // look up in the InternedData instead.
   repeated InternedString strings = 1;
   repeated Mapping mappings = 4;
   repeated Frame frames = 2;
@@ -3199,7 +3206,7 @@ message DebugAnnotation {
     optional string string_value = 8;
   }
 
-  optional uint32 name_iid = 1;  // interned DebugAnnotationName.
+  optional uint64 name_iid = 1;  // interned DebugAnnotationName.
 
   oneof value {
     bool bool_value = 2;
@@ -3223,7 +3230,7 @@ message DebugAnnotation {
 // --------------------
 
 message DebugAnnotationName {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
   optional string name = 2;
 }
 
@@ -3265,7 +3272,7 @@ message ProcessDescriptor {
 // TrackEvent arguments describing the execution of a task.
 message TaskExecution {
   // Source location that the task was posted from.
-  optional uint32 posted_from_iid = 1;  // interned SourceLocation.
+  optional uint64 posted_from_iid = 1;  // interned SourceLocation.
 }
 
 // --------------------
@@ -3273,7 +3280,7 @@ message TaskExecution {
 // --------------------
 
 message SourceLocation {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
 
   // We intend to add a binary symbol version of this in the future.
   optional string file_name = 2;
@@ -3395,7 +3402,7 @@ message TrackEvent {
   }
 
   // We intend to add a binary symbol version of this in the future.
-  repeated uint32 category_iids = 3;  // interned EventCategoryName.
+  repeated uint64 category_iids = 3;  // interned EventCategoryName.
 
   // TODO(eseckler): May also want a debug_name for untyped debug-only events.
 
@@ -3416,7 +3423,7 @@ message TrackEvent {
   // Next reserved id: 16 (up to 16).
   // Next id: 20.
   message LegacyEvent {
-    optional uint32 name_iid = 1;  // interned LegacyEventName.
+    optional uint64 name_iid = 1;  // interned LegacyEventName.
     optional int32 phase = 2;
     optional int64 duration_us = 3;
     optional int64 thread_duration_us = 4;
@@ -3475,12 +3482,12 @@ message TrackEvent {
 // --------------------
 
 message EventCategory {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
   optional string name = 2;
 }
 
 message LegacyEventName {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
   optional string name = 2;
 }
 

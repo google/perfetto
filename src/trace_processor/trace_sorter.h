@@ -70,6 +70,19 @@ namespace trace_processor {
 class TraceSorter {
  public:
   struct TimestampedTracePiece {
+    TimestampedTracePiece(
+        int64_t ts,
+        uint64_t idx,
+        TraceBlobView tbv,
+        ProtoIncrementalState::PacketSequenceState* sequence_state)
+        : TimestampedTracePiece(ts,
+                                /*thread_ts=*/0,
+                                idx,
+                                std::move(tbv),
+                                /*value=*/nullptr,
+                                /*fpv=*/nullptr,
+                                /*sequence_state=*/sequence_state) {}
+
     TimestampedTracePiece(int64_t ts, uint64_t idx, TraceBlobView tbv)
         : TimestampedTracePiece(ts,
                                 /*thread_ts=*/0,
@@ -160,11 +173,13 @@ class TraceSorter {
 
   TraceSorter(TraceProcessorContext*, int64_t window_size_ns);
 
-  inline void PushTracePacket(int64_t timestamp, TraceBlobView packet) {
+  inline void PushTracePacket(int64_t timestamp,
+                              ProtoIncrementalState::PacketSequenceState* state,
+                              TraceBlobView packet) {
     DCHECK_ftrace_batch_cpu(kNoBatch);
     auto* queue = GetQueue(0);
-    queue->Append(
-        TimestampedTracePiece(timestamp, packet_idx_++, std::move(packet)));
+    queue->Append(TimestampedTracePiece(timestamp, packet_idx_++,
+                                        std::move(packet), state));
     MaybeExtractEvents(queue);
   }
 

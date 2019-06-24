@@ -22,7 +22,7 @@ package perfetto.protos;
 // TrackEvent arguments describing the execution of a task.
 message TaskExecution {
   // Source location that the task was posted from.
-  optional uint32 posted_from_iid = 1;  // interned SourceLocation.
+  optional uint64 posted_from_iid = 1;  // interned SourceLocation.
 }
 
 // --------------------
@@ -30,7 +30,7 @@ message TaskExecution {
 // --------------------
 
 message SourceLocation {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
 
   // We intend to add a binary symbol version of this in the future.
   optional string file_name = 2;
