@@ -102,6 +102,7 @@ source_set("daemon") {
   public_deps = [
     "../../../gn:libunwindstack",
     "../../../protos/perfetto/trace:zero",
+    "../../../protos/perfetto/trace/interned_data:zero",
     "../../../protos/perfetto/trace/profiling:zero",
   ]
   sources = [

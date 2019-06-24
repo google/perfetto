@@ -27,14 +27,14 @@
 namespace perfetto {
 namespace profiling {
 
-using InternID = uint64_t;
+using InternID = uint32_t;
 
 template <typename T>
 class Interner {
  private:
   struct Entry {
     template <typename... U>
-    Entry(Interner<T>* in, uint64_t i, U... args)
+    Entry(Interner<T>* in, InternID i, U... args)
         : data(std::forward<U...>(args...)), id(i), interner(in) {}
 
     bool operator<(const Entry& other) const { return data < other.data; }
@@ -47,8 +47,8 @@ class Interner {
     };
 
     const T data;
+    InternID id;
     size_t ref_count = 0;
-    uint64_t id;
     Interner<T>* interner;
   };
 
@@ -121,7 +121,7 @@ class Interner {
     if (--entry->ref_count == 0)
       entries_.erase(*entry);
   }
-  uint64_t next_id = 1;
+  InternID next_id = 1;
   std::unordered_set<Entry, typename Entry::Hash> entries_;
   static_assert(sizeof(Interned) == sizeof(void*),
                 "interned things should be small");

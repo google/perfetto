@@ -34,6 +34,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 
 #include "src/profiling/memory/bookkeeping.h"
+#include "src/profiling/memory/bookkeeping_dump.h"
 #include "src/profiling/memory/heapprofd_config.h"
 #include "src/profiling/memory/page_idle_checker.h"
 #include "src/profiling/memory/proc_utils.h"
@@ -184,6 +185,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   };
 
   struct DataSource {
+    DataSource(std::unique_ptr<TraceWriter> tw) : trace_writer(std::move(tw)) {}
+
     DataSourceInstanceID id;
     std::unique_ptr<TraceWriter> trace_writer;
     HeapprofdConfig config;
@@ -194,6 +197,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     std::map<pid_t, ProcessState> process_states;
     std::vector<std::string> normalized_cmdlines;
     uint64_t next_index_ = 0;
+    DumpState dump_state{trace_writer.get(), &next_index_};
   };
 
   struct PendingProcess {
