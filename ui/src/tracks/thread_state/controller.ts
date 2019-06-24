@@ -45,8 +45,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     const endNs = Math.round(end * 1e9);
     let minNs = 0;
     if (groupBusyStates(resolution)) {
-      // Ns for 20px (the smallest state to display)
-      minNs = Math.round(resolution * 20 * 1e9);
+      // Ns for 1px (the smallest state to display)
+      minNs = Math.round(resolution * 1 * 1e9);
     }
 
 
