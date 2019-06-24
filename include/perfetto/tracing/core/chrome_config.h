@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/copyable_ptr.h"
 #include "perfetto/base/export.h"
 
 // Forward declarations for protobuf types.
@@ -43,6 +44,7 @@ class ChromeConfig;
 }  // namespace perfetto
 
 namespace perfetto {
+class ChromeConfig;
 
 class PERFETTO_EXPORT ChromeConfig {
  public:
@@ -70,8 +72,8 @@ class PERFETTO_EXPORT ChromeConfig {
   }
 
  private:
-  std::string trace_config_ = {};
-  bool privacy_filtering_enabled_ = {};
+  std::string trace_config_{};
+  bool privacy_filtering_enabled_{};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

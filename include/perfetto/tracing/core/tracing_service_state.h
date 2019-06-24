@@ -33,9 +33,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/copyable_ptr.h"
 #include "perfetto/base/export.h"
-
-#include "perfetto/tracing/core/data_source_descriptor.h"
 
 // Forward declarations for protobuf types.
 namespace perfetto {
@@ -48,6 +47,8 @@ class DataSourceDescriptor;
 }  // namespace perfetto
 
 namespace perfetto {
+class TracingServiceState;
+class DataSourceDescriptor;
 
 class PERFETTO_EXPORT TracingServiceState {
  public:
@@ -78,9 +79,9 @@ class PERFETTO_EXPORT TracingServiceState {
     void set_uid(int32_t value) { uid_ = value; }
 
    private:
-    int32_t id_ = {};
-    std::string name_ = {};
-    int32_t uid_ = {};
+    int32_t id_{};
+    std::string name_{};
+    int32_t uid_{};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
@@ -104,15 +105,19 @@ class PERFETTO_EXPORT TracingServiceState {
     void FromProto(const perfetto::protos::TracingServiceState_DataSource&);
     void ToProto(perfetto::protos::TracingServiceState_DataSource*) const;
 
-    const DataSourceDescriptor& ds_descriptor() const { return ds_descriptor_; }
-    DataSourceDescriptor* mutable_ds_descriptor() { return &ds_descriptor_; }
+    const DataSourceDescriptor& ds_descriptor() const {
+      return *ds_descriptor_;
+    }
+    DataSourceDescriptor* mutable_ds_descriptor() {
+      return ds_descriptor_.get();
+    }
 
     int32_t producer_id() const { return producer_id_; }
     void set_producer_id(int32_t value) { producer_id_ = value; }
 
    private:
-    DataSourceDescriptor ds_descriptor_ = {};
-    int32_t producer_id_ = {};
+    ::perfetto::base::CopyablePtr<DataSourceDescriptor> ds_descriptor_;
+    int32_t producer_id_{};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
@@ -167,8 +172,8 @@ class PERFETTO_EXPORT TracingServiceState {
  private:
   std::vector<Producer> producers_;
   std::vector<DataSource> data_sources_;
-  int32_t num_sessions_ = {};
-  int32_t num_sessions_started_ = {};
+  int32_t num_sessions_{};
+  int32_t num_sessions_started_{};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

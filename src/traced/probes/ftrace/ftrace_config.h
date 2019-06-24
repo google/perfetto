@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/copyable_ptr.h"
 #include "perfetto/base/export.h"
 
 // Forward declarations for protobuf types.
@@ -43,6 +44,7 @@ class FtraceConfig;
 }  // namespace perfetto
 
 namespace perfetto {
+class FtraceConfig;
 
 class PERFETTO_EXPORT FtraceConfig {
  public:
@@ -108,8 +110,8 @@ class PERFETTO_EXPORT FtraceConfig {
   std::vector<std::string> ftrace_events_;
   std::vector<std::string> atrace_categories_;
   std::vector<std::string> atrace_apps_;
-  uint32_t buffer_size_kb_ = {};
-  uint32_t drain_period_ms_ = {};
+  uint32_t buffer_size_kb_{};
+  uint32_t drain_period_ms_{};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
