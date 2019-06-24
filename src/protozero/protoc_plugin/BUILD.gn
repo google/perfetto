@@ -13,10 +13,8 @@
 # limitations under the License.
 
 if (current_toolchain == host_toolchain) {
-  executable("protoc_plugin") {
+  executable("protozero_plugin") {
     sources = [
-      "protozero_generator.cc",
-      "protozero_generator.h",
       "protozero_plugin.cc",
     ]
     deps = [

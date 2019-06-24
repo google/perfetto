@@ -519,7 +519,7 @@ def make_genrules_for_action(blueprint, desc, target_name):
         # TODO(skyostil): Can we detect this some other way?
         if plugin == 'ipc_plugin':
             namespaces.append('ipc')
-        elif plugin == 'protoc_plugin':
+        elif plugin == 'protozero_plugin':
             namespaces = ['pbzero']
         for dep in target['deps']:
             if desc[dep]['type'] != 'executable':

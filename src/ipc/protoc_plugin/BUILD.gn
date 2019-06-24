@@ -15,8 +15,6 @@
 if (current_toolchain == host_toolchain) {
   executable("ipc_plugin") {
     sources = [
-      "ipc_generator.cc",
-      "ipc_generator.h",
       "ipc_plugin.cc",
     ]
     deps = [
