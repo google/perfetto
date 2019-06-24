@@ -79,7 +79,7 @@ void TestConfig::FromProto(const perfetto::protos::TestConfig& proto) {
   send_batch_on_register_ = static_cast<decltype(send_batch_on_register_)>(
       proto.send_batch_on_register());
 
-  dummy_fields_.FromProto(proto.dummy_fields());
+  dummy_fields_->FromProto(proto.dummy_fields());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -113,7 +113,7 @@ void TestConfig::ToProto(perfetto::protos::TestConfig* proto) const {
       static_cast<decltype(proto->send_batch_on_register())>(
           send_batch_on_register_));
 
-  dummy_fields_.ToProto(proto->mutable_dummy_fields());
+  dummy_fields_->ToProto(proto->mutable_dummy_fields());
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 

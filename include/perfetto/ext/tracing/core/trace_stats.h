@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/copyable_ptr.h"
 #include "perfetto/base/export.h"
 
 // Forward declarations for protobuf types.
@@ -44,6 +45,7 @@ class TraceStats_BufferStats;
 }  // namespace perfetto
 
 namespace perfetto {
+class TraceStats;
 
 class PERFETTO_EXPORT TraceStats {
  public:
@@ -131,24 +133,24 @@ class PERFETTO_EXPORT TraceStats {
     void set_abi_violations(uint64_t value) { abi_violations_ = value; }
 
    private:
-    uint64_t buffer_size_ = {};
-    uint64_t bytes_written_ = {};
-    uint64_t bytes_overwritten_ = {};
-    uint64_t bytes_read_ = {};
-    uint64_t padding_bytes_written_ = {};
-    uint64_t padding_bytes_cleared_ = {};
-    uint64_t chunks_written_ = {};
-    uint64_t chunks_rewritten_ = {};
-    uint64_t chunks_overwritten_ = {};
-    uint64_t chunks_discarded_ = {};
-    uint64_t chunks_read_ = {};
-    uint64_t chunks_committed_out_of_order_ = {};
-    uint64_t write_wrap_count_ = {};
-    uint64_t patches_succeeded_ = {};
-    uint64_t patches_failed_ = {};
-    uint64_t readaheads_succeeded_ = {};
-    uint64_t readaheads_failed_ = {};
-    uint64_t abi_violations_ = {};
+    uint64_t buffer_size_{};
+    uint64_t bytes_written_{};
+    uint64_t bytes_overwritten_{};
+    uint64_t bytes_read_{};
+    uint64_t padding_bytes_written_{};
+    uint64_t padding_bytes_cleared_{};
+    uint64_t chunks_written_{};
+    uint64_t chunks_rewritten_{};
+    uint64_t chunks_overwritten_{};
+    uint64_t chunks_discarded_{};
+    uint64_t chunks_read_{};
+    uint64_t chunks_committed_out_of_order_{};
+    uint64_t write_wrap_count_{};
+    uint64_t patches_succeeded_{};
+    uint64_t patches_failed_{};
+    uint64_t readaheads_succeeded_{};
+    uint64_t readaheads_failed_{};
+    uint64_t abi_violations_{};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
@@ -209,14 +211,14 @@ class PERFETTO_EXPORT TraceStats {
 
  private:
   std::vector<BufferStats> buffer_stats_;
-  uint32_t producers_connected_ = {};
-  uint64_t producers_seen_ = {};
-  uint32_t data_sources_registered_ = {};
-  uint64_t data_sources_seen_ = {};
-  uint32_t tracing_sessions_ = {};
-  uint32_t total_buffers_ = {};
-  uint64_t chunks_discarded_ = {};
-  uint64_t patches_discarded_ = {};
+  uint32_t producers_connected_{};
+  uint64_t producers_seen_{};
+  uint32_t data_sources_registered_{};
+  uint64_t data_sources_seen_{};
+  uint32_t tracing_sessions_{};
+  uint32_t total_buffers_{};
+  uint64_t chunks_discarded_{};
+  uint64_t patches_discarded_{};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
