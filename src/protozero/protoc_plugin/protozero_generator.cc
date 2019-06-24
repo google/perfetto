@@ -278,7 +278,6 @@ class GeneratorJob {
         "#define $guard$\n\n"
         "#include <stddef.h>\n"
         "#include <stdint.h>\n\n"
-        "#include \"perfetto/base/export.h\"\n"
         "#include \"perfetto/protozero/proto_decoder.h\"\n"
         "#include \"perfetto/protozero/message.h\"\n",
         "greeting", greeting, "guard", guard);
@@ -491,24 +490,28 @@ class GeneratorJob {
         has_repeated_fields = true;
     }
 
+    std::string class_name = GetCppClassName(message) + "_Decoder";
     stub_h_->Print(
-        "class Decoder : public "
+        "class $name$ : public "
         "::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/$max$, "
         "/*HAS_REPEATED_FIELDS=*/$rep$> {\n",
-        "max", std::to_string(max_field_id), "rep",
+        "name", class_name, "max", std::to_string(max_field_id), "rep",
         has_repeated_fields ? "true" : "false");
     stub_h_->Print(" public:\n");
     stub_h_->Indent();
     stub_h_->Print(
-        "Decoder(const uint8_t* data, size_t len) "
-        ": TypedProtoDecoder(data, len) {}\n");
+        "$name$(const uint8_t* data, size_t len) "
+        ": TypedProtoDecoder(data, len) {}\n",
+        "name", class_name);
     stub_h_->Print(
-        "explicit Decoder(const std::string& raw) : "
+        "explicit $name$(const std::string& raw) : "
         "TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), "
-        "raw.size()) {}\n");
+        "raw.size()) {}\n",
+        "name", class_name);
     stub_h_->Print(
-        "explicit Decoder(const ::protozero::ConstBytes& raw) : "
-        "TypedProtoDecoder(raw.data, raw.size) {}\n");
+        "explicit $name$(const ::protozero::ConstBytes& raw) : "
+        "TypedProtoDecoder(raw.data, raw.size) {}\n",
+        "name", class_name);
 
     for (int i = 0; i < message->field_count(); ++i) {
       const FieldDescriptor* field = message->field(i);
@@ -593,7 +596,7 @@ class GeneratorJob {
       }
     }
     stub_h_->Outdent();
-    stub_h_->Print("};\n");
+    stub_h_->Print("};\n\n");
   }
 
   void GenerateConstantsForMessageFields(const Descriptor* message) {
@@ -616,14 +619,18 @@ class GeneratorJob {
   }
 
   void GenerateMessageDescriptor(const Descriptor* message) {
+    GenerateDecoder(message);
+
     stub_h_->Print(
-        "class PERFETTO_EXPORT $name$ : public ::protozero::Message {\n"
+        "class $name$ : public ::protozero::Message {\n"
         " public:\n",
         "name", GetCppClassName(message));
     stub_h_->Indent();
 
+    stub_h_->Print("using Decoder = $name$_Decoder;\n", "name",
+                   GetCppClassName(message));
+
     GenerateConstantsForMessageFields(message);
-    GenerateDecoder(message);
 
     // Using statements for nested messages.
     for (int i = 0; i < message->nested_type_count(); ++i) {
