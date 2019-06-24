@@ -19,6 +19,8 @@
 
 #include <deque>
 
+#include "perfetto/ext/base/optional.h"
+
 #include "perfetto/trace/profiling/profile_common.pbzero.h"
 #include "perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/trace_processor/trace_storage.h"
@@ -90,29 +92,64 @@ class HeapProfileTracker {
     uint64_t free_count = 0;
   };
 
+  class InternLookup {
+   public:
+    virtual ~InternLookup();
+
+    virtual base::Optional<StringId> GetString(SourceStringId) const = 0;
+    virtual base::Optional<SourceMapping> GetMapping(SourceMappingId) const = 0;
+    virtual base::Optional<SourceFrame> GetFrame(SourceFrameId) const = 0;
+    virtual base::Optional<SourceCallstack> GetCallstack(
+        SourceCallstackId) const = 0;
+  };
+
   explicit HeapProfileTracker(TraceProcessorContext* context);
 
   void AddString(SourceStringId, StringId);
-  void AddMapping(SourceMappingId, const SourceMapping&);
-  void AddFrame(SourceFrameId, const SourceFrame&);
-  void AddCallstack(SourceCallstackId, const SourceCallstack&);
+  int64_t AddMapping(SourceMappingId,
+                     const SourceMapping&,
+                     const InternLookup* intern_lookup = nullptr);
+  int64_t AddFrame(SourceFrameId,
+                   const SourceFrame&,
+                   const InternLookup* intern_lookup = nullptr);
+  int64_t AddCallstack(SourceCallstackId,
+                       const SourceCallstack&,
+                       const InternLookup* intern_lookup = nullptr);
 
   void StoreAllocation(SourceAllocation);
   // Call after the last profile packet of a dump to commit the allocations
-  // that had been stored using StoreAllocation and clear internal indicies
+  // that had been stored using StoreAllocation and clear internal indices
   // for that dump.
-  void FinalizeProfile();
+  void FinalizeProfile(const InternLookup* lookup);
   // Only commit the allocations that had been stored using StoreAllocations.
   // This is only needed in tests, use FinalizeProfile instead.
-  void CommitAllocations();
+  void CommitAllocations(const InternLookup* lookup);
   int64_t GetDatabaseFrameIdForTesting(SourceFrameId);
 
   ~HeapProfileTracker();
 
  private:
-  void AddAllocation(const SourceAllocation&);
+  void AddAllocation(const SourceAllocation&,
+                     const InternLookup* intern_lookup = nullptr);
 
-  base::Optional<StringId> FindString(SourceStringId);
+  // Gets the row number of string / mapping / frame / callstack previously
+  // added through AddString / AddMapping/ AddFrame / AddCallstack.
+  //
+  // If it is not found, look up the string / mapping / frame / callstack in
+  // the global InternedData state, and if found, add to the database, if not
+  // already added before.
+  //
+  // This is to support both ProfilePackets that contain the interned data
+  // (for Android Q) and where the interned data is kept globally in
+  // InternedData (for versions newer than Q).
+  base::Optional<StringId> FindString(SourceStringId,
+                                      const InternLookup* intern_lookup);
+  base::Optional<int64_t> FindMapping(SourceMappingId,
+                                      const InternLookup* intern_lookup);
+  base::Optional<int64_t> FindFrame(SourceFrameId,
+                                    const InternLookup* intern_lookup);
+  base::Optional<int64_t> FindCallstack(SourceCallstackId,
+                                        const InternLookup* intern_lookup);
 
   std::unordered_map<SourceStringId, StringId> string_map_;
   std::unordered_map<SourceMappingId, int64_t> mappings_;

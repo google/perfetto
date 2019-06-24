@@ -40,7 +40,7 @@ message DebugAnnotation {
     optional string string_value = 8;
   }
 
-  optional uint32 name_iid = 1;  // interned DebugAnnotationName.
+  optional uint64 name_iid = 1;  // interned DebugAnnotationName.
 
   oneof value {
     bool bool_value = 2;
@@ -64,6 +64,6 @@ message DebugAnnotation {
 // --------------------
 
 message DebugAnnotationName {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
   optional string name = 2;
 }

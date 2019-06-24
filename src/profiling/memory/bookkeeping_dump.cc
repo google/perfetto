@@ -32,14 +32,11 @@ void DumpState::WriteMap(const Interned<Mapping> map) {
   auto map_it_and_inserted = dumped_mappings_.emplace(map.id());
   if (map_it_and_inserted.second) {
     for (const Interned<std::string>& str : map->path_components)
-      WriteString(str);
+      WriteMappingPathString(str);
 
-    WriteString(map->build_id);
+    WriteBuildIDString(map->build_id);
 
-    if (currently_written() > kPacketSizeThreshold)
-      NewProfilePacket();
-
-    auto mapping = current_profile_packet_->add_mappings();
+    auto mapping = GetCurrentInternedData()->add_mappings();
     mapping->set_iid(map.id());
     mapping->set_offset(map->offset);
     mapping->set_start(map->start);
@@ -53,14 +50,11 @@ void DumpState::WriteMap(const Interned<Mapping> map) {
 
 void DumpState::WriteFrame(Interned<Frame> frame) {
   WriteMap(frame->mapping);
-  WriteString(frame->function_name);
+  WriteFunctionNameString(frame->function_name);
   bool inserted;
   std::tie(std::ignore, inserted) = dumped_frames_.emplace(frame.id());
   if (inserted) {
-    if (currently_written() > kPacketSizeThreshold)
-      NewProfilePacket();
-
-    auto frame_proto = current_profile_packet_->add_frames();
+    auto frame_proto = GetCurrentInternedData()->add_frames();
     frame_proto->set_iid(frame.id());
     frame_proto->set_function_name_id(frame->function_name.id());
     frame_proto->set_mapping_id(frame->mapping.id());
@@ -68,14 +62,33 @@ void DumpState::WriteFrame(Interned<Frame> frame) {
   }
 }
 
-void DumpState::WriteString(const Interned<std::string>& str) {
+void DumpState::WriteBuildIDString(const Interned<std::string>& str) {
   bool inserted;
   std::tie(std::ignore, inserted) = dumped_strings_.emplace(str.id());
   if (inserted) {
-    if (currently_written() > kPacketSizeThreshold)
-      NewProfilePacket();
+    auto interned_string = GetCurrentInternedData()->add_build_ids();
+    interned_string->set_iid(str.id());
+    interned_string->set_str(reinterpret_cast<const uint8_t*>(str->c_str()),
+                             str->size());
+  }
+}
 
-    auto interned_string = current_profile_packet_->add_strings();
+void DumpState::WriteMappingPathString(const Interned<std::string>& str) {
+  bool inserted;
+  std::tie(std::ignore, inserted) = dumped_strings_.emplace(str.id());
+  if (inserted) {
+    auto interned_string = GetCurrentInternedData()->add_mapping_paths();
+    interned_string->set_iid(str.id());
+    interned_string->set_str(reinterpret_cast<const uint8_t*>(str->c_str()),
+                             str->size());
+  }
+}
+
+void DumpState::WriteFunctionNameString(const Interned<std::string>& str) {
+  bool inserted;
+  std::tie(std::ignore, inserted) = dumped_strings_.emplace(str.id());
+  if (inserted) {
+    auto interned_string = GetCurrentInternedData()->add_function_names();
     interned_string->set_iid(str.id());
     interned_string->set_str(reinterpret_cast<const uint8_t*>(str->c_str()),
                              str->size());
@@ -92,7 +105,9 @@ void DumpState::StartProcessDump(
 
 void DumpState::WriteAllocation(
     const HeapTracker::CallstackAllocations& alloc) {
-  callstacks_to_dump_.emplace(alloc.node);
+  if (dumped_callstacks_.find(alloc.node->id()) == dumped_callstacks_.end())
+    callstacks_to_dump_.emplace(alloc.node);
+
   auto* heap_samples = GetCurrentProcessHeapSamples();
   ProfilePacket::HeapSample* sample = heap_samples->add_samples();
   sample->set_callstack_id(alloc.node->id());
@@ -107,17 +122,31 @@ void DumpState::WriteAllocation(
 }
 
 void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
+  // We need a way to signal to consumers when they have fully consumed the
+  // InternedData they need to understand the sequence of continued
+  // ProfilePackets. The way we do that is to mark the last ProfilePacket as
+  // continued, then emit the InternedData, and then an empty ProfilePacket
+  // to terminate the sequence.
+  //
+  // This is why we set_continued at the beginning of this function, and
+  // MakeProfilePacket at the end.
+  if (current_trace_packet_)
+    current_profile_packet_->set_continued(true);
   for (GlobalCallstackTrie::Node* node : callstacks_to_dump_) {
     // There need to be two separate loops over built_callstack because
     // protozero cannot interleave different messages.
     auto built_callstack = callsites->BuildCallstack(node);
     for (const Interned<Frame>& frame : built_callstack)
       WriteFrame(frame);
-    Callstack* callstack = current_profile_packet_->add_callstacks();
+    Callstack* callstack = GetCurrentInternedData()->add_callstacks();
     callstack->set_iid(node->id());
     for (const Interned<Frame>& frame : built_callstack)
       callstack->add_frame_ids(frame.id());
+
+    dumped_callstacks_.emplace(node->id());
   }
+  callstacks_to_dump_.clear();
+  MakeProfilePacket();
 }
 
 void DumpState::AddIdleBytes(uintptr_t callstack_id, uint64_t bytes) {
@@ -132,10 +161,10 @@ void DumpState::RejectConcurrent(pid_t pid) {
 }
 
 ProfilePacket::ProcessHeapSamples* DumpState::GetCurrentProcessHeapSamples() {
-  if (currently_written() > kPacketSizeThreshold &&
-      current_process_heap_samples_ != nullptr) {
-    NewProfilePacket();
-    current_process_heap_samples_ = nullptr;
+  if (currently_written() > kPacketSizeThreshold) {
+    if (current_profile_packet_)
+      current_profile_packet_->set_continued(true);
+    MakeProfilePacket();
   }
 
   if (current_process_heap_samples_ == nullptr) {
@@ -145,6 +174,16 @@ ProfilePacket::ProcessHeapSamples* DumpState::GetCurrentProcessHeapSamples() {
   }
 
   return current_process_heap_samples_;
+}
+
+protos::pbzero::InternedData* DumpState::GetCurrentInternedData() {
+  if (currently_written() > kPacketSizeThreshold)
+    MakeTracePacket();
+
+  if (current_interned_data_ == nullptr)
+    current_interned_data_ = current_trace_packet_->set_interned_data();
+
+  return current_interned_data_;
 }
 
 }  // namespace profiling
