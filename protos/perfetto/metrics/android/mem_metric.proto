@@ -21,13 +21,9 @@ package perfetto.protos;
 
 // Memory metrics on Android.
 message AndroidMemoryMetric {
-  // Next id: 6
   message SystemMetrics {
-    reserved 3, 5;
-
     optional Counter anon_pages = 1;
     optional Counter mmaped_pages = 2;
-    repeated NamedCounter ion_buffers = 4;
   }
 
   // Next id: 14
@@ -58,11 +54,6 @@ message AndroidMemoryMetric {
     optional Counter file_rss = 2;
     optional Counter swap = 3;
     optional Counter anon_and_swap = 4;
-  }
-
-  message NamedCounter {
-    optional string name = 1;
-    optional Counter counter = 2;
   }
 
   message Counter {
