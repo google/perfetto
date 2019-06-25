@@ -21,7 +21,7 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "test/task_runner_thread_delegates.h"
 
-#include "src/tracing/ipc/default_socket.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"

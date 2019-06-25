@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_IPC_DEFAULT_SOCKET_H_
-#define SRC_TRACING_IPC_DEFAULT_SOCKET_H_
+#ifndef INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_
+#define INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_
 
 namespace perfetto {
 
@@ -24,4 +24,4 @@ const char* GetProducerSocket();
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_IPC_DEFAULT_SOCKET_H_
+#endif  // INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_

@@ -20,8 +20,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
-#include "src/tracing/ipc/default_socket.h"
 
 namespace perfetto {
 
