@@ -130,7 +130,6 @@ cc_library(
         "src/protozero/scattered_stream_null_delegate.cc",
         "src/protozero/scattered_stream_writer.cc",
         "tools/trace_to_text/pprof_builder.cc",
-        "tools/trace_to_text/pprof_builder.h",
         "tools/trace_to_text/utils.cc",
         "tools/trace_to_text/utils.h",
     ],
@@ -181,6 +180,7 @@ cc_library(
         "include/perfetto/protozero/scattered_heap_buffer.h",
         "include/perfetto/protozero/scattered_stream_null_delegate.h",
         "include/perfetto/protozero/scattered_stream_writer.h",
+        "tools/trace_to_text/pprof_builder.h",
     ],
     deps = [
         "//third_party/perfetto/protos:common_cc_proto",
