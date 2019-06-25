@@ -420,7 +420,7 @@ class BuildGenerator(object):
 
         if target.type == 'cc_library' or target.type == 'cc_binary':
           target.srcs.update(dep_target.outs)
-      elif args[0].endswith('/protoc'):
+      elif '/protoc' in args[0]:
         result = self.create_proto_target(dep_name);
         if result is None:
           return
@@ -571,7 +571,7 @@ class BuildGenerator(object):
     target_desc = self.desc[gn_target_name]
     if target_desc['type'] == 'action':
       args = target_desc['args']
-      if args[0].endswith('/protoc'):
+      if '/protoc' in args[0]:
         return self.create_proto_target(gn_target_name)
       else:
         raise Error('Unsupported action in target %s: %s' % (gn_target_name,
