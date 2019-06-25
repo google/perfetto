@@ -117,7 +117,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       if (strcmp(value["name"].asCString(), "process_name") == 0 &&
           !value["args"]["name"].empty()) {
         const char* proc_name = value["args"]["name"].asCString();
-        procs->UpdateProcess(pid, base::nullopt, proc_name);
+        procs->SetProcessMetadata(pid, base::nullopt, proc_name);
         break;
       }
     }
