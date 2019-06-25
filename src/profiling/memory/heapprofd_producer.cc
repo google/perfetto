@@ -562,9 +562,10 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
     if (process_state.page_idle_checker) {
       PageIdleChecker& page_idle_checker = *process_state.page_idle_checker;
       heap_tracker.GetAllocations([&dump_state, &page_idle_checker](
-                                      uint64_t addr, uint64_t size,
+                                      uint64_t addr, uint64_t,
+                                      uint64_t alloc_size,
                                       uintptr_t callstack_id) {
-        int64_t idle = page_idle_checker.OnIdlePage(addr, size);
+        int64_t idle = page_idle_checker.OnIdlePage(addr, alloc_size);
         if (idle < 0) {
           PERFETTO_PLOG("OnIdlePage.");
           return;
@@ -851,7 +852,8 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
   process_state.total_unwinding_time_us += alloc_rec.unwinding_time_us;
 
   heap_tracker.RecordMalloc(alloc_rec.frames, alloc_metadata.alloc_address,
-                            alloc_metadata.total_size,
+                            alloc_metadata.sample_size,
+                            alloc_metadata.alloc_size,
                             alloc_metadata.sequence_number,
                             alloc_metadata.clock_monotonic_coarse_timestamp);
 }
