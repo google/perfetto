@@ -344,8 +344,8 @@ export class TraceController extends Controller<States> {
         const el = counterUtids[ref];
         el === undefined ? counterUtids[ref] = [name] :
                            counterUtids[ref].push(name);
-      } else if (refType === '[NULL]') {
-        // Add global counter tracks that are not bound to any pid/tid.
+      } else if (refType === '[NULL]' || refType === 'gpu') {
+        // Add global or GPU counter tracks that are not bound to any pid/tid.
         tracksToAdd.push({
           engineId: this.engineId,
           kind: 'CounterTrack',

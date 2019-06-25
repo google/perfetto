@@ -51,6 +51,8 @@ namespace stats {
   F(ftrace_cpu_read_events_end,               kIndexed, kInfo,     kTrace),    \
   F(fuchsia_non_numeric_counters,             kSingle,  kError,    kAnalysis), \
   F(fuchsia_timestamp_overflow,               kSingle,  kError,    kAnalysis), \
+  F(gpu_counters_invalid_spec,                kSingle,  kError,    kAnalysis), \
+  F(gpu_counters_missing_spec,                kSingle,  kError,    kAnalysis), \
   F(guess_trace_type_duration_ns,             kSingle,  kInfo,     kAnalysis), \
   F(interned_data_tokenizer_errors,           kSingle,  kInfo,     kAnalysis), \
   F(invalid_clock_snapshots,                  kSingle,  kError,    kAnalysis), \
