@@ -24,6 +24,7 @@ import {LogBoundsKey, LogEntriesKey, LogExistsKey} from '../common/logs';
 import {globals, QuantizedLoad, SliceDetails, ThreadDesc} from './globals';
 import {HomePage} from './home_page';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
+import {postMessageHandler} from './post_message_handler';
 import {RecordPage} from './record_page';
 import {Router} from './router';
 import {ViewerPage} from './viewer_page';
@@ -127,6 +128,8 @@ function main() {
   globals.rafScheduler.domRedraw = () =>
       m.render(document.body, m(router.resolve(globals.state.route)));
 
+  // Add support for opening traces from postMessage().
+  window.addEventListener('message', postMessageHandler, {passive: true});
 
   // Put these variables in the global scope for better debugging.
   (window as {} as {m: {}}).m = m;

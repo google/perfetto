@@ -110,6 +110,9 @@
                 padding: 5px 24px;
                 text-decoration: none;
                 display: block;
+                &[disabled] {
+                  text-decoration: line-through;
+                }
             }
             .material-icons {
                 vertical-align: middle;
