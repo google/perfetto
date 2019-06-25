@@ -67,6 +67,17 @@ export const StateActions = {
     state.route = `/viewer`;
   },
 
+  openTraceFromBuffer(state: StateDraft, args: {buffer: ArrayBuffer}): void {
+    clearTraceState(state);
+    const id = `${state.nextId++}`;
+    state.engines[id] = {
+      id,
+      ready: false,
+      source: args.buffer,
+    };
+    state.route = `/viewer`;
+  },
+
   convertTraceToJson(_: StateDraft, args: {file: File}): void {
     ConvertTrace(args.file);
   },
@@ -95,10 +106,9 @@ export const StateActions = {
     });
   },
 
-  addTrack(state: State, args: {
+  addTrack(state: StateDraft, args: {
     id?: string; engineId: string; kind: string; name: string;
-    trackGroup?: string;
-    config: {};
+    trackGroup?: string; config: {};
   }): void {
     const id = args.id !== undefined ? args.id : `${state.nextId++}`;
     state.tracks[id] = {
