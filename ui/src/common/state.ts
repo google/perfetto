@@ -49,7 +49,7 @@ export interface TrackDataRequest {
 export interface EngineConfig {
   id: string;
   ready: boolean;
-  source: string|File;
+  source: string|File|ArrayBuffer;
 }
 
 export interface QueryConfig {

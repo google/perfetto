@@ -34,6 +34,7 @@ export class FrontendLocalState {
   hoveredTimestamp = -1;
   showTimeSelectPreview = false;
   showNotePreview = false;
+  localOnlyMode = false;
 
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
