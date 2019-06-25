@@ -336,13 +336,10 @@ base::Optional<int64_t> HeapProfileTracker::FindCallstack(
   base::Optional<int64_t> res;
   auto it = callstacks_.find(callstack_id);
   if (it == callstacks_.end()) {
-    if (intern_lookup && callstack_id < std::numeric_limits<uint32_t>::max()) {
-      auto interned_callstack =
-          intern_lookup->GetCallstack(static_cast<uint32_t>(callstack_id));
-      if (interned_callstack) {
-        res = AddCallstack(callstack_id, *interned_callstack, intern_lookup);
-        return res;
-      }
+    auto interned_callstack = intern_lookup->GetCallstack(callstack_id);
+    if (interned_callstack) {
+      res = AddCallstack(callstack_id, *interned_callstack, intern_lookup);
+      return res;
     }
     context_->storage->IncrementStats(stats::heapprofd_invalid_callstack_id);
     PERFETTO_DFATAL("Unknown callstack %" PRIu64 " : %zu", callstack_id,
