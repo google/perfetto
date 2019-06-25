@@ -51,6 +51,12 @@ class Trace(object):
     rss_stat.member = member
     rss_stat.size = size
 
+  def add_ion_event(self, ts, tid, heap_name, size):
+    ftrace = self.__add_ftrace_event(ts, tid)
+    ion = ftrace.ion_heap_grow
+    ion.heap_name = heap_name
+    ion.total_allocated = size
+
   def add_oom_score_update(self, ts, oom_score_adj, pid):
     ftrace = self.__add_ftrace_event(ts, pid)
     oom_score = ftrace.oom_score_adj_update

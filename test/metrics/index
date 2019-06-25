@@ -4,6 +4,7 @@
 
 # Synthetic traces
 android_lmk.py android_lmk android_mem_lmk.out
+android_ion.py android_ion android_ion.out
 android_startup.py android_startup android_startup.out
 android_startup_breakdown.py android_startup android_startup_breakdown.out
 android_startup_battery.py android_batt android_batt_counters.out
