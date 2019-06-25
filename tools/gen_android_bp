@@ -460,7 +460,7 @@ def make_genrules_for_action(blueprint, desc, target_name):
     # We only support genrules which call protoc (with or without a plugin) to
     # turn .proto files into header and source files.
     args = target['args']
-    if not args[0].endswith('/protoc'):
+    if '/protoc' not in args[0]:
         raise Error('Unsupported action in target %s: %s' % (target_name,
                                                              target['args']))
     parser = ThrowingArgumentParser('Action in target %s (%s)' %
@@ -472,7 +472,7 @@ def make_genrules_for_action(blueprint, desc, target_name):
     parser.add_argument('--descriptor_set_out')
     parser.add_argument('--include_imports', action='store_true')
     parser.add_argument('protos', nargs=argparse.REMAINDER)
-    args = parser.parse_args(args[1:])
+    args = parser.parse_args(args[2:])
 
     # Depending on whether we are using the default protoc C++ generator or the
     # protozero plugin, the output dir is passed as:
