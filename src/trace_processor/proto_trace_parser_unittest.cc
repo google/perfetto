@@ -100,7 +100,7 @@ class MockProcessTracker : public ProcessTracker {
   MockProcessTracker(TraceProcessorContext* context)
       : ProcessTracker(context) {}
 
-  MOCK_METHOD3(UpdateProcess,
+  MOCK_METHOD3(SetProcessMetadata,
                UniquePid(uint32_t pid,
                          base::Optional<uint32_t> ppid,
                          base::StringView process_name));
@@ -530,7 +530,7 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
   process->set_ppid(2);
 
   EXPECT_CALL(*process_,
-              UpdateProcess(1, Eq(2u), base::StringView(kProcName1)));
+              SetProcessMetadata(1, Eq(2u), base::StringView(kProcName1)));
   Tokenize();
 }
 
@@ -546,7 +546,7 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
   process->set_ppid(2);
 
   EXPECT_CALL(*process_,
-              UpdateProcess(1, Eq(2u), base::StringView(kProcName1)));
+              SetProcessMetadata(1, Eq(2u), base::StringView(kProcName1)));
   Tokenize();
 }
 
