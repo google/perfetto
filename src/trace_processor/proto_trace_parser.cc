@@ -491,8 +491,8 @@ void ProtoTraceParser::ParseProcessTree(ConstBytes blob) {
     auto pid = static_cast<uint32_t>(proc.pid());
     auto ppid = static_cast<uint32_t>(proc.ppid());
 
-    context_->process_tracker->UpdateProcess(pid, ppid,
-                                             proc.cmdline()->as_string());
+    context_->process_tracker->SetProcessMetadata(pid, ppid,
+                                                  proc.cmdline()->as_string());
   }
 
   for (auto it = ps.threads(); it; ++it) {
@@ -873,7 +873,7 @@ void ProtoTraceParser::ParseTaskNewTask(int64_t ts,
   static const uint32_t kCloneThread = 0x00010000;  // From kernel's sched.h.
   if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
-    proc_tracker->StartNewProcess(ts, new_tid);
+    proc_tracker->StartNewProcess(ts, new_tid, new_comm);
     return;
   }
 
@@ -889,6 +889,7 @@ void ProtoTraceParser::ParseTaskRename(ConstBytes blob) {
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
   context_->process_tracker->UpdateThreadName(tid, comm);
+  context_->process_tracker->UpdateProcessNameFromThreadName(tid, comm);
 }
 
 void ProtoTraceParser::ParsePrint(uint32_t,
@@ -1686,7 +1687,7 @@ void ProtoTraceParser::ParseTrackEvent(
         auto process_name = annotation.string_value();
         if (!process_name.size)
           break;
-        procs->UpdateProcess(pid, base::nullopt, process_name);
+        procs->SetProcessMetadata(pid, base::nullopt, process_name);
       }
       break;
     }

@@ -45,7 +45,7 @@ class ProcessTrackerTest : public ::testing::Test {
 
 TEST_F(ProcessTrackerTest, PushProcess) {
   TraceStorage storage;
-  context.process_tracker->UpdateProcess(1, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
   auto pair_it = context.process_tracker->UpidsForPid(1);
   ASSERT_EQ(pair_it.first->second, 1u);
 }
@@ -58,22 +58,22 @@ TEST_F(ProcessTrackerTest, GetOrCreateNewProcess) {
 
 TEST_F(ProcessTrackerTest, StartNewProcess) {
   TraceStorage storage;
-  auto upid = context.process_tracker->StartNewProcess(1000, 123);
+  auto upid = context.process_tracker->StartNewProcess(1000, 123, 0);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
   ASSERT_EQ(context.storage->GetProcess(upid).start_ns, 1000);
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
-  context.process_tracker->UpdateProcess(1, base::nullopt, "test");
-  context.process_tracker->UpdateProcess(1, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
   auto pair_it = context.process_tracker->UpidsForPid(1);
   ASSERT_EQ(pair_it.first->second, 1u);
   ASSERT_EQ(++pair_it.first, pair_it.second);
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
-  context.process_tracker->UpdateProcess(1, base::nullopt, "test");
-  context.process_tracker->UpdateProcess(3, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(3, base::nullopt, "test");
   auto pair_it = context.process_tracker->UpidsForPid(1);
   ASSERT_EQ(pair_it.first->second, 1u);
   auto second_pair_it = context.process_tracker->UpidsForPid(3);
@@ -81,7 +81,7 @@ TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
 }
 
 TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
-  context.process_tracker->UpdateProcess(1, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
   ASSERT_EQ(context.storage->GetString(context.storage->GetProcess(1).name_id),
             "test");
 }
@@ -101,7 +101,7 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
                                          kCommProc1, prio, prev_state,
                                          /*tid=*/1, kCommProc2, prio);
 
-  context.process_tracker->UpdateProcess(2, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(2, base::nullopt, "test");
   context.process_tracker->UpdateThread(4, 2);
 
   TraceStorage::Thread thread = context.storage->GetThread(/*utid=*/1);
