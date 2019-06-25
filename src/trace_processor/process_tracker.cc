@@ -127,22 +127,28 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   return utid;
 }
 
-UniquePid ProcessTracker::StartNewProcess(int64_t timestamp, uint32_t pid) {
+UniquePid ProcessTracker::StartNewProcess(int64_t timestamp,
+                                          uint32_t pid,
+                                          StringId main_thread_name) {
   pids_.erase(pid);
 
   // Create a new UTID for the main thread, so we don't end up reusing an old
   // entry in case of TID recycling.
   StartNewThread(timestamp, /*tid=*/pid, 0);
 
+  // Note that we erased the pid above so this should always return a new
+  // process.
   std::pair<UniquePid, TraceStorage::Process*> process =
       GetOrCreateProcessPtr(pid);
+  PERFETTO_DCHECK(process.second->name_id == 0);
   process.second->start_ns = timestamp;
+  process.second->name_id = main_thread_name;
   return process.first;
 }
 
-UniquePid ProcessTracker::UpdateProcess(uint32_t pid,
-                                        base::Optional<uint32_t> ppid,
-                                        base::StringView name) {
+UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
+                                             base::Optional<uint32_t> ppid,
+                                             base::StringView name) {
   auto proc_name_id = context_->storage->InternString(name);
 
   base::Optional<UniquePid> pupid;
@@ -155,6 +161,18 @@ UniquePid ProcessTracker::UpdateProcess(uint32_t pid,
   process->name_id = proc_name_id;
   process->pupid = pupid;
   return upid;
+}
+
+void ProcessTracker::UpdateProcessNameFromThreadName(uint32_t tid,
+                                                     StringId thread_name) {
+  auto utid = GetOrCreateThread(tid);
+  TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
+  if (thread->upid.has_value()) {
+    auto* process = context_->storage->GetMutableProcess(thread->upid.value());
+    if (process->pid == tid) {
+      process->name_id = thread_name;
+    }
+  }
 }
 
 UniquePid ProcessTracker::GetOrCreateProcess(uint32_t pid) {

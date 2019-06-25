@@ -356,9 +356,9 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           // support 32 bits. This is usually not an issue except for
           // artificial koids which have the 2^63 bit set. This is used for
           // things such as virtual threads.
-          procs->UpdateProcess(static_cast<uint32_t>(obj_id),
-                               base::Optional<uint32_t>(),
-                               base::StringView(storage->GetString(name)));
+          procs->SetProcessMetadata(static_cast<uint32_t>(obj_id),
+                                    base::Optional<uint32_t>(),
+                                    base::StringView(storage->GetString(name)));
           break;
         }
         case kZxObjTypeThread: {
