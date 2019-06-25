@@ -75,14 +75,20 @@ class ProcessTracker {
 
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
-  UniquePid StartNewProcess(int64_t timestamp, uint32_t pid);
+  UniquePid StartNewProcess(int64_t timestamp,
+                            uint32_t pid,
+                            StringId main_thread_name);
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
   // Virtual for testing.
-  virtual UniquePid UpdateProcess(uint32_t pid,
-                                  base::Optional<uint32_t> ppid,
-                                  base::StringView name);
+  virtual UniquePid SetProcessMetadata(uint32_t pid,
+                                       base::Optional<uint32_t> ppid,
+                                       base::StringView name);
+
+  // Called on a task rename event to set the process name if the tid provided
+  // is the main thread of the process.
+  void UpdateProcessNameFromThreadName(uint32_t tid, StringId thread_name);
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.

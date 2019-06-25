@@ -105,6 +105,22 @@ class Trace(object):
     newtask.comm = new_comm
     newtask.clone_flags = flags
 
+  def add_process_exit(self, ts, tid, comm, pid, prio):
+    ftrace = self.__add_ftrace_event(ts, tid)
+    sched_process_exit = ftrace.sched_process_exit
+    sched_process_exit.pid = tid
+    sched_process_exit.comm = comm
+    sched_process_exit.tgid = pid
+    sched_process_exit.prio = prio
+
+  def add_rename(self, ts, tid, old_comm, new_comm, oom_score_adj):
+    ftrace = self.__add_ftrace_event(ts, tid)
+    task_rename = ftrace.task_rename
+    task_rename.pid = tid
+    task_rename.oldcomm = old_comm
+    task_rename.newcomm = new_comm
+    task_rename.oom_score_adj = oom_score_adj
+
   def add_print(self, ts, tid, buf):
     ftrace = self.__add_ftrace_event(ts, tid)
     print_event = getattr(ftrace, 'print')
@@ -143,7 +159,8 @@ class Trace(object):
     thread.tgid = tgid
     self.proc_map[tid] = cmdline
 
-  def add_battery_counters(self, ts, charge_uah, cap_prct, curr_ua, curr_avg_ua):
+  def add_battery_counters(self, ts, charge_uah, cap_prct, curr_ua,
+                           curr_avg_ua):
     self.packet = self.trace.packet.add()
     self.packet.timestamp = ts
     battery_count = self.packet.battery
@@ -152,7 +169,8 @@ class Trace(object):
     battery_count.current_ua = curr_ua
     battery_count.current_avg_ua = curr_avg_ua
 
-  def add_battery_counters_no_curr_ua(self, ts, charge_uah, cap_prct, curr_avg_ua):
+  def add_battery_counters_no_curr_ua(self, ts, charge_uah, cap_prct,
+                                      curr_avg_ua):
     self.packet = self.trace.packet.add()
     self.packet.timestamp = ts
     battery_count = self.packet.battery
