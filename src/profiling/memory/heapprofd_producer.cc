@@ -30,8 +30,6 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 
-#include "src/profiling/memory/bookkeeping_dump.h"
-
 namespace perfetto {
 namespace profiling {
 namespace {
@@ -361,14 +359,13 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     }
   }
 
-  DataSource data_source;
+  auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
+  DataSource data_source(endpoint_->CreateTraceWriter(buffer_id));
   data_source.id = id;
   auto& cli_config = data_source.client_configuration;
   cli_config.interval = heapprofd_config.sampling_interval_bytes();
   cli_config.block_client = heapprofd_config.block_client();
   data_source.config = heapprofd_config;
-  auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
-  data_source.trace_writer = endpoint_->CreateTraceWriter(buffer_id);
   data_source.normalized_cmdlines = std::move(normalized_cmdlines);
 
   data_sources_.emplace(id, std::move(data_source));
@@ -520,8 +517,9 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
   }
   DataSource& data_source = it->second;
 
-  DumpState dump_state(data_source.trace_writer.get(),
-                       &data_source.next_index_);
+  DumpState& dump_state = data_source.dump_state;
+
+  dump_state.StartDump();
 
   for (pid_t rejected_pid : data_source.rejected_pids)
     dump_state.RejectConcurrent(rejected_pid);

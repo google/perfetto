@@ -33,6 +33,7 @@
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "perfetto/trace/profiling/profile_common.pbzero.h"
 #include "perfetto/trace/trace.pbzero.h"
 #include "perfetto/trace/track_event/task_execution.pbzero.h"
 #include "perfetto/trace/track_event/thread_descriptor.pbzero.h"
@@ -54,7 +55,7 @@ void InternMessage(TraceProcessorContext* context,
                    TraceBlobView message) {
   constexpr auto kIidFieldNumber = MessageType::kIidFieldNumber;
 
-  uint32_t iid = 0;
+  uint64_t iid = 0;
   auto message_start = message.data();
   auto message_size = message.length();
   protozero::ProtoDecoder decoder(message_start, message_size);
@@ -65,7 +66,7 @@ void InternMessage(TraceProcessorContext* context,
     context->storage->IncrementStats(stats::interned_data_tokenizer_errors);
     return;
   }
-  iid = field.as_uint32();
+  iid = field.as_uint64();
 
   auto res = state->GetInternedDataMap<MessageType>()->emplace(
       iid,
@@ -244,9 +245,12 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     }
   }
 
+  auto* state = GetIncrementalStateForPacketSequence(
+      decoder.trusted_packet_sequence_id());
+
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
-  context_->sorter->PushTracePacket(timestamp, std::move(packet));
+  context_->sorter->PushTracePacket(timestamp, state, std::move(packet));
 
   return util::OkStatus();
 }
@@ -313,6 +317,38 @@ void ProtoTraceTokenizer::ParseInternedData(
   for (auto it = interned_data_decoder.source_locations(); it; ++it) {
     size_t offset = interned_data.offset_of(it->data());
     InternMessage<protos::pbzero::SourceLocation>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+
+  for (auto it = interned_data_decoder.build_ids(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::InternedString>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+  for (auto it = interned_data_decoder.mapping_paths(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::InternedString>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+  for (auto it = interned_data_decoder.function_names(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::InternedString>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+
+  for (auto it = interned_data_decoder.mappings(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::Mapping>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+  for (auto it = interned_data_decoder.frames(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::Frame>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
+  for (auto it = interned_data_decoder.callstacks(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::Callstack>(
         context_, state, interned_data.slice(offset, it->size()));
   }
 }

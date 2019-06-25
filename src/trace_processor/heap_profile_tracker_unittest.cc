@@ -41,6 +41,10 @@ constexpr auto kMappingStart = 234;
 constexpr auto kMappingEnd = 345;
 constexpr auto kMappingLoadBias = 456;
 
+// heapprofd on Android Q has large callstack ideas, explicitly test large
+// values.
+constexpr auto kCallstackId = 1ull << 34;
+
 static constexpr auto kFrameRelPc = 567;
 static constexpr char kBuildIDName[] = "[build id]";
 static constexpr char kBuildIDHexName[] = "5b6275696c642069645d";
@@ -93,7 +97,7 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
 
     HeapProfileTracker::SourceCallstack first_callsite = {packet.frame_id,
                                                           packet.frame_id};
-    context.heap_profile_tracker->AddCallstack(0, first_callsite);
+    context.heap_profile_tracker->AddCallstack(kCallstackId, first_callsite);
   }
 
   StringId mapping_name;
@@ -106,9 +110,9 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
 // interned, and assert we only store one.
 TEST_F(HeapProfileTrackerDupTest, Mapping) {
   InsertMapping(kFirstPacket);
-  context.heap_profile_tracker->FinalizeProfile();
+  context.heap_profile_tracker->FinalizeProfile(nullptr);
   InsertMapping(kSecondPacket);
-  context.heap_profile_tracker->FinalizeProfile();
+  context.heap_profile_tracker->FinalizeProfile(nullptr);
 
   EXPECT_THAT(context.storage->heap_profile_mappings().build_ids(),
               ElementsAre(context.storage->InternString({kBuildIDHexName})));
@@ -128,9 +132,9 @@ TEST_F(HeapProfileTrackerDupTest, Mapping) {
 // interned, and assert we only store one.
 TEST_F(HeapProfileTrackerDupTest, Frame) {
   InsertFrame(kFirstPacket);
-  context.heap_profile_tracker->FinalizeProfile();
+  context.heap_profile_tracker->FinalizeProfile(nullptr);
   InsertFrame(kSecondPacket);
-  context.heap_profile_tracker->FinalizeProfile();
+  context.heap_profile_tracker->FinalizeProfile(nullptr);
 
   EXPECT_THAT(context.storage->heap_profile_frames().names(),
               ElementsAre(frame_name));
@@ -144,9 +148,9 @@ TEST_F(HeapProfileTrackerDupTest, Frame) {
 // stored once.
 TEST_F(HeapProfileTrackerDupTest, Callstack) {
   InsertCallsite(kFirstPacket);
-  context.heap_profile_tracker->FinalizeProfile();
+  context.heap_profile_tracker->FinalizeProfile(nullptr);
   InsertCallsite(kSecondPacket);
-  context.heap_profile_tracker->FinalizeProfile();
+  context.heap_profile_tracker->FinalizeProfile(nullptr);
 
   EXPECT_THAT(context.storage->heap_profile_callsites().frame_depths(),
               ElementsAre(0, 1));
@@ -179,15 +183,15 @@ TEST(HeapProfileTrackerTest, Functional) {
 
   HeapProfileTracker* hpt = context.heap_profile_tracker.get();
 
-  uint64_t next_string_intern_id = 1;
+  uint32_t next_string_intern_id = 1;
 
   const std::string build_ids[] = {"build1", "build2", "build3"};
-  uint64_t build_id_ids[base::ArraySize(build_ids)];
+  uint32_t build_id_ids[base::ArraySize(build_ids)];
   for (size_t i = 0; i < base::ArraySize(build_ids); ++i)
     build_id_ids[i] = next_string_intern_id++;
 
   const std::string mapping_names[] = {"map1", "map2", "map3"};
-  uint64_t mapping_name_ids[base::ArraySize(mapping_names)];
+  uint32_t mapping_name_ids[base::ArraySize(mapping_names)];
   for (size_t i = 0; i < base::ArraySize(mapping_names); ++i)
     mapping_name_ids[i] = next_string_intern_id++;
 
@@ -215,7 +219,7 @@ TEST(HeapProfileTrackerTest, Functional) {
   mappings[2].name_id = mapping_name_ids[2];
 
   const std::string function_names[] = {"fun1", "fun2", "fun3", "fun4"};
-  uint64_t function_name_ids[base::ArraySize(function_names)];
+  uint32_t function_name_ids[base::ArraySize(function_names)];
   for (size_t i = 0; i < base::ArraySize(function_names); ++i)
     function_name_ids[i] = next_string_intern_id++;
 
@@ -257,14 +261,14 @@ TEST(HeapProfileTrackerTest, Functional) {
     hpt->AddString(function_name_ids[i], interned);
   }
 
-  for (size_t i = 0; i < base::ArraySize(mappings); ++i)
+  for (uint32_t i = 0; i < base::ArraySize(mappings); ++i)
     hpt->AddMapping(i, mappings[i]);
-  for (size_t i = 0; i < base::ArraySize(frames); ++i)
+  for (uint32_t i = 0; i < base::ArraySize(frames); ++i)
     hpt->AddFrame(i, frames[i]);
-  for (size_t i = 0; i < base::ArraySize(callstacks); ++i)
+  for (uint32_t i = 0; i < base::ArraySize(callstacks); ++i)
     hpt->AddCallstack(i, callstacks[i]);
 
-  hpt->CommitAllocations();
+  hpt->CommitAllocations(nullptr);
 
   for (size_t i = 0; i < base::ArraySize(callstacks); ++i) {
     int64_t parent = -1;
@@ -279,7 +283,7 @@ TEST(HeapProfileTrackerTest, Functional) {
     }
   }
 
-  hpt->FinalizeProfile();
+  hpt->FinalizeProfile(nullptr);
 }
 
 }  // namespace
