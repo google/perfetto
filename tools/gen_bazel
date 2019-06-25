@@ -141,7 +141,10 @@ def is_public_header(label):
   Args:
       label: Label to evaluate
   """
-  return label.endswith('.h') and label.startswith('//include/perfetto/')
+  # TODO(135923303): Remove the pprof builder once the long-term solution lands
+  return label.endswith('.h') and (
+    label.startswith('//include/perfetto/') or
+    label == '//tools/trace_to_text/pprof_builder.h')
 
 
 @functools.total_ordering
