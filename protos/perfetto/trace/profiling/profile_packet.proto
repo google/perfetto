@@ -22,6 +22,13 @@ import "perfetto/trace/profiling/profile_common.proto";
 package perfetto.protos;
 
 message ProfilePacket {
+  // The following interning tables are only used in Android version Q.
+  // In newer versions, these tables are in InternedData
+  // (see protos/perfetto/trace/interned_data) and are shared across
+  // multiple ProfilePackets.
+  // For backwards compatibility, consumers need to first look up interned
+  // data in the tables within the ProfilePacket, and then, if they are empty,
+  // look up in the InternedData instead.
   repeated InternedString strings = 1;
   repeated Mapping mappings = 4;
   repeated Frame frames = 2;
