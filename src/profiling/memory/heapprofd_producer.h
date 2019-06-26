@@ -196,8 +196,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     std::set<pid_t> rejected_pids;
     std::map<pid_t, ProcessState> process_states;
     std::vector<std::string> normalized_cmdlines;
-    uint64_t next_index_ = 0;
-    DumpState dump_state{trace_writer.get(), &next_index_};
+    DumpState dump_state{trace_writer.get()};
   };
 
   struct PendingProcess {
