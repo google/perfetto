@@ -37,8 +37,7 @@ namespace profiling {
 
 class DumpState {
  public:
-  DumpState(TraceWriter* trace_writer, uint64_t* next_index)
-      : trace_writer_(trace_writer), next_index_(next_index) {
+  DumpState(TraceWriter* trace_writer) : trace_writer_(trace_writer) {
     MakeTracePacket();
 
     constexpr const uint8_t kEmptyString[] = "";
@@ -94,7 +93,7 @@ class DumpState {
     MakeTracePacket();
 
     current_profile_packet_ = current_trace_packet_->set_profile_packet();
-    current_profile_packet_->set_index((*next_index_)++);
+    current_profile_packet_->set_index(next_index_++);
   }
 
   uint64_t currently_written() {
@@ -125,7 +124,7 @@ class DumpState {
 
   std::map<uintptr_t /* callstack_id */, uint64_t> current_process_idle_allocs_;
 
-  uint64_t* next_index_;
+  uint64_t next_index_ = 0;
   uint64_t last_written_ = 0;
 };
 
