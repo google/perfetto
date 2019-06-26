@@ -235,7 +235,8 @@ class HeapTracker {
 
   void RecordMalloc(const std::vector<FrameData>& stack,
                     uint64_t address,
-                    uint64_t size,
+                    uint64_t sample_size,
+                    uint64_t alloc_size,
                     uint64_t sequence_number,
                     uint64_t timestamp);
 
@@ -269,7 +270,7 @@ class HeapTracker {
   void GetAllocations(F fn) {
     for (const auto& addr_and_allocation : allocations_) {
       const Allocation& alloc = addr_and_allocation.second;
-      fn(addr_and_allocation.first, alloc.total_size,
+      fn(addr_and_allocation.first, alloc.sample_size, alloc.alloc_size,
          alloc.callstack_allocations->node->id());
     }
   }
@@ -287,15 +288,22 @@ class HeapTracker {
 
  private:
   struct Allocation {
-    Allocation(uint64_t size, uint64_t seq, CallstackAllocations* csa)
-        : total_size(size), sequence_number(seq), callstack_allocations(csa) {
+    Allocation(uint64_t size,
+               uint64_t asize,
+               uint64_t seq,
+               CallstackAllocations* csa)
+        : sample_size(size),
+          alloc_size(asize),
+          sequence_number(seq),
+          callstack_allocations(csa) {
       callstack_allocations->allocs++;
     }
 
     Allocation() = default;
     Allocation(const Allocation&) = delete;
     Allocation(Allocation&& other) noexcept {
-      total_size = other.total_size;
+      sample_size = other.sample_size;
+      alloc_size = other.alloc_size;
       sequence_number = other.sequence_number;
       callstack_allocations = other.callstack_allocations;
       other.callstack_allocations = nullptr;
@@ -303,12 +311,12 @@ class HeapTracker {
 
     void AddToCallstackAllocations() {
       callstack_allocations->allocation_count++;
-      callstack_allocations->allocated += total_size;
+      callstack_allocations->allocated += sample_size;
     }
 
     void SubtractFromCallstackAllocations() {
       callstack_allocations->free_count++;
-      callstack_allocations->freed += total_size;
+      callstack_allocations->freed += sample_size;
     }
 
     ~Allocation() {
@@ -316,7 +324,8 @@ class HeapTracker {
         callstack_allocations->allocs--;
     }
 
-    uint64_t total_size;
+    uint64_t sample_size;
+    uint64_t alloc_size;
     uint64_t sequence_number;
     CallstackAllocations* callstack_allocations;
   };
