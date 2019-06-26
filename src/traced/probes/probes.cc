@@ -22,10 +22,10 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/probes_producer.h"
-#include "src/tracing/ipc/default_socket.h"
 
 namespace perfetto {
 

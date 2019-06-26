@@ -23,10 +23,10 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/profiling/memory/heapprofd_producer.h"
-#include "src/tracing/ipc/default_socket.h"
 #include "test/test_helper.h"
 
 #include "perfetto/config/profiling/heapprofd_config.pbzero.h"
