@@ -31,8 +31,8 @@ import tempfile
 import urllib
 
 TRACE_PROCESSOR_SHELL_SHAS = {
-  'linux': 'c8208066d1b88f42abc59c3389acce62ae0e8773',
-  'mac': '66df2dc8c52c2c93569aa34d7997cdcd7bd09e3b',
+  'linux': 'a610c3f4a65f543a3d1ef8f3c7063b071435332d',
+  'mac': 'fe8d751086265c4da258fa2364e07c069a1e0427',
 }
 TRACE_PROCESSOR_SHELL_PATH = tempfile.gettempdir()
 TRACE_PROCESSOR_SHELL_BASE_URL = (
