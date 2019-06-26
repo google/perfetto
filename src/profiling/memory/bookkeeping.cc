@@ -30,7 +30,8 @@ namespace profiling {
 
 void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
                                uint64_t address,
-                               uint64_t size,
+                               uint64_t sample_size,
+                               uint64_t alloc_size,
                                uint64_t sequence_number,
                                uint64_t timestamp) {
   auto it = allocations_.find(address);
@@ -54,14 +55,15 @@ void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
 
       alloc.SubtractFromCallstackAllocations();
       GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(callstack);
-      alloc.total_size = size;
+      alloc.sample_size = sample_size;
+      alloc.alloc_size = alloc_size;
       alloc.sequence_number = sequence_number;
       alloc.callstack_allocations = MaybeCreateCallstackAllocations(node);
     }
   } else {
     GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(callstack);
     allocations_.emplace(address,
-                         Allocation(size, sequence_number,
+                         Allocation(sample_size, alloc_size, sequence_number,
                                     MaybeCreateCallstackAllocations(node)));
   }
 
