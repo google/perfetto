@@ -19,8 +19,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
-#include "src/tracing/ipc/default_socket.h"
 
 namespace perfetto {
 namespace internal {

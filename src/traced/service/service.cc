@@ -17,9 +17,9 @@
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "src/traced/service/lazy_producer.h"
-#include "src/tracing/ipc/default_socket.h"
 
 namespace perfetto {
 
