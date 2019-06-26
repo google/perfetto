@@ -188,7 +188,6 @@ if (perfetto_build_with_ipc_layer) {
       "ipc/consumer/consumer_ipc_client_impl.cc",
       "ipc/consumer/consumer_ipc_client_impl.h",
       "ipc/default_socket.cc",
-      "ipc/default_socket.h",
       "ipc/posix_shared_memory.cc",
       "ipc/posix_shared_memory.h",
       "ipc/producer/producer_ipc_client_impl.cc",
