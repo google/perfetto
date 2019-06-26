@@ -254,12 +254,13 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
                                note.color);
       }
       if (globals.state.currentSelection.kind === 'TIMESPAN') {
-        drawVerticalSelection(ctx,
-                              localState.timeScale,
-                              globals.state.currentSelection.startTs,
-                              globals.state.currentSelection.endTs,
-                              size.height,
-                              `rgba(52,69,150,0.3)`);
+        drawVerticalSelection(
+            ctx,
+            localState.timeScale,
+            globals.state.currentSelection.startTs,
+            globals.state.currentSelection.endTs,
+            size.height,
+            `rgba(0,0,0,0.5)`);
       }
       if (globals.state.currentSelection.kind === 'SLICE' &&
           globals.sliceDetails.wakeupTs !== undefined) {
