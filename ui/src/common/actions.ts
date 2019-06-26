@@ -288,13 +288,14 @@ export const StateActions = {
     }
   },
 
-  addNote(state: StateDraft, args: {timestamp: number, color: string}): void {
+  addNote(state: StateDraft, args: {timestamp: number, color: string, isMovie: boolean}): void {
     const id = `${state.nextId++}`;
     state.notes[id] = {
       id,
       timestamp: args.timestamp,
       color: args.color,
       text: '',
+      isMovie: args.isMovie
     };
     this.selectNote(state, {id});
   },

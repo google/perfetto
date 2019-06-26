@@ -24,8 +24,10 @@ import {TRACK_SHELL_WIDTH} from './track_constants';
 import {hsl} from 'color-convert';
 
 const FLAG_WIDTH = 16;
+const MOVIE_WIDTH = 16;
 const MOUSE_OFFSET = 6;
 const FLAG = `\uE153`;
+const MOVIE = '\uE8DA'
 
 function toSummary(s: string) {
   const newlineIndex = s.indexOf('\n') > 0 ? s.indexOf('\n') : s.length;
@@ -58,7 +60,8 @@ export class NotesPanel extends Panel {
       '.notes-panel',
       {
         onclick: (e: MouseEvent) => {
-          this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
+          const isMovie = e.buttons === 4;
+          this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY, isMovie);
           e.stopPropagation();
         },
       });
@@ -95,11 +98,14 @@ export class NotesPanel extends Panel {
       // Draw flag.
       if (!aNoteIsHovered && currentIsHovered) {
         aNoteIsHovered = true;
-        this.drawFlag(ctx, left, size.height, note.color, isSelected);
+        this.drawFlag(ctx, left, size.height, note.color, isSelected,
+          note.isMovie);
       } else if (isSelected) {
-        this.drawFlag(ctx, left, size.height, note.color, /* fill */ true);
+        this.drawFlag(ctx, left, size.height, note.color, /* fill */ true,
+          note.isMovie);
       } else {
-        this.drawFlag(ctx, left, size.height, note.color);
+        this.drawFlag(ctx, left, size.height, note.color, false,
+          note.isMovie);
       }
 
       if (note.text) {
@@ -132,7 +138,7 @@ export class NotesPanel extends Panel {
 
   private drawFlag(
       ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
-      fill?: boolean) {
+      fill?: boolean, isMovie: boolean = false) {
     const prevFont = ctx.font;
     const prevBaseline = ctx.textBaseline;
     ctx.textBaseline = 'alphabetic';
@@ -140,23 +146,25 @@ export class NotesPanel extends Panel {
       ctx.font = '24px Material Icons';
       ctx.fillStyle = color;
       // Adjust height for icon font.
-      ctx.fillText(FLAG, x - MOUSE_OFFSET, height + 2);
+      ctx.fillText(isMovie ? MOVIE : FLAG, x - MOUSE_OFFSET, height + 2);
     } else {
       ctx.strokeStyle = color;
       ctx.font = '24px Material Icons';
       // Adjust height for icon font.
-      ctx.strokeText(FLAG, x - MOUSE_OFFSET, height + 2.5);
+      ctx.strokeText(isMovie ? MOVIE : FLAG, x - MOUSE_OFFSET, height + 2.5);
     }
     ctx.font = prevFont;
     ctx.textBaseline = prevBaseline;
   }
 
-  private onClick(x: number, _: number) {
+
+  private onClick(x: number, _: number, isMovie: boolean) {
     const timeScale = globals.frontendLocalState.timeScale;
     const timestamp = timeScale.pxToTime(x - MOUSE_OFFSET);
+    const width = isMovie ? MOVIE_WIDTH : FLAG_WIDTH;
     for (const note of Object.values(globals.state.notes)) {
       const noteX = timeScale.timeToPx(note.timestamp);
-      if (noteX <= x && x < noteX + FLAG_WIDTH) {
+      if (noteX <= x && x < noteX + width) {
         globals.dispatch(Actions.selectNote({id: note.id}));
         return;
       }
@@ -164,7 +172,7 @@ export class NotesPanel extends Panel {
     // 40 different random hues 9 degrees apart.
     const hue = Math.floor(Math.random() * 40) * 9;
     const color = '#' + hsl.hex([hue, 90, 30]);
-    globals.dispatch(Actions.addNote({timestamp, color}));
+    globals.dispatch(Actions.addNote({timestamp, color, isMovie}));
   }
 }
 

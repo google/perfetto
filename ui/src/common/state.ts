@@ -83,6 +83,7 @@ export interface Note {
   timestamp: number;
   color: string;
   text: string;
+  isMovie: boolean;
 }
 
 export interface NoteSelection {
