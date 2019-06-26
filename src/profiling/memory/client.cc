@@ -251,8 +251,8 @@ const char* Client::GetStackBase() {
 //               +------------+    |
 //               |  main      |    v
 // stackbase +-> +------------+ 0xffff
-bool Client::RecordMalloc(uint64_t alloc_size,
-                          uint64_t total_size,
+bool Client::RecordMalloc(uint64_t sample_size,
+                          uint64_t alloc_size,
                           uint64_t alloc_address) {
   if (PERFETTO_UNLIKELY(getpid() != pid_at_creation_)) {
     PERFETTO_LOG("Detected post-fork child situation, stopping profiling.");
@@ -270,7 +270,7 @@ bool Client::RecordMalloc(uint64_t alloc_size,
   }
 
   uint64_t stack_size = static_cast<uint64_t>(stackbase - stacktop);
-  metadata.total_size = total_size;
+  metadata.sample_size = sample_size;
   metadata.alloc_size = alloc_size;
   metadata.alloc_address = alloc_address;
   metadata.stack_pointer = reinterpret_cast<uint64_t>(stacktop);

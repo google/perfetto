@@ -451,7 +451,7 @@ static void MaybeSampleAllocation(size_t size, void* addr) {
     client = g_client.ref();  // owning copy
   }                           // unlock
 
-  if (!client->RecordMalloc(size, sampled_alloc_sz,
+  if (!client->RecordMalloc(sampled_alloc_sz, size,
                             reinterpret_cast<uint64_t>(addr))) {
     ShutdownLazy();
   }
@@ -557,7 +557,7 @@ void* HEAPPROFD_ADD_PREFIX(_realloc)(void* pointer, size_t size) {
   // sampled_alloc_sz == 0.
   PERFETTO_DCHECK(client);
 
-  if (!client->RecordMalloc(size, sampled_alloc_sz,
+  if (!client->RecordMalloc(sampled_alloc_sz, size,
                             reinterpret_cast<uint64_t>(addr))) {
     ShutdownLazy();
   }
