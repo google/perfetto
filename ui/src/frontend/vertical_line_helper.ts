@@ -51,7 +51,8 @@ export function drawVerticalSelection(ctx: CanvasRenderingContext2D,
                       Math.floor(timeScale.timeToPx(timeStart));
     const xEndPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(timeEnd));
     ctx.fillStyle = color;
-    ctx.fillRect(xStartPos, 0, xEndPos - xStartPos, height);
+    ctx.fillRect(0, 0, xStartPos, height);
+    ctx.fillRect(xEndPos, 0, timeScale.endPx, height);
     drawVerticalLine(ctx, xStartPos, height, `rgba(52,69,150)`);
     drawVerticalLine(ctx, xEndPos, height, `rgba(52,69,150)`);
   }
