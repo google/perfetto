@@ -90,7 +90,7 @@ struct AllocMetadata {
   // Size of the allocation that was made.
   uint64_t alloc_size;
   // Total number of bytes attributed to this allocation.
-  uint64_t total_size;
+  uint64_t sample_size;
   // Pointer returned by malloc(2) for this allocation.
   uint64_t alloc_address;
   // Current value of the stack pointer.
