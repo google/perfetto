@@ -41,6 +41,7 @@
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
@@ -50,7 +51,6 @@
 #include "src/perfetto_cmd/packet_writer.h"
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
 #include "src/perfetto_cmd/trigger_producer.h"
-#include "src/tracing/ipc/default_socket.h"
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
