@@ -39,3 +39,7 @@ message SuspendResumeFtraceEvent {
   optional int32 val = 2;
   optional uint32 start = 3;
 }
+message GpuFrequencyFtraceEvent {
+  optional uint32 gpu_id = 1;
+  optional uint32 state = 2;
+}
