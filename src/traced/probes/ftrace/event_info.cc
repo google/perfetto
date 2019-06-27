@@ -3615,6 +3615,16 @@ std::vector<Event> GetStaticEventInfo() {
   {
     events.emplace_back(Event{});
     Event* event = &events.back();
+    event->name = "gpu_frequency";
+    event->group = "power";
+    event->proto_field_id = 332;
+    event->fields.push_back(MakeField("gpu_id", 1, ProtoSchemaType::kUint32));
+    event->fields.push_back(MakeField("state", 2, ProtoSchemaType::kUint32));
+  }
+
+  {
+    events.emplace_back(Event{});
+    Event* event = &events.back();
     event->name = "sys_enter";
     event->group = "raw_syscalls";
     event->proto_field_id = 329;
