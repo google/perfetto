@@ -13,32 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-// Memory metrics on Android.
-message AndroidMemoryMetric {
-  message ProcessMetrics {
-    optional string process_name = 1;
-    optional ProcessMemoryCounters total_counters = 2;
+message AndroidProcessGrowth {
+  message InstanceMetrics {
+    optional uint32 pid = 1;
+    optional string process_name = 2;
+
+    optional int64 anon_and_swap_change_bytes = 3;
+    optional int64 malloc_memory_change_bytes = 4;
   }
 
-  message ProcessMemoryCounters {
-    optional Counter anon_rss = 1;
-    optional Counter file_rss = 2;
-    optional Counter swap = 3;
-    optional Counter anon_and_swap = 4;
-  }
-
-  message Counter {
-    optional double min = 1;
-    optional double max = 2;
-    optional double avg = 3;
-  }
-
-  // Process metrics, grouped by process name
-  repeated ProcessMetrics process_metrics = 1;
+  // Process memory per process instance.
+  repeated InstanceMetrics instance_metrics = 1;
 }

@@ -14,39 +14,40 @@
 -- limitations under the License.
 --
 
--- Create all the views used to generate the Android Memory metrics proto.
--- Generate the process counter metrics.
-SELECT RUN_METRIC('android/android_mem_proc_counters.sql',
-                  'table_name',
-                  'file_rss',
-                  'counter_names',
-                  'mem.rss.file');
-SELECT RUN_METRIC('android/android_mem_proc_counters.sql',
-                  'table_name',
-                  'anon_rss',
-                  'counter_names',
-                  'mem.rss.anon');
+SELECT RUN_METRIC('android/process_mem.sql');
 
 CREATE VIEW process_metrics_view AS
 SELECT
   AndroidMemoryMetric_ProcessMetrics(
-    'process_name',
-    anon_rss.name,
-    'overall_counters',
-    AndroidMemoryMetric_ProcessMemoryCounters(
-      'anon_rss',
-      AndroidMemoryMetric_Counter(
-        'min',
-        anon_rss.min,
-        'max',
-        anon_rss.max,
-        'avg',
-        anon_rss.avg
+    'process_name', process_name,
+    'total_counters', AndroidMemoryMetric_ProcessMemoryCounters(
+      'anon_rss', AndroidMemoryMetric_Counter(
+        'min', anon_rss_stats.min_value,
+        'max', anon_rss_stats.max_value,
+        'avg', anon_rss_stats.avg_value
+      ),
+      'file_rss', AndroidMemoryMetric_Counter(
+        'min', file_rss_stats.min_value,
+        'max', file_rss_stats.max_value,
+        'avg', file_rss_stats.avg_value
+      ),
+      'swap', AndroidMemoryMetric_Counter(
+        'min', swap_stats.min_value,
+        'max', swap_stats.max_value,
+        'avg', swap_stats.avg_value
+      ),
+      'anon_and_swap', AndroidMemoryMetric_Counter(
+        'min', anon_and_swap_stats.min_value,
+        'max', anon_and_swap_stats.max_value,
+        'avg', anon_and_swap_stats.avg_value
       )
     )
-  ) as metric
+  ) AS metric
 FROM
-  anon_rss;
+  anon_rss_stats
+  JOIN file_rss_stats USING (process_name)
+  JOIN swap_stats USING (process_name)
+  JOIN anon_and_swap_stats USING (process_name);
 
 CREATE VIEW android_mem_output AS
 SELECT

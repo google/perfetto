@@ -1,0 +1,12 @@
+android_process_growth {
+  instance_metrics {
+    pid: 3
+    process_name: "com.google.android.calendar"
+    anon_and_swap_change_bytes: 4000
+  }
+  instance_metrics {
+    pid: 4
+    process_name: "com.google.android.calendar"
+    anon_and_swap_change_bytes: 0
+  }
+}
