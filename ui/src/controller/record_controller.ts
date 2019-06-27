@@ -24,7 +24,7 @@ import {
   TraceConfig
 } from '../common/protos';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
-import {RecordConfig} from '../common/state';
+import {RecordConfig, MAX_TIME} from '../common/state';
 
 import {Controller} from './controller';
 import {App} from './globals';
@@ -36,6 +36,12 @@ export function uint8ArrayToBase64(buffer: Uint8Array): string {
 export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
   const protoCfg = new TraceConfig();
   protoCfg.durationMs = uiCfg.durationMs;
+
+  var time = protoCfg.durationMs / 1000;
+
+  if(time > MAX_TIME) {
+    time = MAX_TIME;
+  }
 
   // Auxiliary buffer for slow-rate events.
   // Set to 1/8th of the main buffer size, with reasonable limits.
