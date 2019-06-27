@@ -81,9 +81,10 @@ group("all") {
         "protos/perfetto/trace:descriptor",
       ]
       if (is_linux || is_android) {
-        deps += [ "tools/skippy" ]
         deps += [ "tools/busy_threads" ]
+        deps += [ "tools/cpu_utilization" ]
         deps += [ "tools/dump_ftrace_stats" ]
+        deps += [ "tools/skippy" ]
       }
       if (is_fuzzer) {
         deps += [ ":fuzzers" ]
