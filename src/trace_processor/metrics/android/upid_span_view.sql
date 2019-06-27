@@ -14,23 +14,13 @@
 -- limitations under the License.
 --
 
+DROP VIEW IF EXISTS {{table_name}}_span;
+
 CREATE VIEW {{table_name}}_span AS
 SELECT
   ts,
-  LEAD(ts, 1, ts) OVER(PARTITION BY counter_id ORDER BY ts) - ts AS dur,
+  LEAD(ts, 1, ts + 1) OVER(PARTITION BY counter_id ORDER BY ts) - ts AS dur,
   ref AS upid,
-  value
+  value AS {{table_name}}_val
 FROM counters
-WHERE name = '{{counter_names}}' AND ref IS NOT NULL AND ref_type = 'upid';
-
-CREATE VIEW {{table_name}} AS
-SELECT
-  process.name,
-  MIN(span.value) as min,
-  MAX(span.value) as max,
-  SUM(span.value * span.dur) / SUM(span.dur) as avg
-FROM {{table_name}}_span as span JOIN process USING(upid)
-WHERE NOT (process.name IS NULL OR process.name = '')
-GROUP BY 1
-HAVING SUM(span.dur) > 0
-ORDER BY 1;
+WHERE name = '{{counter_name}}' AND ref IS NOT NULL AND ref_type = 'upid';
