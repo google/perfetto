@@ -402,10 +402,10 @@ util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
         break;
       }
       case kFuchsiaTraceType: {
-        constexpr uint64_t kDefaultWindowNs =
-            180 * 1000 * 1000 * 1000ULL;  // 3 minutes.
+        // Fuschia traces can have massively out of order events.
+        int64_t window_size_ns = std::numeric_limits<int64_t>::max();
         context_.chunk_reader.reset(new FuchsiaTraceTokenizer(&context_));
-        context_.sorter.reset(new TraceSorter(&context_, kDefaultWindowNs));
+        context_.sorter.reset(new TraceSorter(&context_, window_size_ns));
         context_.parser.reset(new FuchsiaTraceParser(&context_));
         break;
       }
