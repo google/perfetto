@@ -20,6 +20,7 @@ common_sources = [
   "batt_metric.proto",
   "cpu_metric.proto",
   "mem_metric.proto",
+  "process_growth.proto",
   "ion_metric.proto",
   "lmk_metric.proto",
   "powrails_metric.proto",

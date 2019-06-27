@@ -238,6 +238,7 @@ proto_library(
         "perfetto/metrics/android/lmk_metric.proto",
         "perfetto/metrics/android/mem_metric.proto",
         "perfetto/metrics/android/powrails_metric.proto",
+        "perfetto/metrics/android/process_growth.proto",
         "perfetto/metrics/android/startup_metric.proto",
     ],
     has_services = 1,
@@ -281,6 +282,7 @@ proto_library(
         "perfetto/metrics/android/lmk_metric.proto",
         "perfetto/metrics/android/mem_metric.proto",
         "perfetto/metrics/android/powrails_metric.proto",
+        "perfetto/metrics/android/process_growth.proto",
         "perfetto/metrics/android/startup_metric.proto",
     ],
 )
