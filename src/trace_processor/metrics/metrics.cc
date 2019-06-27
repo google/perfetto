@@ -562,11 +562,7 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
     PERFETTO_DLOG("RUN_METRIC: Executing query: %s", buffer.c_str());
     auto it = fn_ctx->tp->ExecuteQuery(buffer);
-    if (it.Status().ok() && it.Next()) {
-      sqlite3_result_error(
-          ctx, "RUN_METRIC: functions should not produce any output", -1);
-      return;
-    }
+    it.Next();
 
     util::Status status = it.Status();
     if (!status.ok()) {
