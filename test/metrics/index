@@ -3,6 +3,7 @@
 ../data/memory_counters.pb error_statistics error_statistics.out
 
 # Synthetic traces
+android_process_growth.py android_process_growth android_process_growth.out
 android_lmk.py android_lmk android_mem_lmk.out
 android_ion.py android_ion android_ion.out
 
