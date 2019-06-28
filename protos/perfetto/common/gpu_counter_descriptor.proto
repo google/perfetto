@@ -19,20 +19,13 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-import "perfetto/common/gpu_counter_descriptor.proto";
-
-message GpuCounterEvent {
-  // The first trace packet of each session should include counter_spec.
-  optional GpuCounterDescriptor counter_descriptor = 1;
-
-  message GpuCounter {
-    // required. Identifier for counter.
+// Description of GPU counters.
+// This message is sent by a GPU counter producer to specify the counters available in the hardware.
+message GpuCounterDescriptor {
+  message GpuCounterSpec {
     optional uint32 counter_id = 1;
-    // required. Value of the counter.
-    oneof value {
-      int64 int_value = 2;
-      double double_value = 3;
-    }
+    optional string name = 2;
+    optional string description = 3;
   }
-  repeated GpuCounter counters = 2;
+  repeated GpuCounterSpec specs = 1;
 }
