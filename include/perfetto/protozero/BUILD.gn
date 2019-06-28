@@ -22,7 +22,6 @@ source_set("protozero") {
     "message.h",
     "message_handle.h",
     "proto_decoder.h",
-    "proto_decoder.h",
     "proto_utils.h",
     "scattered_heap_buffer.h",
     "scattered_stream_null_delegate.h",
