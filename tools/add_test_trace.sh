@@ -66,5 +66,6 @@ cat tools/install-build-deps \
   > tools/install-build-deps.tmp
 
 mv -f tools/install-build-deps.tmp tools/install-build-deps
+chmod 755 tools/install-build-deps
 
 echo "All done!"
