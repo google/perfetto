@@ -16,6 +16,14 @@
 
 SELECT RUN_METRIC('android/process_mem.sql');
 
+SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'anon_rss');
+
+SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'file_rss');
+
+SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'swap');
+
+SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'anon_and_swap');
+
 CREATE VIEW process_metrics_view AS
 SELECT
   AndroidMemoryMetric_ProcessMetrics(
