@@ -30,9 +30,7 @@ SELECT
   MIN(span.{{table_name}}_val) AS min_value,
   MAX(span.{{table_name}}_val) AS max_value,
   SUM(span.{{table_name}}_val * span.dur) / SUM(span.dur) AS avg_value
-FROM {{table_name}}_span AS span
-CROSS JOIN process
-WHERE span.upid = process.upid
-AND process.name IS NOT NULL
+FROM {{table_name}}_span AS span JOIN process USING(upid)
+WHERE process.name IS NOT NULL
 GROUP BY 1
 ORDER BY 1;
