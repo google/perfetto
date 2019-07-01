@@ -20,21 +20,15 @@ SELECT RUN_METRIC('android/upid_span_view.sql',
   'table_name', 'anon_rss',
   'counter_name', 'mem.rss.anon');
 
-SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'anon_rss');
-
 -- File RSS
 SELECT RUN_METRIC('android/upid_span_view.sql',
   'table_name', 'file_rss',
   'counter_name', 'mem.rss.file');
 
-SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'file_rss');
-
 -- Swap
 SELECT RUN_METRIC('android/upid_span_view.sql',
   'table_name', 'swap',
   'counter_name', 'mem.swap');
-
-SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'swap');
 
 -- Anon RSS + Swap
 DROP TABLE IF EXISTS anon_and_swap_join;
@@ -47,5 +41,3 @@ DROP VIEW IF EXISTS anon_and_swap_span;
 CREATE VIEW anon_and_swap_span AS
 SELECT ts, dur, upid, anon_rss_val + swap_val AS anon_and_swap_val
 FROM anon_and_swap_join;
-
-SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'anon_and_swap');

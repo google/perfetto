@@ -14,15 +14,25 @@
 -- limitations under the License.
 --
 
-DROP VIEW IF EXISTS {{table_name}}_stats;
+DROP TABLE IF EXISTS {{table_name}}_stats;
 
-CREATE VIEW {{table_name}}_stats AS
+CREATE TABLE {{table_name}}_stats (
+  process_name TEXT PRIMARY KEY,
+  min_value REAL,
+  max_value REAL,
+  avg_value REAL
+);
+
+-- Cross join to force the execution plan
+INSERT INTO {{table_name}}_stats
 SELECT
   process.name AS process_name,
   MIN(span.{{table_name}}_val) AS min_value,
   MAX(span.{{table_name}}_val) AS max_value,
   SUM(span.{{table_name}}_val * span.dur) / SUM(span.dur) AS avg_value
-FROM {{table_name}}_span AS span JOIN process USING(upid)
-WHERE process.name IS NOT NULL
+FROM {{table_name}}_span AS span
+CROSS JOIN process
+WHERE span.upid = process.upid
+AND process.name IS NOT NULL
 GROUP BY 1
 ORDER BY 1;
