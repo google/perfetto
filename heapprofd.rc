@@ -23,11 +23,7 @@ service heapprofd /system/bin/heapprofd
     onrestart exec_background - nobody shell -- /system/bin/heapprofd --cleanup-after-crash
     # DAC_READ_SEARCH is denied by SELinux on user builds because the SELinux
     # permission is userdebug_or_eng only.
-    # This is fine as this is not needed for central heapprofd in fork mode.
-    # SYS_ADMIN and SYS_PTRACE will be denied unless SELinux enforcement is
-    # off. They are needed to implement the idle page tracking feature, which
-    # only works without SELinux enforcement on.
-    capabilities KILL DAC_READ_SEARCH DAC_OVERRIDE SYS_ADMIN SYS_PTRACE
+    capabilities KILL DAC_READ_SEARCH
 
 on property:persist.heapprofd.enable=1
     start heapprofd
