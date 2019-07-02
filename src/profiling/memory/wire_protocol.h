@@ -120,6 +120,7 @@ struct FreeBatch {
 enum HandshakeFDs : size_t {
   kHandshakeMaps = 0,
   kHandshakeMem,
+  kHandshakePageIdle,
   kHandshakeSize,
 };
 
