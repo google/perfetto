@@ -53,7 +53,8 @@ def CheckBuild(input_api, output_api):
   # If no GN files were modified, bail out.
   def build_file_filter(x): return input_api.FilterSourceFile(
       x,
-      white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'tools/gen_bazel'))
+      white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'tools/gen_bazel',
+          'BUILD\.extras'))
   if not input_api.AffectedSourceFiles(build_file_filter):
     return []
 
