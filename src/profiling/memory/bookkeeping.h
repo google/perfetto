@@ -163,18 +163,18 @@ class GlobalCallstackTrie {
     friend class GlobalCallstackTrie;
 
     Node(Interned<Frame> frame) : Node(std::move(frame), 0, nullptr) {}
-    Node(Interned<Frame> frame, uint32_t id)
+    Node(Interned<Frame> frame, uint64_t id)
         : Node(std::move(frame), id, nullptr) {}
-    Node(Interned<Frame> frame, uint32_t id, Node* parent)
+    Node(Interned<Frame> frame, uint64_t id, Node* parent)
         : id_(id), parent_(parent), location_(std::move(frame)) {}
 
-    uint32_t id() const { return id_; }
+    uint64_t id() const { return id_; }
 
    private:
     Node* GetOrCreateChild(const Interned<Frame>& loc);
 
     uint64_t ref_count_ = 0;
-    uint32_t id_;
+    uint64_t id_;
     Node* const parent_;
     const Interned<Frame> location_;
     base::LookupSet<Node, const Interned<Frame>, &Node::location_> children_;
@@ -200,7 +200,7 @@ class GlobalCallstackTrie {
   Interner<Mapping> mapping_interner_;
   Interner<Frame> frame_interner_;
 
-  uint32_t next_callstack_id_ = 0;
+  uint64_t next_callstack_id_ = 0;
 
   Node root_{MakeRootFrame(), ++next_callstack_id_};
 };
