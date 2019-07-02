@@ -20,6 +20,7 @@
 #include <atomic>
 #include <memory>
 
+#include "perfetto/base/export.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/tracing_tls.h"
 #include "perfetto/tracing/platform.h"
@@ -46,7 +47,7 @@ struct DataSourceStaticState;
 // and methods that are required to implement them should go into
 // src/tracing/internal/tracing_muxer_impl.h instead: that one can pull in
 // perfetto headers outside of public, this one cannot.
-class TracingMuxer {
+class PERFETTO_EXPORT TracingMuxer {
  public:
   static TracingMuxer* Get() { return instance_; }
 
