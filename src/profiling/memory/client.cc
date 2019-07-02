@@ -142,6 +142,8 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
     prctl(PR_SET_DUMPABLE, 1);
   }
 
+  size_t num_send_fds = kHandshakeSize;
+
   base::ScopedFile maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   if (!maps) {
     PERFETTO_DFATAL_OR_ELOG("Failed to open /proc/self/maps");
@@ -153,16 +155,23 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
     return nullptr;
   }
 
+  base::ScopedFile page_idle(base::OpenFile("/proc/self/page_idle", O_RDWR));
+  if (!page_idle) {
+    PERFETTO_LOG("Failed to open /proc/self/page_idle. Continuing.");
+    num_send_fds = kHandshakeSize - 1;
+  }
+
   // Restore original dumpability value if we overrode it.
   unset_dumpable.reset();
 
   int fds[kHandshakeSize];
   fds[kHandshakeMaps] = *maps;
   fds[kHandshakeMem] = *mem;
+  fds[kHandshakePageIdle] = *page_idle;
 
   // Send an empty record to transfer fds for /proc/self/maps and
   // /proc/self/mem.
-  if (sock.Send(kSingleByte, sizeof(kSingleByte), fds, kHandshakeSize) !=
+  if (sock.Send(kSingleByte, sizeof(kSingleByte), fds, num_send_fds) !=
       sizeof(kSingleByte)) {
     PERFETTO_DFATAL_OR_ELOG("Failed to send file descriptors.");
     return nullptr;
