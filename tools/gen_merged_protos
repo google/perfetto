@@ -92,6 +92,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/trigger.proto',
   'protos/perfetto/trace/gpu/gpu_counter_event.proto',
   'protos/perfetto/trace/gpu/gpu_render_stage_event.proto',
+  'protos/perfetto/common/gpu_counter_descriptor.proto',
 )
 
 MERGED_TRACE_PROTO = 'protos/perfetto/trace/perfetto_trace.proto'
