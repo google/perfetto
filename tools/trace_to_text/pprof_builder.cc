@@ -270,8 +270,8 @@ class GProfileWriter {
       {"idle_space", kIdleSpace}};
 };
 
-void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
-                       std::vector<InternedData>& interned_data,
+void DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
+                       const std::vector<InternedData>& interned_data,
                        std::vector<SerializedProfile>* output) {
   GProfileWriter writer;
   // A profile packet can be split into multiple fragments. We need to iterate
@@ -336,17 +336,26 @@ void DumpProfilePacket(std::vector<ProfilePacket>& packet_fragments,
 }  // namespace
 
 void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
-  std::vector<ProfilePacket> rolling_profile_packets;
-  std::vector<InternedData> rolling_interned_data;
-  ForEachPacketInTrace(input, [&rolling_profile_packets, &rolling_interned_data,
+  std::map<uint32_t, std::vector<ProfilePacket>> rolling_profile_packets_by_seq;
+  std::map<uint32_t, std::vector<InternedData>> rolling_interned_data_by_seq;
+  ForEachPacketInTrace(input, [&rolling_profile_packets_by_seq,
+                               &rolling_interned_data_by_seq,
                                &output](const protos::TracePacket& packet) {
+    uint32_t seq_id = packet.trusted_packet_sequence_id();
     if (packet.has_interned_data())
-      rolling_interned_data.emplace_back(packet.interned_data());
+      rolling_interned_data_by_seq[seq_id].emplace_back(packet.interned_data());
 
     if (!packet.has_profile_packet())
       return;
 
-    rolling_profile_packets.emplace_back(packet.profile_packet());
+    rolling_profile_packets_by_seq[seq_id].emplace_back(
+        packet.profile_packet());
+
+    const std::vector<InternedData>& rolling_interned_data =
+        rolling_interned_data_by_seq[seq_id];
+    const std::vector<ProfilePacket>& rolling_profile_packets =
+        rolling_profile_packets_by_seq[seq_id];
+
     if (!packet.profile_packet().continued()) {
       for (size_t i = 1; i < rolling_profile_packets.size(); ++i) {
         // Ensure we are not missing a chunk.
@@ -355,11 +364,11 @@ void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
       }
       DumpProfilePacket(rolling_profile_packets, rolling_interned_data, output);
       // We do not clear rolling_interned_data, as it is globally scoped.
-      rolling_profile_packets.clear();
+      rolling_profile_packets_by_seq.erase(seq_id);
     }
   });
 
-  if (!rolling_profile_packets.empty()) {
+  if (!rolling_profile_packets_by_seq.empty()) {
     PERFETTO_ELOG("WARNING: Truncated heap dump. Not generating profile.");
   }
 }
