@@ -153,6 +153,11 @@ export interface State {
    * key is most up to date.
    */
   frontendLocalState: FrontendLocalState;
+
+  video: string | null;
+  videoEnabled: boolean;
+  onPauseTime: number;
+  flagPauseEnabled: boolean;
 }
 
 export const defaultTraceTime = {
@@ -291,5 +296,10 @@ export function createEmptyState(): State {
 
     status: {msg: '', timestamp: 0},
     currentSelection: null,
+
+    video: null,
+    videoEnabled: false,
+    onPauseTime: 0,
+    flagPauseEnabled: false,
   };
 }

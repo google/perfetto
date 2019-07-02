@@ -15,6 +15,8 @@
 import * as m from 'mithril';
 
 import {assertTrue} from '../base/logging';
+import {syncVideo} from './video_panel';
+import {globals} from './globals';
 
 import {
   debugNow,
@@ -129,6 +131,9 @@ export class RafScheduler {
     if (this.actionCallbacks.size !== 0 || force) {
       this.hasScheduledNextFrame = true;
       window.requestAnimationFrame(this.onAnimationFrame.bind(this));
+      if (globals.state.video != null) {
+        syncVideo();
+      }
     }
   }
 

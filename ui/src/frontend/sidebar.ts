@@ -195,6 +195,24 @@ const SECTIONS = [
 
 ];
 
+const vidSection = {
+  title: 'Video',
+  summary: 'Open a screen recording',
+  expanded: true,
+  items: [
+    {t: 'Open video file', a: popupVideoSelectionDialog, i: 'folder_open'},
+    {t: 'View hotkeys', a: showHotkeys, i: 'description'},
+  ],
+};
+
+function showHotkeys() {
+  let hks = '';
+  hks += '\'v\': Shows/hides video components \n';
+  hks += '\'p\': Enables/disables pausing and flagging synchronization \n';
+  window.alert(hks);
+  return false;
+}
+
 function getFileElement(): HTMLInputElement {
   return document.querySelector('input[type=file]')! as HTMLInputElement;
 }
@@ -202,12 +220,21 @@ function getFileElement(): HTMLInputElement {
 function popupFileSelectionDialog(e: Event) {
   e.preventDefault();
   delete getFileElement().dataset['useCatapultLegacyUi'];
+  delete getFileElement().dataset['video'];
   getFileElement().click();
 }
 
 function popupFileSelectionDialogOldUI(e: Event) {
   e.preventDefault();
+  delete getFileElement().dataset['video'];
   getFileElement().dataset['useCatapultLegacyUi'] = '1';
+  getFileElement().click();
+}
+
+function popupVideoSelectionDialog(e: Event) {
+  e.preventDefault();
+  delete getFileElement().dataset['useCatapultLegacyUi'];
+  getFileElement().dataset['video'] = '1';
   getFileElement().click();
 }
 
@@ -238,8 +265,11 @@ function onInputElementFileSelectionChanged(e: Event) {
     return;
   }
 
-  // Open with the current UI.
-  globals.dispatch(Actions.openTraceFromFile({file}));
+  if (e.target.dataset['video'] === '1') {
+    globals.dispatch(Actions.openVideoFromFile({file}));
+  } else {
+    globals.dispatch(Actions.openTraceFromFile({file}));
+  }
 }
 
 function navigateRecord(e: Event) {
@@ -328,7 +358,33 @@ export class Sidebar implements m.ClassComponent {
               m('h1', section.title),
               m('h2', section.summary), ),
             m('.section-content', m('ul', vdomItems))));
-    }
+    };
+    if (globals.state.videoEnabled) {
+      const videoVdomItems = [];
+      for (const item of vidSection.items) {
+        videoVdomItems.push(
+          m('li',
+            m(`a`,
+              {
+                onclick: typeof item.a === 'function' ? item.a : null,
+                href: typeof item.a === 'string' ? item.a : '#',
+              },
+              m('i.material-icons', item.i),
+              item.t)));
+      };
+      vdomSections.push(
+        m(`section${vidSection.expanded ? '.expanded' : ''}`,
+          m('.section-header',
+            {
+              onclick: () => {
+                vidSection.expanded = !vidSection.expanded;
+                globals.rafScheduler.scheduleFullRedraw();
+              }
+            },
+            m('h1', vidSection.title),
+            m('h2', vidSection.summary), ),
+          m('.section-content', m('ul', videoVdomItems))));
+    };
     return m(
         'nav.sidebar',
         m('header', 'Perfetto'),
