@@ -1,5 +1,4 @@
-This directory contains the CTS tests for the Perfetto library (at the time of
-writing - a single native GTest suite, and several helper apps).
+This directory contains the CTS tests for the Perfetto library.
 
 # Background
 For information about what CTS is, please go to
@@ -7,7 +6,8 @@ https://source.android.com/compatibility/cts/ where you will find information
 on the purpose of CTS and how to run these tests.
 
 # Test contents
-The single GTest target contains the following notable test suites:
+The single GTest target (CtsPerfettoTestCases) contains the following notable
+test suites:
 * PerfettoCtsTest - verifies that any Android app can operate as a perfetto
   producer.
 * HeapprofdCtsTest - verifies that Android apps can be heap-profiled, and that
