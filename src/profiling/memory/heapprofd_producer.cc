@@ -368,6 +368,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   data_source.config = heapprofd_config;
   data_source.normalized_cmdlines = std::move(normalized_cmdlines);
 
+  WriteFixedInternings(data_source.trace_writer.get());
   data_sources_.emplace(id, std::move(data_source));
   PERFETTO_DLOG("Set up data source.");
 
@@ -517,12 +518,16 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
   }
   DataSource& data_source = it->second;
 
-  DumpState& dump_state = data_source.dump_state;
-
-  dump_state.StartDump();
-
-  for (pid_t rejected_pid : data_source.rejected_pids)
-    dump_state.RejectConcurrent(rejected_pid);
+  if (!data_source.rejected_pids.empty()) {
+    auto trace_packet = data_source.trace_writer->NewTracePacket();
+    ProfilePacket* profile_packet = trace_packet->set_profile_packet();
+    for (pid_t rejected_pid : data_source.rejected_pids) {
+      ProfilePacket::ProcessHeapSamples* proto =
+          profile_packet->add_process_dumps();
+      proto->set_pid(static_cast<uint64_t>(rejected_pid));
+      proto->set_rejected_concurrent(true);
+    }
+  }
 
   for (std::pair<const pid_t, ProcessState>& pid_and_process_state :
        data_source.process_states) {
@@ -557,7 +562,9 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
         bucket->set_count(p.second);
       }
     };
-    dump_state.StartProcessDump(std::move(new_heapsamples));
+
+    DumpState dump_state(data_source.trace_writer.get(),
+                         std::move(new_heapsamples), &data_source.intern_state);
 
     if (process_state.page_idle_checker) {
       PageIdleChecker& page_idle_checker = *process_state.page_idle_checker;
@@ -581,10 +588,9 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
         });
     if (process_state.page_idle_checker)
       process_state.page_idle_checker->MarkPagesIdle();
+    dump_state.DumpCallstacks(&callsites_);
   }
 
-  dump_state.DumpCallstacks(&callsites_);
-  dump_state.Finalize();
 
   if (has_flush_id) {
     auto weak_producer = weak_factory_.GetWeakPtr();
