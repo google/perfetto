@@ -159,6 +159,17 @@ This dump will show up in addition to the dump at the end of the profile that is
 always produced. You can create multiple of these dumps, and they will be
 enumerated in the output directory.
 
+## Symbolization
+If the profiled binary or libraries do not have debug symbols, you can use
+pprof to symbolize offline.
+
+To do so, copy symbolized versions of your binary and/or libraries into a
+directory. Then run
+`PPROF_BINARY_PATH=thatdirectory pprof heap_profile.${n}.${pid}.gz`, and pprof
+will read symbol information from these files.
+
+You can save the symbolized version by issuing the `proto` command in pprof.
+
 ## Idle page tracking
 This is only available in Android versions newer than Q.
 
