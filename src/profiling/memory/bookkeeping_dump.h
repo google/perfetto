@@ -35,39 +35,44 @@
 namespace perfetto {
 namespace profiling {
 
+void WriteFixedInternings(TraceWriter* trace_writer);
+
 class DumpState {
  public:
-  DumpState(TraceWriter* trace_writer) : trace_writer_(trace_writer) {
-    MakeTracePacket();
+  class InternState {
+   private:
+    friend class DumpState;
 
-    constexpr const uint8_t kEmptyString[] = "";
-    // Explicitly reserve intern ID 0 for the empty string, so unset string
-    // fields get mapped to this.
-    auto interned_string = GetCurrentInternedData()->add_build_ids();
-    interned_string->set_iid(0);
-    interned_string->set_str(kEmptyString, 0);
+    std::set<InternID> dumped_strings_;
+    std::set<InternID> dumped_frames_;
+    std::set<InternID> dumped_mappings_;
+    std::set<uint64_t> dumped_callstacks_;
 
-    interned_string = GetCurrentInternedData()->add_mapping_paths();
-    interned_string->set_iid(0);
-    interned_string->set_str(kEmptyString, 0);
+    uint64_t next_index_ = 0;
+  };
 
-    interned_string = GetCurrentInternedData()->add_function_names();
-    interned_string->set_iid(0);
-    interned_string->set_str(kEmptyString, 0);
+  DumpState(
+      TraceWriter* trace_writer,
+      std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
+          process_fill_header,
+      InternState* intern_state)
+      : trace_writer_(trace_writer),
+        intern_state_(intern_state),
+        current_process_fill_header_(std::move(process_fill_header)) {
+    MakeProfilePacket();
   }
 
-  void StartDump() { MakeProfilePacket(); }
-
-  void StartProcessDump(
-      std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
-          fill_process_header);
+  // This should be a temporary object, only used on the stack for dumping a
+  // single process.
+  DumpState(const DumpState&) = delete;
+  DumpState& operator=(const DumpState&) = delete;
+  DumpState(DumpState&&) = delete;
+  DumpState& operator=(DumpState&&) = delete;
 
   void AddIdleBytes(uintptr_t callstack_id, uint64_t bytes);
 
   void WriteAllocation(const HeapTracker::CallstackAllocations& alloc);
   void DumpCallstacks(GlobalCallstackTrie* callsites);
-  void RejectConcurrent(pid_t pid);
-  void Finalize() { current_trace_packet_ = TraceWriter::TracePacketHandle(); }
 
  private:
   void WriteMap(const Interned<Mapping> map);
@@ -93,7 +98,7 @@ class DumpState {
     MakeTracePacket();
 
     current_profile_packet_ = current_trace_packet_->set_profile_packet();
-    current_profile_packet_->set_index(next_index_++);
+    current_profile_packet_->set_index(intern_state_->next_index_++);
   }
 
   uint64_t currently_written() {
@@ -104,27 +109,20 @@ class DumpState {
   GetCurrentProcessHeapSamples();
   protos::pbzero::InternedData* GetCurrentInternedData();
 
-  std::set<InternID> dumped_strings_;
-  std::set<InternID> dumped_frames_;
-  std::set<InternID> dumped_mappings_;
-  std::set<uint64_t> dumped_callstacks_;
-
   std::set<GlobalCallstackTrie::Node*> callstacks_to_dump_;
 
   TraceWriter* trace_writer_;
+  InternState* intern_state_;
 
   protos::pbzero::ProfilePacket* current_profile_packet_ = nullptr;
   protos::pbzero::InternedData* current_interned_data_ = nullptr;
   TraceWriter::TracePacketHandle current_trace_packet_;
   protos::pbzero::ProfilePacket::ProcessHeapSamples*
       current_process_heap_samples_ = nullptr;
-
   std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
       current_process_fill_header_;
-
   std::map<uintptr_t /* callstack_id */, uint64_t> current_process_idle_allocs_;
 
-  uint64_t next_index_ = 0;
   uint64_t last_written_ = 0;
 };
 

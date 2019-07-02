@@ -28,8 +28,27 @@ using ::perfetto::protos::pbzero::ProfilePacket;
 uint32_t kPacketSizeThreshold = 400000;
 }  // namespace
 
+void WriteFixedInternings(TraceWriter* trace_writer) {
+  constexpr const uint8_t kEmptyString[] = "";
+  // Explicitly reserve intern ID 0 for the empty string, so unset string
+  // fields get mapped to this.
+  auto packet = trace_writer->NewTracePacket();
+  auto* interned_data = packet->set_interned_data();
+  auto interned_string = interned_data->add_build_ids();
+  interned_string->set_iid(0);
+  interned_string->set_str(kEmptyString, 0);
+
+  interned_string = interned_data->add_mapping_paths();
+  interned_string->set_iid(0);
+  interned_string->set_str(kEmptyString, 0);
+
+  interned_string = interned_data->add_function_names();
+  interned_string->set_iid(0);
+  interned_string->set_str(kEmptyString, 0);
+}
+
 void DumpState::WriteMap(const Interned<Mapping> map) {
-  auto map_it_and_inserted = dumped_mappings_.emplace(map.id());
+  auto map_it_and_inserted = intern_state_->dumped_mappings_.emplace(map.id());
   if (map_it_and_inserted.second) {
     for (const Interned<std::string>& str : map->path_components)
       WriteMappingPathString(str);
@@ -52,7 +71,8 @@ void DumpState::WriteFrame(Interned<Frame> frame) {
   WriteMap(frame->mapping);
   WriteFunctionNameString(frame->function_name);
   bool inserted;
-  std::tie(std::ignore, inserted) = dumped_frames_.emplace(frame.id());
+  std::tie(std::ignore, inserted) =
+      intern_state_->dumped_frames_.emplace(frame.id());
   if (inserted) {
     auto frame_proto = GetCurrentInternedData()->add_frames();
     frame_proto->set_iid(frame.id());
@@ -64,7 +84,8 @@ void DumpState::WriteFrame(Interned<Frame> frame) {
 
 void DumpState::WriteBuildIDString(const Interned<std::string>& str) {
   bool inserted;
-  std::tie(std::ignore, inserted) = dumped_strings_.emplace(str.id());
+  std::tie(std::ignore, inserted) =
+      intern_state_->dumped_strings_.emplace(str.id());
   if (inserted) {
     auto interned_string = GetCurrentInternedData()->add_build_ids();
     interned_string->set_iid(str.id());
@@ -75,7 +96,8 @@ void DumpState::WriteBuildIDString(const Interned<std::string>& str) {
 
 void DumpState::WriteMappingPathString(const Interned<std::string>& str) {
   bool inserted;
-  std::tie(std::ignore, inserted) = dumped_strings_.emplace(str.id());
+  std::tie(std::ignore, inserted) =
+      intern_state_->dumped_strings_.emplace(str.id());
   if (inserted) {
     auto interned_string = GetCurrentInternedData()->add_mapping_paths();
     interned_string->set_iid(str.id());
@@ -86,7 +108,8 @@ void DumpState::WriteMappingPathString(const Interned<std::string>& str) {
 
 void DumpState::WriteFunctionNameString(const Interned<std::string>& str) {
   bool inserted;
-  std::tie(std::ignore, inserted) = dumped_strings_.emplace(str.id());
+  std::tie(std::ignore, inserted) =
+      intern_state_->dumped_strings_.emplace(str.id());
   if (inserted) {
     auto interned_string = GetCurrentInternedData()->add_function_names();
     interned_string->set_iid(str.id());
@@ -95,17 +118,10 @@ void DumpState::WriteFunctionNameString(const Interned<std::string>& str) {
   }
 }
 
-void DumpState::StartProcessDump(
-    std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
-        fill_process_header) {
-  current_process_fill_header_ = std::move(fill_process_header);
-  current_process_heap_samples_ = nullptr;
-  current_process_idle_allocs_.clear();
-}
-
 void DumpState::WriteAllocation(
     const HeapTracker::CallstackAllocations& alloc) {
-  if (dumped_callstacks_.find(alloc.node->id()) == dumped_callstacks_.end())
+  if (intern_state_->dumped_callstacks_.find(alloc.node->id()) ==
+      intern_state_->dumped_callstacks_.end())
     callstacks_to_dump_.emplace(alloc.node);
 
   auto* heap_samples = GetCurrentProcessHeapSamples();
@@ -143,21 +159,13 @@ void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
     for (const Interned<Frame>& frame : built_callstack)
       callstack->add_frame_ids(frame.id());
 
-    dumped_callstacks_.emplace(node->id());
+    intern_state_->dumped_callstacks_.emplace(node->id());
   }
-  callstacks_to_dump_.clear();
   MakeProfilePacket();
 }
 
 void DumpState::AddIdleBytes(uintptr_t callstack_id, uint64_t bytes) {
   current_process_idle_allocs_[callstack_id] += bytes;
-}
-
-void DumpState::RejectConcurrent(pid_t pid) {
-  ProfilePacket::ProcessHeapSamples* proto =
-      current_profile_packet_->add_process_dumps();
-  proto->set_pid(static_cast<uint64_t>(pid));
-  proto->set_rejected_concurrent(true);
 }
 
 ProfilePacket::ProcessHeapSamples* DumpState::GetCurrentProcessHeapSamples() {
