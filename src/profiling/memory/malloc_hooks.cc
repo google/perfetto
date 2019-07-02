@@ -241,8 +241,11 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientForCentralDaemon(
 
   perfetto::base::Optional<perfetto::base::UnixSocketRaw> sock =
       Client::ConnectToHeapprofd(perfetto::profiling::kHeapprofdSocketFile);
-  if (!sock)
+  if (!sock) {
+    PERFETTO_ELOG("Failed to connect to %s.",
+                  perfetto::profiling::kHeapprofdSocketFile);
     return nullptr;
+  }
   return Client::CreateAndHandshake(std::move(sock.value()),
                                     unhooked_allocator);
 }
