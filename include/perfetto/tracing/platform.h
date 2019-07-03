@@ -23,6 +23,8 @@
 #include <functional>
 #include <memory>
 
+#include "perfetto/base/export.h"
+
 namespace perfetto {
 
 namespace base {
@@ -47,7 +49,7 @@ class PlatformThreadLocalObject {
   virtual ~PlatformThreadLocalObject();
 };
 
-class Platform {
+class PERFETTO_EXPORT Platform {
  public:
   // Embedders can use this unless they have custom needs (e.g. Chrome wanting
   // to use its own base class for TLS).

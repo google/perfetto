@@ -67,11 +67,11 @@ config("public_config") {
 
     if (build_with_chromium) {
       defines += [ "PERFETTO_BUILD_WITH_CHROMIUM" ]
-
-      if (is_component_build) {
-        defines += [ "PERFETTO_SHARED_LIBRARY" ]
-      }
     }  # if (build_with_chromium)
+
+    if (is_component_build) {
+      defines += [ "PERFETTO_SHARED_LIBRARY" ]
+    }  # if (is_component_build)
   }  # if (build_with_embedder)
 
   if (perfetto_force_dlog == "on") {

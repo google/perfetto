@@ -212,11 +212,11 @@ if (perfetto_build_with_ipc_layer) {
 source_set("client_api") {
   deps = [
     ":common",
-    "../../gn:default_deps",
     "../base",
     "../tracing",
   ]
   public_deps = [
+    "../../gn:default_deps",
     "../../include/perfetto/tracing",
   ]
   sources = [
