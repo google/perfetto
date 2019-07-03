@@ -165,11 +165,16 @@ export class NotesPanel extends Panel {
     for (const note of Object.values(globals.state.notes)) {
       const noteX = timeScale.timeToPx(note.timestamp);
       if (noteX <= x && x < noteX + width) {
+        if (note.isMovie) {
+          globals.frontendLocalState.setVidTimestamp(note.timestamp);
+        }
         globals.dispatch(Actions.selectNote({id: note.id}));
         return;
       }
     }
-    // 40 different random hues 9 degrees apart.
+    if (isMovie) {
+      globals.frontendLocalState.setVidTimestamp(timestamp);
+    }
     const color = randomColor();
     globals.dispatch(Actions.addNote({timestamp, color, isMovie}));
   }

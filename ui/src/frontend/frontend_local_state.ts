@@ -32,6 +32,7 @@ export class FrontendLocalState {
   hoveredUtid = -1;
   hoveredPid = -1;
   hoveredTimestamp = -1;
+  vidTimestamp = -1;
   showTimeSelectPreview = false;
   showNotePreview = false;
   localOnlyMode = false;
@@ -84,6 +85,12 @@ export class FrontendLocalState {
   setHoveredTimestamp(ts: number) {
     if (this.hoveredTimestamp === ts) return;
     this.hoveredTimestamp = ts;
+    globals.rafScheduler.scheduleRedraw();
+  }
+
+  setVidTimestamp(ts: number) {
+    if (this.vidTimestamp === ts) return;
+    this.vidTimestamp = ts;
     globals.rafScheduler.scheduleRedraw();
   }
 

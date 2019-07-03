@@ -18,39 +18,26 @@ import {globals} from './globals';
 import {Actions} from '../common/actions';
 import {randomColor} from './colorizer';
 
-// TODO: kodiobika - Capture onpause event within VideoPanel and handle sync
-// by creating a new animation rather than via raf_scheduler
-
-export function syncVideo() {
-    const ts = globals.frontendLocalState.hoveredTimestamp -
-               globals.state.traceTime.startSec;
-    const elem = document.getElementById('video_pane') as HTMLVideoElement;
-    if (elem != null) {
-        elem.currentTime = ts;
-        elem.onpause = _event => {
-          if (globals.state.flagPauseEnabled && !(elem.ended)) {
-            globals.dispatch(Actions.updateOnPauseTime({ts: elem.currentTime}));
-            const timestamp =
-                elem.currentTime + globals.state.traceTime.startSec;
-            const color = randomColor();
-            globals.dispatch(
-                Actions.addNote({timestamp, color, isMovie: true}));
-          }
-        };
-        elem.currentTime = globals.state.onPauseTime;
-    }
-}
-
 export class VideoPanel implements m.Component {
     view() {
-        const ts = globals.frontendLocalState.hoveredTimestamp -
-                   globals.state.traceTime.startSec;
-        const vid = m('video#video_pane', {
-                controls: true,
-                width: 320,
-                currentTime: ts
-            },
-            m('source', { src: globals.state.video, type: 'video/mp4' }));
-        return vid;
+      const offset = globals.state.traceTime.startSec;
+      const ts = globals.frontendLocalState.vidTimestamp - offset;
+      const vid = m('video#video_pane', {
+        controls: true,
+        width: 320,
+        currentTime: ts,
+        onpause: (e: Event) => {
+          const elem = e.target as HTMLVideoElement;
+          if (globals.state.flagPauseEnabled && !(elem.ended)) {
+            const timestamp = elem.currentTime + offset;
+            const color = randomColor();
+            const isMovie = true;
+            globals.dispatch(Actions.addNote({timestamp, color, isMovie}));
+            elem.currentTime = timestamp - offset;
+          }
+        },
+      },
+      m('source', { src: globals.state.video, type: 'video/mp4' }));
+      return vid;
     }
 }

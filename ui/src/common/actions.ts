@@ -305,10 +305,6 @@ export const StateActions = {
     this.selectNote(state, {id});
   },
 
-  updateOnPauseTime(state: StateDraft, args: {ts: number}) : void {
-    state.onPauseTime = args.ts;
-  },
-
   toggleVideo(state: StateDraft): void {
     state.videoEnabled = !state.videoEnabled;
   },
