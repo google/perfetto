@@ -213,14 +213,16 @@ TEST_F(AndroidLogDataSourceTest, TextEvents) {
   EXPECT_CALL(*data_source_, ReadEventLogDefinitions()).WillOnce(Return(""));
   StartAndSimulateLogd(kValidTextEvents);
 
-  // Read back the data that would have been written into the trace.
+  // Read back the data that would have been written into the trace. One packet
+  // with the events, one with stats.
+  auto packets = writer_raw_->GetAllTracePackets();
+  ASSERT_TRUE(packets.size() == 2);
+  auto event_packet = packets[0];
+  auto stats_packet = packets[1];
+  EXPECT_TRUE(stats_packet.android_log().has_stats());
 
-  auto packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet);
-  ASSERT_TRUE(packet->has_android_log());
-  EXPECT_EQ(packet->android_log().events_size(), 3);
-
-  const auto& decoded = packet->android_log().events();
+  EXPECT_EQ(event_packet.android_log().events_size(), 3);
+  const auto& decoded = event_packet.android_log().events();
 
   EXPECT_EQ(decoded.Get(0).log_id(), protos::AndroidLogId::LID_SYSTEM);
   EXPECT_EQ(decoded.Get(0).pid(), 7546);
@@ -266,12 +268,14 @@ TEST_F(AndroidLogDataSourceTest, TextEventsWithTagFiltering) {
   EXPECT_CALL(*data_source_, ReadEventLogDefinitions()).WillOnce(Return(""));
   StartAndSimulateLogd(kValidTextEvents);
 
-  auto packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet);
-  ASSERT_TRUE(packet->has_android_log());
-  ASSERT_EQ(packet->android_log().events_size(), 2);
+  auto packets = writer_raw_->GetAllTracePackets();
+  ASSERT_TRUE(packets.size() == 2);
+  auto event_packet = packets[0];
+  auto stats_packet = packets[1];
+  EXPECT_TRUE(stats_packet.android_log().has_stats());
 
-  const auto& decoded = packet->android_log().events();
+  EXPECT_EQ(event_packet.android_log().events_size(), 2);
+  const auto& decoded = event_packet.android_log().events();
   EXPECT_EQ(decoded.Get(0).tag(), "ActivityManager");
   EXPECT_EQ(decoded.Get(1).tag(), "Zygote");
 }
@@ -286,12 +290,14 @@ TEST_F(AndroidLogDataSourceTest, TextEventsWithPrioFiltering) {
   EXPECT_CALL(*data_source_, ReadEventLogDefinitions()).WillOnce(Return(""));
   StartAndSimulateLogd(kValidTextEvents);
 
-  auto packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet);
-  ASSERT_TRUE(packet->has_android_log());
-  ASSERT_EQ(packet->android_log().events_size(), 1);
+  auto packets = writer_raw_->GetAllTracePackets();
+  ASSERT_TRUE(packets.size() == 2);
+  auto event_packet = packets[0];
+  auto stats_packet = packets[1];
+  EXPECT_TRUE(stats_packet.android_log().has_stats());
 
-  const auto& decoded = packet->android_log().events();
+  EXPECT_EQ(event_packet.android_log().events_size(), 1);
+  const auto& decoded = event_packet.android_log().events();
   EXPECT_EQ(decoded.Get(0).tag(), "libprocessgroup");
 }
 
@@ -306,14 +312,16 @@ TEST_F(AndroidLogDataSourceTest, BinaryEvents) {
   EXPECT_CALL(*data_source_, ReadEventLogDefinitions()).WillOnce(Return(kDefs));
   StartAndSimulateLogd(kValidBinaryEvents);
 
-  // Read back the data that would have been written into the trace.
+  // Read back the data that would have been written into the trace. One packet
+  // with the events, one with stats.
+  auto packets = writer_raw_->GetAllTracePackets();
+  ASSERT_TRUE(packets.size() == 2);
+  auto event_packet = packets[0];
+  auto stats_packet = packets[1];
+  EXPECT_TRUE(stats_packet.android_log().has_stats());
 
-  auto packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet);
-  ASSERT_TRUE(packet->has_android_log());
-  ASSERT_EQ(packet->android_log().events_size(), 3);
-
-  const auto& decoded = packet->android_log().events();
+  EXPECT_EQ(event_packet.android_log().events_size(), 3);
+  const auto& decoded = event_packet.android_log().events();
 
   EXPECT_EQ(decoded.Get(0).log_id(), protos::AndroidLogId::LID_EVENTS);
   EXPECT_EQ(decoded.Get(0).pid(), 29981);
@@ -388,14 +396,16 @@ TEST_F(AndroidLogDataSourceTest, BinaryEventsWithTagFiltering) {
   EXPECT_CALL(*data_source_, ReadEventLogDefinitions()).WillOnce(Return(kDefs));
   StartAndSimulateLogd(kValidBinaryEvents);
 
-  // Read back the data that would have been written into the trace.
+  // Read back the data that would have been written into the trace. One packet
+  // with the events, one with stats.
+  auto packets = writer_raw_->GetAllTracePackets();
+  ASSERT_TRUE(packets.size() == 2);
+  auto event_packet = packets[0];
+  auto stats_packet = packets[1];
+  EXPECT_TRUE(stats_packet.android_log().has_stats());
 
-  auto packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet);
-  ASSERT_TRUE(packet->has_android_log());
-  ASSERT_EQ(packet->android_log().events_size(), 1);
-
-  const auto& decoded = packet->android_log().events();
+  EXPECT_EQ(event_packet.android_log().events_size(), 1);
+  const auto& decoded = event_packet.android_log().events();
   EXPECT_EQ(decoded.Get(0).timestamp(), 1546165328946231844LL);
   EXPECT_EQ(decoded.Get(0).tag(), "am_uid_stopped");
 }
