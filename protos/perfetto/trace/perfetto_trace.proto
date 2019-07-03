@@ -3514,18 +3514,16 @@ message Trigger {
 
 message GpuCounterEvent {
   // The first trace packet of each session should include counter_spec.
-  message GpuCounterSpec {
-    optional uint32 counter_id = 1;
-    optional string name = 2;
-    optional string description = 3;
-  }
-  repeated GpuCounterSpec counter_specs = 1;
+  optional GpuCounterDescriptor counter_descriptor = 1;
 
   message GpuCounter {
     // required. Identifier for counter.
     optional uint32 counter_id = 1;
     // required. Value of the counter.
-    optional int64 value = 2;
+    oneof value {
+      int64 int_value = 2;
+      double double_value = 3;
+    }
   }
   repeated GpuCounter counters = 2;
 }
@@ -3590,6 +3588,21 @@ message GpuRenderStageEvent {
 }
 
 // End of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
+
+// Begin of protos/perfetto/common/gpu_counter_descriptor.proto
+
+// Description of GPU counters.
+// This message is sent by a GPU counter producer to specify the counters available in the hardware.
+message GpuCounterDescriptor {
+  message GpuCounterSpec {
+    optional uint32 counter_id = 1;
+    optional string name = 2;
+    optional string description = 3;
+  }
+  repeated GpuCounterSpec specs = 1;
+}
+
+// End of protos/perfetto/common/gpu_counter_descriptor.proto
 
 // Begin of protos/perfetto/config/android/android_log_config.proto
 
