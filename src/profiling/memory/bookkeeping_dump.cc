@@ -57,7 +57,8 @@ void DumpState::WriteMap(const Interned<Mapping> map) {
 
     auto mapping = GetCurrentInternedData()->add_mappings();
     mapping->set_iid(map.id());
-    mapping->set_offset(map->offset);
+    mapping->set_exact_offset(map->exact_offset);
+    mapping->set_start_offset(map->start_offset);
     mapping->set_start(map->start);
     mapping->set_end(map->end);
     mapping->set_load_bias(map->load_bias);

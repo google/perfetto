@@ -36,7 +36,8 @@ struct Packet {
 constexpr Packet kFirstPacket{1, 2, 3, 1, 1};
 constexpr Packet kSecondPacket{3, 2, 1, 2, 2};
 
-constexpr auto kMappingOffset = 123;
+constexpr auto kMappingExactOffset = 123;
+constexpr auto kMappingStartOffset = 1231;
 constexpr auto kMappingStart = 234;
 constexpr auto kMappingEnd = 345;
 constexpr auto kMappingLoadBias = 456;
@@ -71,7 +72,8 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
 
     HeapProfileTracker::SourceMapping first_frame;
     first_frame.build_id = packet.build_id;
-    first_frame.offset = kMappingOffset;
+    first_frame.exact_offset = kMappingExactOffset;
+    first_frame.start_offset = kMappingStartOffset;
     first_frame.start = kMappingStart;
     first_frame.end = kMappingEnd;
     first_frame.load_bias = kMappingLoadBias;
@@ -116,8 +118,10 @@ TEST_F(HeapProfileTrackerDupTest, Mapping) {
 
   EXPECT_THAT(context.storage->heap_profile_mappings().build_ids(),
               ElementsAre(context.storage->InternString({kBuildIDHexName})));
-  EXPECT_THAT(context.storage->heap_profile_mappings().offsets(),
-              ElementsAre(kMappingOffset));
+  EXPECT_THAT(context.storage->heap_profile_mappings().exact_offsets(),
+              ElementsAre(kMappingExactOffset));
+  EXPECT_THAT(context.storage->heap_profile_mappings().start_offsets(),
+              ElementsAre(kMappingStartOffset));
   EXPECT_THAT(context.storage->heap_profile_mappings().starts(),
               ElementsAre(kMappingStart));
   EXPECT_THAT(context.storage->heap_profile_mappings().ends(),
@@ -198,21 +202,24 @@ TEST(HeapProfileTrackerTest, Functional) {
   HeapProfileTracker::SourceMapping mappings[base::ArraySize(mapping_names)] =
       {};
   mappings[0].build_id = build_id_ids[0];
-  mappings[0].offset = 1;
+  mappings[0].exact_offset = 1;
+  mappings[0].start_offset = 1;
   mappings[0].start = 2;
   mappings[0].end = 3;
   mappings[0].load_bias = 0;
   mappings[0].name_id = mapping_name_ids[0];
 
   mappings[1].build_id = build_id_ids[1];
-  mappings[1].offset = 1;
+  mappings[1].exact_offset = 1;
+  mappings[1].start_offset = 1;
   mappings[1].start = 2;
   mappings[1].end = 3;
   mappings[1].load_bias = 1;
   mappings[1].name_id = mapping_name_ids[1];
 
   mappings[2].build_id = build_id_ids[2];
-  mappings[2].offset = 1;
+  mappings[2].exact_offset = 1;
+  mappings[2].start_offset = 1;
   mappings[2].start = 2;
   mappings[2].end = 3;
   mappings[2].load_bias = 2;

@@ -90,7 +90,8 @@ HeapProfileTracker::SourceMapping MakeSourceMapping(
     const protos::pbzero::Mapping::Decoder& entry) {
   HeapProfileTracker::SourceMapping src_mapping{};
   src_mapping.build_id = entry.build_id();
-  src_mapping.offset = entry.offset();
+  src_mapping.exact_offset = entry.exact_offset();
+  src_mapping.start_offset = entry.start_offset();
   src_mapping.start = entry.start();
   src_mapping.end = entry.end();
   src_mapping.load_bias = entry.load_bias();

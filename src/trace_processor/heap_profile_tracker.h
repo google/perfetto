@@ -62,7 +62,8 @@ class HeapProfileTracker {
 
   struct SourceMapping {
     SourceStringId build_id = 0;
-    uint64_t offset = 0;
+    uint64_t exact_offset = 0;
+    uint64_t start_offset = 0;
     uint64_t start = 0;
     uint64_t end = 0;
     uint64_t load_bias = 0;
