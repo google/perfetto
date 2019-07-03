@@ -618,8 +618,8 @@ TEST(FtraceStatsTest, Write) {
     stats.Write(out);
   }
 
-  std::unique_ptr<protos::TracePacket> result_packet = writer->ParseProto();
-  auto result = result_packet->ftrace_stats().cpu_stats(0);
+  protos::TracePacket result_packet = writer->GetOnlyTracePacket();
+  auto result = result_packet.ftrace_stats().cpu_stats(0);
   EXPECT_EQ(result.cpu(), 0);
   EXPECT_EQ(result.entries(), 1);
   EXPECT_EQ(result.overrun(), 2);
