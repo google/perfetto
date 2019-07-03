@@ -56,9 +56,15 @@ def write_diff(expected, actual):
   for line in diff:
     sys.stderr.write(line)
 
-def run_metrics_test(trace_processor_path, gen_trace_path, trace_path, metric,
-                     expected_path, trace_descriptor_path,
-                     metrics_message_factory):
+class TestResult(object):
+  def __init__(self, test_type, cmd, expected, actual):
+    self.test_type = test_type
+    self.cmd = cmd
+    self.expected = expected
+    self.actual = actual
+
+def run_metrics_test(trace_processor_path, gen_trace_path, metric,
+                     expected_path, metrics_message_factory):
   with open(expected_path, "r") as expected_file:
     expected = expected_file.read()
 
@@ -85,44 +91,17 @@ def run_metrics_test(trace_processor_path, gen_trace_path, trace_path, metric,
   expected_text = text_format.MessageToString(expected_message)
   actual_text = text_format.MessageToString(actual_message)
 
-  # Do an equality check of the python messages
-  if expected_text == actual_text:
-    return True
+  return TestResult("metric", cmd, expected_text, actual_text)
 
-  # Write some metadata about the traces.
-  sys.stderr.write(
-    "Expected did not match actual for trace {} and metric {}\n"
-    .format(trace_path, metric))
-  sys.stderr.write("Expected file: {}\n".format(expected_path))
-  sys.stderr.write("Command line: {}\n".format(' '.join(cmd)))
-
-  # Print the diff between the two.
-  write_diff(expected_text, actual_text)
-
-  return False
-
-def run_query_test(trace_processor_path, gen_trace_path, trace_path,
-                   query_path, expected_path, trace_descriptor_path):
+def run_query_test(trace_processor_path, gen_trace_path,
+                   query_path, expected_path):
   with open(expected_path, "r") as expected_file:
     expected = expected_file.read()
 
   cmd = [trace_processor_path, '-q', query_path, gen_trace_path]
   actual = subprocess.check_output(cmd).decode("utf-8")
 
-  if expected == actual:
-    return True
-
-  # Write some metadata.
-  sys.stderr.write(
-    "Expected did not match actual for trace {} and query {}\n"
-    .format(trace_path, query_path))
-  sys.stderr.write("Expected file: {}\n".format(expected_path))
-  sys.stderr.write("Command line: {}\n".format(' '.join(cmd)))
-
-  # Write the diff of the two files.
-  write_diff(expected, actual)
-
-  return False
+  return TestResult("query", cmd, expected, actual)
 
 def main():
   parser = argparse.ArgumentParser()
@@ -201,22 +180,28 @@ def main():
         print("Query file not found {}".format(query_path))
         return 1
 
-      success = run_query_test(args.trace_processor, gen_trace_path,
-                               trace_path, query_path, expected_path,
-                               trace_descriptor_path)
+      result = run_query_test(args.trace_processor, gen_trace_path,
+                               query_path, expected_path)
     elif args.test_type == 'metrics':
-      success = run_metrics_test(args.trace_processor, gen_trace_path,
-                                 trace_path, query_fname_or_metric,
-                                 expected_path, trace_descriptor_path,
-                                 metrics_message_factory)
+      result = run_metrics_test(args.trace_processor, gen_trace_path,
+                                 query_fname_or_metric,
+                                 expected_path, metrics_message_factory)
     else:
       assert False
 
+    if result.expected != result.actual:
+      sys.stderr.write(
+        "Expected did not match actual for trace {} and {} {}\n"
+        .format(trace_path, result.test_type, query_path))
+      sys.stderr.write("Expected file: {}\n".format(expected_path))
+      sys.stderr.write("Command line: {}\n".format(' '.join(result.cmd)))
+
+      write_diff(result.expected, result.actual)
+
+      test_failure += 1
+
     if gen_trace_file:
       gen_trace_file.close()
-
-    if not success:
-      test_failure += 1
 
   if test_failure == 0:
     print("All tests passed successfully")
