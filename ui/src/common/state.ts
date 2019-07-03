@@ -19,6 +19,8 @@
  */
 export interface ObjectById<Class extends{id: string}> { [id: string]: Class; }
 
+export const MAX_TIME = 180;
+
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
 export interface TrackState {
@@ -186,6 +188,8 @@ export interface RecordConfig {
   cpuCoarsePollMs: number;
   cpuSyscall: boolean;
 
+  screenRecord: boolean;
+
   gpuFreq: boolean;
 
   ftrace: boolean;
@@ -230,6 +234,8 @@ export function createEmptyRecordConfig(): RecordConfig {
     cpuLatency: false,
     cpuFreq: false,
     cpuSyscall: false,
+
+    screenRecord: false,
 
     gpuFreq: false,
 
