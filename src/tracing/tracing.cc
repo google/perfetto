@@ -24,6 +24,8 @@ namespace perfetto {
 
 // static
 void Tracing::Initialize(const TracingInitArgs& args) {
+  // Make sure the headers and implementation files agree on the build config.
+  PERFETTO_CHECK(args.dcheck_is_on_ == PERFETTO_DCHECK_IS_ON());
   internal::TracingMuxerImpl::InitializeInstance(args);
 }
 

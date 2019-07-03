@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "perfetto/base/export.h"
+#include "perfetto/base/logging.h"
 
 namespace perfetto {
 
@@ -60,6 +61,10 @@ struct TracingInitArgs {
   // of platform-specific bits like thread creation and TLS slot handling. If
   // not set it will use Platform::GetDefaultPlatform().
   Platform* platform = nullptr;
+
+ protected:
+  friend class Tracing;
+  bool dcheck_is_on_ = PERFETTO_DCHECK_IS_ON();
 };
 
 // The entry-point for using perfetto.
