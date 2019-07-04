@@ -34,7 +34,8 @@ StorageSchema HeapProfileMappingTable::CreateStorageSchema() {
       .AddGenericNumericColumn("id", RowAccessor())
       .AddStringColumn("build_id", &mappings.build_ids(),
                        &storage_->string_pool())
-      .AddNumericColumn("offset", &mappings.offsets())
+      .AddNumericColumn("exact_offset", &mappings.exact_offsets())
+      .AddNumericColumn("start_offset", &mappings.start_offsets())
       .AddNumericColumn("start", &mappings.starts())
       .AddNumericColumn("end", &mappings.ends())
       .AddNumericColumn("load_bias", &mappings.load_biases())

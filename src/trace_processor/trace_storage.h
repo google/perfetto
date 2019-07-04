@@ -656,16 +656,18 @@ class TraceStorage {
    public:
     struct Row {
       StringId build_id;
-      int64_t offset;
+      int64_t exact_offset;
+      int64_t start_offset;
       int64_t start;
       int64_t end;
       int64_t load_bias;
       StringId name_id;
 
       bool operator==(const Row& other) const {
-        return std::tie(build_id, offset, start, end, load_bias, name_id) ==
-               std::tie(other.build_id, other.offset, other.start, other.end,
-                        other.load_bias, other.name_id);
+        return std::tie(build_id, exact_offset, start_offset, start, end,
+                        load_bias, name_id) ==
+               std::tie(other.build_id, other.exact_offset, other.start_offset,
+                        other.start, other.end, other.load_bias, other.name_id);
       }
     };
 
@@ -673,7 +675,8 @@ class TraceStorage {
 
     int64_t Insert(const Row& row) {
       build_ids_.emplace_back(row.build_id);
-      offsets_.emplace_back(row.offset);
+      exact_offsets_.emplace_back(row.exact_offset);
+      start_offsets_.emplace_back(row.start_offset);
       starts_.emplace_back(row.start);
       ends_.emplace_back(row.end);
       load_biases_.emplace_back(row.load_bias);
@@ -682,7 +685,8 @@ class TraceStorage {
     }
 
     const std::deque<StringId>& build_ids() const { return build_ids_; }
-    const std::deque<int64_t>& offsets() const { return offsets_; }
+    const std::deque<int64_t>& exact_offsets() const { return exact_offsets_; }
+    const std::deque<int64_t>& start_offsets() const { return start_offsets_; }
     const std::deque<int64_t>& starts() const { return starts_; }
     const std::deque<int64_t>& ends() const { return ends_; }
     const std::deque<int64_t>& load_biases() const { return load_biases_; }
@@ -690,7 +694,8 @@ class TraceStorage {
 
    private:
     std::deque<StringId> build_ids_;
-    std::deque<int64_t> offsets_;
+    std::deque<int64_t> exact_offsets_;
+    std::deque<int64_t> start_offsets_;
     std::deque<int64_t> starts_;
     std::deque<int64_t> ends_;
     std::deque<int64_t> load_biases_;
@@ -1060,8 +1065,10 @@ struct hash<
 
   result_type operator()(const argument_type& r) const {
     return std::hash<::perfetto::trace_processor::StringId>{}(r.build_id) ^
-           std::hash<int64_t>{}(r.offset) ^ std::hash<int64_t>{}(r.start) ^
-           std::hash<int64_t>{}(r.end) ^ std::hash<int64_t>{}(r.load_bias) ^
+           std::hash<int64_t>{}(r.exact_offset) ^
+           std::hash<int64_t>{}(r.start_offset) ^
+           std::hash<int64_t>{}(r.start) ^ std::hash<int64_t>{}(r.end) ^
+           std::hash<int64_t>{}(r.load_bias) ^
            std::hash<::perfetto::trace_processor::StringId>{}(r.name_id);
   }
 };

@@ -80,7 +80,8 @@ int64_t HeapProfileTracker::AddMapping(SourceMappingId id,
 
   TraceStorage::HeapProfileMappings::Row row{
       build_id,
-      static_cast<int64_t>(mapping.offset),
+      static_cast<int64_t>(mapping.exact_offset),
+      static_cast<int64_t>(mapping.start_offset),
       static_cast<int64_t>(mapping.start),
       static_cast<int64_t>(mapping.end),
       static_cast<int64_t>(mapping.load_bias),

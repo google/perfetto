@@ -182,7 +182,8 @@ void GlobalCallstackTrie::DecrementNode(Node* node) {
 
 Interned<Frame> GlobalCallstackTrie::InternCodeLocation(const FrameData& loc) {
   Mapping map(string_interner_.Intern(loc.build_id));
-  map.offset = loc.frame.map_elf_start_offset;
+  map.exact_offset = loc.frame.map_exact_offset;
+  map.start_offset = loc.frame.map_elf_start_offset;
   map.start = loc.frame.map_start;
   map.end = loc.frame.map_end;
   map.load_bias = loc.frame.map_load_bias;
