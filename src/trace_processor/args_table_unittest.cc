@@ -75,7 +75,7 @@ TEST_F(ArgsTableUnittest, IntValue) {
   ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);             // arg_set_id
   ASSERT_STREQ(GetColumnAsText(1), kFlatKey);              // flat_key
   ASSERT_STREQ(GetColumnAsText(2), kKey);                  // key
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 3), kValue);        // int_value
+  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3), kValue);      // int_value
   ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
   ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
 
@@ -129,6 +129,118 @@ TEST_F(ArgsTableUnittest, RealValue) {
   ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
   ASSERT_EQ(sqlite3_column_double(*stmt_, 5), kValue);     // real_value
 
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
+}
+
+TEST_F(ArgsTableUnittest, BoolValueTreatedAsInt) {
+  static const char kFlatKey[] = "flat_key";
+  static const char kKey[] = "key";
+  static const bool kValue = true;
+
+  TraceStorage::Args::Arg arg;
+  arg.flat_key = context_.storage->InternString(kFlatKey);
+  arg.key = context_.storage->InternString(kKey);
+  arg.value = Variadic::Boolean(kValue);
+
+  context_.storage->mutable_args()->AddArgSet({arg}, 0, 1);
+
+  PrepareValidStatement("SELECT * FROM args");
+
+  // Boolean returned in the "int_value" column.
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);             // arg_set_id
+  ASSERT_STREQ(GetColumnAsText(1), kFlatKey);              // flat_key
+  ASSERT_STREQ(GetColumnAsText(2), kKey);                  // key
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 3), kValue);        // int_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
+
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
+}
+
+TEST_F(ArgsTableUnittest, PointerValueTreatedAsInt) {
+  static const uint64_t kSmallValue = 1ull << 30;
+  static const uint64_t kTopBitSetValue = 1ull << 63;
+
+  TraceStorage::Args::Arg arg;
+  arg.flat_key = context_.storage->InternString("flat_key_small");
+  arg.key = context_.storage->InternString("key_small");
+  arg.value = Variadic::Pointer(kSmallValue);
+
+  TraceStorage::Args::Arg arg2;
+  arg2.flat_key = context_.storage->InternString("flat_key_large");
+  arg2.key = context_.storage->InternString("key_large");
+  arg2.value = Variadic::Pointer(kTopBitSetValue);
+
+  context_.storage->mutable_args()->AddArgSet({arg, arg2}, 0, 2);
+
+  // Pointer returned in the "int_value" column, as a signed 64 bit.
+
+  static const int64_t kExpectedSmallValue = static_cast<int64_t>(kSmallValue);
+  PrepareValidStatement("SELECT * FROM args where key = \"key_small\"");
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
+  ASSERT_STREQ(GetColumnAsText(1), "flat_key_small");  // flat_key
+  ASSERT_STREQ(GetColumnAsText(2), "key_small");       // key
+  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3), kExpectedSmallValue);  // int_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
+
+  static const int64_t kExpectedTopBitSetValue =
+      -static_cast<int64_t>(kTopBitSetValue);  // negative
+  PrepareValidStatement("SELECT * FROM args where key = \"key_large\"");
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
+  ASSERT_STREQ(GetColumnAsText(1), "flat_key_large");  // flat_key
+  ASSERT_STREQ(GetColumnAsText(2), "key_large");       // key
+  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3),
+            kExpectedTopBitSetValue);                      // int_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
+}
+
+TEST_F(ArgsTableUnittest, UintValueTreatedAsInt) {
+  static const uint64_t kSmallValue = 1ull << 30;
+  static const uint64_t kTopBitSetValue = 1ull << 63;
+
+  TraceStorage::Args::Arg arg;
+  arg.flat_key = context_.storage->InternString("flat_key_small");
+  arg.key = context_.storage->InternString("key_small");
+  arg.value = Variadic::UnsignedInteger(kSmallValue);
+
+  TraceStorage::Args::Arg arg2;
+  arg2.flat_key = context_.storage->InternString("flat_key_large");
+  arg2.key = context_.storage->InternString("key_large");
+  arg2.value = Variadic::UnsignedInteger(kTopBitSetValue);
+
+  context_.storage->mutable_args()->AddArgSet({arg, arg2}, 0, 2);
+
+  // Unsigned returned in the "int_value" column, as a signed 64 bit.
+
+  static const int64_t kExpectedSmallValue = static_cast<int64_t>(kSmallValue);
+  PrepareValidStatement("SELECT * FROM args where key = \"key_small\"");
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
+  ASSERT_STREQ(GetColumnAsText(1), "flat_key_small");  // flat_key
+  ASSERT_STREQ(GetColumnAsText(2), "key_small");       // key
+  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3), kExpectedSmallValue);  // int_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
+
+  static const int64_t kExpectedTopBitSetValue =
+      -static_cast<int64_t>(kTopBitSetValue);  // negative
+  PrepareValidStatement("SELECT * FROM args where key = \"key_large\"");
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
+  ASSERT_STREQ(GetColumnAsText(1), "flat_key_large");  // flat_key
+  ASSERT_STREQ(GetColumnAsText(2), "key_large");       // key
+  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3),
+            kExpectedTopBitSetValue);                      // int_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
+  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
