@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/export.h"
+
 namespace perfetto {
 
 class TracingBackend;
@@ -61,7 +63,7 @@ struct TracingInitArgs {
 };
 
 // The entry-point for using perfetto.
-class Tracing {
+class PERFETTO_EXPORT Tracing {
  public:
   // Initializes Perfetto with the given backends in the calling process and/or
   // with a user-provided backend. Can only be called once.
@@ -75,7 +77,7 @@ class Tracing {
   Tracing() = delete;
 };
 
-class TracingSession {
+class PERFETTO_EXPORT TracingSession {
  public:
   virtual ~TracingSession();
 

@@ -32,6 +32,7 @@
 #include <mutex>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/export.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -47,7 +48,7 @@ class DataSourceConfig;
 
 // Base class with the virtual methods to get start/stop notifications.
 // Embedders are supposed to derive the templated version below, not this one.
-class DataSourceBase {
+class PERFETTO_EXPORT DataSourceBase {
  public:
   virtual ~DataSourceBase();
 
