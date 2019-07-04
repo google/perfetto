@@ -37,6 +37,7 @@ import {TimeSelectionPanel} from './time_selection_panel';
 import {TRACK_SHELL_WIDTH} from './track_constants';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
+import {VideoPanel} from './video_panel';
 
 const DRAG_HANDLE_HEIGHT_PX = 28;
 const DEFAULT_DETAILS_HEIGHT_PX = 230 + DRAG_HANDLE_HEIGHT_PX;
@@ -315,6 +316,7 @@ class TraceViewer implements m.ClassComponent {
 
     return m(
         '.page',
+        m('.split-panel',
         m('.pan-and-zoom-content',
           {
             onclick: () => {
@@ -341,6 +343,9 @@ class TraceViewer implements m.ClassComponent {
               doesScroll: true,
               panels: scrollingPanels,
             }))),
+          m('.video-panel', (globals.state.videoEnabled &&
+                             globals.state.video != null) ?
+                             m(VideoPanel) : null)),
         m('.details-content',
           {
             style: {

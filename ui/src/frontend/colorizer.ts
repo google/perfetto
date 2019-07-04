@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {ThreadDesc} from './globals';
+import {hsl} from 'color-convert';
 
 export interface Color {
   c: string;
@@ -87,4 +88,10 @@ export function colorForThread(thread: ThreadDesc|undefined): Color {
   }
   const tid = thread.pid ? thread.pid : thread.tid;
   return colorForTid(tid);
+}
+
+// 40 different random hues 9 degrees apart.
+export function randomColor(): string {
+  const hue = Math.floor(Math.random() * 40) * 9;
+  return '#' + hsl.hex([hue, 90, 30]);
 }

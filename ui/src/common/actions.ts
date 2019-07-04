@@ -78,6 +78,11 @@ export const StateActions = {
     state.route = `/viewer`;
   },
 
+  openVideoFromFile(state: StateDraft, args: {file: File}): void {
+    state.video = URL.createObjectURL(args.file);
+    state.videoEnabled = true;
+  },
+
   convertTraceToJson(_: StateDraft, args: {file: File}): void {
     ConvertTrace(args.file);
   },
@@ -298,6 +303,22 @@ export const StateActions = {
       isMovie: args.isMovie
     };
     this.selectNote(state, {id});
+  },
+
+  updateOnPauseTime(state: StateDraft, args: {ts: number}) : void {
+    state.onPauseTime = args.ts;
+  },
+
+  toggleVideo(state: StateDraft): void {
+    state.videoEnabled = !state.videoEnabled;
+  },
+
+  toggleFlagPause(state: StateDraft): void {
+    if (state.video === null) {
+      state.flagPauseEnabled = false;
+    } else {
+      state.flagPauseEnabled = !state.flagPauseEnabled;
+    }
   },
 
   changeNoteColor(state: StateDraft, args: {id: string, newColor: string}):

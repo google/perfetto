@@ -21,7 +21,7 @@ import {globals} from './globals';
 import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {TRACK_SHELL_WIDTH} from './track_constants';
-import {hsl} from 'color-convert';
+import {randomColor} from './colorizer';
 
 const FLAG_WIDTH = 16;
 const MOVIE_WIDTH = 16;
@@ -170,8 +170,7 @@ export class NotesPanel extends Panel {
       }
     }
     // 40 different random hues 9 degrees apart.
-    const hue = Math.floor(Math.random() * 40) * 9;
-    const color = '#' + hsl.hex([hue, 90, 30]);
+    const color = randomColor();
     globals.dispatch(Actions.addNote({timestamp, color, isMovie}));
   }
 }
