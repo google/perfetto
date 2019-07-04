@@ -63,7 +63,15 @@ ArgsTable::ValueColumn::ValueColumn(std::string col_name,
 void ArgsTable::ValueColumn::ReportResult(sqlite3_context* ctx,
                                           uint32_t row) const {
   const auto& value = storage_->args().arg_values()[row];
-  if (value.type != type_) {
+
+  // Treat bools, unsigned integers, and pointers as signed integers, so that
+  // they end up queryable via a kInt instance of ValueColumn.
+  Variadic::Type effective_type = (value.type == Variadic::Type::kBool ||
+                                   value.type == Variadic::Type::kUint ||
+                                   value.type == Variadic::Type::kPointer)
+                                      ? Variadic::Type::kInt
+                                      : value.type;
+  if (effective_type != type_) {
     sqlite3_result_null(ctx);
     return;
   }
