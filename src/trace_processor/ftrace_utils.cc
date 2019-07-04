@@ -165,6 +165,10 @@ void FormatSystracePrefix(int64_t timestamp,
     name = "<idle>";
   } else if (name == "") {
     name = "<unknown>";
+  } else if (name == "CrRendererMain") {
+    // TODO(taylori): Remove this when crbug.com/978093 is fixed or
+    // when a better solution is found.
+    name = "CrRendererMainThread";
   }
 
   int64_t padding = 16 - static_cast<int64_t>(name.size());
