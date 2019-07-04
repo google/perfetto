@@ -21,6 +21,12 @@ export function handleKey(key: string, down: boolean) {
   if (down && 'm' === key) {
     selectSliceSpan();
   }
+  if (down && 'v' === key) {
+    globals.dispatch(Actions.toggleVideo({}));
+  }
+  if (down && 'p' === key) {
+    globals.dispatch(Actions.toggleFlagPause({}));
+  }
 }
 
 function selectSliceSpan() {
@@ -33,5 +39,3 @@ function selectSliceSpan() {
     globals.dispatch(Actions.selectTimeSpan({startTs, endTs}));
   }
 }
-
-

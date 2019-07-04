@@ -133,6 +133,18 @@ button.close {
     flex-direction: column
 }
 
+.split-panel {
+  flex: 1;
+  display: flex;
+  flex-flow: row;
+  position: relative;
+}
+
+.video-panel {
+  grid-area: video;
+  position: relative;
+}
+
 .alerts {
   * {
     user-select: text;
