@@ -60,14 +60,10 @@ std::vector<protos::TracePacket> TraceWriterForTesting::GetAllTracePackets() {
   return ret;
 }
 
-std::unique_ptr<protos::TracePacket> TraceWriterForTesting::ParseProto() {
-  PERFETTO_CHECK(cur_packet_->is_finalized());
-
-  auto trace = GetAllTracePackets();
-  PERFETTO_CHECK(!trace.empty());
-  auto packet =
-      std::unique_ptr<protos::TracePacket>(new protos::TracePacket(trace[0]));
-  return packet;
+protos::TracePacket TraceWriterForTesting::GetOnlyTracePacket() {
+  auto packets = GetAllTracePackets();
+  PERFETTO_CHECK(packets.size() == 1);
+  return packets[0];
 }
 
 TraceWriterForTesting::TracePacketHandle

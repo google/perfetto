@@ -39,8 +39,7 @@ class TraceWriterForTesting : public TraceWriter {
   void Flush(std::function<void()> callback = {}) override;
 
   std::vector<protos::TracePacket> GetAllTracePackets();
-  // TODO(rsavitski): rewrite as "get only packet".
-  std::unique_ptr<protos::TracePacket> ParseProto();
+  protos::TracePacket GetOnlyTracePacket();
 
   WriterID writer_id() const override;
   uint64_t written() const override;
