@@ -32,6 +32,7 @@ import gn_utils
 # Default targets to include in the result.
 default_targets = [
     '//:libperfetto_client_experimental',
+    "//include/perfetto/protozero:protozero",
     "//protos/perfetto/common:zero",
     "//protos/perfetto/config:zero",
     "//protos/perfetto/config:zero",
