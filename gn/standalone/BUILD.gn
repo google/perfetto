@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import("//gn/standalone/android.gni")
-import("//gn/standalone/wasm.gni")
 import("//gn/standalone/sanitizers/sanitizers.gni")
+import("//gn/standalone/wasm.gni")
 
 config("extra_warnings") {
   cflags = [
@@ -78,10 +78,6 @@ config("default") {
     "-Wformat",
     "-Werror",
   ]
-
-  if (!is_wasm && !is_lto) {
-    cflags += [ "-Wa,--noexecstack" ]
-  }
 
   if (is_clang) {
     cflags += [
