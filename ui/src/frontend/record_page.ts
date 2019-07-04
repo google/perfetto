@@ -17,7 +17,7 @@ import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
-import {RecordMode} from '../common/state';
+import {RecordMode, MAX_TIME} from '../common/state';
 
 import {globals} from './globals';
 import {createPage} from './pages';
@@ -33,6 +33,7 @@ import {
   TextareaAttrs
 } from './record_widgets';
 import {Router} from './router';
+
 
 
 const POLL_RATE_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
@@ -403,11 +404,13 @@ function AndroidSettings(cssClass: string) {
           options: LOG_BUFFERS,
           set: (cfg, val) => cfg.androidLogBuffers = val,
           get: (cfg) => cfg.androidLogBuffers
-        } as DropdownAttrs), ));
+        } as DropdownAttrs)));
 }
 
 
 function AdvancedSettings(cssClass: string) {
+  const S = (x: number) => x * 1000;
+  const M = (x: number) => x * 1000 * 60;
   return m(
       `.record-section${cssClass}`,
       m(Probe,
@@ -449,7 +452,25 @@ function AdvancedSettings(cssClass: string) {
               'kmem/*',
           set: (cfg, val) => cfg.ftraceExtraEvents = val,
           get: (cfg) => cfg.ftraceExtraEvents
-        } as TextareaAttrs)));
+        } as TextareaAttrs)),
+      m(Probe,
+        {
+          title: 'Screen Recording',
+          img: '',
+          descr: `Records the screen along with running a trace. Max
+                  time of recording is 3 minutes (180 seconds).`,
+          setEnabled: (cfg, val) => cfg.screenRecord = val,
+          isEnabled: (cfg) => cfg.screenRecord,
+        } as ProbeAttrs,
+        m(Slider, {
+          title: 'Max duration',
+          icon: 'timer',
+          values: [S(10), S(15), S(30), S(60), M(2), M(3)],
+          isTime: true,
+          unit: 'm:s',
+          set: (cfg, val) => cfg.durationMs = val,
+          get: (cfg) => cfg.durationMs,
+        } as SliderAttrs),));
 }
 
 function Instructions(cssClass: string) {
@@ -458,8 +479,21 @@ function Instructions(cssClass: string) {
     pbtxt: string,
   } | null;
 
+  const cfg = globals.state.recordConfig;
+  var time = cfg.durationMs / 1000;
+
+  if (time > MAX_TIME) {
+    time = MAX_TIME;
+  }
+
   const pbtx = data ? data.pbtxt : '';
   let cmd = '';
+
+  if (cfg.screenRecord) {
+    cmd += 'adb shell screenrecord --time-limit ' + time;
+    cmd += ' "/sdcard/tracescr.mp4" &\\\n';
+  }
+
   cmd += 'adb shell perfetto \\\n';
   cmd += '  -c - --txt \\\n';
   cmd += '  -o /data/misc/perfetto-traces/trace \\\n';
