@@ -34,10 +34,12 @@ SELECT RUN_METRIC('android/upid_span_view.sql',
 DROP TABLE IF EXISTS anon_and_swap_join;
 
 CREATE VIRTUAL TABLE anon_and_swap_join
-USING SPAN_JOIN(anon_rss_span PARTITIONED upid, swap_span PARTITIONED upid);
+USING SPAN_OUTER_JOIN(anon_rss_span PARTITIONED upid, swap_span PARTITIONED upid);
 
 DROP VIEW IF EXISTS anon_and_swap_span;
 
 CREATE VIEW anon_and_swap_span AS
-SELECT ts, dur, upid, anon_rss_val + swap_val AS anon_and_swap_val
+SELECT
+  ts, dur, upid,
+  IFNULL(anon_rss_val, 0) + IFNULL(swap_val, 0) AS anon_and_swap_val
 FROM anon_and_swap_join;
