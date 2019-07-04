@@ -248,9 +248,9 @@ TEST_F(SysStatsDataSourceTest, Meminfo) {
 
   WaitTick(data_source.get());
 
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet->has_sys_stats());
-  const auto& sys_stats = packet->sys_stats();
+  protos::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.vmstat_size(), 0);
   EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
 
@@ -276,9 +276,9 @@ TEST_F(SysStatsDataSourceTest, MeminfoAll) {
 
   WaitTick(data_source.get());
 
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet->has_sys_stats());
-  const auto& sys_stats = packet->sys_stats();
+  protos::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.vmstat_size(), 0);
   EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
   EXPECT_GE(sys_stats.meminfo_size(), 10);
@@ -297,9 +297,9 @@ TEST_F(SysStatsDataSourceTest, Vmstat) {
 
   WaitTick(data_source.get());
 
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet->has_sys_stats());
-  const auto& sys_stats = packet->sys_stats();
+  protos::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.meminfo_size(), 0);
   EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
 
@@ -322,9 +322,9 @@ TEST_F(SysStatsDataSourceTest, VmstatAll) {
 
   WaitTick(data_source.get());
 
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet->has_sys_stats());
-  const auto& sys_stats = packet->sys_stats();
+  protos::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.meminfo_size(), 0);
   EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
   EXPECT_GE(sys_stats.vmstat_size(), 10);
@@ -339,10 +339,9 @@ TEST_F(SysStatsDataSourceTest, StatAll) {
 
   WaitTick(data_source.get());
 
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet);
-  ASSERT_TRUE(packet->has_sys_stats());
-  const auto& sys_stats = packet->sys_stats();
+  protos::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.meminfo_size(), 0);
   EXPECT_EQ(sys_stats.vmstat_size(), 0);
 
@@ -383,9 +382,9 @@ TEST_F(SysStatsDataSourceTest, StatForksOnly) {
 
   WaitTick(data_source.get());
 
-  std::unique_ptr<protos::TracePacket> packet = writer_raw_->ParseProto();
-  ASSERT_TRUE(packet->has_sys_stats());
-  const auto& sys_stats = packet->sys_stats();
+  protos::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.meminfo_size(), 0);
   EXPECT_EQ(sys_stats.vmstat_size(), 0);
   ASSERT_EQ(sys_stats.cpu_stat_size(), 0);
