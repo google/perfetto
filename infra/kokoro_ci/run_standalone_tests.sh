@@ -25,7 +25,11 @@ echo PERFETTO_TEST_GN_ARGS: ${PERFETTO_TEST_GN_ARGS}
 
 OUT_PATH="out/dist"
 
+if [[ "$PERFETTO_TEST_GN_ARGS" =~ "android" ]]; then
+tools/install-build-deps
+else
 tools/install-build-deps --no-android
+fi
 
 pip install --quiet --user protobuf
 
