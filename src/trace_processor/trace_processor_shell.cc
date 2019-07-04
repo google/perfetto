@@ -589,7 +589,7 @@ int MaybePrintPerfFile(const std::string& perf_file_path,
     return 1;
   }
 
-  auto fd(base::OpenFile(perf_file_path, O_WRONLY | O_CREAT | O_TRUNC, 066));
+  auto fd(base::OpenFile(perf_file_path, O_WRONLY | O_CREAT | O_TRUNC, 0666));
   if (!fd) {
     PERFETTO_ELOG("Failed to open perf file");
     return 1;
