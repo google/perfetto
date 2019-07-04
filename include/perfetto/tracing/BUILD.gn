@@ -13,6 +13,10 @@
 # limitations under the License.
 
 source_set("tracing") {
+  public_deps = [
+    "../../../gn:default_deps",
+  ]
+
   sources = [
     "data_source.h",
     "internal/basic_types.h",
@@ -24,5 +28,11 @@ source_set("tracing") {
     "trace_writer_base.h",
     "tracing.h",
     "tracing_backend.h",
+  ]
+
+  deps = [
+    "../../../protos/perfetto/trace:zero",
+    "../base",
+    "../protozero",
   ]
 }
