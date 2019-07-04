@@ -46,7 +46,9 @@ message ProfiledFrameSymbols {
 message Mapping {
   optional uint64 iid = 1;       // Interning key.
   optional uint64 build_id = 2;  // Interning key.
-  optional uint64 offset = 3;
+  // TODO(fmayer): Document difference between those two.
+  optional uint64 exact_offset = 8;
+  optional uint64 start_offset = 3;
   optional uint64 start = 4;
   optional uint64 end = 5;
   optional uint64 load_bias = 6;

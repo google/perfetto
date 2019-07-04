@@ -123,13 +123,12 @@ class GProfileWriter {
   }
 
   void AddMapping(const Mapping& mapping) {
-    mapping_base_.emplace(mapping.iid(), mapping.start() - mapping.load_bias() -
-                                             mapping.offset());
+    mapping_base_.emplace(mapping.iid(), mapping.start() - mapping.load_bias());
     GMapping* gmapping = profile_.add_mapping();
     gmapping->set_id(mapping.iid());
     gmapping->set_memory_start(mapping.start());
     gmapping->set_memory_limit(mapping.end());
-    gmapping->set_file_offset(mapping.offset());
+    gmapping->set_file_offset(mapping.exact_offset());
     std::string filename;
     for (uint64_t str_id : mapping.path_string_ids()) {
       auto it = string_lookup_.find(str_id);
