@@ -120,7 +120,7 @@ message ProfilePacket {
   }
 
   optional bool continued = 6;
-  optional uint64 index = 7;
+  reserved 7;  // used to be |index|.
 }
 
 // Message used to represent individual stack samples sampled at discrete
