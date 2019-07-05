@@ -58,7 +58,7 @@ class CounterTrackController extends TrackController<Config, Data> {
 
       await this.query(`create view ${this.tableName('counter_view')} as
         select ts,
-        lead(ts) over (partition by ref_type order by ts) - ts as dur,
+        lead(ts, 1, ts) over (partition by ref_type order by ts) - ts as dur,
         value, name, ref
         from counters
         where name = '${this.config.name}' and ref = ${this.config.ref};`);
@@ -89,15 +89,23 @@ class CounterTrackController extends TrackController<Config, Data> {
       group by quantum_ts limit ${LIMIT};`;
 
     if (!isQuantized) {
-      // TODO(hjd): Implement window clipping.
-      query = `select ts, value
+      // Find the value just before the query range to ensure counters
+      // continue from the correct previous value.
+      // Union that with the query that finds all the counters within
+      // the current query range.
+      query = `
+      select * from (select ts, value from counters
+      where name = '${this.config.name}' and ref = ${this.config.ref} and
+      ts <= ${startNs} order by ts desc limit 1)
+      UNION
+      select * from (select ts, value
         from (select
           ts,
-          lead(ts) over (partition by ref_type order by ts) as ts_end,
+          lead(ts, 1, ts) over (partition by ref_type order by ts) as ts_end,
           value
           from counters
           where name = '${this.config.name}' and ref = ${this.config.ref})
-      where ts <= ${endNs} and ${startNs} <= ts_end limit ${LIMIT};`;
+      where ts <= ${endNs} and ${startNs} <= ts_end limit ${LIMIT});`;
     }
 
     const rawResult = await this.query(query);
