@@ -188,7 +188,7 @@ TEST_F(ArgsTableUnittest, PointerValueTreatedAsInt) {
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 
   static const int64_t kExpectedTopBitSetValue =
-      -static_cast<int64_t>(kTopBitSetValue);  // negative
+      static_cast<int64_t>(kTopBitSetValue);
   PrepareValidStatement("SELECT * FROM args where key = \"key_large\"");
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
   ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
@@ -231,7 +231,7 @@ TEST_F(ArgsTableUnittest, UintValueTreatedAsInt) {
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 
   static const int64_t kExpectedTopBitSetValue =
-      -static_cast<int64_t>(kTopBitSetValue);  // negative
+      static_cast<int64_t>(kTopBitSetValue);  // negative
   PrepareValidStatement("SELECT * FROM args where key = \"key_large\"");
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
   ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
