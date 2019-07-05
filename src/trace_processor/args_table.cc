@@ -76,7 +76,7 @@ void ArgsTable::ValueColumn::ReportResult(sqlite3_context* ctx,
     return;
   }
 
-  switch (type_) {
+  switch (value.type) {
     case Variadic::Type::kInt:
       sqlite_utils::ReportSqliteResult(ctx, value.int_value);
       break;
