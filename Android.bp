@@ -3913,6 +3913,7 @@ cc_binary_host {
     "tools/trace_to_text/main.cc",
     "tools/trace_to_text/pprof_builder.cc",
     "tools/trace_to_text/proto_full_utils.cc",
+    "tools/trace_to_text/symbolize_profile.cc",
     "tools/trace_to_text/trace_to_profile.cc",
     "tools/trace_to_text/trace_to_systrace.cc",
     "tools/trace_to_text/trace_to_text.cc",
