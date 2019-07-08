@@ -55,7 +55,7 @@ class ProcessTracker {
 
   // Called when sched_process_exit is observed. This forces the tracker to
   // end the thread lifetime for the utid associated with the given tid.
-  void EndThread(int64_t timestamp, uint32_t tid, uint32_t pid);
+  void EndThread(int64_t timestamp, uint32_t tid);
 
   // Returns the thread utid or base::nullopt if it doesn't exist.
   base::Optional<UniqueTid> GetThreadOrNull(uint32_t tid);
