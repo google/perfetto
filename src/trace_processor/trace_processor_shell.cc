@@ -456,7 +456,7 @@ int StartInteractiveShell() {
   return 0;
 }
 
-void PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
+util::Status PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
   for (uint32_t c = 0; c < it->ColumnCount(); c++) {
     if (c > 0)
       fprintf(output, ",");
@@ -490,6 +490,7 @@ void PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
     }
     fprintf(output, "\n");
   }
+  return it->Status();
 }
 
 bool IsBlankLine(char* buffer) {
@@ -568,8 +569,13 @@ bool RunQueryAndPrintResult(const std::vector<std::string> queries,
       is_query_error = true;
       break;
     }
-    PrintQueryResultAsCsv(&it, output);
+    status = PrintQueryResultAsCsv(&it, output);
     has_output = true;
+
+    if (!status.ok()) {
+      PERFETTO_ELOG("SQLite error: %s", status.c_message());
+      is_query_error = true;
+    }
   }
   return !is_query_error;
 }
