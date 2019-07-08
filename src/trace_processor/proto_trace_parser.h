@@ -54,7 +54,7 @@ class ProtoTraceParser : public TraceParser {
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, ConstBytes);
   void ParseSchedWakeup(int64_t timestamp, ConstBytes);
   void ParseSchedWaking(int64_t timestamp, ConstBytes);
-  void ParseSchedProcessExit(int64_t timestamp, ConstBytes);
+  void ParseSchedProcessFree(int64_t timestamp, ConstBytes);
   void ParseTaskNewTask(int64_t timestamp, uint32_t source_tid, ConstBytes);
   void ParseTaskRename(ConstBytes);
   void ParseCpuFreq(int64_t timestamp, ConstBytes);
