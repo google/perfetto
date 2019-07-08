@@ -57,8 +57,9 @@ def write_diff(expected, actual):
     sys.stderr.write(line)
 
 class TestResult(object):
-  def __init__(self, test_type, cmd, expected, actual):
+  def __init__(self, test_type, input_name, cmd, expected, actual):
     self.test_type = test_type
+    self.input_name = input_name
     self.cmd = cmd
     self.expected = expected
     self.actual = actual
@@ -91,7 +92,7 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
   expected_text = text_format.MessageToString(expected_message)
   actual_text = text_format.MessageToString(actual_message)
 
-  return TestResult("metric", cmd, expected_text, actual_text)
+  return TestResult("metric", metric, cmd, expected_text, actual_text)
 
 def run_query_test(trace_processor_path, gen_trace_path,
                    query_path, expected_path):
@@ -101,7 +102,7 @@ def run_query_test(trace_processor_path, gen_trace_path,
   cmd = [trace_processor_path, '-q', query_path, gen_trace_path]
   actual = subprocess.check_output(cmd).decode("utf-8")
 
-  return TestResult("query", cmd, expected, actual)
+  return TestResult("query", query_path, cmd, expected, actual)
 
 def main():
   parser = argparse.ArgumentParser()
@@ -192,7 +193,7 @@ def main():
     if result.expected != result.actual:
       sys.stderr.write(
         "Expected did not match actual for trace {} and {} {}\n"
-        .format(trace_path, result.test_type, query_path))
+        .format(trace_path, result.test_type, result.input_name))
       sys.stderr.write("Expected file: {}\n".format(expected_path))
       sys.stderr.write("Command line: {}\n".format(' '.join(result.cmd)))
 

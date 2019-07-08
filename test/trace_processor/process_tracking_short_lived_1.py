@@ -34,6 +34,6 @@ trace.add_ftrace_packet(0)
 trace.add_newtask(ts=15, tid=10, new_tid=11,
                   new_comm='child', flags=0)
 trace.add_sched(ts=16, prev_pid=10, next_pid=11, next_comm='child')
-trace.add_process_exit(ts=20, tid=11, pid=11, comm='child', prio=0)
+trace.add_process_free(ts=20, tid=11, comm='child', prio=0)
 
 print(trace.trace.SerializeToString())

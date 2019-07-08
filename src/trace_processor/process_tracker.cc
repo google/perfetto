@@ -44,10 +44,20 @@ UniqueTid ProcessTracker::StartNewThread(int64_t timestamp,
   return new_utid;
 }
 
-void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid, uint32_t pid) {
-  UniqueTid utid = pid == 0 ? GetOrCreateThread(tid) : UpdateThread(tid, pid);
+void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
+  UniqueTid utid = GetOrCreateThread(tid);
   TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
   thread->end_ns = timestamp;
+  if (thread->upid.has_value()) {
+    TraceStorage::Process* process =
+        context_->storage->GetMutableProcess(thread->upid.value());
+
+    // If the process pid and thread tid are equal, then this is the main thread
+    // of the process.
+    if (process->pid == thread->tid) {
+      process->end_ns = timestamp;
+    }
+  }
 }
 
 base::Optional<UniqueTid> ProcessTracker::GetThreadOrNull(uint32_t tid) {
@@ -102,6 +112,11 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
     }
     const auto& iter_process =
         context_->storage->GetProcess(iter_thread->upid.value());
+    if (iter_process.end_ns != 0) {
+      // If the process is already dead, don't bother choosing the associated
+      // thread.
+      continue;
+    }
     if (iter_process.pid == pid) {
       // We found a thread that matches both the tid and its parent pid.
       thread = iter_thread;
