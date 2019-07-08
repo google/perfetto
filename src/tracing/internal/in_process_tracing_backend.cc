@@ -92,8 +92,10 @@ std::unique_ptr<ProducerEndpoint> InProcessTracingBackend::ConnectProducer(
 
   return GetOrCreateService(args.task_runner)
       ->ConnectProducer(args.producer, /*uid=*/0, args.producer_name,
-                        /*shm_hint=*/0, /*in_process=*/true,
-                        TracingService::ProducerSMBScrapingMode::kEnabled);
+                        /*shm_hint=*/0,
+                        /*in_process=*/true,
+                        TracingService::ProducerSMBScrapingMode::kEnabled,
+                        /*shm_page_hint*/ 0);
 }
 
 std::unique_ptr<ConsumerEndpoint> InProcessTracingBackend::ConnectConsumer(
