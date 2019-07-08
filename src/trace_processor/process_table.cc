@@ -43,6 +43,7 @@ util::Status ProcessTable::Init(int, const char* const*, Schema* schema) {
           Table::Column(Column::kName, "name", ColumnType::kString),
           Table::Column(Column::kPid, "pid", ColumnType::kUint),
           Table::Column(Column::kStartTs, "start_ts", ColumnType::kLong),
+          Table::Column(Column::kEndTs, "end_ts", ColumnType::kLong),
       },
       {Column::kUpid});
   return util::OkStatus();
@@ -123,6 +124,15 @@ int ProcessTable::Cursor::Column(sqlite3_context* context, int N) {
       const auto& process = storage_->GetProcess(current);
       if (process.start_ns != 0) {
         sqlite3_result_int64(context, process.start_ns);
+      } else {
+        sqlite3_result_null(context);
+      }
+      break;
+    }
+    case Column::kEndTs: {
+      const auto& process = storage_->GetProcess(current);
+      if (process.end_ns != 0) {
+        sqlite3_result_int64(context, process.end_ns);
       } else {
         sqlite3_result_null(context);
       }
