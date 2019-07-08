@@ -41,7 +41,7 @@ trace.add_process_tree_packet()
 trace.add_process(1, 0, 'init')
 trace.add_process(2, 1, 'system_server')
 add_startup(trace, ts=100, pid=3)
-trace.add_process_exit(ts=150, tid=3, pid=3, comm='', prio=0)
+trace.add_process_free(ts=150, tid=3, comm='', prio=0)
 add_startup(trace, ts=200, pid=4)
 
 print(trace.trace.SerializeToString())
