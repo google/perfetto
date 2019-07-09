@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/export_json.h"
-#include "src/trace_processor/metadata.h"
-
+#include <inttypes.h>
+#include <json/reader.h>
 #include <json/value.h>
 #include <json/writer.h>
 #include <stdio.h>
 
+#include "perfetto/ext/base/string_splitter.h"
+#include "src/trace_processor/export_json.h"
+#include "src/trace_processor/metadata.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace {
@@ -38,7 +40,8 @@ class TraceFormatWriter {
                   const char* cat,
                   const char* name,
                   uint32_t tid,
-                  uint32_t pid) {
+                  uint32_t pid,
+                  const Json::Value& args) {
     if (!first_event_) {
       fputs(",", output_);
     }
@@ -51,6 +54,7 @@ class TraceFormatWriter {
     value["pid"] = Json::UInt(pid);
     value["ts"] = Json::Int64(begin_ts_us);
     value["dur"] = Json::Int64(duration_us);
+    value["args"] = args;
     fputs(writer.write(value).c_str(), output_);
     first_event_ = false;
   }
@@ -111,13 +115,125 @@ class TraceFormatWriter {
   Json::Value metadata_;
 };
 
+std::string PrintUint64(uint64_t x) {
+  char hex_str[19];
+  sprintf(hex_str, "0x%" PRIx64, x);
+  return hex_str;
+}
+
 }  // anonymous namespace
 
 namespace perfetto {
 namespace trace_processor {
 namespace json {
 
+namespace {
+
+class ArgsBuilder {
+ public:
+  explicit ArgsBuilder(const TraceStorage* storage)
+      : string_pool_(&storage->string_pool()) {
+    const TraceStorage::Args& args = storage->args();
+    Json::Value empty_value(Json::objectValue);
+    if (args.args_count() == 0) {
+      args_sets_.resize(1, empty_value);
+      return;
+    }
+    args_sets_.resize(args.set_ids().back() + 1, empty_value);
+    for (size_t i = 0; i < args.args_count(); ++i) {
+      ArgSetId set_id = args.set_ids()[i];
+      const char* key = string_pool_->Get(args.keys()[i]).c_str();
+      Variadic value = args.arg_values()[i];
+      AppendArg(set_id, key, VariadicToJson(value));
+    }
+    PostprocessArgs();
+  }
+
+  const Json::Value& GetArgs(ArgSetId set_id) const {
+    return args_sets_[set_id];
+  }
+
+ private:
+  Json::Value VariadicToJson(Variadic variadic) {
+    switch (variadic.type) {
+      case Variadic::kInt:
+        return Json::Int64(variadic.int_value);
+      case Variadic::kUint:
+        return Json::UInt64(variadic.uint_value);
+      case Variadic::kString:
+        return string_pool_->Get(variadic.string_value).c_str();
+      case Variadic::kReal:
+        return variadic.real_value;
+      case Variadic::kPointer:
+        return PrintUint64(variadic.pointer_value);
+      case Variadic::kBool:
+        return variadic.bool_value;
+      case Variadic::kJson:
+        Json::Reader reader;
+        Json::Value result;
+        reader.parse(string_pool_->Get(variadic.string_value).c_str(), result);
+        return result;
+    }
+  }
+
+  void AppendArg(ArgSetId set_id,
+                 const std::string& key,
+                 const Json::Value& value) {
+    Json::Value* target = &args_sets_[set_id];
+    for (base::StringSplitter parts(key, '.'); parts.Next();) {
+      std::string key_part = parts.cur_token();
+      size_t bracketpos = key_part.find('[');
+      if (bracketpos == key_part.npos) {  // A single item
+        target = &(*target)[key_part];
+      } else {  // A list item
+        target = &(*target)[key_part.substr(0, bracketpos)];
+        while (bracketpos != key_part.npos) {
+          std::string index = key_part.substr(
+              bracketpos + 1, key_part.find(']', bracketpos) - bracketpos - 1);
+          target = &(*target)[stoi(index)];
+          bracketpos = key_part.find('[', bracketpos + 1);
+        }
+      }
+    }
+    *target = value;
+  }
+
+  void PostprocessArgs() {
+    for (Json::Value& args : args_sets_) {
+      // Move all fields from "debug" key to upper level.
+      if (args.isMember("debug")) {
+        Json::Value debug = args.removeMember("debug");
+        for (const auto& member : debug.getMemberNames()) {
+          args[member] = debug[member];
+        }
+      }
+
+      // Rename source fields.
+      if (args.isMember("task")) {
+        if (args["task"].isMember("posted_from")) {
+          Json::Value posted_from = args["task"].removeMember("posted_from");
+          if (posted_from.isMember("function_name")) {
+            args["src_func"] = posted_from["function_name"];
+            args["src_file"] = posted_from["file_name"];
+          } else if (posted_from.isMember("file_name")) {
+            args["src"] = posted_from["file_name"];
+          }
+        }
+        if (args["task"].empty()) {
+          args.removeMember("task");
+        }
+      }
+    }
+  }
+
+  const StringPool* string_pool_;
+  std::vector<Json::Value> args_sets_;
+};
+
+}  // anonymous namespace
+
 ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
+  ArgsBuilder args_builder(storage);
   const StringPool& string_pool = storage->string_pool();
 
   TraceFormatWriter writer(output);
@@ -145,6 +261,7 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
   const auto& slices = storage->nestable_slices();
   for (size_t i = 0; i < slices.slice_count(); ++i) {
     if (slices.types()[i] == RefType::kRefUtid) {
+      ArgSetId arg_set_id = slices.arg_set_ids()[i];
       int64_t begin_ts_us = slices.start_ns()[i] / 1000;
       int64_t duration_us = slices.durations()[i] / 1000;
       const char* cat = string_pool.Get(slices.cats()[i]).c_str();
@@ -154,7 +271,8 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
       auto thread = storage->GetThread(utid);
       uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
 
-      writer.WriteSlice(begin_ts_us, duration_us, cat, name, thread.tid, pid);
+      writer.WriteSlice(begin_ts_us, duration_us, cat, name, thread.tid, pid,
+                        args_builder.GetArgs(arg_set_id));
     } else {
       return kResultWrongRefType;
     }

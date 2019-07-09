@@ -1381,7 +1381,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
       .WillOnce(Return(17));
   EXPECT_CALL(*storage_, InternString(base::StringView("val8")))
       .WillOnce(Return(18));
-  EXPECT_CALL(args, AddArg(1u, 17, 17, Variadic::String(18)));
+  EXPECT_CALL(args, AddArg(1u, 17, 17, Variadic::Json(18)));
 
   context_.sorter->ExtractEventsForced();
 }
