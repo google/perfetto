@@ -61,6 +61,7 @@ enum TableId : uint8_t {
   kInstants = 3,
   kSched = 4,
   kNestableSlices = 5,
+  kMetadataTable = 6,
 };
 
 // The top 8 bits are set to the TableId and the bottom 32 to the row of the
@@ -585,7 +586,55 @@ class TraceStorage {
   };
   using StatsMap = std::array<Stats, stats::kNumKeys>;
 
-  using MetadataMap = std::array<std::vector<Variadic>, metadata::kNumKeys>;
+  class Metadata {
+   public:
+    const std::deque<metadata::KeyIDs>& keys() const { return keys_; }
+    const std::deque<Variadic>& values() const { return values_; }
+
+    RowId SetScalarMetadata(metadata::KeyIDs key, Variadic value) {
+      PERFETTO_DCHECK(key < metadata::kNumKeys);
+      PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kSingle);
+      PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
+
+      // Already set - on release builds, overwrite the previous value.
+      auto it = scalar_indices.find(key);
+      if (it != scalar_indices.end()) {
+        PERFETTO_DFATAL("Setting a scalar metadata entry more than once.");
+        uint32_t index = static_cast<uint32_t>(it->second);
+        values_[index] = value;
+        return TraceStorage::CreateRowId(kMetadataTable, index);
+      }
+      // First time setting this key.
+      keys_.push_back(key);
+      values_.push_back(value);
+      uint32_t index = static_cast<uint32_t>(keys_.size() - 1);
+      scalar_indices[key] = index;
+      return TraceStorage::CreateRowId(kMetadataTable, index);
+    }
+
+    RowId AppendMetadata(metadata::KeyIDs key, Variadic value) {
+      PERFETTO_DCHECK(key < metadata::kNumKeys);
+      PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kMulti);
+      PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
+
+      keys_.push_back(key);
+      values_.push_back(value);
+      uint32_t index = static_cast<uint32_t>(keys_.size() - 1);
+      return TraceStorage::CreateRowId(kMetadataTable, index);
+    }
+
+    void OverwriteMetadata(uint32_t index, Variadic value) {
+      PERFETTO_DCHECK(index < values_.size());
+      values_[index] = value;
+    }
+
+   private:
+    std::deque<metadata::KeyIDs> keys_;
+    std::deque<Variadic> values_;
+    // Extraneous state to track locations of entries that should have at most
+    // one row. Used only to maintain uniqueness during insertions.
+    std::map<metadata::KeyIDs, uint32_t> scalar_indices;
+  };
 
   class HeapProfileFrames {
    public:
@@ -797,23 +846,19 @@ class TraceStorage {
   // Example usage:
   // SetMetadata(metadata::benchmark_name,
   //             Variadic::String(storage->InternString("foo"));
+  // Returns the RowId of the new entry.
   // Virtual for testing.
-  virtual void SetMetadata(size_t key, Variadic value) {
-    PERFETTO_DCHECK(key < metadata::kNumKeys);
-    PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kSingle);
-    PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
-    metadata_[key] = {value};
+  virtual RowId SetMetadata(metadata::KeyIDs key, Variadic value) {
+    return metadata_.SetScalarMetadata(key, value);
   }
 
   // Example usage:
   // AppendMetadata(metadata::benchmark_story_tags,
   //                Variadic::String(storage->InternString("bar"));
+  // Returns the RowId of the new entry.
   // Virtual for testing.
-  virtual void AppendMetadata(size_t key, Variadic value) {
-    PERFETTO_DCHECK(key < metadata::kNumKeys);
-    PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kMulti);
-    PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
-    metadata_[key].push_back(value);
+  virtual RowId AppendMetadata(metadata::KeyIDs key, Variadic value) {
+    return metadata_.AppendMetadata(key, value);
   }
 
   class ScopedStatsTracer {
@@ -910,7 +955,8 @@ class TraceStorage {
 
   const StatsMap& stats() const { return stats_; }
 
-  const MetadataMap& metadata() const { return metadata_; }
+  const Metadata& metadata() const { return metadata_; }
+  Metadata* mutable_metadata() { return &metadata_; }
 
   const Args& args() const { return args_; }
   Args* mutable_args() { return &args_; }
@@ -977,8 +1023,10 @@ class TraceStorage {
   // Stats about parsing the trace.
   StatsMap stats_{};
 
-  // Trace metadata from chrome and benchmarking infrastructure.
-  MetadataMap metadata_{};
+  // Extra data extracted from the trace. Includes:
+  // * metadata from chrome and benchmarking infrastructure
+  // * descriptions of android packages
+  Metadata metadata_{};
 
   // One entry for each CPU in the trace.
   Slices slices_;
