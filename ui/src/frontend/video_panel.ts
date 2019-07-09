@@ -29,14 +29,14 @@ export function syncVideo() {
         elem.currentTime = ts;
         elem.onpause = _event => {
           if (globals.state.flagPauseEnabled && !(elem.ended)) {
-              globals.dispatch(
-                Actions.updateOnPauseTime({ts: elem.currentTime}));
-              const timestamp = elem.currentTime +
-                                globals.state.traceTime.startSec;
-              const color = randomColor();
-              globals.dispatch(Actions.addNote({timestamp, color, isMovie: true}));
+            globals.dispatch(Actions.updateOnPauseTime({ts: elem.currentTime}));
+            const timestamp =
+                elem.currentTime + globals.state.traceTime.startSec;
+            const color = randomColor();
+            globals.dispatch(
+                Actions.addNote({timestamp, color, isMovie: true}));
           }
-        }
+        };
         elem.currentTime = globals.state.onPauseTime;
     }
 }
