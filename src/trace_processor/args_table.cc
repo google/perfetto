@@ -66,6 +66,7 @@ void ArgsTable::ValueColumn::ReportResult(sqlite3_context* ctx,
 
   // Treat bools, unsigned integers, and pointers as signed integers, so that
   // they end up queryable via a kInt instance of ValueColumn.
+  // TODO(rsavitski): Filter() & Sort() also need the remapping logic.
   Variadic::Type effective_type = (value.type == Variadic::Type::kBool ||
                                    value.type == Variadic::Type::kUint ||
                                    value.type == Variadic::Type::kPointer)

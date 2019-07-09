@@ -117,6 +117,7 @@ class ProtoTraceParser : public TraceParser {
   void ParseChromeBenchmarkMetadata(ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
+  void ParseAndroidPackagesList(ConstBytes);
 
  private:
   TraceProcessorContext* context_;

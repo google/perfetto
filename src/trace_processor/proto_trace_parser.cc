@@ -46,6 +46,7 @@
 #include "perfetto/common/trace_stats.pbzero.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace/android/android_log.pbzero.h"
+#include "perfetto/trace/android/packages_list.pbzero.h"
 #include "perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "perfetto/trace/clock_snapshot.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace.pbzero.h"
@@ -385,6 +386,10 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_gpu_counter_event()) {
     ParseGpuCounterEvent(ts, packet.gpu_counter_event());
+  }
+
+  if (packet.has_packages_list()) {
+    ParseAndroidPackagesList(packet.packages_list());
   }
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
@@ -2002,6 +2007,40 @@ void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
             ts, counter.double_value(), gpu_counter_ids_[counter_id], 0, RefType::kRefGpuId);
       }
     }
+  }
+}
+
+void ProtoTraceParser::ParseAndroidPackagesList(ConstBytes blob) {
+  protos::pbzero::PackagesList::Decoder pkg_list(blob.data, blob.size);
+  context_->storage->SetStats(stats::packages_list_has_read_errors,
+                              pkg_list.read_error());
+  context_->storage->SetStats(stats::packages_list_has_parse_errors,
+                              pkg_list.parse_error());
+
+  // Insert the package info into arg sets (one set per package), with the arg
+  // set ids collected in the Metadata table, under
+  // metadata::android_packages_list key type.
+  for (auto it = pkg_list.packages(); it; ++it) {
+    // Insert a placeholder metadata entry, which will be overwritten by the
+    // arg_set_id when the arg tracker is flushed.
+    RowId row_id = context_->storage->AppendMetadata(
+        metadata::android_packages_list, Variadic::Integer(0));
+
+    // TODO(rsavitski): using only Integer and String variadic types. Change
+    // once the args table type casts are made fully correct.
+    auto add_arg = [this, row_id](base::StringView name, Variadic value) {
+      StringId key_id = context_->storage->InternString(name);
+      context_->args_tracker->AddArg(row_id, key_id, key_id, value);
+    };
+    protos::pbzero::PackagesList_PackageInfo::Decoder pkg(it->data(),
+                                                          it->size());
+    add_arg("name",
+            Variadic::String(context_->storage->InternString(pkg.name())));
+    add_arg("uid", Variadic::Integer(static_cast<int64_t>(pkg.uid())));
+    add_arg("debuggable", Variadic::Integer(pkg.debuggable()));
+    add_arg("profileable_from_shell",
+            Variadic::Integer(pkg.profileable_from_shell()));
+    add_arg("version_code", Variadic::Integer(pkg.version_code()));
   }
 }
 

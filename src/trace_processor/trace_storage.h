@@ -623,6 +623,11 @@ class TraceStorage {
       return TraceStorage::CreateRowId(kMetadataTable, index);
     }
 
+    void OverwriteMetadata(uint32_t index, Variadic value) {
+      PERFETTO_DCHECK(index < values_.size());
+      values_[index] = value;
+    }
+
    private:
     std::deque<metadata::KeyIDs> keys_;
     std::deque<Variadic> values_;
@@ -951,6 +956,7 @@ class TraceStorage {
   const StatsMap& stats() const { return stats_; }
 
   const Metadata& metadata() const { return metadata_; }
+  Metadata* mutable_metadata() { return &metadata_; }
 
   const Args& args() const { return args_; }
   Args* mutable_args() { return &args_; }
