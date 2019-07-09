@@ -37,9 +37,9 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
   const protoCfg = new TraceConfig();
   protoCfg.durationMs = uiCfg.durationMs;
 
-  var time = protoCfg.durationMs / 1000;
+  let time = protoCfg.durationMs / 1000;
 
-  if(time > MAX_TIME) {
+  if (time > MAX_TIME) {
     time = MAX_TIME;
   }
 
