@@ -24,6 +24,47 @@ SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'swap');
 
 SELECT RUN_METRIC('android/span_view_stats.sql', 'table_name', 'anon_and_swap');
 
+SELECT RUN_METRIC('android/mem_stats_priority_breakdown.sql', 'table_name', 'anon_rss');
+
+SELECT RUN_METRIC('android/mem_stats_priority_breakdown.sql', 'table_name', 'file_rss');
+
+SELECT RUN_METRIC('android/mem_stats_priority_breakdown.sql', 'table_name', 'swap');
+
+SELECT RUN_METRIC('android/mem_stats_priority_breakdown.sql', 'table_name', 'anon_and_swap');
+
+CREATE VIEW process_priority_view AS
+SELECT
+  process_name,
+  AndroidMemoryMetric_PriorityBreakdown(
+    'priority', priority,
+    'counters', AndroidMemoryMetric_ProcessMemoryCounters(
+      'anon_rss', AndroidMemoryMetric_Counter(
+        'min', anon_rss_by_priority_stats.min_value,
+        'max', anon_rss_by_priority_stats.max_value,
+        'avg', anon_rss_by_priority_stats.avg_value
+      ),
+      'file_rss', AndroidMemoryMetric_Counter(
+        'min', file_rss_by_priority_stats.min_value,
+        'max', file_rss_by_priority_stats.max_value,
+        'avg', file_rss_by_priority_stats.avg_value
+      ),
+      'swap', AndroidMemoryMetric_Counter(
+        'min', swap_by_priority_stats.min_value,
+        'max', swap_by_priority_stats.max_value,
+        'avg', swap_by_priority_stats.avg_value
+      ),
+      'anon_and_swap', AndroidMemoryMetric_Counter(
+        'min', anon_and_swap_by_priority_stats.min_value,
+        'max', anon_and_swap_by_priority_stats.max_value,
+        'avg', anon_and_swap_by_priority_stats.avg_value
+      )
+    )
+  ) AS priority_breakdown_proto
+FROM anon_rss_by_priority_stats
+JOIN file_rss_by_priority_stats USING (process_name, priority)
+JOIN swap_by_priority_stats USING (process_name, priority)
+JOIN anon_and_swap_by_priority_stats USING (process_name, priority);
+
 CREATE VIEW process_metrics_view AS
 SELECT
   AndroidMemoryMetric_ProcessMetrics(
@@ -49,6 +90,11 @@ SELECT
         'max', anon_and_swap_stats.max_value,
         'avg', anon_and_swap_stats.avg_value
       )
+    ),
+    'priority_breakdown', (
+      SELECT RepeatedField(priority_breakdown_proto)
+      FROM process_priority_view AS ppv
+      WHERE anon_rss_stats.process_name = ppv.process_name
     )
   ) AS metric
 FROM

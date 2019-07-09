@@ -30,6 +30,7 @@ genrule {
     "src/trace_processor/metrics/android/android_startup_launches.sql",
     "src/trace_processor/metrics/android/android_task_state.sql",
     "src/trace_processor/metrics/android/heap_profile.sql",
+    "src/trace_processor/metrics/android/mem_stats_priority_breakdown.sql",
     "src/trace_processor/metrics/android/process_mem.sql",
     "src/trace_processor/metrics/android/span_view_stats.sql",
     "src/trace_processor/metrics/android/upid_span_view.sql",
