@@ -897,6 +897,8 @@ cc_binary(
         "tools/trace_to_text/pprof_builder.h",
         "tools/trace_to_text/proto_full_utils.cc",
         "tools/trace_to_text/proto_full_utils.h",
+        "tools/trace_to_text/symbolize_profile.cc",
+        "tools/trace_to_text/symbolize_profile.h",
         "tools/trace_to_text/trace_to_profile.cc",
         "tools/trace_to_text/trace_to_profile.h",
         "tools/trace_to_text/trace_to_systrace.cc",
