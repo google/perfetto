@@ -84,6 +84,10 @@ namespace trace_processor {
 
 namespace {
 
+// kthreadd is the parent process for all kernel threads and always has
+// pid == 2 on Linux and Android.
+const uint32_t kKthreaddPid = 2;
+
 using protozero::ProtoDecoder;
 
 HeapProfileTracker::SourceMapping MakeSourceMapping(
@@ -493,8 +497,14 @@ void ProtoTraceParser::ParseProcessTree(ConstBytes blob) {
     auto pid = static_cast<uint32_t>(proc.pid());
     auto ppid = static_cast<uint32_t>(proc.ppid());
 
-    context_->process_tracker->SetProcessMetadata(pid, ppid,
-                                                  proc.cmdline()->as_string());
+    // If the parent pid is kthreadd's pid, even though this pid is of a
+    // "process", we want to treat it as being a child thread of kthreadd.
+    if (ppid == kKthreaddPid) {
+      context_->process_tracker->UpdateThread(pid, kKthreaddPid);
+    } else {
+      context_->process_tracker->SetProcessMetadata(
+          pid, ppid, proc.cmdline()->as_string());
+    }
   }
 
   for (auto it = ps.threads(); it; ++it) {
@@ -872,7 +882,10 @@ void ProtoTraceParser::ParseTaskNewTask(int64_t ts,
   // task_newtask is raised both in the case of a new process creation (fork()
   // family) and thread creation (clone(CLONE_THREAD, ...)).
   static const uint32_t kCloneThread = 0x00010000;  // From kernel's sched.h.
-  if ((clone_flags & kCloneThread) == 0) {
+
+  // If the process is a fork, start a new process except if the source tid is
+  // kthreadd in which case just make it a new thread associated with kthreadd.
+  if ((clone_flags & kCloneThread) == 0 && source_tid != kKthreaddPid) {
     // This is a plain-old fork() or equivalent.
     proc_tracker->StartNewProcess(ts, new_tid, new_comm);
     return;

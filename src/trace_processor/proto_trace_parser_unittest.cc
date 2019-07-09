@@ -527,10 +527,10 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
 
   process->add_cmdline(kProcName1);
   process->set_pid(1);
-  process->set_ppid(2);
+  process->set_ppid(3);
 
   EXPECT_CALL(*process_,
-              SetProcessMetadata(1, Eq(2u), base::StringView(kProcName1)));
+              SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1)));
   Tokenize();
 }
 
@@ -543,10 +543,10 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
   process->add_cmdline(kProcName1);
   process->add_cmdline(kProcName2);
   process->set_pid(1);
-  process->set_ppid(2);
+  process->set_ppid(3);
 
   EXPECT_CALL(*process_,
-              SetProcessMetadata(1, Eq(2u), base::StringView(kProcName1)));
+              SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1)));
   Tokenize();
 }
 
