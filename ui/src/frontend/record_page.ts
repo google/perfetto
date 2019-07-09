@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 import {produce} from 'immer';
 import * as m from 'mithril';
 
@@ -480,7 +481,7 @@ function Instructions(cssClass: string) {
   } | null;
 
   const cfg = globals.state.recordConfig;
-  var time = cfg.durationMs / 1000;
+  let time = cfg.durationMs / 1000;
 
   if (time > MAX_TIME) {
     time = MAX_TIME;
@@ -490,7 +491,7 @@ function Instructions(cssClass: string) {
   let cmd = '';
 
   if (cfg.screenRecord) {
-    cmd += 'adb shell screenrecord --time-limit ' + time;
+    cmd += `adb shell screenrecord --time-limit ${time}`;
     cmd += ' "/sdcard/tracescr.mp4" &\\\n';
   }
 
