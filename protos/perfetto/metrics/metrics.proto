@@ -22,6 +22,7 @@ package perfetto.protos;
 import "perfetto/metrics/android/batt_metric.proto";
 import "perfetto/metrics/android/cpu_metric.proto";
 import "perfetto/metrics/android/mem_metric.proto";
+import "perfetto/metrics/android/mem_unagg_metric.proto";
 import "perfetto/metrics/android/process_growth.proto";
 import "perfetto/metrics/android/ion_metric.proto";
 import "perfetto/metrics/android/lmk_metric.proto";
@@ -43,7 +44,7 @@ message TraceStatistics {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 11
+// Next id: 12
 message TraceMetrics {
   // Battery counters metric on Android.
   optional AndroidBatteryMetric android_batt = 5;
@@ -53,6 +54,12 @@ message TraceMetrics {
 
   // Memory metrics on Android (owned by the Android Telemetry team).
   optional AndroidMemoryMetric android_mem = 1;
+
+  // Memory metrics on Android in unaggregated form. (owned by the Android
+  // Telemetry team).
+  // Note: this generates a lot of data so should not be requested unless it
+  // is clear that this data is necessary.
+  optional AndroidMemoryUnaggregatedMetric android_mem_unagg = 11;
 
   // Per-process memory growth metrics.
   optional AndroidProcessGrowth android_process_growth = 10;
