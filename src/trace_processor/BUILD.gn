@@ -264,6 +264,7 @@ source_set("unittests") {
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/chrome:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/gpu:zero",

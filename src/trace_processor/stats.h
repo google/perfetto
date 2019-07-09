@@ -107,7 +107,9 @@ namespace stats {
   F(heapprofd_invalid_mapping_id,             kSingle,  kError,    kTrace),    \
   F(heapprofd_invalid_frame_id,               kSingle,  kError,    kTrace),    \
   F(heapprofd_invalid_callstack_id,           kSingle,  kError,    kTrace),    \
-  F(metatrace_overruns,                       kSingle,  kError,    kTrace)
+  F(metatrace_overruns,                       kSingle,  kError,    kTrace),    \
+  F(packages_list_has_parse_errors,           kSingle,  kError,    kTrace),    \
+  F(packages_list_has_read_errors,            kSingle,  kError,    kTrace)
 // clang-format on
 
 enum Type {

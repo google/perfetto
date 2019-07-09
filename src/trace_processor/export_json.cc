@@ -160,56 +160,67 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
     }
   }
 
-  // Add metadata to be written in the footer
+  // Add metadata to be written in the footer.
   const auto& trace_metadata = storage->metadata();
-  if (!trace_metadata[metadata::benchmark_description].empty()) {
-    auto desc_id =
-        trace_metadata[metadata::benchmark_description][0].string_value;
-    writer.AppendTelemetryMetadataString("benchmarkDescriptions",
-                                         string_pool.Get(desc_id).c_str());
-  }
-  if (!trace_metadata[metadata::benchmark_name].empty()) {
-    auto name_id = trace_metadata[metadata::benchmark_name][0].string_value;
-    writer.AppendTelemetryMetadataString("benchmarks",
-                                         string_pool.Get(name_id).c_str());
-  }
-  if (!trace_metadata[metadata::benchmark_start_time_us].empty()) {
-    auto start_ts =
-        trace_metadata[metadata::benchmark_start_time_us][0].int_value;
-    writer.SetTelemetryMetadataTimestamp("benchmarkStart", start_ts);
-  }
-  if (!trace_metadata[metadata::benchmark_had_failures].empty()) {
-    auto had_failures =
-        trace_metadata[metadata::benchmark_had_failures][0].int_value;
-    writer.AppendTelemetryMetadataBool("hadFailures", had_failures);
-  }
-  if (!trace_metadata[metadata::benchmark_label].empty()) {
-    auto label_id = trace_metadata[metadata::benchmark_label][0].string_value;
-    writer.AppendTelemetryMetadataString("labels",
-                                         string_pool.Get(label_id).c_str());
-  }
-  if (!trace_metadata[metadata::benchmark_story_name].empty()) {
-    auto name_id =
-        trace_metadata[metadata::benchmark_story_name][0].string_value;
-    writer.AppendTelemetryMetadataString("stories",
-                                         string_pool.Get(name_id).c_str());
-  }
-  if (!trace_metadata[metadata::benchmark_story_run_index].empty()) {
-    auto run_index =
-        trace_metadata[metadata::benchmark_story_run_index][0].int_value;
-    writer.AppendTelemetryMetadataInt("storysetRepeats", run_index);
-  }
-  if (!trace_metadata[metadata::benchmark_story_run_time_us].empty()) {
-    auto story_ts =
-        trace_metadata[metadata::benchmark_story_run_time_us][0].int_value;
-    writer.SetTelemetryMetadataTimestamp("traceStart", story_ts);
-  }
-  for (auto tag : trace_metadata[metadata::benchmark_story_tags]) {
-    auto tag_id = tag.string_value;
-    writer.AppendTelemetryMetadataString("storyTags",
-                                         string_pool.Get(tag_id).c_str());
-  }
+  const auto& keys = trace_metadata.keys();
+  const auto& values = trace_metadata.values();
+  for (size_t pos = 0; pos < keys.size(); pos++) {
+    // Cast away from enum type, as otherwise -Wswitch-enum will demand an
+    // exhaustive list of cases, even if there's a default case.
+    switch (static_cast<size_t>(keys[pos])) {
+      case metadata::benchmark_description:
+        writer.AppendTelemetryMetadataString(
+            "benchmarkDescriptions",
+            string_pool.Get(values[pos].string_value).c_str());
+        break;
 
+      case metadata::benchmark_name:
+        writer.AppendTelemetryMetadataString(
+            "benchmarks", string_pool.Get(values[pos].string_value).c_str());
+        break;
+
+      case metadata::benchmark_start_time_us:
+
+        writer.SetTelemetryMetadataTimestamp("benchmarkStart",
+                                             values[pos].int_value);
+        break;
+
+      case metadata::benchmark_had_failures:
+        if (pos < values.size())
+          writer.AppendTelemetryMetadataBool("hadFailures",
+                                             values[pos].int_value);
+        break;
+
+      case metadata::benchmark_label:
+        writer.AppendTelemetryMetadataString(
+            "labels", string_pool.Get(values[pos].string_value).c_str());
+        break;
+
+      case metadata::benchmark_story_name:
+        writer.AppendTelemetryMetadataString(
+            "stories", string_pool.Get(values[pos].string_value).c_str());
+        break;
+
+      case metadata::benchmark_story_run_index:
+        writer.AppendTelemetryMetadataInt("storysetRepeats",
+                                          values[pos].int_value);
+        break;
+
+      case metadata::benchmark_story_run_time_us:
+        writer.SetTelemetryMetadataTimestamp("traceStart",
+                                             values[pos].int_value);
+        break;
+
+      case metadata::benchmark_story_tags:  // repeated
+        writer.AppendTelemetryMetadataString(
+            "storyTags", string_pool.Get(values[pos].string_value).c_str());
+        break;
+
+      default:
+        PERFETTO_DFATAL("unexpected metadata key");
+        break;
+    }
+  }
   return kResultOk;
 }
 
