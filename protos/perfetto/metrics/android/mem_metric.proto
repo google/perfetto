@@ -24,6 +24,12 @@ message AndroidMemoryMetric {
   message ProcessMetrics {
     optional string process_name = 1;
     optional ProcessMemoryCounters total_counters = 2;
+    repeated PriorityBreakdown priority_breakdown = 3;
+  }
+
+  message PriorityBreakdown {
+    optional string priority = 1;
+    optional ProcessMemoryCounters counters = 2;
   }
 
   message ProcessMemoryCounters {
