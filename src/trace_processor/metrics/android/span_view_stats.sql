@@ -23,7 +23,6 @@ CREATE TABLE {{table_name}}_stats (
   avg_value REAL
 );
 
--- Cross join to force the execution plan
 INSERT INTO {{table_name}}_stats
 SELECT
   process.name AS process_name,
