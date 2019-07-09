@@ -22,7 +22,8 @@ def CheckChange(input, output):
   def long_line_sources(x): return input.FilterSourceFile(
       x, white_list=".*",
       black_list=['Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$',
-                  'test/trace_processor/index$', 'BUILD$', 'protos/BUILD$'])
+                  'test/trace_processor/index$', 'BUILD$', 'protos/BUILD$',
+                  '.*/Makefile$'])
   results = []
   results += input.canned_checks.CheckDoNotSubmit(input, output)
   results += input.canned_checks.CheckChangeHasNoTabs(input, output)
