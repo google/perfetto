@@ -64,7 +64,9 @@ source_set("common") {
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/traced:sys_stats_counters",
+    "../../include/perfetto/protozero",
     "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/ftrace:lite",
     "../../protos/perfetto/trace/interned_data:lite",
     "../../protos/perfetto/trace/profiling:lite",
@@ -73,6 +75,8 @@ source_set("common") {
   ]
   sources = [
     "main.cc",
+    "symbolize_profile.cc",
+    "symbolize_profile.h",
     "trace_to_profile.cc",
     "trace_to_profile.h",
     "trace_to_systrace.cc",
