@@ -358,7 +358,7 @@ export class Sidebar implements m.ClassComponent {
               m('h1', section.title),
               m('h2', section.summary), ),
             m('.section-content', m('ul', vdomItems))));
-    };
+    }
     if (globals.state.videoEnabled) {
       const videoVdomItems = [];
       for (const item of vidSection.items) {
@@ -371,7 +371,7 @@ export class Sidebar implements m.ClassComponent {
               },
               m('i.material-icons', item.i),
               item.t)));
-      };
+      }
       vdomSections.push(
         m(`section${vidSection.expanded ? '.expanded' : ''}`,
           m('.section-header',
@@ -384,7 +384,7 @@ export class Sidebar implements m.ClassComponent {
             m('h1', vidSection.title),
             m('h2', vidSection.summary), ),
           m('.section-content', m('ul', videoVdomItems))));
-    };
+    }
     return m(
         'nav.sidebar',
         m('header', 'Perfetto'),
