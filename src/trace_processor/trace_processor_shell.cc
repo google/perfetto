@@ -358,7 +358,8 @@ int RunMetrics(const std::vector<std::string>& metric_names,
 }
 
 void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
-                                   base::TimeNanos t_start) {
+                                   base::TimeNanos t_start,
+                                   uint32_t column_width) {
   base::TimeNanos t_end = t_start;
   for (uint32_t rows = 0; it->Next(); rows++) {
     if (rows % 32 == 0) {
@@ -374,11 +375,13 @@ void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
         t_end = base::GetWallTimeNs();
       }
       for (uint32_t i = 0; i < it->ColumnCount(); i++)
-        printf("%20s ", it->GetColumName(i).c_str());
+        printf("%-*s ", column_width, it->GetColumName(i).c_str());
       printf("\n");
 
-      for (uint32_t i = 0; i < it->ColumnCount(); i++)
-        printf("%20s ", "--------------------");
+      std::string divider(column_width, '-');
+      for (uint32_t i = 0; i < it->ColumnCount(); i++) {
+        printf("%-*s ", column_width, divider.c_str());
+      }
       printf("\n");
     }
 
@@ -386,19 +389,19 @@ void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
       auto value = it->Get(c);
       switch (value.type) {
         case SqlValue::Type::kNull:
-          printf("%-20.20s", "[NULL]");
+          printf("%-*s", column_width, "[NULL]");
           break;
         case SqlValue::Type::kDouble:
-          printf("%20f", value.double_value);
+          printf("%*f", column_width, value.double_value);
           break;
         case SqlValue::Type::kLong:
-          printf("%20" PRIi64, value.long_value);
+          printf("%*" PRIi64, column_width, value.long_value);
           break;
         case SqlValue::Type::kString:
-          printf("%-20.20s", value.string_value);
+          printf("%-*s", column_width, value.string_value);
           break;
         case SqlValue::Type::kBytes:
-          printf("%-20.20s", "<raw bytes>");
+          printf("%-*s", column_width, "<raw bytes>");
           break;
       }
       printf(" ");
@@ -421,7 +424,7 @@ void PrintShellUsage() {
       ".dump FILE   Export the trace as a sqlite database.\n");
 }
 
-int StartInteractiveShell() {
+int StartInteractiveShell(uint32_t column_width) {
   SetupLineEditor();
 
   for (;;) {
@@ -449,7 +452,7 @@ int StartInteractiveShell() {
 
     base::TimeNanos t_start = base::GetWallTimeNs();
     auto it = g_tp->ExecuteQuery(line);
-    PrintQueryResultInteractively(&it, t_start);
+    PrintQueryResultInteractively(&it, t_start, column_width);
 
     FreeLine(line);
   }
@@ -613,6 +616,7 @@ struct CommandLineOptions {
   std::string metric_extra;
   std::string trace_file_path;
   bool launch_shell = false;
+  bool wide = false;
 };
 
 #if PERFETTO_HAS_AIO_H()
@@ -746,6 +750,8 @@ Options:
  -h, --help                      Prints this guide.
  -v, --version                   Prints the version of trace processor.
  -d, --debug                     Enable virtual table debugging.
+ -W, --wide                      Prints interactive output with double column
+                                 width.
  -p, --perf-file FILE            Writes the time taken to ingest the trace and
                                  execute the queries to the given file. Only
                                  valid with -q or --run-metrics and the file
@@ -780,6 +786,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   static const struct option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
       {"version", no_argument, nullptr, 'v'},
+      {"wide", no_argument, nullptr, 'W'},
       {"interactive", no_argument, nullptr, 'i'},
       {"debug", no_argument, nullptr, 'd'},
       {"perf-file", required_argument, nullptr, 'p'},
@@ -794,7 +801,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   int option_index = 0;
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvidp:q:e:", long_options, &option_index);
+        getopt_long(argc, argv, "hvWidp:q:e:", long_options, &option_index);
 
     if (option == -1)
       break;  // EOF.
@@ -806,6 +813,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == 'i') {
       explicit_interactive = true;
+      continue;
+    }
+
+    if (option == 'W') {
+      command_line_options.wide = true;
       continue;
     }
 
@@ -1045,7 +1057,7 @@ int TraceProcessorMain(int argc, char** argv) {
     return MaybePrintPerfFile(options.perf_file_path, t_load, t_query);
   }
 
-  return StartInteractiveShell();
+  return StartInteractiveShell(options.wide ? 40 : 20);
 }
 
 }  // namespace
