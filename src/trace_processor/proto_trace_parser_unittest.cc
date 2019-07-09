@@ -30,6 +30,7 @@
 #include "src/trace_processor/trace_sorter.h"
 
 #include "perfetto/common/sys_stats_counters.pbzero.h"
+#include "perfetto/trace/android/packages_list.pbzero.h"
 #include "perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -58,9 +59,11 @@ using ::testing::AtLeast;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::InSequence;
+using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Pointwise;
 using ::testing::Return;
+using ::testing::UnorderedElementsAreArray;
 
 class MockEventTracker : public EventTracker {
  public:
@@ -112,14 +115,23 @@ class MockProcessTracker : public ProcessTracker {
   MOCK_METHOD1(GetOrCreateProcess, UniquePid(uint32_t pid));
 };
 
+// Mock trace storage that behaves like the real implementation, but allows for
+// the interactions with string interning/lookup to be overridden/inspected.
 class MockTraceStorage : public TraceStorage {
  public:
-  MockTraceStorage() : TraceStorage() {}
+  MockTraceStorage() : TraceStorage() {
+    ON_CALL(*this, InternString(_))
+        .WillByDefault(Invoke([this](base::StringView str) {
+          return TraceStorage::InternString(str);
+        }));
+
+    ON_CALL(*this, GetString(_)).WillByDefault(Invoke([this](StringId id) {
+      return TraceStorage::GetString(id);
+    }));
+  }
 
   MOCK_METHOD1(InternString, StringId(base::StringView));
   MOCK_CONST_METHOD1(GetString, NullTermStringView(StringId));
-  MOCK_METHOD2(SetMetadata, void(size_t, Variadic));
-  MOCK_METHOD2(AppendMetadata, void(size_t, Variadic));
 };
 
 class MockArgsTracker : public ArgsTracker {
@@ -165,8 +177,8 @@ class MockSliceTracker : public SliceTracker {
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
-    nice_storage_ = new NiceMock<MockTraceStorage>();
-    context_.storage.reset(nice_storage_);
+    storage_ = new NiceMock<MockTraceStorage>();
+    context_.storage.reset(storage_);
     context_.args_tracker.reset(new ArgsTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
@@ -188,11 +200,6 @@ class ProtoTraceParserTest : public ::testing::Test {
 
   void SetUp() override { ResetTraceBuffers(); }
 
-  void InitStorage() {
-    storage_ = new MockTraceStorage();
-    context_.storage.reset(storage_);
-  }
-
   void Tokenize() {
     trace_.Finalize();
     std::vector<uint8_t> trace_bytes = heap_buf_->StitchSlices();
@@ -212,8 +219,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   MockEventTracker* event_;
   MockProcessTracker* process_;
   MockSliceTracker* slice_;
-  NiceMock<MockTraceStorage>* nice_storage_;
-  MockTraceStorage* storage_;
+  NiceMock<MockTraceStorage>* storage_;
 };
 
 TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
@@ -242,8 +248,6 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
 }
 
 TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
-  InitStorage();
-
   auto* bundle = trace_.add_packet()->set_ftrace_events();
   bundle->set_cpu(10);
 
@@ -275,23 +279,27 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   EXPECT_CALL(*process_, UpdateThread(123, 123));
 
   Tokenize();
+
   const auto& raw = context_.storage->raw_events();
   ASSERT_EQ(raw.raw_event_count(), 2u);
   const auto& args = context_.storage->args();
   ASSERT_EQ(args.args_count(), 6u);
   ASSERT_EQ(args.arg_values()[0].int_value, 123);
-  ASSERT_EQ(args.arg_values()[1].string_value, 0u);
+  ASSERT_STREQ(
+      context_.storage->GetString(args.arg_values()[1].string_value).c_str(),
+      task_newtask);
   ASSERT_EQ(args.arg_values()[2].int_value, 12);
   ASSERT_EQ(args.arg_values()[3].int_value, 15);
   ASSERT_EQ(args.arg_values()[4].int_value, 20);
-  ASSERT_EQ(args.arg_values()[5].string_value, 0u);
+  ASSERT_STREQ(
+      context_.storage->GetString(args.arg_values()[5].string_value).c_str(),
+      buf_value);
 
   // TODO(taylori): Add test ftrace event with all field types
   // and test here.
 }
 
 TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
-  InitStorage();
   auto* packet = trace_.add_packet();
   packet->set_timestamp(100);
 
@@ -485,7 +493,7 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value * 1024, 0, 0,
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value * 1024, _, 0,
                                    RefType::kRefNoRef, false));
   Tokenize();
 }
@@ -500,7 +508,7 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value, 0, 0,
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value, _, 0,
                                    RefType::kRefNoRef, false));
   Tokenize();
 }
@@ -516,7 +524,7 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   cpu_freq->set_state(2000);
 
   EXPECT_CALL(*event_,
-              PushCounter(1000, 2000, 0, 10, RefType::kRefCpuId, false));
+              PushCounter(1000, 2000, _, 10, RefType::kRefCpuId, false));
   Tokenize();
 }
 
@@ -561,7 +569,6 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 }
 
 TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
   {
@@ -616,7 +623,6 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
 
@@ -683,7 +689,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
 
@@ -809,7 +814,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
 
@@ -921,7 +925,6 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
 
@@ -954,7 +957,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
 
@@ -979,7 +981,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
 
@@ -1077,7 +1078,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
 
@@ -1193,7 +1193,6 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
   MockArgsTracker args(&context_);
@@ -1387,7 +1386,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
   MockArgsTracker args(&context_);
@@ -1452,10 +1450,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
 TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   static const char kName[] = "name";
-  static const char kTag2[] = "tag1";
-  static const char kTag1[] = "tag2";
+  static const char kTag1[] = "tag1";
+  static const char kTag2[] = "tag2";
 
-  InitStorage();
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
 
@@ -1472,14 +1469,103 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
       .WillOnce(Return(2));
   EXPECT_CALL(*storage_, InternString(base::StringView(kTag2)))
       .WillOnce(Return(3));
-  EXPECT_CALL(*storage_,
-              SetMetadata(metadata::benchmark_name, Variadic::String(1)));
-  EXPECT_CALL(*storage_, AppendMetadata(metadata::benchmark_story_tags,
-                                        Variadic::String(2)));
-  EXPECT_CALL(*storage_, AppendMetadata(metadata::benchmark_story_tags,
-                                        Variadic::String(3)));
 
   context_.sorter->ExtractEventsForced();
+
+  const auto& meta_keys = storage_->metadata().keys();
+  const auto& meta_values = storage_->metadata().values();
+  EXPECT_EQ(meta_keys.size(), 3);
+  std::vector<std::pair<metadata::KeyIDs, Variadic>> meta_entries;
+  for (size_t i = 0; i < meta_keys.size(); i++) {
+    meta_entries.emplace_back(std::make_pair(meta_keys[i], meta_values[i]));
+  }
+  EXPECT_THAT(
+      meta_entries,
+      UnorderedElementsAreArray(
+          {std::make_pair(metadata::benchmark_name, Variadic::String(1)),
+           std::make_pair(metadata::benchmark_story_tags, Variadic::String(2)),
+           std::make_pair(metadata::benchmark_story_tags,
+                          Variadic::String(3))}));
+}
+
+TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
+  auto* packet = trace_.add_packet();
+  auto* pkg_list = packet->set_packages_list();
+
+  pkg_list->set_read_error(false);
+  pkg_list->set_parse_error(true);
+  {
+    auto* pkg = pkg_list->add_packages();
+    pkg->set_name("com.test.app");
+    pkg->set_uid(1000);
+    pkg->set_debuggable(false);
+    pkg->set_profileable_from_shell(true);
+    pkg->set_version_code(42);
+  }
+  {
+    auto* pkg = pkg_list->add_packages();
+    pkg->set_name("com.test.app2");
+    pkg->set_uid(1001);
+    pkg->set_debuggable(false);
+    pkg->set_profileable_from_shell(false);
+    pkg->set_version_code(43);
+  }
+
+  Tokenize();
+
+  // Packet-level errors reflected in stats storage.
+  const auto& stats = context_.storage->stats();
+  EXPECT_FALSE(stats[stats::packages_list_has_read_errors].value);
+  EXPECT_TRUE(stats[stats::packages_list_has_parse_errors].value);
+
+  // Expect two metadata rows, each with an int_value of a separate arg set id.
+  // The relevant arg sets have the info about the packages. To simplify test
+  // structure, make an assumption that metadata storage is filled in in the
+  // FIFO order of seen packages.
+  const auto& args = context_.storage->args();
+  const auto& metadata = context_.storage->metadata();
+  const auto& meta_keys = metadata.keys();
+  const auto& meta_values = metadata.values();
+
+  ASSERT_TRUE(std::count(meta_keys.cbegin(), meta_keys.cend(),
+                         metadata::android_packages_list) == 2);
+
+  auto first_meta_idx = std::distance(
+      meta_keys.cbegin(), std::find(meta_keys.cbegin(), meta_keys.cend(),
+                                    metadata::android_packages_list));
+  auto second_meta_idx = std::distance(
+      meta_keys.cbegin(),
+      std::find(meta_keys.cbegin() + first_meta_idx + 1, meta_keys.cend(),
+                metadata::android_packages_list));
+
+  uint32_t first_set_id = static_cast<uint32_t>(
+      meta_values[static_cast<size_t>(first_meta_idx)].int_value);
+  uint32_t second_set_id = static_cast<uint32_t>(
+      meta_values[static_cast<size_t>(second_meta_idx)].int_value);
+
+  // helper to look up arg values
+  auto find_arg = [&args, this](ArgSetId set_id, const char* arg_name) {
+    for (size_t i = 0; i < args.set_ids().size(); i++) {
+      if (args.set_ids()[i] == set_id &&
+          args.keys()[i] == storage_->InternString(arg_name))
+        return args.arg_values()[i];
+    }
+    PERFETTO_FATAL("Didn't find expected argument");
+  };
+
+  auto first_name_id = find_arg(first_set_id, "name").string_value;
+  EXPECT_STREQ(storage_->GetString(first_name_id).c_str(), "com.test.app");
+  EXPECT_EQ(find_arg(first_set_id, "uid").int_value, 1000);
+  EXPECT_EQ(find_arg(first_set_id, "debuggable").int_value, false);
+  EXPECT_EQ(find_arg(first_set_id, "profileable_from_shell").int_value, true);
+  EXPECT_EQ(find_arg(first_set_id, "version_code").int_value, 42);
+
+  auto second_name_id = find_arg(second_set_id, "name").string_value;
+  EXPECT_STREQ(storage_->GetString(second_name_id).c_str(), "com.test.app2");
+  EXPECT_EQ(find_arg(second_set_id, "uid").int_value, 1001);
+  EXPECT_EQ(find_arg(second_set_id, "debuggable").int_value, false);
+  EXPECT_EQ(find_arg(second_set_id, "profileable_from_shell").int_value, false);
+  EXPECT_EQ(find_arg(second_set_id, "version_code").int_value, 43);
 }
 
 }  // namespace

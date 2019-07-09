@@ -62,20 +62,28 @@ void ArgsTracker::Flush() {
     while (next_rid_idx < args_.size() && rid == args_[next_rid_idx].row_id)
       next_rid_idx++;
 
-    auto set_id = storage->mutable_args()->AddArgSet(args_, i, next_rid_idx);
-    auto pair = TraceStorage::ParseRowId(rid);
-    switch (pair.first) {
+    ArgSetId set_id =
+        storage->mutable_args()->AddArgSet(args_, i, next_rid_idx);
+    auto parsed = TraceStorage::ParseRowId(rid);
+    auto table_id = parsed.first;
+    auto row = parsed.second;
+    switch (table_id) {
       case TableId::kRawEvents:
-        storage->mutable_raw_events()->set_arg_set_id(pair.second, set_id);
+        storage->mutable_raw_events()->set_arg_set_id(row, set_id);
         break;
       case TableId::kCounterValues:
-        storage->mutable_counter_values()->set_arg_set_id(pair.second, set_id);
+        storage->mutable_counter_values()->set_arg_set_id(row, set_id);
         break;
       case TableId::kInstants:
-        storage->mutable_instants()->set_arg_set_id(pair.second, set_id);
+        storage->mutable_instants()->set_arg_set_id(row, set_id);
         break;
       case TableId::kNestableSlices:
-        storage->mutable_nestable_slices()->set_arg_set_id(pair.second, set_id);
+        storage->mutable_nestable_slices()->set_arg_set_id(row, set_id);
+        break;
+      // Special case: overwrites the metadata table row.
+      case TableId::kMetadataTable:
+        storage->mutable_metadata()->OverwriteMetadata(
+            row, Variadic::Integer(set_id));
         break;
       default:
         PERFETTO_FATAL("Unsupported table to insert args into");
