@@ -27,7 +27,7 @@ const FLAG_WIDTH = 16;
 const MOVIE_WIDTH = 16;
 const MOUSE_OFFSET = 6;
 const FLAG = `\uE153`;
-const MOVIE = '\uE8DA'
+const MOVIE = '\uE8DA';
 
 function toSummary(s: string) {
   const newlineIndex = s.indexOf('\n') > 0 ? s.indexOf('\n') : s.length;
@@ -138,7 +138,7 @@ export class NotesPanel extends Panel {
 
   private drawFlag(
       ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
-      fill?: boolean, isMovie: boolean = false) {
+      fill?: boolean, isMovie = false) {
     const prevFont = ctx.font;
     const prevBaseline = ctx.textBaseline;
     ctx.textBaseline = 'alphabetic';
