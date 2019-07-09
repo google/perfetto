@@ -43,3 +43,36 @@ SELECT
   ts, dur, upid,
   IFNULL(anon_rss_val, 0) + IFNULL(swap_val, 0) AS anon_and_swap_val
 FROM anon_and_swap_join;
+
+-- Create a track for process OOM scores.
+DROP VIEW IF EXISTS oom_score_span;
+
+CREATE VIEW oom_score_span AS
+SELECT
+  ts,
+  LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
+    OVER(PARTITION BY counter_id ORDER BY ts) - ts AS dur,
+  ref AS upid,
+  CAST(value AS INT) AS oom_score_val
+FROM counters
+WHERE name = 'oom_score_adj' AND ref IS NOT NULL;
+
+DROP TABLE IF EXISTS anon_rss_by_oom_span;
+
+CREATE VIRTUAL TABLE anon_rss_by_oom_span
+USING SPAN_JOIN(anon_rss_span PARTITIONED upid, oom_score_span PARTITIONED upid);
+
+DROP TABLE IF EXISTS file_rss_by_oom_span;
+
+CREATE VIRTUAL TABLE file_rss_by_oom_span
+USING SPAN_JOIN(file_rss_span PARTITIONED upid, oom_score_span PARTITIONED upid);
+
+DROP TABLE IF EXISTS swap_by_oom_span;
+
+CREATE VIRTUAL TABLE swap_by_oom_span
+USING SPAN_JOIN(swap_span PARTITIONED upid, oom_score_span PARTITIONED upid);
+
+DROP TABLE IF EXISTS anon_and_swap_by_oom_span;
+
+CREATE VIRTUAL TABLE anon_and_swap_by_oom_span
+USING SPAN_JOIN(anon_and_swap_span PARTITIONED upid, oom_score_span PARTITIONED upid);

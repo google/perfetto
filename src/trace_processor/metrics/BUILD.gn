@@ -30,6 +30,7 @@ sql_files = [
   "android/android_startup_cpu.sql",
   "android/heap_profile.sql",
   "android/process_mem.sql",
+  "android/mem_stats_priority_breakdown.sql",
   "android/span_view_stats.sql",
   "android/upid_span_view.sql",
 ]

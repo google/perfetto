@@ -19,7 +19,13 @@ DROP VIEW IF EXISTS {{table_name}}_span;
 CREATE VIEW {{table_name}}_span AS
 SELECT
   ts,
-  LEAD(ts, 1, ts + 1) OVER(PARTITION BY counter_id ORDER BY ts) - ts AS dur,
+  LEAD(ts, 1, (
+    SELECT IFNULL(
+      end_ts,
+      (SELECT end_ts FROM trace_bounds)
+    )
+    FROM process WHERE upid = ref) + 1
+  ) OVER(PARTITION BY counter_id ORDER BY ts) - ts AS dur,
   ref AS upid,
   value AS {{table_name}}_val
 FROM counters
