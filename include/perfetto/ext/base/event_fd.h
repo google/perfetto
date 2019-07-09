@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_EVENT_H_
-#define INCLUDE_PERFETTO_EXT_BASE_EVENT_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_EVENT_FD_H_
+#define INCLUDE_PERFETTO_EXT_BASE_EVENT_FD_H_
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -33,12 +33,12 @@ namespace base {
 // A waitable event that can be used with poll/select.
 // This is really a wrapper around eventfd_create with a pipe-based fallback
 // for other platforms where eventfd is not supported.
-class Event {
+class EventFd {
  public:
-  Event();
-  ~Event();
-  Event(Event&&) noexcept = default;
-  Event& operator=(Event&&) = default;
+  EventFd();
+  ~EventFd();
+  EventFd(EventFd&&) noexcept = default;
+  EventFd& operator=(EventFd&&) = default;
 
   // The non-blocking file descriptor that can be polled to wait for the event.
   int fd() const { return fd_.get(); }
@@ -64,4 +64,4 @@ class Event {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_EVENT_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_EVENT_FD_H_

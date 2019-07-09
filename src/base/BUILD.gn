@@ -34,12 +34,13 @@ source_set("base") {
     "thread_checker.cc",
     "time.cc",
     "virtual_destructors.cc",
+    "waitable_event.cc",
   ]
 
   # TODO(brucedawson): Enable these for Windows when possible.
   if (!is_win) {
     sources += [
-      "event.cc",
+      "event_fd.cc",
       "pipe.cc",
       "temp_file.cc",
       "thread_task_runner.cc",
