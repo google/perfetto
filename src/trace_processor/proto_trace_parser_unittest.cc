@@ -1474,7 +1474,7 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
 
   const auto& meta_keys = storage_->metadata().keys();
   const auto& meta_values = storage_->metadata().values();
-  EXPECT_EQ(meta_keys.size(), 3);
+  EXPECT_EQ(meta_keys.size(), 3u);
   std::vector<std::pair<metadata::KeyIDs, Variadic>> meta_entries;
   for (size_t i = 0; i < meta_keys.size(); i++) {
     meta_entries.emplace_back(std::make_pair(meta_keys[i], meta_values[i]));
