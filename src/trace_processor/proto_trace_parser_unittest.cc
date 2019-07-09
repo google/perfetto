@@ -118,8 +118,8 @@ class MockTraceStorage : public TraceStorage {
 
   MOCK_METHOD1(InternString, StringId(base::StringView));
   MOCK_CONST_METHOD1(GetString, NullTermStringView(StringId));
-  MOCK_METHOD2(SetMetadata, void(size_t, Variadic));
-  MOCK_METHOD2(AppendMetadata, void(size_t, Variadic));
+  MOCK_METHOD2(SetMetadata, RowId(metadata::KeyIDs, Variadic));
+  MOCK_METHOD2(AppendMetadata, RowId(metadata::KeyIDs, Variadic));
 };
 
 class MockArgsTracker : public ArgsTracker {
