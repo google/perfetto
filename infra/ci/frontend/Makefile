@@ -25,7 +25,6 @@ deploy: static_3p config.py common_utils.py static/config.js
 	gcloud app deploy -q app.yaml \
 		--project ${PROJECT} \
 		-v ${GAE_VERSION} \
-		--no-promote \
 		--stop-previous-version
 
 config.py: ../config.py

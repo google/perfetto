@@ -32,12 +32,12 @@ LOGLEVEL = 'info'
 # Cloud config (GCE = Google Compute Engine, GAE = Google App Engine)
 PROJECT = 'perfetto-ci'
 ZONE = 'us-west1-b'
-GAE_VERSION = 'testing'
+GAE_VERSION = 'prod'
 DB_ROOT = 'https://%s.firebaseio.com' % PROJECT
 DB = DB_ROOT + '/ci'
 SANDBOX_IMG = 'eu.gcr.io/%s/sandbox' % PROJECT
 WORKER_IMG = 'eu.gcr.io/%s/worker' % PROJECT
-CI_SITE = 'https://testing-dot-perfetto-ci.appspot.com'
+CI_SITE = 'https://ci.perfetto.dev'
 GCS_ARTIFACTS = 'perfetto-ci-artifacts'
 
 JOB_TIMEOUT_SEC = 60 * 30
