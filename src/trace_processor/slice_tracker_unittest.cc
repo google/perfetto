@@ -78,12 +78,12 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
   SliceTracker tracker(&context);
 
   tracker.Begin(2 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/,
-                0 /*ref_scope*/, [](ArgsTracker* args_tracker, RowId row) {
+                [](ArgsTracker* args_tracker, RowId row) {
                   args_tracker->AddArg(row, /*flat_key=*/1, /*key=*/2,
                                        /*value=*/Variadic::Integer(10));
                 });
   tracker.End(10 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/, 1 /*name*/,
-              0 /*ref_scope*/, [](ArgsTracker* args_tracker, RowId row) {
+              [](ArgsTracker* args_tracker, RowId row) {
                 args_tracker->AddArg(row, /*flat_key=*/3, /*key=*/4,
                                      /*value=*/Variadic::Integer(20));
               });
@@ -198,15 +198,14 @@ TEST(SliceTrackerTest, ZeroLengthScoped) {
                                   SliceInfo{12, 1}, SliceInfo{13, 1}));
 }
 
-TEST(SliceTrackerTest, DifferentRefTypesOrScopes) {
+TEST(SliceTrackerTest, DifferentRefTypes) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
   tracker.Begin(0 /*ts*/, 42 /*ref*/, RefType::kRefUtid, 0, 0);
   tracker.Scoped(2 /*ts*/, 42 /*ref*/, RefType::kRefUpid, 0, 0, 6);
-  tracker.Scoped(3 /*ts*/, 42 /*ref*/, RefType::kRefUpid, 0, 0, 4,
-                 1 /*ref_scope*/);
+  tracker.Scoped(3 /*ts*/, 42 /*ref*/, RefType::kRefUpid, 0, 0, 4);
   tracker.End(10 /*ts*/, 42 /*ref*/, RefType::kRefUtid);
   tracker.FlushPendingSlices();
 
@@ -219,8 +218,7 @@ TEST(SliceTrackerTest, DifferentRefTypesOrScopes) {
   EXPECT_EQ(context.storage->nestable_slices().types()[2], RefType::kRefUpid);
   EXPECT_EQ(context.storage->nestable_slices().depths()[0], 0);
   EXPECT_EQ(context.storage->nestable_slices().depths()[1], 0);
-  EXPECT_EQ(context.storage->nestable_slices().depths()[2], 0);
-  EXPECT_NE(context.storage->nestable_slices().arg_set_ids()[2], 0u);
+  EXPECT_EQ(context.storage->nestable_slices().depths()[2], 1);
 }
 
 }  // namespace

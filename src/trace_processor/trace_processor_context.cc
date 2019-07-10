@@ -28,6 +28,7 @@
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/virtual_track_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
