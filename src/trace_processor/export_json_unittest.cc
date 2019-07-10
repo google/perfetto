@@ -24,6 +24,8 @@
 #include <json/reader.h>
 #include <json/value.h>
 
+#include <limits>
+
 namespace perfetto {
 namespace trace_processor {
 namespace json {
@@ -203,6 +205,265 @@ TEST(ExportJsonTest, StorageWithMetadata) {
 
   EXPECT_EQ(telemetry_metadata["hadFailures"].size(), 1u);
   EXPECT_EQ(telemetry_metadata["hadFailures"][0].asBool(), kHadFailures);
+}
+
+TEST(ExportJsonTest, StorageWithArgs) {
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  const char* kSrc = "source_file.cc";
+
+  TraceStorage storage;
+  UniqueTid utid = storage.AddEmptyThread(0);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
+                                              cat_id, name_id, 0, 0, 0);
+
+  StringId arg_key_id =
+      storage.InternString(base::StringView("task.posted_from.file_name"));
+  StringId arg_value_id = storage.InternString(base::StringView(kSrc));
+  TraceStorage::Args::Arg arg;
+  arg.flat_key = arg_key_id;
+  arg.key = arg_key_id;
+  arg.value = Variadic::String(arg_value_id);
+  storage.mutable_args()->AddArgSet({arg}, 0, 1);
+  storage.mutable_nestable_slices()->set_arg_set_id(0, 1);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["args"]["src"].asString(), kSrc);
+}
+
+TEST(ExportJsonTest, StorageWithListArgs) {
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  double kValues[] = {1.234, 2.345};
+
+  TraceStorage storage;
+  UniqueTid utid = storage.AddEmptyThread(0);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
+                                              cat_id, name_id, 0, 0, 0);
+
+  StringId arg_flat_key_id =
+      storage.InternString(base::StringView("debug.draw_duration_ms"));
+  StringId arg_key0_id =
+      storage.InternString(base::StringView("debug.draw_duration_ms[0]"));
+  StringId arg_key1_id =
+      storage.InternString(base::StringView("debug.draw_duration_ms[1]"));
+  TraceStorage::Args::Arg arg0;
+  arg0.flat_key = arg_flat_key_id;
+  arg0.key = arg_key0_id;
+  arg0.value = Variadic::Real(kValues[0]);
+  TraceStorage::Args::Arg arg1;
+  arg1.flat_key = arg_flat_key_id;
+  arg1.key = arg_key1_id;
+  arg1.value = Variadic::Real(kValues[1]);
+  storage.mutable_args()->AddArgSet({arg0, arg1}, 0, 2);
+  storage.mutable_nestable_slices()->set_arg_set_id(0, 1);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["args"]["draw_duration_ms"].size(), 2);
+  EXPECT_EQ(event["args"]["draw_duration_ms"][0].asDouble(), kValues[0]);
+  EXPECT_EQ(event["args"]["draw_duration_ms"][1].asDouble(), kValues[1]);
+}
+
+TEST(ExportJsonTest, StorageWithMultiplePointerArgs) {
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  uint64_t kValue0 = 1;
+  uint64_t kValue1 = std::numeric_limits<uint64_t>::max();
+
+  TraceStorage storage;
+  UniqueTid utid = storage.AddEmptyThread(0);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
+                                              cat_id, name_id, 0, 0, 0);
+
+  StringId arg_key0_id = storage.InternString(base::StringView("arg0"));
+  StringId arg_key1_id = storage.InternString(base::StringView("arg1"));
+  TraceStorage::Args::Arg arg0;
+  arg0.flat_key = arg_key0_id;
+  arg0.key = arg_key0_id;
+  arg0.value = Variadic::Pointer(kValue0);
+  TraceStorage::Args::Arg arg1;
+  arg1.flat_key = arg_key1_id;
+  arg1.key = arg_key1_id;
+  arg1.value = Variadic::Pointer(kValue1);
+  storage.mutable_args()->AddArgSet({arg0, arg1}, 0, 2);
+  storage.mutable_nestable_slices()->set_arg_set_id(0, 1);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["args"]["arg0"].asString(), "0x1");
+  EXPECT_EQ(event["args"]["arg1"].asString(), "0xffffffffffffffff");
+}
+
+TEST(ExportJsonTest, StorageWithObjectListArgs) {
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  int kValues[] = {123, 234};
+
+  TraceStorage storage;
+  UniqueTid utid = storage.AddEmptyThread(0);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
+                                              cat_id, name_id, 0, 0, 0);
+
+  StringId arg_flat_key_id = storage.InternString(base::StringView("a.b"));
+  StringId arg_key0_id = storage.InternString(base::StringView("a[0].b"));
+  StringId arg_key1_id = storage.InternString(base::StringView("a[1].b"));
+  TraceStorage::Args::Arg arg0;
+  arg0.flat_key = arg_flat_key_id;
+  arg0.key = arg_key0_id;
+  arg0.value = Variadic::Integer(kValues[0]);
+  TraceStorage::Args::Arg arg1;
+  arg1.flat_key = arg_flat_key_id;
+  arg1.key = arg_key1_id;
+  arg1.value = Variadic::Integer(kValues[1]);
+  storage.mutable_args()->AddArgSet({arg0, arg1}, 0, 2);
+  storage.mutable_nestable_slices()->set_arg_set_id(0, 1);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["args"]["a"].size(), 2);
+  EXPECT_EQ(event["args"]["a"][0]["b"].asInt(), kValues[0]);
+  EXPECT_EQ(event["args"]["a"][1]["b"].asInt(), kValues[1]);
+}
+
+TEST(ExportJsonTest, StorageWithNestedListArgs) {
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  int kValues[] = {123, 234};
+
+  TraceStorage storage;
+  UniqueTid utid = storage.AddEmptyThread(0);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
+                                              cat_id, name_id, 0, 0, 0);
+
+  StringId arg_flat_key_id = storage.InternString(base::StringView("a"));
+  StringId arg_key0_id = storage.InternString(base::StringView("a[0][0]"));
+  StringId arg_key1_id = storage.InternString(base::StringView("a[0][1]"));
+  TraceStorage::Args::Arg arg0;
+  arg0.flat_key = arg_flat_key_id;
+  arg0.key = arg_key0_id;
+  arg0.value = Variadic::Integer(kValues[0]);
+  TraceStorage::Args::Arg arg1;
+  arg1.flat_key = arg_flat_key_id;
+  arg1.key = arg_key1_id;
+  arg1.value = Variadic::Integer(kValues[1]);
+  storage.mutable_args()->AddArgSet({arg0, arg1}, 0, 2);
+  storage.mutable_nestable_slices()->set_arg_set_id(0, 1);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["args"]["a"].size(), 1);
+  EXPECT_EQ(event["args"]["a"][0].size(), 2);
+  EXPECT_EQ(event["args"]["a"][0][0].asInt(), kValues[0]);
+  EXPECT_EQ(event["args"]["a"][0][1].asInt(), kValues[1]);
+}
+
+TEST(ExportJsonTest, StorageWithLegacyJsonArgs) {
+  const char* kCategory = "cat";
+  const char* kName = "name";
+
+  TraceStorage storage;
+  UniqueTid utid = storage.AddEmptyThread(0);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
+                                              cat_id, name_id, 0, 0, 0);
+
+  StringId arg_key_id = storage.InternString(base::StringView("a"));
+  StringId arg_value_id = storage.InternString(base::StringView("{\"b\":123}"));
+  TraceStorage::Args::Arg arg;
+  arg.flat_key = arg_key_id;
+  arg.key = arg_key_id;
+  arg.value = Variadic::Json(arg_value_id);
+  storage.mutable_args()->AddArgSet({arg}, 0, 1);
+  storage.mutable_nestable_slices()->set_arg_set_id(0, 1);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["args"]["a"]["b"].asInt(), 123);
 }
 
 }  // namespace
