@@ -20,6 +20,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
+#include "src/trace_processor/virtual_track_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -289,14 +290,24 @@ void FuchsiaTraceParser::ParseTracePacket(
         }
         case kAsyncBegin: {
           int64_t correlation_id = static_cast<int64_t>(*current++);
-          slices->Begin(ts, correlation_id, RefType::kRefGlobalAsyncTrack, cat,
-                        name);
+          TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
+              {VirtualTrackScope::kGlobal, /*upid=*/0, correlation_id,
+               /*id_scope=*/0},
+              name);
+          slices->Begin(ts, track_id, RefType::kRefTrack, cat, name);
           break;
         }
         case kAsyncInstant: {
+          // TODO(eseckler): Consider storing these instants as 0-duration
+          // slices instead, so that they get nested underneath begin/end
+          // slices.
           int64_t correlation_id = static_cast<int64_t>(*current++);
+          TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
+              {VirtualTrackScope::kGlobal, /*upid=*/0, correlation_id,
+               /*id_scope=*/0},
+              name);
           RowId row = context_->event_tracker->PushInstant(
-              ts, name, 0, correlation_id, RefType::kRefGlobalAsyncTrack);
+              ts, name, 0, track_id, RefType::kRefTrack);
           for (const Arg& arg : args) {
             context_->args_tracker->AddArg(
                 row, arg.name, arg.name,
@@ -307,8 +318,11 @@ void FuchsiaTraceParser::ParseTracePacket(
         }
         case kAsyncEnd: {
           int64_t correlation_id = static_cast<int64_t>(*current++);
-          slices->End(ts, correlation_id, RefType::kRefGlobalAsyncTrack, cat,
-                      name);
+          TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
+              {VirtualTrackScope::kGlobal, /*upid=*/0, correlation_id,
+               /*id_scope=*/0},
+              name);
+          slices->End(ts, track_id, RefType::kRefTrack, cat, name);
           break;
         }
       }
