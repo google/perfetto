@@ -60,6 +60,7 @@ class TracingServiceImpl : public TracingService {
   struct DataSourceInstance;
 
  public:
+  static constexpr size_t kDefaultShmPageSize = base::kPageSize;
   static constexpr size_t kDefaultShmSize = 256 * 1024ul;
   static constexpr size_t kMaxShmSize = 32 * 1024 * 1024ul;
   static constexpr uint32_t kDataSourceStopTimeoutMs = 5000;
@@ -134,6 +135,7 @@ class TracingServiceImpl : public TracingService {
     size_t shared_buffer_page_size_kb_ = 0;
     SharedMemoryABI shmem_abi_;
     size_t shmem_size_hint_bytes_ = 0;
+    size_t shmem_page_size_hint_bytes_ = 0;
     const std::string name_;
     bool in_process_;
     bool smb_scraping_enabled_;
@@ -268,7 +270,8 @@ class TracingServiceImpl : public TracingService {
       size_t shared_memory_size_hint_bytes = 0,
       bool in_process = false,
       ProducerSMBScrapingMode smb_scraping_mode =
-          ProducerSMBScrapingMode::kDefault) override;
+          ProducerSMBScrapingMode::kDefault,
+      size_t shared_memory_page_size_hint_bytes = 0) override;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
