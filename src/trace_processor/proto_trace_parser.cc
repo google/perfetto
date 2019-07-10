@@ -199,6 +199,12 @@ class ProfilePacketInternLookup : public HeapProfileTracker::InternLookup {
   TraceStorage* storage_;
 };
 
+namespace {
+// Slices which have been opened but haven't been closed yet will be marked
+// with this placeholder value.
+constexpr int64_t kPendingThreadDuration = -1;
+}  // namespace
+
 }  // namespace
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
@@ -1470,7 +1476,7 @@ void ProtoTraceParser::ParseSystemInfo(ConstBytes blob) {
 
 void ProtoTraceParser::ParseTrackEvent(
     int64_t ts,
-    int64_t /*tts*/,
+    int64_t tts,
     ProtoIncrementalState::PacketSequenceState* sequence_state,
     ConstBytes blob) {
   protos::pbzero::TrackEvent::Decoder event(blob.data, blob.size);
@@ -1577,21 +1583,21 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   }
 
-  // TODO(eseckler): Handle thread timestamp/duration, legacy event attributes,
+  // TODO(eseckler): Handle thread instruction counts, legacy event attributes,
   // legacy event types (async S, T, p, F phases, flow events, sample events,
   // object events, metadata events, memory dumps, mark events, clock sync
   // events, context events, counter events), ...
 
-  auto args_callback = [this, &event, &sequence_state](
-                           ArgsTracker* args_tracker, RowId row) {
+  auto common_args_callback = [this, &event, &sequence_state](
+                                  ArgsTracker* args_tracker, RowId row_id) {
     for (auto it = event.debug_annotations(); it; ++it) {
       ParseDebugAnnotationArgs(it->as_bytes(), sequence_state, args_tracker,
-                               row);
+                               row_id);
     }
 
     if (event.has_task_execution()) {
       ParseTaskExecutionArgs(event.task_execution(), sequence_state,
-                             args_tracker, row);
+                             args_tracker, row_id);
     }
   };
 
@@ -1618,11 +1624,31 @@ void ProtoTraceParser::ParseTrackEvent(
   int32_t phase = legacy_event.phase();
   switch (static_cast<char>(phase)) {
     case 'B': {  // TRACE_EVENT_PHASE_BEGIN.
+      auto args_callback = [common_args_callback, storage, tts](
+                               ArgsTracker* args_tracker, RowId row_id) {
+        uint32_t slice_id = TraceStorage::ParseRowId(row_id).second;
+        auto* thread_slices = storage->mutable_thread_slices();
+        PERFETTO_DCHECK(!thread_slices->slice_count() ||
+                        thread_slices->slice_ids().back() < slice_id);
+        thread_slices->AddThreadSlice(slice_id, tts, kPendingThreadDuration,
+                                      /*thread_instruction_count=*/0,
+                                      /*thread_instruction_delta=*/0);
+
+        common_args_callback(args_tracker, row_id);
+      };
       slice_tracker->Begin(ts, utid, RefType::kRefUtid, category_id, name_id,
                            args_callback);
       break;
     }
     case 'E': {  // TRACE_EVENT_PHASE_END.
+      auto args_callback = [common_args_callback, storage, tts](
+                               ArgsTracker* args_tracker, RowId row_id) {
+        uint32_t slice_id = TraceStorage::ParseRowId(row_id).second;
+        auto* thread_slices = storage->mutable_thread_slices();
+        thread_slices->UpdateThreadDurationForSliceId(slice_id, tts);
+
+        common_args_callback(args_tracker, row_id);
+      };
       slice_tracker->End(ts, utid, RefType::kRefUtid, category_id, name_id,
                          args_callback);
       break;
@@ -1631,6 +1657,19 @@ void ProtoTraceParser::ParseTrackEvent(
       auto duration_ns = legacy_event.duration_us() * 1000;
       if (duration_ns < 0)
         return;
+      auto args_callback = [common_args_callback, storage, tts, &legacy_event](
+                               ArgsTracker* args_tracker, RowId row_id) {
+        uint32_t slice_id = TraceStorage::ParseRowId(row_id).second;
+        auto* thread_slices = storage->mutable_thread_slices();
+        PERFETTO_DCHECK(!thread_slices->slice_count() ||
+                        thread_slices->slice_ids().back() < slice_id);
+        auto thread_duration_ns = legacy_event.thread_duration_us() * 1000;
+        thread_slices->AddThreadSlice(slice_id, tts, thread_duration_ns,
+                                      /*thread_instruction_count=*/0,
+                                      /*thread_instruction_delta=*/0);
+
+        common_args_callback(args_tracker, row_id);
+      };
       slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id, name_id,
                             duration_ns, args_callback);
       break;
@@ -1643,18 +1682,32 @@ void ProtoTraceParser::ParseTrackEvent(
 
       switch (legacy_event.instant_event_scope()) {
         case LegacyEvent::SCOPE_UNSPECIFIED:
-        case LegacyEvent::SCOPE_THREAD:
+        case LegacyEvent::SCOPE_THREAD: {
+          auto args_callback = [common_args_callback, storage, tts,
+                                duration_ns](ArgsTracker* args_tracker,
+                                             RowId row_id) {
+            auto slice_id = TraceStorage::ParseRowId(row_id).second;
+            auto* thread_slices = storage->mutable_thread_slices();
+            PERFETTO_DCHECK(!thread_slices->slice_count() ||
+                            thread_slices->slice_ids().back() < slice_id);
+            thread_slices->AddThreadSlice(slice_id, tts, duration_ns,
+                                          /*thread_instruction_count=*/0,
+                                          /*thread_instruction_delta=*/0);
+
+            common_args_callback(args_tracker, row_id);
+          };
           slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id,
                                 name_id, duration_ns, args_callback);
           break;
+        }
         case LegacyEvent::SCOPE_GLOBAL:
           slice_tracker->Scoped(ts, /*ref=*/0, RefType::kRefNoRef, category_id,
-                                name_id, duration_ns, args_callback);
+                                name_id, duration_ns, common_args_callback);
           break;
         case LegacyEvent::SCOPE_PROCESS:
           slice_tracker->Scoped(ts, procs->GetOrCreateProcess(pid),
                                 RefType::kRefUpid, category_id, name_id,
-                                duration_ns, args_callback);
+                                duration_ns, common_args_callback);
           break;
         default:
           PERFETTO_FATAL("Unknown instant event scope: %u",
@@ -1667,14 +1720,14 @@ void ProtoTraceParser::ParseTrackEvent(
       TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
           {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
       slice_tracker->Begin(ts, track_id, RefType::kRefTrack, category_id,
-                           name_id, args_callback);
+                           name_id, common_args_callback);
       break;
     }
     case 'e': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_END
       TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
           {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
       slice_tracker->End(ts, track_id, RefType::kRefTrack, category_id, name_id,
-                         args_callback);
+                         common_args_callback);
       break;
     }
     case 'n': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_INSTANT
@@ -1684,7 +1737,7 @@ void ProtoTraceParser::ParseTrackEvent(
       TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
           {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
       slice_tracker->Scoped(ts, track_id, RefType::kRefTrack, category_id,
-                            name_id, duration_ns, args_callback);
+                            name_id, duration_ns, common_args_callback);
       break;
     }
     case 'M': {  // TRACE_EVENT_PHASE_METADATA (process and thread names).
@@ -1724,7 +1777,7 @@ void ProtoTraceParser::ParseDebugAnnotationArgs(
     ConstBytes debug_annotation,
     ProtoIncrementalState::PacketSequenceState* sequence_state,
     ArgsTracker* args_tracker,
-    RowId row) {
+    RowId row_id) {
   protos::pbzero::DebugAnnotation::Decoder annotation(debug_annotation.data,
                                                       debug_annotation.size);
   uint64_t iid = annotation.name_iid();
@@ -1763,32 +1816,32 @@ void ProtoTraceParser::ParseDebugAnnotationArgs(
   }
 
   if (annotation.has_bool_value()) {
-    args_tracker->AddArg(row, name_id, name_id,
+    args_tracker->AddArg(row_id, name_id, name_id,
                          Variadic::Boolean(annotation.bool_value()));
   } else if (annotation.has_uint_value()) {
-    args_tracker->AddArg(row, name_id, name_id,
+    args_tracker->AddArg(row_id, name_id, name_id,
                          Variadic::UnsignedInteger(annotation.uint_value()));
   } else if (annotation.has_int_value()) {
-    args_tracker->AddArg(row, name_id, name_id,
+    args_tracker->AddArg(row_id, name_id, name_id,
                          Variadic::Integer(annotation.int_value()));
   } else if (annotation.has_double_value()) {
-    args_tracker->AddArg(row, name_id, name_id,
+    args_tracker->AddArg(row_id, name_id, name_id,
                          Variadic::Real(annotation.double_value()));
   } else if (annotation.has_string_value()) {
     args_tracker->AddArg(
-        row, name_id, name_id,
+        row_id, name_id, name_id,
         Variadic::String(storage->InternString(annotation.string_value())));
   } else if (annotation.has_pointer_value()) {
-    args_tracker->AddArg(row, name_id, name_id,
+    args_tracker->AddArg(row_id, name_id, name_id,
                          Variadic::Pointer(annotation.pointer_value()));
   } else if (annotation.has_legacy_json_value()) {
     args_tracker->AddArg(
-        row, name_id, name_id,
+        row_id, name_id, name_id,
         Variadic::Json(storage->InternString(annotation.legacy_json_value())));
   } else if (annotation.has_nested_value()) {
     auto name = storage->GetString(name_id);
     ParseNestedValueArgs(annotation.nested_value(), name, name, args_tracker,
-                         row);
+                         row_id);
   }
 }
 
@@ -1796,7 +1849,7 @@ void ProtoTraceParser::ParseNestedValueArgs(ConstBytes nested_value,
                                             base::StringView flat_key,
                                             base::StringView key,
                                             ArgsTracker* args_tracker,
-                                            RowId row) {
+                                            RowId row_id) {
   protos::pbzero::DebugAnnotation::NestedValue::Decoder value(
       nested_value.data, nested_value.size);
   switch (value.nested_type()) {
@@ -1805,16 +1858,16 @@ void ProtoTraceParser::ParseNestedValueArgs(ConstBytes nested_value,
       auto key_id = context_->storage->InternString(key);
       // Leaf value.
       if (value.has_bool_value()) {
-        args_tracker->AddArg(row, flat_key_id, key_id,
+        args_tracker->AddArg(row_id, flat_key_id, key_id,
                              Variadic::Boolean(value.bool_value()));
       } else if (value.has_int_value()) {
-        args_tracker->AddArg(row, flat_key_id, key_id,
+        args_tracker->AddArg(row_id, flat_key_id, key_id,
                              Variadic::Integer(value.int_value()));
       } else if (value.has_double_value()) {
-        args_tracker->AddArg(row, flat_key_id, key_id,
+        args_tracker->AddArg(row_id, flat_key_id, key_id,
                              Variadic::Real(value.double_value()));
       } else if (value.has_string_value()) {
-        args_tracker->AddArg(row, flat_key_id, key_id,
+        args_tracker->AddArg(row_id, flat_key_id, key_id,
                              Variadic::String(context_->storage->InternString(
                                  value.string_value())));
       }
@@ -1829,7 +1882,7 @@ void ProtoTraceParser::ParseNestedValueArgs(ConstBytes nested_value,
         std::string child_key = key.ToStdString() + "." + child_name;
         ParseNestedValueArgs(value_it->as_bytes(),
                              base::StringView(child_flat_key),
-                             base::StringView(child_key), args_tracker, row);
+                             base::StringView(child_key), args_tracker, row_id);
       }
       break;
     }
@@ -1842,7 +1895,7 @@ void ProtoTraceParser::ParseNestedValueArgs(ConstBytes nested_value,
             key.ToStdString() + "[" + std::to_string(child_index) + "]";
         ParseNestedValueArgs(value_it->as_bytes(),
                              base::StringView(child_flat_key),
-                             base::StringView(child_key), args_tracker, row);
+                             base::StringView(child_key), args_tracker, row_id);
       }
       break;
     }
