@@ -23,7 +23,6 @@ deploy: lib/.stamp config.py common_utils.py
 	gcloud app deploy -q app.yaml queue.yaml cron.yaml \
 		--project ${PROJECT} \
 		-v ${GAE_VERSION} \
-		--no-promote \
 		--stop-previous-version
 
 stop:
