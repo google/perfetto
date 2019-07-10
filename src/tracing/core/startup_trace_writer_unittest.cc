@@ -38,7 +38,7 @@ class StartupTraceWriterTest : public AlignedBufferTest {
  public:
   void SetUp() override {
     SharedMemoryArbiterImpl::set_default_layout_for_testing(
-        SharedMemoryABI::PageLayout::kPageDiv4);
+        SharedMemoryABI::PageLayout::kPageDiv1);
     AlignedBufferTest::SetUp();
     task_runner_.reset(new base::TestTaskRunner());
     arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
@@ -57,9 +57,9 @@ class StartupTraceWriterTest : public AlignedBufferTest {
         new StartupTraceWriter(registry));
   }
 
-  bool BindWriter(StartupTraceWriter* writer) {
+  bool BindWriter(StartupTraceWriter* writer, size_t chunks_per_batch = 0) {
     const BufferID kBufId = 42;
-    return writer->BindToArbiter(arbiter_.get(), kBufId);
+    return writer->BindToArbiter(arbiter_.get(), kBufId, chunks_per_batch);
   }
 
   void WritePackets(StartupTraceWriter* writer, size_t packet_count) {
@@ -67,6 +67,23 @@ class StartupTraceWriterTest : public AlignedBufferTest {
       auto packet = writer->NewTracePacket();
       packet->set_for_testing()->set_str(kPacketPayload);
     }
+  }
+
+  size_t CountCompleteChunksInSMB() {
+    SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
+    size_t num_complete_chunks = 0;
+    for (size_t page_idx = 0; page_idx < kNumPages; page_idx++) {
+      uint32_t page_layout = abi->GetPageLayout(page_idx);
+      size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(page_layout);
+      for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
+        auto chunk_state = abi->GetChunkState(page_idx, chunk_idx);
+        EXPECT_TRUE(chunk_state == SharedMemoryABI::kChunkFree ||
+                    chunk_state == SharedMemoryABI::kChunkComplete);
+        if (chunk_state == SharedMemoryABI::kChunkComplete)
+          num_complete_chunks++;
+      }
+    }
+    return num_complete_chunks;
   }
 
   void VerifyPackets(size_t expected_count) {
@@ -179,7 +196,7 @@ constexpr char StartupTraceWriterTest::kPacketPayload[];
 
 namespace {
 
-size_t const kPageSizes[] = {4096, 65536};
+size_t const kPageSizes[] = {4096, 32768};
 INSTANTIATE_TEST_SUITE_P(PageSize,
                          StartupTraceWriterTest,
                          ::testing::ValuesIn(kPageSizes));
@@ -326,6 +343,55 @@ TEST_P(StartupTraceWriterTest, CreateAndBindViaRegistry) {
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 
   StartupTraceWriter::ReturnToRegistry(std::move(writer1));
+}
+
+TEST_P(StartupTraceWriterTest, BindAndCommitInBatches) {
+  auto writer = CreateUnboundWriter();
+
+  // Write a single packet to determine its size in the buffer.
+  WritePackets(writer.get(), 1);
+  size_t packet_size = writer->used_buffer_size();
+
+  // Write at least 3 pages/chunks worth of packets.
+  const size_t kNumPackets = (page_size() * 3 + packet_size - 1) / packet_size;
+  WritePackets(writer.get(), kNumPackets);
+
+  static constexpr size_t kChunksPerBatch = 2;
+
+  // Binding the writer with a batch size of 2 chunks should cause the first 2
+  // chunks of previously written packets to be written to the SMB and
+  // committed. The remaining chunks will be written when the
+  // |commit_data_callback| is executed.
+  EXPECT_TRUE(BindWriter(writer.get(), kChunksPerBatch));
+
+  EXPECT_EQ(
+      fake_producer_endpoint_.last_commit_data_request.chunks_to_move().size(),
+      kChunksPerBatch);
+  EXPECT_EQ(CountCompleteChunksInSMB(), kChunksPerBatch);
+  auto commit_data_callback = fake_producer_endpoint_.last_commit_data_callback;
+  EXPECT_TRUE(commit_data_callback);
+
+  // Send a commit with a single packet from the bound trace writer before the
+  // remaining chunk batches of the buffered data are written.
+  const size_t kNumAdditionalPackets = 1;
+  WritePackets(writer.get(), 1);
+  // Finalizes the packet and returns the chunk.
+  writer.reset();
+
+  // The packet should fit into a chunk.
+  EXPECT_EQ(
+      fake_producer_endpoint_.last_commit_data_request.chunks_to_move().size(),
+      1);
+  EXPECT_EQ(CountCompleteChunksInSMB(), kChunksPerBatch + 1);
+
+  // Write and commit the remaining chunks to the SMB.
+  while (commit_data_callback) {
+    commit_data_callback();
+    commit_data_callback = fake_producer_endpoint_.last_commit_data_callback;
+  }
+
+  // Verify that all chunks + packets are in the SMB.
+  VerifyPackets(1 + kNumPackets + kNumAdditionalPackets);
 }
 
 }  // namespace

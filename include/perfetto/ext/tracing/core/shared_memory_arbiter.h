@@ -62,6 +62,10 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // the arbiter's TaskRunner. The registry will retry on the arbiter's
   // TaskRunner until all writers were bound successfully.
   //
+  // The commit of the StartupTraceWriters' locally buffered data to the SMB is
+  // rate limited to avoid exhausting the SMB, and may continue asynchronously
+  // even after all writers were bound.
+  //
   // By calling this method, the registry's ownership is transferred to the
   // arbiter. The arbiter will delete the registry once all writers were bound.
   //
