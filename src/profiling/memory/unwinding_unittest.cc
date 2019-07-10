@@ -117,10 +117,8 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   return {std::move(payload), std::move(metadata)};
 }
 
-// TODO(fmayer): Re-enable for debug after http://r.android.com/1012034 has
-// been submitted
 // TODO(rsavitski): Investigate TSAN unwinding.
-#if defined(THREAD_SANITIZER) || !defined(NDEBUG)
+#if defined(THREAD_SANITIZER)
 #define MAYBE_DoUnwind DISABLED_DoUnwind
 #else
 #define MAYBE_DoUnwind DoUnwind
