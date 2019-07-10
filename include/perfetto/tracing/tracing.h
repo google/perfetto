@@ -90,11 +90,24 @@ class PERFETTO_EXPORT TracingSession {
   // TODO(primiano): add an error callback.
   virtual void Setup(const TraceConfig&) = 0;
 
+  // Enable tracing asynchronously.
   virtual void Start() = 0;
 
+  // Enable tracing and block until tracing has started. Note that if data
+  // sources are registered after this call was initiated, the call may return
+  // before the additional data sources have started. Also, if other producers
+  // (e.g., with system-wide tracing) have registered data sources without start
+  // notification support, this call may return before those data sources have
+  // started.
+  virtual void StartBlocking() = 0;
+
+  // Disable tracing asynchronously.
   // Use SetOnStopCallback() to get a notification when the tracing session is
   // fully stopped and all data sources have acked.
   virtual void Stop() = 0;
+
+  // Disable tracing and block until tracing has stopped.
+  virtual void StopBlocking() = 0;
 
   // This callback will be invoked when tracing is disabled.
   // This can happen either when explicitly calling TracingSession.Stop() or

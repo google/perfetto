@@ -19,7 +19,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/event.h"
+#include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/thread_utils.h"
@@ -91,7 +91,7 @@ class UnixTaskRunner : public TaskRunner {
 
   // On Linux, an eventfd(2) used to waking up the task runner when a new task
   // is posted. Otherwise the read end of a pipe used for the same purpose.
-  Event event_;
+  EventFd event_;
 
   std::vector<struct pollfd> poll_fds_;
 

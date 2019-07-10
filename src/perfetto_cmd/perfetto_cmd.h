@@ -24,7 +24,7 @@
 #include <time.h>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/event.h"
+#include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_task_runner.h"
@@ -89,7 +89,7 @@ class PerfettoCmd : public Consumer {
   base::ScopedFstream trace_out_stream_;
 
   std::string trace_out_path_;
-  base::Event ctrl_c_evt_;
+  base::EventFd ctrl_c_evt_;
   std::string dropbox_tag_;
   bool did_process_full_trace_ = false;
   uint64_t bytes_written_ = 0;

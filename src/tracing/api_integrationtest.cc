@@ -55,6 +55,11 @@ struct WaitableTestEvent {
   std::condition_variable cv_;
   bool notified_ = false;
 
+  bool notified() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return notified_;
+  }
+
   void Wait() {
     std::unique_lock<std::mutex> lock(mutex_);
     if (!cv_.wait_for(lock, kWaitEventTimeout, [this] { return notified_; })) {
@@ -91,6 +96,13 @@ class MockDataSource : public perfetto::DataSource<MockDataSource> {
   TestDataSourceHandle* handle_ = nullptr;
 };
 
+class MockDataSource2 : public perfetto::DataSource<MockDataSource2> {
+ public:
+  void OnSetup(const SetupArgs&) override {}
+  void OnStart(const StartArgs&) override {}
+  void OnStop(const StopArgs&) override {}
+};
+
 // A convenience wrapper around TracingSession that allows to do block on
 //
 struct TestTracingSessionHandle {
@@ -108,9 +120,15 @@ class PerfettoApiTest : public ::testing::Test {
 
   void SetUp() override {
     instance = this;
-    perfetto::TracingInitArgs args;
-    args.backends = perfetto::kInProcessBackend;
-    perfetto::Tracing::Initialize(args);
+    // Perfetto can only be initialized once in a process.
+    static bool was_initialized;
+    if (!was_initialized) {
+      perfetto::TracingInitArgs args;
+      args.backends = perfetto::kInProcessBackend;
+      perfetto::Tracing::Initialize(args);
+      was_initialized = true;
+      RegisterDataSource<MockDataSource>("my_data_source");
+    }
   }
 
   void TearDown() override { instance = nullptr; }
@@ -170,7 +188,7 @@ void MockDataSource::OnStop(const StopArgs&) {
 // Test fixtures
 // -------------
 TEST_F(PerfettoApiTest, OneDataSourceOneEvent) {
-  auto* data_source = RegisterDataSource<MockDataSource>("my_data_source");
+  auto* data_source = &data_sources_["my_data_source"];
 
   // Setup the trace config.
   perfetto::TraceConfig cfg;
@@ -233,6 +251,51 @@ TEST_F(PerfettoApiTest, OneDataSourceOneEvent) {
   EXPECT_TRUE(test_packet_found);
 }
 
+TEST_F(PerfettoApiTest, BlockingStartAndStop) {
+  auto* data_source = &data_sources_["my_data_source"];
+
+  // Register a second data source to get a bit more coverage.
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("my_data_source2");
+  MockDataSource2::Register(dsd);
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+  ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source2");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+
+  tracing_session->get()->StartBlocking();
+  EXPECT_TRUE(data_source->on_setup.notified());
+  EXPECT_TRUE(data_source->on_start.notified());
+
+  tracing_session->get()->StopBlocking();
+  EXPECT_TRUE(data_source->on_stop.notified());
+  EXPECT_TRUE(tracing_session->on_stop.notified());
+}
+
+TEST_F(PerfettoApiTest, BlockingStartAndStopOnEmptySession) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("non_existent_data_source");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+  tracing_session->get()->StopBlocking();
+  EXPECT_TRUE(tracing_session->on_stop.notified());
+}
+
 }  // namespace
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
+PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource2);
