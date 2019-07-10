@@ -46,7 +46,8 @@ class MockProducer : public Producer {
   void Connect(TracingService* svc,
                const std::string& producer_name,
                uid_t uid = 42,
-               size_t shared_memory_size_hint_bytes = 0);
+               size_t shared_memory_size_hint_bytes = 0,
+               size_t shared_memory_page_size_hint_bytes = 0);
   void RegisterDataSource(const std::string& name,
                           bool ack_stop = false,
                           bool ack_start = false,
