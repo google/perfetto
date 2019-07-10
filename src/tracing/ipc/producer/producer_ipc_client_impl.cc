@@ -42,10 +42,14 @@ std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
     Producer* producer,
     const std::string& producer_name,
     base::TaskRunner* task_runner,
-    TracingService::ProducerSMBScrapingMode smb_scraping_mode) {
+    TracingService::ProducerSMBScrapingMode smb_scraping_mode,
+    size_t shared_memory_size_hint_bytes,
+    size_t shared_memory_page_size_hint_bytes) {
   return std::unique_ptr<TracingService::ProducerEndpoint>(
       new ProducerIPCClientImpl(service_sock_name, producer, producer_name,
-                                task_runner, smb_scraping_mode));
+                                task_runner, smb_scraping_mode,
+                                shared_memory_size_hint_bytes,
+                                shared_memory_page_size_hint_bytes));
 }
 
 ProducerIPCClientImpl::ProducerIPCClientImpl(
@@ -53,12 +57,16 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
     Producer* producer,
     const std::string& producer_name,
     base::TaskRunner* task_runner,
-    TracingService::ProducerSMBScrapingMode smb_scraping_mode)
+    TracingService::ProducerSMBScrapingMode smb_scraping_mode,
+    size_t shared_memory_size_hint_bytes,
+    size_t shared_memory_page_size_hint_bytes)
     : producer_(producer),
       task_runner_(task_runner),
       ipc_channel_(ipc::Client::CreateInstance(service_sock_name, task_runner)),
       producer_port_(this /* event_listener */),
       name_(producer_name),
+      shared_memory_page_size_hint_bytes_(shared_memory_page_size_hint_bytes),
+      shared_memory_size_hint_bytes_(shared_memory_size_hint_bytes),
       smb_scraping_mode_(smb_scraping_mode) {
   ipc_channel_->BindService(producer_port_.GetWeakPtr());
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -81,6 +89,10 @@ void ProducerIPCClientImpl::OnConnect() {
       });
   protos::InitializeConnectionRequest req;
   req.set_producer_name(name_);
+  req.set_shared_memory_size_hint_bytes(
+      static_cast<uint32_t>(shared_memory_size_hint_bytes_));
+  req.set_shared_memory_page_size_hint_bytes(
+      static_cast<uint32_t>(shared_memory_page_size_hint_bytes_));
   switch (smb_scraping_mode_) {
     case TracingService::ProducerSMBScrapingMode::kDefault:
       // No need to set the mode, it defaults to use the service default if
