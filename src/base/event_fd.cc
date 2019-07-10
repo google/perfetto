@@ -18,7 +18,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/event.h"
+#include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -29,7 +29,7 @@
 namespace perfetto {
 namespace base {
 
-Event::Event() {
+EventFd::EventFd() {
 #if PERFETTO_USE_EVENTFD()
   fd_.reset(eventfd(/* start value */ 0, EFD_CLOEXEC | EFD_NONBLOCK));
   PERFETTO_CHECK(fd_);
@@ -42,9 +42,9 @@ Event::Event() {
 #endif  // !PERFETTO_USE_EVENTFD()
 }
 
-Event::~Event() = default;
+EventFd::~EventFd() = default;
 
-void Event::Notify() {
+void EventFd::Notify() {
   const uint64_t value = 1;
 
 #if PERFETTO_USE_EVENTFD()
@@ -58,7 +58,7 @@ void Event::Notify() {
   }
 }
 
-void Event::Clear() {
+void EventFd::Clear() {
 #if PERFETTO_USE_EVENTFD()
   uint64_t value;
   ssize_t ret = read(fd_.get(), &value, sizeof(value));
