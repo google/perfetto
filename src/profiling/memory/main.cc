@@ -23,7 +23,7 @@
 #include <getopt.h>
 #include <signal.h>
 
-#include "perfetto/ext/base/event.h"
+#include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/watchdog.h"
@@ -57,7 +57,7 @@ int GetListeningSocket() {
   return raw_fd;
 }
 
-base::Event* g_dump_evt = nullptr;
+base::EventFd* g_dump_evt = nullptr;
 
 int HeapprofdMain(int argc, char** argv) {
   bool cleanup_crash = false;
@@ -151,7 +151,7 @@ int StartChildHeapprofd(pid_t target_pid,
 int StartCentralHeapprofd() {
   // We set this up before launching any threads, so we do not have to use a
   // std::atomic for g_dump_evt.
-  g_dump_evt = new base::Event();
+  g_dump_evt = new base::EventFd();
 
   base::UnixTaskRunner task_runner;
   base::Watchdog::GetInstance()->Start();  // crash on exceedingly long tasks

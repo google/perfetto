@@ -33,7 +33,6 @@
 #include <thread>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/event.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/thread_checker.h"
