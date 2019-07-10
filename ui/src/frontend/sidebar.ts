@@ -209,6 +209,8 @@ function showHotkeys() {
   let hks = '';
   hks += '\'v\': Shows/hides video components \n';
   hks += '\'p\': Enables/disables pausing and flagging synchronization \n';
+  hks += '\'mid + left mouse click\': Flags point on trace timeline and jumps ';
+  hks += 'to same position in video \n';
   window.alert(hks);
   return false;
 }
