@@ -171,7 +171,7 @@ BUILD_DEPS_HOST = [
   # These dependencies are for libunwindstack, which is used by src/profiling.
   ('buildtools/android-core',
    'https://android.googlesource.com/platform/system/core.git',
-   '09070afd38466fc0e84aa58b90a336fd4b3f56a0',
+   '3f407fcc37b401c91784700c0a691ba8b1f7ef15',
    'all'
   ),
 
