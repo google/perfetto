@@ -58,6 +58,8 @@ namespace perfetto {
 
 namespace {
 constexpr size_t kDefaultShmSizeKb = TracingServiceImpl::kDefaultShmSize / 1024;
+constexpr size_t kDefaultShmPageSizeKb =
+    TracingServiceImpl::kDefaultShmPageSize / 1024;
 constexpr size_t kMaxShmSizeKb = TracingServiceImpl::kMaxShmSize / 1024;
 
 ::testing::AssertionResult HasTriggerModeInternal(
@@ -1396,8 +1398,20 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
 TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
-  const size_t kConfigPageSizesKb[] = /****/ {16, 16, 4, 0, 16, 8, 3, 4096, 4};
-  const size_t kExpectedPageSizesKb[] = /**/ {16, 16, 4, 4, 16, 8, 4, 64, 4};
+  const size_t kMaxPageSizeKb = SharedMemoryABI::kMaxPageSize / 1024;
+  const size_t kConfigPageSizesKb[] = /**/ {16, 0, 3, 2, 16, 8, 0, 4096, 0};
+  const size_t kPageHintSizesKb[] = /****/ {0, 4, 0, 0, 8, 0, 4096, 0, 0};
+  const size_t kExpectedPageSizesKb[] = {
+      16,                     // Use config value.
+      4,                      // Config is 0, use hint.
+      kDefaultShmPageSizeKb,  // Config % 4 != 0, take default.
+      kDefaultShmPageSizeKb,  // Less than page size, take default.
+      16,                     // Ignore the hint.
+      8,                      // Use config value.
+      kMaxPageSizeKb,         // Hint too big, take max value.
+      kMaxPageSizeKb,         // Config too high, take max value.
+      4                       // Fallback to default.
+  };
 
   const size_t kConfigSizesKb[] = /**/ {0, 16, 0, 20, 32, 7, 0, 96, 4096000};
   const size_t kHintSizesKb[] = /****/ {0, 0, 16, 32, 16, 0, 7, 96, 4096000};
@@ -1418,7 +1432,8 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   for (size_t i = 0; i < kNumProducers; i++) {
     auto name = "mock_producer_" + std::to_string(i);
     producer[i] = CreateMockProducer();
-    producer[i]->Connect(svc.get(), name, geteuid(), kHintSizesKb[i] * 1024);
+    producer[i]->Connect(svc.get(), name, geteuid(), kHintSizesKb[i] * 1024,
+                         kPageHintSizesKb[i] * 1024);
     producer[i]->RegisterDataSource("data_source");
   }
 

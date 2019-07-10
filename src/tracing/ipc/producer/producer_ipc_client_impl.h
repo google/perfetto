@@ -56,7 +56,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                         Producer*,
                         const std::string& producer_name,
                         base::TaskRunner*,
-                        TracingService::ProducerSMBScrapingMode);
+                        TracingService::ProducerSMBScrapingMode,
+                        size_t shared_memory_size_hint_bytes = 0,
+                        size_t shared_memory_page_size_hint_bytes = 0);
   ~ProducerIPCClientImpl() override;
 
   // TracingService::ProducerEndpoint implementation.
@@ -109,6 +111,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::set<DataSourceInstanceID> data_sources_setup_;
   bool connected_ = false;
   std::string const name_;
+  size_t shared_memory_page_size_hint_bytes_ = 0;
+  size_t shared_memory_size_hint_bytes_ = 0;
   TracingService::ProducerSMBScrapingMode const smb_scraping_mode_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

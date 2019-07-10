@@ -66,7 +66,6 @@
 namespace perfetto {
 
 namespace {
-constexpr size_t kDefaultShmPageSize = base::kPageSize;
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kSnapshotsInterval(10 * 1000);
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
@@ -114,6 +113,8 @@ uid_t geteuid() {
 
 // These constants instead are defined in the header because are used by tests.
 constexpr size_t TracingServiceImpl::kDefaultShmSize;
+constexpr size_t TracingServiceImpl::kDefaultShmPageSize;
+
 constexpr size_t TracingServiceImpl::kMaxShmSize;
 constexpr uint32_t TracingServiceImpl::kDataSourceStopTimeoutMs;
 constexpr uint8_t TracingServiceImpl::kSyncMarker[];
@@ -147,7 +148,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     const std::string& producer_name,
                                     size_t shared_memory_size_hint_bytes,
                                     bool in_process,
-                                    ProducerSMBScrapingMode smb_scraping_mode) {
+                                    ProducerSMBScrapingMode smb_scraping_mode,
+                                    size_t shared_memory_page_size_hint_bytes) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   if (lockdown_mode_ && uid != geteuid()) {
@@ -181,6 +183,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
+  endpoint->shmem_page_size_hint_bytes_ = shared_memory_page_size_hint_bytes;
   task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer_));
 
   return std::move(endpoint);
@@ -1849,14 +1852,22 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
                 ds_config.name().c_str(), global_id);
   if (!producer->shared_memory()) {
     // Determine the SMB page size. Must be an integer multiple of 4k.
+    // As for the SMB size below, the decision tree is as follows:
+    // 1. Give priority to what is defined in the trace config.
+    // 2. If unset give priority to the hint passed by the producer.
+    // 3. Keep within bounds and ensure it's a multiple of 4k.
     size_t page_size = std::min<size_t>(producer_config.page_size_kb() * 1024,
                                         SharedMemoryABI::kMaxPageSize);
+    if (page_size == 0) {
+      page_size = std::min<size_t>(producer->shmem_page_size_hint_bytes_,
+                                   SharedMemoryABI::kMaxPageSize);
+    }
     if (page_size < base::kPageSize || page_size % base::kPageSize != 0)
       page_size = kDefaultShmPageSize;
     producer->shared_buffer_page_size_kb_ = page_size / 1024;
 
     // Determine the SMB size. Must be an integer multiple of the SMB page size.
-    // The decisional tree is as follows:
+    // The decision tree is as follows:
     // 1. Give priority to what defined in the trace config.
     // 2. If unset give priority to the hint passed by the producer.
     // 3. Keep within bounds and ensure it's a multiple of the page size.
