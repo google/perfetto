@@ -25,7 +25,7 @@ from google.appengine.api import taskqueue
 
 from config import DB, GERRIT_HOST, GERRIT_PROJECT, GERRIT_POLL_SEC, PROJECT
 from config import CI_SITE, GERRIT_VOTING_ENABLED, JOB_CONFIGS, LOGS_TTL_DAYS
-from config import TRUSTED_EMAILS, GCS_ARTIFACTS
+from config import TRUSTED_EMAILS, GCS_ARTIFACTS, JOB_TIMEOUT_SEC
 
 from common_utils import req, utc_now_iso, parse_iso_time, SCOPES
 from stackdriver_metrics import STACKDRIVER_METRICS
@@ -203,7 +203,7 @@ def check_new_cl(handler):
   src = 'cls/%s-%s' % (cl, patchset)
   # Enqueue jobs for the latest patchset.
   patch_obj = {}
-  patch_obj['cls_queued/%s-%s' % (cl, patchset)] = 0
+  patch_obj['cls_pending/%s-%s' % (cl, patchset)] = 0
   patch_obj[src] = {
       'change_id': change_id,
       'revision_id': rev_hash,
@@ -222,22 +222,20 @@ def cancel_older_jobs(handler):
   last_key = '%s-%s' % (cl, int(patchset) - 1)
   filter = 'orderBy="$key"&startAt="%s"&endAt="%s"' % (first_key, last_key)
   cl_objs = req('GET', '%s/cls.json?%s' % (DB, filter)) or {}
-  patch_obj = {}
   for cl_obj in cl_objs.itervalues():
     for job_id, job_completed in cl_obj['jobs'].iteritems():
       if not job_completed:
         # This is racy: workers can complete the queued jobs while we mark them
         # as cancelled. The result of such race is still acceptable.
         logging.info('Cancelling job for previous patchset %s', job_id)
-        patch_obj['jobs_queued/%s' % job_id] = {}  # "= {}" deletes the entry.
-        patch_obj['jobs/%s/status' % job_id] = 'CANCELLED'
-  req('PATCH', DB + '.json', body=patch_obj)
+        defer('cancel_job', job_id=job_id)
 
 
 def check_pending_cls(handler):
   # Check if any pending CL has completed (all jobs are done). If so publish
   # the comment and vote on the CL.
-  for cl_and_ps, _ in (req('GET', '%s/cls_queued.json' % DB) or {}).iteritems():
+  pending_cls = req('GET', '%s/cls_pending.json' % DB) or {}
+  for cl_and_ps, _ in pending_cls.iteritems():
     defer('check_pending_cl', cl_and_ps=cl_and_ps)
 
 
@@ -261,7 +259,7 @@ def finish_and_vote_cl(handler):
   cl_obj = req('GET', '%s/cls/%s.json' % (DB, cl_and_ps))
   logging.info('Computing vote and message for CL %s', cl_and_ps)
   patch_obj = {
-      'cls_queued/%s' % cl_and_ps: {},  # = DELETE
+      'cls_pending/%s' % cl_and_ps: {},  # = DELETE
       'cls/%s/time_ended' % cl_and_ps: cl_obj.get('time_ended', utc_now_iso())
   }
   req('PATCH', '%s.json' % DB, body=patch_obj)
@@ -351,8 +349,33 @@ def queue_postsubmit_jobs(handler):
   req('PATCH', DB + '.json', body=patch_obj)
 
 
+def delete_stale_jobs(handler):
+  '''Deletes jobs that are left in the running queue for too long
+
+  This is usually due to a crash in the VM that handles them.
+  '''
+  running_jobs = req('GET', '%s/jobs_running.json?shallow=true' % (DB)) or {}
+  for job_id in running_jobs.iterkeys():
+    job = req('GET', '%s/jobs/%s.json' % (DB, job_id))
+    time_started = parse_iso_time(job.get('time_started', utc_now_iso()))
+    age = (datetime.now() - time_started).total_seconds()
+    if job.get('status') != 'STARTED' or age > JOB_TIMEOUT_SEC * 2:
+      defer('cancel_job', job_id=job_id)
+
+
+def cancel_job(handler):
+  job_id = handler.request.get('job_id')
+  patch_obj = {
+    'jobs_running/%s' % job_id: {},  # = DELETE,
+    'jobs_queued/%s' % job_id: {},  # = DELETE,
+    'jobs/%s/status': 'CANCELLED',
+    'jobs/%s/time_ended': utc_now_iso(),
+  }
+  req('PATCH', DB + '.json', body=patch_obj)
+
+
 def delete_expired_logs(handler):
-  logs = req('GET', '%s/logs.json?shallow=true' % (DB))
+  logs = req('GET', '%s/logs.json?shallow=true' % (DB)) or {}
   for job_id in logs.iterkeys():
     age_days = (datetime.now() - datetime.strptime(job_id[:8], '%Y%m%d')).days
     if age_days > LOGS_TTL_DAYS:
@@ -415,6 +438,8 @@ class ControllerHandler(webapp2.RequestHandler):
       'update_cl_metrics': update_cl_metrics,
       'delete_expired_logs': delete_expired_logs,
       'delete_job_logs': delete_job_logs,
+      'delete_stale_jobs': delete_stale_jobs,
+      'cancel_job': cancel_job,
   }
 
   def handle(self, action):
