@@ -72,6 +72,15 @@ static const RowId kInvalidRowId = 0;
 using ArgSetId = uint32_t;
 static const ArgSetId kInvalidArgSetId = 0;
 
+using TrackId = uint32_t;
+
+enum class VirtualTrackScope : uint8_t {
+  // VirtualTrack with global scope, will not have a |upid| set.
+  kGlobal = 0,
+  // VirtualTrack associated with a specific process via |upid|.
+  kProcess = 1
+};
+
 enum RefType {
   kRefNoRef = 0,
   kRefUtid = 1,
@@ -80,8 +89,7 @@ enum RefType {
   kRefSoftIrq = 4,
   kRefUpid = 5,
   kRefGpuId = 6,
-  kRefGlobalAsyncTrack = 7,
-  kRefProcessAsyncTrack = 8,
+  kRefTrack = 7,
   kRefMax
 };
 
@@ -204,6 +212,35 @@ class TraceStorage {
     std::deque<Variadic> arg_values_;
 
     std::unordered_map<ArgSetHash, uint32_t> arg_row_for_hash_;
+  };
+
+  class VirtualTracks {
+   public:
+    inline uint32_t AddVirtualTrack(TrackId track_id,
+                                    StringId name,
+                                    VirtualTrackScope scope,
+                                    UniquePid upid = 0u) {
+      track_ids_.emplace_back(track_id);
+      names_.emplace_back(name);
+      scopes_.emplace_back(scope);
+      upids_.emplace_back(upid);
+      return virtual_track_count() - 1;
+    }
+
+    uint32_t virtual_track_count() const {
+      return static_cast<uint32_t>(track_ids_.size());
+    }
+
+    const std::deque<uint32_t>& track_ids() const { return track_ids_; }
+    const std::deque<StringId>& names() const { return names_; }
+    const std::deque<VirtualTrackScope>& scopes() const { return scopes_; }
+    const std::deque<UniquePid>& upids() const { return upids_; }
+
+   private:
+    std::deque<uint32_t> track_ids_;
+    std::deque<StringId> names_;
+    std::deque<VirtualTrackScope> scopes_;
+    std::deque<UniquePid> upids_;
   };
 
   class Slices {
@@ -928,6 +965,9 @@ class TraceStorage {
     return std::make_pair(table_id, row);
   }
 
+  const VirtualTracks& virtual_tracks() const { return virtual_tracks_; }
+  VirtualTracks* mutable_virtual_tracks() { return &virtual_tracks_; }
+
   const Slices& slices() const { return slices_; }
   Slices* mutable_slices() { return &slices_; }
 
@@ -1027,6 +1067,9 @@ class TraceStorage {
   // * metadata from chrome and benchmarking infrastructure
   // * descriptions of android packages
   Metadata metadata_{};
+
+  // Metadata for virtual slice tracks.
+  VirtualTracks virtual_tracks_;
 
   // One entry for each CPU in the trace.
   Slices slices_;

@@ -40,6 +40,7 @@
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/variadic.h"
+#include "src/trace_processor/virtual_track_tracker.h"
 
 #include "perfetto/common/android_log_constants.pbzero.h"
 #include "perfetto/common/gpu_counter_descriptor.pbzero.h"
@@ -1597,31 +1598,33 @@ void ProtoTraceParser::ParseTrackEvent(
   using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
 
   int64_t id = 0;
-  RefType async_ref_type = RefType::kRefGlobalAsyncTrack;
+  VirtualTrackScope vtrack_scope = VirtualTrackScope::kGlobal;
+  UniquePid vtrack_upid = 0;
   if (legacy_event.has_unscoped_id()) {
     id = static_cast<int64_t>(legacy_event.unscoped_id());
   } else if (legacy_event.has_global_id()) {
     id = static_cast<int64_t>(legacy_event.global_id());
   } else if (legacy_event.has_local_id()) {
     id = static_cast<int64_t>(legacy_event.local_id());
-    async_ref_type = RefType::kRefProcessAsyncTrack;
+    vtrack_scope = VirtualTrackScope::kProcess;
+    vtrack_upid = procs->GetOrCreateProcess(pid);
   }
 
-  StringId scope_id = 0;
+  StringId id_scope = 0;
   if (legacy_event.has_id_scope()) {
-    scope_id = storage->InternString(legacy_event.id_scope());
+    id_scope = storage->InternString(legacy_event.id_scope());
   }
 
   int32_t phase = legacy_event.phase();
   switch (static_cast<char>(phase)) {
     case 'B': {  // TRACE_EVENT_PHASE_BEGIN.
       slice_tracker->Begin(ts, utid, RefType::kRefUtid, category_id, name_id,
-                           /*ref_scope=*/0, args_callback);
+                           args_callback);
       break;
     }
     case 'E': {  // TRACE_EVENT_PHASE_END.
       slice_tracker->End(ts, utid, RefType::kRefUtid, category_id, name_id,
-                         /*ref_scope=*/0, args_callback);
+                         args_callback);
       break;
     }
     case 'X': {  // TRACE_EVENT_PHASE_COMPLETE.
@@ -1629,7 +1632,7 @@ void ProtoTraceParser::ParseTrackEvent(
       if (duration_ns < 0)
         return;
       slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id, name_id,
-                            duration_ns, /*ref_scope=*/0, args_callback);
+                            duration_ns, args_callback);
       break;
     }
     case 'i':
@@ -1642,18 +1645,16 @@ void ProtoTraceParser::ParseTrackEvent(
         case LegacyEvent::SCOPE_UNSPECIFIED:
         case LegacyEvent::SCOPE_THREAD:
           slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id,
-                                name_id, duration_ns, /*ref_scope=*/0,
-                                args_callback);
+                                name_id, duration_ns, args_callback);
           break;
         case LegacyEvent::SCOPE_GLOBAL:
           slice_tracker->Scoped(ts, /*ref=*/0, RefType::kRefNoRef, category_id,
-                                name_id, duration_ns, /*ref_scope=*/0,
-                                args_callback);
+                                name_id, duration_ns, args_callback);
           break;
         case LegacyEvent::SCOPE_PROCESS:
           slice_tracker->Scoped(ts, procs->GetOrCreateProcess(pid),
                                 RefType::kRefUpid, category_id, name_id,
-                                duration_ns, /*ref_scope=*/0, args_callback);
+                                duration_ns, args_callback);
           break;
         default:
           PERFETTO_FATAL("Unknown instant event scope: %u",
@@ -1663,12 +1664,16 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
     case 'b': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_BEGIN
-      slice_tracker->Begin(ts, id, async_ref_type, category_id, name_id,
-                           scope_id, args_callback);
+      TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
+          {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
+      slice_tracker->Begin(ts, track_id, RefType::kRefTrack, category_id,
+                           name_id, args_callback);
       break;
     }
     case 'e': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_END
-      slice_tracker->End(ts, id, async_ref_type, category_id, name_id, scope_id,
+      TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
+          {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
+      slice_tracker->End(ts, track_id, RefType::kRefTrack, category_id, name_id,
                          args_callback);
       break;
     }
@@ -1676,8 +1681,10 @@ void ProtoTraceParser::ParseTrackEvent(
       // Handle instant events as slices with zero duration, so that they end up
       // nested underneath their parent slices.
       int64_t duration_ns = 0;
-      slice_tracker->Scoped(ts, id, async_ref_type, category_id, name_id,
-                            duration_ns, scope_id, args_callback);
+      TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
+          {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
+      slice_tracker->Scoped(ts, track_id, RefType::kRefTrack, category_id,
+                            name_id, duration_ns, args_callback);
       break;
     }
     case 'M': {  // TRACE_EVENT_PHASE_METADATA (process and thread names).
