@@ -1742,6 +1742,10 @@ void ProtoTraceParser::ParseDebugAnnotationArgs(
   if (name_view_it->second.storage_refs) {
     name_id = name_view_it->second.storage_refs->name_id;
   } else {
+    // TODO(khokhlov): If there are dots or brackets in argument names,
+    // they will confuse the JSON exporter. Either introduce escape
+    // sequences (both here and in export_json.cc), or find another way
+    // to encode such names.
     auto name = name_view_it->second.CreateDecoder();
     std::string name_prefixed = "debug." + name.name().ToStdString();
     name_id = storage->InternString(base::StringView(name_prefixed));
@@ -1771,9 +1775,9 @@ void ProtoTraceParser::ParseDebugAnnotationArgs(
     args_tracker->AddArg(row, name_id, name_id,
                          Variadic::Pointer(annotation.pointer_value()));
   } else if (annotation.has_legacy_json_value()) {
-    args_tracker->AddArg(row, name_id, name_id,
-                         Variadic::String(storage->InternString(
-                             annotation.legacy_json_value())));
+    args_tracker->AddArg(
+        row, name_id, name_id,
+        Variadic::Json(storage->InternString(annotation.legacy_json_value())));
   } else if (annotation.has_nested_value()) {
     auto name = storage->GetString(name_id);
     ParseNestedValueArgs(annotation.nested_value(), name, name, args_tracker,
