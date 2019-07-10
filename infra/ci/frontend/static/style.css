@@ -295,18 +295,8 @@ a:hover {
     font-weight: 300;
 }
 
-.main-table tbody tr.nested  {
-    font-size: 12px;
-    height: 15px;
-    line-height: 15px;
-}
-
 .main-table tbody tr.nested td:first-child, .main-table tbody tr.nested a {
     color: #999;
-}
-
-.main-table .postsubmit {
-    cursor: pointer;
 }
 
 .main-table .expand {
