@@ -18,7 +18,7 @@
 #define INCLUDE_PERFETTO_EXT_BASE_ANDROID_TASK_RUNNER_H_
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/event.h"
+#include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/time.h"
@@ -71,7 +71,7 @@ class AndroidTaskRunner : public TaskRunner {
   void ScheduleDelayedWakeUp(TimeMillis time);
 
   ALooper* const looper_;
-  Event immediate_event_;
+  EventFd immediate_event_;
   ScopedFile delayed_timer_;
 
   ThreadChecker thread_checker_;
