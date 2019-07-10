@@ -289,7 +289,7 @@ TEST(ExportJsonTest, StorageWithListArgs) {
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_EQ(event["args"]["draw_duration_ms"].size(), 2);
+  EXPECT_EQ(event["args"]["draw_duration_ms"].size(), 2u);
   EXPECT_EQ(event["args"]["draw_duration_ms"][0].asDouble(), kValues[0]);
   EXPECT_EQ(event["args"]["draw_duration_ms"][1].asDouble(), kValues[1]);
 }
@@ -378,7 +378,7 @@ TEST(ExportJsonTest, StorageWithObjectListArgs) {
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_EQ(event["args"]["a"].size(), 2);
+  EXPECT_EQ(event["args"]["a"].size(), 2u);
   EXPECT_EQ(event["args"]["a"][0]["b"].asInt(), kValues[0]);
   EXPECT_EQ(event["args"]["a"][1]["b"].asInt(), kValues[1]);
 }
@@ -423,8 +423,8 @@ TEST(ExportJsonTest, StorageWithNestedListArgs) {
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_EQ(event["args"]["a"].size(), 1);
-  EXPECT_EQ(event["args"]["a"][0].size(), 2);
+  EXPECT_EQ(event["args"]["a"].size(), 1u);
+  EXPECT_EQ(event["args"]["a"][0].size(), 2u);
   EXPECT_EQ(event["args"]["a"][0][0].asInt(), kValues[0]);
   EXPECT_EQ(event["args"]["a"][0][1].asInt(), kValues[1]);
 }
