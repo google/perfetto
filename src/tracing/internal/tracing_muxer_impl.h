@@ -23,6 +23,7 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -196,17 +197,33 @@ class TracingMuxerImpl : public TracingMuxer {
     // the config and check if we have it after connection.
     bool start_pending_ = false;
 
+    // Whether this session was already stopped. This will happen in response to
+    // Stop{,Blocking}, but also if the service stops the session for us
+    // automatically (e.g., when there are no data sources).
+    bool stopped_ = false;
+
     // shared_ptr because it's posted across threads. This is to avoid copying
     // it more than once.
     std::shared_ptr<TraceConfig> trace_config_;
+
+    // An internal callback used to implement StartBlocking().
+    std::function<void()> blocking_start_complete_callback_;
 
     // If the API client passes a callback to stop, we should invoke this when
     // OnTracingDisabled() is invoked.
     std::function<void()> stop_complete_callback_;
 
+    // An internal callback used to implement StopBlocking().
+    std::function<void()> blocking_stop_complete_callback_;
+
     // Callback passed to ReadTrace().
     std::function<void(TracingSession::ReadTraceCallbackArgs)>
         read_trace_callback_;
+
+    // The states of all data sources in this tracing session. |true| means the
+    // data source has started tracing.
+    using DataSourceHandle = std::pair<std::string, std::string>;
+    std::map<DataSourceHandle, bool> data_source_states_;
 
     std::unique_ptr<ConsumerEndpoint> service_;  // Keep before last.
     PERFETTO_THREAD_CHECKER(thread_checker_)     // Keep last.
@@ -220,7 +237,9 @@ class TracingMuxerImpl : public TracingMuxer {
     ~TracingSessionImpl() override;
     void Setup(const TraceConfig&) override;
     void Start() override;
+    void StartBlocking() override;
     void Stop() override;
+    void StopBlocking() override;
     void ReadTrace(ReadTraceCallback) override;
     void SetOnStopCallback(std::function<void()>) override;
 

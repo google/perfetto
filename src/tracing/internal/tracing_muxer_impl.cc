@@ -18,12 +18,14 @@
 
 #include <algorithm>
 #include <atomic>
+#include <mutex>
 #include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
@@ -115,6 +117,8 @@ void TracingMuxerImpl::ConsumerImpl::Initialize(
     std::unique_ptr<ConsumerEndpoint> endpoint) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   service_ = std::move(endpoint);
+  // Observe data source instance events so we get notified when tracing starts.
+  service_->ObserveEvents(ConsumerEndpoint::kDataSourceInstances);
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnConnect() {
@@ -144,8 +148,23 @@ void TracingMuxerImpl::ConsumerImpl::OnDisconnect() {
 
 void TracingMuxerImpl::ConsumerImpl::OnTracingDisabled() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (stop_complete_callback_)
+  PERFETTO_DCHECK(!stopped_);
+  stopped_ = true;
+  // If we're still waiting for the start event, fire it now. This may happen if
+  // there are no active data sources in the session.
+  if (stop_complete_callback_) {
     muxer_->task_runner_->PostTask(std::move(stop_complete_callback_));
+    stop_complete_callback_ = nullptr;
+  }
+  if (blocking_start_complete_callback_) {
+    muxer_->task_runner_->PostTask(
+        std::move(blocking_start_complete_callback_));
+    blocking_start_complete_callback_ = nullptr;
+  }
+  if (blocking_stop_complete_callback_) {
+    muxer_->task_runner_->PostTask(std::move(blocking_stop_complete_callback_));
+    blocking_stop_complete_callback_ = nullptr;
+  }
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnTraceData(
@@ -188,12 +207,37 @@ void TracingMuxerImpl::ConsumerImpl::OnTraceData(
     read_trace_callback_ = nullptr;
 }
 
+void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
+    const ObservableEvents& events) {
+  if (events.instance_state_changes_size()) {
+    for (const auto& state_change : events.instance_state_changes()) {
+      DataSourceHandle handle{state_change.producer_name(),
+                              state_change.data_source_name()};
+      data_source_states_[handle] =
+          state_change.state() ==
+          ObservableEvents::DataSourceInstanceStateChange::
+              DATA_SOURCE_INSTANCE_STATE_STARTED;
+    }
+    // Data sources are first reported as being stopped before starting, so once
+    // all the data sources we know about have started we can declare tracing
+    // begun.
+    if (blocking_start_complete_callback_) {
+      bool all_data_sources_started = std::all_of(
+          data_source_states_.cbegin(), data_source_states_.cend(),
+          [](std::pair<DataSourceHandle, bool> state) { return state.second; });
+      if (all_data_sources_started) {
+        muxer_->task_runner_->PostTask(
+            std::move(blocking_start_complete_callback_));
+        blocking_start_complete_callback_ = nullptr;
+      }
+    }
+  }
+}
+
 // The callbacks below are not used.
 void TracingMuxerImpl::ConsumerImpl::OnDetach(bool) {}
 void TracingMuxerImpl::ConsumerImpl::OnAttach(bool, const TraceConfig&) {}
 void TracingMuxerImpl::ConsumerImpl::OnTraceStats(bool, const TraceStats&) {}
-void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
-    const ObservableEvents&) {}
 // ----- End of TracingMuxerImpl::ConsumerImpl
 
 // ----- Begin of TracingMuxerImpl::TracingSessionImpl
@@ -233,12 +277,46 @@ void TracingMuxerImpl::TracingSessionImpl::Start() {
       [muxer, session_id] { muxer->StartTracingSession(session_id); });
 }
 
+// Can be called from any thread except the service thread.
+void TracingMuxerImpl::TracingSessionImpl::StartBlocking() {
+  PERFETTO_DCHECK(!muxer_->task_runner_->RunsTasksOnCurrentThread());
+  auto* muxer = muxer_;
+  auto session_id = session_id_;
+  base::WaitableEvent tracing_started;
+  muxer->task_runner_->PostTask([muxer, session_id, &tracing_started] {
+    auto* consumer = muxer->FindConsumer(session_id);
+    PERFETTO_DCHECK(!consumer->blocking_start_complete_callback_);
+    consumer->blocking_start_complete_callback_ = [&] {
+      tracing_started.Notify();
+    };
+    muxer->StartTracingSession(session_id);
+  });
+  tracing_started.Wait();
+}
+
 // Can be called from any thread.
 void TracingMuxerImpl::TracingSessionImpl::Stop() {
   auto* muxer = muxer_;
   auto session_id = session_id_;
   muxer->task_runner_->PostTask(
       [muxer, session_id] { muxer->StopTracingSession(session_id); });
+}
+
+// Can be called from any thread except the service thread.
+void TracingMuxerImpl::TracingSessionImpl::StopBlocking() {
+  PERFETTO_DCHECK(!muxer_->task_runner_->RunsTasksOnCurrentThread());
+  auto* muxer = muxer_;
+  auto session_id = session_id_;
+  base::WaitableEvent tracing_stopped;
+  muxer->task_runner_->PostTask([muxer, session_id, &tracing_stopped] {
+    auto* consumer = muxer->FindConsumer(session_id);
+    PERFETTO_DCHECK(!consumer->blocking_stop_complete_callback_);
+    consumer->blocking_stop_complete_callback_ = [&] {
+      tracing_stopped.Notify();
+    };
+    muxer->StopTracingSession(session_id);
+  });
+  tracing_stopped.Wait();
 }
 
 // Can be called from any thread.
@@ -579,7 +657,18 @@ void TracingMuxerImpl::StopTracingSession(TracingSessionGlobalID session_id) {
     return;
   }
 
-  consumer->service_->DisableTracing();
+  // If the session was already stopped (e.g., it failed to start), don't try
+  // stopping again.
+  if (consumer->stopped_) {
+    if (consumer->blocking_stop_complete_callback_) {
+      task_runner_->PostTask(
+          std::move(consumer->blocking_stop_complete_callback_));
+      consumer->blocking_stop_complete_callback_ = nullptr;
+    }
+  } else {
+    consumer->service_->DisableTracing();
+  }
+
   consumer->trace_config_.reset();
 }
 
