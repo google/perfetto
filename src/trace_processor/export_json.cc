@@ -174,6 +174,7 @@ class ArgsBuilder {
         reader.parse(string_pool_->Get(variadic.string_value).c_str(), result);
         return result;
     }
+    return Json::Value();
   }
 
   void AppendArg(ArgSetId set_id,
