@@ -158,7 +158,6 @@ export interface State {
 
   video: string | null;
   videoEnabled: boolean;
-  onPauseTime: number;
   flagPauseEnabled: boolean;
 }
 
@@ -305,7 +304,6 @@ export function createEmptyState(): State {
 
     video: null,
     videoEnabled: false,
-    onPauseTime: 0,
     flagPauseEnabled: false,
   };
 }
