@@ -107,5 +107,6 @@ synth_1.py nulls.sql nulls.out
 # Print events
 ../data/lmk_userspace.pb print_systrace.sql print_systrace_lmk_userspace.out
 
-# GPU counters
+# GPU trace tests
 ../data/gpu_counters.pb gpu_counters.sql gpu_counters.out
+../data/gpu_trace.pb gpu_render_stages.sql gpu_render_stages.out

@@ -65,6 +65,7 @@
 #include "perfetto/trace/ftrace/systrace.pbzero.h"
 #include "perfetto/trace/ftrace/task.pbzero.h"
 #include "perfetto/trace/gpu/gpu_counter_event.pbzero.h"
+#include "perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "perfetto/trace/power/battery_counters.pbzero.h"
@@ -398,6 +399,10 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_gpu_counter_event()) {
     ParseGpuCounterEvent(ts, packet.gpu_counter_event());
+  }
+
+  if (packet.has_gpu_render_stage_event()) {
+    ParseGpuRenderStageEvent(ts, packet.gpu_render_stage_event());
   }
 
   if (packet.has_packages_list()) {
@@ -2087,6 +2092,47 @@ void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
             ts, counter.double_value(), gpu_counter_ids_[counter_id], 0, RefType::kRefGpuId);
       }
     }
+  }
+}
+
+void ProtoTraceParser::ParseGpuRenderStageEvent(int64_t ts, ConstBytes blob) {
+  protos::pbzero::GpuRenderStageEvent::Decoder event(blob.data, blob.size);
+
+  if (event.has_specifications()) {
+    protos::pbzero::GpuRenderStageEvent_Specifications::Decoder spec(
+        event.specifications().data, event.specifications().size);
+    for (auto it = spec.hw_queue(); it; ++it) {
+      protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
+          hw_queue(it->data(), it->size());
+      if (hw_queue.has_name()) {
+        // TODO: create vtrack for each HW queue when it's ready.
+        gpu_hw_queue_ids_.emplace_back(
+            context_->storage->InternString(hw_queue.name()));
+      }
+    }
+    for (auto it = spec.stage(); it; ++it) {
+      protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
+          stage(it->data(), it->size());
+      if (stage.has_name()) {
+        gpu_render_stage_ids_.emplace_back(
+            context_->storage->InternString(stage.name()));
+      }
+    }
+  }
+
+  if (event.has_event_id()) {
+    size_t stage_id = static_cast<size_t>(event.stage_id());
+    StringId stage_name;
+    if (stage_id < gpu_render_stage_ids_.size()) {
+      stage_name = gpu_render_stage_ids_[stage_id];
+    } else {
+      char buffer[64];
+      snprintf(buffer, 64, "render stage(%zu)", stage_id);
+      stage_name = context_->storage->InternString(buffer);
+    }
+    context_->slice_tracker->Scoped(
+        ts, event.hw_queue_id(), RefType::kRefGpuId, 0, /* cat */
+        stage_name, static_cast<int64_t>(event.duration()));
   }
 }
 
