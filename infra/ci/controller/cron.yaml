@@ -22,6 +22,11 @@ cron:
   schedule: every 24 hours
   target: controller
 
+- description: "Delete stale jobs from the running queue"
+  url: /controller/delete_stale_jobs
+  schedule: every 15 minutes
+  target: controller
+
 # This is unnecessary if everything works fine all the time, because each
 # /worker/tick task enqueues the next one. However if anything goes wrong the
 # chain would break. We use this cron job to re-kick it if this happens.
