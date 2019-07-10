@@ -337,6 +337,7 @@ if (perfetto_build_standalone) {
       "src/trace_processor:trace_processor_fuzzer",
       "src/traced/probes/ftrace:cpu_reader_fuzzer",
       "test:end_to_end_shared_memory_fuzzer",
+      "test:producer_socket_fuzzer",
     ]
   }
 }
