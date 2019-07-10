@@ -34,6 +34,9 @@ constexpr uint32_t kCounter = 1;
 constexpr uint32_t kDurationBegin = 2;
 constexpr uint32_t kDurationEnd = 3;
 constexpr uint32_t kDurationComplete = 4;
+constexpr uint32_t kAsyncBegin = 5;
+constexpr uint32_t kAsyncInstant = 6;
+constexpr uint32_t kAsyncEnd = 7;
 
 // Argument Types
 constexpr uint32_t kNull = 0;
@@ -282,6 +285,30 @@ void FuchsiaTraceParser::ParseTracePacket(
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           slices->Scoped(ts, utid, RefType::kRefUtid, cat, name, end_ts - ts);
+          break;
+        }
+        case kAsyncBegin: {
+          int64_t correlation_id = static_cast<int64_t>(*current++);
+          slices->Begin(ts, correlation_id, RefType::kRefGlobalAsyncTrack, cat,
+                        name);
+          break;
+        }
+        case kAsyncInstant: {
+          int64_t correlation_id = static_cast<int64_t>(*current++);
+          RowId row = context_->event_tracker->PushInstant(
+              ts, name, 0, correlation_id, RefType::kRefGlobalAsyncTrack);
+          for (const Arg& arg : args) {
+            context_->args_tracker->AddArg(
+                row, arg.name, arg.name,
+                arg.value.ToStorageVariadic(context_->storage.get()));
+          }
+          context_->args_tracker->Flush();
+          break;
+        }
+        case kAsyncEnd: {
+          int64_t correlation_id = static_cast<int64_t>(*current++);
+          slices->End(ts, correlation_id, RefType::kRefGlobalAsyncTrack, cat,
+                      name);
           break;
         }
       }
