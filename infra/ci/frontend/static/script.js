@@ -145,7 +145,7 @@ function renderHeader() {
 var CLsPageRenderer = {
   view: function (vnode) {
     const allCols = 4 + JOB_TYPES.length;
-    const postsubmitHeader = m('tr.postsubmit',
+    const postsubmitHeader = m('tr',
       m(`td.header[colspan=${allCols}]`, 'Post-submit')
     );
 
@@ -285,14 +285,9 @@ function renderPostsubmitRow(key) {
   const branch = state.dbBranches[key];
   console.assert(branch !== undefined);
   const subject = branch.subject;
-  const expanded = !!state.expandCl[key];
   let rows = [];
   rows.push(m(`tr`,
     m('td',
-      m(`i.material-icons.expand${expanded ? '.expanded' : ''}`,
-        { onclick: () => state.expandCl[key] ^= 1 },
-        'arrow_right'
-      ),
       m(`a[href=${cfg.REPO_URL}/+/${branch.rev}]`,
         subject, m('span.ps', `#${branch.rev.substr(0, 8)}`)
       )
@@ -306,7 +301,7 @@ function renderPostsubmitRow(key) {
 
   const allKeys = state.getBranchKeys();
   const curIdx = allKeys.indexOf(key);
-  if (expanded && curIdx >= 0 && curIdx < allKeys.length - 1) {
+  if (curIdx >= 0 && curIdx < allKeys.length - 1) {
     const nextKey = allKeys[curIdx + 1];
     const range = `${state.dbBranches[nextKey].rev}..${branch.rev}`;
     const logs = (state.gerritLogs[range] || []).slice(1);
@@ -324,7 +319,9 @@ function renderPostsubmitRow(key) {
           m('td', ''),
           m('td', stripEmail(log.author.email)),
           m('td', getLastUpdate(parseGerritTime(log.committer.time))),
-          m(`td[colspan=${JOB_TYPES.length}]`),
+          m(`td[colspan=${JOB_TYPES.length}]`,
+            'No post-submit was run for this revision'
+          ),
         )
       );
     }
