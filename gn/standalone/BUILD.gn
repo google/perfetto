@@ -196,7 +196,6 @@ config("release") {
     ldflags = [ "-dead_strip" ]
   } else {
     ldflags = [
-      "-fuse-ld=gold",
       "-Wl,--gc-sections",
       "-Wl,--icf=all",
       "-Wl,-O1",
