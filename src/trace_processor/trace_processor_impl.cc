@@ -67,6 +67,7 @@
 #include "src/trace_processor/thread_table.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/virtual_track_tracker.h"
 #include "src/trace_processor/window_operator_table.h"
 
 #include "perfetto/metrics/android/mem_metric.pbzero.h"
@@ -317,6 +318,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
 
   context_.config = cfg;
   context_.storage.reset(new TraceStorage());
+  context_.virtual_track_tracker.reset(new VirtualTrackTracker(&context_));
   context_.args_tracker.reset(new ArgsTracker(&context_));
   context_.slice_tracker.reset(new SliceTracker(&context_));
   context_.event_tracker.reset(new EventTracker(&context_));
