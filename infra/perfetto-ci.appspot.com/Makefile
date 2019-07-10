@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This is deprecated and will be removed soon.
 deploy:
-	gcloud app deploy app.yaml --project perfetto-ci
+	gcloud app deploy app.yaml \
+		--project perfetto-ci --no-promote --stop-previous-version \
+		-v travis
 
 test:
 	dev_appserver.py .
