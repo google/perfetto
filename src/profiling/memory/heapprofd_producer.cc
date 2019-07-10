@@ -16,6 +16,8 @@
 
 #include "src/profiling/memory/heapprofd_producer.h"
 
+#include <algorithm>
+
 #include <inttypes.h>
 #include <signal.h>
 #include <sys/stat.h>
