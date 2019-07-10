@@ -28,14 +28,15 @@ class ArgsTracker;
 class ChunkedTraceReader;
 class ClockTracker;
 class EventTracker;
+class HeapProfileTracker;
 class ProcessTracker;
 class SliceTracker;
 class SyscallTracker;
+class SystraceParser;
 class TraceParser;
 class TraceStorage;
 class TraceSorter;
-class HeapProfileTracker;
-class SystraceParser;
+class VirtualTrackTracker;
 
 class TraceProcessorContext {
  public:
@@ -44,6 +45,7 @@ class TraceProcessorContext {
 
   Config config;
   std::unique_ptr<TraceStorage> storage;
+  std::unique_ptr<VirtualTrackTracker> virtual_track_tracker;
   std::unique_ptr<ArgsTracker> args_tracker;
   std::unique_ptr<SliceTracker> slice_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;

@@ -28,6 +28,7 @@
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/virtual_track_tracker.h"
 
 #include "perfetto/common/sys_stats_counters.pbzero.h"
 #include "perfetto/trace/android/packages_list.pbzero.h"
@@ -147,30 +148,27 @@ class MockSliceTracker : public SliceTracker {
  public:
   MockSliceTracker(TraceProcessorContext* context) : SliceTracker(context) {}
 
-  MOCK_METHOD7(Begin,
+  MOCK_METHOD6(Begin,
                void(int64_t timestamp,
                     int64_t ref,
                     RefType ref_type,
                     StringId cat,
                     StringId name,
-                    StringId ref_scope,
                     SetArgsCallback args_callback));
-  MOCK_METHOD7(End,
+  MOCK_METHOD6(End,
                void(int64_t timestamp,
                     int64_t ref,
                     RefType ref_type,
                     StringId cat,
                     StringId name,
-                    StringId ref_scope,
                     SetArgsCallback args_callback));
-  MOCK_METHOD8(Scoped,
+  MOCK_METHOD7(Scoped,
                void(int64_t timestamp,
                     int64_t ref,
                     RefType ref_type,
                     StringId cat,
                     StringId name,
                     int64_t duration,
-                    StringId ref_scope,
                     SetArgsCallback args_callback));
 };
 
@@ -179,6 +177,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   ProtoTraceParserTest() {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
+    context_.virtual_track_tracker.reset(new VirtualTrackTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
@@ -680,10 +679,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
       .WillRepeatedly(Return(1));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_,
-              Scoped(1005000, 1, RefType::kRefUtid, 0, 0, 23000, 0, _));
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 0, 0, 0, _));
-  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 0, 0, 0, _));
+  EXPECT_CALL(*slice_, Scoped(1005000, 1, RefType::kRefUtid, 0, 0, 23000, _));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 0, 0, _));
+  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 0, 0, _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -795,20 +793,19 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_,
-              Scoped(1005000, 1, RefType::kRefUtid, 1, 2, 23000, 0, _));
+  EXPECT_CALL(*slice_, Scoped(1005000, 1, RefType::kRefUtid, 1, 2, 23000, _));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(4));
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 3, 4, 0, _));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 3, 4, _));
 
-  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 3, 4, 0, _));
+  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 3, 4, _));
 
-  EXPECT_CALL(*slice_, Scoped(1040000, 1, RefType::kRefUtid, 3, 4, 0, 0, _));
+  EXPECT_CALL(*slice_, Scoped(1040000, 1, RefType::kRefUtid, 3, 4, 0, _));
 
-  EXPECT_CALL(*slice_, Scoped(1050000, 2, RefType::kRefUpid, 3, 4, 0, 0, _));
+  EXPECT_CALL(*slice_, Scoped(1050000, 2, RefType::kRefUpid, 3, 4, 0, _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -896,6 +893,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   EXPECT_CALL(*process_, UpdateThread(16, 15))
       .Times(4)
       .WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, GetOrCreateProcess(15)).WillOnce(Return(1));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
@@ -903,25 +901,32 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_,
-              Begin(1010000, 10, RefType::kRefGlobalAsyncTrack, 1, 2, 0, _));
+  EXPECT_CALL(*slice_, Begin(1010000, 0, RefType::kRefTrack, 1, 2, _));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat2")))
       .WillOnce(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(4));
-  EXPECT_CALL(*slice_, Scoped(1015000, 10, RefType::kRefGlobalAsyncTrack, 3, 4,
-                              0, 0, _));
+  EXPECT_CALL(*slice_, Scoped(1015000, 0, RefType::kRefTrack, 3, 4, 0, _));
 
-  EXPECT_CALL(*slice_,
-              End(1020000, 10, RefType::kRefGlobalAsyncTrack, 1, 2, 0, _));
+  EXPECT_CALL(*slice_, End(1020000, 0, RefType::kRefTrack, 1, 2, _));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("scope1")))
       .WillOnce(Return(5));
-  EXPECT_CALL(*slice_, Scoped(1030000, 15, RefType::kRefProcessAsyncTrack, 3, 4,
-                              0, 5, _));
+  EXPECT_CALL(*slice_, Scoped(1030000, 1, RefType::kRefTrack, 3, 4, 0, _));
 
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->virtual_tracks().virtual_track_count(), 2u);
+  EXPECT_EQ(storage_->virtual_tracks().track_ids()[0], 0u);
+  EXPECT_EQ(storage_->virtual_tracks().track_ids()[1], 1u);
+  EXPECT_EQ(storage_->virtual_tracks().names()[0], 2u);
+  EXPECT_EQ(storage_->virtual_tracks().names()[1], 4u);
+  EXPECT_EQ(storage_->virtual_tracks().scopes()[0], VirtualTrackScope::kGlobal);
+  EXPECT_EQ(storage_->virtual_tracks().scopes()[1],
+            VirtualTrackScope::kProcess);
+  EXPECT_EQ(storage_->virtual_tracks().upids()[0], 0u);
+  EXPECT_EQ(storage_->virtual_tracks().upids()[1], 1u);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
@@ -952,7 +957,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
 
   Tokenize();
 
-  EXPECT_CALL(*slice_, Begin(_, _, _, _, _, _, _)).Times(0);
+  EXPECT_CALL(*slice_, Begin(_, _, _, _, _, _)).Times(0);
   context_.sorter->ExtractEventsForced();
 }
 
@@ -976,7 +981,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
 
   Tokenize();
 
-  EXPECT_CALL(*slice_, Begin(_, _, _, _, _, _, _)).Times(0);
+  EXPECT_CALL(*slice_, Begin(_, _, _, _, _, _)).Times(0);
   context_.sorter->ExtractEventsForced();
 }
 
@@ -1071,8 +1076,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
       .WillRepeatedly(Return(1));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 0, 0, 0, _));
-  EXPECT_CALL(*slice_, End(2010000, 1, RefType::kRefUtid, 0, 0, 0, _));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 0, 0, _));
+  EXPECT_CALL(*slice_, End(2010000, 1, RefType::kRefUtid, 0, 0, _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -1178,16 +1183,16 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(2));
 
-  EXPECT_CALL(*slice_, Begin(1005000, 2, RefType::kRefUtid, 1, 2, 0, _));
+  EXPECT_CALL(*slice_, Begin(1005000, 2, RefType::kRefUtid, 1, 2, _));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(3));
 
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 1, 3, 0, _));
-  EXPECT_CALL(*slice_, End(1015000, 2, RefType::kRefUtid, 1, 2, 0, _));
-  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 1, 3, 0, _));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 1, 3, _));
+  EXPECT_CALL(*slice_, End(1015000, 2, RefType::kRefUtid, 1, 2, _));
+  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 1, 3, _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -1322,8 +1327,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 1, 2, 0, _))
-      .WillOnce(testing::InvokeArgument<6>(&args, 1u));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 1, 2, _))
+      .WillOnce(testing::InvokeArgument<5>(&args, 1u));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an1")))
       .WillOnce(Return(3));
   EXPECT_CALL(args, AddArg(1u, 3, 3, Variadic::UnsignedInteger(10u)));
@@ -1356,8 +1361,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
       .WillOnce(Return(10));
   EXPECT_CALL(args, AddArg(1u, 6, 10, Variadic::Integer(23)));
 
-  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 1, 2, 0, _))
-      .WillOnce(testing::InvokeArgument<6>(&args, 1u));
+  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 1, 2, _))
+      .WillOnce(testing::InvokeArgument<5>(&args, 1u));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an3")))
       .WillOnce(Return(11));
@@ -1436,8 +1441,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 1, 2, 0, _))
-      .WillOnce(testing::InvokeArgument<6>(&args, 1u));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 1, 2, _))
+      .WillOnce(testing::InvokeArgument<5>(&args, 1u));
   EXPECT_CALL(*storage_, InternString(base::StringView("file1")))
       .WillOnce(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("func1")))

@@ -49,8 +49,7 @@ std::vector<const char*> CreateRefTypeStringMap() {
   map[RefType::kRefIrq] = "irq";
   map[RefType::kRefSoftIrq] = "softirq";
   map[RefType::kRefUpid] = "upid";
-  map[RefType::kRefGlobalAsyncTrack] = "global_async_track";
-  map[RefType::kRefProcessAsyncTrack] = "process_async_track";
+  map[RefType::kRefTrack] = "track";
   return map;
 }
 

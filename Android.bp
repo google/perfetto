@@ -3749,6 +3749,7 @@ cc_binary {
     "src/trace_processor/trace_sorter.cc",
     "src/trace_processor/trace_storage.cc",
     "src/trace_processor/virtual_destructors.cc",
+    "src/trace_processor/virtual_track_tracker.cc",
     "src/trace_processor/window_operator_table.cc",
   ],
   shared_libs: [
@@ -3917,6 +3918,7 @@ cc_binary_host {
     "src/trace_processor/trace_sorter.cc",
     "src/trace_processor/trace_storage.cc",
     "src/trace_processor/virtual_destructors.cc",
+    "src/trace_processor/virtual_track_tracker.cc",
     "src/trace_processor/window_operator_table.cc",
     "tools/trace_to_text/main.cc",
     "tools/trace_to_text/pprof_builder.cc",
