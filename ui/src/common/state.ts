@@ -122,6 +122,8 @@ export interface LogsPagination {
 }
 
 export interface State {
+  // tslint:disable-next-line:no-any
+  [key: string]: any;
   route: string|null;
   nextId: number;
 
