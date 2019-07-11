@@ -2103,8 +2103,6 @@ void ProtoTraceParser::ParseAndroidPackagesList(ConstBytes blob) {
     RowId row_id = context_->storage->AppendMetadata(
         metadata::android_packages_list, Variadic::Integer(0));
 
-    // TODO(rsavitski): using only Integer and String variadic types. Change
-    // once the args table type casts are made fully correct.
     auto add_arg = [this, row_id](base::StringView name, Variadic value) {
       StringId key_id = context_->storage->InternString(name);
       context_->args_tracker->AddArg(row_id, key_id, key_id, value);
@@ -2113,10 +2111,10 @@ void ProtoTraceParser::ParseAndroidPackagesList(ConstBytes blob) {
                                                           it->size());
     add_arg("name",
             Variadic::String(context_->storage->InternString(pkg.name())));
-    add_arg("uid", Variadic::Integer(static_cast<int64_t>(pkg.uid())));
-    add_arg("debuggable", Variadic::Integer(pkg.debuggable()));
+    add_arg("uid", Variadic::UnsignedInteger(pkg.uid()));
+    add_arg("debuggable", Variadic::Boolean(pkg.debuggable()));
     add_arg("profileable_from_shell",
-            Variadic::Integer(pkg.profileable_from_shell()));
+            Variadic::Boolean(pkg.profileable_from_shell()));
     add_arg("version_code", Variadic::Integer(pkg.version_code()));
   }
 }
