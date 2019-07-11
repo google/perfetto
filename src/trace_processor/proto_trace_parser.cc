@@ -89,6 +89,7 @@ namespace {
 // kthreadd is the parent process for all kernel threads and always has
 // pid == 2 on Linux and Android.
 const uint32_t kKthreaddPid = 2;
+const char kKthreaddName[] = "kthreadd";
 
 using protozero::ProtoDecoder;
 
@@ -512,6 +513,8 @@ void ProtoTraceParser::ParseProcessTree(ConstBytes blob) {
     // If the parent pid is kthreadd's pid, even though this pid is of a
     // "process", we want to treat it as being a child thread of kthreadd.
     if (ppid == kKthreaddPid) {
+      context_->process_tracker->SetProcessMetadata(kKthreaddPid, base::nullopt,
+                                                    kKthreaddName);
       context_->process_tracker->UpdateThread(pid, kKthreaddPid);
     } else {
       context_->process_tracker->SetProcessMetadata(
@@ -901,6 +904,11 @@ void ProtoTraceParser::ParseTaskNewTask(int64_t ts,
     // This is a plain-old fork() or equivalent.
     proc_tracker->StartNewProcess(ts, new_tid, new_comm);
     return;
+  }
+
+  if (source_tid == kKthreaddPid) {
+    context_->process_tracker->SetProcessMetadata(kKthreaddPid, base::nullopt,
+                                                  kKthreaddName);
   }
 
   // This is a pthread_create or similar. Bind the two threads together, so
