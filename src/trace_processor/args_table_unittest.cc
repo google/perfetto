@@ -49,6 +49,13 @@ class ArgsTableUnittest : public ::testing::Test {
     return reinterpret_cast<const char*>(sqlite3_column_text(*stmt_, colId));
   }
 
+  void AssertArgRowValues(int arg_set_id,
+                          const char* flat_key,
+                          const char* key,
+                          base::Optional<int64_t> int_value,
+                          base::Optional<const char*> string_value,
+                          base::Optional<double> real_value);
+
   ~ArgsTableUnittest() override { context_.storage->ResetStorage(); }
 
  protected:
@@ -56,6 +63,34 @@ class ArgsTableUnittest : public ::testing::Test {
   ScopedDb db_;
   ScopedStmt stmt_;
 };
+
+// Test helper.
+void ArgsTableUnittest::AssertArgRowValues(
+    int arg_set_id,
+    const char* flat_key,
+    const char* key,
+    base::Optional<int64_t> int_value,
+    base::Optional<const char*> string_value,
+    base::Optional<double> real_value) {
+  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), arg_set_id);
+  ASSERT_STREQ(GetColumnAsText(1), flat_key);
+  ASSERT_STREQ(GetColumnAsText(2), key);
+  if (int_value.has_value()) {
+    ASSERT_EQ(sqlite3_column_int64(*stmt_, 3), int_value.value());
+  } else {
+    ASSERT_EQ(sqlite3_column_type(*stmt_, 3), SQLITE_NULL);
+  }
+  if (string_value.has_value()) {
+    ASSERT_STREQ(GetColumnAsText(4), string_value.value());
+  } else {
+    ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);
+  }
+  if (real_value.has_value()) {
+    ASSERT_EQ(sqlite3_column_double(*stmt_, 5), real_value.value());
+  } else {
+    ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);
+  }
+}
 
 TEST_F(ArgsTableUnittest, IntValue) {
   static const char kFlatKey[] = "flat_key";
@@ -72,13 +107,7 @@ TEST_F(ArgsTableUnittest, IntValue) {
   PrepareValidStatement("SELECT * FROM args");
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);             // arg_set_id
-  ASSERT_STREQ(GetColumnAsText(1), kFlatKey);              // flat_key
-  ASSERT_STREQ(GetColumnAsText(2), kKey);                  // key
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3), kValue);      // int_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
-
+  AssertArgRowValues(1, kFlatKey, kKey, kValue, base::nullopt, base::nullopt);
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
@@ -97,13 +126,7 @@ TEST_F(ArgsTableUnittest, StringValue) {
   PrepareValidStatement("SELECT * FROM args");
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);             // arg_set_id
-  ASSERT_STREQ(GetColumnAsText(1), kFlatKey);              // flat_key
-  ASSERT_STREQ(GetColumnAsText(2), kKey);                  // key
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 3), SQLITE_NULL);  // int_value
-  ASSERT_STREQ(GetColumnAsText(4), kValue);                // string_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
-
+  AssertArgRowValues(1, kFlatKey, kKey, base::nullopt, kValue, base::nullopt);
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
@@ -122,13 +145,7 @@ TEST_F(ArgsTableUnittest, RealValue) {
   PrepareValidStatement("SELECT * FROM args");
 
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);             // arg_set_id
-  ASSERT_STREQ(GetColumnAsText(1), kFlatKey);              // flat_key
-  ASSERT_STREQ(GetColumnAsText(2), kKey);                  // key
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 3), SQLITE_NULL);  // int_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
-  ASSERT_EQ(sqlite3_column_double(*stmt_, 5), kValue);     // real_value
-
+  AssertArgRowValues(1, kFlatKey, kKey, base::nullopt, base::nullopt, kValue);
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
@@ -144,17 +161,11 @@ TEST_F(ArgsTableUnittest, BoolValueTreatedAsInt) {
 
   context_.storage->mutable_args()->AddArgSet({arg}, 0, 1);
 
-  PrepareValidStatement("SELECT * FROM args");
-
-  // Boolean returned in the "int_value" column.
+  // Boolean returned in the "int_value" column, and is comparable to an integer
+  // literal.
+  PrepareValidStatement("SELECT * FROM args WHERE int_value = 1");
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);             // arg_set_id
-  ASSERT_STREQ(GetColumnAsText(1), kFlatKey);              // flat_key
-  ASSERT_STREQ(GetColumnAsText(2), kKey);                  // key
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 3), kValue);        // int_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
-
+  AssertArgRowValues(1, kFlatKey, kKey, kValue, base::nullopt, base::nullopt);
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
@@ -174,30 +185,24 @@ TEST_F(ArgsTableUnittest, PointerValueTreatedAsInt) {
 
   context_.storage->mutable_args()->AddArgSet({arg, arg2}, 0, 2);
 
-  // Pointer returned in the "int_value" column, as a signed 64 bit.
+  // Pointer returned in the "int_value" column, as a signed 64 bit. And is
+  // comparable to an integer literal.
 
   static const int64_t kExpectedSmallValue = static_cast<int64_t>(kSmallValue);
-  PrepareValidStatement("SELECT * FROM args where key = \"key_small\"");
+  PrepareValidStatement(std::string("SELECT * FROM args WHERE int_value = ") +
+                        std::to_string(kExpectedSmallValue));
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
-  ASSERT_STREQ(GetColumnAsText(1), "flat_key_small");  // flat_key
-  ASSERT_STREQ(GetColumnAsText(2), "key_small");       // key
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3), kExpectedSmallValue);  // int_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
+  AssertArgRowValues(1, "flat_key_small", "key_small", kExpectedSmallValue,
+                     base::nullopt, base::nullopt);
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 
   static const int64_t kExpectedTopBitSetValue =
-      static_cast<int64_t>(kTopBitSetValue);
-  PrepareValidStatement("SELECT * FROM args where key = \"key_large\"");
+      static_cast<int64_t>(kTopBitSetValue);  // negative
+  PrepareValidStatement(std::string("SELECT * FROM args WHERE int_value = ") +
+                        std::to_string(kExpectedTopBitSetValue));
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
-  ASSERT_STREQ(GetColumnAsText(1), "flat_key_large");  // flat_key
-  ASSERT_STREQ(GetColumnAsText(2), "key_large");       // key
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3),
-            kExpectedTopBitSetValue);                      // int_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
+  AssertArgRowValues(1, "flat_key_large", "key_large", kExpectedTopBitSetValue,
+                     base::nullopt, base::nullopt);
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
@@ -217,30 +222,92 @@ TEST_F(ArgsTableUnittest, UintValueTreatedAsInt) {
 
   context_.storage->mutable_args()->AddArgSet({arg, arg2}, 0, 2);
 
-  // Unsigned returned in the "int_value" column, as a signed 64 bit.
+  // Unsigned returned in the "int_value" column, as a signed 64 bit. And is
+  // comparable to an integer literal.
 
   static const int64_t kExpectedSmallValue = static_cast<int64_t>(kSmallValue);
-  PrepareValidStatement("SELECT * FROM args where key = \"key_small\"");
+  PrepareValidStatement(std::string("SELECT * FROM args WHERE int_value = ") +
+                        std::to_string(kExpectedSmallValue));
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
-  ASSERT_STREQ(GetColumnAsText(1), "flat_key_small");  // flat_key
-  ASSERT_STREQ(GetColumnAsText(2), "key_small");       // key
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3), kExpectedSmallValue);  // int_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
+  AssertArgRowValues(1, "flat_key_small", "key_small", kExpectedSmallValue,
+                     base::nullopt, base::nullopt);
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 
   static const int64_t kExpectedTopBitSetValue =
       static_cast<int64_t>(kTopBitSetValue);  // negative
-  PrepareValidStatement("SELECT * FROM args where key = \"key_large\"");
+  PrepareValidStatement(std::string("SELECT * FROM args WHERE int_value = ") +
+                        std::to_string(kExpectedTopBitSetValue));
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int(*stmt_, 0), 1);         // arg_set_id
-  ASSERT_STREQ(GetColumnAsText(1), "flat_key_large");  // flat_key
-  ASSERT_STREQ(GetColumnAsText(2), "key_large");       // key
-  ASSERT_EQ(sqlite3_column_int64(*stmt_, 3),
-            kExpectedTopBitSetValue);                      // int_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 4), SQLITE_NULL);  // string_value
-  ASSERT_EQ(sqlite3_column_type(*stmt_, 5), SQLITE_NULL);  // real_value
+  AssertArgRowValues(1, "flat_key_large", "key_large", kExpectedTopBitSetValue,
+                     base::nullopt, base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
+}
+
+TEST_F(ArgsTableUnittest, IntegerLikeValuesSortByIntRepresentation) {
+  static const char kFlatKey[] = "flat_key";
+  static const char kKey[] = "key";
+
+  TraceStorage::Args::Arg bool_arg_true;
+  bool_arg_true.flat_key = context_.storage->InternString(kFlatKey);
+  bool_arg_true.key = context_.storage->InternString(kKey);
+  bool_arg_true.value = Variadic::Boolean(true);
+
+  TraceStorage::Args::Arg bool_arg_false;
+  bool_arg_false.flat_key = context_.storage->InternString(kFlatKey);
+  bool_arg_false.key = context_.storage->InternString(kKey);
+  bool_arg_false.value = Variadic::Boolean(false);
+
+  TraceStorage::Args::Arg pointer_arg_42;
+  pointer_arg_42.flat_key = context_.storage->InternString(kFlatKey);
+  pointer_arg_42.key = context_.storage->InternString(kKey);
+  pointer_arg_42.value = Variadic::Pointer(42);
+
+  TraceStorage::Args::Arg unsigned_arg_10;
+  unsigned_arg_10.flat_key = context_.storage->InternString(kFlatKey);
+  unsigned_arg_10.key = context_.storage->InternString(kKey);
+  unsigned_arg_10.value = Variadic::UnsignedInteger(10);
+
+  // treated as null by the int_value column
+  TraceStorage::Args::Arg string_arg;
+  string_arg.flat_key = context_.storage->InternString(kFlatKey);
+  string_arg.key = context_.storage->InternString(kKey);
+  string_arg.value =
+      Variadic::String(context_.storage->InternString("string_content"));
+
+  context_.storage->mutable_args()->AddArgSet(
+      {bool_arg_true, bool_arg_false, pointer_arg_42, unsigned_arg_10,
+       string_arg},
+      0, 5);
+
+  // Ascending sort by int representations:
+  // { null (string), 0 (false), 1 (true), 10, 42 }
+  PrepareValidStatement("SELECT * FROM args ORDER BY int_value ASC");
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, base::nullopt, "string_content",
+                     base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, 0, base::nullopt, base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, 1, base::nullopt, base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, 10, base::nullopt, base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, 42, base::nullopt, base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
+
+  // Desceding order.
+  PrepareValidStatement("SELECT * FROM args ORDER BY int_value DESC");
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, 42, base::nullopt, base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, 10, base::nullopt, base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, 1, base::nullopt, base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, 0, base::nullopt, base::nullopt);
+  ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_ROW);
+  AssertArgRowValues(1, kFlatKey, kKey, base::nullopt, "string_content",
+                     base::nullopt);
   ASSERT_EQ(sqlite3_step(*stmt_), SQLITE_DONE);
 }
 
