@@ -14,6 +14,7 @@
 
 import {dingus} from 'dingusjs';
 
+import {assertExists} from '../base/logging';
 import {TraceConfig} from '../common/protos';
 import {createEmptyRecordConfig, RecordConfig} from '../common/state';
 
@@ -24,8 +25,6 @@ import {
   toPbtxt,
   uint8ArrayToBase64
 } from './record_controller';
-
-import {assertExists} from '../base/logging';
 
 test('uint8ArrayToBase64', () => {
   const bytes = [...'Hello, world'].map(c => c.charCodeAt(0));
@@ -110,4 +109,50 @@ test('RecordController', () => {
   expect(calls.length).toBe(1);
   // TODO(hjd): Fix up dingus to have a more sensible API.
   expect(calls[0][1][0]).toEqual('TrackData');
+});
+
+test('ChromeConfig', () => {
+  const config = createEmptyRecordConfig();
+  config.ipcFlows = true;
+  config.jsExecution = true;
+  const result = TraceConfig.decode(genConfigProto(config));
+  const sources = assertExists(result.dataSources);
+
+  const traceConfigSource = assertExists(sources[0].config);
+  expect(traceConfigSource.name).toBe('org.chromium.trace_event');
+  const chromeConfig = assertExists(traceConfigSource.chromeConfig);
+  const traceConfig = assertExists(chromeConfig.traceConfig);
+
+  const metadataConfigSource = assertExists(sources[1].config);
+  expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
+  const chromeConfigM = assertExists(metadataConfigSource.chromeConfig);
+  const traceConfigM = assertExists(chromeConfigM.traceConfig);
+
+  const expectedTraceConfig = '{"included_categories":["toplevel","disable\
+d-by-default-ipc.flow","v8"]}';
+  expect(traceConfigM).toEqual(expectedTraceConfig);
+  expect(traceConfig).toEqual(expectedTraceConfig);
+});
+
+test('ChromeConfigToPbtxt', () => {
+  const config = {
+    dataSources: [{
+      config: {
+        name: 'org.chromium.trace_event',
+        chromeConfig:
+            {traceConfig: JSON.stringify({included_categories: ['v8']})},
+      },
+    }],
+  };
+  const text = toPbtxt(TraceConfig.encode(config).finish());
+
+  expect(text).toEqual(`data_sources: {
+    config {
+        name: "org.chromium.trace_event"
+        chrome_config {
+            trace_config: "{\\"included_categories\\":[\\"v8\\"]}"
+        }
+    }
+}
+`);
 });
