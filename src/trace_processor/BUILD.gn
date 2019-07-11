@@ -133,8 +133,6 @@ source_set("lib") {
     "storage_table.h",
     "string_pool.cc",
     "string_pool.h",
-    "string_table.cc",
-    "string_table.h",
     "syscall_tracker.cc",
     "syscall_tracker.h",
     "syscalls_aarch32.h",
