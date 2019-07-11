@@ -31,6 +31,7 @@ genrule(
         "src/trace_processor/metrics/android/android_lmk.sql",
         "src/trace_processor/metrics/android/android_mem.sql",
         "src/trace_processor/metrics/android/android_mem_unagg.sql",
+        "src/trace_processor/metrics/android/android_package_list.sql",
         "src/trace_processor/metrics/android/android_powrails.sql",
         "src/trace_processor/metrics/android/android_process_growth.sql",
         "src/trace_processor/metrics/android/android_startup.sql",

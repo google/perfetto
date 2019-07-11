@@ -27,6 +27,7 @@ common_sources = [
   "powrails_metric.proto",
   "startup_metric.proto",
   "heap_profile.proto",
+  "package_list.proto",
 ]
 
 proto_library("lite") {
