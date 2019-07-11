@@ -62,7 +62,7 @@ using ::perfetto::protos::ProfilePacket;
 
 class Subprocess {
  public:
-  Subprocess(const std::string file, std::vector<std::string> args)
+  Subprocess(const std::string& file, std::vector<std::string> args)
       : input_pipe_(base::Pipe::Create(base::Pipe::kBothBlock)),
         output_pipe_(base::Pipe::Create(base::Pipe::kBothBlock)) {
     std::vector<char*> c_str_args(args.size() + 1, nullptr);
@@ -465,7 +465,7 @@ class Symbolizer {
   uint64_t intern_id_ = std::numeric_limits<uint64_t>::max();
 };
 
-void WriteTracePacket(const std::string str, std::ostream* output) {
+void WriteTracePacket(const std::string& str, std::ostream* output) {
   constexpr char kPreamble =
       MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
   uint8_t length_field[10];
