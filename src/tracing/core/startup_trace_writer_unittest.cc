@@ -381,7 +381,7 @@ TEST_P(StartupTraceWriterTest, BindAndCommitInBatches) {
   // The packet should fit into a chunk.
   EXPECT_EQ(
       fake_producer_endpoint_.last_commit_data_request.chunks_to_move().size(),
-      1);
+      1u);
   EXPECT_EQ(CountCompleteChunksInSMB(), kChunksPerBatch + 1);
 
   // Write and commit the remaining chunks to the SMB.
