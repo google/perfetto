@@ -111,6 +111,14 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   void NotifyFlushComplete(FlushRequestID) override;
 
+  base::TaskRunner* task_runner() const { return task_runner_; }
+  size_t page_size() const { return shmem_abi_.page_size(); }
+  size_t num_pages() const { return shmem_abi_.num_pages(); }
+
+  base::WeakPtr<SharedMemoryArbiterImpl> GetWeakPtr() const {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
+
  private:
   friend class TraceWriterImpl;
   friend class StartupTraceWriterTest;

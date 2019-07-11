@@ -86,6 +86,10 @@ class PERFETTO_EXPORT StartupTraceWriterRegistry {
   //
   // Calls |on_bound_callback| asynchronously on the passed TaskRunner once all
   // writers were bound.
+  //
+  // The commit of the StartupTraceWriters' locally buffered data to the SMB is
+  // rate limited to avoid exhausting the SMB, and may continue asynchronously
+  // even after |on_bound_callback| was called.
   void BindToArbiter(
       SharedMemoryArbiterImpl*,
       BufferID target_buffer,
@@ -129,6 +133,7 @@ class PERFETTO_EXPORT StartupTraceWriterRegistry {
   SharedMemoryArbiterImpl* arbiter_ = nullptr;  // |nullptr| while unbound.
   BufferID target_buffer_ = 0;
   base::TaskRunner* task_runner_;
+  size_t chunks_per_batch_ = 0;
   std::function<void(StartupTraceWriterRegistry*)> on_bound_callback_ = nullptr;
 
   // Keep at the end. Initialized during |BindToArbiter()|, like |task_runner_|.
