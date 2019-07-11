@@ -902,7 +902,7 @@ void ProtoTraceParser::ParseTaskNewTask(int64_t ts,
   // kthreadd in which case just make it a new thread associated with kthreadd.
   if ((clone_flags & kCloneThread) == 0 && source_tid != kKthreaddPid) {
     // This is a plain-old fork() or equivalent.
-    proc_tracker->StartNewProcess(ts, new_tid, new_comm);
+    proc_tracker->StartNewProcess(ts, source_tid, new_tid, new_comm);
     return;
   }
 

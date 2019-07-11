@@ -143,6 +143,7 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
 }
 
 UniquePid ProcessTracker::StartNewProcess(int64_t timestamp,
+                                          uint32_t parent_tid,
                                           uint32_t pid,
                                           StringId main_thread_name) {
   pids_.erase(pid);
@@ -158,6 +159,14 @@ UniquePid ProcessTracker::StartNewProcess(int64_t timestamp,
   PERFETTO_DCHECK(process.second->name_id == 0);
   process.second->start_ns = timestamp;
   process.second->name_id = main_thread_name;
+
+  UniqueTid parent_utid = GetOrCreateThread(parent_tid);
+  auto* parent_thread = context_->storage->GetMutableThread(parent_utid);
+  if (parent_thread->upid.has_value()) {
+    process.second->parent_upid = parent_thread->upid.value();
+  } else {
+    pending_parent_assocs_.emplace_back(parent_utid, process.first);
+  }
   return process.first;
 }
 
@@ -174,7 +183,7 @@ UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
   TraceStorage::Process* process;
   std::tie(upid, process) = GetOrCreateProcessPtr(pid);
   process->name_id = proc_name_id;
-  process->pupid = pupid;
+  process->parent_upid = pupid;
   return upid;
 }
 
@@ -253,6 +262,29 @@ void ProcessTracker::ResolvePendingAssociations(UniqueTid utid_arg,
   while (!resolved_utids.empty()) {
     UniqueTid utid = resolved_utids.back();
     resolved_utids.pop_back();
+    for (auto it = pending_parent_assocs_.begin();
+         it != pending_parent_assocs_.end();) {
+      UniqueTid parent_utid = it->first;
+      UniquePid child_upid = it->second;
+
+      if (parent_utid != utid) {
+        ++it;
+        continue;
+      }
+      PERFETTO_DCHECK(child_upid != upid);
+
+      // Set the parent pid of the other process
+      auto* child_proc = context_->storage->GetMutableProcess(child_upid);
+      PERFETTO_DCHECK(!child_proc->parent_upid ||
+                      child_proc->parent_upid == upid);
+      child_proc->parent_upid = upid;
+
+      // Erase the pair. The |pending_parent_assocs_| vector is not sorted and
+      // swapping a std::pair<uint32_t, uint32_t> is cheap.
+      std::swap(*it, pending_parent_assocs_.back());
+      pending_parent_assocs_.pop_back();
+    }
+
     for (auto it = pending_assocs_.begin(); it != pending_assocs_.end();) {
       UniqueTid other_utid;
       if (it->first == utid) {

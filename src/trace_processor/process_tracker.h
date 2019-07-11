@@ -76,6 +76,7 @@ class ProcessTracker {
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
   UniquePid StartNewProcess(int64_t timestamp,
+                            uint32_t parent_tid,
                             uint32_t pid,
                             StringId main_thread_name);
 
@@ -137,6 +138,11 @@ class ProcessTracker {
   // don't know yet which process. A and A are idempotent, as in, pair<A,B> is
   // equivalent to pair<B,A>.
   std::vector<std::pair<UniqueTid, UniqueTid>> pending_assocs_;
+
+  // Pending parent process associations. The meaning of pair<ThreadA, ProcessB>
+  // in this vector is: we know that A created process B but we don't know the
+  // process of A. That is, we don't know the parent *process* of B.
+  std::vector<std::pair<UniqueTid, UniquePid>> pending_parent_assocs_;
 };
 
 }  // namespace trace_processor
