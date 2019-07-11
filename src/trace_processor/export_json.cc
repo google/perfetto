@@ -203,7 +203,8 @@ class ArgsBuilder {
     for (Json::Value& args : args_sets_) {
       // Move all fields from "debug" key to upper level.
       if (args.isMember("debug")) {
-        Json::Value debug = args.removeMember("debug");
+        Json::Value debug = args["debug"];
+        args.removeMember("debug");
         for (const auto& member : debug.getMemberNames()) {
           args[member] = debug[member];
         }
@@ -212,7 +213,8 @@ class ArgsBuilder {
       // Rename source fields.
       if (args.isMember("task")) {
         if (args["task"].isMember("posted_from")) {
-          Json::Value posted_from = args["task"].removeMember("posted_from");
+          Json::Value posted_from = args["task"]["posted_from"];
+          args["task"].removeMember("posted_from");
           if (posted_from.isMember("function_name")) {
             args["src_func"] = posted_from["function_name"];
             args["src_file"] = posted_from["file_name"];
