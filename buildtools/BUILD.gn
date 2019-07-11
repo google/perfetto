@@ -830,6 +830,7 @@ source_set("jsoncpp") {
     "jsoncpp/src/lib_json/json_writer.cpp",
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
+  include_dirs = [ "jsoncpp_generated" ]
   public_configs = [ ":jsoncpp_config" ]
 }
 
