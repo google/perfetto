@@ -130,22 +130,30 @@ class PERFETTO_EXPORT StartupTraceWriter
   // Bind this StartupTraceWriter to the provided SharedMemoryArbiterImpl.
   // Called by StartupTraceWriterRegistry::BindToArbiter().
   //
-  // This method can be called on any thread. If any data was written locally
-  // before the writer was bound, BindToArbiter() will copy this data into
-  // chunks in the provided target buffer via the SMB. Any future packets will
-  // be directly written into the SMB via a newly obtained TraceWriter from the
-  // arbiter.
+  // This method should be called on the arbiter's task runner. If any data was
+  // written locally before the writer was bound, BindToArbiter() will copy this
+  // data into chunks in the provided target buffer via the SMB. The commit of
+  // this data to the SMB is rate limited to avoid exhausting the SMB
+  // (|chunks_per_batch|), and may continue asynchronously on the arbiter's task
+  // runner even if binding was successful, provided the SharedMemoryArbiterImpl
+  // is not destroyed. Passing value 0 for |chunks_per_batch| disables rate
+  // limiting. Any future packets will be directly written into the SMB via a
+  // newly obtained TraceWriter from the arbiter.
   //
   // Will fail and return |false| if a concurrent write is in progress. Returns
   // |true| if successfully bound and should then not be called again.
   bool BindToArbiter(SharedMemoryArbiterImpl*,
-                     BufferID target_buffer) PERFETTO_WARN_UNUSED_RESULT;
+                     BufferID target_buffer,
+                     size_t chunks_per_batch) PERFETTO_WARN_UNUSED_RESULT;
 
   // protozero::MessageHandleBase::FinalizationListener implementation.
   void OnMessageFinalized(protozero::Message* message) override;
 
   void OnTracePacketCompleted();
-  ChunkID CommitLocalBufferChunks(SharedMemoryArbiterImpl*, WriterID, BufferID);
+  ChunkID CommitLocalBufferChunks(SharedMemoryArbiterImpl*,
+                                  WriterID,
+                                  BufferID,
+                                  size_t chunks_per_batch);
 
   PERFETTO_THREAD_CHECKER(writer_thread_checker_)
 
@@ -167,7 +175,7 @@ class PERFETTO_EXPORT StartupTraceWriter
   std::unique_ptr<protozero::ScatteredHeapBuffer> memory_buffer_;
   std::unique_ptr<protozero::ScatteredStreamWriter> memory_stream_writer_;
 
-  std::vector<uint32_t> packet_sizes_;
+  std::unique_ptr<std::vector<uint32_t>> packet_sizes_;
 
   // Whether the writer thread is currently writing a TracePacket.
   bool write_in_progress_ = false;

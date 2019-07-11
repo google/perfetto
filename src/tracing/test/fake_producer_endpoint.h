@@ -28,8 +28,10 @@ class FakeProducerEndpoint : public TracingService::ProducerEndpoint {
   void UnregisterDataSource(const std::string&) override {}
   void RegisterTraceWriter(uint32_t, uint32_t) override {}
   void UnregisterTraceWriter(uint32_t) override {}
-  void CommitData(const CommitDataRequest& req, CommitDataCallback) override {
+  void CommitData(const CommitDataRequest& req,
+                  CommitDataCallback callback) override {
     last_commit_data_request = req;
+    last_commit_data_callback = callback;
   }
   void NotifyFlushComplete(FlushRequestID) override {}
   void NotifyDataSourceStarted(DataSourceInstanceID) override {}
@@ -43,6 +45,7 @@ class FakeProducerEndpoint : public TracingService::ProducerEndpoint {
   SharedMemoryArbiter* GetInProcessShmemArbiter() override { return nullptr; }
 
   CommitDataRequest last_commit_data_request;
+  CommitDataCallback last_commit_data_callback;
 };
 
 }  // namespace perfetto
