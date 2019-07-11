@@ -53,7 +53,7 @@ StringId AsStringId(Variadic v) {
   if (v.type == Variadic::Type::kJson)
     return v.json_value;
   PERFETTO_FATAL("invalid Variadic type");
-};
+}
 }  // namespace
 
 ArgsTable::ArgsTable(sqlite3*, const TraceStorage* storage)
