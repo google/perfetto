@@ -69,8 +69,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
             {
               title: name,
             },
-            name,
-            m.trust('&#x200E;')),
+            name + '\u200E'),
           m('.fold-button',
             {
               onclick: (e: MouseEvent) => {
