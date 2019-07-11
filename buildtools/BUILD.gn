@@ -108,6 +108,9 @@ source_set("gtest") {
   sources = [
     "googletest/googletest/src/gtest-all.cc",
   ]
+  deps = [
+    "//gn:default_deps",
+  ]
 }
 
 source_set("gtest_main") {
@@ -117,6 +120,9 @@ source_set("gtest_main") {
   configs += [ ":googletest_config" ]
   sources = [
     "googletest/googletest/src/gtest_main.cc",
+  ]
+  deps = [
+    "//gn:default_deps",
   ]
 }
 
@@ -129,6 +135,9 @@ source_set("gmock") {
   all_dependent_configs = [ ":googletest_config" ]
   sources = [
     "googletest/googlemock/src/gmock-all.cc",
+  ]
+  deps = [
+    "//gn:default_deps",
   ]
 }
 
@@ -205,12 +214,16 @@ source_set("protobuf_lite") {
   configs -= [ "//gn/standalone:extra_warnings" ]
   configs += [ ":protobuf_config" ]
   public_configs = [ ":protobuf_gen_config" ]
+  deps = [
+    "//gn:default_deps",
+  ]
 }
 
 source_set("protobuf_full") {
   visibility = _buildtools_visibility
   deps = [
     ":protobuf_lite",
+    "//gn:default_deps",
   ]
   sources = [
     "protobuf/src/google/protobuf/any.cc",
@@ -277,6 +290,7 @@ if (current_toolchain == host_toolchain) {
     visibility = _buildtools_visibility
     deps = [
       ":protobuf_full",
+      "//gn:default_deps",
     ]
     sources = [
       "protobuf/src/google/protobuf/compiler/code_generator.cc",
@@ -581,6 +595,9 @@ source_set("benchmark") {
   public_configs = [ ":benchmark_config" ]
   all_dependent_configs = [ ":benchmark_config" ]
   configs -= [ "//gn/standalone:extra_warnings" ]
+  deps = [
+    "//gn:default_deps",
+  ]
 }
 
 # On Linux/Android use libbacktrace in debug builds for better stacktraces.
@@ -614,6 +631,9 @@ if (is_linux || is_android) {
     ]
     configs -= [ "//gn/standalone:extra_warnings" ]
     public_configs = [ ":libbacktrace_config" ]
+    deps = [
+      "//gn:default_deps",
+    ]
   }
 }
 
@@ -648,6 +668,9 @@ source_set("sqlite") {
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":sqlite_config" ]
+  deps = [
+    "//gn:default_deps",
+  ]
 }
 
 source_set("sqlite_shell") {
@@ -659,6 +682,7 @@ source_set("sqlite_shell") {
   configs -= [ "//gn/standalone:extra_warnings" ]
   deps = [
     ":sqlite",
+    "//gn:default_deps",
   ]
 }
 
@@ -709,6 +733,9 @@ source_set("lzma") {
     "-Wno-empty-body",
     "-Wno-enum-conversion",
   ]
+  deps = [
+    "//gn:default_deps",
+  ]
 }
 
 source_set("zlib") {
@@ -733,6 +760,9 @@ source_set("zlib") {
   configs -= [ "//gn/standalone:extra_warnings" ]
   cflags = []
   public_configs = [ ":zlib_config" ]
+  deps = [
+    "//gn:default_deps",
+  ]
 }
 
 config("zlib_config") {
@@ -760,6 +790,7 @@ source_set("libunwindstack") {
   ]
   deps = [
     ":lzma",
+    "//gn:default_deps",
   ]
   sources = [
     "android-core/base/file.cpp",
@@ -831,6 +862,9 @@ source_set("jsoncpp") {
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":jsoncpp_config" ]
+  deps = [
+    "//gn:default_deps",
+  ]
 }
 
 config("linenoise_config") {
@@ -853,6 +887,9 @@ source_set("linenoise") {
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":linenoise_config" ]
   cflags = [ "-Wno-tautological-unsigned-zero-compare" ]
+  deps = [
+    "//gn:default_deps",
+  ]
 }
 
 if (use_libfuzzer) {
@@ -868,8 +905,9 @@ if (use_libfuzzer) {
       "libfuzzer/FuzzerDriver.cpp",
       "libfuzzer/FuzzerExtFunctionsDlsym.cpp",
       "libfuzzer/FuzzerExtFunctionsWeak.cpp",
-      "libfuzzer/FuzzerExtFunctionsWeakAlias.cpp",
+      "libfuzzer/FuzzerExtFunctionsWindows.cpp",
       "libfuzzer/FuzzerExtraCounters.cpp",
+      "libfuzzer/FuzzerFork.cpp",
       "libfuzzer/FuzzerIO.cpp",
       "libfuzzer/FuzzerIOPosix.cpp",
       "libfuzzer/FuzzerIOWindows.cpp",
@@ -878,7 +916,6 @@ if (use_libfuzzer) {
       "libfuzzer/FuzzerMerge.cpp",
       "libfuzzer/FuzzerMutate.cpp",
       "libfuzzer/FuzzerSHA1.cpp",
-      "libfuzzer/FuzzerShmemPosix.cpp",
       "libfuzzer/FuzzerTracePC.cpp",
       "libfuzzer/FuzzerUtil.cpp",
       "libfuzzer/FuzzerUtilDarwin.cpp",
@@ -886,6 +923,9 @@ if (use_libfuzzer) {
       "libfuzzer/FuzzerUtilLinux.cpp",
       "libfuzzer/FuzzerUtilPosix.cpp",
       "libfuzzer/FuzzerUtilWindows.cpp",
+    ]
+    deps = [
+      "//gn:default_deps",
     ]
   }
 }
