@@ -1560,16 +1560,17 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
 
   auto first_name_id = find_arg(first_set_id, "name").string_value;
   EXPECT_STREQ(storage_->GetString(first_name_id).c_str(), "com.test.app");
-  EXPECT_EQ(find_arg(first_set_id, "uid").int_value, 1000);
-  EXPECT_EQ(find_arg(first_set_id, "debuggable").int_value, false);
-  EXPECT_EQ(find_arg(first_set_id, "profileable_from_shell").int_value, true);
+  EXPECT_EQ(find_arg(first_set_id, "uid").uint_value, 1000);
+  EXPECT_EQ(find_arg(first_set_id, "debuggable").bool_value, false);
+  EXPECT_EQ(find_arg(first_set_id, "profileable_from_shell").bool_value, true);
   EXPECT_EQ(find_arg(first_set_id, "version_code").int_value, 42);
 
   auto second_name_id = find_arg(second_set_id, "name").string_value;
   EXPECT_STREQ(storage_->GetString(second_name_id).c_str(), "com.test.app2");
-  EXPECT_EQ(find_arg(second_set_id, "uid").int_value, 1001);
-  EXPECT_EQ(find_arg(second_set_id, "debuggable").int_value, false);
-  EXPECT_EQ(find_arg(second_set_id, "profileable_from_shell").int_value, false);
+  EXPECT_EQ(find_arg(second_set_id, "uid").uint_value, 1001);
+  EXPECT_EQ(find_arg(second_set_id, "debuggable").bool_value, false);
+  EXPECT_EQ(find_arg(second_set_id, "profileable_from_shell").bool_value,
+            false);
   EXPECT_EQ(find_arg(second_set_id, "version_code").int_value, 43);
 }
 
