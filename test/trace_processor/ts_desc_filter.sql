@@ -1,5 +1,6 @@
 select ts
 from sched
-where utid = 1
+inner join thread using(utid)
+where tid = 23850
 order by ts desc
 limit 10
