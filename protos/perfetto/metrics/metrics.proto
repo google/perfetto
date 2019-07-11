@@ -29,6 +29,7 @@ import "perfetto/metrics/android/lmk_metric.proto";
 import "perfetto/metrics/android/powrails_metric.proto";
 import "perfetto/metrics/android/startup_metric.proto";
 import "perfetto/metrics/android/heap_profile.proto";
+import "perfetto/metrics/android/package_list.proto";
 
 // Trace processor statistics (taken from the stats table schema and contents).
 // TODO: perhaps add the other columns once we have enum support
@@ -44,7 +45,7 @@ message TraceStatistics {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 12
+// Next id: 13
 message TraceMetrics {
   // Battery counters metric on Android.
   optional AndroidBatteryMetric android_batt = 5;
@@ -61,6 +62,9 @@ message TraceMetrics {
   // is clear that this data is necessary.
   optional AndroidMemoryUnaggregatedMetric android_mem_unagg = 11;
 
+  // Package list.
+  optional AndroidPackageList android_package_list = 12;
+
   // Per-process memory growth metrics.
   optional AndroidProcessGrowth android_process_growth = 10;
 
@@ -76,11 +80,11 @@ message TraceMetrics {
   // Startup metrics on Android (owned by the Android Telemetry team).
   optional AndroidStartupMetric android_startup = 2;
 
-  // Error statistics (applicable to all traces).
-  optional TraceStatistics error_statistics = 3;
-
   // Heap profile stats.
   optional HeapProfile heap_profile = 4;
+
+  // Error statistics (applicable to all traces).
+  optional TraceStatistics error_statistics = 3;
 
   // Demo extensions.
   extensions 450 to 499;
