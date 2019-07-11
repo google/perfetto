@@ -39,6 +39,7 @@ CREATE VIEW process_growth AS
 SELECT
   process.pid AS pid,
   process.name AS process_name,
+  CAST(asg.start_val AS BIG INT) AS anon_and_swap_start_value,
   CAST(asg.end_val - asg.start_val AS BIG INT) AS anon_and_swap_change,
   malloc_memory_growth.growth AS malloc_change
 FROM anon_and_swap_growth AS asg
@@ -49,6 +50,7 @@ CREATE VIEW instance_metrics_proto AS
 SELECT AndroidProcessGrowth_InstanceMetrics(
   'pid', pid,
   'process_name', process_name,
+  'anon_and_swap_start_value', anon_and_swap_start_value,
   'anon_and_swap_change_bytes', anon_and_swap_change,
   'malloc_memory_change_bytes', malloc_change
 ) AS instance_metric
