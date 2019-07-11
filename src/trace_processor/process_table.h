@@ -27,10 +27,17 @@ namespace perfetto {
 namespace trace_processor {
 
 // The implementation of the SQLite table containing each unique process with
-// their details (only name at the moment).
+// their details.
 class ProcessTable : public Table {
  public:
-  enum Column { kUpid = 0, kName = 1, kPid = 2, kStartTs = 3, kEndTs = 4 };
+  enum Column {
+    kUpid = 0,
+    kName = 1,
+    kPid = 2,
+    kStartTs = 3,
+    kEndTs = 4,
+    kParentUpid = 5
+  };
   class Cursor : public Table::Cursor {
    public:
     Cursor(ProcessTable*);
