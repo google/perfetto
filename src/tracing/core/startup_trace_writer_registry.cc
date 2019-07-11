@@ -16,6 +16,8 @@
 
 #include "perfetto/ext/tracing/core/startup_trace_writer_registry.h"
 
+#include <algorithm>
+#include <cmath>
 #include <functional>
 
 #include "perfetto/base/logging.h"
@@ -73,7 +75,8 @@ void StartupTraceWriterRegistry::ReturnTraceWriter(
     }
 
     // This should succeed since nobody can write to this writer concurrently.
-    bool success = trace_writer->BindToArbiter(arbiter_, target_buffer_);
+    bool success = trace_writer->BindToArbiter(arbiter_, target_buffer_,
+                                               chunks_per_batch_);
     PERFETTO_DCHECK(success);
     unbound_writers_.erase(it);
 
@@ -99,6 +102,24 @@ void StartupTraceWriterRegistry::BindToArbiter(
     arbiter_ = arbiter;
     target_buffer_ = target_buffer;
     task_runner_ = task_runner;
+
+    // Attempt to use at most half the SMB for binding of StartupTraceWriters at
+    // the same time. In the worst case, all writers are binding at the same
+    // time, so divide it up between them.
+    //
+    // TODO(eseckler): This assumes that there's only a single registry at the
+    // same time. SharedMemoryArbiterImpl should advise us how much of the SMB
+    // we're allowed to use in the first place.
+    size_t num_writers =
+        unbound_owned_writers_.size() + unbound_writers_.size();
+    if (num_writers) {
+      chunks_per_batch_ = arbiter_->num_pages() / 2 / num_writers;
+    } else {
+      chunks_per_batch_ = arbiter_->num_pages() / 2;
+    }
+    // We should use at least one chunk per batch.
+    chunks_per_batch_ = std::max(chunks_per_batch_, static_cast<size_t>(1u));
+
     // Weakptrs should be valid on |task_runner|. For this, the factory needs to
     // be created on |task_runner|, i.e. BindToArbiter must be called on
     // |task_runner|.
@@ -115,7 +136,8 @@ void StartupTraceWriterRegistry::BindToArbiter(
   // Bind and destroy the owned writers.
   for (const auto& writer : unbound_owned_writers) {
     // This should succeed since nobody can write to these writers concurrently.
-    bool success = writer->BindToArbiter(arbiter_, target_buffer_);
+    bool success =
+        writer->BindToArbiter(arbiter_, target_buffer_, chunks_per_batch_);
     PERFETTO_DCHECK(success);
   }
   unbound_owned_writers.clear();
@@ -126,7 +148,7 @@ void StartupTraceWriterRegistry::BindToArbiter(
 void StartupTraceWriterRegistry::TryBindWriters() {
   std::lock_guard<std::mutex> lock(lock_);
   for (auto it = unbound_writers_.begin(); it != unbound_writers_.end();) {
-    if ((*it)->BindToArbiter(arbiter_, target_buffer_)) {
+    if ((*it)->BindToArbiter(arbiter_, target_buffer_, chunks_per_batch_)) {
       it = unbound_writers_.erase(it);
     } else {
       it++;

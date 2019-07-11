@@ -27,6 +27,7 @@ enum Tags : uint32_t {
   TAG_ANY = uint32_t(-1),
   TAG_FTRACE = 1 << 0,
   TAG_PROC_POLLERS = 1 << 1,
+  TAG_TRACE_WRITER = 1 << 2,
 };
 
 // Compile time list of parsing and processing stats.
@@ -54,7 +55,8 @@ enum Tags : uint32_t {
   F(PS_WRITE_ALL_PROCESSES), \
   F(PS_ON_PIDS), \
   F(PS_ON_RENAME_PIDS), \
-  F(PS_WRITE_ALL_PROCESS_STATS)
+  F(PS_WRITE_ALL_PROCESS_STATS), \
+  F(TRACE_WRITER_COMMIT_STARTUP_WRITER_BATCH)
 
 // Append only, see above.
 #define PERFETTO_METATRACE_COUNTERS(F) \
