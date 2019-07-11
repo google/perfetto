@@ -196,6 +196,15 @@ class Trace(object):
     energy_data.timestamp_ms = ts
     energy_data.energy = value
 
+  def add_package_list(self, ts, name, uid, version_code):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    plist = packet.packages_list
+    pinfo = plist.packages.add()
+    pinfo.name = name
+    pinfo.uid = uid
+    pinfo.version_code = version_code
+
 def create_trace():
   parser = argparse.ArgumentParser()
   parser.add_argument(
