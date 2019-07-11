@@ -26,7 +26,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 RUN echo deb http://deb.debian.org/debian testing main > /etc/apt/sources.list.d/testing.list
 RUN apt-get update
-RUN apt-get -y install python git curl
+RUN apt-get -y install python git curl libxml2
 # gcc-7 for sysroot
 RUN apt-get -y -t testing install gcc-7
 
