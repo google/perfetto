@@ -409,6 +409,65 @@ function AndroidSettings(cssClass: string) {
 }
 
 
+function ChromeSettings(cssClass: string) {
+  return m(
+      `.record-section${cssClass}`,
+      m(Probe, {
+        title: 'Task scheduling',
+        img: 'rec_atrace.png',
+        descr: `Records events about task scheduling and execution on all
+                  threads`,
+        setEnabled: (cfg, val) => cfg.taskScheduling = val,
+        isEnabled: (cfg) => cfg.taskScheduling
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'IPC flows',
+        img: 'rec_logcat.png',
+        descr: `Records flow events for passing of IPC messages between
+                processes.`,
+        setEnabled: (cfg, val) => cfg.ipcFlows = val,
+        isEnabled: (cfg) => cfg.ipcFlows
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'Javascript execution',
+        img: 'rec_logcat.png',
+        descr: `Records events about Javascript execution in the renderer
+                    processes.`,
+        setEnabled: (cfg, val) => cfg.jsExecution = val,
+        isEnabled: (cfg) => cfg.jsExecution
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'Web content rendering',
+        img: 'rec_logcat.png',
+        descr: `Records events about rendering, layout, and compositing of
+        web content in Blink.`,
+        setEnabled: (cfg, val) => cfg.webContentRendering = val,
+        isEnabled: (cfg) => cfg.webContentRendering
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'UI rendering & compositing',
+        img: 'rec_logcat.png',
+        descr: `Records events about rendering of browser UI surfaces and
+        compositing of surfaces.`,
+        setEnabled: (cfg, val) => cfg.uiRendering = val,
+        isEnabled: (cfg) => cfg.uiRendering
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'Input events',
+        img: 'rec_logcat.png',
+        descr: `Records input events and their flow between processes.`,
+        setEnabled: (cfg, val) => cfg.inputEvents = val,
+        isEnabled: (cfg) => cfg.inputEvents
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'Navigation & Loading',
+        img: 'rec_logcat.png',
+        descr: `Records network events for navigations and resources.`,
+        setEnabled: (cfg, val) => cfg.navigationAndLoading = val,
+        isEnabled: (cfg) => cfg.navigationAndLoading
+      } as ProbeAttrs));
+}
+
 function AdvancedSettings(cssClass: string) {
   const S = (x: number) => x * 1000;
   const M = (x: number) => x * 1000 * 60;
@@ -574,6 +633,7 @@ export const RecordPage = createPage({
       power: PowerSettings,
       memory: MemorySettings,
       android: AndroidSettings,
+      chrome: ChromeSettings,
       advanced: AdvancedSettings,
     };
 
@@ -592,49 +652,58 @@ export const RecordPage = createPage({
         m('.record-container',
           m('.record-menu',
             m('header', 'Trace config'),
-            m('ul',
-              m('a[href="#!/record?p=buffers"]',
-                m(`li${routePage === 'buffers' ? '.active' : ''}`,
-                  m('i.material-icons', 'tune'),
-                  m('.title', 'Recording settings'),
-                  m('.sub', 'Buffer mode, size and duration'))),
-              m('a[href="#!/record?p=instructions"]',
-                m(`li${routePage === 'instructions' ? '.active' : ''}`,
-                  m('i.material-icons.rec', 'fiber_manual_record'),
-                  m('.title', 'Start recording'),
-                  m('.sub', 'Generate config and instructions'))), ),
+            m(
+                'ul',
+                m('a[href="#!/record?p=buffers"]',
+                  m(`li${routePage === 'buffers' ? '.active' : ''}`,
+                    m('i.material-icons', 'tune'),
+                    m('.title', 'Recording settings'),
+                    m('.sub', 'Buffer mode, size and duration'))),
+                m('a[href="#!/record?p=instructions"]',
+                  m(`li${routePage === 'instructions' ? '.active' : ''}`,
+                    m('i.material-icons.rec', 'fiber_manual_record'),
+                    m('.title', 'Start recording'),
+                    m('.sub', 'Generate config and instructions'))),
+                ),
             m('header', 'Probes'),
-            m('ul',
-              m('a[href="#!/record?p=cpu"]',
-                m(`li${routePage === 'cpu' ? '.active' : ''}`,
-                  m('i.material-icons', 'subtitles'),
-                  m('.title', 'CPU'),
-                  m('.sub', 'CPU usage, scheduling, wakeups'))),
-              m('a[href="#!/record?p=gpu"]',
-                m(`li${routePage === 'gpu' ? '.active' : ''}`,
-                  m('i.material-icons', 'subtitles'),
-                  m('.title', 'GPU'),
-                  m('.sub', 'GPU frequency'))),
-              m('a[href="#!/record?p=power"]',
-                m(`li${routePage === 'power' ? '.active' : ''}`,
-                  m('i.material-icons', 'battery_charging_full'),
-                  m('.title', 'Power'),
-                  m('.sub', 'Battery and other energy counters'))),
-              m('a[href="#!/record?p=memory"]',
-                m(`li${routePage === 'memory' ? '.active' : ''}`,
-                  m('i.material-icons', 'memory'),
-                  m('.title', 'Memory'),
-                  m('.sub', 'Physical mem, VM, LMK'))),
-              m('a[href="#!/record?p=android"]',
-                m(`li${routePage === 'android' ? '.active' : ''}`,
-                  m('i.material-icons', 'android'),
-                  m('.title', 'Android apps & svcs'),
-                  m('.sub', 'atrace and logcat'))),
-              m('a[href="#!/record?p=advanced"]',
-                m(`li${routePage === 'advanced' ? '.active' : ''}`,
-                  m('i.material-icons', 'settings'),
-                  m('.title', 'Advanced settings'),
-                  m('.sub', 'Complicated stuff for wizards'))), )),
+            m(
+                'ul',
+                m('a[href="#!/record?p=cpu"]',
+                  m(`li${routePage === 'cpu' ? '.active' : ''}`,
+                    m('i.material-icons', 'subtitles'),
+                    m('.title', 'CPU'),
+                    m('.sub', 'CPU usage, scheduling, wakeups'))),
+                m('a[href="#!/record?p=gpu"]',
+                  m(`li${routePage === 'gpu' ? '.active' : ''}`,
+                    m('i.material-icons', 'subtitles'),
+                    m('.title', 'GPU'),
+                    m('.sub', 'GPU frequency'))),
+                m('a[href="#!/record?p=power"]',
+                  m(`li${routePage === 'power' ? '.active' : ''}`,
+                    m('i.material-icons', 'battery_charging_full'),
+                    m('.title', 'Power'),
+                    m('.sub', 'Battery and other energy counters'))),
+                m('a[href="#!/record?p=memory"]',
+                  m(`li${routePage === 'memory' ? '.active' : ''}`,
+                    m('i.material-icons', 'memory'),
+                    m('.title', 'Memory'),
+                    m('.sub', 'Physical mem, VM, LMK'))),
+                m('a[href="#!/record?p=android"]',
+                  m(`li${routePage === 'android' ? '.active' : ''}`,
+                    m('i.material-icons', 'android'),
+                    m('.title', 'Android apps & svcs'),
+                    m('.sub', 'atrace and logcat'))),
+                m('a[href="#!/record?p=chrome"]',
+                  m(`li${routePage === 'chrome' ? '.active' : ''}`,
+                    m('i.material-icons', 'laptop_chromebook'),
+                    m('.title', 'Chrome'),
+                    m('.sub', 'Chrome traces'))),
+                m('a[href="#!/record?p=advanced"]',
+                  m(`li${routePage === 'advanced' ? '.active' : ''}`,
+                    m('i.material-icons', 'settings'),
+                    m('.title', 'Advanced settings'),
+                    m('.sub', 'Complicated stuff for wizards'))),
+                )),
           pages));
   }
 });
