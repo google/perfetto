@@ -35,13 +35,13 @@ class TraceFormatWriter {
 
   ~TraceFormatWriter() { WriteFooter(); }
 
-  void WriteSlice(int64_t begin_ts_us,
-                  int64_t duration_us,
-                  const char* cat,
-                  const char* name,
-                  uint32_t tid,
-                  uint32_t pid,
-                  const Json::Value& args) {
+  void WriteCompleteEvent(int64_t begin_ts_us,
+                          int64_t duration_us,
+                          const char* cat,
+                          const char* name,
+                          uint32_t tid,
+                          uint32_t pid,
+                          const Json::Value& args) {
     if (!first_event_) {
       fputs(",", output_);
     }
@@ -54,6 +54,30 @@ class TraceFormatWriter {
     value["pid"] = Json::UInt(pid);
     value["ts"] = Json::Int64(begin_ts_us);
     value["dur"] = Json::Int64(duration_us);
+    value["args"] = args;
+    fputs(writer.write(value).c_str(), output_);
+    first_event_ = false;
+  }
+
+  void WriteInstantEvent(int64_t begin_ts_us,
+                         const char* scope,
+                         const char* cat,
+                         const char* name,
+                         uint32_t tid,
+                         uint32_t pid,
+                         const Json::Value& args) {
+    if (!first_event_) {
+      fputs(",", output_);
+    }
+    Json::FastWriter writer;
+    Json::Value value;
+    value["ph"] = "i";
+    value["s"] = scope;
+    value["cat"] = cat;
+    value["name"] = name;
+    value["tid"] = Json::UInt(tid);
+    value["pid"] = Json::UInt(pid);
+    value["ts"] = Json::Int64(begin_ts_us);
     value["args"] = args;
     fputs(writer.write(value).c_str(), output_);
     first_event_ = false;
@@ -83,6 +107,58 @@ class TraceFormatWriter {
     first_event_ = false;
   }
 
+  void WriteAsyncInstant(int64_t begin_ts_us,
+                         const char* cat,
+                         const char* name,
+                         uint32_t pid,
+                         const Json::Value& async_id,
+                         const Json::Value& args) {
+    if (!first_event_) {
+      fputs(",", output_);
+    }
+    Json::FastWriter writer;
+    Json::Value value;
+    value["pid"] = pid;
+    value["ph"] = "n";
+    value["cat"] = cat;
+    value["name"] = name;
+    value["id2"] = async_id;
+    value["ts"] = Json::Int64(begin_ts_us);
+    value["args"] = args;
+    fputs(writer.write(value).c_str(), output_);
+    first_event_ = false;
+  }
+
+  void WriteAsyncStartAndEnd(int64_t begin_ts_us,
+                             int64_t duration_us,
+                             const char* cat,
+                             const char* name,
+                             uint32_t pid,
+                             const Json::Value& async_id,
+                             const Json::Value& args) {
+    if (!first_event_) {
+      fputs(",", output_);
+    }
+    Json::FastWriter writer;
+    Json::Value value;
+    value["pid"] = pid;
+    value["ph"] = "b";
+    value["cat"] = cat;
+    value["name"] = name;
+    value["id2"] = async_id;
+    value["ts"] = Json::Int64(begin_ts_us);
+    value["args"] = args;
+    fputs(writer.write(value).c_str(), output_);
+
+    fputs(",", output_);
+    value["ph"] = "e";
+    value["ts"] = Json::Int64(begin_ts_us + duration_us);
+    value.removeMember("args");
+    fputs(writer.write(value).c_str(), output_);
+
+    first_event_ = false;
+  }
+
   void AppendTelemetryMetadataString(const char* key, const char* value) {
     metadata_["telemetry"][key].append(value);
   }
@@ -103,10 +179,14 @@ class TraceFormatWriter {
   void WriteHeader() { fputs("{\"traceEvents\":[\n", output_); }
 
   void WriteFooter() {
-    fputs("],\n\"metadata\":", output_);
-    Json::FastWriter writer;
-    fputs(writer.write(metadata_).c_str(), output_);
-    fputs("\n}", output_);
+    if (metadata_.empty()) {
+      fputs("]}", output_);
+    } else {
+      fputs("],\n\"metadata\":", output_);
+      Json::FastWriter writer;
+      fputs(writer.write(metadata_).c_str(), output_);
+      fputs("\n}", output_);
+    }
     fflush(output_);
   }
 
@@ -174,7 +254,7 @@ class ArgsBuilder {
         reader.parse(string_pool_->Get(variadic.string_value).c_str(), result);
         return result;
     }
-    return Json::Value();
+    PERFETTO_FATAL("Not reached");  // For gcc.
   }
 
   void AppendArg(ArgSetId set_id,
@@ -231,55 +311,103 @@ class ArgsBuilder {
   std::vector<Json::Value> args_sets_;
 };
 
-}  // anonymous namespace
-
-ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
-  ArgsBuilder args_builder(storage);
+ResultCode ExportThreadNames(const TraceStorage* storage,
+                             TraceFormatWriter* writer) {
   const StringPool& string_pool = storage->string_pool();
-
-  TraceFormatWriter writer(output);
-
-  // Write thread names.
   for (UniqueTid i = 1; i < storage->thread_count(); ++i) {
     auto thread = storage->GetThread(i);
     if (thread.name_id > 0) {
       const char* thread_name = string_pool.Get(thread.name_id).c_str();
       uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
-      writer.WriteMetadataEvent("thread_name", thread_name, thread.tid, pid);
+      writer->WriteMetadataEvent("thread_name", thread_name, thread.tid, pid);
     }
   }
+  return kResultOk;
+}
 
-  // Write process names.
+ResultCode ExportProcessNames(const TraceStorage* storage,
+                              TraceFormatWriter* writer) {
+  const StringPool& string_pool = storage->string_pool();
   for (UniquePid i = 1; i < storage->process_count(); ++i) {
     auto process = storage->GetProcess(i);
     if (process.name_id > 0) {
       const char* process_name = string_pool.Get(process.name_id).c_str();
-      writer.WriteMetadataEvent("process_name", process_name, 0, process.pid);
+      writer->WriteMetadataEvent("process_name", process_name, 0, process.pid);
     }
   }
+  return kResultOk;
+}
 
-  // Write slices.
+ResultCode ExportSlices(const TraceStorage* storage,
+                        TraceFormatWriter* writer) {
+  const StringPool& string_pool = storage->string_pool();
+  ArgsBuilder args_builder(storage);
   const auto& slices = storage->nestable_slices();
   for (size_t i = 0; i < slices.slice_count(); ++i) {
-    if (slices.types()[i] == RefType::kRefUtid) {
-      ArgSetId arg_set_id = slices.arg_set_ids()[i];
-      int64_t begin_ts_us = slices.start_ns()[i] / 1000;
-      int64_t duration_us = slices.durations()[i] / 1000;
-      const char* cat = string_pool.Get(slices.cats()[i]).c_str();
-      const char* name = string_pool.Get(slices.names()[i]).c_str();
+    int64_t begin_ts_us = slices.start_ns()[i] / 1000;
+    int64_t duration_us = slices.durations()[i] / 1000;
+    const char* cat = string_pool.Get(slices.cats()[i]).c_str();
+    const char* name = string_pool.Get(slices.names()[i]).c_str();
+    Json::Value args = args_builder.GetArgs(slices.arg_set_ids()[i]);
 
-      UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
-      auto thread = storage->GetThread(utid);
-      uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
-
-      writer.WriteSlice(begin_ts_us, duration_us, cat, name, thread.tid, pid,
-                        args_builder.GetArgs(arg_set_id));
-    } else {
-      return kResultWrongRefType;
+    if (slices.types()[i] == RefType::kRefTrack) {  // Async event.
+      uint32_t track_id = static_cast<uint32_t>(slices.refs()[i]);
+      VirtualTrackScope scope = storage->virtual_tracks().scopes()[track_id];
+      UniquePid upid = storage->virtual_tracks().upids()[track_id];
+      Json::Value async_id;
+      uint32_t pid = 0;
+      if (scope == VirtualTrackScope::kGlobal) {
+        async_id["global"] = PrintUint64(track_id);
+      } else {
+        async_id["local"] = PrintUint64(track_id);
+        pid = storage->GetProcess(upid).pid;
+      }
+      if (slices.durations()[i] == 0) {  // Instant async event.
+        writer->WriteAsyncInstant(begin_ts_us, cat, name, pid, async_id, args);
+      } else {  // Async start and end.
+        writer->WriteAsyncStartAndEnd(begin_ts_us, duration_us, cat, name, pid,
+                                      async_id, args);
+      }
+    } else {                             // Sync event.
+      if (slices.durations()[i] == 0) {  // Instant event.
+        uint32_t pid = 0;
+        uint32_t tid = 0;
+        std::string instant_scope;
+        if (slices.types()[i] == RefType::kRefUtid) {
+          UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
+          auto thread = storage->GetThread(utid);
+          pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
+          tid = thread.tid;
+          instant_scope = "t";
+        } else if (slices.types()[i] == RefType::kRefUpid) {
+          UniquePid upid = static_cast<UniquePid>(slices.refs()[i]);
+          pid = storage->GetProcess(upid).pid;
+          instant_scope = "p";
+        } else if (slices.types()[i] == RefType::kRefNoRef) {
+          instant_scope = "g";
+        } else {
+          return kResultWrongRefType;
+        }
+        writer->WriteInstantEvent(begin_ts_us, instant_scope.c_str(), cat, name,
+                                  tid, pid, args);
+      } else {  // Complete event.
+        if (slices.types()[i] != RefType::kRefUtid) {
+          return kResultWrongRefType;
+        }
+        UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
+        auto thread = storage->GetThread(utid);
+        uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
+        writer->WriteCompleteEvent(begin_ts_us, duration_us, cat, name,
+                                   thread.tid, pid, args);
+      }
     }
   }
+  return kResultOk;
+}
 
-  // Add metadata to be written in the footer.
+ResultCode ExportMetadata(const TraceStorage* storage,
+                          TraceFormatWriter* writer) {
+  const StringPool& string_pool = storage->string_pool();
   const auto& trace_metadata = storage->metadata();
   const auto& keys = trace_metadata.keys();
   const auto& values = trace_metadata.values();
@@ -288,50 +416,50 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
     // exhaustive list of cases, even if there's a default case.
     switch (static_cast<size_t>(keys[pos])) {
       case metadata::benchmark_description:
-        writer.AppendTelemetryMetadataString(
+        writer->AppendTelemetryMetadataString(
             "benchmarkDescriptions",
             string_pool.Get(values[pos].string_value).c_str());
         break;
 
       case metadata::benchmark_name:
-        writer.AppendTelemetryMetadataString(
+        writer->AppendTelemetryMetadataString(
             "benchmarks", string_pool.Get(values[pos].string_value).c_str());
         break;
 
       case metadata::benchmark_start_time_us:
 
-        writer.SetTelemetryMetadataTimestamp("benchmarkStart",
-                                             values[pos].int_value);
+        writer->SetTelemetryMetadataTimestamp("benchmarkStart",
+                                              values[pos].int_value);
         break;
 
       case metadata::benchmark_had_failures:
         if (pos < values.size())
-          writer.AppendTelemetryMetadataBool("hadFailures",
-                                             values[pos].int_value);
+          writer->AppendTelemetryMetadataBool("hadFailures",
+                                              values[pos].int_value);
         break;
 
       case metadata::benchmark_label:
-        writer.AppendTelemetryMetadataString(
+        writer->AppendTelemetryMetadataString(
             "labels", string_pool.Get(values[pos].string_value).c_str());
         break;
 
       case metadata::benchmark_story_name:
-        writer.AppendTelemetryMetadataString(
+        writer->AppendTelemetryMetadataString(
             "stories", string_pool.Get(values[pos].string_value).c_str());
         break;
 
       case metadata::benchmark_story_run_index:
-        writer.AppendTelemetryMetadataInt("storysetRepeats",
-                                          values[pos].int_value);
+        writer->AppendTelemetryMetadataInt("storysetRepeats",
+                                           values[pos].int_value);
         break;
 
       case metadata::benchmark_story_run_time_us:
-        writer.SetTelemetryMetadataTimestamp("traceStart",
-                                             values[pos].int_value);
+        writer->SetTelemetryMetadataTimestamp("traceStart",
+                                              values[pos].int_value);
         break;
 
       case metadata::benchmark_story_tags:  // repeated
-        writer.AppendTelemetryMetadataString(
+        writer->AppendTelemetryMetadataString(
             "storyTags", string_pool.Get(values[pos].string_value).c_str());
         break;
 
@@ -340,6 +468,30 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
         break;
     }
   }
+  return kResultOk;
+}
+
+}  // anonymous namespace
+
+ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
+  TraceFormatWriter writer(output);
+
+  ResultCode code = ExportThreadNames(storage, &writer);
+  if (code != kResultOk)
+    return code;
+
+  code = ExportProcessNames(storage, &writer);
+  if (code != kResultOk)
+    return code;
+
+  code = ExportSlices(storage, &writer);
+  if (code != kResultOk)
+    return code;
+
+  code = ExportMetadata(storage, &writer);
+  if (code != kResultOk)
+    return code;
+
   return kResultOk;
 }
 
