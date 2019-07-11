@@ -17,6 +17,7 @@ import {
   AndroidLogId,
   AndroidPowerConfig,
   BufferConfig,
+  ChromeConfig,
   DataSourceConfig,
   FtraceConfig,
   ProcessStatsConfig,
@@ -24,7 +25,7 @@ import {
   TraceConfig
 } from '../common/protos';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
-import {RecordConfig, MAX_TIME} from '../common/state';
+import {MAX_TIME, RecordConfig} from '../common/state';
 
 import {Controller} from './controller';
 import {App} from './globals';
@@ -74,6 +75,8 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
   const ftraceEvents = new Set<string>(uiCfg.ftrace ? uiCfg.ftraceEvents : []);
   const atraceCats = new Set<string>(uiCfg.atrace ? uiCfg.atraceCats : []);
   const atraceApps = new Set<string>();
+  const chromeCategories = new Set<string>();
+
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
   let trackInitialOomScore = false;
@@ -218,6 +221,72 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
     protoCfg.dataSources.push(ds);
   }
 
+  if (uiCfg.taskScheduling) {
+    chromeCategories.add('toplevel');
+    chromeCategories.add('sequence_manager');
+    chromeCategories.add('disabled-by-default-toplevel.flow');
+  }
+
+  if (uiCfg.ipcFlows) {
+    chromeCategories.add('toplevel');
+    chromeCategories.add('disabled-by-default-ipc.flow');
+  }
+
+  if (uiCfg.jsExecution) {
+    chromeCategories.add('toplevel');
+    chromeCategories.add('v8');
+  }
+
+  if (uiCfg.webContentRendering) {
+    chromeCategories.add('toplevel');
+    chromeCategories.add('blink');
+    chromeCategories.add('cc');
+    chromeCategories.add('gpu');
+  }
+
+  if (uiCfg.uiRendering) {
+    chromeCategories.add('toplevel');
+    chromeCategories.add('cc');
+    chromeCategories.add('gpu');
+    chromeCategories.add('viz');
+    chromeCategories.add('ui');
+    chromeCategories.add('views');
+  }
+
+  if (uiCfg.inputEvents) {
+    chromeCategories.add('toplevel');
+    chromeCategories.add('benchmark');
+    chromeCategories.add('evdev');
+    chromeCategories.add('input');
+    chromeCategories.add('disabled-by-default-toplevel.flow');
+  }
+
+  if (uiCfg.navigationAndLoading) {
+    chromeCategories.add('loading');
+    chromeCategories.add('net');
+    chromeCategories.add('netlog');
+  }
+
+  if (chromeCategories.size !== 0) {
+    const traceConfigJson =
+        JSON.stringify({included_categories: [...chromeCategories.values()]});
+
+    const traceDs = new TraceConfig.DataSource();
+    traceDs.config = new DataSourceConfig();
+    traceDs.config.name = 'org.chromium.trace_event';
+    traceDs.config.chromeConfig = new ChromeConfig();
+    traceDs.config.chromeConfig.traceConfig = traceConfigJson;
+    protoCfg.dataSources.push(traceDs);
+
+
+    const metadataDs = new TraceConfig.DataSource();
+    metadataDs.config = new DataSourceConfig();
+    metadataDs.config.name = 'org.chromium.trace_metadata';
+    metadataDs.config.chromeConfig = new ChromeConfig();
+    metadataDs.config.chromeConfig.traceConfig = traceConfigJson;
+    protoCfg.dataSources.push(metadataDs);
+  }
+
   // Keep these last. The stages above can enrich them.
 
   if (sysStatsCfg !== undefined) {
@@ -282,7 +351,9 @@ export function toPbtxt(configBuffer: Uint8Array): string {
       for (const entry of (isRepeated ? value as Array<{}> : [value])) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
         if (typeof entry === 'string') {
-          yield looksLikeEnum(entry) ? entry : `"${entry}"`;
+          yield looksLikeEnum(entry) ?
+              entry :
+              `"${entry.replace(new RegExp('"', 'g'), '\\"')}"`;
         } else if (typeof entry === 'number') {
           yield entry.toString();
         } else if (typeof entry === 'boolean') {
