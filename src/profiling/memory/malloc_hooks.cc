@@ -501,6 +501,17 @@ int HEAPPROFD_ADD_PREFIX(_posix_memalign)(void** memptr,
 // sure that the address is not reused before we've processed the deallocation
 // (which includes assigning a sequence id to it).
 void HEAPPROFD_ADD_PREFIX(_free)(void* pointer) {
+  // free on a nullptr is valid but has no effect. Short circuit here, for
+  // various advantages:
+  // * More efficient
+  // * Notably printf calls free(nullptr) even when it is used in a way
+  //   malloc-free way, as it unconditionally frees the pointer even if
+  //   it was never written to.
+  //   Short circuiting here makes it less likely to accidentally build
+  //   infinite recursion.
+  if (pointer == nullptr)
+    return;
+
   const MallocDispatch* dispatch = GetDispatch();
   std::shared_ptr<perfetto::profiling::Client> client;
   {
