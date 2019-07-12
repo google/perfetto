@@ -47,6 +47,8 @@ class DumpState {
     std::set<InternID> dumped_frames_;
     std::set<InternID> dumped_mappings_;
     std::set<uint64_t> dumped_callstacks_;
+
+    uint64_t next_index_ = 0;
   };
 
   DumpState(
@@ -96,6 +98,7 @@ class DumpState {
     MakeTracePacket();
 
     current_profile_packet_ = current_trace_packet_->set_profile_packet();
+    current_profile_packet_->set_index(intern_state_->next_index_++);
   }
 
   uint64_t currently_written() {
