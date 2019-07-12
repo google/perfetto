@@ -348,7 +348,7 @@ ResultCode ExportSlices(const TraceStorage* storage,
   for (size_t i = 0; i < slices.slice_count(); ++i) {
     int64_t begin_ts_us = slices.start_ns()[i] / 1000;
     int64_t duration_us = slices.durations()[i] / 1000;
-    const char* cat = string_pool.Get(slices.cats()[i]).c_str();
+    const char* cat = string_pool.Get(slices.categories()[i]).c_str();
     const char* name = string_pool.Get(slices.names()[i]).c_str();
     Json::Value args = args_builder.GetArgs(slices.arg_set_ids()[i]);
 
