@@ -36,7 +36,8 @@ StorageSchema SliceTable::CreateStorageSchema() {
       .AddNumericColumn("dur", &slices.durations())
       .AddNumericColumn("ref", &slices.refs())
       .AddStringColumn("ref_type", &slices.types(), &GetRefTypeStringMap())
-      .AddStringColumn("cat", &slices.cats(), &storage_->string_pool())
+      .AddStringColumn("category", &slices.categories(),
+                       &storage_->string_pool())
       .AddStringColumn("name", &slices.names(), &storage_->string_pool())
       .AddNumericColumn("depth", &slices.depths())
       .AddNumericColumn("stack_id", &slices.stack_ids())

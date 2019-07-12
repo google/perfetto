@@ -312,7 +312,7 @@ class TraceStorage {
                              int64_t duration_ns,
                              int64_t ref,
                              RefType type,
-                             StringId cat,
+                             StringId category,
                              StringId name,
                              uint8_t depth,
                              int64_t stack_id,
@@ -321,7 +321,7 @@ class TraceStorage {
       durations_.emplace_back(duration_ns);
       refs_.emplace_back(ref);
       types_.emplace_back(type);
-      cats_.emplace_back(cat);
+      categories_.emplace_back(category);
       names_.emplace_back(name);
       depths_.emplace_back(depth);
       stack_ids_.emplace_back(stack_id);
@@ -350,7 +350,7 @@ class TraceStorage {
     const std::deque<int64_t>& durations() const { return durations_; }
     const std::deque<int64_t>& refs() const { return refs_; }
     const std::deque<RefType>& types() const { return types_; }
-    const std::deque<StringId>& cats() const { return cats_; }
+    const std::deque<StringId>& categories() const { return categories_; }
     const std::deque<StringId>& names() const { return names_; }
     const std::deque<uint8_t>& depths() const { return depths_; }
     const std::deque<int64_t>& stack_ids() const { return stack_ids_; }
@@ -364,9 +364,7 @@ class TraceStorage {
     std::deque<int64_t> durations_;
     std::deque<int64_t> refs_;
     std::deque<RefType> types_;
-    // TODO(eseckler): Remove this column and store the category in the args
-    // table instead, similar to what we do for instant events.
-    std::deque<StringId> cats_;
+    std::deque<StringId> categories_;
     std::deque<StringId> names_;
     std::deque<uint8_t> depths_;
     std::deque<int64_t> stack_ids_;
