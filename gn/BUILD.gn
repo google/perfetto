@@ -91,7 +91,7 @@ if (perfetto_build_with_embedder) {
   if (is_win) {
     system_include_flag = "-imsvc"
   } else {
-    system_include_flag = "-system"
+    system_include_flag = "-isystem"
   }
 }
 
