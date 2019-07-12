@@ -34,38 +34,43 @@ class SliceTracker {
   explicit SliceTracker(TraceProcessorContext*);
   virtual ~SliceTracker();
 
-  void BeginAndroid(int64_t timestamp,
-                    uint32_t ftrace_tid,
-                    uint32_t atrace_tgid,
-                    StringId cat,
-                    StringId name);
+  base::Optional<uint32_t> BeginAndroid(int64_t timestamp,
+                                        uint32_t ftrace_tid,
+                                        uint32_t atrace_tgid,
+                                        StringId category,
+                                        StringId name);
 
   // virtual for testing
-  virtual void Begin(int64_t timestamp,
-                     int64_t ref,
-                     RefType ref_type,
-                     StringId cat,
-                     StringId name,
-                     SetArgsCallback args_callback = SetArgsCallback());
+  virtual base::Optional<uint32_t> Begin(
+      int64_t timestamp,
+      int64_t ref,
+      RefType ref_type,
+      StringId category,
+      StringId name,
+      SetArgsCallback args_callback = SetArgsCallback());
 
   // virtual for testing
-  virtual void Scoped(int64_t timestamp,
-                      int64_t ref,
-                      RefType ref_type,
-                      StringId cat,
-                      StringId name,
-                      int64_t duration,
-                      SetArgsCallback args_callback = SetArgsCallback());
+  virtual base::Optional<uint32_t> Scoped(
+      int64_t timestamp,
+      int64_t ref,
+      RefType ref_type,
+      StringId category,
+      StringId name,
+      int64_t duration,
+      SetArgsCallback args_callback = SetArgsCallback());
 
-  void EndAndroid(int64_t timestamp, uint32_t ftrace_tid, uint32_t atrace_tgid);
+  base::Optional<uint32_t> EndAndroid(int64_t timestamp,
+                                      uint32_t ftrace_tid,
+                                      uint32_t atrace_tgid);
 
   // virtual for testing
-  virtual void End(int64_t timestamp,
-                   int64_t ref,
-                   RefType ref_type,
-                   StringId opt_cat = {},
-                   StringId opt_name = {},
-                   SetArgsCallback args_callback = SetArgsCallback());
+  virtual base::Optional<uint32_t> End(
+      int64_t timestamp,
+      int64_t ref,
+      RefType ref_type,
+      StringId opt_category = {},
+      StringId opt_name = {},
+      SetArgsCallback args_callback = SetArgsCallback());
 
   void FlushPendingSlices();
 
@@ -92,14 +97,14 @@ class SliceTracker {
 
   using StackMap = std::unordered_map<StackMapKey, SlicesStack, StackMapHash>;
 
-  void StartSlice(int64_t timestamp,
-                  int64_t duration,
-                  int64_t ref,
-                  RefType ref_type,
-                  StringId cat,
-                  StringId name,
-                  SetArgsCallback args_callback);
-  void CompleteSlice(StackMapKey stack_key);
+  base::Optional<uint32_t> StartSlice(int64_t timestamp,
+                                      int64_t duration,
+                                      int64_t ref,
+                                      RefType ref_type,
+                                      StringId category,
+                                      StringId name,
+                                      SetArgsCallback args_callback);
+  base::Optional<uint32_t> CompleteSlice(StackMapKey stack_key);
 
   void MaybeCloseStack(int64_t end_ts, SlicesStack*);
   int64_t GetStackHash(const SlicesStack&);
