@@ -37,73 +37,76 @@ SliceTracker::SliceTracker(TraceProcessorContext* context)
 
 SliceTracker::~SliceTracker() = default;
 
-void SliceTracker::BeginAndroid(int64_t timestamp,
-                                uint32_t ftrace_tid,
-                                uint32_t atrace_tgid,
-                                StringId cat,
-                                StringId name) {
+base::Optional<uint32_t> SliceTracker::BeginAndroid(int64_t timestamp,
+                                                    uint32_t ftrace_tid,
+                                                    uint32_t atrace_tgid,
+                                                    StringId category,
+                                                    StringId name) {
   UniqueTid utid =
       context_->process_tracker->UpdateThread(ftrace_tid, atrace_tgid);
   ftrace_to_atrace_tgid_[ftrace_tid] = atrace_tgid;
-  Begin(timestamp, utid, RefType::kRefUtid, cat, name);
+  return Begin(timestamp, utid, RefType::kRefUtid, category, name);
 }
 
-void SliceTracker::Begin(int64_t timestamp,
-                         int64_t ref,
-                         RefType ref_type,
-                         StringId cat,
-                         StringId name,
-                         SetArgsCallback args_callback) {
+base::Optional<uint32_t> SliceTracker::Begin(int64_t timestamp,
+                                             int64_t ref,
+                                             RefType ref_type,
+                                             StringId category,
+                                             StringId name,
+                                             SetArgsCallback args_callback) {
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
     context_->storage->IncrementStats(stats::slice_out_of_order);
-    return;
+    return base::nullopt;
   }
   prev_timestamp_ = timestamp;
 
   MaybeCloseStack(timestamp, &stacks_[{ref, ref_type}]);
-  StartSlice(timestamp, kPendingDuration, ref, ref_type, cat, name,
-             args_callback);
+  return StartSlice(timestamp, kPendingDuration, ref, ref_type, category, name,
+                    args_callback);
 }
 
-void SliceTracker::Scoped(int64_t timestamp,
-                          int64_t ref,
-                          RefType ref_type,
-                          StringId cat,
-                          StringId name,
-                          int64_t duration,
-                          SetArgsCallback args_callback) {
+base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
+                                              int64_t ref,
+                                              RefType ref_type,
+                                              StringId category,
+                                              StringId name,
+                                              int64_t duration,
+                                              SetArgsCallback args_callback) {
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
     context_->storage->IncrementStats(stats::slice_out_of_order);
-    return;
+    return base::nullopt;
   }
   prev_timestamp_ = timestamp;
 
   PERFETTO_DCHECK(duration >= 0);
   MaybeCloseStack(timestamp, &stacks_[{ref, ref_type}]);
-  StartSlice(timestamp, duration, ref, ref_type, cat, name, args_callback);
+  return StartSlice(timestamp, duration, ref, ref_type, category, name,
+                    args_callback);
 }
 
-void SliceTracker::StartSlice(int64_t timestamp,
-                              int64_t duration,
-                              int64_t ref,
-                              RefType ref_type,
-                              StringId cat,
-                              StringId name,
-                              SetArgsCallback args_callback) {
+base::Optional<uint32_t> SliceTracker::StartSlice(
+    int64_t timestamp,
+    int64_t duration,
+    int64_t ref,
+    RefType ref_type,
+    StringId category,
+    StringId name,
+    SetArgsCallback args_callback) {
   auto* stack = &stacks_[{ref, ref_type}];
   auto* slices = context_->storage->mutable_nestable_slices();
 
   const uint8_t depth = static_cast<uint8_t>(stack->size());
   if (depth >= std::numeric_limits<uint8_t>::max()) {
     PERFETTO_DFATAL("Slices with too large depth found.");
-    return;
+    return base::nullopt;
   }
   int64_t parent_stack_id =
       depth == 0 ? 0 : slices->stack_ids()[stack->back().first];
-  uint32_t slice_idx = slices->AddSlice(timestamp, duration, ref, ref_type, cat,
-                                        name, depth, 0, parent_stack_id);
+  uint32_t slice_idx =
+      slices->AddSlice(timestamp, duration, ref, ref_type, category, name,
+                       depth, 0, parent_stack_id);
   stack->emplace_back(std::make_pair(slice_idx, ArgsTracker(context_)));
 
   if (args_callback) {
@@ -111,18 +114,18 @@ void SliceTracker::StartSlice(int64_t timestamp,
         &stack->back().second,
         TraceStorage::CreateRowId(TableId::kNestableSlices, slice_idx));
   }
-
   slices->set_stack_id(slice_idx, GetStackHash(*stack));
+  return slice_idx;
 }
 
-void SliceTracker::EndAndroid(int64_t timestamp,
-                              uint32_t ftrace_tid,
-                              uint32_t atrace_tgid) {
+base::Optional<uint32_t> SliceTracker::EndAndroid(int64_t timestamp,
+                                                  uint32_t ftrace_tid,
+                                                  uint32_t atrace_tgid) {
   auto actual_tgid_it = ftrace_to_atrace_tgid_.find(ftrace_tid);
   if (actual_tgid_it == ftrace_to_atrace_tgid_.end()) {
     // This is possible if we start tracing after a begin slice.
     PERFETTO_DLOG("Unknown tgid for ftrace tid %u", ftrace_tid);
-    return;
+    return base::nullopt;
   }
   uint32_t actual_tgid = actual_tgid_it->second;
   // atrace_tgid can be 0 in older android versions where the end event would
@@ -134,19 +137,19 @@ void SliceTracker::EndAndroid(int64_t timestamp,
   }
   UniqueTid utid =
       context_->process_tracker->UpdateThread(ftrace_tid, actual_tgid);
-  End(timestamp, utid, RefType::kRefUtid);
+  return End(timestamp, utid, RefType::kRefUtid);
 }
 
-void SliceTracker::End(int64_t timestamp,
-                       int64_t ref,
-                       RefType ref_type,
-                       StringId cat,
-                       StringId name,
-                       SetArgsCallback args_callback) {
+base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
+                                           int64_t ref,
+                                           RefType ref_type,
+                                           StringId category,
+                                           StringId name,
+                                           SetArgsCallback args_callback) {
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
     context_->storage->IncrementStats(stats::slice_out_of_order);
-    return;
+    return base::nullopt;
   }
   prev_timestamp_ = timestamp;
 
@@ -155,17 +158,17 @@ void SliceTracker::End(int64_t timestamp,
 
   auto& stack = stacks_[stack_key];
   if (stack.empty())
-    return;
+    return base::nullopt;
 
   auto* slices = context_->storage->mutable_nestable_slices();
   uint32_t slice_idx = stack.back().first;
 
   // If we are trying to close mismatching slices (e.g., slices that began
   // before tracing started), bail out.
-  if (cat && slices->cats()[slice_idx] != cat)
-    return;
+  if (category && slices->categories()[slice_idx] != category)
+    return base::nullopt;
   if (name && slices->names()[slice_idx] != name)
-    return;
+    return base::nullopt;
 
   PERFETTO_DCHECK(slices->durations()[slice_idx] == kPendingDuration);
   slices->set_duration(slice_idx, timestamp - slices->start_ns()[slice_idx]);
@@ -176,7 +179,7 @@ void SliceTracker::End(int64_t timestamp,
         TraceStorage::CreateRowId(TableId::kNestableSlices, slice_idx));
   }
 
-  CompleteSlice(stack_key);
+  return CompleteSlice(stack_key);
   // TODO(primiano): auto-close B slices left open at the end.
 }
 
@@ -191,8 +194,11 @@ void SliceTracker::FlushPendingSlices() {
   stacks_.clear();
 }
 
-void SliceTracker::CompleteSlice(StackMapKey stack_key) {
-  stacks_[stack_key].pop_back();
+base::Optional<uint32_t> SliceTracker::CompleteSlice(StackMapKey stack_key) {
+  auto& stack = stacks_[stack_key];
+  uint32_t slice_idx = stack.back().first;
+  stack.pop_back();
+  return slice_idx;
 }
 
 void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {
@@ -229,8 +235,8 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
   s.reserve(stack.size() * sizeof(uint64_t) * 2);
   for (size_t i = 0; i < stack.size(); i++) {
     uint32_t slice_idx = stack[i].first;
-    s.append(reinterpret_cast<const char*>(&slices.cats()[slice_idx]),
-             sizeof(slices.cats()[slice_idx]));
+    s.append(reinterpret_cast<const char*>(&slices.categories()[slice_idx]),
+             sizeof(slices.categories()[slice_idx]));
     s.append(reinterpret_cast<const char*>(&slices.names()[slice_idx]),
              sizeof(slices.names()[slice_idx]));
   }
