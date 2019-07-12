@@ -466,6 +466,137 @@ TEST(ExportJsonTest, StorageWithLegacyJsonArgs) {
   EXPECT_EQ(event["args"]["a"]["b"].asInt(), 123);
 }
 
+TEST(ExportJsonTest, InstantEvent) {
+  const int64_t kTimestamp = 10000000;
+  const char* kCategory = "cat";
+  const char* kName = "name";
+
+  TraceStorage storage;
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  storage.mutable_nestable_slices()->AddSlice(
+      kTimestamp, 0, 0, RefType::kRefNoRef, cat_id, name_id, 0, 0, 0);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].asString(), "i");
+  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["s"].asString(), "g");
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+}
+
+TEST(ExportJsonTest, AsyncEvent) {
+  const int64_t kTimestamp = 10000000;
+  const int64_t kDuration = 100000;
+  const int64_t kProcessID = 100;
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  const char* kArgName = "arg_name";
+  const int kArgValue = 123;
+
+  TraceStorage storage;
+  UniquePid upid = storage.AddEmptyProcess(kProcessID);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  uint32_t track_id = storage.mutable_virtual_tracks()->AddVirtualTrack(
+      0, 0, VirtualTrackScope::kProcess, upid);
+  storage.mutable_nestable_slices()->AddSlice(kTimestamp, kDuration, track_id,
+                                              RefType::kRefTrack, cat_id,
+                                              name_id, 0, 0, 0);
+  StringId arg_key_id = storage.InternString(base::StringView(kArgName));
+  TraceStorage::Args::Arg arg;
+  arg.flat_key = arg_key_id;
+  arg.key = arg_key_id;
+  arg.value = Variadic::Integer(kArgValue);
+  storage.mutable_args()->AddArgSet({arg}, 0, 1);
+  storage.mutable_nestable_slices()->set_arg_set_id(0, 1);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 2u);
+
+  Json::Value begin_event = result["traceEvents"][0];
+  EXPECT_EQ(begin_event["ph"].asString(), "b");
+  EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(begin_event["cat"].asString(), kCategory);
+  EXPECT_EQ(begin_event["name"].asString(), kName);
+  EXPECT_EQ(begin_event["args"][kArgName].asInt(), kArgValue);
+
+  Json::Value end_event = result["traceEvents"][1];
+  EXPECT_EQ(end_event["ph"].asString(), "e");
+  EXPECT_EQ(end_event["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
+  EXPECT_EQ(end_event["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(end_event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(end_event["cat"].asString(), kCategory);
+  EXPECT_EQ(end_event["name"].asString(), kName);
+  EXPECT_FALSE(end_event.isMember("args"));
+}
+
+TEST(ExportJsonTest, AsyncInstantEvent) {
+  const int64_t kTimestamp = 10000000;
+  const int64_t kProcessID = 100;
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  const char* kArgName = "arg_name";
+  const int kArgValue = 123;
+
+  TraceStorage storage;
+  UniquePid upid = storage.AddEmptyProcess(kProcessID);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  uint32_t track_id = storage.mutable_virtual_tracks()->AddVirtualTrack(
+      0, 0, VirtualTrackScope::kProcess, upid);
+  storage.mutable_nestable_slices()->AddSlice(
+      kTimestamp, 0, track_id, RefType::kRefTrack, cat_id, name_id, 0, 0, 0);
+  StringId arg_key_id = storage.InternString(base::StringView("arg_name"));
+  TraceStorage::Args::Arg arg;
+  arg.flat_key = arg_key_id;
+  arg.key = arg_key_id;
+  arg.value = Variadic::Integer(kArgValue);
+  storage.mutable_args()->AddArgSet({arg}, 0, 1);
+  storage.mutable_nestable_slices()->set_arg_set_id(0, 1);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].asString(), "n");
+  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["args"][kArgName].asInt(), kArgValue);
+}
+
 }  // namespace
 }  // namespace json
 }  // namespace trace_processor
