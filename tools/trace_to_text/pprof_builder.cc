@@ -340,7 +340,6 @@ void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
   ForEachPacketInTrace(input, [&rolling_profile_packets_by_seq,
                                &rolling_interned_data_by_seq,
                                &output](const protos::TracePacket& packet) {
-    PERFETTO_CHECK(!packet.previous_packet_dropped());
     uint32_t seq_id = packet.trusted_packet_sequence_id();
     if (packet.has_interned_data())
       rolling_interned_data_by_seq[seq_id].emplace_back(packet.interned_data());
@@ -357,6 +356,11 @@ void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
         rolling_profile_packets_by_seq[seq_id];
 
     if (!packet.profile_packet().continued()) {
+      for (size_t i = 1; i < rolling_profile_packets.size(); ++i) {
+        // Ensure we are not missing a chunk.
+        PERFETTO_CHECK(rolling_profile_packets[i - 1].index() + 1 ==
+                       rolling_profile_packets[i].index());
+      }
       DumpProfilePacket(rolling_profile_packets, rolling_interned_data, output);
       // We do not clear rolling_interned_data, as it is globally scoped.
       rolling_profile_packets_by_seq.erase(seq_id);
