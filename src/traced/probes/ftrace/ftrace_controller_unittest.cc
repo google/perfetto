@@ -423,10 +423,10 @@ TEST(FtraceControllerTest, BackToBackEnableDisable) {
 
   // Disable the first data source and run the delayed task that it generated.
   // It should be a no-op.
+  worker.join();
   data_source.reset();
   controller->runner()->RunLastTask();
   controller->runner()->RunLastTask();
-  worker.join();
 
   // Register another data source and wait for it to generate data.
   data_source = controller->AddFakeDataSource(config);
@@ -437,10 +437,10 @@ TEST(FtraceControllerTest, BackToBackEnableDisable) {
   controller->WaitForData(0u);
 
   // This drain should also be a no-op after the data source is unregistered.
+  worker2.join();
   data_source.reset();
   controller->runner()->RunLastTask();
   controller->runner()->RunLastTask();
-  worker2.join();
 }
 
 TEST(FtraceControllerTest, BufferSize) {
