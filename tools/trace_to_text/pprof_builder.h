@@ -29,7 +29,7 @@ struct SerializedProfile {
   std::string serialized;
 };
 
-void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output);
+bool TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
