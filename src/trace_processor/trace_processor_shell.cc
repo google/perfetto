@@ -375,7 +375,8 @@ void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
         t_end = base::GetWallTimeNs();
       }
       for (uint32_t i = 0; i < it->ColumnCount(); i++)
-        printf("%-*s ", column_width, it->GetColumName(i).c_str());
+        printf("%-*.*s ", column_width, column_width,
+               it->GetColumName(i).c_str());
       printf("\n");
 
       std::string divider(column_width, '-');
@@ -398,7 +399,7 @@ void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
           printf("%*" PRIi64, column_width, value.long_value);
           break;
         case SqlValue::Type::kString:
-          printf("%-*s", column_width, value.string_value);
+          printf("%-*.*s", column_width, column_width, value.string_value);
           break;
         case SqlValue::Type::kBytes:
           printf("%-*s", column_width, "<raw bytes>");
