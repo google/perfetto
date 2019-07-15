@@ -404,11 +404,8 @@ cc_library_shared {
     "libbase",
     "libbinder",
     "libhidlbase",
-    "libhidltransport",
-    "libhwbinder",
     "libincident",
     "liblog",
-    "libservices",
     "libutils",
   ],
   static_libs: [
@@ -420,11 +417,6 @@ cc_library_shared {
   cflags: [
     "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
-  product_variables: {
-    pdk: {
-      enabled: false,
-    },
-  },
 }
 
 // GN target: //:libperfetto_client_experimental
