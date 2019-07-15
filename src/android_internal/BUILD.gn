@@ -49,10 +49,7 @@ source_set("android_internal") {
       "binder",
       "log",
       "hidlbase",
-      "hidltransport",
-      "hwbinder",
       "incident",
-      "services",
       "utils",
     ]
   }
