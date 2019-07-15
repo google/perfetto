@@ -122,7 +122,7 @@ class GProfileWriter {
     callstack_lookup_.emplace(callstack.iid(), std::move(frame_ids));
   }
 
-  void AddMapping(const Mapping& mapping) {
+  bool AddMapping(const Mapping& mapping) {
     mapping_base_.emplace(mapping.iid(), mapping.start() - mapping.load_bias());
     GMapping* gmapping = profile_.add_mapping();
     gmapping->set_id(mapping.iid());
@@ -136,7 +136,7 @@ class GProfileWriter {
         PERFETTO_ELOG("Mapping %" PRIu64
                       " referring to invalid string_id %" PRIu64 ".",
                       static_cast<uint64_t>(mapping.iid()), str_id);
-        continue;
+        return false;
       }
 
       filename += "/" + it->second;
@@ -154,14 +154,15 @@ class GProfileWriter {
           string_table_.emplace(ToHex(build_id), string_table_.size());
       gmapping->set_build_id(static_cast<int64_t>(it->second));
     }
+    return true;
   }
 
-  void AddFrame(const Frame& frame) {
+  bool AddFrame(const Frame& frame) {
     auto it = mapping_base_.find(frame.mapping_id());
     if (it == mapping_base_.end()) {
       PERFETTO_ELOG("Frame referring to invalid mapping ID %" PRIu64,
                     static_cast<uint64_t>(frame.mapping_id()));
-      return;
+      return false;
     }
     uint64_t mapping_base = it->second;
 
@@ -172,15 +173,16 @@ class GProfileWriter {
     GLine* gline = glocation->add_line();
     gline->set_function_id(frame.function_name_id());
     functions_to_dump_.emplace(frame.function_name_id());
+    return true;
   }
 
-  void Finalize() {
+  bool Finalize() {
     for (uint64_t function_name_id : functions_to_dump_) {
       auto str_it = string_lookup_.find(function_name_id);
       if (str_it == string_lookup_.end()) {
         PERFETTO_ELOG("Function referring to invalid string id %" PRIu64,
                       function_name_id);
-        continue;
+        return false;
       }
       decltype(string_table_)::iterator it;
       std::string function_name = str_it->second;
@@ -203,9 +205,10 @@ class GProfileWriter {
       inverted_string_table[p.second] = p.first;
     for (const auto& p : inverted_string_table)
       profile_.add_string_table(p.second);
+    return true;
   }
 
-  void WriteProfileForProcess(
+  bool WriteProfileForProcess(
       uint64_t pid,
       const std::vector<const ProfilePacket::ProcessHeapSamples*>& proc_samples,
       std::string* serialized) {
@@ -235,7 +238,7 @@ class GProfileWriter {
         if (it == callstack_lookup_.end()) {
           PERFETTO_ELOG("Callstack referring to invalid callstack id %" PRIu64,
                         static_cast<uint64_t>(sample.callstack_id()));
-          continue;
+          return false;
         }
         for (uint64_t frame_id : it->second)
           gsample->add_location_id(frame_id);
@@ -249,6 +252,7 @@ class GProfileWriter {
       }
     }
     *serialized = cur_profile.SerializeAsString();
+    return true;
   }
 
  private:
@@ -269,53 +273,65 @@ class GProfileWriter {
       {"idle_space", kIdleSpace}};
 };
 
-void DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
-                       const std::vector<InternedData>& interned_data,
-                       std::vector<SerializedProfile>* output) {
-  GProfileWriter writer;
+bool MakeWriter(const std::vector<ProfilePacket>& packet_fragments,
+                const std::vector<InternedData>& interned_data,
+                GProfileWriter* writer) {
   // A profile packet can be split into multiple fragments. We need to iterate
   // over all of them to reconstruct the original packet.
   for (const ProfilePacket& packet : packet_fragments) {
     for (const InternedString& interned_string : packet.strings())
-      writer.AddInternedString(interned_string);
+      writer->AddInternedString(interned_string);
   }
   for (const InternedData& data : interned_data) {
     for (const InternedString& interned_string : data.build_ids())
-      writer.AddInternedString(interned_string);
+      writer->AddInternedString(interned_string);
     for (const InternedString& interned_string : data.mapping_paths())
-      writer.AddInternedString(interned_string);
+      writer->AddInternedString(interned_string);
     for (const InternedString& interned_string : data.function_names())
-      writer.AddInternedString(interned_string);
+      writer->AddInternedString(interned_string);
   }
 
   for (const ProfilePacket& packet : packet_fragments) {
     for (const Callstack& callstack : packet.callstacks())
-      writer.AddCallstack(callstack);
+      writer->AddCallstack(callstack);
   }
   for (const InternedData& data : interned_data) {
     for (const Callstack& callstack : data.callstacks())
-      writer.AddCallstack(callstack);
+      writer->AddCallstack(callstack);
   }
 
   for (const ProfilePacket& packet : packet_fragments) {
     for (const Mapping& mapping : packet.mappings())
-      writer.AddMapping(mapping);
+      writer->AddMapping(mapping);
   }
   for (const InternedData& data : interned_data) {
-    for (const Mapping& callstack : data.mappings())
-      writer.AddMapping(callstack);
+    for (const Mapping& callstack : data.mappings()) {
+      if (!writer->AddMapping(callstack))
+        return false;
+    }
   }
 
   for (const ProfilePacket& packet : packet_fragments) {
-    for (const Frame& frame : packet.frames())
-      writer.AddFrame(frame);
+    for (const Frame& frame : packet.frames()) {
+      if (!writer->AddFrame(frame))
+        return false;
+    }
   }
   for (const InternedData& data : interned_data) {
-    for (const Frame& frame : data.frames())
-      writer.AddFrame(frame);
+    for (const Frame& frame : data.frames()) {
+      if (!writer->AddFrame(frame))
+        return false;
+    }
   }
+  return writer->Finalize();
+}
 
-  writer.Finalize();
+bool DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
+                       const std::vector<InternedData>& interned_data,
+                       std::vector<SerializedProfile>* output) {
+  GProfileWriter writer;
+  if (!MakeWriter(packet_fragments, interned_data, &writer))
+    return false;
 
   std::map<uint64_t, std::vector<const ProfilePacket::ProcessHeapSamples*>>
       heap_samples;
@@ -327,19 +343,22 @@ void DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
   }
   for (const auto& p : heap_samples) {
     std::string serialized;
-    writer.WriteProfileForProcess(p.first, p.second, &serialized);
+    if (!writer.WriteProfileForProcess(p.first, p.second, &serialized))
+      return false;
     output->emplace_back(SerializedProfile{p.first, std::move(serialized)});
   }
+  return true;
 }
 
 }  // namespace
 
-void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
+bool TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
   std::map<uint32_t, std::vector<ProfilePacket>> rolling_profile_packets_by_seq;
   std::map<uint32_t, std::vector<InternedData>> rolling_interned_data_by_seq;
+  bool success = true;
   ForEachPacketInTrace(input, [&rolling_profile_packets_by_seq,
-                               &rolling_interned_data_by_seq,
-                               &output](const protos::TracePacket& packet) {
+                               &rolling_interned_data_by_seq, &output,
+                               &success](const protos::TracePacket& packet) {
     uint32_t seq_id = packet.trusted_packet_sequence_id();
     if (packet.has_interned_data())
       rolling_interned_data_by_seq[seq_id].emplace_back(packet.interned_data());
@@ -358,10 +377,16 @@ void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
     if (!packet.profile_packet().continued()) {
       for (size_t i = 1; i < rolling_profile_packets.size(); ++i) {
         // Ensure we are not missing a chunk.
-        PERFETTO_CHECK(rolling_profile_packets[i - 1].index() + 1 ==
-                       rolling_profile_packets[i].index());
+        if (rolling_profile_packets[i - 1].index() + 1 !=
+            rolling_profile_packets[i].index()) {
+          success = false;
+          return;
+        }
       }
-      DumpProfilePacket(rolling_profile_packets, rolling_interned_data, output);
+      if (!DumpProfilePacket(rolling_profile_packets, rolling_interned_data,
+                             output)) {
+        success = false;
+      }
       // We do not clear rolling_interned_data, as it is globally scoped.
       rolling_profile_packets_by_seq.erase(seq_id);
     }
@@ -369,7 +394,9 @@ void TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
 
   if (!rolling_profile_packets_by_seq.empty()) {
     PERFETTO_ELOG("WARNING: Truncated heap dump. Not generating profile.");
+    return false;
   }
+  return success;
 }
 
 }  // namespace trace_to_text
