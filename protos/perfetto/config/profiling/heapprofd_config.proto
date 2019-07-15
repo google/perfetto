@@ -100,7 +100,7 @@ message HeapprofdConfig {
   // pages. The way to use this generally is:
   // 1. Start profile of app.
   // 2. Start app.
-  // 3. echo 1 > /proc/$APP_PID/clear_refs.
+  // 3. Trigger a dump by sending SIGUSR1 to heapprofd.
   // 4. Do operations.
   // 5. End profile.
   //
