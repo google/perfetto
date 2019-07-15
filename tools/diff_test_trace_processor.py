@@ -17,6 +17,7 @@ import argparse
 import difflib
 import glob
 import importlib
+import json
 import os
 import subprocess
 import sys
@@ -28,7 +29,7 @@ from google.protobuf import reflection, text_format
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def create_metrics_message_factory(metrics_descriptor_path):
-  with open(metrics_descriptor_path, "r") as metrics_descriptor_file:
+  with open(metrics_descriptor_path, 'r') as metrics_descriptor_file:
     metrics_descriptor_content = metrics_descriptor_file.read()
 
   file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
@@ -46,13 +47,13 @@ def create_metrics_message_factory(metrics_descriptor_path):
       desc_by_path[desc.full_name] = desc
 
   return message_factory.MessageFactory().GetPrototype(
-      desc_by_path["perfetto.protos.TraceMetrics"])
+      desc_by_path['perfetto.protos.TraceMetrics'])
 
 def write_diff(expected, actual):
   expected_lines = expected.splitlines(True)
   actual_lines = actual.splitlines(True)
   diff = difflib.unified_diff(expected_lines, actual_lines,
-                              fromfile="expected", tofile="actual")
+                              fromfile='expected', tofile='actual')
   for line in diff:
     sys.stderr.write(line)
 
@@ -66,7 +67,7 @@ class TestResult(object):
 
 def run_metrics_test(trace_processor_path, gen_trace_path, metric,
                      expected_path, perf_path, metrics_message_factory):
-  with open(expected_path, "r") as expected_file:
+  with open(expected_path, 'r') as expected_file:
     expected = expected_file.read()
 
   cmd = [
@@ -94,11 +95,11 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
   expected_text = text_format.MessageToString(expected_message)
   actual_text = text_format.MessageToString(actual_message)
 
-  return TestResult("metric", metric, cmd, expected_text, actual_text)
+  return TestResult('metric', metric, cmd, expected_text, actual_text)
 
 def run_query_test(trace_processor_path, gen_trace_path,
                    query_path, expected_path, perf_path):
-  with open(expected_path, "r") as expected_file:
+  with open(expected_path, 'r') as expected_file:
     expected = expected_file.read()
 
   cmd = [
@@ -109,13 +110,13 @@ def run_query_test(trace_processor_path, gen_trace_path,
     '--perf-file',
     perf_path,
   ]
-  actual = subprocess.check_output(cmd).decode("utf-8")
+  actual = subprocess.check_output(cmd).decode('utf-8')
 
-  return TestResult("query", query_path, cmd, expected, actual)
+  return TestResult('query', query_path, cmd, expected, actual)
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument("--test-type", type=str, default="queries")
+  parser.add_argument('--test-type', type=str, default='queries')
   parser.add_argument('--trace-descriptor', type=str)
   parser.add_argument('--metrics-descriptor', type=str)
   parser.add_argument('--perf-file', type=str)
@@ -123,13 +124,13 @@ def main():
                       help='location of trace processor binary')
   args = parser.parse_args()
 
-  test_dir = os.path.join(ROOT_DIR, "test")
+  test_dir = os.path.join(ROOT_DIR, 'test')
   if args.test_type == 'queries':
-    index = os.path.join(test_dir, "trace_processor", "index")
+    index = os.path.join(test_dir, 'trace_processor', 'index')
   elif args.test_type == 'metrics':
-    index = os.path.join(test_dir, "metrics", "index")
+    index = os.path.join(test_dir, 'metrics', 'index')
   else:
-    print("Unknown test type {}. Supported: queries, metircs".format(
+    print('Unknown test type {}. Supported: queries, metircs'.format(
       args.test_type))
     return 1
 
@@ -141,17 +142,17 @@ def main():
   else:
     out_path = os.path.dirname(args.trace_processor)
     trace_protos_path = os.path.join(
-        out_path, "gen", "protos", "trace")
-    trace_descriptor_path = os.path.join(trace_protos_path, "trace.descriptor")
+        out_path, 'gen', 'protos', 'trace')
+    trace_descriptor_path = os.path.join(trace_protos_path, 'trace.descriptor')
 
   if args.metrics_descriptor:
     metrics_descriptor_path = args.metrics_descriptor
   else:
     out_path = os.path.dirname(args.trace_processor)
     metrics_protos_path = os.path.join(
-        out_path, "gen", "protos", "perfetto", "metrics")
+        out_path, 'gen', 'protos', 'perfetto', 'metrics')
     metrics_descriptor_path = os.path.join(metrics_protos_path,
-                                           "metrics.descriptor")
+                                           'metrics.descriptor')
 
   metrics_message_factory = create_metrics_message_factory(
     metrics_descriptor_path)
@@ -171,15 +172,15 @@ def main():
     trace_path = os.path.abspath(os.path.join(index_dir, trace_fname))
     expected_path = os.path.abspath(os.path.join(index_dir, expected_fname))
     if not os.path.exists(trace_path):
-      print("Trace file not found {}".format(trace_path))
+      print('Trace file not found {}'.format(trace_path))
       return 1
     elif not os.path.exists(expected_path):
-      print("Expected file not found {}".format(expected_path))
+      print('Expected file not found {}'.format(expected_path))
       return 1
 
     if trace_path.endswith('.py'):
       gen_trace_file = tempfile.NamedTemporaryFile()
-      python_cmd = ["python", trace_path, trace_descriptor_path]
+      python_cmd = ['python', trace_path, trace_descriptor_path]
       subprocess.check_call(python_cmd, stdout=gen_trace_file)
       gen_trace_path = os.path.realpath(gen_trace_file.name)
     else:
@@ -192,7 +193,7 @@ def main():
         query_path = os.path.abspath(
           os.path.join(index_dir, query_fname_or_metric))
         if not os.path.exists(query_path):
-          print("Query file not found {}".format(query_path))
+          print('Query file not found {}'.format(query_path))
           return 1
 
         result = run_query_test(args.trace_processor, gen_trace_path,
@@ -221,27 +222,38 @@ def main():
                         perf_numbers[0], perf_numbers[1]))
     else:
       sys.stderr.write(
-        "Expected did not match actual for trace {} and {} {}\n"
+        'Expected did not match actual for trace {} and {} {}\n'
         .format(trace_path, result.test_type, result.input_name))
-      sys.stderr.write("Expected file: {}\n".format(expected_path))
-      sys.stderr.write("Command line: {}\n".format(' '.join(result.cmd)))
+      sys.stderr.write('Expected file: {}\n'.format(expected_path))
+      sys.stderr.write('Command line: {}\n'.format(' '.join(result.cmd)))
 
       write_diff(result.expected, result.actual)
 
       test_failure += 1
 
   if test_failure == 0:
-    print("All tests passed successfully")
+    print('All tests passed successfully')
 
     if args.perf_file:
+      output_data = {
+        'benchmarks': [
+          {
+            'name': '{}|{}'.format(perf_args[0], perf_args[1]),
+            'trace_name': perf_args[0],
+            'query_name': perf_args[1],
+            'ingest_time': perf_args[2],
+            'real_time': perf_args[3],
+            'time_unit': 'ns',
+            'test_type': args.test_type,
+          }
+          for perf_args in sorted(perf_data)
+        ]
+      }
       with open(args.perf_file, 'w+') as perf_file:
-        perf_data.sort()
-        for args in perf_data:
-          perf_file.write('{},{},{},{}\n'
-            .format(args[0], args[1], args[2], args[3]))
+        perf_file.write(json.dumps(output_data, indent=2))
     return 0
   else:
-    print("Total failures: {}".format(test_failure))
+    print('Total failures: {}'.format(test_failure))
     return 1
 
 if __name__ == '__main__':
