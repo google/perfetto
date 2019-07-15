@@ -151,7 +151,7 @@ def main(argv):
                       "this can significantly slow down the client.",
                       action="store_true")
   parser.add_argument("--idle-allocations", help="Keep track of how many "
-                      "bytes were unused since the last clear_refs, per "
+                      "bytes were unused since the last dump, per "
                       "callstack", action="store_true")
   parser.add_argument("--simpleperf", action="store_true",
                       help="Get simpleperf profile of heapprofd. This is "
