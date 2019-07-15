@@ -41,7 +41,7 @@ message ProfilePacket {
     // bytes allocated at this callstack that have been freed.
     optional uint64 self_freed = 3;
     // bytes allocated at this callstack but not used since the last
-    // clear_refs.
+    // dump.
     // See documentation of idle_allocations in HeapprofdConfig for more
     // details.
     optional uint64 self_idle = 7;
