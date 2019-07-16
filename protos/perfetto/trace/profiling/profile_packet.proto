@@ -34,6 +34,7 @@ message ProfilePacket {
   repeated Frame frames = 2;
   repeated Callstack callstacks = 3;
 
+  // Next ID: 9
   message HeapSample {
     optional uint64 callstack_id = 1;
     // bytes allocated at this callstack.
@@ -45,6 +46,11 @@ message ProfilePacket {
     // See documentation of idle_allocations in HeapprofdConfig for more
     // details.
     optional uint64 self_idle = 7;
+    // Bytes allocated by this callstack but not freed at the time the malloc
+    // heap usage of this process was maximal. This is only set if dump_at_max
+    // is true in HeapprofdConfig. In that case, self_allocated, self_freed and
+    // self_idle will not be set.
+    optional uint64 self_max = 8;
     optional uint64 timestamp = 4;  // timestamp [opt]
     // Number of allocations that were sampled at this callstack.
     optional uint64 alloc_count = 5;

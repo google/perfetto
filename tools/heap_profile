@@ -153,6 +153,9 @@ def main(argv):
   parser.add_argument("--idle-allocations", help="Keep track of how many "
                       "bytes were unused since the last dump, per "
                       "callstack", action="store_true")
+  parser.add_argument("--dump-at-max", help="Dump the maximum memory usage"
+                      "rather than at the time of the dump.",
+                      action="store_true")
   parser.add_argument("--simpleperf", action="store_true",
                       help="Get simpleperf profile of heapprofd. This is "
                       "only for heapprofd development.")
@@ -192,6 +195,8 @@ def main(argv):
     target_cfg += "no_startup: true\n"
   if args.no_running:
     target_cfg += "no_running: true\n"
+  if args.dump_at_max:
+    target_cfg += "dump_at_max: true\n"
   if args.pid:
     for pid in args.pid.split(','):
       try:

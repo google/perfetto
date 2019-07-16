@@ -83,12 +83,17 @@ enum Strings : int64_t {
   kAllocSpace,
   kBytes,
   kIdleSpace,
+  kMaxSpace,
 };
 
 class GProfileWriter {
  public:
   GProfileWriter() {
     GValueType* value_type = profile_.add_sample_type();
+    value_type->set_type(kMaxSpace);
+    value_type->set_unit(kBytes);
+
+    value_type = profile_.add_sample_type();
     value_type->set_type(kObjects);
     value_type->set_unit(kCount);
 
@@ -242,6 +247,7 @@ class GProfileWriter {
         }
         for (uint64_t frame_id : it->second)
           gsample->add_location_id(frame_id);
+        gsample->add_value(static_cast<int64_t>(sample.self_max()));
         gsample->add_value(
             static_cast<int64_t>(sample.alloc_count() - sample.free_count()));
         gsample->add_value(static_cast<int64_t>(sample.alloc_count()));
@@ -270,7 +276,8 @@ class GProfileWriter {
       {"space", kSpace},
       {"alloc_space", kAllocSpace},
       {"bytes", kBytes},
-      {"idle_space", kIdleSpace}};
+      {"idle_space", kIdleSpace},
+      {"max_space", kMaxSpace}};
 };
 
 bool MakeWriter(const std::vector<ProfilePacket>& packet_fragments,
