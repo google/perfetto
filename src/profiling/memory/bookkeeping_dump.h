@@ -71,7 +71,8 @@ class DumpState {
 
   void AddIdleBytes(uintptr_t callstack_id, uint64_t bytes);
 
-  void WriteAllocation(const HeapTracker::CallstackAllocations& alloc);
+  void WriteAllocation(const HeapTracker::CallstackAllocations& alloc,
+                       bool dump_at_max_mode);
   void DumpCallstacks(GlobalCallstackTrie* callsites);
 
  private:

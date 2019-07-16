@@ -56,7 +56,7 @@ std::vector<FrameData> stack2() {
 TEST(BookkeepingTest, Basic) {
   uint64_t sequence_number = 1;
   GlobalCallstackTrie c;
-  HeapTracker hd(&c);
+  HeapTracker hd(&c, false);
 
   hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
   sequence_number++;
@@ -77,12 +77,30 @@ TEST(BookkeepingTest, Basic) {
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
 }
 
+TEST(BookkeepingTest, Max) {
+  uint64_t sequence_number = 1;
+  GlobalCallstackTrie c;
+  HeapTracker hd(&c, true);
+
+  hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
+  sequence_number++;
+  hd.RecordMalloc(stack2(), 2, 2, 2, sequence_number, 100 * sequence_number);
+  sequence_number++;
+  hd.RecordFree(2, sequence_number, 100 * sequence_number);
+  sequence_number++;
+  hd.RecordFree(1, sequence_number, 100 * sequence_number);
+  sequence_number++;
+  ASSERT_EQ(hd.max_timestamp(), 200);
+  ASSERT_EQ(hd.GetMaxForTesting(stack()), 5);
+  ASSERT_EQ(hd.GetMaxForTesting(stack2()), 2);
+}
+
 TEST(BookkeepingTest, TwoHeapTrackers) {
   uint64_t sequence_number = 1;
   GlobalCallstackTrie c;
-  HeapTracker hd(&c);
+  HeapTracker hd(&c, false);
   {
-    HeapTracker hd2(&c);
+    HeapTracker hd2(&c, false);
 
     hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
     hd2.RecordMalloc(stack(), 2, 2, 2, sequence_number, 100 * sequence_number);
@@ -97,7 +115,7 @@ TEST(BookkeepingTest, TwoHeapTrackers) {
 TEST(BookkeepingTest, ReplaceAlloc) {
   uint64_t sequence_number = 1;
   GlobalCallstackTrie c;
-  HeapTracker hd(&c);
+  HeapTracker hd(&c, false);
 
   hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
   sequence_number++;
@@ -110,7 +128,7 @@ TEST(BookkeepingTest, ReplaceAlloc) {
 
 TEST(BookkeepingTest, OutOfOrder) {
   GlobalCallstackTrie c;
-  HeapTracker hd(&c);
+  HeapTracker hd(&c, false);
 
   hd.RecordMalloc(stack(), 1, 5, 5, 2, 2);
   hd.RecordMalloc(stack2(), 1, 2, 2, 1, 1);
@@ -120,7 +138,7 @@ TEST(BookkeepingTest, OutOfOrder) {
 
 TEST(BookkeepingTest, ManyAllocations) {
   GlobalCallstackTrie c;
-  HeapTracker hd(&c);
+  HeapTracker hd(&c, false);
 
   std::vector<std::pair<uint64_t, uint64_t>> batch_frees;
 
@@ -168,7 +186,7 @@ TEST(BookkeepingTest, ArbitraryOrder) {
 
   do {
     GlobalCallstackTrie c;
-    HeapTracker hd(&c);
+    HeapTracker hd(&c, false);
 
     for (auto it = std::begin(operations); it != std::end(operations); ++it) {
       const Operation& operation = *it;

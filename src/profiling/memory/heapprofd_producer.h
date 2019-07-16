@@ -168,7 +168,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   };
 
   struct ProcessState {
-    ProcessState(GlobalCallstackTrie* callsites) : heap_tracker(callsites) {}
+    ProcessState(GlobalCallstackTrie* callsites, bool dump_at_max_mode)
+        : heap_tracker(callsites, dump_at_max_mode) {}
     bool disconnected = false;
     bool buffer_overran = false;
     bool buffer_corrupted = false;
