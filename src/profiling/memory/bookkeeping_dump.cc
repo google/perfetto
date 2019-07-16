@@ -119,8 +119,8 @@ void DumpState::WriteFunctionNameString(const Interned<std::string>& str) {
   }
 }
 
-void DumpState::WriteAllocation(
-    const HeapTracker::CallstackAllocations& alloc) {
+void DumpState::WriteAllocation(const HeapTracker::CallstackAllocations& alloc,
+                                bool dump_at_max_mode) {
   if (intern_state_->dumped_callstacks_.find(alloc.node->id()) ==
       intern_state_->dumped_callstacks_.end())
     callstacks_to_dump_.emplace(alloc.node);
@@ -128,8 +128,12 @@ void DumpState::WriteAllocation(
   auto* heap_samples = GetCurrentProcessHeapSamples();
   ProfilePacket::HeapSample* sample = heap_samples->add_samples();
   sample->set_callstack_id(alloc.node->id());
-  sample->set_self_allocated(alloc.allocated);
-  sample->set_self_freed(alloc.freed);
+  if (dump_at_max_mode) {
+    sample->set_self_max(alloc.value.retain_max.max);
+  } else {
+    sample->set_self_allocated(alloc.value.totals.allocated);
+    sample->set_self_freed(alloc.value.totals.freed);
+  }
   sample->set_alloc_count(alloc.allocation_count);
   sample->set_free_count(alloc.free_count);
 

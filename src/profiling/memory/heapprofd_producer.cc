@@ -523,12 +523,15 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
 
     bool from_startup =
         data_source.signaled_pids.find(pid) == data_source.signaled_pids.cend();
-    uint64_t committed_timestamp = heap_tracker.committed_timestamp();
-    auto new_heapsamples = [pid, from_startup, committed_timestamp,
-                            &process_state](
+    uint64_t dump_timestamp;
+    if (data_source.config.dump_at_max())
+      dump_timestamp = heap_tracker.max_timestamp();
+    else
+      dump_timestamp = heap_tracker.committed_timestamp();
+    auto new_heapsamples = [pid, from_startup, dump_timestamp, &process_state](
                                ProfilePacket::ProcessHeapSamples* proto) {
       proto->set_pid(static_cast<uint64_t>(pid));
-      proto->set_timestamp(committed_timestamp);
+      proto->set_timestamp(dump_timestamp);
       proto->set_from_startup(from_startup);
       proto->set_disconnected(process_state.disconnected);
       proto->set_buffer_overran(process_state.buffer_overran);
@@ -569,8 +572,9 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
     }
 
     heap_tracker.GetCallstackAllocations(
-        [&dump_state](const HeapTracker::CallstackAllocations& alloc) {
-          dump_state.WriteAllocation(alloc);
+        [&dump_state,
+         &data_source](const HeapTracker::CallstackAllocations& alloc) {
+          dump_state.WriteAllocation(alloc, data_source.config.dump_at_max());
         });
     if (process_state.page_idle_checker)
       process_state.page_idle_checker->MarkPagesIdle();
@@ -675,7 +679,9 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
 
     DataSource& data_source = ds_it->second;
     auto it_and_inserted = data_source.process_states.emplace(
-        self->peer_pid(), &producer_->callsites_);
+        std::piecewise_construct, std::forward_as_tuple(self->peer_pid()),
+        std::forward_as_tuple(&producer_->callsites_,
+                              data_source.config.dump_at_max()));
 
     ProcessState& process_state = it_and_inserted.first->second;
     if (data_source.config.idle_allocations()) {

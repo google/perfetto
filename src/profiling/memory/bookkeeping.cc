@@ -50,10 +50,10 @@ void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
       if (alloc.sequence_number > committed_sequence_number_) {
         // Only count the previous allocation if it hasn't already been
         // committed to avoid double counting it.
-        alloc.AddToCallstackAllocations();
+        AddToCallstackAllocations(timestamp, alloc);
       }
 
-      alloc.SubtractFromCallstackAllocations();
+      SubtractFromCallstackAllocations(alloc);
       GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(callstack);
       alloc.sample_size = sample_size;
       alloc.alloc_size = alloc_size;
@@ -103,9 +103,9 @@ void HeapTracker::CommitOperation(uint64_t sequence_number,
 
   Allocation& value = leaf_it->second;
   if (value.sequence_number == sequence_number) {
-    value.AddToCallstackAllocations();
+    AddToCallstackAllocations(operation.timestamp, value);
   } else if (value.sequence_number < sequence_number) {
-    value.SubtractFromCallstackAllocations();
+    SubtractFromCallstackAllocations(value);
     allocations_.erase(leaf_it);
   }
   // else (value.sequence_number > sequence_number:
@@ -117,6 +117,7 @@ void HeapTracker::CommitOperation(uint64_t sequence_number,
 }
 
 uint64_t HeapTracker::GetSizeForTesting(const std::vector<FrameData>& stack) {
+  PERFETTO_DCHECK(!dump_at_max_mode_);
   GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(stack);
   // Hack to make it go away again if it wasn't used before.
   // This is only good because this is used for testing only.
@@ -127,7 +128,22 @@ uint64_t HeapTracker::GetSizeForTesting(const std::vector<FrameData>& stack) {
     return 0;
   }
   const CallstackAllocations& alloc = it->second;
-  return alloc.allocated - alloc.freed;
+  return alloc.value.totals.allocated - alloc.value.totals.freed;
+}
+
+uint64_t HeapTracker::GetMaxForTesting(const std::vector<FrameData>& stack) {
+  PERFETTO_DCHECK(dump_at_max_mode_);
+  GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(stack);
+  // Hack to make it go away again if it wasn't used before.
+  // This is only good because this is used for testing only.
+  GlobalCallstackTrie::IncrementNode(node);
+  GlobalCallstackTrie::DecrementNode(node);
+  auto it = callstack_allocations_.find(node);
+  if (it == callstack_allocations_.end()) {
+    return 0;
+  }
+  const CallstackAllocations& alloc = it->second;
+  return alloc.value.retain_max.max;
 }
 
 GlobalCallstackTrie::Node* GlobalCallstackTrie::GetOrCreateChild(

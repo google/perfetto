@@ -839,10 +839,6 @@ message HeapprofdConfig {
   // E.g. /system to not emit symbols for any system libraries.
   repeated string skip_symbol_prefix = 7;
 
-  // Dump once at the end of the trace, emitting the heap dump at maximum
-  // memory usage.
-  // optional bool retain_max = 5;  // TODO(fmayer): Implement
-
   // Dump at a predefined interval.
   optional ContinuousDumpConfig continuous_dump_config = 6;
 
@@ -883,6 +879,12 @@ message HeapprofdConfig {
   // You can then find the allocations that were not used for the operations you
   // did in step 4.
   optional bool idle_allocations = 12;
+
+  // Cause heapprofd to emit a single dump at the end, showing the memory usage
+  // at the point in time when the sampled heap usage of the process was at its
+  // maximum. This causes ProfilePacket.HeapSample.self_max to be set, and
+  // self_allocated and self_freed to not be set.
+  optional bool dump_at_max = 13;
 }
 
 // End of protos/perfetto/config/profiling/heapprofd_config.proto

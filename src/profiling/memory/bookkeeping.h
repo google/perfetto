@@ -214,16 +214,26 @@ class GlobalCallstackTrie {
 // with other processes.
 class HeapTracker {
  public:
+  struct CallstackMaxAllocations {
+    uint64_t max;
+    uint64_t cur;
+  };
+  struct CallstackTotalAllocations {
+    uint64_t allocated;
+    uint64_t freed;
+  };
+
   // Sum of all the allocations for a given callstack.
   struct CallstackAllocations {
     CallstackAllocations(GlobalCallstackTrie::Node* n) : node(n) {}
 
     uint64_t allocs = 0;
-
-    uint64_t allocated = 0;
-    uint64_t freed = 0;
     uint64_t allocation_count = 0;
     uint64_t free_count = 0;
+    union {
+      CallstackMaxAllocations retain_max;
+      CallstackTotalAllocations totals;
+    } value = {};
 
     GlobalCallstackTrie::Node* const node;
 
@@ -235,8 +245,8 @@ class HeapTracker {
   };
 
   // Caller needs to ensure that callsites outlives the HeapTracker.
-  explicit HeapTracker(GlobalCallstackTrie* callsites)
-      : callsites_(callsites) {}
+  explicit HeapTracker(GlobalCallstackTrie* callsites, bool dump_at_max_mode)
+      : callsites_(callsites), dump_at_max_mode_(dump_at_max_mode) {}
 
   void RecordMalloc(const std::vector<FrameData>& stack,
                     uint64_t address,
@@ -287,8 +297,10 @@ class HeapTracker {
   }
 
   uint64_t committed_timestamp() { return committed_timestamp_; }
+  uint64_t max_timestamp() { return max_timestamp_; }
 
   uint64_t GetSizeForTesting(const std::vector<FrameData>& stack);
+  uint64_t GetMaxForTesting(const std::vector<FrameData>& stack);
   uint64_t GetTimestampForTesting() { return committed_timestamp_; }
 
  private:
@@ -312,16 +324,6 @@ class HeapTracker {
       sequence_number = other.sequence_number;
       callstack_allocations = other.callstack_allocations;
       other.callstack_allocations = nullptr;
-    }
-
-    void AddToCallstackAllocations() {
-      callstack_allocations->allocation_count++;
-      callstack_allocations->allocated += sample_size;
-    }
-
-    void SubtractFromCallstackAllocations() {
-      callstack_allocations->free_count++;
-      callstack_allocations->freed += sample_size;
     }
 
     ~Allocation() {
@@ -367,6 +369,47 @@ class HeapTracker {
   void CommitOperation(uint64_t sequence_number,
                        const PendingOperation& operation);
 
+  void AddToCallstackAllocations(uint64_t ts, const Allocation& alloc) {
+    alloc.callstack_allocations->allocation_count++;
+    if (dump_at_max_mode_) {
+      current_unfreed_ += alloc.sample_size;
+      alloc.callstack_allocations->value.retain_max.cur += alloc.sample_size;
+
+      if (current_unfreed_ <= max_unfreed_)
+        return;
+
+      if (max_sequence_number_ == alloc.sequence_number - 1) {
+        alloc.callstack_allocations->value.retain_max.max =
+            // We know the only CallstackAllocation that has max != cur is the
+            // one we just updated.
+            alloc.callstack_allocations->value.retain_max.cur;
+      } else {
+        for (auto& p : callstack_allocations_) {
+          // We need to reset max = cur for every CallstackAllocation, as we
+          // do not know which ones have changed since the last max.
+          // TODO(fmayer): Add an index to speed this up
+          CallstackAllocations& csa = p.second;
+          csa.value.retain_max.max = csa.value.retain_max.cur;
+        }
+      }
+      max_sequence_number_ = alloc.sequence_number;
+      max_unfreed_ = current_unfreed_;
+      max_timestamp_ = ts;
+    } else {
+      alloc.callstack_allocations->value.totals.allocated += alloc.sample_size;
+    }
+  }
+
+  void SubtractFromCallstackAllocations(const Allocation& alloc) {
+    alloc.callstack_allocations->free_count++;
+    if (dump_at_max_mode_) {
+      current_unfreed_ -= alloc.sample_size;
+      alloc.callstack_allocations->value.retain_max.cur -= alloc.sample_size;
+    } else {
+      alloc.callstack_allocations->value.totals.freed += alloc.sample_size;
+    }
+  }
+
   // We cannot use an interner here, because after the last allocation goes
   // away, we still need to keep the CallstackAllocations around until the next
   // dump.
@@ -392,6 +435,13 @@ class HeapTracker {
   // The sequence number all mallocs and frees have been handled up to.
   uint64_t committed_sequence_number_ = 0;
   GlobalCallstackTrie* callsites_;
+
+  const bool dump_at_max_mode_ = false;
+  // The following members are only used if dump_at_max_mode_ == true.
+  uint64_t max_sequence_number_ = 0;
+  uint64_t current_unfreed_ = 0;
+  uint64_t max_unfreed_ = 0;
+  uint64_t max_timestamp_ = 0;
 };
 
 }  // namespace profiling

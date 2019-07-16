@@ -6,5 +6,6 @@
   `HeapprofdConfig`.
 * Allow to get the number of bytes that were allocated at a callstack but then
   not used.
+* Allow to dump the maximum, rather than at the time of the dump.
 
 ## Bugfixes
