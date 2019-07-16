@@ -76,18 +76,20 @@ PagedMemory PagedMemory::Allocate(size_t size, int flags) {
 
 PagedMemory::PagedMemory() {}
 
-PagedMemory::PagedMemory(char* p, size_t size)
-    : p_(p),
-      size_(size){ANNOTATE_NEW_BUFFER(p_, size_, committed_size_)}
+// clang-format off
+PagedMemory::PagedMemory(char* p, size_t size) : p_(p), size_(size) {
+  ANNOTATE_NEW_BUFFER(p_, size_, committed_size_)
+}
 
-      PagedMemory::PagedMemory(PagedMemory && other) noexcept {
+PagedMemory::PagedMemory(PagedMemory&& other) noexcept {
   *this = other;
   other.p_ = nullptr;
 }
+// clang-format on
 
 PagedMemory& PagedMemory::operator=(PagedMemory&& other) {
-  *this = other;
-  other.p_ = nullptr;
+  this->~PagedMemory();
+  new (this) PagedMemory(std::move(other));
   return *this;
 }
 
