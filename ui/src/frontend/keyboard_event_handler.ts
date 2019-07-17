@@ -29,6 +29,11 @@ export function handleKey(key: string, down: boolean) {
   }
   if (down && 't' === key) {
     globals.dispatch(Actions.toggleScrubbing({}));
+    if (globals.frontendLocalState.vidTimestamp < 0) {
+      globals.frontendLocalState.setVidTimestamp(Number.MAX_SAFE_INTEGER);
+    } else {
+      globals.frontendLocalState.setVidTimestamp(Number.MIN_SAFE_INTEGER);
+    }
   }
 }
 
