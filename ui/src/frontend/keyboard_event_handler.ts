@@ -27,6 +27,9 @@ export function handleKey(key: string, down: boolean) {
   if (down && 'p' === key) {
     globals.dispatch(Actions.toggleFlagPause({}));
   }
+  if (down && 't' === key) {
+    globals.dispatch(Actions.toggleScrubbing({}));
+  }
 }
 
 function selectSliceSpan() {

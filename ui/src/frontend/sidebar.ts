@@ -218,9 +218,9 @@ const vidSection = {
 };
 
 function showHotkeys() {
-  let hks = '';
-  hks += '\'v\': Shows/hides video components \n';
-  hks += '\'p\': Enables/disables pausing and flagging synchronization \n';
+  const hks = `'v': Shows/hides video components \n` +
+              `'p': Enables/disables pause/flag synchronization \n` +
+              `'t': Enables/disables timeline scrubbing`;
   alert(hks);
   return false;
 }

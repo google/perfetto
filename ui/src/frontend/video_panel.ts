@@ -36,6 +36,13 @@ export class VideoPanel implements m.Component {
             elem.currentTime = timestamp - offset;
           }
         },
+        onplaying: (e: Event) => {
+          const elem = e.target as HTMLVideoElement;
+          if (globals.state.scrubbingEnabled) {
+            elem.currentTime = globals.frontendLocalState.vidTimestamp -
+                               globals.state.traceTime.startSec;
+          }
+        }
       },
       m('source', { src: globals.state.video, type: 'video/mp4' }));
       return vid;
