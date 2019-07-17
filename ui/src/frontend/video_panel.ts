@@ -21,7 +21,7 @@ import {randomColor} from './colorizer';
 export class VideoPanel implements m.ClassComponent {
   view() {
     const vidSections = [];
-    const offset = globals.state.traceTime.startSec;
+    const offset = globals.state.traceTime.startSec + globals.state.videoOffset;
     vidSections.push(
       m('video', {
         class: 'video-panel',
