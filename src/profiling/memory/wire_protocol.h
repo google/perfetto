@@ -99,8 +99,7 @@ struct AllocMetadata {
   uint64_t stack_pointer_offset;
   uint64_t clock_monotonic_coarse_timestamp;
   alignas(uint64_t) char register_data[kMaxRegisterDataSize];
-  // CPU architecture of the client. This determines the size of the
-  // register data that follows this struct.
+  // CPU architecture of the client.
   unwindstack::ArchEnum arch;
 };
 
