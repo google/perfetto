@@ -37,7 +37,7 @@ export class TimeAxisPanel extends Panel {
     const offsetTime =
         timeToString(range.start - globals.state.traceTime.startSec);
     ctx.fillText(offsetTime, TRACK_SHELL_WIDTH - 6, 11);
-    ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 2, size.height);
+    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
     // Draw time axis.
     ctx.font = '10px Google Sans';
