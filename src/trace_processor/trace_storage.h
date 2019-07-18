@@ -414,16 +414,18 @@ class TraceStorage {
       return thread_instruction_deltas_;
     }
 
-    uint32_t FindRowForSliceId(uint32_t slice_id) const {
+    base::Optional<uint32_t> FindRowForSliceId(uint32_t slice_id) const {
       auto it =
           std::lower_bound(slice_ids().begin(), slice_ids().end(), slice_id);
-      PERFETTO_DCHECK(it != slice_ids().end() && *it == slice_id);
-      return static_cast<uint32_t>(std::distance(slice_ids().begin(), it));
+      if (it != slice_ids().end() && *it == slice_id) {
+        return static_cast<uint32_t>(std::distance(slice_ids().begin(), it));
+      }
+      return base::nullopt;
     }
 
     void UpdateThreadDurationForSliceId(uint32_t slice_id,
                                         int64_t end_thread_timestamp_ns) {
-      uint32_t row = FindRowForSliceId(slice_id);
+      uint32_t row = *FindRowForSliceId(slice_id);
       int64_t begin_ns = thread_timestamp_ns_[row];
       thread_duration_ns_[row] = end_thread_timestamp_ns - begin_ns;
     }
