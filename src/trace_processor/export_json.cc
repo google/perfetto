@@ -37,6 +37,8 @@ class TraceFormatWriter {
 
   void WriteCompleteEvent(int64_t begin_ts_us,
                           int64_t duration_us,
+                          int64_t thread_ts_us,
+                          int64_t thread_duration_us,
                           const char* cat,
                           const char* name,
                           uint32_t tid,
@@ -54,12 +56,17 @@ class TraceFormatWriter {
     value["pid"] = Json::UInt(pid);
     value["ts"] = Json::Int64(begin_ts_us);
     value["dur"] = Json::Int64(duration_us);
+    if (thread_ts_us > 0) {
+      value["tts"] = Json::Int64(thread_ts_us);
+      value["tdur"] = Json::Int64(thread_duration_us);
+    }
     value["args"] = args;
     fputs(writer.write(value).c_str(), output_);
     first_event_ = false;
   }
 
   void WriteInstantEvent(int64_t begin_ts_us,
+                         int64_t thread_ts_us,
                          const char* scope,
                          const char* cat,
                          const char* name,
@@ -78,6 +85,9 @@ class TraceFormatWriter {
     value["tid"] = Json::UInt(tid);
     value["pid"] = Json::UInt(pid);
     value["ts"] = Json::Int64(begin_ts_us);
+    if (thread_ts_us > 0) {
+      value["tts"] = Json::Int64(thread_ts_us);
+    }
     value["args"] = args;
     fputs(writer.write(value).c_str(), output_);
     first_event_ = false;
@@ -345,7 +355,7 @@ ResultCode ExportSlices(const TraceStorage* storage,
   const StringPool& string_pool = storage->string_pool();
   ArgsBuilder args_builder(storage);
   const auto& slices = storage->nestable_slices();
-  for (size_t i = 0; i < slices.slice_count(); ++i) {
+  for (uint32_t i = 0; i < slices.slice_count(); ++i) {
     int64_t begin_ts_us = slices.start_ns()[i] / 1000;
     int64_t duration_us = slices.durations()[i] / 1000;
     const char* cat = string_pool.Get(slices.categories()[i]).c_str();
@@ -371,6 +381,17 @@ ResultCode ExportSlices(const TraceStorage* storage,
                                       async_id, args);
       }
     } else {                             // Sync event.
+      const auto& thread_slices = storage->thread_slices();
+      int64_t thread_ts_us = 0;
+      int64_t thread_duration_us = 0;
+      base::Optional<uint32_t> thread_slice_row =
+          thread_slices.FindRowForSliceId(i);
+      if (thread_slice_row) {
+        thread_ts_us =
+            thread_slices.thread_timestamp_ns()[*thread_slice_row] / 1000;
+        thread_duration_us =
+            thread_slices.thread_duration_ns()[*thread_slice_row] / 1000;
+      }
       if (slices.durations()[i] == 0) {  // Instant event.
         uint32_t pid = 0;
         uint32_t tid = 0;
@@ -390,8 +411,9 @@ ResultCode ExportSlices(const TraceStorage* storage,
         } else {
           return kResultWrongRefType;
         }
-        writer->WriteInstantEvent(begin_ts_us, instant_scope.c_str(), cat, name,
-                                  tid, pid, args);
+        writer->WriteInstantEvent(begin_ts_us, thread_ts_us,
+                                  instant_scope.c_str(), cat, name, tid, pid,
+                                  args);
       } else {  // Complete event.
         if (slices.types()[i] != RefType::kRefUtid) {
           return kResultWrongRefType;
@@ -399,8 +421,9 @@ ResultCode ExportSlices(const TraceStorage* storage,
         UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
         auto thread = storage->GetThread(utid);
         uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
-        writer->WriteCompleteEvent(begin_ts_us, duration_us, cat, name,
-                                   thread.tid, pid, args);
+        writer->WriteCompleteEvent(begin_ts_us, duration_us, thread_ts_us,
+                                   thread_duration_us, cat, name, thread.tid,
+                                   pid, args);
       }
     }
   }
