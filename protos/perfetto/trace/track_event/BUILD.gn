@@ -19,6 +19,8 @@ import("../../../../gn/protozero_library.gni")
 event_proto_names = [
   "debug_annotation.proto",
   "process_descriptor.proto",
+  "source_location.proto",
+  "log_message.proto",
   "task_execution.proto",
   "thread_descriptor.proto",
   "track_event.proto",

@@ -2589,7 +2589,9 @@ genrule {
   name: "perfetto_protos_perfetto_trace_track_event_lite_gen",
   srcs: [
     "protos/perfetto/trace/track_event/debug_annotation.proto",
+    "protos/perfetto/trace/track_event/log_message.proto",
     "protos/perfetto/trace/track_event/process_descriptor.proto",
+    "protos/perfetto/trace/track_event/source_location.proto",
     "protos/perfetto/trace/track_event/task_execution.proto",
     "protos/perfetto/trace/track_event/thread_descriptor.proto",
     "protos/perfetto/trace/track_event/track_event.proto",
@@ -2600,7 +2602,9 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/debug_annotation.pb.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/log_message.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/process_descriptor.pb.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/source_location.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/task_execution.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/thread_descriptor.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/track_event.pb.cc",
@@ -2612,7 +2616,9 @@ genrule {
   name: "perfetto_protos_perfetto_trace_track_event_lite_gen_headers",
   srcs: [
     "protos/perfetto/trace/track_event/debug_annotation.proto",
+    "protos/perfetto/trace/track_event/log_message.proto",
     "protos/perfetto/trace/track_event/process_descriptor.proto",
+    "protos/perfetto/trace/track_event/source_location.proto",
     "protos/perfetto/trace/track_event/task_execution.proto",
     "protos/perfetto/trace/track_event/thread_descriptor.proto",
     "protos/perfetto/trace/track_event/track_event.proto",
@@ -2623,7 +2629,9 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/debug_annotation.pb.h",
+    "external/perfetto/protos/perfetto/trace/track_event/log_message.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/process_descriptor.pb.h",
+    "external/perfetto/protos/perfetto/trace/track_event/source_location.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/task_execution.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/thread_descriptor.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/track_event.pb.h",
@@ -2638,7 +2646,9 @@ genrule {
   name: "perfetto_protos_perfetto_trace_track_event_zero_gen",
   srcs: [
     "protos/perfetto/trace/track_event/debug_annotation.proto",
+    "protos/perfetto/trace/track_event/log_message.proto",
     "protos/perfetto/trace/track_event/process_descriptor.proto",
+    "protos/perfetto/trace/track_event/source_location.proto",
     "protos/perfetto/trace/track_event/task_execution.proto",
     "protos/perfetto/trace/track_event/thread_descriptor.proto",
     "protos/perfetto/trace/track_event/track_event.proto",
@@ -2650,7 +2660,9 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protozero_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/protos $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/debug_annotation.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/log_message.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/process_descriptor.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/source_location.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/task_execution.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/thread_descriptor.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/track_event.pbzero.cc",
@@ -2662,7 +2674,9 @@ genrule {
   name: "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
   srcs: [
     "protos/perfetto/trace/track_event/debug_annotation.proto",
+    "protos/perfetto/trace/track_event/log_message.proto",
     "protos/perfetto/trace/track_event/process_descriptor.proto",
+    "protos/perfetto/trace/track_event/source_location.proto",
     "protos/perfetto/trace/track_event/task_execution.proto",
     "protos/perfetto/trace/track_event/thread_descriptor.proto",
     "protos/perfetto/trace/track_event/track_event.proto",
@@ -2674,7 +2688,9 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/protos && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/protos --proto_path=external/perfetto/protos --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protozero_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/protos $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/debug_annotation.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/track_event/log_message.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/process_descriptor.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/track_event/source_location.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/task_execution.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/thread_descriptor.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/track_event.pbzero.h",
