@@ -59,6 +59,8 @@ TEST(ExportJsonTest, EmptyStorage) {
 TEST(ExportJsonTest, StorageWithOneSlice) {
   const int64_t kTimestamp = 10000000;
   const int64_t kDuration = 10000;
+  const int64_t kThreadTimestamp = 20000000;
+  const int64_t kThreadDuration = 20000;
   const int64_t kThreadID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
@@ -69,6 +71,8 @@ TEST(ExportJsonTest, StorageWithOneSlice) {
   StringId name_id = storage.InternString(base::StringView(kName));
   storage.mutable_nestable_slices()->AddSlice(
       kTimestamp, kDuration, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
+  storage.mutable_thread_slices()->AddThreadSlice(0, kThreadTimestamp,
+                                                  kThreadDuration, 0, 0);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -85,6 +89,8 @@ TEST(ExportJsonTest, StorageWithOneSlice) {
   EXPECT_EQ(event["ph"].asString(), "X");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(event["dur"].asInt64(), kDuration / 1000);
+  EXPECT_EQ(event["tts"].asInt64(), kThreadTimestamp / 1000);
+  EXPECT_EQ(event["tdur"].asInt64(), kThreadDuration / 1000);
   EXPECT_EQ(event["tid"].asUInt(), kThreadID);
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
