@@ -22,6 +22,7 @@ import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
 import {TimeScale} from './time_scale';
+import {TRACK_SHELL_WIDTH} from './track_constants';
 
 export class OverviewTimelinePanel extends Panel {
   private width = 0;
@@ -36,7 +37,8 @@ export class OverviewTimelinePanel extends Panel {
     this.width = dom.getBoundingClientRect().width;
     this.totTime = new TimeSpan(
         globals.state.traceTime.startSec, globals.state.traceTime.endSec);
-    this.timeScale = new TimeScale(this.totTime, [0, assertExists(this.width)]);
+    this.timeScale = new TimeScale(
+        this.totTime, [TRACK_SHELL_WIDTH, assertExists(this.width)]);
 
     if (this.gesture === undefined) {
       this.gesture = new DragGestureHandler(
@@ -65,15 +67,16 @@ export class OverviewTimelinePanel extends Panel {
     ctx.font = '10px Google Sans';
     ctx.fillStyle = '#999';
     for (let i = 0; i < 100; i++) {
-      const xPos = i * this.width / 100;
+      const xPos =
+          (i * (this.width - TRACK_SHELL_WIDTH) / 100) + TRACK_SHELL_WIDTH;
       const t = this.timeScale.pxToTime(xPos);
       if (xPos <= 0) continue;
       if (xPos > this.width) break;
       if (i % 10 === 0) {
-        ctx.fillRect(xPos, 0, 1, headerHeight - 5);
+        ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
         ctx.fillText(timeToString(t - this.totTime.start), xPos + 5, 18);
       } else {
-        ctx.fillRect(xPos, 0, 1, 5);
+        ctx.fillRect(xPos - 1, 0, 1, 5);
       }
     }
 
@@ -97,7 +100,7 @@ export class OverviewTimelinePanel extends Panel {
     }
 
     // Draw bottom border.
-    ctx.fillStyle = 'hsl(219, 40%, 50%)';
+    ctx.fillStyle = '#dadada';
     ctx.fillRect(0, size.height - 1, this.width, 1);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
@@ -106,11 +109,15 @@ export class OverviewTimelinePanel extends Panel {
     const vizEndPx = Math.ceil(this.timeScale.timeToPx(vizTime.end));
 
     ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
-    ctx.fillRect(0, headerHeight, vizStartPx, tracksHeight);
+    ctx.fillRect(
+        TRACK_SHELL_WIDTH - 1,
+        headerHeight,
+        vizStartPx - TRACK_SHELL_WIDTH,
+        tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, this.width - vizEndPx, tracksHeight);
 
     // Draw brushes.
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = '#999';
     ctx.fillRect(vizStartPx - 1, headerHeight, 1, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
   }
