@@ -14,11 +14,15 @@
 -- limitations under the License.
 --
 
+-- Get distinct packages list
+CREATE VIEW package_arg_ids AS
+SELECT int_value AS arg_set_id
+FROM metadata WHERE name = 'android_packages_list';
+
 -- Generate a table mapping package names to their attributes
 CREATE VIEW package_args AS
-SELECT args.arg_set_id, args.key, args.string_value, args.int_value
-FROM metadata JOIN args ON metadata.int_value = args.arg_set_id
-WHERE metadata.name = 'android_packages_list';
+SELECT arg_set_id, key, string_value, int_value
+FROM package_arg_ids JOIN args USING(arg_set_id);
 
 CREATE TABLE package_list(
   package_name TEXT PRIMARY KEY,
@@ -26,7 +30,7 @@ CREATE TABLE package_list(
   version_code INT
 );
 
-INSERT INTO package_list
+INSERT OR REPLACE INTO package_list
 SELECT names.name, uids.uid, versions.version
 FROM
   (SELECT arg_set_id, string_value name FROM package_args WHERE key = 'name')
