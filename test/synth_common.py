@@ -22,6 +22,7 @@ CLONE_THREAD = 0x00010000
 
 
 class Trace(object):
+
   def __init__(self, trace):
     self.trace = trace
     self.proc_map = {}
@@ -64,8 +65,13 @@ class Trace(object):
     oom_score.oom_score_adj = oom_score_adj
     oom_score.pid = pid
 
-  def add_sched(self, ts, prev_pid, next_pid, prev_comm=None, next_comm=None,
-      prev_state=None):
+  def add_sched(self,
+                ts,
+                prev_pid,
+                next_pid,
+                prev_comm=None,
+                next_comm=None,
+                prev_state=None):
     ftrace = self.__add_ftrace_event(ts, 0)
     ss = ftrace.sched_switch
     ss.prev_comm = prev_comm or self.proc_map[prev_pid]
@@ -130,6 +136,22 @@ class Trace(object):
     ftrace = self.__add_ftrace_event(ts, tid)
     print_event = getattr(ftrace, 'print')
     print_event.buf = buf
+
+  def add_kmalloc(self, ts, tid, bytes_alloc, bytes_req, call_site, gfp_flags,
+                  ptr):
+    ftrace = self.__add_ftrace_event(ts, tid)
+    kmalloc = ftrace.kmalloc
+    kmalloc.bytes_alloc = bytes_alloc
+    kmalloc.bytes_req = bytes_req
+    kmalloc.call_site = call_site
+    kmalloc.gfp_flags = gfp_flags
+    kmalloc.ptr = ptr
+
+  def add_kfree(self, ts, tid, call_site, ptr):
+    ftrace = self.__add_ftrace_event(ts, tid)
+    kfree = ftrace.kfree
+    kfree.call_site = call_site
+    kfree.ptr = ptr
 
   def add_atrace_counter(self, ts, pid, tid, buf, cnt):
     self.add_print(ts, tid, 'C|{}|{}|{}'.format(pid, buf, cnt))
@@ -205,13 +227,14 @@ class Trace(object):
     pinfo.uid = uid
     pinfo.version_code = version_code
 
+
 def create_trace():
   parser = argparse.ArgumentParser()
   parser.add_argument(
       'trace_descriptor', type=str, help='location of trace descriptor')
   args = parser.parse_args()
 
-  with open(args.trace_descriptor, "rb") as t:
+  with open(args.trace_descriptor, 'rb') as t:
     fileContent = t.read()
 
   file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
