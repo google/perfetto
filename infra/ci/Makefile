@@ -95,7 +95,7 @@ start-workers: .deps/gce-template
 		--zone ${ZONE} \
 		--min-num-replicas "1" \
 		--max-num-replicas "3" \
-		--cool-down-period "60" \
+		--cool-down-period "1800" \
 		--stackdriver-metric-filter "resource.type = \"global\"" \
 		--update-stackdriver-metric "custom.googleapis.com/perfetto-ci/ci_job_queue_len" \
 		--stackdriver-metric-single-instance-assignment "10"
