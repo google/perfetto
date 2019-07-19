@@ -128,6 +128,7 @@ class ProtoTraceParser : public TraceParser {
   void ParseChromeBenchmarkMetadata(ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
+  void ParseGpuRenderStageEvent(int64_t ts, ConstBytes);
   void ParseAndroidPackagesList(ConstBytes);
 
  private:
@@ -186,6 +187,8 @@ class ProtoTraceParser : public TraceParser {
   std::vector<StringId> rss_members_;
   std::vector<StringId> power_rails_strs_id_;
   std::unordered_map<uint32_t, const StringId> gpu_counter_ids_;
+  std::vector<StringId> gpu_hw_queue_ids_;
+  std::vector<StringId> gpu_render_stage_ids_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
