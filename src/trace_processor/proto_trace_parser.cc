@@ -35,7 +35,6 @@
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
-#include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -79,7 +78,6 @@
 #include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "perfetto/trace/track_event/task_execution.pbzero.h"
-#include "perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -252,7 +250,38 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       task_file_name_args_key_id_(
           context->storage->InternString("task.posted_from.file_name")),
       task_function_name_args_key_id_(
-          context->storage->InternString("task.posted_from.function_name")) {
+          context->storage->InternString("task.posted_from.function_name")),
+      raw_legacy_event_id_(
+          context->storage->InternString("track_event.legacy_event")),
+      legacy_event_category_key_id_(
+          context->storage->InternString("legacy_event.category")),
+      legacy_event_name_key_id_(
+          context->storage->InternString("legacy_event.name")),
+      legacy_event_phase_key_id_(
+          context->storage->InternString("legacy_event.phase")),
+      legacy_event_duration_ns_key_id_(
+          context->storage->InternString("legacy_event.duration_ns")),
+      legacy_event_thread_timestamp_ns_key_id_(
+          context->storage->InternString("legacy_event.thread_timestamp_ns")),
+      legacy_event_thread_duration_ns_key_id_(
+          context->storage->InternString("legacy_event.thread_duration_ns")),
+      legacy_event_use_async_tts_key_id_(
+          context->storage->InternString("legacy_event.use_async_tts")),
+      legacy_event_global_id_key_id_(
+          context->storage->InternString("legacy_event.global_id")),
+      legacy_event_local_id_key_id_(
+          context->storage->InternString("legacy_event.local_id")),
+      legacy_event_id_scope_key_id_(
+          context->storage->InternString("legacy_event.id_scope")),
+      legacy_event_bind_id_key_id_(
+          context->storage->InternString("legacy_event.bind_id")),
+      legacy_event_bind_to_enclosing_key_id_(
+          context->storage->InternString("legacy_event.bind_to_enclosing")),
+      legacy_event_flow_direction_key_id_(
+          context->storage->InternString("legacy_event.flow_direction")),
+      flow_direction_value_in_id_(context->storage->InternString("in")),
+      flow_direction_value_out_id_(context->storage->InternString("out")),
+      flow_direction_value_inout_id_(context->storage->InternString("inout")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
     meminfo_strs_id_.emplace_back(context->storage->InternString(name));
   }
@@ -1591,10 +1620,7 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   }
 
-  // TODO(eseckler): Handle thread instruction counts, legacy event attributes,
-  // legacy event types (async S, T, p, F phases, flow events, sample events,
-  // object events, metadata events, memory dumps, mark events, clock sync
-  // events, context events, counter events), ...
+  // TODO(eseckler): Handle thread instruction counts, use_async_tts.
 
   auto args_callback = [this, &event, &sequence_state](
                            ArgsTracker* args_tracker, RowId row_id) {
@@ -1744,9 +1770,8 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
     case 'M': {  // TRACE_EVENT_PHASE_METADATA (process and thread names).
-      // For now, we just compare the event name and assume there's a single
-      // argument in these events with the name of the process/thread.
-      // TODO(eseckler): Use names from process/thread descriptors instead.
+      // Parse process and thread names from correspondingly named events.
+      // TODO(eseckler): Also consider names from process/thread descriptors.
       NullTermStringView event_name = storage->GetString(name_id);
       PERFETTO_DCHECK(event_name.data());
       if (strcmp(event_name.c_str(), "thread_name") == 0) {
@@ -1760,7 +1785,9 @@ void ProtoTraceParser::ParseTrackEvent(
           break;
         auto thread_name_id = context_->storage->InternString(thread_name);
         procs->UpdateThreadName(tid, thread_name_id);
-      } else if (strcmp(event_name.c_str(), "process_name") == 0) {
+        break;
+      }
+      if (strcmp(event_name.c_str(), "process_name") == 0) {
         auto it = event.debug_annotations();
         if (!it)
           break;
@@ -1770,10 +1797,126 @@ void ProtoTraceParser::ParseTrackEvent(
         if (!process_name.size)
           break;
         procs->SetProcessMetadata(pid, base::nullopt, process_name);
+        break;
       }
+      // Other metadata events are proxied via the raw table for JSON export.
+      ParseLegacyEventAsRawEvent(ts, tts, utid, category_id, name_id,
+                                 legacy_event, args_callback);
       break;
     }
+    default: {
+      // Other events are proxied via the raw table for JSON export.
+      ParseLegacyEventAsRawEvent(ts, tts, utid, category_id, name_id,
+                                 legacy_event, args_callback);
+    }
   }
+}
+
+void ProtoTraceParser::ParseLegacyEventAsRawEvent(
+    int64_t ts,
+    int64_t tts,
+    UniqueTid utid,
+    StringId category_id,
+    StringId name_id,
+    const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy_event,
+    SliceTracker::SetArgsCallback args_callback) {
+  using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
+
+  RowId row_id = context_->storage->mutable_raw_events()->AddRawEvent(
+      ts, raw_legacy_event_id_, 0, utid);
+  ArgsTracker args(context_);
+  args.AddArg(row_id, legacy_event_category_key_id_,
+              legacy_event_category_key_id_, Variadic::String(category_id));
+  args.AddArg(row_id, legacy_event_name_key_id_, legacy_event_name_key_id_,
+              Variadic::String(name_id));
+  args.AddArg(row_id, legacy_event_phase_key_id_, legacy_event_phase_key_id_,
+              Variadic::Integer(legacy_event.phase()));
+
+  if (legacy_event.has_duration_us()) {
+    args.AddArg(row_id, legacy_event_duration_ns_key_id_,
+                legacy_event_duration_ns_key_id_,
+                Variadic::Integer(legacy_event.duration_us() * 1000));
+  }
+
+  if (tts) {
+    args.AddArg(row_id, legacy_event_thread_timestamp_ns_key_id_,
+                legacy_event_thread_timestamp_ns_key_id_,
+                Variadic::Integer(tts));
+    if (legacy_event.has_thread_duration_us()) {
+      args.AddArg(row_id, legacy_event_thread_duration_ns_key_id_,
+                  legacy_event_thread_duration_ns_key_id_,
+                  Variadic::Integer(legacy_event.thread_duration_us() * 1000));
+    }
+  }
+
+  // TODO(eseckler): Handle thread_instruction_count/delta.
+
+  if (legacy_event.use_async_tts()) {
+    args.AddArg(row_id, legacy_event_use_async_tts_key_id_,
+                legacy_event_use_async_tts_key_id_, Variadic::Boolean(true));
+  }
+
+  bool has_id = false;
+  if (legacy_event.has_unscoped_id()) {
+    args.AddArg(row_id, legacy_event_global_id_key_id_,
+                legacy_event_global_id_key_id_,
+                Variadic::UnsignedInteger(legacy_event.unscoped_id()));
+    has_id = true;
+  } else if (legacy_event.has_global_id()) {
+    args.AddArg(row_id, legacy_event_global_id_key_id_,
+                legacy_event_global_id_key_id_,
+                Variadic::UnsignedInteger(legacy_event.global_id()));
+    has_id = true;
+  } else if (legacy_event.has_local_id()) {
+    args.AddArg(row_id, legacy_event_local_id_key_id_,
+                legacy_event_local_id_key_id_,
+                Variadic::UnsignedInteger(legacy_event.local_id()));
+    has_id = true;
+  }
+
+  if (has_id && legacy_event.has_id_scope() && legacy_event.id_scope().size) {
+    args.AddArg(row_id, legacy_event_id_scope_key_id_,
+                legacy_event_id_scope_key_id_,
+                Variadic::String(
+                    context_->storage->InternString(legacy_event.id_scope())));
+  }
+
+  // TODO(eseckler): Parse legacy flow events into flow events table once we
+  // have a design for it.
+  if (legacy_event.has_bind_id()) {
+    args.AddArg(row_id, legacy_event_bind_id_key_id_,
+                legacy_event_bind_id_key_id_,
+                Variadic::UnsignedInteger(legacy_event.bind_id()));
+  }
+
+  if (legacy_event.bind_to_enclosing()) {
+    args.AddArg(row_id, legacy_event_bind_to_enclosing_key_id_,
+                legacy_event_bind_to_enclosing_key_id_,
+                Variadic::Boolean(true));
+  }
+
+  if (legacy_event.flow_direction()) {
+    StringId value;
+    switch (legacy_event.flow_direction()) {
+      case LegacyEvent::FLOW_IN:
+        value = flow_direction_value_in_id_;
+        break;
+      case LegacyEvent::FLOW_OUT:
+        value = flow_direction_value_out_id_;
+        break;
+      case LegacyEvent::FLOW_INOUT:
+        value = flow_direction_value_inout_id_;
+        break;
+      default:
+        PERFETTO_FATAL("Unknown flow direction: %d",
+                       legacy_event.flow_direction());
+        break;
+    }
+    args.AddArg(row_id, legacy_event_flow_direction_key_id_,
+                legacy_event_flow_direction_key_id_, Variadic::String(value));
+  }
+
+  args_callback(&args, row_id);
 }
 
 void ProtoTraceParser::ParseDebugAnnotationArgs(

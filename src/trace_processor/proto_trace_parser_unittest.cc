@@ -211,6 +211,25 @@ class ProtoTraceParserTest : public ::testing::Test {
     ResetTraceBuffers();
   }
 
+  bool HasArg(ArgSetId set_id, StringId key_id, Variadic value) {
+    const auto& args = storage_->args();
+    auto rows =
+        std::equal_range(args.set_ids().begin(), args.set_ids().end(), set_id);
+    for (; rows.first != rows.second; rows.first++) {
+      size_t index = static_cast<size_t>(
+          std::distance(args.set_ids().begin(), rows.first));
+      if (args.keys()[index] == key_id) {
+        EXPECT_EQ(args.flat_keys()[index], key_id);
+        EXPECT_EQ(args.arg_values()[index], value);
+        if (args.flat_keys()[index] == key_id &&
+            args.arg_values()[index] == value) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
  protected:
   std::unique_ptr<protozero::ScatteredHeapBuffer> heap_buf_;
   std::unique_ptr<protozero::ScatteredStreamWriter> stream_writer_;
@@ -1507,6 +1526,121 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
   EXPECT_CALL(args, AddArg(1u, _, _, Variadic::String(4)));
 
   context_.sorter->ExtractEventsForced();
+}
+
+TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1000);
+    thread_desc->set_reference_thread_time_us(2000);
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_thread_time_delta_us(5);  // absolute: 2005.
+    event->add_category_iids(1);
+
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(1);
+    // Represents a phase that isn't parsed into regular trace processor tables.
+    legacy_event->set_phase('?');
+    legacy_event->set_duration_us(23);
+    legacy_event->set_thread_duration_us(15);
+    legacy_event->set_global_id(99u);
+    legacy_event->set_id_scope("scope1");
+    legacy_event->set_use_async_tts('?');
+    legacy_event->set_bind_id(98);
+    legacy_event->set_bind_to_enclosing(true);
+    legacy_event->set_flow_direction(
+        protos::pbzero::TrackEvent::LegacyEvent::FLOW_INOUT);
+
+    auto* annotation1 = event->add_debug_annotations();
+    annotation1->set_name_iid(1);
+    annotation1->set_uint_value(10u);
+
+    auto* interned_data = packet->set_interned_data();
+    auto cat1 = interned_data->add_event_categories();
+    cat1->set_iid(1);
+    cat1->set_name("cat1");
+    auto ev1 = interned_data->add_legacy_event_names();
+    ev1->set_iid(1);
+    ev1->set_name("ev1");
+    auto an1 = interned_data->add_debug_annotation_names();
+    an1->set_iid(1);
+    an1->set_name("an1");
+  }
+
+  Tokenize();
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
+
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
+      .WillOnce(Return(1));
+  EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
+      .WillOnce(Return(2));
+  EXPECT_CALL(*storage_, InternString(base::StringView("scope1")))
+      .Times(2)
+      .WillRepeatedly(Return(3));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an1")))
+      .WillOnce(Return(4));
+
+  context_.sorter->ExtractEventsForced();
+
+  ::testing::Mock::VerifyAndClearExpectations(storage_);
+
+  // Verify raw_events and args contents.
+  const auto& raw_events = storage_->raw_events();
+  EXPECT_EQ(raw_events.raw_event_count(), 1u);
+  EXPECT_EQ(raw_events.timestamps()[0], 1010000);
+  EXPECT_EQ(raw_events.name_ids()[0],
+            storage_->InternString("track_event.legacy_event"));
+  EXPECT_EQ(raw_events.cpus()[0], 0u);
+  EXPECT_EQ(raw_events.utids()[0], 1u);
+  EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
+
+  EXPECT_EQ(storage_->args().args_count(), 13u);
+
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.category"),
+                     Variadic::String(1u)));
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.name"),
+                     Variadic::String(2u)));
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.phase"),
+                     Variadic::Integer('?')));
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.duration_ns"),
+                     Variadic::Integer(23000)));
+  EXPECT_TRUE(HasArg(1u,
+                     storage_->InternString("legacy_event.thread_timestamp_ns"),
+                     Variadic::Integer(2005000)));
+  EXPECT_TRUE(HasArg(1u,
+                     storage_->InternString("legacy_event.thread_duration_ns"),
+                     Variadic::Integer(15000)));
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.use_async_tts"),
+                     Variadic::Boolean(true)));
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.global_id"),
+                     Variadic::UnsignedInteger(99u)));
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.id_scope"),
+                     Variadic::String(3u)));
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.bind_id"),
+                     Variadic::UnsignedInteger(98u)));
+  EXPECT_TRUE(HasArg(1u,
+                     storage_->InternString("legacy_event.bind_to_enclosing"),
+                     Variadic::Boolean(true)));
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.flow_direction"),
+                     Variadic::String(storage_->InternString("inout"))));
+  EXPECT_TRUE(HasArg(1u, 4u, Variadic::UnsignedInteger(10u)));
 }
 
 TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
