@@ -17,7 +17,11 @@ import("//gn/standalone/wasm.gni")
 import("llvm.gni")
 
 declare_args() {
-  linker = "gold"
+  if (is_linux || is_android) {
+    linker = "gold"
+  } else {
+    linker = ""
+  }
   if (is_clang) {
     if (is_system_compiler) {
       cc = "\$CC "
