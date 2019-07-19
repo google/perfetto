@@ -98,7 +98,7 @@ class FakeProducer : public Producer {
   void StopDataSource(DataSourceInstanceID) override {}
   void OnTracingSetup() override {}
   void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override {}
-  void ClearIncrementalState(const DataSourceInstanceID*, size_t) {}
+  void ClearIncrementalState(const DataSourceInstanceID*, size_t) override {}
 
  private:
   const std::string name_;

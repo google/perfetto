@@ -29,7 +29,7 @@ class ServiceDelegate : public ThreadDelegate {
   ServiceDelegate(const std::string& producer_socket,
                   const std::string& consumer_socket)
       : producer_socket_(producer_socket), consumer_socket_(consumer_socket) {}
-  ~ServiceDelegate() override = default;
+  ~ServiceDelegate() override;
 
   void Initialize(base::TaskRunner* task_runner) override {
     svc_ = ServiceIPCHost::CreateInstance(task_runner);
@@ -49,7 +49,7 @@ class ProbesProducerDelegate : public ThreadDelegate {
  public:
   ProbesProducerDelegate(const std::string& producer_socket)
       : producer_socket_(producer_socket) {}
-  ~ProbesProducerDelegate() override = default;
+  ~ProbesProducerDelegate() override;
 
   void Initialize(base::TaskRunner* task_runner) override {
     producer_.reset(new ProbesProducer);
@@ -69,7 +69,7 @@ class FakeProducerDelegate : public ThreadDelegate {
       : producer_socket_(producer_socket),
         setup_callback_(std::move(setup_callback)),
         connect_callback_(std::move(connect_callback)) {}
-  ~FakeProducerDelegate() override = default;
+  ~FakeProducerDelegate() override;
 
   void Initialize(base::TaskRunner* task_runner) override {
     producer_.reset(new FakeProducer("android.perfetto.FakeProducer"));

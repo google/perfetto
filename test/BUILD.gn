@@ -110,6 +110,7 @@ source_set("task_runner_thread_delegates") {
   sources = [
     "fake_producer.cc",
     "fake_producer.h",
+    "task_runner_thread_delegates.cc",
     "task_runner_thread_delegates.h",
   ]
 }
