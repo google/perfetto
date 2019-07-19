@@ -68,9 +68,10 @@ class TaskState {
   bool is_valid() const { return state_ & kValid; }
 
   // Returns the string representation of this (valid) TaskState. This array
-  // is null terminated.
+  // is null terminated. |seperator| specifies if a separator should be printed
+  // between the atoms (default: \0 meaning no separator).
   // Note: This function CHECKs that |is_valid()| is true.
-  TaskStateStr ToString() const;
+  TaskStateStr ToString(char separator = '\0') const;
 
   // Returns the raw state this class was created from.
   uint16_t raw_state() const {
