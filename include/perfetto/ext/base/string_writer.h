@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_STRING_WRITER_H_
 #define INCLUDE_PERFETTO_EXT_BASE_STRING_WRITER_H_
 
+#include <inttypes.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -85,11 +86,12 @@ class StringWriter {
   }
 
   // Appends a hex integer to the buffer.
-  void AppendHexInt(uint32_t value) {
+  template <typename IntType>
+  void AppendHexInt(IntType value) {
     // TODO(lalitm): trying to optimize this is premature given we almost never
     // print hex ints. Reevaluate this in the future if we do print them more.
     size_t res = static_cast<size_t>(
-        snprintf(buffer_ + pos_, size_ - pos_, "%x", value));
+        snprintf(buffer_ + pos_, size_ - pos_, "%" PRIx64, value));
     PERFETTO_DCHECK(pos_ + res <= size_);
     pos_ += res;
   }
