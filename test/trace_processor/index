@@ -106,6 +106,8 @@ synth_1.py nulls.sql nulls.out
 # The below tests check the systrace conversion code in the raw table.
 # Print events
 ../data/lmk_userspace.pb print_systrace.sql print_systrace_lmk_userspace.out
+# Unsigned integers
+print_systrace_unsigned.py print_systrace.sql print_systrace_unsigned.out
 
 # GPU counters
 ../data/gpu_counters.pb gpu_counters.sql gpu_counters.out

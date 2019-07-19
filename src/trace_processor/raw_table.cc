@@ -138,6 +138,7 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     write_arg(SS::kPrevPidFieldNumber - 1, write_value);
     write_arg(SS::kPrevPrioFieldNumber - 1, write_value);
     write_arg(SS::kPrevStateFieldNumber - 1, [writer](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
       auto state = static_cast<uint16_t>(value.int_value);
       writer->AppendString(ftrace_utils::TaskState(state).ToString().data());
     });
@@ -152,6 +153,7 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     write_arg(SW::kPidFieldNumber - 1, write_value);
     write_arg(SW::kPrioFieldNumber - 1, write_value);
     write_arg(SW::kTargetCpuFieldNumber - 1, [writer](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
       writer->AppendPaddedInt<'0', 3>(value.int_value);
     });
     return;
@@ -187,12 +189,14 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     writer->AppendString(" flags=0x");
     write_value_at_index(
         BT::kFlagsFieldNumber - 1, [writer](const Variadic& value) {
-          writer->AppendHexInt(static_cast<uint32_t>(value.int_value));
+          PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+          writer->AppendHexInt(static_cast<uint32_t>(value.uint_value));
         });
     writer->AppendString(" code=0x");
     write_value_at_index(
         BT::kCodeFieldNumber - 1, [writer](const Variadic& value) {
-          writer->AppendHexInt(static_cast<uint32_t>(value.int_value));
+          PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+          writer->AppendHexInt(static_cast<uint32_t>(value.uint_value));
         });
     return;
   } else if (event_name == "binder_transaction_alloc_buf") {
@@ -212,13 +216,15 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     writer->AppendString(" dev ");
     write_value_at_index(MFA::kSDevFieldNumber - 1,
                          [writer](const Variadic& value) {
-                           writer->AppendInt(value.int_value >> 20);
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendUnsignedInt(value.uint_value >> 20);
                          });
     writer->AppendString(":");
-    write_value_at_index(MFA::kSDevFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           writer->AppendInt(value.int_value & ((1 << 20) - 1));
-                         });
+    write_value_at_index(
+        MFA::kSDevFieldNumber - 1, [writer](const Variadic& value) {
+          PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+          writer->AppendUnsignedInt(value.uint_value & ((1 << 20) - 1));
+        });
     writer->AppendString(" ino ");
     write_value_at_index(MFA::kIInoFieldNumber - 1, write_value);
     writer->AppendString(" page=0000000000000000");
@@ -227,7 +233,8 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     writer->AppendString(" ofs=");
     write_value_at_index(MFA::kIndexFieldNumber - 1,
                          [writer](const Variadic& value) {
-                           writer->AppendInt(value.int_value << 12);
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendUnsignedInt(value.uint_value << 12);
                          });
     return;
   } else if (event_name == "print") {
