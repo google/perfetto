@@ -111,7 +111,7 @@ TaskState::TaskState(const char* state_str) {
   }
 }
 
-TaskState::TaskStateStr TaskState::ToString() const {
+TaskState::TaskStateStr TaskState::ToString(char separator) const {
   PERFETTO_CHECK(is_valid());
 
   char buffer[32];
@@ -124,26 +124,56 @@ TaskState::TaskStateStr TaskState::ToString() const {
   } else {
     if (state_ & Atom::kInterruptibleSleep)
       buffer[pos++] = 'S';
-    if (state_ & Atom::kUninterruptibleSleep)
+    if (state_ & Atom::kUninterruptibleSleep) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 'D';  // D for (D)isk sleep
-    if (state_ & Atom::kStopped)
+    }
+    if (state_ & Atom::kStopped) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 'T';
-    if (state_ & Atom::kTraced)
+    }
+    if (state_ & Atom::kTraced) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 't';
-    if (state_ & Atom::kExitDead)
+    }
+    if (state_ & Atom::kExitDead) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 'X';
-    if (state_ & Atom::kExitZombie)
+    }
+    if (state_ & Atom::kExitZombie) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 'Z';
-    if (state_ & Atom::kTaskDead)
+    }
+    if (state_ & Atom::kTaskDead) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 'x';
-    if (state_ & Atom::kWakeKill)
+    }
+    if (state_ & Atom::kWakeKill) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 'K';
-    if (state_ & Atom::kWaking)
+    }
+    if (state_ & Atom::kWaking) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 'W';
-    if (state_ & Atom::kParked)
+    }
+    if (state_ & Atom::kParked) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 'P';
-    if (state_ & Atom::kNoLoad)
+    }
+    if (state_ & Atom::kNoLoad) {
+      if (separator && pos != 0)
+        buffer[pos++] = separator;
       buffer[pos++] = 'N';
+    }
   }
 
   if (is_kernel_preempt())
