@@ -140,7 +140,7 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     write_arg(SS::kPrevStateFieldNumber - 1, [writer](const Variadic& value) {
       PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
       auto state = static_cast<uint16_t>(value.int_value);
-      writer->AppendString(ftrace_utils::TaskState(state).ToString().data());
+      writer->AppendString(ftrace_utils::TaskState(state).ToString('|').data());
     });
     writer->AppendLiteral(" ==>");
     write_arg(SS::kNextCommFieldNumber - 1, write_value);
