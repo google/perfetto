@@ -23,21 +23,18 @@ message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
 
-  // required. Start time of event in GPU clock.
-  optional uint64 start_time = 2;
-
   // optional. Duration in GPU clock.  If unset, this is a single time point
   // event.
-  optional uint64 duration = 3;
+  optional uint64 duration = 2;
 
   // required. ID to a hardware queue description in the specifications.
-  optional int32 hw_queue_id = 4;
+  optional int32 hw_queue_id = 3;
 
   // required. ID to a render stage description in the specifications.
-  optional int32 stage_id = 5;
+  optional int32 stage_id = 4;
 
   // required. GL context/VK device.
-  optional uint64 context = 6;
+  optional uint64 context = 5;
 
   // optional.  Additional data for the user. This may include attribs for
   // the event like resource ids, shaders etc
@@ -45,7 +42,7 @@ message GpuRenderStageEvent {
     optional string name = 1;
     optional string value = 2;
   }
-  repeated ExtraData extra_data = 7;
+  repeated ExtraData extra_data = 6;
 
   // The first trace packet of each session should include a Specifications
   // to enumerate all IDs that will be used.
@@ -57,9 +54,8 @@ message GpuRenderStageEvent {
     optional ContextSpec context_spec = 1;
 
     message Description {
-      optional int32 id = 1;
-      optional string name = 2;
-      optional string description = 3;
+      optional string name = 1;
+      optional string description = 2;
     }
 
     // Labels to categorize the hw Queue this event goes on
@@ -68,8 +64,8 @@ message GpuRenderStageEvent {
     // Labels to categorize render stage(binning, render, compute etc)
     repeated Description stage = 3;
   }
-  optional Specifications specifications = 8;
+  optional Specifications specifications = 7;
 
   // Extension for vendor's custom proto.
-  extensions 100 to 200;
+  extensions 100;
 }
