@@ -1114,12 +1114,8 @@ void ProtoTraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
     ProtoSchemaType type = m->fields[fld.id()].type;
     StringId name_id = message_strings.field_name_ids[fld.id()];
     switch (type) {
-      case ProtoSchemaType::kUint32:
       case ProtoSchemaType::kInt32:
-      case ProtoSchemaType::kUint64:
       case ProtoSchemaType::kInt64:
-      case ProtoSchemaType::kFixed64:
-      case ProtoSchemaType::kFixed32:
       case ProtoSchemaType::kSfixed32:
       case ProtoSchemaType::kSfixed64:
       case ProtoSchemaType::kSint32:
@@ -1128,6 +1124,18 @@ void ProtoTraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
       case ProtoSchemaType::kEnum: {
         context_->args_tracker->AddArg(raw_event_id, name_id, name_id,
                                        Variadic::Integer(fld.as_int64()));
+        break;
+      }
+      case ProtoSchemaType::kUint32:
+      case ProtoSchemaType::kUint64:
+      case ProtoSchemaType::kFixed32:
+      case ProtoSchemaType::kFixed64: {
+        // Note that SQLite functions will still treat unsigned values
+        // as a signed 64 bit integers (but the translation back to ftrace
+        // refers to this storage directly).
+        context_->args_tracker->AddArg(
+            raw_event_id, name_id, name_id,
+            Variadic::UnsignedInteger(fld.as_uint64()));
         break;
       }
       case ProtoSchemaType::kString:
