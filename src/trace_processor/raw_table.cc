@@ -28,6 +28,7 @@
 #include "perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/sched.pbzero.h"
+#include "perfetto/trace/ftrace/workqueue.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -190,13 +191,13 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     write_value_at_index(
         BT::kFlagsFieldNumber - 1, [writer](const Variadic& value) {
           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-          writer->AppendHexInt(static_cast<uint32_t>(value.uint_value));
+          writer->AppendHexInt(value.uint_value);
         });
     writer->AppendString(" code=0x");
     write_value_at_index(
         BT::kCodeFieldNumber - 1, [writer](const Variadic& value) {
           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-          writer->AppendHexInt(static_cast<uint32_t>(value.uint_value));
+          writer->AppendHexInt(value.uint_value);
         });
     return;
   } else if (event_name == "binder_transaction_alloc_buf") {
@@ -250,6 +251,67 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
                               : str.size();
     writer->AppendChar(' ');
     writer->AppendString(str.c_str(), chars_to_print);
+    return;
+  } else if (event_name == "sched_blocked_reason") {
+    using SBR = protos::pbzero::SchedBlockedReasonFtraceEvent;
+    write_arg(SBR::kPidFieldNumber - 1, write_value);
+    write_arg(SBR::kIoWaitFieldNumber - 1, write_value);
+    write_arg(SBR::kCallerFieldNumber - 1, [writer](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer->AppendHexInt(value.uint_value);
+    });
+    return;
+  } else if (event_name == "workqueue_activate_work") {
+    using WAW = protos::pbzero::WorkqueueActivateWorkFtraceEvent;
+    writer->AppendString(" work struct ");
+    write_value_at_index(WAW::kWorkFieldNumber - 1,
+                         [writer](const Variadic& value) {
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendHexInt(value.uint_value);
+                         });
+    return;
+  } else if (event_name == "workqueue_execute_start") {
+    using WES = protos::pbzero::WorkqueueExecuteStartFtraceEvent;
+    writer->AppendString(" work struct ");
+    write_value_at_index(WES::kWorkFieldNumber - 1,
+                         [writer](const Variadic& value) {
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendHexInt(value.uint_value);
+                         });
+    writer->AppendString(": function ");
+    write_value_at_index(WES::kFunctionFieldNumber - 1,
+                         [writer](const Variadic& value) {
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendHexInt(value.uint_value);
+                         });
+    return;
+  } else if (event_name == "workqueue_execute_end") {
+    using WE = protos::pbzero::WorkqueueExecuteEndFtraceEvent;
+    writer->AppendString(" work struct ");
+    write_value_at_index(WE::kWorkFieldNumber - 1,
+                         [writer](const Variadic& value) {
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendHexInt(value.uint_value);
+                         });
+    return;
+  } else if (event_name == "workqueue_queue_work") {
+    using WQW = protos::pbzero::WorkqueueQueueWorkFtraceEvent;
+    writer->AppendString(" work struct=");
+    write_value_at_index(WQW::kWorkFieldNumber - 1,
+                         [writer](const Variadic& value) {
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendHexInt(value.uint_value);
+                         });
+    write_arg(WQW::kFunctionFieldNumber - 1, [writer](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer->AppendHexInt(value.uint_value);
+    });
+    write_arg(WQW::kWorkqueueFieldNumber - 1, [writer](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer->AppendHexInt(value.uint_value);
+    });
+    write_value_at_index(WQW::kReqCpuFieldNumber - 1, write_value);
+    write_value_at_index(WQW::kCpuFieldNumber - 1, write_value);
     return;
   }
 
