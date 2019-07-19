@@ -35,61 +35,12 @@ class TraceFormatWriter {
 
   ~TraceFormatWriter() { WriteFooter(); }
 
-  void WriteCompleteEvent(int64_t begin_ts_us,
-                          int64_t duration_us,
-                          int64_t thread_ts_us,
-                          int64_t thread_duration_us,
-                          const char* cat,
-                          const char* name,
-                          uint32_t tid,
-                          uint32_t pid,
-                          const Json::Value& args) {
+  void WriteCommonEvent(const Json::Value& event) {
     if (!first_event_) {
       fputs(",", output_);
     }
     Json::FastWriter writer;
-    Json::Value value;
-    value["ph"] = "X";
-    value["cat"] = cat;
-    value["name"] = name;
-    value["tid"] = Json::UInt(tid);
-    value["pid"] = Json::UInt(pid);
-    value["ts"] = Json::Int64(begin_ts_us);
-    value["dur"] = Json::Int64(duration_us);
-    if (thread_ts_us > 0) {
-      value["tts"] = Json::Int64(thread_ts_us);
-      value["tdur"] = Json::Int64(thread_duration_us);
-    }
-    value["args"] = args;
-    fputs(writer.write(value).c_str(), output_);
-    first_event_ = false;
-  }
-
-  void WriteInstantEvent(int64_t begin_ts_us,
-                         int64_t thread_ts_us,
-                         const char* scope,
-                         const char* cat,
-                         const char* name,
-                         uint32_t tid,
-                         uint32_t pid,
-                         const Json::Value& args) {
-    if (!first_event_) {
-      fputs(",", output_);
-    }
-    Json::FastWriter writer;
-    Json::Value value;
-    value["ph"] = "i";
-    value["s"] = scope;
-    value["cat"] = cat;
-    value["name"] = name;
-    value["tid"] = Json::UInt(tid);
-    value["pid"] = Json::UInt(pid);
-    value["ts"] = Json::Int64(begin_ts_us);
-    if (thread_ts_us > 0) {
-      value["tts"] = Json::Int64(thread_ts_us);
-    }
-    value["args"] = args;
-    fputs(writer.write(value).c_str(), output_);
+    fputs(writer.write(event).c_str(), output_);
     first_event_ = false;
   }
 
@@ -114,58 +65,6 @@ class TraceFormatWriter {
     value["args"] = args;
 
     fputs(writer.write(value).c_str(), output_);
-    first_event_ = false;
-  }
-
-  void WriteAsyncInstant(int64_t begin_ts_us,
-                         const char* cat,
-                         const char* name,
-                         uint32_t pid,
-                         const Json::Value& async_id,
-                         const Json::Value& args) {
-    if (!first_event_) {
-      fputs(",", output_);
-    }
-    Json::FastWriter writer;
-    Json::Value value;
-    value["pid"] = pid;
-    value["ph"] = "n";
-    value["cat"] = cat;
-    value["name"] = name;
-    value["id2"] = async_id;
-    value["ts"] = Json::Int64(begin_ts_us);
-    value["args"] = args;
-    fputs(writer.write(value).c_str(), output_);
-    first_event_ = false;
-  }
-
-  void WriteAsyncStartAndEnd(int64_t begin_ts_us,
-                             int64_t duration_us,
-                             const char* cat,
-                             const char* name,
-                             uint32_t pid,
-                             const Json::Value& async_id,
-                             const Json::Value& args) {
-    if (!first_event_) {
-      fputs(",", output_);
-    }
-    Json::FastWriter writer;
-    Json::Value value;
-    value["pid"] = pid;
-    value["ph"] = "b";
-    value["cat"] = cat;
-    value["name"] = name;
-    value["id2"] = async_id;
-    value["ts"] = Json::Int64(begin_ts_us);
-    value["args"] = args;
-    fputs(writer.write(value).c_str(), output_);
-
-    fputs(",", output_);
-    value["ph"] = "e";
-    value["ts"] = Json::Int64(begin_ts_us + duration_us);
-    value.removeMember("args");
-    fputs(writer.write(value).c_str(), output_);
-
     first_event_ = false;
   }
 
@@ -356,31 +255,39 @@ ResultCode ExportSlices(const TraceStorage* storage,
   ArgsBuilder args_builder(storage);
   const auto& slices = storage->nestable_slices();
   for (uint32_t i = 0; i < slices.slice_count(); ++i) {
-    int64_t begin_ts_us = slices.start_ns()[i] / 1000;
-    int64_t duration_us = slices.durations()[i] / 1000;
-    const char* cat = string_pool.Get(slices.categories()[i]).c_str();
-    const char* name = string_pool.Get(slices.names()[i]).c_str();
+    Json::Value event;
+    event["ts"] = Json::Int64(slices.start_ns()[i] / 1000);
+    event["cat"] = string_pool.Get(slices.categories()[i]).c_str();
+    event["name"] = string_pool.Get(slices.names()[i]).c_str();
+    event["pid"] = 0;
     Json::Value args = args_builder.GetArgs(slices.arg_set_ids()[i]);
+    if (!args.empty()) {
+      event["args"] = args;
+    }
 
     if (slices.types()[i] == RefType::kRefTrack) {  // Async event.
       uint32_t track_id = static_cast<uint32_t>(slices.refs()[i]);
       VirtualTrackScope scope = storage->virtual_tracks().scopes()[track_id];
       UniquePid upid = storage->virtual_tracks().upids()[track_id];
-      Json::Value async_id;
-      uint32_t pid = 0;
       if (scope == VirtualTrackScope::kGlobal) {
-        async_id["global"] = PrintUint64(track_id);
+        event["id2"]["global"] = PrintUint64(track_id);
       } else {
-        async_id["local"] = PrintUint64(track_id);
-        pid = storage->GetProcess(upid).pid;
+        event["id2"]["local"] = PrintUint64(track_id);
+        event["pid"] = storage->GetProcess(upid).pid;
       }
       if (slices.durations()[i] == 0) {  // Instant async event.
-        writer->WriteAsyncInstant(begin_ts_us, cat, name, pid, async_id, args);
+        event["ph"] = "n";
+        writer->WriteCommonEvent(event);
       } else {  // Async start and end.
-        writer->WriteAsyncStartAndEnd(begin_ts_us, duration_us, cat, name, pid,
-                                      async_id, args);
+        event["ph"] = "b";
+        writer->WriteCommonEvent(event);
+        event["ph"] = "e";
+        event["ts"] =
+            Json::Int64((slices.start_ns()[i] + slices.durations()[i]) / 1000);
+        event.removeMember("args");
+        writer->WriteCommonEvent(event);
       }
-    } else {                             // Sync event.
+    } else {  // Sync event.
       const auto& thread_slices = storage->thread_slices();
       int64_t thread_ts_us = 0;
       int64_t thread_duration_us = 0;
@@ -393,37 +300,45 @@ ResultCode ExportSlices(const TraceStorage* storage,
             thread_slices.thread_duration_ns()[*thread_slice_row] / 1000;
       }
       if (slices.durations()[i] == 0) {  // Instant event.
-        uint32_t pid = 0;
-        uint32_t tid = 0;
-        std::string instant_scope;
+        event["ph"] = "i";
         if (slices.types()[i] == RefType::kRefUtid) {
           UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
           auto thread = storage->GetThread(utid);
-          pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
-          tid = thread.tid;
-          instant_scope = "t";
+          if (thread.upid) {
+            event["pid"] = storage->GetProcess(*thread.upid).pid;
+          }
+          if (thread_ts_us > 0) {
+            event["tts"] = Json::Int64(thread_ts_us);
+          }
+          event["tid"] = thread.tid;
+          event["s"] = "t";
         } else if (slices.types()[i] == RefType::kRefUpid) {
           UniquePid upid = static_cast<UniquePid>(slices.refs()[i]);
-          pid = storage->GetProcess(upid).pid;
-          instant_scope = "p";
+          event["pid"] = storage->GetProcess(upid).pid;
+          event["s"] = "p";
         } else if (slices.types()[i] == RefType::kRefNoRef) {
-          instant_scope = "g";
+          event["s"] = "g";
         } else {
           return kResultWrongRefType;
         }
-        writer->WriteInstantEvent(begin_ts_us, thread_ts_us,
-                                  instant_scope.c_str(), cat, name, tid, pid,
-                                  args);
+        writer->WriteCommonEvent(event);
       } else {  // Complete event.
         if (slices.types()[i] != RefType::kRefUtid) {
           return kResultWrongRefType;
         }
+        event["ph"] = "X";
+        event["dur"] = Json::Int64(slices.durations()[i] / 1000);
         UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
         auto thread = storage->GetThread(utid);
-        uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
-        writer->WriteCompleteEvent(begin_ts_us, duration_us, thread_ts_us,
-                                   thread_duration_us, cat, name, thread.tid,
-                                   pid, args);
+        event["tid"] = thread.tid;
+        if (thread.upid) {
+          event["pid"] = storage->GetProcess(*thread.upid).pid;
+        }
+        if (thread_ts_us > 0) {
+          event["tts"] = Json::Int64(thread_ts_us);
+          event["tdur"] = Json::Int64(thread_duration_us);
+        }
+        writer->WriteCommonEvent(event);
       }
     }
   }
