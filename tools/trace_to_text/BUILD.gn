@@ -75,14 +75,18 @@ source_set("common") {
   ]
   sources = [
     "main.cc",
-    "symbolize_profile.cc",
-    "symbolize_profile.h",
     "trace_to_profile.cc",
     "trace_to_profile.h",
     "trace_to_systrace.cc",
     "trace_to_systrace.h",
     "trace_to_text.h",
   ]
+  if (is_linux || is_android) {
+    sources += [
+      "symbolize_profile.cc",
+      "symbolize_profile.h",
+    ]
+  }
   if (perfetto_build_standalone) {
     deps += [ "../../gn/standalone:gen_git_revision" ]
   }
