@@ -125,8 +125,10 @@ TEST(ExportJsonTest, StorageWithThreadName) {
 
 TEST(ExportJsonTest, WrongRefType) {
   TraceStorage storage;
-  storage.mutable_nestable_slices()->AddSlice(0, 0, 0, RefType::kRefCpuId, 0, 0,
-                                              0, 0, 0);
+  StringId cat_id = storage.InternString("cat");
+  StringId name_id = storage.InternString("name");
+  storage.mutable_nestable_slices()->AddSlice(0, 0, 0, RefType::kRefCpuId,
+                                              cat_id, name_id, 0, 0, 0);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
