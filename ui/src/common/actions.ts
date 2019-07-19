@@ -83,9 +83,10 @@ export const StateActions = {
     state.videoEnabled = true;
   },
 
-  convertTraceToJson(_: StateDraft, args: {file: File}): void {
-    ConvertTrace(args.file);
-  },
+  convertTraceToJson(_: StateDraft, args: {file: File, truncate: boolean}):
+      void {
+        ConvertTrace(args.file, args.truncate);
+      },
 
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
     clearTraceState(state);
@@ -113,7 +114,8 @@ export const StateActions = {
 
   addTrack(state: StateDraft, args: {
     id?: string; engineId: string; kind: string; name: string;
-    trackGroup?: string; config: {};
+    trackGroup?: string;
+    config: {};
   }): void {
     const id = args.id !== undefined ? args.id : `${state.nextId++}`;
     state.tracks[id] = {
@@ -293,7 +295,9 @@ export const StateActions = {
     }
   },
 
-  addNote(state: StateDraft, args: {timestamp: number, color: string, isMovie: boolean}): void {
+  addNote(
+      state: StateDraft,
+      args: {timestamp: number, color: string, isMovie: boolean}): void {
     const id = `${state.nextId++}`;
     state.notes[id] = {
       id,
