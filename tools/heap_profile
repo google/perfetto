@@ -148,8 +148,10 @@ def main(argv):
                       default=8 * 1048576)
   parser.add_argument("--block-client", help="When buffer is full, block the "
                       "client to wait for buffer space. Use with caution as "
-                      "this can significantly slow down the client.",
-                      action="store_true")
+                      "this can significantly slow down the client. "
+                      "This is the default", action="store_true")
+  parser.add_argument("--no-block-client", help="When buffer is full, stop the "
+                      "profile early.", action="store_true")
   parser.add_argument("--idle-allocations", help="Keep track of how many "
                       "bytes were unused since the last dump, per "
                       "callstack", action="store_true")
@@ -167,6 +169,10 @@ def main(argv):
   args = parser.parse_args()
 
   fail = False
+  if args.block_client and args.no_block_client:
+    print("FATAL: Both block-client and no-block-client given.",
+            file=sys.stderr)
+    fail = True
   if args.pid is None and args.name is None:
     print("FATAL: Neither PID nor NAME given.", file=sys.stderr)
     fail = True
@@ -187,7 +193,7 @@ def main(argv):
     fail = True
 
   target_cfg = ""
-  if args.block_client:
+  if not args.no_block_client:
     target_cfg += "block_client: true\n"
   if args.idle_allocations:
     target_cfg += "idle_allocations: true\n"
