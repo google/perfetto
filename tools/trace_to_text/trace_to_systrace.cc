@@ -174,6 +174,7 @@ class QueryWriter {
 
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
+                    uint64_t file_size_limit,
                     bool wrap_in_json) {
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
@@ -190,7 +191,8 @@ int TraceToSystrace(std::istream* input,
   constexpr int kStderrRate = 128;
 #endif
   uint64_t file_size = 0;
-  for (int i = 0;; i++) {
+
+  for (int i = 0; file_size < file_size_limit; i++) {
     if (i % kStderrRate == 0) {
       fprintf(stderr, "Loading trace %.2f MB" PROGRESS_CHAR, file_size / 1.0e6);
       fflush(stderr);
