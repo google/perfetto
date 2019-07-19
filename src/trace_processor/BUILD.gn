@@ -323,12 +323,6 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
   deps = [
     ":lib",
     "../../gn:default_deps",
-    "../../gn:default_deps",
-    "../../gn:gtest_and_gmock",
-    "../../gn:sqlite",
-    "../../protos/perfetto/trace:lite",
-    "../../protos/perfetto/trace_processor:lite",
     "../base",
-    "../base:test_support",
   ]
 }
