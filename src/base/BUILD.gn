@@ -113,7 +113,6 @@ source_set("test_support") {
   deps = [
     ":base",
     "../../gn:default_deps",
-    "../../gn:gtest_and_gmock",
   ]
   sources = [
     "test/utils.cc",
