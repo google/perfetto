@@ -1,0 +1,10 @@
+"ts","dur","ref","ref_type","name","depth","arg_set_id"
+10,5,1,"gpu","stage 1",0,0
+20,5,0,"gpu","stage 2",0,0
+30,5,1,"gpu","stage 0",0,0
+40,5,0,"gpu","stage 1",0,0
+50,5,1,"gpu","stage 2",0,0
+60,5,0,"gpu","stage 0",0,0
+70,5,1,"gpu","stage 1",0,0
+80,5,0,"gpu","stage 2",0,0
+90,5,1,"gpu","stage 0",0,0
