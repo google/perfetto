@@ -102,11 +102,6 @@ const SECTIONS = [
     expanded: true,
     items: [
       {t: 'Open trace file', a: popupFileSelectionDialog, i: 'folder_open'},
-      {
-        t: 'Open with legacy UI',
-        a: popupFileSelectionDialogOldUI,
-        i: 'folder_open'
-      },
       {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
       {t: 'Show timeline', a: navigateViewer, i: 'line_style'},
       {
@@ -120,6 +115,23 @@ const SECTIONS = [
         a: downloadTrace,
         i: 'file_download',
         disableInLocalOnlyMode: true,
+      },
+    ],
+  },
+  {
+    title: 'Legacy UI',
+    expanded: true,
+    summary: 'Open trace with legacy UI',
+    items: [
+      {
+        t: 'Open with legacy UI',
+        a: popupFileSelectionDialogOldUI,
+        i: 'folder_open'
+      },
+      {
+        t: 'Truncate and open with legacy UI',
+        a: popupFileSelectionDialogOldUITruncate,
+        i: 'flip'
       },
     ],
   },
@@ -223,13 +235,23 @@ function popupFileSelectionDialog(e: Event) {
   e.preventDefault();
   delete getFileElement().dataset['useCatapultLegacyUi'];
   delete getFileElement().dataset['video'];
+  delete getFileElement().dataset['truncate'];
   getFileElement().click();
 }
 
 function popupFileSelectionDialogOldUI(e: Event) {
   e.preventDefault();
   delete getFileElement().dataset['video'];
+  delete getFileElement().dataset['truncate'];
   getFileElement().dataset['useCatapultLegacyUi'] = '1';
+  getFileElement().click();
+}
+
+function popupFileSelectionDialogOldUITruncate(e: Event) {
+  e.preventDefault();
+  delete getFileElement().dataset['video'];
+  getFileElement().dataset['useCatapultLegacyUi'] = '1';
+  getFileElement().dataset['truncate'] = '1';
   getFileElement().click();
 }
 
@@ -254,15 +276,30 @@ function onInputElementFileSelectionChanged(e: Event) {
   }
   if (!e.target.files) return;
   const file = e.target.files[0];
+  // Reset the value so onchange will be fired with the same file.
+  e.target.value = '';
 
   globals.frontendLocalState.localOnlyMode = false;
 
   if (e.target.dataset['useCatapultLegacyUi'] === '1') {
-    // Switch back the old catapult UI.
+    // Switch back to the old catapult UI.
     if (isLegacyTrace(file.name)) {
       openFileWithLegacyTraceViewer(file);
     } else {
-      globals.dispatch(Actions.convertTraceToJson({file}));
+      if (e.target.dataset['truncate'] === '1') {
+        globals.dispatch(Actions.convertTraceToJson({file, truncate: true}));
+        return;
+      } else if (file.size > 1024 * 1024 * 50) {
+        const size = Math.round(file.size / (1024 * 1024));
+        const result = confirm(
+            `This trace is ${size}mb, opening it in ` +
+            `the legacy UI may fail.\nPress 'OK' to attempt to open this ` +
+            `trace or press 'Cancel' and use the 'Truncate' button ` +
+            `to load just the first 50mb.\nMore options can be found at ` +
+            `go/opening-large-traces.`);
+        if (!result) return;
+      }
+      globals.dispatch(Actions.convertTraceToJson({file, truncate: false}));
     }
     return;
   }
