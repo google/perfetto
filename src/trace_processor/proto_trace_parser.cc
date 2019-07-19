@@ -200,8 +200,9 @@ class ProfilePacketInternLookup : public HeapProfileTracker::InternLookup {
 
 namespace {
 // Slices which have been opened but haven't been closed yet will be marked
-// with this placeholder value.
+// with these placeholder values.
 constexpr int64_t kPendingThreadDuration = -1;
+constexpr int64_t kPendingThreadInstructionDelta = -1;
 }  // namespace
 
 }  // namespace
@@ -265,6 +266,12 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
           context->storage->InternString("legacy_event.thread_timestamp_ns")),
       legacy_event_thread_duration_ns_key_id_(
           context->storage->InternString("legacy_event.thread_duration_ns")),
+      legacy_event_thread_instruction_count_key_id_(
+          context->storage->InternString(
+              "legacy_event.thread_instruction_count")),
+      legacy_event_thread_instruction_delta_key_id_(
+          context->storage->InternString(
+              "legacy_event.thread_instruction_delta")),
       legacy_event_use_async_tts_key_id_(
           context->storage->InternString("legacy_event.use_async_tts")),
       legacy_event_global_id_key_id_(
@@ -413,8 +420,8 @@ void ProtoTraceParser::ParseTracePacket(
     ParseSystemInfo(packet.system_info());
 
   if (packet.has_track_event()) {
-    ParseTrackEvent(ts, ttp.thread_timestamp, ttp.packet_sequence_state,
-                    packet.track_event());
+    ParseTrackEvent(ts, ttp.thread_timestamp, ttp.thread_instruction_count,
+                    ttp.packet_sequence_state, packet.track_event());
   }
 
   if (packet.has_chrome_benchmark_metadata()) {
@@ -1522,6 +1529,7 @@ void ProtoTraceParser::ParseSystemInfo(ConstBytes blob) {
 void ProtoTraceParser::ParseTrackEvent(
     int64_t ts,
     int64_t tts,
+    int64_t ticount,
     ProtoIncrementalState::PacketSequenceState* sequence_state,
     ConstBytes blob) {
   protos::pbzero::TrackEvent::Decoder event(blob.data, blob.size);
@@ -1628,8 +1636,6 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   }
 
-  // TODO(eseckler): Handle thread instruction counts.
-
   auto args_callback = [this, &event, &sequence_state](
                            ArgsTracker* args_tracker, RowId row_id) {
     for (auto it = event.debug_annotations(); it; ++it) {
@@ -1674,9 +1680,8 @@ void ProtoTraceParser::ParseTrackEvent(
                         thread_slices->slice_ids().back() <
                             opt_slice_id.value());
         thread_slices->AddThreadSlice(opt_slice_id.value(), tts,
-                                      kPendingThreadDuration,
-                                      /*thread_instruction_count=*/0,
-                                      /*thread_instruction_delta=*/0);
+                                      kPendingThreadDuration, ticount,
+                                      kPendingThreadInstructionDelta);
       }
       break;
     }
@@ -1685,8 +1690,8 @@ void ProtoTraceParser::ParseTrackEvent(
           ts, utid, RefType::kRefUtid, category_id, name_id, args_callback);
       if (opt_slice_id.has_value()) {
         auto* thread_slices = storage->mutable_thread_slices();
-        thread_slices->UpdateThreadDurationForSliceId(opt_slice_id.value(),
-                                                      tts);
+        thread_slices->UpdateThreadDeltasForSliceId(opt_slice_id.value(), tts,
+                                                    ticount);
       }
       break;
     }
@@ -1704,9 +1709,8 @@ void ProtoTraceParser::ParseTrackEvent(
                             opt_slice_id.value());
         auto thread_duration_ns = legacy_event.thread_duration_us() * 1000;
         thread_slices->AddThreadSlice(opt_slice_id.value(), tts,
-                                      thread_duration_ns,
-                                      /*thread_instruction_count=*/0,
-                                      /*thread_instruction_delta=*/0);
+                                      thread_duration_ns, ticount,
+                                      legacy_event.thread_instruction_delta());
       }
       break;
     }
@@ -1715,6 +1719,7 @@ void ProtoTraceParser::ParseTrackEvent(
       // Handle instant events as slices with zero duration, so that they end
       // up nested underneath their parent slices.
       int64_t duration_ns = 0;
+      int64_t tidelta = 0;
 
       switch (legacy_event.instant_event_scope()) {
         case LegacyEvent::SCOPE_UNSPECIFIED:
@@ -1728,9 +1733,7 @@ void ProtoTraceParser::ParseTrackEvent(
                             thread_slices->slice_ids().back() <
                                 opt_slice_id.value());
             thread_slices->AddThreadSlice(opt_slice_id.value(), tts,
-                                          duration_ns,
-                                          /*thread_instruction_count=*/0,
-                                          /*thread_instruction_delta=*/0);
+                                          duration_ns, ticount, tidelta);
           }
           break;
         }
@@ -1767,9 +1770,8 @@ void ProtoTraceParser::ParseTrackEvent(
                         vtrack_slices->slice_ids().back() <
                             opt_slice_id.value());
         vtrack_slices->AddVirtualTrackSlice(opt_slice_id.value(), tts,
-                                            kPendingThreadDuration,
-                                            /*thread_instruction_count=*/0,
-                                            /*thread_instruction_delta=*/0);
+                                            kPendingThreadDuration, ticount,
+                                            kPendingThreadInstructionDelta);
       }
       break;
     }
@@ -1781,8 +1783,8 @@ void ProtoTraceParser::ParseTrackEvent(
                              name_id, args_callback);
       if (legacy_event.use_async_tts() && opt_slice_id.has_value()) {
         auto* vtrack_slices = storage->mutable_virtual_track_slices();
-        vtrack_slices->UpdateThreadDurationForSliceId(opt_slice_id.value(),
-                                                      tts);
+        vtrack_slices->UpdateThreadDeltasForSliceId(opt_slice_id.value(), tts,
+                                                    ticount);
       }
       break;
     }
@@ -1790,6 +1792,7 @@ void ProtoTraceParser::ParseTrackEvent(
       // Handle instant events as slices with zero duration, so that they end up
       // nested underneath their parent slices.
       int64_t duration_ns = 0;
+      int64_t tidelta = 0;
       TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
           {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
       auto opt_slice_id =
@@ -1801,9 +1804,7 @@ void ProtoTraceParser::ParseTrackEvent(
                         vtrack_slices->slice_ids().back() <
                             opt_slice_id.value());
         vtrack_slices->AddVirtualTrackSlice(opt_slice_id.value(), tts,
-                                            duration_ns,
-                                            /*thread_instruction_count=*/0,
-                                            /*thread_instruction_delta=*/0);
+                                            duration_ns, ticount, tidelta);
       }
       break;
     }
@@ -1838,13 +1839,13 @@ void ProtoTraceParser::ParseTrackEvent(
         break;
       }
       // Other metadata events are proxied via the raw table for JSON export.
-      ParseLegacyEventAsRawEvent(ts, tts, utid, category_id, name_id,
+      ParseLegacyEventAsRawEvent(ts, tts, ticount, utid, category_id, name_id,
                                  legacy_event, args_callback);
       break;
     }
     default: {
       // Other events are proxied via the raw table for JSON export.
-      ParseLegacyEventAsRawEvent(ts, tts, utid, category_id, name_id,
+      ParseLegacyEventAsRawEvent(ts, tts, ticount, utid, category_id, name_id,
                                  legacy_event, args_callback);
     }
   }
@@ -1853,6 +1854,7 @@ void ProtoTraceParser::ParseTrackEvent(
 void ProtoTraceParser::ParseLegacyEventAsRawEvent(
     int64_t ts,
     int64_t tts,
+    int64_t ticount,
     UniqueTid utid,
     StringId category_id,
     StringId name_id,
@@ -1887,7 +1889,16 @@ void ProtoTraceParser::ParseLegacyEventAsRawEvent(
     }
   }
 
-  // TODO(eseckler): Handle thread_instruction_count/delta.
+  if (ticount) {
+    args.AddArg(row_id, legacy_event_thread_instruction_count_key_id_,
+                legacy_event_thread_instruction_count_key_id_,
+                Variadic::Integer(tts));
+    if (legacy_event.has_thread_instruction_delta()) {
+      args.AddArg(row_id, legacy_event_thread_instruction_delta_key_id_,
+                  legacy_event_thread_instruction_delta_key_id_,
+                  Variadic::Integer(legacy_event.thread_instruction_delta()));
+    }
+  }
 
   if (legacy_event.use_async_tts()) {
     args.AddArg(row_id, legacy_event_use_async_tts_key_id_,
