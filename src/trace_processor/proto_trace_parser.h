@@ -26,9 +26,12 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/proto_incremental_state.h"
+#include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
+
+#include "perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -99,6 +102,14 @@ class ProtoTraceParser : public TraceParser {
                        int64_t tts,
                        ProtoIncrementalState::PacketSequenceState*,
                        ConstBytes);
+  void ParseLegacyEventAsRawEvent(
+      int64_t ts,
+      int64_t tts,
+      UniqueTid utid,
+      StringId category_id,
+      StringId name_id,
+      const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy_event,
+      SliceTracker::SetArgsCallback args_callback);
   void ParseDebugAnnotationArgs(
       ConstBytes debug_annotation,
       ProtoIncrementalState::PacketSequenceState* sequence_state,
@@ -153,6 +164,23 @@ class ProtoTraceParser : public TraceParser {
   const StringId metatrace_id_;
   const StringId task_file_name_args_key_id_;
   const StringId task_function_name_args_key_id_;
+  const StringId raw_legacy_event_id_;
+  const StringId legacy_event_category_key_id_;
+  const StringId legacy_event_name_key_id_;
+  const StringId legacy_event_phase_key_id_;
+  const StringId legacy_event_duration_ns_key_id_;
+  const StringId legacy_event_thread_timestamp_ns_key_id_;
+  const StringId legacy_event_thread_duration_ns_key_id_;
+  const StringId legacy_event_use_async_tts_key_id_;
+  const StringId legacy_event_global_id_key_id_;
+  const StringId legacy_event_local_id_key_id_;
+  const StringId legacy_event_id_scope_key_id_;
+  const StringId legacy_event_bind_id_key_id_;
+  const StringId legacy_event_bind_to_enclosing_key_id_;
+  const StringId legacy_event_flow_direction_key_id_;
+  const StringId flow_direction_value_in_id_;
+  const StringId flow_direction_value_out_id_;
+  const StringId flow_direction_value_inout_id_;
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
