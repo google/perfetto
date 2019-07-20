@@ -16,7 +16,6 @@
 
 #include "test/test_helper.h"
 
-#include <gtest/gtest.h>
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "test/task_runner_thread_delegates.h"
@@ -52,7 +51,7 @@ void TestHelper::OnConnect() {
 }
 
 void TestHelper::OnDisconnect() {
-  FAIL() << "Consumer unexpectedly disconnected from the service";
+  PERFETTO_FATAL("Consumer unexpectedly disconnected from the service");
 }
 
 void TestHelper::OnTracingDisabled() {
@@ -62,14 +61,14 @@ void TestHelper::OnTracingDisabled() {
 void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   for (auto& encoded_packet : packets) {
     protos::TracePacket packet;
-    ASSERT_TRUE(encoded_packet.Decode(&packet));
+    PERFETTO_CHECK(encoded_packet.Decode(&packet));
     if (packet.has_clock_snapshot() || packet.has_trace_config() ||
         packet.has_trace_stats() || !packet.synchronization_marker().empty() ||
         packet.has_system_info()) {
       continue;
     }
-    ASSERT_EQ(protos::TracePacket::kTrustedUid,
-              packet.optional_trusted_uid_case());
+    PERFETTO_CHECK(packet.optional_trusted_uid_case() ==
+                   protos::TracePacket::kTrustedUid);
     trace_.push_back(std::move(packet));
   }
 

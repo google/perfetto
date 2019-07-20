@@ -892,6 +892,7 @@ cc_test {
     "test/end_to_end_integrationtest.cc",
     "test/fake_producer.cc",
     "test/task_runner_thread.cc",
+    "test/task_runner_thread_delegates.cc",
     "test/test_helper.cc",
   ],
   shared_libs: [
@@ -4181,6 +4182,7 @@ cc_library_static {
     "test/end_to_end_integrationtest.cc",
     "test/fake_producer.cc",
     "test/task_runner_thread.cc",
+    "test/task_runner_thread_delegates.cc",
     "test/test_helper.cc",
   ],
   export_include_dirs: [
@@ -4206,6 +4208,7 @@ cc_library_static {
     "src/base/android_task_runner.cc",
     "src/base/test/test_task_runner.cc",
     "test/fake_producer.cc",
+    "test/task_runner_thread_delegates.cc",
   ],
   shared_libs: [
     "libprotobuf-cpp-lite",

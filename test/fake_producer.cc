@@ -19,7 +19,6 @@
 #include <condition_variable>
 #include <mutex>
 
-#include <gtest/gtest.h>
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/time.h"
 #include "perfetto/ext/base/utils.h"
@@ -58,7 +57,7 @@ void FakeProducer::OnConnect() {
 
 void FakeProducer::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  FAIL() << "Producer unexpectedly disconnected from the service";
+  PERFETTO_FATAL("Producer unexpectedly disconnected from the service");
 }
 
 void FakeProducer::SetupDataSource(DataSourceInstanceID,
