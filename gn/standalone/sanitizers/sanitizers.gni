@@ -54,8 +54,3 @@ declare_args() {
     }
   }
 }
-
-using_sanitizer = is_asan || is_lsan || is_tsan || is_msan || is_ubsan
-assert(!using_sanitizer || is_clang, "is_*san requires is_clang=true'")
-assert(!is_msan || is_linux, "msan only supported on linux")
-assert(!is_tsan || (is_linux || is_mac), "tsan only supported on linux and mac")
