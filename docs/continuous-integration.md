@@ -190,6 +190,7 @@ full-copy of the DB.
                           "FAILED"
                           "TIMED_OUT"
                           "CANCELLED"
+                          "INTERRUPTED"
             time_ended:   "2019-07-07T12:47:22Z"
             time_queued:  "2019-07-07T12:34:22Z"
             time_started: "2019-07-07T12:34:25Z"

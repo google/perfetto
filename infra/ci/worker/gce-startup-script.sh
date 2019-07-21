@@ -47,3 +47,32 @@ docker run -d \
   --log-driver gcplogs \
   eu.gcr.io/perfetto-ci/worker
 done
+
+
+# Register a systemd service to stop worker containers gracefully on shutdown.
+cat > /etc/systemd/system/graceful_shutdown.sh <<EOF
+#!/bin/sh
+logger 'Shutting down worker containers'
+docker ps -q  -f 'name=worker-\d+$' | xargs docker stop -t 30
+exit 0
+EOF
+
+chmod 755 /etc/systemd/system/graceful_shutdown.sh
+
+# This service will cause the graceful_shutdown.sh to be invoked before stopping
+# docker, hence before tearing down any other container.
+cat > /etc/systemd/system/graceful_shutdown.service <<EOF
+[Unit]
+Description=Worker container lifecycle
+Wants=gcr-online.target docker.service
+After=gcr-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStop=/etc/systemd/system/graceful_shutdown.sh
+EOF
+
+systemctl daemon-reload
+systemctl start graceful_shutdown.service

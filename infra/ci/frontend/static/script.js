@@ -337,6 +337,7 @@ function renderJobLink(jobId, jobStatus) {
     'QUEUED': 'schedule',
     'FAILED': 'bug_report',
     'CANCELLED': 'cancel',
+    'INTERRUPTED': 'cancel',
     'TIMED_OUT': 'notification_important',
   };
   const icon = ICON_MAP[jobStatus] || 'clear';
