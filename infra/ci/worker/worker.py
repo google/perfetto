@@ -18,20 +18,16 @@
 It also handles timeouts and graceful container termination.
 '''
 
-import httplib2
 import logging
 import os
 import random
 import signal
 import socket
 import subprocess
-import sys
 import threading
 import time
 import traceback
 
-from datetime import datetime, timedelta
-from oauth2client.client import GoogleCredentials
 from config import DB, JOB_TIMEOUT_SEC
 from common_utils import req, utc_now_iso, init_logging
 from common_utils import ConcurrentModificationError, SCOPES
@@ -85,6 +81,7 @@ def worker_loop():
   # Transactionally acquire a job. Deal with races (two workers trying to
   # acquire the same job).
   job = None
+  job_id = None
   for job_id in sorted(jobs.keys(), reverse=True):
     job = try_acquire_job(job_id)
     if job is not None:
@@ -135,22 +132,21 @@ def worker_loop():
       cancelled = True
       job_runner.terminate()
 
-  status = ('CANCELLED' if cancelled else
+  status = ('INTERRUPTED' if sigterm.is_set() else
+            'CANCELLED' if cancelled else
             'TIMED_OUT' if timed_out else
             'COMPLETED' if res == 0 else
             'FAILED')
   logging.info('Job %s %s with code %s', job_id, status, res)
 
-  # Update the DB, unless the job has been cancelled. The "is not Non"
+  # Update the DB, unless the job has been cancelled. The "is not None"
   # condition deals with a very niche case, that is, avoid creating a partial
   # job entry after doing a full clear of the DB (which is super rare, happens
   # only when re-deploying the CI).
   if polled_status is not None:
-    status_num = 1 if status == 'COMPLETED' else -1
     patch = {
-        # This updates cls/1234-56/jobs/xxx-clang-arm: 1|-1
-        '%s/jobs/%s' % (job['src'], job_id): status_num,
         'jobs/%s/status' % job_id: status,
+        'jobs/%s/exit_code' % job_id: {} if res is None else res,
         'jobs/%s/time_ended' % job_id: utc_now_iso(),
         'jobs_running/%s' % job_id: {},  # = DELETE
     }
