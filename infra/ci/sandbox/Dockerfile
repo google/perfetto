@@ -36,6 +36,6 @@ COPY testrunner.sh /ci/testrunner.sh
 COPY init.sh /ci/init.sh
 
 VOLUME [ "/ci/cache", "/ci/ramdisk", "/ci/artifacts" ]
-ENTRYPOINT [ "tini", "--" ]
+ENTRYPOINT [ "tini", "-g", "--" ]
 CMD [ "bash", "/ci/init.sh" ]
 

@@ -94,7 +94,7 @@ def main(argv):
   # termination of the worker container, which dispatches a SIGTERM on stop.
   def sig_handler(sig, _):
     logging.warn('Job runner got signal %s, terminating job %s', sig, job_id)
-    subprocess.call(['sudo', 'docker', 'rm', '-f', container])
+    subprocess.call(['sudo', 'docker', 'kill', container])
     os._exit(1)  # sys.exit throws a SystemExit exception, _exit really exits.
   signal.signal(signal.SIGTERM, sig_handler)
 
@@ -103,8 +103,8 @@ def main(argv):
 
   # SYS_PTRACE is required for gtest death tests and LSan.
   cmd = ['sudo', 'docker', 'run', '--name', container, '--hostname', container,
-         '--cap-add', 'SYS_PTRACE', '--rm', '--tmpfs', '/ramdisk:exec',
-         '--env', 'PERFETTO_TEST_JOB=%s' % job_id]
+         '--cap-add', 'SYS_PTRACE', '--rm', '--tmpfs', '/ci/ramdisk:exec',
+         '--tmpfs', '/tmp:exec', '--env', 'PERFETTO_TEST_JOB=%s' % job_id]
 
   # Propagate environment variables coming from the job config.
   for kv in [kv for kv in os.environ.items() if kv[0].startswith('PERFETTO_')]:

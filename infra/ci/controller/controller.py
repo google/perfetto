@@ -13,21 +13,20 @@
 # limitations under the License.
 
 import logging
-import httplib2
-import json
 import re
+import time
 import urllib
-import webapp2
 
 from datetime import datetime, timedelta
-from google.appengine.api import app_identity
 from google.appengine.api import taskqueue
 
+import webapp2
+
+from common_utils import req, utc_now_iso, parse_iso_time, SCOPES
 from config import DB, GERRIT_HOST, GERRIT_PROJECT, GERRIT_POLL_SEC, PROJECT
 from config import CI_SITE, GERRIT_VOTING_ENABLED, JOB_CONFIGS, LOGS_TTL_DAYS
 from config import TRUSTED_EMAILS, GCS_ARTIFACTS, JOB_TIMEOUT_SEC
-
-from common_utils import req, utc_now_iso, parse_iso_time, SCOPES
+from config import CL_TIMEOUT_SEC
 from stackdriver_metrics import STACKDRIVER_METRICS
 
 STACKDRIVER_API = 'https://monitoring.googleapis.com/v3/projects/%s' % PROJECT
@@ -38,6 +37,7 @@ SCOPES.append('https://www.googleapis.com/auth/datastore')
 SCOPES.append('https://www.googleapis.com/auth/monitoring')
 SCOPES.append('https://www.googleapis.com/auth/monitoring.write')
 
+last_tick = 0
 
 # ------------------------------------------------------------------------------
 # Misc utility functions
@@ -104,11 +104,17 @@ def start(handler):
 
 
 def tick(handler):
+  global last_tick
+  now = time.time()
+  # Avoid avalanching effects due to the failsafe tick job in cron.yaml.
+  if now - last_tick < GERRIT_POLL_SEC - 1:
+    return
   taskqueue.add(url='/controller/tick', queue_name='tick',
                 countdown=GERRIT_POLL_SEC)
   defer('check_new_cls')
   defer('check_pending_cls')
   defer('update_queue_metrics')
+  last_tick = now
 
 
 def check_new_cls(handler):
@@ -219,16 +225,15 @@ def cancel_older_jobs(handler):
   cl = handler.request.get('cl')
   patchset = handler.request.get('patchset')
   first_key = '%s-0' % cl
-  last_key = '%s-%s' % (cl, int(patchset) - 1)
-  filter = 'orderBy="$key"&startAt="%s"&endAt="%s"' % (first_key, last_key)
-  cl_objs = req('GET', '%s/cls.json?%s' % (DB, filter)) or {}
-  for cl_obj in cl_objs.itervalues():
-    for job_id, job_completed in cl_obj['jobs'].iteritems():
-      if not job_completed:
-        # This is racy: workers can complete the queued jobs while we mark them
-        # as cancelled. The result of such race is still acceptable.
-        logging.info('Cancelling job for previous patchset %s', job_id)
-        defer('cancel_job', job_id=job_id)
+  last_key = '%s-z' % cl
+  filt = 'orderBy="$key"&startAt="%s"&endAt="%s"' % (first_key, last_key)
+  cl_objs = req('GET', '%s/cls.json?%s' % (DB, filt)) or {}
+  for cl_and_ps, cl_obj in cl_objs.iteritems():
+    ps = int(cl_and_ps.split('-')[-1])
+    if cl_obj.get('time_ended') or ps >= int(patchset):
+      continue
+    logging.info('Cancelling job for previous patchset %s', cl_and_ps)
+    map(lambda x: defer('cancel_job', job_id=x), cl_obj['jobs'].keys())
 
 
 def check_pending_cls(handler):
@@ -240,54 +245,71 @@ def check_pending_cls(handler):
 
 
 def check_pending_cl(handler):
-  cl_and_ps = handler.request.get('cl_and_ps')
-  jobs_obj = req('GET', '%s/cls/%s/jobs.json' % (DB, cl_and_ps))
-  # Each value in the cls/1234-56/jobs dict can be:
-  # 0: if the job is still running.
-  # 1: if the job completed successfully.
-  # -1: if the job failed or timed out.
-  if all(jobs_obj.values()):
-    logging.info('All jobs completed for CL %s', cl_and_ps)
-    defer('finish_and_vote_cl', cl_and_ps=cl_and_ps)
-
-
-def finish_and_vote_cl(handler):
-  # This function can be called twice on the same CL, in the rare case when the
+  # This function can be called twice on the same CL, e.g., in the case when the
   # Presubmit-Ready label is applied after we have finished running all the
   # jobs (we run presubmit regardless, only the voting is conditioned by PR).
   cl_and_ps = handler.request.get('cl_and_ps')
   cl_obj = req('GET', '%s/cls/%s.json' % (DB, cl_and_ps))
-  logging.info('Computing vote and message for CL %s', cl_and_ps)
+  all_jobs = cl_obj.get('jobs', {}).keys()
+  pending_jobs = []
+  for job_id in all_jobs:
+    job_status = req('GET', '%s/jobs/%s/status.json' % (DB, job_id))
+    pending_jobs += [job_id] if job_status in ('QUEUED', 'STARTED') else []
+
+  if pending_jobs:
+    # If the CL has been pending for too long cancel all its jobs. Upon the next
+    # scan it will be deleted and optionally voted on.
+    t_queued = parse_iso_time(cl_obj['time_queued'])
+    age_sec = (datetime.utcnow() - t_queued).total_seconds()
+    if age_sec > CL_TIMEOUT_SEC:
+      logging.warning('Canceling %s, it has been pending for too long (%s sec)',
+                      cl_and_ps, int(age_sec))
+      map(lambda x: defer('cancel_job', job_id=x), pending_jobs)
+    return
+
+  logging.info('All jobs completed for CL %s', cl_and_ps)
+
+  # Remove the CL from the pending queue and update end time.
   patch_obj = {
       'cls_pending/%s' % cl_and_ps: {},  # = DELETE
-      'cls/%s/time_ended' % cl_and_ps: cl_obj.get('time_ended', utc_now_iso())
+      'cls/%s/time_ended' % cl_and_ps: cl_obj.get('time_ended', utc_now_iso()),
   }
   req('PATCH', '%s.json' % DB, body=patch_obj)
   defer('update_cl_metrics', src='cls/' + cl_and_ps)
+  map(lambda x: defer('update_job_metrics', job_id=x), all_jobs)
+  if cl_obj.get('wants_vote'):
+    defer('comment_and_vote_cl', cl_and_ps=cl_and_ps)
 
-  # Post Gerrit update.
+
+def comment_and_vote_cl(handler):
+  cl_and_ps = handler.request.get('cl_and_ps')
+  cl_obj = req('GET', '%s/cls/%s.json' % (DB, cl_and_ps))
+
   if cl_obj.get('voted'):
     logging.error('Already voted on CL %s', cl_and_ps)
+    return
+
+  if not cl_obj['wants_vote'] or not GERRIT_VOTING_ENABLED:
+    logging.info('Skipping voting on CL %s', cl_and_ps)
     return
 
   cl_vote = 1
   passed_jobs = []
   failed_jobs = []
   ui_links = []
-  for job_id, job_res in cl_obj['jobs'].iteritems():
-    job_config = JOB_CONFIGS.get(job_id.split('--')[-1], {})
+  for job_id in cl_obj['jobs'].keys():
+    job_obj = req('GET', '%s/jobs/%s.json' % (DB, job_id))
+    job_config = JOB_CONFIGS.get(job_obj['type'], {})
     if '-ui-' in job_id:
       ui_links.append('https://storage.googleapis.com/%s/%s/ui/index.html' % (
           GCS_ARTIFACTS, job_id))
-    if job_res > 0:
+    if job_obj['status'] == 'COMPLETED':
       passed_jobs.append(job_id)
     elif not job_config.get('SKIP_VOTING', False):
       cl_vote = -1
       failed_jobs.append(job_id)
-    defer('update_job_metrics', job_id=job_id)
 
-  msg = 'Perfetto CI is under development / testing.\n'
-  msg += 'Ignore failures and -1s coming from this account for now.\n'
+  msg = ''
   log_url = CI_SITE + '/#!/logs'
   if failed_jobs:
     msg += 'FAIL:\n'
@@ -296,12 +318,9 @@ def finish_and_vote_cl(handler):
     msg += 'PASS:\n'
     msg += ''.join([' %s/%s\n' % (log_url, job_id) for job_id in passed_jobs])
   if ui_links:
-    msg += 'UI:\n' + ''.join(' %s\n' % link for link in ui_links)
+    msg += 'ARTIFACTS:\n' + ''.join(' %s\n' % link for link in ui_links)
   body = {'labels': {'Code-Review': cl_vote}, 'message': msg}
-  if not GERRIT_VOTING_ENABLED or not cl_obj['wants_vote']:
-    logging.info('Skipping voting on CL %s', cl_and_ps)
-    return
-  logging.info('Posting results for CL %s' % cl_and_ps)
+  logging.info('Posting results for CL %s', cl_and_ps)
   url = 'https://%s/a/changes/%s/revisions/%s/review' % (
       GERRIT_HOST, cl_obj['change_id'], cl_obj['revision_id'])
   req('POST', url, body=body, gerrit=True)
@@ -343,7 +362,7 @@ def queue_postsubmit_jobs(handler):
                      'time_committed': utc_now_iso(time_committed),
                      'time_queued': utc_now_iso(),
                      'jobs': {},
-                     }}
+                    }}
   ref = 'refs/heads/' + branch
   append_jobs(patch_obj, src, ref, now)
   req('PATCH', DB + '.json', body=patch_obj)
@@ -359,18 +378,24 @@ def delete_stale_jobs(handler):
     job = req('GET', '%s/jobs/%s.json' % (DB, job_id))
     time_started = parse_iso_time(job.get('time_started', utc_now_iso()))
     age = (datetime.now() - time_started).total_seconds()
-    if job.get('status') != 'STARTED' or age > JOB_TIMEOUT_SEC * 2:
+    if age > JOB_TIMEOUT_SEC * 2:
       defer('cancel_job', job_id=job_id)
 
 
 def cancel_job(handler):
+  '''Cancels a job if not completed or failed.
+
+  This function is racy: workers can complete the queued jobs while we mark them
+  as cancelled. The result of such race is still acceptable.'''
   job_id = handler.request.get('job_id')
+  status = req('GET', '%s/jobs/%s/status.json' % (DB, job_id))
   patch_obj = {
-    'jobs_running/%s' % job_id: {},  # = DELETE,
-    'jobs_queued/%s' % job_id: {},  # = DELETE,
-    'jobs/%s/status': 'CANCELLED',
-    'jobs/%s/time_ended': utc_now_iso(),
+      'jobs_running/%s' % job_id: {},  # = DELETE,
+      'jobs_queued/%s' % job_id: {},  # = DELETE,
   }
+  if status in ('QUEUED', 'STARTED'):
+    patch_obj['jobs/%s/status' % job_id] = 'CANCELLED'
+    patch_obj['jobs/%s/time_ended' % job_id] = utc_now_iso()
   req('PATCH', DB + '.json', body=patch_obj)
 
 
@@ -430,7 +455,7 @@ class ControllerHandler(webapp2.RequestHandler):
       'check_pending_cl': check_pending_cl,
       'check_new_cls': check_new_cls,
       'check_new_cl': check_new_cl,
-      'finish_and_vote_cl': finish_and_vote_cl,
+      'comment_and_vote_cl': comment_and_vote_cl,
       'cancel_older_jobs': cancel_older_jobs,
       'queue_postsubmit_jobs': queue_postsubmit_jobs,
       'update_job_metrics': update_job_metrics,
