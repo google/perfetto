@@ -266,6 +266,10 @@ a:hover {
     color: #ffa000;
 }
 
+.main-table tbody td.job .INTERRUPTED {
+    color: #ffa000;
+}
+
 .main-table tbody td.job .TIMED_OUT {
     color: #db4545;
 }

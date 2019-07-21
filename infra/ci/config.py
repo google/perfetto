@@ -41,6 +41,7 @@ CI_SITE = 'https://ci.perfetto.dev'
 GCS_ARTIFACTS = 'perfetto-ci-artifacts'
 
 JOB_TIMEOUT_SEC = 60 * 30
+CL_TIMEOUT_SEC = 60 * 60 * 3
 LOGS_TTL_DAYS = 15
 TRUSTED_EMAILS = '^.*@google.com$'
 
@@ -97,7 +98,6 @@ JOB_CONFIGS = {
     'linux-clang-x86_64-libfuzzer': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_fuzzer=true is_asan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/fuzzer_tests.sh',
-        'SKIP_VOTING': True,
     },
     'ui-clang-x86_64-debug': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=true',
