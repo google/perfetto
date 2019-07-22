@@ -1633,7 +1633,7 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   }
 
-  // TODO(eseckler): Handle thread instruction counts, use_async_tts.
+  // TODO(eseckler): Handle thread instruction counts.
 
   auto args_callback = [this, &event, &sequence_state](
                            ArgsTracker* args_tracker, RowId row_id) {
@@ -1761,15 +1761,34 @@ void ProtoTraceParser::ParseTrackEvent(
     case 'b': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_BEGIN
       TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
           {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
-      slice_tracker->Begin(ts, track_id, RefType::kRefTrack, category_id,
-                           name_id, args_callback);
+      auto opt_slice_id =
+          slice_tracker->Begin(ts, track_id, RefType::kRefTrack, category_id,
+                               name_id, args_callback);
+      // For the time beeing, we only create vtrack slice rows if we need to
+      // store thread timestamps/counters.
+      if (legacy_event.use_async_tts() && opt_slice_id.has_value()) {
+        auto* vtrack_slices = storage->mutable_virtual_track_slices();
+        PERFETTO_DCHECK(!vtrack_slices->slice_count() ||
+                        vtrack_slices->slice_ids().back() <
+                            opt_slice_id.value());
+        vtrack_slices->AddVirtualTrackSlice(opt_slice_id.value(), tts,
+                                            kPendingThreadDuration,
+                                            /*thread_instruction_count=*/0,
+                                            /*thread_instruction_delta=*/0);
+      }
       break;
     }
     case 'e': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_END
       TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
           {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
-      slice_tracker->End(ts, track_id, RefType::kRefTrack, category_id, name_id,
-                         args_callback);
+      auto opt_slice_id =
+          slice_tracker->End(ts, track_id, RefType::kRefTrack, category_id,
+                             name_id, args_callback);
+      if (legacy_event.use_async_tts() && opt_slice_id.has_value()) {
+        auto* vtrack_slices = storage->mutable_virtual_track_slices();
+        vtrack_slices->UpdateThreadDurationForSliceId(opt_slice_id.value(),
+                                                      tts);
+      }
       break;
     }
     case 'n': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_INSTANT
@@ -1778,8 +1797,19 @@ void ProtoTraceParser::ParseTrackEvent(
       int64_t duration_ns = 0;
       TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
           {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
-      slice_tracker->Scoped(ts, track_id, RefType::kRefTrack, category_id,
-                            name_id, duration_ns, args_callback);
+      auto opt_slice_id =
+          slice_tracker->Scoped(ts, track_id, RefType::kRefTrack, category_id,
+                                name_id, duration_ns, args_callback);
+      if (legacy_event.use_async_tts() && opt_slice_id.has_value()) {
+        auto* vtrack_slices = storage->mutable_virtual_track_slices();
+        PERFETTO_DCHECK(!vtrack_slices->slice_count() ||
+                        vtrack_slices->slice_ids().back() <
+                            opt_slice_id.value());
+        vtrack_slices->AddVirtualTrackSlice(opt_slice_id.value(), tts,
+                                            duration_ns,
+                                            /*thread_instruction_count=*/0,
+                                            /*thread_instruction_delta=*/0);
+      }
       break;
     }
     case 'M': {  // TRACE_EVENT_PHASE_METADATA (process and thread names).

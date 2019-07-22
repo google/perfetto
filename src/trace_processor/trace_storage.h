@@ -387,13 +387,61 @@ class TraceStorage {
       return slice_count() - 1;
     }
 
-    void set_thread_duration_ns(uint32_t index, int64_t thread_duration_ns) {
-      thread_duration_ns_[index] = thread_duration_ns;
+    uint32_t slice_count() const {
+      return static_cast<uint32_t>(slice_ids_.size());
     }
 
-    void set_thread_instruction_delta(uint32_t index,
-                                      int64_t thread_instruction_delta) {
-      thread_instruction_deltas_[index] = thread_instruction_delta;
+    const std::deque<uint32_t>& slice_ids() const { return slice_ids_; }
+    const std::deque<int64_t>& thread_timestamp_ns() const {
+      return thread_timestamp_ns_;
+    }
+    const std::deque<int64_t>& thread_duration_ns() const {
+      return thread_duration_ns_;
+    }
+    const std::deque<int64_t>& thread_instruction_counts() const {
+      return thread_instruction_counts_;
+    }
+    const std::deque<int64_t>& thread_instruction_deltas() const {
+      return thread_instruction_deltas_;
+    }
+
+    base::Optional<uint32_t> FindRowForSliceId(uint32_t slice_id) const {
+      auto it =
+          std::lower_bound(slice_ids().begin(), slice_ids().end(), slice_id);
+      if (it != slice_ids().end() && *it == slice_id) {
+        return static_cast<uint32_t>(std::distance(slice_ids().begin(), it));
+      }
+      return base::nullopt;
+    }
+
+    void UpdateThreadDurationForSliceId(uint32_t slice_id,
+                                        int64_t end_thread_timestamp_ns) {
+      uint32_t row = *FindRowForSliceId(slice_id);
+      int64_t begin_ns = thread_timestamp_ns_[row];
+      thread_duration_ns_[row] = end_thread_timestamp_ns - begin_ns;
+    }
+
+   private:
+    std::deque<uint32_t> slice_ids_;
+    std::deque<int64_t> thread_timestamp_ns_;
+    std::deque<int64_t> thread_duration_ns_;
+    std::deque<int64_t> thread_instruction_counts_;
+    std::deque<int64_t> thread_instruction_deltas_;
+  };
+
+  class VirtualTrackSlices {
+   public:
+    inline uint32_t AddVirtualTrackSlice(uint32_t slice_id,
+                                         int64_t thread_timestamp_ns,
+                                         int64_t thread_duration_ns,
+                                         int64_t thread_instruction_count,
+                                         int64_t thread_instruction_delta) {
+      slice_ids_.emplace_back(slice_id);
+      thread_timestamp_ns_.emplace_back(thread_timestamp_ns);
+      thread_duration_ns_.emplace_back(thread_duration_ns);
+      thread_instruction_counts_.emplace_back(thread_instruction_count);
+      thread_instruction_deltas_.emplace_back(thread_instruction_delta);
+      return slice_count() - 1;
     }
 
     uint32_t slice_count() const {
@@ -1041,6 +1089,13 @@ class TraceStorage {
   const ThreadSlices& thread_slices() const { return thread_slices_; }
   ThreadSlices* mutable_thread_slices() { return &thread_slices_; }
 
+  const VirtualTrackSlices& virtual_track_slices() const {
+    return virtual_track_slices_;
+  }
+  VirtualTrackSlices* mutable_virtual_track_slices() {
+    return &virtual_track_slices_;
+  }
+
   const CounterDefinitions& counter_definitions() const {
     return counter_definitions_;
   }
@@ -1160,6 +1215,10 @@ class TraceStorage {
 
   // Additional attributes for threads slices (sub-type of NestableSlices).
   ThreadSlices thread_slices_;
+
+  // Additional attributes for virtual track slices (sub-type of
+  // NestableSlices).
+  VirtualTrackSlices virtual_track_slices_;
 
   // The type of counters in the trace. Can be thought of as the "metadata".
   CounterDefinitions counter_definitions_;
