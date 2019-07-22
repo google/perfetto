@@ -910,6 +910,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
     legacy_event->set_name_iid(1);
     legacy_event->set_phase('b');
     legacy_event->set_global_id(10);
+    legacy_event->set_use_async_tts(true);
 
     auto* interned_data = packet->set_interned_data();
     auto cat1 = interned_data->add_event_categories();
@@ -930,6 +931,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
     legacy_event->set_name_iid(1);
     legacy_event->set_phase('e');
     legacy_event->set_global_id(10);
+    legacy_event->set_use_async_tts(true);
   }
   {
     auto* packet = trace_.add_packet();
@@ -976,7 +978,8 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Begin(1010000, 0, RefType::kRefTrack, 1, 2, _));
+  EXPECT_CALL(*slice_, Begin(1010000, 0, RefType::kRefTrack, 1, 2, _))
+      .WillOnce(Return(0u));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat2")))
       .WillOnce(Return(3));
@@ -984,7 +987,8 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
       .WillOnce(Return(4));
   EXPECT_CALL(*slice_, Scoped(1015000, 0, RefType::kRefTrack, 3, 4, 0, _));
 
-  EXPECT_CALL(*slice_, End(1020000, 0, RefType::kRefTrack, 1, 2, _));
+  EXPECT_CALL(*slice_, End(1020000, 0, RefType::kRefTrack, 1, 2, _))
+      .WillOnce(Return(0u));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("scope1")))
       .WillOnce(Return(5));
@@ -1002,6 +1006,11 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
             VirtualTrackScope::kProcess);
   EXPECT_EQ(storage_->virtual_tracks().upids()[0], 0u);
   EXPECT_EQ(storage_->virtual_tracks().upids()[1], 1u);
+
+  EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
+  EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], 0u);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_timestamp_ns()[0], 2005000);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_duration_ns()[0], 5000);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
