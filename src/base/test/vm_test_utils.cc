@@ -25,12 +25,14 @@
 #include <string.h>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <vector>
+
 #include <Windows.h>
 #include <Psapi.h>
-#else
+#else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/mman.h>
 #include <sys/stat.h>
-#endif
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
