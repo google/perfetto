@@ -73,6 +73,7 @@ group("all") {
         "test/configs",
         "tools/ftrace_proto_gen:ftrace_proto_gen",
         "tools/proto_to_cpp",
+        "tools/protoprofile",
         "tools/trace_to_text",
         "tools/trace_to_text:trace_to_text_lite_host($host_toolchain)",
 
