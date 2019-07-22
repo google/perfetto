@@ -275,14 +275,32 @@ int TraceToSystrace(std::istream* input,
     if (wrap_in_json) {
       for (uint32_t i = 0; line[i] != '\0'; i++) {
         char c = line[i];
-        if (c == '\n') {
-          writer->AppendLiteral("\\n");
-          continue;
+        switch (c) {
+          case '\n':
+            writer->AppendLiteral("\\n");
+            break;
+          case '\f':
+            writer->AppendLiteral("\\f");
+            break;
+          case '\b':
+            writer->AppendLiteral("\\b");
+            break;
+          case '\r':
+            writer->AppendLiteral("\\r");
+            break;
+          case '\t':
+            writer->AppendLiteral("\\t");
+            break;
+          case '\\':
+            writer->AppendLiteral("\\\\");
+            break;
+          case '"':
+            writer->AppendLiteral("\\\"");
+            break;
+          default:
+            writer->AppendChar(c);
+            break;
         }
-
-        if (c == '\\' || c == '"')
-          writer->AppendChar('\\');
-        writer->AppendChar(c);
       }
       writer->AppendChar('\\');
       writer->AppendChar('n');
