@@ -129,7 +129,7 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
   }
 
   if (PERFETTO_UNLIKELY(field_id > std::numeric_limits<uint16_t>::max())) {
-    PERFETTO_DFATAL("Cannot parse proto field ids > 0xFFFF");
+    // PERFETTO_DFATAL("Cannot parse proto field ids > 0xFFFF");
     return res;
   }
 
