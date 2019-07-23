@@ -57,7 +57,7 @@ StartupTraceWriterRegistry::CreateUnboundTraceWriter() {
   std::lock_guard<std::mutex> lock(lock_);
   PERFETTO_DCHECK(!arbiter_);  // Should only be called while unbound.
   std::unique_ptr<StartupTraceWriter> writer(new StartupTraceWriter(handle_));
-  unbound_writers_.insert(writer.get());
+  unbound_writers_.push_back(writer.get());
   return writer;
 }
 
@@ -65,10 +65,11 @@ void StartupTraceWriterRegistry::ReturnTraceWriter(
     std::unique_ptr<StartupTraceWriter> trace_writer) {
   std::lock_guard<std::mutex> lock(lock_);
   PERFETTO_DCHECK(!trace_writer->write_in_progress_);
+  auto it = std::find(unbound_writers_.begin(), unbound_writers_.end(),
+                      trace_writer.get());
 
   // If the registry is already bound, but the writer wasn't, bind it now.
   if (arbiter_) {
-    auto it = unbound_writers_.find(trace_writer.get());
     if (it == unbound_writers_.end()) {
       // Nothing to do, the writer was already bound.
       return;
@@ -85,8 +86,8 @@ void StartupTraceWriterRegistry::ReturnTraceWriter(
   }
 
   // If the registry was not bound yet, keep the writer alive until it is.
-  PERFETTO_DCHECK(unbound_writers_.count(trace_writer.get()));
-  unbound_writers_.erase(trace_writer.get());
+  PERFETTO_DCHECK(it != unbound_writers_.end());
+  unbound_writers_.erase(it);
   unbound_owned_writers_.push_back(std::move(trace_writer));
 }
 
@@ -151,7 +152,7 @@ void StartupTraceWriterRegistry::TryBindWriters() {
     if ((*it)->BindToArbiter(arbiter_, target_buffer_, chunks_per_batch_)) {
       it = unbound_writers_.erase(it);
     } else {
-      it++;
+      break;
     }
   }
   if (!unbound_writers_.empty()) {
