@@ -117,7 +117,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // Service). TODO: at this point we should return a bankrupcy chunk, not
     // crash the process.
     if (stall_count++ == kLogAfterNStalls) {
-      PERFETTO_ELOG("Shared memory buffer overrun! Stalling");
+      PERFETTO_LOG("Shared memory buffer overrun! Stalling");
     }
 
     if (stall_count == kAssertAtNStalls) {
