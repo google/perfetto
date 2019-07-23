@@ -20,7 +20,6 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <set>
 #include <vector>
 
 #include "perfetto/base/export.h"
@@ -122,7 +121,7 @@ class PERFETTO_EXPORT StartupTraceWriterRegistry {
 
   // Unbound writers that we handed out to writer threads. These writers may be
   // concurrently written to by the writer threads.
-  std::set<StartupTraceWriter*> unbound_writers_;
+  std::vector<StartupTraceWriter*> unbound_writers_;
 
   // Unbound writers that writer threads returned to the registry by calling
   // ReturnUnboundTraceWriter(). Writers are removed from |unbound_writers_|
