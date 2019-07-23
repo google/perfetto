@@ -15,7 +15,7 @@
 // The whole record page.
 .record-page {
   position: relative;
-  overflow-y: auto;
+  overflow-y: scroll;
   background-color: #fefefe;
   padding: 40px 20px;
 }
