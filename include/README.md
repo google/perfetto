@@ -98,10 +98,10 @@ Usage example
 
 4. Emit trace events
 ```cpp
-  MyDataSource::Trace([](TraceContext ctx) {
+  MyDataSource::Trace([](MyDataSource::TraceContext ctx) {
       auto trace_packet = ctx.NewTracePacket();
-      ctx.set_timestamp(...);
-      ctx.set_my_custom_proto(...);
+      trace_packet->set_timestamp(...);
+      auto* my_custom_proto = trace_packet->set_my_custom_proto();
   });
 ```
 
