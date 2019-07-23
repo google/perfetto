@@ -1,7 +1,5 @@
 # heapprofd - Android Heap Profiler
 
-Googlers, for design doc see: http://go/heapprofd-design
-
 **heapprofd requires Android Q.**
 
 heapprofd is a tool that tracks native heap allocations & deallocations of an
