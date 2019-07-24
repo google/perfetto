@@ -19,8 +19,16 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-// TrackEvent arguments describing the execution of a task.
-message TaskExecution {
-  // Source location that the task was posted from.
-  optional uint64 posted_from_iid = 1;  // interned SourceLocation.
+message LogMessage {
+  optional uint64 source_location_iid = 1;  // interned SourceLocation.
+  optional uint64 body_iid = 2;             // interned LogMessageBody.
+}
+
+// --------------------
+// Interned data types:
+// --------------------
+
+message LogMessageBody {
+  optional uint64 iid = 1;
+  optional string body = 2;
 }

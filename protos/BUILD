@@ -1265,7 +1265,9 @@ proto_library(
     name = "trace_track_event",
     srcs = [
         "perfetto/trace/track_event/debug_annotation.proto",
+        "perfetto/trace/track_event/log_message.proto",
         "perfetto/trace/track_event/process_descriptor.proto",
+        "perfetto/trace/track_event/source_location.proto",
         "perfetto/trace/track_event/task_execution.proto",
         "perfetto/trace/track_event/thread_descriptor.proto",
         "perfetto/trace/track_event/track_event.proto",
@@ -1305,7 +1307,9 @@ proto_library(
     name = "trace_track_event_zero",
     srcs = [
         "perfetto/trace/track_event/debug_annotation.proto",
+        "perfetto/trace/track_event/log_message.proto",
         "perfetto/trace/track_event/process_descriptor.proto",
+        "perfetto/trace/track_event/source_location.proto",
         "perfetto/trace/track_event/task_execution.proto",
         "perfetto/trace/track_event/thread_descriptor.proto",
         "perfetto/trace/track_event/track_event.proto",

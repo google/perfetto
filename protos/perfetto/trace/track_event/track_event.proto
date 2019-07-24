@@ -18,6 +18,7 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "perfetto/trace/track_event/debug_annotation.proto";
+import "perfetto/trace/track_event/log_message.proto";
 import "perfetto/trace/track_event/task_execution.proto";
 
 package perfetto.protos;
@@ -40,7 +41,7 @@ package perfetto.protos;
 // messages in separate TracePackets instead.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 21.
+// Next id: 22.
 message TrackEvent {
   // Timestamp in microseconds (usually CLOCK_MONOTONIC).
   oneof timestamp {
@@ -89,6 +90,8 @@ message TrackEvent {
 
   // Typed event arguments:
   optional TaskExecution task_execution = 5;
+  optional LogMessage log_message = 21;
+
   // TODO(eseckler): New argument types go here :)
 
   // Apart from {category, time, thread time, tid, pid}, other legacy trace
