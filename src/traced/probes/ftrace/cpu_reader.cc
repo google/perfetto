@@ -31,7 +31,6 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
-#include "src/traced/probes/ftrace/ftrace_thread_sync.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -115,6 +114,11 @@ bool SetBlocking(int fd, bool is_blocking) {
   return fcntl(fd, F_SETFL, flags) == 0;
 }
 
+// TODO(rsavitski): |overwrite| extraction seems wrong, the top part of the
+// second ("commit") field is a bit mask (see RB_MISSED_FLAGS in kernel
+// sources), not the direct count. The kernel conditionally appends the missed
+// events count to the end of the page (if there's space), which we might
+// also need to account for when parsing the page.
 base::Optional<PageHeader> ParsePageHeader(const uint8_t** ptr,
                                            uint16_t page_header_size_len) {
   const uint8_t* end_of_page = *ptr + base::kPageSize;
@@ -149,286 +153,144 @@ base::Optional<PageHeader> ParsePageHeader(const uint8_t** ptr,
 using protos::pbzero::GenericFtraceEvent;
 
 CpuReader::CpuReader(const ProtoTranslationTable* table,
-                     FtraceThreadSync* thread_sync,
                      size_t cpu,
-                     int generation,
-                     base::ScopedFile fd)
-    : table_(table),
-      thread_sync_(thread_sync),
-      cpu_(cpu),
-      trace_fd_(std::move(fd)) {
-  // Make reads from the raw pipe blocking so that splice() can sleep.
+                     base::ScopedFile trace_fd)
+    : table_(table), cpu_(cpu), trace_fd_(std::move(trace_fd)) {
   PERFETTO_CHECK(trace_fd_);
-  PERFETTO_CHECK(SetBlocking(*trace_fd_, true));
-
-  // We need a non-default SIGPIPE handler to make it so that the blocking
-  // splice() is woken up when the ~CpuReader() dtor destroys the pipes.
-  // Just masking out the signal would cause an implicit syscall restart and
-  // hence make the join() in the dtor unreliable.
-  struct sigaction current_act = {};
-  PERFETTO_CHECK(sigaction(SIGPIPE, nullptr, &current_act) == 0);
-#pragma GCC diagnostic push
-#if defined(__clang__)
-#pragma GCC diagnostic ignored "-Wdisabled-macro-expansion"
-#endif
-  if (current_act.sa_handler == SIG_DFL || current_act.sa_handler == SIG_IGN) {
-    struct sigaction act = {};
-    act.sa_sigaction = [](int, siginfo_t*, void*) {};
-    PERFETTO_CHECK(sigaction(SIGPIPE, &act, nullptr) == 0);
-  }
-#pragma GCC diagnostic pop
-
-  worker_thread_ = std::thread(std::bind(&RunWorkerThread, cpu_, generation,
-                                         *trace_fd_, &pool_, thread_sync_,
-                                         table->page_header_size_len()));
+  PERFETTO_CHECK(SetBlocking(*trace_fd_, false));
 }
 
-CpuReader::~CpuReader() {
-// FtraceController (who owns this) is supposed to issue a kStop notification
-// to the thread sync object before destroying the CpuReader.
-#if PERFETTO_DCHECK_IS_ON()
+CpuReader::~CpuReader() = default;
+
+size_t CpuReader::ReadCycle(
+    uint8_t* parsing_buf,
+    size_t parsing_buf_size_pages,
+    size_t max_pages,
+    const std::set<FtraceDataSource*>& started_data_sources) {
+  PERFETTO_DCHECK(max_pages >= parsing_buf_size_pages &&
+                  max_pages % parsing_buf_size_pages == 0);
+  metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
+                             metatrace::FTRACE_CPU_READ_CYCLE);
+
+  // Work in batches to keep cache locality, and limit memory usage.
+  size_t total_pages_read = 0;
+  for (bool is_first_batch = true;; is_first_batch = false) {
+    size_t pages_read =
+        ReadAndProcessBatch(parsing_buf, parsing_buf_size_pages, is_first_batch,
+                            started_data_sources);
+
+    PERFETTO_DCHECK(pages_read <= parsing_buf_size_pages);
+    total_pages_read += pages_read;
+
+    // Check whether we've caught up to the writer, or possibly giving up on
+    // this attempt due to some error.
+    if (pages_read != parsing_buf_size_pages)
+      break;
+    // Check if we've hit the limit of work for this cycle.
+    if (total_pages_read >= max_pages)
+      break;
+  }
+  PERFETTO_METATRACE_COUNTER(TAG_FTRACE, FTRACE_PAGES_DRAINED,
+                             total_pages_read);
+  return total_pages_read;
+}
+
+// metatrace note: mark the reading phase as FTRACE_CPU_READ_BATCH, but let the
+// parsing time be implied (by the difference between the caller's span, and
+// this reading span). Makes it easier to estimate the read/parse ratio when
+// looking at the trace in the UI.
+size_t CpuReader::ReadAndProcessBatch(
+    uint8_t* parsing_buf,
+    size_t max_pages,
+    bool first_batch_in_cycle,
+    const std::set<FtraceDataSource*>& started_data_sources) {
+  size_t pages_read = 0;
   {
-    std::lock_guard<std::mutex> lock(thread_sync_->mutex);
-    PERFETTO_DCHECK(thread_sync_->cmd == FtraceThreadSync::kQuit);
-  }
-#endif
-
-  // The kernel's splice implementation for the trace pipe doesn't generate a
-  // SIGPIPE if the output pipe is closed (b/73807072). Instead, the call to
-  // close() on the pipe hangs forever. To work around this, we first close the
-  // trace fd (which prevents another splice from starting), raise SIGPIPE and
-  // wait for the worker to exit (i.e., to guarantee no splice is in progress)
-  // and only then close the staging pipe.
-  trace_fd_.reset();
-  InterruptWorkerThreadWithSignal();
-  worker_thread_.join();
-}
-
-void CpuReader::InterruptWorkerThreadWithSignal() {
-  pthread_kill(worker_thread_.native_handle(), SIGPIPE);
-}
-
-// The worker thread reads data from the ftrace trace_pipe_raw and moves it to
-// the page |pool| allowing the main thread to read and decode that.
-// See //docs/ftrace.md for the design of the ftrace worker scheduler.
-// static
-void CpuReader::RunWorkerThread(size_t cpu,
-                                int generation,
-                                int trace_fd,
-                                PagePool* pool,
-                                FtraceThreadSync* thread_sync,
-                                uint16_t header_size_len) {
-// Before attempting any changes to this function, think twice. The kernel
-// ftrace pipe code is full of caveats and bugs. This code carefully works
-// around those bugs. See b/120188810 and b/119805587 for the full narrative.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  char thread_name[16];
-  snprintf(thread_name, sizeof(thread_name), "traced_probes%zu", cpu);
-  pthread_setname_np(pthread_self(), thread_name);
-
-  // When using splice() the target fd needs to be an actual pipe. This pipe is
-  // used only within this thread and is mainly for synchronization purposes.
-  // A blocking splice() is the only way to block and wait for a new page of
-  // ftrace data.
-  base::Pipe sync_pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
-
-  enum ReadMode { kRead, kSplice };
-  enum Block { kBlock, kNonBlock };
-  constexpr auto kPageSize = base::kPageSize;
-
-  // This lambda function reads the ftrace raw pipe using either read() or
-  // splice(), either in blocking or non-blocking mode.
-  // Returns the number of ftrace bytes read, or -1 in case of failure.
-  auto read_ftrace_pipe = [&sync_pipe, trace_fd, pool, header_size_len](
-                              ReadMode mode, Block block) -> int {
-    auto eid = mode == kRead
-                   ? (block == kNonBlock ? metatrace::FTRACE_CPU_READ_NONBLOCK
-                                         : metatrace::FTRACE_CPU_READ_BLOCK)
-                   : (block == kNonBlock ? metatrace::FTRACE_CPU_SPLICE_NONBLOCK
-                                         : metatrace::FTRACE_CPU_SPLICE_BLOCK);
-    metatrace::ScopedEvent evt(metatrace::TAG_FTRACE, eid);
-
-    uint8_t* pool_page = pool->BeginWrite();
-    PERFETTO_DCHECK(pool_page);
-
-    ssize_t res;
-    int err = 0;
-    if (mode == kSplice) {
-      uint32_t flg = SPLICE_F_MOVE | ((block == kNonBlock) * SPLICE_F_NONBLOCK);
-      res = splice(trace_fd, nullptr, *sync_pipe.wr, nullptr, kPageSize, flg);
-      err = errno;
-      if (res > 0) {
-        // If the splice() succeeded, read back from the other end of our own
-        // pipe and copy the data into the pool.
-        ssize_t rdres = read(*sync_pipe.rd, pool_page, kPageSize);
-        PERFETTO_DCHECK(rdres == res);
+    metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
+                               metatrace::FTRACE_CPU_READ_BATCH);
+    for (; pages_read < max_pages;) {
+      uint8_t* curr_page = parsing_buf + (pages_read * base::kPageSize);
+      ssize_t res =
+          PERFETTO_EINTR(read(*trace_fd_, curr_page, base::kPageSize));
+      if (res < 0) {
+        // Expected errors:
+        // EAGAIN: no data (since we're in non-blocking mode).
+        // ENONMEM, EBUSY: temporary ftrace failures (they happen).
+        if (errno != EAGAIN && errno != ENOMEM && errno != EBUSY)
+          PERFETTO_PLOG("Unexpected error on raw ftrace read");
+        break;  // stop reading regardless of errno
       }
-    } else {
-      if (block == kNonBlock)
-        SetBlocking(trace_fd, false);
-      res = read(trace_fd, pool_page, kPageSize);
-      err = errno;
-      if (res > 0) {
-        // Need to copy the ptr, ParsePageHeader() advances the passed ptr arg.
-        const uint8_t* ptr = pool_page;
 
-        // The caller of this function wants to have a sufficient approximation
-        // of how many bytes of ftrace data have been read. Unfortunately the
-        // return value of read() is a lie. The problem is that the ftrace
-        // read() implementation, for good reasons, always reconstructs a whole
-        // ftrace page, copying the events over and zero-filling at the end.
-        // This is nice, because we always get a valid ftrace header, but also
-        // causes read to always returns 4096. The only way to have a good
-        // indication of how many bytes of ftrace data have been read is to
-        // parse the ftrace header.
-        // Note: |header_size_len| is *not* an indication on how many bytes are
-        // available form |ptr|. It's just an independent piece of information
-        // that needs to be passed to ParsePageHeader() (a static function) in
-        // order to work.
-        base::Optional<PageHeader> hdr = ParsePageHeader(&ptr, header_size_len);
-        PERFETTO_DCHECK(hdr && hdr->size > 0 && hdr->size <= base::kPageSize);
-        res = hdr.has_value() ? static_cast<int>(hdr->size) : -1;
-      }
-      if (block == kNonBlock)
-        SetBlocking(trace_fd, true);
-    }
-
-    if (res > 0) {
-      // splice() should return full pages, read can return < a page.
-      PERFETTO_DCHECK(res == base::kPageSize || mode == kRead);
-      pool->EndWrite();
-      return static_cast<int>(res);
-    }
-
-    // It is fine to leave the BeginWrite() unpaired in the error case.
-
-    if (res && err != EAGAIN && err != ENOMEM && err != EBUSY && err != EINTR &&
-        err != EBADF) {
-      // EAGAIN: no data when in non-blocking mode.
-      // ENONMEM, EBUSY: temporary ftrace failures (they happen).
-      // EINTR: signal interruption, likely from main thread to issue a new cmd.
-      // EBADF: the main thread has closed the fd (happens during dtor).
-      PERFETTO_PLOG("Unexpected %s() err", mode == kRead ? "read" : "splice");
-    }
-    return -1;
-  };
-
-  uint64_t last_cmd_id = 0;
-  ReadMode cur_mode = kSplice;
-  for (bool run_loop = true; run_loop;) {
-    FtraceThreadSync::Cmd cmd;
-    // Wait for a new command from the main thread issued by FtraceController.
-    // The FtraceController issues also a signal() after every new command. This
-    // is not necessary for the condition variable itself, but it's necessary to
-    // unblock us if we are in a blocking read() or splice().
-    // Commands are tagged with an ID, every new command has a new |cmd_id|, so
-    // we can distinguish spurious wakeups from actual cmd requests.
-    {
-      PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_CPU_WAIT_CMD);
-      std::unique_lock<std::mutex> lock(thread_sync->mutex);
-      while (thread_sync->cmd_id == last_cmd_id)
-        thread_sync->cond.wait(lock);
-      cmd = thread_sync->cmd;
-      last_cmd_id = thread_sync->cmd_id;
-    }
-
-    // An empirical threshold (bytes read/spliced from the raw pipe) to make an
-    // educated guess on whether we should read/splice more. If we read fewer
-    // bytes it means that we caught up with the write pointer and we started
-    // consuming ftrace events in real-time. This cannot be just 4096 because
-    // it needs to account for fragmentation, i.e. for the fact that the last
-    // trace event didn't fit in the current page and hence the current page
-    // was terminated prematurely.
-    constexpr int kRoughlyAPage = 4096 - 512;
-
-    switch (cmd) {
-      case FtraceThreadSync::kQuit:
-        run_loop = false;
-        break;
-
-      case FtraceThreadSync::kRun: {
-        PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_CPU_RUN_CYCLE);
-
-        // Do a blocking read/splice. This can fail for a variety of reasons:
-        // - FtraceController interrupts us with a signal for a new cmd
-        //   (e.g. it wants us to quit or do a flush).
-        // - A temporary read/splice() failure occurred (it has been observed
-        //   to happen if the system is under high load).
-        // In all these cases the most useful thing we can do is skip the
-        // current cycle and try again later.
-        if (read_ftrace_pipe(cur_mode, kBlock) <= 0)
-          break;  // Wait for next command.
-
-        // If we are in read mode (because of a previous flush) check if the
-        // in-kernel read cursor is page-aligned again. If a non-blocking splice
-        // succeeds, it means that we can safely switch back to splice mode
-        // (See b/120188810).
-        if (cur_mode == kRead && read_ftrace_pipe(kSplice, kNonBlock) > 0)
-          cur_mode = kSplice;
-
-        // Do as many non-blocking read/splice as we can.
-        while (read_ftrace_pipe(cur_mode, kNonBlock) > kRoughlyAPage) {
-        }
-        size_t num_pages = pool->CommitWrittenPages();
-        PERFETTO_METATRACE_COUNTER(TAG_FTRACE, FTRACE_PAGES_DRAINED, num_pages);
-        FtraceController::OnCpuReaderRead(cpu, generation, thread_sync);
+      // As long as all of our reads are for a single page, the kernel should
+      // return exactly a well-formed raw ftrace page (if not in the steady
+      // state of reading out fully-written pages, the kernel will construct
+      // pages as necessary, copying over events and zero-filling at the end).
+      // A sub-page read() is therefore not expected in practice (unless
+      // there's a concurrent reader requesting less than a page?). Crash if
+      // encountering this situation. Kernel source pointer: see usage of
+      // |info->read| within |tracing_buffers_read|.
+      // TODO(rsavitski): don't crash, throw away the partial read & pipe
+      // through an error signal.
+      if (res == 0) {
+        // Very rare, but possible. Stop for now, should recover.
+        PERFETTO_DLOG("[cpu%zu]: 0-sized read from ftrace pipe.", cpu_);
         break;
       }
+      PERFETTO_CHECK(res == static_cast<ssize_t>(base::kPageSize));
 
-      case FtraceThreadSync::kFlush: {
-        PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_CPU_FLUSH);
-        cur_mode = kRead;
-        while (read_ftrace_pipe(cur_mode, kNonBlock) > kRoughlyAPage) {
-        }
-        size_t num_pages = pool->CommitWrittenPages();
-        PERFETTO_METATRACE_COUNTER(TAG_FTRACE, FTRACE_PAGES_DRAINED, num_pages);
-        FtraceController::OnCpuReaderFlush(cpu, generation, thread_sync);
+      pages_read += 1;
+
+      // Compare the amount of ftrace data read against an empirical threshold
+      // to make an educated guess on whether we should read more. To figure
+      // out the amount of ftrace data, we need to parse the page header (since
+      // the read always returns a page, zero-filled at the end). If we read
+      // fewer bytes than the threshold, it means that we caught up with the
+      // write pointer and we started consuming ftrace events in real-time.
+      // This cannot be just 4096 because it needs to account for
+      // fragmentation, i.e. for the fact that the last trace event didn't fit
+      // in the current page and hence the current page was terminated
+      // prematurely.
+      static constexpr size_t kRoughlyAPage = base::kPageSize - 512;
+      const uint8_t* scratch_ptr = curr_page;
+      base::Optional<PageHeader> hdr =
+          ParsePageHeader(&scratch_ptr, table_->page_header_size_len());
+      PERFETTO_DCHECK(hdr && hdr->size > 0 && hdr->size <= base::kPageSize);
+      if (!hdr.has_value()) {
+        PERFETTO_ELOG("[cpu%zu]: can't parse page header", cpu_);
         break;
       }
-    }  // switch(cmd)
-  }    // for(run_loop)
-  PERFETTO_DPLOG("Terminating CPUReader thread for CPU %zd.", cpu);
-#else
-  base::ignore_result(cpu);
-  base::ignore_result(generation);
-  base::ignore_result(trace_fd);
-  base::ignore_result(pool);
-  base::ignore_result(thread_sync);
-  base::ignore_result(header_size_len);
-  PERFETTO_ELOG("Supported only on Linux/Android");
-#endif
-}
-
-// Invoked on the main thread by FtraceController, |drain_rate_ms| after the
-// first CPU wakes up from the blocking read()/splice().
-void CpuReader::Drain(const std::set<FtraceDataSource*>& data_sources) {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_METATRACE_SCOPED(TAG_FTRACE, FTRACE_CPU_DRAIN);
-
-  auto page_blocks = pool_.BeginRead();
-  for (const auto& page_block : page_blocks) {
-    for (size_t i = 0; i < page_block.size(); i++) {
-      const uint8_t* page = page_block.At(i);
-
-      for (FtraceDataSource* data_source : data_sources) {
-        auto packet = data_source->trace_writer()->NewTracePacket();
-        auto* bundle = packet->set_ftrace_events();
-        auto* metadata = data_source->mutable_metadata();
-        auto* filter = data_source->event_filter();
-
-        // Note: The fastpath in proto_trace_parser.cc speculates on the fact
-        // that the cpu field is the first field of the proto message. If this
-        // changes, change proto_trace_parser.cc accordingly.
-        bundle->set_cpu(static_cast<uint32_t>(cpu_));
-
-        size_t evt_size = ParsePage(page, filter, bundle, table_, metadata);
-        PERFETTO_DCHECK(evt_size);
-        bundle->set_overwrite_count(metadata->overwrite_count);
+      // Note that the first read after starting the read cycle being small is
+      // normal. It means that we're given the remainder of events from a
+      // page that we've partially consumed during the last read of the previous
+      // cycle (having caught up to the writer).
+      if (hdr->size < kRoughlyAPage &&
+          !(first_batch_in_cycle && pages_read == 1)) {
+        break;
       }
+    }
+  }  // end of metatrace::FTRACE_CPU_READ_BATCH
+
+  // Parse the pages and write to the trace for of all relevant data
+  // sources.
+  for (size_t i = 0; i < pages_read; i++) {
+    uint8_t* curr_page = parsing_buf + (i * base::kPageSize);
+    for (FtraceDataSource* data_source : started_data_sources) {
+      auto packet = data_source->trace_writer()->NewTracePacket();
+      auto* bundle = packet->set_ftrace_events();
+      auto* metadata = data_source->mutable_metadata();
+      auto* filter = data_source->event_filter();
+
+      // Note: The fastpath in proto_trace_parser.cc speculates on the fact
+      // that the cpu field is the first field of the proto message. If this
+      // changes, change proto_trace_parser.cc accordingly.
+      bundle->set_cpu(static_cast<uint32_t>(cpu_));
+
+      size_t evt_size = ParsePage(curr_page, filter, bundle, table_, metadata);
+      PERFETTO_DCHECK(evt_size);
+      bundle->set_overwrite_count(metadata->overwrite_count);
     }
   }
-  pool_.EndRead(std::move(page_blocks));
+  return pages_read;
 }
 
 // The structure of a raw trace buffer page is as follows:
