@@ -16,12 +16,9 @@ import("//gn/standalone/android.gni")
 import("//gn/standalone/wasm.gni")
 import("llvm.gni")
 
+# Note: is_android is true also on mac when building with target_os = "android".
+
 declare_args() {
-  if (is_linux || is_android) {
-    linker = "gold"
-  } else {
-    linker = ""
-  }
   if (is_clang) {
     if (is_system_compiler) {
       cc = "\$CC "
@@ -29,7 +26,6 @@ declare_args() {
     } else if (is_linux) {
       cc = linux_clang_bin
       cxx = linux_clangxx_bin
-      linker = linux_clang_linker
     } else {
       cc = "clang"
       cxx = "clang++"
@@ -49,7 +45,11 @@ declare_args() {
   } else {
     host_cc = cc
     host_cxx = cxx
-    host_linker = linker
+    if (is_linux_host) {
+      host_linker = "gold"
+    } else {
+      host_linker = ""
+    }
   }
 
   if (is_android) {
@@ -61,7 +61,13 @@ declare_args() {
     target_ar = ar
     target_cc = cc
     target_cxx = cxx
-    target_linker = linker
+    if (is_linux && is_clang) {
+      target_linker = linux_clang_linker
+    } else if (is_linux) {
+      target_linker = "gold"
+    } else {
+      target_linker = ""
+    }
   }
   cc_wrapper = ""
 }
@@ -78,7 +84,8 @@ template("gcc_like_toolchain") {
     lib_dir_switch = "-L"
     ld_arg = ""
     if (invoker.linker != "") {
-      ld_arg = "-fuse-ld=$linker"
+      _invoker_linker = invoker.linker
+      ld_arg = "-fuse-ld=$_invoker_linker"
     }
 
     tool("cc") {
