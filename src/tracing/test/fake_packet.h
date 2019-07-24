@@ -65,6 +65,8 @@ class FakeChunk {
   // Increments the number of packets in the chunk without adding new data.
   FakeChunk& IncrementNumPackets();
 
+  FakeChunk& SetFlags(uint8_t flags_to_set);
+
   FakeChunk& ClearBytes(size_t offset, size_t len);
 
   FakeChunk& SetUID(uid_t);
