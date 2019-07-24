@@ -29,6 +29,7 @@
 
 #include "perfetto/trace/profiling/profile_common.pbzero.h"
 #include "perfetto/trace/track_event/debug_annotation.pbzero.h"
+#include "perfetto/trace/track_event/source_location.pbzero.h"
 #include "perfetto/trace/track_event/task_execution.pbzero.h"
 #include "perfetto/trace/track_event/track_event.pbzero.h"
 
