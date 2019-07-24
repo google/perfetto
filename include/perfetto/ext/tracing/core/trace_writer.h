@@ -63,18 +63,18 @@ class PERFETTO_EXPORT TraceWriter : public TraceWriterBase {
 
   // Commits the data pending for the current chunk into the shared memory
   // buffer and sends a CommitDataRequest() to the service. This can be called
-  // only if handle returned by NewTracePacket() has been destroyed (i.e. we
+  // only if the handle returned by NewTracePacket() has been destroyed (i.e. we
   // cannot Flush() while writing a TracePacket).
   // Note: Flush() also happens implicitly when destroying the TraceWriter.
   // |callback| is an optional callback. When non-null it will request the
   // service to ACK the flush and will be invoked after the service has
-  // ackwnoledged it. Please note that the callback might be NEVER INVOKED, for
-  // instance if the service crashes or the IPC connection is dropped. The
-  // callback should be used only by tests and best-effort features (logging).
+  // acknowledged it. The callback might be NEVER INVOKED if the service crashes
+  // or the IPC connection is dropped. The callback should be used only by tests
+  // and best-effort features (logging).
   // TODO(primiano): right now the |callback| will be called on the IPC thread.
   // This is fine in the current single-thread scenario, but long-term
   // trace_writer_impl.cc should be smarter and post it on the right thread.
-  virtual void Flush(std::function<void()> callback = {}) = 0;
+  void Flush(std::function<void()> callback = {}) override = 0;
 
   virtual WriterID writer_id() const = 0;
 
