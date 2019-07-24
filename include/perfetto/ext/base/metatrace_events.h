@@ -39,24 +39,27 @@ enum Tags : uint32_t {
 // DO NOT remove or reshuffle items in this list, only append. The ID of these
 // events are an ABI, the trace processor relies on these to open old traces.
 #define PERFETTO_METATRACE_EVENTS(F) \
-  F(EVENT_ZERO_UNUSED),\
-  F(FTRACE_CPU_READER_READ), \
-  F(FTRACE_DRAIN_CPUS), \
-  F(FTRACE_UNBLOCK_READERS), \
-  F(FTRACE_CPU_READ_NONBLOCK), \
-  F(FTRACE_CPU_READ_BLOCK), \
-  F(FTRACE_CPU_SPLICE_NONBLOCK), \
-  F(FTRACE_CPU_SPLICE_BLOCK), \
-  F(FTRACE_CPU_WAIT_CMD), \
-  F(FTRACE_CPU_RUN_CYCLE), \
+  F(EVENT_ZERO_UNUSED), \
+  F(FTRACE_CPU_READER_READ), /*unused*/ \
+  F(FTRACE_DRAIN_CPUS), /*unused*/ \
+  F(FTRACE_UNBLOCK_READERS), /*unused*/ \
+  F(FTRACE_CPU_READ_NONBLOCK), /*unused*/ \
+  F(FTRACE_CPU_READ_BLOCK), /*unused*/ \
+  F(FTRACE_CPU_SPLICE_NONBLOCK), /*unused*/ \
+  F(FTRACE_CPU_SPLICE_BLOCK), /*unused*/ \
+  F(FTRACE_CPU_WAIT_CMD), /*unused*/ \
+  F(FTRACE_CPU_RUN_CYCLE), /*unused*/ \
   F(FTRACE_CPU_FLUSH), \
-  F(FTRACE_CPU_DRAIN), \
+  F(FTRACE_CPU_DRAIN), /*unused*/ \
   F(READ_SYS_STATS), \
   F(PS_WRITE_ALL_PROCESSES), \
   F(PS_ON_PIDS), \
   F(PS_ON_RENAME_PIDS), \
   F(PS_WRITE_ALL_PROCESS_STATS), \
-  F(TRACE_WRITER_COMMIT_STARTUP_WRITER_BATCH)
+  F(TRACE_WRITER_COMMIT_STARTUP_WRITER_BATCH), \
+  F(FTRACE_READ_TICK), \
+  F(FTRACE_CPU_READ_CYCLE), \
+  F(FTRACE_CPU_READ_BATCH)
 
 // Append only, see above.
 #define PERFETTO_METATRACE_COUNTERS(F) \
