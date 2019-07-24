@@ -131,6 +131,11 @@ FakeChunk& FakeChunk::IncrementNumPackets() {
   return *this;
 }
 
+FakeChunk& FakeChunk::SetFlags(uint8_t flags_to_set) {
+  flags |= flags_to_set;
+  return *this;
+}
+
 FakeChunk& FakeChunk::ClearBytes(size_t offset, size_t len) {
   PERFETTO_DCHECK(offset + len <= data.size());
   memset(data.data() + offset, 0, len);
