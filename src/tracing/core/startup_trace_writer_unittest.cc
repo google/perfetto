@@ -22,6 +22,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/base/test/gtest_test_suite.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/tracing/core/patch_list.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/sliced_protobuf_input_stream.h"
 #include "src/tracing/core/trace_buffer.h"
@@ -53,8 +54,8 @@ class StartupTraceWriterTest : public AlignedBufferTest {
 
   std::unique_ptr<StartupTraceWriter> CreateUnboundWriter() {
     std::shared_ptr<StartupTraceWriterRegistryHandle> registry;
-    return std::unique_ptr<StartupTraceWriter>(
-        new StartupTraceWriter(registry));
+    return std::unique_ptr<StartupTraceWriter>(new StartupTraceWriter(
+        registry, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop));
   }
 
   bool BindWriter(StartupTraceWriter* writer, size_t chunks_per_batch = 0) {
@@ -77,8 +78,6 @@ class StartupTraceWriterTest : public AlignedBufferTest {
       size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(page_layout);
       for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
         auto chunk_state = abi->GetChunkState(page_idx, chunk_idx);
-        EXPECT_TRUE(chunk_state == SharedMemoryABI::kChunkFree ||
-                    chunk_state == SharedMemoryABI::kChunkComplete);
         if (chunk_state == SharedMemoryABI::kChunkComplete)
           num_complete_chunks++;
       }
@@ -310,8 +309,10 @@ TEST_P(StartupTraceWriterTest, CreateAndBindViaRegistry) {
       new StartupTraceWriterRegistry());
 
   // Create unbound writers.
-  auto writer1 = registry->CreateUnboundTraceWriter();
-  auto writer2 = registry->CreateUnboundTraceWriter();
+  auto writer1 = registry->CreateUnboundTraceWriter(
+      SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+  auto writer2 = registry->CreateUnboundTraceWriter(
+      SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
 
   EXPECT_EQ(2u, GetUnboundWriterCount(*registry));
 
@@ -392,6 +393,75 @@ TEST_P(StartupTraceWriterTest, BindAndCommitInBatches) {
 
   // Verify that all chunks + packets are in the SMB.
   VerifyPackets(1 + kNumPackets + kNumAdditionalPackets);
+}
+
+TEST_P(StartupTraceWriterTest, BindAndCommitInBatchesWithSMBExhaustion) {
+  auto writer = CreateUnboundWriter();
+
+  // Write a single packet to determine its size in the buffer.
+  WritePackets(writer.get(), 1);
+  size_t packet_size = writer->used_buffer_size();
+
+  // Write at least 3 pages/chunks worth of packets.
+  const size_t kNumPackets = (page_size() * 3 + packet_size - 1) / packet_size;
+  WritePackets(writer.get(), kNumPackets);
+
+  // Acquire all chunks in the SMB.
+  static constexpr size_t kTotChunks = kNumPages;
+  SharedMemoryABI::Chunk chunks[kTotChunks];
+  for (size_t i = 0; i < kTotChunks; i++) {
+    chunks[i] = arbiter_->GetNewChunk(
+        {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+    ASSERT_TRUE(chunks[i].is_valid());
+  }
+
+  // Binding the writer should fail if no chunks are available in the SMB.
+  static constexpr size_t kChunksPerBatch = 2;
+  EXPECT_FALSE(BindWriter(writer.get(), kChunksPerBatch));
+
+  // Return and free the first chunk, so that there is only a single free chunk.
+  PatchList ignored;
+  arbiter_->ReturnCompletedChunk(std::move(chunks[0]), 0, &ignored);
+  chunks[0] =
+      arbiter_->shmem_abi_for_testing()->TryAcquireChunkForReading(0, 0);
+  ASSERT_TRUE(chunks[0].is_valid());
+  arbiter_->shmem_abi_for_testing()->ReleaseChunkAsFree(std::move(chunks[0]));
+  arbiter_->FlushPendingCommitDataRequests();
+
+  // Binding the writer should only cause the first chunks of previously written
+  // packets to be written to the SMB and committed because no further chunks
+  // are available in the SMB. The remaining chunks will be written when the
+  // |commit_data_callback| is executed.
+  EXPECT_TRUE(BindWriter(writer.get(), kChunksPerBatch));
+
+  EXPECT_EQ(
+      fake_producer_endpoint_.last_commit_data_request.chunks_to_move().size(),
+      1u);
+  EXPECT_EQ(CountCompleteChunksInSMB(), 1u);
+  auto commit_data_callback = fake_producer_endpoint_.last_commit_data_callback;
+  EXPECT_TRUE(commit_data_callback);
+
+  // Free up the other SMB chunks.
+  for (size_t i = 1; i < kTotChunks; i++) {
+    arbiter_->ReturnCompletedChunk(std::move(chunks[i]), 0, &ignored);
+    chunks[i] =
+        arbiter_->shmem_abi_for_testing()->TryAcquireChunkForReading(i, 0);
+    ASSERT_TRUE(chunks[i].is_valid());
+    arbiter_->shmem_abi_for_testing()->ReleaseChunkAsFree(std::move(chunks[i]));
+  }
+  arbiter_->FlushPendingCommitDataRequests();
+
+  // Write and commit the remaining buffered startup writer data to the SMB.
+  while (commit_data_callback) {
+    commit_data_callback();
+    commit_data_callback = fake_producer_endpoint_.last_commit_data_callback;
+  }
+  EXPECT_GT(
+      fake_producer_endpoint_.last_commit_data_request.chunks_to_move().size(),
+      0u);
+
+  // Verify that all chunks + packets are in the SMB.
+  VerifyPackets(1 + kNumPackets);
 }
 
 }  // namespace
