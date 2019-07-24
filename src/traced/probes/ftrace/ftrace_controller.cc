@@ -62,8 +62,6 @@ constexpr size_t kParsingBufferSizePages = 32;
 // Read at most this many pages of data per cpu per read task. If we hit this
 // limit on at least one cpu, we stop and repost the read task, letting other
 // tasks get some cpu time before continuing reading.
-// TODO(rsavitski): propagate the knowledge of the current per-cpu kernel buffer
-// size to this controller, and select the lower of the two.
 constexpr size_t kMaxPagesPerCpuPerReadTick = 256;  // 1 MB per cpu
 
 uint32_t ClampDrainPeriodMs(uint32_t drain_period_ms) {
@@ -275,11 +273,9 @@ void FtraceController::Flush(FlushRequestID flush_id) {
   metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
                              metatrace::FTRACE_CPU_FLUSH);
 
-  // Read all cpus in one go, limiting the per-cpu buffer size to make sure we
+  // Read all cpus in one go, limiting the per-cpu read amount to make sure we
   // don't get stuck chasing the writer if there's a very high bandwidth of
   // events.
-  // TODO(rsavitski): use the active buffer size as the limit, instead of the
-  // largest one we allow.
   size_t max_pages_per_cpu = kMaxPerCpuBufferSizeKb / (base::kPageSize / 1024);
   ReadAllCpuBuffers(max_pages_per_cpu);
 
