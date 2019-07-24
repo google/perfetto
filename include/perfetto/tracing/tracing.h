@@ -74,9 +74,12 @@ class PERFETTO_EXPORT Tracing {
   // with a user-provided backend. Can only be called once.
   static void Initialize(const TracingInitArgs&);
 
+  // Start a new tracing session using the given tracing backend. Use
+  // |kUnspecifiedBackend| to select an available backend automatically.
   // For the moment this can be used only when initializing tracing in
   // kInProcess mode. For the system mode use the 'bin/perfetto' cmdline client.
-  static std::unique_ptr<TracingSession> NewTrace(BackendType);
+  static std::unique_ptr<TracingSession> NewTrace(
+      BackendType = kUnspecifiedBackend);
 
  private:
   Tracing() = delete;
