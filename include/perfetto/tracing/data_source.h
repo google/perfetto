@@ -88,6 +88,22 @@ class DataSource : public DataSourceBase {
       return trace_writer_->NewTracePacket();
     }
 
+    // Forces a commit of the thread-local tracing data written so far to the
+    // service. This is almost never required (tracing data is periodically
+    // committed as trace pages are filled up) and has a non-negligible
+    // performance hit (requires an IPC + refresh of the current thread-local
+    // chunk). The only case when this should be used is when handling OnStop()
+    // asynchronously, to ensure sure that the data is committed before the
+    // Stop timeout expires.
+    // The TracePacketHandle obtained by the last NewTracePacket() call must be
+    // finalized before calling Flush() (either implicitly by going out of scope
+    // or by explicitly calling Finalize()).
+    // |cb| is an optional callback. When non-null it will request the
+    // service to ACK the flush and will be invoked on an internal thread after
+    // the service has  acknowledged it. The callback might be NEVER INVOKED if
+    // the service crashes or the IPC connection is dropped.
+    void Flush(std::function<void()> cb = {}) { trace_writer_->Flush(cb); }
+
     // Returns a RAII handle to access the data source instance, guaranteeing
     // that it won't be deleted on another thread (because of trace stopping)
     // while accessing it from within the Trace() lambda.
