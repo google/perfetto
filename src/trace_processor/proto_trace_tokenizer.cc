@@ -35,6 +35,7 @@
 #include "perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "perfetto/trace/profiling/profile_common.pbzero.h"
 #include "perfetto/trace/trace.pbzero.h"
+#include "perfetto/trace/track_event/source_location.pbzero.h"
 #include "perfetto/trace/track_event/task_execution.pbzero.h"
 #include "perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "perfetto/trace/track_event/track_event.pbzero.h"

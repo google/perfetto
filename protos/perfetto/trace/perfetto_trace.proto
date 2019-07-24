@@ -2603,7 +2603,7 @@ message MmVmscanKswapdSleepFtraceEvent {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 20.
+// Next id: 21.
 message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
@@ -2616,6 +2616,7 @@ message InternedData {
   repeated LegacyEventName legacy_event_names = 2;
   repeated DebugAnnotationName debug_annotation_names = 3;
   repeated SourceLocation source_locations = 4;
+  repeated LogMessageBody log_message_body = 20;
 
   // Note: field IDs up to 15 should be used for frequent data only.
 
@@ -3244,6 +3245,23 @@ message DebugAnnotationName {
 
 // End of protos/perfetto/trace/track_event/debug_annotation.proto
 
+// Begin of protos/perfetto/trace/track_event/log_message.proto
+
+message LogMessage {
+  optional uint64 source_location_iid = 1;  // interned SourceLocation.
+  optional uint64 body_iid = 2;             // interned LogMessageBody.
+}
+
+// --------------------
+// Interned data types:
+// --------------------
+
+message LogMessageBody {
+  optional uint64 iid = 1;
+  optional string body = 2;
+}
+// End of protos/perfetto/trace/track_event/log_message.proto
+
 // Begin of protos/perfetto/trace/track_event/process_descriptor.proto
 
 // Process-wide data that is periodically emitted by one thread per process.
@@ -3275,13 +3293,7 @@ message ProcessDescriptor {
 
 // End of protos/perfetto/trace/track_event/process_descriptor.proto
 
-// Begin of protos/perfetto/trace/track_event/task_execution.proto
-
-// TrackEvent arguments describing the execution of a task.
-message TaskExecution {
-  // Source location that the task was posted from.
-  optional uint64 posted_from_iid = 1;  // interned SourceLocation.
-}
+// Begin of protos/perfetto/trace/track_event/source_location.proto
 
 // --------------------
 // Interned data types:
@@ -3293,8 +3305,18 @@ message SourceLocation {
   // We intend to add a binary symbol version of this in the future.
   optional string file_name = 2;
   optional string function_name = 3;
+  optional uint32 line_number = 4;
 }
 
+// End of protos/perfetto/trace/track_event/source_location.proto
+
+// Begin of protos/perfetto/trace/track_event/task_execution.proto
+
+// TrackEvent arguments describing the execution of a task.
+message TaskExecution {
+  // Source location that the task was posted from.
+  optional uint64 posted_from_iid = 1;  // interned SourceLocation.
+}
 // End of protos/perfetto/trace/track_event/task_execution.proto
 
 // Begin of protos/perfetto/trace/track_event/thread_descriptor.proto
@@ -3371,7 +3393,7 @@ message ThreadDescriptor {
 // messages in separate TracePackets instead.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 21.
+// Next id: 22.
 message TrackEvent {
   // Timestamp in microseconds (usually CLOCK_MONOTONIC).
   oneof timestamp {
@@ -3420,6 +3442,8 @@ message TrackEvent {
 
   // Typed event arguments:
   optional TaskExecution task_execution = 5;
+  optional LogMessage log_message = 21;
+
   // TODO(eseckler): New argument types go here :)
 
   // Apart from {category, time, thread time, tid, pid}, other legacy trace
