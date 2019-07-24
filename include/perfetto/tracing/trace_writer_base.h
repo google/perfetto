@@ -29,11 +29,15 @@ class TracePacket;
 
 // The bare-minimum subset of the TraceWriter interface that is exposed as a
 // fully public API.
+// See comments in /include/perfetto/ext/tracing/core/trace_writer.h.
 class TraceWriterBase {
  public:
   virtual ~TraceWriterBase();
+
   virtual protozero::MessageHandle<protos::pbzero::TracePacket>
   NewTracePacket() = 0;
+
+  virtual void Flush(std::function<void()> callback = {}) = 0;
 };
 
 }  // namespace perfetto
