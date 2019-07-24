@@ -53,10 +53,12 @@ StartupTraceWriterRegistry::~StartupTraceWriterRegistry() {
 }
 
 std::unique_ptr<StartupTraceWriter>
-StartupTraceWriterRegistry::CreateUnboundTraceWriter() {
+StartupTraceWriterRegistry::CreateUnboundTraceWriter(
+    SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy) {
   std::lock_guard<std::mutex> lock(lock_);
   PERFETTO_DCHECK(!arbiter_);  // Should only be called while unbound.
-  std::unique_ptr<StartupTraceWriter> writer(new StartupTraceWriter(handle_));
+  std::unique_ptr<StartupTraceWriter> writer(
+      new StartupTraceWriter(handle_, buffer_exhausted_policy));
   unbound_writers_.push_back(writer.get());
   return writer;
 }

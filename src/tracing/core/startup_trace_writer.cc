@@ -21,7 +21,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/metatrace.h"
-#include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/startup_trace_writer_registry.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
@@ -37,10 +36,12 @@ namespace {
 
 static constexpr ChunkID kFirstChunkId = 0;
 
-SharedMemoryABI::Chunk NewChunk(SharedMemoryArbiterImpl* arbiter,
-                                WriterID writer_id,
-                                ChunkID chunk_id,
-                                bool fragmenting_packet) {
+SharedMemoryABI::Chunk NewChunk(
+    SharedMemoryArbiterImpl* arbiter,
+    WriterID writer_id,
+    ChunkID chunk_id,
+    bool fragmenting_packet,
+    SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy) {
   ChunkHeader::Packets packets = {};
   if (fragmenting_packet) {
     packets.count = 1;
@@ -55,7 +56,7 @@ SharedMemoryABI::Chunk NewChunk(SharedMemoryArbiterImpl* arbiter,
   header.chunk_id.store(chunk_id, std::memory_order_relaxed);
   header.packets.store(packets, std::memory_order_relaxed);
 
-  return arbiter->GetNewChunk(header);
+  return arbiter->GetNewChunk(header, buffer_exhausted_policy);
 }
 
 class LocalBufferReader {
@@ -132,12 +133,15 @@ class LocalBufferReader {
 // commit before continuing with the remaining data.
 class LocalBufferCommitter {
  public:
-  LocalBufferCommitter(std::unique_ptr<LocalBufferReader> local_buffer_reader,
-                       std::unique_ptr<std::vector<uint32_t>> packet_sizes,
-                       base::WeakPtr<SharedMemoryArbiterImpl> arbiter,
-                       WriterID writer_id,
-                       BufferID target_buffer,
-                       size_t chunks_per_batch)
+  LocalBufferCommitter(
+      std::unique_ptr<LocalBufferReader> local_buffer_reader,
+      std::unique_ptr<std::vector<uint32_t>> packet_sizes,
+      base::WeakPtr<SharedMemoryArbiterImpl> arbiter,
+      WriterID writer_id,
+      BufferID target_buffer,
+      size_t chunks_per_batch,
+      SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy,
+      SharedMemoryABI::Chunk first_chunk)
       : local_buffer_reader_(std::move(local_buffer_reader)),
         packet_sizes_(std::move(packet_sizes)),
         arbiter_(arbiter),
@@ -148,7 +152,10 @@ class LocalBufferCommitter {
                           sizeof(ChunkHeader)),
         writer_id_(writer_id),
         target_buffer_(target_buffer),
-        chunks_per_batch_(chunks_per_batch) {
+        chunks_per_batch_(chunks_per_batch),
+        buffer_exhausted_policy_(buffer_exhausted_policy),
+        cur_chunk_(std::move(first_chunk)) {
+    PERFETTO_DCHECK(cur_chunk_.is_valid());
     PERFETTO_DCHECK(!packet_sizes_->empty());
     remaining_packet_size_ = (*packet_sizes_)[packet_idx_];
   }
@@ -236,17 +243,31 @@ class LocalBufferCommitter {
          (!chunks_per_batch_ || num_chunks < chunks_per_batch_) &&
          HasMoreDataToCommit();
          num_chunks++) {
-      CommitNextChunk();
+      if (!CommitNextChunk()) {
+        // We ran out of SMB space. Send the current batch early and retry later
+        // with the next batch.
+        break;
+      }
     }
   }
 
-  void CommitNextChunk() {
+  bool CommitNextChunk() {
     PERFETTO_DCHECK(HasMoreDataToCommit());
 
-    SharedMemoryABI::Chunk chunk = NewChunk(
-        arbiter_.get(), writer_id_, next_chunk_id_++, fragmenting_packet_);
+    // First chunk is acquired before LocalBufferCommitter is created, so we may
+    // already have a valid chunk.
+    if (!cur_chunk_.is_valid()) {
+      cur_chunk_ = NewChunk(arbiter_.get(), writer_id_, next_chunk_id_,
+                            fragmenting_packet_, buffer_exhausted_policy_);
+
+      if (!cur_chunk_.is_valid())
+        return false;
+
+      next_chunk_id_++;
+    }
+
     // See comment at initialization of |max_payload_size_|.
-    PERFETTO_CHECK(max_payload_size_ == chunk.payload_size());
+    PERFETTO_CHECK(max_payload_size_ == cur_chunk_.payload_size());
 
     // Iterate over remaining packets, starting at |packet_idx_|. Write as much
     // data as possible into |chunk| while not exceeding the chunk's payload
@@ -268,12 +289,12 @@ class LocalBufferCommitter {
 
       // Write packet header, i.e. the fragment size.
       protozero::proto_utils::WriteRedundantVarInt(
-          fragment_size, chunk.payload_begin() + cur_payload_size);
+          fragment_size, cur_chunk_.payload_begin() + cur_payload_size);
       cur_payload_size += SharedMemoryABI::kPacketHeaderSize;
 
       // Copy packet content into the chunk.
-      size_t bytes_read = local_buffer_reader_->ReadBytes(&chunk, fragment_size,
-                                                          cur_payload_size);
+      size_t bytes_read = local_buffer_reader_->ReadBytes(
+          &cur_chunk_, fragment_size, cur_payload_size);
       PERFETTO_DCHECK(bytes_read == fragment_size);
 
       cur_payload_size += fragment_size;
@@ -299,16 +320,17 @@ class LocalBufferCommitter {
         break;
     }
 
-    auto new_packet_count = chunk.IncreasePacketCountTo(cur_num_packets);
+    auto new_packet_count = cur_chunk_.IncreasePacketCountTo(cur_num_packets);
     PERFETTO_DCHECK(new_packet_count == cur_num_packets);
 
     if (fragmenting_packet_) {
       PERFETTO_DCHECK(cur_payload_size == max_payload_size_);
-      chunk.SetFlag(ChunkHeader::kLastPacketContinuesOnNextChunk);
+      cur_chunk_.SetFlag(ChunkHeader::kLastPacketContinuesOnNextChunk);
     }
 
-    arbiter_->ReturnCompletedChunk(std::move(chunk), target_buffer_,
+    arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_,
                                    &empty_patch_list);
+    return true;
   }
 
   std::unique_ptr<LocalBufferReader> local_buffer_reader_;
@@ -318,7 +340,11 @@ class LocalBufferCommitter {
   const WriterID writer_id_;
   const BufferID target_buffer_;
   const size_t chunks_per_batch_;
-  ChunkID next_chunk_id_ = kFirstChunkId;
+  SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy_;
+  SharedMemoryABI::Chunk cur_chunk_;
+  // We receive the first chunk in the constructor, thus the next chunk will be
+  // the second one.
+  ChunkID next_chunk_id_ = kFirstChunkId + 1;
   size_t packet_idx_ = 0;
   uint32_t remaining_packet_size_ = 0;
   bool fragmenting_packet_ = false;
@@ -327,8 +353,10 @@ class LocalBufferCommitter {
 }  // namespace
 
 StartupTraceWriter::StartupTraceWriter(
-    std::shared_ptr<StartupTraceWriterRegistryHandle> registry_handle)
+    std::shared_ptr<StartupTraceWriterRegistryHandle> registry_handle,
+    SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy)
     : registry_handle_(std::move(registry_handle)),
+      buffer_exhausted_policy_(buffer_exhausted_policy),
       memory_buffer_(new protozero::ScatteredHeapBuffer()),
       memory_stream_writer_(
           new protozero::ScatteredStreamWriter(memory_buffer_.get())),
@@ -368,7 +396,8 @@ bool StartupTraceWriter::BindToArbiter(SharedMemoryArbiterImpl* arbiter,
   // deadlock. This may create a few more trace writers than necessary in cases
   // where a concurrent write is in progress (other than causing some
   // computational overhead, this is not problematic).
-  auto trace_writer = arbiter->CreateTraceWriter(target_buffer);
+  auto trace_writer =
+      arbiter->CreateTraceWriter(target_buffer, buffer_exhausted_policy_);
 
   {
     std::lock_guard<std::mutex> lock(lock_);
@@ -386,9 +415,29 @@ bool StartupTraceWriter::BindToArbiter(SharedMemoryArbiterImpl* arbiter,
       cur_packet_.reset();
     }
 
+    // Successfully bind if we don't have any data or no valid trace writer.
+    if (packet_sizes_->empty() || !trace_writer->writer_id()) {
+      trace_writer_ = std::move(trace_writer);
+      memory_buffer_.reset();
+      packet_sizes_.reset();
+      memory_stream_writer_.reset();
+      return true;
+    }
+
+    // We need to ensure that we commit at least one chunk now, otherwise the
+    // service might receive and erroneously start reading from a future chunk
+    // committed by the underlying trace writer. Thus, we attempt to acquire the
+    // first chunk and bail out if we fail (we'll retry later).
+    SharedMemoryABI::Chunk first_chunk =
+        NewChunk(arbiter, trace_writer->writer_id(), kFirstChunkId,
+                 /*fragmenting_packet=*/false, buffer_exhausted_policy_);
+    if (!first_chunk.is_valid())
+      return false;
+
     trace_writer_ = std::move(trace_writer);
     ChunkID next_chunk_id = CommitLocalBufferChunks(
-        arbiter, trace_writer_->writer_id(), target_buffer, chunks_per_batch);
+        arbiter, trace_writer_->writer_id(), target_buffer, chunks_per_batch,
+        std::move(first_chunk));
 
     // The real TraceWriter should start writing at the subsequent chunk ID.
     bool success = trace_writer_->SetFirstChunkId(next_chunk_id);
@@ -519,13 +568,10 @@ ChunkID StartupTraceWriter::CommitLocalBufferChunks(
     SharedMemoryArbiterImpl* arbiter,
     WriterID writer_id,
     BufferID target_buffer,
-    size_t chunks_per_batch) {
-  if (packet_sizes_->empty() || !writer_id) {
-    memory_buffer_.reset();
-    packet_sizes_.reset();
-    memory_stream_writer_.reset();
-    return kFirstChunkId;
-  }
+    size_t chunks_per_batch,
+    SharedMemoryABI::Chunk first_chunk) {
+  PERFETTO_DCHECK(!packet_sizes_->empty());
+  PERFETTO_DCHECK(writer_id);
 
   memory_buffer_->AdjustUsedSizeOfCurrentSlice();
   memory_stream_writer_.reset();
@@ -539,7 +585,8 @@ ChunkID StartupTraceWriter::CommitLocalBufferChunks(
 
   std::unique_ptr<LocalBufferCommitter> committer(new LocalBufferCommitter(
       std::move(local_buffer_reader), std::move(packet_sizes_),
-      arbiter->GetWeakPtr(), writer_id, target_buffer, chunks_per_batch));
+      arbiter->GetWeakPtr(), writer_id, target_buffer, chunks_per_batch,
+      buffer_exhausted_policy_, std::move(first_chunk)));
 
   ChunkID next_chunk_id =
       kFirstChunkId +
