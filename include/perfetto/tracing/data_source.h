@@ -270,6 +270,16 @@ class DataSource : public DataSourceBase {
 
 }  // namespace perfetto
 
+// If a data source is used across translation units, this declaration must be
+// placed into the header file defining the data source.
+#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(X)         \
+  template <>                                                  \
+  perfetto::internal::DataSourceStaticState                    \
+      perfetto::DataSource<X>::static_state_;                  \
+  template <>                                                  \
+  thread_local perfetto::internal::DataSourceThreadLocalState* \
+      perfetto::DataSource<X>::tls_state_
+
 // The API client must use this in a translation unit. This is because it needs
 // to instantiate the static storage for the datasource to allow the fastpath
 // enabled check.
