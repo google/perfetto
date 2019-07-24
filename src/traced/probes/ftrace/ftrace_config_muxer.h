@@ -27,6 +27,9 @@
 
 namespace perfetto {
 
+constexpr int kDefaultPerCpuBufferSizeKb = 2 * 1024;  // 2mb
+constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;     // 64mb
+
 // Ftrace is a bunch of globaly modifiable persistent state.
 // Given a number of FtraceConfig's we need to find the best union of all
 // the settings to make eveyone happy while also watching out for anybody

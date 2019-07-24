@@ -38,13 +38,14 @@
 using testing::_;
 using testing::AnyNumber;
 using testing::ByMove;
-using testing::Invoke;
-using testing::NiceMock;
-using testing::MatchesRegex;
-using testing::Return;
-using testing::IsEmpty;
 using testing::ElementsAre;
+using testing::Invoke;
+using testing::IsEmpty;
+using testing::MatchesRegex;
+using testing::Mock;
+using testing::NiceMock;
 using testing::Pair;
+using testing::Return;
 
 using Table = perfetto::ProtoTranslationTable;
 using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
@@ -58,47 +59,11 @@ constexpr char kBarEnablePath[] = "/root/events/group/bar/enable";
 
 class MockTaskRunner : public base::TaskRunner {
  public:
-  MockTaskRunner() {
-    ON_CALL(*this, PostTask(_))
-        .WillByDefault(Invoke(this, &MockTaskRunner::OnPostTask));
-    ON_CALL(*this, PostDelayedTask(_, _))
-        .WillByDefault(Invoke(this, &MockTaskRunner::OnPostDelayedTask));
-  }
-
-  void OnPostTask(std::function<void()> task) {
-    std::unique_lock<std::mutex> lock(lock_);
-    EXPECT_FALSE(task_);
-    task_ = std::move(task);
-  }
-
-  void OnPostDelayedTask(std::function<void()> task, int /*delay*/) {
-    std::unique_lock<std::mutex> lock(lock_);
-    EXPECT_FALSE(task_);
-    task_ = std::move(task);
-  }
-
-  void RunLastTask() {
-    auto task = TakeTask();
-    if (task)
-      task();
-  }
-
-  std::function<void()> TakeTask() {
-    std::unique_lock<std::mutex> lock(lock_);
-    auto task(std::move(task_));
-    task_ = std::function<void()>();
-    return task;
-  }
-
   MOCK_METHOD1(PostTask, void(std::function<void()>));
   MOCK_METHOD2(PostDelayedTask, void(std::function<void()>, uint32_t delay_ms));
   MOCK_METHOD2(AddFileDescriptorWatch, void(int fd, std::function<void()>));
   MOCK_METHOD1(RemoveFileDescriptorWatch, void(int fd));
   MOCK_CONST_METHOD0(RunsTasksOnCurrentThread, bool());
-
- private:
-  std::mutex lock_;
-  std::function<void()> task_;
 };
 
 std::unique_ptr<Table> FakeTable(FtraceProcfs* ftrace) {
@@ -214,33 +179,10 @@ class TestFtraceController : public FtraceController,
         runner_(std::move(runner)),
         procfs_(raw_procfs) {}
 
-  MOCK_METHOD1(OnDrainCpuForTesting, void(size_t cpu));
-
   MockTaskRunner* runner() { return runner_.get(); }
   MockFtraceProcfs* procfs() { return procfs_; }
-
   uint64_t NowMs() const override { return now_ms; }
-
   uint32_t drain_period_ms() { return GetDrainPeriodMs(); }
-
-  std::function<void()> GetDataAvailableCallback(size_t cpu) {
-    int generation = generation_;
-    auto* thread_sync = &thread_sync_;
-    return [cpu, generation, thread_sync] {
-      FtraceController::OnCpuReaderRead(cpu, generation, thread_sync);
-    };
-  }
-
-  void WaitForData(size_t cpu) {
-    for (;;) {
-      {
-        std::unique_lock<std::mutex> lock(thread_sync_.mutex);
-        if (thread_sync_.cpus_to_drain[cpu])
-          return;
-      }
-      usleep(5000);
-    }
-  }
 
   std::unique_ptr<FtraceDataSource> AddFakeDataSource(const FtraceConfig& cfg) {
     std::unique_ptr<FtraceDataSource> data_source(new FtraceDataSource(
@@ -265,15 +207,10 @@ class TestFtraceController : public FtraceController,
 namespace {
 
 std::unique_ptr<TestFtraceController> CreateTestController(
-    bool runner_is_nice_mock,
     bool procfs_is_nice_mock,
     size_t cpu_count = 1) {
-  std::unique_ptr<MockTaskRunner> runner;
-  if (runner_is_nice_mock) {
-    runner = std::unique_ptr<MockTaskRunner>(new NiceMock<MockTaskRunner>());
-  } else {
-    runner = std::unique_ptr<MockTaskRunner>(new MockTaskRunner());
-  }
+  std::unique_ptr<MockTaskRunner> runner =
+      std::unique_ptr<MockTaskRunner>(new NiceMock<MockTaskRunner>());
 
   std::unique_ptr<MockFtraceProcfs> ftrace_procfs;
   if (procfs_is_nice_mock) {
@@ -297,16 +234,14 @@ std::unique_ptr<TestFtraceController> CreateTestController(
 }  // namespace
 
 TEST(FtraceControllerTest, NonExistentEventsDontCrash) {
-  auto controller =
-      CreateTestController(true /* nice runner */, true /* nice procfs */);
+  auto controller = CreateTestController(true /* nice procfs */);
 
   FtraceConfig config = CreateFtraceConfig({"not_an_event"});
   EXPECT_TRUE(controller->AddFakeDataSource(config));
 }
 
 TEST(FtraceControllerTest, RejectsBadEventNames) {
-  auto controller =
-      CreateTestController(true /* nice runner */, true /* nice procfs */);
+  auto controller = CreateTestController(true /* nice procfs */);
 
   FtraceConfig config = CreateFtraceConfig({"../try/to/escape"});
   EXPECT_FALSE(controller->AddFakeDataSource(config));
@@ -317,8 +252,10 @@ TEST(FtraceControllerTest, RejectsBadEventNames) {
 }
 
 TEST(FtraceControllerTest, OneSink) {
-  auto controller =
-      CreateTestController(true /* nice runner */, false /* nice procfs */);
+  auto controller = CreateTestController(false /* nice procfs */);
+
+  // No read tasks posted as part of adding the data source.
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(0);
 
   FtraceConfig config = CreateFtraceConfig({"group/foo"});
 
@@ -327,8 +264,17 @@ TEST(FtraceControllerTest, OneSink) {
   auto data_source = controller->AddFakeDataSource(config);
   ASSERT_TRUE(data_source);
 
+  // Verify that no read tasks have been posted. And set up expectation that
+  // a single recurring read task will be posted as part of starting the data
+  // source.
+  Mock::VerifyAndClearExpectations(controller->runner());
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
+
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));
+
+  // Verify single posted read task.
+  Mock::VerifyAndClearExpectations(controller->runner());
 
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
@@ -346,11 +292,13 @@ TEST(FtraceControllerTest, OneSink) {
 }
 
 TEST(FtraceControllerTest, MultipleSinks) {
-  auto controller =
-      CreateTestController(false /* nice runner */, false /* nice procfs */);
+  auto controller = CreateTestController(false /* nice procfs */);
 
   FtraceConfig configA = CreateFtraceConfig({"group/foo"});
   FtraceConfig configB = CreateFtraceConfig({"group/foo", "group/bar"});
+
+  // No read tasks posted as part of adding the data sources.
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(0);
 
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "1"));
@@ -358,9 +306,18 @@ TEST(FtraceControllerTest, MultipleSinks) {
   EXPECT_CALL(*controller->procfs(), WriteToFile(kBarEnablePath, "1"));
   auto data_sourceB = controller->AddFakeDataSource(configB);
 
+  // Verify that no read tasks have been posted. And set up expectation that
+  // a single recurring read task will be posted as part of starting the data
+  // sources.
+  Mock::VerifyAndClearExpectations(controller->runner());
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
+
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(controller->StartDataSource(data_sourceA.get()));
   ASSERT_TRUE(controller->StartDataSource(data_sourceB.get()));
+
+  // Verify single posted read task.
+  Mock::VerifyAndClearExpectations(controller->runner());
 
   data_sourceA.reset();
 
@@ -376,8 +333,7 @@ TEST(FtraceControllerTest, MultipleSinks) {
 }
 
 TEST(FtraceControllerTest, ControllerMayDieFirst) {
-  auto controller =
-      CreateTestController(false /* nice runner */, false /* nice procfs */);
+  auto controller = CreateTestController(false /* nice procfs */);
 
   FtraceConfig config = CreateFtraceConfig({"group/foo"});
 
@@ -401,51 +357,8 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   data_source.reset();
 }
 
-TEST(FtraceControllerTest, BackToBackEnableDisable) {
-  auto controller =
-      CreateTestController(false /* nice runner */, false /* nice procfs */);
-
-  // For this test we don't care about calls to WriteToFile/ClearFile.
-  EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(AnyNumber());
-  EXPECT_CALL(*controller->procfs(), ClearFile(_)).Times(AnyNumber());
-  EXPECT_CALL(*controller->procfs(), ReadOneCharFromFile("/root/tracing_on"))
-      .Times(AnyNumber());
-
-  EXPECT_CALL(*controller->runner(), PostTask(_)).Times(2);
-  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, 100)).Times(2);
-  FtraceConfig config = CreateFtraceConfig({"group/foo"});
-  auto data_source = controller->AddFakeDataSource(config);
-  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
-
-  auto on_data_available = controller->GetDataAvailableCallback(0u);
-  std::thread worker([on_data_available] { on_data_available(); });
-  controller->WaitForData(0u);
-
-  // Disable the first data source and run the delayed task that it generated.
-  // It should be a no-op.
-  worker.join();
-  data_source.reset();
-  controller->runner()->RunLastTask();
-  controller->runner()->RunLastTask();
-
-  // Register another data source and wait for it to generate data.
-  data_source = controller->AddFakeDataSource(config);
-  ASSERT_TRUE(controller->StartDataSource(data_source.get()));
-
-  on_data_available = controller->GetDataAvailableCallback(0u);
-  std::thread worker2([on_data_available] { on_data_available(); });
-  controller->WaitForData(0u);
-
-  // This drain should also be a no-op after the data source is unregistered.
-  worker2.join();
-  data_source.reset();
-  controller->runner()->RunLastTask();
-  controller->runner()->RunLastTask();
-}
-
 TEST(FtraceControllerTest, BufferSize) {
-  auto controller =
-      CreateTestController(true /* nice runner */, false /* nice procfs */);
+  auto controller = CreateTestController(false /* nice procfs */);
 
   // For this test we don't care about most calls to WriteToFile/ClearFile.
   EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(AnyNumber());
@@ -514,8 +427,7 @@ TEST(FtraceControllerTest, BufferSize) {
 }
 
 TEST(FtraceControllerTest, PeriodicDrainConfig) {
-  auto controller =
-      CreateTestController(true /* nice runner */, false /* nice procfs */);
+  auto controller = CreateTestController(false /* nice procfs */);
 
   // For this test we don't care about calls to WriteToFile/ClearFile.
   EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(AnyNumber());
