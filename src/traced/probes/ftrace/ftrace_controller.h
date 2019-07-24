@@ -28,11 +28,11 @@
 #include <string>
 
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
-#include "src/traced/probes/ftrace/ftrace_thread_sync.h"
 
 namespace perfetto {
 
@@ -61,10 +61,6 @@ class FtraceController {
   static std::unique_ptr<FtraceController> Create(base::TaskRunner*, Observer*);
   virtual ~FtraceController();
 
-  // These two methods are called by CpuReader(s) from their worker threads.
-  static void OnCpuReaderRead(size_t cpu, int generation, FtraceThreadSync*);
-  static void OnCpuReaderFlush(size_t cpu, int generation, FtraceThreadSync*);
-
   void DisableAllEvents();
   void WriteTraceMarker(const std::string& s);
   void ClearTrace();
@@ -92,8 +88,6 @@ class FtraceController {
                    base::TaskRunner*,
                    Observer*);
 
-  virtual void OnDrainCpuForTesting(size_t /*cpu*/) {}
-
   // Protected and virtual for testing.
   virtual uint64_t NowMs() const;
 
@@ -103,12 +97,12 @@ class FtraceController {
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
 
-  void OnFlushTimeout(FlushRequestID);
-  void DrainCPUs(int generation);
-  void UnblockReaders();
-  void NotifyFlushCompleteToStartedDataSources(FlushRequestID);
-  void IssueThreadSyncCmd(FtraceThreadSync::Cmd,
-                          std::unique_lock<std::mutex> = {});
+  // Periodic task that reads all per-cpu ftrace buffers.
+  void ReadTick(int generation);
+  // Returns true if we've caught up with the ftrace events for all cpus. False
+  // if we hit |max_pages| on at least one cpu, and are therefore stopping
+  // early (to not hog the thread for too long).
+  bool ReadAllCpuBuffers(size_t max_pages);
 
   uint32_t GetDrainPeriodMs();
 
@@ -117,17 +111,15 @@ class FtraceController {
 
   base::TaskRunner* const task_runner_;
   Observer* const observer_;
-  FtraceThreadSync thread_sync_;
+  base::PagedMemory parsing_mem_;
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
   std::unique_ptr<ProtoTranslationTable> table_;
   std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer_;
   int generation_ = 0;
-  FlushRequestID cur_flush_request_id_ = 0;
   bool atrace_running_ = false;
   std::vector<std::unique_ptr<CpuReader>> cpu_readers_;
   std::set<FtraceDataSource*> data_sources_;
   std::set<FtraceDataSource*> started_data_sources_;
-  PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
 };
 
