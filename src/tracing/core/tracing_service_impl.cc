@@ -1968,7 +1968,10 @@ void TracingServiceImpl::ApplyChunkPatches(
     static_assert(std::numeric_limits<ChunkID>::max() == kMaxChunkID,
                   "Add a '|| chunk_id > kMaxChunkID' below if this fails");
     if (!writer_id || writer_id > kMaxWriterID || !buf) {
-      PERFETTO_ELOG(
+      // This can genuinely happen when the trace is stopped. The producers
+      // might see the stop signal with some delay and try to keep sending
+      // patches left soon after.
+      PERFETTO_DLOG(
           "Received invalid chunks_to_patch request from Producer: %" PRIu16
           ", BufferID: %" PRIu32 " ChunkdID: %" PRIu32 " WriterID: %" PRIu16,
           producer_id_trusted, chunk.target_buffer(), chunk_id, writer_id);
