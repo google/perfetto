@@ -145,6 +145,109 @@ TEST_P(TraceWriterImplTest, FragmentingPacket) {
   ASSERT_EQ(1, last_commit.chunks_to_patch()[0].patches_size());
 }
 
+// Sets up a scenario in which the SMB is exhausted and TraceWriter fails to get
+// a new chunk while fragmenting a packet. Verifies that data is dropped until
+// the SMB is freed up and TraceWriter can get a new chunk.
+TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhaused) {
+  arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
+                                             &fake_producer_endpoint_,
+                                             task_runner_.get()));
+
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(
+      kBufId, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+
+  // Write a small first packet, so that |writer| owns a chunk.
+  auto packet = writer->NewTracePacket();
+  EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                   ->drop_packets_for_testing());
+  EXPECT_EQ(packet->Finalize(), 0);
+
+  // Grab all the remaining chunks in the SMB in new writers.
+  std::array<std::unique_ptr<TraceWriter>, kNumPages * 4 - 1> other_writers;
+  for (size_t i = 0; i < other_writers.size(); i++) {
+    other_writers[i] = arbiter_->CreateTraceWriter(
+        kBufId, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+    auto other_writer_packet = other_writers[i]->NewTracePacket();
+    EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(other_writers[i].get())
+                     ->drop_packets_for_testing());
+  }
+
+  // Write a packet that's guaranteed to span more than a single chunk, causing
+  // |writer| to attempt to acquire a new chunk but fail to do so.
+  auto packet2 = writer->NewTracePacket();
+  size_t chunk_size = page_size() / 4;
+  std::stringstream large_string_writer;
+  for (size_t pos = 0; pos < chunk_size; pos++)
+    large_string_writer << "x";
+  std::string large_string = large_string_writer.str();
+  packet2->set_for_testing()->set_str(large_string.data(), large_string.size());
+
+  EXPECT_TRUE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                  ->drop_packets_for_testing());
+
+  // First chunk should be committed.
+  arbiter_->FlushPendingCommitDataRequests();
+  const auto& last_commit = fake_producer_endpoint_.last_commit_data_request;
+  ASSERT_EQ(1, last_commit.chunks_to_move_size());
+  EXPECT_EQ(0u, last_commit.chunks_to_move()[0].page());
+  EXPECT_EQ(0u, last_commit.chunks_to_move()[0].chunk());
+  EXPECT_EQ(kBufId, last_commit.chunks_to_move()[0].target_buffer());
+  EXPECT_EQ(0, last_commit.chunks_to_patch_size());
+
+  // It should not need patching and not have the continuation flag set.
+  SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
+  ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi->GetChunkState(0u, 0u));
+  auto chunk = abi->TryAcquireChunkForReading(0u, 0u);
+  ASSERT_TRUE(chunk.is_valid());
+  ASSERT_EQ(2, chunk.header()->packets.load().count);
+  ASSERT_FALSE(chunk.header()->packets.load().flags &
+               SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
+  ASSERT_FALSE(chunk.header()->packets.load().flags &
+               SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk);
+
+  // Writing more data while in garbage mode succeeds. This data is dropped.
+  packet2->Finalize();
+  auto packet3 = writer->NewTracePacket();
+  packet3->set_for_testing()->set_str(large_string.data(), large_string.size());
+
+  // Release the |writer|'s first chunk as free, so that it can grab it again.
+  abi->ReleaseChunkAsFree(std::move(chunk));
+
+  // Starting a new packet should cause TraceWriter to attempt to grab a new
+  // chunk again, because we wrote enough data to wrap the garbage chunk.
+  packet3->Finalize();
+  auto packet4 = writer->NewTracePacket();
+
+  // Grabbing the chunk should have succeeded.
+  EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                   ->drop_packets_for_testing());
+
+  // The first packet in the chunk should have the previous_packet_dropped flag
+  // set, so shouldn't be empty.
+  EXPECT_GT(packet4->Finalize(), 0);
+
+  // Flushing the writer causes the chunk to be released again.
+  writer->Flush();
+  EXPECT_EQ(1, last_commit.chunks_to_move_size());
+  EXPECT_EQ(0u, last_commit.chunks_to_move()[0].page());
+  EXPECT_EQ(0u, last_commit.chunks_to_move()[0].chunk());
+  ASSERT_EQ(0, last_commit.chunks_to_patch_size());
+
+  // Chunk should contain only |packet4| and not have any continuation flag set.
+  ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi->GetChunkState(0u, 0u));
+  chunk = abi->TryAcquireChunkForReading(0u, 0u);
+  ASSERT_TRUE(chunk.is_valid());
+  ASSERT_EQ(1, chunk.header()->packets.load().count);
+  ASSERT_FALSE(chunk.header()->packets.load().flags &
+               SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
+  ASSERT_FALSE(
+      chunk.header()->packets.load().flags &
+      SharedMemoryABI::ChunkHeader::kFirstPacketContinuesFromPrevChunk);
+  ASSERT_FALSE(chunk.header()->packets.load().flags &
+               SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk);
+}
+
 // TODO(primiano): add multi-writer test.
 // TODO(primiano): add Flush() test.
 

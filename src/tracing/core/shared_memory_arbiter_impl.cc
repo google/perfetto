@@ -61,6 +61,7 @@ SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
 
 Chunk SharedMemoryArbiterImpl::GetNewChunk(
     const SharedMemoryABI::ChunkHeader& header,
+    BufferExhaustedPolicy buffer_exhausted_policy,
     size_t size_hint) {
   PERFETTO_DCHECK(size_hint == 0);  // Not implemented yet.
   int stall_count = 0;
@@ -113,9 +114,13 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
       }
     }  // std::lock_guard<std::mutex>
 
+    if (buffer_exhausted_policy == BufferExhaustedPolicy::kDrop) {
+      PERFETTO_DLOG("Shared memory buffer exhaused, returning invalid Chunk!");
+      return Chunk();
+    }
+
     // All chunks are taken (either kBeingWritten by us or kBeingRead by the
-    // Service). TODO: at this point we should return a bankrupcy chunk, not
-    // crash the process.
+    // Service).
     if (stall_count++ == kLogAfterNStalls) {
       PERFETTO_ELOG("Shared memory buffer overrun! Stalling");
     }
@@ -301,7 +306,8 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
 }
 
 std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
-    BufferID target_buffer) {
+    BufferID target_buffer,
+    BufferExhaustedPolicy buffer_exhausted_policy) {
   WriterID id;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
@@ -315,7 +321,7 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
       weak_this->producer_endpoint_->RegisterTraceWriter(id, target_buffer);
   });
   return std::unique_ptr<TraceWriter>(
-      new TraceWriterImpl(this, id, target_buffer));
+      new TraceWriterImpl(this, id, target_buffer, buffer_exhausted_policy));
 }
 
 void SharedMemoryArbiterImpl::BindStartupTraceWriterRegistry(
