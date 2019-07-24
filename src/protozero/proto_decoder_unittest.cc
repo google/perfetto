@@ -157,10 +157,10 @@ TEST(ProtoDecoderTest, RepeatedFields) {
   EXPECT_FALSE(++it);
 
   it = tpd.GetRepeated(2);
-  EXPECT_EQ(it->as_int32(), 20);
-  EXPECT_EQ((++it)->as_int32(), 21);
-  EXPECT_EQ((++it)->as_int32(), 22);
-  EXPECT_FALSE(++it);
+  EXPECT_EQ((it++)->as_int32(), 20);
+  EXPECT_EQ((it++)->as_int32(), 21);
+  EXPECT_EQ((it++)->as_int32(), 22);
+  EXPECT_FALSE(it);
 
   it = tpd.GetRepeated(3);
   EXPECT_EQ(it->as_int32(), 30);
