@@ -18,9 +18,9 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 import "perfetto/trace/track_event/debug_annotation.proto";
-import "perfetto/trace/track_event/task_execution.proto";
+import "perfetto/trace/track_event/log_message.proto";
 import "perfetto/trace/track_event/track_event.proto";
-
+import "perfetto/trace/track_event/source_location.proto";
 import "perfetto/trace/profiling/profile_common.proto";
 
 package perfetto.protos;
@@ -52,7 +52,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 20.
+// Next id: 21.
 message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
@@ -65,6 +65,7 @@ message InternedData {
   repeated LegacyEventName legacy_event_names = 2;
   repeated DebugAnnotationName debug_annotation_names = 3;
   repeated SourceLocation source_locations = 4;
+  repeated LogMessageBody log_message_body = 20;
 
   // Note: field IDs up to 15 should be used for frequent data only.
 
