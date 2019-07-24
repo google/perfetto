@@ -129,7 +129,7 @@ const SECTIONS = [
         i: 'folder_open'
       },
       {
-        t: 'Truncate and open with legacy UI',
+        t: 'Truncate and open',
         a: popupFileSelectionDialogOldUITruncate,
         i: 'flip'
       },
@@ -363,7 +363,14 @@ function downloadTrace(e: Event) {
   }
 }
 
+
 export class Sidebar implements m.ClassComponent {
+  private displaySidebar = 'show-sidebar';
+
+  private showing(): boolean {
+    return this.displaySidebar === 'show-sidebar';
+  }
+
   view() {
     const vdomSections = [];
     for (const section of SECTIONS) {
@@ -425,8 +432,26 @@ export class Sidebar implements m.ClassComponent {
           m('.section-content', m('ul', videoVdomItems))));
     }
     return m(
-        'nav.sidebar',
-        m('header', 'Perfetto'),
+        `nav.sidebar.${this.displaySidebar}`,
+        m('header',
+          'Perfetto',
+          m('.sidebar-button',
+            {
+              style: {
+                left: (this.showing()) ? '46px' : '96px',
+              }
+            },
+            m('button',
+              m('i.material-icons',
+                {
+                  title: (this.showing()) ? 'Hide menu' : 'Show menu',
+                  onclick: () => {
+                    this.displaySidebar =
+                        (this.showing()) ? 'hide-sidebar' : 'show-sidebar';
+                    globals.rafScheduler.scheduleFullRedraw();
+                  },
+                },
+                'menu')), )),
         m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
         ...vdomSections);
   }
