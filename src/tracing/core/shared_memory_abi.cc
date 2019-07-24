@@ -74,6 +74,7 @@ constexpr uint32_t SharedMemoryABI::kNumChunksForLayout[];
 constexpr const char* SharedMemoryABI::kChunkStateStr[];
 constexpr const size_t SharedMemoryABI::kInvalidPageIdx;
 constexpr const size_t SharedMemoryABI::kMaxPageSize;
+constexpr const size_t SharedMemoryABI::kPacketSizeDropPacket;
 
 SharedMemoryABI::SharedMemoryABI() = default;
 
