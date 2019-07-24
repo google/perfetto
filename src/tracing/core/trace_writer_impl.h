@@ -19,8 +19,10 @@
 
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message_handle.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "src/tracing/core/patch_list.h"
 
@@ -33,7 +35,10 @@ class TraceWriterImpl : public TraceWriter,
                         public protozero::ScatteredStreamWriter::Delegate {
  public:
   // TracePacketHandle is defined in trace_writer.h
-  TraceWriterImpl(SharedMemoryArbiterImpl*, WriterID, BufferID);
+  TraceWriterImpl(SharedMemoryArbiterImpl*,
+                  WriterID,
+                  BufferID,
+                  SharedMemoryArbiter::BufferExhaustedPolicy);
   ~TraceWriterImpl() override;
 
   // TraceWriter implementation. See documentation in trace_writer.h.
@@ -46,6 +51,7 @@ class TraceWriterImpl : public TraceWriter,
   }
 
   void ResetChunkForTesting() { cur_chunk_ = SharedMemoryABI::Chunk(); }
+  bool drop_packets_for_testing() const { return drop_packets_; }
 
  private:
   TraceWriterImpl(const TraceWriterImpl&) = delete;
@@ -64,6 +70,10 @@ class TraceWriterImpl : public TraceWriter,
   // This is just copied back into the chunk header.
   // See comments in data_source_config.proto for |target_buffer|.
   const BufferID target_buffer_;
+
+  // Whether GetNewChunk() should stall or return an invalid chunk if the SMB is
+  // exhausted.
+  const SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy_;
 
   // Monotonic (% wrapping) sequence id of the chunk. Together with the WriterID
   // this allows the Service to reconstruct the linear sequence of packets.
@@ -94,6 +104,16 @@ class TraceWriterImpl : public TraceWriter,
   // a chunk can contain. When this is |true|, the next packet requires starting
   // a new chunk.
   bool reached_max_packets_per_chunk_ = false;
+
+  // If we fail to acquire a new chunk when the arbiter operates in
+  // SharedMemory::BufferExhaustedPolicy::kDrop mode, the trace writer enters a
+  // mode in which data is written to a local garbage chunk and dropped.
+  bool drop_packets_ = false;
+
+  // Whether the trace writer should try to acquire a new chunk from the SMB
+  // when the next TracePacket is started because it filled the garbage chunk at
+  // least once since the last attempt.
+  bool retry_new_chunk_after_packet_ = false;
 
   // When a packet is fragmented across different chunks, the |size_field| of
   // the outstanding nested protobuf messages is redirected onto Patch entries

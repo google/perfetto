@@ -28,6 +28,7 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/protozero/proto_utils.h"
 
 namespace perfetto {
 
@@ -153,6 +154,12 @@ class SharedMemoryABI {
   // Each TracePacket in the Chunk is prefixed by a 4 bytes redundant VarInt
   // (see proto_utils.h) stating its size.
   static constexpr size_t kPacketHeaderSize = 4;
+
+  // TraceWriter specifies this invalid packet/fragment size to signal to the
+  // service that a packet should be discarded, because the TraceWriter couldn't
+  // write its remaining fragments (e.g. because the SMB was exhausted).
+  static constexpr size_t kPacketSizeDropPacket =
+      protozero::proto_utils::kMaxMessageLength;
 
   // Chunk states and transitions:
   //    kChunkFree  <----------------+

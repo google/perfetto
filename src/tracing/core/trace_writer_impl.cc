@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/thread_annotations.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
@@ -36,14 +37,18 @@ namespace perfetto {
 
 namespace {
 constexpr size_t kPacketHeaderSize = SharedMemoryABI::kPacketHeaderSize;
+uint8_t g_garbage_chunk[1024];
 }  // namespace
 
-TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
-                                 WriterID id,
-                                 BufferID target_buffer)
+TraceWriterImpl::TraceWriterImpl(
+    SharedMemoryArbiterImpl* shmem_arbiter,
+    WriterID id,
+    BufferID target_buffer,
+    SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy)
     : shmem_arbiter_(shmem_arbiter),
       id_(id),
       target_buffer_(target_buffer),
+      buffer_exhausted_policy_(buffer_exhausted_policy),
       protobuf_stream_writer_(this) {
   // TODO(primiano): we could handle the case of running out of TraceWriterID(s)
   // more gracefully and always return a no-op TracePacket in NewTracePacket().
@@ -90,12 +95,15 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
   static_assert(kPacketHeaderSize == kMessageLengthFieldSize,
                 "The packet header must match the Message header size");
 
+  bool was_dropping_packets = drop_packets_;
+
   // It doesn't make sense to begin a packet that is going to fragment
   // immediately after (8 is just an arbitrary estimation on the minimum size of
   // a realistic packet).
   bool chunk_too_full =
       protobuf_stream_writer_.bytes_available() < kPacketHeaderSize + 8;
-  if (chunk_too_full || reached_max_packets_per_chunk_) {
+  if (chunk_too_full || reached_max_packets_per_chunk_ ||
+      retry_new_chunk_after_packet_) {
     protobuf_stream_writer_.Reset(GetNewBuffer());
   }
 
@@ -111,12 +119,24 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
   uint8_t* header = protobuf_stream_writer_.ReserveBytes(kPacketHeaderSize);
   memset(header, 0, kPacketHeaderSize);
   cur_packet_->set_size_field(header);
-  uint16_t new_packet_count = cur_chunk_.IncrementPacketCount();
-  reached_max_packets_per_chunk_ =
-      new_packet_count == ChunkHeader::Packets::kMaxCount;
+
   TracePacketHandle handle(cur_packet_.get());
   cur_fragment_start_ = protobuf_stream_writer_.write_ptr();
   fragmenting_packet_ = true;
+
+  if (PERFETTO_LIKELY(!drop_packets_)) {
+    uint16_t new_packet_count = cur_chunk_.IncrementPacketCount();
+    reached_max_packets_per_chunk_ =
+        new_packet_count == ChunkHeader::Packets::kMaxCount;
+
+    if (PERFETTO_UNLIKELY(was_dropping_packets)) {
+      // We've succeeded to get a new chunk from the SMB after we entered
+      // drop_packets_ mode. Record a marker into the new packet to indicate the
+      // data loss.
+      cur_packet_->set_previous_packet_dropped(true);
+    }
+  }
+
   return handle;
 }
 
@@ -129,7 +149,109 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
 // In this case |fragmenting_packet_| == false and we just want a new chunk
 // without creating any fragments.
 protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
+  if (fragmenting_packet_ && drop_packets_) {
+    // We can't write the remaining data of the fragmenting packet to a new
+    // chunk, because we have already lost some of its data in the garbage
+    // chunk. Thus, we will wrap around in the garbage chunk, wait until the
+    // current packet was completed, and then attempt to get a new chunk from
+    // the SMB again. Instead, if |drop_packets_| is true and
+    // |fragmenting_packet_| is false, we try to acquire a valid chunk because
+    // the SMB exhaustion might be resolved.
+    retry_new_chunk_after_packet_ = true;
+    return protozero::ContiguousMemoryRange{
+        &g_garbage_chunk[0], &g_garbage_chunk[0] + sizeof(g_garbage_chunk)};
+  }
+
+  // Attempt to grab the next chunk before finalizing the current one, so that
+  // we know whether we need to start dropping packets before writing the
+  // current packet fragment's header.
+  ChunkHeader::Packets packets = {};
   if (fragmenting_packet_) {
+    packets.count = 1;
+    packets.flags = ChunkHeader::kFirstPacketContinuesFromPrevChunk;
+  }
+
+  // The memory order of the stores below doesn't really matter. This |header|
+  // is just a local temporary object. The GetNewChunk() call below will copy it
+  // into the shared buffer with the proper barriers.
+  ChunkHeader header = {};
+  header.writer_id.store(id_, std::memory_order_relaxed);
+  header.chunk_id.store(next_chunk_id_, std::memory_order_relaxed);
+  header.packets.store(packets, std::memory_order_relaxed);
+
+  SharedMemoryABI::Chunk new_chunk =
+      shmem_arbiter_->GetNewChunk(header, buffer_exhausted_policy_);
+  if (!new_chunk.is_valid()) {
+    // Shared memory buffer exhausted, switch into |drop_packets_| mode. We'll
+    // drop data until the garbage chunk has been filled once and then retry.
+
+    // If we started a packet in one of the previous (valid) chunks, we need to
+    // tell the service to discard it.
+    if (fragmenting_packet_) {
+      // We can only end up here if the previous chunk was a valid chunk,
+      // because we never try to acquire a new chunk in |drop_packets_| mode
+      // while fragmenting.
+      PERFETTO_DCHECK(!drop_packets_);
+
+      // Backfill the last fragment's header with an invalid size (too large),
+      // so that the service's TraceBuffer throws out the incomplete packet.
+      // It'll restart reading from the next chunk we submit.
+      WriteRedundantVarInt(SharedMemoryABI::kPacketSizeDropPacket,
+                           cur_packet_->size_field());
+
+      // Reset the size field, since we should not write the current packet's
+      // size anymore after this.
+      cur_packet_->set_size_field(nullptr);
+
+      // We don't set kLastPacketContinuesOnNextChunk or kChunkNeedsPatching on
+      // the last chunk, because its last fragment will be discarded anyway.
+      // However, the current packet fragment points to a valid |cur_chunk_| and
+      // may have non-finalized nested messages which will continue in the
+      // garbage chunk and currently still point into |cur_chunk_|. As we are
+      // about to return |cur_chunk_|, we need to invalidate the size fields of
+      // those nested messages. Normally we move them in the |patch_list_| (see
+      // below) but in this case, it doesn't make sense to send patches for a
+      // fragment that will be discarded for sure. Thus, we clean up any size
+      // field references into |cur_chunk_|.
+      for (auto* nested_msg = cur_packet_->nested_message(); nested_msg;
+           nested_msg = nested_msg->nested_message()) {
+        uint8_t* const cur_hdr = nested_msg->size_field();
+
+        // If this is false the protozero Message has already been instructed to
+        // write, upon Finalize(), its size into the patch list.
+        bool size_field_points_within_chunk =
+            cur_hdr >= cur_chunk_.payload_begin() &&
+            cur_hdr + kMessageLengthFieldSize <= cur_chunk_.end();
+
+        if (size_field_points_within_chunk)
+          nested_msg->set_size_field(nullptr);
+      }
+    }  // if (fragmenting_packet_)
+
+    if (cur_chunk_.is_valid()) {
+      shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_),
+                                           target_buffer_, &patch_list_);
+    }
+
+    drop_packets_ = true;
+    cur_chunk_ = SharedMemoryABI::Chunk();  // Reset to an invalid chunk.
+    reached_max_packets_per_chunk_ = false;
+    retry_new_chunk_after_packet_ = false;
+
+    PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(&g_garbage_chunk,
+                                        sizeof(g_garbage_chunk),
+                                        "nobody reads the garbage chunk")
+    return protozero::ContiguousMemoryRange{
+        &g_garbage_chunk[0], &g_garbage_chunk[0] + sizeof(g_garbage_chunk)};
+  }  // if (!new_chunk.is_valid())
+
+  PERFETTO_DCHECK(new_chunk.is_valid());
+
+  if (fragmenting_packet_) {
+    // We should not be fragmenting a packet after we exited drop_packets_ mode,
+    // because we only retry to get a new chunk when a fresh packet is started.
+    PERFETTO_DCHECK(!drop_packets_);
+
     uint8_t* const wptr = protobuf_stream_writer_.write_ptr();
     PERFETTO_DCHECK(wptr >= cur_fragment_start_);
     uint32_t partial_size = static_cast<uint32_t>(wptr - cur_fragment_start_);
@@ -187,24 +309,13 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
                                          &patch_list_);
   }
 
-  // Start a new chunk.
-
-  ChunkHeader::Packets packets = {};
-  if (fragmenting_packet_) {
-    packets.count = 1;
-    packets.flags = ChunkHeader::kFirstPacketContinuesFromPrevChunk;
-  }
-
-  // The memory order of the stores below doesn't really matter. This |header|
-  // is just a local temporary object. The GetNewChunk() call below will copy it
-  // into the shared buffer with the proper barriers.
-  ChunkHeader header = {};
-  header.writer_id.store(id_, std::memory_order_relaxed);
-  header.chunk_id.store(next_chunk_id_++, std::memory_order_relaxed);
-  header.packets.store(packets, std::memory_order_relaxed);
-
-  cur_chunk_ = shmem_arbiter_->GetNewChunk(header);
+  // Switch to the new chunk.
+  drop_packets_ = false;
   reached_max_packets_per_chunk_ = false;
+  retry_new_chunk_after_packet_ = false;
+  next_chunk_id_++;
+  cur_chunk_ = std::move(new_chunk);
+
   uint8_t* payload_begin = cur_chunk_.payload_begin();
   if (fragmenting_packet_) {
     cur_packet_->set_size_field(payload_begin);

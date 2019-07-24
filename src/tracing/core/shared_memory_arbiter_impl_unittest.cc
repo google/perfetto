@@ -90,7 +90,8 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
   static constexpr size_t kTotChunks = kNumPages * 14;
   SharedMemoryABI::Chunk chunks[kTotChunks];
   for (size_t i = 0; i < 14 * 2 + 2; i++) {
-    chunks[i] = arbiter_->GetNewChunk({}, 0 /*size_hint*/);
+    chunks[i] = arbiter_->GetNewChunk(
+        {}, SharedMemoryArbiter::BufferExhaustedPolicy::kStall);
     ASSERT_TRUE(chunks[i].is_valid());
   }
 
@@ -164,6 +165,44 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
 
   // This should run the Register/UnregisterTraceWriter calls expected above.
   task_runner_->RunUntilCheckpoint("last_unregistered", 15000);
+}
+
+// Verify that getting a new chunk doesn't stall when kDrop policy is chosen.
+TEST_P(SharedMemoryArbiterImplTest, BufferExhaustedPolicyDrop) {
+  // Grab all chunks in the SMB.
+  SharedMemoryArbiterImpl::set_default_layout_for_testing(
+      SharedMemoryABI::PageLayout::kPageDiv1);
+  static constexpr size_t kTotChunks = kNumPages;
+  SharedMemoryABI::Chunk chunks[kTotChunks];
+  for (size_t i = 0; i < kTotChunks; i++) {
+    chunks[i] = arbiter_->GetNewChunk(
+        {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+    ASSERT_TRUE(chunks[i].is_valid());
+  }
+
+  // SMB is exhausted, thus GetNewChunk() should return an invalid chunk. In
+  // kStall mode, this would stall.
+  SharedMemoryABI::Chunk invalid_chunk = arbiter_->GetNewChunk(
+      {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+  ASSERT_FALSE(invalid_chunk.is_valid());
+
+  // Returning the chunk is not enough to be able to reacquire it.
+  PatchList ignored;
+  arbiter_->ReturnCompletedChunk(std::move(chunks[0]), 0, &ignored);
+
+  invalid_chunk = arbiter_->GetNewChunk(
+      {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+  ASSERT_FALSE(invalid_chunk.is_valid());
+
+  // After releasing the chunk as free, we can reacquire it.
+  chunks[0] =
+      arbiter_->shmem_abi_for_testing()->TryAcquireChunkForReading(0, 0);
+  ASSERT_TRUE(chunks[0].is_valid());
+  arbiter_->shmem_abi_for_testing()->ReleaseChunkAsFree(std::move(chunks[0]));
+
+  chunks[0] = arbiter_->GetNewChunk(
+      {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+  ASSERT_TRUE(chunks[0].is_valid());
 }
 
 // TODO(primiano): add multi-threaded tests.

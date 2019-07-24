@@ -55,7 +55,9 @@ SharedMemoryABI::Chunk NewChunk(SharedMemoryArbiterImpl* arbiter,
   header.chunk_id.store(chunk_id, std::memory_order_relaxed);
   header.packets.store(packets, std::memory_order_relaxed);
 
-  return arbiter->GetNewChunk(header);
+  // TODO(eseckler): Plumb the BufferExhaustedPolicy through StartupTraceWriter.
+  return arbiter->GetNewChunk(
+      header, SharedMemoryArbiter::BufferExhaustedPolicy::kStall);
 }
 
 class LocalBufferReader {
@@ -368,7 +370,9 @@ bool StartupTraceWriter::BindToArbiter(SharedMemoryArbiterImpl* arbiter,
   // deadlock. This may create a few more trace writers than necessary in cases
   // where a concurrent write is in progress (other than causing some
   // computational overhead, this is not problematic).
-  auto trace_writer = arbiter->CreateTraceWriter(target_buffer);
+  // TODO(eseckler): Plumb the BufferExhaustedPolicy through StartupTraceWriter.
+  auto trace_writer = arbiter->CreateTraceWriter(
+      target_buffer, SharedMemoryArbiter::BufferExhaustedPolicy::kStall);
 
   {
     std::lock_guard<std::mutex> lock(lock_);
