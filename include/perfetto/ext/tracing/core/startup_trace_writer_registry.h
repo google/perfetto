@@ -25,6 +25,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 
 namespace perfetto {
 
@@ -72,7 +73,9 @@ class PERFETTO_EXPORT StartupTraceWriterRegistry {
   // unbound. Usually called on a writer thread. The writer should never be
   // destroyed by the caller directly, but instead returned to the registry by
   // calling StartupTraceWriter::ReturnToRegistry.
-  std::unique_ptr<StartupTraceWriter> CreateUnboundTraceWriter();
+  std::unique_ptr<StartupTraceWriter> CreateUnboundTraceWriter(
+      SharedMemoryArbiter::BufferExhaustedPolicy =
+          SharedMemoryArbiter::BufferExhaustedPolicy::kDefault);
 
   // Binds all StartupTraceWriters created by this registry to the given arbiter
   // and target buffer. Should only be called once and on the passed
