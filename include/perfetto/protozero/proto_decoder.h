@@ -120,6 +120,13 @@ class RepeatedFieldIterator {
     return *this;
   }
 
+  RepeatedFieldIterator operator++(int) {
+    PERFETTO_DCHECK(iter_ != end_);
+    RepeatedFieldIterator it(*this);
+    ++(*this);
+    return it;
+  }
+
  private:
   inline void FindNextMatchingId() {
     PERFETTO_DCHECK(iter_ != last_);
