@@ -16,8 +16,6 @@
 
 #include "src/traced/probes/power/android_power_data_source.h"
 
-#include <dlfcn.h>
-
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -29,6 +27,7 @@
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/trace_writer.h"
 #include "src/android_internal/health_hal.h"
+#include "src/android_internal/lazy_library_loader.h"
 #include "src/android_internal/power_stats_hal.h"
 
 #include "perfetto/trace/power/battery_counters.pbzero.h"
@@ -42,40 +41,13 @@ constexpr uint32_t kMinPollRateMs = 250;
 constexpr size_t kMaxNumRails = 32;
 }  // namespace
 
-// Dynamically loads / unloads the libperfetto_android_internal.so library which
+// Dynamically loads the libperfetto_android_internal.so library which
 // allows to proxy calls to android hwbinder in in-tree builds.
 struct AndroidPowerDataSource::DynamicLibLoader {
-  using ScopedDlHandle = base::ScopedResource<void*, dlclose, nullptr>;
-
-  DynamicLibLoader() {
-    static const char kLibName[] = "libperfetto_android_internal.so";
-    handle_.reset(dlopen(kLibName, RTLD_NOW));
-    if (!handle_) {
-      PERFETTO_PLOG("dlopen(%s) failed", kLibName);
-      return;
-    }
-    void* fn = dlsym(*handle_, "GetBatteryCounter");
-    if (!fn) {
-      PERFETTO_PLOG("dlsym(GetBatteryCounter) failed");
-      return;
-    }
-    get_battery_counter_ = reinterpret_cast<decltype(get_battery_counter_)>(fn);
-
-    fn = dlsym(*handle_, "GetAvailableRails");
-    if (!fn) {
-      PERFETTO_PLOG("dlsym(GetAvailableRails) failed");
-      return;
-    }
-    get_available_rails_ = reinterpret_cast<decltype(get_available_rails_)>(fn);
-
-    fn = dlsym(*handle_, "GetRailEnergyData");
-    if (!fn) {
-      PERFETTO_PLOG("dlsym(GetRailEnergyData) failed");
-      return;
-    }
-    get_rail_energy_data_ =
-        reinterpret_cast<decltype(get_rail_energy_data_)>(fn);
-  }
+  PERFETTO_LAZY_LOAD(android_internal::GetBatteryCounter, get_battery_counter_);
+  PERFETTO_LAZY_LOAD(android_internal::GetAvailableRails, get_available_rails_);
+  PERFETTO_LAZY_LOAD(android_internal::GetRailEnergyData,
+                     get_rail_energy_data_);
 
   base::Optional<int64_t> GetCounter(android_internal::BatteryCounter counter) {
     if (!get_battery_counter_)
@@ -108,15 +80,6 @@ struct AndroidPowerDataSource::DynamicLibLoader {
     energy_data.resize(num_rails);
     return energy_data;
   }
-
-  bool is_loaded() const { return !!handle_; }
-
- private:
-  decltype(&android_internal::GetBatteryCounter) get_battery_counter_ = nullptr;
-  decltype(&android_internal::GetAvailableRails) get_available_rails_ = nullptr;
-  decltype(&android_internal::GetRailEnergyData) get_rail_energy_data_ =
-      nullptr;
-  ScopedDlHandle handle_;
 };
 
 AndroidPowerDataSource::AndroidPowerDataSource(
@@ -165,8 +128,6 @@ AndroidPowerDataSource::~AndroidPowerDataSource() = default;
 
 void AndroidPowerDataSource::Start() {
   lib_.reset(new DynamicLibLoader());
-  if (!lib_->is_loaded())
-    return;
   Tick();
 }
 

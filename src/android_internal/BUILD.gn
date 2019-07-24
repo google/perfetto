@@ -26,6 +26,21 @@ source_set("headers") {
   ]
 }
 
+source_set("lazy_library_loader") {
+  public_deps = [
+    ":headers",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../../src/base",
+  ]
+  sources = [
+    "lazy_library_loader.cc",
+    "lazy_library_loader.h",
+  ]
+  libs = [ "dl" ]
+}
+
 # This target proxies calls to Android internal libraries that are not part of
 # the NDK. See README.md.
 source_set("android_internal") {
