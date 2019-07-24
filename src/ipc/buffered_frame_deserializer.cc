@@ -111,7 +111,7 @@ bool BufferedFrameDeserializer::EndReceive(size_t recv_size) {
         // The caller is expected to shut down the socket and give up at this
         // point. If it doesn't do that and insists going on at some point it
         // will hit the capacity check in BeginReceive().
-        PERFETTO_DLOG("Frame too large (size %zu)", next_frame_size);
+        PERFETTO_LOG("IPC Frame too large (size %zu)", next_frame_size);
         return false;
       }
       break;
