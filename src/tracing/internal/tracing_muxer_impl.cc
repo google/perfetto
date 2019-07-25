@@ -41,6 +41,21 @@
 namespace perfetto {
 namespace internal {
 
+namespace {
+
+class StopArgsImpl : public DataSourceBase::StopArgs {
+ public:
+  std::function<void()> HandleStopAsynchronously() const override {
+    auto closure = std::move(async_stop_closure);
+    async_stop_closure = std::function<void()>();
+    return closure;
+  }
+
+  mutable std::function<void()> async_stop_closure;
+};
+
+}  // namespace
+
 // ----- Begin of TracingMuxerImpl::ProducerImpl
 TracingMuxerImpl::ProducerImpl::ProducerImpl(TracingMuxerImpl* muxer,
                                              TracingBackendId backend_id)
@@ -86,8 +101,7 @@ void TracingMuxerImpl::ProducerImpl::StartDataSource(DataSourceInstanceID id,
 
 void TracingMuxerImpl::ProducerImpl::StopDataSource(DataSourceInstanceID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  muxer_->StopDataSource(backend_id_, id);
-  service_->NotifyDataSourceStopped(id);
+  muxer_->StopDataSource_AsyncBegin(backend_id_, id);
 }
 
 void TracingMuxerImpl::ProducerImpl::Flush(FlushRequestID flush_id,
@@ -484,65 +498,93 @@ void TracingMuxerImpl::StartDataSource(TracingBackendId backend_id,
                                        DataSourceInstanceID instance_id) {
   PERFETTO_DLOG("Starting data source %" PRIu64, instance_id);
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  for (const auto& rds : data_sources_) {
-    DataSourceStaticState& static_state = *rds.static_state;
-    for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
-      auto* internal_state = static_state.TryGet(i);
-      if (!internal_state)
-        continue;
 
-      if (internal_state->backend_id != backend_id ||
-          internal_state->data_source_instance_id != instance_id) {
-        continue;
-      }
-
-      std::lock_guard<std::mutex> guard(internal_state->lock);
-      internal_state->started = true;
-      internal_state->data_source->OnStart(DataSourceBase::StartArgs{});
-      return;
-    }
+  auto ds = FindDataSource(backend_id, instance_id);
+  if (!ds) {
+    PERFETTO_ELOG("Could not find data source to start");
+    return;
   }
-  PERFETTO_ELOG("Could not find data source to start");
+
+  std::lock_guard<std::mutex> guard(ds.internal_state->lock);
+  ds.internal_state->trace_lambda_enabled = true;
+  ds.internal_state->data_source->OnStart(DataSourceBase::StartArgs{});
 }
 
 // Called by the service of one of the backends.
-void TracingMuxerImpl::StopDataSource(TracingBackendId backend_id,
-                                      DataSourceInstanceID instance_id) {
+void TracingMuxerImpl::StopDataSource_AsyncBegin(
+    TracingBackendId backend_id,
+    DataSourceInstanceID instance_id) {
   PERFETTO_DLOG("Stopping data source %" PRIu64, instance_id);
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  for (const auto& rds : data_sources_) {
-    DataSourceStaticState& static_state = *rds.static_state;
-    for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
-      auto* internal_state = static_state.TryGet(i);
-      if (!internal_state)
-        continue;
 
-      if (internal_state->backend_id != backend_id ||
-          internal_state->data_source_instance_id != instance_id) {
-        continue;
-      }
-
-      static_state.valid_instances.fetch_and(~(1 << i),
-                                             std::memory_order_acq_rel);
-
-      // Take the mutex to prevent that the data source is in the middle of
-      // a Trace() execution where it called GetDataSourceLocked() while we
-      // destroy it.
-      {
-        std::lock_guard<std::mutex> guard(internal_state->lock);
-        internal_state->started = false;
-        internal_state->data_source->OnStop(DataSourceBase::StopArgs{});
-        internal_state->data_source.reset();
-      }
-
-      // The other fields of internal_state are deliberately *not* cleared.
-      // See races-related comments of DataSource::Trace().
-
-      TracingMuxer::generation_++;
-      return;
-    }
+  auto ds = FindDataSource(backend_id, instance_id);
+  if (!ds) {
+    PERFETTO_ELOG("Could not find data source to stop");
+    return;
   }
-  PERFETTO_ELOG("Could not find data source to stop");
+
+  StopArgsImpl stop_args{};
+  stop_args.async_stop_closure = [this, backend_id, instance_id] {
+    // TracingMuxerImpl is long lived, capturing |this| is okay.
+    // The notification closure can be moved out of the StopArgs by the
+    // embedder to handle stop asynchronously. The embedder might then
+    // call the closure on a different thread than the current one, hence
+    // this nested PostTask().
+    task_runner_->PostTask([this, backend_id, instance_id] {
+      StopDataSource_AsyncEnd(backend_id, instance_id);
+    });
+  };
+
+  {
+    std::lock_guard<std::mutex> guard(ds.internal_state->lock);
+    ds.internal_state->data_source->OnStop(stop_args);
+  }
+
+  // If the embedder hasn't called StopArgs.HandleStopAsynchronously() run the
+  // async closure here. In theory we could avoid the PostTask and call
+  // straight into CompleteDataSourceAsyncStop(). We keep that to reduce
+  // divergencies between the deferred-stop vs non-deferred-stop code paths.
+  if (stop_args.async_stop_closure)
+    std::move(stop_args.async_stop_closure)();
+}
+
+void TracingMuxerImpl::StopDataSource_AsyncEnd(
+    TracingBackendId backend_id,
+    DataSourceInstanceID instance_id) {
+  PERFETTO_DLOG("Ending async stop of data source %" PRIu64, instance_id);
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  auto ds = FindDataSource(backend_id, instance_id);
+  if (!ds) {
+    PERFETTO_ELOG(
+        "Async stop of data source %" PRIu64
+        " failed. This might be due to calling the async_stop_closure twice.",
+        instance_id);
+    return;
+  }
+
+  const uint32_t mask = ~(1 << ds.instance_idx);
+  ds.static_state->valid_instances.fetch_and(mask, std::memory_order_acq_rel);
+
+  // Take the mutex to prevent that the data source is in the middle of
+  // a Trace() execution where it called GetDataSourceLocked() while we
+  // destroy it.
+  {
+    std::lock_guard<std::mutex> guard(ds.internal_state->lock);
+    ds.internal_state->trace_lambda_enabled = false;
+    ds.internal_state->data_source.reset();
+  }
+
+  // The other fields of internal_state are deliberately *not* cleared.
+  // See races-related comments of DataSource::Trace().
+
+  TracingMuxer::generation_++;
+
+  // |backends_| is append-only, Backend instances are always valid.
+  PERFETTO_CHECK(backend_id < backends_.size());
+  ProducerImpl* producer = backends_[backend_id].producer.get();
+  if (producer && producer->connected_)
+    producer->service_->NotifyDataSourceStopped(instance_id);
 }
 
 void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
@@ -707,6 +749,23 @@ TracingMuxerImpl::ConsumerImpl* TracingMuxerImpl::FindConsumer(
     }
   }
   return nullptr;
+}
+
+TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(
+    TracingBackendId backend_id,
+    DataSourceInstanceID instance_id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (const auto& rds : data_sources_) {
+    DataSourceStaticState* static_state = rds.static_state;
+    for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
+      auto* internal_state = static_state->TryGet(i);
+      if (internal_state && internal_state->backend_id == backend_id &&
+          internal_state->data_source_instance_id == instance_id) {
+        return FindDataSourceRes(static_state, internal_state, i);
+      }
+    }
+  }
+  return FindDataSourceRes();
 }
 
 // Can be called from any thread.

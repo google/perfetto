@@ -28,6 +28,7 @@ if (perfetto_build_standalone) {
       "atrace.cfg",
       "background.cfg",
       "camera.cfg",
+      "client_api.cfg",
       "ftrace.cfg",
       "ftrace_largebuffer.cfg",
       "heapprofd.cfg",
